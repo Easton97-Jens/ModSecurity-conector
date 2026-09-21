@@ -1051,7 +1051,8 @@ static int traefik_engine_handle_response_chunk(traefik_engine_session *session,
     msconnector_error error;
     int success;
 
-    if (session == NULL || frame == NULL || decision == NULL ||
+    if (session == NULL || session->service == NULL ||
+        frame == NULL || decision == NULL ||
         result_code == NULL || !session->begun || session->finished ||
         session->destroyed || session->terminal || !session->response_headers ||
         session->response_eos ||

@@ -9,6 +9,7 @@
 #include "modsecurity/transaction.h"
 
 #include "msconnector/body_policy.h"
+#include "msconnector/phase4_budget.h"
 #include "msconnector/block_statuses.h"
 #include "msconnector/config.h"
 #include "msconnector/config_parser.h"
@@ -1770,10 +1771,19 @@ static int write_event_jsonl(
     msconnector_error *error) {
     msconnector_allocator allocator;
     char *json = NULL;
-    size_t json_size = runtime->limits.max_event_json_bytes + 2U;
+    size_t json_size;
     size_t written_size;
     int truncated = 0;
 
+    if (runtime == NULL || event == NULL || runtime->event_file == NULL) {
+        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+            "runtime, event and event file are required", "runtime");
+    }
+    if (runtime->limits.max_event_json_bytes > SIZE_MAX - 2U) {
+        return runtime_error(error, MSCONNECTOR_ERROR_EVENT_TOO_LARGE,
+            "event buffer size overflow", "runtime");
+    }
+    json_size = runtime->limits.max_event_json_bytes + 2U;
     msconnector_allocator_init(&allocator, json_size);
     if (!msconnector_alloc_checked(&allocator, json_size, (void **)&json)) {
         return runtime_error(error, MSCONNECTOR_ERROR_EVENT_TOO_LARGE,
@@ -2564,7 +2574,9 @@ static int validate_and_record_response_headers(
             &transaction->contract, response->status, NULL,
             response->header_count,
             header_bytes(response->headers, response->header_count),
-            runtime->body_policy.response_body_limit) !=
+            msconnector_phase4_effective_body_limit(
+                runtime->config.phase4_mode,
+                runtime->body_policy.response_body_limit)) !=
             MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
         return contract_error(error, MSCONNECTOR_TRANSACTION_TRANSITION_INVALID,
             "response metadata violates the shared transaction contract");
@@ -2716,6 +2728,7 @@ static int append_response_body_chunk_internal(
     int companion) {
     const msconnector_runtime *runtime;
     size_t append_size;
+    msconnector_body_policy response_policy;
     if (error != NULL) {
         msconnector_error_init(error);
     }
@@ -2732,8 +2745,16 @@ static int append_response_body_chunk_internal(
     if (!validate_response_body_append(transaction, data, size, error, companion)) {
         return 0;
     }
-    if (!apply_body_limit_plan(&transaction->response_body, &runtime->body_policy,
-            runtime->body_policy.response_body_limit, size, &append_size, error,
+    response_policy = runtime->body_policy;
+    /* With no configured P4 budget, process_partial must not turn an integer
+     * overflow into a successful append. It remains unchanged in safe/strict. */
+    if (runtime->config.phase4_mode == MSCONNECTOR_PHASE4_MODE_OFF) {
+        response_policy.body_limit_action = MSCONNECTOR_BODY_LIMIT_ACTION_REJECT;
+    }
+    if (!apply_body_limit_plan(&transaction->response_body, &response_policy,
+            msconnector_phase4_effective_body_limit(
+                runtime->config.phase4_mode,
+                response_policy.response_body_limit), size, &append_size, error,
             "response body exceeds configured limit")) {
         (void)msconnector_transaction_contract_fail(&transaction->contract,
             MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, transaction_now_ms());
