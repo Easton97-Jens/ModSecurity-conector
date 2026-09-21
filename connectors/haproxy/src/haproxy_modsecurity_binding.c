@@ -264,14 +264,31 @@ static char *join_path(const char *dir, const char *name) {
     return path;
 }
 
+/* Keep bounded Rule-ID decoding separate from intervention ownership and
+ * enforcement. Missing or malformed IDs must leave the existing ID intact. */
+static void capture_log_rule_id(haproxy_modsecurity_decision *decision,
+        const char *log) {
+    char common_rule_id[64] = {0};
+    char *end = 0;
+    long parsed;
+
+    if (msconnector_rule_id_extract_from_message(log, common_rule_id,
+            sizeof(common_rule_id)) <= 0) {
+        return;
+    }
+    parsed = strtol(common_rule_id, &end, 10);
+    if (end != common_rule_id && end != 0 && *end == '\0' &&
+            parsed >= 0L && parsed <= (long)INT_MAX) {
+        decision->rule_id = (int)parsed;
+    }
+}
+
 static int capture_intervention(
         Transaction *transaction,
         int phase,
         haproxy_modsecurity_decision *decision) {
     ModSecurityIntervention intervention;
     msconnector_intervention common_intervention;
-    char common_rule_id[64];
-    int rule_id_result;
     int native_result;
     int truncated = 0;
     int body_limit;
@@ -285,7 +302,6 @@ static int capture_intervention(
         return 1;
     }
     init_decision(decision, phase);
-    common_rule_id[0] = '\0';
     init_intervention(&intervention);
     native_result = msc_intervention(transaction, &intervention);
     if (native_result != 0 && native_result != 1) {
@@ -325,16 +341,7 @@ static int capture_intervention(
             intervention.log);
         msconnector_sanitize_log_message(intervention.log, intervention.log != 0 ? strlen(intervention.log) : 0U,
             decision->log_message, sizeof(decision->log_message), &truncated);
-        rule_id_result = msconnector_rule_id_extract_from_message(intervention.log, common_rule_id,
-            sizeof(common_rule_id));
-        if (rule_id_result > 0) {
-            char *end = 0;
-            long parsed = strtol(common_rule_id, &end, 10);
-            if (end != common_rule_id && end != 0 && *end == '\0' &&
-                    parsed >= 0L && parsed <= (long)INT_MAX) {
-                decision->rule_id = (int)parsed;
-            }
-        }
+        capture_log_rule_id(decision, intervention.log);
     }
 #if defined(HAPROXY_HAVE_MSC_GET_RULES_MESSAGES_RULE_IDS)
     id_count = msc_get_rules_messages_rule_ids(transaction, ids, 1U);
@@ -926,6 +933,21 @@ static int validate_common_mapped_request(
         const haproxy_modsecurity_request *request,
         haproxy_modsecurity_decision *decision);
 
+/* The one-shot evaluator owns these resources in dependency order. Release
+ * only initialized resources, with the transaction before rules and engine. */
+static void cleanup_evaluation_resources(Transaction *transaction,
+        RulesSet *rules, ModSecurity *modsec) {
+    if (transaction != 0) {
+        msc_transaction_cleanup(transaction);
+    }
+    if (rules != 0) {
+        msc_rules_cleanup(rules);
+    }
+    if (modsec != 0) {
+        msc_cleanup(modsec);
+    }
+}
+
 static int eval_request_internal(
         const haproxy_modsecurity_request *request,
         const char *rules_text,
@@ -1001,15 +1023,7 @@ static int eval_request_internal(
     rc = 0;
 
 cleanup:
-    if (transaction != 0) {
-        msc_transaction_cleanup(transaction);
-    }
-    if (rules != 0) {
-        msc_rules_cleanup(rules);
-    }
-    if (modsec != 0) {
-        msc_cleanup(modsec);
-    }
+    cleanup_evaluation_resources(transaction, rules, modsec);
     return rc;
 }
 
