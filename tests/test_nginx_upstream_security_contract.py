@@ -213,9 +213,22 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
             self.access, "ngx_http_modsecurity_inspect_request_body"
         )
         request_assignment = request.index("ret = msc_process_request_body")
-        request_failure = conditional_block(request, "if (ret != 1)", request_assignment)
+        request_failure = conditional_block(
+            request, "if (!msconnector_native_phase_succeeded(ret))", request_assignment
+        )
         self.assertIn("ctx->intervention_triggered = 1;", request_failure)
         self.assertIn("return NGX_HTTP_INTERNAL_SERVER_ERROR;", request_failure)
+        self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE", request_failure)
+        self.assertNotIn("ngx_http_modsecurity_contract_complete", request_failure)
+        self.assertNotIn("ctx->request_body_processed = 1;", request_failure)
+        self.assertLess(
+            request.index("if (!msconnector_native_phase_succeeded(ret))"),
+            request.index("ngx_http_modsecurity_contract_complete"),
+        )
+        self.assertLess(
+            request.index("ngx_http_modsecurity_contract_complete"),
+            request.index("ctx->request_body_processed = 1;"),
+        )
 
         response = function_definition(
             self.body, "ngx_http_modsecurity_process_final_response_body"
@@ -254,9 +267,14 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
                 re.DOTALL,
             ),
         )
+        request_append_failure = conditional_block(
+            request_append, "if (!msconnector_native_body_append_can_continue(ret))"
+        )
+        self.assertIn("return NGX_HTTP_INTERNAL_SERVER_ERROR;", request_append_failure)
+        self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE", request_append_failure)
 
         request_file = function_definition(
-            self.access, "ngx_http_modsecurity_inspect_request_body"
+            self.access, "ngx_http_modsecurity_inspect_request_body_file"
         )
         self.assertRegex(
             request_file,
@@ -265,6 +283,13 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
                 r"ctx->native_event_phase_active\s*=\s*0;",
                 re.DOTALL,
             ),
+        )
+        file_failure = conditional_block(request_file, "if (ret != 1)")
+        self.assertIn("return NGX_HTTP_INTERNAL_SERVER_ERROR;", file_failure)
+        self.assertNotIn("msconnector_native_body_append_can_continue", request_file)
+        self.assertLess(
+            request_file.index("ctx->request_body_bytes_seen += (size_t)file_size;"),
+            request_file.index("ret = msc_request_body_from_file"),
         )
 
         response_append = function_definition(

@@ -68,6 +68,9 @@ jobs:
       - name: Verify NGINX request native result regressions
         if: ${{ !cancelled() }}
         run: python -m unittest -v tests.test_nginx_request_native_results
+      - name: Verify NGINX late error and reentry regressions
+        if: ${{ !cancelled() }}
+        run: python -m unittest -v tests.test_nginx_late_error_results
       - name: Verify Phase-4 migration and NGINX security contracts
         if: ${{ !cancelled() }}
         run: python -m unittest -v tests.test_phase4_migration_contract tests.test_nginx_native_security_contract tests.test_nginx_upstream_security_contract

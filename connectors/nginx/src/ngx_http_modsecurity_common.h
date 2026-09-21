@@ -56,7 +56,7 @@
  * Dev    - 010
  * Rc1    - 051
  * Rc2    - 052
- * ...    - ...
+ * ...    ...
  * Release- 100
  *
  */
@@ -195,6 +195,11 @@ typedef struct {
     unsigned response_body_truncated:1;
     unsigned response_committed:1;
     unsigned phase4_processed:1;
+    /* Permit only the synchronous core-generated terminal error response,
+     * never a later retry of the failed upstream chain. "Started" records
+     * an emission attempt, not proof of bytes received by a client. */
+    unsigned phase4_terminal_error_started:1;
+    unsigned phase4_terminal_error_emitting:1;
     unsigned phase4_intervention:1;
     unsigned phase4_strict_abort:1;
     unsigned common_response_validated:1;
