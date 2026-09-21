@@ -28,9 +28,16 @@ RECORD_INTERVENTION = "!msc_apache_contract_record_intervention_decision(msr)"
 REQUEST_BODY_PHASE = "MSCONNECTOR_PHASE_REQUEST_BODY"
 RESPONSE_HEADERS_PHASE = "MSCONNECTOR_PHASE_RESPONSE_HEADERS"
 RESPONSE_BODY_PHASE = "MSCONNECTOR_PHASE_RESPONSE_BODY"
-P2_PROCESS = "if (msc_process_request_body(msr->t) != 1)"
-P3_PROCESS = 'if (msc_process_response_headers(msr->t, original_status, "HTTP 1.1") != 1)'
-P4_PROCESS = "if (msc_process_response_body(msr->t) != 1)"
+P2_PROCESS = "if (!msconnector_native_phase_succeeded(msc_process_request_body(msr->t)))"
+P3_PROCESS = ('if (!msconnector_native_phase_succeeded(\n'
+              '            msc_process_response_headers(msr->t, original_status, "HTTP 1.1")))')
+P4_PROCESS = "if (!msconnector_native_phase_succeeded(msc_process_response_body(msr->t)))"
+P2_APPEND_GUARD = (
+    r"!\s*msconnector_native_body_append_can_continue\s*\(\s*"
+    r"msc_append_request_body\s*\(\s*msr->t\s*,\s*"
+    r"\(\s*const\s+unsigned\s+char\s*\*\s*\)\s*data\s*,\s*"
+    r"plan\.append_size\s*\)\s*\)"
+)
 REMOVE_OUTPUT_FILTER = "ap_remove_output_filter(f);"
 BUCKET_NEXT_LOOP = "bucket = APR_BUCKET_NEXT(bucket))"
 RETURN_APR_SUCCESS_PATTERN = r"\breturn\s+APR_SUCCESS\s*;"
@@ -323,7 +330,7 @@ review_guards: list[tuple[bool, str]] = [
             r"\bif\s*\(\s*ret\s*!=\s*APR_SUCCESS\s*\)\s*return\s+ret\s*;",
             r"\bmsconnector_body_limit_plan_chunk\s*\(\s*msr->request_body_bytes_seen\s*,\s*msr->request_body_bytes_inspected\s*,",
             r"\bmsc_apache_contract_record_body\s*\(\s*msr\s*,\s*0\s*,\s*plan\.append_size\s*\)",
-            r"\bmsc_append_request_body\s*\(\s*msr->t\s*,\s*\(\s*const\s+unsigned\s+char\s*\*\s*\)\s*data\s*,\s*plan\.append_size\s*\)\s*!=\s*1",
+            P2_APPEND_GUARD,
             r"\bmsr->request_body_bytes_seen\s*=\s*plan\.bytes_seen\s*;",
             r"\bmsr->request_body_bytes_inspected\s*\+=\s*plan\.append_size\s*;",
             r"\bAPR_BUCKET_REMOVE\s*\(\s*bucket\s*\)",
@@ -349,7 +356,7 @@ review_guards: list[tuple[bool, str]] = [
             r"\bif\s*\(\s*ret\s*!=\s*APR_SUCCESS\s*\)\s*return\s+ret\s*;",
             r"\bmsconnector_body_limit_plan_chunk\s*\(\s*msr->request_body_bytes_seen\s*,\s*msr->request_body_bytes_inspected\s*,",
             r"\bmsc_apache_contract_record_body\s*\(\s*msr\s*,\s*0\s*,\s*plan\.append_size\s*\)",
-            r"\bmsc_append_request_body\s*\(\s*msr->t\s*,\s*\(\s*const\s+unsigned\s+char\s*\*\s*\)\s*data\s*,\s*plan\.append_size\s*\)\s*!=\s*1",
+            P2_APPEND_GUARD,
             r"\bmsr->request_body_bytes_seen\s*=\s*plan\.bytes_seen\s*;",
             r"\bmsr->request_body_bytes_inspected\s*\+=\s*plan\.append_size\s*;",
         )

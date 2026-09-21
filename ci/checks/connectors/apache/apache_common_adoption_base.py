@@ -119,7 +119,7 @@ def function_section(text: str, name: str) -> str:
 
     This is deliberately narrower than a C parser: it locates a named,
     top-level definition and balances its braces after comments and literals
-    have been masked.  Returning an empty section for a missing, duplicate, or
+    have been masked. Returning an empty section for a missing, duplicate, or
     incomplete definition keeps the static contract fail-closed and prevents
     comments or unrelated functions from satisfying a helper-specific check.
     """
@@ -227,6 +227,12 @@ intervention_http_helper = source_section(
     "static void apache_intervention_set_http",
     "static void apache_intervention_write_event",
 )
+intervention_writer = source_section(
+    filters_c,
+    "static void apache_intervention_write_event",
+    "static void apache_log_intervention_event",
+)
+intervention_writer_code = function_section(filters_c, "apache_intervention_write_event")
 phase4_event_wrapper = source_section(
     filters_c,
     "static void apache_phase4_log_event",
@@ -248,6 +254,8 @@ input_filter_process_bucket = function_section(
     filters_c, "apache_input_filter_process_bucket"
 )
 input_filter_handler = function_section(filters_c, "input_filter")
+phase4_append_helper = function_section(filters_c, "apache_phase4_append_bucket")
+phase4_finish_code = function_section(filters_c, "apache_phase4_finish_response_body")
 phase4_release_helper = source_section(
     filters_c,
     "static apr_status_t apache_phase4_release_response_brigade",
@@ -285,7 +293,13 @@ checks.append(("msconnector_response_mapper_validate_output" in mapper_c, "Respo
 checks.append(("copy_apr_response_headers" in mapper_c and "err_headers_out" in mapper_c and "r->content_type" in mapper_c, "Response mapper includes err_headers_out and synthesized Content-Type"))
 checks.append(("msconnector_headers_find" in mapper_c, "Apache mapper uses Common header helper"))
 checks.append(("msconnector_event_write_jsonl_line" in filters_c and "msconnector_event_init" in filters_c, "Apache event JSONL uses Common event primitives"))
-checks.append(("event.decision.status = MSCONNECTOR_STATUS_BLOCKED" in intervention_event_helper, "Apache P3/P4 intervention events set a non-OK status"))
+checks.append((
+    re.search(r"event\.decision\.status\s*=\s*[^;]+\?\s*MSCONNECTOR_STATUS_ERROR\s*:\s*MSCONNECTOR_STATUS_BLOCKED\s*;",
+              function_section(filters_c, "apache_log_intervention_event")) is not None
+    and all(f'"{name}"' in intervention_event_helper for name in
+            ("invalid_engine_response", "protocol_error", "connector_error")),
+    "Apache P3/P4 intervention events distinguish technical errors from rule blocks",
+))
 checks.append((
     "event.meta.event = input->event_name" in intervention_event_helper
     and "\"phase4_intervention\"" in phase4_event_wrapper
@@ -307,10 +321,16 @@ checks.append((
     "Apache P3/P4 events select canonical message IDs and safe default messages by phase and action",
 ))
 checks.append((
-    "event serialization truncated" in intervention_event_helper
-    and "event serialization failed" in intervention_event_helper
-    and "apr_file_puts" in intervention_event_helper,
-    "Apache P3/P4 events use bounded serialization fallback lines",
+    "char line[4096];" in intervention_writer_code
+    and function_call_count(intervention_writer_code, "msconnector_event_write_jsonl_line") == 1
+    and function_call_count(intervention_writer_code, "apr_file_puts") == 1
+    and "apr_psprintf" not in intervention_writer_code
+    and re.search(
+        r"if\s*\(\s*!msconnector_event_write_jsonl_line\([^;]+?\)\s*\)\s*\{\s*"
+        r"ap_log_rerror\([^;]+?\);\s*return\s*;\s*\}\s*"
+        r"rc\s*=\s*apr_file_puts\(line,\s*file\);",
+        intervention_writer_code, re.DOTALL) is not None,
+    "Apache P3/P4 events reject serialization failure before the single canonical JSONL write",
 ))
 checks.append(("body_truncated" in filters_c and "json_truncated" in filters_c and "event.flags.truncated = msr->body_truncated" not in filters_c, "Response body truncation is separate from JSON serialization truncation"))
 checks.append((
@@ -342,8 +362,9 @@ checks.append((
     and "MSCONNECTOR_BODY_LIMIT_ACTION_REJECT" in filters_c
     and "apache_phase4_in_scope" not in filters_c
     and "SecResponseBodyMimeType selection" in filters_c
-    and "plan.append_size) != 1" in filters_c
-    and "msc_process_response_body(msr->t) != 1" in filters_c
+    and re.search(r"!msconnector_native_body_append_can_continue\(msc_append_response_body\(msr->t,\s*"
+                  r"\(const unsigned char \*\)data, plan\.append_size\)\)", phase4_append_helper) is not None
+    and "!msconnector_native_phase_succeeded(msc_process_response_body(msr->t))" in phase4_finish_code
     and "r->bytes_sent > 0" in filters_c
     and "response_phase4_eos_released" in filters_c
     and "missing progressive response brigade" in filters_c
@@ -441,13 +462,12 @@ checks.append((
 ))
 checks.append((
     "failed to open intervention log" in intervention_event_helper
-    and "failed to write intervention log" in intervention_event_helper
-    and "failed to write truncated intervention log" in intervention_event_helper
-    and "failed to write failed intervention log" in intervention_event_helper
+    and "failed to write intervention log" in intervention_writer
+    and "common intervention event serialization %s" in intervention_writer
     and "failed to close intervention log" in intervention_event_helper
-    and "apr_file_puts" in intervention_event_helper
+    and "if (rc != APR_SUCCESS)" in intervention_writer_code
     and "apr_file_close" in intervention_event_helper,
-    "Apache reports open, write, fallback-write, and close failures for shared P3/P4 event logging",
+    "Apache reports open, canonical write, serialization, and close failures for shared P3/P4 event logging",
 ))
 checks.append(("msconnector_rule_id_extract_from_message" in filters_c, "Apache rule-id extraction uses Common helper"))
 checks.append(("apache_json_escape" not in apache_text, "Duplicate Apache JSON escape helper is removed"))

@@ -262,14 +262,42 @@ class ApacheCommonAdoptionCheckerTests(unittest.TestCase):
         def mutate(filters: Path) -> None:
             replace_once(
                 filters,
-                "            (const unsigned char *)data, plan.append_size) != 1) {\n",
-                "            (const unsigned char *)data, len) != 1) {\n",
+                "            (const unsigned char *)data, plan.append_size))) {\n",
+                "            (const unsigned char *)data, len))) {\n",
             )
 
         self._assert_rejected(
             mutate,
             "Apache Phase2 bounded bucket helper reads, plans, records, appends",
         )
+
+    def test_inverted_shared_request_append_guard_is_rejected(self) -> None:
+        def mutate(filters: Path) -> None:
+            replace_once(filters,
+                "!msconnector_native_body_append_can_continue(msc_append_request_body(msr->t,",
+                "msconnector_native_body_append_can_continue(msc_append_request_body(msr->t,")
+        self._assert_rejected(mutate, "Apache Phase2 bounded bucket helper reads, plans, records, appends")
+
+    def test_inverted_shared_phase_guard_is_rejected(self) -> None:
+        def mutate(filters: Path) -> None:
+            replace_once(filters,
+                "if (!msconnector_native_phase_succeeded(msc_process_request_body(msr->t)))",
+                "if (msconnector_native_phase_succeeded(msc_process_request_body(msr->t)))")
+        self._assert_rejected(mutate, "Apache Phase2 one-shot gate precedes processing")
+
+    def test_missing_serialization_failure_return_is_rejected(self) -> None:
+        def mutate(filters: Path) -> None:
+            replace_once(filters,
+                '            json_truncated ? "truncated" : "failed");\n        return;\n',
+                '            json_truncated ? "truncated" : "failed");\n')
+        self._assert_rejected(mutate, "Apache P3/P4 events reject serialization failure")
+
+    def test_technical_errors_cannot_be_logged_as_rule_blocks(self) -> None:
+        def mutate(filters: Path) -> None:
+            replace_once(filters,
+                "? MSCONNECTOR_STATUS_ERROR : MSCONNECTOR_STATUS_BLOCKED;",
+                "? MSCONNECTOR_STATUS_BLOCKED : MSCONNECTOR_STATUS_BLOCKED;")
+        self._assert_rejected(mutate, "Apache P3/P4 intervention events distinguish technical errors")
 
     def test_phase3_response_header_failures_are_not_ignored(self) -> None:
         mutations = (
