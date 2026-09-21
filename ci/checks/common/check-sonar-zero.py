@@ -51,7 +51,8 @@ def api_get(path: str, token: str):
 
 
 def validate_identity(repository: str, head: str) -> None:
-    if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository) is None:
+    if (".." in repository or
+            re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9_][A-Za-z0-9_.-]*", repository) is None):
         raise GateError("invalid repository identity")
     if re.fullmatch(r"[0-9a-f]{40}", head) is None:
         raise GateError("a full pull-request head SHA is required")

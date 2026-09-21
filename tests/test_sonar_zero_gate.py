@@ -11,7 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location(
     "sonar_zero_gate", ROOT / "ci/checks/common/check-sonar-zero.py"
 )
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 GATE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(GATE)
 HEAD = "a" * 40
@@ -47,24 +48,29 @@ class SonarZeroGateTests(unittest.TestCase):
         self.assertEqual(len(calls), 1)
 
     def test_green_quality_gate_with_new_issues_fails(self):
+        checks = [make_check(issues=2)]
         with self.assertRaisesRegex(GATE.GateError, "zero new issues"):
-            self.verify([make_check(issues=2)])
+            self.verify(checks)
 
     def test_hotspots_fail_even_without_issues(self):
+        checks = [make_check(hotspots=1)]
         with self.assertRaises(GATE.GateError):
-            self.verify([make_check(hotspots=1)])
+            self.verify(checks)
 
     def test_annotations_cannot_be_hidden_by_zero_summary(self):
+        checks = [make_check(annotations=1)]
         with self.assertRaises(GATE.GateError):
-            self.verify([make_check(annotations=1)])
+            self.verify(checks)
 
     def test_old_head_cannot_satisfy_the_gate(self):
+        checks = [make_check(head="b" * 40)]
         with self.assertRaisesRegex(GATE.GateError, "exact PR head"):
-            self.verify([make_check(head="b" * 40)])
+            self.verify(checks)
 
     def test_new_pending_analysis_supersedes_old_success(self):
+        checks = [make_check(), make_check(identifier=2, status="in_progress")]
         with self.assertRaises(GATE.GateError):
-            self.verify([make_check(), make_check(identifier=2, status="in_progress")])
+            self.verify(checks)
 
     def test_missing_analysis_does_not_pass(self):
         with self.assertRaises(GATE.GateError):
@@ -77,8 +83,9 @@ class SonarZeroGateTests(unittest.TestCase):
             self.verify([check])
 
     def test_failed_analysis_with_zero_findings_still_fails(self):
+        checks = [make_check(conclusion="failure")]
         with self.assertRaises(GATE.GateError):
-            self.verify([make_check(conclusion="failure")])
+            self.verify(checks)
 
     def test_missing_or_ambiguous_summary_fails(self):
         for summary in ("Quality Gate passed", "0 New issues 1 New issues 0 Security Hotspots"):
@@ -91,7 +98,8 @@ class SonarZeroGateTests(unittest.TestCase):
     def test_invalid_identity_stops_before_network(self):
         def forbidden_fetch(path):
             self.fail("invalid input reached the network")
-        for repository, head in (("../foreign", HEAD), (REPOSITORY, "branch-name")):
+        for repository, head in (("../foreign", HEAD), ("example/..", HEAD),
+                                 ("example/name/extra", HEAD), (REPOSITORY, "branch-name")):
             with self.subTest(repository=repository, head=head):
                 with self.assertRaises(GATE.GateError):
                     GATE.verify(repository, head, forbidden_fetch)
