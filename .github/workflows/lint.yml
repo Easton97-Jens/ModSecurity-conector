@@ -65,6 +65,9 @@ jobs:
       - name: Verify native results and common event protocol
         if: ${{ !cancelled() }}
         run: python -m unittest -v tests.test_native_result_event_protocol tests.test_native_error_classification tests.test_event_transport_observation tests.test_sonar_zero_gate
+      - name: Verify NGINX request native result regressions
+        if: ${{ !cancelled() }}
+        run: python -m unittest -v tests.test_nginx_request_native_results
       - name: Verify Phase-4 migration and NGINX security contracts
         if: ${{ !cancelled() }}
         run: python -m unittest -v tests.test_phase4_migration_contract tests.test_nginx_native_security_contract tests.test_nginx_upstream_security_contract
