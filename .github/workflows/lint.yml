@@ -59,6 +59,9 @@ jobs:
           test -f reports/testing/test-coverage-overview.md
       - name: Check bilingual documentation
         run: python ci/checks/documentation/check-bilingual-docs.py
+      - name: Verify native results and common event protocol
+        if: ${{ !cancelled() }}
+        run: python -m unittest -v tests.test_native_result_event_protocol
       - name: Verify Phase-4 migration and NGINX security contracts
         if: ${{ !cancelled() }}
         run: python -m unittest -v tests.test_phase4_migration_contract tests.test_nginx_native_security_contract tests.test_nginx_upstream_security_contract
