@@ -28,6 +28,7 @@
 #include "msconnector/event_jsonl.h"
 #include "msconnector/late_intervention.h"
 #include "msconnector/limits.h"
+#include "msconnector/native_result.h"
 
 static ngx_http_output_body_filter_pt ngx_http_next_body_filter;
 
@@ -47,6 +48,7 @@ ngx_http_modsecurity_contract_record_response_commit(
         MSCONNECTOR_TRANSACTION_TRANSITION_OK ? NGX_OK : NGX_ERROR;
 }
 static ngx_int_t ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf, const char *wanted, const char *actual, const char *reason);
+static ngx_int_t ngx_http_modsecurity_phase4_log_failure(ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf, ngx_http_modsecurity_ctx_t *ctx);
 static ngx_int_t ngx_http_modsecurity_phase4_handle_intervention(ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf);
 static ngx_int_t ngx_http_modsecurity_validate_response_mapper_once(ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx);
 static ngx_int_t ngx_http_modsecurity_plan_limited_response_body(
@@ -187,6 +189,9 @@ static ngx_int_t
 ngx_http_modsecurity_append_response_body_chunk(
     ngx_http_modsecurity_ctx_t *ctx, u_char *data, size_t bytes)
 {
+    if (ctx == NULL || ctx->modsec_transaction == NULL) {
+        return NGX_ERROR;
+    }
     if (bytes == 0U) {
         return NGX_OK;
     }
@@ -204,7 +209,10 @@ ngx_http_modsecurity_append_response_body_chunk(
             bytes) != MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
         return NGX_ERROR;
     }
-    if (msc_append_response_body(ctx->modsec_transaction, data, bytes) < 0) {
+    if (!msconnector_native_body_append_can_continue(
+            msc_append_response_body(ctx->modsec_transaction, data, bytes))) {
+        (void)msconnector_transaction_contract_fail(&ctx->contract,
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, 0U);
         return NGX_ERROR;
     }
     ctx->response_body_bytes_inspected += bytes;
@@ -356,13 +364,18 @@ ngx_http_modsecurity_process_final_response_body(ngx_http_request_t *r,
         return NGX_ERROR;
     }
     ret = msc_process_response_body(ctx->modsec_transaction);
-    if (ret != 1) {
+    if (!msconnector_native_phase_succeeded(ret)) {
         ngx_http_modsecurity_pcre_malloc_done(old_pool);
+        (void)msconnector_transaction_contract_fail(&ctx->contract,
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, 0U);
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
             "ModSecurity: response body phase processing failed");
         ctx->intervention_triggered = 1;
         if (r->header_sent) {
             r->connection->error = 1;
+        }
+        (void)ngx_http_modsecurity_phase4_log_failure(r, mcf, ctx);
+        if (r->header_sent) {
             return NGX_ERROR;
         }
         return ngx_http_filter_finalize_request(r,
@@ -612,6 +625,11 @@ ngx_http_modsecurity_process_response_body_chain(ngx_http_request_t *r,
         ret = ngx_http_modsecurity_append_response_chain_buffer(r, ctx, mcf,
             chain);
         if (ret != NGX_OK) {
+            ctx->intervention_triggered = 1;
+            if (r->header_sent) {
+                r->connection->error = 1;
+            }
+            (void)ngx_http_modsecurity_phase4_log_failure(r, mcf, ctx);
             return ret;
         }
         is_request_processed = chain->buf->last_buf ||
@@ -925,4 +943,53 @@ ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurit
 
     return ngx_http_modsecurity_write_phase_event_jsonl(r, mcf, &event,
         "phase4");
+}
+
+static ngx_int_t
+ngx_http_modsecurity_phase4_log_failure(ngx_http_request_t *r,
+    ngx_http_modsecurity_conf_t *mcf, ngx_http_modsecurity_ctx_t *ctx)
+{
+    msconnector_event event;
+    ngx_http_modsecurity_event_request_metadata_t metadata;
+    int body_limit;
+
+    if (r == NULL || mcf == NULL || ctx == NULL) {
+        return NGX_ERROR;
+    }
+    body_limit = ctx->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT;
+    metadata = ngx_http_modsecurity_event_request_metadata(r);
+    msconnector_event_init(&event);
+    event.meta.message_id = MSCONN_EVENT_CONNECTOR_ERROR;
+    if (body_limit) {
+        event.meta.message_id = MSCONN_EVENT_BODY_LIMIT;
+    } else if (ctx->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE) {
+        event.meta.message_id = MSCONN_EVENT_INVALID_ENGINE_RESPONSE;
+    }
+    event.meta.level = msconnector_event_default_level(event.meta.message_id);
+    event.meta.message = msconnector_event_default_message(event.meta.message_id);
+    event.meta.event = "connector_error";
+    event.meta.connector = "nginx";
+    event.meta.integration_mode = "native-nginx-http-module";
+    event.meta.transaction_id = ctx->event_transaction_id.len > 0U
+        ? (const char *)ctx->event_transaction_id.data : "";
+    event.decision.phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
+    event.decision.status = body_limit ? MSCONNECTOR_STATUS_BLOCKED : MSCONNECTOR_STATUS_ERROR;
+    event.decision.requested_action = body_limit ? "deny" : "error";
+    event.decision.action = r->header_sent ? "abort_connection" : "error";
+    event.decision.actual_action = r->header_sent ? "abort_connection" : "";
+    event.http.http_status = NGX_HTTP_INTERNAL_SERVER_ERROR;
+    event.http.original_http_status = ngx_http_modsecurity_phase4_original_status(r);
+    event.http.visible_http_status = r->header_sent ? event.http.original_http_status : 0;
+    event.http.transport_result = r->header_sent ? "connection_aborted" : "not_observable";
+    event.request.method = metadata.method;
+    event.request.uri = metadata.uri;
+    event.body.bytes_seen = ctx->response_body_bytes_seen;
+    event.body.bytes_inspected = ctx->response_body_bytes_inspected;
+    event.flags.headers_sent = r->header_sent ? 1 : 0;
+    event.flags.response_committed = event.flags.headers_sent;
+    event.flags.response_started = event.flags.headers_sent;
+    event.flags.connection_aborted = r->header_sent && r->connection->error;
+    event.flags.body_truncated = ctx->response_body_truncated;
+    /* Do not infer EOS from phase4_processed: it is set before evaluation. */
+    return ngx_http_modsecurity_write_phase_event_jsonl(r, mcf, &event, "phase4");
 }
