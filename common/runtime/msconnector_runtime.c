@@ -26,6 +26,7 @@
 #include "msconnector/limits.h"
 #include "msconnector/memory.h"
 #include "msconnector/modsecurity_engine.h"
+#include "msconnector/native_result.h"
 #include "msconnector/path_policy.h"
 #include "msconnector/rule_id.h"
 #include "msconnector/rule_loader.h"
@@ -1059,6 +1060,11 @@ static int native_decision(
     memset(&intervention, 0, sizeof(intervention));
     intervention.status = 200;
     intervention_result = msc_intervention(native->transaction, &intervention);
+    if (intervention_result != 0 && intervention_result != 1) {
+        msc_intervention_cleanup(&intervention);
+        return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
+            "invalid native intervention result", "msc_intervention");
+    }
     disruptive = intervention_result != 0 || intervention.disruptive != 0;
     body_limit = native_is_request_body_limit_rejection(phase, &intervention);
     native->rule_id[0] = '\0';
@@ -1178,7 +1184,8 @@ static int native_append_request_body(
     msconnector_native_transaction *native = native_transaction;
     (void)userdata;
     if (size > 0U &&
-        msc_append_request_body(native->transaction, data, size) != 1) {
+        !msconnector_native_body_append_can_continue(
+            msc_append_request_body(native->transaction, data, size))) {
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
             "request body append failed", "libmodsecurity");
     }
@@ -1192,7 +1199,8 @@ static int native_finish_request_body(
     msconnector_error *error) {
     msconnector_native_transaction *native = native_transaction;
     msconnector_runtime *runtime = userdata;
-    if (msc_process_request_body(native->transaction) != 1) {
+    if (!msconnector_native_phase_succeeded(
+            msc_process_request_body(native->transaction))) {
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
             "request body processing failed", "libmodsecurity");
     }
@@ -1246,7 +1254,8 @@ static int native_append_response_body(
     msconnector_native_transaction *native = native_transaction;
     (void)userdata;
     if (size > 0U &&
-        msc_append_response_body(native->transaction, data, size) != 1) {
+        !msconnector_native_body_append_can_continue(
+            msc_append_response_body(native->transaction, data, size))) {
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
             "response body append failed", "libmodsecurity");
     }
@@ -1260,7 +1269,8 @@ static int native_finish_response_body(
     msconnector_error *error) {
     msconnector_native_transaction *native = native_transaction;
     msconnector_runtime *runtime = userdata;
-    if (msc_process_response_body(native->transaction) != 1) {
+    if (!msconnector_native_phase_succeeded(
+            msc_process_response_body(native->transaction))) {
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
             "response body processing failed", "libmodsecurity");
     }
@@ -1991,8 +2001,11 @@ static int emit_contract_terminal_event(
     event.meta.integration_mode = runtime->integration_mode;
     event.meta.transaction_id = transaction->metadata.transaction_id;
     event.decision.phase = body_decision.phase;
-    event.decision.status = policy.host_action == MSCONNECTOR_DECISION_ACTION_LOG_ONLY ?
-        MSCONNECTOR_STATUS_ERROR : MSCONNECTOR_STATUS_BLOCKED;
+    /* A fail-closed host action does not turn a technical failure into a
+     * ModSecurity rule block. Body-limit rejection remains a policy outcome. */
+    event.decision.status = transaction->contract.error_class ==
+        MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT ?
+        MSCONNECTOR_STATUS_BLOCKED : MSCONNECTOR_STATUS_ERROR;
     event.decision.action = msconnector_decision_action_name(policy.host_action);
     event.decision.requested_action = event.decision.action;
     event.decision.actual_action = event.decision.action;
@@ -3100,11 +3113,11 @@ int msconnector_runtime_transaction_record_failure_host_action(
     }
     reason = msconnector_transaction_error_class_name(
         transaction->contract.error_class);
-    if (connection_aborted) {
-        msconnector_decision_set_connection_abort(&decision, NULL, reason);
-    } else {
-        msconnector_decision_set_error(&decision, visible_http_status, reason);
-    }
+    /* Keep the technical cause even when the host can only abort. The
+     * observed transport action is supplied separately below. */
+    msconnector_decision_set_error(&decision,
+        connection_aborted ? transaction->runtime->config.default_error_status :
+            visible_http_status, reason);
     decision.phase = contract_terminal_phase(&transaction->contract);
     return msconnector_runtime_transaction_record_host_action(transaction,
         &decision,
