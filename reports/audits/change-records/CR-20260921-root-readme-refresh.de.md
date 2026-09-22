@@ -25,6 +25,13 @@ Konfigurationsebenen, Phase-4 `off` / `safe` / `strict`,
 Beispielauswahl und der Unterschied zwischen Static-/Build-/Config-Checks und
 Runtime-Evidence wurden nicht überall vor dem Detailmaterial eingeführt.
 
+Der Benutzer hat zusätzlich angefordert, den Bereich `licenses/` auf eine
+klare Provenienzfunktion zu reduzieren: erklären, woher externes Material
+stammt, welche Upstream-Revision/Lizenzinformation die dokumentierte Basis
+bildet und wie sich das lokale Repository von diesen Upstream-Quellen
+unterscheidet. Der Lizenzreferenzbereich darf nicht wie eine repository-weite
+Lizenzdeklaration wirken.
+
 ## Akzeptanzkriterien
 
 Die Dokumentation muss einen klaren Weg vom Root-README über Einstieg,
@@ -58,6 +65,15 @@ Der erste PR-Head deckte außerdem einen echten Bilingual-Check-Fehler auf: Im
 englischen Schnellstart stand `cd ModSecurity-connector`, während das
 Repository-Verzeichnis `ModSecurity-conector` heißt. Diese Aktualisierung
 korrigiert den englischen Befehl, sodass der EN/DE-Fenced-Command identisch ist.
+
+Die Dokumentation unter `licenses/` wird auf Herkunfts-/Referenzinformationen
+vereinfacht. Apache und NGINX halten ihre Upstream-Basisrevision sowie die
+aufbewahrten Upstream-Lizenz-/Attributionsdateien fest und erklären ausdrücklich,
+dass die lokalen Connector-Bäume repository-lokale und weitere
+upstream-abgeleitete Änderungen enthalten. ModSecurity v2/v3 werden nur als
+externe Engine-Referenzen beschrieben. Die Root-README stellt nun klar, dass
+diese Upstream-Referenzen keine repository-weite Lizenz definieren und auf
+diesem Stand keine Top-Level-Datei `LICENSE` existiert.
 
 ## Geänderte Dateien
 
@@ -161,6 +177,14 @@ korrigiert den englischen Befehl, sodass der EN/DE-Fenced-Command identisch ist.
 - `examples/nginx/README.md`
 - `examples/traefik/README.de.md`
 - `examples/traefik/README.md`
+- `licenses/README.de.md`
+- `licenses/README.md`
+- `licenses/apache/ORIGIN.de.md`
+- `licenses/apache/ORIGIN.md`
+- `licenses/modsecurity/README.de.md`
+- `licenses/modsecurity/README.md`
+- `licenses/nginx/ORIGIN.de.md`
+- `licenses/nginx/ORIGIN.md`
 - `reports/README.de.md`
 - `reports/README.md`
 - `reports/audits/change-records/CR-20260921-root-readme-refresh.de.md`
@@ -218,6 +242,11 @@ Die Beispiele bleiben Konfigurationsreferenzen und keine Produktions-
 Deployment-Manifeste. Hostspezifische Installationspfade, Ports, Modul-ABI,
 Service-Identität, TLS, Rules-Dateien, Sockets, Berechtigungen und
 Logging/Retention benötigen weiterhin Operator-Review.
+
+Die Dateien unter `licenses/` dokumentieren beobachtete Upstream-Herkunfts-/
+Lizenzinformationen und Provenienzgrenzen. Sie sind keine rechtliche
+Gesamtbewertung jeder Repository-Datei und ersetzen keine dateibezogene
+Source-Map-/Herkunftsprüfung.
 
 ## Verbleibende Risiken
 

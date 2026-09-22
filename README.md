@@ -231,8 +231,11 @@ security decisions.
 
 ## License and provenance
 
-This repository contains repository-authored integration code as well as
-imported or derived material with component-specific provenance. Do not infer a
-single license for every file from the repository name. Review
-[licenses/](licenses/README.md) and each connector's `ORIGIN.md` /
-`SOURCE_MAP.json` for the applicable source, attribution, and license boundary.
+The [licenses/](licenses/README.md) directory documents the external origin
+and observed upstream license basis for selected imported, derived, or reference
+material. It is not a repository-wide license declaration.
+
+Local connector trees can differ from their upstream source through
+repository-local adaptations and additional source provenance. Use the matching
+connector `ORIGIN.md` / `SOURCE_MAP.json` for the file-level source basis.
+There is no top-level `LICENSE` file in this repository at this revision.

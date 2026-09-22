@@ -24,6 +24,12 @@ Phase-4 `off` / `safe` / `strict`, example selection, and the difference
 between static/build/config checks and runtime evidence were not consistently
 introduced before detailed reference material.
 
+The user additionally requested that the `licenses/` area be reduced to a
+clear provenance function: explain where external material comes from, which
+upstream revision/license information forms the documented basis, and how the
+local repository differs from those upstream sources. The license reference
+area must not read as a repository-wide license declaration.
+
 ## Acceptance criteria
 
 The documentation must provide a clear path from root README to getting
@@ -56,6 +62,14 @@ The first PR head also exposed a real bilingual-check failure caused by the
 English quick-start command using `cd ModSecurity-connector` while the
 repository directory is `ModSecurity-conector`. This refresh corrects the
 English command so the EN/DE fenced command content is identical.
+
+The `licenses/` documentation is simplified to origin/reference information.
+Apache and NGINX record their upstream base revision and retained upstream
+license/attribution files while explicitly stating that the local connector
+trees contain repository-local and additional upstream-derived changes.
+ModSecurity v2/v3 are documented only as external engine references. The root
+README now states that these upstream references do not define a repository-wide
+license and that no top-level `LICENSE` file exists at this revision.
 
 ## Changed files
 
@@ -159,6 +173,14 @@ English command so the EN/DE fenced command content is identical.
 - `examples/nginx/README.md`
 - `examples/traefik/README.de.md`
 - `examples/traefik/README.md`
+- `licenses/README.de.md`
+- `licenses/README.md`
+- `licenses/apache/ORIGIN.de.md`
+- `licenses/apache/ORIGIN.md`
+- `licenses/modsecurity/README.de.md`
+- `licenses/modsecurity/README.md`
+- `licenses/nginx/ORIGIN.de.md`
+- `licenses/nginx/ORIGIN.md`
 - `reports/README.de.md`
 - `reports/README.md`
 - `reports/audits/change-records/CR-20260921-root-readme-refresh.de.md`
@@ -215,6 +237,10 @@ The examples remain configuration references, not production deployment
 manifests. Host-specific installation paths, ports, module ABI, service
 identity, TLS, rules files, sockets, permissions, and logging/retention still
 require operator review.
+
+The `licenses/` files record observed upstream origin/license information and
+provenance boundaries. They are not a legal determination for every repository
+file and do not replace file-level/source-map review.
 
 ## Remaining risks
 

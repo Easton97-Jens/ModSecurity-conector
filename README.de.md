@@ -240,9 +240,13 @@ deploymentspezifische Sicherheitsentscheidungen.
 
 ## Lizenz und Provenienz
 
-Dieses Repository enthält repository-eigenen Integrationscode sowie importiertes
-oder abgeleitetes Material mit komponentenspezifischer Provenienz. Aus dem
-Repository-Namen darf keine einzelne Lizenz für jede Datei abgeleitet werden.
-Prüfen Sie [licenses/](licenses/README.de.md) und die `ORIGIN.md`- /
-`SOURCE_MAP.json`-Dateien jedes Connectors für die jeweils geltende
-Source-, Attributions- und Lizenzgrenze.
+Das Verzeichnis [licenses/](licenses/README.de.md) dokumentiert die externe
+Herkunft und die beobachtete Upstream-Lizenzbasis für ausgewähltes importiertes,
+abgeleitetes oder als Referenz genutztes Material. Es ist keine
+repository-weite Lizenzdeklaration.
+
+Lokale Connector-Bäume können durch repository-lokale Anpassungen und
+zusätzliche Source-Provenienz vom jeweiligen Upstream abweichen. Für die
+dateibezogene Source-Basis sind die passenden `ORIGIN.md`- /
+`SOURCE_MAP.json`-Dateien maßgeblich. Auf diesem Stand gibt es keine
+Top-Level-Datei `LICENSE` im Repository.
