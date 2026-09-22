@@ -56,7 +56,7 @@
  * Dev    - 010
  * Rc1    - 051
  * Rc2    - 052
- * ...    ...
+ * ...
  * Release- 100
  *
  */
@@ -185,6 +185,10 @@ typedef struct {
      * response chain.  This is deliberately separate from Phase-4 state. */
     unsigned response_replaced:1;
     unsigned request_body_processed:1;
+    /* Request failures retain their first host result and one event attempt.
+     * These are separate from successful P2 and the native audit-log state. */
+    unsigned request_error_event_attempted:1;
+    ngx_int_t request_error_status;
     unsigned phase4_headers_checked:1;
     /* A terminal P3 processing error must remain terminal if NGINX invokes
      * the header filter again; intervention_triggered alone intentionally

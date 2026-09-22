@@ -67,7 +67,7 @@ jobs:
         run: python -m unittest -v tests.test_native_result_event_protocol tests.test_native_error_classification tests.test_event_transport_observation tests.test_sonar_zero_gate
       - name: Verify NGINX request native result regressions
         if: ${{ !cancelled() }}
-        run: python -m unittest -v tests.test_nginx_request_native_results
+        run: python -m unittest -v tests.test_nginx_request_native_results tests.test_nginx_request_error_events
       - name: Verify NGINX late error and reentry regressions
         if: ${{ !cancelled() }}
         run: python -m unittest -v tests.test_nginx_late_error_results
