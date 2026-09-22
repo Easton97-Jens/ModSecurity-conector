@@ -72,7 +72,15 @@ def select_check(payload: dict, head: str):
 
 
 def finding_count(summary: str, label: str) -> int:
-    values = re.findall(r"\b([0-9]+)\s+" + re.escape(label) + r"\b", summary)
+    # Sonar uses the singular for one finding. Accept either spelling but
+    # still require exactly one count across both, never a default zero.
+    labels = {"New issues": r"New issues?",
+              "Accepted issues": r"Accepted issues?",
+              "Security Hotspots": r"Security Hotspots?"}
+    pattern = labels.get(label)
+    if pattern is None:
+        raise GateError("unknown Sonar finding label")
+    values = re.findall(r"\b([0-9]+)\s+" + pattern + r"\b", summary)
     if len(values) != 1:
         raise GateError("missing or ambiguous Sonar finding count: " + label)
     return int(values[0])
@@ -86,6 +94,7 @@ def check_counts(check: dict) -> dict:
     if type(annotations) is not int or annotations < 0:
         raise GateError("Sonar annotation count is missing or invalid")
     return {"new_issues": finding_count(output["summary"], "New issues"),
+            "accepted_issues": finding_count(output["summary"], "Accepted issues"),
             "new_security_hotspots": finding_count(output["summary"], "Security Hotspots"),
             "annotations": annotations}
 
@@ -119,7 +128,7 @@ def verify(repository: str, head: str, fetch, sleep=time.sleep,
             evidence = {"head_sha": head, "check_id": check["id"], **counts}
             print("sonar evidence: " + json.dumps(evidence, sort_keys=True))
             if check.get("conclusion") != "success" or any(counts.values()):
-                raise GateError("Sonar must succeed with zero new issues, hotspots, and annotations")
+                raise GateError("Sonar must succeed with zero new issues, accepted issues, hotspots, and annotations")
             return evidence
         if attempt + 1 < attempts:
             sleep(10)

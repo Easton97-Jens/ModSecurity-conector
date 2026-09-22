@@ -20,11 +20,11 @@ REPOSITORY = "example/connector"
 
 
 def make_check(*, head=HEAD, identifier=1, issues=0, hotspots=0, annotations=0,
-               status="completed", conclusion="success"):
+               accepted=0, status="completed", conclusion="success"):
     return {"id": identifier, "head_sha": head, "name": GATE.CHECK_NAME,
             "app": {"slug": "sonarqubecloud"}, "status": status,
             "conclusion": conclusion,
-            "output": {"summary": f"[{issues} New issues] [{hotspots} Security Hotspots]",
+            "output": {"summary": f"[{issues} New issues] [{accepted} Accepted issues] [{hotspots} Security Hotspots]",
                        "annotations_count": annotations}}
 
 
@@ -45,6 +45,7 @@ class SonarZeroGateTests(unittest.TestCase):
         evidence, calls = self.verify([make_check()])
         self.assertEqual(evidence["head_sha"], HEAD)
         self.assertEqual(evidence["new_issues"], 0)
+        self.assertEqual(evidence["accepted_issues"], 0)
         self.assertEqual(len(calls), 1)
 
     def test_green_quality_gate_with_new_issues_fails(self):
@@ -116,6 +117,43 @@ class SonarZeroGateTests(unittest.TestCase):
         self.assertTrue(text.startswith("sonar finding: "))
         self.assertNotIn("source-must-not-be-printed", text)
         self.assertLess(len(text), 700)
+
+    def test_singular_finding_is_reported_then_rejected(self):
+        check = make_check(issues=1, annotations=1)
+        check["output"]["summary"] = "[1 New issue] [0 Accepted issues] [0 Security Hotspots]"
+        output = io.StringIO()
+        calls = []
+        def fetch(path):
+            calls.append(path)
+            if "/annotations?" in path:
+                return [{"path": "file.c", "message": "actual finding"}]
+            return {"check_runs": [check]}
+        with redirect_stdout(output), self.assertRaisesRegex(GATE.GateError, "zero new issues"):
+            GATE.verify(REPOSITORY, HEAD, fetch, attempts=1)
+        self.assertEqual(len(calls), 2)
+        self.assertIn("actual finding", output.getvalue())
+        self.assertIn('"new_issues": 1', output.getvalue())
+
+    def test_accepted_findings_cannot_make_the_gate_green(self):
+        for summary in ("[0 New issues] [1 Accepted issue] [0 Security Hotspots]",
+                        "[0 New issues] [2 Accepted issues] [0 Security Hotspots]"):
+            with self.subTest(summary=summary):
+                check = make_check()
+                check["output"]["summary"] = summary
+                with self.assertRaisesRegex(GATE.GateError, "zero new issues"):
+                    self.verify([check])
+
+    def test_singular_and_plural_cannot_hide_ambiguous_counts(self):
+        check = make_check()
+        check["output"]["summary"] += " [1 New issue]"
+        with self.assertRaisesRegex(GATE.GateError, "ambiguous"):
+            self.verify([check])
+
+    def test_missing_accepted_count_is_not_assumed_zero(self):
+        check = make_check()
+        check["output"]["summary"] = "[0 New issues] [0 Security Hotspots]"
+        with self.assertRaisesRegex(GATE.GateError, "Accepted issues"):
+            self.verify([check])
 
 
 if __name__ == "__main__":
