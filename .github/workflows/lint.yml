@@ -15,6 +15,7 @@ jobs:
     permissions:
       contents: read
       checks: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -64,10 +65,10 @@ jobs:
         run: python ci/checks/documentation/check-bilingual-docs.py
       - name: Verify native results and common event protocol
         if: ${{ !cancelled() }}
-        run: python -m unittest -v tests.test_native_result_event_protocol tests.test_native_error_classification tests.test_event_transport_observation tests.test_sonar_zero_gate tests.test_pr382_decision_safety tests.test_pr382_profile_errors
+        run: python -m unittest -v tests.test_native_result_event_protocol tests.test_native_error_classification tests.test_event_transport_observation tests.test_sonar_zero_gate tests.test_sonar_duplication_gate tests.test_pr382_decision_safety tests.test_pr382_profile_errors
       - name: Verify runtime event sink failures
         if: ${{ !cancelled() }}
-        run: python -m unittest -v tests.test_runtime_event_sink_failures
+        run: python -m unittest -v tests.test_runtime_event_sink_failures tests.test_runtime_host_action_validation
       - name: Verify NGINX request native result regressions
         if: ${{ !cancelled() }}
         run: python -m unittest -v tests.test_nginx_request_native_results tests.test_nginx_request_error_events tests.test_nginx_context_accounting tests.test_nginx_native_intervention_chain tests.test_nginx_native_logging
@@ -98,6 +99,13 @@ jobs:
           SONAR_CHECK_GITHUB_TOKEN: ${{ github.token }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: python ci/checks/common/check-sonar-zero.py
+      - name: Require zero Sonar duplication for the PR head
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          SONAR_CHECK_GITHUB_TOKEN: ${{ github.token }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: python ci/checks/common/check-sonar-duplication.py
       - name: Run lightweight lint
         run: |
           make setup-dev

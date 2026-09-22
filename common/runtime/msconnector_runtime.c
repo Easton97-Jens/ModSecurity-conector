@@ -3086,11 +3086,6 @@ int msconnector_runtime_transaction_record_host_action(
             "a connection abort requires an abort or drop host action", "runtime");
     }
     if (actual_action == MSCONNECTOR_DECISION_ACTION_STREAM_RESET &&
-        connection_aborted) {
-        return runtime_error(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
-            "a stream reset must not be reported as a connection abort", "runtime");
-    }
-    if (actual_action == MSCONNECTOR_DECISION_ACTION_STREAM_RESET &&
         strcmp(transport_result, "stream_reset") != 0) {
         return runtime_error(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
             "a stream reset requires transport_result=stream_reset", "runtime");
