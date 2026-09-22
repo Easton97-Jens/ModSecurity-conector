@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Read exact-head Sonar evidence and require zero PR duplication.
+"""Require exact-head Sonar success and zero new-code duplication.
 
-GitHub credentials are used only by the existing Checks client. Public Sonar
-metric/duplication diagnostics use a fixed origin, no credentials or redirects.
-This is a readback check, not a scanner or an exclusion mechanism.
+The existing Checks client owns GitHub credentials. Fixed-origin public Sonar
+readback is unauthenticated, bounded and redirect-free. No scanner exclusions.
 """
 from __future__ import annotations
 
@@ -31,6 +30,27 @@ def summary_density(summary: str) -> Decimal:
     return Decimal(matches[0])
 
 
+def measure_value(measure: dict) -> Decimal:
+    """Accept either current period or legacy periods, never ambiguous values."""
+    candidates = []
+    if "value" in measure:
+        candidates.append(measure["value"])
+    if "period" in measure:
+        period = measure["period"]
+        candidates.append(period.get("value") if isinstance(period, dict) else None)
+    if "periods" in measure:
+        periods = measure["periods"]
+        if not isinstance(periods, list) or len(periods) != 1 or not isinstance(periods[0], dict):
+            raise GateError("ambiguous Sonar new-code periods")
+        candidates.append(periods[0].get("value"))
+    if len(candidates) != 1:
+        raise GateError("missing or ambiguous Sonar measure value")
+    raw = candidates[0]
+    if not isinstance(raw, str) or re.fullmatch(r"\d+(?:\.\d+)?", raw, re.ASCII) is None:
+        raise GateError("invalid Sonar numeric measure")
+    return Decimal(raw)
+
+
 def metric_values(component: dict) -> dict:
     if not isinstance(component, dict) or not isinstance(component.get("measures"), list):
         raise GateError("missing Sonar duplication measures")
@@ -39,19 +59,16 @@ def metric_values(component: dict) -> dict:
         if not isinstance(measure, dict) or measure.get("metric") not in METRICS:
             continue
         key = measure["metric"]
-        period = measure.get("period")
-        raw = period.get("value") if isinstance(period, dict) else measure.get("value")
-        if key in result or not isinstance(raw, str) or re.fullmatch(r"\d+(?:\.\d+)?", raw, re.ASCII) is None:
-            raise GateError("invalid or duplicate Sonar duplication measure")
-        result[key] = Decimal(raw)
+        if key in result:
+            raise GateError("duplicate Sonar duplication measure")
+        result[key] = measure_value(measure)
     if set(result) != set(METRICS):
         raise GateError("incomplete Sonar duplication measures; absent values are not zero")
     return result
 
 
 def sonar_get(endpoint: str, parameters: dict):
-    allowed = {"measures/component", "measures/component_tree", "duplications/show"}
-    if endpoint not in allowed:
+    if endpoint not in {"measures/component", "measures/component_tree", "duplications/show"}:
         raise GateError("unsupported Sonar readback endpoint")
     url = "https://sonarcloud.io/api/" + endpoint + "?" + urllib.parse.urlencode(parameters)
     opener = urllib.request.build_opener(GATE["RejectRedirects"]())
@@ -60,9 +77,24 @@ def sonar_get(endpoint: str, parameters: dict):
             data = response.read(GATE["MAX_RESPONSE_BYTES"] + 1)
         if len(data) > GATE["MAX_RESPONSE_BYTES"]:
             raise GateError("Sonar readback exceeds the bounded response limit")
-        return json.loads(data)
+        payload = json.loads(data)
+        if not isinstance(payload, dict):
+            raise GateError("Sonar readback must be an object")
+        return payload
     except (urllib.error.URLError, ValueError) as error:
         raise GateError("public Sonar duplication readback unavailable") from error
+
+
+def report_component(component: dict, pr: str, fetch) -> None:
+    measures = component.get("measures", [])
+    positive = any(isinstance(item, dict) and item.get("metric") == "new_duplicated_lines"
+                   and measure_value(item) > 0 for item in measures)
+    if positive:
+        print("sonar duplicate file: " + json.dumps({
+            "key": component.get("key"), "path": component.get("path"), "measures": measures,
+        }, ensure_ascii=True))
+        detail = fetch("duplications/show", {"key": component["key"], "pullRequest": pr})
+        print("sonar duplicate blocks: " + json.dumps(detail, ensure_ascii=True)[:16000])
 
 
 def report_duplicate_files(pr: str, fetch=sonar_get) -> None:
@@ -73,21 +105,11 @@ def report_duplicate_files(pr: str, fetch=sonar_get) -> None:
             "qualifiers": "FIL", "strategy": "leaves", "ps": 500, "p": page,
         })
         components = payload.get("components", [])
-        paging = payload.get("paging", {})
-        total = paging.get("total")
+        total = payload.get("paging", {}).get("total")
         if not isinstance(components, list) or type(total) is not int or total < 0:
             raise GateError("invalid duplication file inventory")
         for component in components:
-            measures = component.get("measures", [])
-            positive = any(isinstance(item, dict) and item.get("metric") == "new_duplicated_lines"
-                           and str(item.get("period", {}).get("value", item.get("value", "0"))) not in ("0", "0.0")
-                           for item in measures)
-            if positive:
-                print("sonar duplicate file: " + json.dumps({
-                    "key": component.get("key"), "path": component.get("path"), "measures": measures,
-                }, ensure_ascii=True))
-                detail = fetch("duplications/show", {"key": component["key"], "pullRequest": pr})
-                print("sonar duplicate blocks: " + json.dumps(detail, ensure_ascii=True)[:16000])
+            report_component(component, pr, fetch)
         seen += len(components)
         if seen >= total:
             return

@@ -24,7 +24,7 @@ class SonarDuplicationGateTests(unittest.TestCase):
                 MODULE["metric_values"]({"measures": measures})
 
     def test_nonfinite_negative_and_nonstring_metrics_are_rejected(self):
-        for invalid in ("NaN", "Infinity", "-1", 0, None):
+        for invalid in ("NaN", "Infinity", "-1", 0, None, "١"):
             measures = [{"metric": key, "period": {"value": "0"}} for key in MODULE["METRICS"]]
             measures[0]["period"]["value"] = invalid
             with self.subTest(invalid=invalid), self.assertRaises(MODULE["GateError"]):
@@ -40,6 +40,18 @@ class SonarDuplicationGateTests(unittest.TestCase):
     def test_invalid_endpoint_is_rejected_before_network(self):
         with self.assertRaises(MODULE["GateError"]):
             MODULE["sonar_get"]("https://untrusted.invalid", {})
+
+    def test_single_legacy_period_preserves_exact_count(self):
+        measures = [{"metric": key, "periods": [{"index": 1, "value": "0"}]} for key in MODULE["METRICS"]]
+        measures[0]["periods"][0]["value"] = "7"
+        self.assertEqual(MODULE["metric_values"]({"measures": measures})["new_duplicated_lines"], Decimal(7))
+
+    def test_ambiguous_period_shapes_and_missing_values_fail(self):
+        values = ({"periods": []}, {"periods": [{"value": "0"}, {"value": "1"}]},
+                  {"period": {"value": "0"}, "value": "0"}, {"periods": [{}]})
+        for measure in values:
+            with self.subTest(measure=measure), self.assertRaises(MODULE["GateError"]):
+                MODULE["measure_value"](measure)
 
 
 if __name__ == "__main__":
