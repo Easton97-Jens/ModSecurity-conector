@@ -69,6 +69,9 @@ jobs:
       - name: Verify runtime event sink failures
         if: ${{ !cancelled() }}
         run: python -m unittest -v tests.test_runtime_event_sink_failures tests.test_runtime_host_action_validation
+      - name: Verify Envoy bridge failure boundaries
+        if: ${{ !cancelled() }}
+        run: python -m unittest -v tests.test_envoy_bridge_failures
       - name: Verify NGINX request native result regressions
         if: ${{ !cancelled() }}
         run: python -m unittest -v tests.test_nginx_request_native_results tests.test_nginx_request_error_events tests.test_nginx_context_accounting tests.test_nginx_native_intervention_chain tests.test_nginx_native_logging

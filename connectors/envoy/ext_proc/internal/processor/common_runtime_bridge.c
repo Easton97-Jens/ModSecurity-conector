@@ -24,6 +24,8 @@ struct msc_envoy_ext_proc_transaction {
     int terminal;
     int has_disruptive_decision;
     int host_action_recorded;
+    int response_body_started;
+    msconnector_error_code failure_code;
 };
 
 static void msc_envoy_ext_proc_set_error(char *error, size_t error_len,
@@ -44,6 +46,54 @@ static void msc_envoy_ext_proc_set_runtime_error(char *error, size_t error_len,
         return;
     }
     msc_envoy_ext_proc_set_error(error, error_len, fallback);
+}
+
+/* An adapter error is terminal even when its caller retries. Common keeps
+ * any earlier native cause; this fallback records connector-origin failures.
+ * Mark the attempt before event callbacks and retain no borrowed error text. */
+static int msc_envoy_ext_proc_fail(
+    msc_envoy_ext_proc_transaction *transaction,
+    msconnector_error_code code, char *error, size_t error_len)
+{
+    msconnector_error ignored;
+
+    if (code == MSCONNECTOR_ERROR_NONE) {
+        code = MSCONNECTOR_ERROR_INTERNAL;
+    }
+    if (transaction != NULL) {
+        if (transaction->failure_code == MSCONNECTOR_ERROR_NONE) {
+            transaction->failure_code = code;
+            transaction->terminal = 1;
+            transaction->has_disruptive_decision = 0;
+            memset(&transaction->disruptive_decision, 0,
+                sizeof(transaction->disruptive_decision));
+            if (transaction->transaction != NULL) {
+                msconnector_error_init(&ignored);
+                (void)msconnector_runtime_transaction_fail(transaction->transaction,
+                    code == MSCONNECTOR_ERROR_PHASE_SEQUENCE ?
+                        MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE :
+                        MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, &ignored);
+            }
+        }
+        code = transaction->failure_code;
+    }
+    msc_envoy_ext_proc_set_error(error, error_len,
+        msconnector_error_default_message(code));
+    return 0;
+}
+
+static int msc_envoy_ext_proc_check_transaction(
+    msc_envoy_ext_proc_transaction *transaction, char *error, size_t error_len)
+{
+    if (transaction == NULL || transaction->transaction == NULL) {
+        return msc_envoy_ext_proc_fail(transaction, MSCONNECTOR_ERROR_INTERNAL,
+            error, error_len);
+    }
+    if (transaction->failure_code != MSCONNECTOR_ERROR_NONE) {
+        return msc_envoy_ext_proc_fail(transaction, transaction->failure_code,
+            error, error_len);
+    }
+    return 1;
 }
 
 static void msc_envoy_ext_proc_copy_text(char *destination,
@@ -145,39 +195,52 @@ static int msc_envoy_ext_proc_headers(
     return 1;
 }
 
+/* Both EOS directions share exactly the same success/failure contract. */
+static int msc_envoy_ext_proc_finish_body(
+    msc_envoy_ext_proc_transaction *transaction,
+    msc_envoy_ext_proc_decision *decision, int response_direction,
+    char *error, size_t error_len)
+{
+    msconnector_error runtime_error;
+    msconnector_decision native_decision;
+    int *finished;
+    int result;
+
+    if (!msc_envoy_ext_proc_check_transaction(transaction, error, error_len)) {
+        return 0;
+    }
+    finished = response_direction ? &transaction->response_finished :
+        &transaction->request_finished;
+    if (*finished || transaction->terminal || decision == NULL) {
+        return msc_envoy_ext_proc_fail(transaction, MSCONNECTOR_ERROR_PHASE_SEQUENCE,
+            error, error_len);
+    }
+    msconnector_error_init(&runtime_error);
+    msconnector_decision_init(&native_decision);
+    result = response_direction ?
+        msconnector_runtime_transaction_finish_response_body(transaction->transaction,
+            &native_decision, &runtime_error) :
+        msconnector_runtime_transaction_finish_request_body(transaction->transaction,
+            &native_decision, &runtime_error);
+    if (result != 1) {
+        return msc_envoy_ext_proc_fail(transaction, runtime_error.code,
+            error, error_len);
+    }
+    *finished = 1;
+    transaction->terminal = native_decision.disruptive != 0;
+    msc_envoy_ext_proc_remember_disruptive_decision(transaction, &native_decision);
+    msc_envoy_ext_proc_set_decision(decision, &native_decision,
+        transaction->transaction);
+    return 1;
+}
+
 static int msc_envoy_ext_proc_finish_request(
     msc_envoy_ext_proc_transaction *transaction,
     msc_envoy_ext_proc_decision *decision,
     char *error,
     size_t error_len)
 {
-    msconnector_error runtime_error;
-    msconnector_decision native_decision;
-
-    if (transaction == NULL || transaction->transaction == NULL) {
-        msc_envoy_ext_proc_set_error(error, error_len,
-            "Common request transaction is missing");
-        return 0;
-    }
-    if (transaction->request_finished) {
-        msc_envoy_ext_proc_set_error(error, error_len,
-            "request body end-of-stream was already processed");
-        return 0;
-    }
-    msconnector_error_init(&runtime_error);
-    msconnector_decision_init(&native_decision);
-    if (!msconnector_runtime_transaction_finish_request_body(
-            transaction->transaction, &native_decision, &runtime_error)) {
-        msc_envoy_ext_proc_set_runtime_error(error, error_len, &runtime_error,
-            "Common request body finalization failed");
-        return 0;
-    }
-    transaction->request_finished = 1;
-    transaction->terminal = native_decision.disruptive != 0;
-	msc_envoy_ext_proc_remember_disruptive_decision(transaction, &native_decision);
-    msc_envoy_ext_proc_set_decision(decision, &native_decision,
-        transaction->transaction);
-    return 1;
+    return msc_envoy_ext_proc_finish_body(transaction, decision, 0, error, error_len);
 }
 
 static int msc_envoy_ext_proc_finish_response(
@@ -186,32 +249,27 @@ static int msc_envoy_ext_proc_finish_response(
     char *error,
     size_t error_len)
 {
-    msconnector_error runtime_error;
-    msconnector_decision native_decision;
+    return msc_envoy_ext_proc_finish_body(transaction, decision, 1, error, error_len);
+}
 
-    if (transaction == NULL || transaction->transaction == NULL) {
-        msc_envoy_ext_proc_set_error(error, error_len,
-            "Common response transaction is missing");
+static int msc_envoy_ext_proc_mark_response_committed_checked(
+    msc_envoy_ext_proc_transaction *transaction, int body_started,
+    char *error, size_t error_len)
+{
+    msconnector_error runtime_error;
+    int started;
+
+    if (!msc_envoy_ext_proc_check_transaction(transaction, error, error_len)) {
         return 0;
     }
-    if (transaction->response_finished) {
-        msc_envoy_ext_proc_set_error(error, error_len,
-            "response body end-of-stream was already processed");
-        return 0;
-    }
+    started = transaction->response_body_started || body_started != 0;
     msconnector_error_init(&runtime_error);
-    msconnector_decision_init(&native_decision);
-    if (!msconnector_runtime_transaction_finish_response_body(
-            transaction->transaction, &native_decision, &runtime_error)) {
-        msc_envoy_ext_proc_set_runtime_error(error, error_len, &runtime_error,
-            "Common response body finalization failed");
-        return 0;
+    if (msconnector_runtime_transaction_set_response_commit_state_checked(
+            transaction->transaction, 1, started, &runtime_error) != 1) {
+        return msc_envoy_ext_proc_fail(transaction, runtime_error.code,
+            error, error_len);
     }
-    transaction->response_finished = 1;
-    transaction->terminal = native_decision.disruptive != 0;
-	msc_envoy_ext_proc_remember_disruptive_decision(transaction, &native_decision);
-    msc_envoy_ext_proc_set_decision(decision, &native_decision,
-        transaction->transaction);
+    transaction->response_body_started = started;
     return 1;
 }
 
@@ -358,7 +416,7 @@ int msc_envoy_ext_proc_transaction_begin(
         &native_request, request->transaction_id, &transaction->transaction,
         &native_decision, &runtime_error);
     free(headers);
-    if (!result || transaction->transaction == NULL) {
+    if (result != 1 || transaction->transaction == NULL) {
         msc_envoy_ext_proc_set_runtime_error(error, error_len, &runtime_error,
             "Common request-header processing failed");
         msconnector_runtime_transaction_destroy(&transaction->transaction);
@@ -367,7 +425,7 @@ int msc_envoy_ext_proc_transaction_begin(
     }
     transaction->runtime = runtime->runtime;
     transaction->terminal = native_decision.disruptive != 0;
-	msc_envoy_ext_proc_remember_disruptive_decision(transaction, &native_decision);
+    msc_envoy_ext_proc_remember_disruptive_decision(transaction, &native_decision);
     msc_envoy_ext_proc_set_decision(decision, &native_decision,
         transaction->transaction);
     if (end_of_stream) {
@@ -401,17 +459,19 @@ int msc_envoy_ext_proc_transaction_process_response_headers(
     msconnector_decision native_decision;
     int result;
 
-    if (transaction == NULL || transaction->transaction == NULL ||
-        response == NULL || decision == NULL || response->protocol == NULL ||
+    if (!msc_envoy_ext_proc_check_transaction(transaction, error, error_len)) {
+        return 0;
+    }
+    if (response == NULL || decision == NULL || response->protocol == NULL ||
         transaction->terminal || !transaction->request_finished ||
         transaction->response_headers_processed) {
-        msc_envoy_ext_proc_set_error(error, error_len,
-            "invalid Common response-header lifecycle");
-        return 0;
+        return msc_envoy_ext_proc_fail(transaction, MSCONNECTOR_ERROR_PHASE_SEQUENCE,
+            error, error_len);
     }
     if (!msc_envoy_ext_proc_headers(response->headers, response->header_count,
             &headers, error, error_len)) {
-        return 0;
+        return msc_envoy_ext_proc_fail(transaction, MSCONNECTOR_ERROR_HOST_API_FAILURE,
+            error, error_len);
     }
     memset(&native_response, 0, sizeof(native_response));
     native_response.status = response->status;
@@ -424,14 +484,13 @@ int msc_envoy_ext_proc_transaction_process_response_headers(
         transaction->transaction, &native_response, &native_decision,
         &runtime_error);
     free(headers);
-    if (!result) {
-        msc_envoy_ext_proc_set_runtime_error(error, error_len, &runtime_error,
-            "Common response-header processing failed");
-        return 0;
+    if (result != 1) {
+        return msc_envoy_ext_proc_fail(transaction, runtime_error.code,
+            error, error_len);
     }
     transaction->response_headers_processed = 1;
     transaction->terminal = native_decision.disruptive != 0;
-	msc_envoy_ext_proc_remember_disruptive_decision(transaction, &native_decision);
+    msc_envoy_ext_proc_remember_disruptive_decision(transaction, &native_decision);
     msc_envoy_ext_proc_set_decision(decision, &native_decision,
         transaction->transaction);
     if (end_of_stream) {
@@ -459,22 +518,24 @@ int msc_envoy_ext_proc_transaction_process_body(
     msconnector_decision native_decision;
     int result;
 
-    if (transaction == NULL || transaction->transaction == NULL ||
-        body == NULL || decision == NULL || transaction->terminal ||
-        (body->body_size > 0U && body->body == NULL)) {
-        msc_envoy_ext_proc_set_error(error, error_len,
-            "invalid Common body lifecycle");
+    if (!msc_envoy_ext_proc_check_transaction(transaction, error, error_len)) {
         return 0;
+    }
+    if (body == NULL || decision == NULL || transaction->terminal ||
+        (body->body_size > 0U && body->body == NULL)) {
+        return msc_envoy_ext_proc_fail(transaction, MSCONNECTOR_ERROR_HOST_API_FAILURE,
+            error, error_len);
     }
     if ((!body->response_direction && transaction->request_finished) ||
         (body->response_direction && (!transaction->response_headers_processed ||
             transaction->response_finished))) {
-        msc_envoy_ext_proc_set_error(error, error_len,
-            "body arrived after Common end-of-stream");
-        return 0;
+        return msc_envoy_ext_proc_fail(transaction, MSCONNECTOR_ERROR_PHASE_SEQUENCE,
+            error, error_len);
     }
-    if (body->response_direction) {
-        msc_envoy_ext_proc_transaction_mark_response_committed(transaction, 1);
+    if (body->response_direction &&
+        !msc_envoy_ext_proc_mark_response_committed_checked(transaction,
+            body->body_size > 0U, error, error_len)) {
+        return 0;
     }
     msconnector_error_init(&runtime_error);
     if (body->response_direction) {
@@ -484,11 +545,9 @@ int msc_envoy_ext_proc_transaction_process_body(
         result = msconnector_runtime_transaction_append_request_body_chunk(
             transaction->transaction, body->body, body->body_size, &runtime_error);
     }
-    if (!result) {
-        msc_envoy_ext_proc_set_runtime_error(error, error_len, &runtime_error,
-            body->response_direction ? "Common response-body append failed" :
-            "Common request-body append failed");
-        return 0;
+    if (result != 1) {
+        return msc_envoy_ext_proc_fail(transaction, runtime_error.code,
+            error, error_len);
     }
     msconnector_decision_init(&native_decision);
     native_decision.phase = body->response_direction ? MSCONNECTOR_PHASE_RESPONSE_BODY :
@@ -498,23 +557,16 @@ int msc_envoy_ext_proc_transaction_process_body(
     if (!body->end_of_stream) {
         return 1;
     }
-    if (body->response_direction) {
-        return msc_envoy_ext_proc_finish_response(transaction, decision, error,
-            error_len);
-    }
-    return msc_envoy_ext_proc_finish_request(transaction, decision, error,
-        error_len);
+    return msc_envoy_ext_proc_finish_body(transaction, decision,
+        body->response_direction, error, error_len);
 }
 
 void msc_envoy_ext_proc_transaction_mark_response_committed(
     msc_envoy_ext_proc_transaction *transaction,
     int body_started)
 {
-    if (transaction == NULL || transaction->transaction == NULL) {
-        return;
-    }
-    msconnector_runtime_transaction_set_response_commit_state(
-        transaction->transaction, 1, body_started != 0);
+    (void)msc_envoy_ext_proc_mark_response_committed_checked(transaction,
+        body_started, NULL, 0U);
 }
 
 int msc_envoy_ext_proc_transaction_record_host_action(
@@ -528,9 +580,10 @@ int msc_envoy_ext_proc_transaction_record_host_action(
     msconnector_error runtime_error;
     msconnector_decision_action native_action;
 
-    if (transaction == NULL || transaction->transaction == NULL ||
-        !transaction->has_disruptive_decision ||
-        transaction->host_action_recorded) {
+    if (!msc_envoy_ext_proc_check_transaction(transaction, error, error_len)) {
+        return 0;
+    }
+    if (!transaction->has_disruptive_decision || transaction->host_action_recorded) {
         msc_envoy_ext_proc_set_error(error, error_len,
             "Common host action has no pending disruptive decision");
         return 0;
@@ -549,18 +602,16 @@ int msc_envoy_ext_proc_transaction_record_host_action(
         transaction->disruptive_decision.late_intervention = 1;
         break;
       default:
-        msc_envoy_ext_proc_set_error(error, error_len,
-            "invalid Envoy host action");
-        return 0;
+        return msc_envoy_ext_proc_fail(transaction, MSCONNECTOR_ERROR_HOST_API_FAILURE,
+            error, error_len);
     }
     msconnector_error_init(&runtime_error);
-    if (!msconnector_runtime_transaction_record_host_action(
+    if (msconnector_runtime_transaction_record_host_action(
             transaction->transaction, &transaction->disruptive_decision,
             native_action, visible_status, transport_result, 0,
-            &runtime_error)) {
-        msc_envoy_ext_proc_set_runtime_error(error, error_len, &runtime_error,
-            "Common host action recording failed");
-        return 0;
+            &runtime_error) != 1) {
+        return msc_envoy_ext_proc_fail(transaction, runtime_error.code,
+            error, error_len);
     }
     transaction->host_action_recorded = 1;
     return 1;
