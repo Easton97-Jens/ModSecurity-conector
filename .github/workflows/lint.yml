@@ -77,6 +77,9 @@ jobs:
       - name: Verify NGINX adoption checker mutations
         if: ${{ !cancelled() }}
         run: python -m unittest -v tests.test_nginx_common_adoption
+      - name: Verify HAProxy Rule-ID adoption mutations
+        if: ${{ !cancelled() }}
+        run: python -m unittest -v tests.test_haproxy_adoption_rule_id
       - name: Verify configuration reference generator regressions
         if: ${{ !cancelled() }}
         run: python -m unittest -v tests.test_connector_config_reference tests.test_logical_connector_all_examples
