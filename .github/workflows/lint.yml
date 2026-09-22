@@ -64,7 +64,7 @@ jobs:
         run: python ci/checks/documentation/check-bilingual-docs.py
       - name: Verify native results and common event protocol
         if: ${{ !cancelled() }}
-        run: python -m unittest -v tests.test_native_result_event_protocol tests.test_native_error_classification tests.test_event_transport_observation tests.test_sonar_zero_gate tests.test_pr382_decision_safety
+        run: python -m unittest -v tests.test_native_result_event_protocol tests.test_native_error_classification tests.test_event_transport_observation tests.test_sonar_zero_gate tests.test_pr382_decision_safety tests.test_pr382_profile_errors
       - name: Verify NGINX request native result regressions
         if: ${{ !cancelled() }}
         run: python -m unittest -v tests.test_nginx_request_native_results tests.test_nginx_request_error_events tests.test_nginx_context_accounting
