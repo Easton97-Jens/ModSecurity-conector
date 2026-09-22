@@ -15,14 +15,15 @@
 I09/I10 und routenspezifische I12-Nachweise in PR #382 fortführen. Die C-Bridge
 von ext_proc verwarf Common-Commitfehler und konnte nach fehlgeschlagenem Append
 oder EOS erneut Common aufrufen. Auch leeres Antwort-EOS markierte Bodybeginn.
-Diese Adapterfehler werden durch Common-Profiltests allein nicht abgedeckt.
+Der Go-Aufrufer meldete nach der bisherigen void-API stets Erfolg. Common-
+Profiltests allein prüfen diese Adapterfehler nicht.
 
 ## Akzeptanzkriterien
 
 Nur Common-Rückgabe eins ist erfolgreich. Erste Adapterursache erhalten, native
 Wiederholungen nach Fehlern sperren, EOS nur nach Erfolg und Bodybeobachtung
 monoton markieren. Technische Fehler dürfen keine alte Regel für späteres
-Log-only behalten. Öffentliche void-Kompatibilität und Hostgrenzen erhalten.
+Log-only behalten. Alte void-ABI erhalten und Fehler sofort bis Go weitergeben.
 
 ## Implementierungsentscheidung und Begründung
 
@@ -31,27 +32,28 @@ Ereignisaufrufen. Kein fremder Fehlertext wird gespeichert. Common erhält eine
 bereits vorhandene native Ursache; neue Connector-Fehler bekommen eine kanonische
 Fehlermarkierung. Ein geprüfter privater Commithelfer stoppt vor Bodyübernahme.
 Request- und Response-EOS teilen eine Implementierung bei erhaltenen Helfernamen.
-Die void-Kompatibilitätsfunktion merkt Fehler für folgende Bridge-Aufrufe.
+Ein neuer öffentlicher geprüfter Wrapper gibt dasselbe Ergebnis weiter; der
+Go-Empfänger gibt Fehler sofort zurück. Alte void-Aufrufer behalten Fehlerzustand.
 
 ## Geänderte Dateien
 
 - `connectors/envoy/ext_proc/internal/processor/common_runtime_bridge.c`
-- `tests/test_envoy_bridge_failures.py`
-- `.github/workflows/lint.yml`
+- Öffentlicher Header und Go-Aufrufer `common_runtime_engine.go`.
+- `common_runtime_commit_test.go` für echte Common-/Go-Regressionen.
+- `tests/test_envoy_bridge_failures.py` und `.github/workflows/lint.yml`.
 - Dieser zweisprachige Bericht.
 
 ## Ausgeführte Befehle
-
-Neuer erforderlicher CI-Befehl; bei Commitvorbereitung noch ausstehend:
 
 ```sh
 python -m unittest -v tests.test_envoy_bridge_failures
 ```
 
-Zehn Tests kompilieren die vollständige produktive C-Bridge mit eingecheckten
-öffentlichen Headern und kontrollierten Common-Runtime-Aufrufen. C17,
-Wall/Wextra/Werror und normale Linker-Sektionsauswahl; keine Produktivverzweigung
-wird entfernt oder ersetzt. Common-Fehlerinjektion ist kein libModSecurity-Lauf.
+Alle zehn Tests bestanden bei `31200e8c` im Lint-Job 106891644804, Lauf
+35770777984. Vollständige produktive C-Bridge mit eingecheckten Headern,
+kontrollierten Common-Aufrufen, C17 und Wall/Wextra/Werror. Bestehende Tests
+und Sonar-Befundnull bestanden ebenfalls; Duplikationsabfrage scheiterte wegen
+geändertem PR-Head. Neue Go-/API-Folgeprüfungen stehen bei Vorbereitung aus.
 
 ## Security-Auswirkung
 
@@ -62,16 +64,17 @@ EOS behauptet keine Bodylieferung. Keine neue Host-Resetfähigkeit wird behaupte
 
 ## Runtime-Evidence
 
-Dieser Schritt prüft öffentliche C-Bridge-Aufrufe und echten Bridge-Kontrollfluss.
-Engine, Common-Ausgabe und physischer Envoy-Transport sind kontrollierte Grenzen.
-Dies ist kein ext_authz-/Companion- oder Sechs-Familien-Laufzeitnachweis.
+Die zehn Tests verwenden öffentliche C-Bridge-Aufrufe und echten Kontrollfluss.
+Common Runtime und physischer Envoy-Transport sind dabei kontrollierte Grenzen.
+Zwei neue Go-Fälle mit libmodsecurity-Buildtag prüfen frühen Commitfehler bis Go
+und gültigen leeren Abschluss mit echtem Common-Vertrag. Vorhandensein beweist
+keine Ausführung; ein nativer Go-Testlauf ist separat erforderlich.
 
 ## Bekannte Einschränkungen
 
-Der Go-Kompatibilitätsaufrufer nutzt noch den void-Commitaufruf: Für unmittelbare
-Go-Fehlerweitergabe fehlen additive geprüfte API und Aufruferanpassung. Der
-C-Fehlermarker verhindert inzwischen weitere Body-/Hostaktionsverarbeitung.
-I09, I10 und I12 bleiben für weitere Routen und echte Transportfälle offen.
+I09, I10 und I12 bleiben für andere Routen und reale Transportfälle offen.
+Dies ist kein ext_authz-/Companion- oder Sechs-Familien-Nachweis. Close bleibt
+Besitzbereinigung, kein Nachweis physisch persistierter Auditdaten.
 
 ## Verbleibende Risiken
 
@@ -81,9 +84,9 @@ vorhandenen Close-Pfad. Unabhängiges Secret-Scanning und Sonar bleiben erforder
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-Keine lokalen Projektbefehle, da RTK fehlt. Frische Build-/Testnachweise müssen
-aus GitHub-CI kommen. Echtes gRPC, Live-Hosts und physischer Logspeicher werden
-durch diese kontrollierten Grenztests nicht geprüft.
+Keine lokalen Projektbefehle oder gofmt, da RTK fehlt. GitHub-CI muss frische
+Formatierungs-/Build-/Testnachweise liefern. Echtes gRPC, Live-Hosts und
+physischer Logspeicher werden durch diese Grenztests nicht geprüft.
 
 ## Finaler Diff- und Review-Status
 

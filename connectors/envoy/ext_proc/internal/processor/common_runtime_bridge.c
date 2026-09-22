@@ -569,6 +569,14 @@ void msc_envoy_ext_proc_transaction_mark_response_committed(
         body_started, NULL, 0U);
 }
 
+int msc_envoy_ext_proc_transaction_mark_response_committed_checked(
+    msc_envoy_ext_proc_transaction *transaction,
+    int body_started, char *error, size_t error_len)
+{
+    return msc_envoy_ext_proc_mark_response_committed_checked(transaction,
+        body_started, error, error_len);
+}
+
 int msc_envoy_ext_proc_transaction_record_host_action(
     msc_envoy_ext_proc_transaction *transaction,
     int action,
