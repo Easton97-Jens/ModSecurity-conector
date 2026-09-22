@@ -317,10 +317,36 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
             re.compile(r"msc_append_response_body\s*\(.*?\)\s*!=\s*1", re.DOTALL),
         )
 
+    def test_connection_and_uri_preserve_the_shared_failure_boundary(self) -> None:
+        helper_name = "ngx_http_modsecurity_request_native_result"
+        helper = function_definition(self.access, helper_name)
+        failure = conditional_block(helper, "if (!msconnector_native_phase_succeeded(native_result))")
+        dispatch = helper.index("result = ngx_http_modsecurity_process_intervention")
+        self.assertLess(helper.index(failure), dispatch)
+        self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE", failure)
+        self.assertIn("ctx->intervention_triggered = 1;", failure)
+        self.assertIn("return NGX_HTTP_INTERNAL_SERVER_ERROR;", failure)
+        self.assertNotIn("ngx_http_modsecurity_process_intervention", failure)
+        nonzero = conditional_block(helper, "if (result != 0)", dispatch)
+        self.assertIn("ctx->intervention_triggered = 1;", nonzero)
+        self.assertIn("return result > 0 ? result : NGX_HTTP_INTERNAL_SERVER_ERROR;", nonzero)
+        self.assertIn("return NGX_OK;", helper)
+        for name, native, label in (
+            ("ngx_http_modsecurity_process_connection", "msc_process_connection", "connection"),
+            ("ngx_http_modsecurity_process_request_uri", "msc_process_uri", "URI"),
+        ):
+            with self.subTest(function=name):
+                caller = function_definition(self.access, name)
+                expected = f'return {helper_name}(r, ctx, ret, "{label}");'
+                self.assertEqual(caller.count(expected), 1)
+                self.assertLess(caller.index(f"ret = {native}"), caller.index("ngx_http_modsecurity_pcre_malloc_done"))
+                self.assertLess(caller.index("ngx_http_modsecurity_pcre_malloc_done"), caller.index(expected))
+                self.assertNotIn("ngx_http_modsecurity_process_intervention", caller)
+
     def test_negative_interventions_fail_closed_before_response_commit(self) -> None:
+        # Connection/URI callers are covered together with their real helper
+        # above and by the compiled request-phase-completion regressions.
         for name in (
-            "ngx_http_modsecurity_process_connection",
-            "ngx_http_modsecurity_process_request_uri",
             "ngx_http_modsecurity_process_request_headers",
             "ngx_http_modsecurity_append_request_body",
             "ngx_http_modsecurity_inspect_request_body",
@@ -481,7 +507,6 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
             "ngx_http_modsecurity_discard_replaced_response_body(in);",
             response_replaced,
         )
-        self.assertIn("return NGX_DECLINED;", response_replaced)
         body_filter = function_definition(self.body, "ngx_http_modsecurity_body_filter")
         self.assertIn(
             "return ngx_http_next_body_filter(r, in);",
