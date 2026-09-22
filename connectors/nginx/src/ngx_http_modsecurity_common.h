@@ -215,13 +215,17 @@ typedef struct {
      * ordinary rule-ID-bearing denies and permits the canonical rule-ID-free
      * BODY_LIMIT/413 translation only at this native boundary. */
     unsigned native_request_body_limit_rejection:1;
-    size_t request_body_bytes_seen;
-    size_t response_body_bytes_seen;
-    size_t response_body_bytes_inspected;
-    size_t request_header_count;
-    size_t request_header_bytes;
-    size_t response_header_count;
-    size_t response_header_bytes;
+    /* Bounded inspection accounting has one lifetime and no payload ownership.
+     * Keep the established member names and order for the native helpers. */
+    struct {
+        size_t request_body_bytes_seen;
+        size_t response_body_bytes_seen;
+        size_t response_body_bytes_inspected;
+        size_t request_header_count;
+        size_t request_header_bytes;
+        size_t response_header_count;
+        size_t response_header_bytes;
+    };
     /* A file-only response buffer cannot be passed directly to
      * libModSecurity. The body filter allocates this fixed-size scratch
      * buffer once per request and reuses it for bounded file reads; it never
