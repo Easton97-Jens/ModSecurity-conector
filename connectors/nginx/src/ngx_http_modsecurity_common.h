@@ -175,6 +175,9 @@ typedef struct {
     unsigned body_requested:1;
     unsigned processed:1;
     unsigned logged:1;
+    /* Native audit-log completion is distinct from the one-attempt marker.
+     * Re-entry must preserve a failed result without invoking the engine twice. */
+    unsigned native_logging_failed:1;
     unsigned intervention_triggered:1;
     /* Set only after the redirect helper installs a connector-owned Location.
      * A pre-existing upstream Location must not be mistaken for a ModSecurity
