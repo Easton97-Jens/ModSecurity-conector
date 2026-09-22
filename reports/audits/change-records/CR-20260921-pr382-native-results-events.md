@@ -2,236 +2,163 @@
 
 **Language:** English | [Deutsch](CR-20260921-pr382-native-results-events.de.md)
 
-## Continuation 2026-09-22: NGINX adoption/mutation repair
-
-Change ID remains `CR-20260921-pr382-native-results-events`.
-Tested revision: `f7aa2f2ccf929f226a6b0ad7b9ff0700b71c367d`.
-The bounded next step, checklist V06b, is `passed`; the overall PR remains
-`partial` and Draft. The older sections below retain the historical
-`039b7f123ff5ce87c033ce805b9f7e07b7d44bb4` continuation and its failures;
-this section supersedes their NGINX adoption/mutation status only.
-
-The checker expected a plain `return ret`, although the reviewed code now
-returns the terminal `ngx_http_modsecurity_phase4_fail_control` result. Two
-mutations still searched for the old fragment, and the isolated repository
-copy omitted `ngx_http_modsecurity_phase4_error.h`. The missing header also
-caused unrelated macro/include failures that could disguise a mutation's
-actual result.
-
-Changed validation files:
-
-- `ci/checks/connectors/nginx/check-nginx-common-adoption.py`: require the exact terminal dispatch and arguments rather than accepting arbitrary failure handling.
-- `tests/test_nginx_common_adoption.py`: copy the actual private header, repair both stale anchors, require exit status 1 and the precise `FAIL:` line, retain all 96 existing tests, and add four fixture/dispatch regression tests.
-
-New regressions cover byte-identical header copying, missing header, forbidden
-macro mutation inside that header, and discarding the terminal-dispatch result
-before returning success. No runtime code, workflow, dependency, warning flag,
-scanner rule or security setting changed. Concurrent identical checker commit
-`7bd3b2355c84bc6bd630de6b19ea6115b5eb64f2` was preserved as the parent of the
-fixture commit; no force push was used.
-
-[Lint run 35696836181, job 106645456958](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35696836181/job/106645456958)
-passed the complete `python -m unittest -v tests.test_nginx_common_adoption`
-step at the tested revision. Native/event, request-native, late-error/reentry,
-Phase-4/security, configuration-reference and exact-head Sonar-zero steps also
-passed. **The overall job failed later at `Run lightweight lint`.** Its cause
-is not established by the mutation-step result and remains a separate open item.
-
-[NGINX run 35696836186, job 106645456976](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35696836186/job/106645456976)
-passed scaffold and Common-contract checks, then failed its separate native
-syntax/regression guard. A request-body assertion still expects `if (ret != 1)`;
-the owning source was not repaired in this step. Neither failed workflow is
-reported as green.
-
-[Sonar check 106645541548](https://github.com/Easton97-Jens/ModSecurity-conector/runs/106645541548)
-completed successfully for the exact tested SHA with **0 new issues,
-0 accepted issues, 0 Security Hotspots and 0 annotations**. New-code coverage
-remains 0.0%; no measured coverage improvement is claimed.
-
-The paired checklist marks V06b complete and records these results. V06 combined
-validation, V07 all-required-checks, remaining implementation, producer/sink and
-real-host/profile/transport criteria remain open. Local project commands were
-not run because the required RTK path was unavailable; evidence is from GitHub
-CI. The documentation-only follow-up needs its own fresh CI/Sonar checks and
-must not inherit this tested SHA's results. No merge, master push, deployment,
-Framework/MRTS write or issue acceptance was performed.
-
-## Identity
+## Identity and current scope
 
 | Field | Value |
 | --- | --- |
 | Change ID | `CR-20260921-pr382-native-results-events` |
-| Date (UTC) | `2026-09-21` |
-| Base revision | `5170d24801243cdcd7bf1bca6123bf8cb2c72386` |
-| Current continuation base | `83c5f88179f0f33be66c68913f4b0ce694cd19f2` |
-| Tested implementation revision | `039b7f123ff5ce87c033ce805b9f7e07b7d44bb4` |
+| Updated (UTC) | `2026-09-22` |
+| PR base | `5170d24801243cdcd7bf1bca6123bf8cb2c72386` |
+| Native implementation checkpoint | `52445b18bf5944208f218871ce0f87f8f077d47d` |
+| Latest code/test checkpoint | `092dfd1c8937f9712c03da011e61f1e4eab31840` |
 | Branch | `fix/unified-native-results-events-20260921` |
-| Pull request | [#382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382) |
+| Pull request | [Draft #382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382) |
 
-Scope: Parent repository only. The PR remains Draft; no merge or master push.
-Earlier continuation evidence remains in Git history and the checklist.
+Parent repository only. No merge, master push, deployment, dependency update,
+Framework/MRTS write, scanner suppression or issue acceptance. Current scope is
+adoption-check remediation and accurate documentation, not a new host capability.
+The [checklist](../../../docs/pr-382-checklist.md) separates implemented,
+verified and remaining items. Overall migration status remains `partial`.
 
-## Motivation and problem statement
+## Motivation and acceptance criteria
 
-Native byte-append zero can mean configured `ProcessPartial`; phase processing
-requires one. Prior PR commits introduced shared predicates, typed errors and
-JSONL/hash normalization. They did not complete all connector routes or tests.
+Direct native byte-append zero can represent configured `ProcessPartial`; phase
+processing requires one. Host callback results and file APIs retain their own
+contracts. A technical failure must not become a rule match or successful safe
+observation. Logs must distinguish requested decisions from observed host actions.
 
-This continuation fixes a real metadata error: `not_observable` was treated as
-proof of a host action. It repairs stale Apache adoption expectations without
-removing negative tests, preserves HAProxy behavior while reducing reported
-complexity, and implements the user's explicit zero-new-Sonar-finding requirement.
-The entire connector migration is still incomplete.
+The latest slice must recognize the actual bounded terminal NGINX helper and
+HAProxy Rule-ID helper without accepting omitted calls, inverted guards or
+unchecked results. Existing negative tests remain active. The user requires
+zero new Sonar findings on the exact delivery SHA; a green quality gate from an
+older revision does not satisfy that requirement.
 
-## Acceptance criteria
+## Earlier implemented changes retained
 
-The [paired checklist](../../../docs/pr-382-checklist.md) separates implemented,
-verified and open items. Known unobserved events must not claim executed actions;
-actual evidence fields and custom events must survive normalization. Shared
-predicates must not be applied to unrelated API conventions. Apache safety
-mutations and HAProxy call/cleanup order must remain tested. Sonar must report
-zero new issues and hotspots on the exact head, not merely a green Quality Gate.
-All remaining route, native-host, log-sink and final-head requirements stay open.
+Shared native predicates and typed error classification cover the stated
+Apache/HAProxy/Common paths and NGINX response processing. `event_protocol.h`
+normalizes known events for both JSONL and hashing after original-input
+validation. Missing observations use an empty actual action; unknown custom
+events and actual counters/transport metadata are preserved. Query redaction
+remains active. Apache's handwritten JSON fallback is removed.
 
-## Implementation decision and rationale
+HAProxy extracts bounded Rule-ID decoding and dependency-ordered cleanup.
+The Common engine bridge maps native engine failure to invalid-engine-response
+without merging timeout, protocol, connector and body-limit causes.
 
-Known rule events without observation now use `MSCONN_EVENT_ENGINE_DECISION`, an
-empty `actual_action` and a neutral message. Known technical errors retain their
-cause and error status. NULL, empty and `not_observable` all mean no observation.
-No timestamp, HTTP observation, counter, EOS or transport flag is synthesized.
-The real JSONL and integrity code use the same idempotent view, after validating
-the original input. Unknown application events keep their existing semantics.
+NGINX request changes through `fcbaca03` accept valid partial byte ingestion,
+keep file-reader results strict and enforce cumulative file/body bounds. Request
+phase completion occurs only after native success, and failed request re-entry
+remains terminal. Changes at `52445b18` prevent negative late interventions and
+mandatory Phase-4 log failures from reaching successful Safe log-only handling.
+A bounded private helper permits only synchronous core-generated terminal error
+responses; later retries remain blocked. These are implemented subsets, not
+proof that every request-event producer or host transport is complete.
 
-Apache checkers now inspect shared return predicates, typed event status and a
-single bounded canonical writer. The removed handwritten JSON fallback is not
-required by obsolete assertions. New mutations reject inverted append/phase
-guards, removed serialization-error return and technical errors logged as rule
-blocks. A later linear status-assignment check removes a reported regex risk.
+## 2026-09-22: adoption checker root causes and fixes
 
-HAProxy extracts bounded Rule-ID decoding and dependency-ordered resource cleanup.
-A remote commit diff confirmed 36 added and 22 removed binding lines, with the
-existing evaluation sequence retained. New compiled tests exercise the actual
-selected source with controlled API seams and the real Common Rule-ID decoder.
+The NGINX checker expected `return ret`, but the reviewed chain now returns
+`ngx_http_modsecurity_phase4_fail_control(r, mcf, ctx, cause)`. Commit `7bd3b235`
+requires that exact terminal dispatch. The isolated fixture omitted its private
+header and two mutation anchors still matched the old code. Concurrent commit
+`f7aa2f2c` was preserved: it includes the real header, repairs the anchors,
+requires exit status 1 plus the exact FAIL diagnostic, retains all 96 existing
+tests and adds four regressions. No force push or overwrite was used.
 
-The Sonar guard reads only GitHub Checks using a job-scoped read credential. It
-requires the exact SHA and provider, a successful completed analysis and explicit
-zero issue/hotspot/annotation counts. Missing or ambiguous evidence fails rather
-than passing. Responses, polling and diagnostic output are bounded; redirects
-are rejected. No scanner exclusions, accepted findings or suppressed rules are
-used. Repository identity rejects traversal and stays ASCII-only.
+The subsequent lint failure at `f7aa2f2c` was traced to two obsolete HAProxy
+Rule-ID spelling probes. The real decoder initializes its buffer with `{0}` and
+returns early when extraction is `<= 0`; the probes expected the former inline
+assignments. Commit `092dfd1c` inspects the extracted, comment-masked decoder
+and its intervention callsite. An exact whitespace-normalized contract retains
+initialization, early failure return, conversion termination and integer bounds.
+Eight isolated mutations test those requirements and reject a comment-only or
+missing helper call. Existing compiled decoder tests remain unchanged.
 
-## Changed files
+Changed files in this slice:
 
-This continuation changes the following code and validation surfaces:
+- `ci/checks/connectors/nginx/check-nginx-common-adoption.py`
+- `tests/test_nginx_common_adoption.py`
+- `ci/checks/connectors/haproxy/check-haproxy-common-adoption.py`
+- `tests/test_haproxy_adoption_rule_id.py`
+- `.github/workflows/lint.yml` (adds the HAProxy regression step)
+- paired checklist, contract/migration guide and Change Record.
 
-- `common/include/msconnector/event_protocol.h`
-- `connectors/haproxy/src/haproxy_modsecurity_binding.c`
-- `ci/checks/common/check-sonar-zero.py`
-- `ci/checks/connectors/apache/apache_common_adoption_base.py`
-- `ci/checks/connectors/apache/check-apache-common-adoption.py`
-- `tests/test_apache_common_adoption.py`
-- `tests/test_event_transport_observation.py`
-- `tests/test_sonar_zero_gate.py`
-- `tests/test_haproxy_binding_refactor.py`
-- `.github/workflows/lint.yml` and `.github/workflows/test-haproxy.yml`
-- `docs/pr-382-checklist.md` and `docs/pr-382-checklist.de.md`
-- `docs/pr-382-event-contract.md` and `docs/pr-382-event-contract.de.md`
-- this Change Record and its German companion.
+No production C source changes were needed for the latest checker slice.
 
-Earlier native-result, Common error-classifier, Apache/NGINX and serializer/hash
-changes remain in the PR. No dependencies, generated configuration, Framework,
-MRTS, branch protection or scanner configuration were changed.
+## Fresh verification and exact boundaries
 
-## Commands executed
-
-GitHub CI [run 35634888258, job 106449766690](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35634888258/job/106449766690)
-completed these individual steps successfully at the tested implementation SHA:
+At `092dfd1c8937f9712c03da011e61f1e4eab31840`,
+[lint job 106648735070](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35697893254/job/106648735070)
+passed the following individual steps:
 
 ```sh
 python -m unittest -v tests.test_native_result_event_protocol tests.test_native_error_classification tests.test_event_transport_observation tests.test_sonar_zero_gate
+python -m unittest -v tests.test_nginx_request_native_results
+python -m unittest -v tests.test_nginx_late_error_results
 python -m unittest -v tests.test_phase4_migration_contract tests.test_nginx_native_security_contract tests.test_nginx_upstream_security_contract
-python ci/checks/common/check-sonar-zero.py
+python -m unittest -v tests.test_nginx_common_adoption
+python -m unittest -v tests.test_haproxy_adoption_rule_id
 ```
 
-The overall lint job failed at the NGINX adoption/mutation step. Passed individual
-steps are not represented as a green overall workflow. The new fixtures compile
-with `-std=c17 -Wall -Wextra -Werror`; they exercise actual selected Common/native
-code with controlled surrounding state, not six real hosts.
+These groups contain respectively 29, 9, 9, 33, 100 and 8 tests. The NGINX/HAProxy
+adoption tests mutate isolated source snapshots; compiled native tests exercise
+actual selected functions with controlled collaborators. Neither is a six-host
+HTTP test. Configuration-reference steps also passed.
 
-GitHub CI [run 35634888103, job 106449767189](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35634888103/job/106449767189)
-passed the following at the same implementation SHA:
+At the same checkpoint, `test-common`, `test-apache`, `quick-framework-check`
+and `test-nginx` completed successfully. The NGINX syntax/dry-run step is in
+[job 106648735305](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35697893302/job/106648735305).
+This supersedes earlier failure descriptions for those checks; workflow titles
+and preflight artifacts still do not prove a full native runtime matrix.
 
-```sh
-python3 -m unittest -v tests.test_haproxy_binding_refactor
-python3 tests/test_haproxy_libmodsecurity_compat.py
-```
+At documentation preparation, the newest remote Sonar confirmation and overall
+lint conclusion were pending. No final-head all-green claim is made. Each later
+commit, including this documentation update, requires its own fresh analysis.
 
-All eight evaluation/cleanup/Rule-ID tests and the existing compile/link
-compatibility step passed. Native API seams in these tests are controlled;
-this is not a live HAProxy HTTP result.
+## Historical evidence preserved
 
-Apache scoped adoption checks and all 16 mutation tests passed at
-`1709e1def4706f0124d56fc687b3faf1fd8e2946` in
-[run 35633647191, job 106445635579](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35633647191/job/106445635579).
-That job then failed at the NGINX checker. The later linear Apache source-check
-refactor needs its own complete validation; no earlier pass is promoted to it.
+| Revision | Evidence | Interpretation |
+| --- | --- | --- |
+| `039b7f123ff5ce87c033ce805b9f7e07b7d44bb4` | [Lint job 106449766690](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35634888258/job/106449766690) | Focused native/event tests passed; the then-current NGINX mutations failed |
+| `1709e1def4706f0124d56fc687b3faf1fd8e2946` | [Job 106445635579](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35633647191/job/106445635579) | 16 Apache mutation tests and scoped guards passed, followed by an unrelated NGINX-check failure |
+| `039b7f123ff5ce87c033ce805b9f7e07b7d44bb4` | [HAProxy job 106449767189](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35634888103/job/106449767189) | Eight compiled helper tests and native API compile/link compatibility passed |
+| `f7aa2f2ccf929f226a6b0ad7b9ff0700b71c367d` | [Lint job 106645456958](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35696836181/job/106645456958) | All 100 NGINX adoption tests and the exact-head Sonar-zero step passed; later lint failed on obsolete HAProxy probes |
 
-[Sonar check 106450287547](https://github.com/Easton97-Jens/ModSecurity-conector/runs/106450287547)
-completed on `039b7f123ff5ce87c033ce805b9f7e07b7d44bb4` with **0 new issues,
-0 accepted issues, 0 Security Hotspots and 0 annotations**. It reports 0.0%
-new-code duplication and 0.0% new-code coverage. The latter is not represented
-as measured test coverage. Every later head requires a fresh analysis.
+Earlier detailed records remain in Git history. These successes and failures
+are revision-scoped, not assertions about the latest head.
 
-## Security impact
+## Sonar and security impact
 
-An engine failure must not become allow/log-only, a false rule block or false
-successful inspection. Missing host observations must not be presented as
-executed enforcement. Original input validation and query redaction are kept.
-No raw body, credential or unrestricted environment is added to event evidence.
+`ci/checks/common/check-sonar-zero.py` uses job-scoped GitHub read permissions,
+checks provider and exact SHA, and requires completed successful analysis plus
+explicit zero issue/hotspot/annotation counts. Missing or ambiguous results fail.
+Credentials and unrestricted environment data are not logged. No issue was
+accepted or rule disabled to obtain a result. The earlier `039b7f12`
+[analysis](https://github.com/Easton97-Jens/ModSecurity-conector/runs/106450287547)
+reported four zero finding counts; the `f7aa2f2c` exact-head step also passed.
+These do not establish the later delivery's result or measured test coverage.
 
-The new Sonar check has only job-scoped `checks: read` and `contents: read`.
-Credentials are not printed, forwarded on redirects or written into evidence.
-The guard is stricter than the existing green Quality Gate and is not a
-replacement for code, mutation, security or host integration tests.
+This slice strengthens fixture and call-result validation. It does not remove
+existing safety gates, alter engine policy, change resource limits or grant
+unsupported strict/reset capabilities. A late abort cannot retract sent bytes.
 
-## Runtime evidence
+## Remaining work and checks not run
 
-No complete six-family live HTTP/transport matrix was performed. Common fixture
-family labels are not independent host runs. HAProxy source-function tests and
-compile/link compatibility establish their stated layers only. Hosted CI builds
-and preflight artifacts alone do not establish client-visible behavior. No
-unsupported strict profile or reset/abort capability is promoted.
+Complete typed request-event handling and all remaining native/API routes;
+compare producer-to-sink behavior, duplicate events and log-I/O failures in each
+direct/companion/middleware/sidecar integration. Finish supported-transport
+failure injection, neighbor-stream survival, runtime log comparisons, broad
+connector guides and historical consumer/hash-version compatibility review.
 
-## Known limitations
+Local commands, native builds and local `git diff --check` were not run because
+the repository's required RTK execution wrapper was unavailable. Validation used
+actual GitHub CI. Full six-family live HTTP/transport verification, all required
+final-head checks and release review remain open. Changes were reviewed through
+GitHub per-commit comparison; concurrent branch commits were preserved.
 
-NGINX request/file paths and late technical-intervention handling remain open.
-The NGINX chain checker and stale mutation fragments still fail. Complete
-producer/sink comparison, duplicate terminal records, I/O failures, other event
-classes and direct/companion route equivalence still need work. The broad
-connector guides and final compatibility/versioning review are incomplete.
+## Delivery status
 
-## Remaining risks
-
-A valid partial-ingestion return does not prove all supplied bytes were inspected.
-A late abort cannot retract data already sent. Normalization cannot create host
-observations; producers still need consistent flags and statuses. The new event
-identifier, empty actual action and normalized integrity view affect consumers;
-the [contract guide](../../../docs/pr-382-event-contract.md) documents migration
-requirements without claiming historical format compatibility is settled.
-
-## Checks not run and rationale
-
-Local native builds, local project tests and local `git diff --check` were not
-run because the required project execution wrapper is unavailable. Validation
-uses the actual GitHub CI results above. Full six-family host/transport failure
-injection, complete log-sink equivalence and all-green final-head CI remain open.
-The final documentation commit needs its own bilingual/link/CI/Sonar results.
-
-## Final diff and review status
-
-Overall: `partial`. The new metadata fix, Apache validation updates and HAProxy
-refactor are committed with the stated tests; exact implementation-head Sonar
-zero is verified. The NGINX validation gap and remaining implementation/runtime
-criteria prevent completion. Checklists and contract guidance are bilingual.
-The PR remains Draft. No merge, direct master push, deployment, dependency,
-Framework/MRTS write, issue acceptance or scanner suppression was performed.
+NGINX adoption remediation and the HAProxy checker follow-up have the passing
+scoped tests above. Request/file and late-error implementation subsets now have
+explicit separate checklist entries. The current delivery is still Draft and
+`partial` overall; no merge or deployment is authorized by these test results.

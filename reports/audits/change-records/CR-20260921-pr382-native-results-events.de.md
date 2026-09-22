@@ -2,257 +2,176 @@
 
 **Sprache:** [English](CR-20260921-pr382-native-results-events.md) | Deutsch
 
-## Fortsetzung 2026-09-22: NGINX-Adoption-/Mutationsreparatur
-
-Die Change-ID bleibt `CR-20260921-pr382-native-results-events`.
-Getestete Revision: `f7aa2f2ccf929f226a6b0ad7b9ff0700b71c367d`.
-Der eingegrenzte nächste Schritt, Checklistenpunkt V06b, ist `passed`; der
-Gesamt-PR bleibt `partial` und Draft. Die älteren Abschnitte unten bewahren die
-historische Fortsetzung für `039b7f123ff5ce87c033ce805b9f7e07b7d44bb4` und ihre
-Fehler. Dieser Abschnitt ersetzt nur deren NGINX-Adoption-/Mutationsstatus.
-
-Der Checker erwartete ein einfaches `return ret`, obwohl der geprüfte Code nun
-das Ergebnis der terminalen `ngx_http_modsecurity_phase4_fail_control`-Behandlung
-zurückgibt. Zwei Mutationen suchten weiterhin das alte Fragment, und die isolierte
-Repository-Kopie enthielt `ngx_http_modsecurity_phase4_error.h` nicht. Der fehlende
-Header verursachte zusätzliche Makro-/Include-Fehler, die das eigentliche
-Ergebnis einer Mutation verdecken konnten.
-
-Geänderte Validierungsdateien:
-
-- `ci/checks/connectors/nginx/check-nginx-common-adoption.py`: Exakte terminale Weiterleitung mit ihren Argumenten verlangen, statt beliebige Fehlerbehandlung zu akzeptieren.
-- `tests/test_nginx_common_adoption.py`: Tatsächlichen privaten Header kopieren, beide veralteten Anker reparieren, Exitstatus 1 und genaue `FAIL:`-Zeile verlangen, alle 96 vorhandenen Tests erhalten und vier Regressionstests für Testkopie und Fehlerweiterleitung ergänzen.
-
-Neue Regressionen prüfen byteidentisches Kopieren des Headers, fehlenden Header,
-verbotene Makroänderung darin und Verwerfen des terminalen Rückgabewerts mit
-anschließender Erfolgsrückgabe. Laufzeitcode, Workflows, Abhängigkeiten,
-Compilerwarnungen, Scannerregeln und Sicherheitseinstellungen blieben unverändert.
-Die zwischenzeitlich eingegangene identische Checker-Korrektur
-`7bd3b2355c84bc6bd630de6b19ea6115b5eb64f2` blieb als Elterncommit der
-Testkopie-Korrektur erhalten; kein Force-Push wurde verwendet.
-
-[Lint-Lauf 35696836181, Job 106645456958](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35696836181/job/106645456958)
-bestand den vollständigen Schritt
-`python -m unittest -v tests.test_nginx_common_adoption` für die getestete
-Revision. Native-/Event-, Request-Native-, Spätfehler-/Wiedereintritts-,
-Phase-4-/Sicherheits-, Konfigurationsreferenz- und exakte Head-Sonar-Null-Schritte
-bestanden ebenfalls. **Der Gesamtjob scheiterte später bei `Run lightweight lint`.**
-Dessen Ursache ist durch das Mutationsergebnis nicht geklärt und bleibt ein
-getrennter offener Punkt.
-
-[NGINX-Lauf 35696836186, Job 106645456976](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35696836186/job/106645456976)
-bestand Scaffold- und Common-Vertragsprüfungen, scheiterte danach jedoch an
-seiner separaten nativen Syntax-/Regressionsprüfung. Eine Request-Body-Assertion
-erwartet weiterhin `if (ret != 1)`; ihre Quelldatei wurde in diesem Schritt
-nicht repariert. Keiner der fehlgeschlagenen Workflows wird als grün dargestellt.
-
-[Sonar-Check 106645541548](https://github.com/Easton97-Jens/ModSecurity-conector/runs/106645541548)
-schloss für die exakte getestete SHA mit **0 neuen Issues, 0 akzeptierten Issues,
-0 Security Hotspots und 0 Annotationen** erfolgreich ab. Die Coverage für neuen
-Code bleibt 0.0%; eine Verbesserung gemessener Testabdeckung wird nicht behauptet.
-
-Die zweisprachige Checkliste markiert V06b als abgeschlossen und dokumentiert
-diese Ergebnisse. Gemeinsame Validierung V06, sämtliche erforderlichen Prüfungen
-V07, verbleibende Implementierung, Erzeuger-/Ausgabe- und echte Host-/Profil-/
-Transportkriterien bleiben offen. Lokale Projektbefehle wurden wegen des fehlenden
-vorgeschriebenen RTK-Pfads nicht ausgeführt; die Nachweise stammen aus GitHub-CI.
-Der reine Dokumentations-Nachfolgecommit benötigt eigene frische CI-/Sonar-
-Prüfungen und darf die Ergebnisse dieser getesteten SHA nicht übernehmen. Kein
-Merge, Master-Push, Deployment, Framework-/MRTS-Schreibzugriff oder Akzeptieren
-von Issues wurde durchgeführt.
-
-## Identität
+## Identität und aktueller Umfang
 
 | Feld | Wert |
 | --- | --- |
 | Change-ID | `CR-20260921-pr382-native-results-events` |
-| Datum (UTC) | `2026-09-21` |
-| Basis-Revision | `5170d24801243cdcd7bf1bca6123bf8cb2c72386` |
-| Aktuelle Fortsetzungsbasis | `83c5f88179f0f33be66c68913f4b0ce694cd19f2` |
-| Getestete Implementierungsrevision | `039b7f123ff5ce87c033ce805b9f7e07b7d44bb4` |
+| Aktualisiert (UTC) | `2026-09-22` |
+| PR-Basis | `5170d24801243cdcd7bf1bca6123bf8cb2c72386` |
+| Nativer Implementierungsprüfstand | `52445b18bf5944208f218871ce0f87f8f077d47d` |
+| Letzter Code-/Test-Prüfstand | `092dfd1c8937f9712c03da011e61f1e4eab31840` |
 | Branch | `fix/unified-native-results-events-20260921` |
-| Pull Request | [#382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382) |
+| Pull Request | [Draft #382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382) |
 
-Umfang: nur Parent-Repository. Der PR bleibt Draft; kein Merge oder Master-Push.
-Frühere Fortsetzungsnachweise bleiben in Git-Historie und Checkliste erhalten.
+Nur Parent-Repository. Kein Merge, Master-Push, Deployment, Abhängigkeitsupdate,
+Framework-/MRTS-Schreibzugriff, Scanner-Unterdrückung oder Akzeptieren von Issues.
+Aktueller Umfang ist die Reparatur der Adoption-Prüfungen und korrekte
+Dokumentation, keine neue Hostfähigkeit. Die
+[Checkliste](../../../docs/pr-382-checklist.de.md) trennt implementierte,
+verifizierte und offene Punkte. Die Gesamtmigration bleibt `partial`.
 
-## Motivation und Problemstellung
+## Motivation und Akzeptanzkriterien
 
-Null beim nativen Byte-Append kann konfiguriertes `ProcessPartial` bedeuten;
-Phasenauswertung verlangt eins. Frühere PR-Commits ergänzten gemeinsame
-Prädikate, typisierte Fehler und JSONL-/Hash-Normalisierung. Damit waren noch
-nicht alle Connector-Routen und Prüfungen abgeschlossen.
+Null beim direkten nativen Byte-Append kann konfiguriertes `ProcessPartial`
+bedeuten; Phasenauswertung verlangt eins. Host-Callbacks und Datei-APIs behalten
+eigene Verträge. Ein technischer Fehler darf weder Regeltreffer noch erfolgreiche
+Safe-Beobachtung werden. Logs müssen angeforderte Entscheidungen von beobachteten
+Hostaktionen unterscheiden.
 
-Diese Fortsetzung behebt einen echten Metadatenfehler: `not_observable` wurde
-als Nachweis einer Hostaktion behandelt. Sie repariert veraltete Apache-
-Adoption-Erwartungen ohne Entfernung von Negativtests, erhält das HAProxy-
-Verhalten bei reduzierter gemeldeter Komplexität und setzt die ausdrückliche
-Nutzervorgabe null neuer Sonar-Befunde um. Die Gesamtmigration bleibt unfertig.
+Der aktuelle Schritt muss tatsächliche begrenzte NGINX-Terminal- und HAProxy-
+Rule-ID-Helfer erkennen, ohne fehlende Aufrufe, invertierte Bedingungen oder
+ungeprüfte Ergebnisse zuzulassen. Bestehende Negativtests bleiben aktiv. Der
+Nutzer verlangt null neue Sonar-Befunde für die exakte Liefer-SHA; ein grünes
+Quality Gate einer älteren Revision erfüllt diese Vorgabe nicht.
 
-## Akzeptanzkriterien
+## Erhaltene frühere Implementierungen
 
-Die [zweisprachige Checkliste](../../../docs/pr-382-checklist.de.md) trennt
-implementierte, verifizierte und offene Punkte. Bekannte unbeobachtete Ereignisse
-dürfen keine ausgeführten Aktionen behaupten; tatsächliche Nachweisfelder und
-Anwendungsereignisse müssen die Normalisierung überstehen. Gemeinsame Prädikate
-dürfen nicht auf fremde API-Konventionen angewendet werden. Apache-
-Sicherheitsmutationen und HAProxy-Aufruf-/Bereinigungsreihenfolge müssen getestet
-bleiben. Sonar muss null neue Issues und Hotspots für den exakten Head melden,
-nicht nur ein grünes Quality Gate. Verbleibende Routen-, Host-, Logausgabe- und
-End-Head-Anforderungen bleiben offen.
+Gemeinsame native Prädikate und typisierte Fehlerklassifikation erfassen die
+genannten Apache-/HAProxy-/Common-Pfade und NGINX-Antwortverarbeitung.
+`event_protocol.h` normalisiert bekannte Ereignisse für JSONL und Hash nach
+ursprünglicher Eingabevalidierung. Fehlende Beobachtungen ergeben eine leere
+tatsächliche Aktion; unbekannte Anwendungsereignisse und tatsächliche Zähler-/
+Transportmetadaten bleiben erhalten. Query-Redaktion bleibt aktiv. Der
+handgeschriebene Apache-JSON-Fallback wurde entfernt.
 
-## Implementierungsentscheidung und Begründung
+HAProxy lagert begrenzte Rule-ID-Dekodierung und abhängigkeitsgeordnete Bereinigung
+aus. Die Common-Engine-Brücke ordnet native Engine-Fehler der Klasse ungültiger
+Engine-Antworten zu, ohne Timeout-, Protokoll-, Connector- und Body-Limit-Ursachen
+zusammenzufassen.
 
-Bekannte Regelereignisse ohne Beobachtung verwenden nun
-`MSCONN_EVENT_ENGINE_DECISION`, eine leere `actual_action` und eine neutrale
-Meldung. Bekannte technische Fehler behalten Ursache und Fehlerstatus. NULL,
-leer und `not_observable` bedeuten jeweils fehlende Beobachtung. Zeitstempel,
-HTTP-Beobachtungen, Zähler, EOS und Transportflags werden nicht erfunden.
-Echter JSONL- und Integritätscode verwenden nach ursprünglicher Eingabevalidierung
-dieselbe idempotente Ansicht. Unbekannte Anwendungsereignisse behalten ihre Semantik.
+NGINX-Request-Änderungen bis `fcbaca03` akzeptieren gültige teilweise Byte-Übernahme,
+prüfen Dateileser-Rückgaben weiterhin strikt und erzwingen kumulative Datei-/
+Body-Grenzen. Request-Phasen werden erst nach nativem Erfolg abgeschlossen;
+Wiedereintritt nach Request-Fehlern bleibt terminal. Änderungen in `52445b18`
+verhindern, dass negative späte Interventionen und verpflichtende Phase-4-Logfehler
+zur erfolgreichen Safe-Log-only-Behandlung gelangen. Ein begrenzter privater
+Helfer erlaubt nur synchron erzeugte Core-Fehlerantworten; spätere Wiederholungen
+bleiben gesperrt. Dies sind implementierte Teilbereiche, kein Nachweis aller
+Request-Ereigniserzeuger oder Hosttransporte.
 
-Apache-Prüfungen betrachten jetzt gemeinsame Rückgabeprädikate, typisierten
-Ereignisstatus und einen einzigen begrenzten kanonischen Writer. Veraltete
-Assertions verlangen den entfernten handgeschriebenen JSON-Fallback nicht mehr.
-Neue Mutationen erkennen invertierte Append-/Phasenbedingungen, fehlende
-Serialisierungsfehler-Rückgaben und als Regelblockierung geloggte technische
-Fehler. Eine spätere lineare Statuszuweisungsprüfung entfernt ein gemeldetes
-Risiko des regulären Ausdrucks.
+## 2026-09-22: Ursachen und Reparaturen der Adoption-Prüfungen
 
-HAProxy lagert begrenzte Rule-ID-Dekodierung und abhängigkeitsgeordnete
-Ressourcenbereinigung aus. Ein entfernter Commit-Diff bestätigte 36 hinzugefügte
-und 22 entfernte Binding-Zeilen bei erhaltener Auswertungsreihenfolge. Neue
-kompilierte Tests prüfen den echten ausgewählten Quellcode mit kontrollierten
-API-Grenzen und dem echten Common-Rule-ID-Dekodierer.
+Der NGINX-Checker erwartete `return ret`, die geprüfte Chain gibt inzwischen aber
+`ngx_http_modsecurity_phase4_fail_control(r, mcf, ctx, cause)` zurück. Commit
+`7bd3b235` verlangt genau diese terminale Weiterleitung. In der isolierten
+Testkopie fehlte der private Header; zwei Mutationsstellen passten noch zum alten
+Code. Der parallele Commit `f7aa2f2c` blieb erhalten: Er kopiert den echten Header,
+repariert die Stellen, verlangt Exitstatus 1 samt exakter FAIL-Diagnose, erhält
+alle 96 vorhandenen Tests und ergänzt vier Regressionen. Kein Force-Push oder
+Überschreiben wurde verwendet.
 
-Die Sonar-Prüfung liest ausschließlich GitHub Checks mit jobbezogenen
-Leserechten. Sie verlangt exakte SHA und Anbieter, eine erfolgreich abgeschlossene
-Analyse und explizit null Issues/Hotspots/Annotationen. Fehlende oder mehrdeutige
-Nachweise schlagen fehl. Antworten, Polling und Diagnoseausgabe sind begrenzt;
-Weiterleitungen werden zurückgewiesen. Scanner-Ausnahmen, akzeptierte Befunde
-und unterdrückte Regeln werden nicht verwendet. Repository-Identität verhindert
-Pfadtraversal und bleibt ASCII-beschränkt.
+Der anschließende Lint-Fehler bei `f7aa2f2c` wurde auf zwei veraltete HAProxy-
+Rule-ID-Schreibweisenprüfungen zurückgeführt. Der echte Dekodierer initialisiert
+seinen Puffer mit `{0}` und kehrt bei Extraktion `<= 0` zurück; die Prüfungen
+verlangten die frühere Inline-Schreibweise. Commit `092dfd1c` betrachtet den
+ausgelagerten, von Kommentaren bereinigten Dekodierer und seine Interventions-
+Aufrufstelle. Ein exakter, bezüglich Leerraum normalisierter Vertrag erhält
+Initialisierung, frühe Fehlerrückgabe, vollständige Konvertierung und Integer-
+Grenzen. Acht isolierte Regressionstests prüfen diese Anforderungen und weisen
+rein auskommentierte oder fehlende Helferaufrufe zurück. Bestehende kompilierte
+Dekodierertests bleiben unverändert.
 
-## Geänderte Dateien
+Geänderte Dateien dieses Schritts:
 
-Diese Fortsetzung ändert folgende Code- und Validierungsbereiche:
+- `ci/checks/connectors/nginx/check-nginx-common-adoption.py`
+- `tests/test_nginx_common_adoption.py`
+- `ci/checks/connectors/haproxy/check-haproxy-common-adoption.py`
+- `tests/test_haproxy_adoption_rule_id.py`
+- `.github/workflows/lint.yml` (ergänzt HAProxy-Regressionsschritt)
+- zweisprachige Checkliste, Vertrags-/Migrationsanleitung und Change Record.
 
-- `common/include/msconnector/event_protocol.h`
-- `connectors/haproxy/src/haproxy_modsecurity_binding.c`
-- `ci/checks/common/check-sonar-zero.py`
-- `ci/checks/connectors/apache/apache_common_adoption_base.py`
-- `ci/checks/connectors/apache/check-apache-common-adoption.py`
-- `tests/test_apache_common_adoption.py`
-- `tests/test_event_transport_observation.py`
-- `tests/test_sonar_zero_gate.py`
-- `tests/test_haproxy_binding_refactor.py`
-- `.github/workflows/lint.yml` und `.github/workflows/test-haproxy.yml`
-- `docs/pr-382-checklist.md` und `docs/pr-382-checklist.de.md`
-- `docs/pr-382-event-contract.md` und `docs/pr-382-event-contract.de.md`
-- diesen Change Record und seine englische Begleitdatei.
+Für die aktuelle Checker-Reparatur war keine Änderung produktiver C-Quellen nötig.
 
-Frühere Native-Result-, Common-Fehlerklassifizierer-, Apache-/NGINX- und
-Serializer-/Hash-Änderungen bleiben im PR. Abhängigkeiten, erzeugte Konfiguration,
-Framework, MRTS, Branchschutz und Scanner-Konfiguration wurden nicht geändert.
+## Frische Verifikation und genaue Grenzen
 
-## Ausgeführte Befehle
-
-GitHub-CI [Lauf 35634888258, Job 106449766690](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35634888258/job/106449766690)
-schloss folgende Einzelschritte für die getestete Implementierungs-SHA erfolgreich ab:
+Für `092dfd1c8937f9712c03da011e61f1e4eab31840` bestand
+[Lint-Job 106648735070](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35697893254/job/106648735070)
+folgende Einzelschritte:
 
 ```sh
 python -m unittest -v tests.test_native_result_event_protocol tests.test_native_error_classification tests.test_event_transport_observation tests.test_sonar_zero_gate
+python -m unittest -v tests.test_nginx_request_native_results
+python -m unittest -v tests.test_nginx_late_error_results
 python -m unittest -v tests.test_phase4_migration_contract tests.test_nginx_native_security_contract tests.test_nginx_upstream_security_contract
-python ci/checks/common/check-sonar-zero.py
+python -m unittest -v tests.test_nginx_common_adoption
+python -m unittest -v tests.test_haproxy_adoption_rule_id
 ```
 
-Der gesamte Lint-Job scheiterte am NGINX-Adoption-/Mutationsschritt. Bestandene
-Einzelschritte werden nicht als grüner Gesamtworkflow dargestellt. Neue Testdateien
-kompilieren mit `-std=c17 -Wall -Wextra -Werror`; sie prüfen echten ausgewählten
-Common-/nativen Code mit kontrolliertem Umfeld, nicht sechs echte Hosts.
+Diese Gruppen umfassen jeweils 29, 9, 9, 33, 100 und 8 Tests. NGINX-/HAProxy-
+Adoption-Tests verändern isolierte Quellkopien; kompilierte native Tests prüfen
+tatsächliche ausgewählte Funktionen mit kontrolliertem Umfeld. Beides ist kein
+HTTP-Test mit sechs Hosts. Die Konfigurationsreferenzschritte bestanden ebenfalls.
 
-GitHub-CI [Lauf 35634888103, Job 106449767189](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35634888103/job/106449767189)
-bestand für dieselbe Implementierungs-SHA folgende Befehle:
+Am selben Prüfstand schlossen `test-common`, `test-apache`,
+`quick-framework-check` und `test-nginx` erfolgreich ab. Der NGINX-Syntax-/
+Trockenlaufschritt steht in [Job 106648735305](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35697893302/job/106648735305).
+Dies ersetzt ältere Fehlerbeschreibungen dieser Prüfungen; Workflow-Namen und
+Preflight-Artefakte belegen weiterhin keine vollständige native Laufzeitmatrix.
 
-```sh
-python3 -m unittest -v tests.test_haproxy_binding_refactor
-python3 tests/test_haproxy_libmodsecurity_compat.py
-```
+Beim Vorbereiten der Dokumentation standen die neueste entfernte Sonar-
+Bestätigung und das Lint-Gesamtergebnis noch aus. Vollständig grüne End-Head-
+Prüfungen werden nicht behauptet. Jeder spätere Commit einschließlich dieses
+Dokumentationsupdates benötigt eine eigene frische Analyse.
 
-Alle acht Auswertungs-/Bereinigungs-/Rule-ID-Tests und die bestehende Compile-/
-Link-Kompatibilitätsprüfung bestanden. Native API-Grenzen dieser Tests sind
-kontrolliert; dies ist kein echtes HAProxy-HTTP-Ergebnis.
+## Erhaltene historische Nachweise
 
-Apache-Adoption-Prüfungen und alle 16 Mutationstests bestanden für
-`1709e1def4706f0124d56fc687b3faf1fd8e2946` in
-[Lauf 35633647191, Job 106445635579](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35633647191/job/106445635579).
-Der Job scheiterte danach am NGINX-Checker. Die spätere lineare Apache-
-Quellcodeprüfung benötigt ihre eigene vollständige Validierung; ein früherer
-Erfolg wird nicht als Nachweis dafür verwendet.
+| Revision | Nachweis | Bedeutung |
+| --- | --- | --- |
+| `039b7f123ff5ce87c033ce805b9f7e07b7d44bb4` | [Lint-Job 106449766690](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35634888258/job/106449766690) | Fokussierte Native-/Event-Tests bestanden; damalige NGINX-Mutationen schlugen fehl |
+| `1709e1def4706f0124d56fc687b3faf1fd8e2946` | [Job 106445635579](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35633647191/job/106445635579) | 16 Apache-Mutationstests und eingegrenzte Prüfungen bestanden; danach scheiterte der NGINX-Checker |
+| `039b7f123ff5ce87c033ce805b9f7e07b7d44bb4` | [HAProxy-Job 106449767189](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35634888103/job/106449767189) | Acht kompilierte Helfertests und native API-Compile-/Link-Kompatibilität bestanden |
+| `f7aa2f2ccf929f226a6b0ad7b9ff0700b71c367d` | [Lint-Job 106645456958](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35696836181/job/106645456958) | Alle 100 NGINX-Adoption-Tests und exakte Sonar-Null-Prüfung bestanden; später scheiterte Lint an veralteten HAProxy-Prüfungen |
 
-[Sonar-Check 106450287547](https://github.com/Easton97-Jens/ModSecurity-conector/runs/106450287547)
-schloss für `039b7f123ff5ce87c033ce805b9f7e07b7d44bb4` mit **0 neuen Issues,
-0 akzeptierten Issues, 0 Security Hotspots und 0 Annotationen** ab. Er meldet
-0.0% Duplikation und 0.0% Coverage für neuen Code. Letzteres wird nicht als
-gemessene Testabdeckung ausgegeben. Jeder spätere Head benötigt eine neue Analyse.
+Frühere Detailberichte bleiben in der Git-Historie erhalten. Diese Erfolge und
+Fehler sind revisionsgebunden und keine Aussagen über den neuesten Head.
 
-## Security-Auswirkung
+## Sonar und Sicherheitsauswirkung
 
-Engine-Fehler dürfen nicht zu Allow/Log-only, falscher Regelblockierung oder
-falscher erfolgreicher Untersuchung werden. Fehlende Hostbeobachtungen dürfen
-nicht als ausgeführte Durchsetzung erscheinen. Ursprüngliche Eingabevalidierung
-und Query-Redaktion bleiben erhalten. Rohe Bodys, Zugangsdaten und uneingeschränkte
-Umgebungswerte werden nicht in Ereignisnachweise aufgenommen.
+`ci/checks/common/check-sonar-zero.py` verwendet jobbezogene GitHub-Leserechte,
+prüft Anbieter und exakte SHA und verlangt erfolgreich abgeschlossene Analyse
+sowie explizit null Issues/Hotspots/Annotationen. Fehlende oder mehrdeutige
+Ergebnisse schlagen fehl. Zugangsdaten und uneingeschränkte Umgebungswerte werden
+nicht geloggt. Für ein Ergebnis wurde kein Issue akzeptiert und keine Regel
+abgeschaltet. Die frühere [Analyse von `039b7f12`](https://github.com/Easton97-Jens/ModSecurity-conector/runs/106450287547)
+meldete vier Null-Befundzähler; auch die exakte Prüfung für `f7aa2f2c` bestand.
+Das belegt weder das Ergebnis einer späteren Lieferung noch gemessene Coverage.
 
-Die neue Sonar-Prüfung besitzt nur jobbezogene `checks: read` und `contents: read`.
-Zugangsdaten werden weder ausgegeben noch bei Weiterleitungen übertragen oder
-in Nachweise geschrieben. Die Prüfung ist strenger als das vorhandene grüne
-Quality Gate und ersetzt keine Code-, Mutations-, Sicherheits- oder
-Host-Integrationstests.
+Dieser Schritt stärkt Testkopien- und Aufrufergebnisprüfung. Er entfernt keine
+bestehenden Sicherheitsprüfungen, ändert keine Engine-Policy oder Ressourcengrenzen
+und verleiht keine nicht unterstützten Strict-/Resetfähigkeiten. Ein später
+Abbruch kann bereits gesendete Bytes nicht zurückholen.
 
-## Runtime-Evidence
+## Offene Arbeit und nicht ausgeführte Prüfungen
 
-Eine vollständige Live-HTTP-/Transportmatrix für sechs Familien wurde nicht
-ausgeführt. Common-Testfamiliennamen sind keine unabhängigen Hostläufe.
-HAProxy-Quellfunktionstests und Compile-/Link-Kompatibilität belegen nur ihre
-genannten Ebenen. Gehostete CI-Builds und Preflight-Artefakte allein beweisen
-kein clientseitiges Verhalten. Nicht unterstützte Strict-Profile oder
-Reset-/Abbruchfähigkeiten werden nicht hochgestuft.
+Typisierte Request-Ereignisbehandlung und übrige native/API-Routen abschließen;
+Erzeuger-/Ausgabeverhalten, doppelte Ereignisse und Log-I/O-Fehler jeder direkten,
+Companion-, Middleware- und Sidecar-Integration vergleichen. Transportbezogene
+Fehlerinjektion, Überleben benachbarter Streams, Laufzeit-Logvergleiche, umfassende
+Connector-Anleitungen und historische Auswerter-/Hash-Versionskompatibilität
+bleiben zu prüfen.
 
-## Bekannte Einschränkungen
+Lokale Befehle, native Builds und lokales `git diff --check` wurden wegen des
+fehlenden vorgeschriebenen RTK-Ausführungswrappers nicht ausgeführt. Verifikation
+erfolgte durch tatsächliche GitHub-CI. Vollständige Live-HTTP-/Transportprüfung
+für sechs Familien, alle erforderlichen End-Head-Prüfungen und Freigabereview
+bleiben offen. Änderungen wurden mittels GitHub-Commitvergleich geprüft;
+parallele Branch-Commits blieben erhalten.
 
-NGINX-Request-/Dateipfade und späte technische Interventionsfehler bleiben offen.
-Der NGINX-Chain-Checker und veraltete Mutationsfragmente schlagen weiterhin fehl.
-Vollständiger Erzeuger-/Ausgabevergleich, doppelte terminale Datensätze,
-I/O-Fehler, weitere Ereignisklassen und Gleichheit direkter/Companion-Routen
-benötigen weitere Arbeit. Umfassende Connector-Anleitungen und abschließende
-Kompatibilitäts-/Versionierungsprüfung sind unvollständig.
+## Lieferstatus
 
-## Verbleibende Risiken
-
-Gültige Teilübernahme beweist nicht die Untersuchung aller übergebenen Bytes.
-Ein später Abbruch kann gesendete Daten nicht zurückholen. Normalisierung kann
-keine Hostbeobachtung erzeugen; Erzeuger benötigen weiter konsistente Flags und
-Statuswerte. Neue Ereigniskennung, leere tatsächliche Aktion und normalisierte
-Integritätsansicht betreffen Auswerter; die
-[Vertragsanleitung](../../../docs/pr-382-event-contract.de.md) beschreibt die
-Migration, ohne historische Formatkompatibilität als geklärt darzustellen.
-
-## Nicht ausgeführte Prüfungen mit Begründung
-
-Lokale native Builds, lokale Projekttests und lokales `git diff --check` wurden
-wegen des fehlenden vorgeschriebenen Ausführungswrappers nicht ausgeführt.
-Validiert wurde durch die tatsächlichen GitHub-CI-Ergebnisse oben. Vollständige
-Host-/Transportfehlerinjektion für sechs Familien, gleiche Logfehlerbehandlung
-und vollständig grüne End-Head-CI bleiben offen. Der abschließende Dokumentations-
-commit benötigt eigene Zweisprachigkeits-/Link-/CI-/Sonar-Ergebnisse.
-
-## Finaler Diff- und Review-Status
-
-Gesamt: `partial`. Metadatenkorrektur, Apache-Validierungsänderungen und
-HAProxy-Refactoring sind mit den genannten Tests committed; Sonar-null ist für
-den exakten Implementierungshead bestätigt. Die NGINX-Validierungslücke und
-verbleibende Implementierungs-/Laufzeitkriterien verhindern den Abschluss.
-Checklisten und Vertragsanleitung sind zweisprachig. Der PR bleibt Draft.
-Merge, direkter Master-Push, Deployment, Abhängigkeits-/Framework-/MRTS-Änderung,
-Issue-Akzeptanz oder Scanner-Unterdrückung wurden nicht durchgeführt.
+NGINX-Adoption-Reparatur und anschließende HAProxy-Checker-Korrektur besitzen die
+oben genannten bestandenen Tests. Request-/Datei- und Spätfehler-Teilimplementierungen
+haben jetzt ausdrücklich eigene Checklistenpunkte. Die Lieferung bleibt Draft
+und insgesamt `partial`; diese Testergebnisse erteilen keine Merge- oder
+Deployment-Freigabe.

@@ -5,7 +5,7 @@
 Status: implementation reference for an incomplete Draft migration, not a
 claim of equivalent behavior in every running host. See the
 [implementation and verification checklist](pr-382-checklist.md) for remaining
-routes, failed checks, and revision-scoped evidence.
+routes, pending checks, and revision-scoped evidence. Updated: 2026-09-22.
 
 ## Native results are operation-specific
 
@@ -18,7 +18,7 @@ documented native boundary; preserve each surrounding API's own convention.
 | Direct request/response byte append | `0` or `1` | Continue the existing phase lifecycle and collect interventions at its intended boundary. A zero can represent engine-configured `ProcessPartial`; it is not proof that the entire chunk was inspected. |
 | Request/response phase processing | `1` only | Reject other results as technical failures. Do not complete a failed phase or turn it into a successful safe-mode observation. |
 | `msc_intervention()` in the changed Common/HAProxy paths | `0` or `1` | Distinguish no intervention from a collected intervention; reject undocumented results and release native buffers. |
-| `msc_request_body_from_file()` | Separate API contract | Do not reuse the byte-append rule: zero can also represent file I/O or allocation failure. Remaining native file paths are still under review. |
+| `msc_request_body_from_file()` | Separate API contract; changed NGINX path requires `1` | Do not reuse the byte-append rule: zero can also represent file I/O or allocation failure. The strict result check and cumulative file limit are implemented; native file-reader integration remains to be verified. |
 | APR, NGINX, HTTP and Common callbacks | Their existing contracts | Do not reinterpret host success/error integers through the native helper. |
 
 A successful native call is not an allow decision. For example, an engine limit
@@ -37,6 +37,13 @@ For known technical-error events the canonical metadata view uses `status=error`
 may still need to reject or abort; that action does not turn the technical
 failure into a ModSecurity rule match. Body-limit policy events and actual rule
 interventions are not automatically reclassified as technical errors.
+
+The implemented NGINX late-error path classifies negative interventions before
+Safe/Strict rule handling. Native phase failure does not complete the phase.
+Mandatory Phase-4 log failures remain terminal. Only synchronous core-generated
+terminal error responses may pass the bounded re-entry guard; this is not an
+allow decision for the failed upstream chain. These guarantees are covered by
+controlled tests, not a complete host/transport equivalence claim.
 
 ## Canonical JSONL and missing transport observations
 
@@ -117,6 +124,9 @@ redaction and missing observations. Extracted HAProxy evaluation tests cover
 phase order, each injected native-call failure, partial resource ownership and
 cleanup order, and bounded rule-ID decoding. Separate compatibility tests compile
 and link the actual HAProxy binding against controlled native API seams.
+NGINX request/file and late-error/re-entry suites exercise selected actual
+functions with controlled host/engine/log collaborators. NGINX and HAProxy
+adoption mutations guard source wiring; their passing counts are in the checklist.
 
 Those layers do not establish live HTTP behavior, `strict` reset/abort support,
 neighbor-stream survival, or equal logs from every direct/companion/middleware/
@@ -124,6 +134,7 @@ sidecar route. Unsupported profiles remain unsupported. The mode defaults,
 engine-owned MIME selection, independent transport/resource limits and existing
 security gates are not weakened. A late abort cannot retract bytes already sent.
 
-Before release, complete the unchecked items in the checklist, including the
-remaining NGINX adoption/mutation checks, native request/file and late-error
-paths, producer/sink failure handling, connector guides and real host matrices.
+Before release, complete the unchecked items in the checklist: typed request
+error events and other native/API routes, producer/sink failure handling,
+connector guides, compatibility review and real host matrices. Passing the
+repaired adoption checks does not finish those separate implementation items.

@@ -5,7 +5,7 @@
 Stand: Implementierungsreferenz für eine unvollständige Draft-Migration, kein
 Nachweis gleichen Verhaltens in allen laufenden Hosts. Die
 [Implementierungs- und Verifikationscheckliste](pr-382-checklist.de.md) nennt offene
-Routen, fehlgeschlagene Prüfungen und revisionsgebundene Nachweise.
+Routen, ausstehende Prüfungen und revisionsgebundene Nachweise. Aktualisiert: 2026-09-22.
 
 ## Native Rückgaben sind operationsspezifisch
 
@@ -19,7 +19,7 @@ eigene Konvention.
 | Direktes Byte-Append für Request/Response | `0` oder `1` | Bestehenden Phasenablauf fortsetzen und Interventionen an seiner vorgesehenen Grenze abfragen. Null kann das Engine-konfigurierte `ProcessPartial` bedeuten; es beweist nicht, dass der ganze Chunk untersucht wurde. |
 | Request-/Response-Phasenauswertung | Nur `1` | Andere Rückgaben als technische Fehler zurückweisen. Eine fehlgeschlagene Phase nicht abschließen oder in eine erfolgreiche Safe-Beobachtung umwandeln. |
 | `msc_intervention()` in den geänderten Common-/HAProxy-Pfaden | `0` oder `1` | Keine Intervention von einer abgefragten Intervention unterscheiden; undokumentierte Rückgaben zurückweisen und native Puffer freigeben. |
-| `msc_request_body_from_file()` | Eigener API-Vertrag | Byte-Append-Regel nicht wiederverwenden: Null kann auch Datei-I/O- oder Allokationsfehler bedeuten. Verbleibende native Dateipfade sind noch in Prüfung. |
+| `msc_request_body_from_file()` | Eigener API-Vertrag; geänderter NGINX-Pfad verlangt `1` | Byte-Append-Regel nicht wiederverwenden: Null kann auch Datei-I/O- oder Allokationsfehler bedeuten. Strikte Rückgabeprüfung und kumulative Dateigrenze sind implementiert; Integration des nativen Dateilesers bleibt zu verifizieren. |
 | APR-, NGINX-, HTTP- und Common-Callbacks | Ihre bestehenden Verträge | Host-Erfolgs-/Fehlerzahlen nicht durch den nativen Helfer umdeuten. |
 
 Ein erfolgreicher nativer Aufruf ist keine Allow-Entscheidung. Beispielsweise
@@ -40,6 +40,14 @@ leere `rule_id`. Der Host muss möglicherweise trotzdem ablehnen oder abbrechen;
 diese Aktion macht aus dem technischen Fehler keinen ModSecurity-Regeltreffer.
 Body-Limit-Policy-Ereignisse und tatsächliche Regelinterventionen werden nicht
 automatisch als technische Fehler umklassifiziert.
+
+Der implementierte NGINX-Spätfehlerpfad klassifiziert negative Interventionen vor
+der Safe-/Strict-Regelbehandlung. Native Phasenfehler schließen keine Phase ab.
+Verpflichtende Phase-4-Logfehler bleiben terminal. Nur synchron erzeugte
+Core-Fehlerantworten dürfen die begrenzte Wiedereintrittssperre passieren; dies
+ist keine Allow-Entscheidung für die fehlerhafte Upstream-Chain. Diese Garantien
+sind durch kontrollierte Tests abgedeckt, nicht durch einen vollständigen
+Host-/Transportvergleich.
 
 ## Kanonisches JSONL und fehlende Transportbeobachtungen
 
@@ -125,7 +133,10 @@ JSONL-/Hash-Code, Redaktion und fehlende Beobachtungen. Extrahierte HAProxy-
 Auswertungstests prüfen Phasenreihenfolge, jeden injizierten nativen Aufruffehler,
 teilweisen Ressourcenbesitz und Freigabereihenfolge sowie begrenzte Rule-ID-
 Dekodierung. Separate Kompatibilitätstests kompilieren und linken das tatsächliche
-HAProxy-Binding gegen kontrollierte native API-Testgrenzen.
+HAProxy-Binding gegen kontrollierte native API-Testgrenzen. NGINX-Request-/Datei-
+und Spätfehler-/Wiedereintrittstests prüfen ausgewählte echte Funktionen mit
+kontrolliertem Host-/Engine-/Log-Umfeld. NGINX- und HAProxy-Adoption-Mutationen
+sichern die Quellcodeanbindung; bestandene Anzahlen stehen in der Checkliste.
 
 Diese Ebenen beweisen kein echtes HTTP-Verhalten, keine `strict`-Reset-/
 Abbruchunterstützung, kein Überleben benachbarter Streams und keine gleichen Logs
@@ -134,6 +145,7 @@ bleiben nicht unterstützt. Modusstandards, Engine-eigene MIME-Auswahl, unabhän
 Transport-/Ressourcengrenzen und bestehende Sicherheitsprüfungen werden nicht
 geschwächt. Ein später Abbruch kann gesendete Bytes nicht zurückholen.
 
-Vor der Freigabe bleiben die offenen Checklistenpunkte abzuschließen, darunter
-NGINX-Adoption-/Mutationstests, native Request-/Datei- und späte Fehlerpfade,
-Erzeuger-/Ausgabefehlerbehandlung, Connector-Anleitungen und echte Host-Matrizen.
+Vor Freigabe bleiben die offenen Checklistenpunkte abzuschließen: typisierte
+Request-Fehlerereignisse und übrige native/API-Routen, Erzeuger-/Ausgabefehler,
+Connector-Anleitungen, Kompatibilitätsprüfung und echte Host-Matrizen. Bestandene
+reparierte Adoption-Prüfungen erledigen diese getrennten Implementierungspunkte nicht.
