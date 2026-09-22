@@ -347,6 +347,34 @@ ngx_http_modsecurity_set_request_hostname(ngx_http_request_t *r,
     return NGX_OK;
 }
 
+/* Connection and URI evaluation share this result boundary, not their native
+ * calls or phase brackets. Only one is native phase success; the subsequent
+ * dispatcher returns host statuses, which must not use append semantics. */
+static ngx_int_t
+ngx_http_modsecurity_request_native_result(ngx_http_request_t *r,
+    ngx_http_modsecurity_ctx_t *ctx, int native_result, const char *phase_name)
+{
+    int result;
+
+    if (!msconnector_native_phase_succeeded(native_result)) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: %s phase processing failed", phase_name);
+        (void)msconnector_transaction_contract_fail(&ctx->contract,
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, 0U);
+        ctx->intervention_triggered = 1;
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    dd("Processing intervention after %s", phase_name);
+    result = ngx_http_modsecurity_process_intervention(ctx->modsec_transaction,
+        r, 1);
+    if (result != 0) {
+        ctx->intervention_triggered = 1;
+        return result > 0 ? result : NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    return NGX_OK;
+}
+
 static ngx_int_t
 ngx_http_modsecurity_process_connection(ngx_http_request_t *r,
     ngx_http_modsecurity_ctx_t *ctx)
@@ -389,28 +417,7 @@ ngx_http_modsecurity_process_connection(ngx_http_request_t *r,
     ret = msc_process_connection(ctx->modsec_transaction, client_addr,
         client_port, server_addr, server_port);
     ngx_http_modsecurity_pcre_malloc_done(old_pool);
-    if (!msconnector_native_phase_succeeded(ret)) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-            "ModSecurity: connection phase processing failed");
-        (void)msconnector_transaction_contract_fail(&ctx->contract,
-            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, 0U);
-        ctx->intervention_triggered = 1;
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    dd("Processing intervention with the connection information filled in");
-    ret = ngx_http_modsecurity_process_intervention(ctx->modsec_transaction,
-        r, 1);
-    if (ret > 0) {
-        ctx->intervention_triggered = 1;
-        return ret;
-    }
-    if (ret < 0) {
-        ctx->intervention_triggered = 1;
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    return NGX_OK;
+    return ngx_http_modsecurity_request_native_result(r, ctx, ret, "connection");
 }
 
 static const char *
@@ -467,29 +474,7 @@ ngx_http_modsecurity_process_request_uri(ngx_http_request_t *r,
     ret = msc_process_uri(ctx->modsec_transaction, uri, method, http_version);
     ctx->native_event_phase_active = 0;
     ngx_http_modsecurity_pcre_malloc_done(old_pool);
-
-    if (!msconnector_native_phase_succeeded(ret)) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-            "ModSecurity: URI phase processing failed");
-        (void)msconnector_transaction_contract_fail(&ctx->contract,
-            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, 0U);
-        ctx->intervention_triggered = 1;
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    dd("Processing intervention with the transaction information filled in (uri, method and version)");
-    ret = ngx_http_modsecurity_process_intervention(ctx->modsec_transaction,
-        r, 1);
-    if (ret > 0) {
-        ctx->intervention_triggered = 1;
-        return ret;
-    }
-    if (ret < 0) {
-        ctx->intervention_triggered = 1;
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    return NGX_OK;
+    return ngx_http_modsecurity_request_native_result(r, ctx, ret, "URI");
 }
 
 static ngx_int_t
