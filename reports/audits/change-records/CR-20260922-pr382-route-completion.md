@@ -39,7 +39,7 @@ Runtime source; host-action regression module; duplication checker and tests;
 required lint wiring; paired Change Records. Later slices update route source,
 checklists and evidence under this same Change ID.
 
-## Executed commands
+## Commands executed
 
 No local project execution: the mandatory RTK wrapper is unavailable.
 The existing GitHub workflow runs the runtime and new duplication-gate tests.
@@ -66,7 +66,7 @@ that is an explicit failing readback, not zero duplication.
 Physical sink parity and actual adapter failure flows need route-specific tests.
 The independent secret-scanning failure remains unresolved.
 
-## Checks not run and why
+## Checks not run and rationale
 
 Local builds and live host runs are unavailable in this session. New remote
 CI and Sonar results must be checked rather than inherited from an older SHA.

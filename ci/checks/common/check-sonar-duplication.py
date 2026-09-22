@@ -25,7 +25,7 @@ METRICS = ("new_duplicated_lines", "new_duplicated_blocks", "new_duplicated_line
 
 
 def summary_density(summary: str) -> Decimal:
-    matches = re.findall(r"\b([0-9]+(?:\.[0-9]+)?)%\s+Duplication on New Code\b", summary)
+    matches = re.findall(r"\b(\d+(?:\.\d+)?)%\s+Duplication on New Code\b", summary, re.ASCII)
     if len(matches) != 1:
         raise GateError("missing or ambiguous Sonar new-code duplication density")
     return Decimal(matches[0])
@@ -41,7 +41,7 @@ def metric_values(component: dict) -> dict:
         key = measure["metric"]
         period = measure.get("period")
         raw = period.get("value") if isinstance(period, dict) else measure.get("value")
-        if key in result or not isinstance(raw, str) or re.fullmatch(r"[0-9]+(?:\.[0-9]+)?", raw) is None:
+        if key in result or not isinstance(raw, str) or re.fullmatch(r"\d+(?:\.\d+)?", raw, re.ASCII) is None:
             raise GateError("invalid or duplicate Sonar duplication measure")
         result[key] = Decimal(raw)
     if set(result) != set(METRICS):
@@ -104,7 +104,7 @@ def current_head(repository: str, pr: str, fetch) -> str:
 
 
 def verify_duplication(repository: str, head: str, pr: str, fetch, read_sonar=sonar_get) -> dict:
-    if re.fullmatch(r"[1-9][0-9]*", pr) is None:
+    if re.fullmatch(r"[1-9]\d*", pr, re.ASCII) is None:
         raise GateError("a numeric PR number is required")
     evidence = GATE["verify"](repository, head, fetch)
     if current_head(repository, pr, fetch) != head:
