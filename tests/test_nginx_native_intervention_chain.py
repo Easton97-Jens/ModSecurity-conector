@@ -250,7 +250,7 @@ class NativeInterventionChainTests(unittest.TestCase):
         fixture.write_text(PREAMBLE + declarations + "\n" + "\n".join(definitions) + MAIN, encoding="utf-8")
         cls.binary = directory / "chain"
         sources = ("transaction_state.c", "decision_action.c", "intervention.c", "block_statuses.c",
-                   "late_intervention.c", "rule_id.c")
+                   "http_status.c", "late_intervention.c", "rule_id.c")
         command = compiler + ["-std=c17", "-Wall", "-Wextra", "-Werror", "-pthread",
                               "-I", str(ROOT / "common/include"), "-I", str(ROOT), "-I", str(NATIVE), str(fixture)]
         command += [str(ROOT / "common/src" / name) for name in sources]
