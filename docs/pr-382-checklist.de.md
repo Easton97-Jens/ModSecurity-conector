@@ -4,7 +4,7 @@
 
 [Draft-PR #382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382)
 verwendet `fix/unified-native-results-events-20260921`, ausgehend von
-`5170d24801243cdcd7bf1bca6123bf8cb2c72386`. Aktualisiert: 2026-09-21.
+`5170d24801243cdcd7bf1bca6123bf8cb2c72386`. Aktualisiert: 2026-09-22.
 
 **Stand: Implementierung läuft; noch nicht zum Mergen bereit.** Ein Häkchen bei
 Implementierung bedeutet, dass der beschriebene Code vorhanden ist, nicht, dass
@@ -41,7 +41,7 @@ Vertrags- und Migrationsreferenz: [native Rückgaben und Ereignisse](pr-382-even
 - [x] V05: Erweiterte Common-/Native-Result-/Fehler-/Beobachtungs-/Sonar-Gate-Tests und Phase-4-/NGINX-Quellcodesicherheitstests für `039b7f123ff5ce87c033ce805b9f7e07b7d44bb4` in [Lauf 35634888258, Job 106449766690](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35634888258/job/106449766690) bestätigen. Diese Einzelschritte bestanden; der Gesamtjob scheiterte an NGINX-Adoption-Mutationen.
 - [ ] V06: Apache- und NGINX-Adoption-/Mutationsreparaturen vollständig abschließen.
 - [x] V06a: Apache-Helfer-Adoption-Prüfungen reparieren und vorhandene Negativmutationen erhalten. Invertierte Append-/Phasenbedingungen, fehlende Serialisierungsrückgabe und falsche Regelblockierung technischer Fehler ergänzen. Alle 16 Mutationstests und eingegrenzten Prüfungen bestanden für `1709e1def4706f0124d56fc687b3faf1fd8e2946` in [Lauf 35633647191, Job 106445635579](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35633647191/job/106445635579); der Job scheiterte danach am NGINX-Checker. Eine spätere semantisch gleiche lineare Statusprüfung gehört zu `039b7f123ff5ce87c033ce805b9f7e07b7d44bb4` und benötigt ihre eigene vollständige Validierung.
-- [ ] V06b: NGINX-Chain-Fehlerprüfung und veraltete Mutationsfragmente reparieren. Negativabdeckung erhalten statt Diagnosen zu entfernen oder ungeprüfte Fehlerpfade zu akzeptieren.
+- [x] V06b: NGINX-Chain-Fehlerprüfung und veraltete Mutationsfragmente reparieren. Tatsächlichen privaten Phase-4-Fehlerheader in isolierte Testkopien übernehmen, alle 96 vorhandenen Tests erhalten, vier Regressionen ergänzen und exakte `FAIL:`-Diagnosen verlangen. Der vollständige Mutationsschritt bestand für `f7aa2f2ccf929f226a6b0ad7b9ff0700b71c367d` in [Lauf 35696836181, Job 106645456958](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35696836181/job/106645456958). Der gesamte Lint-Job scheiterte später; siehe datierte Fortsetzung unten.
 - [ ] V07: Alle erforderlichen Prüfungen und Reviews des endgültigen PR-Heads bestehen. Die Gesamt-CI ist nicht grün.
 - [ ] V08: Gleiche echte Host-Fälle für Engine-`ProcessPartial`, Engine-Reject/Interventionen, leere Antworten, mehrere Chunks mit einem EOS, explizite CSV-MIME-Auswahl, optionale Budgets und Engine-Fehler ausführen.
 - [ ] V09: Späte Safe-/Strict-Ergebnisse und Fehler vor/nach Commit je unterstütztem Transport prüfen; Client-Bytes, Abbruch/Reset, Überleben benachbarter Streams, Bereinigung und JSONL statt nur HTTP-Status beobachten.
@@ -54,7 +54,8 @@ Vertrags- und Migrationsreferenz: [native Rückgaben und Ereignisse](pr-382-even
 - [x] S01: Eine exakte Head-bezogene, nur lesende Null-Befund-Prüfung ergänzen, statt ein grünes Quality Gate mit Befunden zu akzeptieren. Fehlende, veraltete, mehrdeutige oder unfertige Nachweise können nicht bestehen.
 - [x] S02: Die Prüfung testen, einschließlich ungültiger Identität vor Netzwerkzugriff, sicherer begrenzter Annotation-Ausgabe, falschem Anbieter, unfertiger Analyse und positiven Befundzählern. `checks: read` auf Jobebene belassen.
 - [x] S03: Für `039b7f123ff5ce87c033ce805b9f7e07b7d44bb4` **0 neue Issues, 0 akzeptierte Issues, 0 Security Hotspots und 0 Annotationen** in [Sonar-Check 106450287547](https://github.com/Easton97-Jens/ModSecurity-conector/runs/106450287547) bestätigen. Die exakte Head-bezogene Null-Befund-CI-Prüfung bestand ebenfalls im V05-Job. Für dieses Ergebnis wurden keine Issues akzeptiert, verborgen oder ausgenommen.
-- [ ] S04: Nach jeder weiteren Änderung, einschließlich des abschließenden Dokumentationscommits, die exakte Head-bezogene Null-Prüfung wiederholen. Endgültigen Head-Nachweis von S03 trennen.
+- [x] S03a: Dieselben vier Null-Zähler für `f7aa2f2ccf929f226a6b0ad7b9ff0700b71c367d` in [Sonar-Check 106645541548](https://github.com/Easton97-Jens/ModSecurity-conector/runs/106645541548) bestätigen. Die exakte Head-bezogene Null-Befund-Prüfung bestand im V06b-Job.
+- [ ] S04: Nach jeder weiteren Änderung, einschließlich des abschließenden Dokumentationscommits, die exakte Head-bezogene Null-Prüfung wiederholen. Endgültigen Head-Nachweis von S03 und S03a trennen.
 
 Dies ist der neue Code betreffende PR-Befundbestand, keine Behauptung, dass der
 historische Projektbestand oder die gemessene Testabdeckungslücke null ist.
@@ -65,7 +66,7 @@ Sonar meldete 0.0% Coverage für neuen Code; kompilierte Tests sind eigene Nachw
 | Familie | Implementierter Teil | Noch erforderlich |
 | --- | --- | --- |
 | Apache | Body-Prädikate, typisierte Ereignisse, angepasste Adoption-Prüfungen und Negativmutationen | Vollständige Prüfungen des End-Heads und native Host-/Logregressionen |
-| NGINX | Response-Prädikate und typisierte Fehlerereignisse | Request-/Datei- und späte Fehlerpfade, Adoption-Mutationen, Host-/Transportregressionen |
+| NGINX | Response-Prädikate, typisierte Fehlerereignisse und reparierte Adoption-/Mutationstests | Verbleibender Request-/Ereignis- und Routenabschluss, separate Syntaxprüfung, Host-/Transportregressionen |
 | HAProxy | Direkte Binding-Prädikate, Fehlerweitergabe, begrenzte Rule-ID-/Bereinigungsstruktur | Getrennte Verhaltens-/Ereignisnachweise für HTX und SPOE/SPOP/Companion |
 | Envoy | Native Rückgabekorrektur über Common Runtime | Getrennte Verifikation von ext_proc und ext_authz/Response-Companion |
 | Traefik | Native Rückgabekorrektur über Common Runtime | Verifikation von nativer Middleware/UDS und forwardAuth/Response-Companion |
@@ -107,7 +108,36 @@ Die folgende exakte Head-Prüfung bestand für die S03-Revision:
 python ci/checks/common/check-sonar-zero.py
 ```
 
-Der NGINX-Adoption-/Mutationsschritt bleibt fehlgeschlagen. Eine vollständige
-Live-HTTP-/Transportmatrix für sechs Familien, ein lokaler nativer Build oder
-ein lokales `git diff --check` werden nicht behauptet. Alle Testebenen und
-offenen Punkte müssen ausdrücklich erkennbar bleiben.
+## Fortsetzung 2026-09-22: NGINX-Adoption-Mutationen
+
+Getestete Revision: `f7aa2f2ccf929f226a6b0ad7b9ff0700b71c367d`.
+Dieser Schritt ändert nur den NGINX-Adoption-Checker und seine Mutationstests,
+keinen Laufzeitcode, keine Workflows, Abhängigkeiten oder Sicherheitsrichtlinien.
+Eine zwischenzeitlich eingegangene identische Checker-Korrektur unter
+`7bd3b2355c84bc6bd630de6b19ea6115b5eb64f2` blieb erhalten; der Testkopie-Commit
+baut ohne Force-Push darauf auf.
+
+Im V06b-CI-Job bestand `python -m unittest -v tests.test_nginx_common_adoption`.
+Neue Regressionen prüfen die byteidentische Kopie des privaten Headers, dessen
+Fehlen, ein verbotenes Makro darin und verworfene Ergebnisse der terminalen
+Fehlerweiterleitung. Negativfälle verlangen Exitstatus 1 und ihre genaue
+`FAIL:`-Zeile; ein fremder Fehler oder passender `PASS:`-Text genügt nicht.
+Request-Native-, Spätfehler-/Wiedereintritts-, Phase-4-/Sicherheits-,
+Konfigurationsreferenz- und Sonar-Null-Schritte bestanden für diese Revision
+ ebenfalls.
+
+| Nachweisebene | Beobachtetes Ergebnis | Einschränkung |
+| --- | --- | --- |
+| Vollständiger NGINX-Adoption-/Mutationsschritt | `passed` im V06b-Job | Quellcodevertrag und isolierte Mutationen, kein echter Hostlauf |
+| NGINX-Scaffold- und Common-Vertragsprüfungen | `passed` in [Lauf 35696836186, Job 106645456976](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35696836186/job/106645456976) | Danach scheiterte die separate native Syntax-/Regressionsprüfung |
+| Native NGINX-Syntax-/Regressionsprüfung | `failed` im selben NGINX-Job | Eine Request-Body-Assertion erwartet noch `if (ret != 1)`; ihre Quelldatei wurde in diesem Schritt nicht repariert |
+| Gesamt-Lint | `failed` im V06b-Job | Späterer Fehler bei `Run lightweight lint`; der bestandene Mutationsschritt belegt dessen Ursache nicht |
+| Exakte Head-Sonar-Analyse | `passed`, vier Null-Zähler in S03a | Gilt nur für die getestete SHA, nicht für einen späteren Dokumentationshead |
+
+V06b ist auf seiner genannten Nachweisebene abgeschlossen. V06 bleibt für die
+vollständige gemeinsame Adoption-Validierung offen; V07 sowie Laufzeit-/Profil-
+kriterien bleiben ebenfalls offen. Eine vollständige Live-HTTP-/Transportmatrix
+für sechs Familien, ein lokaler nativer Build oder ein lokales `git diff --check`
+werden nicht behauptet. Der vorgeschriebene lokale RTK-Ausführungspfad stand
+nicht zur Verfügung; validiert wurde mit GitHub-CI. Ein späterer Dokumentations-
+commit benötigt eigene frische Prüfungen, statt diese Ergebnisse zu übernehmen.

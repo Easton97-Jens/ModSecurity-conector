@@ -2,6 +2,65 @@
 
 **Sprache:** [English](CR-20260921-pr382-native-results-events.md) | Deutsch
 
+## Fortsetzung 2026-09-22: NGINX-Adoption-/Mutationsreparatur
+
+Die Change-ID bleibt `CR-20260921-pr382-native-results-events`.
+Getestete Revision: `f7aa2f2ccf929f226a6b0ad7b9ff0700b71c367d`.
+Der eingegrenzte nächste Schritt, Checklistenpunkt V06b, ist `passed`; der
+Gesamt-PR bleibt `partial` und Draft. Die älteren Abschnitte unten bewahren die
+historische Fortsetzung für `039b7f123ff5ce87c033ce805b9f7e07b7d44bb4` und ihre
+Fehler. Dieser Abschnitt ersetzt nur deren NGINX-Adoption-/Mutationsstatus.
+
+Der Checker erwartete ein einfaches `return ret`, obwohl der geprüfte Code nun
+das Ergebnis der terminalen `ngx_http_modsecurity_phase4_fail_control`-Behandlung
+zurückgibt. Zwei Mutationen suchten weiterhin das alte Fragment, und die isolierte
+Repository-Kopie enthielt `ngx_http_modsecurity_phase4_error.h` nicht. Der fehlende
+Header verursachte zusätzliche Makro-/Include-Fehler, die das eigentliche
+Ergebnis einer Mutation verdecken konnten.
+
+Geänderte Validierungsdateien:
+
+- `ci/checks/connectors/nginx/check-nginx-common-adoption.py`: Exakte terminale Weiterleitung mit ihren Argumenten verlangen, statt beliebige Fehlerbehandlung zu akzeptieren.
+- `tests/test_nginx_common_adoption.py`: Tatsächlichen privaten Header kopieren, beide veralteten Anker reparieren, Exitstatus 1 und genaue `FAIL:`-Zeile verlangen, alle 96 vorhandenen Tests erhalten und vier Regressionstests für Testkopie und Fehlerweiterleitung ergänzen.
+
+Neue Regressionen prüfen byteidentisches Kopieren des Headers, fehlenden Header,
+verbotene Makroänderung darin und Verwerfen des terminalen Rückgabewerts mit
+anschließender Erfolgsrückgabe. Laufzeitcode, Workflows, Abhängigkeiten,
+Compilerwarnungen, Scannerregeln und Sicherheitseinstellungen blieben unverändert.
+Die zwischenzeitlich eingegangene identische Checker-Korrektur
+`7bd3b2355c84bc6bd630de6b19ea6115b5eb64f2` blieb als Elterncommit der
+Testkopie-Korrektur erhalten; kein Force-Push wurde verwendet.
+
+[Lint-Lauf 35696836181, Job 106645456958](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35696836181/job/106645456958)
+bestand den vollständigen Schritt
+`python -m unittest -v tests.test_nginx_common_adoption` für die getestete
+Revision. Native-/Event-, Request-Native-, Spätfehler-/Wiedereintritts-,
+Phase-4-/Sicherheits-, Konfigurationsreferenz- und exakte Head-Sonar-Null-Schritte
+bestanden ebenfalls. **Der Gesamtjob scheiterte später bei `Run lightweight lint`.**
+Dessen Ursache ist durch das Mutationsergebnis nicht geklärt und bleibt ein
+getrennter offener Punkt.
+
+[NGINX-Lauf 35696836186, Job 106645456976](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35696836186/job/106645456976)
+bestand Scaffold- und Common-Vertragsprüfungen, scheiterte danach jedoch an
+seiner separaten nativen Syntax-/Regressionsprüfung. Eine Request-Body-Assertion
+erwartet weiterhin `if (ret != 1)`; ihre Quelldatei wurde in diesem Schritt
+nicht repariert. Keiner der fehlgeschlagenen Workflows wird als grün dargestellt.
+
+[Sonar-Check 106645541548](https://github.com/Easton97-Jens/ModSecurity-conector/runs/106645541548)
+schloss für die exakte getestete SHA mit **0 neuen Issues, 0 akzeptierten Issues,
+0 Security Hotspots und 0 Annotationen** erfolgreich ab. Die Coverage für neuen
+Code bleibt 0.0%; eine Verbesserung gemessener Testabdeckung wird nicht behauptet.
+
+Die zweisprachige Checkliste markiert V06b als abgeschlossen und dokumentiert
+diese Ergebnisse. Gemeinsame Validierung V06, sämtliche erforderlichen Prüfungen
+V07, verbleibende Implementierung, Erzeuger-/Ausgabe- und echte Host-/Profil-/
+Transportkriterien bleiben offen. Lokale Projektbefehle wurden wegen des fehlenden
+vorgeschriebenen RTK-Pfads nicht ausgeführt; die Nachweise stammen aus GitHub-CI.
+Der reine Dokumentations-Nachfolgecommit benötigt eigene frische CI-/Sonar-
+Prüfungen und darf die Ergebnisse dieser getesteten SHA nicht übernehmen. Kein
+Merge, Master-Push, Deployment, Framework-/MRTS-Schreibzugriff oder Akzeptieren
+von Issues wurde durchgeführt.
+
 ## Identität
 
 | Feld | Wert |

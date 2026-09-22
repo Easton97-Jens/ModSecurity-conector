@@ -2,6 +2,60 @@
 
 **Language:** English | [Deutsch](CR-20260921-pr382-native-results-events.de.md)
 
+## Continuation 2026-09-22: NGINX adoption/mutation repair
+
+Change ID remains `CR-20260921-pr382-native-results-events`.
+Tested revision: `f7aa2f2ccf929f226a6b0ad7b9ff0700b71c367d`.
+The bounded next step, checklist V06b, is `passed`; the overall PR remains
+`partial` and Draft. The older sections below retain the historical
+`039b7f123ff5ce87c033ce805b9f7e07b7d44bb4` continuation and its failures;
+this section supersedes their NGINX adoption/mutation status only.
+
+The checker expected a plain `return ret`, although the reviewed code now
+returns the terminal `ngx_http_modsecurity_phase4_fail_control` result. Two
+mutations still searched for the old fragment, and the isolated repository
+copy omitted `ngx_http_modsecurity_phase4_error.h`. The missing header also
+caused unrelated macro/include failures that could disguise a mutation's
+actual result.
+
+Changed validation files:
+
+- `ci/checks/connectors/nginx/check-nginx-common-adoption.py`: require the exact terminal dispatch and arguments rather than accepting arbitrary failure handling.
+- `tests/test_nginx_common_adoption.py`: copy the actual private header, repair both stale anchors, require exit status 1 and the precise `FAIL:` line, retain all 96 existing tests, and add four fixture/dispatch regression tests.
+
+New regressions cover byte-identical header copying, missing header, forbidden
+macro mutation inside that header, and discarding the terminal-dispatch result
+before returning success. No runtime code, workflow, dependency, warning flag,
+scanner rule or security setting changed. Concurrent identical checker commit
+`7bd3b2355c84bc6bd630de6b19ea6115b5eb64f2` was preserved as the parent of the
+fixture commit; no force push was used.
+
+[Lint run 35696836181, job 106645456958](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35696836181/job/106645456958)
+passed the complete `python -m unittest -v tests.test_nginx_common_adoption`
+step at the tested revision. Native/event, request-native, late-error/reentry,
+Phase-4/security, configuration-reference and exact-head Sonar-zero steps also
+passed. **The overall job failed later at `Run lightweight lint`.** Its cause
+is not established by the mutation-step result and remains a separate open item.
+
+[NGINX run 35696836186, job 106645456976](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35696836186/job/106645456976)
+passed scaffold and Common-contract checks, then failed its separate native
+syntax/regression guard. A request-body assertion still expects `if (ret != 1)`;
+the owning source was not repaired in this step. Neither failed workflow is
+reported as green.
+
+[Sonar check 106645541548](https://github.com/Easton97-Jens/ModSecurity-conector/runs/106645541548)
+completed successfully for the exact tested SHA with **0 new issues,
+0 accepted issues, 0 Security Hotspots and 0 annotations**. New-code coverage
+remains 0.0%; no measured coverage improvement is claimed.
+
+The paired checklist marks V06b complete and records these results. V06 combined
+validation, V07 all-required-checks, remaining implementation, producer/sink and
+real-host/profile/transport criteria remain open. Local project commands were
+not run because the required RTK path was unavailable; evidence is from GitHub
+CI. The documentation-only follow-up needs its own fresh CI/Sonar checks and
+must not inherit this tested SHA's results. No merge, master push, deployment,
+Framework/MRTS write or issue acceptance was performed.
+
 ## Identity
 
 | Field | Value |
