@@ -19,6 +19,13 @@ from tests.c_source_contract import function_definition
 ROOT = Path(__file__).resolve().parents[1]
 FAMILIES = ("apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd")
 ABSENT = ("null", "", "not_observable")
+NON_RULE_EVENTS = {
+    "limit": ("body_limit", "MSCONN_EVENT_BODY_LIMIT"),
+    "request-limit": ("body_limit", "MSCONN_EVENT_BODY_LIMIT"),
+    "unsupported": ("unsupported_capability", "MSCONN_EVENT_UNSUPPORTED_CAPABILITY"),
+    "cancel": ("client_cancel", "MSCONN_EVENT_CLIENT_CANCEL"),
+    "disconnect": ("upstream_disconnect", "MSCONN_EVENT_UPSTREAM_DISCONNECT"),
+}
 
 FIXTURE = r'''
 #include "msconnector/event_protocol.h"
@@ -65,6 +72,19 @@ int main(int argc, char **argv) {
         source.meta.message_id = "CUSTOM_APPLICATION";
         source.meta.event = "application_event";
         source.meta.message = "application-specific message";
+    } else if (strcmp(argv[1], "limit") == 0 || strcmp(argv[1], "request-limit") == 0) {
+        source.meta.message_id = MSCONN_EVENT_BODY_LIMIT;
+        if (strcmp(argv[1], "request-limit") == 0) {
+            source.decision.phase = MSCONNECTOR_PHASE_REQUEST_BODY;
+        }
+    } else if (strcmp(argv[1], "unsupported") == 0) {
+        source.meta.message_id = MSCONN_EVENT_UNSUPPORTED_CAPABILITY;
+    } else if (strcmp(argv[1], "cancel") == 0) {
+        source.meta.message_id = MSCONN_EVENT_CLIENT_CANCEL;
+        source.decision.status = MSCONNECTOR_STATUS_ERROR;
+    } else if (strcmp(argv[1], "disconnect") == 0) {
+        source.meta.message_id = MSCONN_EVENT_UPSTREAM_DISCONNECT;
+        source.decision.status = MSCONNECTOR_STATUS_ERROR;
     }
     source.flags.connection_aborted = strcmp(argv[2], "connection_aborted") == 0;
     source.integrity.event_hash = msconnector_integrity_event_hash(&source, 7);
@@ -96,6 +116,8 @@ class EventTransportObservationTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory(prefix="event-observation-")
         cls.addClassCleanup(temporary.cleanup)
         directory = Path(temporary.name)
+        cls.directory = directory
+        cls.compiler = compiler
         cls.binary = directory / "observation"
         (directory / "fixture.c").write_text(FIXTURE, encoding="utf-8")
         phase_source = (ROOT / "common/src/transaction_state.c").read_text(encoding="utf-8")
@@ -108,6 +130,7 @@ class EventTransportObservationTests(unittest.TestCase):
         command += [str(directory / "fixture.c"), str(directory / "phase.c")]
         command += [str(ROOT / "common/src" / name) for name in sources]
         command += ["-o", str(cls.binary)]
+        cls.build_command = command
         result = subprocess.run(command, capture_output=True, text=True, timeout=90)
         if result.returncode:
             raise AssertionError("observation fixture compilation failed:\n" + result.stderr)
@@ -171,7 +194,7 @@ class EventTransportObservationTests(unittest.TestCase):
         self.assertEqual(event["actual_action"], "abort_connection")
 
     def test_missing_observation_contract_is_family_neutral(self) -> None:
-        for scenario in ("rule", "error"):
+        for scenario in ("rule", "error", *NON_RULE_EVENTS):
             expected = None
             for family in FAMILIES:
                 with self.subTest(scenario=scenario, family=family):
@@ -181,6 +204,58 @@ class EventTransportObservationTests(unittest.TestCase):
                     if expected is None:
                         expected = event
                     self.assertEqual(event, expected)
+
+    def test_unobserved_non_rule_events_do_not_claim_host_enforcement(self) -> None:
+        for scenario, (name, message_id) in NON_RULE_EVENTS.items():
+            for transport in ABSENT:
+                with self.subTest(scenario=scenario, transport=transport):
+                    event = self.event(scenario, transport)
+                    self.assertEqual(event["event"], name)
+                    self.assertEqual(event["message_id"], message_id)
+                    self.assertEqual(event["actual_action"], "")
+                    self.assertEqual(event["action"], "deny")
+                    self.assertEqual(event["requested_action"], "deny")
+                    self.assertEqual(event["visible_http_status"], 201)
+                    self.assertFalse(event["connection_aborted"])
+
+    def test_observed_non_rule_events_preserve_the_actual_action(self) -> None:
+        for scenario in NON_RULE_EVENTS:
+            with self.subTest(scenario=scenario):
+                event = self.event(scenario, "connection_aborted")
+                self.assertEqual(event["actual_action"], "abort_connection")
+                self.assertEqual(event["action"], "abort_connection")
+                self.assertTrue(event["connection_aborted"])
+
+    def test_limits_keep_their_phase_specific_cause(self) -> None:
+        for scenario, cause in (("limit", "response_body_limit_exceeded"),
+                                ("request-limit", "request_body_limit_exceeded")):
+            with self.subTest(scenario=scenario):
+                event = self.event(scenario, "not_observable")
+                self.assertEqual(event["status"], "blocked")
+                self.assertEqual(event["reason"], cause)
+        self.assertEqual(self.event("unsupported", "not_observable")["status"], "unsupported")
+        for scenario in ("cancel", "disconnect"):
+            self.assertEqual(self.event(scenario, "not_observable")["status"], "error")
+
+    def test_removing_the_shared_observation_guard_exposes_the_regression(self) -> None:
+        header = (ROOT / "common/include/msconnector/event_protocol.h").read_text(encoding="utf-8")
+        callsite = "    msconnector_event_protocol_observed_action_view(out);\n"
+        self.assertEqual(header.count(callsite), 1)
+        include = self.directory / "negative-control"
+        target = include / "msconnector/event_protocol.h"
+        target.parent.mkdir(parents=True)
+        target.write_text(header.replace(callsite, "", 1), encoding="utf-8")
+        binary = self.directory / "unguarded-observation"
+        command = self.compiler + ["-I", str(include)]
+        command += self.build_command[len(self.compiler):-2] + ["-o", str(binary)]
+        compiled = subprocess.run(command, capture_output=True, text=True, timeout=90)
+        self.assertEqual(compiled.returncode, 0, compiled.stderr[-4000:])
+        result = subprocess.run([str(binary), "limit", "not_observable", "common"],
+                                capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        event = json.loads(result.stdout)
+        self.assertEqual(event["actual_action"], "abort_connection")
+        self.assertNotEqual(event["actual_action"], "")
 
 
 if __name__ == "__main__":

@@ -177,6 +177,21 @@ static inline void msconnector_event_protocol_decision_view(msconnector_event *e
     }
 }
 
+/* Policy limits, unsupported capabilities and cancellation events need the
+ * same observation boundary as rule and engine errors. An event's existence
+ * is not evidence that the host performed its requested transport action. */
+static inline void msconnector_event_protocol_observed_action_view(
+    msconnector_event *event)
+{
+    if (!msconnector_event_protocol_has_observation(event)) {
+        event->decision.actual_action = "";
+        event->decision.action = event->decision.requested_action;
+    } else if (event->decision.actual_action != NULL &&
+        event->decision.actual_action[0] != '\0') {
+        event->decision.action = event->decision.actual_action;
+    }
+}
+
 static inline void msconnector_event_protocol_message_view(msconnector_event *event)
 {
     const char *id = event->meta.message_id;
@@ -223,9 +238,7 @@ static inline int msconnector_event_protocol_view(const msconnector_event *sourc
         return 1;
     }
     msconnector_event_protocol_decision_view(out, error_name);
-    if (out->decision.actual_action != NULL && out->decision.actual_action[0] != '\0') {
-        out->decision.action = out->decision.actual_action;
-    }
+    msconnector_event_protocol_observed_action_view(out);
     msconnector_event_protocol_message_view(out);
     return 1;
 }
