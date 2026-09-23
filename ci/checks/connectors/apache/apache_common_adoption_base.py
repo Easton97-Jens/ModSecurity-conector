@@ -228,6 +228,42 @@ def typed_event_status_assignment(text: str) -> bool:
     return assignment.endswith("?MSCONNECTOR_STATUS_ERROR:MSCONNECTOR_STATUS_BLOCKED")
 
 
+def native_redirect_storage_is_checked(text: str) -> bool:
+    """Follow the actual native collector and its one request-owned sink.
+
+    Comments and unrelated functions cannot provide the executable checks.
+    The string-bearing Location assignment is checked in its scoped source
+    as well as the masked code path. Compiled APR tests prove runtime behavior.
+    """
+    collector = function_section(text, "process_intervention")
+    storage = function_section(text, "apache_store_native_intervention")
+    raw_storage = source_section(text,
+        "static int apache_store_native_intervention(", "int process_intervention (")
+    return (
+        not has_forbidden_contract_control_flow(collector)
+        and not has_forbidden_contract_control_flow(storage)
+        and tokens_in_order(collector,
+            "native_result = msc_intervention(t, &intervention);",
+            "native_result != 0 && native_result != 1",
+            "result = apache_store_native_intervention(msr, r, &intervention);",
+            "msc_release_intervention_buffers(&intervention);", "return result;")
+        and function_call_count(collector, "apache_store_native_intervention") == 1
+        and function_call_count(collector, "msc_release_intervention_buffers") == 1
+        and tokens_in_order(storage,
+            "msconnector_intervention_normalize_status(intervention->url,",
+            "msconnector_intervention_has_redirect_url(intervention->url)",
+            "status >= HTTP_MULTIPLE_CHOICES && status < HTTP_BAD_REQUEST",
+            "if (redirect && !msr->response.committed && r->bytes_sent == 0)",
+            "location = apr_pstrdup(r->pool, intervention->url);",
+            "if (location == NULL || r->headers_out == NULL)",
+            "return apache_record_failure(msr, r,",
+            "msr->last_intervention_status = status;",
+            "if (location != NULL)", "apr_table_setn(r->headers_out,",
+            "return status;")
+        and 'apr_table_setn(r->headers_out, "Location", location);' in raw_storage
+    )
+
+
 intervention_event_helper = source_section(
     filters_c,
     "static void apache_log_intervention_event",
@@ -459,15 +495,7 @@ checks.append((
         "MSCONNECTOR_TRANSACTION_DECISION_REDIRECT",
         'return "redirect";',
     )
-    and tokens_in_order(
-        process_intervention_helper,
-        "msconnector_intervention_has_redirect_url(intervention.url)",
-        "intervention.status >= HTTP_MULTIPLE_CHOICES",
-        "intervention.status < HTTP_BAD_REQUEST",
-        'apr_table_setn(r->headers_out, "Location", location);',
-        "result = intervention.status;",
-        "goto cleanup;",
-    ),
+    and native_redirect_storage_is_checked(module_c),
     "Apache preserves redirect through the canonical decision mapper and native Location sink",
 ))
 checks.append((

@@ -95,7 +95,8 @@ static char *fixture_pstrdup(apr_pool_t *pool, const char *text) {
 }
 static void *fixture_pcalloc(apr_pool_t *pool, apr_size_t size) {
     if (pool_failure) { return NULL; }
-    return memset(apr_palloc(pool, size), 0, size);
+    void *storage = apr_palloc(pool, size);
+    return storage == NULL ? NULL : memset(storage, 0, size);
 }
 static apr_status_t fixture_userdata_get(void **data, const char *key,
         apr_pool_t *pool) {
@@ -175,7 +176,9 @@ static int prepare(request_rec *r, msc_t *msr, apr_pool_t *pool, int complete) {
     r->notes = apr_table_make(pool, 4);
     r->headers_out = apr_table_make(pool, 4);
     r->status = 201;
-    r->connection = apr_pcalloc(pool, sizeof(conn_rec));
+    r->connection = apr_palloc(pool, sizeof(conn_rec));
+    REQUIRE(r->connection != NULL);
+    memset(r->connection, 0, sizeof(conn_rec));
     msr->r = r;
     msr->t = (Transaction *)&engines[3];
     msr->native_event_phase = MSCONNECTOR_PHASE_REQUEST_HEADERS;
@@ -191,6 +194,10 @@ static int prepare(request_rec *r, msc_t *msr, apr_pool_t *pool, int complete) {
             REQUIRE(msconnector_transaction_contract_complete_phase(&msr->contract,
                 phase, 100U) == MSCONNECTOR_TRANSACTION_TRANSITION_OK);
         }
+    } else {
+        REQUIRE(msconnector_transaction_contract_begin_phase(&msr->contract,
+            MSCONNECTOR_PHASE_REQUEST_HEADERS, 100U) ==
+            MSCONNECTOR_TRANSACTION_TRANSITION_OK);
     }
     apr_table_setn(r->notes, NOTE_MSR, (const char *)msr);
     current_request = r;
@@ -369,7 +376,7 @@ class ApacheNativeLifecycleTests(unittest.TestCase):
         return json.loads(result.stdout)
 
     def intervention(self, native=1, status=403, redirect=0, committed=0,
-                     allocation=0, state="normal", phase=1, control=False) -> dict:
+                     allocation=0, state="normal", phase=2, control=False) -> dict:
         return self.run_case("intervention", native, status, redirect, committed,
                              allocation, state, phase, control=control)
 
@@ -449,7 +456,7 @@ class ApacheNativeLifecycleTests(unittest.TestCase):
         self.assertEqual(result["rule"], 0)
 
     def test_invalid_intervention_retains_all_business_phase_correlations(self):
-        for phase in (1, 2, 3, 4):
+        for phase in (2, 3, 4, 5):
             with self.subTest(phase=phase):
                 result = self.intervention(native=-1, phase=phase)
                 self.assertEqual(result["event_phase"], phase)
