@@ -10,6 +10,7 @@ permissions:
 jobs:
   envoy-contract:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -33,6 +34,32 @@ jobs:
           make check-remaining-connectors-build-wiring
           make check-remaining-connectors-start-wiring
           make check-remaining-connectors-claim-policy
+      - name: Set up repository-selected Go for the native bridge
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: .go-version
+          check-latest: false
+          cache: false
+      - name: Install native bridge test prerequisites
+        run: |
+          set -eu
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes build-essential libmodsecurity-dev
+      - name: Compile and execute the real Common and CGo bridge tests
+        env:
+          GOTOOLCHAIN: local
+          ENVOY_EXT_PROC_COMMON_TEST: "1"
+          MODSECURITY_INCLUDE_DIR: /usr/include
+          BUILD_ROOT: ${{ runner.temp }}/pr382-envoy-native-build
+          GOCACHE: ${{ runner.temp }}/pr382-envoy-go-cache
+          GOTMPDIR: ${{ runner.temp }}/pr382-envoy-go-tmp
+        run: |
+          set -eu
+          mkdir -p "$GOTMPDIR"
+          export MODSECURITY_LIB_FILE="/usr/lib/$(cc -print-multiarch)/libmodsecurity.so"
+          test -f "$MODSECURITY_LIB_FILE"
+          go version
+          sh connectors/envoy/build/build_ext_proc.sh
       - name: Collect host runtime preflight evidence
         if: always()
         env:
