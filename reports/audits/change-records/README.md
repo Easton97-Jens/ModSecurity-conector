@@ -27,6 +27,13 @@ reports without an explicit repository-policy decision or user decision.
   adds fail-closed pin-boundary regression coverage, and leaves Framework/MRTS
   source, Gitlinks, permissions, hosted reruns, and merge state unchanged.
 
+- [CR-20260919-readiness-b-shared-remediation](CR-20260919-readiness-b-shared-remediation.md)
+  | [Deutsch](CR-20260919-readiness-b-shared-remediation.de.md) — records the
+  scoped Parent-only shared remediation for the ten-integration readiness-B
+  work. It distinguishes observed local evidence from the still incomplete
+  ten-path runtime and rule-profile evidence; no Framework/MRTS/Gitlink
+  change, ten-path B promotion, Envoy-host result, or merge is asserted.
+
 - [CR-20260919-update-submodule-sha-projection](CR-20260919-update-submodule-sha-projection.md)
   | [Deutsch](CR-20260919-update-submodule-sha-projection.de.md) — the current
   user requested this Parent-only repair for linked GitHub Actions run

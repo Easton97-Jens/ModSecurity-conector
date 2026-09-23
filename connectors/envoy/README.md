@@ -61,8 +61,9 @@ non-promotion conditions are documented in the
 
 ## Source layout
 
-- `src/envoy_ext_authz_service_main.c` defines the Envoy host profile, original
-  URI header preferences, and the service entry point.
+- `src/envoy_ext_authz_service_main.c` defines the Envoy host profile, which
+  evaluates the generated authorization-request target and consumes no
+  client-supplied original-URI override header, plus the service entry point.
 - `src/envoy_modsecurity_mapper.c` contains thin C17 calls to the Common generic
   request and response mappers.
 - `config/envoy-ext-authz.conf` is the checked-in configuration template.
@@ -125,6 +126,14 @@ loopback HTTP service. Missing binaries are BLOCKED; config, process, mapping,
 and status errors fail the smoke. All processes are stopped on success or
 failure.
 
+When `MSCONNECTOR_RESPONSE_PHASE_SMOKE=1` is set without an explicit
+`RULES_FILE`, the smoke selects the checked-in response-companion P1/P3/P4
+fixture. Its P3 case binds `/phase3-block` and the upstream-created
+`X-Modsec-Upstream: block` response header; its P4 fixture emits the bounded
+marker. An explicit `RULES_FILE` remains an operator selection. This restores a
+source/harness contract only; a real Envoy run is still required for host
+evidence.
+
 For an operator-controlled foreground service:
 
 ```sh
@@ -134,9 +143,14 @@ make -C connectors/envoy serve-envoy-connector \
 ```
 
 The template config enables request processing, uses `x-request-id` as the host
-transaction ID header, caps request bodies at 4096 bytes, disables response-body
-processing, uses 403/500 block/error defaults, applies explicit header/event
-limits, and writes metadata-only JSONL outside the checkout.
+transaction ID header, caps request bodies at 4096 bytes, uses 403/500
+block/error defaults, applies explicit header/event limits, and writes
+metadata-only JSONL outside the checkout. Its HTTP authorization request has no
+callback path prefix, so Envoy supplies the protected downstream request target
+as `Path`; the profile and template refuse `x-envoy-original-path`,
+`x-forwarded-uri`, and `x-original-uri` as policy-selection inputs. The direct
+service itself does not receive response bodies; the mandatory response observer
+handles P3/P4.
 
 The independent ext_proc full-lifecycle service has its own commands. Its
 normal executable requires explicit libmodsecurity headers and library paths:

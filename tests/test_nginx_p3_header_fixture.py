@@ -63,6 +63,8 @@ class NginxP3HeaderFixtureContractTests(unittest.TestCase):
         source = RUNNER.read_text(encoding="utf-8")
 
         ast.parse(source, filename=str(RUNNER))
+        self.assertIn('"version": SHARED.EXPECTED_NGINX_VERSION', source)
+        self.assertNotIn('"version": "1.31.4"', source)
         self.assertIn("assert_exact_checkout", source)
         self.assertIn("SHARED_RUNNER", source)
         self.assertIn("--wrap=msc_process_response_headers", source)

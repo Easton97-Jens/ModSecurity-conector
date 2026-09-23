@@ -8,7 +8,9 @@ BUILD_ROOT=${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecuri
 SERVICE_BIN=${SERVICE_BIN:-$BUILD_ROOT/envoy-connector/msconnector_envoy_ext_authz}
 RESPONSE_OBSERVER_BIN=${RESPONSE_OBSERVER_BIN:-$BUILD_ROOT/envoy-connector/msconnector_envoy_response_observer}
 CONFIG_FILE=${CONFIG_FILE:-$CONNECTOR_DIR/config/envoy-ext-authz.conf}
-RULES_FILE=${RULES_FILE:-$REPO_ROOT/common/rules/modsecurity_targeted_smoke.conf}
+TARGETED_RULES_FILE=$REPO_ROOT/common/rules/modsecurity_targeted_smoke.conf
+RESPONSE_COMPANION_RULES_FILE=$REPO_ROOT/common/rules/modsecurity_response_companion_smoke.conf
+RULES_FILE=${RULES_FILE:-}
 EXPECTED_RULE_ID=${MSCONNECTOR_EXPECTED_RULE_ID:-1000001}
 RESPONSE_PHASE_SMOKE=${MSCONNECTOR_RESPONSE_PHASE_SMOKE:-0}
 P3_RULE_ID=${MSCONNECTOR_P3_RULE_ID:-1000003}
@@ -65,6 +67,21 @@ cleanup() {
     rm -f "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY"
 }
 
+case "$RESPONSE_PHASE_SMOKE" in
+    0|1) ;;
+    *) echo "envoy_runtime_smoke: FAIL - MSCONNECTOR_RESPONSE_PHASE_SMOKE must be 0 or 1" >&2; exit 1 ;;
+esac
+if [ -z "${RULES_FILE:-}" ]; then
+    if [ "$RESPONSE_PHASE_SMOKE" = "1" ]; then
+        RULES_FILE=$RESPONSE_COMPANION_RULES_FILE
+        RULES_SOURCE=response_companion_default
+    else
+        RULES_FILE=$TARGETED_RULES_FILE
+        RULES_SOURCE=request_phase_default
+    fi
+else
+    RULES_SOURCE=operator
+fi
 [ -n "${ENVOY_BIN:-}" ] || missing_dependency "ENVOY_BIN is required"
 [ -x "$ENVOY_BIN" ] || missing_dependency "ENVOY_BIN is not executable: $ENVOY_BIN"
 [ -x "$SERVICE_BIN" ] || missing_dependency "connector service is not executable: $SERVICE_BIN"
@@ -74,10 +91,6 @@ cleanup() {
 [ -f "$HELPER" ] || missing_dependency "smoke helper is missing: $HELPER"
 [ -f "$TLS_RENDERER" ] || missing_dependency "TLS YAML renderer is missing: $TLS_RENDERER"
 command -v "$PYTHON_BIN" >/dev/null 2>&1 || missing_dependency "Python interpreter is missing: $PYTHON_BIN"
-case "$RESPONSE_PHASE_SMOKE" in
-    0|1) ;;
-    *) echo "envoy_runtime_smoke: FAIL - MSCONNECTOR_RESPONSE_PHASE_SMOKE must be 0 or 1" >&2; exit 1 ;;
-esac
 . "$TLS_RENDERER"
 
 if [ "${MSCONNECTOR_NO_CRS_BASELINE:-0}" = "1" ]; then
@@ -319,6 +332,8 @@ done
     printf 'allowed_request_status=%s\n' "$allowed_status"
     printf 'blocked_request_status=%s\n' "$blocked_status"
     printf 'rule_id=%s\n' "$EXPECTED_RULE_ID"
+    printf 'rules_file=%s\n' "$RULES_FILE"
+    printf 'rules_source=%s\n' "$RULES_SOURCE"
     printf 'event_log=%s\n' "$EVENT_LOG_PATH"
     printf 'envoy_config=%s\n' "$ENVOY_CONFIG"
     printf 'response_observer_socket=%s\n' "$RESPONSE_OBSERVER_SOCKET"

@@ -54,7 +54,7 @@ if test ! -f "$MSCONNECTOR_PROFILE_REGISTRY_SOURCE_DIRECTORY/profile_registry.h"
     exit 1
 fi
 
-# APXS/libtool writes object files alongside each C input.  Materialize the
+# APXS/libtool writes object files alongside each C input. Materialize the
 # connector-owned registry outside the canonical checkout before passing it to
 # APXS, just as the Common SDK sources below are materialized there.
 MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT=${MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT:-$(pwd -P)/build/profile-registry}
@@ -78,7 +78,27 @@ case "$MSCONNECTOR_PROFILE_REGISTRY_EXISTING_PARENT/" in
         exit 1
         ;;
 esac
-mkdir -p "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT/connectors"
+if test -L "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT"; then
+    echo "profile registry build root must not be a symlink" >&2
+    exit 1
+fi
+mkdir -p "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT"
+if test -L "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT" || \
+        test ! -d "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT"; then
+    echo "profile registry build root is unsafe" >&2
+    exit 1
+fi
+if test -e "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT/connectors" || \
+        test -L "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT/connectors"; then
+    echo "profile registry staging connectors directory must be a fresh non-symlink path" >&2
+    exit 1
+fi
+mkdir "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT/connectors"
+if test -L "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT/connectors" || \
+        test ! -d "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT/connectors"; then
+    echo "profile registry staging connectors directory is unsafe" >&2
+    exit 1
+fi
 MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT=$(CDPATH= cd "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT" && pwd -P)
 case "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT/" in
     "$MSCONNECTOR_PROFILE_REGISTRY_CHECKOUT_ROOT/"*)
