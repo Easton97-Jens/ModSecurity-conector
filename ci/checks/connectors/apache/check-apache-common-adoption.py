@@ -62,6 +62,31 @@ def direct_body_ends_with(text: str, pattern: str) -> bool:
     return re.search(pattern + r"\s*\Z", direct_body, re.DOTALL) is not None
 
 
+def native_intervention_flow_is_checked(text: str) -> bool:
+    """Follow real storage and require cleanup on every post-native outcome."""
+    collector = base.function_section(text, "process_intervention")
+    native_call = "native_result = msc_intervention(t, &intervention);"
+    native_tail = collector.partition(native_call)[2]
+    return (
+        base.native_redirect_storage_is_checked(text)
+        and base.tokens_in_order(collector,
+            "msr->intervention.collecting = 1;", native_call,
+            "if (native_result != 0 && native_result != 1)",
+            "result = apache_record_failure(msr, r,",
+            "MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE",
+            "else if (msr->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE)",
+            "else if (native_result == 0 && !intervention.disruptive)",
+            "result = N_INTERVENTION_STATUS;",
+            "result = apache_store_native_intervention(msr, r, &intervention);",
+            "msc_release_intervention_buffers(&intervention);",
+            "msr->intervention.collecting = 0;", "return result;")
+        and len(re.findall(r"\breturn\b", native_tail)) == 1
+        and direct_body_ends_with(collector,
+            r"msc_release_intervention_buffers\s*\(\s*&intervention\s*\)\s*;\s*"
+            r"msr->intervention\.collecting\s*=\s*0\s*;\s*return\s+result\s*;")
+    )
+
+
 request_body_finalizer = base.function_section(
     base.filters_c, "msc_finalize_request_body"
 )
@@ -624,23 +649,7 @@ review_guards: list[tuple[bool, str]] = [
         "Apache registers the terminal guard as a protocol output filter",
     ),
     (
-        base.tokens_in_order(
-            base.process_intervention_helper,
-            "z = msc_intervention(t, &intervention);",
-            "if (z == 0)",
-            f"return {INTERVENTION_SENTINEL};",
-            "msconnector_intervention_has_redirect_url(intervention.url)",
-            "intervention.status >= HTTP_MULTIPLE_CHOICES",
-            "intervention.status < HTTP_BAD_REQUEST",
-            'apr_table_setn(r->headers_out, "Location", location);',
-            "result = intervention.status;",
-            "goto cleanup;",
-            f"if (intervention.status != {INTERVENTION_SENTINEL})",
-            "result = intervention.status;",
-            "cleanup:",
-            "msc_release_intervention_buffers(&intervention);",
-            "return result;",
-        ),
+        native_intervention_flow_is_checked(base.module_c),
         "Apache validates the native intervention result and preserves both redirect and non-redirect enforcement sinks",
     ),
     (

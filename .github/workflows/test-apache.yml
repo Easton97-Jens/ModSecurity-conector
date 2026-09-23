@@ -96,6 +96,8 @@ jobs:
           test -f config/testing/import-status.json
           test -f docs/testing-and-evidence.md
           grep -q 'Status:' connectors/apache/TODO.md
+      - name: Verify Apache collector and existing adoption mutations
+        run: python3 -m unittest -v tests.test_apache_common_adoption tests.test_apache_native_adoption
       - name: Syntax and dry-run checks
         run: |
           make setup-dev
