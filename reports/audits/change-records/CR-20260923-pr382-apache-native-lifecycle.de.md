@@ -7,6 +7,7 @@
 | Feld | Wert |
 | --- | --- |
 | Change-ID | `CR-20260923-pr382-apache-native-lifecycle` |
+| Datum (UTC) | `2026-09-23` |
 | Basis-Revision | `ad22918e92849a10483439d72ac9a50154ec00be` |
 | Umfang | Parent-Repository, Draft-PR #382, Implementierung I09/I10 |
 
