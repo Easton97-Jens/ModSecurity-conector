@@ -13,9 +13,10 @@ listed as an untouched intervention/initialization/audit defect.
 
 Latest published test repair: `7d05e89fc12dca64c7129553d0c83157e956e0f3`.
 Its Sonar analysis confirms zero findings and displayed 0.0% new duplication.
-The fresh native Envoy job was still running at this checklist's preparation.
-This documentation update also repairs the two missing Apache Change Record
-date fields that blocked bilingual validation; its own checks are still required.
+Its complete native Envoy job has now passed, including actual Common/libModSecurity
+and libmodsecurity-tagged Go tests (V20/V25). The date-field and paired-checklist
+repair passed bilingual validation at `b92459ba` (V26). These are revision-scoped
+results, not an automatic pass for this later evidence-only update.
 
 Evidence correction: `a6898480` was never published. Its claimed results are not
 used. Historical test claims apply only to the referenced revision and test layer.
@@ -48,7 +49,7 @@ References: [contract/migration](pr-382-event-contract.md),
 - [x] I10a: NGINX late technical errors precede Safe/Strict rule policy (`52445b18`; V14).
 - [x] I10b: Actual Common policy tests cover five error classes, ten profiles, two contract modes and both commitment states; technical failure never becomes Safe log-only. Not host-I/O proof.
 - [x] I10c: Real NGINX collector/dispatcher/P4 chain tests retain late rules, Off behavior and cleanup (`1ce569e1`; V17).
-- [x] I10d: Envoy commitment failure stops before append; empty EOS does not invent body-started state. Checked C ABI propagates errors through Go while retaining the compatibility ABI (`31200e8c`, `81e53a94`). Native verification is V20.
+- [x] I10d: Envoy commitment failure stops before append; empty EOS does not invent body-started state. Checked C ABI propagates errors through Go while retaining the compatibility ABI (`31200e8c`, `81e53a94`). Native verification passed at `7d05e89f` (V20).
 - [x] I10e: Apache's checked collector cannot mutate committed Location headers or reuse stale rule metadata on a technical failure. Audit claims its attempt before callbacks and never dispatches an actionable logging-phase intervention. Present at `3c29004b`; V24 is compiled APR/native-boundary evidence, not live httpd.
 - [ ] I11: Complete producer/physical-sink parity, identifiers/causes, observed actions, duplicate terminal events and open/write/short-write/serialization failures.
 - [x] I11a: Missing transport observations do not prove rule/error enforcement; custom records and actual evidence remain preserved.
@@ -66,7 +67,7 @@ References: [contract/migration](pr-382-event-contract.md),
 | Item | Remaining requirement |
 | --- | --- |
 | I09 | Review filter/API exits outside the completed Apache module and the remaining HAProxy, direct, companion and middleware producers. Trace each error through the actual caller and cleanup path; shared predicates or diagnostics alone do not prove completion. The Apache collector/init/audit fixes above are no longer open implementation items. |
-| I10 | Complete native integration tests and verify each adapter's error-to-host-control path, including failures after commitment. Do not infer missing behavior solely from a helper lacking a guard when the Common state machine may already prevent it. |
+| I10 | Verify each remaining adapter's error-to-host-control path, including failures after commitment. Native Envoy verification is now complete at V20, not an outstanding prerequisite. Do not infer missing behavior solely from a helper lacking a guard when the Common state machine may already prevent it. |
 | I11 | Apache's void event writer/callers still need complete physical failure propagation; HAProxy SPOP still needs its Common-event fputs result handled. Original Runtime I/O-error retention is fixed. These are implementation work, not just missing live evidence. |
 | I12 | Run route-specific host, client-byte/reset, neighbor-stream, cleanup and physical-log cases. Request-only routes require their actual response companion. |
 
@@ -94,14 +95,14 @@ References: [contract/migration](pr-382-event-contract.md),
 - [x] V17: 43 NGINX request/native cases, including ten collector-chain and eight audit tests, passed at `b91b6826`.
 - [x] V18: 55 Common/native/event/profile cases passed at `b91b6826`.
 - [x] V19: Helper-aware source/security repair passed at `b91b6826` without removing other negative paths.
-- [ ] V20: Complete the fresh native Go/CGo run. The workflow now really builds Common/libModSecurity and executes libmodsecurity-tagged tests, including both commitment cases. The first run exposed three test defects; repaired in `7d05e89f`. [Fresh job 107300314663](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35896111748/job/107300314663) was still running at preparation.
+- [x] V20: [Native Envoy job 107300314663](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35896111748/job/107300314663) passed for exactly `7d05e89f`, including the actual Common/libModSecurity build and `go test -mod=readonly -tags libmodsecurity -count=1 ./...`. Both checked-commitment cases are included; this is not just the source/preflight check.
 - [x] V21: Eight runtime sink/error-replay plus six host-action cases passed at `b91b6826` (14 total).
 - [x] V22: Ten complete ext_proc C-bridge cases passed at `b91b6826`; controlled Common/native boundaries, not live transport evidence.
 - [x] V23: Six compiled connection/URI caller/helper cases passed at `b91b6826`.
 - [x] V24: At `3c29004b`, [Apache native job 107137107158](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35847504774/job/107137107158) passed the 20 compiled lifecycle cases and bootstrap. [Structure job 107137106792](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35847504774/job/107137106792) passed 25 adoption/mutation cases, then failed the separate missing report-date check.
 - [x] V25a: `7d05e89f` contains the native test repair: independent valid-413 and terminal-invalid-acknowledgement cases, explicit unsafe file permissions and retained original inode. Production guards and existing positive controls remain unchanged.
-- [ ] V25: Confirm fresh execution of the V25a repairs, including first-error retention and unchanged event bytes after failed retries.
-- [ ] V26: Verify this delivery's added Date (UTC)/Datum (UTC) identity rows and paired checklist with the unchanged bilingual validator.
+- [x] V25: The native Go suite in V20 passed the V25a fixes, including first-error retention and unchanged event bytes after failed retries. The first failing run is retained as the regression baseline.
+- [x] V26: [Lint job 107304638636](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35897399419/job/107304638636) passed the unchanged bilingual validator for `b92459ba`, confirming both added date fields and the paired checklist. Its overall status was still running at this readback.
 
 ## 3. Sonar zero findings and zero duplication
 
@@ -128,7 +129,7 @@ Coverage and secret scanning are independent requirements.
 | Apache native | Exact collector, copied storage, first errors, checked audit/init/generation cleanup; 20 compiled and 25 adoption cases | Other filter/API exits, physical sink propagation and live host matrix |
 | HAProxy HTX | Binding predicates and helper/adoption tests | Caller-level failure/cleanup and host/reset/log verification |
 | HAProxy SPOE/SPOP + companion | Native/Common result contracts | SPOP write propagation and distinct companion/control proof |
-| Envoy ext_proc | Checked commitment, sticky errors, ten C-bridge cases; native test repairs published | Fresh real CGo pass and live gRPC/host/log cases |
+| Envoy ext_proc | Checked commitment, sticky errors, ten C-bridge cases and real native Go suite passed | Live gRPC/host/log cases and final combined verification |
 | Envoy ext_authz + companion | Shared Runtime fixes | Separate companion lifecycle and physical output proof |
 | Traefik middleware/UDS | Shared Runtime fixes | Adapter-level errors, physical sinks and live host evidence |
 | Traefik forwardAuth + companion | Shared Runtime fixes | Separate companion control/log evidence |
@@ -155,8 +156,9 @@ not an automatic pass for new Apache source or Envoy tests.
 The `3c29004b` Apache structure job reached its final bilingual check before
 failing for two missing date fields. Its native/APR job passed independently.
 The first real Envoy run [35847504839](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35847504839)
-failed three fixture/expectation cases; `7d05e89f` addresses them without changing
-production protections. Pending results above must be updated after actual readback.
+failed three fixture/expectation cases; the repaired full native run passed at
+`7d05e89f` (V20/V25), without changing production protections. The unchanged
+bilingual check passed after the date-field fix at `b92459ba` (V26).
 
 Earlier evidence remains in [the checklist at ad22918e](https://github.com/Easton97-Jens/ModSecurity-conector/blob/ad22918e92849a10483439d72ac9a50154ec00be/docs/pr-382-checklist.md)
 and linked Change Records. The user clarified RTK scope for this continuation;

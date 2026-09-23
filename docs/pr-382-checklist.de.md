@@ -13,10 +13,11 @@ als unbearbeiteter Interventions-/Initialisierungs-/Auditfehler aufgeführt werd
 
 Neueste veröffentlichte Testreparatur: `7d05e89fc12dca64c7129553d0c83157e956e0f3`.
 Sonar bestätigt dafür null Befunde und angezeigte 0,0 % neue Duplikation.
-Der frische native Envoy-Job lief bei Vorbereitung dieser Liste noch.
-Diese Dokumentationslieferung ergänzt außerdem die zwei fehlenden Datumsfelder
-im Apache-Change-Record, die die Zweisprachigkeitsprüfung blockierten. Eigene
-Prüfungen dieser Lieferung bleiben erforderlich.
+Sein vollständiger nativer Envoy-Job bestand inzwischen einschließlich echtem
+Common/libModSecurity und Go-Tests mit libmodsecurity-Buildtag (V20/V25).
+Datumsfelder und zweisprachige Checkliste bestanden für `b92459ba` die unveränderte
+Prüfung (V26). Diese revisionsgebundenen Ergebnisse gelten nicht automatisch für
+diese spätere reine Nachweisaktualisierung.
 
 Nachweiskorrektur: `a6898480` wurde nie veröffentlicht; behauptete Ergebnisse
 werden nicht verwendet. Historische Nachweise gelten nur für ihre Revision und
@@ -49,7 +50,7 @@ Referenzen: [Vertrag/Migration](pr-382-event-contract.de.md),
 - [x] I10a: Späte technische NGINX-Fehler kommen vor Safe-/Strict-Regelpolicy (`52445b18`; V14).
 - [x] I10b: Echte Common-Policy-Tests prüfen fünf Fehlerklassen, zehn Profile, zwei Vertragsmodi und beide Commit-Zustände; technische Fehler werden kein Safe-Log-only. Kein Host-I/O-Nachweis.
 - [x] I10c: Echte NGINX-Collector-/Dispatcher-/P4-Kettentests erhalten späte Regeln, Off-Verhalten und Bereinigung (`1ce569e1`; V17).
-- [x] I10d: Fehlerhafter Envoy-Antwortbeginn stoppt vor Append; leeres EOS erfindet keinen Bodybeginn. Geprüfte C-ABI reicht Fehler bis Go weiter; Kompatibilitäts-ABI bleibt erhalten (`31200e8c`, `81e53a94`). Native Verifikation ist V20.
+- [x] I10d: Fehlerhafter Envoy-Antwortbeginn stoppt vor Append; leeres EOS erfindet keinen Bodybeginn. Geprüfte C-ABI reicht Fehler bis Go weiter; Kompatibilitäts-ABI bleibt erhalten (`31200e8c`, `81e53a94`). Native Verifikation bestand für `7d05e89f` (V20).
 - [x] I10e: Apache-Collector ändert keine bereits gesendeten Location-Header und verwendet bei technischen Fehlern keine alten Regelmetadaten. Audit markiert seinen Versuch vor Callbacks und setzt keine ausführbare Intervention aus der Logphase durch. Für `3c29004b` vorhanden; V24 prüft kompilierte APR-/native Grenzen, kein Live-httpd.
 - [ ] I11: Erzeuger-/Ausgabeparität, Kennungen/Ursachen, beobachtete Aktionen, doppelte terminale Ereignisse und Öffnungs-/Schreib-/Kurzschreib-/Serialisierungsfehler abschließen.
 - [x] I11a: Fehlende Transportbeobachtungen belegen keine Regel-/Fehlerdurchsetzung; eigene Datensätze und tatsächliche Nachweise bleiben erhalten.
@@ -67,7 +68,7 @@ Referenzen: [Vertrag/Migration](pr-382-event-contract.de.md),
 | Punkt | Verbleibende Anforderung |
 | --- | --- |
 | I09 | Filter-/API-Ausgänge außerhalb des fertigen Apache-Moduls und übrige HAProxy-, direkte, Companion- und Middleware-Erzeuger prüfen. Jeden Fehler durch tatsächliche Aufrufer und Cleanup verfolgen; gemeinsame Prädikate oder Diagnosen allein reichen nicht. Die obigen Apache-Collector-/Init-/Auditkorrekturen sind nicht mehr offen. |
-| I10 | Native Integrationstests und Fehlerweitergabe jeder Route bis zur Hoststeuerung einschließlich Fehlern nach Antwortbeginn abschließen. Fehlende Prüfungen in einem Helfer allein beweisen keinen Fehler, wenn Common bereits weitere Aufrufe verhindert. |
+| I10 | Fehlerweitergabe jeder verbleibenden Route bis zur Hoststeuerung einschließlich Fehlern nach Antwortbeginn prüfen. Native Envoy-Verifikation ist jetzt unter V20 abgeschlossen, keine offene Voraussetzung mehr. Fehlende Prüfungen in einem Helfer allein beweisen keinen Fehler, wenn Common bereits weitere Aufrufe verhindert. |
 | I11 | Apaches void-Ereignisschreiber/-Aufrufer brauchen vollständige physische Fehlerweitergabe; HAProxy SPOP muss sein Common-Event-fputs-Ergebnis behandeln. Der ursprüngliche Runtime-I/O-Wiedergabefehler ist behoben. Dies bleibt Implementierungsarbeit, nicht bloß Live-Nachweis. |
 | I12 | Routebezogene Host-, Client-Byte-/Reset-, Nachbarstream-, Cleanup- und physische Logfälle ausführen. Request-only benötigt seinen wirklichen Response-Companion. |
 
@@ -95,14 +96,14 @@ Referenzen: [Vertrag/Migration](pr-382-event-contract.de.md),
 - [x] V17: 43 NGINX-Request-/Native-Fälle einschließlich zehn Collector- und acht Auditfällen bestanden für `b91b6826`.
 - [x] V18: 55 Common-/Native-/Event-/Profilfälle bestanden für `b91b6826`.
 - [x] V19: Helferbewusste Quellcode-/Sicherheitsreparatur bestand für `b91b6826`, ohne andere Negativpfade zu entfernen.
-- [ ] V20: Frischen nativen Go-/CGo-Lauf abschließen. Der Workflow baut inzwischen wirklich Common/libModSecurity und führt Tests mit libmodsecurity-Buildtag einschließlich beider Commitment-Fälle aus. Der erste Lauf zeigte drei Testfehler; Reparatur in `7d05e89f`. [Neuer Job 107300314663](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35896111748/job/107300314663) lief bei Vorbereitung noch.
+- [x] V20: [Nativer Envoy-Job 107300314663](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35896111748/job/107300314663) bestand für exakt `7d05e89f`, einschließlich echtem Common/libModSecurity-Build und `go test -mod=readonly -tags libmodsecurity -count=1 ./...`. Beide geprüften Commitment-Fälle sind enthalten; kein bloßer Quellcode-/Vorabcheck.
 - [x] V21: Acht Runtime-Ausgabe-/Wiedergabe- plus sechs Hostaktionstests bestanden für `b91b6826` (14 insgesamt).
 - [x] V22: Zehn vollständige ext_proc-C-Brückenfälle bestanden für `b91b6826`; kontrollierte Common-/native Grenzen, kein Live-Transportnachweis.
 - [x] V23: Sechs kompilierte Verbindungs-/URI-Aufrufer-/Helferfälle bestanden für `b91b6826`.
 - [x] V24: Für `3c29004b` bestand der [native Apache-Job 107137107158](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35847504774/job/107137107158) die 20 kompilierten Lifecycle-Fälle und Bootstrap. [Strukturjob 107137106792](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35847504774/job/107137106792) bestand 25 Adoption-/Mutationsfälle und scheiterte erst an getrennt fehlenden Berichtsdatumsfeldern.
 - [x] V25a: `7d05e89f` enthält native Testreparaturen: getrennte gültige 413- und terminale ungültige Bestätigungsfälle, explizit unsichere Dateirechte und erhaltene ursprüngliche Inode. Produktivschutz und bestehende Positivkontrollen bleiben unverändert.
-- [ ] V25: Frische Ausführung der V25a-Reparaturen bestätigen, einschließlich erster Fehlerursache und unveränderter Ereignisbytes nach Wiederholungen.
-- [ ] V26: Ergänzte Date (UTC)/Datum (UTC)-Identitätsfelder und zweisprachige Checkliste dieser Lieferung mit unverändertem Validator prüfen.
+- [x] V25: Die native Go-Suite aus V20 bestand die V25a-Reparaturen einschließlich erster Fehlerursache und unveränderter Ereignisbytes nach fehlgeschlagenen Wiederholungen. Der ursprüngliche fehlgeschlagene Lauf bleibt als Regressionsbaseline erhalten.
+- [x] V26: [Lint-Job 107304638636](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35897399419/job/107304638636) bestand für `b92459ba` den unveränderten Zweisprachigkeitsvalidator; beide Datumsfelder und die Checkliste sind bestätigt. Gesamtstatus war bei diesem Abruf noch laufend.
 
 ## 3. Sonar: null Befunde und null Duplikation
 
@@ -129,7 +130,7 @@ Repository-Befunden. Coverage und Secret-Scan bleiben unabhängig davon.
 | Apache nativ | Exakter Collector, Kopien, erste Fehler, geprüfter Audit/Init/Generations-Cleanup; 20 kompilierte und 25 Adoptionfälle | Weitere Filter-/API-Ausgänge, physische Ausgabeweitergabe und Live-Matrix |
 | HAProxy HTX | Binding-Prädikate und Helfer-/Adoptiontests | Aufruferbezogene Fehler/Cleanup und Host-/Reset-/Logprüfung |
 | HAProxy SPOE/SPOP + Companion | Native/Common-Rückgabeverträge | SPOP-Schreibfehler und getrennte Companion-/Steuerungsnachweise |
-| Envoy ext_proc | Geprüfter Commit, erste Fehler, zehn C-Brückenfälle; native Testreparaturen veröffentlicht | Frischer echter CGo-Erfolg und Live-gRPC-/Host-/Logfälle |
+| Envoy ext_proc | Geprüfter Commit, erste Fehler, zehn C-Brückenfälle und echte native Go-Suite bestanden | Live-gRPC-/Host-/Logfälle und finale gemeinsame Verifikation |
 | Envoy ext_authz + Companion | Gemeinsame Runtime-Korrekturen | Getrennter Companion-Lebenszyklus und physische Ausgabe |
 | Traefik Middleware/UDS | Gemeinsame Runtime-Korrekturen | Adapterfehler, physische Ausgabe und Live-Host-Nachweis |
 | Traefik forwardAuth + Companion | Gemeinsame Runtime-Korrekturen | Getrennte Companion-Steuerungs-/Lognachweise |
@@ -156,8 +157,9 @@ Nachweis, kein automatischer Erfolg neuer Apache-Quellen oder Envoy-Tests.
 Der Apache-Strukturjob für `3c29004b` erreichte die abschließende Zweisprachigkeits-
 prüfung und scheiterte an zwei Datumsfeldern; der native/APR-Job bestand getrennt.
 Der erste echte Envoy-Lauf [35847504839](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35847504839)
-scheiterte an drei Fixture-/Erwartungsfällen. `7d05e89f` korrigiert sie ohne Änderungen
-des Produktivschutzes. Offene Ergebnisse oben erst nach tatsächlichem Abruf ändern.
+scheiterte an drei Fixture-/Erwartungsfällen. Der reparierte vollständige native
+Lauf bestand für `7d05e89f` (V20/V25), ohne geänderten Produktivschutz. Nach Ergänzung
+der Datumsfelder bestand die unveränderte Zweisprachigkeitsprüfung für `b92459ba` (V26).
 
 Frühere Nachweise bleiben in [der Liste bei ad22918e](https://github.com/Easton97-Jens/ModSecurity-conector/blob/ad22918e92849a10483439d72ac9a50154ec00be/docs/pr-382-checklist.de.md)
 und verlinkten Change Records erhalten. Der Nutzer hat den RTK-Geltungsbereich
