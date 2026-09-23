@@ -22,19 +22,26 @@ the Go receiver through the checked C ABI to the real Common state machine.
 
 Compile the real bridge and execute its tagged Go suite, including both
 commitment regression cases. Missing native prerequisites must fail, not skip.
-Preserve the repository toolchain selector, dependency graph and exact-head
-Sonar findings/duplication gates. Keep live Envoy transport evidence separate.
+Preserve toolchain selection, reviewed engine provenance, dependency graph and
+exact-head Sonar findings/duplication gates. Keep live transport evidence separate.
 
 ## Implementation decision and rationale
 
 Extend the existing Envoy job after its source-contract checks. Use the already
-pinned setup-go action and root Go selector, disable shared Go caching, and
-install only build-essential and libmodsecurity-dev on the disposable runner.
-Call the existing build_ext_proc.sh with ENVOY_EXT_PROC_COMMON_TEST=1 directly:
-its validated native prerequisites cannot take the optional test script's skip
-path. The existing builder compiles the Common archive and CGo service and runs
-all packages with the libmodsecurity tag and count=1 using readonly modules.
-No runtime capability or production error policy is changed in this slice.
+pinned setup-go action and root Go selector, with no shared Go cache. The first
+attempt at `6092c1b0` used the distribution's older 3.0.12 native development
+package; the actual strict build rejected its incompatible C API. This was a
+test-environment selection error, not a successful native regression run.
+
+The correction uses the repository's existing with-runtime-components.sh,
+restricted to target shared. Framework-owned engine provenance, private cache
+validation and the invocation-bound environment remain authoritative. Install
+build prerequisites only on the disposable runner; no distribution-engine
+fallback, API emulation, const cast or warning suppression is introduced.
+The unchanged native builder runs ENVOY_EXT_PROC_COMMON_TEST=1, compiling the
+Common archive and CGo service and testing all tagged packages with count=1.
+The separate declaration/assignment issue reported by ShellCheck disappears
+with removal of the incorrect hard-coded distribution-library selection.
 
 ## Changed files
 
@@ -43,42 +50,43 @@ Framework/MRTS files, lock files, scanner rules or dependency versions change.
 
 ## Commands executed
 
-The required remote step invokes:
+Required remote command, with ENVOY_EXT_PROC_COMMON_TEST=1:
 
 ```sh
-sh connectors/envoy/build/build_ext_proc.sh
+sh ci/provisioning/cache/with-runtime-components.sh sh connectors/envoy/build/build_ext_proc.sh
 ```
 
-It uses ENVOY_EXT_PROC_COMMON_TEST=1, the distribution native headers/library,
-and private runner-temporary build/cache paths. Execution is pending when this
-commit is prepared; read back the published revision before recording V20.
-The user clarified that RTK is not a blocker for this remote workflow.
+At `6092c1b0`, job 107129310702 (run 35845121593) reached real compilation and
+failed on the old API before Go tests. Actionlint separately reported SC2155.
+Neither result is marked passed. Fresh results after the provisioning correction
+are required. RTK does not govern this remote connector/CI execution path.
 
 ## Security impact
 
-Keep contents:read and persist-credentials:false. No credentials reach test
-process arguments, no pull_request_target, no shared build-cache writes, no
-service deployment and no persistent user-machine package installation. Native
-prerequisite absence and compilation/test failures remain failing results.
+Keep contents:read, persist-credentials:false and pinned actions. Provisioning
+retains its reviewed-source and cache checks in runner-owned private directories.
+No credentials reach test arguments, no pull_request_target, scanner suppression,
+shared-cache publication, deployment or persistent user-machine installation.
+Missing prerequisites and compilation/test failures remain failing results.
 
 ## Runtime evidence
 
-A successful tagged run demonstrates real Common/libmodSecurity/CGo execution,
-not a running Envoy server, physical gRPC delivery, or all integration routes.
-Preflight artifacts retain their original limited meaning and are not promoted
-by the additional native step.
+A successful tagged run demonstrates actual Common/libModSecurity/CGo execution,
+not a running Envoy server, physical gRPC delivery or all integration routes.
+Preflight artifacts retain their limited meaning and are not promoted by the
+additional native step. Compilation alone does not satisfy V20.
 
 ## Known limitations
 
 I09/I10 cannot be marked globally complete from this one route's test job.
 Other adapter source gaps and I11/I12 physical-log/live-host proof remain open.
-The distribution library is not a replacement for release-pinned host testing.
+The initial 3.0.12 failure is retained as history rather than hidden by a skip.
 
 ## Remaining risks
 
 The newly enforced native suite can expose previously unexecuted failures.
-Classify and repair those failures without weakening assertions or compiler
-warnings. Sonar must report zero new findings and exact zero new duplication.
+Repair their causes without weakening assertions or compiler warnings. Sonar
+must report zero new findings and exact zero duplicated new lines and blocks.
 
 ## Checks not run and rationale
 
@@ -89,4 +97,4 @@ claimed. New execution and Sonar evidence must be tied to the new revision.
 ## Final diff and review status
 
 Continue the existing Draft PR only. Preserve concurrent Apache changes; no
-merge, master update, force push or deployment is authorized by this change.
+merge, master update, force push or deployment is part of this change.
