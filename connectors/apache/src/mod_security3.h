@@ -134,18 +134,22 @@ typedef struct
     int native_event_phase_active;
     int request_body_limit_rejection;
     int contract_failure_event_emitted;
+    /* Native callbacks are synchronous but may re-enter Apache hooks. */
+    int collecting;
+    int logging_attempted;
+    int logging_failed;
 } msc_intervention_state;
 
 
 typedef struct
 {
     request_rec *r;
-    /* The primary request owns the native transaction.  `r` changes while
+    /* The primary request owns the native transaction. `r` changes while
      * sharing the context with redirects and subrequests, so cleanup must
      * retain this immutable owner separately. */
     request_rec *owner_request;
     Transaction *t;
-    /* Canonical bounded transaction metadata.  Apache owns only the host
+    /* Canonical bounded transaction metadata. Apache owns only the host
      * translation; phase meaning and ordering remain in Common. */
     msconnector_transaction_contract contract;
     int contract_initialized;
