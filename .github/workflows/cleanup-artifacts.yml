@@ -5,8 +5,7 @@ on:
   schedule:
     - cron: '37 3 * * *'
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   cleanup-artifacts:

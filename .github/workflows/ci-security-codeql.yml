@@ -9,8 +9,7 @@ on:
     - cron: '23 4 * * 3'
   workflow_dispatch:
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   trusted-go-version:

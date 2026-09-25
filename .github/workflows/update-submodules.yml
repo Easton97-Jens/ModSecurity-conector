@@ -15,8 +15,7 @@ on:
 # Settings -> Actions -> General -> Workflow permissions:
 # - enable Read and write permissions
 # - enable "Allow GitHub Actions to create and approve pull requests"
-permissions:
-  contents: read
+permissions: {}
 
 env:
   DEFAULT_BRANCH: master

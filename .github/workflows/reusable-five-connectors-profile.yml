@@ -8,11 +8,12 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   resolve-profile:
+    permissions:
+      contents: read
     name: Resolve closed No-CRS profile
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -47,6 +48,8 @@ jobs:
           printf 'matrix=%s\n' "$matrix" >> "$GITHUB_OUTPUT"
 
   no-crs:
+    permissions:
+      contents: read
     name: No-CRS / ${{ matrix.connector }} / ${{ inputs.profile }} / ${{ matrix.protocol }} / ${{ matrix.phase4_mode }}
     needs:
       - resolve-profile
@@ -309,6 +312,8 @@ jobs:
           path: ${{ env.EVIDENCE_ROOT }}/${{ matrix.connector }}/${{ env.NO_CRS_RUN_ID }}/
 
   aggregate:
+    permissions:
+      contents: read
     name: No-CRS / five-connector result aggregate
     if: always()
     needs:

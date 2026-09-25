@@ -5,8 +5,7 @@ on:
     - cron: '31 6 * * 1'
   workflow_dispatch:
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   resolve-go-release:

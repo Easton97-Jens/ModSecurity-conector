@@ -4,11 +4,12 @@ on:
   pull_request:
   workflow_dispatch:
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   nginx-exact-head:
+    permissions:
+      contents: read
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:

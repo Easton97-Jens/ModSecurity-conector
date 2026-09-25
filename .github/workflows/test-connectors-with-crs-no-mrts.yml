@@ -33,8 +33,7 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: read
+permissions: {}
 
 concurrency:
   group: connector-runtime-with-crs-no-mrts-${{ github.event.pull_request.number || github.ref }}
@@ -42,6 +41,8 @@ concurrency:
 
 jobs:
   connector-mode:
+    permissions:
+      contents: read
     name: Runtime with CRS / no MRTS / ${{ matrix.connector }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
@@ -1360,6 +1361,8 @@ jobs:
           ' "$summary_blob" "$GITHUB_WORKSPACE" --connector "$CONNECTOR"
 
   aggregate-with-crs-no-mrts:
+    permissions:
+      contents: read
     name: Aggregate exact five with-CRS / no MRTS cells
     needs: connector-mode
     if: always()
