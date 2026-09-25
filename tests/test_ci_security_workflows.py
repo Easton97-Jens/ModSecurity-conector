@@ -132,6 +132,8 @@ SUBMODULE_CANDIDATE_STATE_CALL = " ".join(
         '--candidate-sha "$CANDIDATE_SHA"',
         '--expected-parent-head "$EXPECTED_PARENT_HEAD"',
         '--expected-parent-hooks-sha256 "$EXPECTED_PARENT_HOOKS_SHA256"',
+        '--allowed-nested-gitlink-path "$ALLOWED_NESTED_GITLINK_PATH"',
+        '--allowed-nested-submodule-url "$ALLOWED_NESTED_SUBMODULE_URL"',
     )
 )
 SUBMODULE_VALIDATE_ONLY_INPUT = """\
@@ -298,6 +300,10 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
         "--verify",
         SUBMODULE_CANDIDATE_BASELINE_CALL,
         SUBMODULE_CANDIDATE_STATE_CALL,
+        'nested_verify_repo="$(mktemp -d "$RUNNER_TEMP/mrts-lineage.XXXXXX")"',
+        'fetch --no-tags "$ALLOWED_NESTED_SUBMODULE_URL" "$current_nested_sha"',
+        'fetch --no-tags "$ALLOWED_NESTED_SUBMODULE_URL" "$candidate_nested_sha"',
+        'merge-base --is-ancestor "$current_nested_sha" "$candidate_nested_sha"',
         "VALIDATOR SOURCE MUTATION BLOCKED",
         "VALIDATOR WRITE-ROOT CONTRACT BLOCKED",
         "Enforce isolated candidate result after verification",
