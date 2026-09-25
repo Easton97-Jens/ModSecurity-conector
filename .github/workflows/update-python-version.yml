@@ -9,8 +9,7 @@ concurrency:
   group: modsecurity-conector-python-version-maintenance-${{ github.repository }}
   cancel-in-progress: false
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   resolve-python-patch:

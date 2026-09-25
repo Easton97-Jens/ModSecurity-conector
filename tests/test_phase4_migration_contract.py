@@ -73,7 +73,8 @@ class Phase4MigrationContractTests(unittest.TestCase):
                     text, r"if:.*github\.event_name\s*!=\s*['\"]pull_request['\"]"
                 )
                 self.assertNotIn("continue-on-error: true", text)
-                self.assertRegex(text, r"(?m)^  contents: read$")
+                self.assertRegex(text, r"(?m)^permissions: \{\}$")
+                self.assertRegex(text, r"(?m)^    permissions:\n      contents: read$")
                 self.assertRegex(text, r"make (?:lint|quick-check)")
 
     def test_migration_regressions_and_generated_files_are_checked_in_prs(self) -> None:

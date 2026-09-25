@@ -5,11 +5,12 @@ on:
     branches: [master]
   pull_request:
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   apache-autotools-bootstrap:
+    permissions:
+      contents: read
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -49,6 +50,8 @@ jobs:
         run: make check-apache-autotools-bootstrap
 
   apache-structure:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

@@ -36,7 +36,7 @@ PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE = (
     + PROTECTED_NGINX_BROKER_SHA
 )
 WITH_CRS_NO_MRTS_FRAMEWORK_SHA = "6c248afe85c24ebdfb1cd66e171e908f7ef29d48"
-WITH_CRS_NO_MRTS_MRTS_SHA = "615b13bacbd008562c17408246c41ab27dca3104"
+WITH_CRS_NO_MRTS_MRTS_SHA = "8a6bb546c4c81d8ffc7be801dceac60c6925685f"
 PROTECTED_NGINX_BROKER_CALLER_MASTER_GATE_TERMS = frozenset(
     {
         "github.event_name == 'workflow_dispatch'",
@@ -763,6 +763,8 @@ def mapping_after(lines: list[str], index: int, indent: int) -> dict[str, str]:
 def top_level_permissions(text: str) -> dict[str, str]:
     lines = text.splitlines()
     for index, line in enumerate(lines):
+        if line == "permissions: {}":
+            return {}
         if line == "permissions:":
             return mapping_after(lines, index, 0)
     raise AssertionError("workflow has no top-level permissions mapping")
@@ -795,9 +797,20 @@ def job_blocks(text: str) -> dict[str, str]:
 def job_permissions(job: str) -> dict[str, str]:
     lines = job.splitlines()
     for index, line in enumerate(lines):
+        if line == "    permissions: {}":
+            return {}
         if line == "    permissions:":
             return mapping_after(lines, index, 4)
     return {}
+
+
+def job_has_explicit_permissions(job: str) -> bool:
+    """Return whether the job declares its token permissions explicitly."""
+
+    return any(
+        line in {"    permissions:", "    permissions: {}"}
+        for line in job.splitlines()
+    )
 
 
 def submodule_publisher_app_token_inputs(text: str) -> dict[str, str]:
@@ -1160,7 +1173,7 @@ def protected_nginx_broker_caller_errors(text: str) -> list[str]:
     errors: list[str] = []
     if not text.startswith("name: Protected NGINX Root Broker Lifecycle\n"):
         errors.append("caller workflow name")
-    trigger_match = re.search(r"(?ms)^on:\n(?P<body>.*?)(?=^permissions:\n)", text)
+    trigger_match = re.search(r"(?ms)^on:\n(?P<body>.*?)(?=^permissions:(?: \{\})?\n)", text)
     if trigger_match is None:
         errors.append("caller trigger section")
         trigger_body = ""
@@ -1185,7 +1198,7 @@ def protected_nginx_broker_caller_errors(text: str) -> list[str]:
         if forbidden in text:
             errors.append(f"forbidden trigger {forbidden}")
     try:
-        if top_level_permissions(text) != {"contents": "read"}:
+        if top_level_permissions(text) != {}:
             errors.append("caller top-level permissions")
     except AssertionError:
         errors.append("caller top-level permissions")
@@ -1611,13 +1624,15 @@ jobs:
         self.assertGreaterEqual(text.count("sha256:"), 3)
         self.assertIn("full_history_gitleaks: advisory_until_historical_findings_are_triaged", text)
 
-    def test_all_workflows_have_read_only_top_level_default(self) -> None:
+    def test_all_workflows_default_deny_and_declare_job_permissions(self) -> None:
         for path in self.workflow_paths():
-            self.assertEqual(
-                top_level_permissions(path.read_text(encoding="utf-8")),
-                {"contents": "read"},
-                path.name,
-            )
+            text = path.read_text(encoding="utf-8")
+            self.assertEqual(top_level_permissions(text), {}, path.name)
+            for job_name, job in job_blocks(text).items():
+                self.assertTrue(
+                    job_has_explicit_permissions(job),
+                    f"{path.name}:{job_name}",
+                )
 
     def test_report_governance_and_strict_evidence_lifecycles_are_isolated(self) -> None:
         """Keep fresh-checkout governance separate from materialized runtime evidence."""
@@ -1682,7 +1697,7 @@ jobs:
         workflow = self.workflow("test-lighttpd.yml")
         jobs = self.jobs("test-lighttpd.yml")
         self.assertIn("  pull_request:\n", workflow)
-        self.assertEqual(top_level_permissions(workflow), {"contents": "read"})
+        self.assertEqual(top_level_permissions(workflow), {})
         self.assertEqual(set(jobs), {"lighttpd-contract"})
         job = jobs["lighttpd-contract"]
         self.assertIn(
@@ -1745,8 +1760,8 @@ jobs:
             "GH_TOKEN",
         ):
             self.assertNotIn(forbidden, workflow)
-        self.assertEqual(top_level_permissions(workflow), {"contents": "read"})
-        self.assertEqual(job_permissions(job), {})
+        self.assertEqual(top_level_permissions(workflow), {})
+        self.assertEqual(job_permissions(job), {"contents": "read"})
         self.assertIsNone(job_if_expression(job))
         self.assertNotIn("|| github.sha", workflow)
 
@@ -2482,8 +2497,8 @@ jobs:
                 '            --no-crs-directory "$RUNNER_TEMP/unsafe" \\\n',
             ),
             "write permission": (
-                "permissions:\n  contents: read",
-                "permissions:\n  contents: write",
+                "    permissions:\n      contents: read",
+                "    permissions:\n      contents: write",
             ),
             "secret reference": (
                 "          set -euo pipefail",
@@ -3492,7 +3507,7 @@ sudo -n chmod 0750 "$namespace_parent"
                 "report-python-update-outcome",
             },
         )
-        self.assertEqual(top_level_permissions(workflow), {"contents": "read"})
+        self.assertEqual(top_level_permissions(workflow), {})
         self.assertIn(
             "group: modsecurity-conector-python-version-maintenance-${{ github.repository }}",
             workflow,

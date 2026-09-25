@@ -5,11 +5,12 @@ on:
   schedule:
     - cron: '23 3 * * 3'
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   no-crs:
+    permissions:
+      contents: read
     uses: ./.github/workflows/reusable-five-connectors-profile.yml
     with:
       profile: no-crs

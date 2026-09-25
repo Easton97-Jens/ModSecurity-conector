@@ -5,11 +5,12 @@ on:
     branches: [master]
   pull_request:
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   quick-check:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
