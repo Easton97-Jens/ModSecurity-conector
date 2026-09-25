@@ -176,6 +176,29 @@ class ValidateSubmoduleCandidateStateTests(unittest.TestCase):
             baseline = self.run_capture(parent, Path(raw) / "github-env")
             self.assert_code(self.run_validate(parent, baseline, current, "short"), "CANDIDATE_SHA_INVALID")
 
+    def test_nested_allowance_requires_both_path_and_url(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            parent, _framework, current, _head = self.make_layout(Path(raw))
+            baseline = self.run_capture(parent, Path(raw) / "github-env")
+
+            path_only = self.run_validate(
+                parent,
+                baseline,
+                current,
+                current,
+                allowed_nested_gitlink_path="nested",
+            )
+            self.assert_code(path_only, "ALLOWED_NESTED_SUBMODULE_INVALID")
+
+            url_only = self.run_validate(
+                parent,
+                baseline,
+                current,
+                current,
+                allowed_nested_submodule_url="https://example.invalid/nested.git",
+            )
+            self.assert_code(url_only, "ALLOWED_NESTED_SUBMODULE_INVALID")
+
     def test_capture_rejects_github_env_outside_runner_temp_or_via_symlink(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             temporary = Path(raw)
