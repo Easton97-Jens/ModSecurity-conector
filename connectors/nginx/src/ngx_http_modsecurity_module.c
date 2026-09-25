@@ -321,6 +321,57 @@ ngx_http_modsecurity_process_status_intervention(ngx_http_request_t *r,
     return intervention->status;
 }
 
+static ngx_int_t
+ngx_http_modsecurity_reject_native_intervention(ngx_http_modsecurity_ctx_t *ctx,
+    msconnector_transaction_error_class cause)
+{
+    if (ctx != NULL) {
+        if (ctx->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+            (void)msconnector_transaction_contract_fail(&ctx->contract, cause, 0U);
+        }
+        ctx->last_intervention_status = 0;
+        ctx->last_intervention_rule_id[0] = '\0';
+        ctx->native_request_body_limit_rejection = 0;
+        ctx->intervention_triggered = 1;
+    }
+    return NGX_ERROR;
+}
+
+/* Only the direct native boolean result is classified here. The caller owns
+ * the output buffers and releases them once even when the result is invalid. */
+static ngx_int_t
+ngx_http_modsecurity_collect_native_intervention(Transaction *transaction,
+    ngx_http_modsecurity_ctx_t *ctx, ModSecurityIntervention *intervention)
+{
+    int native_result;
+
+    if (transaction == NULL || ctx == NULL || intervention == NULL) {
+        return ngx_http_modsecurity_reject_native_intervention(ctx,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
+    }
+    ctx->native_request_body_limit_rejection = 0;
+    ctx->last_intervention_status = 0;
+    ctx->last_intervention_rule_id[0] = '\0';
+    native_result = msc_intervention(transaction, intervention);
+    if (native_result != 0 && native_result != 1) {
+        return ngx_http_modsecurity_reject_native_intervention(ctx,
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE);
+    }
+    return native_result;
+}
+
+/* Safe/Strict Phase 4 owns late dispatch. A successfully collected rule must
+ * not be converted to a technical error by trying to replace committed HTTP
+ * headers first. Off retains the legacy native host-dispatch path. */
+static int
+ngx_http_modsecurity_defer_late_phase4_intervention(ngx_http_request_t *r,
+    const ngx_http_modsecurity_ctx_t *ctx, const ngx_http_modsecurity_conf_t *mcf)
+{
+    return r->header_sent && ctx->contract.last_completed_phase ==
+        MSCONNECTOR_PHASE_RESPONSE_BODY &&
+        (mcf->phase4_mode == MSCONNECTOR_PHASE4_MODE_SAFE ||
+         mcf->phase4_mode == MSCONNECTOR_PHASE4_MODE_STRICT);
+}
 
 int
 ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_request_t *r, ngx_int_t early_log)
@@ -329,6 +380,7 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
     ModSecurityIntervention intervention;
     msconnector_intervention common_intervention;
     ngx_int_t result = 0;
+    ngx_int_t native_result;
     ngx_http_modsecurity_ctx_t *ctx = NULL;
     ngx_http_modsecurity_conf_t  *mcf;
     int request_body_limit_rejection;
@@ -338,21 +390,25 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
 
     dd("processing intervention");
 
-    ctx = ngx_http_modsecurity_get_module_ctx(r);
-    if (ctx == NULL)
-    {
-        result = NGX_HTTP_INTERNAL_SERVER_ERROR;
+    if (r == NULL) {
+        result = NGX_ERROR;
         goto cleanup;
     }
-    ctx->native_request_body_limit_rejection = 0;
-
-    if (msc_intervention(transaction, &intervention) == 0) {
+    ctx = ngx_http_modsecurity_get_module_ctx(r);
+    native_result = ngx_http_modsecurity_collect_native_intervention(transaction,
+        ctx, &intervention);
+    if (native_result == NGX_ERROR) {
+        result = NGX_ERROR;
+        goto cleanup;
+    }
+    if (native_result == 0 || !intervention.disruptive) {
         dd("nothing to do");
         goto cleanup;
     }
     mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
     if (mcf == NULL) {
-        result = NGX_HTTP_INTERNAL_SERVER_ERROR;
+        result = ngx_http_modsecurity_reject_native_intervention(ctx,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
         goto cleanup;
     }
     common_intervention = msconnector_intervention_make(
@@ -394,6 +450,10 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
         ngx_log_error(NGX_LOG_ERR, (ngx_log_t *)r->connection->log, 0, "%s", log);
     }
 
+    if (ngx_http_modsecurity_defer_late_phase4_intervention(r, ctx, mcf)) {
+        result = intervention.status;
+        goto cleanup;
+    }
     if (msconnector_intervention_has_redirect_url(intervention.url))
     {
         result = ngx_http_modsecurity_process_redirect_intervention(r, ctx,

@@ -25,6 +25,8 @@ jobs:
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Verify HAProxy native evaluation and cleanup contracts
+        run: python3 -m unittest -v tests.test_haproxy_binding_refactor
       - name: Verify HAProxy libModSecurity compile-and-link compatibility
         run: |
           set -eu

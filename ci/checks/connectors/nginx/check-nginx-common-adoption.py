@@ -106,7 +106,9 @@ BODY_RESPONSE_CHAIN_CALL_CONTRACT_PATTERN = re.compile(
     r'ret\s*=\s*ngx_http_modsecurity_append_response_chain_buffer\s*\(\s*'
     r'r\s*,\s*ctx\s*,\s*mcf\s*,\s*chain\s*\)\s*;\s*'
     r'if\s*\(\s*ret\s*!=\s*NGX_OK\s*\)\s*\{\s*'
-    r'return\s+ret\s*;\s*\}'
+    r'return\s+ngx_http_modsecurity_phase4_fail_control\s*\(\s*'
+    r'r\s*,\s*mcf\s*,\s*ctx\s*,\s*'
+    r'MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR\s*\)\s*;\s*\}'
 )
 BODY_RESPONSE_RAW_SINK_PATTERN = re.compile(
     r'\bmsc_append_response_body\s*\(\s*ctx\s*->\s*modsec_transaction\s*,\s*'

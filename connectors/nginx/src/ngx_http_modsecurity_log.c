@@ -23,6 +23,7 @@
 #include "ngx_http_modsecurity_common.h"
 #include "msconnector/event.h"
 #include "msconnector/limits.h"
+#include "msconnector/native_result.h"
 #include "msconnector/rule_id.h"
 
 
@@ -120,39 +121,72 @@ ngx_http_modsecurity_log(void *log, const void* data)
 }
 
 
+static ngx_int_t
+ngx_http_modsecurity_logging_failure(ngx_http_request_t *r,
+    ngx_http_modsecurity_ctx_t *ctx,
+    msconnector_transaction_error_class cause, const char *message)
+{
+    ctx->native_logging_failed = 1;
+    if (ctx->contract_initialized &&
+        ctx->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+        (void)msconnector_transaction_contract_fail(&ctx->contract, cause, 0U);
+    }
+    /* Do not recurse through the failed native audit sink or attempt a new
+     * HTTP response from the logging phase. Earlier causes remain intact. */
+    ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "%s", message);
+    return NGX_ERROR;
+}
+
 ngx_int_t
 ngx_http_modsecurity_log_handler(ngx_http_request_t *r)
 {
-    ngx_pool_t                   *old_pool;
-    ngx_http_modsecurity_ctx_t   *ctx;
+    ngx_pool_t *old_pool;
+    ngx_http_modsecurity_ctx_t *ctx;
+    int result;
+    int contract_valid = 1;
 
-    dd("catching a new _log_ phase handler");
-
+    if (r == NULL || r->connection == NULL) {
+        return NGX_ERROR;
+    }
     ctx = ngx_http_modsecurity_get_module_ctx(r);
-
-    dd("recovering ctx: %p", ctx);
-
     if (ctx == NULL) {
-        dd("ModSecurity not enabled or error occurred");
         return NGX_OK;
     }
-
     if (ctx->logged) {
-        dd("already logged earlier");
-        return NGX_OK;
+        return ctx->native_logging_failed ? NGX_ERROR : NGX_OK;
     }
 
+    /* Claim the one attempt before native callbacks can re-enter. Pending
+     * completion is not a successful audit record. */
+    ctx->logged = 1;
+    ctx->native_logging_failed = 1;
+    if (ctx->modsec_transaction == NULL) {
+        return ngx_http_modsecurity_logging_failure(r, ctx,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR,
+            "ModSecurity: native logging transaction is unavailable");
+    }
     if (ctx->contract_initialized &&
         msconnector_transaction_contract_finish(&ctx->contract, 0U) !=
             MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+        contract_valid = 0;
+        (void)ngx_http_modsecurity_logging_failure(r, ctx,
+            MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE,
             "ModSecurity: canonical transaction completed with an invalid phase sequence");
     }
 
-    dd("calling msc_process_logging for %p", ctx);
+    /* Still allow the native audit epilogue to record a prior phase failure.
+     * Its success cannot repair a failed canonical completion. */
     old_pool = ngx_http_modsecurity_pcre_malloc_init(r->pool);
-    msc_process_logging(ctx->modsec_transaction);
+    result = msc_process_logging(ctx->modsec_transaction);
     ngx_http_modsecurity_pcre_malloc_done(old_pool);
-
+    if (!msconnector_native_phase_succeeded(result)) {
+        return ngx_http_modsecurity_logging_failure(r, ctx,
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE,
+            "ModSecurity: native logging phase processing failed");
+    }
+    if (!contract_valid) {
+        return NGX_ERROR;
+    }
+    ctx->native_logging_failed = 0;
     return NGX_OK;
 }

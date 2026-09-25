@@ -42,6 +42,8 @@ jobs:
             make
       - name: Verify Apache intervention cleanup source contract
         run: python3 -m unittest -v tests.test_apache_intervention_cleanup
+      - name: Verify Apache native and APR lifecycle failures
+        run: python3 -m unittest -v tests.test_apache_native_lifecycle
       - name: Verify Apache Autotools bootstrap from tracked source only
         env:
           APACHE_AUTOTOOLS_TEST_PARENT: ${{ runner.temp }}
@@ -94,6 +96,8 @@ jobs:
           test -f config/testing/import-status.json
           test -f docs/testing-and-evidence.md
           grep -q 'Status:' connectors/apache/TODO.md
+      - name: Verify Apache collector and existing adoption mutations
+        run: python3 -m unittest -v tests.test_apache_common_adoption tests.test_apache_native_adoption
       - name: Syntax and dry-run checks
         run: |
           make setup-dev

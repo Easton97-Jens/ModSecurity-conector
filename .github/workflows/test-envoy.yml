@@ -10,6 +10,7 @@ permissions:
 jobs:
   envoy-contract:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -33,6 +34,45 @@ jobs:
           make check-remaining-connectors-build-wiring
           make check-remaining-connectors-start-wiring
           make check-remaining-connectors-claim-policy
+      - name: Set up repository-selected Go for the native bridge
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: .go-version
+          check-latest: false
+          cache: false
+      - name: Install native bridge build prerequisites
+        run: |
+          set -eu
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes \
+            build-essential autoconf automake libtool pkg-config bison flex \
+            libpcre2-dev libyajl-dev libxml2-dev libcurl4-openssl-dev libssl-dev zlib1g-dev
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock
+      - name: Compile and execute the real Common and CGo bridge tests
+        env:
+          GOTOOLCHAIN: local
+          ENVOY_EXT_PROC_COMMON_TEST: "1"
+          ALLOW_RUNTIME_DOWNLOADS: "1"
+          ALLOW_RUNTIME_BUILDS: "1"
+          RUNTIME_COMPONENT_TARGET: shared
+          VERIFIED_RUN_ROOT: ${{ runner.temp }}/pr382-envoy-native
+          SOURCE_ROOT: ${{ runner.temp }}/pr382-envoy-native/src
+          BUILD_ROOT: ${{ runner.temp }}/pr382-envoy-native/build
+          TMP_ROOT: ${{ runner.temp }}/pr382-envoy-native/tmp
+          LOG_ROOT: ${{ runner.temp }}/pr382-envoy-native/logs
+          CACHE_ROOT: ${{ runner.temp }}/pr382-envoy-native/cache-v2
+          CONNECTOR_COMPONENT_CACHE: ${{ runner.temp }}/pr382-envoy-native/cache-v2/shared
+          GOCACHE: ${{ runner.temp }}/pr382-envoy-native/go-cache
+          GOTMPDIR: ${{ runner.temp }}/pr382-envoy-native/tmp/go
+          PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: |
+          set -eu
+          umask 077
+          mkdir -p "$GOTMPDIR"
+          go version
+          sh ci/provisioning/cache/with-runtime-components.sh \
+            sh connectors/envoy/build/build_ext_proc.sh
       - name: Collect host runtime preflight evidence
         if: always()
         env:

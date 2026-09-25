@@ -1,5 +1,6 @@
 #include "msconnector/integrity_event.h"
 #include "msconnector/phase.h"
+#include "msconnector/event_protocol.h"
 #include <string.h>
 
 #define FNV_OFFSET UINT64_C(14695981039346656037)
@@ -78,6 +79,7 @@ uint64_t msconnector_non_crypto_hash_string(const char *value) { return hash_str
 
 uint64_t msconnector_integrity_event_hash(const msconnector_event *event, uint64_t previous_hash) {
     uint64_t hash = hash_bytes_continue(FNV_OFFSET, (const unsigned char *)&previous_hash, sizeof(previous_hash));
+    msconnector_event canonical;
     const char *connection_id;
     const char *transport_case_id;
     const char *stream_reset_code;
@@ -91,6 +93,12 @@ uint64_t msconnector_integrity_event_hash(const msconnector_event *event, uint64
     int uri_redacted = 0;
     int uri_truncated = 0;
     if (event == 0) { return hash; }
+    /* JSONL and integrity must describe one representation. This is a local
+     * metadata copy, not a mutation of the caller's event or hash chain.
+     * Writers still validate the original event and advance their chain only
+     * after successful, lossless output. */
+    if (!msconnector_event_protocol_view(event, &canonical)) { return hash; }
+    event = &canonical;
     connection_id = safe_connection_id_for_event_hash(event);
     transport_case_id = is_bounded_transport_case_id(event->meta.transport_case_id)
         ? event->meta.transport_case_id : NULL;

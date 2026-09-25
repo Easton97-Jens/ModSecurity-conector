@@ -12,6 +12,10 @@ jobs:
   scaffold-lint:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      checks: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -59,12 +63,33 @@ jobs:
           test -f reports/testing/test-coverage-overview.md
       - name: Check bilingual documentation
         run: python ci/checks/documentation/check-bilingual-docs.py
+      - name: Verify native results and common event protocol
+        if: ${{ !cancelled() }}
+        run: python -m unittest -v tests.test_native_result_event_protocol tests.test_native_error_classification tests.test_event_transport_observation tests.test_sonar_zero_gate tests.test_sonar_duplication_gate tests.test_pr382_decision_safety tests.test_pr382_profile_errors
+      - name: Verify runtime event sink failures
+        if: ${{ !cancelled() }}
+        run: python -m unittest -v tests.test_runtime_event_sink_failures tests.test_runtime_host_action_validation
+      - name: Verify Envoy bridge failure boundaries
+        if: ${{ !cancelled() }}
+        run: python -m unittest -v tests.test_envoy_bridge_failures
+      - name: Verify NGINX connection and URI completion
+        if: ${{ !cancelled() }}
+        run: python -m unittest -v tests.test_nginx_request_phase_completion
+      - name: Verify NGINX request native result regressions
+        if: ${{ !cancelled() }}
+        run: python -m unittest -v tests.test_nginx_request_native_results tests.test_nginx_request_error_events tests.test_nginx_context_accounting tests.test_nginx_native_intervention_chain tests.test_nginx_native_logging
+      - name: Verify NGINX late error and reentry regressions
+        if: ${{ !cancelled() }}
+        run: python -m unittest -v tests.test_nginx_late_error_results
       - name: Verify Phase-4 migration and NGINX security contracts
         if: ${{ !cancelled() }}
         run: python -m unittest -v tests.test_phase4_migration_contract tests.test_nginx_native_security_contract tests.test_nginx_upstream_security_contract
       - name: Verify NGINX adoption checker mutations
         if: ${{ !cancelled() }}
         run: python -m unittest -v tests.test_nginx_common_adoption
+      - name: Verify HAProxy Rule-ID adoption mutations
+        if: ${{ !cancelled() }}
+        run: python -m unittest -v tests.test_haproxy_adoption_rule_id
       - name: Verify configuration reference generator regressions
         if: ${{ !cancelled() }}
         run: python -m unittest -v tests.test_connector_config_reference tests.test_logical_connector_all_examples
@@ -74,6 +99,19 @@ jobs:
       - name: Verify configuration reference semantics
         if: ${{ !cancelled() }}
         run: python ci/checks/documentation/check-connector-config-reference.py
+      - name: Require zero new Sonar findings for the PR head
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          SONAR_CHECK_GITHUB_TOKEN: ${{ github.token }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python ci/checks/common/check-sonar-zero.py
+      - name: Require zero Sonar duplication for the PR head
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          SONAR_CHECK_GITHUB_TOKEN: ${{ github.token }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: python ci/checks/common/check-sonar-duplication.py
       - name: Run lightweight lint
         run: |
           make setup-dev
