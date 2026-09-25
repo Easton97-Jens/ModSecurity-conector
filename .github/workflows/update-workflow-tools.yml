@@ -258,7 +258,7 @@ jobs:
           git check-ref-format --branch "$DEFAULT_BRANCH" >/dev/null
           git config --local user.name "github-actions[bot]"
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # Supply the repository-limited App token only through a short-lived
+          # Supply the repository-limited App token only using a short-lived
           # askpass program; neither Git config nor a remote URL contains the token.
           askpass_script="$(mktemp "$RUNNER_TEMP/modsecurity-conector-publisher-askpass.XXXXXX")"
           cleanup_publisher_askpass() {
@@ -399,7 +399,7 @@ jobs:
           python3 ci/tools/update-workflow-tools.py verify-scope --root . --staged
           git diff --cached --check
           git commit -m "chore(ci): update pinned workflow tools"
-          # Supply the repository-limited App token only through a short-lived
+          # Supply the repository-limited App token only using a short-lived
           # askpass program; neither Git config nor a remote URL contains the token.
           askpass_script="$(mktemp "$RUNNER_TEMP/modsecurity-conector-publisher-askpass.XXXXXX")"
           cleanup_publisher_askpass() {
@@ -535,7 +535,7 @@ jobs:
               printf '%s\n' \
                 '## Maintenance updater outcome' \
                 '' \
-                'A reviewed workflow or tool update was validated and published through the constrained maintenance path.' \
+                'A reviewed workflow or tool update was validated and published via the constrained maintenance path.' \
                 'Maintenance branch: automation/update-modsecurity-conector-workflow-tools. The matching Draft pull request was created or updated when a change remained.' \
                 '' \
                 'Eine geprüfte Workflow- oder Tool-Aktualisierung wurde validiert und über den eingeschränkten Wartungspfad veröffentlicht.' \

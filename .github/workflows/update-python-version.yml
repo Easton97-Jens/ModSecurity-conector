@@ -312,7 +312,7 @@ jobs:
           git check-ref-format --branch "$UPDATE_BRANCH" >/dev/null
           git config --local user.name "github-actions[bot]"
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # Supply the repository-limited App token only through a short-lived
+          # Supply the repository-limited App token only using a short-lived
           # askpass program; neither Git config nor a remote URL contains the token.
           askpass_script="$(mktemp "$RUNNER_TEMP/modsecurity-conector-publisher-askpass.XXXXXX")"
           cleanup_publisher_askpass() {
@@ -430,7 +430,7 @@ jobs:
           fi
           git diff --cached --check
           git commit -m "chore(ci): update Python to $CANDIDATE_VERSION"
-          # Supply the repository-limited App token only through a short-lived
+          # Supply the repository-limited App token only using a short-lived
           # askpass program; neither Git config nor a remote URL contains the token.
           askpass_script="$(mktemp "$RUNNER_TEMP/modsecurity-conector-publisher-askpass.XXXXXX")"
           cleanup_publisher_askpass() {
@@ -708,7 +708,7 @@ jobs:
               printf '%s\n' \
                 '## Python updater outcome' \
                 '' \
-                "Python 3.14 update $CURRENT_VERSION → $LATEST_VERSION was independently validated and published through the constrained maintenance branch automation/update-python-314 and its matching Draft pull request." \
+                "Python 3.14 update $CURRENT_VERSION → $LATEST_VERSION was independently validated and published via the constrained maintenance branch automation/update-python-314 and its matching Draft pull request." \
                 'Manual review and manual merge remain required; automatic merge is disabled.' \
                 '' \
                 "Python-3.14-Update $CURRENT_VERSION → $LATEST_VERSION wurde unabhängig validiert und über den eingeschränkten Wartungs-Branch automation/update-python-314 sowie den passenden Draft Pull Request veröffentlicht." \

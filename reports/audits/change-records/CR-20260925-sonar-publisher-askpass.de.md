@@ -34,7 +34,7 @@ Die drei Framework-Workflow-`yaml:S2068`-Findings und ein Framework-
 - Einen fokussierten Regression-Contract für beide Parent-Publisher ergänzen.
 - SonarCloud, Quality Gate, Validierung, Token-Berechtigungen oder Repository-Protections nicht abschwächen.
 
-## Technische Entscheidungen
+## Implementierungsentscheidung und Begründung
 
 Jeder betroffene Publisher-Step erzeugt ein temporäres `GIT_ASKPASS`-Programm
 mit Modus `0700` unter `$RUNNER_TEMP`. Das quotierte Heredoc enthält nur die
@@ -51,7 +51,7 @@ nicht exportiert. Ein EXIT-Trap entfernt das Script.
 Bestehende Checkout-, Branch-Gate-, App-Token-Permission-, Path-Validation-
 und Force-with-Lease-Controls bleiben unverändert.
 
-## Sicherheitsauswirkung
+## Security-Auswirkung
 
 Source, Scope und Publisher-only-Grenze des Tokens bleiben unverändert. Es
 wird nicht in Git-Konfiguration persistiert und nicht in einer Remote-URL
@@ -70,21 +70,22 @@ vertrauenswürdiges Event den Publisher erreicht.
 Framework-Source, Gitlinks, MRTS-Source, SonarCloud-Einstellungen und
 GitHub-Repository-Einstellungen bleiben unverändert.
 
-## Tests und tatsächliche Ergebnisse
+## Ausgeführte Befehle
 
 | Prüfung | Ergebnis |
 | --- | --- |
 | Exakte `master`-SonarCloud-Issues vor dem Patch | Acht ungelöste Issues: vier Parent-`yaml:S2068` im Scope, drei Framework-`yaml:S2068`, ein Framework-`python:S1192`. |
 | Exakter `master`-GitHub-SonarCloud-Check vor dem Patch | Erwartet fehlgeschlagen: Security Rating on New Code `C`; erforderlich `A`. |
 | Source-Transformations-Review | Vier Parent-Helper-Vorkommen werden durch vier Askpass-Flows ersetzt; Checkout-Persistenz und Publisher-App-Token-Mappings bleiben erhalten. |
+| Hosted Checks des initialen Draft-PR-Heads | Während der Reparatur fehlgeschlagen: Der Bilingual-Dokumentvalidator verlangte repositoryspezifische Change-Record-Überschriften und der bestehende no-`gh`-CLI-Contract traf eine Prosa-Formulierung. Dieser Successor korrigiert beides; Recheck steht aus. |
 | Hosted Checks und PR-Analyse | Beim Erstellen des Records für den exakten Draft-PR-Head ausstehend; PR-Checks vor Merge prüfen. |
 
-## Runtime-Evidenz
+## Runtime-Evidence
 
 Es ändert sich kein Connector-Runtime-Verhalten. Dies betrifft nur die
 Credential-Übergabe in geplanten oder manuell gestarteten Maintenance-Publishern.
 
-## Nicht ausgeführte Prüfungen
+## Nicht ausgeführte Prüfungen mit Begründung
 
 Lokale Repository-Kommandos wurden nicht ausgeführt: Diese Ausführungsoberfläche
 hat keinen lokalen Checkout und keine vom Repository verlangte RTK-Kommando-
@@ -107,7 +108,7 @@ diese Eigenschaft abschwächen. Der Source-Regressionstest schützt die Form;
 Hosted Checks und SonarCloud-Analyse müssen für den exakten PR-Head vor
 einem Merge dennoch bestehen.
 
-## Finaler Review-Status
+## Finaler Diff- und Review-Status
 
 Der begrenzte Diff ändert zwei Parent-Maintenance-Publisher, einen fokussierten
 Regression-Contract und diesen zweisprachigen Change Record. Es wird kein

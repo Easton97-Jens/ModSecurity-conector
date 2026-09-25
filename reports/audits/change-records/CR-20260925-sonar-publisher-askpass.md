@@ -33,7 +33,7 @@ The three Framework workflow `yaml:S2068` findings and one Framework
 - Add a focused regression contract for both Parent publishers.
 - Do not weaken SonarCloud, the Quality Gate, validation, token permissions, or repository protections.
 
-## Technical decisions
+## Implementation decision and rationale
 
 Each affected publisher step creates a `0700` temporary `GIT_ASKPASS`
 program below `$RUNNER_TEMP`. Its quoted heredoc retains only the variable
@@ -68,13 +68,14 @@ prevent untrusted events from reaching the publisher.
 Framework source, gitlinks, MRTS source, SonarCloud settings, and GitHub
 repository settings are unchanged.
 
-## Tests and actual results
+## Commands executed
 
 | Check | Result |
 | --- | --- |
 | Exact `master` SonarCloud issues before the patch | Eight unresolved issues: four Parent `yaml:S2068` in scope, three Framework `yaml:S2068`, one Framework `python:S1192`. |
 | Exact `master` GitHub SonarCloud check before the patch | Failed: Security Rating on New Code `C`; required `A`. |
 | Source transformation review | Four Parent helper occurrences are replaced by four askpass flows; checkout persistence and publisher App-token mappings remain. |
+| Initial Draft-PR head hosted checks | Failed during repair: the bilingual-document validator required repository-specific Change Record headings and the existing no-`gh`-CLI contract matched a prose phrase. This successor corrects both; recheck is pending. |
 | Hosted checks and PR analysis | Pending for the exact Draft-PR head at record creation; inspect PR checks before merge. |
 
 ## Runtime evidence
@@ -82,7 +83,7 @@ repository settings are unchanged.
 No connector runtime behavior changes. This only affects credential delivery
 inside scheduled or manually dispatched maintenance publishers.
 
-## Checks not run
+## Checks not run and rationale
 
 Local repository commands were not run: this execution surface has no local
 checkout or repository-required RTK command environment. The update publishers
@@ -96,14 +97,14 @@ require a separately scoped Framework task. An actual publisher Git push needs
 a valid maintenance candidate, so static and hosted checks are the available
 safe evidence for this change.
 
-## Residual risks
+## Remaining risks
 
 The temporary program is created on a trusted GitHub-hosted runner and removed
 on EXIT, but a future workflow change could weaken that property. The source
 regression test guards the intended form; hosted checks and SonarCloud analysis
 must still pass for the exact PR head before merge.
 
-## Final review status
+## Final diff and review status
 
 The scoped diff changes two Parent maintenance publishers, a focused regression
 contract, and this bilingual Change Record. No merge is performed. Final status
