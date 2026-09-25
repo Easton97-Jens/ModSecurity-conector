@@ -2,6 +2,17 @@
 
 **Language:** English | [Deutsch](variables.de.md)
 
+## Quick orientation
+
+This is the exhaustive variable reference, not a checklist that every user must
+configure. Prefer root Make targets and checked-in examples first; override a
+variable only when the selected target/host requires it.
+
+When reading a variable entry, check four things: who sets it, whether it has a
+default, whether it points to source or generated runtime/evidence data, and
+whether changing it affects exposure or trust. Never put secrets or personal
+data into run IDs, paths intended for review, or evidence metadata.
+
 This is the central reference for variables accepted by the root <code>Makefile</code>,
 its runtime lifecycle wrappers, and the directly callable connector harnesses.
 It is intentionally conservative: a declared source path, build path, or

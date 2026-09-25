@@ -2,6 +2,17 @@
 
 **Language:** English | [Deutsch](haproxy.de.md)
 
+## Start here
+
+HAProxy exposes two logical profiles: direct native `haproxy-htx` and
+`haproxy-spoe-spop`, which combines request-side SPOE/SPOP with the mandatory
+native HTX response companion. Choose one profile explicitly before reading
+build or evidence results.
+
+Start with the [HAProxy examples](../../examples/haproxy/README.md). Historical
+SPOE-only compatibility material is not a complete P1–P4 solution and must not
+be used as response-body evidence.
+
 ## Overview
 
 HAProxy uses the selected <code>native-htx-filter</code> route with the

@@ -2,6 +2,17 @@
 
 **Sprache:** [English](envoy.md) | Deutsch
 
+## Hier beginnen
+
+Envoy besitzt zwei logische Profile. `envoy-ext-proc` ist die direkte
+gestreamte Request-/Response-Route. `envoy-ext-authz` verwendet Authorization
+für Request-Phasen und benötigt für P3/P4 seinen privaten Response-Observer.
+
+Beginnen Sie mit den [Envoy-Beispielen](../../examples/envoy/README.de.md) und
+dem `safe`-ext_proc-Bundle, sofern nicht gezielt die ext_authz-Topologie
+benötigt wird. Prozessor-, Admin- und Observer-Endpunkte bleiben privat. Ein
+reiner Request-ext_authz-Service ist keine Response-Phasen-Evidence.
+
 ## Überblick
 
 Envoy verwendet den ausgewählten gestreamten <code>ext_proc</code>-Pfad mit

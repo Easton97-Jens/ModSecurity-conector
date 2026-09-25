@@ -2,6 +2,17 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
+## Start here
+
+These pages explain configuration shared by several example families. Read
+[Common connector configuration](common-connector-configuration.md) for the
+shared runtime `key=value` surface, [ModSecurity directives](modsecurity-directives.md)
+for engine settings used by examples, and [Rule examples](rule-examples.md) for
+the difference between enforcement, DetectionOnly, and engine Off.
+
+Host-specific parser syntax still belongs to the matching host example guide
+and generated configuration reference.
+
 This central reference separates four layers: host/connector configuration, Common Runtime, ModSecurity Engine, and example placeholders. The six connector references link here without presenting Common keys as unregistered host directives.
 
 | Material | Layer | Purpose |

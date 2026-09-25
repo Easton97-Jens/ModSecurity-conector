@@ -2,6 +2,18 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
+## Quick orientation
+
+Choose a **logical profile**, not only a host name. Apache and NGINX each have
+one direct logical profile; HAProxy, Envoy, Traefik, and lighttpd each expose
+two distinct logical solutions with different transport or response-visibility
+boundaries.
+
+For a first pass, identify the host family, select the logical profile, open the
+matching [example](../../examples/README.md), and then read the host-specific
+guide below. Do not treat a compatibility/request-only component as proof for a
+response-capable profile.
+
 This section navigates six host integrations and ten logical connector
 profiles. The host-family rows below are navigation only: the shared contract
 assesses each logical profile separately, and a result for one profile is not

@@ -2,6 +2,16 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
+## Start here
+
+Use this directory when you need to understand **what was actually observed**,
+not merely what source or configuration intends to do. Reports can be current,
+historical, generated, or manually maintained; always check their stated run,
+profile, inputs, freshness, and provenance before using them for a claim.
+
+For normal setup and configuration, start with [docs](../docs/README.md) and
+[examples](../examples/README.md) instead.
+
 Reports are organized by current evidence role. They do not replace the
 run-local artifacts from which a claim was validated.
 

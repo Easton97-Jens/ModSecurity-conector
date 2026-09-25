@@ -2,6 +2,18 @@
 
 **Language:** English | [Deutsch](apache.de.md)
 
+## Start here
+
+Apache uses one direct logical profile: `apache`, implemented as the native
+httpd module route. Start with the [Apache examples](../../examples/apache/README.md),
+prefer the `safe` configuration while learning the full P1–P4 shape, and use
+the root build/configuration targets rather than invoking local harness pieces
+individually.
+
+Response-body processing and late intervention depend on the real host
+lifecycle. A source-level Phase-4 path or Strict setting is not by itself proof
+of a client-visible late abort.
+
 ## Overview
 
 Apache uses the selected <code>native-httpd-module</code> route: an Apache HTTPD

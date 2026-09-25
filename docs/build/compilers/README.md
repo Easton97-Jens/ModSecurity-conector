@@ -4,6 +4,17 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
+## Start here
+
+Use the compiler guides only after selecting a host/profile and reading the main
+[build guide](../README.md). These pages explain toolchain and host-specific
+build inputs; they do not replace the root Make targets and they do not prove
+runtime behavior.
+
+Choose the guide for the host you are building. libmodsecurity is the shared
+engine dependency; each host integration has additional ABI/toolchain
+requirements documented in its own page.
+
 ## Purpose
 
 Each detailed guide describes a repository-controlled test path, a local source

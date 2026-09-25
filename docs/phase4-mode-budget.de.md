@@ -2,6 +2,17 @@
 
 **Sprache:** [English](phase4-mode-budget.md) | Deutsch
 
+## Schnellorientierung
+
+Phase 4 ist die Response-Body-Verarbeitung. Dieses Dokument definiert nur das
+**zusätzliche connector-eigene kumulative Inspection-Budget** und seine Modi
+`off`, `safe` und `strict`.
+
+Der entscheidende Punkt: `off` deaktiviert dieses zusätzliche kumulative
+Budget, **nicht** die Response-Body-Inspection von libmodsecurity. Engine-Limits,
+Host-/Transportlimits, Allokationsgrenzen, Timeouts, Message-/Frame-Limits und
+native Fehler bleiben unabhängige Schutzmechanismen.
+
 ## Geltungsbereich
 
 Dieser Vertrag umfasst Apache, NGINX, HAProxy, Envoy, Traefik und lighttpd in

@@ -2,6 +2,17 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
+## Start here
+
+Use this page when Apache/httpd is your target. For a first configuration,
+start with [safe/httpd.conf](safe/httpd.conf), replace the installed module,
+rules, and log paths, then validate the host configuration before sending
+traffic.
+
+Apache uses the direct native module profile `apache`. The example files show
+configuration intent; they do not by themselves prove P1–P4 behavior or a
+client-visible Strict late abort.
+
 ## Integration and boundary
 
 Integration mode: native httpd module. The [off compatibility reference](off/httpd.conf),

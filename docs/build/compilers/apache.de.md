@@ -4,6 +4,14 @@
 
 **Sprache:** [English](apache.md) | Deutsch
 
+## Schnellorientierung
+
+Verwenden Sie diese Seite für Apache-/httpd-spezifische Build-Voraussetzungen
+nach Auswahl des Profils `apache`. Bevorzugen Sie die Root-Apache-Build-
+Targets; dieser Guide erklärt die dahinterliegenden Compiler-/APXS-/httpd-
+Inputs. Ein kompiliertes Modul benötigt weiterhin passende Hostkonfiguration
+und Live-Host-Validierung vor jeder Runtime-Aussage.
+
 ## 1. Zweck und ausgewählter Integrationspfad
 
 Dieser Guide beschreibt den manuellen Entwicklungs- und Integrationsbuild für `native-httpd-module` bei Apache HTTP Server. Der manuelle Source-Build ist der Hauptpfad; der Repository-Testweg folgt danach als automatisierte Prüfstrecke.

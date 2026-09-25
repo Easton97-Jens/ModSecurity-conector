@@ -2,6 +2,20 @@
 
 **Language:** English | [Deutsch](testing-and-evidence.de.md)
 
+## Quick orientation
+
+Use this document to answer one question: **what does a result actually prove?**
+
+Think of validation as a ladder. Documentation/static checks prove consistency;
+a build proves compilation/linking for its target; a configuration check proves
+the selected host can load the configuration; a smoke proves only the narrow
+traffic path it exercises; full-lifecycle evidence binds observed behavior to a
+specific connector/profile, ruleset, run ID, and artifact set.
+
+Never promote a result to a higher layer. In particular, `PASS` is scoped to
+the selected command/run and does not automatically mean production readiness,
+CRS coverage, complete protocol coverage, or strict behavior for every profile.
+
 ## Scope
 
 Testing distinguishes structural checks, build/configuration checks, focused

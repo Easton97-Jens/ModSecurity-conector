@@ -2,6 +2,18 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
+## Hier beginnen
+
+Dieses Verzeichnis enthält die hostspezifischen Produktintegrationen. Neue
+Benutzer sollten normalerweise zuerst [docs/connectors](../docs/connectors/README.de.md)
+und [examples](../examples/README.de.md) lesen; die Dateien hier sind
+code-nahe Implementierungs-, Provenienz-, Capability- und
+Harness-Dokumentation.
+
+Host-SDK-/API-Details bleiben hier, wiederverwendbare connector-neutrale
+Verträge in `common/`. Eine Capability-Deklaration oder Source-Datei
+beschreibt Implementierungszustand und ist kein Runtime-PASS-Ergebnis.
+
 ## Zweck und Evidence-Grenze
 
 Dieses Verzeichnis enthält die repository-eigenen Integrationsschichten für

@@ -2,6 +2,20 @@
 
 **Language:** English | [Deutsch](configuration.de.md)
 
+## Quick orientation
+
+Configuration has three layers. Start by identifying **which layer owns the
+setting** before editing anything:
+
+- **Host/connector:** module/filter/service wiring, listeners, sockets, host paths, and connector policy.
+- **Common Runtime:** shared limits, body modes, rules-file location, transaction metadata, and Phase-4 mode where used.
+- **ModSecurity engine:** `SecRuleEngine`, request/response-body inspection, body limits, MIME selection, and the rules themselves.
+
+Use [examples](../examples/README.md) for complete source-backed configuration
+shapes. `off`, `safe`, and `strict` are Phase-4 policy modes; `all` is
+an example layout, not another mode. DetectionOnly, engine Off, and a disabled
+connector are different states.
+
 ## Scope
 
 Configuration has three separate layers. A setting at one layer is not an

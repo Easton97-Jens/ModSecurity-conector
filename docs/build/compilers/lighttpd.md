@@ -4,6 +4,14 @@
 
 **Language:** English | [Deutsch](lighttpd.de.md)
 
+## Quick orientation
+
+lighttpd has two logical solutions with different build boundaries. The
+`lighttpd-patched` profile needs the matching patched host/module build; the
+`lighttpd-stock` profile keeps the stock host and uses the separate bounded
+sidecar topology. This page focuses on native build inputs. Never use a build
+result from one logical profile as evidence for the other.
+
 ## 1. Purpose and selected integration path
 
 This guide describes the manual development and integration build for `patched-native` on lighttpd. The manual source build is the primary path; the repository test path follows it as an automated verification route.

@@ -2,6 +2,16 @@
 
 **Language:** English | [Deutsch](trusted-nginx-root-broker.de.md)
 
+## Quick orientation
+
+The trusted NGINX root broker exists only for narrowly bounded test operations
+that genuinely require privilege. It is not a general-purpose root shell or a
+deployment mechanism. The broker/allowed action must come from the protected
+trusted boundary, while untrusted PR data is treated as input and validated
+before any privileged action.
+
+Use ordinary unprivileged workflows whenever root is not required.
+
 The trusted NGINX root broker is a deliberately narrow reusable GitHub Actions
 workflow. It is the only privileged boundary planned for the NGINX
 master/worker proof in the F-GS-003 delivery chain. It is not a general root

@@ -2,6 +2,16 @@
 
 **Language:** English | [Deutsch](common-connector-configuration.de.md)
 
+## Quick orientation
+
+This page is a reference, not a recommended copy-paste configuration. Start by
+choosing a host/profile from the [examples index](../README.md); its bundle
+shows which Common Runtime keys are required for that topology.
+
+The most important groups are enable/rules source, request/response body mode
+and limits, Phase-4 policy, metadata/event limits, and runtime paths. Do not
+remove limits just because a larger value is accepted by the parser.
+
 ## Scope
 
 This is the complete current `key=value` parser surface of `common/runtime/msconnector_runtime.c`. It is not a claim that every host exposes every key as a host directive.

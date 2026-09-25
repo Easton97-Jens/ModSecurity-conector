@@ -2,6 +2,16 @@
 
 **Sprache:** [English](rule-examples.md) | Deutsch
 
+## Schnellorientierung
+
+Die Regelbeispiele zeigen den **Engine-Zustand** und nicht die
+Connector-Topologie. Enforcement kann disruptive Aktionen anwenden, soweit die
+ausgewählte Hostphase dies erlaubt; DetectionOnly wertet Regeln weiterhin aus,
+wendet aber keine disruptiven Engine-Aktionen an; Engine Off deaktiviert die
+Regelauswertung, während der Hostconnector vorhanden bleiben kann. Ein
+deaktivierter Connector ist nochmals etwas anderes, weil der Connectorpfad
+selbst nicht aktiv ist.
+
 ## Regel-Engine-Modi
 
 ```apache
