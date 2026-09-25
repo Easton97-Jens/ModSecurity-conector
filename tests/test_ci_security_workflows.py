@@ -3503,8 +3503,12 @@ sudo -n chmod 0750 "$namespace_parent"
         }
         setup_terms = (
             'askpass_script="$(mktemp "$RUNNER_TEMP/modsecurity-conector-publisher-askpass.XXXXXX")"',
-            '*"https://x-access-token@github.com"*)',
+            "https://x-access-token@github.com'",
+            'https://x-access-token@github.com/"',
+            'PUBLISH_REMOTE_URL="https://github.com/Easton97-Jens/ModSecurity-conector.git"',
             'origin_url="$(git remote get-url origin)"',
+            'https://github.com/Easton97-Jens/ModSecurity-conector|https://github.com/Easton97-Jens/ModSecurity-conector.git)',
+            'echo "::error::unexpected publisher origin" >&2',
             'GIT_ASKPASS="$askpass_script" GIT_TERMINAL_PROMPT=0',
             "git -c credential.helper=",
             "-c credential.https://github.com.username=x-access-token",
@@ -3527,11 +3531,24 @@ sudo -n chmod 0750 "$namespace_parent"
                     (workflow_name, setup_term),
                 )
             self.assertEqual(
-                publisher.count("publisher_git fetch --no-tags origin"),
+                publisher.count('publisher_git fetch --no-tags "$PUBLISH_REMOTE_URL"'),
                 2,
                 workflow_name,
             )
+            self.assertNotIn(
+                "publisher_git fetch --no-tags origin",
+                publisher,
+                workflow_name,
+            )
             self.assertEqual(publisher.count("publisher_git push"), 2, workflow_name)
+            self.assertEqual(
+                publisher.count(
+                    '"$PUBLISH_REMOTE_URL" "HEAD:refs/heads/$UPDATE_BRANCH"'
+                ),
+                2,
+                workflow_name,
+            )
+            self.assertNotIn("publisher_git push origin", publisher, workflow_name)
             self.assertEqual(
                 publisher.count(
                     "PUBLISH_TOKEN: ${{ steps.publisher_app_token.outputs.token }}"

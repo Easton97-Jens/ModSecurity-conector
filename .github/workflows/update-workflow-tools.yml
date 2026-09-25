@@ -268,7 +268,7 @@ jobs:
           cat > "$askpass_script" <<'EOF'
           #!/usr/bin/env sh
           case "$1" in
-            *"https://x-access-token@github.com"*)
+            *"https://x-access-token@github.com'"*|*"https://x-access-token@github.com/"*)
               printf '%s\n' "$PUBLISH_TOKEN"
               ;;
             *)
@@ -277,27 +277,28 @@ jobs:
           esac
           EOF
           chmod 700 -- "$askpass_script"
+          PUBLISH_REMOTE_URL="https://github.com/Easton97-Jens/ModSecurity-conector.git"
           origin_url="$(git remote get-url origin)"
           case "$origin_url" in
-            https://github.com/Easton97-Jens/ModSecurity-conector)
-              ;;
-            https://github.com/Easton97-Jens/ModSecurity-conector.git)
+            https://github.com/Easton97-Jens/ModSecurity-conector|https://github.com/Easton97-Jens/ModSecurity-conector.git)
               ;;
             *)
               echo "::error::unexpected publisher origin" >&2
               exit 1
               ;;
           esac
+          # Address the fixed canonical URL directly: origin push URLs or
+          # extra origin URLs must not redirect a token-bearing operation.
           publisher_git() {
             GIT_ASKPASS="$askpass_script" GIT_TERMINAL_PROMPT=0 \
               git -c credential.helper= \
                 -c credential.https://github.com.username=x-access-token \
                 -c credential.https://github.com.useHttpPath=false "$@"
           }
-          publisher_git fetch --no-tags origin "refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
+          publisher_git fetch --no-tags "$PUBLISH_REMOTE_URL" "refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
           case "$MAINTENANCE_PR_EXISTS" in
             true)
-              publisher_git fetch --no-tags origin "refs/heads/$UPDATE_BRANCH:refs/remotes/origin/$UPDATE_BRANCH"
+              publisher_git fetch --no-tags "$PUBLISH_REMOTE_URL" "refs/heads/$UPDATE_BRANCH:refs/remotes/origin/$UPDATE_BRANCH"
               python3 ci/tools/update-workflow-tools.py verify-scope --root . \
                 --base "origin/$DEFAULT_BRANCH" \
                 --head "origin/$UPDATE_BRANCH"
@@ -409,7 +410,7 @@ jobs:
           cat > "$askpass_script" <<'EOF'
           #!/usr/bin/env sh
           case "$1" in
-            *"https://x-access-token@github.com"*)
+            *"https://x-access-token@github.com'"*|*"https://x-access-token@github.com/"*)
               printf '%s\n' "$PUBLISH_TOKEN"
               ;;
             *)
@@ -418,17 +419,18 @@ jobs:
           esac
           EOF
           chmod 700 -- "$askpass_script"
+          PUBLISH_REMOTE_URL="https://github.com/Easton97-Jens/ModSecurity-conector.git"
           origin_url="$(git remote get-url origin)"
           case "$origin_url" in
-            https://github.com/Easton97-Jens/ModSecurity-conector)
-              ;;
-            https://github.com/Easton97-Jens/ModSecurity-conector.git)
+            https://github.com/Easton97-Jens/ModSecurity-conector|https://github.com/Easton97-Jens/ModSecurity-conector.git)
               ;;
             *)
               echo "::error::unexpected publisher origin" >&2
               exit 1
               ;;
           esac
+          # Address the fixed canonical URL directly: origin push URLs or
+          # extra origin URLs must not redirect a token-bearing operation.
           publisher_git() {
             GIT_ASKPASS="$askpass_script" GIT_TERMINAL_PROMPT=0 \
               git -c credential.helper= \
@@ -440,10 +442,10 @@ jobs:
               EXPECTED_REMOTE_TIP="$(git rev-parse --verify "origin/$UPDATE_BRANCH^{commit}")"
               publisher_git push \
                 "--force-with-lease=refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_TIP" \
-                origin "HEAD:refs/heads/$UPDATE_BRANCH"
+                "$PUBLISH_REMOTE_URL" "HEAD:refs/heads/$UPDATE_BRANCH"
               ;;
             false)
-              publisher_git push origin "HEAD:refs/heads/$UPDATE_BRANCH"
+              publisher_git push "$PUBLISH_REMOTE_URL" "HEAD:refs/heads/$UPDATE_BRANCH"
               ;;
             *)
               echo "maintenance branch reuse state is invalid" >&2

@@ -41,9 +41,11 @@ reference, not the token value. Each `publisher_git` network call supplies `-c c
 inherited helpers, command-local
 `credential.https://github.com.username=x-access-token`, and
 `credential.https://github.com.useHttpPath=false`. Before the wrapper exists,
-the step checks that `origin` is one of the two direct canonical GitHub URLs.
-The token-free askpass program fails closed unless the prompt names
-`https://x-access-token@github.com`.
+the step verifies that `origin` is one of the two direct canonical GitHub URLs,
+then uses the fixed canonical repository URL directly for every publisher fetch
+and push. That prevents an `origin` push URL or extra remote URL from
+redirecting a token-bearing operation. The token-free askpass program fails
+closed unless the prompt identifies `github.com` with a host boundary.
 
 `GIT_TERMINAL_PROMPT=0` and `GIT_ASKPASS` are command-local, not exported. An
 EXIT trap removes the script. Existing checkout, branch
@@ -54,8 +56,10 @@ are unchanged.
 
 The token's source, scope, and publisher-only boundary are unchanged. It is
 not persisted in Git configuration or supplied in a remote URL or command-line
-argument. The existing trusted repository/default-branch event gates still
-prevent untrusted events from reaching the publisher.
+argument. Publisher fetches and pushes address the fixed canonical URL instead
+of the `origin` alias, so configured push URLs cannot redirect the App token.
+The existing trusted repository/default-branch event gates still prevent
+untrusted events from reaching the publisher.
 
 ## Changed files
 

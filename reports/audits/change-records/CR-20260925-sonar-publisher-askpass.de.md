@@ -43,8 +43,11 @@ geerbte Helper zurückzusetzen, sowie command-lokales
 `credential.https://github.com.username=x-access-token` und
 `credential.https://github.com.useHttpPath=false`. Bevor der Wrapper existiert,
 prüft der Step, dass `origin` eine der zwei direkten kanonischen GitHub-URLs
-ist. Das tokenfreie Askpass-Programm schlägt fehl, wenn der Prompt nicht
-`https://x-access-token@github.com` benennt.
+ist, und verwendet danach für jeden Publisher-Fetch und -Push direkt die feste
+kanonische Repository-URL. Damit können eine `origin`-Push-URL oder weitere
+Remote-URLs keine tokenführende Operation umleiten. Das tokenfreie
+Askpass-Programm schlägt fehl, wenn der Prompt `github.com` nicht mit einer
+Host-Grenze benennt.
 
 `GIT_TERMINAL_PROMPT=0` und `GIT_ASKPASS` gelten command-lokal und werden
 nicht exportiert. Ein EXIT-Trap entfernt das Script.
@@ -55,9 +58,11 @@ und Force-with-Lease-Controls bleiben unverändert.
 
 Source, Scope und Publisher-only-Grenze des Tokens bleiben unverändert. Es
 wird nicht in Git-Konfiguration persistiert und nicht in einer Remote-URL
-oder einem Kommandozeilenargument übergeben. Die vorhandenen Trusted-
-Repository-/Default-Branch-Event-Gates verhindern weiterhin, dass ein nicht
-vertrauenswürdiges Event den Publisher erreicht.
+oder einem Kommandozeilenargument übergeben. Publisher-Fetches und -Pushes
+adressieren statt des `origin`-Alias die feste kanonische URL, sodass
+konfigurierte Push-URLs das App-Token nicht umleiten können. Die vorhandenen
+Trusted-Repository-/Default-Branch-Event-Gates verhindern weiterhin, dass ein
+nicht vertrauenswürdiges Event den Publisher erreicht.
 
 ## Geänderte Dateien
 
