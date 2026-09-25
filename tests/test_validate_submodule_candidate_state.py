@@ -94,14 +94,40 @@ class ValidateSubmoduleCandidateStateTests(unittest.TestCase):
         candidate: str,
         *,
         submodule_path: str = "framework",
+        allowed_nested_gitlink_path: str | None = None,
+        allowed_nested_submodule_url: str | None = None,
     ) -> subprocess.CompletedProcess[str]:
+        command = [
+            sys.executable,
+            str(VALIDATOR),
+            "validate",
+            "--parent-root",
+            str(parent),
+            "--submodule-path",
+            submodule_path,
+            "--current-gitlink-sha",
+            current,
+            "--candidate-sha",
+            candidate,
+            "--expected-parent-head",
+            baseline["EXPECTED_PARENT_HEAD"],
+            "--expected-parent-hooks-sha256",
+            baseline["EXPECTED_PARENT_HOOKS_SHA256"],
+        ]
+        if allowed_nested_gitlink_path is not None:
+            command.extend(
+                ["--allowed-nested-gitlink-path", allowed_nested_gitlink_path]
+            )
+        if allowed_nested_submodule_url is not None:
+            command.extend(
+                ["--allowed-nested-submodule-url", allowed_nested_submodule_url]
+            )
         return subprocess.run(
-            [
-                sys.executable, str(VALIDATOR), "validate", "--parent-root", str(parent),
-                "--submodule-path", submodule_path, "--current-gitlink-sha", current,
-                "--candidate-sha", candidate, "--expected-parent-head", baseline["EXPECTED_PARENT_HEAD"],
-                "--expected-parent-hooks-sha256", baseline["EXPECTED_PARENT_HOOKS_SHA256"],
-            ], check=False, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            command,
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
 
     def assert_code(self, result: subprocess.CompletedProcess[str], code: str) -> None:
@@ -315,10 +341,18 @@ class ValidateSubmoduleCandidateStateTests(unittest.TestCase):
                 self.run_validate(parent, baseline, current, current), "FRAMEWORK_SUBMODULE_INVALID"
             )
 
-    def test_nested_submodule_topology_and_gitlink_changes_are_rejected(self) -> None:
+    def test_nested_submodule_topology_is_rejected_and_gitlink_requires_allowance(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             parent, framework, current, _head = self.make_layout(Path(raw), nested=True)
             baseline = self.run_capture(parent, Path(raw) / "github-env")
+            declared_url = self.git(
+                framework,
+                "config",
+                "-f",
+                ".gitmodules",
+                "--get",
+                "submodule.nested.url",
+            )
 
             gitmodules = framework / ".gitmodules"
             gitmodules.write_text(
@@ -328,7 +362,14 @@ class ValidateSubmoduleCandidateStateTests(unittest.TestCase):
             self.git(framework, "add", ".gitmodules")
             self.git(framework, "commit", "-m", "mutate nested topology")
             topology_candidate = self.git(framework, "rev-parse", "HEAD")
-            topology_result = self.run_validate(parent, baseline, current, topology_candidate)
+            topology_result = self.run_validate(
+                parent,
+                baseline,
+                current,
+                topology_candidate,
+                allowed_nested_gitlink_path="nested",
+                allowed_nested_submodule_url=declared_url,
+            )
             self.assert_code(topology_result, "FRAMEWORK_SUBMODULE_METADATA_CHANGED")
 
             self.git(framework, "checkout", current)
@@ -338,8 +379,39 @@ class ValidateSubmoduleCandidateStateTests(unittest.TestCase):
             self.git(framework, "commit", "-m", "mutate nested gitlink")
             gitlink_candidate = self.git(framework, "rev-parse", "HEAD")
             self.assertNotEqual(nested_commit, current)
-            gitlink_result = self.run_validate(parent, baseline, current, gitlink_candidate)
-            self.assert_code(gitlink_result, "FRAMEWORK_SUBMODULE_METADATA_CHANGED")
+
+            unapproved = self.run_validate(parent, baseline, current, gitlink_candidate)
+            self.assert_code(unapproved, "FRAMEWORK_SUBMODULE_METADATA_CHANGED")
+
+            approved = self.run_validate(
+                parent,
+                baseline,
+                current,
+                gitlink_candidate,
+                allowed_nested_gitlink_path="nested",
+                allowed_nested_submodule_url=declared_url,
+            )
+            self.assertEqual(approved.returncode, 0, approved.stderr)
+
+            wrong_url = self.run_validate(
+                parent,
+                baseline,
+                current,
+                gitlink_candidate,
+                allowed_nested_gitlink_path="nested",
+                allowed_nested_submodule_url="https://example.invalid/wrong.git",
+            )
+            self.assert_code(wrong_url, "FRAMEWORK_SUBMODULE_METADATA_CHANGED")
+
+            wrong_path = self.run_validate(
+                parent,
+                baseline,
+                current,
+                gitlink_candidate,
+                allowed_nested_gitlink_path="other",
+                allowed_nested_submodule_url=declared_url,
+            )
+            self.assert_code(wrong_path, "FRAMEWORK_SUBMODULE_METADATA_CHANGED")
 
     def test_staged_parent_or_recursive_gitlink_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
