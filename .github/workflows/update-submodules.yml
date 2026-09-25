@@ -194,7 +194,7 @@ jobs:
             exit 1
           fi
           # Only the reviewed Parent gitlink is initialized. Candidate nested
-          # submodule metadata is validated from Git objects and is never fetched.
+          # worktrees remain uninitialized; their Gitlinks are read as Git objects.
           git -c protocol.file.allow=never submodule update --init -- "$SUBMODULE_PATH"
           submodule_origin="$(git -C "$SUBMODULE_PATH" remote get-url origin)"
           if [ "$submodule_origin" != "$SUBMODULE_URL" ]; then
