@@ -506,7 +506,10 @@ def _validate_candidate_submodule_metadata(
         _fail("FRAMEWORK_SUBMODULE_METADATA_CHANGED", paths=changed_paths)
 
     configured_paths = _submodule_paths(root)
-    if configured_paths.count(allowed_path) != 1 or _submodule_url(root, allowed_path) != allowed_url:
+    if (
+        configured_paths.count(allowed_path) != 1
+        or _submodule_url(root, allowed_path) != allowed_url
+    ):
         _fail("FRAMEWORK_SUBMODULE_METADATA_CHANGED", paths=changed_paths)
 
 
@@ -519,9 +522,9 @@ def _validate_nested(root: Path) -> None:
     )
     for relative in paths:
         path = root / relative
-        # A candidate's nested submodule must not be fetched merely to prove
-        # that the candidate is safe. Its topology is immutable here and any
-        # permitted Gitlink transition was explicitly allowlisted above; an absent worktree or the empty
+        # The validator never initialises candidate-controlled nested source.
+        # Its topology is immutable here and any permitted Gitlink transition
+        # was explicitly allowlisted above; an absent worktree or the empty
         # directory Git leaves for an uninitialised nested submodule is an
         # accepted state.  Do not use Path.is_dir() here: it follows symlinks.
         try:
