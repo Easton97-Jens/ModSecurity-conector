@@ -48,7 +48,25 @@ class UpdateSubmodulesLocalGitTests(unittest.TestCase):
         self.git(framework_source, "init")
         self.git(framework_source, "config", "user.email", "test@example.invalid")
         self.git(framework_source, "config", "user.name", "Update-submodules Test")
-        current = self.commit_file(framework_source, "framework.txt", "A\n", "framework A")
+        self.commit_file(framework_source, "framework.txt", "A\n", "framework A")
+
+        mrts_source = temporary / "mrts-source"
+        mrts_source.mkdir()
+        self.git(mrts_source, "init")
+        self.git(mrts_source, "config", "user.email", "test@example.invalid")
+        self.git(mrts_source, "config", "user.name", "Update-submodules Test")
+        self.commit_file(mrts_source, "mrts.txt", "MRTS A\n", "MRTS A")
+        self.git(
+            framework_source,
+            "-c",
+            "protocol.file.allow=always",
+            "submodule",
+            "add",
+            str(mrts_source),
+            "tools/MRTS",
+        )
+        self.git(framework_source, "commit", "-m", "add MRTS")
+        current = self.git(framework_source, "rev-parse", "HEAD")
 
         parent = temporary / "parent"
         parent.mkdir()
@@ -137,6 +155,8 @@ class UpdateSubmodulesLocalGitTests(unittest.TestCase):
                 "PATH": "/usr/bin:/bin",
                 "SUBMODULE_PATH": "framework",
                 "SUBMODULE_URL": str(framework_source),
+                "ALLOWED_NESTED_GITLINK_PATH": "tools/MRTS",
+                "ALLOWED_NESTED_SUBMODULE_URL": str(framework_source.parent / "mrts-source"),
                 "CURRENT_GITLINK_SHA": current,
                 "CANDIDATE_SHA": candidate,
             },
