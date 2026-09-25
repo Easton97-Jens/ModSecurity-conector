@@ -3689,7 +3689,15 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn('PR_TITLE: "chore(ci): propose Python 3.14 patch update"', publisher)
         self.assertIn('PR_MARKER: "<!-- modsecurity-conector-python-314-updater -->"', publisher)
         self.assertIn("FRAMEWORK_REFERENCE_SHA: 3cb33609626ff689c54b6dc0f31fb7e9401fe75e", publisher)
-        self.assertIn('git fetch --no-tags origin "refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"', publisher)
+        self.assertIn(
+            'PUBLISH_REMOTE_URL="https://github.com/Easton97-Jens/ModSecurity-conector.git"',
+            publisher,
+        )
+        self.assertIn(
+            'git fetch --no-tags "$PUBLISH_REMOTE_URL" "refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"',
+            publisher,
+        )
+        self.assertNotIn('git fetch --no-tags origin', publisher)
         self.assertIn('git reset --hard "origin/$DEFAULT_BRANCH"', publisher)
         self.assertIn('branch_paths="$(git diff --name-only "$merge_base" "origin/$UPDATE_BRANCH")"', publisher)
         self.assertIn('if [ "$branch_paths" != ".python-version" ]; then', publisher)
