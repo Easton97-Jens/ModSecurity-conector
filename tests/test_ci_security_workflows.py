@@ -3494,6 +3494,57 @@ sudo -n chmod 0750 "$namespace_parent"
         ):
             self.assertNotIn(forbidden, workflow)
 
+    def test_parent_updaters_use_ephemeral_askpass_for_publisher_app_tokens(self) -> None:
+        """Keep the publisher token out of Git config and scope askpass to trusted network Git."""
+
+        publisher_jobs = {
+            "update-workflow-tools.yml": "publisher",
+            "update-python-version.yml": "publish-python-update",
+        }
+        setup_terms = (
+            'askpass_script="$(mktemp "$RUNNER_TEMP/modsecurity-conector-publisher-askpass.XXXXXX")"',
+            '*"https://x-access-token@github.com"*)',
+            'origin_url="$(git remote get-url origin)"',
+            'GIT_ASKPASS="$askpass_script" GIT_TERMINAL_PROMPT=0',
+            "git -c credential.helper=",
+            "-c credential.https://github.com.username=x-access-token",
+            '-c credential.https://github.com.useHttpPath=false "$@"',
+            "trap cleanup_publisher_askpass EXIT",
+            'rm -f -- "$askpass_script"',
+            'printf \'%s\\n\' "$PUBLISH_TOKEN"',
+        )
+        for workflow_name, publisher_name in publisher_jobs.items():
+            jobs = self.jobs(workflow_name)
+            publisher = jobs[publisher_name]
+            self.assertNotIn("git config --local credential.", publisher, workflow_name)
+            self.assertNotIn("export GIT_ASKPASS", publisher, workflow_name)
+            self.assertNotIn("export GIT_TERMINAL_PROMPT", publisher, workflow_name)
+            self.assertNotIn("password", publisher.lower(), workflow_name)
+            for setup_term in setup_terms:
+                self.assertEqual(
+                    publisher.count(setup_term),
+                    2,
+                    (workflow_name, setup_term),
+                )
+            self.assertEqual(
+                publisher.count("publisher_git fetch --no-tags origin"),
+                2,
+                workflow_name,
+            )
+            self.assertEqual(publisher.count("publisher_git push"), 2, workflow_name)
+            self.assertEqual(
+                publisher.count(
+                    "PUBLISH_TOKEN: ${{ steps.publisher_app_token.outputs.token }}"
+                ),
+                2,
+                workflow_name,
+            )
+            for checkout in checkout_step_blocks(publisher):
+                self.assertIn("persist-credentials: false", checkout, workflow_name)
+            for job_name, job in jobs.items():
+                if job_name != publisher_name:
+                    self.assertNotIn("PUBLISH_TOKEN:", job, (workflow_name, job_name))
+
     def test_python_patch_updater_separates_trusted_stages_and_writer_scope(self) -> None:
         workflow_name = "update-python-version.yml"
         workflow = self.workflow(workflow_name)
