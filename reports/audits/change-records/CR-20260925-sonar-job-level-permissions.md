@@ -44,7 +44,7 @@ jobs rely on that inherited permission.
 - No Sonar rule, exclusion, suppression, accepted issue, Quality Gate, branch
   protection, authentication, or validation control is weakened.
 
-## Technical decisions
+## Implementation decision and rationale
 
 The repair changes authorization scope, not effective job capability. The
 former workflow-level `contents: read` default is replaced by
@@ -73,7 +73,7 @@ allowlisted write jobs remain unchanged.
 
 Framework source, the Parent Framework Gitlink, and nested MRTS are unchanged.
 
-## Tests and actual results
+## Commands executed
 
 | Check | Result | Observed result |
 | --- | --- | --- |
@@ -81,19 +81,21 @@ Framework source, the Parent Framework Gitlink, and nested MRTS are unchanged.
 | Historical exact-`master` comparison | passed / failed boundary identified | `5170d248...` passed; `7dd47a0...` and `34aa7da...` fail on the same Security Rating condition. |
 | Repository-wide workflow permission inventory | passed | Workflow-level `contents: read` inheritance and the jobs relying on it were identified; existing write grants are job-scoped. |
 | Source transformation invariants | passed | Top-level scope becomes default-deny; formerly inherited read jobs receive explicit job-local read scope; existing direct permission blocks are preserved. |
-| Hosted Draft-PR checks | pending | Must be evaluated only for the exact Draft-PR head after publication. |
+| Initial Draft-PR head `64b38a34...` hosted checks | mixed during repair | Permission regression test, `zizmor`, report governance, protocol contract, CodeQL actions, and PR-diff checks exercised the new workflow scope; two task-owned contract/documentation mismatches were identified for this follow-up. The CRS/no-MRTS runtime matrix separately fails its pre-existing MRTS revision assertion (`615b13ba...` expected, `8a6bb546...` checked out) before runtime execution. |
 
 ## Runtime evidence
 
 No connector runtime behavior changes. Runtime evidence is not applicable to
 this GitHub Actions token-scope repair.
 
-## Checks not run
+## Checks not run and rationale
 
 Local repository commands were not executed because the current execution
 surface provides GitHub repository operations rather than the repository's
-required RTK/local command environment. Hosted checks on the published Draft
-PR are the available execution evidence for this delivery.
+required RTK/local command environment. Hosted checks on Draft PR #386 did run
+against `64b38a34...`; they exposed the two task-owned contract/documentation
+mismatches corrected by this follow-up and the separate pre-existing MRTS pin
+mismatch described above. The exact successor head must be read back again.
 
 ## Known limitations
 
@@ -102,7 +104,7 @@ environment, so this record does not fabricate an issue key. The remediation
 is bound to the observed failing Security Rating, the current Sonar rule
 semantics, and the repository-wide matching workflow pattern.
 
-## Residual risks
+## Remaining risks
 
 `FND-SONAR-0090` is `fixed` by source change but not `verified` until the
 exact Draft-PR head has a terminal SonarQube Cloud analysis and the expected
@@ -110,8 +112,10 @@ hosted CI-security checks complete successfully. A separate remaining Sonar
 finding, if any, must be handled from fresh exact-head evidence rather than by
 weakening the scanner or Quality Gate.
 
-## Final review status
+## Final diff and review status
 
 The scoped diff changes only GitHub Actions token-permission placement, its
-static regression contract, and this bilingual Change Record. No merge is
-authorized or performed by this task.
+static regression contract, and this bilingual Change Record. The first
+published head `64b38a34...` provided real hosted feedback; this follow-up
+aligns the negative permission mutation and the mandatory Change-Record schema
+without changing workflow capabilities. No merge is authorized or performed.

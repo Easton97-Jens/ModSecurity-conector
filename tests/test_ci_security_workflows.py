@@ -2497,8 +2497,8 @@ jobs:
                 '            --no-crs-directory "$RUNNER_TEMP/unsafe" \\\n',
             ),
             "write permission": (
-                "permissions:\n  contents: read",
-                "permissions:\n  contents: write",
+                "    permissions:\n      contents: read",
+                "    permissions:\n      contents: write",
             ),
             "secret reference": (
                 "          set -euo pipefail",

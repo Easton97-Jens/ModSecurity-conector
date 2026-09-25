@@ -2,13 +2,13 @@
 
 **Sprache:** [English](CR-20260925-sonar-job-level-permissions.md) | Deutsch
 
-## Identity
+## Identität
 
 | Feld | Wert |
 | --- | --- |
-| Change ID | CR-20260925-sonar-job-level-permissions |
+| Change-ID | CR-20260925-sonar-job-level-permissions |
 | Datum (UTC) | 2026-09-25 |
-| Basisrevision | `34aa7da8eea8c7a820c3951ee6c9846567e95b8a` |
+| Basis-Revision | `34aa7da8eea8c7a820c3951ee6c9846567e95b8a` |
 | Finding | `FND-SONAR-0090`; GitHub-Actions-Vulnerability-Muster für Token-Berechtigungen auf Job-Ebene (`githubactions:S8264`) |
 | Benutzerautorisierung | Die bereitgestellten offenen SonarCloud-Findings untersuchen und in einem GitHub-Draft-PR beheben. |
 | Delivery-Status | Begrenzte Parent-Reparatur auf `fix/sonar-job-level-permissions`; Draft-PR-Delivery ist autorisiert, Merge, Auto-Merge, direkte `master`-Writes, Framework-/MRTS-Änderungen, Rule-Suppression, Issue-Akzeptanz und Quality-Gate-Änderungen sind es nicht. |
@@ -47,7 +47,7 @@ Workflow-Ebene setzen und mehrere Jobs diese Berechtigung erben.
   Gate, Branch Protection, Authentifizierungs- oder Validierungs-Control wird
   geschwächt.
 
-## Technische Entscheidungen
+## Implementierungsentscheidung und Begründung
 
 Die Reparatur ändert den Autorisierungs-Scope, nicht die effektive
 Job-Capability. Der bisherige Workflow-Level-Default `contents: read` wird
@@ -78,7 +78,7 @@ Bestehende eng allowlistete Write-Jobs bleiben unverändert.
 Framework-Source, der Parent-Framework-Gitlink und verschachteltes MRTS bleiben
 unverändert.
 
-## Tests und tatsächliche Ergebnisse
+## Ausgeführte Befehle
 
 | Check | Ergebnis | Beobachtetes Ergebnis |
 | --- | --- | --- |
@@ -86,20 +86,22 @@ unverändert.
 | Historischer exakter `master`-Vergleich | Passed-/Failed-Grenze identifiziert | `5170d248...` bestand; `7dd47a0...` und `34aa7da...` scheitern an derselben Security-Rating-Bedingung. |
 | Repository-weites Workflow-Permission-Inventar | bestanden | Workflow-Level-Vererbung von `contents: read` und die davon abhängigen Jobs wurden identifiziert; bestehende Write-Grants sind job-spezifisch. |
 | Source-Transformationsinvarianten | bestanden | Top-Level-Scope wird Default-Deny; zuvor erbende Read-Jobs erhalten expliziten job-lokalen Read-Scope; bestehende direkte Permission-Blöcke bleiben erhalten. |
-| Hosted Draft-PR-Checks | ausstehend | Dürfen erst für den exakten Draft-PR-Head nach Veröffentlichung bewertet werden. |
+| Hosted Checks des ersten Draft-PR-Heads `64b38a34...` | gemischt während der Reparatur | Permission-Regressionstest, `zizmor`, Report-Governance, Protocol-Contract, CodeQL-Actions und PR-Diff übten den neuen Workflow-Scope aus; zwei task-eigene Contract-/Dokumentationsabweichungen wurden für diesen Follow-up identifiziert. Die CRS/no-MRTS-Runtime-Matrix scheitert separat an ihrer bereits bestehenden MRTS-Revisionsprüfung (`615b13ba...` erwartet, `8a6bb546...` ausgecheckt), bevor Runtime-Ausführung beginnt. |
 
-## Runtime-Evidenz
+## Runtime-Evidence
 
 Es ändert sich kein Connector-Runtime-Verhalten. Runtime-Evidenz ist für diese
 Reparatur des GitHub-Actions-Token-Scopes nicht anwendbar.
 
-## Nicht ausgeführte Checks
+## Nicht ausgeführte Prüfungen mit Begründung
 
 Lokale Repository-Kommandos wurden nicht ausgeführt, weil die aktuelle
 Ausführungsoberfläche GitHub-Repository-Operationen statt der vom Repository
-geforderten RTK-/lokalen Command-Umgebung bereitstellt. Hosted Checks des
-veröffentlichten Draft PR sind die verfügbare Ausführungsevidenz für diese
-Delivery.
+geforderten RTK-/lokalen Command-Umgebung bereitstellt. Hosted Checks von
+Draft PR #386 liefen gegen `64b38a34...`; sie legten die zwei task-eigenen
+Contract-/Dokumentationsabweichungen offen, die dieser Follow-up korrigiert,
+sowie den oben beschriebenen separaten bestehenden MRTS-Pin-Konflikt. Der
+exakte Successor-Head muss erneut gelesen werden.
 
 ## Bekannte Einschränkungen
 
@@ -109,7 +111,7 @@ an das beobachtete fehlschlagende Security Rating, die aktuellen
 Sonar-Rule-Semantiken und das passende Repository-weite Workflow-Muster
 gebunden.
 
-## Restrisiken
+## Verbleibende Risiken
 
 `FND-SONAR-0090` ist durch die Source-Änderung `fixed`, aber erst
 `verified`, wenn der exakte Draft-PR-Head eine terminale SonarQube-Cloud-
@@ -118,9 +120,12 @@ abschließen. Ein separates verbleibendes Sonar-Finding muss gegebenenfalls auf
 Basis frischer Exact-Head-Evidenz behandelt werden, statt Scanner oder Quality
 Gate zu schwächen.
 
-## Finaler Review-Status
+## Finaler Diff- und Review-Status
 
 Der begrenzte Diff ändert ausschließlich die Platzierung von
 GitHub-Actions-Token-Berechtigungen, ihren statischen Regression-Contract und
-diesen zweisprachigen Change Record. Kein Merge ist durch diese Aufgabe
-autorisiert oder ausgeführt.
+diesen zweisprachigen Change Record. Der erste veröffentlichte Head
+`64b38a34...` lieferte reale Hosted-Evidenz; dieser Follow-up richtet die
+negative Permission-Mutation und das verpflichtende Change-Record-Schema aus,
+ohne Workflow-Capabilities zu ändern. Kein Merge ist autorisiert oder
+ausgeführt.
