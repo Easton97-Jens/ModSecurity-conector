@@ -255,12 +255,19 @@ STAGE_TMP_ROOT=$HOST_TMP_ROOT
 STAGE_LOG_ROOT=$HOST_LOG_ROOT
 STAGE_RESULTS_DIR=$RESULTS_DIR
 STAGE_RUNTIME_ROOT=$HOST_RUNTIME_ROOT
-# The Framework HAProxy smoke contract requires its build, temporary, log,
+# The Framework host smoke contract requires its build, temporary, log,
 # and result roots to be nested together. This is a disposable *host work*
 # directory inside the already-isolated raw run, not the connector build root
 # resolved above; shared component artifacts still remain under
 # CONNECTOR_BUILD_ROOT and Cache-v2.
 case "$connector" in
+    nginx)
+        STAGE_BUILD_ROOT=$CONNECTOR_RUN_ROOT/nginx-host-work
+        STAGE_TMP_ROOT=$STAGE_BUILD_ROOT/tmp
+        STAGE_LOG_ROOT=$STAGE_BUILD_ROOT/logs
+        STAGE_RESULTS_DIR=$STAGE_BUILD_ROOT/results
+        STAGE_RUNTIME_ROOT=$STAGE_BUILD_ROOT/runtime
+        ;;
     haproxy)
         STAGE_BUILD_ROOT=$CONNECTOR_RUN_ROOT/haproxy-host-work
         STAGE_TMP_ROOT=$STAGE_BUILD_ROOT/tmp
@@ -271,8 +278,11 @@ case "$connector" in
     *) ;;
 esac
 NGINX_RUN_ROOT=$CONNECTOR_RUN_ROOT/nginx-harness
+STAGE_NGINX_HARNESS_PARENT=$RAW_DIR
 NGINX_DOCROOT_PROJECTION=0
 if [ "$connector" = nginx ]; then
+    NGINX_RUN_ROOT=$STAGE_BUILD_ROOT/nginx-harness
+    STAGE_NGINX_HARNESS_PARENT=$STAGE_BUILD_ROOT
     # Keep Framework case materialization private.  The NGINX harness creates
     # a separate, validated worker-visible static docroot only for this
     # canonical lifecycle route.
@@ -551,7 +561,7 @@ RUNTIME_COMPONENT_TARGET="$canonical_runtime_component_target" \
 RUNTIME_COMPONENT_ENV_SNAPSHOT="$RUNTIME_COMPONENT_ENV_SNAPSHOT" \
 APACHE_RUNTIME_LOG_DIR="$HOST_RUNTIME_ROOT/apache-runtime" \
 APACHE_CASE_OUTPUT_ROOT="$HOST_RUNTIME_ROOT" \
-NGINX_HARNESS_PARENT="$RAW_DIR" \
+NGINX_HARNESS_PARENT="$STAGE_NGINX_HARNESS_PARENT" \
 NGINX_HARNESS_WORK_ROOT="$NGINX_RUN_ROOT" \
 NGINX_DOCROOT_PROJECTION="$NGINX_DOCROOT_PROJECTION" \
 NGINX_DOCROOT_PROJECTION_PARENT="${NGINX_DOCROOT_PROJECTION_PARENT:-}" \
@@ -645,10 +655,13 @@ if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
                 native_first_byte_rc=0
                 CONNECTOR_ROOT="$CONNECTOR_ROOT" \
                 FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
-                BUILD_ROOT="$BUILD_ROOT" \
-                RESULTS_DIR="$RESULTS_DIR" \
-                HOST_RUNTIME_ROOT="$HOST_RUNTIME_ROOT" \
+                BUILD_ROOT="$STAGE_BUILD_ROOT" \
+                VERIFIED_BUILD_ROOT="$STAGE_BUILD_ROOT" \
+                RUNTIME_REPORT_OUTPUT_ROOT="$RUNTIME_REPORT_OUTPUT_ROOT" \
+                RESULTS_DIR="$STAGE_RESULTS_DIR" \
+                HOST_RUNTIME_ROOT="$STAGE_RUNTIME_ROOT" \
                 HOST_LOG_ROOT="$HOST_LOG_ROOT" \
+                SYNCHRONIZED_UPSTREAM_CONTROL_ROOT="$CONNECTOR_RUN_ROOT" \
                 NO_CRS_RULES_FILE="$NO_CRS_RULES_FILE" \
                 FULL_LIFECYCLE_EVIDENCE_OUTPUT="$FIRST_BYTE_EVIDENCE" \
                 SKIP_RUNTIME_COMPONENT_PREPARE=1 \

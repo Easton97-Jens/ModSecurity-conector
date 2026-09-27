@@ -42,7 +42,7 @@ runtime_root=$HOST_RUNTIME_ROOT/first-byte-$connector
 # emits sanitized diagnostics separately after collection.
 log_root=$HOST_RUNTIME_ROOT/$connector-first-byte-logs
 results_output=$RESULTS_DIR/$connector-first-byte-results.jsonl
-synchronized_control_root=$HOST_RUNTIME_ROOT/..
+synchronized_control_root=${SYNCHRONIZED_UPSTREAM_CONTROL_ROOT:-$HOST_RUNTIME_ROOT/..}
 mkdir -p "$RESULTS_DIR" "$runtime_root"
 
 set +e
