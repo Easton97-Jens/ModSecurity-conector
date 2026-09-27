@@ -3288,8 +3288,9 @@ chmod 711 "$NGINX_HARNESS_WORK_ROOT" \
     "$NGINX_HARNESS_WORK_ROOT/server-logs" \
     "$NGINX_HARNESS_WORK_ROOT/memcheck-evidence"
 ensure_private_dir "$LOG_DIR" "$RUNTIME_ROOT" "$RUNTIME_ROOT/conf" \
-    "$RUNTIME_ROOT/htdocs" "$NGINX_MEMCHECK_EVIDENCE_DIR"
-prepare_nginx_worker_paths
+    "$RUNTIME_ROOT/htdocs" "$NGINX_MEMCHECK_EVIDENCE_DIR" \
+    "$NGINX_SERVER_LOG_ROOT" "$NGINX_SERVER_LOG_ROOT/audit"
+# Keep audit targets root-private until CASE_CLI materialize succeeds below.
 : > "$STATUS_FILE"
 stop_stale_runtime_pid "$RUNTIME_PID_FILE"
 rm -f "$LOG_DIR/configtest.log" \
