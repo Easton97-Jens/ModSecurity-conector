@@ -99,6 +99,9 @@ NGINX_WORKER_USER="${NGINX_WORKER_USER:-nobody}"
 NGINX_WORKER_GROUP="${NGINX_WORKER_GROUP:-}"
 PERMISSIONS_LOG="${PERMISSIONS_LOG:-}"
 MSCONNECTOR_FULL_LIFECYCLE_SYNC="${MSCONNECTOR_FULL_LIFECYCLE_SYNC:-0}"
+# Preserve only this explicit Parent route policy across portable case.env.
+NGINX_TRUSTED_SYNCHRONIZED_PHASE4_MODE="${NGINX_SYNCHRONIZED_PHASE4_MODE:-}"
+readonly NGINX_TRUSTED_SYNCHRONIZED_PHASE4_MODE
 FULL_LIFECYCLE_EVIDENCE_OUTPUT="${FULL_LIFECYCLE_EVIDENCE_OUTPUT:-}"
 SYNCHRONIZED_UPSTREAM_CONTROL_ROOT="${SYNCHRONIZED_UPSTREAM_CONTROL_ROOT:-}"
 SYNCHRONIZED_UPSTREAM="$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py"
@@ -1653,6 +1656,23 @@ prepare_phase4_log_target() {
 phase4_reload_overlap_sync_enabled() {
     [ "$NGINX_HOSTED_FUNCTIONAL_A" = "1" ] && \
         [ "$NGINX_PHASE4_LOG_LIFECYCLE_PROBE" = "1" ]
+}
+
+apply_synchronized_phase4_policy() {
+    case "$MSCONNECTOR_FULL_LIFECYCLE_SYNC:$NGINX_TRUSTED_SYNCHRONIZED_PHASE4_MODE" in
+        1:safe)
+            NGINX_PHASE4_MODE=$NGINX_TRUSTED_SYNCHRONIZED_PHASE4_MODE
+            ;;
+        0:)
+            # Ordinary smoke cases retain their generated mode and default Off.
+            ;;
+        1:*)
+            blocked "synchronized First-Byte proof requires NGINX_SYNCHRONIZED_PHASE4_MODE=safe"
+            ;;
+        *)
+            blocked "NGINX_SYNCHRONIZED_PHASE4_MODE is only valid for synchronized First-Byte proof"
+            ;;
+    esac
 }
 
 render_config() {
@@ -3411,6 +3431,7 @@ if [ "$NGINX_HOSTED_FUNCTIONAL_A" = "1" ]; then
 else
     . "$CASE_ENV_FILE"
 fi
+apply_synchronized_phase4_policy
 if [ "$NGINX_HOSTED_FUNCTIONAL_A" = "1" ] && \
    [ "$NGINX_FUNCTIONAL_A_QUERY_CANARY" = "1" ]; then
     case "$REQUEST_PATH" in

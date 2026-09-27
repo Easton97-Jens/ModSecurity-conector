@@ -317,6 +317,20 @@ und die eigenen Body-Limit-Einstellungen der Bibliothek gelten weiterhin.
 Damit wird nicht behauptet, dass sämtliche Fehlerpfade mit einem früheren
 Upstream-Release identisch sind.
 
+Der synchronisierte native First-Byte-Beweis des Parents wählt ausdrücklich
+`NGINX_SYNCHRONIZED_PHASE4_MODE=safe` und den bestehenden nativen Phase-4-Log-Scope
+`server_with_location_override`. Der Harness bewahrt diese literale
+Caller-Policy über das Laden der portablen Case-Umgebung hinweg und wendet
+sie ausschließlich bei `MSCONNECTOR_FULL_LIFECYCLE_SYNC=1` an. Fehlende,
+`off`-, `strict`- oder ungültige synchronisierte Policy-Werte werden vor dem
+NGINX-Start abgewiesen; ein synchronisierter Override außerhalb dieser Route
+wird ebenfalls abgewiesen. Normale direkte Smoke-Defaults und Case-eigene
+Modi bleiben unverändert. Ein vollständiger Test-Payload allein bedeutet
+keinen Erfolg: Der Beweis verlangt weiterhin curl-Exit `0`, HTTP `200` und
+tatsächliche native Phase-4-Evidence. Regel `1100301` bleibt disruptiv; die
+späte Safe-Behandlung erhält die bereits committete Response, nicht eine
+geänderte Regel oder eine Ausnahme für Transportfehler.
+
 `modsecurity_phase4_body_limit` hat standardmäßig 1048576 Byte (1 MiB). Ein
 konfigurierter Wert muss weiterhin positiv sein und darf höchstens 10485760
 Byte (10 MiB) betragen, auch in `off`; nur die Laufzeitdurchsetzung dieses

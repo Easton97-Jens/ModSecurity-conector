@@ -26,6 +26,10 @@ case "$connector" in
         # This route invokes NGINX directly, so opt in here rather than
         # changing the direct-harness default used by local smoke commands.
         NGINX_DOCROOT_PROJECTION=1
+        # The portable fixture deliberately has no host policy. Bind this
+        # native Safe proof separately from its generated case environment.
+        export NGINX_SYNCHRONIZED_PHASE4_MODE=safe
+        export NGINX_PHASE4_LOG_SCOPE=server_with_location_override
         ;;
     *) echo "usage: $0 apache|nginx" >&2; exit 2 ;;
 esac

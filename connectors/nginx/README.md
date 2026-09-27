@@ -299,6 +299,18 @@ instead.
 and the library's own body-limit settings still apply. This is not a claim that
 all error paths are identical to an earlier upstream release.
 
+The Parent's synchronized native First-Byte proof explicitly selects
+`NGINX_SYNCHRONIZED_PHASE4_MODE=safe` and the existing native Phase-4 log scope
+`server_with_location_override`. The harness retains this literal caller
+policy across the portable case-environment load and applies it only for
+`MSCONNECTOR_FULL_LIFECYCLE_SYNC=1`. Missing, `off`, `strict`, or invalid
+synchronized policy values are rejected before NGINX starts; a synchronized
+override outside that route is also rejected. Ordinary direct smoke defaults
+and case-selected modes remain unchanged. A full test payload alone is not
+success: the proof still requires curl exit `0`, HTTP `200`, and actual native
+Phase-4 evidence. Rule `1100301` remains a disruptive rule; Safe late handling,
+not a changed rule or transport waiver, preserves the committed response.
+
 `modsecurity_phase4_body_limit` defaults to 1048576 bytes (1 MiB). A configured
 value must still be positive and at most 10485760 bytes (10 MiB), including in
 `off`; only runtime enforcement of this extra budget is disabled in `off`.
