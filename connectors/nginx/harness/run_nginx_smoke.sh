@@ -1149,6 +1149,10 @@ prepare_bounded_soak_selection() {
 }
 
 run_all_cases() {
+    # Validate the caller's exact namespace seed before deriving fresh sibling
+    # children. Only the projection helper creates each selected child.
+    validate_nginx_docroot_projection_mode
+    validate_nginx_external_projection_authority
     require_absolute_generated_path "$BUILD_ROOT" "BUILD_ROOT"
     require_absolute_generated_path "$LOG_DIR" "LOG_DIR"
     require_absolute_generated_path "$RESULTS_DIR" "RESULTS_DIR"
@@ -1182,12 +1186,17 @@ run_all_cases() {
         case_log_dir="$LOG_DIR/$case_name"
         case_runtime="$RUNTIME_BASE/$case_name"
         case_port=$((BASE_PORT + index))
+        case_projection_root=$NGINX_DOCROOT_PROJECTION_ROOT
+        if [ "$NGINX_DOCROOT_PROJECTION" = "1" ]; then
+            case_projection_root=$("$PYTHON_BIN" -c 'import pathlib, re, sys, uuid; seed = pathlib.Path(sys.argv[1]); re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", seed.name) or sys.exit("unsafe projection root name"); print(seed.with_name("nginx-case-" + uuid.uuid4().hex))' "$NGINX_DOCROOT_PROJECTION_ROOT") || exit 1
+        fi
         echo "nginx_smoke: running case=$case_name port=$case_port"
         set +e
         RUN_ONE_CASE=1 \
             TEST_CASE="$case_path" \
             LOG_DIR="$case_log_dir" \
             RUNTIME_ROOT="$case_runtime" \
+            NGINX_DOCROOT_PROJECTION_ROOT="$case_projection_root" \
             PORT="$case_port" \
             sh "$0"
         rc=$?

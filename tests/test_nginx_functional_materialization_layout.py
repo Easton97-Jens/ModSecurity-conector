@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -212,6 +213,17 @@ class NginxFunctionalMaterializationLayoutTest(unittest.TestCase):
             invocation = Path(temporary)
             paths = self.parent_stage_paths(invocation)
             connector = invocation / "connector"
+            connector.mkdir()
+            (connector / "Makefile").write_text("# fixture repository boundary\n", encoding="utf-8")
+            common = connector / "ci/runtime/common"
+            common.mkdir(parents=True)
+            shutil.copyfile(ROOT / "ci/runtime/common/validate-nginx-harness-paths.py",
+                            common / "validate-nginx-harness-paths.py")
+            library = connector / "ci/lib"
+            library.mkdir(parents=True)
+            shutil.copyfile(ROOT / "ci/lib/runtime_path_utils.py", library / "runtime_path_utils.py")
+            projection_parent = invocation / "external-projection"
+            projection_parent.mkdir(mode=0o711)
             wrapper = connector / "ci/provisioning/cache/with-runtime-components.sh"
             wrapper.parent.mkdir(parents=True)
             wrapper.write_text(
@@ -269,6 +281,7 @@ class NginxFunctionalMaterializationLayoutTest(unittest.TestCase):
                 "PYTHONDONTWRITEBYTECODE": "1",
                 "CONNECTOR_ROOT": str(connector), "FRAMEWORK_ROOT": str(FRAMEWORK_ROOT),
                 "VERIFIED_RUN_ROOT": str(invocation), "connector": "nginx",
+                "CANONICAL_VERIFIED_RUN_ROOT": str(invocation),
                 "NO_CRS_RULES_FILE": str(RULE_PREAMBLE),
                 "RESULTS_DIR": str(invocation / "runs/nginx/path-test/results"),
                 "HOST_RUNTIME_ROOT": str(invocation / "runs/nginx/path-test/host-runtime"),

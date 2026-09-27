@@ -655,6 +655,7 @@ if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
                 native_first_byte_rc=0
                 CONNECTOR_ROOT="$CONNECTOR_ROOT" \
                 FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
+                VERIFIED_RUN_ROOT="$CANONICAL_VERIFIED_RUN_ROOT" \
                 BUILD_ROOT="$STAGE_BUILD_ROOT" \
                 VERIFIED_BUILD_ROOT="$STAGE_BUILD_ROOT" \
                 RUNTIME_REPORT_OUTPUT_ROOT="$RUNTIME_REPORT_OUTPUT_ROOT" \
