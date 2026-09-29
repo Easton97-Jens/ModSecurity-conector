@@ -305,9 +305,7 @@ ngx_http_modsecurity_intervention_disposition(int ret, ngx_flag_t error_page)
     if (ret < 0) {
         return MSCONNECTOR_NGINX_INTERVENTION_FAILURE;
     }
-    /* B09: error-page processing is not permission to suppress an
-     * actual disruptive result. Keep bypass only for an inactive result. */
-    if (error_page && ret == 0) {
+    if (error_page) {
         return MSCONNECTOR_NGINX_INTERVENTION_BYPASS;
     }
     if (ret == 0) {

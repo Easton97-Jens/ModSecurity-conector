@@ -1,9 +1,10 @@
-"""Source-isolated regressions for the reported B09, B13 and C07 findings.
+"""Source-isolated regressions for the reported B13 and C07 findings.
 
 The compiled checks exercise the actual small C helpers extracted from the
 checkout. Minimal surrounding types and header lookup are test stubs, not a
 real host/parser. C07 and caller-order checks are source contracts only.
-These tests do not establish NGINX/lighttpd/Traefik runtime protection.
+B09 is owned and tested by PR #391, not this independent B13/C07 patch.
+These tests do not establish lighttpd/Traefik runtime protection.
 """
 
 from __future__ import annotations
@@ -17,7 +18,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 AUTH = ROOT / "common/runtime/http_authorization_service.c"
-NGINX = ROOT / "connectors/nginx/src/ngx_http_modsecurity_common.h"
 SIDECAR = ROOT / "connectors/lighttpd/stock_sidecar/stock_sidecar.c"
 
 
@@ -95,33 +95,6 @@ class ReportedSecurityRegressions(unittest.TestCase):
                 [str(binary)], check=True, capture_output=True, text=True, timeout=10,
             )
 
-    def test_b09_active_intervention_survives_error_page(self) -> None:
-        source = NGINX.read_text(encoding="utf-8")
-        enum = re.search(
-            r"typedef enum \{[^}]*\} msconnector_nginx_intervention_disposition;",
-            source,
-        )
-        self.assertIsNotNone(enum)
-        assert enum is not None
-        body = function_body(source, "ngx_http_modsecurity_intervention_disposition")
-        program = "#include <assert.h>\n" + enum.group(0) + "\n"
-        program += (
-            "static msconnector_nginx_intervention_disposition classify("
-            "int ret, int error_page) " + body + "\n"
-        )
-        program += """
-int main(void) {
-    assert(classify(-1, 0) == MSCONNECTOR_NGINX_INTERVENTION_FAILURE);
-    assert(classify(-1, 1) == MSCONNECTOR_NGINX_INTERVENTION_FAILURE);
-    assert(classify(0, 0) == MSCONNECTOR_NGINX_INTERVENTION_ALLOW);
-    assert(classify(0, 1) == MSCONNECTOR_NGINX_INTERVENTION_BYPASS);
-    assert(classify(403, 0) == MSCONNECTOR_NGINX_INTERVENTION_ACTIVE);
-    assert(classify(403, 1) == MSCONNECTOR_NGINX_INTERVENTION_ACTIVE);
-    assert(classify(302, 1) == MSCONNECTOR_NGINX_INTERVENTION_ACTIVE);
-    return 0;
-}
-"""
-        self.compile_and_run(program)
 
     def test_b13_authoritative_uri_boundaries_and_no_fallback(self) -> None:
         source = AUTH.read_text(encoding="utf-8")
@@ -235,7 +208,7 @@ int main(void) {
         self.assertIn("return 0;", failure)
 
     def test_c07_off_branch_records_unapplied_action_not_requested_status(self) -> None:
-        """Source contract only: the Framework patch covers event normalization."""
+        """Source contract only; this is not a real event-normalization test."""
         source = SIDECAR.read_text(encoding="utf-8")
         marker = "if (phase4_mode == MSCONNECTOR_PHASE4_MODE_OFF)"
         start = source.index(marker)
