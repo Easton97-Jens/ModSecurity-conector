@@ -42,6 +42,13 @@ jobs:
             echo "CONNECTOR_COMPONENT_CACHE=$verified_root/component-cache"
             echo "NGINX_HARNESS_PARENT=$verified_root/nginx-harness"
           } >> "$GITHUB_ENV"
+      - name: Check Change Record contract before framework setup
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+          TMPDIR: ${{ runner.temp }}
+        run: |
+          python3 ci/tools/new-change-record.py check
+          python3 -m unittest -v tests.test_change_record tests.test_prepare_reviewed_framework_handoff
       - name: Lightweight connector/framework checks
         run: |
           make setup-dev
