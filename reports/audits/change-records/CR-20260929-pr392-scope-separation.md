@@ -71,7 +71,7 @@ The C07 source contract does not execute the sidecar or normalize a real event.
 After integration of either independent PR, rerun checks on the combined tree.
 Do not choose the old contradictory BYPASS assertion when resolving future conflicts.
 
-## Checks not executed and reasons
+## Checks not run and rationale
 
 Native builds, local suites and live hosts were not executed in this editor
 because its mandatory command wrapper and provisioned environments are absent.
