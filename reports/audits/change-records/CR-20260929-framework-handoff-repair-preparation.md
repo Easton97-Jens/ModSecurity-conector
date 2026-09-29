@@ -7,11 +7,11 @@
 | Field | Value |
 | --- | --- |
 | Change ID | CR-20260929-framework-handoff-repair-preparation |
-| Date | 2026-09-29 |
-| Parent base | `d56af0856507eb048987974d3960e301e7c24371` |
+| Date (UTC) | 2026-09-29 |
+| Base revision | `d56af0856507eb048987974d3960e301e7c24371` |
 | Delivery state | Preparation only; the production correction is not applied. |
 
-## Motivation
+## Motivation and problem statement
 
 The user requested diagnosis, repair, and a separate pull request for
 [run 36608694822, job 109544329844](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/36608694822/job/109544329844).
@@ -37,7 +37,7 @@ and applied, the real candidate passes the unchanged contract checks, and
 current-head CI is verified. Creating this preparation-only PR does not meet
 that criterion. Do not merge it as a completed production fix.
 
-## Technical decisions
+## Implementation decision and rationale
 
 The new one-time generator reads the two exact Framework Git objects as data.
 It checks that the baseline reproduces the currently approved structural hash
@@ -79,7 +79,7 @@ the generic synchronizer. Candidate shell is never sourced by the generator.
 - `reports/audits/change-records/CR-20260929-framework-handoff-repair-preparation.md`
 - `reports/audits/change-records/CR-20260929-framework-handoff-repair-preparation.de.md`
 
-## Tests and actual results
+## Commands executed
 
 The unmodified generator and test file were loaded from an isolated fixture
 tree using Python 3.13.5: **19 unit tests passed**. Both new Python files
@@ -96,7 +96,7 @@ Python 3.14.7 CI environment. The exact real-repository patch check has not run.
 None. No native connector build, NGINX execution, or successor runtime
 matrix is asserted.
 
-## Checks not run
+## Checks not run and rationale
 
 The real candidate verifier after patch application, the full repository
 CI-security suite, the NGINX/evidence suite, bilingual/link checks, and
@@ -144,13 +144,13 @@ Review the staged diff, commit only the task changes on the task branch,
 update this record with actual results, and verify the exact successor PR
 head before considering the repair complete. No merge is authorized.
 
-## Residual risks
+## Remaining risks
 
 The repair recipe may expose further integration failures when exercised
 against the real checkout. No passing unit result removes that uncertainty.
 The preparation must not be mistaken for an applied or fully verified fix.
 
-## Final review status
+## Final diff and review status
 
 Diagnosis and the offline generator tests are supported by observed evidence.
 Production application, full validation, and resolution of the original

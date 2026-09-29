@@ -6,12 +6,12 @@
 
 | Feld | Wert |
 | --- | --- |
-| Change ID | CR-20260929-framework-handoff-repair-preparation |
-| Datum | 2026-09-29 |
-| Parent-Basis | `d56af0856507eb048987974d3960e301e7c24371` |
+| Change-ID | CR-20260929-framework-handoff-repair-preparation |
+| Datum (UTC) | 2026-09-29 |
+| Basis-Revision | `d56af0856507eb048987974d3960e301e7c24371` |
 | Lieferstatus | Nur Vorbereitung; die Produktionskorrektur ist nicht angewendet. |
 
-## Motivation
+## Motivation und Problemstellung
 
 Der Benutzer hat Diagnose, Behebung und einen separaten Pull Request für
 [Lauf 36608694822, Job 109544329844](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/36608694822/job/109544329844)
@@ -39,7 +39,7 @@ Vertragsprüfungen besteht und die CI des aktuellen Heads verifiziert wurde.
 Dieser reine Vorbereitungs-PR erfüllt das noch nicht. Er darf nicht als
 abgeschlossene Produktionskorrektur gemergt werden.
 
-## Technische Entscheidungen
+## Implementierungsentscheidung und Begründung
 
 Der neue einmalige Generator liest die zwei exakten Framework-Git-Objekte als
 Daten. Er prüft, dass die Basis den aktuell freigegebenen Strukturhash
@@ -69,7 +69,7 @@ Fetch, Checkout, Commit oder Push durch noch erstellt er einen Workflow.
 Der vollständige Patch aus dem echten Repository wurde in dieser Sitzung
 noch nicht erzeugt oder angewendet.
 
-## Sicherheitsauswirkung
+## Security-Auswirkung
 
 Diese Vorbereitung ändert keine produktive Schutzprüfung, Parsergrammatik,
 Liste veränderlicher Felder, Provenance-Policy, Sandbox,
@@ -85,7 +85,7 @@ Synchronisierer hinzugefügt. Der Generator sourct niemals Kandidaten-Shellcode.
 - `reports/audits/change-records/CR-20260929-framework-handoff-repair-preparation.md`
 - `reports/audits/change-records/CR-20260929-framework-handoff-repair-preparation.de.md`
 
-## Tests und tatsächliche Ergebnisse
+## Ausgeführte Befehle
 
 Der unveränderte Generator und seine Testdatei wurden mit Python 3.13.5
 aus einem isolierten Fixture-Verzeichnis geladen: **19 Unit-Tests bestanden**.
@@ -99,12 +99,12 @@ Das war kein projektnativer Testlauf und verwendete nicht die gepinnte
 Python-3.14.7-CI-Umgebung. Die exakte Patchprüfung am echten Repository
 wurde noch nicht ausgeführt.
 
-## Laufzeit-Evidence
+## Runtime-Evidence
 
 Keine. Es wird kein nativer Connector-Build, NGINX-Lauf oder nachfolgender
 Laufzeitmatrix-Erfolg behauptet.
 
-## Nicht ausgeführte Prüfungen
+## Nicht ausgeführte Prüfungen mit Begründung
 
 Der echte Kandidaten-Verifier nach Patchanwendung, die vollständige
 CI-Security-Suite, die NGINX-/Evidence-Suite, Bilingual-/Link-Prüfungen
@@ -156,14 +156,14 @@ diesen Record mit tatsächlichen Ergebnissen aktualisieren und den exakten
 nachfolgenden PR-Head verifizieren, bevor die Reparatur als abgeschlossen
 gilt. Ein Merge ist nicht autorisiert.
 
-## Restrisiken
+## Verbleibende Risiken
 
 Der Reparaturablauf kann bei der Ausführung am echten Checkout weitere
 Integrationsfehler sichtbar machen. Erfolgreiche Unit-Tests beseitigen
 diese Unsicherheit nicht. Die Vorbereitung darf nicht mit einem angewendeten
 oder vollständig verifizierten Fix verwechselt werden.
 
-## Abschließender Review-Status
+## Finaler Diff- und Review-Status
 
 Diagnose und Offline-Generator-Tests sind durch beobachtete Evidence gestützt.
 Produktive Anwendung, vollständige Validierung und Behebung des ursprünglichen
