@@ -730,9 +730,6 @@ ngx_http_modsecurity_inspect_request_body(ngx_http_request_t *r,
         ctx->intervention_triggered = 1;
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-    if (r->error_page) {
-        return NGX_DECLINED;
-    }
     if (ret > 0) {
         ngx_http_modsecurity_request_intervention_log_event(r, mcf,
             MSCONNECTOR_PHASE_REQUEST_BODY, "request_body_before_handler");

@@ -1,0 +1,42 @@
+name: Finding regressions (Parent)
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - "connectors/nginx/src/**"
+      - "tests/c_source_contract.py"
+      - "tests/test_nginx_error_page_intervention.py"
+      - "tests/test_security_finding_intake.py"
+      - "reports/audits/findings/20260929-intake.json"
+      - ".github/workflows/ci-findings-regressions.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  nginx-b09-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      TMPDIR: ${{ runner.temp }}/findings-regressions
+    steps:
+      - name: Checkout exact reviewed candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+      - name: Set up repository Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+      - name: Compile and run the bounded NGINX regression seam
+        run: |
+          set -eu
+          mkdir -p "$TMPDIR"
+          python3 -m unittest tests.test_nginx_error_page_intervention tests.test_security_finding_intake -v
