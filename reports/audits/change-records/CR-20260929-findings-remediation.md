@@ -8,9 +8,9 @@
 | --- | --- |
 | Change ID | `CR-20260929-findings-remediation` |
 | Date (UTC) | 2026-09-29 |
-| Parent base revision | `d56af0856507eb048987974d3960e301e7c24371` |
+| Base revision | `d56af0856507eb048987974d3960e301e7c24371` |
 | Source finding | `B09` / `csf_110c7b683d38cd566861364f` |
-| Delivery target | Separate task-owned Draft PR; no merge |
+| Delivery target | Parent Draft PR #391; no merge |
 
 ## Motivation and problem statement
 
@@ -26,6 +26,12 @@ items; partial overlaps remain explicit rather than erasing independent
 body or stream boundaries. Earlier conversational assessments are not fresh
 verification and are not used to close or downgrade source findings.
 
+The first published workflow incorrectly used the runner context in job-level
+environment values. CI remediation moves TMPDIR into the executing step,
+where that context is supported, without removing the regression command.
+The Change Record now follows the existing bilingual schema; the checker
+and its required sections are not weakened.
+
 ## Acceptance criteria
 
 - A positive native intervention remains active even on an error-page request.
@@ -36,13 +42,16 @@ verification and are not used to close or downgrade source findings.
 - Request-processing, terminal-state and error guards remain in place.
 - The original native error-page routing scenario still requires a pinned
   live-host regression before B09 can be considered verified.
+- The dedicated workflow must execute its tests and the existing documentation
+  and workflow checks must pass on the repaired PR head.
 
 ## Implementation decision and rationale
 
 The shared classifier no longer derives an engine decision from the general
-error-page marker. A zero P1 result stays ALLOW so request-body processing runs. P1 and P3 callers continue using that classifier. The
-independent P2 handler no longer returns early solely because of the marker;
-its negative-result, decision-event and terminal-state handling is preserved.
+error-page marker. A zero P1 result stays ALLOW so request-body processing runs.
+P1 and P3 callers continue using that classifier. The independent P2 handler
+no longer returns early solely because of the marker; its negative-result,
+decision-event and terminal-state handling is preserved.
 
 The added C17 regression seam compiles the actual classifier and actual P1/P2
 result tails, with controlled native-return and event-sink doubles. It covers
@@ -51,23 +60,11 @@ and set. It is not a live NGINX or libmodsecurity integration test.
 
 An independent intake test checks all 72 source aliases and the 59-item map.
 A bounded read-only GitHub workflow executes these new tests at the PR head,
-using action pins already present in this repository. It does not alter
-existing required checks, permissions, dependency locks or quality gates.
+using action pins already present in this repository. The temporary directory
+is created with a private umask before test execution. Existing required
+checks, dependency locks, token permissions and quality gates remain intact.
 
-## Security and compatibility impact
-
-A real blocking/redirecting decision is no longer treated as absent merely
-because NGINX is processing an error page. A no-decision P1 result no longer
-skips P2 on an error-page request. Re-entrant error-page routing and final host/client behavior still
-need live-host confirmation. This does not change unsupported streaming,
-endpoint, socket, supply-chain or other connector behaviors.
-
-The existing independent Draft PRs #382 and #370 overlap NGINX-related work.
-Their branches and evidence are not changed or imported. Integration with
-those changes requires a later reviewed comparison; an unrelated green check
-does not verify this draft.
-
-## Changed files and tests
+## Changed files
 
 - `connectors/nginx/src/ngx_http_modsecurity_common.h`
 - `connectors/nginx/src/ngx_http_modsecurity_access.c`
@@ -77,29 +74,67 @@ does not verify this draft.
 - `reports/audits/findings/20260929-intake.json`
 - This English/German Change Record pair.
 
-## Commands and results
+## Commands executed
 
-| Check | Actual result at preparation |
+| Check | Actual evidence and limitation |
 | --- | --- |
-| GitHub base-file transfer | Both complete C files matched their Git blob SHA-1 before editing |
-| Scoped source comparison | Only the stated classifier/P2 changes; no unrelated source replacement |
-| Python syntax / intake JSON | Parsed as data; not execution of the candidate tests |
+| Original GitHub base-file transfer | Both complete C files matched their Git blob SHA-1 before the initial edit |
+| Original source comparison | Only the stated classifier/P2 changes; no unrelated source replacement |
+| Original Python syntax / intake JSON | Parsed as data; not execution of the candidate tests |
 | Local compiled/unit regression | NOT RUN: required RTK wrapper is unavailable |
-| Local native build / live host | NOT RUN: no complete checkout or host build; GitHub DNS download failed |
-| Native git diff --check | NOT RUN; added-line whitespace is inspected separately |
-| New exact-head GitHub regression jobs | Configured, result pending; inspect the PR checks |
-| Full CI / SonarQube / security scan | Not claimed successful by this Change Record |
+| Local native build / live host | NOT RUN: no complete checkout or host build in the editing environment |
+| Local git diff --check | NOT RUN; this API-delivered correction does not imply a local Git check |
+| Original exact-head workflow | Invalid runner context prevented the intended dedicated regression run |
+| Repaired exact-head workflow and full CI | Pending fresh results after this commit; no pass claimed here |
 
 The available code-work skill was loaded. The repository-referenced global
-execution skill was not accessible in this environment. No local project
-command was silently substituted for the mandatory RTK path.
+execution skill was not accessible in the editing environment. No local
+project command was silently substituted for the mandatory RTK path.
 
-## Remaining work and ownership
+## Security impact
 
-B09 is a candidate patch, not verified or closed. Every other Parent work item
-is unchanged in this draft. B03's Framework-owned entrypoint mitigation is
-delivered separately; the root-cause code is owned by MRTS and is not modified.
+A real blocking/redirecting decision is no longer treated as absent merely
+because NGINX is processing an error page. A no-decision P1 result no longer
+skips P2 on an error-page request. Re-entrant error-page routing and final
+host/client behavior still need live-host confirmation. This does not change
+unsupported streaming, endpoint, socket, supply-chain or other connector
+behaviors. The CI correction does not alter the product decision logic.
+
+## Runtime evidence
+
+No original-scenario live-host reproduction is established by this record.
+The extracted C seam exercises only its declared layer. A successful build,
+fixture, unrelated workflow or configuration load does not establish a
+recursion-safe B09 runtime fix. Fresh head-bound CI results must be reviewed
+separately before any verification claim.
+
+## Known limitations
+
+B09 remains a candidate patch, not verified or closed. Every other Parent
+work item is unchanged in this draft. B03's Framework-owned entrypoint
+mitigation is delivered separately; the root-cause code belongs to MRTS and
+is not modified.
+
+## Remaining risks
+
+The independent Draft PRs #382 and #370 overlap NGINX-related work; PR #392
+also touches the classifier. Their branches and evidence are not imported.
+Integration requires a later reviewed comparison. Error-page recursion and
+the complete P1/P2/P3 host flow require their own acceptance evidence.
+
+## Checks not run and rationale
+
+Local repository tests, full native builds and live-host acceptance were not
+run because the editing environment lacks the required RTK execution path
+and a provisioned repository/host environment. No omitted check is a PASS.
+Pending checks on the repaired head are not replaced by old-head successes.
+
+## Final diff and review status
+
+The CI-remediation slice changes only the dedicated workflow and this paired
+record. It preserves the regression commands and all pre-existing checks.
+The PR remains a draft until current-head checks and review are complete.
 
 Parent and Framework commits/PRs are independent. Both gitlinks remain
 unchanged. No default-branch push, force-push, merge, risk acceptance, raw scan
-publication or security-gate relaxation is authorized by this record.
+publication or security-gate relaxation is performed by this change.

@@ -2,7 +2,8 @@ name: Finding regressions (Parent)
 
 on:
   pull_request:
-    branches: [master]
+    branches:
+      - master
     paths:
       - "connectors/nginx/src/**"
       - "tests/c_source_contract.py"
@@ -21,7 +22,6 @@ jobs:
     timeout-minutes: 10
     env:
       PYTHONDONTWRITEBYTECODE: "1"
-      TMPDIR: ${{ runner.temp }}/findings-regressions
     steps:
       - name: Checkout exact reviewed candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -36,7 +36,10 @@ jobs:
           python-version-file: .python-version
           check-latest: false
       - name: Compile and run the bounded NGINX regression seam
+        env:
+          TMPDIR: ${{ runner.temp }}/findings-regressions
         run: |
           set -eu
+          umask 077
           mkdir -p "$TMPDIR"
           python3 -m unittest tests.test_nginx_error_page_intervention tests.test_security_finding_intake -v
