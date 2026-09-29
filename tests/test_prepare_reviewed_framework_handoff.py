@@ -15,7 +15,8 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "ci/tools/prepare-reviewed-framework-handoff.py"
 SPEC = importlib.util.spec_from_file_location("prepare_reviewed_framework_handoff", SCRIPT)
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 REPAIR = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = REPAIR
 SPEC.loader.exec_module(REPAIR)
@@ -104,8 +105,9 @@ class PrepareReviewedFrameworkHandoffTests(unittest.TestCase):
             REPAIR.structure_digest(self.previous + 'ENVOY_VERSION="fixture"\n')
 
     def test_missing_generic_field_is_rejected(self) -> None:
+        previous = self.previous.replace('ENVOY_VERSION="fixture"\n', "")
         with self.assertRaisesRegex(REPAIR.RepairError, "Incomplete"):
-            REPAIR.structure_digest(self.previous.replace('ENVOY_VERSION="fixture"\n', ""))
+            REPAIR.structure_digest(previous)
 
     def test_missing_replacement_is_rejected(self) -> None:
         with self.assertRaises(REPAIR.RepairError):
