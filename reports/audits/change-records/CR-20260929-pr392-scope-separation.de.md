@@ -36,10 +36,17 @@ gehört nicht zu Framework-PR #128. Der bisherige Finding-Record bleibt als
 historischer Vorbereitungsnachweis erhalten; dieser Record ersetzt dessen
 B09-Lieferumfang, nicht dessen historische Prüfaussagen.
 
+Der bestehende Test-common-Workflow führt die drei verbleibenden Methoden
+explizit mit dem Repository-Python und vorausgesetztem C-Compiler aus.
+Das private Arbeitsverzeichnis liegt schrittbezogen unter runner.temp.
+Vorhandene Checks, Rechte und Action-Pins bleiben unverändert. Ein fehlender
+Compiler kann in diesem CI-Aufruf keinen übersprungenen C-Test als Erfolg ausgeben.
+
 ## Geänderte Dateien
 
 - `connectors/nginx/src/ngx_http_modsecurity_common.h`
 - `tests/test_reported_security_regressions.py`
+- `.github/workflows/test-common.yml`
 - Dieses englisch/deutsche Change-Record-Paar.
 
 ## Ausgeführte Befehle
@@ -48,7 +55,9 @@ GitHub-API-Quell-/Blobabfragen und begrenzte Quelltransformation wurden ausgefü
 Die ursprüngliche Testdatei stimmte vor der Änderung mit ihrem aktuellen Gitblob
 überein. Python-AST und Erhalt der B13-Assertions wurden als Datenverarbeitung
 geprüft. Lokale Projekttests: NOT RUN, da vorgeschriebenes RTK und provisionierte
-Repositoryumgebung fehlen. CI am neuen Head steht aus.
+Repositoryumgebung fehlen. CI am neuen Head steht aus. Die Checks-not-run-
+Überschrift im ersten englischen Folge-Record scheiterte am bestehenden
+Bilingualchecker und wurde ohne Checkeränderung korrigiert.
 
 ## Security-Auswirkung
 
@@ -62,7 +71,8 @@ B13/C07-Verhalten, Dependency-Pins, CI-Rechte und Submodule-Gitlinks bleiben gle
 Diese Nachbesserung erzeugt keinen Live-Host-Nachweis. Grüne Prüfungen des
 vorherigen Heads gelten nicht automatisch für den neuen Commit. Die echte
 B13-Proxygrenze und C07-Übereinstimmung von Clientantwort und Event benötigen
-weiterhin ihre gezielten Laufzeitprüfungen.
+weiterhin ihre gezielten Laufzeitprüfungen. Der explizite Unit-Aufruf belegt
+nur die Helfer-/Quellvertragsebene.
 
 ## Bekannte Einschränkungen
 
@@ -82,5 +92,6 @@ oder ausstehende Prüfungen gelten nicht als bestanden.
 
 ## Finaler Diff- und Review-Status
 
-Die Änderung beschränkt sich auf die Umfangstrennung. Der bestehende PR bleibt
-Draft; kein Merge, Force-Push, gelockertes Gate, Severitywechsel oder Findingabschluss.
+Die Änderung beschränkt sich auf Umfangstrennung und explizite Ausführung
+vorhandener Tests. Der bestehende PR bleibt Draft; kein Merge, Force-Push,
+gelockertes Gate, Severitywechsel oder Findingabschluss.

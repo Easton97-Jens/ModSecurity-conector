@@ -34,10 +34,17 @@ Framework normalizer patch, which is not part of Framework PR #128.
 The earlier reported-findings record describes historical preparation; this
 record supersedes its B09 delivery scope, not its recorded historical evidence.
 
+The existing test-common workflow explicitly runs the three remaining test
+methods with the repository-selected Python and a required C compiler. Its
+private scratch directory is step-scoped below runner.temp. Existing checks,
+permissions and action pins remain unchanged. A compiler absence cannot be
+reported as a successful skipped C regression in this CI invocation.
+
 ## Changed files
 
 - `connectors/nginx/src/ngx_http_modsecurity_common.h`
 - `tests/test_reported_security_regressions.py`
+- `.github/workflows/test-common.yml`
 - This English/German Change Record pair.
 
 ## Commands executed
@@ -47,6 +54,8 @@ The original test file matched its current Git blob identity before editing.
 Python AST parsing and preservation of the B13 assertion bodies were checked
 as data processing. Local project tests were NOT RUN: required RTK and the
 provisioned repository environment are unavailable. New-head CI is pending.
+The first follow-up's English checks-not-run heading failed the existing
+bilingual checker and was corrected without changing that checker.
 
 ## Security impact
 
@@ -60,6 +69,7 @@ B13/C07 behavior, dependency pins, CI permissions and submodule gitlinks do not 
 This follow-up creates no live-host evidence. Existing green checks on the
 previous head are not claimed for this new commit. Real B13 proxy boundaries
 and C07 client/event agreement still require their scoped runtime checks.
+The explicit unit invocation proves only the helper/source-contract layer.
 
 ## Known limitations
 
@@ -79,5 +89,6 @@ No skipped or pending check is reported as passing.
 
 ## Final diff and review status
 
-The change is limited to scope separation. The existing PR remains a draft;
-no merge, force push, quality-gate waiver, severity change or finding closure occurs.
+The change is limited to scope separation and explicit existing-test execution.
+The existing PR remains a draft; no merge, force push, quality-gate waiver,
+severity change or finding closure occurs.
