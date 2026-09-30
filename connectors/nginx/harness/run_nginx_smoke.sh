@@ -169,7 +169,7 @@ case "$NGINX_PHASE4_LOG_TARGET_MODE" in
         ;;
 esac
 case "$NGINX_PHASE4_LOG_SCOPE" in
-    location|server|server_with_location_override) ;;
+    location|location_if_missing|server|server_with_location_override) ;;
     *)
         echo "nginx_smoke: blocked unsupported NGINX_PHASE4_LOG_SCOPE"
         exit 77
@@ -1707,6 +1707,16 @@ render_config() {
         location)
             # Connector-specific Framework cases own their one location
             # directive through the generated include below.
+            ;;
+        location_if_missing)
+            # Generic no-CRS cases need the same case-local native sink that
+            # connector-specific fixtures already provide in their include.
+            [ -r "$NGINX_LOCATION_DIRECTIVES_FILE" ] || \
+                fail "missing generated NGINX location directives"
+            if ! grep -Eq '^[[:space:]]*modsecurity_phase4_log[[:space:]]' \
+                "$NGINX_LOCATION_DIRECTIVES_FILE"; then
+                NGINX_PHASE4_LOG_LOCATION_DIRECTIVE="modsecurity_phase4_log \"$NGINX_PHASE4_LOG_FILE\";"
+            fi
             ;;
         server)
             NGINX_PHASE4_LOG_SERVER_DIRECTIVE="modsecurity_phase4_log \"$NGINX_PHASE4_LOG_SERVER_FILE\";"

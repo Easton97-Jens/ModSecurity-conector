@@ -311,6 +311,15 @@ success: the proof still requires curl exit `0`, HTTP `200`, and actual native
 Phase-4 evidence. Rule `1100301` remains a disruptive rule; Safe late handling,
 not a changed rule or transport waiver, preserves the committed response.
 
+The Parent's NGINX no-CRS lifecycle stage selects
+`NGINX_PHASE4_LOG_SCOPE=location_if_missing`. After each case is materialized,
+the harness adds one `modsecurity_phase4_log` location directive pointing to
+that case's private `LOG_DIR/phase4.log` only when the generated location
+include has no such directive. Connector-specific Phase-4 fixtures retain
+their own directive; direct harness defaults and the separate First-Byte
+route are unchanged. The name of the directive does not limit the sink to
+Phase 4: native request- and response-phase events use the same descriptor.
+
 `modsecurity_phase4_body_limit` defaults to 1048576 bytes (1 MiB). A configured
 value must still be positive and at most 10485760 bytes (10 MiB), including in
 `off`; only runtime enforcement of this extra budget is disabled in `off`.

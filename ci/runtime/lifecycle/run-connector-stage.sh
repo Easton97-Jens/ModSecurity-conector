@@ -233,7 +233,16 @@ case "$connector:$stage" in
                 RUN_ONE_CASE=0 SMOKE_CASES="$NO_CRS_SELECTED_CASES"
         fi
         ;;
-    apache:no_crs_baseline|nginx:no_crs_baseline)
+    nginx:no_crs_baseline)
+        [ -n "${NO_CRS_SELECTED_CASES:-}" ] || {
+            echo "$NO_CRS_SELECTED_CASES_MISSING_MESSAGE" >&2
+            exit 1
+        }
+        run_framework_host "run-nginx-smoke.sh" minimal_runtime_smoke \
+            RUN_ONE_CASE=0 SMOKE_CASES="$NO_CRS_SELECTED_CASES" \
+            NGINX_PHASE4_LOG_SCOPE=location_if_missing
+        ;;
+    apache:no_crs_baseline)
         [ -n "${NO_CRS_SELECTED_CASES:-}" ] || {
             echo "$NO_CRS_SELECTED_CASES_MISSING_MESSAGE" >&2
             exit 1

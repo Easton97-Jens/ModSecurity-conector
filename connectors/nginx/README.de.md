@@ -331,6 +331,16 @@ tatsächliche native Phase-4-Evidence. Regel `1100301` bleibt disruptiv; die
 späte Safe-Behandlung erhält die bereits committete Response, nicht eine
 geänderte Regel oder eine Ausnahme für Transportfehler.
 
+Die NGINX-No-CRS-Lifecycle-Stage des Parents wählt
+`NGINX_PHASE4_LOG_SCOPE=location_if_missing`. Nach der Materialisierung jedes
+Cases ergänzt der Harness genau eine `modsecurity_phase4_log`-Direktive im
+Location-Kontext für dessen private `LOG_DIR/phase4.log`, falls das erzeugte
+Location-Include keine solche Direktive enthält. Connector-spezifische
+Phase-4-Fixtures behalten ihre eigene Direktive; die direkten Harness-Defaults
+und der separate First-Byte-Pfad bleiben unverändert. Der Direktivenname
+beschränkt den Sink nicht auf Phase 4: native Request- und Response-Phase-
+Events nutzen denselben Deskriptor.
+
 `modsecurity_phase4_body_limit` hat standardmäßig 1048576 Byte (1 MiB). Ein
 konfigurierter Wert muss weiterhin positiv sein und darf höchstens 10485760
 Byte (10 MiB) betragen, auch in `off`; nur die Laufzeitdurchsetzung dieses
