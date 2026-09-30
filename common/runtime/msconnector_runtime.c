@@ -1817,6 +1817,30 @@ static int write_event_jsonl(
     return 1;
 }
 
+/* The caller holds the runtime operation lock. */
+static int emit_integrity_chained_event_locked(
+    msconnector_runtime_transaction *transaction,
+    msconnector_event *event,
+    const char *sequence_failure_message,
+    msconnector_error *error) {
+    msconnector_runtime *runtime = transaction->runtime;
+
+    if (msconnector_flow_guard_next_sequence(&transaction->flow,
+            &event->integrity.sequence) != MSCONNECTOR_FLOW_GUARD_OK) {
+        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+            sequence_failure_message, "runtime");
+    }
+    event->integrity.previous_hash = runtime->previous_event_hash;
+    event->integrity.event_hash = msconnector_integrity_event_hash(
+        event, event->integrity.previous_hash);
+    if (!write_event_jsonl(runtime, event, error)) {
+        transaction->event_write_failed = 1;
+        return 0;
+    }
+    runtime->previous_event_hash = event->integrity.event_hash;
+    return 1;
+}
+
 static int emit_decision_event(
     msconnector_runtime_transaction *transaction,
     const msconnector_decision *decision,
@@ -1857,21 +1881,8 @@ static int emit_decision_event(
             runtime->config.phase4_mode);
     }
     populate_event_host_action(&event, host_action);
-    if (msconnector_flow_guard_next_sequence(&transaction->flow,
-            &event.integrity.sequence) != MSCONNECTOR_FLOW_GUARD_OK) {
-        success = runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
-            "event sequence failed", "runtime");
-    } else {
-        event.integrity.previous_hash = runtime->previous_event_hash;
-        event.integrity.event_hash = msconnector_integrity_event_hash(
-            &event, event.integrity.previous_hash);
-        if (!write_event_jsonl(runtime, &event, error)) {
-            transaction->event_write_failed = 1;
-            success = 0;
-        } else {
-            runtime->previous_event_hash = event.integrity.event_hash;
-        }
-    }
+    success = emit_integrity_chained_event_locked(
+        transaction, &event, "event sequence failed", error);
     runtime_operation_unlock(runtime);
     return success;
 }
@@ -2015,21 +2026,10 @@ static int emit_contract_terminal_event(
     populate_event_response_state(&event, transaction);
 
     runtime_operation_lock(runtime);
-    if (msconnector_flow_guard_next_sequence(&transaction->flow,
-            &event.integrity.sequence) != MSCONNECTOR_FLOW_GUARD_OK) {
-        success = runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
-            "terminal event sequence failed", "runtime");
-    } else {
-        event.integrity.previous_hash = runtime->previous_event_hash;
-        event.integrity.event_hash = msconnector_integrity_event_hash(
-            &event, event.integrity.previous_hash);
-        if (!write_event_jsonl(runtime, &event, error)) {
-            transaction->event_write_failed = 1;
-            success = 0;
-        } else {
-            runtime->previous_event_hash = event.integrity.event_hash;
-            transaction->terminal_event_emitted = 1;
-        }
+    success = emit_integrity_chained_event_locked(
+        transaction, &event, "terminal event sequence failed", error);
+    if (success) {
+        transaction->terminal_event_emitted = 1;
     }
     runtime_operation_unlock(runtime);
     return success;

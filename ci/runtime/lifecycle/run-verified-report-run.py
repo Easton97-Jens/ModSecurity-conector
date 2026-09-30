@@ -1515,12 +1515,12 @@ def markdown_command_lines(payload: dict[str, Any]) -> list[str]:
 def markdown_full_matrix_completeness_lines(payload: dict[str, Any]) -> list[str]:
     completeness = payload.get("full_matrix_job_completeness", {})
     lines = ["", "## Full-Matrix Job Completeness", "", FIELD_VALUE_TABLE_HEADER, FIELD_VALUE_TABLE_DIVIDER]
-    lines.append(
-        f"| Completeness | `{markdown_cell(completeness.get('complete_jobs', 0))}/{markdown_cell(completeness.get('total_jobs', 0))}` |"
-    )
-    lines.append(f"| Overall status | `{markdown_cell(completeness.get('status', 'unknown'))}` |")
-    lines.append(f"| Missing jobs | `{markdown_cell(', '.join(completeness.get('missing_jobs', [])) or '-')}` |")
-    lines.append(f"| Timeout jobs | `{markdown_cell(', '.join(completeness.get('timeout_jobs', [])) or '-')}` |")
+    lines.extend([
+        f"| Completeness | `{markdown_cell(completeness.get('complete_jobs', 0))}/{markdown_cell(completeness.get('total_jobs', 0))}` |",
+        f"| Overall status | `{markdown_cell(completeness.get('status', 'unknown'))}` |",
+        f"| Missing jobs | `{markdown_cell(', '.join(completeness.get('missing_jobs', [])) or '-')}` |",
+        f"| Timeout jobs | `{markdown_cell(', '.join(completeness.get('timeout_jobs', [])) or '-')}` |",
+    ])
     lines.extend(["", "| Slowest Job | Duration Seconds | Status |", "|---|---:|---|"])
     for job in completeness.get("slowest_jobs", []):
         lines.append(
@@ -1549,8 +1549,7 @@ def markdown_runtime_mismatch_lines(payload: dict[str, Any]) -> list[str]:
 def blocked_or_stale_input_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for key in ("missing_inputs", "skipped_reports", "blocked_reports", "failed_reports", "stale_inputs"):
-        for item in payload.get(key, []):
-            rows.append(item)
+        rows.extend(payload.get(key, []))
     return rows
 
 
