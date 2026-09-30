@@ -129,7 +129,7 @@ func dialWithExpectedPeer(path string, timeout time.Duration, expectedUID, expec
 	if err != nil {
 		return nil, fmt.Errorf("response observer: dial private socket: %w", err)
 	}
-	if err := verifyResponseCompanionPeer(conn, expectedUID, expectedGID); err != nil {
+	if err := VerifyPeerCredentials(conn, expectedUID, expectedGID); err != nil {
 		_ = conn.Close()
 		return nil, fmt.Errorf("response observer: authenticate private socket peer: %w", err)
 	}

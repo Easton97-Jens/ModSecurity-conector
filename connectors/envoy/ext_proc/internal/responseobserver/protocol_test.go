@@ -35,6 +35,15 @@ func testSocketDir(t *testing.T) string {
 	return dir
 }
 
+func newProtocolTestClient(t *testing.T, path string) *client {
+	t.Helper()
+	conn, err := net.DialTimeout("unix", path, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &client{conn: conn, timeout: time.Second}
+}
+
 func writeResultFrame(w io.Writer, op, code, decision byte) error {
 	payload := make([]byte, 12)
 	payload[0], payload[1], payload[2] = op, code, decision
@@ -98,10 +107,7 @@ func TestClientFramesBoundedOrderedOperations(t *testing.T) {
 			}
 		}
 	}()
-	c, err := dial(path, time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
+	c := newProtocolTestClient(t, path)
 	defer c.close()
 	handle := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	if _, err = c.claim(handle); err != nil {
@@ -344,10 +350,7 @@ func TestPrecommitRecordsFailClosedFallbackOutcome(t *testing.T) {
 			}
 		}
 	}()
-	c, err := dial(path, time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
+	c := newProtocolTestClient(t, path)
 	service, err := New(Config{SocketPath: path})
 	if err != nil {
 		t.Fatal(err)
@@ -872,10 +875,7 @@ func TestReplayResultIsNotAccepted(t *testing.T) {
 		_, _ = conn.Write(oh[:])
 		_, _ = conn.Write(out)
 	}()
-	c, err := dial(path, time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
+	c := newProtocolTestClient(t, path)
 	defer c.close()
 	if r, err := c.claim("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"); err != nil || r.code == 0 {
 		t.Fatalf("replayed handle was accepted: result=%+v err=%v", r, err)

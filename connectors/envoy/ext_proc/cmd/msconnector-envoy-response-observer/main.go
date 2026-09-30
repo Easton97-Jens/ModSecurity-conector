@@ -271,7 +271,7 @@ func (listener *peerCredListener) Accept() (net.Conn, error) {
 		if err != nil {
 			return nil, err
 		}
-		if err := verifyPeerCredentials(conn, listener.uid, listener.gid); err != nil {
+		if err := responseobserver.VerifyPeerCredentials(conn, listener.uid, listener.gid); err != nil {
 			// Keep the local UDS trust boundary observable without disclosing a
 			// request, response, or the opaque correlation capability.
 			fmt.Fprintf(os.Stderr, "response observer rejected private UDS peer: %v\n", err)

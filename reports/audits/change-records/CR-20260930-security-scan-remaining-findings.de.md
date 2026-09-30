@@ -31,7 +31,7 @@ Die Envoy- und Traefik-Observer verwenden explizite erwartete UID/GID-Paare. Ohn
 - tests/response_companion_transport_test.c
 - examples/haproxy/spoe-spop/{strict,safe,off,all}/spoe.cfg
 - tests/test_haproxy_spop_peer_isolation_contract.py
-- connectors/envoy/ext_proc/internal/responseobserver/{protocol.go,service.go,peercred_linux.go,peercred_other.go,peercred_linux_test.go,protocol_test_helper_test.go}
+- connectors/envoy/ext_proc/internal/responseobserver/{protocol.go,service.go,peercred_linux.go,peercred_other.go,peercred_linux_test.go}
 - connectors/envoy/ext_proc/cmd/msconnector-envoy-response-observer/main.go
 - connectors/traefik/response_observer/{observer.go,observer_test.go,peercred_linux.go,peercred_other.go}
 - Connector-Source-Maps, Response-Observer-Dokumentation, fokussierte CI-Workflows und dieser gekoppelte Record

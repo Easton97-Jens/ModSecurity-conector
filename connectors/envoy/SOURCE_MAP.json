@@ -257,23 +257,13 @@
       "upstream_origin": "none"
     },
     {
-      "path": "connectors/envoy/ext_proc/cmd/msconnector-envoy-response-observer/peercred_linux.go",
-      "kind": "repository-local Linux SO_PEERCRED verification for the response-observer UDS listener",
-      "upstream_origin": "none"
-    },
-    {
-      "path": "connectors/envoy/ext_proc/cmd/msconnector-envoy-response-observer/peercred_other.go",
-      "kind": "repository-local fail-closed unsupported-platform response-observer peer credential stub",
-      "upstream_origin": "none"
-    },
-    {
       "path": "connectors/envoy/ext_proc/cmd/msconnector-envoy-response-observer/peercred_test.go",
       "kind": "repository-local response-observer peer credential listener test coverage",
       "upstream_origin": "none"
     },
     {
       "path": "connectors/envoy/ext_proc/internal/responseobserver/peercred_linux.go",
-      "kind": "repository-local Linux SO_PEERCRED authentication of the response companion before CLAIM",
+      "kind": "repository-local shared Linux SO_PEERCRED authentication for response-companion and UDS-listener peers",
       "upstream_origin": "none"
     },
     {
@@ -284,11 +274,6 @@
     {
       "path": "connectors/envoy/ext_proc/internal/responseobserver/peercred_linux_test.go",
       "kind": "repository-local response companion peer mismatch and configuration regression tests",
-      "upstream_origin": "none"
-    },
-    {
-      "path": "connectors/envoy/ext_proc/internal/responseobserver/protocol_test_helper_test.go",
-      "kind": "repository-local test-only unauthenticated protocol dial helper for cross-platform framing tests",
       "upstream_origin": "none"
     },
     {
