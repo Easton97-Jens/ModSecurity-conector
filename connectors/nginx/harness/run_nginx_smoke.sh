@@ -2123,7 +2123,7 @@ record_nginx_cleanup_state() {
     else
         write_nginx_lifecycle_event "phase=cleanup children=none result=passed"
     fi
-    if port_is_free "$PORT"; then
+    if cleanup_port_is_free "$PORT"; then
         write_nginx_lifecycle_event "phase=cleanup port=$PORT result=freed"
     else
         nginx_cleanup_check_status=1
@@ -2268,6 +2268,108 @@ cleanup() {
         fi
     done
     return "$nginx_cleanup_return"
+}
+
+cleanup_port_is_free() {
+    port_to_probe=$1
+    if nginx_port_probe_output=$("$PYTHON_BIN" - "$port_to_probe" "$NGINX_DOWNSTREAM_PROTOCOL" <<'PY'
+import json
+import os
+import socket
+import sys
+
+port = int(sys.argv[1])
+protocol = sys.argv[2]
+diagnostic = {
+    "address": "127.0.0.1",
+    "family": "AF_INET",
+    "netns": None,
+    "port": port,
+    "tcp_bind": "skipped",
+    "tcp_bind_errno": None,
+    "tcp_listeners": 0,
+    "tcp_reuseaddr": True,
+    "tcp_time_wait": 0,
+    "udp_bind": "not_applicable",
+    "udp_bind_errno": None,
+}
+
+
+def finish(result, status):
+    diagnostic["result"] = result
+    print(json.dumps(diagnostic, sort_keys=True, separators=(",", ":")))
+    return status
+
+
+try:
+    if not 1 <= port <= 65535 or protocol not in ("http1", "h2", "h3"):
+        raise ValueError("invalid probe arguments")
+    diagnostic["netns"] = os.readlink("/proc/self/ns/net")
+    with open("/proc/net/tcp", encoding="ascii") as table:
+        table_header = next(table).split()
+        if "local_address" not in table_header or "st" not in table_header:
+            raise ValueError("invalid TCP table header")
+        for line in table:
+            fields = line.split()
+            if len(fields) < 4:
+                raise ValueError("incomplete TCP table row")
+            address, hex_port = fields[1].split(":")
+            if len(address) != 8 or len(hex_port) != 4:
+                raise ValueError("invalid TCP local address")
+            int(address, 16)
+            local_port = int(hex_port, 16)
+            state = fields[3]
+            if len(state) != 2 or int(state, 16) not in range(1, 13):
+                raise ValueError("unknown TCP state")
+            if local_port == port and address in ("0100007F", "00000000"):
+                if state == "0A":
+                    diagnostic["tcp_listeners"] += 1
+                elif state == "06":
+                    diagnostic["tcp_time_wait"] += 1
+except (OSError, ValueError, IndexError, StopIteration) as error:
+    diagnostic["inspection_error"] = type(error).__name__
+    diagnostic["inspection_errno"] = getattr(error, "errno", None)
+    raise SystemExit(finish("inspection_failed", 1))
+
+if diagnostic["tcp_listeners"]:
+    raise SystemExit(finish("listener_present", 1))
+
+try:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as tcp:
+        tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        tcp.bind(("127.0.0.1", port))
+except OSError as error:
+    diagnostic["tcp_bind"] = "failed"
+    diagnostic["tcp_bind_errno"] = error.errno
+    raise SystemExit(finish("tcp_bind_failed", 1))
+diagnostic["tcp_bind"] = "ok"
+
+if protocol == "h3":
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp:
+            udp.bind(("127.0.0.1", port))
+    except OSError as error:
+        diagnostic["udp_bind"] = "failed"
+        diagnostic["udp_bind_errno"] = error.errno
+        raise SystemExit(finish("udp_bind_failed", 1))
+    diagnostic["udp_bind"] = "ok"
+
+raise SystemExit(finish("freed", 0))
+PY
+    ); then
+        nginx_port_probe_status=0
+    else
+        nginx_port_probe_status=$?
+    fi
+    if [ -z "$nginx_port_probe_output" ]; then
+        nginx_port_probe_output='{"result":"probe_execution_failed"}'
+        nginx_port_probe_status=1
+    fi
+    printf 'nginx_port_cleanup_probe %s\n' "$nginx_port_probe_output" >&2
+    if [ -n "${NGINX_LIFECYCLE_FILE:-}" ]; then
+        write_nginx_lifecycle_event "phase=cleanup port_probe=$nginx_port_probe_output"
+    fi
+    return "$nginx_port_probe_status"
 }
 
 port_is_free() {
