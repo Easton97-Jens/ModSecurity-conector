@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import contextlib
-import hashlib
 import importlib.util
 import io
 from pathlib import Path
@@ -42,24 +41,10 @@ class ReviewedVersionHandoffTest(unittest.TestCase):
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(text, encoding="utf-8")
 
-    def approve(self, common: str) -> None:
-        # Fixture-only approval. Production hashes are never patched by these tests.
+    def approve(self, _common: str) -> None:
+        # Fixture-only closed source registry; no structural digest is approved.
         mutable_fields = ("ENVOY_VERSION", *CHECKER.MODSECURITY_KEYS)
-        normalized = []
-        for line in common.splitlines(keepends=True):
-            content = line.rstrip("\r\n")
-            ending = line[len(content):]
-            name, separator, _value = content.partition("=")
-            if separator and name in mutable_fields:
-                normalized.append(f"{name}=<PARENT_REVIEWED_SOURCE_DATA>{ending}")
-            else:
-                normalized.append(line)
-        digest = hashlib.sha256("".join(normalized).encode()).hexdigest()
-        self.write(
-            CHECKER.VERIFIER,
-            f"MUTABLE_SOURCE_FIELDS = {mutable_fields!r}\n"
-            + f'APPROVED_FRAMEWORK_COMMON_STRUCTURE_SHA256 = "{digest}"\n',
-        )
+        self.write(CHECKER.VERIFIER, f"MUTABLE_SOURCE_FIELDS = {mutable_fields!r}\n")
 
     def guides(self, release: str = "v3.0.16", commit: str = "a" * 40) -> None:
         commands = [f'MODSECURITY_REF="{release}"', f'MODSECURITY_COMMIT="{commit}"']
@@ -136,8 +121,12 @@ class ReviewedVersionHandoffTest(unittest.TestCase):
                 with self.assertRaises(CHECKER.HandoffError):
                     CHECKER.inspect_handoff(self.root)
 
-    def test_mutable_version_data_does_not_require_new_structure_hash(self) -> None:
+    def test_mutable_version_data_is_accepted(self) -> None:
         self.write(CHECKER.COMMON, self.common.replace("1.2.3", "1.2.4"))
+        self.assertEqual(CHECKER.inspect_handoff(self.root)["status"], "consistent")
+
+    def test_new_shell_structure_is_not_blocked_by_a_fixed_digest(self) -> None:
+        self.write(CHECKER.COMMON, self.common + "\nfuture_helper() { :; }\n")
         self.assertEqual(CHECKER.inspect_handoff(self.root)["status"], "consistent")
 
     def test_unregistered_modsecurity_field_is_rejected_from_mutable_registry(self) -> None:

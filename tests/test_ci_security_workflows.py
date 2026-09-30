@@ -51,7 +51,7 @@ LOCKED_ACTION_USE = re.compile(
     r"(?P<prefix>uses:\s+[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?@)"
     r"(?P<sha>[a-f0-9]{40})(?:\s+#\s*v[^\n]+)?"
 )
-SUBMODULE_PUBLISHER_NORMALIZED_SHA256 = "9290821fe5188e05eeaf25383e8cc3587e7ff54f78beee36ed42709e40d841a2"
+SUBMODULE_PUBLISHER_NORMALIZED_SHA256 = "5bcfb23230ab1f5b93c7589446adcb9e96ef8d38564db6ed1ea0b52e14fad9dd"
 SUBMODULE_PUBLISHER_APP_TOKEN_ACTION = "actions/create-github-app-token"
 SUBMODULE_PUBLISHER_APP_TOKEN_INPUTS = {
     "client-id": "${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}",
@@ -172,7 +172,7 @@ SUBMODULE_VALIDATE_ONLY_MANUAL_PREDICATE = (
     f"{SUBMODULE_VALIDATE_ONLY_REF_ALLOWLIST}"
 )
 SUBMODULE_VALIDATE_ONLY_MASTER_EXCLUSION = (
-    "(github.event_name != 'workflow_dispatch' || "
+    "(github.event_name == 'workflow_dispatch' && "
     "github.event.inputs.validate_only != 'true')"
 )
 SUBMODULE_VALIDATE_ONLY_CHECKOUT_REF = (
@@ -920,6 +920,11 @@ def update_submodule_validate_only_errors(text: str) -> list[str]:
     """Return violations of the manual non-publishing validation contract."""
 
     errors: list[str] = []
+    trigger = re.search(r"(?ms)^on:\n(?P<body>.*?)(?=^permissions:)", text)
+    if trigger is None or re.findall(
+        r"(?m)^  ([A-Za-z_][A-Za-z0-9_-]*):", trigger.group("body")
+    ) != ["workflow_dispatch"]:
+        errors.append("submodule updater must have only workflow_dispatch")
     if text.count(SUBMODULE_VALIDATE_ONLY_INPUT) != 1:
         errors.append("validate_only must be one exact optional-false boolean input")
     if text.count(SUBMODULE_VALIDATE_ONLY_PROTECTED_FLAG) != 4:
@@ -3043,6 +3048,10 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertNotEqual(readonly_submodule_validator_errors(namespace_runner_removed), [])
 
         validate_only_mutations = {
+            "automatic schedule is reintroduced": (
+                "on:\n  workflow_dispatch:",
+                "on:\n  schedule:\n    - cron: '0 3 * * 1'\n  workflow_dispatch:",
+            ),
             "input enables validate_only by default": (
                 SUBMODULE_VALIDATE_ONLY_INPUT,
                 SUBMODULE_VALIDATE_ONLY_INPUT.replace("default: false", "default: true"),
@@ -3323,6 +3332,7 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn("python3 scripts/generate_compiler_guides.py", publisher)
         self.assertGreaterEqual(publisher.count("scripts/generate_compiler_guides.py"), 3)
         self.assertGreaterEqual(publisher.count("tests/test_compiler_guides.py"), 3)
+        self.assertEqual(publisher.count("tests/test_prepare_runtime_components.py"), 3)
         self.assertIn("docs/build/compilers/lighttpd.de.md", publisher)
         self.assertIn('git -c core.hooksPath=/dev/null add --', publisher)
         self.assertNotIn("git add .", publisher)

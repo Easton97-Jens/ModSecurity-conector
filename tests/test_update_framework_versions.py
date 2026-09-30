@@ -329,6 +329,7 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         self.assertTrue(
             {
                 "ci/provisioning/components/prepare-runtime-components.py",
+                "tests/test_prepare_runtime_components.py",
                 "connectors/lighttpd/lighttpd-version.contract",
                 "connectors/lighttpd/SOURCE_MAP.json",
                 "connectors/haproxy/htx-overlay/version-contract.json",
@@ -337,6 +338,14 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         runtime = (self.root / "ci/provisioning/components/prepare-runtime-components.py").read_text()
         self.assertIn('DEFAULT_NGINX_QUIC_TLS_VERSION = "4.0.1"', runtime)
         self.assertIn('DEFAULT_HAPROXY_VERSION = "3.3.1"', runtime)
+        haproxy_tests = (self.root / "tests/test_prepare_runtime_components.py").read_text()
+        self.assertIn('TEST_HAPROXY_LOCKED_VERSION = "3.3.1"', haproxy_tests)
+        self.assertIn(
+            'TEST_HAPROXY_LOCKED_SOURCE_URL = "https://www.haproxy.org/'
+            'download/3.3/src/haproxy-3.3.1.tar.gz"',
+            haproxy_tests,
+        )
+        self.assertIn('TEST_HAPROXY_LOCKED_SHA256 = "' + "c" * 64 + '"', haproxy_tests)
         contract = (self.root / "connectors/lighttpd/lighttpd-version.contract").read_text()
         self.assertIn("LIGHTTPD_SERIES=1.5", contract)
         self.assertIn("LIGHTTPD_VERSION=1.5.0", contract)
@@ -369,6 +378,7 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         self.assertEqual(nginx_before, self.nginx_pin_lines())
         for relative in (
             "ci/provisioning/components/prepare-runtime-components.py",
+            "tests/test_prepare_runtime_components.py",
             "ci/runtime/broker/nginx_root_broker.py",
             "ci/runtime/broker/protected_nginx_broker_caller.py",
         ):
