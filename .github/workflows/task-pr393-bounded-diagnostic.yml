@@ -21,7 +21,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh api repos/Easton97-Jens/ModSecurity-conector/actions/jobs/109869322773/logs > "$RUNNER_TEMP/pr393-prior.log"
+          gh api --allow-escape-sequences repos/Easton97-Jens/ModSecurity-conector/actions/jobs/109869322773/logs > "$RUNNER_TEMP/pr393-prior.log"
           python3 - <<'PY'
           from pathlib import Path
           from collections import deque
@@ -29,12 +29,12 @@ jobs:
           path = Path(os.environ['RUNNER_TEMP']) / 'pr393-prior.log'
           if path.stat().st_size > 64 * 1024 * 1024:
               raise ValueError('Log exceeds diagnostic bound')
-          tail = deque(maxlen=90)
-          hits = deque(maxlen=100)
+          tail = deque(maxlen=70)
+          hits = deque(maxlen=80)
           with path.open(encoding='utf-8', errors='replace') as stream:
               for raw in stream:
                   line = raw.rstrip('\r\n')
-                  clipped = line[:1200]
+                  clipped = ''.join(char if char.isprintable() else '?' for char in line[:1200])
                   tail.append(clipped)
                   if any(marker in line for marker in (
                       'AssertionError:', 'FAILED (', 'Ran ', 'ERROR:', 'FAIL:',
