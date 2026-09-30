@@ -1,0 +1,49 @@
+name: task-pr393-bounded-diagnostic
+
+on:
+  push:
+    branches:
+      - automation/validate-complete-handoff-393
+    paths:
+      - .github/workflows/task-pr393-bounded-diagnostic.yml
+
+permissions: {}
+
+jobs:
+  read:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      actions: read
+    steps:
+      - name: Read one prior validation log without printing the full payload
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api repos/Easton97-Jens/ModSecurity-conector/actions/jobs/109869322773/logs > "$RUNNER_TEMP/pr393-prior.log"
+          python3 - <<'PY'
+          from pathlib import Path
+          from collections import deque
+          import os
+          path = Path(os.environ['RUNNER_TEMP']) / 'pr393-prior.log'
+          if path.stat().st_size > 64 * 1024 * 1024:
+              raise ValueError('Log exceeds diagnostic bound')
+          tail = deque(maxlen=90)
+          hits = deque(maxlen=100)
+          with path.open(encoding='utf-8', errors='replace') as stream:
+              for raw in stream:
+                  line = raw.rstrip('\r\n')
+                  clipped = line[:1200]
+                  tail.append(clipped)
+                  if any(marker in line for marker in (
+                      'AssertionError:', 'FAILED (', 'Ran ', 'ERROR:', 'FAIL:',
+                      'make: ***', 'Error:', 'error:', 'Traceback', 'passed',
+                      'unsupported', 'check-config', 'check-configuration',
+                  )):
+                      hits.append(clipped)
+          print('=== BOUNDED DIAGNOSTIC MATCHES ===')
+          print('\n'.join(hits))
+          print('=== FINAL LOG LINES ===')
+          print('\n'.join(tail))
+          PY
