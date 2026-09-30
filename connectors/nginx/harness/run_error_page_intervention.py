@@ -26,6 +26,7 @@ import time
 
 ROOT = Path(__file__).resolve().parents[3]
 RULE_ID = "9803911"
+ORIGIN_BACKEND_PATH = "/origin"
 MAX_LOG = 1024 * 1024
 BODY = b"b09-protected-control\n"
 
@@ -92,7 +93,7 @@ class Handler(BaseHTTPRequestHandler):
             raise RuntimeError("unexpected test server")
         with server.lock:
             server.records.append(self.path)
-        status = 418 if self.path == "/origin" else 200
+        status = 418 if self.path == ORIGIN_BACKEND_PATH else 200
         payload = b"" if status == 418 else BODY
         self.send_response(status)
         self.send_header("Content-Length", str(len(payload)))
@@ -201,13 +202,13 @@ def exercise(port: int, backend: Backend, error_log: Path) -> list[dict]:
             visited = backend.observed()[before:]
             if marker == "block":
                 require(status == 403, f"{origin}: P2 deny returned {status}, expected 403")
-                require(visited == ["/origin"], f"{origin}: denied target reached its content backend")
+                require(visited == [ORIGIN_BACKEND_PATH], f"{origin}: denied target reached its content backend")
                 native = read_log(error_log)[offset:]
                 require(RULE_ID in native and "phase 2" in native.lower(),
                         f"{origin}: missing actual phase-2 rule decision")
             else:
                 require(status == 200 and payload == BODY, f"{origin}: legitimate error page failed")
-                require(visited == ["/origin", "/protected"],
+                require(visited == [ORIGIN_BACKEND_PATH, "/protected"],
                         f"{origin}: allowed error page did not reach the target once")
             observations.append({"origin": origin, "marker": marker, "status": status,
                                  "protected_backend_calls": visited.count("/protected")})
