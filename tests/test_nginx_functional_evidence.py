@@ -184,6 +184,50 @@ class NginxFunctionalEvidenceTest(unittest.TestCase):
                     self.collect()
                 self.assertFalse((self.evidence_root / "result.json").exists())
 
+    def test_verbose_nginx_readback_preserves_sanitized_evidence(self) -> None:
+        # The harness records -V, which appends build metadata to the version.
+        for metadata in (
+            b"built by gcc 13.3.0 (Ubuntu)\nconfigure arguments: --with-compat\n",
+            b"built by clang 20.1.0\nbuilt with OpenSSL 4.0.2"
+            b" (running with OpenSSL 4.0.2)\nTLS SNI support enabled\n"
+            b"configure arguments: --prefix=/private/build --with-http_ssl_module\n",
+        ):
+            with self.subTest(metadata=metadata):
+                payload = b"nginx version: nginx/1.31.6\n" + metadata
+                for mode in ("on", "off"):
+                    target = self.functional_root / mode / "phase4" / "logs" / "nginx-version.log"
+                    self._write_private(target, payload)
+                document = self.collect()
+                self.assertEqual(document["nginx_version"], "1.31.6")
+                serialized = json.dumps(document).encode("utf-8")
+                self.assertNotIn(metadata, serialized)
+                self.assertNotIn(b"/private/build", serialized)
+
+    def test_verbose_readback_rejects_invalid_version_and_metadata(self) -> None:
+        valid = b"nginx version: nginx/1.31.6\n"
+        metadata = b"built by gcc 13.3.0\nconfigure arguments: --with-compat\n"
+        for payload in (
+            metadata,
+            metadata + valid,
+            b"nginx version: nginx/1.31.60\n" + metadata,
+            b"nginx version: nginx/1.31.6.1\n" + metadata,
+            b"nginx version: nginx/1.31.7\n" + metadata,
+            valid + metadata + valid,
+            valid + metadata + b"nginx version: nginx/1.31.5\n",
+            valid + metadata + b"unknown diagnostic\n",
+            valid + b"built by gcc\x00forged\n",
+            valid + b"configure arguments: --prefix=\x1b[31m/private\n",
+        ):
+            with self.subTest(payload=payload):
+                for mode in ("on", "off"):
+                    self._write_mode("on")
+                    self._write_mode("off")
+                    target = self.functional_root / mode / "phase4" / "logs" / "nginx-version.log"
+                    self._write_private(target, payload)
+                    with self.assertRaisesRegex(WRITER_MODULE.EvidenceError, "did not use NGINX"):
+                        self.collect()
+                    self.assertFalse((self.evidence_root / "result.json").exists())
+
     def test_canary_in_jsonl_blocks_publication(self) -> None:
         jsonl = self.functional_root / "on" / "phase4" / "logs" / "phase4.log"
         jsonl.write_bytes(WRITER_MODULE.QUERY_CANARY + b"\n")
