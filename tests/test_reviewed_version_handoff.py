@@ -44,10 +44,22 @@ class ReviewedVersionHandoffTest(unittest.TestCase):
 
     def approve(self, common: str) -> None:
         # Fixture-only approval. Production hashes are never patched by these tests.
-        normalized = common.replace('ENVOY_VERSION="1.2.3"', 'ENVOY_VERSION=<PARENT_REVIEWED_SOURCE_DATA>')
-        digest = hashlib.sha256(normalized.encode()).hexdigest()
-        self.write(CHECKER.VERIFIER, 'MUTABLE_SOURCE_FIELDS = ("ENVOY_VERSION",)\n'
-                   + f'APPROVED_FRAMEWORK_COMMON_STRUCTURE_SHA256 = "{digest}"\n')
+        mutable_fields = ("ENVOY_VERSION", *CHECKER.MODSECURITY_KEYS)
+        normalized = []
+        for line in common.splitlines(keepends=True):
+            content = line.rstrip("\r\n")
+            ending = line[len(content):]
+            name, separator, _value = content.partition("=")
+            if separator and name in mutable_fields:
+                normalized.append(f"{name}=<PARENT_REVIEWED_SOURCE_DATA>{ending}")
+            else:
+                normalized.append(line)
+        digest = hashlib.sha256("".join(normalized).encode()).hexdigest()
+        self.write(
+            CHECKER.VERIFIER,
+            f"MUTABLE_SOURCE_FIELDS = {mutable_fields!r}\n"
+            + f'APPROVED_FRAMEWORK_COMMON_STRUCTURE_SHA256 = "{digest}"\n',
+        )
 
     def guides(self, release: str = "v3.0.16", commit: str = "a" * 40) -> None:
         commands = [f'MODSECURITY_REF="{release}"', f'MODSECURITY_COMMIT="{commit}"']
@@ -76,15 +88,14 @@ class ReviewedVersionHandoffTest(unittest.TestCase):
         with self.assertRaisesRegex(CHECKER.HandoffError, "workflow release"):
             CHECKER.inspect_handoff(self.root)
 
-    def test_modsecurity_change_requires_structural_review(self) -> None:
+    def test_modsecurity_change_uses_bounded_data_path(self) -> None:
         self.write(CHECKER.COMMON, self.common.replace("v3.0.16", "v3.0.99"))
-        with self.assertRaisesRegex(CHECKER.HandoffError, "not approved"):
+        with self.assertRaisesRegex(CHECKER.HandoffError, "tag/commit drift"):
             CHECKER.inspect_handoff(self.root)
 
     def test_reviewed_modsecurity_change_requires_matching_guides(self) -> None:
         changed = self.common.replace("v3.0.16", "v3.0.99").replace("a" * 40, "b" * 40)
         self.write(CHECKER.COMMON, changed)
-        self.approve(changed)
         with self.assertRaisesRegex(CHECKER.HandoffError, "tag/commit drift"):
             CHECKER.inspect_handoff(self.root)
         self.guides("v3.0.99", "b" * 40)
@@ -129,11 +140,18 @@ class ReviewedVersionHandoffTest(unittest.TestCase):
         self.write(CHECKER.COMMON, self.common.replace("1.2.3", "1.2.4"))
         self.assertEqual(CHECKER.inspect_handoff(self.root)["status"], "consistent")
 
-    def test_modsecurity_must_not_be_added_to_the_mutable_registry(self) -> None:
+    def test_unregistered_modsecurity_field_is_rejected_from_mutable_registry(self) -> None:
         verifier = (self.root / CHECKER.VERIFIER).read_text()
-        self.write(CHECKER.VERIFIER, verifier.replace('(\"ENVOY_VERSION\",)',
-                    '(\"ENVOY_VERSION\", \"MODSECURITY_V3_RELEASE_TAG\")'))
-        with self.assertRaisesRegex(CHECKER.HandoffError, "structurally reviewed"):
+        mutable_line = next(
+            line
+            for line in verifier.splitlines()
+            if line.startswith("MUTABLE_SOURCE_FIELDS = ")
+        )
+        expanded_line = mutable_line[:-1] + ", 'MODSECURITY_GIT_REF')"
+        self.write(CHECKER.VERIFIER, verifier.replace(mutable_line, expanded_line, 1))
+        with self.assertRaisesRegex(
+            CHECKER.HandoffError, "exact ModSecurity-v3 provenance tuple"
+        ):
             CHECKER.inspect_handoff(self.root)
 
     def test_symlinked_source_is_rejected(self) -> None:
