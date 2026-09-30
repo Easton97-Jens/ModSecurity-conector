@@ -37,7 +37,7 @@ SYNC_SPEC.loader.exec_module(SYNC)
 CANDIDATE_SHA = "d4f7b69dc264852eac74e1439c0887fcb9fbe372"
 CURRENT_PARENT_FRAMEWORK_SHA = "0" * 40
 REVIEWED_FRAMEWORK_COMMON_STRUCTURE_SHA256 = (
-    "7ad268af3baa17d2c2e9b5857ced2138684fab70e5066ddddd6f3656e8baa6af"
+    "2c3a5774da760981804907a357dc5dafb62f9ba3de1db17a2807ff53fd83c291"
 )
 GENERIC_SOURCE_COMMON = """\
 ENVOY_VERSION="1.39.1"
@@ -69,13 +69,13 @@ CRS_RELEASE_TAG="v4.29.0"
 CANDIDATE_COMMON = GENERIC_SOURCE_COMMON + """\
 NGINX_SOURCE_MODE="github-release"
 NGINX_SOURCE_REPO_URL="https://github.com/nginx/nginx"
-NGINX_RELEASE_TAG="release-1.31.5"
+NGINX_RELEASE_TAG="release-1.31.6"
 NGINX_SOURCE_GIT_REF="$NGINX_RELEASE_TAG"
 NGINX_RELEASE_ASSET_NAME="nginx-${NGINX_RELEASE_TAG#release-}.tar.gz"
-NGINX_SHA256="e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279"
+NGINX_SHA256="974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1"
 OPENSSL_SHA256="736b467530f916737b7031310ccb21d8218c6229e61e8e160cd1d3458cd543a8"
 CI_SECURITY_TOOL_OSV_SCANNER_COMMIT="e840a6e8adb14b7777c78e26cfbf6e2abc1d1fc6"
-CI_SECURITY_TOOL_RUFF_COMMIT="b5dba861cc38e3f7fb4524c9ceba3e01a474ea13"
+CI_SECURITY_TOOL_RUFF_COMMIT="62914c4b9b79a9e5004374a9c482ad2ed69290e1"
 """
 
 
@@ -140,13 +140,13 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
         self.assertEqual(before, self.parent_bytes())
         self.assertEqual(
             VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)["release_tag"],
-            "release-1.31.5",
+            "release-1.31.6",
         )
 
     def test_current_parent_contract_matches_the_candidate_without_writing(self) -> None:
         before = self.parent_bytes()
         values = VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
-        self.assertEqual(values["release_tag"], "release-1.31.5")
+        self.assertEqual(values["release_tag"], "release-1.31.6")
         self.assertEqual(before, self.parent_bytes())
         protected_workflow = (
             self.root / ".github/workflows/nginx-root-broker.yml"
@@ -156,6 +156,25 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("NGINX_RELEASE_TAG: release-1.31.4", protected_workflow)
         self.assertIn('NGINX_PINNED_RELEASE_TAG = "release-1.31.4"', protected_broker)
+
+    def test_checked_out_framework_common_matches_production_review(self) -> None:
+        framework_common = ROOT / "modules/ModSecurity-test-Framework/ci/lib/common.sh"
+        if not framework_common.is_file():
+            self.skipTest("reviewed Framework submodule is not initialized")
+        payload = framework_common.read_bytes()
+        self.assertEqual(
+            VERIFIER._framework_common_structure_sha256(payload),
+            self.approved_common_structure_sha256,
+        )
+        # Exercise the real file, not merely two duplicated digest literals.
+        VERIFIER.APPROVED_FRAMEWORK_COMMON_STRUCTURE_SHA256 = (
+            self.approved_common_structure_sha256
+        )
+        self.common.write_bytes(payload)
+        before = self.parent_bytes()
+        values = VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
+        self.assertEqual(values["release_tag"], "release-1.31.6")
+        self.assertEqual(before, self.parent_bytes())
 
     def test_production_review_digest_matches_the_reviewed_candidate(self) -> None:
         self.assertEqual(
@@ -174,7 +193,7 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
             self.common,
             expected_parent_framework_sha=CURRENT_PARENT_FRAMEWORK_SHA,
         )
-        self.assertEqual(values["release_tag"], "release-1.31.5")
+        self.assertEqual(values["release_tag"], "release-1.31.6")
         self.assertEqual(before, self.parent_bytes())
         with self.assertRaisesRegex(VERIFIER.ContractError, "expected Parent Framework SHA"):
             VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
@@ -189,7 +208,7 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
         )
         self.assertEqual(
             VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)["release_tag"],
-            "release-1.31.5",
+            "release-1.31.6",
         )
 
     def test_unsafe_registered_source_rhs_fails_before_parent_projection(self) -> None:
@@ -217,7 +236,7 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
 
     def test_unreviewed_nginx_data_change_fails_the_structure_boundary(self) -> None:
         self.common.write_text(
-            CANDIDATE_COMMON.replace("release-1.31.5", "release-1.31.6"),
+            CANDIDATE_COMMON.replace("release-1.31.6", "release-1.31.7"),
             encoding="utf-8",
         )
         with self.assertRaisesRegex(VERIFIER.ContractError, "approved reviewed structure"):
@@ -234,7 +253,7 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
                 "CI_SECURITY_TOOL_OSV_SCANNER_COMMIT=\"0\"",
             ),
             (
-                "CI_SECURITY_TOOL_RUFF_COMMIT=\"b5dba861cc38e3f7fb4524c9ceba3e01a474ea13\"",
+                "CI_SECURITY_TOOL_RUFF_COMMIT=\"62914c4b9b79a9e5004374a9c482ad2ed69290e1\"",
                 "CI_SECURITY_TOOL_RUFF_COMMIT=\"0\"",
             ),
         )
@@ -285,8 +304,8 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
         self.assertEqual(before, self.parent_bytes())
 
     def test_valid_but_stale_nginx_candidate_fails_closed_without_parent_writes(self) -> None:
-        stale = CANDIDATE_COMMON.replace("release-1.31.5", "release-1.31.4").replace(
-            "e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279",
+        stale = CANDIDATE_COMMON.replace("release-1.31.6", "release-1.31.4").replace(
+            "974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1",
             "e6f20b644a17a643f059ae6467a1971fe2811587d025e071068753a1f1e3b3c3",
         )
         self.write_approved_common(stale)
@@ -298,7 +317,7 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
     def test_malformed_candidate_checksum_fails_before_parent_projection(self) -> None:
         self.write_approved_common(
             CANDIDATE_COMMON.replace(
-                "e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279",
+                "974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1",
                 "0" * 63,
             )
         )
@@ -384,7 +403,7 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
         )
         self.assertEqual(
             VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)["release_tag"],
-            "release-1.31.5",
+            "release-1.31.6",
         )
         workflow.write_text(
             workflow.read_text(encoding="utf-8").replace(
@@ -431,36 +450,36 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
 
     def test_safe_framework_parameter_reads_and_bare_exports_are_accepted(self) -> None:
         safe_common = CANDIDATE_COMMON.replace(
-            'NGINX_SHA256="e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279"\n',
+            'NGINX_SHA256="974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1"\n',
             'if [ "${NGINX_SHA256+x}" = x ]; then\n'
             '    NGINX_SHA256_WAS_SET=1\n'
             "fi\n"
             'NGINX_SHA256_REQUESTED="${NGINX_SHA256-}"\n'
-            'NGINX_SHA256="e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279"\n',
+            'NGINX_SHA256="974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1"\n',
         ) + "export NGINX_SOURCE_MODE NGINX_SHA256\n"
         self.write_approved_common(safe_common)
         self.assertEqual(
             VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)["archive_sha256"],
-            "e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279",
+            "974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1",
         )
 
     def test_each_unprotected_handoff_layer_rejects_a_representative_drift(self) -> None:
         cases = (
             (
                 ".github/workflows/test-nginx-exact-head.yml",
-                "NGINX_RELEASE_ASSET_NAME: nginx-1.31.5.tar.gz",
+                "NGINX_RELEASE_ASSET_NAME: nginx-1.31.6.tar.gz",
                 "NGINX_RELEASE_ASSET_NAME: nginx-1.31.4.tar.gz",
                 "NGINX_RELEASE_ASSET_NAME",
             ),
             (
                 ".github/workflows/test-full-smoke-sequential.yml",
-                "NGINX_SOURCE_GIT_REF: release-1.31.5",
+                "NGINX_SOURCE_GIT_REF: release-1.31.6",
                 "NGINX_SOURCE_GIT_REF: release-1.31.4",
                 "NGINX_SOURCE_GIT_REF",
             ),
             (
                 "ci/checks/evidence/check-runtime-producer-readiness.py",
-                'CANONICAL_NGINX_ARCHIVE_SHA256 = "e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279"',
+                'CANONICAL_NGINX_ARCHIVE_SHA256 = "974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1"',
                 'CANONICAL_NGINX_ARCHIVE_SHA256 = "e6f20b644a17a643f059ae6467a1971fe2811587d025e071068753a1f1e3b3c3"',
                 "CANONICAL_NGINX_ARCHIVE_SHA256",
             ),
