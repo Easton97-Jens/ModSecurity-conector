@@ -1,0 +1,287 @@
+name: task-validate-complete-handoff-393
+
+on:
+  push:
+    branches:
+      - automation/validate-complete-handoff-393
+
+permissions: {}
+
+concurrency:
+  group: task-validate-complete-handoff-393
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    if: github.repository == 'Easton97-Jens/ModSecurity-conector' && github.ref == 'refs/heads/automation/validate-complete-handoff-393'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONNOUSERSITE: "1"
+      PIP_REQUIRE_VIRTUALENV: "true"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      GIT_TERMINAL_PROMPT: "0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          submodules: false
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version-file: .python-version
+          check-latest: false
+      - name: Create isolated target and exact Python environment
+        run: |
+          set -euo pipefail
+          target="$RUNNER_TEMP/pr393-checkout"
+          runtime="$RUNNER_TEMP/pr393-runtime"
+          python3 -m venv "$RUNNER_TEMP/pr393-venv"
+          py="$RUNNER_TEMP/pr393-venv/bin/python"
+          "$py" -m pip install --require-hashes --only-binary=:all: --no-input -r requirements-ci.lock
+          "$py" -m pip check
+          git worktree add --detach "$target" bbd74521ee9b1c7544b11c225e399a1c7f8d49da
+          git -C "$target" -c protocol.file.allow=never submodule update --init --recursive -- modules/ModSecurity-test-Framework
+          mkdir -p "$runtime"/{tmp,src,build,logs,cache,state,component-cache}
+          {
+            echo "TARGET_ROOT=$target"
+            echo "PYTHON=$py"
+            echo "VIRTUAL_ENV=$RUNNER_TEMP/pr393-venv"
+            echo "CONNECTOR_ROOT=$target"
+            echo "FRAMEWORK_ROOT=$target/modules/ModSecurity-test-Framework"
+            echo "VERIFIED_RUN_ROOT=$runtime"
+            echo "SOURCE_ROOT=$runtime/src"
+            echo "BUILD_ROOT=$runtime/build"
+            echo "TMP_ROOT=$runtime/tmp"
+            echo "TMPDIR=$runtime/tmp"
+            echo "LOG_ROOT=$runtime/logs"
+            echo "XDG_STATE_HOME=$runtime/state"
+            echo "XDG_CACHE_HOME=$runtime/cache"
+            echo "CONNECTOR_COMPONENT_CACHE=$runtime/component-cache"
+            echo "NGINX_HARNESS_PARENT=$runtime/nginx-harness"
+          } >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/pr393-venv/bin" >> "$GITHUB_PATH"
+      - name: Observe original privileged sandbox failures
+        working-directory: ${{ runner.temp }}/pr393-checkout
+        run: |
+          set -uo pipefail
+          sudo -n /usr/bin/env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 \
+            "$PYTHON" -m unittest -v \
+            tests.test_prepare_readonly_submodule_validation_sandbox.PrepareReadonlySubmoduleValidationSandboxTests.test_prepare_candidate_verify_and_cleanup_preserve_source_metadata \
+            tests.test_run_readonly_submodule_validation_namespace.ReadonlySubmoduleValidationNamespaceTests.test_privileged_candidate_cannot_escape_the_chroot_or_outlive_pid1 \
+            > "$RUNNER_TEMP/baseline-namespace.log" 2>&1
+          result=$?
+          cat "$RUNNER_TEMP/baseline-namespace.log"
+          printf 'Original privileged tests exit: %s\n' "$result"
+          test "$result" -eq 0 || test "$result" -eq 1
+      - name: Reproduce original verifier failure and apply bounded actual repair
+        run: '"$PYTHON" .github/task-pr393-apply.py'
+      - name: Verify real candidate and all source projections
+        working-directory: ${{ runner.temp }}/pr393-checkout
+        run: |
+          set -euo pipefail
+          "$PYTHON" ci/tools/check-reviewed-version-handoff.py --repo-root "$TARGET_ROOT"
+          "$PYTHON" ci/tools/verify-framework-candidate-contract.py --repo-root "$TARGET_ROOT" \
+            --candidate-sha 0290a979ba4bc63a7abed175a53471367b385553 \
+            --framework-common "$TARGET_ROOT/modules/ModSecurity-test-Framework/ci/lib/common.sh"
+          "$PYTHON" ci/tools/sync-framework-component-versions.py --validate --repo-root "$TARGET_ROOT" \
+            --framework-common "$RUNNER_TEMP/candidate-common.sh" \
+            --framework-sha 0290a979ba4bc63a7abed175a53471367b385553
+      - name: Run affected source and evidence regression suites
+        working-directory: ${{ runner.temp }}/pr393-checkout
+        run: |
+          "$PYTHON" -m unittest -v \
+            tests.test_reviewed_version_handoff \
+            tests.test_change_record tests.test_prepare_reviewed_framework_handoff \
+            tests.test_verify_framework_candidate_contract tests.test_update_framework_versions \
+            tests.test_nginx_exact_head_gate_contract tests.test_nginx_body_buffer_fixture \
+            tests.test_prepare_runtime_components tests.test_runtime_component_cache_identity \
+            tests.test_runtime_component_cache_contract tests.test_runtime_env_snapshot_contract \
+            tests.test_report_presentation_literals tests.test_evidence_output_security \
+            tests.test_nginx_functional_evidence
+      - name: Prove corrected privileged namespace tests without capability skips
+        working-directory: ${{ runner.temp }}/pr393-checkout
+        run: |
+          sudo -n /usr/bin/env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 \
+            "$PYTHON" - <<'PY'
+          import sys
+          import unittest
+          names = [
+              'tests.test_prepare_readonly_submodule_validation_sandbox.PrepareReadonlySubmoduleValidationSandboxTests.test_prepare_candidate_verify_and_cleanup_preserve_source_metadata',
+              'tests.test_run_readonly_submodule_validation_namespace.ReadonlySubmoduleValidationNamespaceTests.test_privileged_candidate_cannot_escape_the_chroot_or_outlive_pid1',
+              'tests.test_run_readonly_submodule_validation_namespace.ReadonlySubmoduleValidationNamespaceTests.test_external_virtualenv_alias_resolves_to_existing_jail_runtime',
+          ]
+          result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromNames(names))
+          if result.skipped:
+              print('Required privileged proofs were skipped:', result.skipped)
+          sys.exit(0 if result.wasSuccessful() and not result.skipped else 1)
+          PY
+      - name: Run unchanged CI-security contracts
+        working-directory: ${{ runner.temp }}/pr393-checkout
+        run: make PYTHON="$PYTHON" check-ci-security-contract
+      - name: Run documentation and full lightweight checks
+        working-directory: ${{ runner.temp }}/pr393-checkout
+        run: |
+          set -euo pipefail
+          "$PYTHON" ci/tools/new-change-record.py check
+          make PYTHON="$PYTHON" check-bilingual-docs
+          make PYTHON="$PYTHON" check-doc-links
+          make PYTHON="$PYTHON" quick-check
+      - name: Export exactly the tested repair tree as inert data
+        working-directory: ${{ runner.temp }}/pr393-checkout
+        run: |
+          "$PYTHON" - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import subprocess
+          root = Path.cwd()
+          temp = Path(os.environ['RUNNER_TEMP'])
+          def git(*args):
+              return subprocess.check_output(['git', *args], cwd=root)
+          def require(value, message):
+              if not value:
+                  raise ValueError(message)
+          paths = json.loads((temp / 'repair-paths.json').read_text())
+          framework = 'modules/ModSecurity-test-Framework'
+          staged = set(filter(None, git('diff', '--cached', '--name-only', '-z').decode().split('\0')))
+          require(staged == set(paths) | {framework}, 'Changed-file inventory drift')
+          require(not git('diff', '--name-only', '-z'), 'Unstaged changes after tests')
+          require(not git('ls-files', '--others', '--exclude-standard', '-z'), 'Untracked source changes after tests')
+          git('diff', '--cached', '--check')
+          git('diff', '--cached', '--exit-code', '--', '.github/workflows/nginx-root-broker.yml', 'ci/runtime/broker')
+          tree = git('write-tree').decode().strip()
+          require(tree == (temp / 'repair-tree.txt').read_text().strip(), 'Tested tree changed during validation')
+          entries = []
+          for path in paths:
+              payload = (root / path).read_bytes()
+              require(payload == git('show', ':' + path), 'Index/file mismatch: ' + path)
+              mode = git('ls-files', '--stage', '--', path).decode().split()[0]
+              entries.append({'path': path, 'mode': mode, 'type': 'blob', 'content': payload.decode('utf-8')})
+          entries.append({'path': framework, 'mode': '160000', 'type': 'commit', 'sha': '0290a979ba4bc63a7abed175a53471367b385553'})
+          output = temp / 'repair-export'
+          output.mkdir()
+          document = {'head': 'bbd74521ee9b1c7544b11c225e399a1c7f8d49da', 'tree': tree, 'entries': entries}
+          data = json.dumps(document, sort_keys=True).encode()
+          require(len(data) < 4 * 1024 * 1024, 'Export exceeds bound')
+          (output / 'repair.json').write_bytes(data)
+          print('Verified repair tree:', tree)
+          print('Inert export SHA256:', hashlib.sha256(data).hexdigest())
+          print(git('diff', '--cached', '--stat').decode())
+          PY
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: reviewed-repair-tree
+          path: ${{ runner.temp }}/repair-export/repair.json
+          if-no-files-found: error
+          retention-days: 3
+          overwrite: false
+
+  prepare-commit:
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: reviewed-repair-tree
+          path: ${{ runner.temp }}/repair-export
+      - name: Create only a bounded orphan Git tree and commit, never move a ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import urllib.request
+          repo = 'Easton97-Jens/ModSecurity-conector'
+          prefix = '/repos/' + repo
+          head = 'bbd74521ee9b1c7544b11c225e399a1c7f8d49da'
+          base_tree = '1ef4446e976f4d77e5b6e0bc24a0a5eeddfcfd48'
+          branch = 'automation/prepare-framework-handoff-36608694822'
+          allowed = {
+              '.github/workflows/test-nginx-exact-head.yml',
+              '.github/workflows/test-full-smoke-sequential.yml',
+              'ci/provisioning/components/prepare-runtime-components.py',
+              'ci/checks/evidence/check-runtime-producer-readiness.py',
+              'tests/run_nginx_body_buffer_fixture.py',
+              'tests/test_nginx_body_buffer_fixture.py',
+              'tests/test_runtime_component_cache_identity.py',
+              'tests/test_verify_framework_candidate_contract.py',
+              'tests/test_nginx_exact_head_gate_contract.py',
+              'tests/test_report_presentation_literals.py',
+              'tests/test_update_framework_versions.py',
+              'tests/test_prepare_runtime_components.py',
+              'tests/test_runtime_env_snapshot_contract.py',
+              'tests/test_runtime_component_cache_contract.py',
+              'tests/test_evidence_output_security.py',
+              'tests/test_nginx_functional_evidence.py',
+              '.github/workflows/test-connectors-with-crs-no-mrts.yml',
+              'tests/test_ci_security_workflows.py',
+              'ci/tools/verify-framework-candidate-contract.py',
+              'modules/ModSecurity-test-Framework',
+              'ci/runtime/lifecycle/write-nginx-functional-a-evidence.py',
+              '.github/workflows/quick-framework-check.yml',
+              'tests/test_prepare_readonly_submodule_validation_sandbox.py',
+              'tests/test_run_readonly_submodule_validation_namespace.py',
+              'ci/tools/check-reviewed-version-handoff.py',
+              'tests/test_reviewed_version_handoff.py',
+              'docs/reviewed-version-upgrades.md',
+              'docs/reviewed-version-upgrades.de.md',
+              'reports/audits/change-records/CR-20260930-complete-framework-handoff.md',
+              'reports/audits/change-records/CR-20260930-complete-framework-handoff.de.md',
+          }
+          def require(value, message):
+              if not value:
+                  raise ValueError(message)
+          def api(route, body=None):
+              require(route.startswith(prefix + '/'), 'Unapproved API repository')
+              if body is not None:
+                  require(route in (prefix + '/git/trees', prefix + '/git/commits'), 'Only Git object creation is authorized')
+              request = urllib.request.Request('https://api.github.com' + route,
+                  data=None if body is None else json.dumps(body).encode(),
+                  headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
+                           'Accept': 'application/vnd.github+json',
+                           'Content-Type': 'application/json', 'X-GitHub-Api-Version': '2022-11-28'})
+              with urllib.request.urlopen(request, timeout=90) as response:
+                  data = response.read(16 * 1024 * 1024 + 1)
+              require(len(data) <= 16 * 1024 * 1024, 'Response exceeds bound')
+              return json.loads(data)
+          path = Path(os.environ['RUNNER_TEMP']) / 'repair-export/repair.json'
+          require(path.is_file() and not path.is_symlink() and path.stat().st_size < 4 * 1024 * 1024, 'Invalid inert export')
+          document = json.loads(path.read_text())
+          require(document['head'] == head, 'Unexpected export parent')
+          entries = document['entries']
+          require(len(entries) == len(allowed) and {e['path'] for e in entries} == allowed, 'Export path set mismatch')
+          pr = api(prefix + '/pulls/393')
+          require(pr['state'] == 'open' and pr['head']['sha'] == head and pr['head']['ref'] == branch, 'PR moved or closed')
+          tree_data = api(prefix + '/git/trees/' + base_tree + '?recursive=1')
+          require(not tree_data.get('truncated'), 'Incomplete baseline tree')
+          original = {e['path']: e for e in tree_data['tree']}
+          for entry in entries:
+              if entry['path'] == 'modules/ModSecurity-test-Framework':
+                  require(entry == {'path': entry['path'], 'mode': '160000', 'type': 'commit', 'sha': '0290a979ba4bc63a7abed175a53471367b385553'}, 'Unexpected gitlink')
+              else:
+                  require(entry['type'] == 'blob' and set(entry) == {'path', 'mode', 'type', 'content'}, 'Unexpected tree entry')
+                  mode = original[entry['path']]['mode'] if entry['path'] in original else '100644'
+                  require(entry['mode'] == mode and mode in ('100644', '100755'), 'Unexpected file mode')
+          tree = api(prefix + '/git/trees', {'base_tree': base_tree, 'tree': entries})
+          require(tree['sha'] == document['tree'], 'API tree differs from the exact tested tree')
+          require(api(prefix + '/git/ref/heads/' + branch)['object']['sha'] == head, 'Target branch changed during validation')
+          commit = api(prefix + '/git/commits', {
+              'message': 'fix(ci): apply reviewed Framework handoff and prevent version drift\n\nApply Framework 0290a979 and aligned NGINX 1.31.6 projections. Fix the\nmissed evidence writer, job-permission assertion and venv aliases in\nprivileged namespace tests without weakening production isolation.\nAdd early ModSecurity-v3 projection and cache/layout regressions.\n\nPrepared only after source, real-candidate, privileged namespace,\nCI-security, documentation and quick-check validation. Protected broker\nand ModSecurity v3 release identity remain unchanged. No merge.',
+              'tree': tree['sha'], 'parents': [head],
+              'author': {'name': 'github-actions[bot]', 'email': '41898282+github-actions[bot]@users.noreply.github.com'},
+          })
+          print('PREPARED_REPAIR_COMMIT=' + commit['sha'])
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
+              summary.write('Tested repair commit: `' + commit['sha'] + '`\n\nNo branch reference was changed.\n')
+          PY
