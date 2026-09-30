@@ -1,0 +1,124 @@
+name: task-pr393-export-tested-blobs
+
+on:
+  push:
+    branches:
+      - automation/validate-complete-handoff-393
+    paths:
+      - .github/workflows/task-pr393-export-tested-blobs.yml
+
+permissions: {}
+
+jobs:
+  objects:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: read
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          artifact-ids: '11094009815'
+          run-id: '36712018682'
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/validated
+          merge-multiple: true
+      - name: Create only unreferenced blobs from the successful tested tree
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import urllib.request
+          import urllib.error
+          prefix = '/repos/Easton97-Jens/ModSecurity-conector'
+          head = 'bbd74521ee9b1c7544b11c225e399a1c7f8d49da'
+          allowed = {
+              '.github/workflows/test-nginx-exact-head.yml',
+              '.github/workflows/test-full-smoke-sequential.yml',
+              'ci/provisioning/components/prepare-runtime-components.py',
+              'ci/checks/evidence/check-runtime-producer-readiness.py',
+              'tests/run_nginx_body_buffer_fixture.py',
+              'tests/test_nginx_body_buffer_fixture.py',
+              'tests/test_runtime_component_cache_identity.py',
+              'tests/test_verify_framework_candidate_contract.py',
+              'tests/test_nginx_exact_head_gate_contract.py',
+              'tests/test_report_presentation_literals.py',
+              'tests/test_update_framework_versions.py',
+              'tests/test_prepare_runtime_components.py',
+              'tests/test_runtime_env_snapshot_contract.py',
+              'tests/test_runtime_component_cache_contract.py',
+              'tests/test_evidence_output_security.py',
+              'tests/test_nginx_functional_evidence.py',
+              '.github/workflows/test-connectors-with-crs-no-mrts.yml',
+              'tests/test_ci_security_workflows.py',
+              'ci/tools/verify-framework-candidate-contract.py',
+              'modules/ModSecurity-test-Framework',
+              'ci/runtime/lifecycle/write-nginx-functional-a-evidence.py',
+              '.github/workflows/quick-framework-check.yml',
+              'tests/test_prepare_readonly_submodule_validation_sandbox.py',
+              'tests/test_run_readonly_submodule_validation_namespace.py',
+              'ci/tools/check-reviewed-version-handoff.py',
+              'tests/test_reviewed_version_handoff.py',
+              'docs/reviewed-version-upgrades.md',
+              'docs/reviewed-version-upgrades.de.md',
+              'docs/build/compilers/nginx.md',
+              'docs/build/compilers/nginx.de.md',
+              'reports/audits/change-records/CR-20260930-complete-framework-handoff.md',
+              'reports/audits/change-records/CR-20260930-complete-framework-handoff.de.md',
+          }
+          def require(condition, message):
+              if not condition:
+                  raise ValueError(message)
+          def api(route, body=None):
+              require(route.startswith(prefix + '/'), 'Repository outside approved scope')
+              if body is not None:
+                  require(route == prefix + '/git/blobs', 'Only unattached blob creation is authorized')
+              request = urllib.request.Request('https://api.github.com' + route,
+                  data=None if body is None else json.dumps(body).encode(),
+                  headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
+                           'Accept': 'application/vnd.github+json',
+                           'Content-Type': 'application/json', 'X-GitHub-Api-Version': '2022-11-28'})
+              try:
+                  with urllib.request.urlopen(request, timeout=90) as response:
+                      payload = response.read(16 * 1024 * 1024 + 1)
+              except urllib.error.HTTPError as error:
+                  details = json.loads(error.read(8192))
+                  print('API request rejected:', route, error.code, details.get('message', ''))
+                  raise
+              require(len(payload) <= 16 * 1024 * 1024, 'Oversized API response')
+              return json.loads(payload)
+          job = api(prefix + '/actions/jobs/109875833581')
+          require(job['status'] == 'completed' and job['conclusion'] == 'success', 'Validation did not pass')
+          require(job['run_id'] == 36712018682 and job['head_sha'] == 'f29bad8a60672438215430c6986431b81529882b', 'Wrong validation identity')
+          pr = api(prefix + '/pulls/393')
+          require(pr['state'] == 'open' and pr['head']['sha'] == head, 'PR moved or closed')
+          path = Path(os.environ['RUNNER_TEMP']) / 'validated/repair.json'
+          require(path.is_file() and not path.is_symlink() and path.stat().st_size < 4 * 1024 * 1024, 'Unsafe artifact')
+          document = json.loads(path.read_text())
+          entries = document['entries']
+          require(document['head'] == head, 'Wrong tested parent')
+          require(len(entries) == len(allowed) and {entry['path'] for entry in entries} == allowed, 'Wrong file inventory')
+          manifest = []
+          for entry in entries:
+              relative = entry['path']
+              if relative == 'modules/ModSecurity-test-Framework':
+                  require(entry == {'path': relative, 'mode': '160000', 'type': 'commit', 'sha': '0290a979ba4bc63a7abed175a53471367b385553'}, 'Wrong Framework gitlink')
+                  manifest.append(entry)
+                  continue
+              require(entry['type'] == 'blob' and entry['mode'] in ('100644', '100755'), 'Wrong blob type or mode')
+              payload = entry['content'].encode('utf-8')
+              expected = hashlib.sha1(b'blob ' + str(len(payload)).encode() + b'\0' + payload, usedforsecurity=False).hexdigest()
+              result = api(prefix + '/git/blobs', {'content': entry['content'], 'encoding': 'utf-8'})
+              require(result['sha'] == expected, 'Uploaded bytes differ from tested file: ' + relative)
+              manifest.append({'path': relative, 'mode': entry['mode'], 'type': 'blob', 'sha': expected})
+          result = {'head': head, 'tested_tree': document['tree'], 'entries': manifest,
+                    'validated_job': 109875833581, 'validated_run': 36712018682}
+          print('TESTED_BLOB_MANIFEST=' + json.dumps(result, sort_keys=True))
+          print('No tree, commit, branch update or merge was performed by this workflow.')
+          PY
