@@ -411,9 +411,13 @@ def _append_bounded_build_log_tail(lines: list[str], root: Path) -> list[str]:
         lines.append(f"{PREFIX} build_log_unavailable={exc.reason}")
         return lines
 
-    lines.append(f"{PREFIX} build_log={BUILD_LOG_RELATIVE_PATH.as_posix()}")
-    lines.append(f"{PREFIX} build_log_tail_truncated={'true' if truncated else 'false'}")
-    lines.append(f"{PREFIX} begin bounded nginx-build.log tail")
+    lines.extend(
+        [
+            f"{PREFIX} build_log={BUILD_LOG_RELATIVE_PATH.as_posix()}",
+            f"{PREFIX} build_log_tail_truncated={'true' if truncated else 'false'}",
+            f"{PREFIX} begin bounded nginx-build.log tail",
+        ]
+    )
     lines.extend(_render_log_lines(log_bytes, truncated=truncated))
     lines.append(f"{PREFIX} end bounded nginx-build.log tail")
     return lines
