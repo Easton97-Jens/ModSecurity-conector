@@ -901,10 +901,12 @@ def render_markdown(report: dict[str, Any]) -> str:
         ("Targets", "targets"),
         ("Failure Categories", "failure_categories"),
     ):
-        lines.append(f"### {title}")
-        lines.append("")
-        lines.append("| value | count |")
-        lines.append("| --- | ---: |")
+        lines.extend([
+            f"### {title}",
+            "",
+            "| value | count |",
+            "| --- | ---: |",
+        ])
         items = report["distribution"][key]
         if not items:
             lines.append("_No rows available. Reason: no active body-processor rows remain after report-only classification._")
