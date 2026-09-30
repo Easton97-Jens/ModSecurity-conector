@@ -77,6 +77,9 @@ const (
 var (
 	errProtocol = errors.New("modsecurity response observer: invalid private UDS protocol")
 	errClosed   = errors.New("modsecurity response observer: session closed")
+	errUnsupportedResponseCompanionPeer = errors.New(
+		"modsecurity response observer: Linux SO_PEERCRED is required for response companion authentication",
+	)
 )
 
 // Config is the host-facing configuration. SocketPath is deliberately UDS
