@@ -114,7 +114,6 @@ NGINX_RELEASE_TAG = NGINX_CONTRACT["NGINX_PINNED_RELEASE_TAG"]
 NGINX_VERSION = NGINX_RELEASE_TAG.removeprefix("release-")
 MODSECURITY_REF_COMMAND = "MODSECURITY_REF=\"v3.0.16\""
 MODSECURITY_COMMIT_COMMAND = "MODSECURITY_COMMIT=\"7ea9fefbe0ba409d8733b4d682c8c4c059cd028d\""
-
 APACHE_HTTP_SERVER = "Apache HTTP Server"
 MODSECURITY_GIT_REF_PIN = "configured `MODSECURITY_GIT_REF` (default `v3/master`)"
 MODSECURITY_GIT_REPOSITORY = "https://github.com/owasp-modsecurity/ModSecurity.git"
@@ -2613,8 +2612,8 @@ COMMON_MODSECURITY: dict[str, object] = {
     ),
     "common_modsecurity_advanced": {
         "commands": (
-            'MODSECURITY_REF="v3.0.16"',
-            'MODSECURITY_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"',
+            MODSECURITY_REF_COMMAND,
+            MODSECURITY_COMMIT_COMMAND,
             'git -C ModSecurity fetch --tags origin',
             'git -C ModSecurity checkout --detach "$MODSECURITY_REF"',
             'test "$(git -C ModSecurity rev-parse HEAD)" = "$MODSECURITY_COMMIT"',
