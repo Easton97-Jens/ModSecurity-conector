@@ -191,6 +191,21 @@ P3-Umleitung und P4-Post-Commit-Sicherheits-/Nur-Protokoll-Verhalten. Es bleibt
 nicht hochgestuft, bis der kanonische Sammler und die Fähigkeitsüberprüfung dies akzeptieren
 rohe Wirtsbeweise.
 
+## Identität des Response-Companion-Peers
+
+Der separate Response-Observer-Prozess authentisiert den verbundenen
+Response-Companion-UDS-Server unter Linux mit `SO_PEERCRED`, bevor er
+`CLAIM` sendet. Die Flags `--expected-companion-uid` und
+`--expected-companion-gid` erwarten standardmäßig die effektive UID und GID
+des Observer-Prozesses. Bei abweichender Companion-Identität müssen beide
+Flags gesetzt werden; auch `0` kann ausdrücklich angegeben werden. Fehlende
+oder abweichende Peer-Credentials führen zu Fail-closed; auf
+Nicht-Linux-Plattformen gibt es keinen Credential-Fallback. Das private
+Socket-Verzeichnis des Companion und seine vollständige Ancestor-Chain
+müssen gegen Austausch durch andere UIDs geschützt sein. Gleiche Unix-IDs
+bilden eine gemeinsame Vertrauensdomäne: `SO_PEERCRED` belegt weder
+Binärintegrität noch Security-Labels oder die Zuordnung von User-Namespaces.
+
 ## Verbleibende Promotion-Grenze
 
 Der Dienst behauptet keinen deterministischen Post-Commit-Reset und keine

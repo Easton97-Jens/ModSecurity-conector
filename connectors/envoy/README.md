@@ -1,202 +1,232 @@
-# Envoy `ext_proc` Common/libmodsecurity full-lifecycle path
+# Envoy Connector
 
 **Language:** English | [Deutsch](README.de.md)
 
-This directory is a pinned Go implementation of Envoy's official
-`envoy.service.ext_proc.v3.ExternalProcessor` gRPC interface. It is separate
-from the existing C `ext_authz` service and does not change that selected,
-runtime-evidenced request-only path.
+Status: `minimal_runtime_smoke` / `connector-gap`
 
-The canonical full-lifecycle dispatcher selects this service through
-`full-lifecycle-envoy-ext-proc`; it does not fall through to the standard
-`ext_authz` compatibility runner. The executable links a connector-local CGo
-ABI to Common Runtime and libmodsecurity, while capability promotion remains a
-separate evidence-review decision.
+The implemented host model is an external HTTP authorization service for
+Envoy's `ext_authz` filter. The connector owns the Envoy profile and thin Common
+SDK mapper callbacks; the connector-neutral engine and HTTP service lifecycle
+remain in `common/runtime/`.
 
-## What is implemented here
+The direct `ext_authz` protocol is a request-phase integration. It can receive
+bounded request headers and a buffered request body and translate a Common
+decision into an authorization response. On its own, `ext_authz` does not
+expose upstream response headers or response bodies, so the direct protocol is
+not a P3/P4-capable host adapter.
 
-- one independent `streamState` and transaction seam per gRPC `Process` call;
-- one real Common/libmodsecurity transaction per stream, opened from Envoy's
-  actual request headers and destroyed on EOS, cancellation, or processor
-  failure;
-- bounded request/response header mapping and incremental body callbacks;
-- no full request or response body collection; state retains counters only;
-- explicit request/response body finish calls for header EOS, body EOS, and
-  trailer EOS;
-- downstream protocol and endpoints mapped from requested Envoy attributes,
-  never inferred from the Envoy-to-service gRPC socket;
-- matching `HeadersResponse` / `BodyResponse` messages for `STREAMED` mode;
-- a process-wide cap of 128 active `Process` streams, enforced before stream
-  state or a Common transaction is allocated; excess streams receive gRPC
-  `ResourceExhausted` rather than expanding native transaction capacity across
-  multiple transports;
-- EOS cleanup, gRPC-context cancellation cleanup, and bounded graceful stop;
-- pre-commit request and response decisions mapped to `ImmediateResponse`,
-  with Common host-action metadata recorded only after the matching gRPC send
-  succeeds;
-- raw Common decision JSONL under the per-run runtime root plus a separate
-  payload-free completion log; the latter is supplementary and never replaces
-  the Common event stream;
-- unit and CGo lifecycle tests covering P1/P2/P3/P4, incremental EOS,
-  cancellation, commit ordering, and parallel transactions.
+The named `envoy-ext-authz` logical connector therefore requires the private
+MRC1 response companion described in the [canonical Envoy guide](../../docs/connectors/envoy.md).
+It retains the same live Common/native transaction from completed P2 to P3/P4
+rather than reconstructing a request snapshot. The response observer is
+mandatory: omitting it is a configuration error, and observer or correlation
+failure is fail-closed. This is source/component wiring with state
+`implemented_not_asserted`; it is not a claim that an arbitrary Envoy
+deployment has loaded the required templates.
 
-## Listener and stream admission safety
+## Separate, non-promoted `ext_proc` full-lifecycle host path
 
-The unauthenticated ext_proc gRPC endpoint accepts only numeric loopback
-listener addresses (`127.0.0.0/8` or `::1`). Hostnames, wildcard addresses,
-and other interface addresses fail configuration validation, including through
-the `--listen` override. The required service JSON fields
-`max_concurrent_streams` (1–1024) and `stream_idle_timeout_ms` provide the
-two independent stream availability controls. The first is applied both to
-each HTTP/2 connection and to process-wide `Process` admission. A process-wide
-rejection returns `ResourceExhausted` before stream state or a Common
-transaction is allocated.
+`ext_proc/` adds a separate Go service selected by the full-lifecycle profile,
+based on Envoy's official generated Go protobuf/gRPC API. Its checked-in Envoy
+template uses `STREAMED` request and
+response body modes, with bounded per-stream counters and incremental callback
+delivery; it never selects `BUFFERED` processing. The pinned module and Envoy
+release record are in `ext_proc/go.mod`, `ext_proc/go.sum`, and
+`config/envoy-ext-proc-versions.env`.
 
-`stream_idle_timeout_ms` is a server-side inactivity limit, not an engine
-timeout. Its clock begins while the service waits for the first or next complete
-Envoy `ProcessingRequest`; every received request is stream activity, and the
-next interval begins after that request's engine work and response send finish.
-Consequently a long-lived streamed request or response remains legitimate when
-it continues to send messages within the interval. On expiry the service
-returns gRPC `DeadlineExceeded`, records `grpc_stream_idle_timeout`, closes the
-transaction with its separate `cleanup_timeout_ms`, and releases admission for
-a following stream. `engine_timeout_ms` independently bounds every engine
-operation: it covers both waiting for the serialized Common-Runtime mutex and
-the remaining callback execution after that mutex is acquired. It neither
-substitutes for nor restarts the stream-idle clock. If that context expires
-before native entry, the current stream receives gRPC `DeadlineExceeded`, its
-completion evidence is `processor_error`, it emits no allow response, and the
-normal per-stream cleanup and admission release permit a following stream. A
-native CGo call that had already entered an uninterruptible section remains a
-separate controlled-restart case; the timeout never claims to cancel it in
-place.
+The normal `ext_proc` build is a CGo executable that links a connector-local
+ABI to Common Runtime and libmodsecurity. Each real Envoy `Process` stream
+opens one Common transaction from Envoy's request headers, forwards bounded
+incremental request and response data, and closes it at EOS, cancellation, or
+processor failure. Common's run-local raw decision JSONL is the canonical
+event source; the payload-free stream-completion JSONL is supplementary only.
 
-`stream_max_lifetime_ms` is a separate server-side absolute lifetime for every
-admitted stream. It starts at admission and is not extended by activity; it
-prevents a peer from retaining a concurrency slot indefinitely by sending
-messages just before each idle deadline. Expiry returns gRPC `DeadlineExceeded`,
-records `grpc_stream_max_lifetime`, cancels receive and engine work, runs the
-normal bounded cleanup, and releases the slot for a following stream. A gRPC
-`Send` that was already in flight at expiry receives at most the separate
-`cleanup_timeout_ms` grace to return. A confirmed successful late `Send` first
-records the matching response-commit or host-action evidence through a bounded
-post-send context, then returns `DeadlineExceeded` and puts the service into
-the controlled-restart state; a Send that remains unresolved after that grace
-does the same without claiming an action. In both terminal cases new streams
-receive gRPC `Unavailable` while `main` stops the listener. Set the lifetime
-long enough for legitimate streamed transactions; it is not a replacement for
-the idle or per-operation engine timeout.
+`runtime-smoke-envoy-ext-proc` validates the materialized YAML, starts Envoy,
+the CGo/Common gRPC service, and an upstream, then exercises P1, P2, P3 deny,
+P3 redirect, and P4 safe post-commit log-only behavior. It validates the raw
+Common events and the host-confirmed actions after successful gRPC sends. This
+is real local host evidence, but it remains non-promoted and does not change
+the canonical `ext_authz` capabilities or runtime status. A late P4 decision
+in `safe` is recorded as host-confirmed `log_only`; `off` preserves native
+intervention handling without applying the additional late policy. The service
+decoder can represent `late_action_policy: strict`, but a rule-evaluating CGo
+service with `phase4_mode=strict` rejects the `envoy-ext-proc` profile at
+startup until a deterministic post-commit host action is proven. It never
+claims a late status change, deterministic reset, client reset, or upstream
+reset.
 
-The pending-`Recv` lifecycle is covered by an actual gRPC bufconn test: an idle
-stream leaves exactly one bounded receive wait, cancellation releases it, and a
-follow-up stream is admitted successfully. Server shutdown cancels active
-streams, releases their transactions and admission slots, and the forced-stop
-path has its own deadline. Lock acquisition and cleanup are likewise
-deadline-bounded. A native CGo call or destructor that has already entered an
-uninterruptible native section cannot be canceled in place; the service reports
-a terminal cleanup failure to `main`. The current stream fails, new streams
-receive gRPC `Unavailable`, `main` stops the gRPC listener with its bounded
-forced-stop path, and the process exits nonzero for supervisor restart rather
-than claiming in-process cancellation or reusing native state.
+The exact ext_proc API boundary, opt-in client-cancel observation, and
+non-promotion conditions are documented in the
+[canonical Envoy guide](../../docs/connectors/envoy.md).
 
-gRPC context cancellation (including server shutdown) follows the same
-per-stream cleanup path and is recorded as
-`grpc_context_canceled_unattributed`; it does not claim whether Envoy observed
-a downstream client or upstream reset.
+## Source layout
 
-The pinned dependency is the official generated Envoy Go API module in
-`go.mod`/`go.sum`. `../config/envoy-ext-proc-versions.env` records the intended
-Framework-synchronized Envoy release and `../config/envoy-ext-proc-streaming.yaml.in` uses
-only `STREAMED` body modes, never `BUFFERED`.
+- `src/envoy_ext_authz_service_main.c` defines the Envoy host profile, original
+  URI header preferences, and the service entry point.
+- `src/envoy_modsecurity_mapper.c` contains thin C17 calls to the Common generic
+  request and response mappers.
+- `config/envoy-ext-authz.conf` is the checked-in configuration template.
+- `config/prepare_envoy_config.sh` creates a concrete runtime copy outside the
+  checkout and substitutes rule/event paths.
+- `build/build_connector.sh` performs a compile/link-only C17 build.
+- `harness/start_envoy_connector.sh` validates Envoy config, starts and observes
+  both Envoy and the service, and stops both without sending a request.
+- `ext_proc/` contains the separately buildable CGo/Common ext_proc stream
+  service and its focused unit/CGo lifecycle tests;
+  `config/envoy-ext-proc-streaming.yaml.in` is its non-promoted streamed-mode
+  template.
 
-## Dependency security floors
+The older `envoy_bridge` CLI remains a local decision self-test. It is not used
+by the `ext_authz` service and is not runtime evidence.
 
-The module keeps the following minimum stable selections for the currently
-triaged dependency advisories:
+## Build, config, and start separation
 
-- `google.golang.org/grpc` `v1.83.2` or later;
-- `golang.org/x/net` `v0.58.0` or later;
-- `golang.org/x/sys` `v0.47.0` or later; and
-- `golang.org/x/text` `v0.41.0` or later.
-
-`tests/test_ci_security_workflows.py` checks these as semantic-version floors,
-so a later stable security update remains valid while a downgrade fails the
-focused CI-security contract. The floor proves the selected module versions;
-it does not itself establish advisory reachability, replace Go module tests,
-or claim that a hosted Dependabot, OSV, or Scorecard alert has refreshed.
-
-The bounded Go updater may advance this component only as the fixed security
-bundle from `grpc` `v1.83.1` to `v1.83.2`, `x/sys` `v0.46.0` to `v0.47.0`,
-`x/net` `v0.56.0` to `v0.58.0`, and `x/text` `v0.39.0` to `v0.41.0`. It rejects
-unlisted dependency, path, mode, and checksum changes.
-
-## Explicit non-claims and late-action behavior
-
-The shipped build uses `-tags libmodsecurity`; a source-only Go build retains a
-PassthroughEngine only for protobuf/unit development and refuses a runtime
-config. The normal build requires local libmodsecurity headers and library
-paths, then links Common Runtime into the ext_proc executable.
-
-The service uses the conservative response-commit boundary: only a successful
-response-header `CONTINUE` send marks a response as committed. For a disruptive
-decision found later:
-
-- `off` preserves native intervention handling without the additional late policy;
-- `safe` records a real Common host outcome `log_only` and
-  continue with the original visible response status;
-- `strict` is rejected at Common Runtime startup for the `envoy-ext-proc`
-  profile. Its immutable `strict_post_commit_action` capability is zero until
-  a deterministic post-commit host action is proven; no traffic is served and
-  no late decision is silently downgraded.
-
-The adapter intentionally does not use `ImmediateResponse` or a gRPC error as
-an HTTP-reset surrogate after response commitment. A canceled gRPC context and
-an observed gRPC peer EOF are recorded respectively as
-`grpc_context_canceled_unattributed` and `grpc_peer_eof`; neither label can be
-treated as a downstream client reset or an upstream reset.
-
-The active-stream cap is aggregate resource containment, not an idle deadline:
-a valid but silent admitted stream retains one bounded slot until Envoy sends a
-message/EOF or cancels its gRPC context. A separate per-stream idle policy must
-not be added without proving that it preserves legitimate streaming and leaves
-no blocked receive goroutine or native transaction behind.
-
-## Local source/build commands
+Provide local libmodsecurity paths directly or through the Framework-managed
+environment:
 
 ```sh
-make -C connectors/envoy build-envoy-ext-proc
-make -C connectors/envoy test-envoy-ext-proc
-make -C connectors/envoy check-envoy-ext-proc-config
-make -C connectors/envoy prepare-envoy-ext-proc-config
-make -C connectors/envoy runtime-smoke-envoy-ext-proc ENVOY_BIN=/absolute/path/to/envoy
+make -C connectors/envoy build-envoy-connector \
+  MODSECURITY_INCLUDE_DIR=/absolute/prefix/include \
+  MODSECURITY_LIB_DIR=/absolute/prefix/lib
 ```
 
-`runtime-smoke-envoy-ext-proc` starts a real pinned-compatible Envoy process,
-the CGo/Common gRPC service, and a local upstream. It saves effective Envoy and
-Common configurations, raw Common JSONL, and a separate metadata-only
-completion log outside the checkout. The host smoke exercises P1, P2, P3 deny,
-P3 redirect, and P4 post-commit safe/log-only behavior. It remains
-non-promoted until the canonical collector and capability review accept the
-raw host evidence.
+The build target only compiles and links. It does not run the service or a
+self-test.
 
-## Response companion peer identity
+Validate a concrete configuration, optionally overriding the rule file from the
+command line:
 
-The separate response-observer executable authenticates the connected
-response-companion UDS server with Linux `SO_PEERCRED` before sending
-`CLAIM`. Its `--expected-companion-uid` and `--expected-companion-gid`
-flags default to the observer's effective UID and GID. Set both flags when
-the companion uses a different identity, including an explicit value of
-`0`. A missing or mismatched peer credential fails closed; non-Linux
-platforms have no credential fallback. Keep the companion socket in a
-private directory whose full ancestor chain resists cross-UID replacement.
-Matching Unix IDs are one trust domain: `SO_PEERCRED` does not attest binary
-integrity, security labels, or user-namespace mapping.
+```sh
+make -C connectors/envoy check-envoy-config \
+  RULES_FILE=/absolute/path/to/rules.conf
+```
 
-## Remaining promotion boundary
+Run the request-free Envoy-plus-service start smoke:
 
-The service does not claim a deterministic post-commit reset or a client-byte
-observation. A late P4 rule is recorded as host-confirmed `log_only` in Safe.
-Strict is a deliberate startup rejection until a deterministic Envoy host
-action is demonstrated; it is not an `ImmediateResponse`, a gRPC error, or a
-claimed reset. Canonical collector validation of the raw Common JSONL remains
-a promotion boundary.
+```sh
+make -C connectors/envoy start-smoke-envoy \
+  ENVOY_BIN=/absolute/path/to/envoy \
+  RULES_FILE=/absolute/path/to/rules.conf
+```
+
+Run the real Envoy host-path smoke with a prepared Envoy binary:
+
+```sh
+make -C connectors/envoy runtime-smoke-envoy \
+  ENVOY_BIN=/absolute/path/to/envoy \
+  RULES_FILE=/absolute/path/to/rules.conf
+```
+
+This target validates a generated temporary Envoy config, starts the upstream,
+connector service, and Envoy, then requires an allowed HTTPS 200 and a
+rule-backed `X-Modsec-Smoke: block` HTTPS 403 through an ephemeral private
+loopback TLS listener. The local `ext_authz` sidecar remains an internal
+loopback HTTP service. Missing binaries are BLOCKED; config, process, mapping,
+and status errors fail the smoke. All processes are stopped on success or
+failure.
+
+For an operator-controlled foreground service:
+
+```sh
+make -C connectors/envoy serve-envoy-connector \
+  RULES_FILE=/absolute/path/to/rules.conf \
+  LISTEN_ADDRESS=127.0.0.1 LISTEN_PORT=18082
+```
+
+The template config enables request processing, uses `x-request-id` as the host
+transaction ID header, caps request bodies at 4096 bytes, disables response-body
+processing, uses 403/500 block/error defaults, applies explicit header/event
+limits, and writes metadata-only JSONL outside the checkout.
+
+The independent ext_proc full-lifecycle service has its own commands. Its
+normal executable requires explicit libmodsecurity headers and library paths:
+
+```sh
+make -C connectors/envoy build-envoy-ext-proc \
+  MODSECURITY_INCLUDE_DIR=/absolute/prefix/include \
+  MODSECURITY_LIB_DIR=/absolute/prefix/lib
+make -C connectors/envoy test-envoy-ext-proc \
+  MODSECURITY_INCLUDE_DIR=/absolute/prefix/include \
+  MODSECURITY_LIB_DIR=/absolute/prefix/lib
+make -C connectors/envoy check-envoy-ext-proc-config
+make -C connectors/envoy prepare-envoy-ext-proc-config
+make -C connectors/envoy prepare-envoy-ext-proc-runtime-config
+make -C connectors/envoy runtime-smoke-envoy-ext-proc \
+  ENVOY_BIN=/absolute/path/to/envoy \
+  MODSECURITY_INCLUDE_DIR=/absolute/prefix/include \
+  MODSECURITY_LIB_DIR=/absolute/prefix/lib
+```
+
+The source-only Go tests remain useful for protobuf and transport behavior; when
+the explicit paths are supplied, the build/test target additionally compiles the
+Common archive, links libmodsecurity, and runs the tagged CGo lifecycle tests.
+The runtime target writes its effective Common config and raw Common events
+under a run-local root. It provides connector-local rule/action evidence but
+does not promote a capability or substitute for canonical collection.
+
+## Current evidence boundary
+
+- The service is C17 compile/link verified and the targeted real Envoy request
+  path has `minimal_runtime_smoke` evidence. Verification remains
+  `connector-gap` outside that narrow scope.
+- A service build or request-free start does not prove an Envoy runtime request.
+  `runtime-smoke-envoy` exercises the selected `ext_authz` host path, while
+  `runtime-smoke-envoy-ext-proc` separately exercises the non-promoted
+  Common/libmodsecurity `ext_proc` host path.
+- The Framework's older Python `ext_authz` decision service is separate from
+  this connector binary and must not be used as evidence for this implementation.
+- No production, security, CRS-complete, full-matrix, response-header, or
+  response-body verification claim is made.
+- The ext_proc service has isolated real-Envoy Common/libmodsecurity host
+  evidence for its bounded HTTP/1.1 P1/P2/P3/P4 probes, including raw Common
+  rule decisions and host-confirmed deny/redirect/log-only actions. It has no
+  timeout, reset, first-byte, HTTP/2, client-byte observation, canonical
+  collector, or capability-promotion evidence.
+
+## Direct `ext_authz` boundary and logical Phase-4 contract
+
+The direct Envoy HTTP `ext_authz` protocol asks the authorization service
+before upstream handling and never exposes the later upstream response to that
+service. In the legacy direct capability table,
+`response_body_buffered`, `phase4`, `phase4_rule_evaluation`,
+`phase4_pre_commit_deny`, `late_intervention`, `late_intervention_log_only`,
+`late_intervention_abort`, and `late_intervention_status_metadata` are
+therefore `unsupported_by_host_model`, not merely unverified. A request-phase
+allow or deny, including a real request-side 200 or 403, is not response-phase
+evidence for that direct protocol.
+
+That boundary does not make P3/P4 not-applicable for the complete
+`envoy-ext-authz` logical connector. Its required chain hands the live Common
+transaction from `ext_authz` after P2 to the private-UDS `ext_proc` response
+observer through a server-generated opaque handle. The observer claims the
+handle exactly once, strips it before the upstream request, sends P3 before
+response commitment, sends bounded P4 chunks plus exactly one EOS, and then
+releases or cancels deterministically. Missing, malformed, expired, replayed,
+or unavailable correlation is a configuration or protocol failure and fails
+closed before response commitment.
+
+Accordingly, a shared P4 case is `UNSUPPORTED` only for an unpaired direct
+`ext_authz` protocol. The logical connector must use its required observer for
+P3/P4 or fail as misconfigured; it must never silently relabel those phases as
+unsupported. No response-body payload is written to events or reports.
+
+## Phase-4 mode and inspection budget
+
+The default mode is `off`; supported values are `off`, `safe`, and `strict`.
+The additional cumulative Phase-4 inspection budget is enforced only in
+`safe` and `strict`. `off` continues to feed configured response inspection to
+libModSecurity and does not turn rule interventions or real engine errors into
+success. The engine's own MIME selection and limits remain authoritative.
+
+This rule applies to the native integrations and the Common Runtime-backed
+response paths. A request-only route still requires its supported response
+observer/companion to inspect Phase 4. It does not gain response inspection
+merely by selecting a mode.
+
+Independent allocation, buffered-response, message/frame, timeout and transport
+limits remain active in every mode. In particular, a buffered sidecar may still
+reject a response that cannot fit its bounded storage even in `off`. Removing
+the extra inspection budget does not authorize unbounded allocation.
+
+See [the cross-connector budget contract](../../docs/phase4-mode-budget.md) for
+the exact scope, error handling and validation limitations.
