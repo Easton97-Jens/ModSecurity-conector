@@ -121,7 +121,7 @@ class NginxPortCleanupProbeTests(unittest.TestCase):
         self.assertEqual(diagnostic.get("netns"), os.readlink("/proc/self/ns/net"))
         self.assertEqual(diagnostic.get("family"), "AF_INET")
         self.assertEqual(diagnostic.get("address"), "127.0.0.1")
-        self.assertEqual(diagnostic.get("tcp_reuseaddr"), True)
+        self.assertIs(diagnostic.get("tcp_reuseaddr"), True)
 
     def test_live_loopback_listener_is_rejected(self) -> None:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
