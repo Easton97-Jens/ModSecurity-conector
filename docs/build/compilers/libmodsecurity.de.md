@@ -39,8 +39,8 @@ sudo dnf install gcc gcc-c++ make git autoconf automake libtool flex bison pkgco
 Wenn die benötigten Entwicklungspakete bereits installiert sind, verwendet der Standardweg diesen überprüften, im Repository dokumentierten Release. Er ist eine Reproduzierbarkeitsbasis und keine Aussage über den neuesten oder von Upstream unterstützten Release. Die GPG-Tag-Prüfung setzt einen vertrauenswürdigen Maintainer-Schlüssel voraus.
 
 ```sh
-MODSECURITY_REF="v3.0.16"
-MODSECURITY_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"
+MODSECURITY_REF="v3.0.17"
+MODSECURITY_COMMIT="1925753989ccce977cdaae417b55c9726c7cf02c"
 git clone --branch "$MODSECURITY_REF" --single-branch https://github.com/owasp-modsecurity/ModSecurity.git ModSecurity
 cd ModSecurity
 git fetch --tags origin
@@ -60,8 +60,8 @@ sudo make install
 
 | Befehl | Bedeutung |
 | --- | --- |
-| `MODSECURITY_REF="v3.0.16"` | Wählt den im Repository dokumentierten unveränderlichen Release-Tag aus. |
-| `MODSECURITY_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"` | Hält den erwarteten unveränderlichen Commit für den ausgewählten Release fest. |
+| `MODSECURITY_REF="v3.0.17"` | Wählt den im Repository dokumentierten unveränderlichen Release-Tag aus. |
+| `MODSECURITY_COMMIT="1925753989ccce977cdaae417b55c9726c7cf02c"` | Hält den erwarteten unveränderlichen Commit für den ausgewählten Release fest. |
 | `git clone --branch "$MODSECURITY_REF" --single-branch https://github.com/owasp-modsecurity/ModSecurity.git ModSecurity` | Lädt nur den ausgewählten ModSecurity-v3-Release in das lokale Source-Verzeichnis herunter. |
 | `cd ModSecurity` | Wechselt in das heruntergeladene Verzeichnis. |
 | `git fetch --tags origin` | Lädt Release-Tags vor der Signaturprüfung nach. |
@@ -104,8 +104,8 @@ Dabei wird nicht systemweit installiert und `sudo` ist nicht erforderlich.
 Dieser Abschnitt ist für bewusst gepinnte oder lokale Entwicklungsbuilds. Ein fester Release-Tag und der erwartete Commit machen die Eingabe nachvollziehbar. Eine GPG-Tag-Prüfung setzt einen vertrauenswürdigen Maintainer-Schlüssel voraus; bei Releasearchiven zusätzlich die veröffentlichte SHA-Prüfsumme vor dem Entpacken prüfen.
 
 ```sh
-MODSECURITY_REF="v3.0.16"
-MODSECURITY_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"
+MODSECURITY_REF="v3.0.17"
+MODSECURITY_COMMIT="1925753989ccce977cdaae417b55c9726c7cf02c"
 git -C ModSecurity fetch --tags origin
 git -C ModSecurity checkout --detach "$MODSECURITY_REF"
 test "$(git -C ModSecurity rev-parse HEAD)" = "$MODSECURITY_COMMIT"
