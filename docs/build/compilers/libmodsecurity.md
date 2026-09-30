@@ -39,8 +39,8 @@ sudo dnf install gcc gcc-c++ make git autoconf automake libtool flex bison pkgco
 Once the required development packages are installed, the default path uses this verified, repository-documented release. It is a reproducibility baseline, not a claim about the latest or upstream-supported release. GPG tag verification requires a trusted maintainer key.
 
 ```sh
-MODSECURITY_REF="v3.0.17"
-MODSECURITY_COMMIT="1925753989ccce977cdaae417b55c9726c7cf02c"
+MODSECURITY_REF="v3.0.16"
+MODSECURITY_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"
 git clone --branch "$MODSECURITY_REF" --single-branch https://github.com/owasp-modsecurity/ModSecurity.git ModSecurity
 cd ModSecurity
 git fetch --tags origin
@@ -60,8 +60,8 @@ sudo make install
 
 | Command | Meaning |
 | --- | --- |
-| `MODSECURITY_REF="v3.0.17"` | Selects the repository-documented immutable release tag. |
-| `MODSECURITY_COMMIT="1925753989ccce977cdaae417b55c9726c7cf02c"` | Records the expected immutable commit for the selected release. |
+| `MODSECURITY_REF="v3.0.16"` | Selects the repository-documented immutable release tag. |
+| `MODSECURITY_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"` | Records the expected immutable commit for the selected release. |
 | `git clone --branch "$MODSECURITY_REF" --single-branch https://github.com/owasp-modsecurity/ModSecurity.git ModSecurity` | Downloads only the selected ModSecurity v3 release into the local source directory. |
 | `cd ModSecurity` | Changes into the downloaded directory. |
 | `git fetch --tags origin` | Fetches release tags before their signature is verified. |
@@ -104,8 +104,8 @@ This does not install system-wide and does not require `sudo`.
 Use this section for deliberately pinned or local development builds. A fixed release tag and expected commit make the input traceable. GPG tag verification requires a trusted maintainer key; for release archives, also verify the published SHA checksum before unpacking.
 
 ```sh
-MODSECURITY_REF="v3.0.17"
-MODSECURITY_COMMIT="1925753989ccce977cdaae417b55c9726c7cf02c"
+MODSECURITY_REF="v3.0.16"
+MODSECURITY_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"
 git -C ModSecurity fetch --tags origin
 git -C ModSecurity checkout --detach "$MODSECURITY_REF"
 test "$(git -C ModSecurity rev-parse HEAD)" = "$MODSECURITY_COMMIT"

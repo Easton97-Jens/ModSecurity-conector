@@ -122,7 +122,7 @@ class UpdateSubmodulesLocalGitTests(unittest.TestCase):
         output = temporary / "github-output"
         script = self.workflow_step("resolve-submodule-update", "Resolve exactly one official submodule commit")
         # GitHub evaluates this one workflow expression before starting Bash.
-        # The local default models a scheduled/non-validation-only invocation.
+        # The local default models a manual publishing/non-validation-only invocation.
         script = re.sub(r"\$\{\{.*?\}\}", "false", script, flags=re.DOTALL)
         environment = {
             **os.environ,

@@ -36,9 +36,6 @@ SYNC_SPEC.loader.exec_module(SYNC)
 
 CANDIDATE_SHA = "d4f7b69dc264852eac74e1439c0887fcb9fbe372"
 CURRENT_PARENT_FRAMEWORK_SHA = "0" * 40
-REVIEWED_FRAMEWORK_COMMON_STRUCTURE_SHA256 = (
-    "eed16dbe606c2770cf830cdb06884c7a5f68544e13c7f5ebb3106d3107e11fdc"
-)
 GENERIC_SOURCE_COMMON = """\
 ENVOY_VERSION="1.39.1"
 LIGHTTPD_SERIES="1.4"
@@ -98,24 +95,8 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
         set_framework_sha_fixture(self.root, CANDIDATE_SHA)
         self.common = Path(self.temporary.name) / "framework-common.sh"
         self.common.write_text(CANDIDATE_COMMON, encoding="utf-8")
-        self.approved_common_structure_sha256 = (
-            VERIFIER.APPROVED_FRAMEWORK_COMMON_STRUCTURE_SHA256
-        )
-        VERIFIER.APPROVED_FRAMEWORK_COMMON_STRUCTURE_SHA256 = (
-            VERIFIER._framework_common_structure_sha256(CANDIDATE_COMMON.encode("utf-8"))
-        )
-
-    def tearDown(self) -> None:
-        VERIFIER.APPROVED_FRAMEWORK_COMMON_STRUCTURE_SHA256 = (
-            self.approved_common_structure_sha256
-        )
-        self.temporary.cleanup()
-
-    def write_approved_common(self, text: str) -> None:
+    def write_common(self, text: str) -> None:
         self.common.write_text(text, encoding="utf-8")
-        VERIFIER.APPROVED_FRAMEWORK_COMMON_STRUCTURE_SHA256 = (
-            VERIFIER._framework_common_structure_sha256(text.encode("utf-8"))
-        )
 
     def parent_bytes(self) -> dict[Path, bytes]:
         paths = {
@@ -160,29 +141,21 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
         self.assertIn("NGINX_RELEASE_TAG: release-1.31.4", protected_workflow)
         self.assertIn('NGINX_PINNED_RELEASE_TAG = "release-1.31.4"', protected_broker)
 
-    def test_checked_out_framework_common_matches_production_review(self) -> None:
+    def test_checked_out_framework_common_passes_the_data_contract(self) -> None:
         framework_common = ROOT / "modules/ModSecurity-test-Framework/ci/lib/common.sh"
         if not framework_common.is_file():
             self.skipTest("reviewed Framework submodule is not initialized")
-        payload = framework_common.read_bytes()
-        self.assertEqual(
-            VERIFIER._framework_common_structure_sha256(payload),
-            self.approved_common_structure_sha256,
-        )
-        # Exercise the real file, not merely two duplicated digest literals.
-        VERIFIER.APPROVED_FRAMEWORK_COMMON_STRUCTURE_SHA256 = (
-            self.approved_common_structure_sha256
-        )
-        self.common.write_bytes(payload)
+        self.common.write_bytes(framework_common.read_bytes())
         before = self.parent_bytes()
         values = VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
         self.assertEqual(values["release_tag"], "release-1.31.6")
         self.assertEqual(before, self.parent_bytes())
 
-    def test_production_review_digest_matches_the_reviewed_candidate(self) -> None:
+    def test_new_shell_structure_is_not_blocked_by_a_fixed_digest(self) -> None:
+        self.write_common(CANDIDATE_COMMON + "\nfuture_helper() { :; }\n")
         self.assertEqual(
-            self.approved_common_structure_sha256,
-            REVIEWED_FRAMEWORK_COMMON_STRUCTURE_SHA256,
+            VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)["release_tag"],
+            "release-1.31.6",
         )
 
     def test_current_parent_projection_can_be_checked_before_candidate_projection(
@@ -255,38 +228,36 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
             VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
         self.assertEqual(before, self.parent_bytes())
 
-    def test_unreviewed_nginx_data_change_fails_the_structure_boundary(self) -> None:
+    def test_unreviewed_nginx_data_change_fails_the_parent_handoff(self) -> None:
         self.common.write_text(
             CANDIDATE_COMMON.replace("release-1.31.6", "release-1.31.7"),
             encoding="utf-8",
         )
-        with self.assertRaisesRegex(VERIFIER.ContractError, "approved reviewed structure"):
+        with self.assertRaisesRegex(VERIFIER.ContractError, "unprotected NGINX handoff mismatch"):
             VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
 
-    def test_unreviewed_maintenance_pin_changes_fail_the_structure_boundary(self) -> None:
+    def test_unregistered_maintenance_pins_do_not_block_manual_updates(self) -> None:
         replacements = (
             (
-                "OPENSSL_SHA256=\"736b467530f916737b7031310ccb21d8218c6229e61e8e160cd1d3458cd543a8\"",
-                "OPENSSL_SHA256=\"0\"",
+                'OPENSSL_SHA256="736b467530f916737b7031310ccb21d8218c6229e61e8e160cd1d3458cd543a8"',
+                'OPENSSL_SHA256="' + "a" * 64 + '"',
             ),
             (
-                "CI_SECURITY_TOOL_OSV_SCANNER_COMMIT=\"e840a6e8adb14b7777c78e26cfbf6e2abc1d1fc6\"",
-                "CI_SECURITY_TOOL_OSV_SCANNER_COMMIT=\"0\"",
+                'CI_SECURITY_TOOL_OSV_SCANNER_COMMIT="e840a6e8adb14b7777c78e26cfbf6e2abc1d1fc6"',
+                'CI_SECURITY_TOOL_OSV_SCANNER_COMMIT="' + "a" * 40 + '"',
             ),
             (
-                "CI_SECURITY_TOOL_RUFF_COMMIT=\"62914c4b9b79a9e5004374a9c482ad2ed69290e1\"",
-                "CI_SECURITY_TOOL_RUFF_COMMIT=\"0\"",
+                'CI_SECURITY_TOOL_RUFF_COMMIT="62914c4b9b79a9e5004374a9c482ad2ed69290e1"',
+                'CI_SECURITY_TOOL_RUFF_COMMIT="' + "a" * 40 + '"',
             ),
         )
         for expected, replacement in replacements:
             with self.subTest(expected=expected):
-                self.common.write_text(
-                    CANDIDATE_COMMON.replace(expected, replacement), encoding="utf-8"
+                self.write_common(CANDIDATE_COMMON.replace(expected, replacement))
+                self.assertEqual(
+                    VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)["release_tag"],
+                    "release-1.31.6",
                 )
-                with self.assertRaisesRegex(
-                    VERIFIER.ContractError, "approved reviewed structure"
-                ):
-                    VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
 
     def test_stale_framework_sha_fails_closed_without_parent_writes(self) -> None:
         workflow = self.root / ".github/workflows/test-connectors-with-crs-no-mrts.yml"
@@ -329,14 +300,14 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
             "974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1",
             "e6f20b644a17a643f059ae6467a1971fe2811587d025e071068753a1f1e3b3c3",
         )
-        self.write_approved_common(stale)
+        self.write_common(stale)
         before = self.parent_bytes()
         with self.assertRaisesRegex(VERIFIER.ContractError, "unprotected NGINX handoff mismatch"):
             VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
         self.assertEqual(before, self.parent_bytes())
 
     def test_malformed_candidate_checksum_fails_before_parent_projection(self) -> None:
-        self.write_approved_common(
+        self.write_common(
             CANDIDATE_COMMON.replace(
                 "974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1",
                 "0" * 63,
@@ -346,7 +317,7 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
             VERIFIER.parse_candidate_nginx_handoff(self.common)
 
     def test_noncanonical_candidate_tuple_fails_before_parent_projection(self) -> None:
-        self.write_approved_common(
+        self.write_common(
             CANDIDATE_COMMON.replace(
                 'NGINX_SOURCE_MODE="github-release"',
                 'NGINX_SOURCE_MODE="git"',
@@ -369,7 +340,7 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
         )
         for suffix in cases:
             with self.subTest(suffix=suffix):
-                self.write_approved_common(CANDIDATE_COMMON + suffix)
+                self.write_common(CANDIDATE_COMMON + suffix)
                 with self.assertRaises(VERIFIER.ContractError):
                     VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
 
@@ -382,7 +353,7 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
         )
         for suffix in cases:
             with self.subTest(suffix=suffix):
-                self.write_approved_common(CANDIDATE_COMMON + suffix)
+                self.write_common(CANDIDATE_COMMON + suffix)
                 with self.assertRaisesRegex(
                     VERIFIER.ContractError, "NGINX_REQUIRE_PINNED_PROVENANCE"
                 ):
@@ -395,11 +366,11 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
         )
         for suffix in cases:
             with self.subTest(suffix=suffix):
-                self.write_approved_common(CANDIDATE_COMMON + suffix)
+                self.write_common(CANDIDATE_COMMON + suffix)
                 with self.assertRaisesRegex(VERIFIER.ContractError, "dynamic shell evaluation"):
                     VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
 
-    def test_unapproved_candidate_structure_fails_closed_before_parent_projection(self) -> None:
+    def test_indirect_shell_assignment_fails_before_parent_projection(self) -> None:
         cases = (
             '\nfield=NGINX_SHA256; printf -v "$field" "%s" "' + "0" * 64 + '"\n',
             '\nfield=NGINX_REQUIRE_PINNED_PROVENANCE; unset "$field"\n',
@@ -410,7 +381,7 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
             with self.subTest(suffix=suffix):
                 self.common.write_text(CANDIDATE_COMMON + suffix, encoding="utf-8")
                 with self.assertRaisesRegex(
-                    VERIFIER.ContractError, "approved reviewed structure"
+                    VERIFIER.ContractError, "unsupported indirect shell assignment"
                 ):
                     VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
 
@@ -478,7 +449,7 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
             'NGINX_SHA256_REQUESTED="${NGINX_SHA256-}"\n'
             'NGINX_SHA256="974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1"\n',
         ) + "export NGINX_SOURCE_MODE NGINX_SHA256\n"
-        self.write_approved_common(safe_common)
+        self.write_common(safe_common)
         self.assertEqual(
             VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)["archive_sha256"],
             "974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1",
@@ -521,7 +492,7 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
                 target.write_text(original, encoding="utf-8")
 
     def test_unsafe_candidate_expression_fails_before_parent_projection(self) -> None:
-        self.write_approved_common(
+        self.write_common(
             CANDIDATE_COMMON.replace(
                 'NGINX_SOURCE_GIT_REF="$NGINX_RELEASE_TAG"',
                 'NGINX_SOURCE_GIT_REF="$(id)"',

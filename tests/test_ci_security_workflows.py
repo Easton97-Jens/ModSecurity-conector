@@ -35,7 +35,7 @@ PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE = (
     "Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@"
     + PROTECTED_NGINX_BROKER_SHA
 )
-WITH_CRS_NO_MRTS_FRAMEWORK_SHA = "bc8217d325809b9aba9a1d8c16964d71a01933ee"
+WITH_CRS_NO_MRTS_FRAMEWORK_SHA = "0290a979ba4bc63a7abed175a53471367b385553"
 WITH_CRS_NO_MRTS_MRTS_SHA = "8a6bb546c4c81d8ffc7be801dceac60c6925685f"
 PROTECTED_NGINX_BROKER_CALLER_MASTER_GATE_TERMS = frozenset(
     {
@@ -172,7 +172,7 @@ SUBMODULE_VALIDATE_ONLY_MANUAL_PREDICATE = (
     f"{SUBMODULE_VALIDATE_ONLY_REF_ALLOWLIST}"
 )
 SUBMODULE_VALIDATE_ONLY_MASTER_EXCLUSION = (
-    "(github.event_name != 'workflow_dispatch' || "
+    "(github.event_name == 'workflow_dispatch' && "
     "github.event.inputs.validate_only != 'true')"
 )
 SUBMODULE_VALIDATE_ONLY_CHECKOUT_REF = (
@@ -920,6 +920,11 @@ def update_submodule_validate_only_errors(text: str) -> list[str]:
     """Return violations of the manual non-publishing validation contract."""
 
     errors: list[str] = []
+    trigger = re.search(r"(?ms)^on:\n(?P<body>.*?)(?=^permissions:)", text)
+    if trigger is None or re.findall(
+        r"(?m)^  ([A-Za-z_][A-Za-z0-9_-]*):", trigger.group("body")
+    ) != ["workflow_dispatch"]:
+        errors.append("submodule updater must have only workflow_dispatch")
     if text.count(SUBMODULE_VALIDATE_ONLY_INPUT) != 1:
         errors.append("validate_only must be one exact optional-false boolean input")
     if text.count(SUBMODULE_VALIDATE_ONLY_PROTECTED_FLAG) != 4:
@@ -3043,6 +3048,10 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertNotEqual(readonly_submodule_validator_errors(namespace_runner_removed), [])
 
         validate_only_mutations = {
+            "automatic schedule is reintroduced": (
+                "on:\n  workflow_dispatch:",
+                "on:\n  schedule:\n    - cron: '0 3 * * 1'\n  workflow_dispatch:",
+            ),
             "input enables validate_only by default": (
                 SUBMODULE_VALIDATE_ONLY_INPUT,
                 SUBMODULE_VALIDATE_ONLY_INPUT.replace("default: false", "default: true"),
