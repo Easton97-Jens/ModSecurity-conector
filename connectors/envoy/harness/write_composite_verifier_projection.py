@@ -413,8 +413,8 @@ def project_case(
     with (
         open_private_runtime_root(runtime_path) as private_runtime,
         open_private_runtime_root(case_path) as private_case,
+        _ProjectionOutputTransaction(private_case) as outputs,
     ):
-        with _ProjectionOutputTransaction(private_case) as outputs:
             raw_text = _bounded_private_event(
                 private_runtime,
                 runtime_path,
