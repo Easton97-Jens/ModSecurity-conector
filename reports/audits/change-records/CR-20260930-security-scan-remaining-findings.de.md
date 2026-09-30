@@ -21,9 +21,9 @@ Das positive NGINX-Interventionsverhalten bleibt durch die Basis-Revision bereit
 
 ## Implementierungsentscheidung und Begründung
 
-Die HAProxy-Änderung löscht nur die Error-Continuation-Option aus den vier betroffenen Profildateien und ergänzt einen fokussierten Regressions-Contract, der die Closed Defaults absichert. Die Common Runtime behält ihre vorhandenen Private-Leaf-Prüfungen und erweitert sie über die kanonische gesamte Verzeichniskette: Nicht schreibbare Ancestors werden akzeptiert, schreibbare Ancestors müssen sticky sein und das eigene Child gegen Austausch durch andere UIDs schützen.
+Die HAProxy-Änderung löscht nur die Error-Continuation-Option aus den vier betroffenen Profildateien und ergänzt einen fokussierten Regressions-Contract, der die Closed Defaults absichert. Die Common Runtime behält ihre vorhandenen Private-Leaf-Prüfungen und erweitert sie über die kanonische gesamte Verzeichniskette: Jeder Ancestor muss der effektiven Service-UID oder UID 0 (dem vertrauenswürdigen Superuser) gehören; schreibbare Ancestors müssen zusätzlich sticky sein und das eigene Child gegen Austausch durch andere UIDs schützen.
 
-Die Envoy- und Traefik-Observer verwenden explizite erwartete UID/GID-Paare. Ohne Konfiguration gelten die effektive UID/GID des Observer-Prozesses; eine explizite Identität verlangt beide Felder und erlaubt bewusst den Wert null. Der Produktionscode von Envoy enthält keinen unauthentisierten Dial-Einstiegspunkt. Der vorhandene ungeprüfte Dial bleibt ausschließlich testintern für Protocol-Framing-Coverage. Der Observer authentisiert unmittelbar nach dem Connect und bevor `CLAIM`-Bytes geschrieben werden.
+Die Envoy- und Traefik-Observer verwenden explizite erwartete UID/GID-Paare. Ohne Konfiguration gelten die effektive UID/GID des Observer-Prozesses; eine explizite Identität verlangt beide Felder und erlaubt bewusst den Wert null. Der einzige produktive Envoy-Connect-Pfad ist `dialWithExpectedPeer`; er authentisiert unmittelbar nach dem Connect und bevor `CLAIM`-Bytes geschrieben werden. Protocol-Framing-Tests konstruieren ihren Test-Client getrennt und stellen keinen produktiven unauthentisierten Pfad bereit.
 
 ## Geänderte Dateien
 
@@ -51,15 +51,15 @@ Sie sind in den PR-Workflows konfiguriert. Aus diesem Windows-Workspace werden s
 
 ## Security-Auswirkung
 
-Die HAProxy-Profile machen aus einem nicht verfügbaren oder fehlerhaften SPOE-Agenten keinen Continuation-Pfad mehr, wenn sie als Closed Default gekennzeichnet sind. Die Common Runtime lehnt einen Socket-Parent ab, der nur durch ein privates Leaf unter einem schreibbaren, nicht-sticky Ancestor geschützt ist. Die Go-Observer binden ihre Response-Companion-Trust-Entscheidung vor dem Claim von Protocol-State an Kernel-bereitgestellte Peer-Credentials; ein Credential-Fehler wird zum bestehenden Pre-Commit-503-Fail-Closed-Verhalten.
+Die HAProxy-Profile machen aus einem nicht verfügbaren oder fehlerhaften SPOE-Agenten keinen Continuation-Pfad mehr, wenn sie als Closed Default gekennzeichnet sind. Die Common Runtime lehnt einen Socket-Parent unter einem Ancestor mit nicht vertrauenswürdiger Owner-UID ab und lehnt einen schreibbaren Ancestor ab, wenn er nicht sticky ist und das service-eigene Child schützt. Die Go-Observer binden ihre Response-Companion-Trust-Entscheidung vor dem Claim von Protocol-State an Kernel-bereitgestellte Peer-Credentials; ein Credential-Fehler wird zum bestehenden Pre-Commit-503-Fail-Closed-Verhalten.
 
 ## Runtime-Evidence
 
-Die neuen Regressionstests belegen die erwarteten Source- und Protocol-Grenzen. Linux-Tests verwenden einen echten lokalen Unix-Listener und prüfen, dass ein Peer mit abweichender Identität vor dem Reject null Request-Bytes erhält. Der C-Transporttest erzeugt ein privates Child unter einem schreibbaren, nicht-sticky Ancestor und verlangt einen Startup-Fehler. Dies sind begrenzte Komponententests, keine Live-Acceptance-Behauptung für Envoy-, Traefik-, HAProxy- oder NGINX-Deployments.
+Die neuen Regressionstests belegen die erwarteten Source- und Protocol-Grenzen. Linux-Tests verwenden einen echten lokalen Unix-Listener und prüfen, dass ein Peer mit abweichender Identität vor dem Reject null Request-Bytes erhält. Der C-Transporttest erzeugt ein privates Child unter einem schreibbaren, nicht-sticky Ancestor und verlangt einen Startup-Fehler; der Companion-Source-Contract fixiert zusätzlich die Trusted-Owner-Prüfung vor der Writable-Mode-Freigabe. Dies sind begrenzte Komponententests, keine Live-Acceptance-Behauptung für Envoy-, Traefik-, HAProxy- oder NGINX-Deployments.
 
 ## Bekannte Einschränkungen
 
-Linux-`SO_PEERCRED` authentisiert die vom Kernel gemeldete UID/GID des UDS-Peers. Es attestiert weder Executable noch Dateiintegrität, MAC-Label oder User-Namespace-Mapping. Gleiche Unix-IDs bilden eine gemeinsame Vertrauensdomäne. Die Directory-Chain-Prüfung bewertet Ownership, Mode-Bits und Sticky-Schutz; Deployments müssen zusätzlich POSIX-ACLs oder Mount-Policies vermeiden, die einer anderen Identität Ersetzungsrechte geben.
+Linux-`SO_PEERCRED` authentisiert die vom Kernel gemeldete UID/GID des UDS-Peers. Es attestiert weder Executable noch Dateiintegrität, MAC-Label oder User-Namespace-Mapping. Gleiche Unix-IDs bilden eine gemeinsame Vertrauensdomäne. Die Directory-Chain-Prüfung bewertet Ownership, Mode-Bits und Sticky-Schutz. UID 0 ist bewusst für standardmäßige root-owned sticky Ancestors wie `/tmp` und `/var/tmp` vertrauenswürdig; Produktions-Sockets sollten unter einem service-owned Mode-0700-Leaf liegen. Deployments müssen zusätzlich POSIX-ACLs oder Mount-Policies vermeiden, die einer anderen Identität Ersetzungsrechte geben.
 
 ## Verbleibende Risiken
 
@@ -67,7 +67,7 @@ Die Änderung enthält bewusst keinen Nicht-Linux-Credential-Fallback; nicht unt
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-Die gewünschte SonarQube-Analyse konnte in diesem Workspace nicht laufen: Sonar-CLI und ein SonarQube-Connector-Tool waren nicht verfügbar, außerdem war der lokale Container-Daemon nicht erreichbar. Es wurden keine Credentials, Pakete oder Service-Konfigurationen verändert, um diese Einschränkung zu umgehen. Lokale C-/Go-Ausführung war aus dem read-only Windows-Workspace ebenfalls nicht verfügbar; die fokussierten Befehle werden deshalb an Exact-Head-GitHub-Actions delegiert.
+Die lokale Sonar-CLI und ein direkter SonarQube-Connector waren nicht verfügbar, außerdem war der lokale Container-Daemon nicht erreichbar; Credentials, Pakete und Service-Konfigurationen wurden dafür nicht verändert. Der Exact-Head-SonarQube-Cloud-GitHub-Check ist daher das PR-Quality-Gate. Lokale C-/Go-Ausführung war aus dem read-only Windows-Workspace ebenfalls nicht verfügbar; die fokussierten Befehle werden an Exact-Head-GitHub-Actions delegiert.
 
 ## Finaler Diff- und Review-Status
 

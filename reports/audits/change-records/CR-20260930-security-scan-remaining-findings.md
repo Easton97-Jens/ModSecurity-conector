@@ -21,9 +21,9 @@ Positive NGINX intervention behavior remains supplied by the base revision. Ever
 
 ## Implementation decision and rationale
 
-The HAProxy change deletes only the error-continuation option from the four affected profile files and adds a focused regression contract that asserts the profiles stay closed by default. The Common Runtime keeps its existing private-leaf checks and extends them up the canonical directory chain: non-writable ancestors are accepted, while writable ancestors must be sticky and protect the owned child from cross-UID replacement.
+The HAProxy change deletes only the error-continuation option from the four affected profile files and adds a focused regression contract that asserts the profiles stay closed by default. The Common Runtime keeps its existing private-leaf checks and extends them up the canonical directory chain: every ancestor must be owned by the effective service UID or UID 0 (the trusted superuser), and writable ancestors must also be sticky and protect the owned child from cross-UID replacement.
 
-The Envoy and Traefik observers use explicit expected UID/GID pairs. Absent configuration defaults to the observer process's effective UID/GID; an explicit identity requires both fields and permits an intentional value of zero. Production Envoy code has no unauthenticated dial entrypoint. The pre-existing unverified dial remains test-only for protocol framing coverage. The observer authenticates immediately after connecting and before any `CLAIM` bytes can be written.
+The Envoy and Traefik observers use explicit expected UID/GID pairs. Absent configuration defaults to the observer process's effective UID/GID; an explicit identity requires both fields and permits an intentional value of zero. The only production Envoy connection path is `dialWithExpectedPeer`; it authenticates immediately after connecting and before any `CLAIM` bytes can be written. Protocol-framing tests construct their test client separately and do not provide a production unauthenticated route.
 
 ## Changed files
 
@@ -51,15 +51,15 @@ They are configured in the PR workflows. They have not been claimed as locally p
 
 ## Security impact
 
-The HAProxy profiles no longer turn an unavailable or errored SPOE agent into a continuation path in configurations designated closed-default. The Common Runtime rejects a socket parent protected only by a private leaf below a writable, non-sticky ancestor. The Go observers bind their response-companion trust decision to kernel-supplied peer credentials before protocol state is claimed; credential failure becomes the existing pre-commit 503 fail-closed behavior.
+The HAProxy profiles no longer turn an unavailable or errored SPOE agent into a continuation path in configurations designated closed-default. The Common Runtime rejects a socket parent below an ancestor owned by an untrusted UID, and rejects a writable ancestor unless it is sticky and protects the service-owned child. The Go observers bind their response-companion trust decision to kernel-supplied peer credentials before protocol state is claimed; credential failure becomes the existing pre-commit 503 fail-closed behavior.
 
 ## Runtime evidence
 
-The new regression tests demonstrate the expected source and protocol boundaries. Linux tests use a real local Unix listener and assert that a mismatched peer identity receives zero request bytes before rejection. The C transport test creates a private child under a writable, non-sticky ancestor and requires startup failure. These are bounded component tests, not a live Envoy, Traefik, HAProxy, or NGINX deployment acceptance claim.
+The new regression tests demonstrate the expected source and protocol boundaries. Linux tests use a real local Unix listener and assert that a mismatched peer identity receives zero request bytes before rejection. The C transport test creates a private child under a writable, non-sticky ancestor and requires startup failure; the companion source contract additionally locks the trusted-owner check ahead of the writable-mode allowance. These are bounded component tests, not a live Envoy, Traefik, HAProxy, or NGINX deployment acceptance claim.
 
 ## Known limitations
 
-Linux `SO_PEERCRED` authenticates the kernel-reported UID/GID for the UDS peer. It does not attest the executable, file integrity, MAC label, or user-namespace mapping. Matching Unix IDs form one trust domain. The directory-chain check evaluates ownership, mode bits, and sticky protection; deployments must also avoid POSIX ACLs or mount policies that grant another identity replacement authority.
+Linux `SO_PEERCRED` authenticates the kernel-reported UID/GID for the UDS peer. It does not attest the executable, file integrity, MAC label, or user-namespace mapping. Matching Unix IDs form one trust domain. The directory-chain check evaluates ownership, mode bits, and sticky protection. UID 0 is deliberately trusted for standard root-owned sticky ancestors such as `/tmp` and `/var/tmp`; production sockets should remain below a service-owned mode-0700 leaf. Deployments must also avoid POSIX ACLs or mount policies that grant another identity replacement authority.
 
 ## Remaining risks
 
@@ -67,7 +67,7 @@ The change intentionally has no non-Linux credential fallback, so unsupported de
 
 ## Checks not run and rationale
 
-The requested SonarQube analysis could not run in this workspace: the Sonar CLI and a SonarQube connector tool were unavailable, and the local container daemon was inaccessible. No credentials, packages, or service configuration were altered to work around that limitation. Local C/Go execution was also unavailable from the read-only Windows workspace; the focused commands are therefore delegated to exact-head GitHub Actions.
+The local Sonar CLI and a direct SonarQube connector tool were unavailable, and the local container daemon was inaccessible; no credentials, packages, or service configuration were altered to work around that limitation. The exact-head SonarQube Cloud GitHub check is therefore the PR quality gate. Local C/Go execution was also unavailable from the read-only Windows workspace; the focused commands are delegated to exact-head GitHub Actions.
 
 ## Final diff and review status
 

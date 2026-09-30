@@ -239,6 +239,14 @@ class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
             "response_companion_parent_protects_child_from_cross_uid_replacement",
             ancestor_check,
         )
+        owner_guard = "if (parent_stat->st_uid != geteuid() && parent_stat->st_uid != 0)"
+        writable_mode_guard = "if ((parent_stat->st_mode & (S_IWGRP | S_IWOTH)) == 0)"
+        self.assertIn(owner_guard, parent_protection)
+        self.assertIn(writable_mode_guard, parent_protection)
+        self.assertLess(
+            parent_protection.index(owner_guard),
+            parent_protection.index(writable_mode_guard),
+        )
         self.assertIn("S_ISVTX", parent_protection)
         self.assertIn("child_stat->st_uid == geteuid()", parent_protection)
 

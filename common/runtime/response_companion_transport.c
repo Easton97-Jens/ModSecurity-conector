@@ -202,13 +202,17 @@ static int response_companion_path_is_safe(const char *path)
     return 1;
 }
 
-/* A private leaf is still replaceable when an ancestor is writable by
- * another UID.  Sticky ancestors protect a child only when we own it. */
+/* Each ancestor must be controlled by this service or trusted UID 0: an
+ * owner can change its mode before replacing a child.  If an ancestor is
+ * writable by other identities, sticky protection also requires our child. */
 static int response_companion_parent_protects_child_from_cross_uid_replacement(
     const struct stat *parent_stat, const struct stat *child_stat)
 {
     if (parent_stat == NULL || child_stat == NULL ||
         !S_ISDIR(parent_stat->st_mode)) {
+        return 0;
+    }
+    if (parent_stat->st_uid != geteuid() && parent_stat->st_uid != 0) {
         return 0;
     }
     if ((parent_stat->st_mode & (S_IWGRP | S_IWOTH)) == 0) {
