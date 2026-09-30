@@ -27,7 +27,7 @@ MAX_INPUT_BYTES = 512 * 1024
 # bounded registered source-data RHSs may vary without a structural review.
 # This includes the exact official ModSecurity-v3 repository/tag/commit tuple;
 # NGINX and every other maintenance pin remain byte-covered by this digest.
-APPROVED_FRAMEWORK_COMMON_STRUCTURE_SHA256 = "2006a9d11977cb29da3725dd9c475133c97e433ead5bd1ae5bbbfa928563bb45"
+APPROVED_FRAMEWORK_COMMON_STRUCTURE_SHA256 = "eed16dbe606c2770cf830cdb06884c7a5f68544e13c7f5ebb3106d3107e11fdc"
 # Keep this closed list identical to sync-framework-component-versions.py's
 # SOURCE_REGISTRY. It is deliberately separate from NGINX, whose handoff stays
 # manually reviewed and byte-covered by the structure digest.
