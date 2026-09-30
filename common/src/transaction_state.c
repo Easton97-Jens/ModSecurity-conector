@@ -821,13 +821,13 @@ int msconnector_transaction_contract_decision_policy(
     case MSCONNECTOR_TRANSACTION_DECISION_INVALID_ENGINE_RESPONSE:
     case MSCONNECTOR_TRANSACTION_DECISION_CONNECTOR_ERROR:
     case MSCONNECTOR_TRANSACTION_DECISION_PROTOCOL_ERROR:
-        if (strict && !committed) {
-            out->host_action = MSCONNECTOR_DECISION_ACTION_DENY;
-            out->fail_policy = MSCONNECTOR_TRANSACTION_FAIL_CLOSED;
-        } else {
-            out->host_action = MSCONNECTOR_DECISION_ACTION_LOG_ONLY;
-            out->fail_policy = MSCONNECTOR_TRANSACTION_FAIL_OPEN;
-        }
+        /* Mode selection governs valid rule interventions, not permission to
+         * continue a failed inspection. After commitment the host must stop
+         * this exchange; ERROR does not invent a supported reset mechanism. */
+        out->host_action = committed ? MSCONNECTOR_DECISION_ACTION_ERROR :
+            MSCONNECTOR_DECISION_ACTION_DENY;
+        out->fail_policy = committed ? MSCONNECTOR_TRANSACTION_FAIL_STOP_IO :
+            MSCONNECTOR_TRANSACTION_FAIL_CLOSED;
         out->terminal = 1;
         return 1;
     case MSCONNECTOR_TRANSACTION_DECISION_CLIENT_CANCEL:
@@ -1092,6 +1092,9 @@ msconnector_transaction_decision_kind
 msconnector_transaction_decision_kind_from_engine(const msconnector_decision *decision) {
     if (decision == NULL) {
         return MSCONNECTOR_TRANSACTION_DECISION_INVALID_ENGINE_RESPONSE;
+    }
+    if (decision->status == MSCONNECTOR_STATUS_ERROR) {
+        return MSCONNECTOR_TRANSACTION_DECISION_CONNECTOR_ERROR;
     }
     switch (decision->kind) {
     case MSCONNECTOR_DECISION_KIND_ALLOW:

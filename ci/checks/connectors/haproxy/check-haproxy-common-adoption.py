@@ -41,6 +41,32 @@ request_mapper = c_function(mapper_checked, 'int haproxy_modsecurity_map_owned_r
 response_mapper = c_function(mapper_checked, 'int haproxy_modsecurity_map_owned_response(')
 header_validator = c_function(mapper_checked, 'static int haproxy_validate_source_headers(')
 engine_creator = c_function(binding_checked, 'int haproxy_modsecurity_engine_create(')
+rule_id_decoder = c_function(binding_checked, 'static void capture_log_rule_id(')
+intervention_capture = c_function(binding_checked, 'static int capture_intervention(')
+# Match the reviewed helper, not the former inline spelling. An exact body
+# comparison rejects early returns, missing guards and unchecked conversions;
+# compiled helper tests separately exercise native/Common behavior.
+expected_rule_id_decoder = r'''static void capture_log_rule_id(haproxy_modsecurity_decision *decision,
+        const char *log) {
+    char common_rule_id[64] = {0};
+    char *end = 0;
+    long parsed;
+
+    if (msconnector_rule_id_extract_from_message(log, common_rule_id,
+            sizeof(common_rule_id)) <= 0) {
+        return;
+    }
+    parsed = strtol(common_rule_id, &end, 10);
+    if (end != common_rule_id && end != 0 && *end == '\0' &&
+            parsed >= 0L && parsed <= (long)INT_MAX) {
+        decision->rule_id = (int)parsed;
+    }
+}'''
+rule_id_decoder_is_bounded = (
+    re.sub(r'\s+', ' ', rule_id_decoder).strip()
+    == re.sub(r'\s+', ' ', expected_rule_id_decoder).strip()
+    and 'capture_log_rule_id(decision, intervention.log);' in intervention_capture
+)
 decision_log_start = spop_runtime.index('static void decision_log_write(')
 decision_log_end = spop_runtime.index('static int transaction_cache_init(', decision_log_start)
 decision_log_writer = spop_runtime[decision_log_start:decision_log_end]
@@ -133,8 +159,9 @@ check(response_validation in response_mapper and common_response_validation in r
 check('return 1;' in mapper, 'request/response mappers return 1 on success')
 check('msconnector_headers_find_first' in text, 'HAProxy uses Common header lookup helpers')
 check('msconnector_event_write_jsonl_line' in text or 'msconnector_rule_id_extract_from_message' in text or 'msconnector_json_escape' in text or 'msconnector_sanitize_log_message' in text, 'HAProxy uses Common event/rule/json/log primitives or documents gap')
-check("common_rule_id[0] = '\\0';" in binding, 'rule-id buffer is initialized before extraction')
-check('rule_id_result > 0' in binding and 'strtol(common_rule_id' in binding, 'rule-id extraction only uses positive results')
+check('char common_rule_id[64] = {0};' in rule_id_decoder,
+      'rule-id buffer is initialized before extraction')
+check(rule_id_decoder_is_bounded, 'rule-id extraction only uses positive results')
 for field in [
     'rule_message', 'matched_variable', 'matched_value_snippet', 'redirect_url',
     'client_ip', 'method', 'uri', 'host',

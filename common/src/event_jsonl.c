@@ -3,6 +3,7 @@
 #endif
 
 #include "msconnector/event_jsonl.h"
+#include "msconnector/event_protocol.h"
 
 #include <errno.h>
 #include <string.h>
@@ -69,14 +70,26 @@ static int validate_event_file(int fd) {
 #endif
 
 int msconnector_event_write_jsonl_line(const msconnector_event *event, char *dst, size_t dst_size, int *truncated) {
+    msconnector_event canonical;
     int local_truncated = 0;
     int ok;
     size_t len;
     if (truncated != 0) { *truncated = 0; }
     if (dst != 0 && dst_size > 0) { dst[0] = '\0'; }
     if (dst == 0 || dst_size == 0) { if (truncated != 0) { *truncated = 1; } return 0; }
+    /* Validate the complete original representation first. In particular,
+     * replacing a technical message with a canonical code must not hide an
+     * oversized field, invalid transport metadata, or a redaction failure.
+     * This uses the existing bounded serializer, not a second validator. */
     ok = msconnector_event_write_json_ex(event, dst, dst_size, &local_truncated);
-    if (!ok && dst[0] == '\0') {
+    if (!ok || !msconnector_event_protocol_view(event, &canonical)) {
+        dst[0] = '\0';
+        if (truncated != 0) { *truncated = local_truncated != 0; }
+        return 0;
+    }
+    ok = msconnector_event_write_json_ex(&canonical, dst, dst_size, &local_truncated);
+    if (!ok) {
+        dst[0] = '\0';
         if (truncated != 0) { *truncated = local_truncated != 0; }
         return 0;
     }

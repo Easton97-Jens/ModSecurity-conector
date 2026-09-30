@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 import unittest
 
+from tests.c_source_contract import function_definition
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = ROOT / "connectors" / "apache" / "src" / "mod_security3.c"
@@ -16,49 +17,29 @@ C17_CHECK = (
 
 
 def c_function(source: str, signature: str) -> str:
-    """Return one complete C function body for the exact signature."""
-    start = source.index(signature)
-    while True:
-        opening_brace = source.index("{", start)
-        semicolon = source.index(";", start)
-        if opening_brace < semicolon:
-            break
-        start = source.index(signature, semicolon)
-    depth = 0
-    for index in range(opening_brace, len(source)):
-        if source[index] == "{":
-            depth += 1
-        elif source[index] == "}":
-            depth -= 1
-            if depth == 0:
-                return source[start : index + 1]
-    raise AssertionError(f"incomplete C function: {signature}")
+    """Return a complete definition, accounting for braces in comments/text."""
+    name = signature.split("(", 1)[0].split()[-1]
+    return function_definition(source, name)
 
 
 class ApacheInterventionCleanupTests(unittest.TestCase):
     def setUp(self) -> None:
         self.module_source = MODULE.read_text(encoding="utf-8")
         self.filters_source = FILTERS.read_text(encoding="utf-8")
-        self.source = c_function(
-            self.module_source,
-            "int process_intervention (Transaction *t, request_rec *r)",
-        )
-        self.cleanup_helper = c_function(
-            self.module_source,
-            "static void msc_release_intervention_buffers(",
-        )
+        self.source = function_definition(self.module_source, "process_intervention")
+        self.storage = function_definition(self.module_source, "apache_store_native_intervention")
+        self.cleanup_helper = function_definition(self.module_source, "msc_release_intervention_buffers")
 
     def test_successful_interventions_funnel_through_one_cleanup(self) -> None:
         cleanup_call = "msc_release_intervention_buffers(&intervention);"
         self.assertEqual(self.source.count(cleanup_call), 1)
+        native = self.source.index("native_result = msc_intervention(t, &intervention);")
         cleanup = self.source.index(cleanup_call)
-        self.assertIn("cleanup:", self.source[:cleanup])
+        self.assertNotIn("return ", self.source[native:cleanup])
         self.assertNotIn("intervention.url", self.source[cleanup:])
         self.assertNotIn("intervention.log", self.source[cleanup:])
         self.assertLess(cleanup, self.source.index("return result;"))
-
-        returns = re.findall(r"\breturn(?:\s+[^;\s][^;]*|\s{2,});", self.source)
-        self.assertEqual(returns, ["return N_INTERVENTION_STATUS;", "return result;"])
+        self.assertLess(self.source.index("apache_store_native_intervention(msr, r, &intervention)"), cleanup)
 
     def test_cleanup_uses_only_the_legacy_public_intervention_contract(self) -> None:
         self.assertNotIn("msc_intervention_cleanup(&", self.module_source)
@@ -69,61 +50,52 @@ class ApacheInterventionCleanupTests(unittest.TestCase):
         self.assertIn("intervention->status = N_INTERVENTION_STATUS;", self.cleanup_helper)
         self.assertIn("intervention->pause = 0;", self.cleanup_helper)
         self.assertIn("intervention->disruptive = 0;", self.cleanup_helper)
-        self.assertIn("intervention.pause = 0;", self.source)
+        self.assertIn("memset(&intervention, 0, sizeof(intervention));", self.source)
+        self.assertLess(self.source.index("memset(&intervention"), self.source.index("msc_intervention(t,"))
 
     def test_log_fallback_does_not_overwrite_the_cleanup_owned_field(self) -> None:
-        self.assertIn("log = intervention.log;", self.source)
-        self.assertIn('log = "(no log message was specified)";', self.source)
-        self.assertIn("apr_pstrdup(r->pool, log);", self.source)
-        self.assertNotIn('intervention.log = "(no log message was specified)";', self.source)
+        self.assertIn("log = apr_pstrdup(r->pool, intervention->log == NULL", self.storage)
+        self.assertIn('"(no log message was specified)" : intervention->log', self.storage)
+        self.assertNotIn('intervention->log = "', self.storage)
+        self.assertIn("if (log == NULL)", self.storage)
+        self.assertLess(self.storage.index("if (log == NULL)"),
+                        self.storage.index("msr->last_intervention_log = log;"))
 
-    def test_no_intervention_preserves_the_existing_allow_result(self) -> None:
-        no_intervention = self.source.index("if (z == 0)")
-        cleanup = self.source.index("cleanup:")
+    def test_no_intervention_preserves_allow_and_now_releases_owned_buffers(self) -> None:
+        no_intervention = self.source.index("native_result == 0 && !intervention.disruptive")
+        cleanup = self.source.index("msc_release_intervention_buffers(&intervention);")
         self.assertLess(no_intervention, cleanup)
-        self.assertIn(
-            "return N_INTERVENTION_STATUS;",
-            self.source[no_intervention:cleanup],
-        )
+        self.assertIn("result = N_INTERVENTION_STATUS;", self.source[no_intervention:cleanup])
+        self.assertNotIn("return N_INTERVENTION_STATUS;", self.source)
 
     def test_redirect_url_is_request_owned_before_native_cleanup(self) -> None:
-        copy = "location = apr_pstrdup(r->pool, intervention.url);"
+        copy = "location = apr_pstrdup(r->pool, intervention->url);"
         assign = 'apr_table_setn(r->headers_out, "Location", location);'
-        cleanup = "msc_release_intervention_buffers(&intervention);"
-
-        self.assertIn(copy, self.source)
-        self.assertIn(assign, self.source)
-        self.assertNotIn(
-            'apr_table_setn(r->headers_out, "Location", intervention.url);',
-            self.source,
-        )
-        self.assertLess(self.source.index(copy), self.source.index(assign))
-        self.assertLess(self.source.index(assign), self.source.index(cleanup))
-        self.assertIn("result = intervention.status;", self.source)
-        self.assertNotIn("result = HTTP_MOVED_TEMPORARILY;", self.source)
+        self.assertIn(copy, self.storage)
+        self.assertIn(assign, self.storage)
+        self.assertNotIn('apr_table_setn(r->headers_out, "Location", intervention->url);', self.storage)
+        self.assertLess(self.storage.index(copy), self.storage.index(assign))
+        self.assertIn("location == NULL || r->headers_out == NULL", self.storage)
+        self.assertIn("!msr->response.committed && r->bytes_sent == 0", self.storage)
+        self.assertIn("return status;", self.storage)
+        self.assertNotIn("return HTTP_MOVED_TEMPORARILY;", self.storage)
 
     def test_native_intervention_status_is_normalized_before_contract_or_sink(self) -> None:
-        mapper = c_function(
-            self.module_source,
-            "int msc_apache_contract_record_intervention_decision(msc_t *msr)",
-        )
-        decision_kind_mapper = c_function(
-            self.module_source,
-            "static msconnector_transaction_decision_kind apache_intervention_decision_kind(",
-        )
-
+        mapper = function_definition(self.module_source, "msc_apache_contract_record_intervention_decision")
+        decision_kind_mapper = function_definition(self.module_source, "apache_intervention_decision_kind")
         self.assertIn('#include "msconnector/intervention.h"', self.module_source)
-        normalize = self.source.index("msconnector_intervention_normalize_status(")
-        retained_status = self.source.index("msr->last_intervention_status =")
-        redirect = self.source.index("msconnector_intervention_has_redirect_url(")
-        sink = self.source.index("result = intervention.status;")
+        normalize = self.storage.index("msconnector_intervention_normalize_status(")
+        retained_status = self.storage.index("msr->last_intervention_status =")
+        sink = self.storage.index('apr_table_setn(r->headers_out, "Location", location);')
         self.assertLess(normalize, retained_status)
-        self.assertLess(retained_status, redirect)
-        self.assertLess(redirect, sink)
+        self.assertLess(retained_status, sink)
         self.assertNotIn("apache_intervention_status_is_valid", self.module_source)
         self.assertIn("status >= HTTP_MULTIPLE_CHOICES", decision_kind_mapper)
         self.assertIn("status < HTTP_BAD_REQUEST", decision_kind_mapper)
         self.assertNotIn("case 301:", mapper)
+        self.assertLess(mapper.index("msr->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE"),
+                        mapper.index("msconnector_rule_id_extract_from_message"))
+        self.assertIn("native_result != 0 && native_result != 1", self.source)
 
     def test_p3_intervention_records_a_canonical_terminal_decision_before_sink(self) -> None:
         phase3 = c_function(

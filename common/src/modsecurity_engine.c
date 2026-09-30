@@ -95,6 +95,13 @@ static void fail_contract_from_error(msconnector_modsecurity_transaction *tx,
     }
     if (error != 0) {
         switch (error->code) {
+        case MSCONNECTOR_ERROR_MODSECURITY_FAILURE:
+            /* Match direct native bindings: a failed engine API call is not
+             * a rule block, a body-limit rejection, or a host I/O failure.
+             * Append ProcessPartial has already been accepted at that API
+             * boundary and must never reach this failed-callback path. */
+            error_class = MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE;
+            break;
         case MSCONNECTOR_ERROR_TIMEOUT:
             error_class = MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT;
             break;

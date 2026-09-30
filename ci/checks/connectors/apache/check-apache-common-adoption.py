@@ -28,9 +28,16 @@ RECORD_INTERVENTION = "!msc_apache_contract_record_intervention_decision(msr)"
 REQUEST_BODY_PHASE = "MSCONNECTOR_PHASE_REQUEST_BODY"
 RESPONSE_HEADERS_PHASE = "MSCONNECTOR_PHASE_RESPONSE_HEADERS"
 RESPONSE_BODY_PHASE = "MSCONNECTOR_PHASE_RESPONSE_BODY"
-P2_PROCESS = "if (msc_process_request_body(msr->t) != 1)"
-P3_PROCESS = 'if (msc_process_response_headers(msr->t, original_status, "HTTP 1.1") != 1)'
-P4_PROCESS = "if (msc_process_response_body(msr->t) != 1)"
+P2_PROCESS = "if (!msconnector_native_phase_succeeded(msc_process_request_body(msr->t)))"
+P3_PROCESS = ('if (!msconnector_native_phase_succeeded(\n'
+              '            msc_process_response_headers(msr->t, original_status, "HTTP 1.1")))')
+P4_PROCESS = "if (!msconnector_native_phase_succeeded(msc_process_response_body(msr->t)))"
+P2_APPEND_GUARD = (
+    r"!\s*msconnector_native_body_append_can_continue\s*\(\s*"
+    r"msc_append_request_body\s*\(\s*msr->t\s*,\s*"
+    r"\(\s*const\s+unsigned\s+char\s*\*\s*\)\s*data\s*,\s*"
+    r"plan\.append_size\s*\)\s*\)"
+)
 REMOVE_OUTPUT_FILTER = "ap_remove_output_filter(f);"
 BUCKET_NEXT_LOOP = "bucket = APR_BUCKET_NEXT(bucket))"
 RETURN_APR_SUCCESS_PATTERN = r"\breturn\s+APR_SUCCESS\s*;"
@@ -53,6 +60,31 @@ def direct_body_ends_with(text: str, pattern: str) -> bool:
     """Require a direct helper-body terminal sequence through its final brace."""
     direct_body = base.function_direct_body(text)
     return re.search(pattern + r"\s*\Z", direct_body, re.DOTALL) is not None
+
+
+def native_intervention_flow_is_checked(text: str) -> bool:
+    """Follow real storage and require cleanup on every post-native outcome."""
+    collector = base.function_section(text, "process_intervention")
+    native_call = "native_result = msc_intervention(t, &intervention);"
+    native_tail = collector.partition(native_call)[2]
+    return (
+        base.native_redirect_storage_is_checked(text)
+        and base.tokens_in_order(collector,
+            "msr->intervention.collecting = 1;", native_call,
+            "if (native_result != 0 && native_result != 1)",
+            "result = apache_record_failure(msr, r,",
+            "MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE",
+            "else if (msr->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE)",
+            "else if (native_result == 0 && !intervention.disruptive)",
+            "result = N_INTERVENTION_STATUS;",
+            "result = apache_store_native_intervention(msr, r, &intervention);",
+            "msc_release_intervention_buffers(&intervention);",
+            "msr->intervention.collecting = 0;", "return result;")
+        and len(re.findall(r"\breturn\b", native_tail)) == 1
+        and direct_body_ends_with(collector,
+            r"msc_release_intervention_buffers\s*\(\s*&intervention\s*\)\s*;\s*"
+            r"msr->intervention\.collecting\s*=\s*0\s*;\s*return\s+result\s*;")
+    )
 
 
 request_body_finalizer = base.function_section(
@@ -323,7 +355,7 @@ review_guards: list[tuple[bool, str]] = [
             r"\bif\s*\(\s*ret\s*!=\s*APR_SUCCESS\s*\)\s*return\s+ret\s*;",
             r"\bmsconnector_body_limit_plan_chunk\s*\(\s*msr->request_body_bytes_seen\s*,\s*msr->request_body_bytes_inspected\s*,",
             r"\bmsc_apache_contract_record_body\s*\(\s*msr\s*,\s*0\s*,\s*plan\.append_size\s*\)",
-            r"\bmsc_append_request_body\s*\(\s*msr->t\s*,\s*\(\s*const\s+unsigned\s+char\s*\*\s*\)\s*data\s*,\s*plan\.append_size\s*\)\s*!=\s*1",
+            P2_APPEND_GUARD,
             r"\bmsr->request_body_bytes_seen\s*=\s*plan\.bytes_seen\s*;",
             r"\bmsr->request_body_bytes_inspected\s*\+=\s*plan\.append_size\s*;",
             r"\bAPR_BUCKET_REMOVE\s*\(\s*bucket\s*\)",
@@ -349,7 +381,7 @@ review_guards: list[tuple[bool, str]] = [
             r"\bif\s*\(\s*ret\s*!=\s*APR_SUCCESS\s*\)\s*return\s+ret\s*;",
             r"\bmsconnector_body_limit_plan_chunk\s*\(\s*msr->request_body_bytes_seen\s*,\s*msr->request_body_bytes_inspected\s*,",
             r"\bmsc_apache_contract_record_body\s*\(\s*msr\s*,\s*0\s*,\s*plan\.append_size\s*\)",
-            r"\bmsc_append_request_body\s*\(\s*msr->t\s*,\s*\(\s*const\s+unsigned\s+char\s*\*\s*\)\s*data\s*,\s*plan\.append_size\s*\)\s*!=\s*1",
+            P2_APPEND_GUARD,
             r"\bmsr->request_body_bytes_seen\s*=\s*plan\.bytes_seen\s*;",
             r"\bmsr->request_body_bytes_inspected\s*\+=\s*plan\.append_size\s*;",
         )
@@ -617,23 +649,7 @@ review_guards: list[tuple[bool, str]] = [
         "Apache registers the terminal guard as a protocol output filter",
     ),
     (
-        base.tokens_in_order(
-            base.process_intervention_helper,
-            "z = msc_intervention(t, &intervention);",
-            "if (z == 0)",
-            f"return {INTERVENTION_SENTINEL};",
-            "msconnector_intervention_has_redirect_url(intervention.url)",
-            "intervention.status >= HTTP_MULTIPLE_CHOICES",
-            "intervention.status < HTTP_BAD_REQUEST",
-            'apr_table_setn(r->headers_out, "Location", location);',
-            "result = intervention.status;",
-            "goto cleanup;",
-            f"if (intervention.status != {INTERVENTION_SENTINEL})",
-            "result = intervention.status;",
-            "cleanup:",
-            "msc_release_intervention_buffers(&intervention);",
-            "return result;",
-        ),
+        native_intervention_flow_is_checked(base.module_c),
         "Apache validates the native intervention result and preserves both redirect and non-redirect enforcement sinks",
     ),
     (

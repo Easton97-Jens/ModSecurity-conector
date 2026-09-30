@@ -23,10 +23,10 @@ import (
 const commonRuntimeErrorBufferSize = 512
 
 const (
-	commonRuntimePhase4ModeUnset   = int(C.MSC_ENVOY_EXT_PROC_PHASE4_MODE_UNSET)
-	commonRuntimePhase4ModeOff = int(C.MSC_ENVOY_EXT_PROC_PHASE4_MODE_OFF)
-	commonRuntimePhase4ModeSafe    = int(C.MSC_ENVOY_EXT_PROC_PHASE4_MODE_SAFE)
-	commonRuntimePhase4ModeStrict  = int(C.MSC_ENVOY_EXT_PROC_PHASE4_MODE_STRICT)
+	commonRuntimePhase4ModeUnset  = int(C.MSC_ENVOY_EXT_PROC_PHASE4_MODE_UNSET)
+	commonRuntimePhase4ModeOff    = int(C.MSC_ENVOY_EXT_PROC_PHASE4_MODE_OFF)
+	commonRuntimePhase4ModeSafe   = int(C.MSC_ENVOY_EXT_PROC_PHASE4_MODE_SAFE)
+	commonRuntimePhase4ModeStrict = int(C.MSC_ENVOY_EXT_PROC_PHASE4_MODE_STRICT)
 )
 
 var (
@@ -367,7 +367,11 @@ func (transaction *commonRuntimeTransaction) MarkResponseCommitted(ctx context.C
 	if !transaction.begun || transaction.native == nil {
 		return fmt.Errorf("Common response commit before request headers")
 	}
-	C.msc_envoy_ext_proc_transaction_mark_response_committed(transaction.native, 0)
+	var nativeError [commonRuntimeErrorBufferSize]C.char
+	if C.msc_envoy_ext_proc_transaction_mark_response_committed_checked(transaction.native,
+		0, &nativeError[0], C.size_t(len(nativeError))) != 1 {
+		return fmt.Errorf("Common response commitment: %s", nativeErrorText(nativeError[:]))
+	}
 	return nil
 }
 

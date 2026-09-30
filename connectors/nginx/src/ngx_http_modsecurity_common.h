@@ -56,7 +56,7 @@
  * Dev    - 010
  * Rc1    - 051
  * Rc2    - 052
- * ...    - ...
+ * ...
  * Release- 100
  *
  */
@@ -175,6 +175,9 @@ typedef struct {
     unsigned body_requested:1;
     unsigned processed:1;
     unsigned logged:1;
+    /* Native audit-log completion is distinct from the one-attempt marker.
+     * Re-entry must preserve a failed result without invoking the engine twice. */
+    unsigned native_logging_failed:1;
     unsigned intervention_triggered:1;
     /* Set only after the redirect helper installs a connector-owned Location.
      * A pre-existing upstream Location must not be mistaken for a ModSecurity
@@ -185,6 +188,10 @@ typedef struct {
      * response chain.  This is deliberately separate from Phase-4 state. */
     unsigned response_replaced:1;
     unsigned request_body_processed:1;
+    /* Request failures retain their first host result and one event attempt.
+     * These are separate from successful P2 and the native audit-log state. */
+    unsigned request_error_event_attempted:1;
+    ngx_int_t request_error_status;
     unsigned phase4_headers_checked:1;
     /* A terminal P3 processing error must remain terminal if NGINX invokes
      * the header filter again; intervention_triggered alone intentionally
@@ -195,6 +202,11 @@ typedef struct {
     unsigned response_body_truncated:1;
     unsigned response_committed:1;
     unsigned phase4_processed:1;
+    /* Permit only the synchronous core-generated terminal error response,
+     * never a later retry of the failed upstream chain. "Started" records
+     * an emission attempt, not proof of bytes received by a client. */
+    unsigned phase4_terminal_error_started:1;
+    unsigned phase4_terminal_error_emitting:1;
     unsigned phase4_intervention:1;
     unsigned phase4_strict_abort:1;
     unsigned common_response_validated:1;
@@ -206,13 +218,17 @@ typedef struct {
      * ordinary rule-ID-bearing denies and permits the canonical rule-ID-free
      * BODY_LIMIT/413 translation only at this native boundary. */
     unsigned native_request_body_limit_rejection:1;
-    size_t request_body_bytes_seen;
-    size_t response_body_bytes_seen;
-    size_t response_body_bytes_inspected;
-    size_t request_header_count;
-    size_t request_header_bytes;
-    size_t response_header_count;
-    size_t response_header_bytes;
+    /* Bounded inspection accounting has one lifetime and no payload ownership.
+     * Keep the established member names and order for the native helpers. */
+    struct {
+        size_t request_body_bytes_seen;
+        size_t response_body_bytes_seen;
+        size_t response_body_bytes_inspected;
+        size_t request_header_count;
+        size_t request_header_bytes;
+        size_t response_header_count;
+        size_t response_header_bytes;
+    };
     /* A file-only response buffer cannot be passed directly to
      * libModSecurity. The body filter allocates this fixed-size scratch
      * buffer once per request and reuses it for bounded file reads; it never

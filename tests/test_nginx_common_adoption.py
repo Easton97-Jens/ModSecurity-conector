@@ -21,8 +21,16 @@ BODY_LIMIT_CONTRACT_MESSAGE = (
 CHAIN_CALL_CONTRACT_MESSAGE = (
     "NGINX response-body chain loop directly calls the reviewed bounded wrapper"
 )
+CHAIN_ERROR_RETURN = (
+    "        if (ret != NGX_OK) {\n"
+    "            return ngx_http_modsecurity_phase4_fail_control(r, mcf, ctx,\n"
+    "                MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);\n"
+    "        }\n"
+)
+PHASE4_ERROR_HEADER = "ngx_http_modsecurity_phase4_error.h"
 SOURCES = (
     "ngx_http_modsecurity_common.h",
+    PHASE4_ERROR_HEADER,
     "ngx_http_modsecurity_module.c",
     "ngx_http_modsecurity_mapper.h",
     "ngx_http_modsecurity_mapper.c",
@@ -185,8 +193,8 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
 
     def _assert_rejected(self, mutate, message: str) -> None:
         result = self._run_checker(mutate)
-        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn(message, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn(f"FAIL: {message}", result.stdout.splitlines())
 
     def test_current_helper_aware_contract_is_accepted(self) -> None:
         result = self._run_checker()
@@ -2480,11 +2488,7 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
             "        ret = ngx_http_modsecurity_append_response_chain_buffer(r, ctx, mcf,\n"
             "            chain);\n"
         )
-        error_return = (
-            "        if (ret != NGX_OK) {\n"
-            "            return ret;\n"
-            "        }\n"
-        )
+        error_return = CHAIN_ERROR_RETURN
         raw_alias = (
             bounded_call
             + error_return
@@ -3107,10 +3111,51 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
             replace_in_function(
                 repository / "connectors/nginx/src/ngx_http_modsecurity_body_filter.c",
                 "static ngx_int_t\nngx_http_modsecurity_process_response_body_chain",
-                "        ret = ngx_http_modsecurity_append_response_chain_buffer(r, ctx, mcf,\n"
-                "            chain);\n        if (ret != NGX_OK) {\n            return ret;\n        }",
-                "        ret = ngx_http_modsecurity_append_response_chain_buffer(r, ctx, mcf,\n"
-                "            chain);\n        if (ret != NGX_OK) {\n            return NGX_OK;\n        }",
+                CHAIN_ERROR_RETURN,
+                "        if (ret != NGX_OK) {\n"
+                "            return NGX_OK;\n"
+                "        }\n",
+            )
+        self._assert_rejected(mutate, CHAIN_CALL_CONTRACT_MESSAGE)
+
+    def test_fixture_copies_the_actual_phase4_error_header(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="nginx-common-adoption-") as temporary:
+            repository = self._copy_repository(Path(temporary))
+            self.assertEqual(
+                (repository / "connectors/nginx/src" / PHASE4_ERROR_HEADER).read_bytes(),
+                (NGINX / "src" / PHASE4_ERROR_HEADER).read_bytes(),
+            )
+
+    def test_missing_phase4_error_header_is_rejected(self) -> None:
+        def mutate(repository: Path) -> None:
+            (repository / "connectors/nginx/src" / PHASE4_ERROR_HEADER).unlink()
+        self._assert_rejected(
+            mutate,
+            "NGINX critical macro inputs reject aliases of checked lifecycle and response-body controls",
+        )
+
+    def test_phase4_error_header_macro_mutation_is_rejected(self) -> None:
+        def mutate(repository: Path) -> None:
+            prepend_directive(
+                repository / "connectors/nginx/src" / PHASE4_ERROR_HEADER,
+                "#define NGX_ERROR NGX_OK",
+            )
+        self._assert_rejected(
+            mutate,
+            "NGINX critical macro inputs reject aliases of checked lifecycle and response-body controls",
+        )
+
+    def test_chain_error_dispatch_result_cannot_be_discarded(self) -> None:
+        def mutate(repository: Path) -> None:
+            replace_in_function(
+                repository / "connectors/nginx/src/ngx_http_modsecurity_body_filter.c",
+                "static ngx_int_t\nngx_http_modsecurity_process_response_body_chain",
+                CHAIN_ERROR_RETURN,
+                "        if (ret != NGX_OK) {\n"
+                "            (void)ngx_http_modsecurity_phase4_fail_control(r, mcf, ctx,\n"
+                "                MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);\n"
+                "            return NGX_OK;\n"
+                "        }\n",
             )
         self._assert_rejected(mutate, CHAIN_CALL_CONTRACT_MESSAGE)
 

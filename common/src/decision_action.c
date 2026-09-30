@@ -29,8 +29,11 @@ const char *msconnector_decision_action_name(msconnector_decision_action action)
 
 msconnector_decision_action msconnector_decision_action_from_decision(
     const msconnector_decision *decision) {
-    if (decision == 0) {
-        return MSCONNECTOR_DECISION_ACTION_LOG_ONLY;
+    /* Missing/invalid decisions are technical failures, never a successful
+     * observation-only fallback. Error status takes precedence over stale
+     * kind/disruptive fields left by an earlier rule decision. */
+    if (decision == 0 || decision->status == MSCONNECTOR_STATUS_ERROR) {
+        return MSCONNECTOR_DECISION_ACTION_ERROR;
     }
     switch (decision->kind) {
     case MSCONNECTOR_DECISION_KIND_ALLOW:
@@ -51,7 +54,7 @@ msconnector_decision_action msconnector_decision_action_from_decision(
     case MSCONNECTOR_DECISION_KIND_UNSUPPORTED:
         return MSCONNECTOR_DECISION_ACTION_UNSUPPORTED;
     default:
-        return MSCONNECTOR_DECISION_ACTION_LOG_ONLY;
+        return MSCONNECTOR_DECISION_ACTION_ERROR;
     }
 }
 

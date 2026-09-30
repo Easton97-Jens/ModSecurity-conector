@@ -213,23 +213,46 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
             self.access, "ngx_http_modsecurity_inspect_request_body"
         )
         request_assignment = request.index("ret = msc_process_request_body")
-        request_failure = conditional_block(request, "if (ret != 1)", request_assignment)
+        request_failure = conditional_block(
+            request, "if (!msconnector_native_phase_succeeded(ret))", request_assignment
+        )
         self.assertIn("ctx->intervention_triggered = 1;", request_failure)
         self.assertIn("return NGX_HTTP_INTERNAL_SERVER_ERROR;", request_failure)
+        self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE", request_failure)
+        self.assertNotIn("ngx_http_modsecurity_contract_complete", request_failure)
+        self.assertNotIn("ctx->request_body_processed = 1;", request_failure)
+        self.assertLess(
+            request.index("if (!msconnector_native_phase_succeeded(ret))"),
+            request.index("ngx_http_modsecurity_contract_complete"),
+        )
+        self.assertLess(
+            request.index("ngx_http_modsecurity_contract_complete"),
+            request.index("ctx->request_body_processed = 1;"),
+        )
 
         response = function_definition(
             self.body, "ngx_http_modsecurity_process_final_response_body"
         )
         response_assignment = response.index("ret = msc_process_response_body")
-        response_failure = conditional_block(response, "if (ret != 1)", response_assignment)
+        response_failure = conditional_block(
+            response, "if (!msconnector_native_phase_succeeded(ret))", response_assignment
+        )
         self.assertIn("ctx->intervention_triggered = 1;", response_failure)
-        committed_failure = conditional_block(response_failure, "if (r->header_sent)")
-        self.assertIn("r->connection->error = 1;", committed_failure)
-        self.assertIn("return NGX_ERROR;", committed_failure)
+        self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE", response_failure)
+        committed_mark = conditional_block(response_failure, "if (r->header_sent)")
+        self.assertIn("r->connection->error = 1;", committed_mark)
+        # Failure metadata is emitted after the abort flag and before either
+        # terminal return. The committed path must never render a second HTTP
+        # response or turn an engine failure into the Safe log-only policy.
+        logged = response_failure.index("ngx_http_modsecurity_phase4_log_failure(r, mcf, ctx)")
+        committed_return = conditional_block(response_failure, "if (r->header_sent)", logged)
+        self.assertIn("return NGX_ERROR;", committed_return)
         self.assertNotRegex(
-            committed_failure,
+            committed_mark + committed_return,
             re.compile(r"ngx_http_filter_finalize_request\s*\("),
         )
+        self.assertNotIn("ngx_http_modsecurity_phase4_handle_intervention", response_failure)
+        self.assertNotIn("ngx_http_modsecurity_contract_complete", response_failure)
         self.assertIn("NGX_HTTP_INTERNAL_SERVER_ERROR", response_failure)
 
     def test_partial_body_append_and_file_paths_remain_nonfatal(self) -> None:
@@ -244,9 +267,14 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
                 re.DOTALL,
             ),
         )
+        request_append_failure = conditional_block(
+            request_append, "if (!msconnector_native_body_append_can_continue(ret))"
+        )
+        self.assertIn("return NGX_HTTP_INTERNAL_SERVER_ERROR;", request_append_failure)
+        self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE", request_append_failure)
 
         request_file = function_definition(
-            self.access, "ngx_http_modsecurity_inspect_request_body"
+            self.access, "ngx_http_modsecurity_inspect_request_body_file"
         )
         self.assertRegex(
             request_file,
@@ -256,23 +284,69 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
                 re.DOTALL,
             ),
         )
+        file_failure = conditional_block(request_file, "if (ret != 1)")
+        self.assertIn("return NGX_HTTP_INTERNAL_SERVER_ERROR;", file_failure)
+        self.assertNotIn("msconnector_native_body_append_can_continue", request_file)
+        self.assertLess(
+            request_file.index("ctx->request_body_bytes_seen += (size_t)file_size;"),
+            request_file.index("ret = msc_request_body_from_file"),
+        )
 
         response_append = function_definition(
             self.body, "ngx_http_modsecurity_append_response_body_chunk"
         )
         self.assertRegex(
             response_append,
-            re.compile(r"msc_append_response_body\s*\(.*?\)\s*<\s*0", re.DOTALL),
+            re.compile(
+                r"if\s*\(!msconnector_native_body_append_can_continue\s*\(\s*"
+                r"msc_append_response_body\s*\(ctx->modsec_transaction,\s*data,\s*bytes\)\)\)",
+                re.DOTALL,
+            ),
+        )
+        failed_append = conditional_block(response_append, "if (!msconnector_native_body_append_can_continue")
+        self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE", failed_append)
+        self.assertIn("return NGX_ERROR;", failed_append)
+        self.assertNotIn("return NGX_OK;", failed_append)
+        self.assertNotIn("bytes_inspected +=", failed_append)
+        self.assertLess(
+            response_append.index("if (!msconnector_native_body_append_can_continue"),
+            response_append.index("ctx->response_body_bytes_inspected += bytes;"),
         )
         self.assertNotRegex(
             response_append,
             re.compile(r"msc_append_response_body\s*\(.*?\)\s*!=\s*1", re.DOTALL),
         )
 
+    def test_connection_and_uri_preserve_the_shared_failure_boundary(self) -> None:
+        helper_name = "ngx_http_modsecurity_request_native_result"
+        helper = function_definition(self.access, helper_name)
+        failure = conditional_block(helper, "if (!msconnector_native_phase_succeeded(native_result))")
+        dispatch = helper.index("result = ngx_http_modsecurity_process_intervention")
+        self.assertLess(helper.index(failure), dispatch)
+        self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE", failure)
+        self.assertIn("ctx->intervention_triggered = 1;", failure)
+        self.assertIn("return NGX_HTTP_INTERNAL_SERVER_ERROR;", failure)
+        self.assertNotIn("ngx_http_modsecurity_process_intervention", failure)
+        nonzero = conditional_block(helper, "if (result != 0)", dispatch)
+        self.assertIn("ctx->intervention_triggered = 1;", nonzero)
+        self.assertIn("return result > 0 ? result : NGX_HTTP_INTERNAL_SERVER_ERROR;", nonzero)
+        self.assertIn("return NGX_OK;", helper)
+        for name, native, label in (
+            ("ngx_http_modsecurity_process_connection", "msc_process_connection", "connection"),
+            ("ngx_http_modsecurity_process_request_uri", "msc_process_uri", "URI"),
+        ):
+            with self.subTest(function=name):
+                caller = function_definition(self.access, name)
+                expected = f'return {helper_name}(r, ctx, ret, "{label}");'
+                self.assertEqual(caller.count(expected), 1)
+                self.assertLess(caller.index(f"ret = {native}"), caller.index("ngx_http_modsecurity_pcre_malloc_done"))
+                self.assertLess(caller.index("ngx_http_modsecurity_pcre_malloc_done"), caller.index(expected))
+                self.assertNotIn("ngx_http_modsecurity_process_intervention", caller)
+
     def test_negative_interventions_fail_closed_before_response_commit(self) -> None:
+        # Connection/URI callers are covered together with their real helper
+        # above and by the compiled request-phase-completion regressions.
         for name in (
-            "ngx_http_modsecurity_process_connection",
-            "ngx_http_modsecurity_process_request_uri",
             "ngx_http_modsecurity_process_request_headers",
             "ngx_http_modsecurity_append_request_body",
             "ngx_http_modsecurity_inspect_request_body",
@@ -433,7 +507,6 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
             "ngx_http_modsecurity_discard_replaced_response_body(in);",
             response_replaced,
         )
-        self.assertIn("return NGX_DECLINED;", response_replaced)
         body_filter = function_definition(self.body, "ngx_http_modsecurity_body_filter")
         self.assertIn(
             "return ngx_http_next_body_filter(r, in);",
