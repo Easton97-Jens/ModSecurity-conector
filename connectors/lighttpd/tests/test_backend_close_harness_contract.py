@@ -2011,6 +2011,7 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temporary_directory:
             record, leader = self._start_forking_leader(temporary_directory)
+            root = record.parent
             child_pid = None
             child_start_time = None
             child_executable = None
