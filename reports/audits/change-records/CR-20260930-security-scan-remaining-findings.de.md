@@ -21,18 +21,19 @@ Das positive NGINX-Interventionsverhalten bleibt durch die Basis-Revision bereit
 
 ## Implementierungsentscheidung und Begründung
 
-Die HAProxy-Änderung löscht nur die Error-Continuation-Option aus den vier betroffenen Profildateien und ergänzt einen fokussierten Regressions-Contract, der die Closed Defaults absichert. Die Common Runtime behält ihre vorhandenen Private-Leaf-Prüfungen und erweitert sie über die kanonische gesamte Verzeichniskette: Jeder Ancestor muss der effektiven Service-UID oder UID 0 (dem vertrauenswürdigen Superuser) gehören; schreibbare Ancestors müssen zusätzlich sticky sein und das eigene Child gegen Austausch durch andere UIDs schützen.
+Die HAProxy-Änderung löscht nur die Error-Continuation-Option aus den vier betroffenen Profildateien und ergänzt einen fokussierten Regressions-Contract, der die Closed Defaults absichert. Die Common Runtime stellt eine kanonische Directory-Chain-Prüfung bereit, die Response-Transport und Traefik-Engine gemeinsam nutzen: Jeder Ancestor muss der effektiven Service-UID oder UID 0 (dem vertrauenswürdigen Superuser) gehören; schreibbare Ancestors müssen zusätzlich sticky sein und das eigene Child gegen Austausch durch andere UIDs schützen.
 
 Die Envoy- und Traefik-Observer verwenden explizite erwartete UID/GID-Paare. Ohne Konfiguration gelten die effektive UID/GID des Observer-Prozesses; eine explizite Identität verlangt beide Felder und erlaubt bewusst den Wert null. Der einzige produktive Envoy-Connect-Pfad ist `dialWithExpectedPeer`; er authentisiert unmittelbar nach dem Connect und bevor `CLAIM`-Bytes geschrieben werden. Protocol-Framing-Tests konstruieren ihren Test-Client getrennt und stellen keinen produktiven unauthentisierten Pfad bereit.
 
 ## Geänderte Dateien
 
-- common/runtime/response_companion_transport.c
+- common/runtime/{msconnector_runtime.c,msconnector_runtime.h,response_companion_transport.c}
 - tests/response_companion_transport_test.c
 - examples/haproxy/spoe-spop/{strict,safe,off,all}/spoe.cfg
 - tests/test_haproxy_spop_peer_isolation_contract.py
 - connectors/envoy/ext_proc/internal/responseobserver/{protocol.go,service.go,peercred_linux.go,peercred_other.go,peercred_linux_test.go}
 - connectors/envoy/ext_proc/cmd/msconnector-envoy-response-observer/main.go
+- connectors/traefik/src/traefik_engine_service.c
 - connectors/traefik/response_observer/{observer.go,observer_test.go,peercred_linux.go,peercred_other.go}
 - Connector-Source-Maps, Response-Observer-Dokumentation, fokussierte CI-Workflows und dieser gekoppelte Record
 
@@ -51,11 +52,11 @@ Sie sind in den PR-Workflows konfiguriert. Aus diesem Windows-Workspace werden s
 
 ## Security-Auswirkung
 
-Die HAProxy-Profile machen aus einem nicht verfügbaren oder fehlerhaften SPOE-Agenten keinen Continuation-Pfad mehr, wenn sie als Closed Default gekennzeichnet sind. Die Common Runtime lehnt einen Socket-Parent unter einem Ancestor mit nicht vertrauenswürdiger Owner-UID ab und lehnt einen schreibbaren Ancestor ab, wenn er nicht sticky ist und das service-eigene Child schützt. Die Go-Observer binden ihre Response-Companion-Trust-Entscheidung vor dem Claim von Protocol-State an Kernel-bereitgestellte Peer-Credentials; ein Credential-Fehler wird zum bestehenden Pre-Commit-503-Fail-Closed-Verhalten.
+Die HAProxy-Profile machen aus einem nicht verfügbaren oder fehlerhaften SPOE-Agenten keinen Continuation-Pfad mehr, wenn sie als Closed Default gekennzeichnet sind. Die gemeinsame Common-Runtime-Policy lehnt einen Socket-Parent unter einem Ancestor mit nicht vertrauenswürdiger Owner-UID ab und lehnt einen schreibbaren Ancestor ab, wenn er nicht sticky ist und das service-eigene Child schützt. Traefik verwendet exakt diese Policy. Die Go-Observer binden ihre Response-Companion-Trust-Entscheidung vor dem Claim von Protocol-State an Kernel-bereitgestellte Peer-Credentials; ein Credential-Fehler wird zum bestehenden Pre-Commit-503-Fail-Closed-Verhalten.
 
 ## Runtime-Evidence
 
-Die neuen Regressionstests belegen die erwarteten Source- und Protocol-Grenzen. Linux-Tests verwenden einen echten lokalen Unix-Listener und prüfen, dass ein Peer mit abweichender Identität vor dem Reject null Request-Bytes erhält. Der C-Transporttest erzeugt ein privates Child unter einem schreibbaren, nicht-sticky Ancestor und verlangt einen Startup-Fehler; der Companion-Source-Contract fixiert zusätzlich die Trusted-Owner-Prüfung vor der Writable-Mode-Freigabe. Dies sind begrenzte Komponententests, keine Live-Acceptance-Behauptung für Envoy-, Traefik-, HAProxy- oder NGINX-Deployments.
+Die neuen Regressionstests belegen die erwarteten Source- und Protocol-Grenzen. Linux-Tests verwenden einen echten lokalen Unix-Listener und prüfen, dass ein Peer mit abweichender Identität vor dem Reject null Request-Bytes erhält. Der C-Transporttest erzeugt ein privates Child unter einem schreibbaren, nicht-sticky Ancestor und verlangt einen Startup-Fehler; der Companion-Source-Contract fixiert zusätzlich die gemeinsame Trusted-Owner-Prüfung vor der Writable-Mode-Freigabe und ihre Traefik-Wiederverwendung. Dies sind begrenzte Komponententests, keine Live-Acceptance-Behauptung für Envoy-, Traefik-, HAProxy- oder NGINX-Deployments.
 
 ## Bekannte Einschränkungen
 

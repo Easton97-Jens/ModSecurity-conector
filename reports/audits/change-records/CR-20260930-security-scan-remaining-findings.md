@@ -21,18 +21,19 @@ Positive NGINX intervention behavior remains supplied by the base revision. Ever
 
 ## Implementation decision and rationale
 
-The HAProxy change deletes only the error-continuation option from the four affected profile files and adds a focused regression contract that asserts the profiles stay closed by default. The Common Runtime keeps its existing private-leaf checks and extends them up the canonical directory chain: every ancestor must be owned by the effective service UID or UID 0 (the trusted superuser), and writable ancestors must also be sticky and protect the owned child from cross-UID replacement.
+The HAProxy change deletes only the error-continuation option from the four affected profile files and adds a focused regression contract that asserts the profiles stay closed by default. The Common Runtime exposes one canonical directory-chain check shared by the response transport and Traefik engine: every ancestor must be owned by the effective service UID or UID 0 (the trusted superuser), and writable ancestors must also be sticky and protect the owned child from cross-UID replacement.
 
 The Envoy and Traefik observers use explicit expected UID/GID pairs. Absent configuration defaults to the observer process's effective UID/GID; an explicit identity requires both fields and permits an intentional value of zero. The only production Envoy connection path is `dialWithExpectedPeer`; it authenticates immediately after connecting and before any `CLAIM` bytes can be written. Protocol-framing tests construct their test client separately and do not provide a production unauthenticated route.
 
 ## Changed files
 
-- common/runtime/response_companion_transport.c
+- common/runtime/{msconnector_runtime.c,msconnector_runtime.h,response_companion_transport.c}
 - tests/response_companion_transport_test.c
 - examples/haproxy/spoe-spop/{strict,safe,off,all}/spoe.cfg
 - tests/test_haproxy_spop_peer_isolation_contract.py
 - connectors/envoy/ext_proc/internal/responseobserver/{protocol.go,service.go,peercred_linux.go,peercred_other.go,peercred_linux_test.go}
 - connectors/envoy/ext_proc/cmd/msconnector-envoy-response-observer/main.go
+- connectors/traefik/src/traefik_engine_service.c
 - connectors/traefik/response_observer/{observer.go,observer_test.go,peercred_linux.go,peercred_other.go}
 - connector source maps, response-observer documentation, focused CI workflows, and this paired record
 
@@ -51,11 +52,11 @@ They are configured in the PR workflows. They have not been claimed as locally p
 
 ## Security impact
 
-The HAProxy profiles no longer turn an unavailable or errored SPOE agent into a continuation path in configurations designated closed-default. The Common Runtime rejects a socket parent below an ancestor owned by an untrusted UID, and rejects a writable ancestor unless it is sticky and protects the service-owned child. The Go observers bind their response-companion trust decision to kernel-supplied peer credentials before protocol state is claimed; credential failure becomes the existing pre-commit 503 fail-closed behavior.
+The HAProxy profiles no longer turn an unavailable or errored SPOE agent into a continuation path in configurations designated closed-default. The shared Common Runtime policy rejects a socket parent below an ancestor owned by an untrusted UID, and rejects a writable ancestor unless it is sticky and protects the service-owned child. Traefik reuses that exact policy. The Go observers bind their response-companion trust decision to kernel-supplied peer credentials before protocol state is claimed; credential failure becomes the existing pre-commit 503 fail-closed behavior.
 
 ## Runtime evidence
 
-The new regression tests demonstrate the expected source and protocol boundaries. Linux tests use a real local Unix listener and assert that a mismatched peer identity receives zero request bytes before rejection. The C transport test creates a private child under a writable, non-sticky ancestor and requires startup failure; the companion source contract additionally locks the trusted-owner check ahead of the writable-mode allowance. These are bounded component tests, not a live Envoy, Traefik, HAProxy, or NGINX deployment acceptance claim.
+The new regression tests demonstrate the expected source and protocol boundaries. Linux tests use a real local Unix listener and assert that a mismatched peer identity receives zero request bytes before rejection. The C transport test creates a private child under a writable, non-sticky ancestor and requires startup failure; the companion source contract additionally locks the shared trusted-owner check ahead of the writable-mode allowance and its Traefik reuse. These are bounded component tests, not a live Envoy, Traefik, HAProxy, or NGINX deployment acceptance claim.
 
 ## Known limitations
 

@@ -19,6 +19,12 @@ HARNESS = (ROOT / "connectors" / "haproxy" / "harness" / "run_haproxy_smoke.sh")
 COMMON_TRANSPORT = (
     ROOT / "common" / "runtime" / "response_companion_transport.c"
 ).read_text(encoding="utf-8")
+COMMON_RUNTIME = (
+    ROOT / "common" / "runtime" / "msconnector_runtime.c"
+).read_text(encoding="utf-8")
+TRAEFIK_ENGINE = (
+    ROOT / "connectors" / "traefik" / "src" / "traefik_engine_service.c"
+).read_text(encoding="utf-8")
 
 
 class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
@@ -223,32 +229,33 @@ class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
         parent_check = COMMON_TRANSPORT.split(
             "static int response_companion_private_parent_is_safe", 1
         )[1].split("static int response_companion_set_nonblocking", 1)[0]
-        ancestor_check = COMMON_TRANSPORT.split(
-            "static int response_companion_private_directory_ancestors_are_safe", 1
-        )[1].split("static int response_companion_private_parent_is_safe", 1)[0]
-        parent_protection = COMMON_TRANSPORT.split(
-            "static int response_companion_parent_protects_child_from_cross_uid_replacement", 1
-        )[1].split("static int response_companion_private_directory_ancestors_are_safe", 1)[0]
+        ancestor_check = COMMON_RUNTIME.split(
+            "int msconnector_runtime_private_directory_ancestors_are_safe", 1
+        )[1].split("typedef struct msconnector_runtime_owned_config", 1)[0]
 
         self.assertIn(
-            "return response_companion_private_directory_ancestors_are_safe(parent);",
+            "return msconnector_runtime_private_directory_ancestors_are_safe(parent);",
             parent_check,
         )
-        self.assertIn('while (strcmp(child_path, "/") != 0)', ancestor_check)
         self.assertIn(
-            "response_companion_parent_protects_child_from_cross_uid_replacement",
-            ancestor_check,
+            "return msconnector_runtime_private_directory_ancestors_are_safe(path);",
+            TRAEFIK_ENGINE,
         )
-        owner_guard = "if (parent_stat->st_uid != geteuid() && parent_stat->st_uid != 0)"
-        writable_mode_guard = "if ((parent_stat->st_mode & (S_IWGRP | S_IWOTH)) == 0)"
-        self.assertIn(owner_guard, parent_protection)
-        self.assertIn(writable_mode_guard, parent_protection)
+        self.assertNotIn(
+            "traefik_engine_private_directory_ancestors_are_safe",
+            TRAEFIK_ENGINE,
+        )
+        self.assertIn('while (strcmp(child_path, "/") != 0)', ancestor_check)
+        owner_guard = "(parent_stat.st_uid != geteuid() && parent_stat.st_uid != 0)"
+        writable_mode_guard = "(parent_stat.st_mode & (S_IWGRP | S_IWOTH)) != 0"
+        self.assertIn(owner_guard, ancestor_check)
+        self.assertIn(writable_mode_guard, ancestor_check)
         self.assertLess(
-            parent_protection.index(owner_guard),
-            parent_protection.index(writable_mode_guard),
+            ancestor_check.index(owner_guard),
+            ancestor_check.index(writable_mode_guard),
         )
-        self.assertIn("S_ISVTX", parent_protection)
-        self.assertIn("child_stat->st_uid == geteuid()", parent_protection)
+        self.assertIn("S_ISVTX", ancestor_check)
+        self.assertIn("child_stat.st_uid != geteuid()", ancestor_check)
 
     def test_closed_spoe_profiles_do_not_continue_on_agent_error(self) -> None:
         for profile in ("strict", "safe", "off", "all"):

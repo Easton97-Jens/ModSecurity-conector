@@ -68,6 +68,61 @@
 #define RUNTIME_EVENT_CONTENT_TYPE_SIZE 256U
 #define RUNTIME_INTEGRATION_MODE_SIZE 64U
 
+/*
+ * The service or trusted UID 0 must own every ancestor: a foreign directory
+ * owner can change permissions before replacing a child.  Shared UDS users
+ * also require sticky protection for the service-owned child.  Non-POSIX
+ * platforms have no equivalent ownership check and therefore fail closed.
+ */
+int msconnector_runtime_private_directory_ancestors_are_safe(const char *path)
+{
+#if defined(_WIN32)
+    (void)path;
+    return 0;
+#else
+    char child_path[RUNTIME_PATH_SIZE];
+    char *separator;
+    struct stat child_stat;
+    struct stat parent_stat;
+    size_t path_size;
+
+    if (path == NULL || path[0] != '/') {
+        return 0;
+    }
+    path_size = strlen(path);
+    if (path_size == 0U || path_size >= sizeof(child_path)) {
+        return 0;
+    }
+    memcpy(child_path, path, path_size + 1U);
+    if (lstat(child_path, &child_stat) != 0 || !S_ISDIR(child_stat.st_mode)) {
+        return 0;
+    }
+    while (strcmp(child_path, "/") != 0) {
+        separator = strrchr(child_path, '/');
+        if (separator == NULL) {
+            return 0;
+        }
+        if (separator == child_path) {
+            child_path[1] = '\0';
+        } else {
+            *separator = '\0';
+        }
+        if (lstat(child_path, &parent_stat) != 0 ||
+            !S_ISDIR(parent_stat.st_mode) ||
+            (parent_stat.st_uid != geteuid() && parent_stat.st_uid != 0)) {
+            return 0;
+        }
+        if ((parent_stat.st_mode & (S_IWGRP | S_IWOTH)) != 0 &&
+            ((parent_stat.st_mode & S_ISVTX) == 0 ||
+                child_stat.st_uid != geteuid())) {
+            return 0;
+        }
+        child_stat = parent_stat;
+    }
+    return 1;
+#endif
+}
+
 typedef struct msconnector_runtime_owned_config {
     char rules_inline[RUNTIME_INLINE_RULE_SIZE];
     char rules_file[RUNTIME_PATH_SIZE];
