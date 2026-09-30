@@ -604,6 +604,53 @@ func TestNormalizeConfigRejectsNonCanonicalSocketPath(t *testing.T) {
 	}
 }
 
+func TestMiddlewareRejectsUnverifiedCompanionBeforeClaim(t *testing.T) {
+	path, stop, operations := startFakeObserver(t, func(byte) (byte, byte) {
+		return decisionAllow, resultOK
+	})
+	defer stop()
+
+	mismatchedUID := os.Geteuid() ^ 1
+	called := false
+	handler, err := New(nil, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		called = true
+	}), &Config{
+		SocketPath:      path,
+		TimeoutMillis:   1000,
+		ExpectedPeerUID: &mismatchedUID,
+		ExpectedPeerGID: func() *int { gid := os.Getegid(); return &gid }(),
+	}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, newObserverRequest())
+	if recorder.Code != http.StatusServiceUnavailable || called {
+		t.Fatalf("unverified companion status=%d upstreamCalled=%v", recorder.Code, called)
+	}
+	if got := operations.snapshot(); len(got) != 0 {
+		t.Fatalf("companion operations=%v, want no CLAIM bytes", got)
+	}
+}
+
+func TestNormalizeConfigRejectsIncompleteOrInvalidPeerIdentity(t *testing.T) {
+	uid := os.Geteuid()
+	negative := -1
+	for _, config := range []*Config{
+		{ExpectedPeerUID: &uid},
+		{ExpectedPeerGID: &uid},
+		{ExpectedPeerUID: &negative, ExpectedPeerGID: &uid},
+	} {
+		if _, err := normalizeConfig(config); err == nil {
+			t.Fatalf("accepted unsafe expected peer configuration %#v", config)
+		}
+	}
+	if err := verifyResponseCompanionPeer(nil, uid, os.Getegid()); err == nil {
+		t.Fatal("accepted missing response companion credentials")
+	}
+}
+
 func TestConcurrentRequestsUseIndependentSessions(t *testing.T) {
 	path, stop, _ := startFakeObserver(t, func(byte) (byte, byte) { return decisionAllow, resultOK })
 	defer stop()

@@ -3,44 +3,64 @@
 package response_observer
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"syscall"
 )
 
-func verifyResponseCompanionPeer(conn net.Conn, expectedUID, expectedGID int) error {
+type responseCompanionIdentity struct {
+	uid uint32
+	gid uint32
+}
+
+func verifyResponseCompanionPeer(conn net.Conn, wantUID, wantGID int) error {
 	if conn == nil {
-		return fmt.Errorf("modsecurity response observer: missing private socket connection")
+		return errors.New("modsecurity response observer: missing private socket connection")
 	}
-	if !validExpectedResponseCompanionPeerID(expectedUID) ||
-		!validExpectedResponseCompanionPeerID(expectedGID) {
-		return fmt.Errorf("modsecurity response observer: expected peer UID and GID must be valid Linux IDs")
+	maximumLinuxID := uint64(^uint32(0))
+	if wantUID < 0 || wantGID < 0 || uint64(wantUID) > maximumLinuxID ||
+		uint64(wantGID) > maximumLinuxID {
+		return errors.New("modsecurity response observer: expected peer UID and GID must be valid Linux IDs")
 	}
-	syscallConn, ok := conn.(syscall.Conn)
-	if !ok {
-		return fmt.Errorf("modsecurity response observer: private socket does not expose credentials")
-	}
-	rawConn, err := syscallConn.SyscallConn()
+	actual, err := readResponseCompanionIdentity(conn)
 	if err != nil {
-		return fmt.Errorf("modsecurity response observer: access private socket descriptor: %w", err)
+		return err
 	}
-	var credential *syscall.Ucred
-	var credentialErr error
-	if err := rawConn.Control(func(fd uintptr) {
-		credential, credentialErr = syscall.GetsockoptUcred(
-			int(fd), syscall.SOL_SOCKET, syscall.SO_PEERCRED,
-		)
-	}); err != nil {
-		return fmt.Errorf("modsecurity response observer: inspect private socket credentials: %w", err)
+	if actual.uid == uint32(wantUID) && actual.gid == uint32(wantGID) {
+		return nil
 	}
-	if credentialErr != nil {
-		return fmt.Errorf("modsecurity response observer: read private socket credentials: %w", credentialErr)
+	return errors.New("modsecurity response observer: private socket peer identity mismatch")
+}
+
+func readResponseCompanionIdentity(conn net.Conn) (responseCompanionIdentity, error) {
+	unixConn, ok := conn.(*net.UnixConn)
+	if !ok {
+		return responseCompanionIdentity{}, errors.New("modsecurity response observer: private socket does not expose credentials")
 	}
-	if credential == nil {
-		return fmt.Errorf("modsecurity response observer: missing private socket credentials")
+	raw, err := unixConn.SyscallConn()
+	if err != nil {
+		return responseCompanionIdentity{}, fmt.Errorf("modsecurity response observer: access private socket descriptor: %w", err)
 	}
-	if credential.Uid != uint32(expectedUID) || credential.Gid != uint32(expectedGID) {
-		return fmt.Errorf("modsecurity response observer: private socket peer identity mismatch")
+	var identity responseCompanionIdentity
+	var readErr error
+	if controlErr := raw.Control(func(fd uintptr) {
+		credential, socketErr := syscall.GetsockoptUcred(int(fd), syscall.SOL_SOCKET, syscall.SO_PEERCRED)
+		if socketErr != nil {
+			readErr = socketErr
+			return
+		}
+		if credential == nil {
+			readErr = errors.New("missing private socket credentials")
+			return
+		}
+		identity.uid = credential.Uid
+		identity.gid = credential.Gid
+	}); controlErr != nil {
+		return responseCompanionIdentity{}, fmt.Errorf("modsecurity response observer: inspect private socket credentials: %w", controlErr)
 	}
-	return nil
+	if readErr != nil {
+		return responseCompanionIdentity{}, fmt.Errorf("modsecurity response observer: read private socket credentials: %w", readErr)
+	}
+	return identity, nil
 }

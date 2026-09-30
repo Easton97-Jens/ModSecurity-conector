@@ -199,16 +199,8 @@
       "purpose": "fail-closed unsupported-platform response companion peer check"
     },
     {
-      "path": "connectors/traefik/response_observer/peercred_linux_test.go",
-      "purpose": "peer mismatch before CLAIM and expected UID/GID configuration regressions"
-    },
-    {
-      "path": "connectors/traefik/response_observer/peercred_other_test.go",
-      "purpose": "fail-closed unsupported-platform response companion peer regression"
-    },
-    {
       "path": "connectors/traefik/response_observer/observer_test.go",
-      "purpose": "response-observer protocol, ordering, limit, cleanup, and writer behavior unit coverage"
+      "purpose": "response-observer protocol, peer identity, ordering, limit, cleanup, and writer behavior unit coverage"
     },
     {
       "path": "connectors/traefik/response_observer/README.md",

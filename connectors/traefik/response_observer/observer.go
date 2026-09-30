@@ -103,36 +103,35 @@ func normalizeConfig(input *Config) (Config, error) {
 	if c.TimeoutMillis == 0 {
 		c.TimeoutMillis = 5000
 	}
-	expectedPeerUID, expectedPeerGID, err := expectedResponseCompanionPeerCredentials(
-		c.ExpectedPeerUID, c.ExpectedPeerGID,
-	)
-	if err != nil {
+	if err := normalizeExpectedResponseCompanionPeer(&c); err != nil {
 		return Config{}, err
 	}
-	c.ExpectedPeerUID = &expectedPeerUID
-	c.ExpectedPeerGID = &expectedPeerGID
 	if !safeSocketPath(c.SocketPath) || c.TimeoutMillis < 1 || c.TimeoutMillis > 60000 {
 		return Config{}, errors.New("modsecurity response observer: invalid private socket or timeout")
 	}
 	return c, nil
 }
 
-func validExpectedResponseCompanionPeerID(value int) bool {
-	return value >= 0 && uint64(value) <= uint64(^uint32(0))
-}
-
-func expectedResponseCompanionPeerCredentials(expectedUID, expectedGID *int) (int, int, error) {
-	if expectedUID == nil && expectedGID == nil {
-		return os.Geteuid(), os.Getegid(), nil
+func normalizeExpectedResponseCompanionPeer(config *Config) error {
+	if config == nil {
+		return errors.New("modsecurity response observer: config is required")
 	}
-	if expectedUID == nil || expectedGID == nil {
-		return 0, 0, errors.New("modsecurity response observer: expected peer UID and GID must be configured together")
+	if config.ExpectedPeerUID == nil && config.ExpectedPeerGID == nil {
+		uid, gid := os.Geteuid(), os.Getegid()
+		config.ExpectedPeerUID = &uid
+		config.ExpectedPeerGID = &gid
+		return nil
 	}
-	if !validExpectedResponseCompanionPeerID(*expectedUID) ||
-		!validExpectedResponseCompanionPeerID(*expectedGID) {
-		return 0, 0, errors.New("modsecurity response observer: expected peer UID and GID must be valid Linux IDs")
+	if config.ExpectedPeerUID == nil || config.ExpectedPeerGID == nil {
+		return errors.New("modsecurity response observer: expected peer UID and GID must be configured together")
 	}
-	return *expectedUID, *expectedGID, nil
+	maximumLinuxID := uint64(^uint32(0))
+	if *config.ExpectedPeerUID < 0 || *config.ExpectedPeerGID < 0 ||
+		uint64(*config.ExpectedPeerUID) > maximumLinuxID ||
+		uint64(*config.ExpectedPeerGID) > maximumLinuxID {
+		return errors.New("modsecurity response observer: expected peer UID and GID must be valid Linux IDs")
+	}
+	return nil
 }
 
 func safeSocketPath(path string) bool {
@@ -218,10 +217,7 @@ func maxPayloadForOpcode(opcode byte) int {
 }
 
 func openSession(ctx context.Context, config Config, handle string) (*session, error) {
-	expectedPeerUID, expectedPeerGID, err := expectedResponseCompanionPeerCredentials(
-		config.ExpectedPeerUID, config.ExpectedPeerGID,
-	)
-	if err != nil {
+	if err := normalizeExpectedResponseCompanionPeer(&config); err != nil {
 		return nil, err
 	}
 	dialer := net.Dialer{Timeout: time.Duration(config.TimeoutMillis) * time.Millisecond}
@@ -229,7 +225,7 @@ func openSession(ctx context.Context, config Config, handle string) (*session, e
 	if err != nil {
 		return nil, err
 	}
-	if err := verifyResponseCompanionPeer(conn, expectedPeerUID, expectedPeerGID); err != nil {
+	if err := verifyResponseCompanionPeer(conn, *config.ExpectedPeerUID, *config.ExpectedPeerGID); err != nil {
 		_ = conn.Close()
 		return nil, fmt.Errorf("modsecurity response observer: authenticate private socket peer: %w", err)
 	}
