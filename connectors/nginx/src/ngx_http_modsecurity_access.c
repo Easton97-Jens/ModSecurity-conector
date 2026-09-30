@@ -788,8 +788,13 @@ ngx_http_modsecurity_access_handler(ngx_http_request_t *r)
     }
 
     dd("catching a new _access_ phase handler");
-    ctx = ngx_http_modsecurity_get_module_ctx(r);
-    dd("recovering ctx: %p", ctx);
+    /*
+     * NGINX clears module contexts on internal redirects so the target
+     * location cannot inherit source-location state. Cleanup recovery is
+     * for post-access finalization only; access must initialize the target.
+     */
+    ctx = ngx_http_get_module_ctx(r, ngx_http_modsecurity_module);
+    dd("current location ctx: %p", ctx);
     if (ctx == NULL) {
         rc = ngx_http_modsecurity_initialize_request(r, mcf);
         if (rc != NGX_OK) {

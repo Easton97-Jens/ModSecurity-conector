@@ -1,6 +1,7 @@
-"""Focused B09 regression: compile the actual classifier and P1/P2 result tails.
+"""Focused B09 regression for the NGINX error-page context boundary.
 
-The shim controls the native return and event sink. It is not live NGINX,
+The source contract pins access initialization to the current location context.
+The C shim controls the native return and event sink. It is not live NGINX,
 libmodsecurity, error_page-routing, or transport evidence.
 """
 from __future__ import annotations
@@ -18,6 +19,19 @@ from tests.c_source_contract import function_definition
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "connectors/nginx/src"
+
+
+class NginxErrorPageContextContractTests(unittest.TestCase):
+    def test_access_handler_does_not_recover_pre_redirect_context(self) -> None:
+        access = (SOURCE / "ngx_http_modsecurity_access.c").read_text(
+            encoding="utf-8"
+        )
+        handler = function_definition(access, "ngx_http_modsecurity_access_handler")
+        self.assertIn(
+            "ctx = ngx_http_get_module_ctx(r, ngx_http_modsecurity_module);",
+            handler,
+        )
+        self.assertNotIn("ctx = ngx_http_modsecurity_get_module_ctx(r);", handler)
 
 
 class NginxErrorPageInterventionTests(unittest.TestCase):
