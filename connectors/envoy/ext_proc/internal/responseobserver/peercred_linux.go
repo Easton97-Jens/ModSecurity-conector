@@ -10,7 +10,9 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// VerifyPeerCredentials rejects a UDS peer whose kernel-supplied Linux UID/GID\n// does not equal the explicitly expected identity.\nfunc VerifyPeerCredentials(conn net.Conn, expectedUID, expectedGID int) error {
+// VerifyPeerCredentials rejects a UDS peer whose kernel-supplied Linux UID/GID
+// does not equal the explicitly expected identity.
+func VerifyPeerCredentials(conn net.Conn, expectedUID, expectedGID int) error {
 	if conn == nil {
 		return fmt.Errorf("response observer: missing private socket connection")
 	}
