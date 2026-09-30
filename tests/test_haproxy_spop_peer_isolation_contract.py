@@ -219,6 +219,37 @@ class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
     def test_safe_example_does_not_reintroduce_a_single_peer_bottleneck(self) -> None:
         self.assertIn("worker-count=8", EXAMPLE)
 
+    def test_response_companion_checks_every_private_directory_ancestor(self) -> None:
+        parent_check = COMMON_TRANSPORT.split(
+            "static int response_companion_private_parent_is_safe", 1
+        )[1].split("static int response_companion_set_nonblocking", 1)[0]
+        ancestor_check = COMMON_TRANSPORT.split(
+            "static int response_companion_private_directory_ancestors_are_safe", 1
+        )[1].split("static int response_companion_private_parent_is_safe", 1)[0]
+
+        self.assertIn(
+            "return response_companion_private_directory_ancestors_are_safe(parent);",
+            parent_check,
+        )
+        self.assertIn('while (strcmp(child_path, "/") != 0)', ancestor_check)
+        self.assertIn("S_ISVTX", ancestor_check)
+        self.assertIn("child_stat->st_uid == geteuid()", ancestor_check)
+        self.assertIn(
+            "response_companion_parent_protects_child_from_cross_uid_replacement",
+            ancestor_check,
+        )
+
+    def test_closed_spoe_profiles_do_not_continue_on_agent_error(self) -> None:
+        for profile in ("strict", "safe", "off", "all"):
+            with self.subTest(profile=profile):
+                profile_root = ROOT / "examples" / "haproxy" / "spoe-spop" / profile
+                spoe_config = (profile_root / "spoe.cfg").read_text(encoding="utf-8")
+                agent_config = (profile_root / "spoa-agent.conf").read_text(
+                    encoding="utf-8"
+                )
+                self.assertIn("fail-mode=closed", agent_config)
+                self.assertNotIn("option continue-on-error", spoe_config)
+
     def test_closed_defaults_preserve_explicit_error_status_mapping(self) -> None:
         self.assertNotIn("option continue-on-error", EXAMPLE)
         self.assertIn("fail-mode=closed", EXAMPLE)

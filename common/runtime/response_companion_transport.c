@@ -202,6 +202,62 @@ static int response_companion_path_is_safe(const char *path)
     return 1;
 }
 
+/* A private leaf is still replaceable when an ancestor is writable by
+ * another UID.  Sticky ancestors protect a child only when we own it. */
+static int response_companion_parent_protects_child_from_cross_uid_replacement(
+    const struct stat *parent_stat, const struct stat *child_stat)
+{
+    if (parent_stat == NULL || child_stat == NULL ||
+        !S_ISDIR(parent_stat->st_mode)) {
+        return 0;
+    }
+    if ((parent_stat->st_mode & (S_IWGRP | S_IWOTH)) == 0) {
+        return 1;
+    }
+    return (parent_stat->st_mode & S_ISVTX) != 0 &&
+        child_stat->st_uid == geteuid();
+}
+
+static int response_companion_private_directory_ancestors_are_safe(
+    const char *path)
+{
+    char child_path[PATH_MAX];
+    char *separator;
+    struct stat child_stat;
+    struct stat parent_stat;
+    size_t path_size;
+
+    if (path == NULL || path[0] != '/') {
+        return 0;
+    }
+    path_size = strlen(path);
+    if (path_size == 0U || path_size >= sizeof(child_path)) {
+        return 0;
+    }
+    memcpy(child_path, path, path_size + 1U);
+    if (lstat(child_path, &child_stat) != 0 || !S_ISDIR(child_stat.st_mode)) {
+        return 0;
+    }
+    while (strcmp(child_path, "/") != 0) {
+        separator = strrchr(child_path, '/');
+        if (separator == NULL) {
+            return 0;
+        }
+        if (separator == child_path) {
+            child_path[1] = '\0';
+        } else {
+            *separator = '\0';
+        }
+        if (lstat(child_path, &parent_stat) != 0 ||
+            !response_companion_parent_protects_child_from_cross_uid_replacement(
+                &parent_stat, &child_stat)) {
+            return 0;
+        }
+        child_stat = parent_stat;
+    }
+    return 1;
+}
+
 static int response_companion_private_parent_is_safe(const char *socket_path)
 {
     char parent[MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_SOCKET_SIZE];
@@ -229,7 +285,7 @@ static int response_companion_private_parent_is_safe(const char *socket_path)
         (path_stat.st_mode & 0700U) != 0700U) {
         return 0;
     }
-    return 1;
+    return response_companion_private_directory_ancestors_are_safe(parent);
 }
 
 static int response_companion_set_nonblocking(int socket_fd)

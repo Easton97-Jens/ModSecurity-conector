@@ -26,6 +26,18 @@ jobs:
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Set up Go for response observer tests
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: connectors/traefik/response_observer/go.mod
+          check-latest: false
+          cache: false
+      - name: Test Traefik response observer
+        working-directory: connectors/traefik/response_observer
+        env:
+          GOTOOLCHAIN: local
+          TMPDIR: /tmp
+        run: go test -mod=readonly -count=1 ./...
       - name: Check Traefik Common and host contracts
         run: |
           set -eu

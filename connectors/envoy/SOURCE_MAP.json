@@ -272,6 +272,26 @@
       "upstream_origin": "none"
     },
     {
+      "path": "connectors/envoy/ext_proc/internal/responseobserver/peercred_linux.go",
+      "kind": "repository-local Linux SO_PEERCRED authentication of the response companion before CLAIM",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/ext_proc/internal/responseobserver/peercred_other.go",
+      "kind": "repository-local fail-closed unsupported-platform response companion peer check",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/ext_proc/internal/responseobserver/peercred_linux_test.go",
+      "kind": "repository-local response companion peer mismatch and configuration regression tests",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/ext_proc/internal/responseobserver/protocol_test_helper_test.go",
+      "kind": "repository-local test-only unauthenticated protocol dial helper for cross-platform framing tests",
+      "upstream_origin": "none"
+    },
+    {
       "path": "connectors/envoy/ext_proc/internal/responseobserver/protocol.go",
       "kind": "repository-local bounded MRC1 private response-observer protocol client and strict result validation",
       "upstream_origin": "none"

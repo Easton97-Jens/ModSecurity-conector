@@ -9,9 +9,11 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -80,8 +82,10 @@ var (
 // Config is the host-facing configuration. SocketPath is deliberately UDS
 // only; no TCP or implicit fallback is supported.
 type Config struct {
-	SocketPath    string `json:"socketPath,omitempty"`
-	TimeoutMillis int    `json:"timeoutMillis,omitempty"`
+	SocketPath      string `json:"socketPath,omitempty"`
+	TimeoutMillis   int    `json:"timeoutMillis,omitempty"`
+	ExpectedPeerUID *int   `json:"expectedPeerUID,omitempty"`
+	ExpectedPeerGID *int   `json:"expectedPeerGID,omitempty"`
 }
 
 func CreateConfig() *Config {
@@ -99,10 +103,36 @@ func normalizeConfig(input *Config) (Config, error) {
 	if c.TimeoutMillis == 0 {
 		c.TimeoutMillis = 5000
 	}
+	expectedPeerUID, expectedPeerGID, err := expectedResponseCompanionPeerCredentials(
+		c.ExpectedPeerUID, c.ExpectedPeerGID,
+	)
+	if err != nil {
+		return Config{}, err
+	}
+	c.ExpectedPeerUID = &expectedPeerUID
+	c.ExpectedPeerGID = &expectedPeerGID
 	if !safeSocketPath(c.SocketPath) || c.TimeoutMillis < 1 || c.TimeoutMillis > 60000 {
 		return Config{}, errors.New("modsecurity response observer: invalid private socket or timeout")
 	}
 	return c, nil
+}
+
+func validExpectedResponseCompanionPeerID(value int) bool {
+	return value >= 0 && uint64(value) <= uint64(^uint32(0))
+}
+
+func expectedResponseCompanionPeerCredentials(expectedUID, expectedGID *int) (int, int, error) {
+	if expectedUID == nil && expectedGID == nil {
+		return os.Geteuid(), os.Getegid(), nil
+	}
+	if expectedUID == nil || expectedGID == nil {
+		return 0, 0, errors.New("modsecurity response observer: expected peer UID and GID must be configured together")
+	}
+	if !validExpectedResponseCompanionPeerID(*expectedUID) ||
+		!validExpectedResponseCompanionPeerID(*expectedGID) {
+		return 0, 0, errors.New("modsecurity response observer: expected peer UID and GID must be valid Linux IDs")
+	}
+	return *expectedUID, *expectedGID, nil
 }
 
 func safeSocketPath(path string) bool {
@@ -188,10 +218,20 @@ func maxPayloadForOpcode(opcode byte) int {
 }
 
 func openSession(ctx context.Context, config Config, handle string) (*session, error) {
+	expectedPeerUID, expectedPeerGID, err := expectedResponseCompanionPeerCredentials(
+		config.ExpectedPeerUID, config.ExpectedPeerGID,
+	)
+	if err != nil {
+		return nil, err
+	}
 	dialer := net.Dialer{Timeout: time.Duration(config.TimeoutMillis) * time.Millisecond}
 	conn, err := dialer.DialContext(ctx, "unix", config.SocketPath)
 	if err != nil {
 		return nil, err
+	}
+	if err := verifyResponseCompanionPeer(conn, expectedPeerUID, expectedPeerGID); err != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("modsecurity response observer: authenticate private socket peer: %w", err)
 	}
 	s := &session{conn: conn, reader: bufio.NewReader(conn), timeout: time.Duration(config.TimeoutMillis) * time.Millisecond}
 	claim, err := s.exchange(ctx, opClaim, []byte(handle))

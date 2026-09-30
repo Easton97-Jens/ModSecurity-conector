@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -737,6 +738,9 @@ func (failingResponseWriter) Write([]byte) (int, error) {
 
 func startFakeObserver(t *testing.T, decide func(byte) (byte, byte)) (string, func(), *opLog) {
 	t.Helper()
+	if runtime.GOOS != "linux" {
+		t.Skip("response companion UDS peer authentication requires Linux SO_PEERCRED")
+	}
 	path := os.Getenv("MSCONNECTOR_TEST_SOCKET_PATH")
 	if path == "" {
 		socketDir, err := os.MkdirTemp("", "msco")

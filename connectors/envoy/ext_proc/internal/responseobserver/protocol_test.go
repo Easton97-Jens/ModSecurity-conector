@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -534,6 +535,9 @@ func TestProcessCapacityIsGlobalAcrossGRPCTransports(t *testing.T) {
 
 func runProcessOutcomeOrderingCase(t *testing.T, failSend bool, wantOperationCount int) (error, []byte) {
 	t.Helper()
+	if runtime.GOOS != "linux" {
+		t.Skip("response companion UDS peer authentication requires Linux SO_PEERCRED")
+	}
 	dir := testSocketDir(t)
 	path := filepath.Join(dir, "observer.sock")
 	listener, err := net.Listen("unix", path)
