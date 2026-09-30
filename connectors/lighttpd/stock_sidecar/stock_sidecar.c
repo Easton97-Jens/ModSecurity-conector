@@ -1473,8 +1473,13 @@ static int sidecar_exchange_response(sidecar_exchange_state *state) {
 
         state->decision.late_intervention = state->client_response_started != 0;
         if (phase4_mode == MSCONNECTOR_PHASE4_MODE_OFF) {
-            sidecar_record_action(state->transaction, &state->decision, &state->error);
-            return 1;
+            /* C07: OFF does not apply this late engine decision. Preserve the
+             * requested action, but record the unchanged host response. */
+            return msconnector_runtime_transaction_record_host_action(
+                state->transaction, &state->decision,
+                MSCONNECTOR_DECISION_ACTION_LOG_ONLY,
+                state->payload.response_headers.status_code, "log_only", 0,
+                &state->error);
         }
         action = sidecar_phase4_action(state->client_response_started, phase4_mode);
         if (action == MSCONNECTOR_LATE_INTERVENTION_ABORT_CONNECTION) {

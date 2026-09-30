@@ -65,6 +65,16 @@ jobs:
           test -f docs/architecture.md
           test -f docs/connectors/README.md
           test -f ci/checks/common/check-common-helpers.sh
+      - name: Run B13 and C07 isolated regressions
+        env:
+          TMPDIR: ${{ runner.temp }}/reported-findings-regressions
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          set -eu
+          umask 077
+          mkdir -p "$TMPDIR"
+          command -v cc >/dev/null
+          python3 -m unittest tests.test_reported_security_regressions -v
       - name: Lightweight framework checks
         run: |
           make setup-dev
