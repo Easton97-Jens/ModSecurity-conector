@@ -130,7 +130,7 @@ def inspect_handoff(root: Path) -> dict[str, str]:
     common = read_text(root, COMMON)
     reviewed_common(common, read_text(root, VERIFIER))
     nginx_tag = literal_pin(common, "NGINX_RELEASE_TAG")
-    require(re.fullmatch(r"release-[1-9][0-9]*\.[0-9]+\.[0-9]+", nginx_tag) is not None,
+    require(re.fullmatch(r"release-[1-9]\d*\.\d+\.\d+", nginx_tag, flags=re.ASCII) is not None,
             "invalid reviewed NGINX release tag")
     version = nginx_tag.removeprefix("release-")
     writer_version = python_constant(read_text(root, WRITER), "EXPECTED_NGINX_VERSION")
@@ -139,7 +139,8 @@ def inspect_handoff(root: Path) -> dict[str, str]:
     require(workflow_tags == [nginx_tag], "NGINX workflow release differs from reviewed Framework")
     repository, release, commit = (literal_pin(common, name) for name in MODSECURITY_KEYS)
     require(repository == OFFICIAL_REPOSITORY, "unexpected ModSecurity repository")
-    require(re.fullmatch(r"v3\.[0-9]+\.[0-9]+", release) is not None, "not a stable ModSecurity v3 tag")
+    require(re.fullmatch(r"v3\.\d+\.\d+", release, flags=re.ASCII) is not None,
+            "not a stable ModSecurity v3 tag")
     require(re.fullmatch(r"[0-9a-f]{40}", commit) is not None, "ModSecurity requires an exact commit")
     expected = {"MODSECURITY_REF": release, "MODSECURITY_COMMIT": commit}
     for path in (*GUIDE_SOURCES, *GUIDES):
