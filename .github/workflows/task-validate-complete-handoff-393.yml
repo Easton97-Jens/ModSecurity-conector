@@ -67,13 +67,13 @@ jobs:
       - name: Observe original privileged sandbox failures
         working-directory: ${{ runner.temp }}/pr393-checkout
         run: |
-          set -uo pipefail
+          set -euo pipefail
+          result=0
           sudo -n /usr/bin/env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 \
             "$PYTHON" -m unittest -v \
             tests.test_prepare_readonly_submodule_validation_sandbox.PrepareReadonlySubmoduleValidationSandboxTests.test_prepare_candidate_verify_and_cleanup_preserve_source_metadata \
             tests.test_run_readonly_submodule_validation_namespace.ReadonlySubmoduleValidationNamespaceTests.test_privileged_candidate_cannot_escape_the_chroot_or_outlive_pid1 \
-            > "$RUNNER_TEMP/baseline-namespace.log" 2>&1
-          result=$?
+            > "$RUNNER_TEMP/baseline-namespace.log" 2>&1 || result=$?
           cat "$RUNNER_TEMP/baseline-namespace.log"
           printf 'Original privileged tests exit: %s\n' "$result"
           test "$result" -eq 0 || test "$result" -eq 1
