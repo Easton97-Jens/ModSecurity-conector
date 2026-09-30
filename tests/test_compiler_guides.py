@@ -414,7 +414,7 @@ class CompilerGuideGenerationTest(unittest.TestCase):
             self.assertLess(content.index(f"## {beginner_heading}"), content.index(f"## {heading}"))
             advanced = h2_section(content, heading)
             for marker in (
-                MODSECURITY_REF_COMMAND.removeprefix('MODSECURITY_REF="').removesuffix('"'),
+                MODSECURITY_REF_COMMAND.split('"', 2)[1],
                 "MODSECURITY_COMMIT",
                 "verify-tag",
                 "SHA",
