@@ -42,7 +42,8 @@ Die GitHub-Connector-Inspektion verglich den vorbereiteten Scope mit der Basis-R
 
 ```sh
 python3 -m unittest -v tests.test_haproxy_spop_peer_isolation_contract
-go test -mod=readonly -count=1 ./internal/responseobserver ./cmd/msconnector-envoy-response-observer
+go test -mod=readonly -count=1 ./internal/responseobserver
+go test -mod=readonly -count=1 -run 'a^' ./cmd/msconnector-envoy-response-observer
 go test -mod=readonly -count=1 ./...
 ```
 

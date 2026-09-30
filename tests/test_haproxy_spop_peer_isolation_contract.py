@@ -226,18 +226,21 @@ class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
         ancestor_check = COMMON_TRANSPORT.split(
             "static int response_companion_private_directory_ancestors_are_safe", 1
         )[1].split("static int response_companion_private_parent_is_safe", 1)[0]
+        parent_protection = COMMON_TRANSPORT.split(
+            "static int response_companion_parent_protects_child_from_cross_uid_replacement", 1
+        )[1].split("static int response_companion_private_directory_ancestors_are_safe", 1)[0]
 
         self.assertIn(
             "return response_companion_private_directory_ancestors_are_safe(parent);",
             parent_check,
         )
         self.assertIn('while (strcmp(child_path, "/") != 0)', ancestor_check)
-        self.assertIn("S_ISVTX", ancestor_check)
-        self.assertIn("child_stat->st_uid == geteuid()", ancestor_check)
         self.assertIn(
             "response_companion_parent_protects_child_from_cross_uid_replacement",
             ancestor_check,
         )
+        self.assertIn("S_ISVTX", parent_protection)
+        self.assertIn("child_stat->st_uid == geteuid()", parent_protection)
 
     def test_closed_spoe_profiles_do_not_continue_on_agent_error(self) -> None:
         for profile in ("strict", "safe", "off", "all"):

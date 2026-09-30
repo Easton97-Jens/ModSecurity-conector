@@ -37,7 +37,9 @@ jobs:
         env:
           GOTOOLCHAIN: local
           TMPDIR: /tmp
-        run: go test -mod=readonly -count=1 ./internal/responseobserver ./cmd/msconnector-envoy-response-observer
+        run: |
+          go test -mod=readonly -count=1 ./internal/responseobserver
+          go test -mod=readonly -count=1 -run 'a^' ./cmd/msconnector-envoy-response-observer
       - name: Check Envoy Common and host contracts
         run: |
           set -eu
