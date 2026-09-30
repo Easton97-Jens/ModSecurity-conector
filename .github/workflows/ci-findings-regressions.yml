@@ -36,6 +36,26 @@ jobs:
         with:
           python-version-file: .python-version
           check-latest: false
+      - name: Read baseline PR391 Sonar annotation for remediation
+        if: github.event_name == 'pull_request' && github.event.pull_request.number == 391
+        run: |
+          python3 - <<'PY'
+          import json
+          from urllib.request import Request, urlopen
+          url = "https://api.github.com/repos/Easton97-Jens/ModSecurity-conector/check-runs/109623225352/annotations?per_page=100"
+          request = Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "pr391-remediation"})
+          with urlopen(request, timeout=20) as response:
+              data = response.read(131073)
+          if len(data) > 131072:
+              raise SystemExit("Annotation response exceeds diagnostic limit")
+          annotations = json.loads(data)
+          if not isinstance(annotations, list) or len(annotations) > 100:
+              raise SystemExit("Unexpected annotation response")
+          fields = ("path", "start_line", "end_line", "title", "message")
+          print("PR391_BASELINE_SONAR_ANNOTATIONS=" + json.dumps([
+              {key: item.get(key) for key in fields} for item in annotations
+          ], ensure_ascii=True))
+          PY
       - name: Compile and run the bounded NGINX regression seam
         env:
           TMPDIR: ${{ runner.temp }}/findings-regressions
