@@ -609,10 +609,12 @@ def render_markdown(report: dict[str, Any]) -> str:
         group = report["groups"][group_id]
         if not group["count"]:
             continue
-        lines.append(f"### {group_id}. {group['label']}")
-        lines.append("")
-        lines.append("| case | connector | variant | rule | phase | target | operator | request | loaded | matched | intervention | backend |")
-        lines.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
+        lines.extend([
+            f"### {group_id}. {group['label']}",
+            "",
+            "| case | connector | variant | rule | phase | target | operator | request | loaded | matched | intervention | backend |",
+            "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        ])
         for item in group["example_cases"]:
             request = item["path"] if item["query"] in {"", "-"} else f"{item['path']}?{item['query']}"
             lines.append(

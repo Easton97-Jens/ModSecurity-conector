@@ -762,9 +762,11 @@ def copy_trusted_crs_output(source: Path, destination: Path, label: str) -> Path
 
     descriptor = secure_crs_output_file(destination, label)
     try:
-        with os.fdopen(descriptor, "wb") as output_handle:
-            with source.open("rb") as input_handle:
-                shutil.copyfileobj(input_handle, output_handle)
+        with (
+            os.fdopen(descriptor, "wb") as output_handle,
+            source.open("rb") as input_handle,
+        ):
+            shutil.copyfileobj(input_handle, output_handle)
     except OSError as exc:
         raise SmokeBlocked(f"could not write {label}: {destination}", ["crs"]) from exc
     return require_trusted_crs_path(destination, label, directory=False)
