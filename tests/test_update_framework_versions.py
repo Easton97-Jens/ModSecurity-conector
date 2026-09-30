@@ -15,6 +15,7 @@ import tempfile
 import unittest
 from unittest import mock
 
+from tests.framework_component_fixture import set_framework_component_fixture
 from tests.framework_sha_fixture import set_framework_sha_fixture
 
 
@@ -123,6 +124,7 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         )
         # Test identities are independent of both live pins and grammar provenance.
         set_framework_sha_fixture(self.root, TEST_PARENT_FRAMEWORK_SHA)
+        set_framework_component_fixture(self.root)
         self.common = Path(self.temp.name) / "framework/ci/lib/common.sh"
         self.common.parent.mkdir(parents=True)
         self.write_common(CURRENT_CANDIDATE_COMMON)
