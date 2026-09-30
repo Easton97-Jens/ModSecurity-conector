@@ -1868,38 +1868,42 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
                         child.kill()
                         child.wait(timeout=2)
 
+    def _start_forking_leader(self, temporary_directory: str):
+        root = pathlib.Path(temporary_directory) / "runtime"
+        root.mkdir(mode=0o700)
+        os.environ[GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV] = str(root)
+        self.addCleanup(os.environ.pop, GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV, None)
+        record = root / "session-registration.json"
+        fork_program = (
+            "import json, os, pathlib, signal, sys, time\n"
+            "record = pathlib.Path(sys.argv[1])\n"
+            "stat_data = pathlib.Path(f'/proc/{os.getpid()}/stat').read_text()\n"
+            "start_time = stat_data.rsplit(')', 1)[1].split()[19]\n"
+            "record.write_text(json.dumps({'leader_pid': os.getpid(), 'leader_start_time': start_time, 'process_group': os.getpid(), 'session_id': os.getpid()}) + '\\n')\n"
+            "os.chmod(record, 0o600)\n"
+            "sys.argv = [sys.argv[0], *sys.argv[2:]]\n"
+            "child = os.fork()\n"
+            "if child:\n"
+            "    print(child, flush=True)\n"
+            "    os._exit(0)\n"
+            "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+            "while True:\n"
+            "    time.sleep(1)\n"
+        )
+        leader = subprocess.Popen(
+            [sys.executable, "-c", fork_program, str(record)],
+            start_new_session=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        return record, leader
+
     def test_linux_guard_contains_children_when_live_leader_pid_is_reused(self):
         """A foreign live PID never receives a signal, but its old SID's child does."""
 
         with tempfile.TemporaryDirectory() as temporary_directory:
-            root = pathlib.Path(temporary_directory) / "runtime"
-            root.mkdir(mode=0o700)
-            os.environ[GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV] = str(root)
-            self.addCleanup(os.environ.pop, GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV, None)
-            record = root / "session-registration.json"
-            fork_program = (
-                "import json, os, pathlib, signal, sys, time\n"
-                "record = pathlib.Path(sys.argv[1])\n"
-                "stat_data = pathlib.Path(f'/proc/{os.getpid()}/stat').read_text()\n"
-                "start_time = stat_data.rsplit(')', 1)[1].split()[19]\n"
-                "record.write_text(json.dumps({'leader_pid': os.getpid(), 'leader_start_time': start_time, 'process_group': os.getpid(), 'session_id': os.getpid()}) + '\\n')\n"
-                "os.chmod(record, 0o600)\n"
-                "sys.argv = [sys.argv[0], *sys.argv[2:]]\n"
-                "child = os.fork()\n"
-                "if child:\n"
-                "    print(child, flush=True)\n"
-                "    os._exit(0)\n"
-                "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
-                "while True:\n"
-                "    time.sleep(1)\n"
-            )
-            leader = subprocess.Popen(
-                [sys.executable, "-c", fork_program, str(record)],
-                start_new_session=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
+            record, leader = self._start_forking_leader(temporary_directory)
             task_child_pid = None
             task_child_start_time = None
             task_child_executable = None
@@ -2006,34 +2010,7 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
         """A dead leader cannot prevent pidfd cleanup of its live task child."""
 
         with tempfile.TemporaryDirectory() as temporary_directory:
-            root = pathlib.Path(temporary_directory) / "runtime"
-            root.mkdir(mode=0o700)
-            os.environ[GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV] = str(root)
-            self.addCleanup(os.environ.pop, GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV, None)
-            record = root / "session-registration.json"
-            fork_program = (
-                "import json, os, pathlib, signal, sys, time\n"
-                "record = pathlib.Path(sys.argv[1])\n"
-                "stat_data = pathlib.Path(f'/proc/{os.getpid()}/stat').read_text()\n"
-                "start_time = stat_data.rsplit(')', 1)[1].split()[19]\n"
-                "record.write_text(json.dumps({'leader_pid': os.getpid(), 'leader_start_time': start_time, 'process_group': os.getpid(), 'session_id': os.getpid()}) + '\\n')\n"
-                "os.chmod(record, 0o600)\n"
-                "sys.argv = [sys.argv[0], *sys.argv[2:]]\n"
-                "child = os.fork()\n"
-                "if child:\n"
-                "    print(child, flush=True)\n"
-                "    os._exit(0)\n"
-                "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
-                "while True:\n"
-                "    time.sleep(1)\n"
-            )
-            leader = subprocess.Popen(
-                [sys.executable, "-c", fork_program, str(record)],
-                start_new_session=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
+            record, leader = self._start_forking_leader(temporary_directory)
             child_pid = None
             child_start_time = None
             child_executable = None
