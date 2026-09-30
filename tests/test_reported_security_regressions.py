@@ -215,6 +215,7 @@ int main(void) {
             source, "msconnector_runtime_private_directory_ancestors_are_safe"
         )
         program = r"""
+#define _DEFAULT_SOURCE
 #define _POSIX_C_SOURCE 200809L
 
 #include <assert.h>
