@@ -1,0 +1,42 @@
+name: task-pr393-quality-readback
+
+on:
+  push:
+    branches:
+      - automation/pr393-quality-readback
+    paths:
+      - .github/workflows/task-pr393-quality-readback.yml
+
+permissions: {}
+
+jobs:
+  read:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Read bounded public findings and rule descriptions
+        run: |
+          python3 - <<'PY'
+          import json
+          import re
+          import urllib.request
+          import urllib.parse
+          def read(route):
+              with urllib.request.urlopen('https://sonarcloud.io/api/' + route, timeout=40) as response:
+                  data = response.read(1000001)
+              if len(data) > 1000000:
+                  raise ValueError('Public response exceeds bound')
+              return json.loads(data)
+          result = read('issues/search?componentKeys=Easton97-Jens_ModSecurity-conector&pullRequest=393&resolved=false&ps=50')
+          print('TOTAL=' + str(result.get('paging', {}).get('total', result.get('total'))))
+          for issue in result.get('issues', []):
+              print('ISSUE=' + json.dumps({key: issue.get(key) for key in ('key', 'rule', 'component', 'line', 'message', 'textRange', 'severity', 'status')}))
+          for rule in sorted({issue['rule'] for issue in result.get('issues', [])}):
+              if re.fullmatch(r'[A-Za-z0-9_-]+:[A-Za-z0-9_-]+', rule) is None:
+                  raise ValueError('Invalid rule key')
+              try:
+                  details = read('rules/show?key=' + urllib.parse.quote(rule, safe=''))['rule']
+                  print('RULE=' + json.dumps({key: details.get(key) for key in ('key', 'name', 'htmlDesc')})[:16000])
+              except Exception as error:
+                  print('RULE_READ_ERROR=' + rule + ':' + type(error).__name__)
+          PY
