@@ -3321,6 +3321,8 @@ sudo -n chmod 0750 "$namespace_parent"
             with self.subTest(registered_path=registered_path):
                 self.assertEqual(publisher.count(registered_path), 3)
         self.assertIn("python3 scripts/generate_compiler_guides.py", publisher)
+        self.assertGreaterEqual(publisher.count("scripts/generate_compiler_guides.py"), 3)
+        self.assertGreaterEqual(publisher.count("tests/test_compiler_guides.py"), 3)
         self.assertIn("docs/build/compilers/lighttpd.de.md", publisher)
         self.assertIn('git -c core.hooksPath=/dev/null add --', publisher)
         self.assertNotIn("git add .", publisher)
