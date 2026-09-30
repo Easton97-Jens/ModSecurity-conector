@@ -619,11 +619,11 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
                 self.assertIn('BUILD_NGINX_FROM_SOURCE: "1"', nginx_env)
                 self.assertIn("NGINX_SOURCE_MODE: github-release", nginx_env)
                 self.assertIn("NGINX_SOURCE_REPO_URL: https://github.com/nginx/nginx", nginx_env)
-                self.assertIn("NGINX_RELEASE_TAG: release-1.31.5", nginx_env)
-                self.assertIn("NGINX_SOURCE_GIT_REF: release-1.31.5", nginx_env)
-                self.assertIn("NGINX_RELEASE_ASSET_NAME: nginx-1.31.5.tar.gz", nginx_env)
+                self.assertIn("NGINX_RELEASE_TAG: release-1.31.6", nginx_env)
+                self.assertIn("NGINX_SOURCE_GIT_REF: release-1.31.6", nginx_env)
+                self.assertIn("NGINX_RELEASE_ASSET_NAME: nginx-1.31.6.tar.gz", nginx_env)
                 self.assertIn(
-                    "NGINX_SHA256: e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279",
+                    "NGINX_SHA256: 974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1",
                     nginx_env,
                 )
                 self.assertIn('NGINX_REQUIRE_PINNED_PROVENANCE: "1"', nginx_env)

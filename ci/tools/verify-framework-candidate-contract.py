@@ -24,8 +24,10 @@ MAX_INPUT_BYTES = 512 * 1024
 # Any Framework common.sh structure change needs a separate Parent review before
 # the candidate updater can publish it, because this file is later sourced. The
 # digest is over the structural skeleton below, not the raw source: only the
-# bounded generic source-data RHSs may vary without a structural review.
-APPROVED_FRAMEWORK_COMMON_STRUCTURE_SHA256 = "7ad268af3baa17d2c2e9b5857ced2138684fab70e5066ddddd6f3656e8baa6af"
+# bounded registered source-data RHSs may vary without a structural review.
+# This includes the exact official ModSecurity-v3 repository/tag/commit tuple;
+# NGINX and every other maintenance pin remain byte-covered by this digest.
+APPROVED_FRAMEWORK_COMMON_STRUCTURE_SHA256 = "2006a9d11977cb29da3725dd9c475133c97e433ead5bd1ae5bbbfa928563bb45"
 # Keep this closed list identical to sync-framework-component-versions.py's
 # SOURCE_REGISTRY. It is deliberately separate from NGINX, whose handoff stays
 # manually reviewed and byte-covered by the structure digest.
@@ -55,6 +57,9 @@ MUTABLE_SOURCE_FIELDS = (
     "CRS_APPROVED_REPO_URL",
     "CRS_APPROVED_COMMIT",
     "CRS_RELEASE_TAG",
+    "MODSECURITY_V3_APPROVED_REPO_URL",
+    "MODSECURITY_V3_APPROVED_COMMIT",
+    "MODSECURITY_V3_RELEASE_TAG",
 )
 MUTABLE_SOURCE_FIELD_SET = frozenset(MUTABLE_SOURCE_FIELDS)
 HEX40 = re.compile(r"^[0-9a-f]{40}$", re.ASCII)

@@ -35,7 +35,7 @@ PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE = (
     "Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@"
     + PROTECTED_NGINX_BROKER_SHA
 )
-WITH_CRS_NO_MRTS_FRAMEWORK_SHA = "f9e48b0774b5bdf7aaa8e38ce98eb6c50bf293c8"
+WITH_CRS_NO_MRTS_FRAMEWORK_SHA = "0290a979ba4bc63a7abed175a53471367b385553"
 WITH_CRS_NO_MRTS_MRTS_SHA = "8a6bb546c4c81d8ffc7be801dceac60c6925685f"
 PROTECTED_NGINX_BROKER_CALLER_MASTER_GATE_TERMS = frozenset(
     {
@@ -51,7 +51,7 @@ LOCKED_ACTION_USE = re.compile(
     r"(?P<prefix>uses:\s+[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?@)"
     r"(?P<sha>[a-f0-9]{40})(?:\s+#\s*v[^\n]+)?"
 )
-SUBMODULE_PUBLISHER_NORMALIZED_SHA256 = "7834d2819b8b63be017a8e609be8c04bc22c0b0dce96b990fdfb659851aad9eb"
+SUBMODULE_PUBLISHER_NORMALIZED_SHA256 = "9290821fe5188e05eeaf25383e8cc3587e7ff54f78beee36ed42709e40d841a2"
 SUBMODULE_PUBLISHER_APP_TOKEN_ACTION = "actions/create-github-app-token"
 SUBMODULE_PUBLISHER_APP_TOKEN_INPUTS = {
     "client-id": "${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}",
@@ -3321,6 +3321,8 @@ sudo -n chmod 0750 "$namespace_parent"
             with self.subTest(registered_path=registered_path):
                 self.assertEqual(publisher.count(registered_path), 3)
         self.assertIn("python3 scripts/generate_compiler_guides.py", publisher)
+        self.assertGreaterEqual(publisher.count("scripts/generate_compiler_guides.py"), 3)
+        self.assertGreaterEqual(publisher.count("tests/test_compiler_guides.py"), 3)
         self.assertIn("docs/build/compilers/lighttpd.de.md", publisher)
         self.assertIn('git -c core.hooksPath=/dev/null add --', publisher)
         self.assertNotIn("git add .", publisher)

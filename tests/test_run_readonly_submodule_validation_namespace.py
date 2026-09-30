@@ -900,12 +900,13 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
             if child == 0:
                 try:
                     os._exit(HELPER._namespace_child(
-                        source, framework, external, mount_root, Path(sys.executable), account.pw_uid,
+                        source, framework, external, mount_root, Path(sys.executable).resolve(strict=True), account.pw_uid,
                         group.gr_gid, candidate,
                     ))
                 except HELPER.NamespaceUnavailable:
                     os._exit(125)
-                except BaseException:
+                except BaseException as error:
+                    os.write(2, ("namespace test child failed: " + type(error).__name__ + ": " + ascii(str(error))[:500] + "\n").encode("ascii"))
                     os._exit(1)
             os.close(inherited_source_fd)
             _pid, status = os.waitpid(child, 0)
@@ -919,6 +920,22 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
             time.sleep(0.3)
             self.assertFalse((external / "background-after-pid1").exists())
             os.rmdir(mount_root / "source"); os.rmdir(mount_root / "external"); os.rmdir(mount_root)
+
+
+    def test_external_virtualenv_alias_resolves_to_existing_jail_runtime(self) -> None:
+        """Resolve a venv alias without adding its writable parent to the jail."""
+        if sys.platform != "linux":
+            self.skipTest("Linux runtime layout is required")
+        system_python = Path("/usr/bin/python3").resolve(strict=True)
+        self.assertTrue(HELPER._runtime_path_is_exposed(system_python))
+        with tempfile.TemporaryDirectory(prefix="external-python-alias-") as raw:
+            alias = Path(raw) / "python"
+            alias.symlink_to(system_python)
+            with self.assertRaisesRegex(RuntimeError, "outside the jailed runtime allowlist"):
+                HELPER._hosted_python_runtime_root(alias)
+            resolved = alias.resolve(strict=True)
+            self.assertEqual(resolved, system_python)
+            self.assertIsNone(HELPER._hosted_python_runtime_root(resolved))
 
 
 if __name__ == "__main__":
