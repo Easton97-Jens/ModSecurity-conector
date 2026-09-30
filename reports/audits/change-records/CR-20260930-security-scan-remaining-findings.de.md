@@ -21,7 +21,7 @@ Das positive NGINX-Interventionsverhalten bleibt durch die Basis-Revision bereit
 
 ## Implementierungsentscheidung und Begründung
 
-Die HAProxy-Änderung löscht nur die Error-Continuation-Option aus den vier betroffenen Profildateien und ergänzt einen fokussierten Regressions-Contract, der die Closed Defaults absichert. Die Common Runtime stellt eine kanonische Directory-Chain-Prüfung bereit, die Response-Transport und Traefik-Engine gemeinsam nutzen: Jeder Ancestor muss der effektiven Service-UID oder UID 0 (dem vertrauenswürdigen Superuser) gehören; schreibbare Ancestors müssen zusätzlich sticky sein und das eigene Child gegen Austausch durch andere UIDs schützen.
+Die HAProxy-Änderung löscht nur die Error-Continuation-Option aus den vier betroffenen Profildateien und ergänzt einen fokussierten Regressions-Contract, der die Closed Defaults absichert. Die Common Runtime stellt eine kanonische Directory-Chain-Prüfung bereit, die Response-Transport und Traefik-Engine gemeinsam nutzen. Sie akzeptiert nur absolute Pfade, deren `realpath` exakt dem übergebenen String entspricht, und verlangt anschließend: Jeder Ancestor muss der effektiven Service-UID oder UID 0 (dem vertrauenswürdigen Superuser) gehören; schreibbare Ancestors müssen zusätzlich sticky sein und das eigene Child gegen Austausch durch andere UIDs schützen.
 
 Die Envoy- und Traefik-Observer verwenden explizite erwartete UID/GID-Paare. Ohne Konfiguration gelten die effektive UID/GID des Observer-Prozesses; eine explizite Identität verlangt beide Felder und erlaubt bewusst den Wert null. Der einzige produktive Envoy-Connect-Pfad ist `dialWithExpectedPeer`; er authentisiert unmittelbar nach dem Connect und bevor `CLAIM`-Bytes geschrieben werden. Protocol-Framing-Tests konstruieren ihren Test-Client getrennt und stellen keinen produktiven unauthentisierten Pfad bereit.
 
@@ -31,6 +31,7 @@ Die Envoy- und Traefik-Observer verwenden explizite erwartete UID/GID-Paare. Ohn
 - tests/response_companion_transport_test.c
 - examples/haproxy/spoe-spop/{strict,safe,off,all}/spoe.cfg
 - tests/test_haproxy_spop_peer_isolation_contract.py
+- tests/test_traefik_engine_service_contract.py
 - connectors/envoy/ext_proc/internal/responseobserver/{protocol.go,service.go,peercred_linux.go,peercred_other.go,peercred_linux_test.go}
 - connectors/envoy/ext_proc/cmd/msconnector-envoy-response-observer/main.go
 - connectors/traefik/src/traefik_engine_service.c

@@ -102,10 +102,11 @@ int msconnector_runtime_config_check(
     size_t error_len);
 
 /*
- * Verifies an absolute private UDS directory's complete ancestor chain.
- * Each ancestor must be owned by the effective UID or trusted UID 0; a
- * group-/other-writable ancestor also needs sticky protection for the child.
- * Non-POSIX platforms fail closed.
+ * Verifies a canonical absolute private UDS directory's complete ancestor
+ * chain. The supplied path must equal its realpath result. Each ancestor must
+ * be owned by the effective UID or trusted UID 0; a group-/other-writable
+ * ancestor also needs sticky protection for the child. Non-POSIX platforms
+ * fail closed.
  */
 int msconnector_runtime_private_directory_ancestors_are_safe(const char *path);
 

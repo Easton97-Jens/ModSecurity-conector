@@ -80,6 +80,7 @@ int msconnector_runtime_private_directory_ancestors_are_safe(const char *path)
     (void)path;
     return 0;
 #else
+    char *canonical_path;
     char child_path[RUNTIME_PATH_SIZE];
     char *separator;
     struct stat child_stat;
@@ -93,6 +94,12 @@ int msconnector_runtime_private_directory_ancestors_are_safe(const char *path)
     if (path_size == 0U || path_size >= sizeof(child_path)) {
         return 0;
     }
+    canonical_path = realpath(path, NULL);
+    if (canonical_path == NULL || strcmp(path, canonical_path) != 0) {
+        free(canonical_path);
+        return 0;
+    }
+    free(canonical_path);
     memcpy(child_path, path, path_size + 1U);
     if (lstat(child_path, &child_stat) != 0 || !S_ISDIR(child_stat.st_mode)) {
         return 0;

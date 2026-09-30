@@ -21,7 +21,7 @@ Positive NGINX intervention behavior remains supplied by the base revision. Ever
 
 ## Implementation decision and rationale
 
-The HAProxy change deletes only the error-continuation option from the four affected profile files and adds a focused regression contract that asserts the profiles stay closed by default. The Common Runtime exposes one canonical directory-chain check shared by the response transport and Traefik engine: every ancestor must be owned by the effective service UID or UID 0 (the trusted superuser), and writable ancestors must also be sticky and protect the owned child from cross-UID replacement.
+The HAProxy change deletes only the error-continuation option from the four affected profile files and adds a focused regression contract that asserts the profiles stay closed by default. The Common Runtime exposes one canonical directory-chain check shared by the response transport and Traefik engine. It accepts only an absolute path whose `realpath` result exactly matches the supplied string, then requires every ancestor to be owned by the effective service UID or UID 0 (the trusted superuser); writable ancestors must also be sticky and protect the owned child from cross-UID replacement.
 
 The Envoy and Traefik observers use explicit expected UID/GID pairs. Absent configuration defaults to the observer process's effective UID/GID; an explicit identity requires both fields and permits an intentional value of zero. The only production Envoy connection path is `dialWithExpectedPeer`; it authenticates immediately after connecting and before any `CLAIM` bytes can be written. Protocol-framing tests construct their test client separately and do not provide a production unauthenticated route.
 
@@ -31,6 +31,7 @@ The Envoy and Traefik observers use explicit expected UID/GID pairs. Absent conf
 - tests/response_companion_transport_test.c
 - examples/haproxy/spoe-spop/{strict,safe,off,all}/spoe.cfg
 - tests/test_haproxy_spop_peer_isolation_contract.py
+- tests/test_traefik_engine_service_contract.py
 - connectors/envoy/ext_proc/internal/responseobserver/{protocol.go,service.go,peercred_linux.go,peercred_other.go,peercred_linux_test.go}
 - connectors/envoy/ext_proc/cmd/msconnector-envoy-response-observer/main.go
 - connectors/traefik/src/traefik_engine_service.c

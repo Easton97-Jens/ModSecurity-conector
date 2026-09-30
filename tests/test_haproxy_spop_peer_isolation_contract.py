@@ -22,9 +22,6 @@ COMMON_TRANSPORT = (
 COMMON_RUNTIME = (
     ROOT / "common" / "runtime" / "msconnector_runtime.c"
 ).read_text(encoding="utf-8")
-TRAEFIK_ENGINE = (
-    ROOT / "connectors" / "traefik" / "src" / "traefik_engine_service.c"
-).read_text(encoding="utf-8")
 
 
 class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
@@ -236,14 +233,6 @@ class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
         self.assertIn(
             "return msconnector_runtime_private_directory_ancestors_are_safe(parent);",
             parent_check,
-        )
-        self.assertIn(
-            "return msconnector_runtime_private_directory_ancestors_are_safe(path);",
-            TRAEFIK_ENGINE,
-        )
-        self.assertNotIn(
-            "traefik_engine_private_directory_ancestors_are_safe",
-            TRAEFIK_ENGINE,
         )
         self.assertIn('while (strcmp(child_path, "/") != 0)', ancestor_check)
         owner_guard = "(parent_stat.st_uid != geteuid() && parent_stat.st_uid != 0)"
