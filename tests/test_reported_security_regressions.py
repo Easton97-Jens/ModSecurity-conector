@@ -1,10 +1,10 @@
-"""Source-isolated regressions for the reported B13 and C07 findings.
+"""Source-isolated regressions for validated security findings.
 
 The compiled checks exercise the actual small C helpers extracted from the
 checkout. Minimal surrounding types and header lookup are test stubs, not a
-real host/parser. C07 and caller-order checks are source contracts only.
-B09 is owned and tested by PR #391, not this independent B13/C07 patch.
-These tests do not establish lighttpd/Traefik runtime protection.
+real host/parser. Some caller-order checks are source contracts only. B09 is
+owned and tested by PR #391, not this independent remediation. These tests do
+not establish a full live-host deployment acceptance result.
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 AUTH = ROOT / "common/runtime/http_authorization_service.c"
 SIDECAR = ROOT / "connectors/lighttpd/stock_sidecar/stock_sidecar.c"
+RUNTIME = ROOT / "common/runtime/msconnector_runtime.c"
 
 
 def balanced_block(source: str, opening: int) -> str:
@@ -206,6 +207,63 @@ int main(void) {
         self.assertIn('response.decision_name = "invalid_request";', failure)
         self.assertIn("parsed_request_destroy(&parsed);", failure)
         self.assertIn("return 0;", failure)
+
+
+    def test_response_companion_directory_chain_is_canonical_and_fail_closed(self) -> None:
+        source = RUNTIME.read_text(encoding="utf-8")
+        helper = function_body(
+            source, "msconnector_runtime_private_directory_ancestors_are_safe"
+        )
+        program = r"""
+#define _POSIX_C_SOURCE 200809L
+
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#define RUNTIME_PATH_SIZE 4096U
+"""
+        program += (
+            "static int msconnector_runtime_private_directory_ancestors_are_safe"
+            "(const char *path) "
+            + helper
+            + "\n"
+        )
+        program += r"""
+int main(void)
+{
+    char safe_root[] = "/tmp/msconnector-safe-XXXXXX";
+    char unsafe_root[] = "/tmp/msconnector-unsafe-XXXXXX";
+    char safe_child[RUNTIME_PATH_SIZE];
+    char unsafe_child[RUNTIME_PATH_SIZE];
+    char noncanonical[RUNTIME_PATH_SIZE];
+
+    assert(mkdtemp(safe_root) != NULL);
+    assert(snprintf(safe_child, sizeof(safe_child), "%s/private", safe_root) > 0);
+    assert(mkdir(safe_child, 0700) == 0);
+    assert(msconnector_runtime_private_directory_ancestors_are_safe(safe_child) == 1);
+    assert(snprintf(noncanonical, sizeof(noncanonical), "%s/.", safe_child) > 0);
+    assert(msconnector_runtime_private_directory_ancestors_are_safe(noncanonical) == 0);
+
+    assert(mkdtemp(unsafe_root) != NULL);
+    assert(chmod(unsafe_root, 0777) == 0);
+    assert(snprintf(unsafe_child, sizeof(unsafe_child), "%s/private", unsafe_root) > 0);
+    assert(mkdir(unsafe_child, 0700) == 0);
+    assert(msconnector_runtime_private_directory_ancestors_are_safe(unsafe_child) == 0);
+
+    assert(chmod(unsafe_root, 0700) == 0);
+    assert(rmdir(unsafe_child) == 0);
+    assert(rmdir(unsafe_root) == 0);
+    assert(rmdir(safe_child) == 0);
+    assert(rmdir(safe_root) == 0);
+    return 0;
+}
+"""
+        self.compile_and_run(program)
 
     def test_c07_off_branch_records_unapplied_action_not_requested_status(self) -> None:
         """Source contract only; this is not a real event-normalization test."""

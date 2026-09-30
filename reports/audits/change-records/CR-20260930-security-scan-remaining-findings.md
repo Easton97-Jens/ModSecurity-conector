@@ -32,6 +32,7 @@ The Envoy and Traefik observers use explicit expected UID/GID pairs. Absent conf
 - examples/haproxy/spoe-spop/{strict,safe,off,all}/spoe.cfg
 - tests/test_haproxy_spop_peer_isolation_contract.py
 - tests/test_traefik_engine_service_contract.py
+- .github/workflows/{test-common.yml,test-traefik.yml}
 - connectors/envoy/ext_proc/internal/responseobserver/{protocol.go,service.go,peercred_linux.go,peercred_other.go,peercred_linux_test.go}
 - connectors/envoy/ext_proc/cmd/msconnector-envoy-response-observer/main.go
 - connectors/traefik/src/traefik_engine_service.c
@@ -43,7 +44,9 @@ The Envoy and Traefik observers use explicit expected UID/GID pairs. Absent conf
 GitHub connector inspection compared the prepared scope with base revision 9bc87cbdb600b09c6edd02667a75b117a1f09eea and confirmed that the NGINX `error_page` remediation is already in the base. The proposed focused CI commands are:
 
 ```sh
+python3 -m unittest -v tests.test_reported_security_regressions
 python3 -m unittest -v tests.test_haproxy_spop_peer_isolation_contract
+python3 -m unittest -v tests.test_traefik_engine_service_contract
 go test -mod=readonly -count=1 ./internal/responseobserver
 go test -mod=readonly -count=1 -run 'a^' ./cmd/msconnector-envoy-response-observer
 go test -mod=readonly -count=1 ./...
@@ -57,7 +60,7 @@ The HAProxy profiles no longer turn an unavailable or errored SPOE agent into a 
 
 ## Runtime evidence
 
-The new regression tests demonstrate the expected source and protocol boundaries. Linux tests use a real local Unix listener and assert that a mismatched peer identity receives zero request bytes before rejection. The C transport test creates a private child under a writable, non-sticky ancestor and requires startup failure; the companion source contract additionally locks the shared trusted-owner check ahead of the writable-mode allowance and its Traefik reuse. These are bounded component tests, not a live Envoy, Traefik, HAProxy, or NGINX deployment acceptance claim.
+The new regression tests demonstrate the expected source and protocol boundaries. Linux tests use a real local Unix listener and assert that a mismatched peer identity receives zero request bytes before rejection. The CI-driven isolated Common Runtime regression extracts the production helper, creates a private child under a writable, non-sticky ancestor, and requires rejection; it also rejects a noncanonical `/.` spelling. The Traefik engine contract locks reuse of that same helper and its trusted-owner guard. These are bounded component tests, not a live Envoy, Traefik, HAProxy, or NGINX deployment acceptance claim.
 
 ## Known limitations
 

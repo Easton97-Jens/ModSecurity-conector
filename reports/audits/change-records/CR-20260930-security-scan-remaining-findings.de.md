@@ -32,6 +32,7 @@ Die Envoy- und Traefik-Observer verwenden explizite erwartete UID/GID-Paare. Ohn
 - examples/haproxy/spoe-spop/{strict,safe,off,all}/spoe.cfg
 - tests/test_haproxy_spop_peer_isolation_contract.py
 - tests/test_traefik_engine_service_contract.py
+- .github/workflows/{test-common.yml,test-traefik.yml}
 - connectors/envoy/ext_proc/internal/responseobserver/{protocol.go,service.go,peercred_linux.go,peercred_other.go,peercred_linux_test.go}
 - connectors/envoy/ext_proc/cmd/msconnector-envoy-response-observer/main.go
 - connectors/traefik/src/traefik_engine_service.c
@@ -43,7 +44,9 @@ Die Envoy- und Traefik-Observer verwenden explizite erwartete UID/GID-Paare. Ohn
 Die GitHub-Connector-Inspektion verglich den vorbereiteten Scope mit der Basis-Revision 9bc87cbdb600b09c6edd02667a75b117a1f09eea und bestätigte, dass die NGINX-`error_page`-Behebung bereits in der Basis vorhanden ist. Die vorgeschlagenen fokussierten CI-Befehle sind:
 
 ```sh
+python3 -m unittest -v tests.test_reported_security_regressions
 python3 -m unittest -v tests.test_haproxy_spop_peer_isolation_contract
+python3 -m unittest -v tests.test_traefik_engine_service_contract
 go test -mod=readonly -count=1 ./internal/responseobserver
 go test -mod=readonly -count=1 -run 'a^' ./cmd/msconnector-envoy-response-observer
 go test -mod=readonly -count=1 ./...
@@ -57,7 +60,7 @@ Die HAProxy-Profile machen aus einem nicht verfügbaren oder fehlerhaften SPOE-A
 
 ## Runtime-Evidence
 
-Die neuen Regressionstests belegen die erwarteten Source- und Protocol-Grenzen. Linux-Tests verwenden einen echten lokalen Unix-Listener und prüfen, dass ein Peer mit abweichender Identität vor dem Reject null Request-Bytes erhält. Der C-Transporttest erzeugt ein privates Child unter einem schreibbaren, nicht-sticky Ancestor und verlangt einen Startup-Fehler; der Companion-Source-Contract fixiert zusätzlich die gemeinsame Trusted-Owner-Prüfung vor der Writable-Mode-Freigabe und ihre Traefik-Wiederverwendung. Dies sind begrenzte Komponententests, keine Live-Acceptance-Behauptung für Envoy-, Traefik-, HAProxy- oder NGINX-Deployments.
+Die neuen Regressionstests belegen die erwarteten Source- und Protocol-Grenzen. Linux-Tests verwenden einen echten lokalen Unix-Listener und prüfen, dass ein Peer mit abweichender Identität vor dem Reject null Request-Bytes erhält. Die CI-gesteuerte isolierte Common-Runtime-Regression extrahiert den produktiven Helper, erzeugt ein privates Child unter einem schreibbaren, nicht-sticky Ancestor und verlangt dessen Ablehnung; zusätzlich lehnt sie eine nicht kanonische `/.`-Schreibweise ab. Der Traefik-Engine-Contract fixiert die Wiederverwendung desselben Helpers und seiner Trusted-Owner-Prüfung. Dies sind begrenzte Komponententests, keine Live-Acceptance-Behauptung für Envoy-, Traefik-, HAProxy- oder NGINX-Deployments.
 
 ## Bekannte Einschränkungen
 
