@@ -13,8 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 GENERATOR_PATH = ROOT / "scripts" / "generate_compiler_guides.py"
 GUIDE_DIRECTORY = ROOT / "docs" / "build" / "compilers"
 SLUGS = ("apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd")
-MODSECURITY_REF_COMMAND = 'MODSECURITY_REF="v3.0.16"'
-MODSECURITY_COMMIT_COMMAND = 'MODSECURITY_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"'
+MODSECURITY_REF_COMMAND = "MODSECURITY_REF=\"v3.0.16\""
+MODSECURITY_COMMIT_COMMAND = "MODSECURITY_COMMIT=\"7ea9fefbe0ba409d8733b4d682c8c4c059cd028d\""
 COMMON_BEGINNER_COMMANDS = (
     MODSECURITY_REF_COMMAND,
     MODSECURITY_COMMIT_COMMAND,
