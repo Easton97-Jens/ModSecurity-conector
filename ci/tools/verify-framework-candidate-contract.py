@@ -111,9 +111,10 @@ LITERAL_FRAMEWORK_SHA = re.compile(
 )
 DYNAMIC_SHELL_EVALUATION = re.compile(r"\beval\b", re.ASCII)
 INDIRECT_SHELL_WRITE = re.compile(
-    r"""\b(?:printf[ \t]+-v|declare[ \t]+-n|export[ \t]+-n)\b|\bunset[ \t]+["']?\$""",
+    r"\b(?:printf[ \t]+-v|declare[ \t]+-n|export[ \t]+-n)\b",
     re.ASCII,
 )
+INDIRECT_SHELL_UNSET = re.compile(r"""\bunset[ \t]+["']?\$""", re.ASCII)
 
 PARENT_NGINX_PROJECTIONS = (
     ParentProjection(
@@ -577,7 +578,7 @@ def _reject_dynamic_candidate_evaluation(text: str) -> None:
 
     if DYNAMIC_SHELL_EVALUATION.search(text):
         raise ContractError("Framework common.sh uses unsupported dynamic shell evaluation")
-    if INDIRECT_SHELL_WRITE.search(text):
+    if INDIRECT_SHELL_WRITE.search(text) or INDIRECT_SHELL_UNSET.search(text):
         raise ContractError("Framework common.sh uses unsupported indirect shell assignment")
 
 
