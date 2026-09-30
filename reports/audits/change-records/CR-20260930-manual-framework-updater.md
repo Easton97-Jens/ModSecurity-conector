@@ -9,7 +9,7 @@
 | Change ID | CR-20260930-manual-framework-updater |
 | Date (UTC) | 2026-09-30 |
 | Base revision | `9bc87cbdb600b09c6edd02667a75b117a1f09eea` |
-| Related delivery | Parent Draft PR #398; Framework Draft PR #132 |
+| Related delivery | Parent Draft PR #398; Framework PR #132 (merged) |
 
 ## Motivation and problem statement
 
@@ -17,21 +17,23 @@
 
 ## Acceptance criteria
 
-The Parent updater has only `workflow_dispatch`, never a schedule. A manually started publishing run may validate and propose a new Framework structure without changing an approved digest. Candidate Git-state, official origin/lineage, bounded source-data syntax, Parent NGINX handoff, isolated validation, narrow publisher permissions, and Draft/no-auto-merge behavior remain required. No current Framework candidate is directly pinned by this Parent PR.
+The Parent updater has only `workflow_dispatch`, never a schedule. A manually started publishing run may validate and propose a new Framework structure without changing an approved digest. Candidate Git-state, official origin/lineage, bounded source-data syntax, Parent NGINX handoff, isolated validation, narrow publisher permissions, and Draft/no-auto-merge behavior remain required. No current Framework candidate is directly pinned by this Parent PR. Registered HAProxy test fixtures track future validated HAProxy pins.
 
 ## Implementation decision and rationale
 
-Remove the fixed-digest comparison from both active Parent checks while retaining bounded UTF-8 reads, source-data parsing and the independent NGINX/Parent contracts. Reject known indirect shell-target writes as well as existing `eval` and direct assignment mutations. Remove the weekly trigger and require `workflow_dispatch` in the resolver gate and its regression contract. Restore the Parent gitlink and projections to the base revision so the user can run the updater after Framework PR #132 is separately reviewed and merged.
+Remove the fixed-digest comparison from both active Parent checks while retaining bounded UTF-8 reads, source-data parsing and the independent NGINX/Parent contracts. Reject known indirect shell-target writes as well as existing `eval` and direct assignment mutations. Remove the weekly trigger and require `workflow_dispatch` in the resolver gate and its regression contract. Restore the Parent gitlink and projections to the base revision. Extend the closed projector to update only the three HAProxy runtime-test constants when a future candidate changes its approved tuple; admit that file through the three publisher path guards. Framework PR #132 has since been merged, so the user can run the updater after this Parent PR is reviewed and merged.
 
 ## Changed files
 
 - `.github/workflows/update-submodules.yml`
 - `ci/tools/verify-framework-candidate-contract.py`
+- `ci/tools/sync-framework-component-versions.py`
 - `ci/tools/check-reviewed-version-handoff.py`
 - `tests/test_ci_security_workflows.py`
 - `tests/test_update_submodules_local_git.py`
 - `tests/test_verify_framework_candidate_contract.py`
 - `tests/test_reviewed_version_handoff.py`
+- `tests/test_update_framework_versions.py`
 - `docs/reviewed-version-upgrades.md`
 - `docs/reviewed-version-upgrades.de.md`
 - `reports/audits/change-records/CR-20260930-manual-framework-updater.md`
@@ -39,7 +41,7 @@ Remove the fixed-digest comparison from both active Parent checks while retainin
 
 ## Commands executed
 
-The workflow, two active digest checks, relevant tests, Parent/Framework revisions and the failed PR jobs were inspected through the GitHub connection. The official ModSecurity v3.0.17 Git tree independently confirmed the Framework Gitlink mismatch. No local repository command or test is claimed as passed. Current-head hosted checks remain required after the follow-up commit.
+The workflow, two active digest checks, relevant tests, Parent/Framework revisions and the failed PR jobs were inspected through the GitHub connection. The official ModSecurity v3.0.17 Git tree independently confirmed the Framework Gitlink mismatch. No local repository command or test is claimed as passed. Current-head hosted checks remain required after the follow-up commit; the fixture projection has an offline future-version regression test.
 
 ## Security impact
 
@@ -51,7 +53,7 @@ No new connector runtime pass is established. The prior Parent PR head failed NG
 
 ## Known limitations
 
-A manual updater is not an unconditional success guarantee: invalid candidate data, NGINX drift, sandbox failure, dependency incompatibility, or an unsafe maintenance-branch state may still block a run. The separate Framework PR #132 is unmerged. Until this Parent PR reaches `master`, the existing weekly schedule remains active.
+A manual updater is not an unconditional success guarantee: invalid candidate data, NGINX drift, sandbox failure, dependency incompatibility, or an unsafe maintenance-branch state may still block a run. Framework PR #132 is merged; the current Parent PR still does not pin it. Until this Parent PR reaches `master`, the existing weekly schedule remains active. After that, a user-triggered updater run and its generated Draft PR are still needed.
 
 ## Remaining risks
 

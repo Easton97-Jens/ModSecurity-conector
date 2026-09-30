@@ -17,7 +17,7 @@ python3 -m unittest -v tests.test_reviewed_version_handoff tests.test_runtime_co
 
 ## Eine Version wechseln
 
-Offizielles Quellrepository, Release-Tag, exakten Commit und gegebenenfalls Archivprüfsumme gemeinsam prüfen. Nach einem separaten Framework-Merge den Parent-Updater auf `master` manuell starten; er validiert den Candidate und schlägt Framework-Referenz und registrierte Parent-Projektionen in einem Draft-PR vor. Änderungen der NGINX-Übergabe benötigen weiterhin eine atomare, separat geprüfte Parent-Aktualisierung. Generierte Bauanleitungen über `scripts/generate_compiler_guides.py` aktualisieren, nicht deren erzeugtes Markdown direkt bearbeiten. Der unabhängig geschützte NGINX-Broker behält seinen eigenen Review-Pfad. Die geprüfte Quellidentität nicht durch Umgebungsvariablen überschreiben.
+Offizielles Quellrepository, Release-Tag, exakten Commit und gegebenenfalls Archivprüfsumme gemeinsam prüfen. Nach einem separaten Framework-Merge den Parent-Updater auf `master` manuell starten; er validiert den Candidate und schlägt Framework-Referenz und registrierte Parent-Projektionen einschließlich der HAProxy-Runtime-Testwerte in einem Draft-PR vor. Änderungen der NGINX-Übergabe benötigen weiterhin eine atomare, separat geprüfte Parent-Aktualisierung. Generierte Bauanleitungen über `scripts/generate_compiler_guides.py` aktualisieren, nicht deren erzeugtes Markdown direkt bearbeiten. Der unabhängig geschützte NGINX-Broker behält seinen eigenen Review-Pfad. Die geprüfte Quellidentität nicht durch Umgebungsvariablen überschreiben.
 
 ## Neubau und Laufzeitabnahme
 

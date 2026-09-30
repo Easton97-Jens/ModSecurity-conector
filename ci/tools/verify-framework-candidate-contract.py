@@ -27,7 +27,7 @@ MAX_INPUT_BYTES = 512 * 1024
 APPROVED_FRAMEWORK_COMMON_STRUCTURE_SHA256 = "2006a9d11977cb29da3725dd9c475133c97e433ead5bd1ae5bbbfa928563bb45"
 # Keep this closed list identical to sync-framework-component-versions.py's
 # SOURCE_REGISTRY. It is deliberately separate from NGINX, whose handoff stays
-# manually reviewed and byte-covered by the structure digest.
+# independently validated against the existing Parent NGINX projection.
 MUTABLE_SOURCE_FIELDS = (
     "ENVOY_VERSION",
     "LIGHTTPD_SERIES",

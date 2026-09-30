@@ -17,7 +17,7 @@ python3 -m unittest -v tests.test_reviewed_version_handoff tests.test_runtime_co
 
 ## Changing a release
 
-Review the official source repository, release tag, exact commit and applicable archive digest together. After a separate Framework merge, manually dispatch the Parent updater on `master`; it validates the candidate and proposes the Framework reference and registered Parent projections in a Draft PR. Changes to the NGINX handoff still need an atomic, separately reviewed Parent update. Update generated compiler guides through `scripts/generate_compiler_guides.py`, not by editing its generated Markdown directly. Keep the independently protected NGINX broker on its own review path. Do not change environment variables to override the reviewed source identity.
+Review the official source repository, release tag, exact commit and applicable archive digest together. After a separate Framework merge, manually dispatch the Parent updater on `master`; it validates the candidate and proposes the Framework reference and registered Parent projections, including the HAProxy runtime-test tuple, in a Draft PR. Changes to the NGINX handoff still need an atomic, separately reviewed Parent update. Update generated compiler guides through `scripts/generate_compiler_guides.py`, not by editing its generated Markdown directly. Keep the independently protected NGINX broker on its own review path. Do not change environment variables to override the reviewed source identity.
 
 ## Rebuild and runtime acceptance
 

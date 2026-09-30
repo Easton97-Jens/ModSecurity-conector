@@ -332,6 +332,15 @@ TARGET_REGISTRY = (
         "python",
     ),
     TargetSpec(
+        "tests/test_prepare_runtime_components.py",
+        (
+            ("TEST_HAPROXY_LOCKED_VERSION", "HAPROXY_VERSION"),
+            ("TEST_HAPROXY_LOCKED_SOURCE_URL", "HAPROXY_SOURCE_URL"),
+            ("TEST_HAPROXY_LOCKED_SHA256", "HAPROXY_SHA256"),
+        ),
+        "python",
+    ),
+    TargetSpec(
         "ci/runtime/broker/nginx_root_broker.py",
         (
             ("CRS_APPROVED_REPOSITORY", "CRS_APPROVED_REPO_URL"),

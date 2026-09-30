@@ -9,7 +9,7 @@
 | Change-ID | CR-20260930-manual-framework-updater |
 | Datum (UTC) | 2026-09-30 |
 | Basis-Revision | `9bc87cbdb600b09c6edd02667a75b117a1f09eea` |
-| Zugehörige Auslieferung | Parent-Draft-PR #398; Framework-Draft-PR #132 |
+| Zugehörige Auslieferung | Parent-Draft-PR #398; Framework-PR #132 (gemergt) |
 
 ## Motivation und Problemstellung
 
@@ -17,21 +17,23 @@
 
 ## Akzeptanzkriterien
 
-Der Parent-Updater hat ausschließlich `workflow_dispatch`, keinen Zeitplan. Ein manuell gestarteter Publishing-Lauf darf neue Framework-Struktur ohne Änderung eines freigegebenen Digests validieren und vorschlagen. Candidate-Git-Zustand, offizieller Origin/Lineage, begrenzte Quell-Datensyntax, Parent-NGINX-Übergabe, isolierte Validierung, enge Publisher-Rechte und Draft-/No-Auto-Merge-Verhalten bleiben Pflicht. Dieser Parent-PR pinnt keinen aktuellen Framework-Candidate direkt.
+Der Parent-Updater hat ausschließlich `workflow_dispatch`, keinen Zeitplan. Ein manuell gestarteter Publishing-Lauf darf neue Framework-Struktur ohne Änderung eines freigegebenen Digests validieren und vorschlagen. Candidate-Git-Zustand, offizieller Origin/Lineage, begrenzte Quell-Datensyntax, Parent-NGINX-Übergabe, isolierte Validierung, enge Publisher-Rechte und Draft-/No-Auto-Merge-Verhalten bleiben Pflicht. Dieser Parent-PR pinnt keinen aktuellen Framework-Candidate direkt. Registrierte HAProxy-Test-Fixtures folgen künftigen validierten HAProxy-Pins.
 
 ## Implementierungsentscheidung und Begründung
 
-Den Vergleich mit dem festen Digest aus beiden aktiven Parent-Prüfungen entfernen; begrenzte UTF-8-Lesevorgänge, Quell-Datenparser und unabhängige NGINX-/Parent-Verträge bleiben bestehen. Bekannte indirekte Shell-Zielschreibvorgänge zusätzlich zu vorhandenem `eval` und direkten Mutationen zurückweisen. Wöchentlichen Trigger entfernen und `workflow_dispatch` im Resolver-Gate und Regressionstest verlangen. Parent-Gitlink und Projektionen auf die Basisrevision zurücksetzen, damit der Benutzer den Updater nach separater Prüfung und Merge von Framework-PR #132 starten kann.
+Den Vergleich mit dem festen Digest aus beiden aktiven Parent-Prüfungen entfernen; begrenzte UTF-8-Lesevorgänge, Quell-Datenparser und unabhängige NGINX-/Parent-Verträge bleiben bestehen. Bekannte indirekte Shell-Zielschreibvorgänge zusätzlich zu vorhandenem `eval` und direkten Mutationen zurückweisen. Wöchentlichen Trigger entfernen und `workflow_dispatch` im Resolver-Gate und Regressionstest verlangen. Parent-Gitlink und Projektionen auf die Basisrevision zurücksetzen. Den geschlossenen Projektor so erweitern, dass bei künftigen Candidate-Änderungen nur die drei HAProxy-Runtime-Testkonstanten dem validierten Tupel folgen; diese Datei in die drei Publisher-Pfadkontrollen aufnehmen. Framework-PR #132 wurde inzwischen gemergt; der Benutzer kann den Updater nach Review und Merge dieses Parent-PR starten.
 
 ## Geänderte Dateien
 
 - `.github/workflows/update-submodules.yml`
 - `ci/tools/verify-framework-candidate-contract.py`
+- `ci/tools/sync-framework-component-versions.py`
 - `ci/tools/check-reviewed-version-handoff.py`
 - `tests/test_ci_security_workflows.py`
 - `tests/test_update_submodules_local_git.py`
 - `tests/test_verify_framework_candidate_contract.py`
 - `tests/test_reviewed_version_handoff.py`
+- `tests/test_update_framework_versions.py`
 - `docs/reviewed-version-upgrades.md`
 - `docs/reviewed-version-upgrades.de.md`
 - `reports/audits/change-records/CR-20260930-manual-framework-updater.md`
@@ -39,7 +41,7 @@ Den Vergleich mit dem festen Digest aus beiden aktiven Parent-Prüfungen entfern
 
 ## Ausgeführte Befehle
 
-Workflow, beide aktiven Digest-Prüfungen, relevante Tests, Parent-/Framework-Revisionen und die fehlgeschlagenen PR-Jobs wurden über die GitHub-Verbindung geprüft. Der offizielle ModSecurity-v3.0.17-Git-Tree bestätigte unabhängig die Framework-Gitlink-Abweichung. Kein lokaler Repository-Befehl oder Test wird als bestanden behauptet. Hosted-Current-Head-Checks bleiben nach dem Folgecommit erforderlich.
+Workflow, beide aktiven Digest-Prüfungen, relevante Tests, Parent-/Framework-Revisionen und die fehlgeschlagenen PR-Jobs wurden über die GitHub-Verbindung geprüft. Der offizielle ModSecurity-v3.0.17-Git-Tree bestätigte unabhängig die Framework-Gitlink-Abweichung. Kein lokaler Repository-Befehl oder Test wird als bestanden behauptet. Hosted-Current-Head-Checks bleiben nach dem Folgecommit erforderlich; für die Fixture-Projektion gibt es einen Offline-Regressionstest mit einer künftigen Version.
 
 ## Security-Auswirkung
 
@@ -51,7 +53,7 @@ Kein neuer Connector-Runtime-Pass ist nachgewiesen. Der vorherige Parent-PR-Head
 
 ## Bekannte Einschränkungen
 
-Ein manueller Updater garantiert keinen Erfolg unter allen Umständen: ungültige Candidate-Daten, NGINX-Abweichung, Sandbox-Fehler, inkompatible Dependencies oder ein unsicherer Maintenance-Branch-Zustand können weiter blockieren. Framework-PR #132 ist nicht gemergt. Bis dieser Parent-PR `master` erreicht, bleibt der bestehende wöchentliche Zeitplan aktiv.
+Ein manueller Updater garantiert keinen Erfolg unter allen Umständen: ungültige Candidate-Daten, NGINX-Abweichung, Sandbox-Fehler, inkompatible Dependencies oder ein unsicherer Maintenance-Branch-Zustand können weiter blockieren. Framework-PR #132 ist gemergt; der aktuelle Parent-PR pinnt ihn noch nicht. Bis dieser Parent-PR `master` erreicht, bleibt der bestehende wöchentliche Zeitplan aktiv. Danach sind ein manuell gestarteter Updater-Lauf und dessen generierter Draft-PR nötig.
 
 ## Verbleibende Risiken
 
