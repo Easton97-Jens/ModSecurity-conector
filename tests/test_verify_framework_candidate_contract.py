@@ -37,7 +37,7 @@ SYNC_SPEC.loader.exec_module(SYNC)
 CANDIDATE_SHA = "d4f7b69dc264852eac74e1439c0887fcb9fbe372"
 CURRENT_PARENT_FRAMEWORK_SHA = "0" * 40
 REVIEWED_FRAMEWORK_COMMON_STRUCTURE_SHA256 = (
-    "2c3a5774da760981804907a357dc5dafb62f9ba3de1db17a2807ff53fd83c291"
+    "2006a9d11977cb29da3725dd9c475133c97e433ead5bd1ae5bbbfa928563bb45"
 )
 GENERIC_SOURCE_COMMON = """\
 ENVOY_VERSION="1.39.1"
@@ -65,6 +65,9 @@ HAPROXY_HTX_SHA256="82d14ef33571e4edeb9197516c0d058a3775fb80541e46afe4377428e461
 CRS_APPROVED_REPO_URL="https://github.com/coreruleset/coreruleset.git"
 CRS_APPROVED_COMMIT="ab3ccd5fcd691424ba3f320d4040c61417270193"
 CRS_RELEASE_TAG="v4.29.0"
+MODSECURITY_V3_APPROVED_REPO_URL="https://github.com/owasp-modsecurity/ModSecurity.git"
+MODSECURITY_V3_APPROVED_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"
+MODSECURITY_V3_RELEASE_TAG="v3.0.16"
 """
 CANDIDATE_COMMON = GENERIC_SOURCE_COMMON + """\
 NGINX_SOURCE_MODE="github-release"
@@ -205,6 +208,24 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
         self.common.write_text(
             CANDIDATE_COMMON.replace('ENVOY_VERSION="1.39.1"', 'ENVOY_VERSION="1.39.2"'),
             encoding="utf-8",
+        )
+        self.assertEqual(
+            VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)["release_tag"],
+            "release-1.31.6",
+        )
+
+    def test_registered_modsecurity_v3_tuple_can_change_without_structure_review(self) -> None:
+        updated = CANDIDATE_COMMON.replace(
+            'MODSECURITY_V3_RELEASE_TAG="v3.0.16"',
+            'MODSECURITY_V3_RELEASE_TAG="v3.0.17"',
+        ).replace(
+            'MODSECURITY_V3_APPROVED_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"',
+            'MODSECURITY_V3_APPROVED_COMMIT="1925753989ccce977cdaae417b55c9726c7cf02c"',
+        )
+        self.common.write_text(updated, encoding="utf-8")
+        self.assertEqual(
+            VERIFIER._framework_common_structure_sha256(updated.encode("utf-8")),
+            VERIFIER._framework_common_structure_sha256(CANDIDATE_COMMON.encode("utf-8")),
         )
         self.assertEqual(
             VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)["release_tag"],

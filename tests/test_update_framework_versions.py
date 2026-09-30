@@ -73,6 +73,9 @@ NGINX_QUIC_TLS_SOURCE_SHA256="2db3f3a0d6ea4b59e1f094ace2c8cd536dffb87cdc39084c5a
 CRS_APPROVED_REPO_URL="https://github.com/coreruleset/coreruleset.git"
 CRS_APPROVED_COMMIT="ab3ccd5fcd691424ba3f320d4040c61417270193"
 CRS_RELEASE_TAG="v4.29.0"
+MODSECURITY_V3_APPROVED_REPO_URL="https://github.com/owasp-modsecurity/ModSecurity.git"
+MODSECURITY_V3_APPROVED_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"
+MODSECURITY_V3_RELEASE_TAG="v3.0.16"
 """
 
 
@@ -213,6 +216,15 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         )
         self.assertEqual(values["HAPROXY_SOURCE_URL"].split("/")[-2], "src")
         self.assertEqual(values["HAPROXY_HTX_VERSION"], "3.2.23")
+        self.assertEqual(
+            values["MODSECURITY_V3_APPROVED_REPO_URL"],
+            "https://github.com/owasp-modsecurity/ModSecurity.git",
+        )
+        self.assertEqual(values["MODSECURITY_V3_RELEASE_TAG"], "v3.0.16")
+        self.assertEqual(
+            values["MODSECURITY_V3_APPROVED_COMMIT"],
+            "7ea9fefbe0ba409d8733b4d682c8c4c059cd028d",
+        )
         self.assertFalse(any(name.startswith("NGINX_") for name in values))
 
     def test_unconsumed_framework_pins_are_ignored_as_data(self) -> None:
@@ -252,6 +264,34 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
             any("nginx" in spec.relative_path.lower()
                 for spec in SYNC.FRAMEWORK_SHA_PROJECTION_TARGETS)
         )
+
+    def test_modsecurity_v3_tuple_projects_only_registered_guide_sources(self) -> None:
+        nginx_before = self.nginx_pin_lines()
+        common = replace_rhs(
+            CURRENT_CANDIDATE_COMMON,
+            "MODSECURITY_V3_RELEASE_TAG",
+            '"v3.0.17"',
+        )
+        common = replace_rhs(
+            common,
+            "MODSECURITY_V3_APPROVED_COMMIT",
+            '"1925753989ccce977cdaae417b55c9726c7cf02c"',
+        )
+        self.write_common(common)
+        changed = SYNC.synchronize(self.root, self.common, True)
+        self.assertIn("scripts/generate_compiler_guides.py", changed)
+        self.assertIn("tests/test_compiler_guides.py", changed)
+        for relative in (
+            "scripts/generate_compiler_guides.py",
+            "tests/test_compiler_guides.py",
+        ):
+            rendered = (self.root / relative).read_text(encoding="utf-8")
+            self.assertIn('MODSECURITY_REF=\\"v3.0.17\\"', rendered)
+            self.assertIn(
+                'MODSECURITY_COMMIT=\\"1925753989ccce977cdaae417b55c9726c7cf02c\\"',
+                rendered,
+            )
+        self.assertEqual(nginx_before, self.nginx_pin_lines())
 
     def test_resolution_budget_rejects_fanout_before_semantic_validation(self) -> None:
         reference = "$LIGHTTPD_SERIES_BASE_URL"
@@ -703,6 +743,21 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
             ),
             "non-ascii digits": replace_rhs(
                 CURRENT_CANDIDATE_COMMON, "LIGHTTPD_VERSION", '"١.4.85"'
+            ),
+            "foreign modsecurity repository": replace_rhs(
+                CURRENT_CANDIDATE_COMMON,
+                "MODSECURITY_V3_APPROVED_REPO_URL",
+                '"https://example.invalid/ModSecurity.git"',
+            ),
+            "non-v3 modsecurity tag": replace_rhs(
+                CURRENT_CANDIDATE_COMMON,
+                "MODSECURITY_V3_RELEASE_TAG",
+                '"v4.0.0"',
+            ),
+            "non-lowercase modsecurity commit": replace_rhs(
+                CURRENT_CANDIDATE_COMMON,
+                "MODSECURITY_V3_APPROVED_COMMIT",
+                '"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"',
             ),
         }
         for label, malformed in cases.items():

@@ -523,6 +523,8 @@ jobs:
                 -e connectors/lighttpd/lighttpd-version.contract \
                 -e connectors/lighttpd/SOURCE_MAP.json \
                 -e connectors/haproxy/htx-overlay/version-contract.json \
+                -e scripts/generate_compiler_guides.py \
+                -e tests/test_compiler_guides.py \
                 -e .github/workflows/test-connectors-with-crs-no-mrts.yml \
                 -e tests/test_ci_security_workflows.py \
                 -e ci/checks/evidence/check-runtime-producer-readiness.py \
@@ -577,6 +579,8 @@ jobs:
                 $6 == "connectors/lighttpd/lighttpd-version.contract" ||
                 $6 == "connectors/lighttpd/SOURCE_MAP.json" ||
                 $6 == "connectors/haproxy/htx-overlay/version-contract.json" ||
+                $6 == "scripts/generate_compiler_guides.py" ||
+                $6 == "tests/test_compiler_guides.py" ||
                 $6 == ".github/workflows/test-connectors-with-crs-no-mrts.yml" ||
                 $6 == "tests/test_ci_security_workflows.py" ||
                 $6 == "ci/checks/evidence/check-runtime-producer-readiness.py" ||
@@ -955,6 +959,8 @@ jobs:
             connectors/lighttpd/lighttpd-version.contract \
             connectors/lighttpd/SOURCE_MAP.json \
             connectors/haproxy/htx-overlay/version-contract.json \
+            scripts/generate_compiler_guides.py \
+            tests/test_compiler_guides.py \
             .github/workflows/test-connectors-with-crs-no-mrts.yml \
             tests/test_ci_security_workflows.py \
             ci/checks/evidence/check-runtime-producer-readiness.py \

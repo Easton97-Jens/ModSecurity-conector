@@ -76,8 +76,11 @@ def reviewed_common(text: str, verifier_text: str) -> None:
     require(isinstance(fields, tuple) and bool(fields), "invalid mutable-field registry")
     require(all(isinstance(field, str) for field in fields), "invalid mutable-field name")
     require(len(fields) == len(set(fields)), "duplicate mutable-field name")
-    require(not any(field.startswith(("MODSECURITY_", "NGINX_")) for field in fields),
-            "NGINX and ModSecurity must remain structurally reviewed")
+    require(not any(field.startswith("NGINX_") for field in fields),
+            "NGINX must remain structurally reviewed")
+    modsecurity_fields = {field for field in fields if field.startswith("MODSECURITY_")}
+    require(modsecurity_fields == set(MODSECURITY_KEYS),
+            "only the exact ModSecurity-v3 provenance tuple may be mutable")
     require(isinstance(expected, str) and re.fullmatch(r"[0-9a-f]{64}", expected) is not None,
             "invalid production review digest")
     normalized = []
