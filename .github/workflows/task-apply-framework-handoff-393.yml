@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: d3daa2087c2f911961779338d3dc68599aad6d63
+          ref: bbd74521ee9b1c7544b11c225e399a1c7f8d49da
           fetch-depth: 0
           submodules: false
           persist-credentials: false
@@ -29,7 +29,7 @@ jobs:
         with:
           python-version-file: .python-version
           check-latest: false
-      - name: Configure external evidence roots and existing locked dependency
+      - name: Configure external roots and install the existing locked dependency
         run: |
           set -euo pipefail
           root="$RUNNER_TEMP/framework-handoff-393"
@@ -46,10 +46,10 @@ jobs:
           } >> "$GITHUB_ENV"
           python3 -m pip install --require-hashes --only-binary=:all: --no-input -r requirements-ci.lock
           python3 -m pip check
-      - name: Resolve reviewed objects and reproduce the original rejection
+      - name: Resolve exact objects and reproduce the original rejection
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = d3daa2087c2f911961779338d3dc68599aad6d63
+          test "$(git rev-parse HEAD)" = bbd74521ee9b1c7544b11c225e399a1c7f8d49da
           git -c protocol.file.allow=never submodule update --init -- modules/ModSecurity-test-Framework
           git -C modules/ModSecurity-test-Framework fetch --no-tags origin 0290a979ba4bc63a7abed175a53471367b385553
           git -C modules/ModSecurity-test-Framework merge-base --is-ancestor f9e48b0774b5bdf7aaa8e38ce98eb6c50bf293c8 0290a979ba4bc63a7abed175a53471367b385553
@@ -62,21 +62,20 @@ jobs:
           cat "$RUNNER_TEMP/baseline-rejection.log"
           test "$result" -eq 2
           grep -F 'Framework common.sh differs from approved reviewed structure' "$RUNNER_TEMP/baseline-rejection.log"
-      - name: Verify official NGINX provenance and apply the existing bounded patch
+      - name: Verify official NGINX provenance and apply the existing exact-delta patch
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import json
           import urllib.request
-          url = 'https://api.github.com/repos/nginx/nginx/releases/tags/release-1.31.6'
-          with urllib.request.urlopen(url, timeout=30) as response:
+          with urllib.request.urlopen('https://api.github.com/repos/nginx/nginx/releases/tags/release-1.31.6', timeout=30) as response:
               release = json.load(response)
           assets = [item for item in release['assets'] if item['name'] == 'nginx-1.31.6.tar.gz']
           if release['draft'] or release['prerelease'] or len(assets) != 1:
-              raise SystemExit('Official NGINX release is not the reviewed stable asset')
+              raise SystemExit('Not the reviewed official stable release')
           if assets[0]['state'] != 'uploaded' or assets[0]['digest'] != 'sha256:974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1':
               raise SystemExit('Official NGINX digest mismatch')
-          print('Official NGINX release asset metadata: verified')
+          print('Official NGINX provenance verified')
           PY
           python3 ci/tools/prepare-reviewed-framework-handoff.py --repo-root "$GITHUB_WORKSPACE" --output "$RUNNER_TEMP/reviewed-framework-handoff.patch"
           git apply --index "$RUNNER_TEMP/reviewed-framework-handoff.patch"
@@ -90,18 +89,13 @@ jobs:
       - name: Run affected NGINX and preparation regressions
         run: |
           python3 -m unittest -v \
-            tests.test_prepare_reviewed_framework_handoff \
-            tests.test_change_record \
-            tests.test_nginx_exact_head_gate_contract \
-            tests.test_nginx_body_buffer_fixture \
-            tests.test_prepare_runtime_components \
-            tests.test_runtime_component_cache_identity \
-            tests.test_runtime_component_cache_contract \
-            tests.test_runtime_env_snapshot_contract \
-            tests.test_report_presentation_literals \
-            tests.test_evidence_output_security \
+            tests.test_prepare_reviewed_framework_handoff tests.test_change_record \
+            tests.test_nginx_exact_head_gate_contract tests.test_nginx_body_buffer_fixture \
+            tests.test_prepare_runtime_components tests.test_runtime_component_cache_identity \
+            tests.test_runtime_component_cache_contract tests.test_runtime_env_snapshot_contract \
+            tests.test_report_presentation_literals tests.test_evidence_output_security \
             tests.test_nginx_functional_evidence
-      - name: Produce reviewed source manifest and paired applied-change records
+      - name: Export exact source inventory and schema-validated paired record
         id: export
         run: |
           python3 - <<'PY'
@@ -113,48 +107,47 @@ jobs:
           import subprocess
 
           root = Path.cwd()
-          base = 'd3daa2087c2f911961779338d3dc68599aad6d63'
+          base = 'bbd74521ee9b1c7544b11c225e399a1c7f8d49da'
           repair = runpy.run_path(str(root / 'ci/tools/prepare-reviewed-framework-handoff.py'))
-          git = lambda *args: subprocess.check_output(['git', *args], text=True).strip()
-          actual = set(git('diff', '--name-only', base, 'HEAD').splitlines())
-          expected = set(repair['TARGET_PATHS']) | {repair['FRAMEWORK_PATH']}
-          if actual != expected or git('status', '--porcelain', '--untracked-files=no'):
-              raise SystemExit('Unexpected source inventory or test side effects')
           creator = runpy.run_path(str(root / 'ci/tools/new-change-record.py'))
-          contract = creator['CONTRACT']
+          def git(*args):
+              return subprocess.check_output(['git', *args], text=True).strip()
+          expected = set(repair['TARGET_PATHS']) | {repair['FRAMEWORK_PATH']}
+          if set(git('diff', '--name-only', base, 'HEAD').splitlines()) != expected:
+              raise SystemExit('Unexpected changed source paths')
+          if git('status', '--porcelain', '--untracked-files=no'):
+              raise SystemExit('Tracked test side effects')
+          digest = repair['structure_digest']((root / repair['FRAMEWORK_PATH'] / 'ci/lib/common.sh').read_text(encoding='utf-8'))
           record = 'CR-20260930-framework-handoff-applied'
-          common = root / repair['FRAMEWORK_PATH'] / 'ci/lib/common.sh'
-          digest = repair['structure_digest'](common.read_text(encoding='utf-8'))
-          commands = 'Baseline verifier: expected exit 2 reproduced. Existing repair generator and git apply --index: succeeded. Real candidate verifier: verified. Generic synchronizer --validate: succeeded. make check-ci-security-contract: succeeded. The eleven affected unittest modules: succeeded. git diff --cached --check: succeeded. These are hosted Python 3.14.7 checks, not local RTK runs. Final PR-head CI, Sonar and the real read-only namespace are verified separately in the PR.'
-          commands_de = 'Basis-Verifier: erwarteter Exitcode 2 reproduziert. Bestehender Reparaturgenerator und git apply --index: erfolgreich. Echter Kandidaten-Verifier: verified. Generischer Synchronisierer --validate: erfolgreich. make check-ci-security-contract: erfolgreich. Die elf betroffenen Unittest-Module: erfolgreich. git diff --cached --check: erfolgreich. Dies sind gehostete Python-3.14.7-Prüfungen, keine lokalen RTK-Läufe. Finale PR-Head-CI, Sonar und der echte Read-only-Namespace werden separat im PR verifiziert.'
+          paths_text = '\n'.join('- `' + path + '`' for path in sorted(expected))
           paragraphs = {
               'English': (
                   f'| Field | Value |\n| --- | --- |\n| Change ID | {record} |\n| Date (UTC) | 2026-09-30 |\n| Base revision | `{base}` |',
-                  'The user explicitly requested applying the original repair in PR #393. Run 36608694822 rejected the new Framework common.sh at the structural review guard; the skipped sandbox was a consequence. Earlier records describe historical preparation, not the current delivery state.',
-                  'Apply the actual Framework gitlink and coherent Parent projections, verify the real candidate and regressions, and require fresh applicable CI and Sonar before review-ready delivery. No merge is authorized.',
-                  f'Apply the existing exact-delta generator after reproducing the old failure and verifying official NGINX asset metadata. Framework {repair["OLD_FRAMEWORK_SHA"]} advances to {repair["NEW_FRAMEWORK_SHA"]}. Its common.sh differs by exactly twelve reviewed literal assignments and now has normalized SHA-256 `{digest}`. NGINX is 1.31.6 with SHA-256 `{repair["NEW_NGINX_SHA256"]}`. The full-source regression binds the production review digest to the initialized submodule. The next-release rejection control remains distinct at release-1.31.7.',
-                  '\n'.join('- `' + path + '`' for path in sorted(expected)) + '\n\nThis paired record is the only additional source change. The isolated helper workflow is not in the repair tree.',
-                  commands,
-                  'The structural guard, 25-field mutable registry, parser grammar, Parent provenance policy, sandbox, publisher and protected NGINX broker remain unchanged. No Framework or MRTS source edit, broad automatic approval, scanner suppression or permanent workflow permission change is introduced.',
-                  'No native connector runtime promotion or full CRS/MRTS matrix is claimed. Unit and contract results prove only their tested layers.',
-                  'Local GitHub DNS and RTK were unavailable. Source application and tests therefore ran on an ephemeral GitHub-hosted runner. The object-storage job does not execute artifact content or move a branch; the final diff is reviewed before the existing PR ref is advanced.',
-                  'Future structural Framework changes still require explicit review; the guard is intentionally not bypassed. A regression now catches drift between the real checked-out Framework and Parent review. Separately pinned protected broker provenance is deliberately not advanced.',
-                  'No local RTK execution or local Sonar scan was possible. No full native runtime matrix was requested or claimed. Fresh hosted namespace, PR CI and Sonar results are recorded in PR #393 against the final SHA.',
-                  'The actual production correction is included in this tree, superseding the preparation-only delivery status. The PR remains unmerged. Review-ready status depends on fresh final-head verification, not the historical preparation checks.',
+                  'The user requested applying the original repair in PR #393. Run 36608694822 rejected common.sh at its structural review boundary. The skipped sandbox was a consequence. This record supersedes the historical preparation-only delivery status.',
+                  'Apply the actual Framework gitlink and coherent Parent values; verify the real candidate, regressions, namespace, final-head CI and Sonar. Preserve the newly merged master changes. Do not merge the PR.',
+                  f'Use the existing exact-delta generator. Framework f9e48b0774b5bdf7aaa8e38ce98eb6c50bf293c8 advances to 0290a979ba4bc63a7abed175a53471367b385553. Exactly twelve reviewed literal common.sh assignments produce normalized SHA-256 `{digest}`. NGINX is 1.31.6 with SHA-256 `{repair["NEW_NGINX_SHA256"]}`, checked against official release asset metadata. A real-source regression binds the initialized submodule to the production review digest. The release-1.31.7 rejection control remains distinct.',
+                  paths_text + '\n\nAdditionally this EN/DE record. The temporary isolated workflow is excluded from the repair tree.',
+                  'Hosted Python 3.14.7: baseline verifier rejected the candidate with the expected structural error and exit 2; the existing generator and git apply --index succeeded; the updated real-candidate verifier and generic synchronizer --validate passed; make check-ci-security-contract and the eleven affected unittest modules passed; git diff --cached --check passed. The exact final-head namespace, CI and Sonar results are recorded separately in PR #393.',
+                  'No guard, parser grammar, 25-field mutable registry, Parent provenance policy, sandbox, publisher, protected broker, Sonar rule or permanent workflow permission is weakened. No Framework/MRTS source is changed. The Git-object job cannot execute artifact contents and does not move any branch.',
+                  'No complete native connector runtime matrix or CRS/MRTS promotion is claimed. Contract and unit checks prove their tested layers only.',
+                  'Local GitHub DNS and RTK were unavailable. Application and tests use an ephemeral GitHub runner and exact Git objects. The earlier master merge is retained; its eight changed paths do not overlap this repair.',
+                  'Future structural Framework changes still require review. The new real-source regression detects mismatched Parent approval; it is not a blanket approval mechanism. The separately pinned protected broker remains unchanged.',
+                  'No local RTK test or local Sonar scan was possible. No complete native runtime matrix was requested. Fresh hosted namespace, final-head CI and Sonar evidence must be checked in the PR before review-ready delivery.',
+                  'The actual production correction is included, not merely a generator. Historical preparation records describe previous states. The PR remains unmerged; fresh final-head checks determine review readiness.',
               ),
               'Deutsch': (
                   f'| Feld | Wert |\n| --- | --- |\n| Change-ID | {record} |\n| Datum (UTC) | 2026-09-30 |\n| Basis-Revision | `{base}` |',
-                  'Der Benutzer hat die Anwendung der ursprünglichen Reparatur in PR #393 ausdrücklich angefordert. Lauf 36608694822 lehnte die neue Framework-common.sh am strukturellen Review-Guard ab; die übersprungene Sandbox war eine Folge. Frühere Records dokumentieren die historische Vorbereitung, nicht den aktuellen Lieferstatus.',
-                  'Den tatsächlichen Framework-Gitlink und zusammenpassende Parent-Projektionen anwenden, echten Kandidaten und Regressionen prüfen und vor Review-Bereitschaft frische einschlägige CI und Sonar verlangen. Kein Merge ist autorisiert.',
-                  f'Den bestehenden Exact-Delta-Generator nach Reproduktion des alten Fehlers und Prüfung offizieller NGINX-Asset-Metadaten anwenden. Framework {repair["OLD_FRAMEWORK_SHA"]} wird auf {repair["NEW_FRAMEWORK_SHA"]} angehoben. Seine common.sh unterscheidet sich durch genau zwölf geprüfte literale Zuweisungen und hat jetzt den normalisierten SHA-256 `{digest}`. NGINX ist 1.31.6 mit SHA-256 `{repair["NEW_NGINX_SHA256"]}`. Die Vollquell-Regression bindet den produktiven Review-Hash an das initialisierte Submodul. Der Negativtest für das nächste Release bleibt mit release-1.31.7 unterscheidbar.',
-                  '\n'.join('- `' + path + '`' for path in sorted(expected)) + '\n\nDieser zweisprachige Record ist die einzige zusätzliche Quelländerung. Der isolierte Hilfsworkflow gehört nicht zum Reparaturbaum.',
-                  commands_de,
-                  'Struktur-Guard, Registry mit 25 veränderlichen Feldern, Parsergrammatik, Parent-Provenance-Policy, Sandbox, Publisher und geschützter NGINX-Broker bleiben unverändert. Keine Framework-/MRTS-Quelländerung, pauschale automatische Freigabe, Scanner-Unterdrückung oder dauerhafte Workflow-Berechtigungsänderung wird eingeführt.',
-                  'Weder native Connector-Laufzeitfreigabe noch vollständige CRS-/MRTS-Matrix werden behauptet. Unit- und Vertragsergebnisse belegen nur ihre geprüften Ebenen.',
-                  'Lokales GitHub-DNS und RTK waren nicht verfügbar. Quellanwendung und Tests liefen deshalb auf einem kurzlebigen GitHub-Runner. Der Git-Objekt-Job führt keine Artefaktinhalte aus und bewegt keinen Branch; der finale Diff wird vor Aktualisierung des bestehenden PR-Refs geprüft.',
-                  'Künftige strukturelle Framework-Änderungen benötigen weiterhin ausdrückliches Review; der Guard wird bewusst nicht umgangen. Eine Regression erkennt jetzt Abweichungen zwischen echtem Framework-Checkout und Parent-Freigabe. Die separat gepinnte geschützte Broker-Provenance wird bewusst nicht angehoben.',
-                  'Lokale RTK-Ausführung und lokaler Sonar-Scan waren nicht möglich. Eine vollständige native Laufzeitmatrix wurde weder angefordert noch behauptet. Frische gehostete Namespace-, PR-CI- und Sonar-Ergebnisse werden in PR #393 für die finale SHA dokumentiert.',
-                  'Die tatsächliche produktive Korrektur ist in diesem Baum enthalten und ersetzt den reinen Vorbereitungsstatus. Der PR bleibt ungemergt. Review-Bereitschaft hängt von frischer Verifikation des finalen Heads ab, nicht von historischen Vorbereitungsprüfungen.',
+                  'Der Benutzer hat die Anwendung der ursprünglichen Reparatur in PR #393 angefordert. Lauf 36608694822 lehnte common.sh an der strukturellen Review-Grenze ab. Die übersprungene Sandbox war eine Folge. Dieser Record ersetzt den historischen reinen Vorbereitungsstatus.',
+                  'Tatsächlichen Framework-Gitlink und passende Parent-Werte anwenden; echten Kandidaten, Regressionen, Namespace, finale CI und Sonar prüfen. Die neu übernommenen Master-Änderungen erhalten. Den PR nicht mergen.',
+                  f'Den bestehenden Exact-Delta-Generator verwenden. Framework f9e48b0774b5bdf7aaa8e38ce98eb6c50bf293c8 wird auf 0290a979ba4bc63a7abed175a53471367b385553 angehoben. Genau zwölf geprüfte literale common.sh-Zuweisungen ergeben den normalisierten SHA-256 `{digest}`. NGINX ist 1.31.6 mit SHA-256 `{repair["NEW_NGINX_SHA256"]}`, geprüft gegen offizielle Release-Asset-Metadaten. Eine Echtquell-Regression bindet das initialisierte Submodul an den produktiven Review-Hash. Der Negativtest mit release-1.31.7 bleibt unterscheidbar.',
+                  paths_text + '\n\nZusätzlich dieser EN/DE-Record. Der temporäre isolierte Workflow gehört nicht zum Reparaturbaum.',
+                  'Gehostetes Python 3.14.7: Basis-Verifier lehnte den Kandidaten mit dem erwarteten Strukturfehler und Exitcode 2 ab; bestehender Generator und git apply --index erfolgreich; aktualisierter echter Kandidaten-Verifier und generischer Synchronisierer --validate bestanden; make check-ci-security-contract und die elf betroffenen Unittest-Module bestanden; git diff --cached --check bestanden. Namespace-, CI- und Sonar-Ergebnisse des exakten finalen Heads werden separat in PR #393 dokumentiert.',
+                  'Kein Guard, keine Parsergrammatik, Registry mit 25 veränderlichen Feldern, Parent-Provenance-Policy, Sandbox, Publisher, geschützter Broker, Sonar-Regel oder dauerhafte Workflow-Berechtigung wird abgeschwächt. Keine Framework-/MRTS-Quelle wird verändert. Der Git-Objekt-Job führt keine Artefaktinhalte aus und bewegt keinen Branch.',
+                  'Keine vollständige native Connector-Laufzeitmatrix oder CRS-/MRTS-Freigabe wird behauptet. Vertrags- und Unit-Tests belegen nur ihre geprüften Ebenen.',
+                  'Lokales GitHub-DNS und RTK waren nicht verfügbar. Anwendung und Tests nutzen einen kurzlebigen GitHub-Runner und exakte Git-Objekte. Der vorangegangene Master-Merge bleibt erhalten; seine acht geänderten Pfade überschneiden sich nicht mit dieser Reparatur.',
+                  'Künftige strukturelle Framework-Änderungen benötigen weiterhin Review. Die neue Echtquell-Regression erkennt eine abweichende Parent-Freigabe und ist keine pauschale Freigabe. Der separat gepinnte geschützte Broker bleibt unverändert.',
+                  'Lokaler RTK-Test und lokaler Sonar-Scan waren nicht möglich. Keine vollständige native Laufzeitmatrix wurde angefordert. Frische gehostete Namespace-, finale CI- und Sonar-Evidence müssen vor Review-Bereitschaft im PR geprüft werden.',
+                  'Die tatsächliche produktive Korrektur ist enthalten, nicht nur ein Generator. Historische Vorbereitungsrecords beschreiben frühere Zustände. Der PR bleibt ungemergt; frische Prüfungen des finalen Heads bestimmen die Review-Bereitschaft.',
               ),
           }
           record_paths = []
@@ -162,8 +155,9 @@ jobs:
               suffix = '.md' if language == 'English' else '.de.md'
               path = root / 'reports/audits/change-records' / (record + suffix)
               switch = f'**Language:** English | [Deutsch]({record}.de.md)' if language == 'English' else f'**Sprache:** [English]({record}.md) | Deutsch'
-              text = '# Change Record: ' + ('applied Framework handoff repair' if language == 'English' else 'angewendete Framework-Handoff-Reparatur') + '\n\n' + switch + '\n\n'
-              for heading, paragraph in zip(contract.CHANGE_RECORD_REQUIRED_HEADINGS[language], sections, strict=True):
+              title = 'applied Framework handoff repair' if language == 'English' else 'angewendete Framework-Handoff-Reparatur'
+              text = '# Change Record: ' + title + '\n\n' + switch + '\n\n'
+              for heading, paragraph in zip(creator['CONTRACT'].CHANGE_RECORD_REQUIRED_HEADINGS[language], sections, strict=True):
                   text += heading + '\n\n' + paragraph + '\n\n'
               with path.open('x', encoding='utf-8') as output:
                   output.write(text.rstrip() + '\n')
@@ -176,10 +170,8 @@ jobs:
               mode = '100644' if path in record_paths else git('ls-tree', base, '--', path).split()[0]
               entries.append({'path': path, 'mode': mode, 'type': 'blob', 'content': (root / path).read_text(encoding='utf-8')})
           entries.append({'path': repair['FRAMEWORK_PATH'], 'mode': '160000', 'type': 'commit', 'sha': repair['NEW_FRAMEWORK_SHA']})
-          manifest = {'base': base, 'entries': entries, 'review_digest': digest}
-          output = Path(os.environ['RUNNER_TEMP']) / 'framework-handoff-manifest.json'
-          payload = json.dumps(manifest, ensure_ascii=False).encode('utf-8')
-          output.write_bytes(payload)
+          payload = json.dumps({'base': base, 'entries': entries, 'review_digest': digest}, ensure_ascii=False).encode('utf-8')
+          (Path(os.environ['RUNNER_TEMP']) / 'framework-handoff-manifest.json').write_bytes(payload)
           sha256 = hashlib.sha256(payload).hexdigest()
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as result:
               result.write('manifest_sha256=' + sha256 + '\n')
@@ -208,7 +200,7 @@ jobs:
         with:
           name: reviewed-framework-handoff-393
           path: ${{ runner.temp }}/reviewed-manifest
-      - name: Store only reviewed Git objects without moving any ref
+      - name: Store reviewed Git objects only, without moving refs
         id: store
         env:
           GH_TOKEN: ${{ github.token }}
@@ -222,7 +214,7 @@ jobs:
           import urllib.request
 
           prefix = '/repos/Easton97-Jens/ModSecurity-conector'
-          base = 'd3daa2087c2f911961779338d3dc68599aad6d63'
+          base = 'bbd74521ee9b1c7544b11c225e399a1c7f8d49da'
           path = Path(os.environ['RUNNER_TEMP']) / 'reviewed-manifest/framework-handoff-manifest.json'
           if path.is_symlink() or path.stat().st_size > 16 * 1024 * 1024:
               raise SystemExit('Unsafe manifest')
@@ -247,7 +239,6 @@ jobs:
           entries = manifest['entries']
           if manifest['base'] != base or len(entries) != len(allowed) or {item['path'] for item in entries} != allowed:
               raise SystemExit('Manifest scope mismatch')
-
           def api(route, body=None):
               if not route.startswith(prefix + '/'):
                   raise ValueError('Unexpected repository')
@@ -261,10 +252,9 @@ jobs:
               if len(data) > 16 * 1024 * 1024:
                   raise ValueError('Oversized API response')
               return json.loads(data)
-
           if api(prefix + '/git/ref/heads/automation/prepare-framework-handoff-36608694822')['object']['sha'] != base:
               raise SystemExit('PR branch moved; review required')
-          if api(prefix + '/git/ref/heads/master')['object']['sha'] != 'd56af0856507eb048987974d3960e301e7c24371':
+          if api(prefix + '/git/ref/heads/master')['object']['sha'] != 'b6bd71685ec83cc7dfab2739250e3e9b6eb9f3e1':
               raise SystemExit('Parent master moved; review required')
           tree_sha = api(prefix + '/git/commits/' + base)['tree']['sha']
           tree = api(prefix + '/git/trees/' + tree_sha + '?recursive=1')
@@ -279,17 +269,16 @@ jobs:
               else:
                   if set(item) != {'path', 'mode', 'type', 'content'} or item['type'] != 'blob' or len(item['content'].encode('utf-8')) > 1024 * 1024:
                       raise SystemExit('Invalid text entry')
-                  expected_mode = original[name]['mode'] if name in original else '100644'
-                  if item['mode'] != expected_mode or item['mode'] not in ('100644', '100755'):
+                  if item['mode'] != (original[name]['mode'] if name in original else '100644') or item['mode'] not in ('100644', '100755'):
                       raise SystemExit('Unexpected file mode')
           prepared = api(prefix + '/git/trees', {'base_tree': tree_sha, 'tree': entries})
           commit = api(prefix + '/git/commits', {
-              'message': 'fix(ci): apply reviewed Framework handoff and align NGINX provenance\n\nAdvance the Framework gitlink and its closed Parent projections to 0290a979.\nReproduce the original failure, preserve all fail-closed boundaries, and\nadd a regression against the actual initialized Framework common.sh.\nHosted candidate, security-contract and affected regression checks passed.',
+              'message': 'fix(ci): apply reviewed Framework handoff and align NGINX provenance\n\nAdvance the Framework gitlink and closed Parent projections to 0290a979.\nReproduce the original failure, retain fail-closed boundaries and the\nnewly merged master changes, and test the actual initialized common.sh.\nHosted candidate, security-contract and affected regression checks passed.',
               'tree': prepared['sha'], 'parents': [base],
           })
           print('PREPARED_REPAIR_COMMIT=' + commit['sha'])
           print('PREPARED_REPAIR_TREE=' + prepared['sha'])
-          print('No branch, master, PR status or merge was changed by this job.')
+          print('No branch or master ref was modified.')
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as result:
               result.write('commit=' + commit['sha'] + '\n')
           PY
@@ -312,7 +301,7 @@ jobs:
         with:
           python-version-file: .python-version
           check-latest: false
-      - name: Capture the real applied Parent and initialize its exact Framework
+      - name: Capture applied Parent and initialize the exact Framework
         run: |
           set -euo pipefail
           python3 ci/tools/validate-submodule-candidate-state.py capture-parent-baseline --parent-root "$GITHUB_WORKSPACE" --github-env "$GITHUB_ENV"
@@ -331,7 +320,7 @@ jobs:
           sudo -n groupadd --system modsecurity-validator
           sudo -n useradd --system --no-create-home --shell /usr/sbin/nologin --gid modsecurity-validator modsecurity-validator
           sudo -n python3 ci/tools/prepare-readonly-submodule-validation-sandbox.py --source-root "$GITHUB_WORKSPACE" --framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" --write-root "$write_root" --runner-temp "$RUNNER_TEMP" --validator-user modsecurity-validator --validator-group modsecurity-validator
-      - name: Execute the original namespace validator without weakening isolation
+      - name: Execute the original namespace validator
         env:
           VALIDATION_WRITE_ROOT: ${{ steps.guard.outputs.write_root }}
           EXPECTED_PYTHON: ${{ steps.python.outputs.python-path }}
@@ -342,7 +331,7 @@ jobs:
           sudo -n chown root:modsecurity-validator "$namespace_parent"
           sudo -n chmod 0750 "$namespace_parent"
           sudo -n python3 ci/tools/run-readonly-submodule-validation-namespace.py --source-root "$GITHUB_WORKSPACE" --framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" --write-root "$VALIDATION_WRITE_ROOT" --external-root "$VALIDATION_WRITE_ROOT/external" --validator-user modsecurity-validator --validator-group modsecurity-validator --python "$EXPECTED_PYTHON" --namespace-parent "$namespace_parent"
-      - name: Verify immutable source and Parent state after execution
+      - name: Verify immutable source and Parent state
         if: always() && steps.guard.outcome == 'success'
         env:
           VALIDATION_WRITE_ROOT: ${{ steps.guard.outputs.write_root }}
