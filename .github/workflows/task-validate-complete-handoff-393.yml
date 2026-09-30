@@ -129,7 +129,26 @@ jobs:
           "$PYTHON" ci/tools/new-change-record.py check
           make PYTHON="$PYTHON" check-bilingual-docs
           make PYTHON="$PYTHON" check-doc-links
-          make PYTHON="$PYTHON" quick-check
+          result=0
+          make PYTHON="$PYTHON" quick-check > "$RUNNER_TEMP/complete-quick-check.log" 2>&1 || result=$?
+          "$PYTHON" - <<'PY'
+          from pathlib import Path
+          from collections import deque
+          import os
+          path = Path(os.environ['RUNNER_TEMP']) / 'complete-quick-check.log'
+          tail = deque(maxlen=45)
+          important = deque(maxlen=50)
+          with path.open(encoding='utf-8', errors='replace') as stream:
+              for raw in stream:
+                  line = raw.rstrip('\r\n')
+                  clipped = ''.join(char if char.isprintable() else '?' for char in line[:1200])
+                  tail.append(clipped)
+                  if line.startswith(('FAIL:', 'ERROR:', 'Ran ', 'OK', 'FAILED', 'AssertionError:', 'make:', 'make[1]:')):
+                      important.append(clipped)
+          print('Quick-check result summaries:\n' + '\n'.join(important))
+          print('Quick-check final output:\n' + '\n'.join(tail))
+          PY
+          exit "$result"
       - name: Export exactly the tested repair tree as inert data
         working-directory: ${{ runner.temp }}/pr393-checkout
         run: |
@@ -236,6 +255,8 @@ jobs:
               'tests/test_reviewed_version_handoff.py',
               'docs/reviewed-version-upgrades.md',
               'docs/reviewed-version-upgrades.de.md',
+              'docs/build/compilers/nginx.md',
+              'docs/build/compilers/nginx.de.md',
               'reports/audits/change-records/CR-20260930-complete-framework-handoff.md',
               'reports/audits/change-records/CR-20260930-complete-framework-handoff.de.md',
           }
@@ -277,7 +298,7 @@ jobs:
           require(tree['sha'] == document['tree'], 'API tree differs from the exact tested tree')
           require(api(prefix + '/git/ref/heads/' + branch)['object']['sha'] == head, 'Target branch changed during validation')
           commit = api(prefix + '/git/commits', {
-              'message': 'fix(ci): apply reviewed Framework handoff and prevent version drift\n\nApply Framework 0290a979 and aligned NGINX 1.31.6 projections. Fix the\nmissed evidence writer, job-permission assertion and venv aliases in\nprivileged namespace tests without weakening production isolation.\nAdd early ModSecurity-v3 projection and cache/layout regressions.\n\nPrepared only after source, real-candidate, privileged namespace,\nCI-security, documentation and quick-check validation. Protected broker\nand ModSecurity v3 release identity remain unchanged. No merge.',
+              'message': 'fix(ci): apply reviewed Framework handoff and prevent version drift\n\nApply Framework 0290a979 and aligned NGINX 1.31.6 projections. Fix the\nmissed evidence writer, job-permission assertion and venv aliases in\nprivileged namespace tests without weakening production isolation.\nAdd early ModSecurity-v3 projection and cache/layout regressions.\nRegenerate NGINX compiler guides from their unchanged generator.\n\nPrepared only after source, real-candidate, privileged namespace,\nCI-security, documentation and quick-check validation. Protected broker\nand ModSecurity v3 release identity remain unchanged. No merge.',
               'tree': tree['sha'], 'parents': [head],
               'author': {'name': 'github-actions[bot]', 'email': '41898282+github-actions[bot]@users.noreply.github.com'},
           })
