@@ -25,7 +25,7 @@ from typing import Any
 
 MAX_SOURCE_BYTES = 1024 * 1024
 MAX_OUTPUT_BYTES = 16 * 1024
-EXPECTED_NGINX_VERSION = "1.31.5"
+EXPECTED_NGINX_VERSION = "1.31.6"
 EXPECTED_URI = "/no-crs/response-body?<redacted>"
 QUERY_CANARY = b"nginx-functional-a-canary=must-redact"
 PHASE4_RULE_ID = "1100301"
@@ -259,7 +259,8 @@ def _collect_mode(functional_root: Path, mode: str) -> dict[str, Any]:
     callback_expected = mode == "on"
     if callback_observed is not callback_expected:
         raise EvidenceError(f"{mode} callback behavior is invalid")
-    if f"nginx/{EXPECTED_NGINX_VERSION}".encode("ascii") not in sources["nginx_version"]:
+    expected_version = b"nginx version: nginx/" + EXPECTED_NGINX_VERSION.encode("ascii")
+    if sources["nginx_version"].splitlines() != [expected_version]:
         raise EvidenceError(f"{mode} did not use NGINX {EXPECTED_NGINX_VERSION}")
     if sources["allow_status"].strip() != b"200":
         raise EvidenceError(f"{mode} allow control did not retain status 200")

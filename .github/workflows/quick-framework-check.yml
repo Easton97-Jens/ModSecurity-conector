@@ -49,6 +49,8 @@ jobs:
         run: |
           python3 ci/tools/new-change-record.py check
           python3 -m unittest -v tests.test_change_record tests.test_prepare_reviewed_framework_handoff
+          python3 ci/tools/check-reviewed-version-handoff.py --repo-root .
+          python3 -m unittest -v tests.test_reviewed_version_handoff
       - name: Lightweight connector/framework checks
         run: |
           make setup-dev

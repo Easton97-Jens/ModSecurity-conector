@@ -25,7 +25,7 @@ MAX_INPUT_BYTES = 512 * 1024
 # the candidate updater can publish it, because this file is later sourced. The
 # digest is over the structural skeleton below, not the raw source: only the
 # bounded generic source-data RHSs may vary without a structural review.
-APPROVED_FRAMEWORK_COMMON_STRUCTURE_SHA256 = "7ad268af3baa17d2c2e9b5857ced2138684fab70e5066ddddd6f3656e8baa6af"
+APPROVED_FRAMEWORK_COMMON_STRUCTURE_SHA256 = "2c3a5774da760981804907a357dc5dafb62f9ba3de1db17a2807ff53fd83c291"
 # Keep this closed list identical to sync-framework-component-versions.py's
 # SOURCE_REGISTRY. It is deliberately separate from NGINX, whose handoff stays
 # manually reviewed and byte-covered by the structure digest.
