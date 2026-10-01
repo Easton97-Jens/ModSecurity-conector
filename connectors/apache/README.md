@@ -130,6 +130,14 @@ registry root; existing registry inputs and registry libtool artifacts are not
 overwritten or reused. The private registry stages remain below the selected
 external registry root, which is inside `APACHE_BUILD_ROOT` in the example above.
 
+Parent runtime preparation retains the exact HTTPD version and literal SHA-256
+when an official `downloads.apache.org` HTTPD archive returns HTTP 404. Only
+that pinned `.tar.bz2` filename may fall back to `archive.apache.org/dist/httpd/`;
+other errors do not select an alternate source. The same digest is verified
+before archive inspection. The component JSON report records `download_url` for a
+fresh fetch; on verified cache reuse it is empty and `download_status` is
+`cached`, because cache identity alone does not prove the original endpoint.
+
 The expected module output is `src/.libs/mod_security3.so`. To validate the
 entire fresh-source route, including two builds with the same registry root,
 run the focused check from the Parent root:

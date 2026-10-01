@@ -20,6 +20,12 @@ or retry. A focused regression reproduced the failure. The previous green
 single-build CI could not detect it. This record covers that corrective
 increment, not complete G1–G9 acceptance of the nine non-NGINX logical profiles.
 
+Fresh CI at intermediate head `ac76cdbe` then exposed another current merge
+blocker: pinned HTTPD 2.4.68 was no longer served by its configured download
+endpoint (HTTP 404), before the Apache connector build. The official archive
+matched the reviewed pinned SHA-256. A second focused Parent correction restores
+that source without changing Framework pins or weakening source verification.
+
 ## Acceptance criteria
 
 - Repeated builds and retry after APXS failure work under the same external root.
@@ -27,6 +33,8 @@ increment, not complete G1–G9 acceptance of the nine non-NGINX logical profile
   children and checkout-contained output remain rejected.
 - CI explicitly runs the containment/retry unit tests and two real builds;
   failure of either build fails the gate rather than being hidden by a retry.
+- Retired official HTTPD download endpoints may use the official archive only
+  on typed HTTP 404, with identical filename/version and reviewed literal hash.
 - EN/DE documentation and traceability remain equivalent. Delivery requires
   fresh current-head CI and Sonar, including 0.0% new-code duplication.
 - No new NGINX changes/runs, Framework/MRTS source or Gitlink changes, weakened
@@ -42,10 +50,21 @@ Common-source staging retains its existing behavior. The bootstrap check runs
 `make` twice with the same staging root and explicitly propagates each error:
 `set -e` alone does not protect a loop inside `if ! (...)`.
 
+The HTTPD-only downloader accepts the exact `downloads.apache.org/httpd/`
+`.tar.bz2` URL and literal SHA-256 before considering an official
+`archive.apache.org/dist/httpd/` fallback on typed HTTP 404. Other HTTP/network
+errors, unexpected URLs/components, missing hashes, and integrity failures do
+not select another source. Verify the same digest before tar inspection.
+Keep the canonical configured URL/cache identity; the component JSON records
+the actual `download_url`. A verified cache hit uses empty `download_url` and
+`download_status=cached`, rather than inventing original-fetch provenance.
+
 ## Changed files
 
 - `connectors/apache/build/apxs-wrapper.in`
 - `tests/test_apache_apxs_profile_registry_staging.py`
+- `tests/test_apache_httpd_archive_fallback.py`
+- `ci/provisioning/components/prepare-runtime-components.py`
 - `ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh`
 - `.github/workflows/test-apache.yml`
 - `connectors/apache/README.md` and `connectors/apache/README.de.md`
@@ -86,6 +105,18 @@ and temporary files used the external task run root; no package was installed.
   — 51 tests passed. No environment or dependency mutation.
 - `rtk proxy env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 python3 ci/tools/new-change-record.py check`
   — Change Record structure passed; this is not runtime/evidence validation.
+- Successor suite: the same focused command above with additional module
+  `tests.test_apache_httpd_archive_fallback` passed 105/105 tests. The ten new
+  source tests include managed-cache identity/reuse and literal-before-list CI
+  caller wiring. The HTTP-404 regression failed before its correction.
+- `rtk proxy curl --fail --location --silent --show-error --max-time 60 --output /var/tmp/codex/ModSecurity-conector/runs/pr370-ready-without-nginx-20261001/httpd-2.4.68-archive.tar.bz2 https://archive.apache.org/dist/httpd/httpd-2.4.68.tar.bz2`
+  and `rtk proxy sha256sum /var/tmp/codex/ModSecurity-conector/runs/pr370-ready-without-nginx-20261001/httpd-2.4.68-archive.tar.bz2`
+  — download passed; exact pinned SHA-256
+  `68c74d4df38c26bed4dfbdb8f3baf1eb532f3872357becc1bba5d136f6b63c06`.
+- An actual non-mocked `prepare_archive("httpd", ..., required_literal_sha256=True, verify_digest_before_archive_list=True)`
+  call through RTK/CPython 3.14.7 passed the primary-404/official-archive route,
+  matching that same hash before successful tar inspection. Only source
+  preparation was tested; no additional host-runtime claim follows from it.
 
 ## Security impact
 
@@ -98,6 +129,12 @@ runtime fail-closed behavior, compiler warnings, CI requirements, or Quality
 Gate is weakened. The externally selected root remains a trusted build input;
 this change is not a defense against concurrent malicious directory owners.
 
+The HTTPD source recovery preserves canonical source/version/hash/cache
+identity and adds digest-before-list enforcement; no new dependency pin or
+NGINX source path is selected. Its independent review found no concrete bypass;
+managed-cache and caller-guard tests supplement the initially reviewed eight
+cases. Actual archive contents were hash-verified, not trusted from HTTP status.
+
 ## Runtime evidence
 
 The local native Apache check proved two compilations, not host startup or
@@ -108,6 +145,14 @@ Traefik native, and patched-lighttpd CRS cells; they did not prove complete
 G1–G9 acceptance. A new successor needs fresh hosted evidence. At that earlier
 head, Sonar reported Quality Gate `OK` and new duplication density/lines/blocks
 `0.0%` / `0` / `0`; those values are not successor evidence.
+
+Intermediate `ac76cdbe`: fresh Apache bootstrap passed (including eight staging
+units and real non-root traffic), four CRS cells passed, and Apache CRS failed
+before its build on HTTPD HTTP 404; the fail-closed aggregate consequently
+failed. These results remain retained rather than being erased by retries.
+Sonar at that exact intermediate head reported gate `OK`, 0.0% new duplication,
+zero OPEN/CONFIRMED issues and zero TO_REVIEW hotspots. The source-recovery
+successor requires its own new CI/Sonar round.
 
 ## Known limitations
 

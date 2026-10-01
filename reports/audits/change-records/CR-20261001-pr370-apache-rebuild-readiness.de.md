@@ -21,6 +21,13 @@ Fehler. Die bisher grüne Single-Build-CI konnte ihn nicht erkennen. Dieser
 Record behandelt dieses Korrekturinkrement, nicht die vollständige G1–G9-Abnahme
 der neun logischen Nicht-NGINX-Profile.
 
+Frische CI am Zwischenstand `ac76cdbe` zeigte anschließend einen weiteren
+aktuellen Merge-Blocker: Das gepinnte HTTPD 2.4.68 wurde vom konfigurierten
+Download-Endpunkt nicht mehr geliefert (HTTP 404), vor dem Apache-Connector-
+Build. Das offizielle Archiv entsprach der geprüften gepinnten SHA-256.
+Eine zweite gezielte Parent-Korrektur stellt diese Quelle ohne Framework-Pin-
+Änderung oder Abschwächung der Quellverifikation wieder her.
+
 ## Akzeptanzkriterien
 
 - Wiederholte Builds und Wiederanlauf nach APXS-Fehler funktionieren unter derselben externen Root.
@@ -28,6 +35,8 @@ der neun logischen Nicht-NGINX-Profile.
   Symlink-Kinder und Ausgaben innerhalb des Checkouts bleiben abgewiesen.
 - CI führt die Containment-/Retry-Unit-Tests und zwei echte Builds ausdrücklich
   aus; ein Fehler eines Builds lässt das Gate scheitern, statt durch Retry verdeckt zu werden.
+- Entfernte offizielle HTTPD-Download-Endpunkte dürfen das offizielle Archiv nur
+  bei typisiertem HTTP 404 mit identischem Dateinamen/Version und geprüftem literalem Hash nutzen.
 - EN/DE-Dokumentation und Traceability bleiben gleichwertig. Delivery erfordert
   frische Current-Head-CI und Sonar einschließlich 0.0% New-Code-Duplikation.
 - Keine neuen NGINX-Änderungen/-Läufe, Framework-/MRTS-Source- oder Gitlink-Änderungen,
@@ -44,10 +53,22 @@ Die Bootstrap-Prüfung führt `make` zweimal mit derselben Staging-Root aus und
 gibt jeden Fehler ausdrücklich weiter: `set -e` allein schützt eine Schleife
 innerhalb von `if ! (...)` nicht.
 
+Der HTTPD-only-Downloader akzeptiert die exakte `.tar.bz2`-URL unter
+`downloads.apache.org/httpd/` und literale SHA-256, bevor er bei typisiertem
+HTTP 404 den offiziellen Fallback unter `archive.apache.org/dist/httpd/`
+berücksichtigt. Andere HTTP-/Netzwerkfehler, unerwartete URLs/Komponenten,
+fehlende Hashes und Integritätsfehler wählen keine andere Quelle. Dieselbe
+Prüfsumme wird vor Tar-Inspektion geprüft. Kanonisch konfigurierte URL und
+Cache-Identität bleiben erhalten; das Komponenten-JSON erfasst die tatsächliche
+`download_url`. Ein geprüfter Cache-Hit verwendet leere `download_url` und
+`download_status=cached`, statt ursprüngliche Fetch-Provenienz zu erfinden.
+
 ## Geänderte Dateien
 
 - `connectors/apache/build/apxs-wrapper.in`
 - `tests/test_apache_apxs_profile_registry_staging.py`
+- `tests/test_apache_httpd_archive_fallback.py`
+- `ci/provisioning/components/prepare-runtime-components.py`
 - `ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh`
 - `.github/workflows/test-apache.yml`
 - `connectors/apache/README.md` und `connectors/apache/README.de.md`
@@ -88,6 +109,18 @@ und temporäre Dateien nutzten die externe Task-Run-Root; kein Paket wurde insta
   — 51 Tests bestanden. Keine Umgebungs- oder Dependency-Mutation.
 - `rtk proxy env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 python3 ci/tools/new-change-record.py check`
   — Change-Record-Struktur bestanden; dies ist keine Runtime-/Evidenzvalidierung.
+- Nachfolger-Suite: Derselbe fokussierte Befehl oben mit zusätzlichem Modul
+  `tests.test_apache_httpd_archive_fallback` bestand 105/105 Tests. Die zehn neuen
+  Quelltests enthalten Managed-Cache-Identität/-Reuse und Literal-before-List-
+  CI-Caller-Wiring. Die HTTP-404-Regression scheiterte vor ihrer Korrektur.
+- `rtk proxy curl --fail --location --silent --show-error --max-time 60 --output /var/tmp/codex/ModSecurity-conector/runs/pr370-ready-without-nginx-20261001/httpd-2.4.68-archive.tar.bz2 https://archive.apache.org/dist/httpd/httpd-2.4.68.tar.bz2`
+  und `rtk proxy sha256sum /var/tmp/codex/ModSecurity-conector/runs/pr370-ready-without-nginx-20261001/httpd-2.4.68-archive.tar.bz2`
+  — Download bestanden; exakte gepinnte SHA-256
+  `68c74d4df38c26bed4dfbdb8f3baf1eb532f3872357becc1bba5d136f6b63c06`.
+- Ein tatsächlicher ungemockter Aufruf von `prepare_archive("httpd", ..., required_literal_sha256=True, verify_digest_before_archive_list=True)`
+  über RTK/CPython 3.14.7 bestand den Primary-404-/Official-Archive-Pfad,
+  mit demselben Hash vor erfolgreicher Tar-Inspektion. Nur Quellvorbereitung
+  geprüft; daraus folgt keine zusätzliche Host-Runtime-Aussage.
 
 ## Security-Auswirkung
 
@@ -101,6 +134,13 @@ CI-Anforderungen oder Quality Gates werden abgeschwächt. Die extern gewählte
 Root bleibt ein vertrauenswürdiger Build-Input; dies schützt nicht gegen
 gleichzeitig bösartig agierende Verzeichniseigentümer.
 
+Die HTTPD-Quellwiederherstellung erhält kanonische Quell-/Versions-/Hash-/Cache-
+Identität und ergänzt Digest-before-List-Enforcement; kein neuer Dependency-
+Pin oder NGINX-Quellpfad wird gewählt. Das unabhängige Review fand keinen
+konkreten Bypass; Managed-Cache- und Caller-Guard-Tests ergänzen die zunächst
+geprüften acht Fälle. Tatsächliche Archivbytes wurden hashgeprüft, nicht aus
+dem HTTP-Status für vertrauenswürdig erklärt.
+
 ## Runtime-Evidence
 
 Die lokale native Apache-Prüfung bewies zwei Kompilierungen, nicht Hoststart
@@ -111,6 +151,14 @@ HAProxy-SPOP-Request, Envoy ext_proc, Traefik native und patched lighttpd;
 keine vollständige G1–G9-Abnahme. Ein neuer Nachfolger benötigt frische
 Hosted-Evidence. Am früheren Head meldete Sonar Quality Gate `OK` und neue
 Duplikationsdichte/-Zeilen/-Blöcke `0.0%` / `0` / `0`; dies ist keine Nachfolger-Evidence.
+
+Zwischenstand `ac76cdbe`: Frischer Apache-Bootstrap bestanden (einschließlich
+acht Staging-Units und echtem Non-Root-Traffic), vier CRS-Zellen bestanden,
+Apache CRS vor Build durch HTTPD HTTP 404 gescheitert; das Fail-Closed-Aggregat
+scheiterte folgerichtig. Diese Ergebnisse bleiben erhalten, statt durch Retry
+gelöscht zu werden. Sonar meldete an diesem exakten Zwischenstand Gate `OK`,
+0.0% neue Duplikation, null OPEN/CONFIRMED-Issues und null TO_REVIEW-Hotspots.
+Der Quellwiederherstellungs-Nachfolger erfordert eine eigene neue CI-/Sonar-Runde.
 
 ## Bekannte Einschränkungen
 

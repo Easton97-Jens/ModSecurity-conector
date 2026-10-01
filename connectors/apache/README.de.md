@@ -136,6 +136,15 @@ werden weder überschrieben noch wiederverwendet. Die privaten Registry-Stages b
 unter der gewählten externen Registry-Root, die im obigen Beispiel innerhalb von
 `APACHE_BUILD_ROOT` liegt.
 
+Die Parent-Runtime-Vorbereitung behält die exakte HTTPD-Version und literale
+SHA-256 bei, wenn ein offizielles HTTPD-Archiv von `downloads.apache.org` HTTP
+404 liefert. Nur dieser gepinnte `.tar.bz2`-Dateiname darf auf
+`archive.apache.org/dist/httpd/` ausweichen; andere Fehler wählen keine
+alternative Quelle. Dieselbe Prüfsumme wird vor der Archivinspektion geprüft.
+Der Komponenten-JSON-Bericht erfasst bei frischem Download `download_url`; bei
+geprüfter Cache-Wiederverwendung bleibt sie leer und `download_status` lautet
+`cached`, weil Cache-Identität allein den ursprünglichen Endpunkt nicht beweist.
+
 Der erwartete Modulausgabepfad lautet `src/.libs/mod_security3.so`. Zur
 Validierung des vollständigen Frischquellpfads einschließlich zweier Builds
 mit derselben Registry-Root die fokussierte Prüfung vom Parent-Root ausführen:
