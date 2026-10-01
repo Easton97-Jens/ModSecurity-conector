@@ -2768,11 +2768,13 @@ start_server() {
 }
 
 send_case_request() {
+    [ "${NGINX_DOWNSTREAM_PROTOCOL:-http1}" = http1 ] || \
+        blocked "legacy case request requires NGINX_DOWNSTREAM_PROTOCOL=http1"
     response_output="${SEND_CASE_RESPONSE_BODY:-$RESPONSE_BODY}"
     curl_error_output="${SEND_CASE_CURL_ERROR_LOG:-$LOG_DIR/curl-attack.err}"
     validate_nginx_request_output_path SEND_CASE_RESPONSE_BODY "$response_output"
     validate_nginx_request_output_path SEND_CASE_CURL_ERROR_LOG "$curl_error_output"
-    set -- "$CURL_BIN" -sS -X "$REQUEST_METHOD" -o "$response_output" -w "%{http_code}"
+    set -- "$CURL_BIN" -q --http1.1 -sS -X "$REQUEST_METHOD" -o "$response_output" -w "%{http_code}"
     if [ -n "${SEND_CASE_MAX_TIME_SECONDS:-}" ]; then
         set -- "$@" --max-time "$SEND_CASE_MAX_TIME_SECONDS"
     fi

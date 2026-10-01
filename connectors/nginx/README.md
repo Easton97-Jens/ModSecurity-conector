@@ -422,6 +422,21 @@ Relevant framework paths:
 - `modules/ModSecurity-test-Framework/tests/cases/connector-specific/nginx/`
 - `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`
 
+The Parent harness's legacy case request requires
+`NGINX_DOWNSTREAM_PROTOCOL=http1`. It sends Curl with `-q --http1.1` as the
+first options, so a user `curlrc` cannot change this bounded H1 request.
+Custom `CURL` wrappers must accept both options. Direct H2/H3 calls to this
+request function are blocked; the separate H2/H3 protocol probe remains
+non-promoting. The focused command test proves the client options, not the
+negotiated version of every runtime request.
+
+One isolated `transaction_id_generated_or_fallback` diagnostic observed HTTP
+`200`, an actual audit request line ending in `HTTP/1.1`, a root master with a
+`nobody` worker, native rule `1100502`, and a PASS for that case from the
+unchanged Parent source collector. Its one-case aggregate is `FAIL`; it is not
+canonical or exact-head lifecycle PASS. See the
+[H1 request-binding Change Record](../../reports/audits/change-records/CR-20261001-nginx-h1-request-binding.md).
+
 Historical generated evidence keeps NGINX `partial`:
 
 - Default runtime smoke: `60/60 PASS`.

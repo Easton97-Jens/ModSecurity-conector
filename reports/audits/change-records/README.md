@@ -10,6 +10,11 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20261001-nginx-h1-request-binding](CR-20261001-nginx-h1-request-binding.md)
+  | [Deutsch](CR-20261001-nginx-h1-request-binding.de.md) — Parent H1 Curl
+  binding and non-H1 legacy-request guard, with one isolated real-host
+  diagnostic; no canonical or exact-head lifecycle PASS.
+
 - [CR-20261001-nginx-audit-result-pointer](CR-20261001-nginx-audit-result-pointer.md)
   | [Deutsch](CR-20261001-nginx-audit-result-pointer.de.md) — required Parent
   evidence-pointer correction in the user-authorized NGINX canonical-contract

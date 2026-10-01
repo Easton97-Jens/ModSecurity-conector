@@ -454,6 +454,21 @@ Relevante Framework-Pfade:
 - `modules/ModSecurity-test-Framework/tests/cases/connector-specific/nginx/`
 - `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`
 
+Der Legacy-Case-Request des Parent-Harness verlangt
+`NGINX_DOWNSTREAM_PROTOCOL=http1`. Er übergibt Curl `-q --http1.1` als erste
+Optionen, damit eine Benutzer-`curlrc` diesen begrenzten H1-Request nicht
+verändert. Eigene `CURL`-Wrapper müssen beide Optionen akzeptieren. Direkte
+H2/H3-Aufrufe dieser Request-Funktion werden blockiert; die getrennte H2/H3-
+Protokollprobe bleibt nicht promotend. Der fokussierte Kommando-Test belegt die
+Client-Optionen, nicht die ausgehandelte Version jedes Runtime-Requests.
+
+Eine isolierte `transaction_id_generated_or_fallback`-Diagnose beobachtete HTTP
+`200`, eine tatsächliche Audit-Request-Zeile mit `HTTP/1.1`, einen Root-Master
+mit `nobody`-Worker, die native Regel `1100502` und einen PASS für diesen Case
+aus dem unveränderten Parent-Source-Collector. Ihr Ein-Case-Aggregat ist
+`FAIL`; dies ist kein kanonischer oder Exact-Head-Lifecycle-PASS. Siehe den
+[H1-Request-Binding-Change-Record](../../reports/audits/change-records/CR-20261001-nginx-h1-request-binding.de.md).
+
 Historisch generierte Beweise halten NGINX `partial` fest:
 
 - Standard-Laufzeitrauch: `60/60 PASS`.

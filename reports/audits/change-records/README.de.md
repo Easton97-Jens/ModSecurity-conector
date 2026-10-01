@@ -11,6 +11,11 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20261001-nginx-h1-request-binding](CR-20261001-nginx-h1-request-binding.de.md)
+  | English companion: `CR-20261001-nginx-h1-request-binding.md` — Parent-H1-Curl-
+  Binding und Non-H1-Guard für Legacy-Requests mit einer isolierten echten
+  Host-Diagnose; kein kanonischer oder Exact-Head-Lifecycle-PASS.
+
 - [CR-20261001-nginx-audit-result-pointer](CR-20261001-nginx-audit-result-pointer.de.md)
   | English companion: `CR-20261001-nginx-audit-result-pointer.md` — erforderliche
   Parent-Evidence-Pointer-Korrektur in der nutzerautorisierten NGINX-Canonical-
