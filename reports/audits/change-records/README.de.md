@@ -14,7 +14,9 @@ angelegt werden.
 - [CR-20261001-pr370-apache-rebuild-readiness](CR-20261001-pr370-apache-rebuild-readiness.de.md)
   | English companion: `CR-20261001-pr370-apache-rebuild-readiness.md` —
   angeforderter PR-#370-Merge-Vorbereitungs-Folgepatch: isoliertes Apache-
-  Wiederholungsbuild-/Retry-Staging und fail-fast Zweifach-Build-CI-Regressionen.
+  Wiederholungsbuild-/Retry-Staging, fail-fast Zweifach-Build-CI-Regressionen und
+  gepinnte HTTPD-Quellwiederherstellung. Enthält das ausdrücklich autorisierte
+  geprüfte Framework-PR-#133-Dependency-Update und seine exakten SHA-Projektionen.
   Keine neue NGINX-Arbeit, kein Merge oder vollständiger Neun-Profil-G1–G9-/Readiness-B-Nachweis.
 
 - [CR-20261001-pr370-refresh-relevance](CR-20261001-pr370-refresh-relevance.de.md)

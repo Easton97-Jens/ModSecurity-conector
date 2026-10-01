@@ -13,7 +13,9 @@ reports without an explicit repository-policy decision or user decision.
 - [CR-20261001-pr370-apache-rebuild-readiness](CR-20261001-pr370-apache-rebuild-readiness.md)
   | [Deutsch](CR-20261001-pr370-apache-rebuild-readiness.de.md) — requested
   PR #370 merge-preparation follow-up: isolated Apache repeated-build/retry
-  staging and fail-fast two-build CI regression coverage. No new NGINX work,
+  staging, fail-fast two-build CI regression coverage, and pinned HTTPD source
+  recovery. Includes the explicitly authorized verified Framework PR #133
+  dependency update and its exact SHA projections. No new NGINX work,
   merge, or complete nine-profile G1–G9/readiness-B claim.
 
 - [CR-20261001-pr370-refresh-relevance](CR-20261001-pr370-refresh-relevance.md)

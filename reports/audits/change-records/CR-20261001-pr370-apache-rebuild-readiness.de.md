@@ -28,6 +28,14 @@ Build. Das offizielle Archiv entsprach der geprüften gepinnten SHA-256.
 Eine zweite gezielte Parent-Korrektur stellt diese Quelle ohne Framework-Pin-
 Änderung oder Abschwächung der Quellverifikation wieder her.
 
+Die spätere Benutzerfreigabe erlaubt einen separaten Framework-Fix/PR und die
+Einbindung seines geprüften veröffentlichten Commits. Framework PR
+[#133](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/133)
+korrigiert den zweiten Downloader, der das Parent-geprüfte Archiv verwarf und
+den nicht verfügbaren Endpunkt erneut abfragte. Dieser Parent-Schritt erhöht
+ausschließlich den Framework-Gitlink und seine exakten CI-SHA-Projektionen;
+Upstream-Komponenten-Pins und MRTS bleiben unverändert.
+
 ## Akzeptanzkriterien
 
 - Wiederholte Builds und Wiederanlauf nach APXS-Fehler funktionieren unter derselben externen Root.
@@ -39,8 +47,10 @@ Eine zweite gezielte Parent-Korrektur stellt diese Quelle ohne Framework-Pin-
   bei typisiertem HTTP 404 mit identischem Dateinamen/Version und geprüftem literalem Hash nutzen.
 - EN/DE-Dokumentation und Traceability bleiben gleichwertig. Delivery erfordert
   frische Current-Head-CI und Sonar einschließlich 0.0% New-Code-Duplikation.
-- Keine neuen NGINX-Änderungen/-Läufe, Framework-/MRTS-Source- oder Gitlink-Änderungen,
-  abgeschwächten Controls, direkten `master`-Writes, Merge oder Neun-Profil-B-Hochstufung.
+- Framework-Delivery erfolgt separat und geprüft vor dem autorisierten Parent-
+  Pointer-Update. Exakte Workflow-/Test-SHA-Verbraucher folgen dem veröffentlichten Commit.
+- Keine neue NGINX-Implementierung oder manuell gestarteten NGINX-Läufe, MRTS-
+  Änderungen, abgeschwächten Controls, direkten `master`-Writes, Merge oder Neun-Profil-B-Hochstufung.
 
 ## Implementierungsentscheidung und Begründung
 
@@ -63,6 +73,17 @@ Cache-Identität bleiben erhalten; das Komponenten-JSON erfasst die tatsächlich
 `download_url`. Ein geprüfter Cache-Hit verwendet leere `download_url` und
 `download_status=cached`, statt ursprüngliche Fetch-Provenienz zu erfinden.
 
+Der Framework-Vertrag wird von
+`9181dc77dfb0685d87fa109e6800dc6052d77cc9` auf den remote verfügbaren geprüften
+`a35ac6d02a4e2e7a94ec7679e4e94877cc0126f9` erhöht. Die Framework-eigene Änderung
+prüft sichere reguläre HTTPD-Cache-Bytes erneut, stellt ausschließlich bei
+direktem HTTP 404/Curl 22/null Redirects wieder her, erhält die kanonische
+Metadatenvalidierung und extrahiert eine private erneut gehashte Kopie.
+Gemeinsamer Downloader, APR-util-Controls, Upstream-Pins und MRTS-Gitlink bleiben
+unverändert. Der native Parent-Synchronisierer projiziert exakt vier Workflow-
+SHA-Literale und eine Test-Fixture; dynamische Identitäten und geschützte
+NGINX-Projektionen bleiben erhalten.
+
 ## Geänderte Dateien
 
 - `connectors/apache/build/apxs-wrapper.in`
@@ -71,6 +92,9 @@ Cache-Identität bleiben erhalten; das Komponenten-JSON erfasst die tatsächlich
 - `ci/provisioning/components/prepare-runtime-components.py`
 - `ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh`
 - `.github/workflows/test-apache.yml`
+- `modules/ModSecurity-test-Framework` (nur Gitlink; separat gelieferte Source)
+- `.github/workflows/test-connectors-with-crs-no-mrts.yml`
+- `tests/test_ci_security_workflows.py` (exakte Framework-SHA-Fixture)
 - `connectors/apache/README.md` und `connectors/apache/README.de.md`
 - Dieses Change-Record-Paar und `reports/audits/change-records/README.md` /
   `reports/audits/change-records/README.de.md`
@@ -122,6 +146,26 @@ und temporäre Dateien nutzten die externe Task-Run-Root; kein Paket wurde insta
   mit demselben Hash vor erfolgreicher Tar-Inspektion. Nur Quellvorbereitung
   geprüft; daraus folgt keine zusätzliche Host-Runtime-Aussage.
 
+Framework-Kandidatendaten wurden unter dem externen kontrollierten temporären
+Root materialisiert und an den veröffentlichten Commit gebunden: Git-Blob-
+Identität und `git hash-object` der kopierten Daten sind jeweils
+`e206cb6595c08aa1a13781d47e86a981ce96d1e5`. Über RTK und Parent-eigenes
+Python3.14.7 bestanden `ci/tools/sync-framework-component-versions.py --validate`,
+dann `--sync` und `--check` mit
+`--framework-sha a35ac6d02a4e2e7a94ec7679e4e94877cc0126f9`. Nur Workflow-/Test-
+SHA-Projektionen änderten sich; der finale Check listet keine Abweichungen.
+`ci/tools/verify-framework-candidate-contract.py` bestand vor und nach Projektion
+mit dem jeweils erwarteten Parent-SHA. Dies sind statische Kompatibilitätsprüfungen,
+keine NGINX-Ausführung oder Runtime-Nachweise.
+
+Der native Wiederholungslauf `make check-ci-security-contract` mit dem vorhandenen
+Parent-Python und externem `BUILD_ROOT` als Umgebungsvariable bestand: 170 Tests,
+fünf ausdrückliche Skips mangels Namespace-/Identity-Integrationsfähigkeiten sowie
+actionlint-/zizmor-/gitleaks-Lockvalidierung. Der erste Versuch verwendete ein
+Make-Kommandozeilen-`BUILD_ROOT`, das über `MAKEFLAGS` vererbt wurde und die
+Nested-Make-Prioritäts-Fixture ungültig machte; dies wurde unabhängig reproduziert.
+Kein Test oder Runtime-Helfer wurde für das erfolgreiche Ergebnis geändert.
+
 ## Security-Auswirkung
 
 Build-Output-Isolation bleibt erhalten. Vorhandene Registry-Quell-/Artefakt-Symlinks
@@ -166,10 +210,29 @@ Ziffernklassen. Die letzte gezielte Korrektur teilt ein kompiliertes Lowercase-
 Digestmuster und nutzt `\d` mit `re.ASCII`; der ursprüngliche ASCII-only-URL-
 Vertrag bleibt erhalten. Die bestehende Regression prüft die Ablehnung von
 Unicode-Ziffern-URLs. Keine NGINX-Funktion und kein NGINX-Quellvertrag wird geändert.
-Nach dieser Korrektur bestanden erneut die fokussierten105 Tests sowie alle
+Nach dieser Korrektur bestanden erneut die fokussierten 105 Tests sowie alle
 sieben Tests aus `tests.test_apr_util_static_contract`, Bilingual-/Doc-Links,
 Change-Record-Struktur und Diff-Whitespace. Das unabhängige Review bestätigte
 äquivalentes Regex-Matching; Published-Head-Sonar/CI benötigen frische Rückprüfung.
+
+Am Parent-Head `221e1068ecde20ec04355b8009aabcb0302c4cbb` bestand der Apache-
+Bootstrap, aber die Apache-CRS-Zelle scheiterte mit `missing_local_httpd_build`
+und das Aggregat fail-closed; die vier anderen Zellen bestanden. Ein direkter
+Reproducer des unveränderten Framework-Helfers lieferte HTTP 404/Exit 77 nach
+Verwerfen seiner task-eigenen geprüften Stage-Kopie. Das Originalarchiv blieb
+erhalten.
+
+Die separat gelieferte Framework-Abhängigkeit an `a35ac6d0` hat 13 erfolgreiche
+Exact-Head-Checks, drei erwartete Event-Skips und keine ausstehenden/fehlgeschlagenen
+Checks, einschließlich beider vollständiger Hosted-Lint-Läufe und CodeQL.
+Sonar-Analyse `2026-10-01T17:39:04+0000` gehört exakt zu diesem Framework-Head:
+Gate OK, neue Duplikation 0.0%, duplizierte Zeilen/Blöcke null, offene/bestätigte
+Issues null und ausstehende Hotspots null. Framework-eigene 18 HTTPD-, 13 APR-util-
+und 20 Downloader-Regressionen bestanden unabhängig, und sein echter
+HTTPD2.4.68-/APXS-Diagnosebuild bestand ohne Hoststart. Dies sind externe
+Abhängigkeitsfakten, keine Parent-Host-Runtime-Ergebnisse. Die neue Parent-/
+Framework-Kombination benötigt nach Veröffentlichung frische Parent-CI, Sonar
+und Runtime-Receipts.
 
 ## Bekannte Einschränkungen
 
@@ -192,7 +255,10 @@ begrenzten Build-Fix noch durch grüne Selected-Cell-CI ersetzt.
 ## Nicht ausgeführte Prüfungen mit Begründung
 
 Keine neuen dedizierten NGINX-Läufe, vollständige Neun-Profil-G1–G9-Kampagne,
-Last-/Produktionsfreigabe, Framework-/MRTS-Implementierung oder Merge durchgeführt.
+Last-/Produktionsfreigabe, MRTS-Implementierung oder Merge durchgeführt.
+Framework-Implementierung wurde ausdrücklich autorisiert, im eigenen PR #133
+geliefert und geprüft; dieser Parent-Commit enthält nur Gitlink und Projektionen,
+keine Framework-Source-Dateien.
 Fehlende vollständige Host-Voraussetzungen und profilspezifische Abnahmebelege
 bleiben Lücken, keine Waiver. Current-Head-Hosted-Verifikation erfolgt nach
 Veröffentlichung und wird getrennt in PR #370 berichtet.

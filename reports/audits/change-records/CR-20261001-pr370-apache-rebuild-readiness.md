@@ -26,6 +26,14 @@ endpoint (HTTP 404), before the Apache connector build. The official archive
 matched the reviewed pinned SHA-256. A second focused Parent correction restores
 that source without changing Framework pins or weakening source verification.
 
+The subsequent user authorization permits a separate Framework fix/PR and
+integration of its verified published commit. Framework PR
+[#133](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/133)
+repairs the second downloader that discarded the Parent-verified archive and
+retried the unavailable endpoint. This Parent increment advances only the
+Framework gitlink and its exact CI SHA projections; upstream component pins
+and MRTS remain unchanged.
+
 ## Acceptance criteria
 
 - Repeated builds and retry after APXS failure work under the same external root.
@@ -37,8 +45,10 @@ that source without changing Framework pins or weakening source verification.
   on typed HTTP 404, with identical filename/version and reviewed literal hash.
 - EN/DE documentation and traceability remain equivalent. Delivery requires
   fresh current-head CI and Sonar, including 0.0% new-code duplication.
-- No new NGINX changes/runs, Framework/MRTS source or Gitlink changes, weakened
-  controls, direct `master` writes, merge, or nine-profile B promotion.
+- Framework delivery is separate and verified before the authorized Parent
+  pointer update. Exact workflow/test SHA consumers follow the published commit.
+- No new NGINX implementation or manually initiated NGINX runs, MRTS changes,
+  weakened controls, direct `master` writes, merge, or nine-profile B promotion.
 
 ## Implementation decision and rationale
 
@@ -59,6 +69,16 @@ Keep the canonical configured URL/cache identity; the component JSON records
 the actual `download_url`. A verified cache hit uses empty `download_url` and
 `download_status=cached`, rather than inventing original-fetch provenance.
 
+The Framework dependency advances from
+`9181dc77dfb0685d87fa109e6800dc6052d77cc9` to the remotely available verified
+`a35ac6d02a4e2e7a94ec7679e4e94877cc0126f9`. The Framework-owned change rechecks
+safe regular HTTPD cache bytes, recovers only on direct HTTP 404/curl 22/zero
+redirects, retains canonical metadata validation, and extracts a private
+rehashed copy. Its shared downloader, APR-util controls, upstream pins and MRTS
+gitlink are unchanged. The native Parent synchronizer projects exactly four
+workflow SHA literals and one test fixture; dynamic identities and protected
+NGINX projections are preserved.
+
 ## Changed files
 
 - `connectors/apache/build/apxs-wrapper.in`
@@ -67,6 +87,9 @@ the actual `download_url`. A verified cache hit uses empty `download_url` and
 - `ci/provisioning/components/prepare-runtime-components.py`
 - `ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh`
 - `.github/workflows/test-apache.yml`
+- `modules/ModSecurity-test-Framework` (gitlink only; separately delivered source)
+- `.github/workflows/test-connectors-with-crs-no-mrts.yml`
+- `tests/test_ci_security_workflows.py` (exact Framework SHA fixture)
 - `connectors/apache/README.md` and `connectors/apache/README.de.md`
 - This Change Record pair and `reports/audits/change-records/README.md` /
   `reports/audits/change-records/README.de.md`
@@ -117,6 +140,23 @@ and temporary files used the external task run root; no package was installed.
   call through RTK/CPython 3.14.7 passed the primary-404/official-archive route,
   matching that same hash before successful tar inspection. Only source
   preparation was tested; no additional host-runtime claim follows from it.
+- Framework candidate data was materialized under the external controlled
+  temporary root and bound to the published commit: both Git blob identity and
+  copied-data `git hash-object` equal `e206cb6595c08aa1a13781d47e86a981ce96d1e5`.
+  Through RTK and the Parent-owned Python3.14.7 environment,
+  `ci/tools/sync-framework-component-versions.py --validate`, then `--sync` and
+  `--check` with `--framework-sha a35ac6d02a4e2e7a94ec7679e4e94877cc0126f9`
+  passed. Only workflow/test SHA projections changed; the final check lists
+  no differences. `ci/tools/verify-framework-candidate-contract.py` passed
+  before and after projection with the corresponding expected Parent SHA.
+  These are static compatibility checks, not NGINX execution or runtime proof.
+- The native `make check-ci-security-contract` rerun with the existing Parent
+  Python and external `BUILD_ROOT` supplied as an environment variable passed:
+  170 tests, five explicit unavailable namespace/identity integration skips,
+  and actionlint/zizmor/gitleaks lock validation. The first attempt used a Make
+  command-line `BUILD_ROOT` override, which inherited through `MAKEFLAGS` and
+  invalidated the nested-Make precedence fixture; this was independently
+  reproduced. No test or runtime helper was changed to obtain the pass.
 
 ## Security impact
 
@@ -160,10 +200,27 @@ digit classes. The final focused correction shares a compiled lowercase digest
 pattern and uses `\d` with `re.ASCII`, retaining the original ASCII-only URL
 contract. Unicode-digit URL rejection is included in the existing regression.
 No NGINX function or source contract is changed by this correction.
-After that correction, the focused105-test suite passed again, as did all
+After that correction, the focused 105-test suite passed again, as did all
 seven `tests.test_apr_util_static_contract` tests, bilingual/docs links,
 Change Record structure and diff whitespace. Independent review confirmed
 equivalent regex matching; published-head Sonar/CI still require fresh readback.
+
+At Parent head `221e1068ecde20ec04355b8009aabcb0302c4cbb`, Apache bootstrap
+passed but the Apache CRS cell failed with `missing_local_httpd_build` and the
+aggregate failed closed; the other four cells passed. A direct unchanged
+Framework-helper reproducer returned HTTP 404/exit 77 after discarding its
+task-owned verified staged copy. The original archive remained retained.
+
+The separately delivered Framework dependency at `a35ac6d0` has 13 successful
+exact-head checks, three expected event skips and no pending/failing checks,
+including both full hosted lint runs and CodeQL. Sonar analysis
+`2026-10-01T17:39:04+0000` binds to that exact Framework head: gate OK, new
+duplication 0.0%, duplicated lines/blocks zero, open/confirmed issues zero and
+pending hotspots zero. Framework-owned 18 HTTPD, 13 APR-util and 20 downloader
+regressions passed independently, and its real HTTPD2.4.68/APXS diagnostic build
+passed without starting a host. These are external dependency facts, not
+Parent host-runtime results. The new Parent/Framework combination requires
+fresh Parent CI, Sonar and runtime receipts after publication.
 
 ## Known limitations
 
@@ -185,7 +242,10 @@ acceptance cannot be replaced by this bounded build fix or green selected-cell C
 ## Checks not run and rationale
 
 No new dedicated NGINX runs, full nine-profile G1–G9 campaign, load/production
-approval, Framework/MRTS implementation, or merge was performed. Missing full
+approval, MRTS implementation, or merge was performed. Framework implementation
+was explicitly authorized, delivered and verified in its own PR #133; this
+Parent commit includes only the gitlink and its projections, not Framework
+source files. Missing full
 host prerequisites and profile-specific acceptance evidence are retained as
 gaps, not waived. Current-head hosted verification occurs after publication
 and is reported separately in PR #370.
