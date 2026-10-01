@@ -116,7 +116,11 @@ func maxPayloadForOpcode(op byte) int {
 	return maxPayload
 }
 
-func dial(path string, timeout time.Duration) (*client, error) {
+func dialWithExpectedPeer(path string, timeout time.Duration, expectedUID, expectedGID int) (*client, error) {
+	if !validExpectedResponseCompanionPeerID(expectedUID) ||
+		!validExpectedResponseCompanionPeerID(expectedGID) {
+		return nil, fmt.Errorf("response observer: expected peer UID and GID must be valid Linux IDs")
+	}
 	if strings.TrimSpace(path) == "" || timeout <= 0 {
 		return nil, fmt.Errorf("response observer: socket path and positive timeout are required")
 	}
@@ -124,6 +128,10 @@ func dial(path string, timeout time.Duration) (*client, error) {
 	conn, err := dialer.Dial("unix", path)
 	if err != nil {
 		return nil, fmt.Errorf("response observer: dial private socket: %w", err)
+	}
+	if err := VerifyPeerCredentials(conn, expectedUID, expectedGID); err != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("response observer: authenticate private socket peer: %w", err)
 	}
 	return &client{conn: conn, timeout: timeout}, nil
 }

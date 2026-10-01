@@ -179,6 +179,19 @@ P3 redirect, and P4 post-commit safe/log-only behavior. It remains
 non-promoted until the canonical collector and capability review accept the
 raw host evidence.
 
+## Response companion peer identity
+
+The separate response-observer executable authenticates the connected
+response-companion UDS server with Linux `SO_PEERCRED` before sending
+`CLAIM`. Its `--expected-companion-uid` and `--expected-companion-gid`
+flags default to the observer's effective UID and GID. Set both flags when
+the companion uses a different identity, including an explicit value of
+`0`. A missing or mismatched peer credential fails closed; non-Linux
+platforms have no credential fallback. Keep the companion socket in a
+private directory whose full ancestor chain resists cross-UID replacement.
+Matching Unix IDs are one trust domain: `SO_PEERCRED` does not attest binary
+integrity, security labels, or user-namespace mapping.
+
 ## Remaining promotion boundary
 
 The service does not claim a deterministic post-commit reset or a client-byte

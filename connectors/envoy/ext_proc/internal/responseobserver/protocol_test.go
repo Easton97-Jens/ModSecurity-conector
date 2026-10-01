@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -32,6 +33,15 @@ func testSocketDir(t *testing.T) string {
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	return dir
+}
+
+func newProtocolTestClient(t *testing.T, path string) *client {
+	t.Helper()
+	conn, err := net.DialTimeout("unix", path, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &client{conn: conn, timeout: time.Second}
 }
 
 func writeResultFrame(w io.Writer, op, code, decision byte) error {
@@ -97,10 +107,7 @@ func TestClientFramesBoundedOrderedOperations(t *testing.T) {
 			}
 		}
 	}()
-	c, err := dial(path, time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
+	c := newProtocolTestClient(t, path)
 	defer c.close()
 	handle := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	if _, err = c.claim(handle); err != nil {
@@ -343,10 +350,7 @@ func TestPrecommitRecordsFailClosedFallbackOutcome(t *testing.T) {
 			}
 		}
 	}()
-	c, err := dial(path, time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
+	c := newProtocolTestClient(t, path)
 	service, err := New(Config{SocketPath: path})
 	if err != nil {
 		t.Fatal(err)
@@ -534,6 +538,9 @@ func TestProcessCapacityIsGlobalAcrossGRPCTransports(t *testing.T) {
 
 func runProcessOutcomeOrderingCase(t *testing.T, failSend bool, wantOperationCount int) (error, []byte) {
 	t.Helper()
+	if runtime.GOOS != "linux" {
+		t.Skip("response companion UDS peer authentication requires Linux SO_PEERCRED")
+	}
 	dir := testSocketDir(t)
 	path := filepath.Join(dir, "observer.sock")
 	listener, err := net.Listen("unix", path)
@@ -868,10 +875,7 @@ func TestReplayResultIsNotAccepted(t *testing.T) {
 		_, _ = conn.Write(oh[:])
 		_, _ = conn.Write(out)
 	}()
-	c, err := dial(path, time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
+	c := newProtocolTestClient(t, path)
 	defer c.close()
 	if r, err := c.claim("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"); err != nil || r.code == 0 {
 		t.Fatalf("replayed handle was accepted: result=%+v err=%v", r, err)

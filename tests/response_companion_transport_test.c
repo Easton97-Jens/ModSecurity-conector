@@ -1641,15 +1641,21 @@ static void run_transport_startup_helper_contract_test(void)
     msconnector_runtime_response_companion_registry registry;
     msconnector_response_companion_transport transport;
     msconnector_response_companion_transport failed_transport;
+    msconnector_response_companion_transport unsafe_ancestor_transport;
     msconnector_error error;
     char socket_directory[TEST_PATH_SIZE];
     char socket_path[MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_SOCKET_SIZE];
     char blocked_directory[TEST_PATH_SIZE];
     char blocked_socket_path[MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_SOCKET_SIZE];
+    char unsafe_ancestor[TEST_PATH_SIZE];
+    char unsafe_parent[TEST_PATH_SIZE];
+    char unsafe_socket_path[MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_SOCKET_SIZE];
     int initialized = 0;
     int ready = 0;
     int failed_initialized = 0;
     int failed_ready = 0;
+    int unsafe_initialized = 0;
+    int unsafe_ready = 0;
     int inconsistent_initialized = 0;
     int inconsistent_ready = 1;
     int listener_fd;
@@ -1658,6 +1664,7 @@ static void run_transport_startup_helper_contract_test(void)
 
     memset(&transport, 0, sizeof(transport));
     memset(&failed_transport, 0, sizeof(failed_transport));
+    memset(&unsafe_ancestor_transport, 0, sizeof(unsafe_ancestor_transport));
     msconnector_runtime_response_companion_registry_init(&registry);
     assert(snprintf(socket_directory, sizeof(socket_directory), "%s/mrs.XXXXXX",
         test_private_directory()) > 0);
@@ -1726,6 +1733,29 @@ static void run_transport_startup_helper_contract_test(void)
     assert(failed_initialized && !failed_ready);
     assert(msconnector_response_companion_transport_stop(&failed_transport, &error));
     assert(unlink(blocked_socket_path) == 0);
+
+    /* A mode-0700 leaf must not excuse a writable, non-sticky ancestor. */
+    assert(snprintf(unsafe_ancestor, sizeof(unsafe_ancestor), "%s/mru.XXXXXX",
+        test_private_directory()) > 0);
+    assert(mkdtemp(unsafe_ancestor) != NULL);
+    assert(chmod(unsafe_ancestor, 0777) == 0);
+    assert(snprintf(unsafe_parent, sizeof(unsafe_parent), "%s/child",
+        unsafe_ancestor) > 0);
+    assert(mkdir(unsafe_parent, 0700) == 0);
+    assert(snprintf(unsafe_socket_path, sizeof(unsafe_socket_path), "%s/s",
+        unsafe_parent) > 0);
+    assert(!msconnector_response_companion_transport_ensure_started(
+        &unsafe_ancestor_transport, &registry, &unsafe_initialized, &unsafe_ready,
+        TEST_TRANSPORT_OPTIONS("startup-unsafe-ancestor", unsafe_socket_path,
+            32U, 64U, 8U, 100U), &error));
+    assert(error.code == MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE);
+    assert(unsafe_initialized && !unsafe_ready);
+    assert(msconnector_response_companion_transport_stop(
+        &unsafe_ancestor_transport, &error));
+    assert(chmod(unsafe_ancestor, 0700) == 0);
+    assert(rmdir(unsafe_parent) == 0);
+    assert(rmdir(unsafe_ancestor) == 0);
+
     assert(msconnector_runtime_response_companion_registry_shutdown(&registry, &error));
     assert(rmdir(socket_directory) == 0);
     assert(rmdir(blocked_directory) == 0);

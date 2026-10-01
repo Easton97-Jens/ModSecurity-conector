@@ -25,6 +25,17 @@ disruptive result after commitment is reported as log-only and cannot rewrite
 the response. The wrapper intentionally exposes neither `Unwrap` nor
 `Hijacker`.
 
+Before its first `CLAIM` frame, the observer authenticates the connected
+response-companion server with Linux `SO_PEERCRED`. By default it expects the
+observer's effective UID and GID. Deployments using a different companion
+identity must set both `expectedPeerUID` and `expectedPeerGID` in the plugin
+configuration; either value may explicitly be `0`. Missing credentials, an
+identity mismatch, or a non-Linux platform fails closed before the upstream
+handler runs. The companion's private socket directory and its full ancestor
+chain must also resist cross-UID replacement. Matching Unix IDs form one trust
+domain: `SO_PEERCRED` does not attest binary integrity, security labels, or
+user-namespace mapping.
+
 Run `../build/build-response-observer.sh test` from this repository to execute
 the local unit and vet checks. This is source-level evidence; it does not claim
 a Traefik host runtime.

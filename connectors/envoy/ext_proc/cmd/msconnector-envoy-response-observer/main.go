@@ -52,8 +52,15 @@ func main() {
 	listen := flag.String("listen", "/run/modsecurity/envoy-ext-proc-response-observer.sock", "private Envoy ext_proc UDS (parent must be mode 0700)")
 	socket := flag.String("socket", "/run/modsecurity/envoy-ext-authz-companion.sock", "private response companion UDS")
 	timeout := flag.Duration("timeout", 200*time.Millisecond, "per-operation UDS deadline")
+	expectedPeerUID := flag.Int("expected-companion-uid", os.Geteuid(), "expected response companion Linux UID")
+	expectedPeerGID := flag.Int("expected-companion-gid", os.Getegid(), "expected response companion Linux GID")
 	flag.Parse()
-	service, err := responseobserver.New(responseobserver.Config{SocketPath: *socket, Timeout: *timeout})
+	service, err := responseobserver.New(responseobserver.Config{
+		SocketPath:      *socket,
+		Timeout:         *timeout,
+		ExpectedPeerUID: expectedPeerUID,
+		ExpectedPeerGID: expectedPeerGID,
+	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "response observer: %v\n", err)
 		os.Exit(2)
@@ -264,7 +271,7 @@ func (listener *peerCredListener) Accept() (net.Conn, error) {
 		if err != nil {
 			return nil, err
 		}
-		if err := verifyPeerCredentials(conn, listener.uid, listener.gid); err != nil {
+		if err := responseobserver.VerifyPeerCredentials(conn, listener.uid, listener.gid); err != nil {
 			// Keep the local UDS trust boundary observable without disclosing a
 			// request, response, or the opaque correlation capability.
 			fmt.Fprintf(os.Stderr, "response observer rejected private UDS peer: %v\n", err)
