@@ -3,6 +3,7 @@
 #include "stock_sidecar.h"
 
 #include "msconnector_runtime.h"
+#include "msconnector/phase4_budget.h"
 #include "msconnector/decision_action.h"
 #include "msconnector/generic_mapper.h"
 #include "msconnector/late_intervention.h"
@@ -1463,7 +1464,10 @@ static int sidecar_exchange_response(sidecar_exchange_state *state) {
     }
     if (!sidecar_read_final_response_headers(state)) return 0;
     if (!state->payload.response_headers.no_body &&
-        state->payload.response_headers.content_length > state->response_limit) {
+        state->payload.response_headers.content_length >
+            msconnector_phase4_effective_body_limit(
+                msconnector_runtime_phase4_mode(state->dependencies.runtime),
+                state->response_limit)) {
         int status = msconnector_runtime_error_http_status(state->dependencies.runtime,
             MSCONNECTOR_ERROR_BODY_TOO_LARGE);
         int written;
@@ -1499,8 +1503,13 @@ static int sidecar_exchange_response(sidecar_exchange_state *state) {
 
         state->decision.late_intervention = state->client_response_started != 0;
         if (phase4_mode == MSCONNECTOR_PHASE4_MODE_OFF) {
-            sidecar_record_action(state->transaction, &state->decision, &state->error);
-            return 1;
+            /* C07: OFF does not apply this late engine decision. Preserve the
+             * requested action, but record the unchanged host response. */
+            return msconnector_runtime_transaction_record_host_action(
+                state->transaction, &state->decision,
+                MSCONNECTOR_DECISION_ACTION_LOG_ONLY,
+                state->payload.response_headers.status_code, "log_only", 0,
+                &state->error);
         }
         action = sidecar_phase4_action(state->client_response_started, phase4_mode);
         if (action == MSCONNECTOR_LATE_INTERVENTION_ABORT_CONNECTION) {

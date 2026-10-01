@@ -282,7 +282,7 @@ static void test_escaped_invalid_client_address_is_written_and_chained(void) {
 
     assert_completed_denied_block(runtime, "post-escaped");
 
-    size = read_event_jsonl(event_path, contents, sizeof(contents));
+    (void)read_event_jsonl(event_path, contents, sizeof(contents));
     assert(strstr(contents, "MSCONN_EVENT_REQUEST_BLOCKED") != NULL);
     assert(strstr(contents, "\"transaction_id\":\"post-escaped\"") != NULL);
     assert(newline_count(contents) == 2U);
@@ -336,7 +336,7 @@ static void test_oversized_escaped_client_address_is_not_written_or_chained(void
 
     assert_completed_denied_block(runtime, "post-oversized");
 
-    size = read_event_jsonl(event_path, contents, sizeof(contents));
+    (void)read_event_jsonl(event_path, contents, sizeof(contents));
     assert(strstr(contents, "\"transaction_id\":\"post-oversized\"") != NULL);
     assert(event_json_unsigned_field(contents, "\"previous_event_hash\":") == 0U);
     assert(newline_count(contents) == 1U);

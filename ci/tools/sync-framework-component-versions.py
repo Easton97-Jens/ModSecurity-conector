@@ -8,9 +8,11 @@ can write only the explicit Parent target registry. A separately validated
 resolver SHA may additionally project to the closed CRS/no-MRTS static
 Framework-identity targets; it is never read from ``common.sh``.
 
-NGINX is intentionally outside this generic synchronizer. Its privileged
-release tuple remains owned by the dedicated root-broker workflow and must be
-updated through an independently reviewed NGINX change.
+The official ModSecurity v3 provenance tuple is a bounded source-data
+exception: only its exact repository, stable v3 release tag, and lowercase
+commit may project to the compiler-guide sources. NGINX remains outside this
+generic synchronizer; its privileged release tuple stays owned by the dedicated
+root-broker workflow and requires an independently reviewed NGINX change.
 """
 from __future__ import annotations
 
@@ -38,6 +40,7 @@ SERIES = re.compile(r"^(?a:\d+)\.(?a:\d+)$")
 OFFICIAL_LIGHTTPD_RELEASE_ROOT_URL = "https://download.lighttpd.net/lighttpd"
 OFFICIAL_HAPROXY_RELEASE_ROOT_URL = "https://www.haproxy.org/download"
 OFFICIAL_CRS_REPOSITORY = "https://github.com/coreruleset/coreruleset.git"
+OFFICIAL_MODSECURITY_REPOSITORY = "https://github.com/owasp-modsecurity/ModSecurity.git"
 ENVOY_PROJECTION = "Envoy projection"
 LIGHTTPD_PROJECTION = "Lighttpd projection"
 LIGHTTPD_RESOLUTION_DEPENDENCY = "Lighttpd resolution dependency"
@@ -48,6 +51,7 @@ HAPROXY_HTX_TUPLE = "HAProxy HTX tuple"
 HAPROXY_HTX_PROJECTION = "HAProxy HTX projection"
 HAPROXY_HTX_RESOLUTION_DEPENDENCY = "HAProxy HTX resolution dependency"
 CRS_PROJECTION = "CRS Parent projections"
+MODSECURITY_V3_PROJECTION = "ModSecurity v3 documentation projection"
 
 
 class SyncError(ValueError):
@@ -264,6 +268,27 @@ SOURCE_REGISTRY = (
         lambda value: bool(re.fullmatch(r"v(?a:\d+)\.(?a:\d+)\.(?a:\d+)", value)),
         CRS_PROJECTION,
     ),
+    SourceField(
+        "MODSECURITY_V3_APPROVED_REPO_URL",
+        True,
+        LITERAL,
+        _fixed_value(OFFICIAL_MODSECURITY_REPOSITORY),
+        MODSECURITY_V3_PROJECTION,
+    ),
+    SourceField(
+        "MODSECURITY_V3_APPROVED_COMMIT",
+        True,
+        LITERAL,
+        lambda value: bool(LOWER_HEX40.fullmatch(value)),
+        MODSECURITY_V3_PROJECTION,
+    ),
+    SourceField(
+        "MODSECURITY_V3_RELEASE_TAG",
+        True,
+        LITERAL,
+        lambda value: bool(re.fullmatch(r"v3\.(?a:\d+)\.(?a:\d+)", value)),
+        MODSECURITY_V3_PROJECTION,
+    ),
 )
 SOURCE_FIELDS = {field.name: field for field in SOURCE_REGISTRY}
 if len(SOURCE_FIELDS) != len(SOURCE_REGISTRY):
@@ -304,6 +329,15 @@ TARGET_REGISTRY = (
     TargetSpec(
         "ci/provisioning/components/prepare-runtime-components.py",
         (("DEFAULT_HAPROXY_VERSION", "HAPROXY_VERSION"),),
+        "python",
+    ),
+    TargetSpec(
+        "tests/test_prepare_runtime_components.py",
+        (
+            ("TEST_HAPROXY_LOCKED_VERSION", "HAPROXY_VERSION"),
+            ("TEST_HAPROXY_LOCKED_SOURCE_URL", "HAPROXY_SOURCE_URL"),
+            ("TEST_HAPROXY_LOCKED_SHA256", "HAPROXY_SHA256"),
+        ),
         "python",
     ),
     TargetSpec(
@@ -353,6 +387,22 @@ TARGET_REGISTRY = (
             ("sha256", "HAPROXY_HTX_SHA256"),
         ),
         "haproxy-contract",
+    ),
+    TargetSpec(
+        "scripts/generate_compiler_guides.py",
+        (
+            ("MODSECURITY_REF_COMMAND", "MODSECURITY_REF_COMMAND"),
+            ("MODSECURITY_COMMIT_COMMAND", "MODSECURITY_COMMIT_COMMAND"),
+        ),
+        "python",
+    ),
+    TargetSpec(
+        "tests/test_compiler_guides.py",
+        (
+            ("MODSECURITY_REF_COMMAND", "MODSECURITY_REF_COMMAND"),
+            ("MODSECURITY_COMMIT_COMMAND", "MODSECURITY_COMMIT_COMMAND"),
+        ),
+        "python",
     ),
 )
 
@@ -1099,6 +1149,12 @@ def _render_targets(
 ) -> list[RenderedTarget]:
     derived = {
         "ENVOY_IMAGE": f"envoyproxy/envoy:v{values['ENVOY_VERSION']}",
+        "MODSECURITY_REF_COMMAND": (
+            f'MODSECURITY_REF="{values["MODSECURITY_V3_RELEASE_TAG"]}"'
+        ),
+        "MODSECURITY_COMMIT_COMMAND": (
+            f'MODSECURITY_COMMIT="{values["MODSECURITY_V3_APPROVED_COMMIT"]}"'
+        ),
     }
     rendered: list[RenderedTarget] = []
 

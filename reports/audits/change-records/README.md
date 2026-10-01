@@ -10,6 +10,12 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20261001-pr370-refresh-relevance](CR-20261001-pr370-refresh-relevance.md)
+  | [Deutsch](CR-20261001-pr370-refresh-relevance.de.md) — the requested PR #370
+  relevance assessment and normal current-master integration under the current
+  traceability policy. Fresh local evidence; exact-head delivery status in the
+  PR. No merge or all-ten-profile readiness-B promotion.
+
 - [CR-20260919-submodule-updater-workflows-capability](CR-20260919-submodule-updater-workflows-capability.md)
   | [Deutsch](CR-20260919-submodule-updater-workflows-capability.de.md) — the
   current user requested this Parent-only correction for GitHub Actions run

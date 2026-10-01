@@ -79,7 +79,7 @@ class NginxBodyBufferFixtureContractTest(unittest.TestCase):
     def test_runner_rebuilds_exact_head_modules_and_checks_forwarding(self) -> None:
         source = RUNNER.read_text(encoding="utf-8")
         ast.parse(source, filename=str(RUNNER))
-        self.assertEqual(RUNNER_MODULE.EXPECTED_NGINX_ROOT, "nginx-1.31.5")
+        self.assertEqual(RUNNER_MODULE.EXPECTED_NGINX_ROOT, "nginx-1.31.6")
         self.assertEqual(
             RUNNER_MODULE.EXPECTED_NGINX_VERSION,
             RUNNER_MODULE.EXPECTED_NGINX_ROOT.removeprefix("nginx-"),

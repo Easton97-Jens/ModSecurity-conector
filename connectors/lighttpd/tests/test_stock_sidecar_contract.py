@@ -956,7 +956,10 @@ class StockSidecarSourceContractTest(unittest.TestCase):
         self.assertNotIn("out->status_code == 304", field_parser)
         self.assertIn(
             "if (!state->payload.response_headers.no_body &&\n"
-            "        state->payload.response_headers.content_length > state->response_limit)",
+            "        state->payload.response_headers.content_length >\n"
+            "            msconnector_phase4_effective_body_limit(\n"
+            "                msconnector_runtime_phase4_mode(state->dependencies.runtime),\n"
+            "                state->response_limit))",
             response_exchange,
         )
         self.assertIn(

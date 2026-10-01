@@ -63,7 +63,8 @@ typedef struct parsed_http_request {
     char *method;
     char *uri;
     char *http_version;
-    char uri_override[AUTH_URI_SIZE];
+    /* B13: the accepted header-value limit excludes the terminating NUL. */
+    char uri_override[MSCONNECTOR_MAX_HEADER_VALUE_LENGTH + 1U];
     char hostname[AUTH_HOSTNAME_SIZE];
     char client_address[INET_ADDRSTRLEN];
     char server_address[INET_ADDRSTRLEN];
@@ -805,12 +806,20 @@ static const char *request_uri(
         const msconnector_header *header = msconnector_headers_find_first(
             request->headers, request->header_count,
             profile->original_uri_headers[index]);
-        if (header != NULL && header->value_size > 0U &&
-            copy_slice(header->value, header->value_size,
-                request->uri_override, sizeof(request->uri_override)) &&
-            request->uri_override[0] == '/') {
-            return request->uri_override;
+        if (header == NULL) {
+            continue;
         }
+        /* B13: a present authoritative field must never become a fallback
+         * to a different header or to the authorization endpoint itself. */
+        if (header->value == NULL || header->value_size == 0U ||
+            header->value_size > MSCONNECTOR_MAX_HEADER_VALUE_LENGTH ||
+            header->value[0] != '/' ||
+            memchr(header->value, '\0', header->value_size) != NULL ||
+            !copy_slice(header->value, header->value_size,
+                request->uri_override, sizeof(request->uri_override))) {
+            return NULL;
+        }
+        return request->uri_override;
     }
     return request->uri;
 }
@@ -1248,6 +1257,15 @@ static int handle_authorization_request(
     }
     source.method = parsed.method;
     source.uri = request_uri(&parsed, service->profile);
+    if (source.uri == NULL) {
+        response.status = 400;
+        response.decision_name = "invalid_request";
+        (void)send_response(
+            connection->socket_fd, &response, NULL, NULL,
+            service->connection_timeout_ms);
+        parsed_request_destroy(&parsed);
+        return 0;
+    }
     source.http_version = parsed.http_version;
     source.hostname = parsed.hostname;
     source.client.address = parsed.client_address;

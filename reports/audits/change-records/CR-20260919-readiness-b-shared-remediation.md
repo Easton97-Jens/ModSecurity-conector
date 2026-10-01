@@ -2,6 +2,10 @@
 
 **Language:** English | [Deutsch](CR-20260919-readiness-b-shared-remediation.de.md)
 
+For the 2026-10-01 current-master integration and renewed relevance/validation
+assessment, see [CR-20261001-pr370-refresh-relevance](CR-20261001-pr370-refresh-relevance.md).
+The evidence below is historical, not a successor-head acceptance claim.
+
 ## Identity
 
 | Field | Value |

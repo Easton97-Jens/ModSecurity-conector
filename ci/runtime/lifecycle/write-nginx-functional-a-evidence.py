@@ -25,7 +25,13 @@ from typing import Any
 
 MAX_SOURCE_BYTES = 1024 * 1024
 MAX_OUTPUT_BYTES = 16 * 1024
-EXPECTED_NGINX_VERSION = "1.31.5"
+EXPECTED_NGINX_VERSION = "1.31.6"
+# nginx -V adds these build-information lines after the exact version line.
+# Their content is hashed with the source, never copied into public evidence.
+NGINX_BUILD_METADATA = re.compile(
+    rb"(?:built by [\x20-\x7e]+|built with [\x20-\x7e]+"
+    rb"|TLS SNI support enabled|configure arguments:[\x20-\x7e]*)"
+)
 EXPECTED_URI = "/no-crs/response-body?<redacted>"
 QUERY_CANARY = b"nginx-functional-a-canary=must-redact"
 PHASE4_RULE_ID = "1100301"
@@ -249,6 +255,15 @@ def _mode_sources(functional_root: Path, mode: str) -> dict[str, Path]:
     }
 
 
+def _nginx_version_matches(data: bytes) -> bool:
+    """Accept the exact version line plus only ordinary nginx -V metadata."""
+    lines = data.splitlines()
+    expected = b"nginx version: nginx/" + EXPECTED_NGINX_VERSION.encode("ascii")
+    if not lines or lines[0] != expected:
+        return False
+    return all(NGINX_BUILD_METADATA.fullmatch(line) is not None for line in lines[1:])
+
+
 def _collect_mode(functional_root: Path, mode: str) -> dict[str, Any]:
     sources = {name: _read_regular(path, f"{mode} {name}") for name, path in _mode_sources(functional_root, mode).items()}
     phase4_records = _parse_phase4_jsonl(sources["phase4_jsonl"], mode)
@@ -259,7 +274,7 @@ def _collect_mode(functional_root: Path, mode: str) -> dict[str, Any]:
     callback_expected = mode == "on"
     if callback_observed is not callback_expected:
         raise EvidenceError(f"{mode} callback behavior is invalid")
-    if f"nginx/{EXPECTED_NGINX_VERSION}".encode("ascii") not in sources["nginx_version"]:
+    if not _nginx_version_matches(sources["nginx_version"]):
         raise EvidenceError(f"{mode} did not use NGINX {EXPECTED_NGINX_VERSION}")
     if sources["allow_status"].strip() != b"200":
         raise EvidenceError(f"{mode} allow control did not retain status 200")

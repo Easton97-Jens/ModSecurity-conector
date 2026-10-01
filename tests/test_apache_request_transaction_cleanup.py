@@ -233,7 +233,7 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
         bootstrap = AUTOTOOLS_BOOTSTRAP.read_text(encoding="utf-8")
 
         self.assertIn("HTTP_STATUS_FORMAT='%{http_code}'", bootstrap)
-        self.assertEqual(bootstrap.count('-w "$HTTP_STATUS_FORMAT"'), 7)
+        self.assertEqual(bootstrap.count('-w "$HTTP_STATUS_FORMAT"'), 9)
         self.assertNotIn("-w '%{http_code}'", bootstrap)
         self.assertIn("TXID_127_PATH=$(txid_path_for_length 127)", bootstrap)
         self.assertIn("TXID_128_PATH=$(txid_path_for_length 128)", bootstrap)
@@ -262,10 +262,7 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
             bootstrap,
         )
         self.assertIn('P2_HEADERS="$ROOT_LOG_DIR/p2-marker.headers"', bootstrap)
-        self.assertIn(
-            "p2_status=$(awk 'NR == 1 { print $2; exit }' \"$P2_HEADERS\")",
-            bootstrap,
-        )
+        self.assertIn("p2_status=$(curl", bootstrap)
         self.assertIn(
             'if grep -Fq \'no-crs-request-body-marker\' "$AUDIT_LOG"; then',
             bootstrap,
@@ -273,11 +270,8 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
         self.assertIn(
             'FOLLOWUP_HEADERS="$ROOT_LOG_DIR/p2-followup.headers"', bootstrap
         )
-        self.assertIn(
-            "followup_status=$(awk 'NR == 1 { print $2; exit }' "
-            '\"$FOLLOWUP_HEADERS\")',
-            bootstrap,
-        )
+        self.assertIn("followup_status=$(curl", bootstrap)
+        self.assertNotIn("NR == 1 { print $2; exit }", bootstrap)
         self.assertLess(
             bootstrap.index("p2_status="), bootstrap.index("followup_status=")
         )

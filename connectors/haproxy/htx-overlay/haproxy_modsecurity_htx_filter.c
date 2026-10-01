@@ -50,6 +50,7 @@
 #include "msconnector/config_parser.h"
 #include "msconnector/decision_action.h"
 #include "msconnector/late_intervention.h"
+#include "msconnector/phase4_budget.h"
 #include "msconnector/limits.h"
 
 #define HAPROXY_MODSECURITY_HTX_MAX_HEADERS MSCONNECTOR_MAX_HEADER_COUNT
@@ -1354,7 +1355,9 @@ static int haproxy_modsecurity_htx_filter_attach(struct stream *s, struct filter
         return -1;
     }
     ctx->request.body_limit = config->common_config.request_body_limit;
-    ctx->response.body_limit = config->common_config.response_body_limit;
+    ctx->response.body_limit = msconnector_phase4_effective_body_limit(
+        config->common_config.phase4_mode,
+        config->common_config.response_body_limit);
     ctx->companion.mode =
         haproxy_modsecurity_htx_companion_enabled(config);
     filter->ctx = ctx;

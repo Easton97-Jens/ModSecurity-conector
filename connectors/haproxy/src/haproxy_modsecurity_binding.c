@@ -29,6 +29,7 @@
 #include "msconnector/intervention.h"
 #include "msconnector/json_escape.h"
 #include "msconnector/late_intervention.h"
+#include "msconnector/phase4_budget.h"
 #include "msconnector/log_sanitize.h"
 #include "msconnector/redaction.h"
 #include "msconnector/resource_limits.h"
@@ -567,7 +568,9 @@ static haproxy_modsecurity_body_phase response_body_phase(
         4, &transaction->response_headers_processed, &transaction->response_body.processed,
         &transaction->response_body.started, &transaction->response_body.bytes_seen,
         &transaction->response_body.bytes_inspected,
-        transaction->engine->common_config.response_body_limit,
+        msconnector_phase4_effective_body_limit(
+            transaction->engine->common_config.phase4_mode,
+            transaction->engine->common_config.response_body_limit),
         "missing transaction or response body",
         "response headers must be processed before response body chunks",
         "response body append after end-of-stream",
@@ -1512,7 +1515,9 @@ int haproxy_modsecurity_transaction_process_response_headers(
     }
     if (msconnector_transaction_contract_record_response_metadata(
             &transaction->contract, status, 0, response->header_count, 0U,
-            transaction->engine->common_config.response_body_limit) !=
+            msconnector_phase4_effective_body_limit(
+                transaction->engine->common_config.phase4_mode,
+                transaction->engine->common_config.response_body_limit)) !=
             MSCONNECTOR_TRANSACTION_TRANSITION_OK ||
         msconnector_transaction_contract_complete_phase(&transaction->contract,
             MSCONNECTOR_TRANSACTION_PHASE_P3, 0U) !=

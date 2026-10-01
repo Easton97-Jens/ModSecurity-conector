@@ -2,6 +2,10 @@
 
 **Sprache:** [English](CR-20260919-readiness-b-shared-remediation.md) | Deutsch
 
+Für die Current-Master-Integration und erneute Relevanz-/Validierungsprüfung vom
+2026-10-01 siehe [CR-20261001-pr370-refresh-relevance](CR-20261001-pr370-refresh-relevance.de.md).
+Die folgende Evidenz ist historisch, keine Akzeptanzbehauptung für den Nachfolger-Head.
+
 ## Identität
 
 | Feld | Wert |

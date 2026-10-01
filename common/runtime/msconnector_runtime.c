@@ -1,3 +1,6 @@
+#if !defined(_WIN32) && !defined(_DEFAULT_SOURCE)
+#define _DEFAULT_SOURCE
+#endif
 #if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
 #define _POSIX_C_SOURCE 200809L
 #endif
@@ -9,6 +12,7 @@
 #include "modsecurity/transaction.h"
 
 #include "msconnector/body_policy.h"
+#include "msconnector/phase4_budget.h"
 #include "msconnector/block_statuses.h"
 #include "msconnector/config.h"
 #include "msconnector/config_parser.h"
@@ -66,6 +70,68 @@
 #define RUNTIME_EVENT_CLIENT_IP_SIZE 64U
 #define RUNTIME_EVENT_CONTENT_TYPE_SIZE 256U
 #define RUNTIME_INTEGRATION_MODE_SIZE 64U
+
+/*
+ * The service or trusted UID 0 must own every ancestor: a foreign directory
+ * owner can change permissions before replacing a child.  Shared UDS users
+ * also require sticky protection for the service-owned child.  Non-POSIX
+ * platforms have no equivalent ownership check and therefore fail closed.
+ */
+int msconnector_runtime_private_directory_ancestors_are_safe(const char *path)
+{
+#if defined(_WIN32)
+    (void)path;
+    return 0;
+#else
+    char *canonical_path;
+    char child_path[RUNTIME_PATH_SIZE];
+    char *separator;
+    struct stat child_stat;
+    struct stat parent_stat;
+    size_t path_size;
+
+    if (path == NULL || path[0] != '/') {
+        return 0;
+    }
+    path_size = strlen(path);
+    if (path_size == 0U || path_size >= sizeof(child_path)) {
+        return 0;
+    }
+    canonical_path = realpath(path, NULL);
+    if (canonical_path == NULL || strcmp(path, canonical_path) != 0) {
+        free(canonical_path);
+        return 0;
+    }
+    free(canonical_path);
+    memcpy(child_path, path, path_size + 1U);
+    if (lstat(child_path, &child_stat) != 0 || !S_ISDIR(child_stat.st_mode)) {
+        return 0;
+    }
+    while (strcmp(child_path, "/") != 0) {
+        separator = strrchr(child_path, '/');
+        if (separator == NULL) {
+            return 0;
+        }
+        if (separator == child_path) {
+            child_path[1] = '\0';
+        } else {
+            *separator = '\0';
+        }
+        if (lstat(child_path, &parent_stat) != 0 ||
+            !S_ISDIR(parent_stat.st_mode) ||
+            (parent_stat.st_uid != geteuid() && parent_stat.st_uid != 0)) {
+            return 0;
+        }
+        if ((parent_stat.st_mode & (S_IWGRP | S_IWOTH)) != 0 &&
+            ((parent_stat.st_mode & S_ISVTX) == 0 ||
+                child_stat.st_uid != geteuid())) {
+            return 0;
+        }
+        child_stat = parent_stat;
+    }
+    return 1;
+#endif
+}
 
 typedef struct msconnector_runtime_owned_config {
     char rules_inline[RUNTIME_INLINE_RULE_SIZE];
@@ -1770,10 +1836,19 @@ static int write_event_jsonl(
     msconnector_error *error) {
     msconnector_allocator allocator;
     char *json = NULL;
-    size_t json_size = runtime->limits.max_event_json_bytes + 2U;
+    size_t json_size;
     size_t written_size;
     int truncated = 0;
 
+    if (runtime == NULL || event == NULL || runtime->event_file == NULL) {
+        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+            "runtime, event and event file are required", "runtime");
+    }
+    if (runtime->limits.max_event_json_bytes > SIZE_MAX - 2U) {
+        return runtime_error(error, MSCONNECTOR_ERROR_EVENT_TOO_LARGE,
+            "event buffer size overflow", "runtime");
+    }
+    json_size = runtime->limits.max_event_json_bytes + 2U;
     msconnector_allocator_init(&allocator, json_size);
     if (!msconnector_alloc_checked(&allocator, json_size, (void **)&json)) {
         return runtime_error(error, MSCONNECTOR_ERROR_EVENT_TOO_LARGE,
@@ -1804,6 +1879,30 @@ static int write_event_jsonl(
             "event JSONL write failed", "runtime");
     }
     msconnector_free_checked(&allocator, (void **)&json, json_size);
+    return 1;
+}
+
+/* The caller holds the runtime operation lock. */
+static int emit_integrity_chained_event_locked(
+    msconnector_runtime_transaction *transaction,
+    msconnector_event *event,
+    const char *sequence_failure_message,
+    msconnector_error *error) {
+    msconnector_runtime *runtime = transaction->runtime;
+
+    if (msconnector_flow_guard_next_sequence(&transaction->flow,
+            &event->integrity.sequence) != MSCONNECTOR_FLOW_GUARD_OK) {
+        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+            sequence_failure_message, "runtime");
+    }
+    event->integrity.previous_hash = runtime->previous_event_hash;
+    event->integrity.event_hash = msconnector_integrity_event_hash(
+        event, event->integrity.previous_hash);
+    if (!write_event_jsonl(runtime, event, error)) {
+        transaction->event_write_failed = 1;
+        return 0;
+    }
+    runtime->previous_event_hash = event->integrity.event_hash;
     return 1;
 }
 
@@ -1847,21 +1946,8 @@ static int emit_decision_event(
             runtime->config.phase4_mode);
     }
     populate_event_host_action(&event, host_action);
-    if (msconnector_flow_guard_next_sequence(&transaction->flow,
-            &event.integrity.sequence) != MSCONNECTOR_FLOW_GUARD_OK) {
-        success = runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
-            "event sequence failed", "runtime");
-    } else {
-        event.integrity.previous_hash = runtime->previous_event_hash;
-        event.integrity.event_hash = msconnector_integrity_event_hash(
-            &event, event.integrity.previous_hash);
-        if (!write_event_jsonl(runtime, &event, error)) {
-            transaction->event_write_failed = 1;
-            success = 0;
-        } else {
-            runtime->previous_event_hash = event.integrity.event_hash;
-        }
-    }
+    success = emit_integrity_chained_event_locked(
+        transaction, &event, "event sequence failed", error);
     runtime_operation_unlock(runtime);
     return success;
 }
@@ -2005,21 +2091,10 @@ static int emit_contract_terminal_event(
     populate_event_response_state(&event, transaction);
 
     runtime_operation_lock(runtime);
-    if (msconnector_flow_guard_next_sequence(&transaction->flow,
-            &event.integrity.sequence) != MSCONNECTOR_FLOW_GUARD_OK) {
-        success = runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
-            "terminal event sequence failed", "runtime");
-    } else {
-        event.integrity.previous_hash = runtime->previous_event_hash;
-        event.integrity.event_hash = msconnector_integrity_event_hash(
-            &event, event.integrity.previous_hash);
-        if (!write_event_jsonl(runtime, &event, error)) {
-            transaction->event_write_failed = 1;
-            success = 0;
-        } else {
-            runtime->previous_event_hash = event.integrity.event_hash;
-            transaction->terminal_event_emitted = 1;
-        }
+    success = emit_integrity_chained_event_locked(
+        transaction, &event, "terminal event sequence failed", error);
+    if (success) {
+        transaction->terminal_event_emitted = 1;
     }
     runtime_operation_unlock(runtime);
     return success;
@@ -2564,7 +2639,9 @@ static int validate_and_record_response_headers(
             &transaction->contract, response->status, NULL,
             response->header_count,
             header_bytes(response->headers, response->header_count),
-            runtime->body_policy.response_body_limit) !=
+            msconnector_phase4_effective_body_limit(
+                runtime->config.phase4_mode,
+                runtime->body_policy.response_body_limit)) !=
             MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
         return contract_error(error, MSCONNECTOR_TRANSACTION_TRANSITION_INVALID,
             "response metadata violates the shared transaction contract");
@@ -2716,6 +2793,7 @@ static int append_response_body_chunk_internal(
     int companion) {
     const msconnector_runtime *runtime;
     size_t append_size;
+    msconnector_body_policy response_policy;
     if (error != NULL) {
         msconnector_error_init(error);
     }
@@ -2732,8 +2810,16 @@ static int append_response_body_chunk_internal(
     if (!validate_response_body_append(transaction, data, size, error, companion)) {
         return 0;
     }
-    if (!apply_body_limit_plan(&transaction->response_body, &runtime->body_policy,
-            runtime->body_policy.response_body_limit, size, &append_size, error,
+    response_policy = runtime->body_policy;
+    /* With no configured P4 budget, process_partial must not turn an integer
+     * overflow into a successful append. It remains unchanged in safe/strict. */
+    if (runtime->config.phase4_mode == MSCONNECTOR_PHASE4_MODE_OFF) {
+        response_policy.body_limit_action = MSCONNECTOR_BODY_LIMIT_ACTION_REJECT;
+    }
+    if (!apply_body_limit_plan(&transaction->response_body, &response_policy,
+            msconnector_phase4_effective_body_limit(
+                runtime->config.phase4_mode,
+                response_policy.response_body_limit), size, &append_size, error,
             "response body exceeds configured limit")) {
         (void)msconnector_transaction_contract_fail(&transaction->contract,
             MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, transaction_now_ms());

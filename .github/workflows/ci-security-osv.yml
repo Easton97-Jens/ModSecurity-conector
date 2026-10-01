@@ -7,8 +7,7 @@ on:
     - cron: '7 2 * * 2'
   workflow_dispatch:
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   pull-request-diff:
@@ -65,6 +64,8 @@ jobs:
           sarif_file: results.sarif
 
   scheduled-advisory:
+    permissions:
+      contents: read
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:

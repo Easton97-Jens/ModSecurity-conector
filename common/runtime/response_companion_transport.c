@@ -229,7 +229,7 @@ static int response_companion_private_parent_is_safe(const char *socket_path)
         (path_stat.st_mode & 0700U) != 0700U) {
         return 0;
     }
-    return 1;
+    return msconnector_runtime_private_directory_ancestors_are_safe(parent);
 }
 
 static int response_companion_set_nonblocking(int socket_fd)

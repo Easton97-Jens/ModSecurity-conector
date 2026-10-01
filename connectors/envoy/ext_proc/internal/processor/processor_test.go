@@ -24,6 +24,33 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
+func assertTerminalFailureAndRejectsFollowUp(t *testing.T, service *Service, wantedSubstring, failureDescription, timeoutMessage string) {
+	t.Helper()
+	select {
+	case fatal := <-service.FatalErrors():
+		if fatal == nil || !strings.Contains(fatal.Error(), wantedSubstring) {
+			t.Fatalf("FatalErrors() = %v, want %s", fatal, failureDescription)
+		}
+	case <-time.After(time.Second):
+		t.Fatal(timeoutMessage)
+	}
+	if followUpErr := service.Process(&fakeProcessStream{contextFactory: testStreamContext(context.Background())}); status.Code(followUpErr) != codes.Unavailable {
+		t.Fatalf("follow-up Process() code = %s, want Unavailable (err=%v)", status.Code(followUpErr), followUpErr)
+	}
+}
+
+func assertProcessResultCode(t *testing.T, processDone <-chan error, want codes.Code, wantDescription, timeoutMessage string) {
+	t.Helper()
+	select {
+	case err := <-processDone:
+		if got := status.Code(err); got != want {
+			t.Fatalf("Process() code = %s, want %s (err=%v)", got, wantDescription, err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal(timeoutMessage)
+	}
+}
+
 func TestProcessStreamsChunksAndCleansUpAtResponseEOS(t *testing.T) {
 	transaction := &recordingTransaction{}
 	service := newTestService(t, transaction, LateActionSafe)
@@ -268,17 +295,7 @@ func TestProcessEnforcesAbsoluteStreamLifetimeDuringBlockedSend(t *testing.T) {
 	if len(transaction.closed) != 1 || transaction.closed[0].CloseReason != CloseStreamMaxLifetime {
 		t.Fatalf("cleanup = %#v, want one max-lifetime cleanup", transaction.closed)
 	}
-	select {
-	case fatal := <-service.FatalErrors():
-		if fatal == nil || !strings.Contains(fatal.Error(), "response send exceeded") {
-			t.Fatalf("FatalErrors() = %v, want blocked-send terminal failure", fatal)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("blocked Send did not report terminal failure")
-	}
-	if followUpErr := service.Process(&fakeProcessStream{contextFactory: testStreamContext(context.Background())}); status.Code(followUpErr) != codes.Unavailable {
-		t.Fatalf("follow-up Process() code = %s, want Unavailable (err=%v)", status.Code(followUpErr), followUpErr)
-	}
+	assertTerminalFailureAndRejectsFollowUp(t, service, "response send exceeded", "blocked-send terminal failure", "blocked Send did not report terminal failure")
 	close(sendRelease)
 	select {
 	case <-sendDone:
@@ -360,15 +377,7 @@ func runConfirmedResponseEvidenceCase(t *testing.T, test struct {
 	// derived deadline, not merely after a synthetic context cancel.
 	time.Sleep(25 * time.Millisecond)
 	close(sendRelease)
-	var err error
-	select {
-	case err = <-processDone:
-	case <-time.After(time.Second):
-		t.Fatal("Process did not finish after late Send completed")
-	}
-	if status.Code(err) != codes.DeadlineExceeded {
-		t.Fatalf("Process() code = %s, want DeadlineExceeded (err=%v)", status.Code(err), err)
-	}
+	assertProcessResultCode(t, processDone, codes.DeadlineExceeded, "DeadlineExceeded", "Process did not finish after late Send completed")
 	if got := test.transaction.responseCommits; got != test.wantCommits {
 		t.Fatalf("response commits = %d, want %d", got, test.wantCommits)
 	}
@@ -378,17 +387,7 @@ func runConfirmedResponseEvidenceCase(t *testing.T, test struct {
 	if len(test.transaction.closed) != 1 || test.transaction.closed[0].CloseReason != CloseStreamMaxLifetime {
 		t.Fatalf("cleanup = %#v, want one max-lifetime cleanup", test.transaction.closed)
 	}
-	select {
-	case fatal := <-service.FatalErrors():
-		if fatal == nil || !strings.Contains(fatal.Error(), "response send exceeded") {
-			t.Fatalf("FatalErrors() = %v, want late-send terminal failure", fatal)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("late successful Send did not report terminal failure")
-	}
-	if followUpErr := service.Process(&fakeProcessStream{contextFactory: testStreamContext(context.Background())}); status.Code(followUpErr) != codes.Unavailable {
-		t.Fatalf("follow-up Process() code = %s, want Unavailable (err=%v)", status.Code(followUpErr), followUpErr)
-	}
+	assertTerminalFailureAndRejectsFollowUp(t, service, "response send exceeded", "late-send terminal failure", "late successful Send did not report terminal failure")
 }
 func TestProcessRejectsExcessActiveStreamBeforeTransactionOpenAndReleasesSlot(t *testing.T) {
 	transaction := &recordingTransaction{}
@@ -508,17 +507,7 @@ func TestProcessStopsAfterSuccessfulResponseEvidenceFailure(t *testing.T) {
 	if len(transaction.closed) != 1 || transaction.closed[0].CloseReason != CloseProcessorError {
 		t.Fatalf("cleanup = %#v, want one processor-error cleanup", transaction.closed)
 	}
-	select {
-	case fatal := <-service.FatalErrors():
-		if fatal == nil || !strings.Contains(fatal.Error(), "successful response evidence failed") {
-			t.Fatalf("FatalErrors() = %v, want evidence terminal failure", fatal)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("successful response evidence failure did not report fatal")
-	}
-	if followUpErr := service.Process(&fakeProcessStream{contextFactory: testStreamContext(context.Background())}); status.Code(followUpErr) != codes.Unavailable {
-		t.Fatalf("follow-up Process() code = %s, want Unavailable (err=%v)", status.Code(followUpErr), followUpErr)
-	}
+	assertTerminalFailureAndRejectsFollowUp(t, service, "successful response evidence failed", "evidence terminal failure", "successful response evidence failure did not report fatal")
 }
 
 func TestProcessStuckNativeEquivalentReportsFatalAfterCleanupGrace(t *testing.T) {
@@ -542,25 +531,8 @@ func TestProcessStuckNativeEquivalentReportsFatalAfterCleanupGrace(t *testing.T)
 	case <-time.After(time.Second):
 		t.Fatal("native-equivalent handler did not start")
 	}
-	select {
-	case err := <-processDone:
-		if status.Code(err) != codes.DeadlineExceeded {
-			t.Fatalf("Process() code = %s, want DeadlineExceeded (err=%v)", status.Code(err), err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("Process() did not return after bounded cleanup grace")
-	}
-	select {
-	case fatal := <-service.FatalErrors():
-		if fatal == nil || !strings.Contains(fatal.Error(), "native handler remained blocked") {
-			t.Fatalf("FatalErrors() = %v, want stuck-handler terminal failure", fatal)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("stuck native-equivalent handler did not report fatal")
-	}
-	if followUpErr := service.Process(&fakeProcessStream{contextFactory: testStreamContext(context.Background())}); status.Code(followUpErr) != codes.Unavailable {
-		t.Fatalf("follow-up Process() code = %s, want Unavailable (err=%v)", status.Code(followUpErr), followUpErr)
-	}
+	assertProcessResultCode(t, processDone, codes.DeadlineExceeded, "DeadlineExceeded", "Process() did not return after bounded cleanup grace")
+	assertTerminalFailureAndRejectsFollowUp(t, service, "native handler remained blocked", "stuck-handler terminal failure", "stuck native-equivalent handler did not report fatal")
 	if len(transaction.closed) != 0 {
 		t.Fatalf("cleanup called concurrently with stuck handler: %#v", transaction.closed)
 	}
@@ -597,25 +569,8 @@ func TestProcessStuckSuccessfulEvidenceTransfersCleanupOwnership(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("successful response evidence did not enter the blocking hook")
 	}
-	select {
-	case err := <-processDone:
-		if status.Code(err) != codes.Internal {
-			t.Fatalf("Process() code = %s, want Internal (err=%v)", status.Code(err), err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("Process() remained blocked in native response evidence")
-	}
-	select {
-	case fatal := <-service.FatalErrors():
-		if fatal == nil || !strings.Contains(fatal.Error(), "response evidence remained blocked") {
-			t.Fatalf("FatalErrors() = %v, want stuck-evidence terminal failure", fatal)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("stuck response evidence did not report fatal")
-	}
-	if followUpErr := service.Process(&fakeProcessStream{contextFactory: testStreamContext(context.Background())}); status.Code(followUpErr) != codes.Unavailable {
-		t.Fatalf("follow-up Process() code = %s, want Unavailable (err=%v)", status.Code(followUpErr), followUpErr)
-	}
+	assertProcessResultCode(t, processDone, codes.Internal, "Internal", "Process() remained blocked in native response evidence")
+	assertTerminalFailureAndRejectsFollowUp(t, service, "response evidence remained blocked", "stuck-evidence terminal failure", "stuck response evidence did not report fatal")
 	if got := atomic.LoadInt32(&transaction.closeCalls); got != 0 {
 		t.Fatalf("cleanup called while response evidence was blocked: %d calls", got)
 	}
@@ -650,25 +605,8 @@ func TestProcessStuckTransactionCloseReportsFatalAndDoesNotRetry(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("transaction cleanup did not enter the blocking hook")
 	}
-	select {
-	case err := <-processDone:
-		if status.Code(err) != codes.Internal {
-			t.Fatalf("Process() code = %s, want Internal (err=%v)", status.Code(err), err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("Process() remained blocked in transaction cleanup")
-	}
-	select {
-	case fatal := <-service.FatalErrors():
-		if fatal == nil || !strings.Contains(fatal.Error(), "cleanup remained blocked") {
-			t.Fatalf("FatalErrors() = %v, want stuck-cleanup terminal failure", fatal)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("stuck transaction cleanup did not report fatal")
-	}
-	if followUpErr := service.Process(&fakeProcessStream{contextFactory: testStreamContext(context.Background())}); status.Code(followUpErr) != codes.Unavailable {
-		t.Fatalf("follow-up Process() code = %s, want Unavailable (err=%v)", status.Code(followUpErr), followUpErr)
-	}
+	assertProcessResultCode(t, processDone, codes.Internal, "Internal", "Process() remained blocked in transaction cleanup")
+	assertTerminalFailureAndRejectsFollowUp(t, service, "cleanup remained blocked", "stuck-cleanup terminal failure", "stuck transaction cleanup did not report fatal")
 	close(transaction.closeBlock)
 	select {
 	case <-transaction.closeDone:

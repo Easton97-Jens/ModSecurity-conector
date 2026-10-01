@@ -11,6 +11,12 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20261001-pr370-refresh-relevance](CR-20261001-pr370-refresh-relevance.de.md)
+  | English companion: `CR-20261001-pr370-refresh-relevance.md` — angeforderte
+  PR-#370-Relevanzprüfung und normale Current-Master-Integration gemäß aktueller
+  Traceability-Policy. Frische lokale Evidenz; Exact-Head-Delivery-Status im PR.
+  Kein Merge oder Readiness-B-Nachweis für alle zehn Profile.
+
 - [CR-20260919-submodule-updater-workflows-capability](CR-20260919-submodule-updater-workflows-capability.de.md)
   | English companion: `CR-20260919-submodule-updater-workflows-capability.md` —
   der aktuelle Benutzer hat diese Parent-only-Korrektur für GitHub-Actions-Lauf

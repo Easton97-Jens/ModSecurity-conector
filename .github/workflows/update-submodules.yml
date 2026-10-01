@@ -1,8 +1,6 @@
 name: Update submodules
 
 on:
-  schedule:
-    - cron: '0 3 * * 1'
   workflow_dispatch:
     inputs:
       validate_only:
@@ -15,14 +13,15 @@ on:
 # Settings -> Actions -> General -> Workflow permissions:
 # - enable Read and write permissions
 # - enable "Allow GitHub Actions to create and approve pull requests"
-permissions:
-  contents: read
+permissions: {}
 
 env:
   DEFAULT_BRANCH: master
   SUBMODULE_PATH: modules/ModSecurity-test-Framework
   SUBMODULE_URL: https://github.com/Easton97-Jens/ModSecurity-test-Framework.git
   SUBMODULE_REF: refs/heads/master
+  ALLOWED_NESTED_GITLINK_PATH: tools/MRTS
+  ALLOWED_NESTED_SUBMODULE_URL: https://github.com/Easton97-Jens/MRTS.git
   UPDATE_BRANCH: chore/update-submodules
   PR_TITLE: "chore: update submodules"
   PR_MARKER: "<!-- connector-submodule-updater -->"
@@ -40,7 +39,7 @@ jobs:
           (
             github.ref == 'refs/heads/master' &&
             github.event.repository.default_branch == 'master' &&
-            (github.event_name != 'workflow_dispatch' || github.event.inputs.validate_only != 'true')
+            (github.event_name == 'workflow_dispatch' && github.event.inputs.validate_only != 'true')
           ) ||
           (
             github.event_name == 'workflow_dispatch' &&
@@ -192,7 +191,7 @@ jobs:
             exit 1
           fi
           # Only the reviewed Parent gitlink is initialized. Candidate nested
-          # submodule metadata is validated from Git objects and is never fetched.
+          # worktrees remain uninitialized; their Gitlinks are read as Git objects.
           git -c protocol.file.allow=never submodule update --init -- "$SUBMODULE_PATH"
           submodule_origin="$(git -C "$SUBMODULE_PATH" remote get-url origin)"
           if [ "$submodule_origin" != "$SUBMODULE_URL" ]; then
@@ -207,6 +206,48 @@ jobs:
             echo "Candidate is not a descendant of the reviewed current Framework gitlink." >&2
             exit 1
           fi
+
+          nested_gitlink_sha() {
+            nested_entry="$1"
+            nested_label="$2"
+            nested_count="$(printf '%s\n' "$nested_entry" | awk 'NF { count += 1 } END { print count + 0 }')"
+            if [ "$nested_count" != "1" ]; then
+              echo "$nested_label Framework tree does not contain exactly one nested submodule entry at $ALLOWED_NESTED_GITLINK_PATH." >&2
+              return 1
+            fi
+            nested_mode="$(printf '%s\n' "$nested_entry" | awk 'NF { print $1 }')"
+            nested_type="$(printf '%s\n' "$nested_entry" | awk 'NF { print $2 }')"
+            nested_sha="$(printf '%s\n' "$nested_entry" | awk 'NF { print $3 }')"
+            nested_path="$(printf '%s\n' "$nested_entry" | awk 'NF { print $4 }')"
+            if [ "$nested_mode" != "160000" ] || [ "$nested_type" != "commit" ] || [ "$nested_path" != "$ALLOWED_NESTED_GITLINK_PATH" ]; then
+              echo "$nested_label Framework entry is not the expected nested MRTS gitlink: $nested_entry" >&2
+              return 1
+            fi
+            if ! printf '%s\n' "$nested_sha" | grep -Eq '^[0-9a-f]{40}$'; then
+              echo "$nested_label MRTS gitlink is not a full SHA-1: $nested_sha" >&2
+              return 1
+            fi
+            printf '%s\n' "$nested_sha"
+          }
+
+          current_nested_entry="$(git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" ls-tree "$CURRENT_GITLINK_SHA" -- "$ALLOWED_NESTED_GITLINK_PATH")"
+          candidate_nested_entry="$(git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" ls-tree "$CANDIDATE_SHA" -- "$ALLOWED_NESTED_GITLINK_PATH")"
+          current_nested_sha="$(nested_gitlink_sha "$current_nested_entry" current)"
+          candidate_nested_sha="$(nested_gitlink_sha "$candidate_nested_entry" candidate)"
+
+          if [ "$candidate_nested_sha" != "$current_nested_sha" ]; then
+            nested_verify_repo="$(mktemp -d "$RUNNER_TEMP/mrts-lineage.XXXXXX")"
+            git -c core.hooksPath=/dev/null init --bare "$nested_verify_repo"
+            git -c protocol.file.allow=never -c core.hooksPath=/dev/null -C "$nested_verify_repo" fetch --no-tags "$ALLOWED_NESTED_SUBMODULE_URL" "$current_nested_sha"
+            git -c protocol.file.allow=never -c core.hooksPath=/dev/null -C "$nested_verify_repo" fetch --no-tags "$ALLOWED_NESTED_SUBMODULE_URL" "$candidate_nested_sha"
+            git -c core.hooksPath=/dev/null -C "$nested_verify_repo" cat-file -e "$current_nested_sha^{commit}"
+            git -c core.hooksPath=/dev/null -C "$nested_verify_repo" cat-file -e "$candidate_nested_sha^{commit}"
+            if ! git -c core.hooksPath=/dev/null -C "$nested_verify_repo" merge-base --is-ancestor "$current_nested_sha" "$candidate_nested_sha"; then
+              echo "Candidate MRTS gitlink is not a descendant of the reviewed current MRTS gitlink." >&2
+              exit 1
+            fi
+          fi
+
           git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" checkout --detach "$CANDIDATE_SHA"
 
       - name: Validate exact candidate Git state
@@ -219,7 +260,9 @@ jobs:
             --current-gitlink-sha "$CURRENT_GITLINK_SHA" \
             --candidate-sha "$CANDIDATE_SHA" \
             --expected-parent-head "$EXPECTED_PARENT_HEAD" \
-            --expected-parent-hooks-sha256 "$EXPECTED_PARENT_HOOKS_SHA256"
+            --expected-parent-hooks-sha256 "$EXPECTED_PARENT_HOOKS_SHA256" \
+            --allowed-nested-gitlink-path "$ALLOWED_NESTED_GITLINK_PATH" \
+            --allowed-nested-submodule-url "$ALLOWED_NESTED_SUBMODULE_URL"
 
       - name: Validate Framework component-pin data contract
         run: |
@@ -348,7 +391,9 @@ jobs:
             --current-gitlink-sha "$CURRENT_GITLINK_SHA" \
             --candidate-sha "$CANDIDATE_SHA" \
             --expected-parent-head "$EXPECTED_PARENT_HEAD" \
-            --expected-parent-hooks-sha256 "$EXPECTED_PARENT_HOOKS_SHA256"
+            --expected-parent-hooks-sha256 "$EXPECTED_PARENT_HOOKS_SHA256" \
+            --allowed-nested-gitlink-path "$ALLOWED_NESTED_GITLINK_PATH" \
+            --allowed-nested-submodule-url "$ALLOWED_NESTED_SUBMODULE_URL"
           git -c core.hooksPath=/dev/null diff --check
           git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" diff --check
 
@@ -471,11 +516,14 @@ jobs:
                 -e "$SUBMODULE_PATH" \
                 -e connectors/envoy/config/envoy-ext-proc-versions.env \
                 -e ci/provisioning/components/prepare-runtime-components.py \
+                -e tests/test_prepare_runtime_components.py \
                 -e ci/runtime/broker/nginx_root_broker.py \
                 -e ci/runtime/broker/protected_nginx_broker_caller.py \
                 -e connectors/lighttpd/lighttpd-version.contract \
                 -e connectors/lighttpd/SOURCE_MAP.json \
                 -e connectors/haproxy/htx-overlay/version-contract.json \
+                -e scripts/generate_compiler_guides.py \
+                -e tests/test_compiler_guides.py \
                 -e .github/workflows/test-connectors-with-crs-no-mrts.yml \
                 -e tests/test_ci_security_workflows.py \
                 -e ci/checks/evidence/check-runtime-producer-readiness.py \
@@ -525,11 +573,14 @@ jobs:
 
                 $6 == "connectors/envoy/config/envoy-ext-proc-versions.env" ||
                 $6 == "ci/provisioning/components/prepare-runtime-components.py" ||
+                $6 == "tests/test_prepare_runtime_components.py" ||
                 $6 == "ci/runtime/broker/nginx_root_broker.py" ||
                 $6 == "ci/runtime/broker/protected_nginx_broker_caller.py" ||
                 $6 == "connectors/lighttpd/lighttpd-version.contract" ||
                 $6 == "connectors/lighttpd/SOURCE_MAP.json" ||
                 $6 == "connectors/haproxy/htx-overlay/version-contract.json" ||
+                $6 == "scripts/generate_compiler_guides.py" ||
+                $6 == "tests/test_compiler_guides.py" ||
                 $6 == ".github/workflows/test-connectors-with-crs-no-mrts.yml" ||
                 $6 == "tests/test_ci_security_workflows.py" ||
                 $6 == "ci/checks/evidence/check-runtime-producer-readiness.py" ||
@@ -903,11 +954,14 @@ jobs:
           git -c core.hooksPath=/dev/null add -- \
             connectors/envoy/config/envoy-ext-proc-versions.env \
             ci/provisioning/components/prepare-runtime-components.py \
+            tests/test_prepare_runtime_components.py \
             ci/runtime/broker/nginx_root_broker.py \
             ci/runtime/broker/protected_nginx_broker_caller.py \
             connectors/lighttpd/lighttpd-version.contract \
             connectors/lighttpd/SOURCE_MAP.json \
             connectors/haproxy/htx-overlay/version-contract.json \
+            scripts/generate_compiler_guides.py \
+            tests/test_compiler_guides.py \
             .github/workflows/test-connectors-with-crs-no-mrts.yml \
             tests/test_ci_security_workflows.py \
             ci/checks/evidence/check-runtime-producer-readiness.py \

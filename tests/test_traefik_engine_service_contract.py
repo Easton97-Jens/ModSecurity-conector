@@ -14,6 +14,9 @@ SOURCE = (
     / "src"
     / "traefik_engine_service.c"
 ).read_text(encoding="utf-8")
+COMMON_RUNTIME = (
+    ROOT / "common" / "runtime" / "msconnector_runtime.c"
+).read_text(encoding="utf-8")
 
 
 class TraefikEngineServiceContractTest(unittest.TestCase):
@@ -66,6 +69,23 @@ class TraefikEngineServiceContractTest(unittest.TestCase):
         self.assertIn("worker_result == TRAEFIK_ENGINE_WORKER_CAPACITY", SOURCE)
         self.assertNotIn("traefik_engine_worker_capacity_reached", SOURCE)
         self.assertIn("MSG_NOSIGNAL", SOURCE)
+
+    def test_private_directory_ancestor_policy_reuses_common_runtime(self):
+        self.assertIn(
+            "return msconnector_runtime_private_directory_ancestors_are_safe(path);",
+            SOURCE,
+        )
+        self.assertNotIn(
+            "traefik_engine_private_directory_ancestors_are_safe",
+            SOURCE,
+        )
+        self.assertNotIn("traefik_engine_parent_protects_child", SOURCE)
+        self.assertIn("realpath(path, NULL)", COMMON_RUNTIME)
+        self.assertIn("strcmp(path, canonical_path) != 0", COMMON_RUNTIME)
+        self.assertIn(
+            "(parent_stat.st_uid != geteuid() && parent_stat.st_uid != 0)",
+            COMMON_RUNTIME,
+        )
 
     def test_socket_deadlines_and_normal_frames_execute_in_c17_harness(self):
         compiler = shutil.which("cc")

@@ -305,13 +305,14 @@ ngx_http_modsecurity_intervention_disposition(int ret, ngx_flag_t error_page)
     if (ret < 0) {
         return MSCONNECTOR_NGINX_INTERVENTION_FAILURE;
     }
-    if (error_page) {
-        return MSCONNECTOR_NGINX_INTERVENTION_BYPASS;
+    /* Error-page routing does not change the engine decision.  In
+     * particular, a P1 allow must continue to P2 rather than bypass it.
+     * Keep the parameter for the existing phase-specific callers. */
+    (void)error_page;
+    if (ret > 0) {
+        return MSCONNECTOR_NGINX_INTERVENTION_ACTIVE;
     }
-    if (ret == 0) {
-        return MSCONNECTOR_NGINX_INTERVENTION_ALLOW;
-    }
-    return MSCONNECTOR_NGINX_INTERVENTION_ACTIVE;
+    return MSCONNECTOR_NGINX_INTERVENTION_ALLOW;
 }
 
 

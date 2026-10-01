@@ -168,6 +168,13 @@ type TransactionOpener interface {
 	Open(context.Context, StreamMetadata) (Transaction, error)
 }
 
+// Phase4BodyBudgetDisabler is an optional engine capability. Only an explicit
+// off mode from the loaded engine disables the extra cumulative response
+// budget. Engines without this capability keep the existing bounded behavior.
+type Phase4BodyBudgetDisabler interface {
+	Phase4BodyBudgetDisabled() bool
+}
+
 // Transaction consumes each bounded header/body callback synchronously.
 // Body slices are borrowed from the protobuf message and must not be retained.
 type Transaction interface {
@@ -935,6 +942,10 @@ func (state *streamState) bodyLimitDecision(direction Direction, bodyLength int)
 	current, limit := state.summary.RequestBodyBytes, state.config.MaxRequestBodyBytes
 	if direction == DirectionResponse {
 		current, limit = state.summary.ResponseBodyBytes, state.config.MaxResponseBodyBytes
+		if policy, ok := state.engine.(Phase4BodyBudgetDisabler); ok && policy.Phase4BodyBudgetDisabled() {
+			// This is an accounting ceiling, never a chunk/allocation limit.
+			limit = math.MaxInt64
+		}
 	}
 	next, ok := cumulativeBodyBytes(current, bodyLength)
 	if !ok || next > limit {

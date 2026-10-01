@@ -319,3 +319,26 @@ Dieses Overlay wird nicht vom eingecheckten SPOP-Harness konfiguriert und ist
 nur nicht hochgestufter kanonischer Hostnachweis. Es fördert daher **nicht**
 die SPOE/SPOP-Fähigkeiten für Phase 4, Late-Intervention, No-Buffer oder
 First-Byte.
+
+## Phase-4-Modus und Inspection-Budget
+
+Der Standardmodus ist `off`; erlaubt sind `off`, `safe` und `strict`.
+Das zusätzliche kumulierte Phase-4-Inspection-Budget wird nur in `safe` und
+`strict` durchgesetzt. `off` gibt Response-Daten weiterhin gemäß der
+konfigurierten Inspection an libModSecurity weiter und macht weder
+Regelinterventionen noch echte Engine-Fehler zu einem Erfolg. Die MIME-Auswahl
+und eigenen Limits der Engine bleiben maßgeblich.
+
+Dies gilt für native Integrationen und Response-Pfade über die Common Runtime.
+Eine reine Request-Route benötigt für Phase 4 weiterhin den unterstützten
+Response-Observer beziehungsweise Companion. Die Wahl eines Modus fügt keine
+fehlende Response-Inspection hinzu.
+
+Unabhängige Limits für Allokationen, gepufferte Responses, Nachrichten/Frames,
+Timeouts und Transport gelten in jedem Modus weiter. Insbesondere kann ein
+puffernder Sidecar auch in `off` eine Response ablehnen, die nicht in seinen
+begrenzten Speicher passt. Das Weglassen des zusätzlichen Inspection-Budgets
+erlaubt keine unbegrenzten Allokationen.
+
+Der [connectorübergreifende Budget-Vertrag](../../docs/phase4-mode-budget.de.md)
+beschreibt Geltungsbereich, Fehlerbehandlung und Grenzen der Validierung.
