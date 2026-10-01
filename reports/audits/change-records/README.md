@@ -10,6 +10,11 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20261001-nginx-audit-result-pointer](CR-20261001-nginx-audit-result-pointer.md)
+  | [Deutsch](CR-20261001-nginx-audit-result-pointer.de.md) — required Parent
+  evidence-pointer correction in the user-authorized NGINX canonical-contract
+  investigation; no synthetic events, full E2E PASS, or Gitlink change.
+
 - [CR-20260919-submodule-updater-workflows-capability](CR-20260919-submodule-updater-workflows-capability.md)
   | [Deutsch](CR-20260919-submodule-updater-workflows-capability.de.md) — the
   current user requested this Parent-only correction for GitHub Actions run

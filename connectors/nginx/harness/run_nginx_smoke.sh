@@ -996,7 +996,7 @@ write_case_result() {
             --observed-transport-result "$observed_transport" \
             --reason "$reason" \
             --response-body-file "$output_dir/response-body.txt" \
-            --audit-log-file "$output_dir/audit.log" \
+            --audit-log-file "${AUDIT_LOG_FILE:-$output_dir/audit.log}" \
             --access-log-file "$output_dir/access.log" \
             --error-log-file "$output_dir/error.log" \
             --phase4-log-file "$output_dir/phase4.log" \
@@ -1009,7 +1009,7 @@ write_case_result() {
             --observed-transport-result "$observed_transport" \
             --reason "$reason" \
             --response-body-file "$output_dir/response-body.txt" \
-            --audit-log-file "$output_dir/audit.log" \
+            --audit-log-file "${AUDIT_LOG_FILE:-$output_dir/audit.log}" \
             --access-log-file "$output_dir/access.log" \
             --error-log-file "$output_dir/error.log" \
             --phase4-log-file "$output_dir/phase4.log" \

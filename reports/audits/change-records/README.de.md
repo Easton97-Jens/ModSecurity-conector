@@ -11,6 +11,11 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20261001-nginx-audit-result-pointer](CR-20261001-nginx-audit-result-pointer.de.md)
+  | English companion: `CR-20261001-nginx-audit-result-pointer.md` — erforderliche
+  Parent-Evidence-Pointer-Korrektur in der nutzerautorisierten NGINX-Canonical-
+  Contract-Untersuchung; keine synthetischen Events, kein Full-E2E-PASS oder Gitlink-Eingriff.
+
 - [CR-20260919-submodule-updater-workflows-capability](CR-20260919-submodule-updater-workflows-capability.de.md)
   | English companion: `CR-20260919-submodule-updater-workflows-capability.md` —
   der aktuelle Benutzer hat diese Parent-only-Korrektur für GitHub-Actions-Lauf
