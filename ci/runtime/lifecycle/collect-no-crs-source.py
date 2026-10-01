@@ -32,6 +32,53 @@ from runtime_path_utils import (
 
 
 CORE_CASES = {"allow_without_marker": 200, "deny_header_marker_403": 403}
+CONFIGTEST_RECEIPT_FIELDS = {
+    "schema_version", "case_id", "connector", "operation", "run_id", "integration_mode",
+    "parent_sha", "framework_sha", "mrts_sha", "binary_sha256", "module_sha256",
+    "config_path_identity", "directive", "value", "expected_outcome", "expected_exit_code",
+    "observed_exit_code", "observed_outcome", "error_class", "diagnostic_fragments",
+    "stdout_sha256", "stderr_sha256", "process_started", "listener_created", "timestamp",
+}
+
+
+def configtest_source_fields(
+    row: dict[str, Any], expected_phase: int | None,
+    allowed_source_root: Path | None = None,
+) -> dict[str, Any]:
+    """Retain only bounded producer metadata; Framework validates the contract.
+
+    This adapter never invents a receipt/event, fills missing keys, changes a
+    failing source status, or maps configtest evidence onto an HTTP case.
+    """
+    if "configtest_receipt" not in row:
+        return {}
+    receipt = row["configtest_receipt"]
+    if expected_phase != 0 or not isinstance(receipt, dict):
+        raise ValueError("configuration receipt is not a phase-0 source object")
+    if set(receipt) - CONFIGTEST_RECEIPT_FIELDS or len(json.dumps(receipt)) > 8192:
+        raise ValueError("configuration receipt contains unbounded or undeclared fields")
+    fields = {"configtest_receipt": receipt}
+    for field in ("run_id", "integration_mode", "observed_result"):
+        value = row.get(field)
+        if value is not None and (not isinstance(value, str) or len(value) > 256):
+            raise ValueError("configuration source identity is not bounded")
+        fields[field] = value
+    if "artifacts" in row:
+        artifacts = row["artifacts"]
+        if not isinstance(artifacts, dict) or set(artifacts) != {"configtest_dir"}:
+            raise ValueError("configuration source contains undeclared artifact references")
+        reference = artifacts["configtest_dir"]
+        if (allowed_source_root is None or not isinstance(reference, str)
+                or not reference or len(reference) > 4096):
+            raise ValueError("configuration artifact reference requires bounded path and source authority")
+        bundle = contained_source_event_path(Path(reference), allowed_source_root)
+        if not bundle.is_dir():
+            raise ValueError("configuration artifact bundle must be an existing directory")
+        for name in ("nginx-binary", "nginx-module.so", "nginx.conf", "stdout.log", "stderr.log"):
+            runtime_artifact_path(allowed_source_root, bundle / name,
+                                  "configuration artifact", must_exist=True)
+        fields["artifacts"] = {"configtest_dir": str(bundle)}
+    return fields
 
 
 def verify_closed_five_connector_profile(profile_name: str, connector: str) -> None:
@@ -1495,6 +1542,7 @@ def case_observation_payload(
     observed_rule_ids: set[str],
     canonical_records: list[dict[str, Any]],
     runtime_records: list[dict[str, Any]],
+    allowed_source_root: Path | None = None,
 ) -> dict[str, Any]:
     transaction_ids = {
         str(record["transaction_id"])
@@ -1536,6 +1584,7 @@ def case_observation_payload(
             else "FAIL"
         ),
         **canonical_semantics([row, *runtime_records]),
+        **configtest_source_fields(row, expected_phase, allowed_source_root),
     }
 
 
@@ -1612,6 +1661,7 @@ def case_row_observations(
         observed_rule_ids,
         canonical_records,
         runtime_records,
+        allowed_source_root,
     )
     aliases = case_alias_observations(
         connector, case_id, canonical_records, expectations, observation
@@ -1979,6 +2029,15 @@ def collector_status(
     return "FAIL"
 
 
+def request_runtime_observed(
+    allowed: int | None, blocked: int | None,
+    cases: list[dict[str, Any]], nonpromoted_host: bool,
+) -> bool:
+    return allowed is not None or blocked is not None or nonpromoted_host or any(
+        "configtest_receipt" not in case for case in cases
+    )
+
+
 def collector_payload(
     args: argparse.Namespace,
     status: str,
@@ -2065,7 +2124,7 @@ def main() -> int:
     allowed, blocked = core_response_statuses(objects, cases)
     observed_rule_ids = collector_observed_rule_ids(objects, events)
     nonpromoted_host = nonpromoted_host_success(objects)
-    explicit_runtime = allowed is not None or blocked is not None or bool(cases) or nonpromoted_host
+    explicit_runtime = request_runtime_observed(allowed, blocked, cases, nonpromoted_host)
     core_status_ok = allowed == 200 and blocked == 403
     status = collector_status(
         args.stage_rc,

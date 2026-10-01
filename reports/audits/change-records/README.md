@@ -10,6 +10,11 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20261001-nginx-configtest-collection](CR-20261001-nginx-configtest-collection.md)
+  | [Deutsch](CR-20261001-nginx-configtest-collection.de.md) — preserve bounded
+  configuration receipts and authorized retained-bundle references without
+  claiming request execution; independent of driver/wiring delivery.
+
 - [CR-20261001-nginx-empty-header-driver](CR-20261001-nginx-empty-header-driver.md)
   | [Deutsch](CR-20261001-nginx-empty-header-driver.de.md) — preserve present
   empty request headers in the Parent driver; one real native-event diagnostic,
