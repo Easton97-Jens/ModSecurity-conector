@@ -430,6 +430,17 @@ request function are blocked; the separate H2/H3 protocol probe remains
 non-promoting. The focused command test proves the client options, not the
 negotiated version of every runtime request.
 
+Generated empty request headers are sent with Curl's `Header;` notation.
+Passing the materialized `Header: ` unchanged would suppress the header,
+not send a present empty value. A real loopback regression distinguishes
+present-empty from absent, ordinary, and duplicate headers. The Framework's
+`empty_header_value` fixture requires both presence and an empty value to
+match rule `1100503`; HTTP `200` alone is insufficient. The isolated cached
+host probe produced that native event and the unchanged collector/normalizer
+accepted the individual case. Its aggregate remains `FAIL`; no new exact-head
+E2E or full canonical PASS is claimed. See the
+[empty-header Change Record](../../reports/audits/change-records/CR-20261001-nginx-empty-header-driver.md).
+
 One isolated `transaction_id_generated_or_fallback` diagnostic observed HTTP
 `200`, an actual audit request line ending in `HTTP/1.1`, a root master with a
 `nobody` worker, native rule `1100502`, and a PASS for that case from the

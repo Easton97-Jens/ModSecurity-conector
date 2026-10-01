@@ -2781,6 +2781,14 @@ send_case_request() {
     if [ -n "${REQUEST_HEADERS_FILE:-}" ] && [ -s "$REQUEST_HEADERS_FILE" ]; then
         while IFS= read -r header_line || [ -n "$header_line" ]; do
             [ -n "$header_line" ] || continue
+            case "$header_line" in
+                *:*)
+                    header_value=${header_line#*:}
+                    case "$header_value" in
+                        ''|' ') header_line="${header_line%%:*};" ;;
+                    esac
+                    ;;
+            esac
             set -- "$@" -H "$header_line"
         done < "$REQUEST_HEADERS_FILE"
     fi

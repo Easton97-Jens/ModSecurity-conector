@@ -11,6 +11,11 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20261001-nginx-empty-header-driver](CR-20261001-nginx-empty-header-driver.de.md)
+  | English companion: `CR-20261001-nginx-empty-header-driver.md` — vorhandene
+  leere Request-Header im Parent-Treiber erhalten; eine echte Native-Event-
+  Diagnose, kein Full-E2E oder Gitlink-Update.
+
 - [CR-20261001-nginx-h1-request-binding](CR-20261001-nginx-h1-request-binding.de.md)
   | English companion: `CR-20261001-nginx-h1-request-binding.md` — Parent-H1-Curl-
   Binding und Non-H1-Guard für Legacy-Requests mit einer isolierten echten

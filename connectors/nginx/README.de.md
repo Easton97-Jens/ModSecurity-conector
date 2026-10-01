@@ -462,6 +462,18 @@ H2/H3-Aufrufe dieser Request-Funktion werden blockiert; die getrennte H2/H3-
 Protokollprobe bleibt nicht promotend. Der fokussierte Kommando-Test belegt die
 Client-Optionen, nicht die ausgehandelte Version jedes Runtime-Requests.
 
+Generierte leere Request-Header werden mit Curls `Header;`-Notation gesendet.
+Die unveränderte Übergabe des materialisierten `Header: ` würde den Header
+unterdrücken, nicht einen vorhandenen Leerwert senden. Eine echte Loopback-
+Regression unterscheidet vorhandene leere von fehlenden, gewöhnlichen und
+doppelten Headern. Das Framework-Fixture `empty_header_value` verlangt Präsenz
+und Leerwert gemeinsam für einen Treffer der Regel `1100503`; HTTP `200`
+allein reicht nicht. Der isolierte Host-Probe mit vorhandenem Cache erzeugte
+dieses native Event, und der unveränderte Collector/Normalizer akzeptierte den
+einzelnen Case. Sein Aggregat bleibt `FAIL`; kein neuer Exact-Head-E2E oder
+vollständiger kanonischer PASS wird behauptet. Siehe den
+[Leerheader-Change-Record](../../reports/audits/change-records/CR-20261001-nginx-empty-header-driver.de.md).
+
 Eine isolierte `transaction_id_generated_or_fallback`-Diagnose beobachtete HTTP
 `200`, eine tatsächliche Audit-Request-Zeile mit `HTTP/1.1`, einen Root-Master
 mit `nobody`-Worker, die native Regel `1100502` und einen PASS für diesen Case

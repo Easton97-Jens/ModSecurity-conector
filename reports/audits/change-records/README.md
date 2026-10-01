@@ -10,6 +10,11 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20261001-nginx-empty-header-driver](CR-20261001-nginx-empty-header-driver.md)
+  | [Deutsch](CR-20261001-nginx-empty-header-driver.de.md) — preserve present
+  empty request headers in the Parent driver; one real native-event diagnostic,
+  no full E2E or Gitlink update.
+
 - [CR-20261001-nginx-h1-request-binding](CR-20261001-nginx-h1-request-binding.md)
   | [Deutsch](CR-20261001-nginx-h1-request-binding.de.md) — Parent H1 Curl
   binding and non-H1 legacy-request guard, with one isolated real-host
