@@ -238,12 +238,14 @@ test -x "$APACHE_ROOT/configure"
 MAKE_LOG="$WORK_ROOT/autotools-make.log"
 if ! (
     cd "$APACHE_ROOT"
-    CONNECTOR_ROOT="$SOURCE_ROOT" \
-    MSCONNECTOR_COMMON_INC="$SOURCE_ROOT/common/include" \
-    MSCONNECTOR_COMMON_SRC="$SOURCE_ROOT/common/src" \
-    MSCONNECTOR_COMMON_BUILD_SRC="$APACHE_ROOT/build/common-src" \
-    MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT="$WORK_ROOT/profile-registry" \
-    make
+    for build_attempt in 1 2; do
+        CONNECTOR_ROOT="$SOURCE_ROOT" \
+        MSCONNECTOR_COMMON_INC="$SOURCE_ROOT/common/include" \
+        MSCONNECTOR_COMMON_SRC="$SOURCE_ROOT/common/src" \
+        MSCONNECTOR_COMMON_BUILD_SRC="$APACHE_ROOT/build/common-src" \
+        MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT="$WORK_ROOT/profile-registry" \
+        make || exit "$?"
+    done
 ) > "$MAKE_LOG" 2>&1; then
     sed -n '1,220p' "$MAKE_LOG" >&2
     fail "Autotools make failed"

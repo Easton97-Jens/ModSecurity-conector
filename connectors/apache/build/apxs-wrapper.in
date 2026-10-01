@@ -90,8 +90,16 @@ if test -L "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT" || \
 fi
 if test -e "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT/connectors" || \
         test -L "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT/connectors"; then
-    echo "profile registry staging connectors directory must be a fresh non-symlink path" >&2
-    exit 1
+    if test -L "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT/connectors" || \
+            test ! -d "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT/connectors"; then
+        echo "profile registry staging connectors directory must be a non-symlink directory" >&2
+        exit 1
+    fi
+    # Rebuilds and retries must not overwrite or trust prior staged inputs or
+    # libtool outputs. Keep the configured external root, but use a new private
+    # child for this invocation when the first stage already exists.
+    MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT=$(mktemp -d \
+        "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT/rebuild.XXXXXX") || exit 1
 fi
 mkdir "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT/connectors"
 if test -L "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT/connectors" || \

@@ -124,10 +124,15 @@ canonical checkout; it must not be the checkout itself or a symlink into it.
 The wrapper stages Common sources and the profile registry there before APXS
 can emit compiler objects, so a direct APXS invocation and an in-checkout stage
 root are rejected controls rather than supported build modes. Its registry
-`connectors` child must also be a fresh non-symlink directory.
+`connectors` child must be a non-symlink directory. Repeated builds and retries
+use a fresh private `rebuild.XXXXXX/connectors` stage below the same external
+registry root; existing registry inputs and registry libtool artifacts are not
+overwritten or reused. The private registry stages remain below the selected
+external registry root, which is inside `APACHE_BUILD_ROOT` in the example above.
 
 The expected module output is `src/.libs/mod_security3.so`. To validate the
-entire fresh-source route, run the focused check from the Parent root:
+entire fresh-source route, including two builds with the same registry root,
+run the focused check from the Parent root:
 
 ```sh
 make check-apache-autotools-bootstrap

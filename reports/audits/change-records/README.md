@@ -10,6 +10,12 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20261001-pr370-apache-rebuild-readiness](CR-20261001-pr370-apache-rebuild-readiness.md)
+  | [Deutsch](CR-20261001-pr370-apache-rebuild-readiness.de.md) — requested
+  PR #370 merge-preparation follow-up: isolated Apache repeated-build/retry
+  staging and fail-fast two-build CI regression coverage. No new NGINX work,
+  merge, or complete nine-profile G1–G9/readiness-B claim.
+
 - [CR-20261001-pr370-refresh-relevance](CR-20261001-pr370-refresh-relevance.md)
   | [Deutsch](CR-20261001-pr370-refresh-relevance.de.md) — the requested PR #370
   relevance assessment and normal current-master integration under the current

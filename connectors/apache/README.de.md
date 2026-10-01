@@ -129,11 +129,16 @@ ein Symlink in ihn sein. Der Wrapper staged Common-Quellen und die
 Profil-Registry dorthin, bevor APXS Compilerobjekte erzeugen kann. Ein direkter
 APXS-Aufruf und eine In-Checkout-Stage-Root sind daher abgewiesene Controls und
 keine unterstützten Build-Modi. Das Registry-Unterverzeichnis `connectors`
-muss ebenfalls ein frisches Nicht-Symlink-Verzeichnis sein.
+muss ein Nicht-Symlink-Verzeichnis sein. Wiederholte Builds und Wiederanläufe
+verwenden eine frische private Stage `rebuild.XXXXXX/connectors` unter derselben
+externen Registry-Root; vorhandene Registry-Eingaben und Registry-Libtool-Artefakte
+werden weder überschrieben noch wiederverwendet. Die privaten Registry-Stages bleiben
+unter der gewählten externen Registry-Root, die im obigen Beispiel innerhalb von
+`APACHE_BUILD_ROOT` liegt.
 
 Der erwartete Modulausgabepfad lautet `src/.libs/mod_security3.so`. Zur
-Validierung des vollständigen Frischquellpfads die fokussierte Prüfung vom
-Parent-Root ausführen:
+Validierung des vollständigen Frischquellpfads einschließlich zweier Builds
+mit derselben Registry-Root die fokussierte Prüfung vom Parent-Root ausführen:
 
 ```sh
 make check-apache-autotools-bootstrap

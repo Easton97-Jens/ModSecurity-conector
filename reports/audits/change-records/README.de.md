@@ -11,6 +11,12 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20261001-pr370-apache-rebuild-readiness](CR-20261001-pr370-apache-rebuild-readiness.de.md)
+  | English companion: `CR-20261001-pr370-apache-rebuild-readiness.md` —
+  angeforderter PR-#370-Merge-Vorbereitungs-Folgepatch: isoliertes Apache-
+  Wiederholungsbuild-/Retry-Staging und fail-fast Zweifach-Build-CI-Regressionen.
+  Keine neue NGINX-Arbeit, kein Merge oder vollständiger Neun-Profil-G1–G9-/Readiness-B-Nachweis.
+
 - [CR-20261001-pr370-refresh-relevance](CR-20261001-pr370-refresh-relevance.de.md)
   | English companion: `CR-20261001-pr370-refresh-relevance.md` — angeforderte
   PR-#370-Relevanzprüfung und normale Current-Master-Integration gemäß aktueller
