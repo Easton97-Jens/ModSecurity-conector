@@ -1,0 +1,148 @@
+"""Unit subprocess boundaries are not genuine NGINX runtime evidence."""
+
+from pathlib import Path
+import json
+import os
+import subprocess
+import tempfile
+import unittest
+
+
+ROOT = Path(__file__).resolve().parents[1]
+HELPER = ROOT / "ci/runtime/lifecycle/run-selected-nginx-configtests.py"
+WRAPPER = ROOT / "ci/runtime/lifecycle/run-nginx-selected-host.sh"
+STORAGE = Path("/var/tmp/codex/ModSecurity-conector")
+CONTRACT = {"operation": "configtest", "directive": "modsecurity", "value": "maybe",
+            "expected_exit_code": 1, "expected_outcome": "config_rejected",
+            "error_class": "invalid_boolean",
+            "diagnostic_fragments": ['"modsecurity" directive', "invalid boolean value"]}
+
+
+class SelectedNginxConfigtestWiringTest(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix="config-dispatch-unit-", dir=STORAGE)
+        self.addCleanup(self.temporary.cleanup)
+        self.base = Path(self.temporary.name)
+        self.framework = self.base / "framework"
+        catalog = self.framework / "tests/cases/no-crs-baseline/catalog.json"
+        catalog.parent.mkdir(parents=True)
+        catalog.write_text(json.dumps({"cases": [{"case_id": "invalid_boolean",
+                           "config_invocations": {"nginx": CONTRACT}}]}))
+        host = self.framework / "ci/runtime/run-nginx-smoke.sh"
+        host.parent.mkdir(parents=True)
+        host.write_text('#!/bin/sh\nprintf "http boundary\\n"\nexit "${UNIT_HOST_EXIT:-0}"\n')
+        for arguments in (["init", "-q"], ["add", "."],
+                          ["update-index", "--add", "--cacheinfo", "160000," + "6" * 40 + ",tools/MRTS"],
+                          ["-c", "user.email=unit@example.invalid", "-c", "user.name=unit", "commit", "-qm", "unit fixture"]):
+            subprocess.run(["git", "-C", str(self.framework), *arguments], check=True, capture_output=True)
+        prefix = self.base / "prefix"
+        binary = prefix / "sbin/nginx"
+        binary.parent.mkdir(parents=True)
+        binary.write_text('#!/bin/sh\necho \'nginx: "modsecurity" directive invalid boolean value\' >&2\nexit 1\n')
+        binary.chmod(0o700)
+        module = prefix / "modules/ngx_http_modsecurity_module.so"
+        module.parent.mkdir()
+        module.write_bytes(b"unit module boundary")
+        self.build = self.base / "build"
+        self.build.mkdir()
+        self.results = self.build / "results"
+        self.results.mkdir()
+        self.result_file = self.results / "nginx-results.jsonl"
+        self.result_file.write_text('{"case_id":"request_control","status":"PASS"}\n')
+        self.environment = {**os.environ, "CONNECTOR_ROOT": str(ROOT),
+                            "FRAMEWORK_ROOT": str(self.framework), "BUILD_ROOT": str(self.build),
+                            "RESULTS_DIR": str(self.results), "NGINX_PREFIX": str(prefix),
+                            "NO_CRS_RUN_ID": "unit-config-dispatch", "PYTHON": "python3",
+                            "NO_CRS_SELECTED_CASE_IDS": "invalid_boolean"}
+        self.environment.pop("MODSECURITY_LIB_DIR", None)
+
+    def run_helper(self):
+        return subprocess.run(["python3", str(HELPER)], env=self.environment,
+                              capture_output=True, text=True, check=False)
+
+    def test_selected_case_invokes_config_driver_and_preserves_request_result(self):
+        result = self.run_helper()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        rows = [json.loads(line) for line in self.result_file.read_text().splitlines()]
+        self.assertEqual([row["case_id"] for row in rows], ["request_control", "invalid_boolean"])
+        self.assertEqual(rows[1]["status"], "PASS")
+        self.assertEqual(rows[1]["configtest_receipt"]["observed_exit_code"], 1)
+        self.assertFalse(rows[1]["configtest_receipt"]["process_started"])
+        self.assertNotEqual(self.run_helper().returncode, 0, "duplicate invocation must be rejected")
+
+    def test_not_selected_case_is_not_invoked_or_promoted(self):
+        self.environment["NO_CRS_SELECTED_CASE_IDS"] = "request_control"
+        result = self.run_helper()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse((self.build / "configtests").exists())
+        self.assertEqual(len(self.result_file.read_text().splitlines()), 1)
+
+    def test_wrong_diagnostic_remains_fail(self):
+        binary = Path(self.environment["NGINX_PREFIX"]) / "sbin/nginx"
+        binary.write_text('#!/bin/sh\necho "module missing" >&2\nexit 1\n')
+        result = self.run_helper()
+        self.assertEqual(result.returncode, 1, result.stderr)
+        row = json.loads(self.result_file.read_text().splitlines()[-1])
+        self.assertEqual(row["status"], "FAIL")
+
+    def test_host_failure_is_retained_after_config_invocation(self):
+        self.environment["UNIT_HOST_EXIT"] = "77"
+        result = subprocess.run(["sh", str(WRAPPER)], env=self.environment,
+                                capture_output=True, text=True, check=False)
+        self.assertEqual(result.returncode, 77, result.stderr)
+        self.assertIn("http boundary", result.stdout)
+        self.assertEqual(json.loads(self.result_file.read_text().splitlines()[-1])["case_id"],
+                         "invalid_boolean")
+
+    def test_stage_dispatch_reproduces_old_route_and_selects_parent_host_route(self):
+        connector = self.base / "connector"
+        cache = connector / "ci/provisioning/cache/with-runtime-components.sh"
+        cache.parent.mkdir(parents=True)
+        cache.write_text('#!/bin/sh\nfor argument do last=$argument; done\nprintf "%s\\n" "$last"\n')
+        cache.chmod(0o700)
+        common = self.framework / "ci/lib/common.sh"
+        common.parent.mkdir(parents=True)
+        common.write_text("# unit prerequisite\n")
+        environment = {**self.environment, "CONNECTOR_ROOT": str(connector),
+                       "NO_CRS_SELECTED_CASES": "allow_without_marker.yaml",
+                       "NO_CRS_ARTIFACT_PROFILE": "generic"}
+        baseline = self.base / "baseline-stage.sh"
+        # Replay only the old routing decision, without requiring historical
+        # Git objects (CI may use a shallow checkout). Both scripts execute.
+        current_stage = (ROOT / "ci/runtime/lifecycle/run-connector-stage.sh").read_text()
+        baseline.write_text(current_stage.replace(
+            '    if [ "$connector:$stage" = nginx:no_crs_baseline ]; then\n'
+            '        host_script=$CONNECTOR_ROOT/ci/runtime/lifecycle/run-nginx-selected-host.sh\n'
+            '    fi\n', '', 1))
+        old = subprocess.run(["sh", str(baseline), "nginx", "no_crs_baseline"],
+                             env=environment, capture_output=True, text=True, check=False)
+        new = subprocess.run(["sh", str(ROOT / "ci/runtime/lifecycle/run-connector-stage.sh"),
+                              "nginx", "no_crs_baseline"], env=environment,
+                             capture_output=True, text=True, check=False)
+        self.assertEqual(old.returncode, 0, old.stderr)
+        self.assertEqual(new.returncode, 0, new.stderr)
+        self.assertEqual(old.stdout.strip(), str(self.framework / "ci/runtime/run-nginx-smoke.sh"))
+        self.assertEqual(new.stdout.strip(), str(connector / "ci/runtime/lifecycle/run-nginx-selected-host.sh"))
+
+    def test_results_escape_and_symlink_are_rejected(self):
+        self.environment["RESULTS_DIR"] = str(self.base / "outside-results")
+        self.assertNotEqual(self.run_helper().returncode, 0)
+        self.environment["RESULTS_DIR"] = str(self.results)
+        target = self.base / "protected.jsonl"
+        target.write_text("untouched\n")
+        self.result_file.unlink()
+        self.result_file.symlink_to(target)
+        self.assertNotEqual(self.run_helper().returncode, 0)
+        self.assertEqual(target.read_text(), "untouched\n")
+
+    def test_unsupported_explicit_config_mapping_is_not_promoted(self):
+        catalog = self.framework / "tests/cases/no-crs-baseline/catalog.json"
+        records = json.loads(catalog.read_text())
+        records["cases"][0]["config_invocations"]["nginx"]["directive"] = "different_directive"
+        catalog.write_text(json.dumps(records))
+        self.assertNotEqual(self.run_helper().returncode, 0)
+        self.assertEqual(len(self.result_file.read_text().splitlines()), 1)
+
+
+if __name__ == "__main__":
+    unittest.main()

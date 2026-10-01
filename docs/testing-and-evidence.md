@@ -80,6 +80,33 @@ capability boundary.
 Do not commit credentials, cookies, authorization values, private keys,
 certificates, raw request bodies, raw response bodies, or local runtime output.
 
+### Selected NGINX configuration-only evidence
+
+The closed `invalid_boolean` configuration contract uses
+`ci/runtime/lifecycle/run-nginx-configtest.py`: `modsecurity maybe;` must be
+rejected by an actual `nginx -e stderr -t` invocation with exit 1 and both
+`"modsecurity" directive` and `invalid boolean value` diagnostics. An unrelated
+module-loading failure, wrong directive, missing diagnostic, timeout, or wrong
+exit is not a passing negative test.
+
+Each invocation requires a fresh external output directory below
+`/var/tmp/codex/ModSecurity-conector`, outside checkouts and without symlink
+paths. The driver retains and actually uses `nginx-binary` and
+`nginx-module.so` snapshots, bounded to 64 MiB each. Together with `nginx.conf`,
+`stdout.log`, and `stderr.log`, these form the five-file digest-bound evidence
+bundle; captures are limited to 64 KiB combined and execution to 10 seconds.
+`source-result.json` and its single-record `source-result.jsonl` companion
+carry the receipt and `artifacts.configtest_dir` for the official collector.
+Keep these local artifacts external; they are not upload or commit material.
+
+The matching Framework contract validates configuration evidence rather than
+inventing a native request event. This operation proves parsing/rejection
+only: no HTTP request, daemon startup, listener, master/worker identity,
+reload, or protocol coverage is claimed. Caller-provided source SHAs require
+independent run-provenance binding; trusted build inputs remain a prerequisite.
+The contract is limited to `invalid_boolean`, not every phase-0 catalog case,
+and cannot establish full required coverage or exact-head E2E PASS.
+
 ### HAProxy hosted evidence projection
 
 The fixed `with-crs/no-mrts` HAProxy runtime cell may upload evidence only

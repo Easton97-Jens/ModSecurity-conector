@@ -86,6 +86,35 @@ Zugangsdaten, Cookies, Authorization-Werte, private Schlüssel, Zertifikate,
 rohe Request-Bodies, rohe Response-Bodies oder lokale Runtime-Ausgabe werden
 nicht eingecheckt.
 
+### Selektierte NGINX-Konfigurations-Evidence ohne Requests
+
+Der geschlossene Konfigurationsvertrag `invalid_boolean` verwendet
+`ci/runtime/lifecycle/run-nginx-configtest.py`: `modsecurity maybe;` muss durch
+eine echte Invocation `nginx -e stderr -t` mit Exit 1 und beiden Diagnosen
+`"modsecurity" directive` und `invalid boolean value` abgewiesen werden. Ein
+nicht zugehöriger Modul-Ladefehler, eine falsche Direktive, eine fehlende
+Diagnose, Timeout oder falscher Exit sind kein bestandener Negativtest.
+
+Jede Invocation benötigt ein frisches externes Ausgabeverzeichnis unter
+`/var/tmp/codex/ModSecurity-conector`, außerhalb von Checkouts und ohne
+Symlink-Pfade. Der Treiber bewahrt Snapshots `nginx-binary` und
+`nginx-module.so` auf und verwendet genau diese; beide sind auf je 64 MiB
+begrenzt. Zusammen mit `nginx.conf`, `stdout.log` und `stderr.log` bilden sie
+das digestgebundene Evidence-Bundle aus fünf Dateien; Captures sind gemeinsam
+auf 64 KiB und die Ausführung auf 10 Sekunden begrenzt. `source-result.json`
+und sein Companion `source-result.jsonl` mit einem Datensatz tragen Receipt
+und `artifacts.configtest_dir` für den offiziellen Collector. Diese lokalen
+Artefakte bleiben extern; sie sind weder Upload- noch Commit-Material.
+
+Der passende Framework-Vertrag validiert Konfigurations-Evidence, statt ein
+Native-Request-Event zu erfinden. Diese Operation belegt nur Parsing/Ablehnung:
+keine HTTP-Requests, Daemon-Starts, Listener, Master-/Worker-Identität, Reloads
+oder Protokoll-Coverage werden behauptet. Vom Aufrufer übergebene Source-SHAs
+benötigen unabhängiges Run-Provenienz-Binding; vertrauenswürdige Build-Inputs
+bleiben Voraussetzung. Der Vertrag ist auf `invalid_boolean` begrenzt, nicht
+auf alle Phase-0-Katalog-Cases, und kann weder vollständige Required-Coverage
+noch Exact-Head-E2E-PASS belegen.
+
 ### HAProxy-Hosted-Evidence-Projektion
 
 Die feste HAProxy-Runtime-Zelle `with-crs/no-mrts` darf Evidence erst hochladen,

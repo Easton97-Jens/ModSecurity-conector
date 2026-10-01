@@ -122,6 +122,10 @@ run_framework_host() {
     framework_script=$1
     smoke_stage=$2
     shift 2
+    host_script=$FRAMEWORK_ROOT/ci/runtime/$framework_script
+    if [ "$connector:$stage" = nginx:no_crs_baseline ]; then
+        host_script=$CONNECTOR_ROOT/ci/runtime/lifecycle/run-nginx-selected-host.sh
+    fi
     exec "$CONNECTOR_ROOT/ci/provisioning/cache/with-runtime-components.sh" env \
         CONNECTOR_ROOT="$CONNECTOR_ROOT" \
         FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
@@ -142,7 +146,7 @@ run_framework_host() {
         MODSECURITY_MRTS_VARIANT=no-mrts \
         MODSECURITY_RULE_PREAMBLE_FILE="${NO_CRS_RULES_FILE:-}" \
         MSCONNECTOR_SMOKE_STAGE="$smoke_stage" \
-        "$@" sh "$FRAMEWORK_ROOT/ci/runtime/$framework_script"
+        "$@" sh "$host_script"
 }
 
 run_remaining_connector() {

@@ -15,6 +15,11 @@ reports without an explicit repository-policy decision or user decision.
   configuration receipts and authorized retained-bundle references without
   claiming request execution; independent of driver/wiring delivery.
 
+- [CR-20261001-nginx-configtest-receipt](CR-20261001-nginx-configtest-receipt.md)
+  | [Deutsch](CR-20261001-nginx-configtest-receipt.de.md) — closed selected
+  `invalid_boolean` configuration invocation and retained-artifact receipt;
+  no HTTP, full coverage, exact-head E2E, or gitlink claim.
+
 - [CR-20261001-nginx-empty-header-driver](CR-20261001-nginx-empty-header-driver.md)
   | [Deutsch](CR-20261001-nginx-empty-header-driver.de.md) — preserve present
   empty request headers in the Parent driver; one real native-event diagnostic,
