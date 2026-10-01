@@ -15,6 +15,7 @@ import tempfile
 import unittest
 from unittest import mock
 
+from tests.framework_component_fixture import set_framework_component_fixture
 from tests.framework_sha_fixture import set_framework_sha_fixture
 
 
@@ -61,10 +62,10 @@ HAPROXY_HTX_SOURCE_URL="$HAPROXY_HTX_SERIES_BASE_URL/$HAPROXY_HTX_ARCHIVE_NAME"
 HAPROXY_HTX_SHA256="82d14ef33571e4edeb9197516c0d058a3775fb80541e46afe4377428e461fef0"
 NGINX_SOURCE_MODE="github-release"
 NGINX_SOURCE_REPO_URL="https://github.com/nginx/nginx"
-NGINX_RELEASE_TAG="release-1.31.5"
+NGINX_RELEASE_TAG="release-1.31.6"
 NGINX_SOURCE_GIT_REF="$NGINX_RELEASE_TAG"
 NGINX_RELEASE_ASSET_NAME="nginx-${NGINX_RELEASE_TAG#release-}.tar.gz"
-NGINX_SHA256="e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279"
+NGINX_SHA256="974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1"
 NGINX_QUIC_TLS_LIBRARY="${NGINX_QUIC_TLS_LIBRARY:-openssl}"
 NGINX_QUIC_TLS_VERSION="4.0.1"
 NGINX_QUIC_TLS_ARCHIVE_NAME="openssl-$NGINX_QUIC_TLS_VERSION.tar.gz"
@@ -73,6 +74,9 @@ NGINX_QUIC_TLS_SOURCE_SHA256="2db3f3a0d6ea4b59e1f094ace2c8cd536dffb87cdc39084c5a
 CRS_APPROVED_REPO_URL="https://github.com/coreruleset/coreruleset.git"
 CRS_APPROVED_COMMIT="ab3ccd5fcd691424ba3f320d4040c61417270193"
 CRS_RELEASE_TAG="v4.29.0"
+MODSECURITY_V3_APPROVED_REPO_URL="https://github.com/owasp-modsecurity/ModSecurity.git"
+MODSECURITY_V3_APPROVED_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"
+MODSECURITY_V3_RELEASE_TAG="v3.0.16"
 """
 
 
@@ -120,6 +124,7 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         )
         # Test identities are independent of both live pins and grammar provenance.
         set_framework_sha_fixture(self.root, TEST_PARENT_FRAMEWORK_SHA)
+        set_framework_component_fixture(self.root)
         self.common = Path(self.temp.name) / "framework/ci/lib/common.sh"
         self.common.parent.mkdir(parents=True)
         self.write_common(CURRENT_CANDIDATE_COMMON)
@@ -213,6 +218,15 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         )
         self.assertEqual(values["HAPROXY_SOURCE_URL"].split("/")[-2], "src")
         self.assertEqual(values["HAPROXY_HTX_VERSION"], "3.2.23")
+        self.assertEqual(
+            values["MODSECURITY_V3_APPROVED_REPO_URL"],
+            "https://github.com/owasp-modsecurity/ModSecurity.git",
+        )
+        self.assertEqual(values["MODSECURITY_V3_RELEASE_TAG"], "v3.0.16")
+        self.assertEqual(
+            values["MODSECURITY_V3_APPROVED_COMMIT"],
+            "7ea9fefbe0ba409d8733b4d682c8c4c059cd028d",
+        )
         self.assertFalse(any(name.startswith("NGINX_") for name in values))
 
     def test_unconsumed_framework_pins_are_ignored_as_data(self) -> None:
@@ -253,6 +267,34 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
                 for spec in SYNC.FRAMEWORK_SHA_PROJECTION_TARGETS)
         )
 
+    def test_modsecurity_v3_tuple_projects_only_registered_guide_sources(self) -> None:
+        nginx_before = self.nginx_pin_lines()
+        common = replace_rhs(
+            CURRENT_CANDIDATE_COMMON,
+            "MODSECURITY_V3_RELEASE_TAG",
+            '"v3.0.17"',
+        )
+        common = replace_rhs(
+            common,
+            "MODSECURITY_V3_APPROVED_COMMIT",
+            '"1925753989ccce977cdaae417b55c9726c7cf02c"',
+        )
+        self.write_common(common)
+        changed = SYNC.synchronize(self.root, self.common, True)
+        self.assertIn("scripts/generate_compiler_guides.py", changed)
+        self.assertIn("tests/test_compiler_guides.py", changed)
+        for relative in (
+            "scripts/generate_compiler_guides.py",
+            "tests/test_compiler_guides.py",
+        ):
+            rendered = (self.root / relative).read_text(encoding="utf-8")
+            self.assertIn('MODSECURITY_REF=\\"v3.0.17\\"', rendered)
+            self.assertIn(
+                'MODSECURITY_COMMIT=\\"1925753989ccce977cdaae417b55c9726c7cf02c\\"',
+                rendered,
+            )
+        self.assertEqual(nginx_before, self.nginx_pin_lines())
+
     def test_resolution_budget_rejects_fanout_before_semantic_validation(self) -> None:
         reference = "$LIGHTTPD_SERIES_BASE_URL"
         repetitions = SYNC.MAX_RESOLVED_VALUE_BYTES // len(
@@ -289,6 +331,7 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         self.assertTrue(
             {
                 "ci/provisioning/components/prepare-runtime-components.py",
+                "tests/test_prepare_runtime_components.py",
                 "connectors/lighttpd/lighttpd-version.contract",
                 "connectors/lighttpd/SOURCE_MAP.json",
                 "connectors/haproxy/htx-overlay/version-contract.json",
@@ -297,6 +340,14 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         runtime = (self.root / "ci/provisioning/components/prepare-runtime-components.py").read_text()
         self.assertIn('DEFAULT_NGINX_QUIC_TLS_VERSION = "4.0.1"', runtime)
         self.assertIn('DEFAULT_HAPROXY_VERSION = "3.3.1"', runtime)
+        haproxy_tests = (self.root / "tests/test_prepare_runtime_components.py").read_text()
+        self.assertIn('TEST_HAPROXY_LOCKED_VERSION = "3.3.1"', haproxy_tests)
+        self.assertIn(
+            'TEST_HAPROXY_LOCKED_SOURCE_URL = "https://www.haproxy.org/'
+            'download/3.3/src/haproxy-3.3.1.tar.gz"',
+            haproxy_tests,
+        )
+        self.assertIn('TEST_HAPROXY_LOCKED_SHA256 = "' + "c" * 64 + '"', haproxy_tests)
         contract = (self.root / "connectors/lighttpd/lighttpd-version.contract").read_text()
         self.assertIn("LIGHTTPD_SERIES=1.5", contract)
         self.assertIn("LIGHTTPD_VERSION=1.5.0", contract)
@@ -329,6 +380,7 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         self.assertEqual(nginx_before, self.nginx_pin_lines())
         for relative in (
             "ci/provisioning/components/prepare-runtime-components.py",
+            "tests/test_prepare_runtime_components.py",
             "ci/runtime/broker/nginx_root_broker.py",
             "ci/runtime/broker/protected_nginx_broker_caller.py",
         ):
@@ -703,6 +755,21 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
             ),
             "non-ascii digits": replace_rhs(
                 CURRENT_CANDIDATE_COMMON, "LIGHTTPD_VERSION", '"١.4.85"'
+            ),
+            "foreign modsecurity repository": replace_rhs(
+                CURRENT_CANDIDATE_COMMON,
+                "MODSECURITY_V3_APPROVED_REPO_URL",
+                '"https://example.invalid/ModSecurity.git"',
+            ),
+            "non-v3 modsecurity tag": replace_rhs(
+                CURRENT_CANDIDATE_COMMON,
+                "MODSECURITY_V3_RELEASE_TAG",
+                '"v4.0.0"',
+            ),
+            "non-lowercase modsecurity commit": replace_rhs(
+                CURRENT_CANDIDATE_COMMON,
+                "MODSECURITY_V3_APPROVED_COMMIT",
+                '"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"',
             ),
         }
         for label, malformed in cases.items():

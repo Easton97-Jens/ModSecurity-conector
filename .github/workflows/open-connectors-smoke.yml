@@ -3,11 +3,12 @@ name: Legacy Open Connector Diagnostics
 on:
   workflow_dispatch:
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   open-connectors-smoke:
+    permissions:
+      contents: read
     name: Legacy Envoy, Traefik, and lighttpd diagnostics
     runs-on: ubuntu-latest
     timeout-minutes: 90

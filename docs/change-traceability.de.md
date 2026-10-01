@@ -98,11 +98,72 @@ deutsche Record müssen dieselben Fakten und tatsächlichen Werte enthalten.
 | Dateien und Verifikation | Dieselben geänderten Dateien, Testbefehle, tatsächlichen Ergebnisse, Runtime-Evidenz und nicht ausgeführten Prüfungen aufführen. |
 | Verbleibender Zustand | Dieselben bekannten Einschränkungen, Restrisiken und den finalen Review-Status festhalten. |
 
-Jeder Record benötigt Abschnitte für Motivation, Akzeptanzkriterien, technische
-Entscheidungen, Security-Auswirkung, geänderte Dateien, Tests und tatsächliche
-Ergebnisse, Runtime-Evidenz, nicht ausgeführte Prüfungen, bekannte
-Einschränkungen, Restrisiken und finalen Review-Status. Ein Record ist
-unvollständig, solange seine Begleitfassung nicht dieselben Fakten enthält.
+Die folgenden Abschnittsnamen sind exakt vorgeschrieben, keine Synonyme.
+Ihre einzige maschinenlesbare Quelle ist
+<code>ci/checks/documentation/check-bilingual-docs.py</code>.
+Der Regressionstest gleicht diese Tabellen mit dieser Quelle ab.
+
+| English | Deutsch |
+| --- | --- |
+| <code>## Identity</code> | <code>## Identität</code> |
+| <code>## Motivation and problem statement</code> | <code>## Motivation und Problemstellung</code> |
+| <code>## Acceptance criteria</code> | <code>## Akzeptanzkriterien</code> |
+| <code>## Implementation decision and rationale</code> | <code>## Implementierungsentscheidung und Begründung</code> |
+| <code>## Changed files</code> | <code>## Geänderte Dateien</code> |
+| <code>## Commands executed</code> | <code>## Ausgeführte Befehle</code> |
+| <code>## Security impact</code> | <code>## Security-Auswirkung</code> |
+| <code>## Runtime evidence</code> | <code>## Runtime-Evidence</code> |
+| <code>## Known limitations</code> | <code>## Bekannte Einschränkungen</code> |
+| <code>## Remaining risks</code> | <code>## Verbleibende Risiken</code> |
+| <code>## Checks not run and rationale</code> | <code>## Nicht ausgeführte Prüfungen mit Begründung</code> |
+| <code>## Final diff and review status</code> | <code>## Finaler Diff- und Review-Status</code> |
+
+Diese exakten Bezeichnungen der Identitätstabelle verwenden, mit identischen
+Werten in beiden Sprachen:
+
+| English | Deutsch |
+| --- | --- |
+| <code>Change ID</code> | <code>Change-ID</code> |
+| <code>Date (UTC)</code> | <code>Datum (UTC)</code> |
+| <code>Base revision</code> | <code>Basis-Revision</code> |
+
+Beide Sprachvorlagen gemeinsam mit
+<code>ci/tools/new-change-record.py</code> anlegen statt Überschriften frei
+zu formulieren. Das Werkzeug importiert das vorhandene Prüfschema, validiert
+das erzeugte Paar und schreibt nur zwei neue Dateien im bestehenden
+Change-Record-Archiv. Es benötigt POSIX-Verzeichnisdeskriptoren, lehnt
+symbolisch verknüpfte Ausgabeverzeichnisse ab und überschreibt keine vorhandene
+Datei. Bei einem normalen Erstellungsfehler entfernt es nur neu angelegte
+Dateien mit weiterhin passender Identität; der Zwei-Dateien-Vorgang ist nicht
+absturzatomar.
+
+<code>BASE_REVISION</code> auf den tatsächlichen vollständigen Git-Commit-SHA
+der Änderungsbasis setzen: 40 Zeichen in Kleinbuchstaben. <code>my-change</code>
+durch einen kleingeschriebenen, mit Bindestrichen getrennten Namen mit maximal
+80 Zeichen ersetzen. Standarddatum ist das aktuelle UTC-Datum;
+<code>--date YYYY-MM-DD</code> erlaubt ein ausdrücklich angegebenes gültiges
+Datum. Diese nativen Befehlspayloads über einen gegebenenfalls vom lokalen
+Arbeitsvertrag vorgeschriebenen Ausführungswrapper starten:
+
+~~~sh
+python3 ci/tools/new-change-record.py create --name my-change --base-revision "$BASE_REVISION"
+python3 ci/tools/new-change-record.py check
+python3 -m unittest -v tests.test_change_record tests.test_prepare_reviewed_framework_handoff
+~~~
+
+Alle offenen Absätze und den Vorlagenhinweis durch tatsächliche Fakten
+ersetzen, einschließlich nicht ausgeführter Prüfungen und verbleibender
+Risiken. Die erzeugten Überschriften und Identitätsbezeichnungen unverändert
+lassen. Das sind bearbeitbare Vorlagen, keine generierte Evidence und kein
+Nachweis einer abgeschlossenen Änderung.
+
+Der quick-framework-CI-Workflow führt die reine Archivprüfung und ihre
+Regressionen vor dem Framework-Setup aus. Die frühe Prüfung liest nur das
+Record-Archiv und startet keinen Git-Befehl. Sie lehnt auch verwaiste
+Sprachdateien ab. Sie ersetzt weder <code>make check-bilingual-docs</code>
+noch <code>make check-doc-links</code>, die manuelle Prüfung der Sprachinhalte
+oder Security-/Runtime-Prüfungen. Ein strukturell gültiger Record kann
+weiterhin unvollständigen oder unzutreffenden Fließtext enthalten.
 
 ## Features und Bugfixes
 

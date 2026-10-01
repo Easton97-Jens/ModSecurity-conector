@@ -25,6 +25,19 @@ Handles werden vor dem Commit fail-closed behandelt. Nach dem Commit wird eine
 disruptive Entscheidung nur als Log-only gemeldet. Der Wrapper bietet weder
 `Unwrap` noch `Hijacker`.
 
+Vor dem ersten `CLAIM`-Frame authentisiert der Observer den verbundenen
+Response-Companion-Server unter Linux mit `SO_PEERCRED`. Standardmäßig
+erwartet er die effektive UID und GID des Observer-Prozesses. Wenn der
+Companion mit einer anderen Identität läuft, müssen in der Plugin-Konfiguration
+`expectedPeerUID` und `expectedPeerGID` gemeinsam gesetzt werden; auch der
+Wert `0` ist ausdrücklich möglich. Fehlende Credentials, abweichende
+Identitäten und Nicht-Linux-Plattformen schlagen vor dem Upstream-Aufruf
+fail-closed fehl. Das private Socket-Verzeichnis des Companion und seine
+vollständige Ancestor-Chain müssen zudem gegen Austausch durch andere UIDs
+geschützt sein. Gleiche Unix-IDs bilden eine gemeinsame Vertrauensdomäne:
+`SO_PEERCRED` belegt weder Binärintegrität noch Security-Labels oder die
+Zuordnung von User-Namespaces.
+
 Führe `../build/build-response-observer.sh test` aus diesem Repository aus,
 um die lokalen Unit- und Vet-Prüfungen auszuführen. Dies ist Source-Level-
 Evidence und beansprucht keinen Traefik-Hostlauf.

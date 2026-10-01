@@ -4,11 +4,12 @@ on:
   push:
   pull_request:
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   traefik-contract:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -25,6 +26,23 @@ jobs:
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Execute Traefik engine service regression contracts
+        run: |
+          set -eu
+          command -v cc >/dev/null
+          python3 -m unittest -v tests.test_traefik_engine_service_contract
+      - name: Install Go required by the Traefik observer
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          cache: false
+          check-latest: false
+          go-version-file: connectors/traefik/response_observer/go.mod
+      - name: Execute the Traefik response-observer suite
+        working-directory: connectors/traefik/response_observer
+        run: |
+          export GOTOOLCHAIN=local
+          export TMPDIR=/tmp
+          go test -mod=readonly -count=1 ./...
       - name: Check Traefik Common and host contracts
         run: |
           set -eu

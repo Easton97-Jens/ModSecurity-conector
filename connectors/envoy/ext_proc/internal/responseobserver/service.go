@@ -33,6 +33,8 @@ type Config struct {
 	SocketPath           string
 	HandleHeader         string
 	Timeout              time.Duration
+	ExpectedPeerUID      *int
+	ExpectedPeerGID      *int
 	MaxHeaderCount       int
 	MaxHeaderBytes       int
 	MaxResponseBodyBytes int64
@@ -40,8 +42,10 @@ type Config struct {
 
 type Service struct {
 	extprocv3.UnimplementedExternalProcessorServer
-	config      Config
-	streamSlots chan struct{}
+	config          Config
+	streamSlots     chan struct{}
+	expectedPeerUID int
+	expectedPeerGID int
 }
 
 type stream struct {
@@ -61,11 +65,33 @@ func New(config Config) (*Service, error) {
 	return newServiceWithStreamLimit(config, DefaultMaxActiveStreams)
 }
 
+func validExpectedResponseCompanionPeerID(value int) bool {
+	return value >= 0 && uint64(value) <= uint64(^uint32(0))
+}
+
+func expectedResponseCompanionPeerCredentials(config Config) (int, int, error) {
+	if config.ExpectedPeerUID == nil && config.ExpectedPeerGID == nil {
+		return os.Geteuid(), os.Getegid(), nil
+	}
+	if config.ExpectedPeerUID == nil || config.ExpectedPeerGID == nil {
+		return 0, 0, fmt.Errorf("response observer: expected peer UID and GID must be configured together")
+	}
+	if !validExpectedResponseCompanionPeerID(*config.ExpectedPeerUID) ||
+		!validExpectedResponseCompanionPeerID(*config.ExpectedPeerGID) {
+		return 0, 0, fmt.Errorf("response observer: expected peer UID and GID must be valid Linux IDs")
+	}
+	return *config.ExpectedPeerUID, *config.ExpectedPeerGID, nil
+}
+
 // newServiceWithStreamLimit keeps the shipped aggregate capacity fixed while
 // making the admission and exact release invariant directly testable.
 func newServiceWithStreamLimit(config Config, streamLimit int) (*Service, error) {
 	if streamLimit < 1 {
 		return nil, fmt.Errorf("response observer: stream limit must be positive")
+	}
+	expectedPeerUID, expectedPeerGID, err := expectedResponseCompanionPeerCredentials(config)
+	if err != nil {
+		return nil, err
 	}
 	if strings.TrimSpace(config.SocketPath) == "" {
 		return nil, fmt.Errorf("response observer: socket_path is required")
@@ -85,7 +111,12 @@ func newServiceWithStreamLimit(config Config, streamLimit int) (*Service, error)
 	if config.MaxResponseBodyBytes <= 0 {
 		config.MaxResponseBodyBytes = 1 << 20
 	}
-	return &Service{config: config, streamSlots: make(chan struct{}, streamLimit)}, nil
+	return &Service{
+		config:          config,
+		streamSlots:     make(chan struct{}, streamLimit),
+		expectedPeerUID: expectedPeerUID,
+		expectedPeerGID: expectedPeerGID,
+	}, nil
 }
 
 func (s *Service) Process(server extprocv3.ExternalProcessor_ProcessServer) error {
@@ -171,7 +202,9 @@ func (s *Service) requestHeaders(state *stream, message *extprocv3.HttpHeaders) 
 	if err != nil {
 		return nil, false, err
 	}
-	c, err := dial(s.config.SocketPath, s.config.Timeout)
+	c, err := dialWithExpectedPeer(
+		s.config.SocketPath, s.config.Timeout, s.expectedPeerUID, s.expectedPeerGID,
+	)
 	if err != nil {
 		return nil, false, err
 	}

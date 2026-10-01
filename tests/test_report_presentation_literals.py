@@ -289,11 +289,11 @@ class ReportPresentationLiteralsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="nginx-runtime-contract-") as temporary:
             root = Path(temporary)
             cache_root = root / "cache"
-            source_directory = root / "sources/nginx-1.31.5"
+            source_directory = root / "sources/nginx-1.31.6"
             source_directory.mkdir(parents=True)
             binary = cache_root / "builds/connectors/nginx/cache-key/nginx/sbin/nginx"
             binary.parent.mkdir(parents=True)
-            binary.write_text("#!/bin/sh\nprintf 'nginx/1.31.5\\n'\n", encoding="utf-8")
+            binary.write_text("#!/bin/sh\nprintf 'nginx/1.31.6\\n'\n", encoding="utf-8")
             binary.chmod(0o755)
             module = cache_root / "builds/connectors/nginx/cache-key/nginx/modules/ngx_http_modsecurity_module.so"
             module.parent.mkdir(parents=True)
@@ -303,16 +303,16 @@ class ReportPresentationLiteralsTest(unittest.TestCase):
                 "component": "nginx",
                 "source_repository": "https://github.com/nginx/nginx",
                 "source_mode": "github-release",
-                "release_tag": "release-1.31.5",
-                "source_ref": "release-1.31.5",
-                "release_asset_name": "nginx-1.31.5.tar.gz",
-                "expected_archive_sha256": "e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279",
-                "actual_archive_sha256": "e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279",
-                "source_version_readback": "nginx/1.31.5",
+                "release_tag": "release-1.31.6",
+                "source_ref": "release-1.31.6",
+                "release_asset_name": "nginx-1.31.6.tar.gz",
+                "expected_archive_sha256": "974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1",
+                "actual_archive_sha256": "974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1",
+                "source_version_readback": "nginx/1.31.6",
                 "source_directory": str(source_directory),
                 "binary_path": str(binary),
                 "binary_sha256": binary_sha256,
-                "binary_version_readback": "nginx/1.31.5",
+                "binary_version_readback": "nginx/1.31.6",
                 "configure_arguments": "--prefix=/managed/nginx --add-dynamic-module=/managed/module",
                 "build_id": "nginx-cache-key",
                 "framework_commit": "f" * 40,

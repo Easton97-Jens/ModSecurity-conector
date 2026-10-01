@@ -608,11 +608,13 @@ def client_cancel(
     except UnicodeEncodeError as exc:
         raise ValueError("client-cancel headers must be ASCII") from exc
     context = trusted_loopback_tls_context(root, tls_certificate)
-    with socket.create_connection((host, port), timeout=2) as connection:
-        with context.wrap_socket(connection, server_hostname=host) as tls_connection:
-            tls_connection.settimeout(2)
-            tls_connection.sendall(request)
-            status = _read_client_cancel_status(tls_connection)
+    with (
+        socket.create_connection((host, port), timeout=2) as connection,
+        context.wrap_socket(connection, server_hostname=host) as tls_connection,
+    ):
+        tls_connection.settimeout(2)
+        tls_connection.sendall(request)
+        status = _read_client_cancel_status(tls_connection)
     # Leaving the context closes the TLS connection while the delayed upstream
     # response is still open.  No response payload is persisted.
     return {"client_closed": True, "first_body_byte_received": True, "http_status": status}
@@ -841,19 +843,21 @@ def phase4_first_byte(
         raise ValueError("phase-4 barrier headers must be ASCII") from exc
 
     context = trusted_loopback_tls_context(root, tls_certificate)
-    with socket.create_connection((host, port), timeout=timeout) as connection:
-        with context.wrap_socket(connection, server_hostname=host) as tls_connection:
-            tls_connection.sendall(request)
-            status, first_chunk_size = _read_chunked_first_body(tls_connection, timeout=timeout)
-            paused = _wait_for_json_object(
-                root, paths["paused"], timeout=timeout, label="upstream phase-4 pause record"
-            )
-            _validate_phase4_pause_record(paused)
-            try:
-                create_runtime_marker(root, paths["release"], "phase-4 barrier release")
-            except FileExistsError as exc:
-                raise RuntimeError("phase-4 barrier release was already present") from exc
-            _drain_response(tls_connection, timeout=timeout)
+    with (
+        socket.create_connection((host, port), timeout=timeout) as connection,
+        context.wrap_socket(connection, server_hostname=host) as tls_connection,
+    ):
+        tls_connection.sendall(request)
+        status, first_chunk_size = _read_chunked_first_body(tls_connection, timeout=timeout)
+        paused = _wait_for_json_object(
+            root, paths["paused"], timeout=timeout, label="upstream phase-4 pause record"
+        )
+        _validate_phase4_pause_record(paused)
+        try:
+            create_runtime_marker(root, paths["release"], "phase-4 barrier release")
+        except FileExistsError as exc:
+            raise RuntimeError("phase-4 barrier release was already present") from exc
+        _drain_response(tls_connection, timeout=timeout)
 
     completed = _wait_for_json_object(
         root, paths["completed"], timeout=timeout, label="upstream phase-4 completion record"

@@ -92,11 +92,68 @@ records must contain the same facts and actual values.
 | Files and verification | List the same changed files, test commands, actual results, runtime evidence, and checks not run. |
 | Remaining state | Record the same known limitations, residual risks, and final review status. |
 
-Each record must use sections for Motivation, Acceptance criteria, Technical
-decisions, Security impact, Changed files, Tests and actual results, Runtime
-evidence, Checks not run, Known limitations, Residual risks, and Final review
-status. A record is incomplete until its paired language version contains the
-same facts.
+The exact section names below are required, not synonyms. Their single
+machine-readable owner is
+<code>ci/checks/documentation/check-bilingual-docs.py</code>.
+The regression test checks these tables against that owner.
+
+| English | Deutsch |
+| --- | --- |
+| <code>## Identity</code> | <code>## Identität</code> |
+| <code>## Motivation and problem statement</code> | <code>## Motivation und Problemstellung</code> |
+| <code>## Acceptance criteria</code> | <code>## Akzeptanzkriterien</code> |
+| <code>## Implementation decision and rationale</code> | <code>## Implementierungsentscheidung und Begründung</code> |
+| <code>## Changed files</code> | <code>## Geänderte Dateien</code> |
+| <code>## Commands executed</code> | <code>## Ausgeführte Befehle</code> |
+| <code>## Security impact</code> | <code>## Security-Auswirkung</code> |
+| <code>## Runtime evidence</code> | <code>## Runtime-Evidence</code> |
+| <code>## Known limitations</code> | <code>## Bekannte Einschränkungen</code> |
+| <code>## Remaining risks</code> | <code>## Verbleibende Risiken</code> |
+| <code>## Checks not run and rationale</code> | <code>## Nicht ausgeführte Prüfungen mit Begründung</code> |
+| <code>## Final diff and review status</code> | <code>## Finaler Diff- und Review-Status</code> |
+
+Use these exact identity-table labels, with identical values in both languages:
+
+| English | Deutsch |
+| --- | --- |
+| <code>Change ID</code> | <code>Change-ID</code> |
+| <code>Date (UTC)</code> | <code>Datum (UTC)</code> |
+| <code>Base revision</code> | <code>Basis-Revision</code> |
+
+Create both language scaffolds together with
+<code>ci/tools/new-change-record.py</code> rather than inventing headings.
+The tool imports the existing checker schema, validates the generated pair,
+and writes only two new files under the existing Change Record archive.
+It requires POSIX directory-descriptor support, rejects symlinked output
+directories, and never overwrites an existing file. On an ordinary creation
+failure it removes only newly created files whose identities still match;
+the two-file operation is not crash-atomic.
+
+Set <code>BASE_REVISION</code> to the actual full lowercase 40-character Git
+commit SHA of the change's base. Replace <code>my-change</code> with a lowercase,
+hyphen-separated name of at most 80 characters. The default date is the current
+UTC date; <code>--date YYYY-MM-DD</code> allows an explicit valid date.
+Run these native command payloads through any execution wrapper required
+by the local working agreement:
+
+~~~sh
+python3 ci/tools/new-change-record.py create --name my-change --base-revision "$BASE_REVISION"
+python3 ci/tools/new-change-record.py check
+python3 -m unittest -v tests.test_change_record tests.test_prepare_reviewed_framework_handoff
+~~~
+
+Replace every pending paragraph and the scaffold notice with actual facts,
+including actual checks not run and remaining risks. Keep the generated
+headings and identity labels unchanged. These are editable scaffolds, not
+generated evidence or proof that the change is complete.
+
+The quick-framework CI workflow runs the archive-only check and its
+regressions before framework setup. The early check reads only the record
+archive and invokes no Git command. It also rejects orphan language files.
+It does not replace <code>make check-bilingual-docs</code>,
+<code>make check-doc-links</code>, manual bilingual-content review, or any
+security/runtime checks. A structurally valid record can still contain
+incomplete or inaccurate prose.
 
 ## Features and bug fixes
 
