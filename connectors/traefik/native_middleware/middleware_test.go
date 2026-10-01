@@ -28,6 +28,22 @@ type bodyCall struct {
 	length    int
 }
 
+type testLocalAddr string
+
+func (address testLocalAddr) Network() string { return "test" }
+
+func (address testLocalAddr) String() string { return string(address) }
+
+func withTestLocalEndpoint(request *http.Request) *http.Request {
+	if _, ok := request.Context().Value(http.LocalAddrContextKey).(net.Addr); ok {
+		return request
+	}
+	return request.WithContext(context.WithValue(request.Context(), http.LocalAddrContextKey, &net.TCPAddr{
+		IP:   net.ParseIP("192.0.2.10"),
+		Port: 8443,
+	}))
+}
+
 type recordingTransaction struct {
 	opens          int
 	headerCalls    []headerCall
@@ -67,7 +83,7 @@ func serveNoContentRequest(t *testing.T, request *http.Request) (*recordingTrans
 		writer.WriteHeader(http.StatusNoContent)
 	}), transaction)
 	response := httptest.NewRecorder()
-	middleware.ServeHTTP(response, request)
+	middleware.ServeHTTP(response, withTestLocalEndpoint(request))
 	return transaction, response
 }
 
@@ -96,7 +112,7 @@ func serveRejectedRequest(t *testing.T, request *http.Request) *recordingTransac
 		nextCalled = true
 	}), transaction)
 	response := httptest.NewRecorder()
-	middleware.ServeHTTP(response, request)
+	middleware.ServeHTTP(response, withTestLocalEndpoint(request))
 	if nextCalled {
 		t.Fatal("next handler ran for rejected request")
 	}
@@ -118,7 +134,7 @@ func metadataForRequest(t *testing.T, request *http.Request) []Metadata {
 	if err != nil {
 		t.Fatalf("newWithEngine() error = %v", err)
 	}
-	middleware.ServeHTTP(httptest.NewRecorder(), request)
+	middleware.ServeHTTP(httptest.NewRecorder(), withTestLocalEndpoint(request))
 	return engine.metadata
 }
 
@@ -212,26 +228,105 @@ func TestMiddlewarePreservesRawAuthorityInMetadata(t *testing.T) {
 	if got, want := value.Hostname, "authority.example:8443"; got != want {
 		t.Fatalf("metadata Hostname = %q, want raw authority %q", got, want)
 	}
-	if got, want := value.ServerAddress, "authority.example"; got != want {
-		t.Fatalf("metadata ServerAddress = %q, want parsed host %q", got, want)
+	if got, want := value.ServerAddress, "192.0.2.10"; got != want {
+		t.Fatalf("metadata ServerAddress = %q, want trusted local address %q", got, want)
 	}
 	if got, want := value.ServerPort, 8443; got != want {
-		t.Fatalf("metadata ServerPort = %d, want %d", got, want)
+		t.Fatalf("metadata ServerPort = %d, want trusted local port %d", got, want)
 	}
 }
 
-func TestMiddlewarePreservesBracketedIPv6AuthorityInMetadata(t *testing.T) {
-	request := httptest.NewRequest(http.MethodGet, "http://[2001:db8::1]:8443/resource", nil)
-	metadata := metadataForRequest(t, request)
-	if got, want := len(metadata), 1; got != want {
-		t.Fatalf("metadata records = %d, want %d", got, want)
+func TestMiddlewareUsesTrustedLocalEndpointMetadata(t *testing.T) {
+	tests := []struct {
+		name       string
+		local      net.Addr
+		wantIP     string
+		wantPort   int
+		requestURL string
+		wantHost   string
+	}{
+		{
+			name:       "TCP IPv4",
+			local:      &net.TCPAddr{IP: net.ParseIP("198.51.100.24"), Port: 9443},
+			wantIP:     "198.51.100.24",
+			wantPort:   9443,
+			requestURL: "http://authority.example:8443/resource",
+			wantHost:   "authority.example:8443",
+		},
+		{
+			name:       "UDP IPv6",
+			local:      &net.UDPAddr{IP: net.ParseIP("2001:db8::24"), Port: 8443},
+			wantIP:     "2001:db8::24",
+			wantPort:   8443,
+			requestURL: "http://[2001:db8::1]:8443/resource",
+			wantHost:   "[2001:db8::1]:8443",
+		},
+		{
+			name:       "maximum valid port",
+			local:      &net.TCPAddr{IP: net.ParseIP("203.0.113.24"), Port: 65535},
+			wantIP:     "203.0.113.24",
+			wantPort:   65535,
+			requestURL: "http://authority.example/resource",
+			wantHost:   "authority.example",
+		},
 	}
-	value := metadata[0]
-	if got, want := value.ServerAddress, "2001:db8::1"; got != want {
-		t.Fatalf("metadata ServerAddress = %q, want parsed IPv6 address %q", got, want)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, test.requestURL, nil)
+			request = request.WithContext(context.WithValue(request.Context(), http.LocalAddrContextKey, test.local))
+			metadata := metadataForRequest(t, request)
+			if got, want := len(metadata), 1; got != want {
+				t.Fatalf("metadata records = %d, want %d", got, want)
+			}
+			value := metadata[0]
+			if got, want := value.Hostname, test.wantHost; got != want {
+				t.Fatalf("metadata Hostname = %q, want raw authority %q", got, want)
+			}
+			if got, want := value.ServerAddress, test.wantIP; got != want {
+				t.Fatalf("metadata ServerAddress = %q, want trusted local IP %q", got, want)
+			}
+			if got, want := value.ServerPort, test.wantPort; got != want {
+				t.Fatalf("metadata ServerPort = %d, want trusted local port %d", got, want)
+			}
+		})
 	}
-	if got, want := value.ServerPort, 8443; got != want {
-		t.Fatalf("metadata ServerPort = %d, want %d", got, want)
+}
+
+func TestMiddlewareRejectsMissingOrInvalidLocalEndpointBeforeEngineOpen(t *testing.T) {
+	tests := []struct {
+		name  string
+		local net.Addr
+	}{
+		{name: "missing context value"},
+		{name: "not an IP endpoint", local: &net.UnixAddr{Name: "/run/traefik.sock", Net: "unix"}},
+		{name: "missing IP", local: &net.TCPAddr{Port: 443}},
+		{name: "zero port", local: &net.TCPAddr{IP: net.ParseIP("192.0.2.1")}},
+		{name: "port above range", local: &net.TCPAddr{IP: net.ParseIP("192.0.2.1"), Port: 65536}},
+		{name: "malformed address", local: testLocalAddr("not-an-endpoint")},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			transaction := &recordingTransaction{}
+			nextCalled := false
+			middleware := newTestMiddleware(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+				nextCalled = true
+			}), transaction)
+			request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
+			if test.local != nil {
+				request = request.WithContext(context.WithValue(request.Context(), http.LocalAddrContextKey, test.local))
+			}
+			response := httptest.NewRecorder()
+			middleware.ServeHTTP(response, request)
+			if got, want := response.Code, http.StatusInternalServerError; got != want {
+				t.Fatalf("ServeHTTP(%s) status = %d, want %d", test.name, got, want)
+			}
+			if got, want := transaction.opens, 0; got != want {
+				t.Fatalf("ServeHTTP(%s) engine opens = %d, want %d", test.name, got, want)
+			}
+			if nextCalled {
+				t.Fatalf("ServeHTTP(%s) called downstream handler after invalid local endpoint", test.name)
+			}
+		})
 	}
 }
 
@@ -265,7 +360,7 @@ func TestMiddlewareForwardsMixedCaseHostMapKeyExactlyOnce(t *testing.T) {
 	request.Host = "authority.example"
 	request.Header["hOsT"] = []string{"authority.example"}
 
-	middleware.ServeHTTP(httptest.NewRecorder(), request)
+	middleware.ServeHTTP(httptest.NewRecorder(), withTestLocalEndpoint(request))
 
 	var hosts []Header
 	for _, header := range requestHeaderValues(transaction) {
@@ -364,7 +459,7 @@ func TestMiddlewareStreamsRequestAndResponseInBoundedChunks(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPost, "http://example.test/stream", strings.NewReader("request"))
 	request.Header.Set("X-Request-Id", "transaction-1")
 	response := httptest.NewRecorder()
-	middleware.ServeHTTP(response, request)
+	middleware.ServeHTTP(response, withTestLocalEndpoint(request))
 
 	if got, want := response.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d", got, want)
@@ -417,7 +512,7 @@ func TestMiddlewareDrainsRequestBeforeResponseHeadersWhenHandlerSkipsBody(t *tes
 		writer.WriteHeader(http.StatusNoContent)
 	}), transaction)
 	request := httptest.NewRequest(http.MethodPost, "http://example.test/ordering", strings.NewReader("request"))
-	middleware.ServeHTTP(httptest.NewRecorder(), request)
+	middleware.ServeHTTP(httptest.NewRecorder(), withTestLocalEndpoint(request))
 
 	lastRequestBody := -1
 	firstResponseHeaders := -1
@@ -451,7 +546,7 @@ func TestMiddlewareAllowsInLimitRequestBodyBeforeResponseHeaders(t *testing.T) {
 	request.ContentLength = int64(len("request"))
 	request.Body = source
 	response := httptest.NewRecorder()
-	middleware.ServeHTTP(response, request)
+	middleware.ServeHTTP(response, withTestLocalEndpoint(request))
 
 	if got, want := response.Code, http.StatusNoContent; got != want {
 		t.Fatalf("status = %d, want %d", got, want)
@@ -474,7 +569,7 @@ func TestMiddlewareRejectsOverLimitBodyDuringSkippedHandlerDrain(t *testing.T) {
 	request.ContentLength = int64(len("request"))
 	request.Body = source
 	response := httptest.NewRecorder()
-	middleware.ServeHTTP(response, request)
+	middleware.ServeHTTP(response, withTestLocalEndpoint(request))
 
 	assertOverLimitRequestRejectedBeforeP3(t, transaction, response, source, len("request"))
 }
@@ -492,7 +587,7 @@ func TestMiddlewareRejectsOverLimitBodyReadByHandlerWithoutFurtherDrain(t *testi
 	request.ContentLength = int64(len("request"))
 	request.Body = source
 	response := httptest.NewRecorder()
-	middleware.ServeHTTP(response, request)
+	middleware.ServeHTTP(response, withTestLocalEndpoint(request))
 
 	assertOverLimitRequestRejectedBeforeP3(t, transaction, response, source, len("request"))
 }
@@ -588,7 +683,7 @@ func TestMiddlewareFailsClosedWhenPreCommitRequestDrainFails(t *testing.T) {
 	request.ContentLength = -1
 	request.Body = failingRequestBody{}
 	response := httptest.NewRecorder()
-	middleware.ServeHTTP(response, request)
+	middleware.ServeHTTP(response, withTestLocalEndpoint(request))
 
 	if !nextCalled {
 		t.Fatal("next handler was not reached before its response triggered the drain")
@@ -641,7 +736,7 @@ func TestMiddlewareFailsClosedAndClosesIdleRequestBody(t *testing.T) {
 	request.Body = body
 	response := httptest.NewRecorder()
 	started := time.Now()
-	middleware.ServeHTTP(response, request)
+	middleware.ServeHTTP(response, withTestLocalEndpoint(request))
 	if elapsed := time.Since(started); elapsed > time.Second {
 		t.Fatalf("idle body drain took %s", elapsed)
 	}
@@ -669,7 +764,7 @@ func TestMiddlewareRequestBodyIdleTimeoutAllowsActiveFollowUp(t *testing.T) {
 	middleware.config.RequestBodyIdleTimeoutMillis = 100
 	request := httptest.NewRequest(http.MethodPost, "http://example.test/active", strings.NewReader("active"))
 	response := httptest.NewRecorder()
-	middleware.ServeHTTP(response, request)
+	middleware.ServeHTTP(response, withTestLocalEndpoint(request))
 	if got, want := response.Code, http.StatusNoContent; got != want {
 		t.Fatalf("active follow-up status = %d, want %d", got, want)
 	}
@@ -694,13 +789,13 @@ func TestMiddlewareReusesAfterIdleTimeoutForLegitimateFollowUp(t *testing.T) {
 	first.ContentLength = -1
 	first.Body = firstBody
 	firstResponse := httptest.NewRecorder()
-	middleware.ServeHTTP(firstResponse, first)
+	middleware.ServeHTTP(firstResponse, withTestLocalEndpoint(first))
 	if got, want := firstResponse.Code, http.StatusInternalServerError; got != want {
 		t.Fatalf("first status = %d, want fail-closed status %d", got, want)
 	}
 	second := httptest.NewRequest(http.MethodPost, "http://example.test/follow-up", strings.NewReader("ok"))
 	secondResponse := httptest.NewRecorder()
-	middleware.ServeHTTP(secondResponse, second)
+	middleware.ServeHTTP(secondResponse, withTestLocalEndpoint(second))
 	if got, want := secondResponse.Code, http.StatusNoContent; got != want {
 		t.Fatalf("follow-up status = %d, want %d", got, want)
 	}
@@ -723,7 +818,7 @@ func TestMiddlewareKeepsBodyDecisionWhenPreCommitDrainFindsP2Deny(t *testing.T) 
 	}), transaction)
 	response := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "http://example.test/p2-deny", strings.NewReader("request"))
-	middleware.ServeHTTP(response, request)
+	middleware.ServeHTTP(response, withTestLocalEndpoint(request))
 
 	if got, want := response.Code, http.StatusForbidden; got != want {
 		t.Fatalf("status = %d, want preserved P2 denial %d", got, want)
@@ -743,7 +838,7 @@ func TestMiddlewareMarksEmptyRequestEOSWithoutBodyCallback(t *testing.T) {
 	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.WriteHeader(http.StatusNoContent)
 	}), transaction)
-	middleware.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "http://example.test/empty", nil))
+	middleware.ServeHTTP(httptest.NewRecorder(), withTestLocalEndpoint(httptest.NewRequest(http.MethodGet, "http://example.test/empty", nil)))
 
 	if len(transaction.closed) != 1 || !transaction.closed[0].RequestEOS {
 		t.Fatalf("empty request was not closed at request EOS: %#v", transaction.closed)
@@ -763,7 +858,7 @@ func TestMiddlewareInspectsReadableZeroLengthBodyBeforeP3(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPost, "http://example.test/zero-length-body", nil)
 	request.ContentLength = 0
 	request.Body = io.NopCloser(strings.NewReader(""))
-	middleware.ServeHTTP(httptest.NewRecorder(), request)
+	middleware.ServeHTTP(httptest.NewRecorder(), withTestLocalEndpoint(request))
 
 	if len(transaction.closed) != 1 || !transaction.closed[0].RequestEOS {
 		t.Fatalf("readable zero-length body did not reach request EOS: %#v", transaction.closed)
@@ -793,7 +888,7 @@ func TestMiddlewarePreservesRequestContextForEveryEngineCallback(t *testing.T) {
 	}), transaction)
 	request := httptest.NewRequest(http.MethodGet, "http://example.test/context", nil).WithContext(requestContext)
 
-	middleware.ServeHTTP(httptest.NewRecorder(), request)
+	middleware.ServeHTTP(httptest.NewRecorder(), withTestLocalEndpoint(request))
 
 	if len(transaction.contexts) == 0 {
 		t.Fatal("engine did not receive a request context")
@@ -851,7 +946,7 @@ func TestRequestHeaderRejectionNeverReflectsHeaderValue(t *testing.T) {
 	request.Header.Set("X-Attacker-Input", maliciousHeader)
 	response := httptest.NewRecorder()
 
-	middleware.ServeHTTP(response, request)
+	middleware.ServeHTTP(response, withTestLocalEndpoint(request))
 
 	if nextCalled {
 		t.Fatal("next handler ran after request-header rejection")
@@ -886,7 +981,7 @@ func TestReadFromUsesUnderlyingReaderFromAndKeepsChunksBounded(t *testing.T) {
 
 	response := &readerFromResponseWriter{header: make(http.Header)}
 	request := httptest.NewRequest(http.MethodGet, "http://example.test/read-from", nil)
-	middleware.ServeHTTP(response, request)
+	middleware.ServeHTTP(response, withTestLocalEndpoint(request))
 
 	if !response.readFromCalled {
 		t.Fatal("underlying io.ReaderFrom fast path was not used")
@@ -950,7 +1045,7 @@ func TestResponseWriteFlushesForwardedChunk(t *testing.T) {
 		}
 	}), transaction)
 
-	middleware.ServeHTTP(underlying, httptest.NewRequest(http.MethodGet, "http://example.test/flush", nil))
+	middleware.ServeHTTP(underlying, withTestLocalEndpoint(httptest.NewRequest(http.MethodGet, "http://example.test/flush", nil)))
 
 	if !underlying.flushed {
 		t.Fatal("forwarded response bytes were not flushed to the underlying host writer")
@@ -974,7 +1069,7 @@ func TestPreCommitResponseDecisionDoesNotBufferOrForwardBody(t *testing.T) {
 	}), transaction)
 
 	response := httptest.NewRecorder()
-	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/deny", nil))
+	middleware.ServeHTTP(response, withTestLocalEndpoint(httptest.NewRequest(http.MethodGet, "http://example.test/deny", nil)))
 
 	if got, want := response.Code, http.StatusUnavailableForLegalReasons; got != want {
 		t.Fatalf("status = %d, want %d", got, want)
@@ -1004,7 +1099,7 @@ func TestLateResponseDecisionDoesNotReplaceCommittedResponse(t *testing.T) {
 	}), transaction)
 
 	response := httptest.NewRecorder()
-	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/late", nil))
+	middleware.ServeHTTP(response, withTestLocalEndpoint(httptest.NewRequest(http.MethodGet, "http://example.test/late", nil)))
 
 	if got, want := response.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d", got, want)
@@ -1034,7 +1129,7 @@ func TestLateResponseDecisionDoesNotHijackTheHostConnection(t *testing.T) {
 		}
 	}), transaction)
 
-	middleware.ServeHTTP(underlying, httptest.NewRequest(http.MethodGet, "http://example.test/late", nil))
+	middleware.ServeHTTP(underlying, withTestLocalEndpoint(httptest.NewRequest(http.MethodGet, "http://example.test/late", nil)))
 
 	if got, want := underlying.body.String(), "already committed"; got != want {
 		t.Fatalf("response body = %q, want %q", got, want)
@@ -1054,7 +1149,7 @@ func TestIncompleteHostWriteDoesNotInventResponseEOS(t *testing.T) {
 	}), transaction)
 	response := &failingResponseWriter{header: make(http.Header)}
 
-	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/disconnect", nil))
+	middleware.ServeHTTP(response, withTestLocalEndpoint(httptest.NewRequest(http.MethodGet, "http://example.test/disconnect", nil)))
 
 	if len(transaction.closed) != 1 {
 		t.Fatalf("Close calls = %d, want 1", len(transaction.closed))

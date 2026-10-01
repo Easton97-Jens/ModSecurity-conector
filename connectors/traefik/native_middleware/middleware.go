@@ -354,6 +354,11 @@ func newMiddleware(next http.Handler, config Config, name string, engine Transac
 // chunk before delegating the remaining stream.
 func (middleware *Middleware) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	requestContext := request.Context()
+	serverAddress, serverPort, ok := trustedLocalEndpoint(requestContext)
+	if !ok {
+		http.Error(writer, "modsecurity middleware trusted local endpoint unavailable", http.StatusInternalServerError)
+		return
+	}
 	requestHeaders, err := boundedRequestHeaders(request.Header, request.Host, middleware.config)
 	if err != nil {
 		http.Error(writer, "request headers exceed middleware limits", http.StatusRequestHeaderFieldsTooLarge)
@@ -367,14 +372,8 @@ func (middleware *Middleware) ServeHTTP(writer http.ResponseWriter, request *htt
 		Hostname:      request.Host,
 	}
 	metadata.ClientAddress, metadata.ClientPort = endpointFromAddress(request.RemoteAddr, 0)
-	defaultServerPort := 80
-	if request.TLS != nil {
-		defaultServerPort = 443
-	}
-	metadata.ServerAddress, metadata.ServerPort = endpointFromAddress(request.Host, defaultServerPort)
-	if metadata.ServerAddress == "" {
-		metadata.ServerAddress = request.Host
-	}
+	metadata.ServerAddress = serverAddress
+	metadata.ServerPort = serverPort
 	transaction, err := middleware.engine.Open(requestContext, metadata)
 	if err != nil {
 		http.Error(writer, "modsecurity middleware engine unavailable", http.StatusInternalServerError)
@@ -417,6 +416,30 @@ func (middleware *Middleware) ServeHTTP(writer http.ResponseWriter, request *htt
 
 	middleware.next.ServeHTTP(response, request)
 	response.finish()
+}
+
+// trustedLocalEndpoint obtains the local listener endpoint supplied by the
+// host server. Request authority is client-controlled and is therefore kept
+// only as Hostname metadata; it must not be used as the server endpoint sent
+// to the engine.
+func trustedLocalEndpoint(requestContext context.Context) (string, int, bool) {
+	localAddress, ok := requestContext.Value(http.LocalAddrContextKey).(net.Addr)
+	if !ok || localAddress == nil {
+		return "", 0, false
+	}
+	host, portText, err := net.SplitHostPort(localAddress.String())
+	if err != nil {
+		return "", 0, false
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return "", 0, false
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil || port < 1 || port > 65535 {
+		return "", 0, false
+	}
+	return ip.String(), port, true
 }
 
 func endpointFromAddress(value string, fallbackPort int) (string, int) {

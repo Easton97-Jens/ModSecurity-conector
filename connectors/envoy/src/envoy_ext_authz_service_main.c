@@ -7,12 +7,6 @@
 
 #include <stdlib.h>
 
-static const char *const envoy_original_uri_headers[] = {
-    "x-envoy-original-path",
-    "x-forwarded-uri",
-    "x-original-uri"
-};
-
 static msconnector_envoy_ext_authz_response_companion envoy_response_companion;
 static int envoy_response_companion_ready;
 
@@ -98,8 +92,8 @@ static const msconnector_http_authorization_profile envoy_ext_authz_profile = {
     "envoy",
     "ext_authz",
     NULL,
-    envoy_original_uri_headers,
-    sizeof(envoy_original_uri_headers) / sizeof(envoy_original_uri_headers[0]),
+    NULL,
+    0U,
     envoy_modsecurity_map_request,
     envoy_modsecurity_map_response,
     envoy_handoff_response_companion,

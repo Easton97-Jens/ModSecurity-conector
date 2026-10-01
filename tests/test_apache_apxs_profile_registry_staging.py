@@ -42,6 +42,7 @@ class ApacheApxsProfileRegistryStagingTest(unittest.TestCase):
             "            : > \"$directory/profile_registry.slo\"\n"
             "            : > \"$directory/.libs/profile_registry.o\"\n"
             "            printf '%s\\n' \"$argument\" > \"$APXS_ARGUMENT_LOG\"\n"
+            "            if [ \"${APXS_FAIL:-0}\" = 1 ]; then exit 42; fi\n"
             "            exit 0\n"
             "            ;;\n"
             "    esac\n"
@@ -53,7 +54,9 @@ class ApacheApxsProfileRegistryStagingTest(unittest.TestCase):
         destination.chmod(destination.stat().st_mode | stat.S_IXUSR)
         return destination
 
-    def _run_wrapper(self, cwd: Path, connector_root: Path, build_root: Path) -> subprocess.CompletedProcess[str]:
+    def _run_wrapper(
+        self, cwd: Path, connector_root: Path, build_root: Path, *, fail_apxs: bool = False
+    ) -> subprocess.CompletedProcess[str]:
         apxs = self._write_fake_apxs(cwd / "fake-apxs")
         wrapper = self._write_wrapper(cwd / "apxs-wrapper", apxs)
         environment = os.environ.copy()
@@ -62,6 +65,7 @@ class ApacheApxsProfileRegistryStagingTest(unittest.TestCase):
                 "CONNECTOR_ROOT": str(connector_root),
                 "MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT": str(build_root),
                 "APXS_ARGUMENT_LOG": str(cwd / "apxs-argument.log"),
+                "APXS_FAIL": "1" if fail_apxs else "0",
                 "PYTHONDONTWRITEBYTECODE": "1",
             }
         )
@@ -73,7 +77,9 @@ class ApacheApxsProfileRegistryStagingTest(unittest.TestCase):
         connector_root = temporary / "canonical-checkout"
         sources = connector_root / "connectors"
         sources.mkdir(parents=True)
-        (sources / "profile_registry.c").write_text("int registry(void) { return 0; }\n", encoding="utf-8")
+        (sources / "profile_registry.c").write_text(
+            "int registry(void) { return 0; }\n", encoding="utf-8"
+        )
         (sources / "profile_registry.h").write_text("#pragma once\n", encoding="utf-8")
         return connector_root
 
@@ -93,9 +99,19 @@ class ApacheApxsProfileRegistryStagingTest(unittest.TestCase):
                 (workdir / "apxs-argument.log").read_text(encoding="utf-8").strip(),
                 str(staged / "profile_registry.c"),
             )
-            self.assertEqual((staged / "profile_registry.c").read_text(encoding="utf-8"), "int registry(void) { return 0; }\n")
-            self.assertEqual((staged / "profile_registry.h").read_text(encoding="utf-8"), "#pragma once\n")
-            for artifact in ("profile_registry.o", "profile_registry.lo", "profile_registry.slo", ".libs/profile_registry.o"):
+            self.assertEqual(
+                (staged / "profile_registry.c").read_text(encoding="utf-8"),
+                "int registry(void) { return 0; }\n",
+            )
+            self.assertEqual(
+                (staged / "profile_registry.h").read_text(encoding="utf-8"), "#pragma once\n"
+            )
+            for artifact in (
+                "profile_registry.o",
+                "profile_registry.lo",
+                "profile_registry.slo",
+                ".libs/profile_registry.o",
+            ):
                 self.assertTrue((staged / artifact).is_file(), artifact)
                 self.assertFalse((connector_root / "connectors" / artifact).exists(), artifact)
 
@@ -106,10 +122,56 @@ class ApacheApxsProfileRegistryStagingTest(unittest.TestCase):
             workdir = root / "external-build" / "apache"
             workdir.mkdir(parents=True)
 
-            result = self._run_wrapper(workdir, connector_root, connector_root / "build" / "profile-registry")
+            result = self._run_wrapper(
+                workdir, connector_root, connector_root / "build" / "profile-registry"
+            )
 
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("must be outside the canonical connector checkout", result.stderr)
+            self.assertFalse((connector_root / "build").exists())
+            self.assertFalse((connector_root / "connectors" / "profile_registry.o").exists())
+            self.assertFalse((workdir / "apxs-argument.log").exists())
+
+    def test_failed_apxs_build_can_retry_under_the_same_external_root(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="apache-apxs-profile-registry-") as temporary:
+            root = Path(temporary)
+            connector_root = self._make_connector_root(root)
+            build_root = root / "external-build" / "profile-registry"
+            workdir = root / "external-build" / "apache"
+            workdir.mkdir(parents=True)
+
+            first = self._run_wrapper(workdir, connector_root, build_root, fail_apxs=True)
+            self.assertEqual(first.returncode, 42, first.stdout + first.stderr)
+            second = self._run_wrapper(workdir, connector_root, build_root)
+            self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
+            self.assertFalse((connector_root / "connectors" / "profile_registry.o").exists())
+
+    def test_repeated_build_uses_a_fresh_stage_in_the_same_external_root(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="apache-apxs-profile-registry-") as temporary:
+            root = Path(temporary)
+            connector_root = self._make_connector_root(root)
+            build_root = root / "external-build" / "profile-registry"
+            workdir = root / "external-build" / "apache"
+            workdir.mkdir(parents=True)
+
+            first = self._run_wrapper(workdir, connector_root, build_root)
+            self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
+            first_source = Path((workdir / "apxs-argument.log").read_text().strip())
+            # An existing artifact must not be overwritten or reused on rebuild.
+            first_source.unlink()
+            first_source.symlink_to(connector_root / "connectors" / "profile_registry.c")
+
+            second = self._run_wrapper(workdir, connector_root, build_root)
+            self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
+            second_source = Path((workdir / "apxs-argument.log").read_text().strip())
+            self.assertNotEqual(first_source, second_source)
+            self.assertTrue(second_source.is_relative_to(build_root))
+            self.assertFalse(second_source.is_symlink())
+            self.assertTrue(first_source.is_symlink())
+            self.assertEqual(
+                (connector_root / "connectors" / "profile_registry.c").read_text(),
+                "int registry(void) { return 0; }\n",
+            )
             self.assertFalse((connector_root / "connectors" / "profile_registry.o").exists())
 
     def test_refuses_a_symlinked_build_root_before_it_can_create_checkout_content(self) -> None:
@@ -126,12 +188,37 @@ class ApacheApxsProfileRegistryStagingTest(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("must be outside the canonical connector checkout", result.stderr)
             self.assertFalse((connector_root / "profile-registry").exists())
+            self.assertFalse((connector_root / "connectors" / "profile_registry.o").exists())
+            self.assertFalse((workdir / "apxs-argument.log").exists())
+
+    def test_refuses_a_symlinked_connectors_child_before_copying_or_running_apxs(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="apache-apxs-profile-registry-") as temporary:
+            root = Path(temporary)
+            connector_root = self._make_connector_root(root)
+            workdir = root / "external-build" / "apache"
+            workdir.mkdir(parents=True)
+            build_root = root / "external-build" / "profile-registry"
+            build_root.mkdir()
+            (build_root / "connectors").symlink_to(
+                connector_root / "connectors", target_is_directory=True
+            )
+
+            result = self._run_wrapper(workdir, connector_root, build_root)
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("must be a non-symlink directory", result.stderr)
+            self.assertEqual(
+                (connector_root / "connectors" / "profile_registry.c").read_text(
+                    encoding="utf-8"
+                ),
+                "int registry(void) { return 0; }\n",
+            )
+            self.assertFalse((connector_root / "connectors" / "profile_registry.o").exists())
+            self.assertFalse((workdir / "apxs-argument.log").exists())
 
     def test_autotools_bootstrap_uses_a_private_stage_outside_its_source_snapshot(self) -> None:
         bootstrap = AUTOTOOLS_BOOTSTRAP.read_text(encoding="utf-8")
-        stage_assignment = (
-            'MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT="$WORK_ROOT/profile-registry" \\'
-        )
+        stage_assignment = 'MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT="$WORK_ROOT/profile-registry" \\'
 
         self.assertIn("umask 077", bootstrap)
         self.assertIn(
@@ -140,17 +227,53 @@ class ApacheApxsProfileRegistryStagingTest(unittest.TestCase):
         )
         self.assertIn('SOURCE_ROOT="$WORK_ROOT/source"', bootstrap)
         self.assertIn(stage_assignment, bootstrap)
+        self.assertIn("for build_attempt in 1 2; do", bootstrap)
         self.assertEqual(bootstrap.count(stage_assignment), 1)
-        self.assertNotIn(
-            'MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT="$APACHE_ROOT/', bootstrap
-        )
-        self.assertNotIn(
-            'MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT="$SOURCE_ROOT/', bootstrap
-        )
+        self.assertNotIn('MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT="$APACHE_ROOT/', bootstrap)
+        self.assertNotIn('MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT="$SOURCE_ROOT/', bootstrap)
         self.assertLess(
             bootstrap.index(stage_assignment),
-            bootstrap.index("    make\n", bootstrap.index(stage_assignment)),
+            bootstrap.index("make", bootstrap.index(stage_assignment)),
         )
+
+    def test_bootstrap_stops_after_each_failed_make(self) -> None:
+        bootstrap = AUTOTOOLS_BOOTSTRAP.read_text(encoding="utf-8")
+        loop_start = bootstrap.index("    for build_attempt in 1 2; do")
+        loop_end = bootstrap.index("    done", loop_start) + len("    done")
+        build_loop = bootstrap[loop_start:loop_end]
+        # Exercise the actual loop in the same conditional shell context.
+        script = (
+            "set -eu\n"
+            "make() {\n"
+            "    printf '%s\\n' \"$build_attempt\" >> \"$BUILD_ATTEMPT_LOG\"\n"
+            "    if test \"$build_attempt\" = \"$FAILED_BUILD_ATTEMPT\"; then return 42; fi\n"
+            "    return 0\n"
+            "}\n"
+            "if ! (\n" + build_loop + "\n); then exit 42; fi\n"
+        )
+        for failed_attempt in (1, 2):
+            with self.subTest(failed_attempt=failed_attempt):
+                with tempfile.TemporaryDirectory(prefix="apache-bootstrap-make-") as temporary:
+                    attempt_log = Path(temporary) / "build-attempts.log"
+                    environment = os.environ.copy()
+                    environment.update(
+                        {
+                            "SOURCE_ROOT": temporary,
+                            "WORK_ROOT": temporary,
+                            "APACHE_ROOT": temporary,
+                            "BUILD_ATTEMPT_LOG": str(attempt_log),
+                            "FAILED_BUILD_ATTEMPT": str(failed_attempt),
+                        }
+                    )
+                    result = subprocess.run(
+                        ["sh", "-c", script], env=environment, capture_output=True,
+                        text=True, check=False, timeout=10,
+                    )
+                    self.assertEqual(result.returncode, 42, result.stdout + result.stderr)
+                    self.assertEqual(
+                        attempt_log.read_text(encoding="utf-8").splitlines(),
+                        [str(attempt) for attempt in range(1, failed_attempt + 1)],
+                    )
 
 
 if __name__ == "__main__":

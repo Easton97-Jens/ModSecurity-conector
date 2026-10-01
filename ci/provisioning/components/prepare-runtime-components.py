@@ -329,7 +329,8 @@ FRAMEWORK_GUARD_RUNTIME_ROOT_ENV_KEYS = (
     "MRTS_NATIVE_ROOT",
 )
 APR_UTIL_VERSION_RE = re.compile(r"\d+(?:\.\d+)+", re.ASCII)
-APR_UTIL_SHA256_RE = re.compile(r"[0-9a-f]{64}")
+LOWERCASE_SHA256_RE = re.compile(r"[0-9a-f]{64}")
+APR_UTIL_SHA256_RE = LOWERCASE_SHA256_RE
 SHELL_QUOTED_ENV_RE = re.compile(r"([A-Z_][A-Z0-9_]*)='([^']*)'")
 GIT_STATUS_SHORT_ARGS = (
     "status",
@@ -2777,18 +2778,45 @@ def download_archive_if_needed(
     *,
     expected_sha: str = "",
     verify_digest_before_archive_list: bool = False,
-) -> None:
+) -> str:
     if not archive_requires_download(
         path,
         expected_sha=expected_sha,
         verify_digest_before_archive_list=verify_digest_before_archive_list,
     ):
-        return
+        return ""
     if path.exists():
         remove_archive_path(path, cache_root)
     if cache_root is not None:
         mark_managed_cache_entry(path, cache_root, component=component, cache_key=cache_key)
-    download(url, path)
+    return download_archive_source(url, path, component, expected_sha)
+
+
+def download_archive_source(url: str, path: Path, component: str, expected_sha: str) -> str:
+    """Keep a reviewed HTTPD source usable after its official mirror retires it."""
+    try:
+        download(url, path)
+        return url
+    except RuntimeError as exc:
+        # urlopen_bytes preserves the typed final network error as its argument.
+        network_error = exc.args[0] if exc.args else None
+        archive_name = re.fullmatch(
+            r"https://downloads\.apache\.org/httpd/(httpd-\d+\.\d+\.\d+\.tar\.bz2)",
+            url,
+            flags=re.ASCII,
+        )
+        if (
+            component != archive_cache_component("httpd")
+            or not isinstance(network_error, urllib.error.HTTPError)
+            or network_error.code != 404
+            or archive_name is None
+            or LOWERCASE_SHA256_RE.fullmatch(expected_sha) is None
+        ):
+            raise
+        archive_url = f"https://archive.apache.org/dist/httpd/{archive_name.group(1)}"
+        network_error.close()
+        download(archive_url, path)
+        return archive_url
 
 
 def corrupt_archive_record(
@@ -2881,7 +2909,7 @@ def prepare_archive_unlocked(
         archive_identity,
     ):
         return record
-    download_archive_if_needed(
+    download_url = download_archive_if_needed(
         url,
         path,
         managed_root,
@@ -2890,6 +2918,9 @@ def prepare_archive_unlocked(
         expected_sha=expected_sha,
         verify_digest_before_archive_list=verify_digest_before_archive_list,
     )
+    if name == "httpd":
+        # Cache reuse proves bytes/identity, not which endpoint originally fetched them.
+        record.update(download_url=download_url, download_status="downloaded" if download_url else "cached")
     size = path.stat().st_size
     if size <= 0:
         return corrupt_archive_record(record, path, managed_root, "empty_archive")
@@ -10722,7 +10753,11 @@ def apache_archive_records(env: dict[str, str], archives_root: Path, cache_root:
     apache_root = archives_root / "apache"
     apr_util_identity = apr_util_archive_cache_identity(env)
     return [
-        prepare_archive("httpd", env.get("HTTPD_SOURCE_URL", ""), env.get("HTTPD_SHA256", ""), env.get("HTTPD_SHA256_URL", ""), apache_root, cache_root),
+        prepare_archive(
+            "httpd", env.get("HTTPD_SOURCE_URL", ""), env.get("HTTPD_SHA256", ""),
+            env.get("HTTPD_SHA256_URL", ""), apache_root, cache_root,
+            required_literal_sha256=True, verify_digest_before_archive_list=True,
+        ),
         prepare_archive("apr", env.get("APR_SOURCE_URL", ""), env.get("APR_SHA256", ""), env.get("APR_SHA256_URL", ""), apache_root, cache_root),
         prepare_archive(
             "apr-util",

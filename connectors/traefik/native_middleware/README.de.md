@@ -29,6 +29,11 @@ Capability-Erklärung.
   Chunk den schnellen Pfad des umschlossenen Writers bei.
 - In `Summary` verbleiben nur Metadaten sowie Byte-/Chunk-Zähler, niemals ein
   vollständiger Request- oder Response-Body.
+- `Metadata.ServerAddress` und `Metadata.ServerPort` werden ausschließlich aus
+  dem vom Host bereitgestellten `http.LocalAddrContextKey` abgeleitet; ein
+  fehlender, nicht-IP- oder ungültiger Port-Endpunkt liefert HTTP 500, bevor
+  die Engine geöffnet wird, während die client-kontrollierte Request-Authority
+  ausschließlich `Metadata.Hostname` bleibt.
 - Ein disruptives Ergebnis nach dem Response-Commit wird als `log_only`
   behandelt; es wird kein geänderter Status, Reset oder Client-Abbruch
   behauptet.
@@ -53,6 +58,10 @@ Hostumgebung eine getrennte Dienstidentität verlangt, muss die Laufzeit diese
 erzwingen. Eine plattformspezifische `SO_PEERCRED`-Prüfung benötigt einen
 ausdrücklich unterstützten Plattformvertrag und wird von diesem Paket nicht
 impliziert.
+
+Die Zuordnung des vertrauenswürdigen lokalen Endpunkts schützt nur die
+Provenienz des Server-Endpunkts. Sie authentifiziert keinen späteren UDS-Peer
+und löst daher nicht das Socket-Ersetzungsrisiko aus FND-PARENT-0015.
 
 Das UDS-Protokoll lehnt unbekannte Engine-Aktionen ab, statt sie als
 HTTP-Ablehnung umzudeuten. Es meldet ein disruptives Ergebnis erst nach einem
