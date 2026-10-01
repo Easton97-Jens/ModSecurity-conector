@@ -370,6 +370,7 @@ jobs:
             ci/tooling/security-tools.lock.yml \
             .github/workflows/all-connectors-no-crs.yml \
             .github/workflows/cleanup-artifacts.yml \
+            .github/workflows/ci-findings-regressions.yml \
             .github/workflows/ci-security-codeql.yml \
             .github/workflows/ci-security-osv.yml \
             .github/workflows/ci-security-scorecard.yml \
@@ -382,12 +383,15 @@ jobs:
             .github/workflows/quick-framework-check.yml \
             .github/workflows/reusable-five-connectors-profile.yml \
             .github/workflows/run-protected-nginx-root-broker.yml \
+            .github/workflows/run-trusted-lighttpd-namespace-dispatch.yml \
             .github/workflows/test-apache.yml \
             .github/workflows/test-common.yml \
+            .github/workflows/test-connectors-with-crs-no-mrts.yml \
             .github/workflows/test-envoy.yml \
             .github/workflows/test-full-smoke-sequential.yml \
             .github/workflows/test-haproxy.yml \
             .github/workflows/test-lighttpd.yml \
+            .github/workflows/test-nginx-exact-head.yml \
             .github/workflows/test-nginx.yml \
             .github/workflows/test-traefik.yml \
             .github/workflows/update-go-version.yml \

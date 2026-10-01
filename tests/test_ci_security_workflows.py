@@ -51,7 +51,7 @@ LOCKED_ACTION_USE = re.compile(
     r"(?P<prefix>uses:\s+[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?@)"
     r"(?P<sha>[a-f0-9]{40})(?:\s+#\s*v[^\n]+)?"
 )
-SUBMODULE_PUBLISHER_NORMALIZED_SHA256 = "5bcfb23230ab1f5b93c7589446adcb9e96ef8d38564db6ed1ea0b52e14fad9dd"
+SUBMODULE_PUBLISHER_NORMALIZED_SHA256 = "0fb998291b7f5e5abd8e65841b54b8c4e66945bee971846a30e1d20c4c1e1527"
 SUBMODULE_PUBLISHER_APP_TOKEN_ACTION = "actions/create-github-app-token"
 SUBMODULE_PUBLISHER_APP_TOKEN_INPUTS = {
     "client-id": "${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}",
@@ -1410,6 +1410,15 @@ def normalize_locked_action_pins(text: str) -> str:
     return LOCKED_ACTION_USE.sub(replace, text)
 
 
+def locked_action_reference_with_version(name: str) -> str:
+    """Bind runtime workflow assertions to the reviewed lock SHA and release tag."""
+    raw = yaml.safe_load(LOCK_PATH.read_text(encoding="utf-8"))
+    record = raw["pinned_actions"][name]
+    if not isinstance(record.get("version"), str):
+        raise AssertionError(f"workflow Action lock has no release version for {name}")
+    return f"{locked_action_pin(name)} # {record['version']}"
+
+
 class CiSecurityWorkflowTest(unittest.TestCase):
     def workflow(self, name: str) -> str:
         return (WORKFLOWS / name).read_text(encoding="utf-8")
@@ -1798,7 +1807,7 @@ jobs:
         self.assertEqual(len(checkout_steps), 1)
         checkout = checkout_steps[0]
         self.assertIn(
-            "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7",
+            locked_action_pin("actions/checkout"),
             checkout,
         )
         self.assertIn(
@@ -1808,11 +1817,11 @@ jobs:
         self.assertIn("submodules: recursive", checkout)
         self.assertIn("persist-credentials: false", checkout)
         self.assertIn(
-            "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0",
+            locked_action_reference_with_version("actions/setup-python"),
             job,
         )
         self.assertIn(
-            "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1",
+            locked_action_reference_with_version("actions/upload-artifact"),
             job,
         )
 
@@ -1948,7 +1957,7 @@ jobs:
         ):
             self.assertIn(f"id: {step_id}", job)
         self.assertEqual(
-            job.count("actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1"),
+            job.count(locked_action_reference_with_version("actions/upload-artifact")),
             5,
         )
         producer = job.split("      - name: Produce canonical with-CRS no-MRTS profile cell\n", 1)[1].split(
@@ -2270,7 +2279,7 @@ jobs:
             aggregate,
         )
         self.assertIn(
-            "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1",
+            locked_action_reference_with_version("actions/download-artifact"),
             aggregate,
         )
         self.assertIn("pattern: with-crs-no-mrts-*-${{ github.run_id }}-${{ github.run_attempt }}", aggregate)
@@ -3284,6 +3293,23 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn('[ "$pr_base_repo" != "$GITHUB_REPOSITORY" ]', publisher)
         self.assertIn('[ "$pr_head_repo" != "$GITHUB_REPOSITORY" ]', publisher)
         self.assertIn("verify_merged_pr", publisher)
+        merged_guard = re.search(r"(?ms)^          verify_merged_pr\(\) \{\n.*?^          \}", publisher)
+        self.assertIsNotNone(merged_guard)
+        assert merged_guard is not None
+        for required_check in (
+            '[ "$pr_base_repo" != "$GITHUB_REPOSITORY" ]',
+            '[ "$pr_head_repo" != "$GITHUB_REPOSITORY" ]',
+            '[ "$marker_count" != "1" ]',
+            "--jq '.merge_commit_sha'",
+            'git cat-file -e "$pr_merge_sha^{commit}"',
+            'git merge-base --is-ancestor "$pr_merge_sha" "origin/$DEFAULT_BRANCH"',
+        ):
+            self.assertIn(required_check, merged_guard.group(0))
+        merged_state = re.search(r"(?ms)^            0:true\)\n(.*?)^              ;;", publisher)
+        self.assertIsNotNone(merged_state)
+        assert merged_state is not None
+        self.assertNotIn("require_single_updater_commit", merged_state.group(1))
+        self.assertIn('verify_merged_pr "$MERGED_PR_NUMBER" "$EXPECTED_REMOTE_HEAD"', merged_state.group(1))
         self.assertIn("require_single_updater_commit", publisher)
         self.assertIn("git rev-list --reverse", publisher)
         self.assertIn("read_matching_merged_pr", publisher)

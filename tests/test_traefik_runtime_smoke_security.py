@@ -120,6 +120,35 @@ class TraefikRuntimeSmokeSecurityTest(unittest.TestCase):
                 with self.assertRaisesRegex(RUNNER.MissingDependency, "must remain below"):
                     RUNNER.resolve_runtime_paths(outside_arguments, ROOT)
 
+    def test_provisioned_host_binary_is_accepted_without_trusting_other_build_paths(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="traefik-staged-host-") as temporary:
+            root = Path(temporary)
+            build_root = root / "build"
+            component_cache = root / "cache"
+            build_root.mkdir(mode=0o700)
+            component_cache.mkdir(mode=0o700)
+            connector = self.make_executable(build_root / "traefik-forwardauth")
+            staged = self.make_executable(build_root / "traefik-connector/bin/traefik")
+            unexpected = self.make_executable(build_root / "other/traefik")
+            outside = self.make_executable(root / "outside/traefik")
+            with mock.patch.dict(os.environ, {
+                "BUILD_ROOT": str(build_root),
+                "CONNECTOR_COMPONENT_CACHE": str(component_cache),
+            }):
+                _, _, trusted_host = RUNNER.resolve_runtime_paths(
+                    self.runtime_args(connector, staged), ROOT
+                )
+                self.assertEqual(trusted_host.path, staged)
+                for rejected in (unexpected, outside, staged.parent / ".." / ".." / ".." / "other/traefik"):
+                    with self.subTest(path=rejected), self.assertRaisesRegex(
+                        RUNNER.MissingDependency, "must remain below"
+                    ):
+                        RUNNER.resolve_runtime_paths(self.runtime_args(connector, rejected), ROOT)
+                staged.unlink()
+                staged.symlink_to(outside)
+                with self.assertRaisesRegex(RUNNER.MissingDependency, "symlink"):
+                    RUNNER.resolve_runtime_paths(self.runtime_args(connector, staged), ROOT)
+
     def test_trusted_executable_rejects_control_characters_before_process_start(self) -> None:
         with tempfile.TemporaryDirectory(prefix="traefik-runtime-root-") as temporary:
             build_root = Path(temporary) / "build"
@@ -134,6 +163,30 @@ class TraefikRuntimeSmokeSecurityTest(unittest.TestCase):
             )
             with self.assertRaisesRegex(RUNNER.MissingDependency, "control characters"):
                 executable.arguments("--config", "unsafe\nvalue")
+
+    def test_private_socket_override_keeps_long_artifact_roots_and_rejects_unsafe_roots(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="uds-") as temporary:
+            root = Path(temporary)
+            result_root = root / ("a" * 40) / ("b" * 40) / "runtime"
+            sockets = root / "s"
+            sockets.mkdir(mode=0o700)
+            with mock.patch.dict(os.environ, {"MSCONNECTOR_PRIVATE_SOCKET_ROOT": str(sockets)}):
+                self.assertEqual(RUNNER.private_companion_directory(result_root, ROOT), sockets)
+                sockets.chmod(0o755)
+                with self.assertRaisesRegex(RUNNER.MissingDependency, "mode 0700"):
+                    RUNNER.private_companion_directory(result_root, ROOT)
+                sockets.chmod(0o777)
+                with self.assertRaisesRegex(RUNNER.MissingDependency, "writable"):
+                    RUNNER.private_companion_directory(result_root, ROOT)
+                sockets.chmod(0o700)
+                alias = root / "alias"
+                alias.symlink_to(sockets)
+                os.environ["MSCONNECTOR_PRIVATE_SOCKET_ROOT"] = str(alias)
+                with self.assertRaisesRegex(RUNNER.MissingDependency, "symlink"):
+                    RUNNER.private_companion_directory(result_root, ROOT)
+            with mock.patch.dict(os.environ, {"MSCONNECTOR_PRIVATE_SOCKET_ROOT": ""}):
+                with self.assertRaisesRegex(RUNNER.MissingDependency, "too long"):
+                    RUNNER.private_companion_directory(result_root, ROOT)
 
     def test_runtime_artifact_writers_keep_fixed_names_below_validated_directories(self) -> None:
         with tempfile.TemporaryDirectory(prefix="traefik-runtime-root-") as temporary:

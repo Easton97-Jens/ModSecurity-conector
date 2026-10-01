@@ -956,7 +956,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
             encoding="utf-8"
         )
         dispatch_start = workflow.index("  workflow_dispatch:\n")
-        permissions_start = workflow.index("\npermissions:\n", dispatch_start)
+        permissions_start = workflow.index("\npermissions:", dispatch_start)
         dispatch = workflow[dispatch_start:permissions_start]
         cleanup_start = workflow.index("  cleanup-artifacts:\n")
         matrix_start = workflow.index("  manual-heavy-runtime-validation:\n", cleanup_start)

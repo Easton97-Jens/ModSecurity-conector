@@ -755,6 +755,24 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         }
         self.assertEqual(set(UPDATER.ALLOWED_UPDATE_PATHS), staged_paths)
 
+    def test_native_baseline_uses_nonrecursive_updater_inventory_regression(self) -> None:
+        """Candidate validation must not invoke the test that validates candidates."""
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        baseline = makefile.split("check-ci-security-contract:\n", 1)[1].split(
+            "\n\n", 1
+        )[0]
+        selector = (
+            "tests.ci_security.test_update_workflow_tools."
+            "WorkflowToolUpdaterTests."
+            "test_all_locked_action_references_are_in_the_publisher_allowlist"
+        )
+        self.assertIn(selector, baseline.split())
+        self.assertNotIn("tests.ci_security.test_update_workflow_tools", baseline.split())
+        lint_workflow = (
+            ROOT / ".github/workflows/ci-security-workflow-lint.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("tests.ci_security.test_update_workflow_tools", lint_workflow.split())
+
     def test_connector_lock_adapter_preserves_the_on_disk_schema(self) -> None:
         raw = UPDATER.yaml.safe_load(
             (ROOT / "ci/tooling/security-tools.lock.yml").read_text(encoding="utf-8")

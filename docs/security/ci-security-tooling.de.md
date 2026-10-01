@@ -63,6 +63,45 @@ Für die gehostete Ausführung konfigurieren Sie die Repository-Variable
 Repository. Die GitHub App muss auf dieses Repository begrenzt sein und darf
 nur `Contents: write`, `Pull requests: write` und `Workflows: write` erhalten.
 
+Der normale CI-Sicherheitsvertrag prüft, dass jeder eingecheckte Workflow durch
+die explizite Publisher-Allowlist und die Staging-Liste abgedeckt ist. Ein neuer
+Workflow erfordert die Aktualisierung beider Listen. Die Proposed-Tree-Prüfung
+kopiert die vollständigen registrierten Vertragseingaben einschließlich ihrer
+Offline-Test-Fixtures; diese read-only-Eingaben erweitern die erlaubten
+Änderungen des Publishers nicht.
+
+## Framework-Submodul-Wartung und Artefaktbereinigung
+
+`update-submodules.yml` unterscheidet offene Wartungsbranches von Branches, die
+nach einem geprüften Merge übrig bleiben. Ein offener Branch muss weiterhin
+genau einen vertragskonformen Updater-Commit enthalten. Ein verbleibender
+gemergter Branch darf geprüfte menschliche Reparatur-Commits enthalten, wenn
+ein Same-Repository-PR mit exakt diesem Head, App-Autor, festem Titel und Marker
+gemergt wurde und sein Merge-Commit vom aktuellen `origin/master` erreichbar
+ist. Nicht gemergte, fremde, mehrdeutige oder veraltete Identitäten bleiben
+Fehler. Die Veröffentlichung baut weiterhin vom aktuellen `master` neu auf,
+validiert den Kandidaten, prüft Branch-Races und erstellt einen Draft PR ohne
+automatischen Merge.
+
+Die zeitgesteuerte Action in `cleanup-artifacts.yml` wiederholt vorübergehende
+GitHub-API-Fehler bis zu dreimal mit dem begrenzten Backoff der gepinnten Action.
+Dauerhafte Berechtigungsfehler und nach den Wiederholungen verbleibende
+Löschfehler lassen den Job weiterhin scheitern; Aufbewahrungsregeln und
+Job-Berechtigungen bleiben gleich.
+
+## Zulassung von Runtime-Pfaden
+
+Envoy- und Traefik-Kompatibilitäts-Stages erzeugen Invocation-eigene Unix-Sockets
+über `ci/runtime/lifecycle/with-private-sockets.py` in einem kurzen privaten
+Verzeichnis. Evidence- und Build-Artefakte behalten ihre an Revisionen gebundenen
+Pfade. Der Wrapper prüft den temporären Elternpfad, leitet Beendigungssignale
+weiter, weist verbliebene laufende Prozesse zurück und prüft das Prozessende,
+bevor er Socket-Dateien löscht. Direkte Harness-Aufrufe mit kurzen Pfaden
+behalten ihr privates Fallback-Verzeichnis. Der Traefik-Runner lässt den exakten
+vorbereiteten Pfad `BUILD_ROOT/traefik-connector/bin/traefik` mit denselben
+Eigentümer-, Modus-, Vorfahren- und Symlink-Prüfungen wie bei gecachten Binaries
+zu; andere Executables im Build-Baum bleiben unzulässig.
+
 ## Eingeschränkter Python-3.14-Patch-Updater
 
 `.github/workflows/update-python-version.yml` hat genau vier Jobs:

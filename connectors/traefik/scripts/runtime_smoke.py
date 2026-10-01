@@ -238,8 +238,17 @@ def resolve_runtime_paths(
     connector_binary = require_local_executable(
         args.connector_binary, "Traefik connector binary", build_root
     )
+    # The Framework provisioner stages its verified host executable at this
+    # exact build location. Other caller-selected build executables must not
+    # become trusted host binaries merely because BUILD_ROOT is trusted.
+    staged_host = build_root / "traefik-connector" / "bin" / "traefik"
+    host_root = (
+        build_root
+        if args.traefik_binary == staged_host
+        else component_cache
+    )
     traefik_binary = require_local_executable(
-        args.traefik_binary, "Traefik binary", component_cache
+        args.traefik_binary, "Traefik binary", host_root
     )
     return build_root, connector_binary, traefik_binary
 
@@ -621,6 +630,19 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def private_companion_directory(result_root: Path, repo_root: Path) -> Path:
+    selected = os.environ.get("MSCONNECTOR_PRIVATE_SOCKET_ROOT", "")
+    if not selected:
+        directory = result_root / "mrc"
+    else:
+        directory = require_trusted_runtime_root(Path(selected), "private socket root", repo_root)
+        if stat.S_IMODE(directory.stat().st_mode) != 0o700:
+            raise MissingDependency("private socket root must have mode 0700")
+    if len(os.fsencode(directory / "traefik-forwardauth-companion.sock")) >= 108:
+        raise MissingDependency("private companion socket path is too long")
+    return directory
+
+
 def prepare_smoke_inputs(args: argparse.Namespace, repo_root: Path):
     consume_no_crs_selected_cases(repo_root)
     build_root, connector_binary, traefik_binary = resolve_runtime_paths(args, repo_root)
@@ -653,7 +675,7 @@ def prepare_smoke_workspace(repo_root: Path, result_root: Path,
     result_root.mkdir(parents=True, exist_ok=True)
     log_dir = result_root / "logs"
     config_dir = result_root / "config"
-    companion_dir = result_root / "mrc"
+    companion_dir = private_companion_directory(result_root, repo_root)
     log_dir.mkdir(parents=True, exist_ok=True)
     config_dir.mkdir(parents=True, exist_ok=True)
     companion_dir.mkdir(parents=True, exist_ok=True)

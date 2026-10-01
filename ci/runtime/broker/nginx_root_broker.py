@@ -468,6 +468,10 @@ class RestrictedYamlParser:
             return self.child_value(index + 1, parent_indent, depth)
         if self.is_block_scalar(raw_value):
             return self.block_scalar(index + 1, parent_indent)
+        # The deny-default permission contract uses this exact empty mapping.
+        # Nonempty flow mappings and flow sequences remain unsupported.
+        if raw_value.strip() == "{}":
+            return {}, index + 1
         return self.scalar(raw_value, line_number), index + 1
 
     def parse_mapping(self, index: int, indent: int, depth: int) -> tuple[dict[str, Any], int]:
@@ -706,8 +710,8 @@ def validate_caller_top_level_contract(document: dict[str, Any]) -> None:
     if parent_head["required"] != "true" or parent_head["type"] != "string":
         fail("caller workflow parent_head_sha input is not required string data")
     permissions = required_yaml_mapping(document["permissions"], "top-level permissions")
-    if permissions != {"contents": "read"}:
-        fail("caller workflow top-level permissions must be exactly contents: read")
+    if permissions != {}:
+        fail("caller workflow top-level permissions must be exactly deny-default")
     concurrency = required_yaml_mapping(document["concurrency"], "concurrency")
     if concurrency != EXPECTED_CALLER_CONCURRENCY:
         fail("caller workflow has an unexpected concurrency contract")

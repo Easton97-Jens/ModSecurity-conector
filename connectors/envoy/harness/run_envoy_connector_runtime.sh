@@ -33,7 +33,7 @@ UPSTREAM_STDOUT="$RUNTIME_ROOT/upstream.stdout.log"
 UPSTREAM_STDERR="$RUNTIME_ROOT/upstream.stderr.log"
 TLS_CERTIFICATE="$RUNTIME_ROOT/envoy-loopback.crt"
 TLS_PRIVATE_KEY="$RUNTIME_ROOT/envoy-loopback.key"
-PRIVATE_SOCKET_DIR="$RUNTIME_ROOT/mrc"
+PRIVATE_SOCKET_DIR=${MSCONNECTOR_PRIVATE_SOCKET_ROOT:-$RUNTIME_ROOT/mrc}
 RESPONSE_OBSERVER_SOCKET="$PRIVATE_SOCKET_DIR/envoy-response-observer.sock"
 COMPANION_SOCKET="$PRIVATE_SOCKET_DIR/envoy-ext-authz-companion.sock"
 OBSERVER_STDOUT="$RUNTIME_ROOT/response-observer.stdout.log"
@@ -109,6 +109,14 @@ case "$EVENT_LOG_PATH" in
         ;;
 esac
 rm -f "$EVENT_LOG_PATH" "$SUMMARY" "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY"
+set -- prepare-runtime-root --runtime-root "$PRIVATE_SOCKET_DIR"
+if [ -n "${MSCONNECTOR_PRIVATE_SOCKET_ROOT:-}" ]; then
+    set -- "$@" --require-private-mode
+fi
+if ! "$PYTHON_BIN" "$HELPER" "$@"; then
+    echo "envoy_runtime_smoke: FAIL - private socket root is unsafe" >&2
+    exit 1
+fi
 if [ -L "$PRIVATE_SOCKET_DIR" ]; then
     echo "envoy_runtime_smoke: FAIL - private response-observer directory must not be a symlink" >&2
     exit 1

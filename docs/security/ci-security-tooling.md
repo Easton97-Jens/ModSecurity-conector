@@ -61,6 +61,41 @@ For hosted execution, configure the repository variable
 repository. The GitHub App must be limited to this repository and grant only
 `Contents: write`, `Pull requests: write`, and `Workflows: write`.
 
+The standard CI security contract checks that every checked-in workflow is
+covered by the explicit publisher allowlist and staging list. Adding a workflow
+requires updating both lists. Proposed-tree validation copies the complete
+registered contract inputs, including their offline test fixtures; those
+read-only inputs do not expand the publisher's permitted changes.
+
+## Framework submodule maintenance and artifact cleanup
+
+`update-submodules.yml` distinguishes open maintenance branches from branches
+left over after a reviewed merge. An open branch must still contain exactly
+one conforming updater commit. A leftover merged branch may contain reviewed
+human repair commits only when an exact-head, same-repository, App-authored PR
+with the fixed title and marker was merged, and its merge commit is reachable
+from current `origin/master`. Unmerged, foreign, ambiguous, or stale identities
+remain errors. Publication still rebuilds from current `master`, validates the
+candidate, checks branch races, and creates a Draft PR without automatic merge.
+
+The scheduled `cleanup-artifacts.yml` action retries transient GitHub API
+failures up to three times using the pinned action's bounded backoff. Permanent
+authorization errors and deletion failures after retries still fail the job;
+artifact retention rules and job permissions remain the same.
+
+## Runtime path admission
+
+Envoy and Traefik compatibility stages allocate invocation-owned Unix sockets
+in a short private directory through
+`ci/runtime/lifecycle/with-private-sockets.py`. Evidence and build artifacts
+retain their revision-bound paths. The wrapper validates the temporary parent,
+forwards termination signals, rejects leftover live processes, and verifies
+termination before deleting socket files. Direct short-path harness calls keep
+their private fallback directory. The Traefik runner admits the exact prepared
+`BUILD_ROOT/traefik-connector/bin/traefik` path with the same ownership, mode,
+ancestor, and symlink checks as cached binaries; other build-tree executables
+remain inadmissible.
+
 ## Constrained Python 3.14 patch updater
 
 `.github/workflows/update-python-version.yml` has exactly four jobs:
