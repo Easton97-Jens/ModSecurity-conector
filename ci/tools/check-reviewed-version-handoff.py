@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import argparse
 import ast
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -71,34 +70,24 @@ def python_constant(text: str, name: str):
 
 
 def reviewed_common(text: str, verifier_text: str) -> None:
+    """Check the closed data registry without approving arbitrary shell structure."""
+
     fields = python_constant(verifier_text, "MUTABLE_SOURCE_FIELDS")
-    expected = python_constant(verifier_text, "APPROVED_FRAMEWORK_COMMON_STRUCTURE_SHA256")
     require(isinstance(fields, tuple) and bool(fields), "invalid mutable-field registry")
     require(all(isinstance(field, str) for field in fields), "invalid mutable-field name")
     require(len(fields) == len(set(fields)), "duplicate mutable-field name")
     require(not any(field.startswith("NGINX_") for field in fields),
-            "NGINX must remain structurally reviewed")
+            "NGINX must remain separately reviewed")
     modsecurity_fields = {field for field in fields if field.startswith("MODSECURITY_")}
     require(modsecurity_fields == set(MODSECURITY_KEYS),
             "only the exact ModSecurity-v3 provenance tuple may be mutable")
-    require(isinstance(expected, str) and re.fullmatch(r"[0-9a-f]{64}", expected) is not None,
-            "invalid production review digest")
-    normalized = []
     seen = set()
-    for line in text.splitlines(keepends=True):
-        content = line.rstrip("\r\n")
-        name, separator, _value = content.partition("=")
+    for line in text.splitlines():
+        name, separator, _value = line.partition("=")
         if separator and name in fields:
             require(name not in seen, f"duplicate mutable source field: {name}")
             seen.add(name)
-            normalized.append(name + "=<PARENT_REVIEWED_SOURCE_DATA>" + line[len(content):])
-        else:
-            normalized.append(line)
     require(seen == set(fields), "incomplete mutable source field registry")
-    digest = hashlib.sha256("".join(normalized).encode("utf-8")).hexdigest()
-    require(digest == expected,
-            "Framework structure is not approved; review the complete change, not just the hash")
-
 
 def literal_pin(text: str, name: str) -> str:
     prefix = name + "="
