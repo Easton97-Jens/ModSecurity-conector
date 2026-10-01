@@ -154,6 +154,17 @@ Sonar at that exact intermediate head reported gate `OK`, 0.0% new duplication,
 zero OPEN/CONFIRMED issues and zero TO_REVIEW hotspots. The source-recovery
 successor requires its own new CI/Sonar round.
 
+The source-fallback head `8a3999f3` retained 0.0% new duplication but Sonar
+reported four new maintainability issues: duplicated SHA-256 regex and verbose
+digit classes. The final focused correction shares a compiled lowercase digest
+pattern and uses `\d` with `re.ASCII`, retaining the original ASCII-only URL
+contract. Unicode-digit URL rejection is included in the existing regression.
+No NGINX function or source contract is changed by this correction.
+After that correction, the focused105-test suite passed again, as did all
+seven `tests.test_apr_util_static_contract` tests, bilingual/docs links,
+Change Record structure and diff whitespace. Independent review confirmed
+equivalent regex matching; published-head Sonar/CI still require fresh readback.
+
 ## Known limitations
 
 Complete G1–G9 acceptance of all nine non-NGINX profiles remains unproven:

@@ -329,7 +329,8 @@ FRAMEWORK_GUARD_RUNTIME_ROOT_ENV_KEYS = (
     "MRTS_NATIVE_ROOT",
 )
 APR_UTIL_VERSION_RE = re.compile(r"\d+(?:\.\d+)+", re.ASCII)
-APR_UTIL_SHA256_RE = re.compile(r"[0-9a-f]{64}")
+LOWERCASE_SHA256_RE = re.compile(r"[0-9a-f]{64}")
+APR_UTIL_SHA256_RE = LOWERCASE_SHA256_RE
 SHELL_QUOTED_ENV_RE = re.compile(r"([A-Z_][A-Z0-9_]*)='([^']*)'")
 GIT_STATUS_SHORT_ARGS = (
     "status",
@@ -2800,15 +2801,16 @@ def download_archive_source(url: str, path: Path, component: str, expected_sha: 
         # urlopen_bytes preserves the typed final network error as its argument.
         network_error = exc.args[0] if exc.args else None
         archive_name = re.fullmatch(
-            r"https://downloads\.apache\.org/httpd/(httpd-[0-9]+\.[0-9]+\.[0-9]+\.tar\.bz2)",
+            r"https://downloads\.apache\.org/httpd/(httpd-\d+\.\d+\.\d+\.tar\.bz2)",
             url,
+            flags=re.ASCII,
         )
         if (
             component != archive_cache_component("httpd")
             or not isinstance(network_error, urllib.error.HTTPError)
             or network_error.code != 404
             or archive_name is None
-            or re.fullmatch(r"[0-9a-f]{64}", expected_sha) is None
+            or LOWERCASE_SHA256_RE.fullmatch(expected_sha) is None
         ):
             raise
         archive_url = f"https://archive.apache.org/dist/httpd/{archive_name.group(1)}"

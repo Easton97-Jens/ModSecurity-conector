@@ -87,6 +87,8 @@ class ApacheHttpdArchiveFallbackTest(unittest.TestCase):
             SOURCE + "?override=1",
             SOURCE + "#fragment",
             SOURCE.replace(".tar.bz2", ".tar.gz"),
+            SOURCE.replace("2.4.68", "２.４.６８"),
+            SOURCE.replace("2.4.68", "٢.٤.٦٨"),
         ):
             with self.subTest(url=url):
                 record, urls = self._prepare([self._failure(404)], url=url)

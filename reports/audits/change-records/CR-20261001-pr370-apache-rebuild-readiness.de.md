@@ -160,6 +160,17 @@ gelöscht zu werden. Sonar meldete an diesem exakten Zwischenstand Gate `OK`,
 0.0% neue Duplikation, null OPEN/CONFIRMED-Issues und null TO_REVIEW-Hotspots.
 Der Quellwiederherstellungs-Nachfolger erfordert eine eigene neue CI-/Sonar-Runde.
 
+Der Quellfallback-Head `8a3999f3` behielt 0.0% neue Duplikation, Sonar meldete
+jedoch vier neue Wartbarkeits-Issues: duplizierte SHA-256-Regex und ausführliche
+Ziffernklassen. Die letzte gezielte Korrektur teilt ein kompiliertes Lowercase-
+Digestmuster und nutzt `\d` mit `re.ASCII`; der ursprüngliche ASCII-only-URL-
+Vertrag bleibt erhalten. Die bestehende Regression prüft die Ablehnung von
+Unicode-Ziffern-URLs. Keine NGINX-Funktion und kein NGINX-Quellvertrag wird geändert.
+Nach dieser Korrektur bestanden erneut die fokussierten105 Tests sowie alle
+sieben Tests aus `tests.test_apr_util_static_contract`, Bilingual-/Doc-Links,
+Change-Record-Struktur und Diff-Whitespace. Das unabhängige Review bestätigte
+äquivalentes Regex-Matching; Published-Head-Sonar/CI benötigen frische Rückprüfung.
+
 ## Bekannte Einschränkungen
 
 Die vollständige G1–G9-Abnahme aller neun Nicht-NGINX-Profile bleibt unbewiesen:
