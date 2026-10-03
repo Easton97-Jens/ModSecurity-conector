@@ -6,6 +6,8 @@ from pathlib import Path
 import importlib.util
 import json
 import os
+import shlex
+import subprocess
 import sys
 import tempfile
 import time
@@ -312,6 +314,54 @@ class FullSmokeWorkflowContractTest(unittest.TestCase):
               self.assertRaisesRegex(ValueError, "changed during snapshot generation")):
             REPORTS.refresh_bounded_smoke(ROOT, self.framework, self.build, "no-crs", self.environment, [])
         generator.assert_not_called()
+
+    def test_native_make_shell_bootstraps_actual_common_before_fresh_crs_fetch(self) -> None:
+        makefile = (ROOT / "Makefile").read_text()
+        bounded = makefile.split("test-smoke-sequential-no-crs test-smoke-sequential-with-crs: ", 1)[1]
+        producer_line = next(line for line in bounded.splitlines() if "$(WITH_RUNTIME_COMPONENTS) env PYTHON=" in line)
+        command = producer_line.strip().removeprefix("$(WITH_RUNTIME_COMPONENTS) ").split(" || runtime_rc=", 1)[0]
+        stub_framework = self.build / "framework-seam"
+        for directory in ("ci/lib", "ci/provisioning", "ci/runtime"):
+            (stub_framework / directory).mkdir(parents=True, exist_ok=True)
+        (stub_framework / "ci/lib/common.sh").write_text(
+            ". " + shlex.quote(str(self.framework / "ci/lib/common.sh")) + "\n"
+        )
+        (stub_framework / "ci/provisioning/fetch-crs.sh").write_text(
+            'set -eu\n'
+            'test "$CRS_SOURCE_DIR" = "$VERIFIED_RUN_ROOT/crs-fresh-source/coreruleset"\n'
+            'test "$SOURCE_ROOT" = "$VERIFIED_RUN_ROOT/crs-fresh-source"\n'
+            'printf "fetch\\n" >> "$SEAM_TRACE"\n'
+        )
+        (stub_framework / "ci/runtime/run-connector-smokes.sh").write_text(
+            'set -eu\n'
+            'test "$CASE_SCOPE" = all\n'
+            'test -z "$FORCE_ALL_CASES$TEST_CASE$SMOKE_CASES$NO_CRS_BASELINE$NO_CRS_SELECTED_CASE_IDS$RUN_ONE_CASE"\n'
+            'test "$RESULTS_DIR" = "$smoke_root/results"\n'
+            'printf "producer\\n" >> "$SEAM_TRACE"\n'
+        )
+        command = command.replace("$(FRAMEWORK_PYTHON)", sys.executable).replace("$(CURDIR)", str(ROOT))
+        command = command.replace("$(FRAMEWORK_ROOT)", str(stub_framework)).replace("$$", "$")
+        for variant in ("no-crs", "with-crs"):
+            trace = self.build / (variant + ".trace")
+            env = {**os.environ, "variant": variant, "smoke_root": str(self.build / variant),
+                   "FRAMEWORK_ROOT": str(stub_framework), "CONNECTOR_ROOT": str(ROOT),
+                   "VERIFIED_RUN_ROOT": str(self.build / variant), "CONNECTOR_COMPONENT_CACHE": str(self.build / "cache"),
+                   "SEAM_TRACE": str(trace), "CASE_SCOPE": "connector", "FORCE_ALL_CASES": "1",
+                   "TEST_CASE": "narrowed", "SMOKE_CASES": "narrowed", "NO_CRS_BASELINE": "1",
+                   "NO_CRS_SELECTED_CASE_IDS": "narrowed", "RUN_ONE_CASE": "1", "RESULTS_DIR": "historical"}
+            result = subprocess.run(["sh", "-eu", "-c", command], env=env, capture_output=True, text=True, timeout=30)
+            with self.subTest(variant=variant):
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(trace.read_text().splitlines(), ["fetch", "producer"] if variant == "with-crs" else ["producer"])
+        # The actual Parent helper must execute common.sh's absolute-path guard,
+        # rather than a stub accepting invalid roots or a missing function.
+        trace.unlink()
+        env["VERIFIED_RUN_ROOT"] = "relative-invalid-root"
+        result = subprocess.run(["sh", "-eu", "-c", command], env=env, capture_output=True, text=True, timeout=30)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("absolute", result.stdout + result.stderr)
+        self.assertNotIn("not found", result.stdout + result.stderr)
+        self.assertFalse(trace.exists())
 
     def test_sequential_workflow_uses_scoped_entries_and_preserves_general_strict_refresh(self) -> None:
         workflow = WORKFLOW.read_text()

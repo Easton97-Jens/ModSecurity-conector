@@ -85,6 +85,18 @@ run-bound output; generated reports are not staged. This aligns validation with
 the real producer and does not weaken the full gate or promote full-matrix,
 MRTS or response-body evidence.
 
+A required With-CRS bootstrap correction follows the report profile: superseded
+`5605febc` job `111165203104` genuinely failed at `08:43` UTC because
+`prepare-fresh-crs-source.sh` called `ci_require_absolute_path` before the
+Framework `ci/lib/common.sh` was loaded. This failure occurred despite a
+cancellation request; it is not classified as cancellation-only. Runtime
+returned `77` before producer inputs existed, and the fresh-input gate correctly
+rejected the missing Apache result. The bounded recipe now sources the actual
+Framework common helper before the Parent CRS helper. Executed shell regression
+covers both variants, a fresh `RESULTS_DIR`, empty inherited scope flags, and
+fetch-before-producer ordering and actual relative-path rejection before
+fetching. The 18-test profile run passed in 9.315 seconds. Full report/case validation remains intact.
+
 ## Changed files
 
 - `.github/workflows/ci-security-workflow-lint.yml`
@@ -298,6 +310,16 @@ connector runtimes, legacy smoke and sequential full smoke were still pending.
 These partial results are not a full runtime pass and do not validate the
 subsequent command-selection correction.
 
+The literal-label correction was published as
+`a0ad0ef7de7ca4aa197705760c0932d68fbb3949`. Exact Sonar analysis at
+`2026-10-03T08:33:53+0000` reported Quality Gate `OK`, zero bugs, vulnerabilities
+and code smells, with all findings resolved without suppression. Normal checks
+are all successful; CRS Envoy/Traefik/lighttpd succeeded, while remaining heavy and
+exact-head runtime checks were pending at this snapshot. The earlier `5605febc`
+No-CRS diagnostic was still active. The bootstrap source correction above will
+have a new head and needs fresh CI/Sonar evidence; `a0ad0ef7` success does not
+verify it or establish that all runtime workflows pass.
+
 ## Known limitations
 
 Local privilege-dependent namespace integration had five existing skips. CI-mode quick-check passed with the two missing-header compiler skips; the ordinary local attempt timed out. The protected broker caller remains pinned to `49c40779a7b6de9f699391bcd524ea069787df42`; the updated broker source is not activated by this patch alone.
@@ -312,4 +334,4 @@ A full Parent hosted pass and both protected broker runtime profiles are outstan
 
 ## Final diff and review status
 
-Initial and corrective changes were delivered in PR 400. The latest published `5605febc` head has the partial normal-check and separate Sonar `ERROR` snapshot recorded above. The focused literal-command/assertion correction remains under validation and requires delivery and fresh exact-head hosted/Sonar evidence. Overall recovery remains partial pending that evidence and protected activation. Original working checkouts are preserved; only the task Parent Framework gitlink is changed as documented above. No Parent master integration or Framework/MRTS source edit is claimed. Both record language versions preserve the same values and limitations.
+Initial and corrective changes were delivered in PR 400. The latest published `a0ad0ef7` head has successful normal checks and exact Sonar `OK`, with runtime evidence still incomplete. The required With-CRS bootstrap correction passed local validation and needs delivery and fresh exact-head hosted/Sonar evidence. Overall recovery remains partial pending that evidence and protected activation. Original working checkouts are preserved; only the task Parent Framework gitlink is changed as documented above. No Parent master integration or Framework/MRTS source edit is claimed. Both record language versions preserve the same values and limitations.

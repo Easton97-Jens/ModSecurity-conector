@@ -90,6 +90,19 @@ eigene, Run-gebundene Ausgabe erzeugen; generierte Reports werden nicht gestagt.
 Dies gleicht die Validierung dem echten Producer an, schwächt das vollständige
 Gate nicht ab und erhöht keine Full-Matrix-, MRTS- oder Response-Body-Evidence.
 
+Nach dem Report-Profil folgt eine erforderliche With-CRS-Bootstrap-Korrektur:
+Der abgelöste `5605febc`-Job `111165203104` scheiterte tatsächlich um `08:43` UTC,
+weil `prepare-fresh-crs-source.sh` `ci_require_absolute_path` aufrief, bevor die
+Framework-`ci/lib/common.sh` geladen war. Dieser Fehler trat trotz einer
+Abbruchanforderung auf; er wird nicht als reiner Abbruch eingestuft. Die Runtime
+lieferte `77`, bevor Producer-Eingaben existierten, und das Gate für frische
+Eingaben wies das fehlende Apache-Ergebnis korrekt zurück. Das begrenzte Rezept
+lädt jetzt den tatsächlichen Framework-Common-Helper vor dem Parent-CRS-Helper.
+Die ausgeführte Shell-Regression deckt beide Varianten, ein frisches
+`RESULTS_DIR`, leere geerbte Scope-Flags, Fetch-vor-Producer-Reihenfolge und
+tatsächliche Relative-Path-Ablehnung vor dem Abruf ab. Der Profil-Lauf mit
+18 Tests bestand in 9.315 Sekunden. Vollständige Report-/Fallvalidierung bleibt erhalten.
+
 ## Geänderte Dateien
 
 - `.github/workflows/ci-security-workflow-lint.yml`
@@ -312,6 +325,17 @@ fünf No-CRS-Connector-Runtimes, Legacy Smoke und sequenzieller Full Smoke stand
 noch aus. Diese Teilergebnisse sind kein vollständiger Runtime-Pass und
 validieren die nachfolgende Befehlsauswahlkorrektur nicht.
 
+Die Literal-Label-Korrektur wurde als
+`a0ad0ef7de7ca4aa197705760c0932d68fbb3949` veröffentlicht. Die exakte Sonar-
+Analyse um `2026-10-03T08:33:53+0000` meldete Quality Gate `OK`, null Bugs,
+Vulnerabilities und Code Smells; alle Findings waren ohne Unterdrückung behoben.
+Reguläre Prüfungen sind alle erfolgreich; CRS für Envoy/Traefik/lighttpd bestand,
+während übrige schwere und Exact-Head-Runtime-Prüfungen bei dieser Aufnahme noch
+ausstanden. Die frühere `5605febc`-No-CRS-Diagnose war noch aktiv. Die obige
+Bootstrap-Quellkorrektur erhält einen neuen Head und benötigt frische CI-/Sonar-
+Evidence; der `a0ad0ef7`-Erfolg validiert sie nicht und belegt keinen Pass aller
+Runtime-Workflows.
+
 ## Bekannte Einschränkungen
 
 Lokale privilegienabhängige Namespace-Integration hatte fünf bestehende Skips. Quick-check im CI-Modus bestand mit den beiden Compiler-Skips wegen fehlender Header; der normale lokale Versuch erreichte das Zeitlimit. Der geschützte Broker-Caller bleibt auf `49c40779a7b6de9f699391bcd524ea069787df42` gepinnt; dieser Patch allein aktiviert die geänderte Broker-Quelle nicht.
@@ -326,4 +350,4 @@ Ein vollständiger gehosteter Parent-Pass und beide geschützten Broker-Runtime-
 
 ## Finaler Diff- und Review-Status
 
-Die ursprünglichen und korrigierten Änderungen wurden in PR 400 bereitgestellt. Für den zuletzt veröffentlichten Head `5605febc` liegt die obige Teilaufnahme regulärer Prüfungen samt getrenntem Sonar-Ergebnis `ERROR` vor. Die gezielte Literalbefehls-/Assertion-Korrektur wird noch validiert und benötigt Auslieferung sowie frische gehostete/Sonar-Evidence des exakten Heads. Die Gesamtreparatur bleibt bis zu dieser Evidence und geschützter Aktivierung teilweise abgeschlossen. Die ursprünglichen Arbeitscheckouts bleiben erhalten; nur der Framework-Gitlink des Task-Parents wird wie oben dokumentiert geändert. Weder Parent-master-Integration noch Framework-/MRTS-Quelländerungen werden behauptet. Beide Sprachfassungen enthalten dieselben Werte und Einschränkungen.
+Die ursprünglichen und korrigierten Änderungen wurden in PR 400 bereitgestellt. Für den zuletzt veröffentlichten Head `a0ad0ef7` liegen erfolgreiche reguläre Prüfungen und exaktes Sonar `OK` vor; Runtime-Evidence bleibt unvollständig. Die erforderliche With-CRS-Bootstrap-Korrektur bestand lokale Validierung und benötigt Auslieferung sowie frische gehostete/Sonar-Evidence des exakten Heads. Die Gesamtreparatur bleibt bis zu dieser Evidence und geschützter Aktivierung teilweise abgeschlossen. Die ursprünglichen Arbeitscheckouts bleiben erhalten; nur der Framework-Gitlink des Task-Parents wird wie oben dokumentiert geändert. Weder Parent-master-Integration noch Framework-/MRTS-Quelländerungen werden behauptet. Beide Sprachfassungen enthalten dieselben Werte und Einschränkungen.
