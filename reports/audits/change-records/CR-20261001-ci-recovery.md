@@ -395,6 +395,18 @@ the pending source corrections. Final delivery/runtime/Sonar evidence for the
 next head will be retained in PR 400 and the external execution plan rather
 than repeatedly updating versioned documentation solely for CI status.
 
+The ordinary runtime/inventory correction was published as
+`11b7e1b0f64235741c2d05c5107f448ea0ebc9d2`. Its exact Sonar analysis at
+`2026-10-03T10:02:16+0000` reported Quality Gate `ERROR`: zero bugs, one `S8705`
+security finding and ten code smells. The subsequent source correction maps
+the CLI variant explicitly to fixed literals before launcher or path actions;
+unknown values are rejected. Constants, equivalent exception base classes and
+one fallible operation per test context address the accompanying findings.
+No suppression or gate change is used. The corrected coordinator suite passed
+24 tests; native `make check-bounded-smoke-runtime-contract` passed 62 tests
+in 17.263 seconds. A new delivered head and its exact Sonar/hosted runtime
+evidence remain outstanding; these local results are not a new-head hosted pass.
+
 ## Known limitations
 
 Local privilege-dependent namespace integration had five existing skips. CI-mode quick-check passed with the two missing-header compiler skips; the ordinary local attempt timed out. The protected broker caller remains pinned to `49c40779a7b6de9f699391bcd524ea069787df42`; the updated broker source is not activated by this patch alone.
@@ -409,4 +421,4 @@ A full Parent hosted pass and both protected broker runtime profiles are outstan
 
 ## Final diff and review status
 
-Initial and corrective changes were delivered in PR 400. The latest published `4d42e818` head has exact Sonar `OK` and the Apache/Traefik evidence recorded above; overall runtime remains incomplete. Ordinary NGINX orchestration and Traefik inventory corrections passed source review/local validation; the narrow legacy evidence-retention, topology and No-CRS contract checks also passed as recorded above. Delivery and fresh exact-head hosted/Sonar evidence are still required. Overall recovery remains partial pending that evidence and protected activation. Original working checkouts are preserved; only the task Parent Framework gitlink is changed as documented above. No Parent master integration or Framework/MRTS source edit is claimed. Both record language versions preserve the same values and limitations.
+Initial and corrective changes were delivered in PR 400. The latest published `11b7e1b0` head has the Sonar `ERROR` snapshot recorded above. The focused variant/findings correction passed local coordinator and runtime-contract validation; delivery and fresh exact-head hosted/Sonar evidence are still required. Earlier Apache/Traefik evidence remains bound to its recorded historical head. Overall recovery remains partial pending that evidence and protected activation. Original working checkouts are preserved; only the task Parent Framework gitlink is changed as documented above. No Parent master integration or Framework/MRTS source edit is claimed. Both record language versions preserve the same values and limitations.

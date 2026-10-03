@@ -29,6 +29,8 @@ HARNESS = ROOT / "connectors/nginx/harness/run_nginx_smoke.sh"
 COUNTS = {"no-crs": 60, "with-crs": 61}
 MAX_RECORD_BYTES = 131072
 MAX_SOURCE_BYTES = 32 * 1024 * 1024
+SYSTEM_PYTHON = "/usr/bin/python3"
+BOUNDED_DIRECTORY_LABEL = "bounded directory"
 SAFE_ENV = {"PATH": "/usr/bin:/bin", "HOME": "/nonexistent", "LC_ALL": "C", "PYTHONDONTWRITEBYTECODE": "1"}
 
 
@@ -80,9 +82,9 @@ def regular_bytes(path: Path, *, limit: int = MAX_RECORD_BYTES) -> bytes:
 
 
 def contained_directory(path: Path, parent: Path, *, owner: int | None = None, mode: int | None = None) -> Path:
-    path = LAUNCHER._absolute_path(str(path), "bounded directory")
-    LAUNCHER._require_under(path, parent, "bounded directory")
-    LAUNCHER._require_directory(path, "bounded directory")
+    path = LAUNCHER._absolute_path(str(path), BOUNDED_DIRECTORY_LABEL)
+    LAUNCHER._require_under(path, parent, BOUNDED_DIRECTORY_LABEL)
+    LAUNCHER._require_directory(path, BOUNDED_DIRECTORY_LABEL)
     metadata = path.lstat()
     if owner is not None and metadata.st_uid != owner:
         raise CaseRunError("bounded directory has an unexpected owner")
@@ -99,7 +101,7 @@ def native_environment(variant: str) -> dict[str, str]:
 
 
 def discover_cases(variant: str) -> list[Path]:
-    body = run_fixed(["/usr/bin/python3", str(CASE_CLI), "list-cases", "--repo-root", str(ROOT),
+    body = run_fixed([SYSTEM_PYTHON, str(CASE_CLI), "list-cases", "--repo-root", str(ROOT),
                       "--framework-root", str(FRAMEWORK), "--connector-root", str(ROOT),
                       "--connector", "nginx", "--scope", "all"], env=native_environment(variant))
     paths = [Path(line) for line in body.decode("utf-8").splitlines()]
@@ -266,10 +268,16 @@ def crs_digest(env: dict[str, str]) -> str:
 
 
 def root_assignments(command: list[str]) -> dict[str, str]:
-    return dict(item.split("=", 1) for item in command[4:-2])
+    return {key: value for key, value in (item.split("=", 1) for item in command[4:-2])}
 
 
 def build_root_command(env: dict[str, str], variant: str, cases: list[Path]) -> list[str]:
+    if variant == "no-crs":
+        canonical_variant = "no-crs"
+    elif variant == "with-crs":
+        canonical_variant = "with-crs"
+    else:
+        raise CaseRunError("unknown NGINX root variant")
     command = LAUNCHER.build_root_command(env)
     values = root_assignments(command)
     input_root = Path(env["VERIFIED_RUN_ROOT"])
@@ -280,14 +288,14 @@ def build_root_command(env: dict[str, str], variant: str, cases: list[Path]) -> 
     if user.pw_uid == 0 or group.gr_gid == 0:
         raise CaseRunError("functional workers must have distinct non-root identities")
     values.update(BOUNDED_INPUT_ROOT=str(input_root), BOUNDED_BUILD_ROOT=str(build),
-                  BOUNDED_SOURCE_ROOT=str(source), MODSECURITY_TEST_VARIANT=variant,
+                  BOUNDED_SOURCE_ROOT=str(source), MODSECURITY_TEST_VARIANT=canonical_variant,
                   NO_CRS_BASELINE="", BOUNDED_CATALOG_SHA256=catalog_digest(cases))
     values["BOUNDED_RUNTIME_SHA256"] = runtime_digest(values)
-    values["BOUNDED_CRS_SHA256"] = crs_digest(values) if variant == "with-crs" else ""
-    if variant == "with-crs":
+    values["BOUNDED_CRS_SHA256"] = crs_digest(values) if canonical_variant == "with-crs" else ""
+    if canonical_variant == "with-crs":
         values["MODSECURITY_RULE_PREAMBLE_FILE"] = str(build / "crs/modsecurity-crs-preamble.conf")
     return ["/usr/bin/sudo", "-n", "/usr/bin/env", "-i", *[f"{key}={value}" for key, value in values.items()],
-            "/usr/bin/python3", "-I", str(Path(__file__).resolve()), "--root-runtime", "--variant", variant]
+            SYSTEM_PYTHON, "-I", str(Path(__file__).resolve()), "--root-runtime", "--variant", canonical_variant]
 
 
 def fresh_directory(path: Path, *, owner: int, group: int, mode: int) -> None:
@@ -320,7 +328,7 @@ def case_environment(env: dict[str, str], case: Path, case_root: Path, index: in
     values = {key: value for key, value in env.items() if key in allowed}
     for key, value in SAFE_ENV.items():
         values[key] = value
-    values["PYTHON"] = "/usr/bin/python3"
+    values["PYTHON"] = SYSTEM_PYTHON
     values["CURL"] = "/usr/bin/curl"
     values.update(VERIFIED_RUN_ROOT=str(case_root.parent), VERIFIED_BUILD_ROOT=str(case_root), BUILD_ROOT=str(case_root),
                   LOG_ROOT=str(case_root / "harness/logs"), LOG_DIR=str(case_root / "harness/logs"), RESULTS_DIR=str(case_root / "results"),
@@ -366,7 +374,7 @@ def _validate_record_observation(record: dict) -> None:
 def decode_record(body: bytes, case: Path, variant: str, returncode: int) -> dict:
     try:
         record = json.loads(body, object_pairs_hook=_unique_record_keys)
-    except (UnicodeError, ValueError) as error:
+    except ValueError as error:
         raise CaseRunError("live case has no valid normalized record") from error
     expected_status = {0: "pass", 77: "blocked", 78: "not_executable"}.get(returncode, "fail")
     if not isinstance(record, dict) or record.get("status") != expected_status:
@@ -504,7 +512,7 @@ def summarize(env: dict[str, str], cases: list[Path], variant: str) -> None:
     if any(path.exists() or path.is_symlink() for path in targets):
         raise CaseRunError("native NGINX result target is already occupied")
     write_fresh(targets[0], b"".join((json.dumps(record, sort_keys=True) + "\n").encode() for record in records), owner=os.geteuid(), group=os.getegid())
-    command = ["/usr/bin/python3", str(CASE_CLI), "summarize-results", "--connector", "nginx", "--input-jsonl", str(targets[0]),
+    command = [SYSTEM_PYTHON, str(CASE_CLI), "summarize-results", "--connector", "nginx", "--input-jsonl", str(targets[0]),
                "--summary-json", str(targets[1]), "--summary-text", str(targets[2]), "--connector-path", "real-world",
                "--validation-mode", "real-world-connector-path", "--server", "nginx", "--runtime-mode", "default",
                "--command", command_label(variant), "--exit-status", "0", "--per-case-result-root", str(receipt),
@@ -512,7 +520,7 @@ def summarize(env: dict[str, str], cases: list[Path], variant: str) -> None:
                "--module", str(Path(env["NGINX_PREFIX"]) / "modules/ngx_http_modsecurity_module.so"),
                "--libmodsecurity", str(Path(env["MODSECURITY_LIB_DIR"]) / "libmodsecurity.so.3")]
     origin = json.loads(run_fixed(
-        ["/usr/bin/python3", str(FRAMEWORK / "ci/lib/adapter_metadata.py"), "json", "nginx"],
+        [SYSTEM_PYTHON, str(FRAMEWORK / "ci/lib/adapter_metadata.py"), "json", "nginx"],
         env=native_environment(variant),
     ))
     for option, key in (("source", "source_kind"), ("source-repo", "component"),
@@ -521,7 +529,7 @@ def summarize(env: dict[str, str], cases: list[Path], variant: str) -> None:
         command.extend(["--origin-" + option, origin[key]])
     command.extend(["--origin-imported-path", str(ROOT / origin["imported_path"])])
     run_fixed(command, env=native_environment(variant))
-    run_fixed(["/usr/bin/python3", str(CASE_CLI), "validate-real-world-summary",
+    run_fixed([SYSTEM_PYTHON, str(CASE_CLI), "validate-real-world-summary",
                "--summary-json", str(targets[1]), "--connector", "nginx", "--server", "nginx"],
               env=native_environment(variant))
     summary = json.loads(regular_bytes(targets[1], limit=2 * 1024 * 1024))
@@ -553,7 +561,7 @@ def main(argv: list[str] | None = None) -> int:
         if result.returncode != 0:
             raise CaseRunError("complete root functional case execution did not pass")
         summarize(env, cases, args.variant)
-    except (CaseRunError, LAUNCHER.FunctionalALaunchError, OSError, KeyError, ValueError, subprocess.SubprocessError, RuntimeError) as error:
+    except (OSError, KeyError, ValueError, subprocess.SubprocessError, RuntimeError) as error:
         print(f"bounded NGINX cases blocked: {error}", file=sys.stderr)
         return 1
     return 0

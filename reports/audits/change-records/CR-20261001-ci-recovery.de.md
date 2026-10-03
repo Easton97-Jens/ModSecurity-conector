@@ -419,6 +419,19 @@ Runtime-/Sonar-Evidence des nächsten Heads wird in PR 400 und dem externen
 Ausführungsplan erhalten, statt versionierte Dokumentation wiederholt allein
 für CI-Status zu ändern.
 
+Die gewöhnliche Runtime-/Inventarkorrektur wurde als
+`11b7e1b0f64235741c2d05c5107f448ea0ebc9d2` veröffentlicht. Ihre exakte Sonar-
+Analyse um `2026-10-03T10:02:16+0000` meldete Quality Gate `ERROR`: null Bugs,
+ein Security-Finding zu `S8705` und zehn Code Smells. Die nachfolgende
+Quellkorrektur ordnet die CLI-Variante vor Launcher- oder Pfadaktionen explizit
+festen Literalen zu; unbekannte Werte werden abgelehnt. Konstanten, äquivalente
+Exception-Basisklassen und eine potenziell fehlschlagende Operation pro Testkontext beheben die
+begleitenden Findings. Unterdrückung oder Gate-Änderung wird nicht verwendet.
+Die korrigierte Coordinator-Suite bestand 24 Tests; natives
+`make check-bounded-smoke-runtime-contract` bestand 62 Tests in 17.263 Sekunden.
+Ein neuer ausgelieferter Head und seine exakte Sonar-/Hosted-Runtime-Evidence
+stehen noch aus; diese lokalen Ergebnisse sind kein gehosteter Pass des neuen Heads.
+
 ## Bekannte Einschränkungen
 
 Lokale privilegienabhängige Namespace-Integration hatte fünf bestehende Skips. Quick-check im CI-Modus bestand mit den beiden Compiler-Skips wegen fehlender Header; der normale lokale Versuch erreichte das Zeitlimit. Der geschützte Broker-Caller bleibt auf `49c40779a7b6de9f699391bcd524ea069787df42` gepinnt; dieser Patch allein aktiviert die geänderte Broker-Quelle nicht.
@@ -433,4 +446,4 @@ Ein vollständiger gehosteter Parent-Pass und beide geschützten Broker-Runtime-
 
 ## Finaler Diff- und Review-Status
 
-Die ursprünglichen und korrigierten Änderungen wurden in PR 400 bereitgestellt. Für den zuletzt veröffentlichten Head `4d42e818` liegen exaktes Sonar `OK` und die obige Apache-/Traefik-Evidence vor; die gesamte Runtime bleibt unvollständig. Gewöhnliche NGINX-Orchestrierungs- und Traefik-Inventarkorrekturen bestanden Quellreview/lokale Validierung; auch die begrenzte Legacy-Evidence-Retention, Topologie- und No-CRS-Vertragsprüfungen bestanden wie oben dokumentiert. Auslieferung und frische gehostete/Sonar-Evidence des exakten Heads bleiben erforderlich. Die Gesamtreparatur bleibt bis zu dieser Evidence und geschützter Aktivierung teilweise abgeschlossen. Die ursprünglichen Arbeitscheckouts bleiben erhalten; nur der Framework-Gitlink des Task-Parents wird wie oben dokumentiert geändert. Weder Parent-master-Integration noch Framework-/MRTS-Quelländerungen werden behauptet. Beide Sprachfassungen enthalten dieselben Werte und Einschränkungen.
+Die ursprünglichen und korrigierten Änderungen wurden in PR 400 bereitgestellt. Für den zuletzt veröffentlichten Head `11b7e1b0` liegt die obige Sonar-Aufnahme `ERROR` vor. Die gezielte Varianten-/Findings-Korrektur bestand lokale Coordinator- und Runtime-Vertragsvalidierung; Auslieferung und frische gehostete/Sonar-Evidence des exakten Heads bleiben erforderlich. Frühere Apache-/Traefik-Evidence bleibt an ihren aufgezeichneten historischen Head gebunden. Die Gesamtreparatur bleibt bis zu dieser Evidence und geschützter Aktivierung teilweise abgeschlossen. Die ursprünglichen Arbeitscheckouts bleiben erhalten; nur der Framework-Gitlink des Task-Parents wird wie oben dokumentiert geändert. Weder Parent-master-Integration noch Framework-/MRTS-Quelländerungen werden behauptet. Beide Sprachfassungen enthalten dieselben Werte und Einschränkungen.

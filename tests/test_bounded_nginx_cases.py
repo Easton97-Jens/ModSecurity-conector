@@ -88,8 +88,9 @@ class BoundedNginxCasesTests(unittest.TestCase):
         for changed in ({"path": "/other/case.yaml"}, {"variant": "with-crs"}, {"live_executed": False},
                         {"executed_connector": "apache"}, {"actual_status": None}, {"actual_status": 403},
                         {"operation_status": "error"}, {"status": "fail"}):
+            body = json.dumps(record(case, **changed)).encode()
             with self.subTest(changed=changed), self.assertRaises(COORDINATOR.CaseRunError):
-                COORDINATOR.decode_record(json.dumps(record(case, **changed)).encode(), case, "no-crs", 0)
+                COORDINATOR.decode_record(body, case, "no-crs", 0)
         self.assertEqual(COORDINATOR.decode_record(json.dumps(record(case)).encode(), case, "no-crs", 0)["status"], "pass")
 
     def test_native_duplicate_json_keys_rejected(self):
@@ -147,14 +148,16 @@ class BoundedNginxCasesTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             target = root / "record.json"
-            COORDINATOR.write_fresh(target, b"original", owner=os.geteuid(), group=os.getegid())
+            owner = os.geteuid()
+            group = os.getegid()
+            COORDINATOR.write_fresh(target, b"original", owner=owner, group=group)
             with self.assertRaises(FileExistsError):
-                COORDINATOR.write_fresh(target, b"replacement", owner=os.geteuid(), group=os.getegid())
+                COORDINATOR.write_fresh(target, b"replacement", owner=owner, group=group)
             self.assertEqual(target.read_bytes(), b"original")
             link = root / "link"
             link.symlink_to(target)
             with self.assertRaises(FileExistsError):
-                COORDINATOR.write_fresh(link, b"replacement", owner=os.geteuid(), group=os.getegid())
+                COORDINATOR.write_fresh(link, b"replacement", owner=owner, group=group)
             self.assertEqual(target.read_bytes(), b"original")
 
     def test_committed_input_failure_stops_before_privileged_execution(self):
@@ -182,6 +185,13 @@ class BoundedNginxCasesTests(unittest.TestCase):
             self.assertEqual(command[:4], ["/usr/bin/sudo", "-n", "/usr/bin/env", "-i"])
             self.assertEqual(command[-6:], ["/usr/bin/python3", "-I", str(ROOT / "ci/runtime/lifecycle/run-bounded-nginx-cases.py"), "--root-runtime", "--variant", "no-crs"])
             self.assertFalse(any("SECRET" in item or "must-not-cross" in item for item in command))
+
+    def test_invalid_root_variant_is_rejected_before_launcher_or_path_actions(self):
+        with mock.patch.object(COORDINATOR.LAUNCHER, "build_root_command") as launcher:
+            for variant in ("", "other", "--command=id", "no-crs\n", " with-crs"):
+                with self.subTest(variant=variant), self.assertRaises(COORDINATOR.CaseRunError):
+                    COORDINATOR.build_root_command({}, variant, [])
+            launcher.assert_not_called()
 
     def test_native_summary_and_schema_validation_produce_complete_owned_receipt(self):
         cases = [COORDINATOR.FRAMEWORK / "tests/cases/request/headers/phase1_header_block.yaml"]
@@ -285,11 +295,14 @@ class BoundedNginxCasesTests(unittest.TestCase):
 
     def test_successful_case_with_orphan_processes_fails_closed(self):
         with tempfile.TemporaryDirectory() as temporary:
+            case = Path("/fixed/case.yaml")
+            case_root = Path(temporary)
+            deadline = COORDINATOR.time.monotonic() + 10
             process = mock.Mock(pid=1234, returncode=0)
             process.wait.return_value = 0
             with mock.patch.object(COORDINATOR.subprocess, "Popen", return_value=process), mock.patch.object(COORDINATOR.GROUPS, "stop_group", return_value=True), mock.patch.object(COORDINATOR.GROUPS, "live_group_members", return_value=[]):
                 with self.assertRaises(COORDINATOR.CaseRunError):
-                    COORDINATOR.run_case(Path("/fixed/case.yaml"), Path(temporary), {}, COORDINATOR.time.monotonic() + 10)
+                    COORDINATOR.run_case(case, case_root, {}, deadline)
 
     def test_git_safe_directory_is_exact_and_provenance_uses_same_adapter(self):
         with mock.patch.object(COORDINATOR, "run_fixed", return_value=b"fixture") as run:
@@ -334,11 +347,13 @@ class BoundedNginxCasesTests(unittest.TestCase):
     def test_case_group_is_terminated_on_native_timeout(self):
         with tempfile.TemporaryDirectory() as temporary:
             case_root = Path(temporary)
+            case = Path("/fixed/case.yaml")
+            deadline = COORDINATOR.time.monotonic() + 10
             process = mock.Mock(pid=1234)
             process.wait.side_effect = [COORDINATOR.subprocess.TimeoutExpired("fixed", 120), 0]
             with mock.patch.object(COORDINATOR.subprocess, "Popen", return_value=process), mock.patch.object(COORDINATOR.GROUPS, "stop_group", return_value=True) as stop:
                 with self.assertRaises(COORDINATOR.CaseRunError):
-                    COORDINATOR.run_case(Path("/fixed/case.yaml"), case_root, {}, COORDINATOR.time.monotonic() + 10)
+                    COORDINATOR.run_case(case, case_root, {}, deadline)
                 stop.assert_called_once_with(1234)
 
 
