@@ -432,6 +432,22 @@ Die korrigierte Coordinator-Suite bestand 24 Tests; natives
 Ein neuer ausgelieferter Head und seine exakte Sonar-/Hosted-Runtime-Evidence
 stehen noch aus; diese lokalen Ergebnisse sind kein gehosteter Pass des neuen Heads.
 
+Die Literalvarianten-Korrektur wurde als
+`ca296f8549c4713d9f0740e3f3e721e4e070a0f0` veröffentlicht. Ihre exakte Sonar-
+Analyse um `2026-10-03T10:17:21+0000` meldete Quality Gate `OK`, null Bugs und
+Vulnerabilities, mit einem Minor-Finding zu `S7500` an Coordinator-Zeile 271.
+Eine Dict-Comprehension hatte die vorherige Iterable-Listen-Redundanz nach
+`S7494` vermieden, aber dieses neue Finding bevorzugt einen Dict-Konstruktor.
+Die minimale Nachbesserung übergibt diesem Konstruktor echte Tupelpaare und
+erhält `ValueError` für eine Zuweisung ohne `=` sowie Werte mit enthaltenem `=`.
+Die korrigierte zuständige Suite bestand 24 Tests in 3.772 Sekunden; natives
+`make check-bounded-smoke-runtime-contract` bestand alle 62 Tests in 17.598 Sekunden.
+Direkte Vergleiche erhalten leere, doppelte und eingebettete-`=`-Zuweisungen
+sowie die Exception bei fehlendem Trennzeichen. Diese Quellkorrektur
+benötigt ihren eigenen ausgelieferten Head samt finalem Review/Evidence, statt
+das historische `11b7e1b0`-Ergebnis aufzuwerten oder Quellen wiederholt allein
+für CI-Status zu ändern.
+
 ## Bekannte Einschränkungen
 
 Lokale privilegienabhängige Namespace-Integration hatte fünf bestehende Skips. Quick-check im CI-Modus bestand mit den beiden Compiler-Skips wegen fehlender Header; der normale lokale Versuch erreichte das Zeitlimit. Der geschützte Broker-Caller bleibt auf `49c40779a7b6de9f699391bcd524ea069787df42` gepinnt; dieser Patch allein aktiviert die geänderte Broker-Quelle nicht.
@@ -446,4 +462,4 @@ Ein vollständiger gehosteter Parent-Pass und beide geschützten Broker-Runtime-
 
 ## Finaler Diff- und Review-Status
 
-Die ursprünglichen und korrigierten Änderungen wurden in PR 400 bereitgestellt. Für den zuletzt veröffentlichten Head `11b7e1b0` liegt die obige Sonar-Aufnahme `ERROR` vor. Die gezielte Varianten-/Findings-Korrektur bestand lokale Coordinator- und Runtime-Vertragsvalidierung; Auslieferung und frische gehostete/Sonar-Evidence des exakten Heads bleiben erforderlich. Frühere Apache-/Traefik-Evidence bleibt an ihren aufgezeichneten historischen Head gebunden. Die Gesamtreparatur bleibt bis zu dieser Evidence und geschützter Aktivierung teilweise abgeschlossen. Die ursprünglichen Arbeitscheckouts bleiben erhalten; nur der Framework-Gitlink des Task-Parents wird wie oben dokumentiert geändert. Weder Parent-master-Integration noch Framework-/MRTS-Quelländerungen werden behauptet. Beide Sprachfassungen enthalten dieselben Werte und Einschränkungen.
+Die ursprünglichen und korrigierten Änderungen wurden in PR 400 bereitgestellt. Für den zuletzt veröffentlichten Head `ca296f85` liegt exaktes Sonar `OK` mit dem oben beschriebenen verbleibenden Minor-Finding vor; `11b7e1b0` ist historisch. Die minimale Tupelpaar-Konstruktor-Korrektur bestand lokale Validierung und benötigt Auslieferung/finalen Review sowie Evidence des exakten Heads. Frühere Apache-/Traefik-Evidence bleibt an ihren aufgezeichneten historischen Head gebunden. Die Gesamtreparatur bleibt bis zu dieser Evidence und geschützter Aktivierung teilweise abgeschlossen. Die ursprünglichen Arbeitscheckouts bleiben erhalten; nur der Framework-Gitlink des Task-Parents wird wie oben dokumentiert geändert. Weder Parent-master-Integration noch Framework-/MRTS-Quelländerungen werden behauptet. Beide Sprachfassungen enthalten dieselben Werte und Einschränkungen.

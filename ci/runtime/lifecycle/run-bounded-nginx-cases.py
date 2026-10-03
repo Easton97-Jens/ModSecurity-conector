@@ -268,7 +268,7 @@ def crs_digest(env: dict[str, str]) -> str:
 
 
 def root_assignments(command: list[str]) -> dict[str, str]:
-    return {key: value for key, value in (item.split("=", 1) for item in command[4:-2])}
+    return dict((key, value) for key, value in (item.split("=", 1) for item in command[4:-2]))
 
 
 def build_root_command(env: dict[str, str], variant: str, cases: list[Path]) -> list[str]:

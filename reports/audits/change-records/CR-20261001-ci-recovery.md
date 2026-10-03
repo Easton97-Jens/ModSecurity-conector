@@ -407,6 +407,21 @@ No suppression or gate change is used. The corrected coordinator suite passed
 in 17.263 seconds. A new delivered head and its exact Sonar/hosted runtime
 evidence remain outstanding; these local results are not a new-head hosted pass.
 
+The literal-variant correction was published as
+`ca296f8549c4713d9f0740e3f3e721e4e070a0f0`. Its exact Sonar analysis at
+`2026-10-03T10:17:21+0000` reported Quality Gate `OK`, zero bugs and
+vulnerabilities, with one minor `S7500` finding at coordinator line 271.
+A dict comprehension had avoided the previous `S7494` iterable-list redundancy,
+but this new finding prefers a dict constructor. The minimal follow-up supplies
+real tuple pairs to that constructor, preserving `ValueError` for an assignment
+without `=` and retaining values containing `=`. The corrected owning suite
+passed 24 tests in 3.772 seconds; native
+`make check-bounded-smoke-runtime-contract` passed all 62 tests in 17.598 seconds.
+Direct comparisons preserve empty, duplicate and embedded-`=` assignments
+and the missing-separator exception. This source correction requires its own delivered
+head and final review/evidence rather than promoting the historical `11b7e1b0`
+result or repeatedly editing source for CI status alone.
+
 ## Known limitations
 
 Local privilege-dependent namespace integration had five existing skips. CI-mode quick-check passed with the two missing-header compiler skips; the ordinary local attempt timed out. The protected broker caller remains pinned to `49c40779a7b6de9f699391bcd524ea069787df42`; the updated broker source is not activated by this patch alone.
@@ -421,4 +436,4 @@ A full Parent hosted pass and both protected broker runtime profiles are outstan
 
 ## Final diff and review status
 
-Initial and corrective changes were delivered in PR 400. The latest published `11b7e1b0` head has the Sonar `ERROR` snapshot recorded above. The focused variant/findings correction passed local coordinator and runtime-contract validation; delivery and fresh exact-head hosted/Sonar evidence are still required. Earlier Apache/Traefik evidence remains bound to its recorded historical head. Overall recovery remains partial pending that evidence and protected activation. Original working checkouts are preserved; only the task Parent Framework gitlink is changed as documented above. No Parent master integration or Framework/MRTS source edit is claimed. Both record language versions preserve the same values and limitations.
+Initial and corrective changes were delivered in PR 400. The latest published `ca296f85` head has exact Sonar `OK` with the one remaining minor finding described above; `11b7e1b0` is historical. The minimal tuple-pair constructor correction passed local validation and requires delivery/final review plus exact-head evidence. Earlier Apache/Traefik evidence remains bound to its recorded historical head. Overall recovery remains partial pending that evidence and protected activation. Original working checkouts are preserved; only the task Parent Framework gitlink is changed as documented above. No Parent master integration or Framework/MRTS source edit is claimed. Both record language versions preserve the same values and limitations.
