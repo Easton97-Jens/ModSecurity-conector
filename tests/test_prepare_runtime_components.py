@@ -1068,6 +1068,9 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             ("https://archive.apache.org/dist/httpd/httpd-2.4.68.tar.bz2", "a" * 64),
             ("https://downloads.apache.org/httpd/httpd-2.4.68.tar.bz2?mirror=other", "a" * 64),
             ("https://foreign.invalid/httpd/httpd-2.4.68.tar.bz2", "a" * 64),
+            ("https://downloads.apache.org/httpd/httpd-٢.4.68.tar.bz2", "a" * 64),
+            ("https://downloads.apache.org/httpd/httpd-2.４.68.tar.bz2", "a" * 64),
+            ("https://downloads.apache.org/httpd/httpd-2.4.６８.tar.bz2", "a" * 64),
             (source_url, ""), (source_url, "not-a-digest"),
         ):
             with self.subTest(url=url, digest=digest), tempfile.TemporaryDirectory() as raw:

@@ -2532,8 +2532,9 @@ class HttpdSourceNoRedirect(urllib.request.HTTPRedirectHandler):
 def httpd_archive_recovery_url(url: str, expected_sha: str) -> str:
     require_literal_sha256(expected_sha, "httpd")
     match = re.fullmatch(
-        r"https://downloads\.apache\.org/httpd/(httpd-[0-9]+\.[0-9]+\.[0-9]+\.tar\.bz2)",
+        r"https://downloads\.apache\.org/httpd/(httpd-\d+\.\d+\.\d+\.tar\.bz2)",
         url,
+        flags=re.ASCII,
     )
     if match is None:
         raise RuntimeError("httpd_source_recovery_requires_canonical_release_url")
@@ -2986,6 +2987,19 @@ def archive_checksum_matches(record: dict[str, Any], expected_sha: str, actual_s
     return expected_sha == actual_sha
 
 
+def validate_httpd_source_recovery_policy(
+    name: str,
+    url: str,
+    expected_sha: str,
+    *,
+    required_literal_sha256: bool,
+    verify_digest_before_archive_list: bool,
+) -> None:
+    if name != "httpd" or not required_literal_sha256 or not verify_digest_before_archive_list:
+        raise RuntimeError("httpd_source_recovery_policy_invalid")
+    httpd_archive_recovery_url(url, expected_sha)
+
+
 def prepare_archive(
     name: str,
     url: str,
@@ -3018,9 +3032,13 @@ def prepare_archive(
         return record
     try:
         if allow_httpd_source_recovery:
-            if name != "httpd" or not required_literal_sha256 or not verify_digest_before_archive_list:
-                raise RuntimeError("httpd_source_recovery_policy_invalid")
-            httpd_archive_recovery_url(url, expected_sha)
+            validate_httpd_source_recovery_policy(
+                name,
+                url,
+                expected_sha,
+                required_literal_sha256=required_literal_sha256,
+                verify_digest_before_archive_list=verify_digest_before_archive_list,
+            )
         if required_literal_sha256:
             # A reviewed literal digest is required.  A digest URL is retained
             # as metadata but must not turn an absent override into a
