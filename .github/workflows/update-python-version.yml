@@ -361,8 +361,8 @@ jobs:
                 exit 1
               fi
               branch_paths="$(git diff --name-only "$merge_base" "origin/$UPDATE_BRANCH")"
-              if [ "$branch_paths" != ".python-version" ]; then
-                echo "::error::existing maintenance branch changes paths outside .python-version" >&2
+              if [ "$branch_paths" != "$(printf '%s\n' .python-version ci/tooling/project-versions.lock.json)" ]; then
+                echo "::error::existing maintenance branch changes paths outside the approved Python lock and view" >&2
                 exit 1
               fi
               git diff --check "$merge_base" "origin/$UPDATE_BRANCH"
@@ -403,8 +403,8 @@ jobs:
             exit 1
           fi
           changed_paths="$(git diff --name-only "origin/$DEFAULT_BRANCH" --)"
-          if [ "$changed_paths" != ".python-version" ]; then
-            echo "::error::updater changed a path outside .python-version" >&2
+          if [ "$changed_paths" != "$(printf '%s\n' .python-version ci/tooling/project-versions.lock.json)" ]; then
+            echo "::error::updater changed a path outside the approved Python lock and view" >&2
             exit 1
           fi
           git diff --check "origin/$DEFAULT_BRANCH" --
@@ -423,10 +423,23 @@ jobs:
             echo "::error::publisher update state is missing" >&2
             exit 1
           fi
-          git add -- .python-version
+          python3 ci/tools/sync-project-versions.py --verify-update python
+          git add -- .python-version ci/tooling/project-versions.lock.json
           staged_paths="$(git diff --cached --name-only)"
-          if [ "$staged_paths" != ".python-version" ]; then
-            echo "::error::staging contains a path outside .python-version" >&2
+          if [ "$staged_paths" != "$(printf '%s\n' .python-version ci/tooling/project-versions.lock.json)" ]; then
+            echo "::error::staging contains a path outside the approved Python lock and view" >&2
+            exit 1
+          fi
+          if ! git diff --cached --raw --no-abbrev --no-renames | awk '
+            $1 == ":100644" && $2 == "100644" && $5 == "M" &&
+            ($6 == ".python-version" || $6 == "ci/tooling/project-versions.lock.json") {
+              records += 1
+              next
+            }
+            NF { invalid = 1 }
+            END { exit !(records == 2 && !invalid) }
+          '; then
+            echo "::error::Python candidate must modify only the two approved regular files" >&2
             exit 1
           fi
           git diff --cached --check
@@ -513,7 +526,7 @@ jobs:
               `- Validation workflow and run: validate-python-patch (${process.env.WORKFLOW_RUN_URL})`,
               `- Framework architecture reference: Easton97-Jens/ModSecurity-test-Framework@${process.env.FRAMEWORK_REFERENCE_SHA} (.github/workflows/check-python-version.yml)`,
               `- Maintenance branch: ${process.env.UPDATE_BRANCH}; base: ${process.env.DEFAULT_BRANCH}; same-repository Draft PR only`,
-              "- Changed files: .python-version only; Python minor remains 3.14.",
+              "- Changed files: .python-version and ci/tooling/project-versions.lock.json only; Python minor remains 3.14.",
               "- Manual review and manual merge are required. Automatic merge remains disabled.",
               "",
               "## Deutsch",
@@ -524,7 +537,7 @@ jobs:
               `- Validierungsworkflow und Run: validate-python-patch (${process.env.WORKFLOW_RUN_URL})`,
               `- Framework-Architekturreferenz: Easton97-Jens/ModSecurity-test-Framework@${process.env.FRAMEWORK_REFERENCE_SHA} (.github/workflows/check-python-version.yml)`,
               `- Wartungs-Branch: ${process.env.UPDATE_BRANCH}; Basis: ${process.env.DEFAULT_BRANCH}; nur ein Draft-PR aus demselben Repository`,
-              "- Geänderte Dateien: nur .python-version; die Python-Minor-Version bleibt 3.14.",
+              "- Geänderte Dateien: nur .python-version und ci/tooling/project-versions.lock.json; die Python-Minor-Version bleibt 3.14.",
               "- Manuelle Prüfung und manueller Merge sind erforderlich. Automatischer Merge bleibt deaktiviert.",
             ].join("\n");
             await github.rest.pulls.create({
@@ -585,7 +598,7 @@ jobs:
               `- Validation workflow and run: validate-python-patch (${process.env.WORKFLOW_RUN_URL})`,
               `- Framework architecture reference: Easton97-Jens/ModSecurity-test-Framework@${process.env.FRAMEWORK_REFERENCE_SHA} (.github/workflows/check-python-version.yml)`,
               `- Maintenance branch: ${process.env.UPDATE_BRANCH}; base: ${process.env.DEFAULT_BRANCH}; same-repository Draft PR only`,
-              "- Changed files: .python-version only; Python minor remains 3.14.",
+              "- Changed files: .python-version and ci/tooling/project-versions.lock.json only; Python minor remains 3.14.",
               "- Manual review and manual merge are required. Automatic merge remains disabled.",
               "",
               "## Deutsch",
@@ -596,7 +609,7 @@ jobs:
               `- Validierungsworkflow und Run: validate-python-patch (${process.env.WORKFLOW_RUN_URL})`,
               `- Framework-Architekturreferenz: Easton97-Jens/ModSecurity-test-Framework@${process.env.FRAMEWORK_REFERENCE_SHA} (.github/workflows/check-python-version.yml)`,
               `- Wartungs-Branch: ${process.env.UPDATE_BRANCH}; Basis: ${process.env.DEFAULT_BRANCH}; nur ein Draft-PR aus demselben Repository`,
-              "- Geänderte Dateien: nur .python-version; die Python-Minor-Version bleibt 3.14.",
+              "- Geänderte Dateien: nur .python-version und ci/tooling/project-versions.lock.json; die Python-Minor-Version bleibt 3.14.",
               "- Manuelle Prüfung und manueller Merge sind erforderlich. Automatischer Merge bleibt deaktiviert.",
             ].join("\n");
             await github.rest.pulls.update({

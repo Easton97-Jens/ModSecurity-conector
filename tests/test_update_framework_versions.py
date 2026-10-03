@@ -10,6 +10,7 @@ import py_compile
 import re
 import shutil
 import stat
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -183,19 +184,23 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         set_framework_sha_fixture(self.root, TEST_PARENT_FRAMEWORK_SHA)
         self.assertEqual(before, self.all_target_bytes())
 
-    def test_framework_sha_fixture_rejects_inconsistent_slots_without_writes(self) -> None:
-        fixture = self.root / "tests/test_ci_security_workflows.py"
-        original = fixture.read_text(encoding="utf-8")
-        expected = f'WITH_CRS_NO_MRTS_FRAMEWORK_SHA = "{TEST_PARENT_FRAMEWORK_SHA}"'
-        self.assertEqual(original.count(expected), 1)
-        fixture.write_text(
-            original.replace(expected, 'WITH_CRS_NO_MRTS_FRAMEWORK_SHA = "' + "c" * 40 + '"', 1),
-            encoding="utf-8",
-        )
+    def test_framework_sha_fixture_rejects_invalid_lock_without_writes(self) -> None:
+        lock = self.root / "ci/tooling/project-versions.lock.json"
+        lock.write_text('{"schema_version": 1, "framework_sha": "invalid"}')
         before = self.all_target_bytes()
-        with self.assertRaisesRegex(ValueError, "inconsistent"):
+        with self.assertRaises(ValueError):
             set_framework_sha_fixture(self.root, TEST_PARENT_FRAMEWORK_SHA)
         self.assertEqual(before, self.all_target_bytes())
+
+    def test_framework_sha_fixture_preserves_supported_go_release_versions(self) -> None:
+        lock = self.root / "ci/tooling/project-versions.lock.json"
+        payload = json.loads(lock.read_text())
+        for version in ("1.0.0", "2.0.1"):
+            with self.subTest(version=version):
+                payload["go_version"] = version
+                lock.write_text(json.dumps(payload) + "\n")
+                set_framework_sha_fixture(self.root, "c" * 40)
+                self.assertEqual(json.loads(lock.read_text())["go_version"], version)
 
     def test_current_candidate_grammar_fixture_resolves_as_data(self) -> None:
         values = SYNC.parse_common(self.common)
@@ -406,176 +411,106 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         self.assertEqual(SYNC.synchronize(self.root, self.common, True), [])
         self.assertEqual(before, self.nginx_owned_bytes())
 
-    def test_framework_sha_projection_updates_only_reviewed_static_consumers(self) -> None:
+    def test_framework_sha_projection_updates_only_revision_lock(self) -> None:
         generic_before = self.target_bytes()
         nginx_before = self.nginx_owned_bytes()
         projection_before = self.framework_sha_projection_bytes()
-        workflow = self.root / ".github/workflows/test-connectors-with-crs-no-mrts.yml"
-        dynamic_before = tuple(
-            line
-            for line in workflow.read_text(encoding="utf-8").splitlines()
-            if "FRAMEWORK_SHA:" in line and "${{" in line
-        )
-
-        self.assertEqual(
-            SYNC.synchronize(self.root, self.common, False, NEW_FRAMEWORK_SHA),
-            [
-                ".github/workflows/test-connectors-with-crs-no-mrts.yml",
-                "tests/test_ci_security_workflows.py",
-            ],
-        )
+        lock = self.root / "ci/tooling/project-versions.lock.json"
+        retained_before = {key: value for key, value in json.loads(lock.read_bytes()).items() if key != "framework_sha"}
+        workflows_before = {p: p.read_bytes() for p in (self.root / ".github/workflows").glob("*.yml")}
+        expected = ["ci/tooling/project-versions.lock.json"]
+        self.assertEqual(SYNC.synchronize(self.root, self.common, False, NEW_FRAMEWORK_SHA), expected)
         self.assertEqual(projection_before, self.framework_sha_projection_bytes())
-
-        self.assertEqual(
-            SYNC.synchronize(self.root, self.common, True, NEW_FRAMEWORK_SHA),
-            [
-                ".github/workflows/test-connectors-with-crs-no-mrts.yml",
-                "tests/test_ci_security_workflows.py",
-            ],
-        )
-        rendered_workflow = workflow.read_text(encoding="utf-8")
-        self.assertEqual(
-            rendered_workflow.count(f"EXPECTED_FRAMEWORK_SHA: {NEW_FRAMEWORK_SHA}"), 1
-        )
-        self.assertEqual(
-            len(
-                re.findall(
-                    rf"(?m)^ {{10}}FRAMEWORK_SHA: {NEW_FRAMEWORK_SHA}$",
-                    rendered_workflow,
-                )
-            ),
-            3,
-        )
-        self.assertEqual(
-            tuple(
-                line
-                for line in rendered_workflow.splitlines()
-                if "FRAMEWORK_SHA:" in line and "${{" in line
-            ),
-            dynamic_before,
-        )
-        self.assertIn(
-            f'WITH_CRS_NO_MRTS_FRAMEWORK_SHA = "{NEW_FRAMEWORK_SHA}"',
-            (self.root / "tests/test_ci_security_workflows.py").read_text(encoding="utf-8"),
-        )
+        self.assertEqual(SYNC.synchronize(self.root, self.common, True, NEW_FRAMEWORK_SHA), expected)
+        payload = json.loads(lock.read_bytes())
+        self.assertEqual(payload["framework_sha"], NEW_FRAMEWORK_SHA)
+        self.assertEqual({key: value for key, value in payload.items() if key != "framework_sha"}, retained_before)
+        self.assertEqual(workflows_before, {p: p.read_bytes() for p in workflows_before})
         self.assertEqual(generic_before, self.target_bytes())
         self.assertEqual(nginx_before, self.nginx_owned_bytes())
-        self.assertEqual(
-            SYNC.synchronize(self.root, self.common, False, NEW_FRAMEWORK_SHA), []
-        )
+        self.assertEqual(SYNC.synchronize(self.root, self.common, False, NEW_FRAMEWORK_SHA), [])
 
-    def test_framework_sha_projection_rejects_invalid_or_unregistered_slots_without_writes(
-        self,
-    ) -> None:
-        workflow = self.root / ".github/workflows/test-connectors-with-crs-no-mrts.yml"
-        fixture = self.root / "tests/test_ci_security_workflows.py"
-        original_workflow = workflow.read_text(encoding="utf-8")
-        original_fixture = fixture.read_text(encoding="utf-8")
-        original_projection = self.framework_sha_projection_bytes()
-
+    def test_framework_sha_projection_rejects_malformed_lock_without_writes(self) -> None:
+        lock = self.root / "ci/tooling/project-versions.lock.json"
+        original = lock.read_bytes()
+        payload = json.loads(original)
         cases = (
-            ("invalid SHA", "A" * 40, lambda: None),
-            (
-                "missing expected slot",
-                NEW_FRAMEWORK_SHA,
-                lambda: workflow.write_text(
-                    original_workflow.replace(
-                        "EXPECTED_FRAMEWORK_SHA:", "EXPECTED_FRAMEWORK_SHA_REMOVED:", 1
-                    ),
-                    encoding="utf-8",
-                ),
-            ),
-            (
-                "duplicate static slot",
-                NEW_FRAMEWORK_SHA,
-                lambda: workflow.write_text(
-                    original_workflow
-                    + f"\n          FRAMEWORK_SHA: {TEST_PARENT_FRAMEWORK_SHA}\n",
-                    encoding="utf-8",
-                ),
-            ),
-            (
-                "aliased static slot",
-                NEW_FRAMEWORK_SHA,
-                lambda: workflow.write_text(
-                    original_workflow.replace(
-                        f"\n          FRAMEWORK_SHA: {TEST_PARENT_FRAMEWORK_SHA}",
-                        f"\n          FRAMEWORK_SHA: {SYNC.FRAMEWORK_SHA_DYNAMIC_VALUE}",
-                        1,
-                    ),
-                    encoding="utf-8",
-                ),
-            ),
-            (
-                "quoted static slot",
-                NEW_FRAMEWORK_SHA,
-                lambda: workflow.write_text(
-                    original_workflow.replace(
-                        f"\n          FRAMEWORK_SHA: {TEST_PARENT_FRAMEWORK_SHA}",
-                        f'\n          FRAMEWORK_SHA: "{TEST_PARENT_FRAMEWORK_SHA}"',
-                        1,
-                    ),
-                    encoding="utf-8",
-                ),
-            ),
-            (
-                "misplaced static slot",
-                NEW_FRAMEWORK_SHA,
-                lambda: workflow.write_text(
-                    original_workflow.replace(
-                        f"\n          FRAMEWORK_SHA: {TEST_PARENT_FRAMEWORK_SHA}",
-                        f"\n         FRAMEWORK_SHA: {TEST_PARENT_FRAMEWORK_SHA}",
-                        1,
-                    ),
-                    encoding="utf-8",
-                ),
-            ),
-            (
-                "whitespace-only CRLF static slot",
-                NEW_FRAMEWORK_SHA,
-                lambda: workflow.write_text(
-                    original_workflow.replace(
-                        f"\n          FRAMEWORK_SHA: {TEST_PARENT_FRAMEWORK_SHA}",
-                        f"\n          FRAMEWORK_SHA:{' ' * 4096}\r\n",
-                        1,
-                    ),
-                    encoding="utf-8",
-                ),
-            ),
-            (
-                "malformed fixture slot",
-                NEW_FRAMEWORK_SHA,
-                lambda: fixture.write_text(
-                    original_fixture.replace(
-                        f'WITH_CRS_NO_MRTS_FRAMEWORK_SHA = "{TEST_PARENT_FRAMEWORK_SHA}"',
-                        'WITH_CRS_NO_MRTS_FRAMEWORK_SHA = "not-a-framework-sha"',
-                        1,
-                    ),
-                    encoding="utf-8",
-                ),
-            ),
+            b"{", b"[]",
+            json.dumps({"schema_version": 1, "framework_sha": TEST_PARENT_FRAMEWORK_SHA}).encode(),
+            json.dumps(payload | {"unknown": "data"}).encode(),
+            json.dumps(payload | {"schema_version": True}).encode(),
+            json.dumps(payload | {"mrts_sha": "A" * 40}).encode(),
+            json.dumps(payload | {"python_version": "3.13.7"}).encode(),
+            json.dumps(payload | {"go_version": "latest"}).encode(),
+            ('{"schema_version":1,"framework_sha":"' + TEST_PARENT_FRAMEWORK_SHA
+             + '","framework_sha":"' + NEW_FRAMEWORK_SHA + '","mrts_sha":"' + payload["mrts_sha"] + '"}').encode(),
         )
-        for label, framework_sha, mutate in cases:
-            with self.subTest(label=label):
-                workflow.write_text(original_workflow, encoding="utf-8")
-                fixture.write_text(original_fixture, encoding="utf-8")
-                mutate()
-                if label != "invalid SHA":
-                    self.assertNotEqual(
-                        original_projection,
-                        self.framework_sha_projection_bytes(),
-                        f"{label}: fixture mutation did not change any bytes",
-                    )
+        self.write_common(CURRENT_CANDIDATE_COMMON.replace('ENVOY_VERSION="1.39.1"', 'ENVOY_VERSION="1.40.1"'))
+        for contents in cases:
+            with self.subTest(contents=contents):
+                lock.write_bytes(contents)
                 before = self.all_target_bytes()
                 with self.assertRaises(SYNC.SyncError):
-                    SYNC.synchronize(self.root, self.common, True, framework_sha)
+                    SYNC.synchronize(self.root, self.common, True, NEW_FRAMEWORK_SHA)
                 self.assertEqual(before, self.all_target_bytes())
+        lock.write_bytes(original)
+        with self.assertRaises(SYNC.SyncError):
+            SYNC.synchronize(self.root, self.common, True, "A" * 40)
+        before = self.target_bytes()
+        lock.unlink()
+        with self.assertRaises((SYNC.SyncError, OSError)):
+            SYNC.synchronize(self.root, self.common, True, NEW_FRAMEWORK_SHA)
+        self.assertEqual(before, self.target_bytes())
+
+    def test_framework_revision_lock_symlink_is_rejected_before_writes(self) -> None:
+        lock = self.root / "ci/tooling/project-versions.lock.json"
+        outside = Path(self.temp.name) / "outside-lock.json"
+        outside.write_bytes(lock.read_bytes())
+        lock.unlink()
+        lock.symlink_to(outside)
+        before = self.target_bytes()
+        original_outside = outside.read_bytes()
+        with self.assertRaises(SYNC.SyncError):
+            SYNC.synchronize(self.root, self.common, True, NEW_FRAMEWORK_SHA)
+        self.assertEqual(before, self.target_bytes())
+        self.assertEqual(original_outside, outside.read_bytes())
+
+    def test_framework_sha_fixture_refuses_original_checkout(self) -> None:
+        with self.assertRaisesRegex(ValueError, "source checkout"):
+            set_framework_sha_fixture(ROOT, NEW_FRAMEWORK_SHA)
+
+    def run_copied_cli(self, arguments: tuple[str, ...]) -> int:
+        result = subprocess.run(
+            [sys.executable, str(self.root / "ci/tools/sync-framework-component-versions.py"), *arguments],
+            capture_output=True, text=True, check=False, timeout=30,
+        )
+        if result.returncode not in (0, 1, 2):
+            self.fail(f"copied CLI crashed: {result.stdout} {result.stderr}")
+        return result.returncode
+
+    def test_cli_rejects_alternate_and_symlinked_repository_roots_before_io(self) -> None:
+        link = Path(self.temp.name) / "linked-repository"
+        link.symlink_to(ROOT, target_is_directory=True)
+        before = self.all_target_bytes()
+        for alternative in (self.root, link):
+            with self.subTest(alternative=alternative):
+                with mock.patch.object(SYNC, "synchronize") as synchronize:
+                    self.assertEqual(SYNC.main(("--sync", "--repo-root", str(alternative),
+                                               "--framework-common", str(self.common))), 2)
+                    synchronize.assert_not_called()
+        self.assertEqual(before, self.all_target_bytes())
+
+    def test_cli_passes_only_its_fixed_repository_root_to_writer(self) -> None:
+        with mock.patch.object(SYNC, "synchronize", return_value=[]) as synchronize:
+            self.assertEqual(SYNC.main(("--validate", "--repo-root", str(ROOT),
+                                       "--framework-common", str(self.common))), 0)
+            synchronize.assert_called_once_with(ROOT, self.common, False, None)
 
     def test_cli_validate_sync_check_and_second_sync_are_byte_idempotent(self) -> None:
         framework_sha_arguments = ("--framework-sha", NEW_FRAMEWORK_SHA)
         projection_before = self.framework_sha_projection_bytes()
         self.assertEqual(
-            SYNC.main(
+            self.run_copied_cli(
                 (
                     "--validate",
                     "--repo-root",
@@ -597,10 +532,10 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
             str(self.common),
             *framework_sha_arguments,
         )
-        self.assertEqual(SYNC.main(sync_arguments), 0)
+        self.assertEqual(self.run_copied_cli(sync_arguments), 0)
         after_first_sync = self.all_target_bytes()
         self.assertEqual(
-            SYNC.main(
+            self.run_copied_cli(
                 (
                     "--check",
                     "--repo-root",
@@ -612,7 +547,7 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
             ),
             0,
         )
-        self.assertEqual(SYNC.main(sync_arguments), 0)
+        self.assertEqual(self.run_copied_cli(sync_arguments), 0)
         self.assertEqual(after_first_sync, self.all_target_bytes())
 
     def test_noop_after_sync(self) -> None:
@@ -807,7 +742,7 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         candidate_link = Path(self.temp.name) / "candidate-link.sh"
         candidate_link.symlink_to(self.common)
         self.assertEqual(
-            SYNC.main(
+            self.run_copied_cli(
                 ("--validate", "--repo-root", str(self.root), "--framework-common", str(candidate_link))
             ),
             2,
@@ -875,6 +810,87 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         self.assertEqual(before, self.target_bytes())
         self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o755)
         self.assertEqual(list(target.parent.glob(f".{target.name}.*")), [])
+
+    def test_directory_fsync_failure_rolls_back_the_already_replaced_target(self) -> None:
+        self.write_common(future_series_common())
+        before = self.all_target_bytes()
+        original_fsync = SYNC._fsync_directory
+        calls = 0
+
+        def fail_first(path: Path) -> None:
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise OSError("injected post-replace directory fsync failure")
+            original_fsync(path)
+
+        with mock.patch.object(SYNC, "_fsync_directory", side_effect=fail_first):
+            with self.assertRaisesRegex(SYNC.SyncError, "completed changes were rolled back"):
+                SYNC.synchronize(self.root, self.common, True, NEW_FRAMEWORK_SHA)
+        self.assertEqual(before, self.all_target_bytes())
+        self.assertEqual(calls, 2)
+
+    def test_rollback_preserves_concurrent_in_place_edits(self) -> None:
+        self.write_common(future_series_common())
+        target = self.root / "connectors/envoy/config/envoy-ext-proc-versions.env"
+        original = target.read_bytes()
+        prepared = SYNC.RenderedTarget(target, original, original + b"# replacement\n", stat.S_IMODE(target.stat().st_mode))
+        concurrent = b"# concurrent edit after replacement\n"
+
+        def change_after_replace(_path: Path) -> None:
+            target.write_bytes(concurrent)
+            raise OSError("injected failure after concurrent edit")
+
+        with mock.patch.object(SYNC, "_fsync_directory", side_effect=change_after_replace):
+            with self.assertRaisesRegex(SYNC.SyncError, "rollback incomplete"):
+                SYNC._commit_rendered([prepared])
+        self.assertNotEqual(original, concurrent)
+        self.assertEqual(target.read_bytes(), concurrent)
+
+    def test_rollback_preserves_concurrent_metadata_changes(self) -> None:
+        self.write_common(future_series_common())
+        target = self.root / "connectors/envoy/config/envoy-ext-proc-versions.env"
+        original = target.read_bytes()
+        prepared = SYNC.RenderedTarget(target, original, original + b"# replacement\n", stat.S_IMODE(target.stat().st_mode))
+
+        def touch_after_replace(_path: Path) -> None:
+            metadata = target.stat()
+            os.utime(target, ns=(metadata.st_atime_ns, metadata.st_mtime_ns + 1))
+            raise OSError("injected failure after concurrent metadata change")
+
+        with mock.patch.object(SYNC, "_fsync_directory", side_effect=touch_after_replace):
+            with self.assertRaisesRegex(SYNC.SyncError, "rollback incomplete"):
+                SYNC._commit_rendered([prepared])
+        self.assertNotEqual(target.read_bytes(), original)
+
+    def test_changed_project_lock_rejected_before_component_replacements(self) -> None:
+        self.write_common(future_series_common())
+        rendered = SYNC._render_targets(self.root, SYNC.parse_common(self.common), NEW_FRAMEWORK_SHA)
+        lock = self.root / "ci/tooling/project-versions.lock.json"
+        payload = json.loads(lock.read_bytes())
+        payload["python_version"] = "3.14.8"
+        lock.write_text(json.dumps(payload, indent=2) + "\n")
+        before = self.all_target_bytes()
+        with self.assertRaisesRegex(SYNC.SyncError, "changed concurrently"):
+            SYNC._commit_rendered(rendered)
+        self.assertEqual(before, self.all_target_bytes())
+
+    def test_project_publishers_share_tooling_directory_lock(self) -> None:
+        import fcntl
+        directory = self.root / "ci/tooling"
+        competing = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        self.addCleanup(os.close, competing)
+        original_render = SYNC._render_targets
+
+        def assert_locked(*args):
+            with self.assertRaises(BlockingIOError):
+                fcntl.flock(competing, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return original_render(*args)
+
+        with mock.patch.object(SYNC, "_render_targets", side_effect=assert_locked):
+            SYNC.synchronize(self.root, self.common, True, NEW_FRAMEWORK_SHA)
+        fcntl.flock(competing, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.flock(competing, fcntl.LOCK_UN)
 
 
 if __name__ == "__main__":

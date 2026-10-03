@@ -238,8 +238,17 @@ def resolve_runtime_paths(
     connector_binary = require_local_executable(
         args.connector_binary, "Traefik connector binary", build_root
     )
+    # The Framework provisioner stages its verified host executable at this
+    # exact build location. Other caller-selected build executables must not
+    # become trusted host binaries merely because BUILD_ROOT is trusted.
+    staged_host = build_root / "traefik-connector" / "bin" / "traefik"
+    host_root = (
+        build_root
+        if args.traefik_binary == staged_host
+        else component_cache
+    )
     traefik_binary = require_local_executable(
-        args.traefik_binary, "Traefik binary", component_cache
+        args.traefik_binary, "Traefik binary", host_root
     )
     return build_root, connector_binary, traefik_binary
 
@@ -621,6 +630,19 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def private_companion_directory(result_root: Path, repo_root: Path) -> Path:
+    selected = os.environ.get("MSCONNECTOR_PRIVATE_SOCKET_ROOT", "")
+    if not selected:
+        directory = result_root / "mrc"
+    else:
+        directory = require_trusted_runtime_root(Path(selected), "private socket root", repo_root)
+        if stat.S_IMODE(directory.stat().st_mode) != 0o700:
+            raise MissingDependency("private socket root must have mode 0700")
+    if len(os.fsencode(directory / "traefik-forwardauth-companion.sock")) >= 108:
+        raise MissingDependency("private companion socket path is too long")
+    return directory
+
+
 def prepare_smoke_inputs(args: argparse.Namespace, repo_root: Path):
     consume_no_crs_selected_cases(repo_root)
     build_root, connector_binary, traefik_binary = resolve_runtime_paths(args, repo_root)
@@ -653,7 +675,7 @@ def prepare_smoke_workspace(repo_root: Path, result_root: Path,
     result_root.mkdir(parents=True, exist_ok=True)
     log_dir = result_root / "logs"
     config_dir = result_root / "config"
-    companion_dir = result_root / "mrc"
+    companion_dir = private_companion_directory(result_root, repo_root)
     log_dir.mkdir(parents=True, exist_ok=True)
     config_dir.mkdir(parents=True, exist_ok=True)
     companion_dir.mkdir(parents=True, exist_ok=True)
@@ -675,6 +697,25 @@ def prepare_smoke_workspace(repo_root: Path, result_root: Path,
     event_path = log_dir / "events.jsonl"
     service_config = write_concrete_service_config(template, config_dir, rules_file, event_path)
     return log_dir, config_dir, companion_socket, traefik_config, event_path, service_config
+
+
+def traefik_command(
+    binary: TrustedExecutable, port: int, config: Path, access_log: Path
+) -> tuple[str, ...]:
+    """Load only the staged observer, including its authenticated UDS imports."""
+    return binary.arguments(
+        f"--entryPoints.web.address=127.0.0.1:{port}",
+        f"--experimental.localPlugins.modsecurityResponseObserver.moduleName={OBSERVER_MODULE}",
+        "--experimental.localPlugins.modsecurityResponseObserver.settings.useUnsafe=true",
+        "--experimental.abortOnPluginFailure=true",
+        f"--providers.file.filename={config}",
+        "--providers.file.watch=false",
+        "--api=false",
+        "--log.level=ERROR",
+        "--global.sendAnonymousUsage=false",
+        "--accesslog=true",
+        f"--accesslog.filepath={access_log}",
+    )
 
 
 def run(args: argparse.Namespace) -> int:
@@ -748,16 +789,8 @@ def run(args: argparse.Namespace) -> int:
             )
             wait_for_tcp(auth_port, service_process, "Traefik forwardAuth service")
 
-            command = traefik_binary.arguments(
-                f"--entryPoints.web.address=127.0.0.1:{traefik_port}",
-                f"--experimental.localPlugins.modsecurityResponseObserver.moduleName={OBSERVER_MODULE}",
-                f"--providers.file.filename={traefik_config}",
-                "--providers.file.watch=false",
-                "--api=false",
-                "--log.level=ERROR",
-                "--global.sendAnonymousUsage=false",
-                "--accesslog=true",
-                f"--accesslog.filepath={traefik_access_path}",
+            command = traefik_command(
+                traefik_binary, traefik_port, traefik_config, traefik_access_path
             )
             (config_dir / "traefik-command.txt").write_text(" ".join(command) + "\n", encoding="utf-8")
             with traefik_stdout_path.open("wb") as traefik_stdout, traefik_stderr_path.open("wb") as traefik_stderr:

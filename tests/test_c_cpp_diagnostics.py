@@ -77,6 +77,33 @@ def cdb_entry(source: Path, output_root: Path) -> dict[str, object]:
 class CAndCppDiagnosticsContractTests(unittest.TestCase):
     maxDiff = None
 
+    def test_staged_nginx_config_resolves_registry_only_from_valid_common_layout(self) -> None:
+        config_prefix = NGINX_CONFIG.read_text().split("YAJL_EXTRA=", 1)[0]
+        with tempfile.TemporaryDirectory(prefix="nginx-registry-root-") as temporary:
+            root = Path(temporary)
+            staged = root / "staged-connector"
+            staged.mkdir()
+            unrelated = root / "unrelated/include"
+            unrelated.mkdir(parents=True)
+            cases = (
+                (ROOT / "common/include", "", 0, str(ROOT)),
+                (ROOT / "common/include", str(ROOT), 0, str(ROOT)),
+                (ROOT / "common/include", str(root / "missing"), 1, "invalid profile registry root"),
+                (unrelated, "", 1, "missing profile registry root"),
+            )
+            for common_include, explicit_registry, status, expected in cases:
+                with self.subTest(include=common_include, explicit=explicit_registry):
+                    result = subprocess.run(
+                        ["sh", "-c", config_prefix + '\nprintf "%s\\n" "$MSCONNECTOR_PROFILE_REGISTRY_ROOT"'],
+                        env={**os.environ, "ngx_addon_dir": str(staged),
+                             "MSCONNECTOR_COMMON_INC": str(common_include),
+                             "MSCONNECTOR_COMMON_SRC": str(ROOT / "common/src"),
+                             "MSCONNECTOR_PROFILE_REGISTRY_ROOT": explicit_registry},
+                        capture_output=True, text=True,
+                    )
+                    self.assertEqual(result.returncode, status, result.stderr)
+                    self.assertIn(expected, result.stdout + result.stderr)
+
     def run_cdb_tool(self, *arguments: str) -> subprocess.CompletedProcess[str]:
         environment = os.environ.copy()
         environment["PYTHONDONTWRITEBYTECODE"] = "1"

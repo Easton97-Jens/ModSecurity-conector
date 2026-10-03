@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
 import os
 import re
@@ -245,7 +246,13 @@ def version_target(root: Path, version_filename: str) -> Path:
         raise TargetError("repository root cannot be inspected safely") from error
     if stat.S_ISLNK(root_stat.st_mode) or not stat.S_ISDIR(root_stat.st_mode):
         raise TargetError("repository root must be a real directory, not a symlink")
-    return root / version_filename
+    target = root / version_filename
+    for parent in target.parents:
+        if parent == root:
+            break
+        if parent.is_symlink() or not parent.is_dir():
+            raise TargetError("version target directory must be a real directory")
+    return target
 
 
 def read_current_version_with_stat(
@@ -253,6 +260,7 @@ def read_current_version_with_stat(
     *,
     version_filename: str,
     parse_stable_version: Callable[[object], VersionT],
+    max_bytes: int = MAX_VERSION_FILE_BYTES,
 ) -> tuple[VersionT, os.stat_result]:
     """Read a regular version file with O_NOFOLLOW and a same-file check."""
 
@@ -261,7 +269,7 @@ def read_current_version_with_stat(
         before_open = os.lstat(target)
     except OSError as error:
         raise TargetError(f"root {version_filename} cannot be inspected safely") from error
-    if not stat.S_ISREG(before_open.st_mode):
+    if not stat.S_ISREG(before_open.st_mode) or before_open.st_nlink != 1:
         raise TargetError(f"root {version_filename} must be a regular non-symlink file")
 
     nofollow = getattr(os, "O_NOFOLLOW", None)
@@ -276,12 +284,12 @@ def read_current_version_with_stat(
     try:
         descriptor = os.open(target, flags)
         opened_stat = os.fstat(descriptor)
-        if not stat.S_ISREG(opened_stat.st_mode) or not os.path.samestat(before_open, opened_stat):
+        if not stat.S_ISREG(opened_stat.st_mode) or opened_stat.st_nlink != 1 or not os.path.samestat(before_open, opened_stat):
             raise TargetError(f"root {version_filename} changed while being opened")
         source = os.fdopen(descriptor, "rb")
         descriptor = None
         with source:
-            body = source.read(MAX_VERSION_FILE_BYTES + 1)
+            body = source.read(max_bytes + 1)
     except TargetError:
         raise
     except OSError as error:
@@ -290,7 +298,7 @@ def read_current_version_with_stat(
         if descriptor is not None:
             os.close(descriptor)
 
-    if len(body) > MAX_VERSION_FILE_BYTES:
+    if len(body) > max_bytes:
         raise VersionError(f"root {version_filename} is unexpectedly large")
     try:
         text = body.decode("utf-8")
@@ -372,6 +380,177 @@ def atomic_update_version(
                 os.unlink(temporary_path)
             except OSError:
                 pass
+
+
+PROJECT_VERSION_LOCK = "ci/tooling/project-versions.lock.json"
+TOOLCHAIN_FIELDS = {".python-version": "python_version", ".go-version": "go_version"}
+
+
+def _parse_project_lock(text: object) -> dict[str, int | str]:
+    # Import only the fixed checked-in parser; lock data is never executable.
+    library = Path(__file__).resolve().parents[1] / "ci" / "lib"
+    sys.path.insert(0, str(library))
+    try:
+        from framework_revision_pins import FrameworkRevisionPinsError, parse_project_version_pins
+    finally:
+        sys.path.pop(0)
+    try:
+        return parse_project_version_pins(str(text).encode("utf-8"))
+    except FrameworkRevisionPinsError as error:
+        raise VersionError(str(error)) from error
+
+
+def project_lock_snapshot(root: Path) -> tuple[dict[str, int | str], os.stat_result]:
+    return read_current_version_with_stat(
+        root, version_filename=PROJECT_VERSION_LOCK,
+        parse_stable_version=_parse_project_lock, max_bytes=4096,
+    )
+
+
+def project_toolchain_version(root: Path, filename: str, parser: Callable) -> object:
+    pins, _ = project_lock_snapshot(root)
+    selected = parser(pins[TOOLCHAIN_FIELDS[filename]])
+    view = read_current_version(root, version_filename=filename, parse_stable_version=parser)
+    if selected != view:
+        raise TargetError(f"generated {filename} disagrees with {PROJECT_VERSION_LOCK}; synchronize project versions")
+    return selected
+
+
+def _same_snapshot(actual: os.stat_result, expected: os.stat_result) -> bool:
+    return os.path.samestat(actual, expected) and (
+        actual.st_mtime_ns, actual.st_ctime_ns, actual.st_size, actual.st_mode, actual.st_nlink
+    ) == (expected.st_mtime_ns, expected.st_ctime_ns, expected.st_size, expected.st_mode, expected.st_nlink)
+
+
+def _unchanged(
+    root: Path, filename: str, expected_stat: os.stat_result,
+    expected: object, parser: Callable, limit: int,
+) -> None:
+    actual, metadata = read_current_version_with_stat(
+        root, version_filename=filename, parse_stable_version=parser, max_bytes=limit,
+    )
+    if not _same_snapshot(metadata, expected_stat) or actual != expected:
+        raise TargetError(f"{filename} changed before replacement")
+
+
+def _write_temporary(target: Path, body: bytes, metadata: os.stat_result) -> str:
+    descriptor, temporary = tempfile.mkstemp(prefix=".project-version-", dir=target.parent)
+    try:
+        with os.fdopen(descriptor, "wb") as destination:
+            os.fchmod(destination.fileno(), stat.S_IMODE(metadata.st_mode))
+            destination.write(body)
+            destination.flush()
+            os.fsync(destination.fileno())
+    except OSError:
+        os.unlink(temporary)
+        raise
+    return temporary
+
+
+
+def _fsync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+def _replacement_unchanged(
+    root: Path, filename: str, expected: os.stat_result, expected_body: bytes,
+) -> bool:
+    try:
+        text, metadata = read_current_version_with_stat(
+            root, version_filename=filename,
+            parse_stable_version=lambda value: value, max_bytes=4096,
+        )
+    except UpdaterError:
+        return False
+    body = text.encode("utf-8")
+    if metadata.st_size == len(body) + 1:
+        body += b"\n"
+    return _same_snapshot(metadata, expected) and body == expected_body
+
+
+def _restore_replaced_files(
+    root: Path, replaced: list[tuple[str, bytes, bytes, os.stat_result]],
+    prepared: list[tuple[str, str]],
+) -> None:
+    for filename, old_body, written_body, replacement in reversed(replaced):
+        target = version_target(root, filename)
+        if not _replacement_unchanged(root, filename, replacement, written_body):
+            continue
+        temporary = _write_temporary(target, old_body, replacement)
+        prepared.append((filename, temporary))
+        if _replacement_unchanged(root, filename, replacement, written_body):
+            os.replace(temporary, target)
+            _fsync_directory(target.parent)
+
+
+def replace_project_files(
+    root: Path, updates: list[tuple[str, bytes, object, os.stat_result, Callable, int]],
+) -> None:
+    """Prepare changes before replacing views, then commit the lock last.
+
+    Roll back completed replacements if an operational error occurs. A process
+    crash can leave detectable view drift; multi-file filesystem atomicity is
+    not assumed. Concurrent external replacements are preserved during rollback.
+    """
+    prepared: list[tuple[str, str]] = []
+    replaced: list[tuple[str, bytes, bytes, os.stat_result]] = []
+    try:
+        for filename, body, _, metadata, _, _ in updates:
+            temporary = _write_temporary(version_target(root, filename), body, metadata)
+            prepared.append((filename, temporary))
+        for filename, _, original, metadata, parser, limit in updates:
+            _unchanged(root, filename, metadata, original, parser, limit)
+        for update, (_, temporary) in zip(updates, prepared):
+            filename, written_body, original, metadata, parser, limit = update
+            target = version_target(root, filename)
+            old_text, old_stat = read_current_version_with_stat(
+                root, version_filename=filename,
+                parse_stable_version=lambda value: value, max_bytes=limit,
+            )
+            old_body = old_text.encode("utf-8")
+            if old_stat.st_size == len(old_body) + 1:
+                old_body += b"\n"
+            _unchanged(root, filename, metadata, original, parser, limit)
+            os.replace(temporary, target)
+            replaced.append((filename, old_body, written_body, os.lstat(target)))
+            _fsync_directory(target.parent)
+    except (OSError, UpdaterError) as error:
+        _restore_replaced_files(root, replaced, prepared)
+        raise TargetError("project versions could not be updated safely") from error
+    finally:
+        for _, temporary in prepared:
+            try:
+                os.unlink(temporary)
+            except FileNotFoundError:
+                pass
+
+
+def update_project_toolchain(root: Path, current: object, resolved: object, *, filename: str, parser: Callable, label: str) -> None:
+    if resolved <= current:
+        raise VersionError(f"refusing a non-monotonic {label} version update")
+    directory = version_target(root, PROJECT_VERSION_LOCK).parent
+    descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        pins, lock_stat = project_lock_snapshot(root)
+        if parser(pins[TOOLCHAIN_FIELDS[filename]]) != current:
+            raise TargetError("central toolchain version changed before update")
+        view, view_stat = read_current_version_with_stat(root, version_filename=filename, parse_stable_version=parser)
+        if view != current:
+            raise TargetError("generated toolchain version changed before update")
+        candidate = dict(pins)
+        candidate[TOOLCHAIN_FIELDS[filename]] = str(resolved)
+        body = (json.dumps(candidate, indent=2) + "\n").encode("utf-8")
+        _parse_project_lock(body.decode("utf-8"))
+        replace_project_files(root, [
+            (filename, f"{resolved}\n".encode(), view, view_stat, parser, 64),
+            (PROJECT_VERSION_LOCK, body, pins, lock_stat, _parse_project_lock, 4096),
+        ])
+    finally:
+        os.close(descriptor)
 
 
 def execute_update(
@@ -503,21 +682,11 @@ class UpdaterRuntime:
         )
 
     def read_current_version(self, root: Path) -> object:
-        return read_current_version(
-            root,
-            version_filename=self.version_filename,
-            parse_stable_version=self.parse_stable_version,
-        )
+        return project_toolchain_version(root, self.version_filename, self.parse_stable_version)
 
     def atomic_update_version(self, root: Path, current: object, resolved: object) -> None:
-        atomic_update_version(
-            root,
-            current,
-            resolved,
-            version_filename=self.version_filename,
-            version_label=self.version_label,
-            parse_stable_version=self.parse_stable_version,
-        )
+        update_project_toolchain(root, current, resolved, filename=self.version_filename,
+                                 parser=self.parse_stable_version, label=self.version_label)
 
     def execute(
         self,
