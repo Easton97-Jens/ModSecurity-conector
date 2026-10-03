@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 from pathlib import Path
@@ -13,11 +14,28 @@ import unittest
 from unittest import mock
 
 from ci.runtime.broker import nginx_exact_head_result_collector as collector
+from ci.runtime.broker import protected_nginx_exact_head_builder as builder
 
 
 SHA = "a" * 40
 DIGEST = "b" * 64
 REPO = "Easton97-Jens/ModSecurity-conector"
+
+
+class CollectorPinContractTests(unittest.TestCase):
+    def test_pins_match_current_parent_and_exact_head_producer(self) -> None:
+        source = Path(__file__).resolve().parents[1] / "ci/provisioning/components/prepare-runtime-components.py"
+        tree = ast.parse(source.read_text(encoding="utf-8"))
+        pins = {
+            node.targets[0].id: ast.literal_eval(node.value)
+            for node in tree.body if isinstance(node, ast.Assign)
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id in {"NGINX_PINNED_VERSION_READBACK", "NGINX_PINNED_RELEASE_ASSET_SHA256"}
+        }
+        self.assertEqual(collector.NGINX_VERSION, pins["NGINX_PINNED_VERSION_READBACK"].removeprefix("nginx/"))
+        self.assertEqual(collector.NGINX_SOURCE_DIGEST, pins["NGINX_PINNED_RELEASE_ASSET_SHA256"])
+        self.assertEqual(collector.NGINX_VERSION, builder.EXPECTED_NGINX_VERSION)
+        self.assertEqual(collector.NGINX_SOURCE_DIGEST, builder.EXPECTED_NGINX_SOURCE_SHA256)
 
 
 class CollectorTests(unittest.TestCase):
@@ -118,8 +136,8 @@ class CollectorTests(unittest.TestCase):
                 "tested_pr_base": SHA,
                 "trusted_dispatcher_base_sha": SHA,
                 "candidate_run_id": "run-1",
-                "nginx_version": "1.31.4",
-                "nginx_source_digest": collector.NGINX_SOURCE_DIGEST,
+                "nginx_version": builder.EXPECTED_NGINX_VERSION,
+                "nginx_source_digest": builder.EXPECTED_NGINX_SOURCE_SHA256,
                 "connector_module_digest": DIGEST,
             },
         )
@@ -201,6 +219,20 @@ class CollectorTests(unittest.TestCase):
         output = self.output.lstat()
         self.assertEqual((output.st_uid, output.st_gid), (self.runner_uid, self.runner_gid))
         self.assertEqual(stat.S_IMODE(output.st_mode), 0o600)
+
+    def test_rejects_old_and_arbitrary_release_pins(self) -> None:
+        for version, digest in (
+            ("1.31.4", "e6f20b644a17a643f059ae6467a1971fe2811587d025e071068753a1f1e3b3c3"),
+            (builder.EXPECTED_NGINX_VERSION, "f" * 64),
+            ("99.0.0", builder.EXPECTED_NGINX_SOURCE_SHA256),
+        ):
+            with self.subTest(version=version, digest=digest):
+                runtime = json.loads((self.evidence / "runtime.json").read_text(encoding="utf-8"))
+                runtime.update(nginx_version=version, nginx_source_digest=digest)
+                self._write("runtime.json", runtime)
+                with self.assertRaisesRegex(collector.CollectorError, "runtime identity mismatch"):
+                    self._collect()
+                self.assertFalse(self.output.exists())
 
     def test_rejects_missing_cells_and_invalid_master_or_worker_identity(self) -> None:
         (self.evidence / "off.jsonl").unlink()

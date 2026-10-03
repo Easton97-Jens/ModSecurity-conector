@@ -24,14 +24,14 @@ import sys
 from typing import Any
 
 
-EXPECTED_NGINX_VERSION = "1.31.4"
-EXPECTED_NGINX_SOURCE_SHA256 = "e6f20b644a17a643f059ae6467a1971fe2811587d025e071068753a1f1e3b3c3"
+EXPECTED_NGINX_VERSION = "1.31.5"
+EXPECTED_NGINX_SOURCE_SHA256 = "e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279"
 MAX_MANIFEST_BYTES = 64 * 1024
 MAX_ARTIFACT_BYTES = 256 * 1024 * 1024
 SHA40_RE = re.compile(r"^(?a:[\da-f]{40})$")
 SHA256_RE = re.compile(r"^(?a:[\da-f]{64})$")
 SAFE_RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
-SNAPSHOT_RE = re.compile(r"^export ([A-Z][A-Z0-9_]*)='([^'\r\n]+)'$")
+SNAPSHOT_RE = re.compile(r"^export ([A-Z][A-Z0-9_]*)='([^'\r\n]*)'$")
 ARTIFACTS = {
     "nginx": "nginx",
     "module": "ngx_http_modsecurity_module.so",
@@ -435,8 +435,9 @@ def strict_snapshot(
         "MRTS_NATIVE_NGINX_MODSECURITY_LIB_DIR",
         "NGINX_BUILD_DIR",
         "NGINX_PREFIX",
+        "NGINX_DOWNLOAD_DIR",
     }
-    if not required.issubset(values):
+    if not required.issubset(values) or any(not values[key] for key in required):
         fail(f"{RUNTIME_SNAPSHOT_LABEL} lacks required NGINX artifact fields")
     if values.get("RUNTIME_COMPONENT_ENV_SNAPSHOT_TARGET") != "nginx":
         fail(f"{RUNTIME_SNAPSHOT_LABEL} target is not nginx")
@@ -616,7 +617,6 @@ def package(arguments: argparse.Namespace, *, task_descriptor: int | None = None
                 binary = Path(values["MRTS_NATIVE_NGINX_BIN"])
                 module = Path(values["MRTS_NATIVE_NGINX_MODULE_FILE"])
                 library_dir = Path(values["MRTS_NATIVE_NGINX_MODSECURITY_LIB_DIR"])
-                nginx_build_dir = Path(values["NGINX_BUILD_DIR"])
                 library_descriptor = _open_relative_directory(
                     build_descriptor,
                     _relative_components(
@@ -632,7 +632,10 @@ def package(arguments: argparse.Namespace, *, task_descriptor: int | None = None
                     )
                 finally:
                     os.close(library_descriptor)
-                archive = nginx_build_dir / "verified-archives" / f"nginx-{EXPECTED_NGINX_VERSION}.tar.gz"
+                # The native Cache-v2 producer retains reviewed release assets
+                # in NGINX_DOWNLOAD_DIR, independently of the connector build.
+                # The directory remains beneath the admitted build descriptor.
+                archive = Path(values["NGINX_DOWNLOAD_DIR"]) / f"nginx-{EXPECTED_NGINX_VERSION}.tar.gz"
                 archive_fd, _ = _open_regular_at(
                     build_descriptor,
                     _relative_components(
@@ -643,7 +646,7 @@ def package(arguments: argparse.Namespace, *, task_descriptor: int | None = None
                 )
                 try:
                     if sha256_fd(archive_fd) != EXPECTED_NGINX_SOURCE_SHA256:
-                        fail("pinned NGINX source archive digest does not match 1.31.4")
+                        fail(f"pinned NGINX source archive digest does not match {EXPECTED_NGINX_VERSION}")
                 finally:
                     os.close(archive_fd)
                 artifacts = {
@@ -727,7 +730,7 @@ def build_environment(arguments: argparse.Namespace) -> dict[str, str]:
         "TMP_ROOT": str(task_root / "tmp"),
         "LOG_ROOT": str(task_root / "logs"),
         "SOURCE_ROOT": str(task_root / "source"),
-        "CONNECTOR_COMPONENT_CACHE": str(task_root / "component-cache"),
+        "CONNECTOR_COMPONENT_CACHE": str(task_root / "build" / "component-cache"),
         "RUNTIME_REPORT_OUTPUT_ROOT": str(task_root / "runtime-component-reports"),
         "FRAMEWORK_ROOT": str(framework_root),
         "RUNTIME_COMPONENT_TARGET": "nginx",
@@ -735,9 +738,9 @@ def build_environment(arguments: argparse.Namespace) -> dict[str, str]:
         "ALLOW_RUNTIME_DOWNLOADS": "1",
         "NGINX_SOURCE_MODE": "github-release",
         "NGINX_SOURCE_REPO_URL": "https://github.com/nginx/nginx",
-        "NGINX_RELEASE_TAG": "release-1.31.4",
-        "NGINX_SOURCE_GIT_REF": "release-1.31.4",
-        "NGINX_RELEASE_ASSET_NAME": "nginx-1.31.4.tar.gz",
+        "NGINX_RELEASE_TAG": f"release-{EXPECTED_NGINX_VERSION}",
+        "NGINX_SOURCE_GIT_REF": f"release-{EXPECTED_NGINX_VERSION}",
+        "NGINX_RELEASE_ASSET_NAME": f"nginx-{EXPECTED_NGINX_VERSION}.tar.gz",
         "NGINX_SHA256": EXPECTED_NGINX_SOURCE_SHA256,
         "NGINX_REQUIRE_PINNED_PROVENANCE": "1",
     }

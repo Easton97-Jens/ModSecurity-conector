@@ -75,8 +75,8 @@ SANDBOX_TMPDIR = Path("/run/nginx-exact-head-tmp")
 SANDBOX_CANDIDATE_ROOT = Path("/candidate")
 SANDBOX_CELL_ROOT = Path("/cell")
 SANDBOX_SCRATCH_ROOT = Path("/scratch")
-EXPECTED_NGINX_VERSION = "1.31.4"
-EXPECTED_NGINX_SOURCE_DIGEST = "e6f20b644a17a643f059ae6467a1971fe2811587d025e071068753a1f1e3b3c3"
+EXPECTED_NGINX_VERSION = "1.31.5"
+EXPECTED_NGINX_SOURCE_DIGEST = "e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279"
 RULE_ID = "1000001"
 NONEXISTENT_HOME = "/nonexistent"
 PROC_ROOT = Path("/proc")
@@ -583,7 +583,7 @@ def _validate_candidate_header(value: dict[str, Any], dispatcher: dict[str, Any]
         value.get("nginx_version") != EXPECTED_NGINX_VERSION
         or value.get("nginx_source_digest") != EXPECTED_NGINX_SOURCE_DIGEST
     ):
-        fail("candidate artifact manifest does not bind pinned NGINX 1.31.4")
+        fail(f"candidate artifact manifest does not bind pinned NGINX {EXPECTED_NGINX_VERSION}")
 def _validate_candidate_artifacts(artifacts: object) -> None:
     if not isinstance(artifacts, dict) or frozenset(artifacts) != {"nginx", "module", "library"}:
         fail("candidate artifact manifest has an invalid artifact set")

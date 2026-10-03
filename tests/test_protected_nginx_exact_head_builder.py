@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import importlib.util
 import json
@@ -32,9 +33,105 @@ def load_module() -> object:
 
 
 B = load_module()
+sys.path.insert(0, str(ROOT / "ci/provisioning/components"))
+COMPONENT_SPEC = importlib.util.spec_from_file_location(
+    "builder_components_contract", ROOT / "ci/provisioning/components/prepare-runtime-components.py"
+)
+assert COMPONENT_SPEC is not None and COMPONENT_SPEC.loader is not None
+C = importlib.util.module_from_spec(COMPONENT_SPEC)
+sys.modules[COMPONENT_SPEC.name] = C
+COMPONENT_SPEC.loader.exec_module(C)
 
 
 class CandidateBuilderTests(unittest.TestCase):
+    def test_build_pin_passes_authoritative_parent_provenance(self) -> None:
+        environment = B.build_environment(argparse.Namespace(
+            task_root=str(self.task_root), candidate_root=str(self.root / "candidate")
+        ))
+        provenance = C.nginx_pinned_provenance(environment)
+        self.assertEqual(provenance["sha256"], B.EXPECTED_NGINX_SOURCE_SHA256)
+        self.assertEqual(C.NGINX_PINNED_VERSION_READBACK, "nginx/" + B.EXPECTED_NGINX_VERSION)
+
+    def test_cache_is_inside_admitted_build_root(self) -> None:
+        environment = B.build_environment(argparse.Namespace(
+            task_root=str(self.task_root), candidate_root=str(self.root / "candidate")
+        ))
+        self.assertEqual(Path(environment["CONNECTOR_COMPONENT_CACHE"]), self.build_root / "component-cache")
+
+    def test_launcher_pins_match_authoritative_parent(self) -> None:
+        tree = ast.parse((ROOT / "ci/runtime/broker/nginx_exact_head_root_launcher.py").read_text())
+        constants = {
+            node.targets[0].id: ast.literal_eval(node.value)
+            for node in tree.body if isinstance(node, ast.Assign)
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id in {"EXPECTED_NGINX_VERSION", "EXPECTED_NGINX_SOURCE_DIGEST"}
+        }
+        self.assertEqual(constants["EXPECTED_NGINX_VERSION"],
+                         C.NGINX_PINNED_VERSION_READBACK.removeprefix("nginx/"))
+        self.assertEqual(constants["EXPECTED_NGINX_SOURCE_DIGEST"], C.NGINX_PINNED_RELEASE_ASSET_SHA256)
+
+    def test_packages_snapshot_emitted_by_parent_for_managed_cache(self) -> None:
+        cache = self.build_root / "component-cache"
+        layout = C.connector_output_layout("nginx", cache / "builds/connectors/nginx" / SHA)
+        binary = Path(layout["output_paths"]["binary"])
+        module = Path(layout["output_paths"]["module"])
+        library_dir = cache / "prefix/modsecurity" / BASE / "lib"
+        archive_dir = cache / "archives/nginx"
+        for path, content in (
+            (binary, b"managed binary"), (module, b"managed module"),
+            (archive_dir / C.NGINX_PINNED_RELEASE_ASSET_NAME, b"managed archive"),
+        ):
+            path.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+            path.write_bytes(content)
+            path.chmod(0o755)
+        source = self.build_root / "source/modsecurity"
+        headers = source / "headers/modsecurity"
+        headers.mkdir(parents=True)
+        for name in ("modsecurity.h", "rules_set.h", "transaction.h"):
+            (headers / name).write_text("header\n", encoding="utf-8")
+        libs = source / "src/.libs"
+        libs.mkdir(parents=True)
+        (libs / "libmodsecurity.so.3.0.14").write_bytes(b"managed library")
+        (libs / "libmodsecurity.so.3.0.14").chmod(0o755)
+        (libs / "libmodsecurity.so.3").symlink_to("libmodsecurity.so.3.0.14")
+        (libs / "libmodsecurity.so").symlink_to("libmodsecurity.so.3.0.14")
+        C.copy_modsecurity_outputs(source, library_dir.parent)
+        self.assertFalse((library_dir / "libmodsecurity.so.3").is_symlink())
+        values = C.nginx_runtime_environment(ROOT, cache, {
+            "status": "built", "nginx_bin": str(binary), "module_file": str(module),
+            "module_dir": str(module.parent), "modsecurity_lib_dir": str(library_dir),
+            "build_path": layout["build_root"], "nginx_prefix": layout["nginx_prefix"],
+        })
+        values["NGINX_DOWNLOAD_DIR"] = str(archive_dir)
+        C.write_runtime_env_snapshot(values, snapshot_path=self.snapshot,
+            output_root=self.task_root, target_connector="nginx", cache_root=cache)
+        digest = hashlib.sha256(b"managed archive").hexdigest()
+        with mock.patch.object(B, "EXPECTED_NGINX_SOURCE_SHA256", digest):
+            manifest = json.loads(B.package(self.package_args()).read_text(encoding="utf-8"))
+        self.assertEqual(manifest["artifacts"]["library"]["sha256"],
+                         hashlib.sha256(b"managed library").hexdigest())
+
+    def test_required_snapshot_fields_reject_empty_values(self) -> None:
+        self.snapshot.write_text(self.snapshot.read_text().replace(
+            "export NGINX_DOWNLOAD_DIR='" + str(self.archive.parent) + "'",
+            "export NGINX_DOWNLOAD_DIR=''"), encoding="utf-8")
+        with self.assertRaisesRegex(B.BuilderError, "lacks required"):
+            B.package(self.package_args())
+
+    def test_archive_directory_escape_is_rejected_before_hashing(self) -> None:
+        self.snapshot.write_text(self.snapshot.read_text().replace(
+            str(self.archive.parent), str(self.root)), encoding="utf-8")
+        with mock.patch.object(B, "sha256_fd") as digest:
+            with self.assertRaisesRegex(B.BuilderError, "escapes its approved root"):
+                B.package(self.package_args())
+        digest.assert_not_called()
+
+    def test_duplicate_snapshot_fields_are_rejected(self) -> None:
+        self.snapshot.write_text(self.snapshot.read_text() +
+                                 "export NGINX_DOWNLOAD_DIR=''\n", encoding="utf-8")
+        with self.assertRaisesRegex(B.BuilderError, "duplicate key"):
+            B.package(self.package_args())
+
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
@@ -49,7 +146,7 @@ class CandidateBuilderTests(unittest.TestCase):
         self.binary = self.build_root / "nginx-bin"
         self.module = self.build_root / "module.so"
         self.library = self.lib_dir / "libmodsecurity.so.3"
-        self.archive = self.nginx_build / "verified-archives" / "nginx-1.31.4.tar.gz"
+        self.archive = self.nginx_build / "verified-archives" / C.NGINX_PINNED_RELEASE_ASSET_NAME
         for path, content in (
             (self.binary, b"binary"),
             (self.module, b"module"),
@@ -69,6 +166,7 @@ class CandidateBuilderTests(unittest.TestCase):
                     "export MRTS_NATIVE_NGINX_MODSECURITY_LIB_DIR='" + str(self.lib_dir) + "'",
                     "export NGINX_BUILD_DIR='" + str(self.nginx_build) + "'",
                     "export NGINX_PREFIX='" + str(self.build_root / "prefix") + "'",
+                    "export NGINX_DOWNLOAD_DIR='" + str(self.archive.parent) + "'",
                 )
             )
             + "\n",
@@ -308,7 +406,7 @@ class CandidateBuilderTests(unittest.TestCase):
         self.assertNotIn("GITHUB_TOKEN", environment)
         self.assertNotIn("LD_PRELOAD", environment)
         self.assertNotIn("PYTHONPATH", environment)
-        self.assertEqual(environment["NGINX_RELEASE_TAG"], "release-1.31.4")
+        self.assertEqual(environment["NGINX_RELEASE_TAG"], C.NGINX_PINNED_RELEASE_TAG)
 
     def test_digest_patterns_are_ascii_and_cleanup_uses_no_base_exception(self) -> None:
         self.assertEqual(B.require_sha40(SHA, "SHA"), SHA)
