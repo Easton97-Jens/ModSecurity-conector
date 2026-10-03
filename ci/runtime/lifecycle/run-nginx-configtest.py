@@ -23,7 +23,21 @@ import time
 CAPTURE_LIMIT = 65536
 TIMEOUT_SECONDS = 10
 ARTIFACT_LIMIT = 64 * 1024 * 1024
-FRAGMENTS = ['"modsecurity" directive', "invalid boolean value"]
+CONFIGTEST_CONTRACTS = {
+    "invalid_boolean": {
+        "operation": "configtest", "directive": "modsecurity", "value": "maybe",
+        "expected_exit_code": 1, "expected_outcome": "config_rejected",
+        "error_class": "invalid_boolean",
+        "diagnostic_fragments": ['"modsecurity" directive', "invalid boolean value"],
+    },
+    "invalid_size": {
+        "operation": "configtest", "directive": "modsecurity_phase4_body_limit", "value": "maybe",
+        "expected_exit_code": 1, "expected_outcome": "config_rejected",
+        "error_class": "invalid_size",
+        "diagnostic_fragments": ['"modsecurity_phase4_body_limit" directive',
+                                 "invalid value for modsecurity_phase4_body_limit"],
+    },
+}
 PARENT_ROOT = Path(__file__).resolve().parents[3]
 
 
@@ -110,12 +124,13 @@ def invoke(argv: list[str], environment: dict[str, str]) -> tuple[int, bytes, by
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--case-id", required=True, choices=["invalid_boolean"])
+    parser.add_argument("--case-id", required=True, choices=CONFIGTEST_CONTRACTS)
     for name in ("nginx-binary", "module", "output-root", "run-id", "parent-sha",
                  "framework-sha", "mrts-sha"):
         parser.add_argument("--" + name, required=True)
     parser.add_argument("--library-dir")
     args = parser.parse_args()
+    contract = CONFIGTEST_CONTRACTS[args.case_id]
     try:
         binary, module, output = map(absolute_path, (args.nginx_binary, args.module, args.output_root))
         if not binary.is_file() or not os.access(binary, os.X_OK) or not module.is_file():
@@ -149,7 +164,9 @@ def main() -> int:
             f'load_module "{retained_module}";\n'
             f'pid "{output}/nginx.pid";\n'
             f'error_log "{output}/nginx-error.log";\n'
-            "events {}\nhttp {\n  modsecurity maybe;\n}\n"
+            "events {}\nhttp {\n"
+            f"  {contract['directive']} {contract['value']};\n"
+            "}\n"
         ).encode("utf-8")
         config_path = output / "nginx.conf"
         config_path.write_bytes(configuration)
@@ -162,8 +179,10 @@ def main() -> int:
         (output / "stdout.log").write_bytes(stdout)
         (output / "stderr.log").write_bytes(stderr)
         text = stderr.decode("utf-8", errors="replace")
-        matched = [fragment for fragment in FRAGMENTS if fragment in text]
-        passed = not failure and exit_code == 1 and matched == FRAGMENTS
+        fragments = contract["diagnostic_fragments"]
+        matched = [fragment for fragment in fragments if fragment in text]
+        expected_exit = contract["expected_exit_code"]
+        passed = not failure and exit_code == expected_exit and matched == fragments
         receipt = {
             "schema_version": 1, "case_id": args.case_id, "connector": "nginx",
             "operation": "configtest", "run_id": args.run_id,
@@ -171,10 +190,11 @@ def main() -> int:
             "framework_sha": args.framework_sha, "mrts_sha": args.mrts_sha,
             "binary_sha256": binary_sha, "module_sha256": module_sha,
             "config_path_identity": "sha256:" + digest(configuration),
-            "directive": "modsecurity", "value": "maybe", "expected_outcome": "config_rejected",
-            "expected_exit_code": 1, "observed_exit_code": exit_code,
-            "observed_outcome": "config_rejected" if exit_code == 1 and not failure else "unexpected_outcome",
-            "error_class": "invalid_boolean" if passed else failure or "unexpected_config_error",
+            "directive": contract["directive"], "value": contract["value"],
+            "expected_outcome": contract["expected_outcome"],
+            "expected_exit_code": expected_exit, "observed_exit_code": exit_code,
+            "observed_outcome": contract["expected_outcome"] if exit_code == expected_exit and not failure else "unexpected_outcome",
+            "error_class": contract["error_class"] if passed else failure or "unexpected_config_error",
             "diagnostic_fragments": matched, "stdout_sha256": digest(stdout),
             "stderr_sha256": digest(stderr), "process_started": False, "listener_created": False,
             "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),

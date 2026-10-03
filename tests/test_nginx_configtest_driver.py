@@ -24,7 +24,7 @@ class NginxConfigtestDriverTest(unittest.TestCase):
         self.binary = self.root / "nginx"
 
     def invoke(self, diagnostic='"modsecurity" directive invalid boolean value', exit_code=1,
-               extra_script=""):
+               extra_script="", case_id="invalid_boolean", output_name="attempt"):
         self.binary.write_text(
             "#!/bin/sh\n"
             "[ \"$1\" = '-e' ] || exit 91\n"
@@ -37,12 +37,48 @@ class NginxConfigtestDriverTest(unittest.TestCase):
             encoding="utf-8",
         )
         self.binary.chmod(0o700)
-        args = [sys.executable, str(DRIVER), "--case-id", "invalid_boolean",
+        args = [sys.executable, str(DRIVER), "--case-id", case_id,
                 "--nginx-binary", str(self.binary), "--module", str(self.module),
-                "--output-root", str(self.root / "attempt"), "--run-id", "unit-control",
+                "--output-root", str(self.root / output_name), "--run-id", "unit-control",
                 "--parent-sha", "a" * 40, "--framework-sha", "b" * 40,
                 "--mrts-sha", "c" * 40]
         return subprocess.run(args, capture_output=True, text=True, timeout=15)
+
+    def test_invalid_size_executes_its_exact_configuration_contract(self):
+        result = self.invoke(
+            diagnostic='"modsecurity_phase4_body_limit" directive invalid value for modsecurity_phase4_body_limit',
+            case_id="invalid_size",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        output = self.root / "attempt"
+        record = json.loads((output / "source-result.json").read_text())["cases"][0]
+        receipt = record["configtest_receipt"]
+        self.assertEqual(record["case_id"], "invalid_size")
+        self.assertEqual(receipt["directive"], "modsecurity_phase4_body_limit")
+        self.assertEqual(receipt["value"], "maybe")
+        self.assertEqual(receipt["error_class"], "invalid_size")
+        self.assertEqual(receipt["observed_exit_code"], 1)
+        self.assertFalse(receipt["process_started"])
+        self.assertFalse(receipt["listener_created"])
+        self.assertIn("  modsecurity_phase4_body_limit maybe;", (output / "nginx.conf").read_text())
+
+    def test_invalid_size_wrong_diagnostic_and_exit_controls_remain_fail(self):
+        controls = [
+            ('"modsecurity" directive invalid boolean value', 1),
+            ('"other" directive invalid value for modsecurity_phase4_body_limit', 1),
+            ('"modsecurity_phase4_body_limit" directive wrong value', 1),
+            ('invalid value for modsecurity_phase4_body_limit', 1),
+            ('"modsecurity_phase4_body_limit" directive invalid value for modsecurity_phase4_body_limit', 0),
+        ]
+        for index, (diagnostic, exit_code) in enumerate(controls):
+            with self.subTest(diagnostic=diagnostic, exit_code=exit_code):
+                output_name = f"control-{index}"
+                result = self.invoke(diagnostic=diagnostic, exit_code=exit_code,
+                                     case_id="invalid_size", output_name=output_name)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                record = json.loads((self.root / output_name / "source-result.json").read_text())["cases"][0]
+                self.assertEqual(record["status"], "FAIL")
+                self.assertEqual(record["configtest_receipt"]["observed_exit_code"], exit_code)
 
     def test_expected_rejection_requires_both_diagnostic_fragments(self):
         result = self.invoke()

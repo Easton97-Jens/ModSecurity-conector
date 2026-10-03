@@ -11,6 +11,10 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20261003-nginx-size-configtest](CR-20261003-nginx-size-configtest.de.md)
+  | English companion: `CR-20261003-nginx-size-configtest.md` — selektierte Size-Parser-
+  Ablehnung mit frischer case-spezifischer Evidence; kein Full E2E oder Gitlink-Claim.
+
 - [CR-20261001-nginx-configtest-collection](CR-20261001-nginx-configtest-collection.de.md)
   | English companion: `CR-20261001-nginx-configtest-collection.md` — begrenzte
   Konfigurations-Receipts und autorisierte Retained-Bundle-Referenzen erhalten,

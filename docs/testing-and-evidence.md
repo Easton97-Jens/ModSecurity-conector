@@ -82,10 +82,13 @@ certificates, raw request bodies, raw response bodies, or local runtime output.
 
 ### Selected NGINX configuration-only evidence
 
-The closed `invalid_boolean` configuration contract uses
-`ci/runtime/lifecycle/run-nginx-configtest.py`: `modsecurity maybe;` must be
-rejected by an actual `nginx -e stderr -t` invocation with exit 1 and both
-`"modsecurity" directive` and `invalid boolean value` diagnostics. An unrelated
+The closed `invalid_boolean` and `invalid_size` configuration contracts use
+`ci/runtime/lifecycle/run-nginx-configtest.py`. An actual `nginx -e stderr -t`
+must reject `modsecurity maybe;` with exit 1 and both `"modsecurity" directive`
+and `invalid boolean value` diagnostics. For `invalid_size`, the input is
+`modsecurity_phase4_body_limit maybe;`, with exit 1 and both
+`"modsecurity_phase4_body_limit" directive` and
+`invalid value for modsecurity_phase4_body_limit` diagnostics. An unrelated
 module-loading failure, wrong directive, missing diagnostic, timeout, or wrong
 exit is not a passing negative test.
 
@@ -97,6 +100,10 @@ paths. The driver retains and actually uses `nginx-binary` and
 bundle; captures are limited to 64 KiB combined and execution to 10 seconds.
 `source-result.json` and its single-record `source-result.jsonl` companion
 carry the receipt and `artifacts.configtest_dir` for the official collector.
+The selected driver dispatches each registered case into its own fresh
+`configtests/<case_id>` child; canonical retention uses
+`inventory/configtests/<case_id>`. A Boolean receipt cannot fulfill the size
+case, and independently executed cases cannot overwrite one shared bundle.
 Keep these local artifacts external; they are not upload or commit material.
 
 The matching Framework contract validates configuration evidence rather than
@@ -104,7 +111,8 @@ inventing a native request event. This operation proves parsing/rejection
 only: no HTTP request, daemon startup, listener, master/worker identity,
 reload, or protocol coverage is claimed. Caller-provided source SHAs require
 independent run-provenance binding; trusted build inputs remain a prerequisite.
-The contract is limited to `invalid_boolean`, not every phase-0 catalog case,
+The contracts are limited to `invalid_boolean` and `invalid_size`, not every
+phase-0 catalog case,
 and cannot establish full required coverage or exact-head E2E PASS.
 
 ### HAProxy hosted evidence projection

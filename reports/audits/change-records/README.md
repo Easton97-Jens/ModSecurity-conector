@@ -10,6 +10,10 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20261003-nginx-size-configtest](CR-20261003-nginx-size-configtest.md)
+  | [Deutsch](CR-20261003-nginx-size-configtest.de.md) — selected size-parser
+  rejection with fresh per-case retained evidence; no full E2E or Gitlink claim.
+
 - [CR-20261001-nginx-configtest-collection](CR-20261001-nginx-configtest-collection.md)
   | [Deutsch](CR-20261001-nginx-configtest-collection.de.md) — preserve bounded
   configuration receipts and authorized retained-bundle references without

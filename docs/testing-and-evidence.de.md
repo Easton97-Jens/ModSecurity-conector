@@ -88,10 +88,13 @@ nicht eingecheckt.
 
 ### Selektierte NGINX-Konfigurations-Evidence ohne Requests
 
-Der geschlossene Konfigurationsvertrag `invalid_boolean` verwendet
-`ci/runtime/lifecycle/run-nginx-configtest.py`: `modsecurity maybe;` muss durch
-eine echte Invocation `nginx -e stderr -t` mit Exit 1 und beiden Diagnosen
-`"modsecurity" directive` und `invalid boolean value` abgewiesen werden. Ein
+Die geschlossenen Konfigurationsverträge `invalid_boolean` und `invalid_size`
+verwenden `ci/runtime/lifecycle/run-nginx-configtest.py`. Eine echte Invocation
+`nginx -e stderr -t` muss `modsecurity maybe;` mit Exit 1 und beiden Diagnosen
+`"modsecurity" directive` und `invalid boolean value` abweisen. Für
+`invalid_size` lautet der Input `modsecurity_phase4_body_limit maybe;`, mit
+Exit 1 und beiden Diagnosen `"modsecurity_phase4_body_limit" directive` und
+`invalid value for modsecurity_phase4_body_limit`. Ein
 nicht zugehöriger Modul-Ladefehler, eine falsche Direktive, eine fehlende
 Diagnose, Timeout oder falscher Exit sind kein bestandener Negativtest.
 
@@ -105,14 +108,19 @@ auf 64 KiB und die Ausführung auf 10 Sekunden begrenzt. `source-result.json`
 und sein Companion `source-result.jsonl` mit einem Datensatz tragen Receipt
 und `artifacts.configtest_dir` für den offiziellen Collector. Diese lokalen
 Artefakte bleiben extern; sie sind weder Upload- noch Commit-Material.
+Der selektierte Treiber führt jeden registrierten Case in einem eigenen
+frischen Child `configtests/<case_id>` aus; die kanonische Aufbewahrung nutzt
+`inventory/configtests/<case_id>`. Ein Boolean-Receipt erfüllt den Size-Case
+nicht; unabhängig ausgeführte Cases überschreiben kein gemeinsames Bundle.
 
 Der passende Framework-Vertrag validiert Konfigurations-Evidence, statt ein
 Native-Request-Event zu erfinden. Diese Operation belegt nur Parsing/Ablehnung:
 keine HTTP-Requests, Daemon-Starts, Listener, Master-/Worker-Identität, Reloads
 oder Protokoll-Coverage werden behauptet. Vom Aufrufer übergebene Source-SHAs
 benötigen unabhängiges Run-Provenienz-Binding; vertrauenswürdige Build-Inputs
-bleiben Voraussetzung. Der Vertrag ist auf `invalid_boolean` begrenzt, nicht
-auf alle Phase-0-Katalog-Cases, und kann weder vollständige Required-Coverage
+bleiben Voraussetzung. Die Verträge sind auf `invalid_boolean` und
+`invalid_size` begrenzt, nicht
+auf alle Phase-0-Katalog-Cases, und können weder vollständige Required-Coverage
 noch Exact-Head-E2E-PASS belegen.
 
 ### HAProxy-Hosted-Evidence-Projektion

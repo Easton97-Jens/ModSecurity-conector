@@ -46,8 +46,9 @@ def main() -> int:
             contract = case.get("config_invocations", {}).get("nginx")
             if contract is None:
                 continue  # Never promote other selected cases or infer a runner.
-            if (case["case_id"], contract.get("operation"), contract.get("directive"),
-                    contract.get("value")) != ("invalid_boolean", "configtest", "modsecurity", "maybe"):
+            expected = driver.CONFIGTEST_CONTRACTS.get(case["case_id"])
+            if (expected is None or contract != expected
+                    or type(contract["expected_exit_code"]) is not int):
                 raise ValueError("selected configuration invocation has no supported host driver")
             invocations.append(case["case_id"])
         if not invocations:

@@ -16,6 +16,11 @@ CONTRACT = {"operation": "configtest", "directive": "modsecurity", "value": "may
             "expected_exit_code": 1, "expected_outcome": "config_rejected",
             "error_class": "invalid_boolean",
             "diagnostic_fragments": ['"modsecurity" directive', "invalid boolean value"]}
+SIZE_CONTRACT = {"operation": "configtest", "directive": "modsecurity_phase4_body_limit", "value": "maybe",
+                 "expected_exit_code": 1, "expected_outcome": "config_rejected",
+                 "error_class": "invalid_size",
+                 "diagnostic_fragments": ['"modsecurity_phase4_body_limit" directive',
+                                          "invalid value for modsecurity_phase4_body_limit"]}
 
 
 class SelectedNginxConfigtestWiringTest(unittest.TestCase):
@@ -76,6 +81,29 @@ class SelectedNginxConfigtestWiringTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse((self.build / "configtests").exists())
         self.assertEqual(len(self.result_file.read_text().splitlines()), 1)
+
+    def test_two_selected_config_cases_use_distinct_fresh_children(self):
+        catalog = self.framework / "tests/cases/no-crs-baseline/catalog.json"
+        records = json.loads(catalog.read_text())
+        records["cases"].append({"case_id": "invalid_size", "config_invocations": {"nginx": SIZE_CONTRACT}})
+        catalog.write_text(json.dumps(records))
+        binary = Path(self.environment["NGINX_PREFIX"]) / "sbin/nginx"
+        binary.write_text(
+            '#!/bin/sh\ncase "$(sed -n "6p" "$5")" in\n'
+            '  *modsecurity_phase4_body_limit*) echo \'"modsecurity_phase4_body_limit" directive invalid value for modsecurity_phase4_body_limit\' >&2 ;;\n'
+            '  *) echo \'"modsecurity" directive invalid boolean value\' >&2 ;;\n'
+            'esac\nexit 1\n'
+        )
+        self.environment["NO_CRS_SELECTED_CASE_IDS"] = "invalid_boolean invalid_size"
+        result = self.run_helper()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        rows = [json.loads(line) for line in self.result_file.read_text().splitlines()][1:]
+        self.assertEqual([row["case_id"] for row in rows], ["invalid_boolean", "invalid_size"])
+        roots = [Path(row["artifacts"]["configtest_dir"]) for row in rows]
+        self.assertEqual([path.parent for path in roots], [self.build / "configtests"] * 2)
+        self.assertNotEqual(*roots)
+        self.assertTrue(all(row["status"] == "PASS" for row in rows))
+        self.assertNotEqual(self.run_helper().returncode, 0, "fresh-child reuse remains rejected")
 
     def test_wrong_diagnostic_remains_fail(self):
         binary = Path(self.environment["NGINX_PREFIX"]) / "sbin/nginx"
@@ -142,6 +170,42 @@ class SelectedNginxConfigtestWiringTest(unittest.TestCase):
         catalog.write_text(json.dumps(records))
         self.assertNotEqual(self.run_helper().returncode, 0)
         self.assertEqual(len(self.result_file.read_text().splitlines()), 1)
+
+    def test_each_selected_contract_field_is_checked_before_invocation(self):
+        mismatches = {"operation": "startup", "directive": "other", "value": "different",
+                      "expected_exit_code": 0, "expected_outcome": "config_accepted",
+                      "error_class": "different", "diagnostic_fragments": ["missing module"],
+                      "unexpected_field": "unapproved"}
+        catalog = self.framework / "tests/cases/no-crs-baseline/catalog.json"
+        for index, (field, value) in enumerate(mismatches.items()):
+            with self.subTest(field=field):
+                contract = {**CONTRACT, field: value}
+                catalog.write_text(json.dumps({"cases": [{"case_id": "invalid_boolean",
+                                   "config_invocations": {"nginx": contract}}]}))
+                build = self.base / f"mismatch-{index}"
+                build.mkdir()
+                results = build / "results"
+                results.mkdir()
+                self.environment.update(BUILD_ROOT=str(build), RESULTS_DIR=str(results))
+                result = self.run_helper()
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertFalse((build / "configtests").exists())
+
+    def test_equal_noninteger_exit_metadata_is_not_an_exact_contract(self):
+        catalog = self.framework / "tests/cases/no-crs-baseline/catalog.json"
+        for index, value in enumerate((True, 1.0)):
+            with self.subTest(value=value):
+                contract = {**CONTRACT, "expected_exit_code": value}
+                catalog.write_text(json.dumps({"cases": [{"case_id": "invalid_boolean",
+                                   "config_invocations": {"nginx": contract}}]}))
+                build = self.base / f"exit-type-{index}"
+                build.mkdir()
+                results = build / "results"
+                results.mkdir()
+                self.environment.update(BUILD_ROOT=str(build), RESULTS_DIR=str(results))
+                result = self.run_helper()
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertFalse((build / "configtests").exists())
 
 
 if __name__ == "__main__":
