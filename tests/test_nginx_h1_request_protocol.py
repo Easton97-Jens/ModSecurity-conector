@@ -90,6 +90,17 @@ class NginxH1RequestProtocolTest(unittest.TestCase):
         self.assertEqual(args[args.index("--data-binary") + 1], f"@{self.body}")
         self.assertEqual(args[-1], "http://127.0.0.1:18080/no-crs/allow")
 
+    def test_header_defaults_preserve_curl_semantics(self) -> None:
+        headers = ["X-Empty:", "X-Space: ", "X-Ordinary: value", "X-Explicit;", "X-Suppressed"]
+        self.headers.write_text("\n".join(headers) + "\n", encoding="utf-8")
+        completed = self.run_request("http1")
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        args = json.loads(self.capture.read_text(encoding="utf-8"))
+        self.assertEqual(
+            [args[position + 1] for position, value in enumerate(args) if value == "-H"],
+            ["X-Empty;", "X-Space;", "X-Ordinary: value", "X-Explicit;", "X-Suppressed"],
+        )
+
     def test_non_h1_profile_never_sends_legacy_case_request(self) -> None:
         for protocol in ("h2", "h3"):
             with self.subTest(protocol=protocol):

@@ -10,7 +10,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location(
     'configtest_collection', ROOT / 'ci/runtime/lifecycle/collect-no-crs-source.py')
-assert SPEC and SPEC.loader
+assert SPEC is not None
+assert SPEC.loader is not None
 collector = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(collector)
 

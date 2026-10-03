@@ -41,6 +41,36 @@ CONFIGTEST_RECEIPT_FIELDS = {
 }
 
 
+def _configtest_source_identity_fields(row: dict[str, Any]) -> dict[str, Any]:
+    """Retain the producer's bounded identity values without filling them."""
+    fields = {}
+    for field in ("run_id", "integration_mode", "observed_result"):
+        value = row.get(field)
+        if value is not None and (not isinstance(value, str) or len(value) > 256):
+            raise ValueError("configuration source identity is not bounded")
+        fields[field] = value
+    return fields
+
+
+def _configtest_source_artifacts(
+    artifacts: Any, allowed_source_root: Path | None,
+) -> dict[str, str]:
+    """Validate the closed bundle against its explicit source authority."""
+    if not isinstance(artifacts, dict) or set(artifacts) != {"configtest_dir"}:
+        raise ValueError("configuration source contains undeclared artifact references")
+    reference = artifacts["configtest_dir"]
+    if (allowed_source_root is None or not isinstance(reference, str)
+            or not reference or len(reference) > 4096):
+        raise ValueError("configuration artifact reference requires bounded path and source authority")
+    bundle = contained_source_event_path(Path(reference), allowed_source_root)
+    if not bundle.is_dir():
+        raise ValueError("configuration artifact bundle must be an existing directory")
+    for name in ("nginx-binary", "nginx-module.so", "nginx.conf", "stdout.log", "stderr.log"):
+        runtime_artifact_path(allowed_source_root, bundle / name,
+                              "configuration artifact", must_exist=True)
+    return {"configtest_dir": str(bundle)}
+
+
 def configtest_source_fields(
     row: dict[str, Any], expected_phase: int | None,
     allowed_source_root: Path | None = None,
@@ -58,26 +88,9 @@ def configtest_source_fields(
     if set(receipt) - CONFIGTEST_RECEIPT_FIELDS or len(json.dumps(receipt)) > 8192:
         raise ValueError("configuration receipt contains unbounded or undeclared fields")
     fields = {"configtest_receipt": receipt}
-    for field in ("run_id", "integration_mode", "observed_result"):
-        value = row.get(field)
-        if value is not None and (not isinstance(value, str) or len(value) > 256):
-            raise ValueError("configuration source identity is not bounded")
-        fields[field] = value
+    fields.update(_configtest_source_identity_fields(row))
     if "artifacts" in row:
-        artifacts = row["artifacts"]
-        if not isinstance(artifacts, dict) or set(artifacts) != {"configtest_dir"}:
-            raise ValueError("configuration source contains undeclared artifact references")
-        reference = artifacts["configtest_dir"]
-        if (allowed_source_root is None or not isinstance(reference, str)
-                or not reference or len(reference) > 4096):
-            raise ValueError("configuration artifact reference requires bounded path and source authority")
-        bundle = contained_source_event_path(Path(reference), allowed_source_root)
-        if not bundle.is_dir():
-            raise ValueError("configuration artifact bundle must be an existing directory")
-        for name in ("nginx-binary", "nginx-module.so", "nginx.conf", "stdout.log", "stderr.log"):
-            runtime_artifact_path(allowed_source_root, bundle / name,
-                                  "configuration artifact", must_exist=True)
-        fields["artifacts"] = {"configtest_dir": str(bundle)}
+        fields["artifacts"] = _configtest_source_artifacts(row["artifacts"], allowed_source_root)
     return fields
 
 

@@ -2786,8 +2786,10 @@ send_case_request() {
                     header_value=${header_line#*:}
                     case "$header_value" in
                         ''|' ') header_line="${header_line%%:*};" ;;
+                        *) : ;;
                     esac
                     ;;
+                *) : ;;
             esac
             set -- "$@" -H "$header_line"
         done < "$REQUEST_HEADERS_FILE"

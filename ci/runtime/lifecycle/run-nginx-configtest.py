@@ -128,90 +128,122 @@ def invoke(argv: list[str], environment: dict[str, str]) -> tuple[int, bytes, by
     return exit_code, bytes(captured["stdout"]), bytes(captured["stderr"]), failure
 
 
-def main() -> int:
+def argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--case-id", required=True, choices=CONFIGTEST_CONTRACTS)
     for name in ("nginx-binary", "module", "output-root", "run-id", "parent-sha",
                  "framework-sha", "mrts-sha"):
         parser.add_argument("--" + name, required=True)
     parser.add_argument("--library-dir")
+    return parser
+
+
+def validate_output_root(output: Path) -> None:
+    storage_root = AUTHORIZED_STORAGE_ROOT
+    if storage_root not in output.parents:
+        raise ValueError("output must be under the authorized external task storage")
+    if (output == PARENT_ROOT or PARENT_ROOT in output.parents
+            or any(is_checkout(ancestor) for ancestor in output.parents
+                   if ancestor != storage_root and storage_root in ancestor.parents)):
+        raise ValueError("output must be outside the checkout")
+    if output.exists() or not output.parent.is_dir():
+        raise ValueError("output must be a fresh child of an existing external parent")
+    ensure_safe_runtime_directory(output.parent)
+
+
+def validate_inputs(args) -> tuple[Path, Path, Path]:
+    binary, module, output = map(absolute_path, (args.nginx_binary, args.module, args.output_root))
+    if not binary.is_file() or not os.access(binary, os.X_OK) or not module.is_file():
+        raise ValueError("an executable binary and regular module are required")
+    validate_output_root(output)
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", args.run_id):
+        raise ValueError("run identity must be bounded and path-safe")
+    for sha in (args.parent_sha, args.framework_sha, args.mrts_sha):
+        if not re.fullmatch(r"[0-9a-f]{40}", sha):
+            raise ValueError("exact source identities must be 40-character lowercase SHAs")
+    return binary, module, output
+
+
+def configtest_environment(library_dir: str | None) -> dict[str, str]:
+    environment = {"PATH": os.defpath, "LANG": "C", "LC_ALL": "C"}
+    if library_dir:
+        library = absolute_path(library_dir)
+        if not library.is_dir():
+            raise ValueError("library directory must exist")
+        environment["LD_LIBRARY_PATH"] = str(library)
+    return environment
+
+
+def retain_configtest_inputs(binary: Path, module: Path, output: Path, contract: dict) -> tuple:
+    retained_binary = output / "nginx-binary"
+    retained_module = output / "nginx-module.so"
+    binary_sha = snapshot_artifact(binary, retained_binary, executable=True)
+    module_sha = snapshot_artifact(module, retained_module, executable=False)
+    configuration = (
+        f'load_module "{retained_module}";\n'
+        f'pid "{output}/nginx.pid";\n'
+        f'error_log "{output}/nginx-error.log";\n'
+        "events {}\nhttp {\n"
+        f"  {contract['directive']} {contract['value']};\n"
+        "}\n"
+    ).encode("utf-8")
+    config_path = output / "nginx.conf"
+    config_path.write_bytes(configuration)
+    return binary_sha, module_sha, configuration, config_path
+
+
+def configtest_result(args, contract: dict, output: Path, artifacts: tuple, capture: tuple) -> tuple:
+    binary_sha, module_sha, configuration, _ = artifacts
+    exit_code, stdout, stderr, failure = capture
+    text = stderr.decode("utf-8", errors="replace")
+    fragments = contract["diagnostic_fragments"]
+    matched = [fragment for fragment in fragments if fragment in text]
+    expected_exit = contract["expected_exit_code"]
+    passed = not failure and exit_code == expected_exit and matched == fragments
+    receipt = {
+        "schema_version": 1, "case_id": args.case_id, "connector": "nginx",
+        "operation": "configtest", "run_id": args.run_id,
+        "integration_mode": "native-nginx-http-module", "parent_sha": args.parent_sha,
+        "framework_sha": args.framework_sha, "mrts_sha": args.mrts_sha,
+        "binary_sha256": binary_sha, "module_sha256": module_sha,
+        "config_path_identity": "sha256:" + digest(configuration),
+        "directive": contract["directive"], "value": contract["value"],
+        "expected_outcome": contract["expected_outcome"],
+        "expected_exit_code": expected_exit, "observed_exit_code": exit_code,
+        "observed_outcome": contract["expected_outcome"] if exit_code == expected_exit and not failure else "unexpected_outcome",
+        "error_class": contract["error_class"] if passed else failure or "unexpected_config_error",
+        "diagnostic_fragments": matched, "stdout_sha256": digest(stdout),
+        "stderr_sha256": digest(stderr), "process_started": False, "listener_created": False,
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    }
+    result = {"cases": [{"case_id": args.case_id, "status": "PASS" if passed else "FAIL",
+                         "live_executed": failure != "configtest_exec_error",
+                         "actual_status": exit_code, "observed_result": receipt["observed_outcome"],
+                         "run_id": args.run_id, "integration_mode": receipt["integration_mode"],
+                         "artifacts": {"configtest_dir": str(output)},
+                         "configtest_receipt": receipt}]}
+    return result, passed
+
+
+def main() -> int:
+    parser = argument_parser()
     args = parser.parse_args()
     contract = CONFIGTEST_CONTRACTS[args.case_id]
     try:
-        binary, module, output = map(absolute_path, (args.nginx_binary, args.module, args.output_root))
-        if not binary.is_file() or not os.access(binary, os.X_OK) or not module.is_file():
-            raise ValueError("an executable binary and regular module are required")
-        storage_root = AUTHORIZED_STORAGE_ROOT
-        if storage_root not in output.parents:
-            raise ValueError("output must be under the authorized external task storage")
-        if (output == PARENT_ROOT or PARENT_ROOT in output.parents
-                or any(is_checkout(ancestor) for ancestor in output.parents
-                       if ancestor != storage_root and storage_root in ancestor.parents)):
-            raise ValueError("output must be outside the checkout")
-        if output.exists() or not output.parent.is_dir():
-            raise ValueError("output must be a fresh child of an existing external parent")
-        ensure_safe_runtime_directory(output.parent)
-        if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", args.run_id):
-            raise ValueError("run identity must be bounded and path-safe")
-        for sha in (args.parent_sha, args.framework_sha, args.mrts_sha):
-            if not re.fullmatch(r"[0-9a-f]{40}", sha):
-                raise ValueError("exact source identities must be 40-character lowercase SHAs")
-        environment = {"PATH": os.defpath, "LANG": "C", "LC_ALL": "C"}
-        if args.library_dir:
-            library = absolute_path(args.library_dir)
-            if not library.is_dir():
-                raise ValueError("library directory must exist")
-            environment["LD_LIBRARY_PATH"] = str(library)
+        binary, module, output = validate_inputs(args)
+        environment = configtest_environment(args.library_dir)
         output.mkdir(mode=0o700)
-        retained_binary = output / "nginx-binary"
-        retained_module = output / "nginx-module.so"
-        binary_sha = snapshot_artifact(binary, retained_binary, executable=True)
-        module_sha = snapshot_artifact(module, retained_module, executable=False)
-        configuration = (
-            f'load_module "{retained_module}";\n'
-            f'pid "{output}/nginx.pid";\n'
-            f'error_log "{output}/nginx-error.log";\n'
-            "events {}\nhttp {\n"
-            f"  {contract['directive']} {contract['value']};\n"
-            "}\n"
-        ).encode("utf-8")
-        config_path = output / "nginx.conf"
-        config_path.write_bytes(configuration)
+        artifacts = retain_configtest_inputs(binary, module, output, contract)
         try:
             exit_code, stdout, stderr, failure = invoke(
-                [str(retained_binary), "-e", "stderr", "-t", "-c", str(config_path), "-p", str(output) + "/"], environment,
+                [str(output / "nginx-binary"), "-e", "stderr", "-t", "-c", str(artifacts[3]), "-p", str(output) + "/"], environment,
             )
         except OSError:
             exit_code, stdout, stderr, failure = -1, b"", b"", "configtest_exec_error"
         (output / "stdout.log").write_bytes(stdout)
         (output / "stderr.log").write_bytes(stderr)
-        text = stderr.decode("utf-8", errors="replace")
-        fragments = contract["diagnostic_fragments"]
-        matched = [fragment for fragment in fragments if fragment in text]
-        expected_exit = contract["expected_exit_code"]
-        passed = not failure and exit_code == expected_exit and matched == fragments
-        receipt = {
-            "schema_version": 1, "case_id": args.case_id, "connector": "nginx",
-            "operation": "configtest", "run_id": args.run_id,
-            "integration_mode": "native-nginx-http-module", "parent_sha": args.parent_sha,
-            "framework_sha": args.framework_sha, "mrts_sha": args.mrts_sha,
-            "binary_sha256": binary_sha, "module_sha256": module_sha,
-            "config_path_identity": "sha256:" + digest(configuration),
-            "directive": contract["directive"], "value": contract["value"],
-            "expected_outcome": contract["expected_outcome"],
-            "expected_exit_code": expected_exit, "observed_exit_code": exit_code,
-            "observed_outcome": contract["expected_outcome"] if exit_code == expected_exit and not failure else "unexpected_outcome",
-            "error_class": contract["error_class"] if passed else failure or "unexpected_config_error",
-            "diagnostic_fragments": matched, "stdout_sha256": digest(stdout),
-            "stderr_sha256": digest(stderr), "process_started": False, "listener_created": False,
-            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        }
-        result = {"cases": [{"case_id": args.case_id, "status": "PASS" if passed else "FAIL",
-                             "live_executed": failure != "configtest_exec_error",
-                             "actual_status": exit_code, "observed_result": receipt["observed_outcome"],
-                             "run_id": args.run_id, "integration_mode": receipt["integration_mode"],
-                             "artifacts": {"configtest_dir": str(output)},
-                             "configtest_receipt": receipt}]}
+        result, passed = configtest_result(args, contract, output, artifacts,
+                                          (exit_code, stdout, stderr, failure))
         (output / "source-result.json").write_text(json.dumps(result, sort_keys=True, indent=2) + "\n", encoding="utf-8")
         (output / "source-result.jsonl").write_text(
             json.dumps(result["cases"][0], sort_keys=True) + "\n", encoding="utf-8",

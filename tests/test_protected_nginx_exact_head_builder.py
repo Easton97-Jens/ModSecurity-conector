@@ -37,7 +37,8 @@ sys.path.insert(0, str(ROOT / "ci/provisioning/components"))
 COMPONENT_SPEC = importlib.util.spec_from_file_location(
     "builder_components_contract", ROOT / "ci/provisioning/components/prepare-runtime-components.py"
 )
-assert COMPONENT_SPEC is not None and COMPONENT_SPEC.loader is not None
+assert COMPONENT_SPEC is not None
+assert COMPONENT_SPEC.loader is not None
 C = importlib.util.module_from_spec(COMPONENT_SPEC)
 sys.modules[COMPONENT_SPEC.name] = C
 COMPONENT_SPEC.loader.exec_module(C)
@@ -115,22 +116,25 @@ class CandidateBuilderTests(unittest.TestCase):
         self.snapshot.write_text(self.snapshot.read_text().replace(
             "export NGINX_DOWNLOAD_DIR='" + str(self.archive.parent) + "'",
             "export NGINX_DOWNLOAD_DIR=''"), encoding="utf-8")
+        arguments = self.package_args()
         with self.assertRaisesRegex(B.BuilderError, "lacks required"):
-            B.package(self.package_args())
+            B.package(arguments)
 
     def test_archive_directory_escape_is_rejected_before_hashing(self) -> None:
         self.snapshot.write_text(self.snapshot.read_text().replace(
             str(self.archive.parent), str(self.root)), encoding="utf-8")
+        arguments = self.package_args()
         with mock.patch.object(B, "sha256_fd") as digest:
             with self.assertRaisesRegex(B.BuilderError, "escapes its approved root"):
-                B.package(self.package_args())
+                B.package(arguments)
         digest.assert_not_called()
 
     def test_duplicate_snapshot_fields_are_rejected(self) -> None:
         self.snapshot.write_text(self.snapshot.read_text() +
                                  "export NGINX_DOWNLOAD_DIR=''\n", encoding="utf-8")
+        arguments = self.package_args()
         with self.assertRaisesRegex(B.BuilderError, "duplicate key"):
-            B.package(self.package_args())
+            B.package(arguments)
 
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
