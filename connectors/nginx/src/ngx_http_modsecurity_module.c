@@ -228,8 +228,11 @@ ngx_http_modsecurity_process_redirect_intervention(ngx_http_request_t *r,
 {
     ngx_str_t location_value;
     ngx_table_elt_t *location;
+    ngx_table_elt_t *headers;
+    ngx_list_part_t *part;
     const u_char *redirect_url;
     size_t i;
+    ngx_uint_t j;
 
     if (r->header_sent) {
         dd("Headers are already sent. Cannot perform the redirection at this point.");
@@ -270,6 +273,22 @@ ngx_http_modsecurity_process_redirect_intervention(ngx_http_request_t *r,
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     ngx_http_clear_location(r);
+    /* NGINX leaves a relative upstream Location in the output list without
+     * indexing it at headers_out.location.  Replace every old active
+     * Location only for this connector-owned redirect, including entries
+     * in chained list parts; the newly pushed entry is not initialized yet. */
+    for (part = &r->headers_out.headers.part; part != NULL;
+            part = part->next) {
+        headers = part->elts;
+        for (j = 0; j < part->nelts; j++) {
+            if (&headers[j] != location && headers[j].hash != 0 &&
+                headers[j].key.len == sizeof("Location") - 1U &&
+                ngx_strncasecmp(headers[j].key.data, (u_char *) "Location",
+                    sizeof("Location") - 1U) == 0) {
+                headers[j].hash = 0;
+            }
+        }
+    }
     /* The redirect is a body-less replacement for the pending upstream
      * response.  Do not retain entity metadata for bytes that will be
      * discarded by the body filter. */

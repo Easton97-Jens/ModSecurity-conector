@@ -299,6 +299,27 @@ instead.
 and the library's own body-limit settings still apply. This is not a claim that
 all error paths are identical to an earlier upstream release.
 
+The Parent's synchronized native First-Byte proof explicitly selects
+`NGINX_SYNCHRONIZED_PHASE4_MODE=safe` and the existing native Phase-4 log scope
+`server_with_location_override`. The harness retains this literal caller
+policy across the portable case-environment load and applies it only for
+`MSCONNECTOR_FULL_LIFECYCLE_SYNC=1`. Missing, `off`, `strict`, or invalid
+synchronized policy values are rejected before NGINX starts; a synchronized
+override outside that route is also rejected. Ordinary direct smoke defaults
+and case-selected modes remain unchanged. A full test payload alone is not
+success: the proof still requires curl exit `0`, HTTP `200`, and actual native
+Phase-4 evidence. Rule `1100301` remains a disruptive rule; Safe late handling,
+not a changed rule or transport waiver, preserves the committed response.
+
+The Parent's NGINX no-CRS lifecycle stage selects
+`NGINX_PHASE4_LOG_SCOPE=location_if_missing`. After each case is materialized,
+the harness adds one `modsecurity_phase4_log` location directive pointing to
+that case's private `LOG_DIR/phase4.log` only when the generated location
+include has no such directive. Connector-specific Phase-4 fixtures retain
+their own directive; direct harness defaults and the separate First-Byte
+route are unchanged. The name of the directive does not limit the sink to
+Phase 4: native request- and response-phase events use the same descriptor.
+
 `modsecurity_phase4_body_limit` defaults to 1048576 bytes (1 MiB). A configured
 value must still be positive and at most 10485760 bytes (10 MiB), including in
 `off`; only runtime enforcement of this extra budget is disabled in `off`.
@@ -400,6 +421,32 @@ Relevant framework paths:
 - `modules/ModSecurity-test-Framework/tests/cases/`
 - `modules/ModSecurity-test-Framework/tests/cases/connector-specific/nginx/`
 - `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`
+
+The Parent harness's legacy case request requires
+`NGINX_DOWNSTREAM_PROTOCOL=http1`. It sends Curl with `-q --http1.1` as the
+first options, so a user `curlrc` cannot change this bounded H1 request.
+Custom `CURL` wrappers must accept both options. Direct H2/H3 calls to this
+request function are blocked; the separate H2/H3 protocol probe remains
+non-promoting. The focused command test proves the client options, not the
+negotiated version of every runtime request.
+
+Generated empty request headers are sent with Curl's `Header;` notation.
+Passing the materialized `Header: ` unchanged would suppress the header,
+not send a present empty value. A real loopback regression distinguishes
+present-empty from absent, ordinary, and duplicate headers. The Framework's
+`empty_header_value` fixture requires both presence and an empty value to
+match rule `1100503`; HTTP `200` alone is insufficient. The isolated cached
+host probe produced that native event and the unchanged collector/normalizer
+accepted the individual case. Its aggregate remains `FAIL`; no new exact-head
+E2E or full canonical PASS is claimed. See the
+[empty-header Change Record](../../reports/audits/change-records/CR-20261001-nginx-empty-header-driver.md).
+
+One isolated `transaction_id_generated_or_fallback` diagnostic observed HTTP
+`200`, an actual audit request line ending in `HTTP/1.1`, a root master with a
+`nobody` worker, native rule `1100502`, and a PASS for that case from the
+unchanged Parent source collector. Its one-case aggregate is `FAIL`; it is not
+canonical or exact-head lifecycle PASS. See the
+[H1 request-binding Change Record](../../reports/audits/change-records/CR-20261001-nginx-h1-request-binding.md).
 
 Historical generated evidence keeps NGINX `partial`:
 

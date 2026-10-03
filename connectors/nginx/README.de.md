@@ -317,6 +317,30 @@ und die eigenen Body-Limit-Einstellungen der Bibliothek gelten weiterhin.
 Damit wird nicht behauptet, dass sämtliche Fehlerpfade mit einem früheren
 Upstream-Release identisch sind.
 
+Der synchronisierte native First-Byte-Beweis des Parents wählt ausdrücklich
+`NGINX_SYNCHRONIZED_PHASE4_MODE=safe` und den bestehenden nativen Phase-4-Log-Scope
+`server_with_location_override`. Der Harness bewahrt diese literale
+Caller-Policy über das Laden der portablen Case-Umgebung hinweg und wendet
+sie ausschließlich bei `MSCONNECTOR_FULL_LIFECYCLE_SYNC=1` an. Fehlende,
+`off`-, `strict`- oder ungültige synchronisierte Policy-Werte werden vor dem
+NGINX-Start abgewiesen; ein synchronisierter Override außerhalb dieser Route
+wird ebenfalls abgewiesen. Normale direkte Smoke-Defaults und Case-eigene
+Modi bleiben unverändert. Ein vollständiger Test-Payload allein bedeutet
+keinen Erfolg: Der Beweis verlangt weiterhin curl-Exit `0`, HTTP `200` und
+tatsächliche native Phase-4-Evidence. Regel `1100301` bleibt disruptiv; die
+späte Safe-Behandlung erhält die bereits committete Response, nicht eine
+geänderte Regel oder eine Ausnahme für Transportfehler.
+
+Die NGINX-No-CRS-Lifecycle-Stage des Parents wählt
+`NGINX_PHASE4_LOG_SCOPE=location_if_missing`. Nach der Materialisierung jedes
+Cases ergänzt der Harness genau eine `modsecurity_phase4_log`-Direktive im
+Location-Kontext für dessen private `LOG_DIR/phase4.log`, falls das erzeugte
+Location-Include keine solche Direktive enthält. Connector-spezifische
+Phase-4-Fixtures behalten ihre eigene Direktive; die direkten Harness-Defaults
+und der separate First-Byte-Pfad bleiben unverändert. Der Direktivenname
+beschränkt den Sink nicht auf Phase 4: native Request- und Response-Phase-
+Events nutzen denselben Deskriptor.
+
 `modsecurity_phase4_body_limit` hat standardmäßig 1048576 Byte (1 MiB). Ein
 konfigurierter Wert muss weiterhin positiv sein und darf höchstens 10485760
 Byte (10 MiB) betragen, auch in `off`; nur die Laufzeitdurchsetzung dieses
@@ -429,6 +453,33 @@ Relevante Framework-Pfade:
 - `modules/ModSecurity-test-Framework/tests/cases/`
 - `modules/ModSecurity-test-Framework/tests/cases/connector-specific/nginx/`
 - `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`
+
+Der Legacy-Case-Request des Parent-Harness verlangt
+`NGINX_DOWNSTREAM_PROTOCOL=http1`. Er übergibt Curl `-q --http1.1` als erste
+Optionen, damit eine Benutzer-`curlrc` diesen begrenzten H1-Request nicht
+verändert. Eigene `CURL`-Wrapper müssen beide Optionen akzeptieren. Direkte
+H2/H3-Aufrufe dieser Request-Funktion werden blockiert; die getrennte H2/H3-
+Protokollprobe bleibt nicht promotend. Der fokussierte Kommando-Test belegt die
+Client-Optionen, nicht die ausgehandelte Version jedes Runtime-Requests.
+
+Generierte leere Request-Header werden mit Curls `Header;`-Notation gesendet.
+Die unveränderte Übergabe des materialisierten `Header: ` würde den Header
+unterdrücken, nicht einen vorhandenen Leerwert senden. Eine echte Loopback-
+Regression unterscheidet vorhandene leere von fehlenden, gewöhnlichen und
+doppelten Headern. Das Framework-Fixture `empty_header_value` verlangt Präsenz
+und Leerwert gemeinsam für einen Treffer der Regel `1100503`; HTTP `200`
+allein reicht nicht. Der isolierte Host-Probe mit vorhandenem Cache erzeugte
+dieses native Event, und der unveränderte Collector/Normalizer akzeptierte den
+einzelnen Case. Sein Aggregat bleibt `FAIL`; kein neuer Exact-Head-E2E oder
+vollständiger kanonischer PASS wird behauptet. Siehe den
+[Leerheader-Change-Record](../../reports/audits/change-records/CR-20261001-nginx-empty-header-driver.de.md).
+
+Eine isolierte `transaction_id_generated_or_fallback`-Diagnose beobachtete HTTP
+`200`, eine tatsächliche Audit-Request-Zeile mit `HTTP/1.1`, einen Root-Master
+mit `nobody`-Worker, die native Regel `1100502` und einen PASS für diesen Case
+aus dem unveränderten Parent-Source-Collector. Ihr Ein-Case-Aggregat ist
+`FAIL`; dies ist kein kanonischer oder Exact-Head-Lifecycle-PASS. Siehe den
+[H1-Request-Binding-Change-Record](../../reports/audits/change-records/CR-20261001-nginx-h1-request-binding.de.md).
 
 Historisch generierte Beweise halten NGINX `partial` fest:
 
