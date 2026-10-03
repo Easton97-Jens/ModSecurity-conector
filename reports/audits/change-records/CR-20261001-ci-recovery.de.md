@@ -144,6 +144,11 @@ vollständige Runtime-Evidence bleiben ausstehend.
 - `.github/workflows/update-python-version.yml`
 - `.github/workflows/update-submodules.yml`
 - `.github/workflows/update-workflow-tools.yml`
+- `.github/workflows/test-lighttpd.yml`
+- `ci/lib/runtime_path_utils.py`
+- `tests/test_runtime_path_utils.py`
+- `tests/test_resolve_lighttpd_host_binary.py`
+- `tests/test_trusted_lighttpd_namespace_dispatch_workflow.py`
 - `Makefile`
 - `ci/lib/framework_revision_pins.py`
 - `ci/provisioning/components/prepare-runtime-components.py`
@@ -448,6 +453,37 @@ benötigt ihren eigenen ausgelieferten Head samt finalem Review/Evidence, statt
 das historische `11b7e1b0`-Ergebnis aufzuwerten oder Quellen wiederholt allein
 für CI-Status zu ändern.
 
+Die nächste Hosted-Runde auf `f2b4de6b0c70c9a7a6195a625f93d2a582b88bcf`
+bestand ihr exaktes Sonar-Gate ohne offene Befunde; alle fünf CRS-Runtime-Zellen
+und exaktes NGINX waren erfolgreich. Beide vollständigen Smoke-Varianten
+scheiterten anschließend vor der Fallproduktion: Der Descriptor-Walker öffnete
+den Root-eigenen `0711`-Namespace mit `O_RDONLY`, obwohl der Runner bewusst nur
+durchqueren darf. Der Helper verwendet nun unter Linux
+`O_PATH|O_DIRECTORY|O_NOFOLLOW` für Vorfahren und erhält `O_RDONLY` für den
+Leaf. Descriptor-relative Eigentümer-/Modus-, Identitäts- und Symlink-Prüfungen
+bleiben erhalten; Verzeichnisrechte werden nicht erweitert. 43 zuständige
+Pfad-/Artefakttests bestanden einschließlich einer echten bestehenden
+unprivilegierten Identität; der integrierte 72-Test-Vertrag bestand in
+17.191 Sekunden. Finale native Integration einschließlich der zusätzlichen
+statischen Lighttpd-Dispatcher-Suite bestand alle 74 Tests in 18.777 Sekunden. Der frische übergreifende
+Sicherheitsvertrag bestand außerdem alle 219 Tests mit fünf bestehenden
+Umgebungsskips; alle 38 Workflow-Updater-Tests bestanden.
+
+Dieselbe Legacy-Runde bestand echte Envoy-/Traefik-`200`-/`403`-Kontrollen;
+Traefiks gemessene Version war `3.7.13`. Lighttpd scheiterte vor dem Start,
+weil seine frische isolierte Stage ein Build-Opt-in benötigte, das der frühere
+Vorbereitungsschritt nicht weitergab. Nur der feste Minimal-Runtime-Aufruf erhält
+nun `ALLOW_RUNTIME_BUILDS=1`; vorhandenes Download-Opt-in, unveränderliche
+Komponentenidentität, Digests und private Stage-/Header-Prüfungen bleiben
+intakt. Eine ausgeführte Workflow-Step-Regression prüft Übergabe und engen Scope.
+Der zusätzliche statische Lighttpd-Testvalidator hatte zwei veraltete Rechte-/
+Trigger-Annahmen. Er prüft nun den bestehenden Deny-Default-/Job-Read-Vertrag
+und verlangt vor negativen Mutationen eine gültige Baseline. Normale Lighttpd-CI
+führt diese statische Suite unprivilegiert aus. 37 zugehörige Tests und
+actionlint für beide geänderten Workflows bestanden. Diese Korrekturen benötigen
+einen neuen exakten Head und frische Hosted-Ergebnisse; fehlgeschlagene
+vollständige/Legacy-Läufe auf `f2b4de6b` sind keine Pässe.
+
 ## Bekannte Einschränkungen
 
 Lokale privilegienabhängige Namespace-Integration hatte fünf bestehende Skips. Quick-check im CI-Modus bestand mit den beiden Compiler-Skips wegen fehlender Header; der normale lokale Versuch erreichte das Zeitlimit. Der geschützte Broker-Caller bleibt auf `49c40779a7b6de9f699391bcd524ea069787df42` gepinnt; dieser Patch allein aktiviert die geänderte Broker-Quelle nicht.
@@ -462,4 +498,4 @@ Ein vollständiger gehosteter Parent-Pass und beide geschützten Broker-Runtime-
 
 ## Finaler Diff- und Review-Status
 
-Die ursprünglichen und korrigierten Änderungen wurden in PR 400 bereitgestellt. Für den zuletzt veröffentlichten Head `ca296f85` liegt exaktes Sonar `OK` mit dem oben beschriebenen verbleibenden Minor-Finding vor; `11b7e1b0` ist historisch. Die minimale Tupelpaar-Konstruktor-Korrektur bestand lokale Validierung und benötigt Auslieferung/finalen Review sowie Evidence des exakten Heads. Frühere Apache-/Traefik-Evidence bleibt an ihren aufgezeichneten historischen Head gebunden. Die Gesamtreparatur bleibt bis zu dieser Evidence und geschützter Aktivierung teilweise abgeschlossen. Die ursprünglichen Arbeitscheckouts bleiben erhalten; nur der Framework-Gitlink des Task-Parents wird wie oben dokumentiert geändert. Weder Parent-master-Integration noch Framework-/MRTS-Quelländerungen werden behauptet. Beide Sprachfassungen enthalten dieselben Werte und Einschränkungen.
+Die ursprünglichen und korrigierten Änderungen wurden in PR 400 bereitgestellt. Für den zuletzt veröffentlichten Head `f2b4de6b` liegt exaktes Sonar `OK` ohne offene Befunde vor; vollständige Smoke- und Legacy-Fehler belegten jedoch die oben beschriebenen Vorfahren-Traversierungs- und Lighttpd-Opt-in-Defekte. Deren gezielte Korrekturen bestanden die finale zuständige Integration und lokale Validierung; Auslieferung und neue Hosted-Evidence des exakten Heads bleiben erforderlich. Frühere Apache-/Traefik-Evidence bleibt an ihren aufgezeichneten historischen Head gebunden. Die Gesamtreparatur bleibt bis zu dieser Evidence und geschützter Aktivierung teilweise abgeschlossen. Die ursprünglichen Arbeitscheckouts bleiben erhalten; nur der Framework-Gitlink des Task-Parents wird wie oben dokumentiert geändert. Weder Parent-master-Integration noch Framework-/MRTS-Quelländerungen werden behauptet. Beide Sprachfassungen enthalten dieselben Werte und Einschränkungen.

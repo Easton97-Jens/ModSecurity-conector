@@ -96,7 +96,7 @@ jobs:
       - name: Native minimal runtime diagnostics
         run: |
           set -eu
-          TMPDIR=/tmp make runtime-smoke-remaining-connectors
+          TMPDIR=/tmp ALLOW_RUNTIME_BUILDS=1 make runtime-smoke-remaining-connectors
 
       - name: Remaining connector readiness contracts
         run: |

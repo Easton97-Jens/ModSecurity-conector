@@ -135,6 +135,11 @@ evidence remain outstanding.
 - `.github/workflows/update-python-version.yml`
 - `.github/workflows/update-submodules.yml`
 - `.github/workflows/update-workflow-tools.yml`
+- `.github/workflows/test-lighttpd.yml`
+- `ci/lib/runtime_path_utils.py`
+- `tests/test_runtime_path_utils.py`
+- `tests/test_resolve_lighttpd_host_binary.py`
+- `tests/test_trusted_lighttpd_namespace_dispatch_workflow.py`
 - `Makefile`
 - `ci/lib/framework_revision_pins.py`
 - `ci/provisioning/components/prepare-runtime-components.py`
@@ -422,6 +427,35 @@ and the missing-separator exception. This source correction requires its own del
 head and final review/evidence rather than promoting the historical `11b7e1b0`
 result or repeatedly editing source for CI status alone.
 
+The next hosted round on `f2b4de6b0c70c9a7a6195a625f93d2a582b88bcf`
+passed its exact Sonar gate with zero open findings, and all five CRS runtime
+cells plus exact NGINX succeeded. Both complete smoke variants then failed
+before case production: the descriptor walker opened the root-owned `0711`
+namespace with `O_RDONLY`, although the runner is deliberately allowed only
+traversal. The helper now uses Linux `O_PATH|O_DIRECTORY|O_NOFOLLOW` for
+ancestors and retains `O_RDONLY` for the actual leaf. Descriptor-relative
+ownership/mode, identity and symlink checks remain enforced; directory modes
+are not widened. Forty-three owning path/artifact tests passed, including a
+real existing unprivileged identity, and the integrated 72-test contract passed
+in 17.191 seconds. Final native integration, including the additional static
+Lighttpd dispatcher suite, passed all 74 tests in 18.777 seconds. The fresh broader security contract
+also passed all 219 tests with five existing environment skips, and all 38
+workflow-updater tests passed.
+
+The same Legacy round passed real Envoy/Traefik `200`/`403` controls; Traefik's
+measured version was `3.7.13`. Lighttpd then failed before starting because its
+fresh isolated stage required a build opt-in that the earlier preparation step
+had not propagated. Only the fixed minimal-runtime invocation now receives
+`ALLOW_RUNTIME_BUILDS=1`; the existing download opt-in, immutable component
+identity, digests and private stage/header checks remain intact. An executed
+workflow-step regression checks this environment handoff and its narrow scope.
+The additional static Lighttpd test validator had two stale permission/trigger
+assumptions; it now checks the existing deny-default/job-read contract and
+requires a valid baseline before negative mutations. Standard Lighttpd CI runs
+that static suite unprivileged. Thirty-seven related tests and both changed
+workflow actionlint checks passed. These corrections need a new exact head and
+fresh hosted results; failed `f2b4de6b` complete/Legacy runs are not passes.
+
 ## Known limitations
 
 Local privilege-dependent namespace integration had five existing skips. CI-mode quick-check passed with the two missing-header compiler skips; the ordinary local attempt timed out. The protected broker caller remains pinned to `49c40779a7b6de9f699391bcd524ea069787df42`; the updated broker source is not activated by this patch alone.
@@ -436,4 +470,4 @@ A full Parent hosted pass and both protected broker runtime profiles are outstan
 
 ## Final diff and review status
 
-Initial and corrective changes were delivered in PR 400. The latest published `ca296f85` head has exact Sonar `OK` with the one remaining minor finding described above; `11b7e1b0` is historical. The minimal tuple-pair constructor correction passed local validation and requires delivery/final review plus exact-head evidence. Earlier Apache/Traefik evidence remains bound to its recorded historical head. Overall recovery remains partial pending that evidence and protected activation. Original working checkouts are preserved; only the task Parent Framework gitlink is changed as documented above. No Parent master integration or Framework/MRTS source edit is claimed. Both record language versions preserve the same values and limitations.
+Initial and corrective changes were delivered in PR 400. The latest published `f2b4de6b` head has exact Sonar `OK` with zero open findings, but complete smoke and Legacy failures exposed the ancestor-traversal and Lighttpd opt-in defects recorded above. Their focused corrections passed final owning integration and local validation; delivery and new exact-head hosted evidence remain required. Earlier Apache/Traefik evidence remains bound to its recorded historical head. Overall recovery remains partial pending that evidence and protected activation. Original working checkouts are preserved; only the task Parent Framework gitlink is changed as documented above. No Parent master integration or Framework/MRTS source edit is claimed. Both record language versions preserve the same values and limitations.
