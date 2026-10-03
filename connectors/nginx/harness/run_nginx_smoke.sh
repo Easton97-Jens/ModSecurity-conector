@@ -997,6 +997,7 @@ write_case_result() {
             --access-log-file "$output_dir/access.log" \
             --error-log-file "$output_dir/error.log" \
             --phase4-log-file "$output_dir/phase4.log" \
+            --output-root "$NGINX_HARNESS_WORK_ROOT" \
             --output "$output"
     else
         "$PYTHON_BIN" "$CASE_CLI" case-info \
@@ -1010,6 +1011,7 @@ write_case_result() {
             --access-log-file "$output_dir/access.log" \
             --error-log-file "$output_dir/error.log" \
             --phase4-log-file "$output_dir/phase4.log" \
+            --output-root "$NGINX_HARNESS_WORK_ROOT" \
             --output "$output"
     fi
 }

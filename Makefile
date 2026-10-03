@@ -348,6 +348,10 @@ check-ci-security-contract: check-project-versions
 	$(PYTHON) ci/tools/fetch_security_tool.py --tool zizmor --validate-only
 	$(PYTHON) ci/tools/fetch_security_tool.py --tool gitleaks --validate-only
 
+.PHONY: check-bounded-smoke-runtime-contract
+check-bounded-smoke-runtime-contract: check-framework
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest -v tests.test_full_smoke_workflow_contract tests.test_bounded_nginx_cases tests.test_nginx_harness_path_authority tests.test_resolve_traefik_host_binary
+
 check-variable-documentation:
 	$(PYTHON) ci/checks/documentation/check-variable-documentation.py
 
@@ -645,7 +649,7 @@ test-smoke-sequential-no-crs test-smoke-sequential-with-crs: check-framework pre
 	run_id=$$(basename "$$smoke_root"); \
 	VERIFIED_RUN_ID="$$run_id" "$(FRAMEWORK_PYTHON)" ci/evidence/reports/refresh-connector-reports.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$$smoke_root" --profile bounded-smoke --variant "$$variant" --begin-bounded-smoke; \
 	runtime_rc=0; \
-	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" MODSECURITY_TEST_VARIANT="$$variant" MODSECURITY_RULE_PREAMBLE_FILE= RESULTS_DIR="$$smoke_root/results" CASE_SCOPE=all FORCE_ALL_CASES= TEST_CASE= SMOKE_CASES= NO_CRS_BASELINE= NO_CRS_SELECTED_CASE_IDS= RUN_ONE_CASE= sh -eu -c '. "$(FRAMEWORK_ROOT)/ci/lib/common.sh"; if [ "$$MODSECURITY_TEST_VARIANT" = with-crs ]; then . "$(CURDIR)/ci/runtime/lifecycle/prepare-fresh-crs-source.sh"; sh "$(FRAMEWORK_ROOT)/ci/provisioning/fetch-crs.sh"; fi; sh "$(FRAMEWORK_ROOT)/ci/runtime/run-connector-smokes.sh"' || runtime_rc=$$?; \
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" MODSECURITY_TEST_VARIANT="$$variant" MODSECURITY_RULE_PREAMBLE_FILE= RESULTS_DIR="$$smoke_root/results" CASE_SCOPE=all FORCE_ALL_CASES= TEST_CASE= SMOKE_CASES= NO_CRS_BASELINE= NO_CRS_SELECTED_CASE_IDS= RUN_ONE_CASE= sh -eu -c '. "$(FRAMEWORK_ROOT)/ci/lib/common.sh"; if [ "$$MODSECURITY_TEST_VARIANT" = with-crs ]; then . "$(CURDIR)/ci/runtime/lifecycle/prepare-fresh-crs-source.sh"; sh "$(FRAMEWORK_ROOT)/ci/provisioning/fetch-crs.sh"; sh "$(FRAMEWORK_ROOT)/ci/provisioning/prepare-crs.sh"; MODSECURITY_RULE_PREAMBLE_FILE="$$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"; export MODSECURITY_RULE_PREAMBLE_FILE; fi; apache_rc=0; sh "$(FRAMEWORK_ROOT)/ci/runtime/run-apache-smoke.sh" || apache_rc=$$?; printf "%s\n" "$$apache_rc" > "$$RESULTS_DIR/apache.rc"; nginx_rc=0; "$(FRAMEWORK_PYTHON)" "$(CURDIR)/ci/runtime/lifecycle/run-bounded-nginx-cases.py" --variant "$$MODSECURITY_TEST_VARIANT" || nginx_rc=$$?; if [ "$$apache_rc" -ne 0 ]; then exit "$$apache_rc"; fi; exit "$$nginx_rc"' || runtime_rc=$$?; \
 	refresh_rc=0; \
 	VERIFIED_RUN_ID="$$run_id" MODSECURITY_TEST_VARIANT="$$variant" "$(FRAMEWORK_PYTHON)" ci/evidence/reports/refresh-connector-reports.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$$smoke_root" --profile bounded-smoke --variant "$$variant" || refresh_rc=$$?; \
 	if [ "$$runtime_rc" -ne 0 ]; then exit "$$runtime_rc"; fi; \

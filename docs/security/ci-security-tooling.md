@@ -196,6 +196,10 @@ reports that no branch, commit, or PR changed.
 
 ## Workflow linting
 
+The reusable five-connector profile runs its No-CRS workflow contract before
+matrix resolution, requiring workflow-level `permissions: {}` and only the
+fixed job-level read grants. This catches permission/wiring drift early.
+
 `ci-security-workflow-lint.yml` runs checksum-verified `actionlint` and passes
 the runner's `ShellCheck` path when available. It also runs checksum-verified
 `zizmor` offline against all workflow files. A deliberately insecure fixture
@@ -263,6 +267,37 @@ fail validation. The snapshot generator must write fresh
 Parent-owned output matching this run before either mandatory report succeeds.
 Generated output is runtime evidence, not a staged source change. This smoke
 profile does not promote full-matrix, MRTS or response-body coverage claims.
+
+## Ordinary NGINX functional catalog and host inventory
+
+The sequential Apache/NGINX producer uses
+`ci/runtime/lifecycle/run-bounded-nginx-cases.py` for the ordinary NGINX catalog.
+It reuses the existing typed per-case Functional-A runtime, with a fixed
+`sudo`/`env -i` entry point, exact committed revision/catalog/artifact checks,
+a distinct non-root NGINX worker, and a root-owned traversal namespace.
+Builds, downloads, CRS preparation and native normalization remain unprivileged.
+The prepared CRS source/preamble is checked against the exact Framework
+release identity before the privileged case runtime. Each case receives fresh
+runtime paths; bounded normalized result records are projected to a private
+runner-owned receipt. The complete native case set must match, execute live
+and pass before a successful summary is written. The harness binds native
+`case-info --output-root` explicitly to its validated private work root.
+
+This candidate-owned Functional-A route proves ordinary functional outcomes.
+It does not activate the immutable protected broker or provide adversarial
+broker attestation. `make check-bounded-smoke-runtime-contract` runs the four
+owning runtime test modules in this initialized Framework context. The updater's
+copied-tree CI-security baseline remains separate and does not materialize
+Framework sources or Git metadata.
+
+Generic Traefik No-CRS host inventory resolves only the exact staged binary
+under the current connector build root through
+`ci/runtime/lifecycle/resolve-traefik-host-binary.py`. Ownership, file type,
+link, write-mode, executable and confinement checks reject an unsafe stage.
+Inherited `TRAEFIK_BIN` and shared-cache paths cannot substitute for that host;
+a missing/unsafe stage leaves inventory `not_provisioned` and does not bypass
+the concrete-version evidence gate. The native full-lifecycle profile retains
+its distinct binary selection contract.
 
 ## Validation and limitations
 

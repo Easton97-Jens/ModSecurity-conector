@@ -214,6 +214,10 @@ geändert wurde.
 
 ## Workflow-Linting
 
+Das wiederverwendbare Fünf-Connector-Profil prüft seinen No-CRS-Workflow-Vertrag
+vor der Matrixauflösung und verlangt Workflow-weites `permissions: {}` samt
+nur den festen Job-Lesegrants. Dies erkennt Berechtigungs-/Wiring-Drift früh.
+
 `ci-security-workflow-lint.yml` führt checksum-verifiziertes `actionlint` aus
 und übergibt den `ShellCheck`-Pfad des Runners, wenn er verfügbar ist. Zudem
 läuft checksum-verifiziertes `zizmor` offline gegen alle Workflow-Dateien. Eine
@@ -287,6 +291,41 @@ Parent-eigene Ausgabe für diesen Run schreiben, bevor beide verpflichtenden
 Reports erfolgreich sind. Generierte Ausgabe ist Runtime-Evidence und keine
 gestagte Quelländerung. Dieses Smoke-Profil erhöht keine Full-Matrix-, MRTS-
 oder Response-Body-Coverage-Claims.
+
+## Gewöhnlicher NGINX-Funktionskatalog und Host-Inventar
+
+Der sequenzielle Apache-/NGINX-Producer verwendet
+`ci/runtime/lifecycle/run-bounded-nginx-cases.py` für den gewöhnlichen NGINX-
+Katalog. Er verwendet die bestehende typisierte Functional-A-Runtime je Fall,
+mit festem `sudo`-/`env -i`-Einstiegspunkt, exakten Prüfungen committeter
+Revisionen/Kataloge/Artefakte, einem getrennten Nicht-Root-NGINX-Worker und
+einem Root-eigenen Traversal-Namespace. Builds, Downloads, CRS-Bereitstellung
+und native Normalisierung bleiben unprivilegiert. Vor der privilegierten Fall-
+Runtime werden vorbereitete CRS-Quelle und Preamble gegen die exakte Framework-
+Release-Identität geprüft. Jeder Fall erhält frische Runtime-Pfade; begrenzte
+normalisierte Ergebnisrecords werden in einen privaten Runner-eigenen Beleg
+projiziert. Die vollständige native Fallmenge muss übereinstimmen, live laufen
+und bestehen, bevor eine erfolgreiche Zusammenfassung geschrieben wird. Der
+Harness bindet natives `case-info --output-root` ausdrücklich an seinen
+validierten privaten Work-Root.
+
+Diese Candidate-eigene Functional-A-Route belegt gewöhnliche funktionale
+Ergebnisse. Sie aktiviert den unveränderlichen geschützten Broker nicht und
+liefert keine adversariale Broker-Attestierung.
+`make check-bounded-smoke-runtime-contract` führt die vier zuständigen Runtime-
+Testmodule in diesem initialisierten Framework-Kontext aus. Die CI-Sicherheits-
+Baseline des kopierten Updater-Baums bleibt getrennt und materialisiert weder
+Framework-Quellen noch Git-Metadaten.
+
+Das generische Traefik-No-CRS-Host-Inventar löst ausschließlich das exakt
+bereitgestellte Binary unter dem aktuellen Connector-Build-Root über
+`ci/runtime/lifecycle/resolve-traefik-host-binary.py` auf. Eigentümer-, Dateityp-,
+Link-, Schreibmodus-, Ausführbarkeits- und Containment-Prüfungen weisen ein
+unsicheres Staging zurück. Geerbtes `TRAEFIK_BIN` und Shared-Cache-Pfade können
+diesen Host nicht ersetzen; fehlendes/unsicheres Staging belässt das Inventar
+bei `not_provisioned` und umgeht das Gate für konkrete Versions-Evidence nicht.
+Das native Full-Lifecycle-Profil behält seinen getrennten Vertrag zur
+Binary-Auswahl.
 
 ## Validierung und Einschränkungen
 

@@ -103,10 +103,38 @@ Die ausgeführte Shell-Regression deckt beide Varianten, ein frisches
 tatsächliche Relative-Path-Ablehnung vor dem Abruf ab. Der Profil-Lauf mit
 18 Tests bestand in 9.315 Sekunden. Vollständige Report-/Fallvalidierung bleibt erhalten.
 
+Die Full-Smoke-Artefakte des veröffentlichten
+`4d42e818d4fc8ab85ebc028d6276fd3aa380aedc` belegen Apache 54/54 No-CRS- und
+55/55 With-CRS-Fälle, alle live `PASS`, ohne Fehler oder Skips. Gewöhnliches
+NGINX blieb durch den unprivilegierten Wrapper und den impliziten Output-Root-
+Mismatch blockiert; dies sind keine Full-Smoke-Pässe. Der ausstehende
+Coordinator verwendet die bestehende typisierte Functional-A-Fallroute für
+die geschlossenen gewöhnlichen NGINX-Kataloge mit 60/61 Fällen. Unprivilegierte
+Bereitstellung geht einer festen sauberen `sudo`-/`env -i`-Übergabe voraus,
+mit unabhängig geprüften committeten Revisionen, nativem Katalog, Runtime-
+Artefakten und vorbereitetem CRS. Fall-Runtimes sind frisch, Worker bleiben
+getrennt/nicht Root, und vollständige Live-Records werden vor unprivilegierter
+nativer Normalisierung in private begrenzte Runner-Evidence projiziert.
+Harness-`case-info` erhält seinen validierten privaten Work-Root ausdrücklich
+als `--output-root`. Geschützte Broker-Aktivierung/Attestierung bleibt getrennt.
+
+Am selben veröffentlichten Head beobachtete die generische Traefik-Runtime echte
+`200`/`403` und erfolgreiche Fälle, aber das Inventar erbte eine veraltete
+Binary-Auswahl. Der neue Resolver lässt nur das exakte aktuelle Connector-Build-
+Staging zu, weist unsichere Dateien zurück und bietet keinen geerbten/Cache-
+Fallback; das native Profil bleibt getrennt. Ein dediziertes
+`check-bounded-smoke-runtime-contract` führt die vier zuständigen Unit-Module
+im Full-Workflow aus; die kopierte Updater-Baseline bleibt von Framework-
+Materialisierung isoliert. Der Quell-Security-Review ist jetzt abgeschlossen, ohne verbleibende konkrete
+Findings; finale lokale Validierung steht unten. CI des neuen Heads und
+vollständige Runtime-Evidence bleiben ausstehend.
+
 ## Geänderte Dateien
 
 - `.github/workflows/ci-security-workflow-lint.yml`
 - `.github/workflows/cleanup-artifacts.yml`
+- `.github/workflows/reusable-five-connectors-profile.yml`
+- `.github/workflows/open-connectors-smoke.yml`
 - `.github/workflows/nginx-root-broker.yml`
 - `.github/workflows/test-connectors-with-crs-no-mrts.yml`
 - `.github/workflows/test-full-smoke-sequential.yml`
@@ -173,6 +201,14 @@ tatsächliche Relative-Path-Ablehnung vor dem Abruf ab. Der Profil-Lauf mit
 - `tests/test_update_submodules_local_git.py`
 - `tests/test_verify_framework_candidate_contract.py`
 - `tests/version_updater_test_support.py`
+- `ci/runtime/lifecycle/run-bounded-nginx-cases.py`
+- `ci/runtime/lifecycle/resolve-traefik-host-binary.py`
+- `ci/runtime/lifecycle/run-no-crs-baseline.sh`
+- `connectors/nginx/harness/run_nginx_smoke.sh`
+- `tests/test_all_connectors_no_crs_workflow_contract.py`
+- `tests/test_bounded_nginx_cases.py`
+- `tests/test_resolve_traefik_host_binary.py`
+- `tests/test_nginx_harness_path_authority.py`
 
 ## Ausgeführte Befehle
 
@@ -266,6 +302,43 @@ letzten Schutzbedingungen; dieses frühere kombinierte Ergebnis deckt sie nicht
 ab. Finales actionlint bestand für alle 31 Workflows. Sonar- und gehostete
 Runtime-Ergebnisse des nächsten exakten Heads bleiben erforderlich.
 
+Das finale native `make check-bounded-smoke-runtime-contract` bestand 61 Tests
+in 17.044 Sekunden: 18 Report-/Wiring-, 23 Coordinator-, 14 Harness-Pfad- und
+sechs Host-Resolver-Tests. Native CI-Sicherheitsvalidierung bestand 219 Tests
+in 105.446 Sekunden mit fünf bestehenden Privilegien-Skips; die vollständige
+Workflow-/Tool-Suite bestand 38 Tests in 98.561 Sekunden, und actionlint bestand
+für alle 31 Workflows. Der unabhängige Security-Review endete ohne verbleibendes
+konkretes Finding. Diese Ergebnisse sind lokale Quellvalidierung, kein
+gehosteter Pass des nächsten Heads.
+
+Der Legacy-Lauf [37111252518](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37111252518)
+des veröffentlichten Heads scheiterte bei `runtime-smoke-traefik`. Er verwendet
+denselben Baseline-Consumer, aber die Host-Versionsursache wurde nicht direkt
+belegt, weil das normalisierte Ergebnis in den aufbewahrten Artefakten fehlte.
+Die begrenzte Retention-Korrektur exportiert aktuelles `RUNTIME_EVIDENCE_ROOT`
+unter verifiziertem `evidence/runtime-evidence` und ergänzt ausschließlich diese
+aktuelle Evidence im bestehenden Collector, ohne Cache-, Quell- oder Build-
+Bäume. Die eingefrorene Retention-/Topologie-Quelle bestand 71 Tests in 29.688 Sekunden
+über `tests.test_runtime_env_snapshot_contract`, `tests.test_collect_no_crs_source`
+und `tests.test_resolve_traefik_host_binary`. Der Snapshot-Vertrag verlangt einen
+eindeutigen Root-eigenen `0711`-Namespace, einen privaten Runner-eigenen `0700`-
+Provisioning-Root und einen getrennten Worker, der diesen privaten Root nicht
+traversieren kann. Actionlint bestand nach diesen Änderungen erneut für alle
+31 Workflows.
+
+Die zusätzliche No-CRS-Suite zeigte zwei veraltete Test-Assertions, die
+Workflow-weite Leserechte statt bereits strengerem `permissions: {}` mit festen
+Job-Lesegrants erwarteten. Die korrigierten Assertions erhalten Deny-Default
+und prüfen diese expliziten Job-Grants. Der wiederverwendbare Fünf-Connector-
+Workflow führt dieses Vertragsmodul jetzt vor der Matrixauflösung aus. Die
+tatsächlichen zuständigen Module `tests.test_no_crs_selected_runner_wiring`,
+`tests.test_five_connector_no_crs_profile` und
+`tests.test_all_connectors_no_crs_workflow_contract` bestanden 28 Tests in
+10.125 Sekunden. Lokale Quellvalidierung ist für diese Auslieferungsaufnahme
+abgeschlossen; frische gehostete/Sonar-Evidence des exakten Heads bleibt
+erforderlich. Die ursprüngliche Legacy-Host-Versionsursache bleibt unbelegt,
+weil ihr normalisiertes Artefakt fehlte.
+
 ## Security-Auswirkung
 
 Publisher-Identität, Abstammung gemergter PRs, expliziter Schreibumfang, standardmäßig verweigerte Berechtigungen, unveränderliche Action-Pins und Runtime-Isolation bleiben durchgesetzt. Die Traefik-Staging-Zulassung ist exakt und erweitert das Vertrauen nicht allgemein auf Build-Verzeichnisse. Socket-Wurzeln sind privat und validiert. Die Aktivierung eingeschränkter Yaegi-Imports ist auf den festen lokalen Observer begrenzt und erhält die Linux-Peer-Credential-Authentifizierung; ein Ladefehler bricht den Start ab. Diese Änderung enthält keine Framework-/MRTS-Quelländerungen. Nur der Framework-Gitlink des Task-Parents wird von `9181dc77dfb0685d87fa109e6800dc6052d77cc9` auf den geprüften Framework-master `6948ec5b916e400c4fcaa1b6ccfa64251f606f8d` angehoben; die ursprünglichen Arbeitscheckouts bleiben erhalten und MRTS bleibt `8a6bb546c4c81d8ffc7be801dceac60c6925685f`. Framework-PR 133 war bereits vor der Auswahl gemergt; dieser Task führt keinen Framework-Merge aus.
@@ -336,6 +409,16 @@ Bootstrap-Quellkorrektur erhält einen neuen Head und benötigt frische CI-/Sona
 Evidence; der `a0ad0ef7`-Erfolg validiert sie nicht und belegt keinen Pass aller
 Runtime-Workflows.
 
+Der Bootstrap-Commit `4d42e818d4fc8ab85ebc028d6276fd3aa380aedc` besitzt eine
+exakte Sonar-Analyse um `2026-10-03T08:51:35+0000`: Quality Gate `OK`, null Bugs,
+Vulnerabilities/Code Smells und offene Issues. Die obigen Apache- und Traefik-
+Beobachtungen gehören zu diesem veröffentlichten Head. Sie diagnostizieren
+die verbleibenden gewöhnlichen NGINX-Orchestrierungs- und Host-Inventarfehler;
+sie validieren die ausstehenden Quellkorrekturen nicht. Finale Auslieferungs-/
+Runtime-/Sonar-Evidence des nächsten Heads wird in PR 400 und dem externen
+Ausführungsplan erhalten, statt versionierte Dokumentation wiederholt allein
+für CI-Status zu ändern.
+
 ## Bekannte Einschränkungen
 
 Lokale privilegienabhängige Namespace-Integration hatte fünf bestehende Skips. Quick-check im CI-Modus bestand mit den beiden Compiler-Skips wegen fehlender Header; der normale lokale Versuch erreichte das Zeitlimit. Der geschützte Broker-Caller bleibt auf `49c40779a7b6de9f699391bcd524ea069787df42` gepinnt; dieser Patch allein aktiviert die geänderte Broker-Quelle nicht.
@@ -350,4 +433,4 @@ Ein vollständiger gehosteter Parent-Pass und beide geschützten Broker-Runtime-
 
 ## Finaler Diff- und Review-Status
 
-Die ursprünglichen und korrigierten Änderungen wurden in PR 400 bereitgestellt. Für den zuletzt veröffentlichten Head `a0ad0ef7` liegen erfolgreiche reguläre Prüfungen und exaktes Sonar `OK` vor; Runtime-Evidence bleibt unvollständig. Die erforderliche With-CRS-Bootstrap-Korrektur bestand lokale Validierung und benötigt Auslieferung sowie frische gehostete/Sonar-Evidence des exakten Heads. Die Gesamtreparatur bleibt bis zu dieser Evidence und geschützter Aktivierung teilweise abgeschlossen. Die ursprünglichen Arbeitscheckouts bleiben erhalten; nur der Framework-Gitlink des Task-Parents wird wie oben dokumentiert geändert. Weder Parent-master-Integration noch Framework-/MRTS-Quelländerungen werden behauptet. Beide Sprachfassungen enthalten dieselben Werte und Einschränkungen.
+Die ursprünglichen und korrigierten Änderungen wurden in PR 400 bereitgestellt. Für den zuletzt veröffentlichten Head `4d42e818` liegen exaktes Sonar `OK` und die obige Apache-/Traefik-Evidence vor; die gesamte Runtime bleibt unvollständig. Gewöhnliche NGINX-Orchestrierungs- und Traefik-Inventarkorrekturen bestanden Quellreview/lokale Validierung; auch die begrenzte Legacy-Evidence-Retention, Topologie- und No-CRS-Vertragsprüfungen bestanden wie oben dokumentiert. Auslieferung und frische gehostete/Sonar-Evidence des exakten Heads bleiben erforderlich. Die Gesamtreparatur bleibt bis zu dieser Evidence und geschützter Aktivierung teilweise abgeschlossen. Die ursprünglichen Arbeitscheckouts bleiben erhalten; nur der Framework-Gitlink des Task-Parents wird wie oben dokumentiert geändert. Weder Parent-master-Integration noch Framework-/MRTS-Quelländerungen werden behauptet. Beide Sprachfassungen enthalten dieselben Werte und Einschränkungen.

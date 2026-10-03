@@ -332,27 +332,46 @@ class FullSmokeWorkflowContractTest(unittest.TestCase):
             'test "$SOURCE_ROOT" = "$VERIFIED_RUN_ROOT/crs-fresh-source"\n'
             'printf "fetch\\n" >> "$SEAM_TRACE"\n'
         )
-        (stub_framework / "ci/runtime/run-connector-smokes.sh").write_text(
+        (stub_framework / "ci/provisioning/prepare-crs.sh").write_text(
+            'set -eu\n'
+            'mkdir -p "$CRS_RUNTIME_DIR"\n'
+            'printf "prepared\\n" > "$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"\n'
+            'printf "prepare\\n" >> "$SEAM_TRACE"\n'
+        )
+        (stub_framework / "ci/runtime/run-apache-smoke.sh").write_text(
             'set -eu\n'
             'test "$CASE_SCOPE" = all\n'
             'test -z "$FORCE_ALL_CASES$TEST_CASE$SMOKE_CASES$NO_CRS_BASELINE$NO_CRS_SELECTED_CASE_IDS$RUN_ONE_CASE"\n'
             'test "$RESULTS_DIR" = "$smoke_root/results"\n'
-            'printf "producer\\n" >> "$SEAM_TRACE"\n'
+            'printf "apache\\n" >> "$SEAM_TRACE"\n'
         )
+        stub_coordinator = self.build / "nginx-coordinator-seam.py"
+        stub_coordinator.write_text(
+            "import os, pathlib, sys\n"
+            "assert sys.argv[1:] == ['--variant', os.environ['MODSECURITY_TEST_VARIANT']]\n"
+            "assert os.environ['RESULTS_DIR'] == os.environ['smoke_root'] + '/results'\n"
+            "with pathlib.Path(os.environ['SEAM_TRACE']).open('a') as trace: trace.write('nginx\\n')\n"
+        )
+        command = command.replace("$(CURDIR)/ci/runtime/lifecycle/run-bounded-nginx-cases.py", str(stub_coordinator))
         command = command.replace("$(FRAMEWORK_PYTHON)", sys.executable).replace("$(CURDIR)", str(ROOT))
         command = command.replace("$(FRAMEWORK_ROOT)", str(stub_framework)).replace("$$", "$")
         for variant in ("no-crs", "with-crs"):
             trace = self.build / (variant + ".trace")
+            (self.build / variant / "results").mkdir(parents=True)
             env = {**os.environ, "variant": variant, "smoke_root": str(self.build / variant),
                    "FRAMEWORK_ROOT": str(stub_framework), "CONNECTOR_ROOT": str(ROOT),
                    "VERIFIED_RUN_ROOT": str(self.build / variant), "CONNECTOR_COMPONENT_CACHE": str(self.build / "cache"),
+                   "BUILD_ROOT": str(self.build / variant / "build"),
+                   "CRS_RUNTIME_DIR": str(self.build / variant / "build/crs"),
                    "SEAM_TRACE": str(trace), "CASE_SCOPE": "connector", "FORCE_ALL_CASES": "1",
                    "TEST_CASE": "narrowed", "SMOKE_CASES": "narrowed", "NO_CRS_BASELINE": "1",
                    "NO_CRS_SELECTED_CASE_IDS": "narrowed", "RUN_ONE_CASE": "1", "RESULTS_DIR": "historical"}
             result = subprocess.run(["sh", "-eu", "-c", command], env=env, capture_output=True, text=True, timeout=30)
             with self.subTest(variant=variant):
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(trace.read_text().splitlines(), ["fetch", "producer"] if variant == "with-crs" else ["producer"])
+                self.assertEqual(trace.read_text().splitlines(), ["fetch", "prepare", "apache", "nginx"]
+                                 if variant == "with-crs" else ["apache", "nginx"])
+                self.assertEqual((self.build / variant / "results/apache.rc").read_text(), "0\n")
         # The actual Parent helper must execute common.sh's absolute-path guard,
         # rather than a stub accepting invalid roots or a missing function.
         trace.unlink()
@@ -367,7 +386,16 @@ class FullSmokeWorkflowContractTest(unittest.TestCase):
         workflow = WORKFLOW.read_text()
         self.assertIn("make test-smoke-sequential-no-crs", workflow)
         self.assertIn("make test-smoke-sequential-with-crs", workflow)
+        self.assertIn('make PYTHON="$PWD/.venv/bin/python" check-bounded-smoke-runtime-contract', workflow)
         makefile = (ROOT / "Makefile").read_text()
+        contracts = makefile.split("check-bounded-smoke-runtime-contract: check-framework\n", 1)[1].split("\n\n", 1)[0]
+        for module in (
+            "tests.test_full_smoke_workflow_contract",
+            "tests.test_bounded_nginx_cases",
+            "tests.test_nginx_harness_path_authority",
+            "tests.test_resolve_traefik_host_binary",
+        ):
+            self.assertIn(module, contracts.split())
         bounded = makefile.split("test-smoke-sequential-no-crs test-smoke-sequential-with-crs: ", 1)[1].split(
             "\n# The dedicated Parent runner", 1
         )[0]
