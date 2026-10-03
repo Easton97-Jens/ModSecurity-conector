@@ -555,6 +555,14 @@ def _directory_open_flags() -> int:
     return flags
 
 
+def _runtime_ancestor_open_flags() -> int:
+    """Traverse trusted execute-only ancestors without requiring list access."""
+    path_flag = getattr(os, "O_PATH", None)
+    if path_flag is None:
+        raise GuardError("Apache runtime ancestor traversal requires O_PATH")
+    return _directory_open_flags() | path_flag
+
+
 def _safe_runtime_ancestor(metadata: os.stat_result, path: Path) -> None:
     """Accept only stable ancestors for a later pathname-based harness use.
 
@@ -595,7 +603,7 @@ def prepare_runtime_directory(path: Path, label: str, private_mode: bool) -> Non
     ):
         raise GuardError(f"{label} must not contain empty, dot, or parent components")
 
-    flags = _directory_open_flags()
+    flags = _runtime_ancestor_open_flags()
     try:
         current_fd = os.open(os.sep, flags)
     except OSError as exc:
@@ -606,8 +614,9 @@ def prepare_runtime_directory(path: Path, label: str, private_mode: bool) -> Non
         for index, component in enumerate(components[1:], start=1):
             is_leaf = index == len(components) - 1
             child_path = current_path / component
+            child_flags = _directory_open_flags() if is_leaf else flags
             child_fd = _open_runtime_child(
-                current_fd, component, child_path, flags, private_mode or not is_leaf
+                current_fd, component, child_path, child_flags, private_mode or not is_leaf
             )
             try:
                 _validate_runtime_child(

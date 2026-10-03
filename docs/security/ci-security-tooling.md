@@ -285,10 +285,23 @@ and pass before a successful summary is written. The harness binds native
 
 This candidate-owned Functional-A route proves ordinary functional outcomes.
 It does not activate the immutable protected broker or provide adversarial
-broker attestation. `make check-bounded-smoke-runtime-contract` runs the four
+broker attestation. `make check-bounded-smoke-runtime-contract` runs the
 owning runtime test modules in this initialized Framework context. The updater's
 copied-tree CI-security baseline remains separate and does not materialize
 Framework sources or Git metadata.
+
+If a native NGINX case exits before producing a valid result, the coordinator
+preserves its actual exit code and projects diagnostic JSON into the existing
+private runner receipt. It reads only the fixed case's root-owned, mode `0600`,
+singly linked regular harness log through a no-follow descriptor, with a
+131072-byte bound and stable file identity. The bounded excerpt is JSON-escaped
+and includes the full log digest and current revision/case/variant identity.
+This diagnostic is not a normalized result and cannot establish a case pass.
+
+The Apache process guard traverses execute-only ancestors with
+`O_PATH|O_DIRECTORY|O_NOFOLLOW` while retaining `O_RDONLY` for the private leaf.
+Descriptor-relative owner, mode, identity and symlink checks remain mandatory;
+the shared root namespace stays `0711` and the runner workspace stays `0700`.
 
 Generic Traefik No-CRS host inventory resolves only the exact staged binary
 under the current connector build root through
@@ -298,6 +311,12 @@ Inherited `TRAEFIK_BIN` and shared-cache paths cannot substitute for that host;
 a missing/unsafe stage leaves inventory `not_provisioned` and does not bypass
 the concrete-version evidence gate. The native full-lifecycle profile retains
 its distinct binary selection contract.
+
+Apache host inventory requires a successful native version-command exit and
+exactly one valid `Server version: Apache/` line from stdout, with ASCII version
+digits. Stderr warnings remain visible on stderr and cannot become the host
+version. Empty, warning-only, duplicate and mixed-family output is rejected;
+neither warnings nor failed commands establish concrete-version evidence.
 
 ## Validation and limitations
 

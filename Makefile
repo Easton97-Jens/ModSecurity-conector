@@ -350,7 +350,7 @@ check-ci-security-contract: check-project-versions
 
 .PHONY: check-bounded-smoke-runtime-contract
 check-bounded-smoke-runtime-contract: check-framework
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest -v tests.test_full_smoke_workflow_contract tests.test_bounded_nginx_cases tests.test_nginx_harness_path_authority tests.test_resolve_traefik_host_binary tests.test_runtime_path_utils tests.test_resolve_lighttpd_host_binary tests.test_trusted_lighttpd_namespace_dispatch_workflow
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest -v tests.test_full_smoke_workflow_contract tests.test_bounded_nginx_cases tests.test_nginx_harness_path_authority tests.test_resolve_traefik_host_binary tests.test_runtime_path_utils tests.test_resolve_lighttpd_host_binary tests.test_trusted_lighttpd_namespace_dispatch_workflow tests.test_apache_process_guard
 
 check-variable-documentation:
 	$(PYTHON) ci/checks/documentation/check-variable-documentation.py

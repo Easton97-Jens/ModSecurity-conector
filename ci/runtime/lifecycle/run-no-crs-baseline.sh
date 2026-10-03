@@ -980,8 +980,24 @@ if [ -n "$host_binary" ] && [ -x "$host_binary" ]; then
     case "$connector" in
         apache)
             apache_runtime_lib=$(dirname "$(dirname "$host_binary")")/lib
-            host_version=$(LD_LIBRARY_PATH="$apache_runtime_lib:${MODSECURITY_LIB_DIR:-}:${LD_LIBRARY_PATH:-}" \
-                "$host_binary" -v 2>&1 | sed -n "$FIRST_NONEMPTY_OUTPUT_LINE_SED_SCRIPT")
+            if apache_version_output=$(LD_LIBRARY_PATH="$apache_runtime_lib:${MODSECURITY_LIB_DIR:-}:${LD_LIBRARY_PATH:-}" \
+                "$host_binary" -v); then
+                host_version=$(printf '%s\n' "$apache_version_output" | "$PYTHON" -c '
+import re
+import sys
+
+versions = [line.strip() for line in sys.stdin if line.strip().startswith("Server version:")]
+if len(versions) != 1 or not re.fullmatch(
+    r"Server version: Apache/\d+\.\d+\.\d+(?:[ \t]+\([^\r\n]*\))?", versions[0], flags=re.ASCII
+):
+    raise SystemExit("FAIL: Apache host did not report one valid native Server version")
+print(versions[0])
+') || exit 2
+            else
+                apache_version_rc=$?
+                echo "FAIL: Apache host version command failed (rc=$apache_version_rc)" >&2
+                exit "$apache_version_rc"
+            fi
             ;;
         nginx) host_version=$($host_binary -v 2>&1 | sed -n "$FIRST_NONEMPTY_OUTPUT_LINE_SED_SCRIPT") ;;
         haproxy) host_version=$($host_binary -v 2>&1 | sed -n "$FIRST_NONEMPTY_OUTPUT_LINE_SED_SCRIPT") ;;

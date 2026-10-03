@@ -389,7 +389,8 @@ def run_case(case: Path, case_root: Path, env: dict[str, str], deadline: float) 
     if remaining <= 0:
         raise CaseRunError("complete NGINX catalog exceeded its time bound")
     log = case_root / "harness-output.log"
-    with log.open("xb") as output:
+    descriptor = os.open(log, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(descriptor, "wb") as output:
         process = subprocess.Popen(["/bin/sh", str(HARNESS)], env=env, stdout=output, stderr=subprocess.STDOUT, start_new_session=True)
         old_handlers = {}
         def interrupt(signum, _frame):
@@ -413,6 +414,62 @@ def run_case(case: Path, case_root: Path, env: dict[str, str], deadline: float) 
             finally:
                 for signum, handler in old_handlers.items():
                     signal.signal(signum, handler)
+
+
+def project_case_failure(case_root: Path, receipt: Path, case: Path, variant: str,
+                         index: int, returncode: int | None, expected_sha: str,
+                         owner: int, group: int) -> Path:
+    """Retain bounded diagnostic data, never a substitute normalized result."""
+    contained_directory(case_root, case_root.parent, owner=0, mode=0o711)
+    log = case_root / "harness-output.log"
+    LAUNCHER._require_no_symlink_components(log, "native failure log")
+    descriptor = os.open(log, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(descriptor, "rb") as stream:
+        before = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(before.st_mode) or before.st_nlink != 1
+                or (before.st_uid, before.st_gid, stat.S_IMODE(before.st_mode)) != (0, 0, 0o600)
+                or before.st_size > MAX_RECORD_BYTES):
+            raise CaseRunError("native failure log is not a private bounded root-owned regular file")
+        body = stream.read(MAX_RECORD_BYTES + 1)
+        after = os.fstat(stream.fileno())
+        stable_fields = ("st_dev", "st_ino", "st_mode", "st_uid", "st_gid", "st_nlink",
+                         "st_size", "st_mtime_ns", "st_ctime_ns")
+        if len(body) > MAX_RECORD_BYTES or any(getattr(before, key) != getattr(after, key) for key in stable_fields):
+            raise CaseRunError("native failure log changed during bounded projection")
+    # JSON escaping prevents terminal/workflow control sequences from being
+    # interpreted. Keep both ends of longer logs within the projection bound.
+    excerpt = body if len(body) <= 16384 else body[:8192] + b"\n[bounded excerpt]\n" + body[-8192:]
+    diagnostic = {
+        "schema_version": 1, "kind": "native-harness-failure-diagnostic",
+        "parent_sha": expected_sha, "catalog_case": str(case.relative_to(FRAMEWORK)),
+        "variant": variant, "case_index": index, "harness_exit": returncode,
+        "harness_log_sha256": hashlib.sha256(body).hexdigest(),
+        "harness_log_bytes": len(body), "excerpt_truncated": len(body) > 16384,
+        "harness_output": excerpt.decode("utf-8", errors="replace"),
+    }
+    payload = (json.dumps(diagnostic, sort_keys=True, ensure_ascii=True) + "\n").encode("ascii")
+    if len(payload) > MAX_RECORD_BYTES:
+        raise CaseRunError("native failure projection exceeds its size limit")
+    target = receipt / f"case-{index:03d}-failure.json"
+    write_fresh(target, payload, owner=owner, group=group)
+    return target
+
+
+def execute_case_record(case: Path, case_root: Path, env: dict[str, str], deadline: float,
+                        receipt: Path, variant: str, index: int, expected_sha: str,
+                        owner: int, group: int) -> tuple[int, dict]:
+    code = None
+    try:
+        code = run_case(case, case_root, env, deadline)
+        record = decode_record(regular_bytes(case_root / "harness/logs/result.json"), case, variant, code)
+    except (OSError, ValueError, subprocess.SubprocessError, RuntimeError) as error:
+        try:
+            target = project_case_failure(case_root, receipt, case, variant, index,
+                                          code, expected_sha, owner, group)
+        except (OSError, ValueError) as projection_error:
+            raise CaseRunError(f"case-{index:03d} native harness exit={code}; private diagnostic rejected: {type(projection_error).__name__}") from error
+        raise CaseRunError(f"case-{index:03d} native harness exit={code}; private diagnostic: {target}") from error
+    return code, record
 
 
 
@@ -461,8 +518,8 @@ def root_runtime(env: dict[str, str], variant: str) -> int:
         case_root = runtime / f"case-{index:03d}"
         fresh_directory(case_root, owner=0, group=0, mode=0o711)
         values = case_environment(env, case, case_root, index)
-        code = run_case(case, case_root, values, deadline)
-        record = decode_record(regular_bytes(case_root / "harness/logs/result.json"), case, variant, code)
+        code, record = execute_case_record(case, case_root, values, deadline, receipt,
+                                          variant, index, env["EXPECTED_PARENT_SHA"], owner, group)
         identity = (record["scope"], record["name"])
         if identity in names:
             raise CaseRunError("live catalog produced duplicate native identities")

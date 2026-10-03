@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 import importlib.util
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
 import tempfile
+import time
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -24,6 +27,131 @@ def record(case, variant="no-crs", **changes):
 
 
 class BoundedNginxCasesTests(unittest.TestCase):
+    @contextmanager
+    def simulated_root_log(self, case_root, *, uid=0, gid=0):
+        # CI runs these filesystem/process tests without root. Simulate only
+        # privileged ownership; file kind, modes, size and no-follow I/O stay real.
+        original_fstat = os.fstat
+        fields = ("st_dev", "st_ino", "st_mode", "st_nlink", "st_size", "st_mtime_ns", "st_ctime_ns")
+        def metadata(descriptor):
+            actual = original_fstat(descriptor)
+            values = {key: getattr(actual, key) for key in fields}
+            return SimpleNamespace(**values, st_uid=uid, st_gid=gid)
+        with mock.patch.object(COORDINATOR, "contained_directory", return_value=case_root), mock.patch.object(COORDINATOR.os, "fstat", side_effect=metadata):
+            yield
+
+    def test_missing_record_retains_real_exit_and_private_escaped_harness_output(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            case_root = root / "case-000"
+            receipt = root / "receipt"
+            case_root.mkdir(mode=0o711)
+            receipt.mkdir(mode=0o700)
+            harness = root / "harness.sh"
+            harness.write_text("printf 'native setup blocked\\n'\nprintf '\\033[31m::error::payload\\n' >&2\nexit 77\n")
+            case = COORDINATOR.FRAMEWORK / "tests/cases/request/headers/phase1_header_block.yaml"
+            with self.simulated_root_log(case_root), mock.patch.object(COORDINATOR, "HARNESS", harness):
+                with self.assertRaisesRegex(COORDINATOR.CaseRunError, "native harness exit=77; private diagnostic:"):
+                    COORDINATOR.execute_case_record(case, case_root, dict(COORDINATOR.SAFE_ENV), time.monotonic() + 10,
+                                                    receipt, "no-crs", 0, "a" * 40, os.geteuid(), os.getegid())
+            target = receipt / "case-000-failure.json"
+            body = target.read_bytes()
+            diagnostic = json.loads(body)
+            self.assertEqual(diagnostic["harness_exit"], 77)
+            self.assertEqual(diagnostic["parent_sha"], "a" * 40)
+            self.assertIn("native setup blocked", diagnostic["harness_output"])
+            self.assertNotIn(b"\x1b", body)
+            self.assertNotIn("status", diagnostic)
+            self.assertEqual(target.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(target.stat().st_uid, os.geteuid())
+            self.assertLessEqual(len(body), COORDINATOR.MAX_RECORD_BYTES)
+            self.assertFalse((receipt / "case-000.json").exists())
+
+    def test_failure_log_rejects_symlink_fifo_hardlink_permissions_and_oversize(self):
+        for kind in ("symlink", "fifo", "hardlink", "public", "oversize"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                case_root = root / "case-000"
+                receipt = root / "receipt"
+                case_root.mkdir(mode=0o711)
+                receipt.mkdir(mode=0o700)
+                log = case_root / "harness-output.log"
+                if kind == "fifo":
+                    os.mkfifo(log, 0o600)
+                elif kind == "symlink":
+                    log.symlink_to(root / "outside")
+                else:
+                    log.write_bytes(b"x" * (COORDINATOR.MAX_RECORD_BYTES + 1) if kind == "oversize" else b"failure")
+                    log.chmod(0o644 if kind == "public" else 0o600)
+                    if kind == "hardlink":
+                        os.link(log, root / "alias")
+                with self.simulated_root_log(case_root), self.assertRaises(ValueError):
+                    COORDINATOR.project_case_failure(case_root, receipt, COORDINATOR.FRAMEWORK / "tests/cases/fixture.yaml",
+                                                     "no-crs", 0, 77, "a" * 40, os.geteuid(), os.getegid())
+                self.assertEqual(list(receipt.iterdir()), [])
+
+    def test_failure_log_rejects_nonroot_owner_and_group(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            log = root / "harness-output.log"
+            log.write_bytes(b"failure")
+            log.chmod(0o600)
+            for uid, gid in ((1001, 0), (0, 1001)):
+                with self.subTest(uid=uid, gid=gid), self.simulated_root_log(root, uid=uid, gid=gid), self.assertRaises(COORDINATOR.CaseRunError):
+                    COORDINATOR.project_case_failure(root, root, COORDINATOR.FRAMEWORK / "tests/cases/fixture.yaml",
+                                                     "no-crs", 0, 77, "a" * 40, os.geteuid(), os.getegid())
+
+    def test_failure_projection_bounds_payload_and_never_overwrites(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            log = root / "harness-output.log"
+            log.write_bytes(b"\x00" * COORDINATOR.MAX_RECORD_BYTES)
+            log.chmod(0o600)
+            case = COORDINATOR.FRAMEWORK / "tests/cases/fixture.yaml"
+            with self.simulated_root_log(root):
+                target = COORDINATOR.project_case_failure(root, root, case, "no-crs", 0, 1, "a" * 40, os.geteuid(), os.getegid())
+                with self.assertRaises(FileExistsError):
+                    COORDINATOR.project_case_failure(root, root, case, "no-crs", 0, 1, "a" * 40, os.geteuid(), os.getegid())
+            self.assertLessEqual(target.stat().st_size, COORDINATOR.MAX_RECORD_BYTES)
+            self.assertTrue(json.loads(target.read_bytes())["excerpt_truncated"])
+
+    def test_failure_log_metadata_change_rejected_before_projection(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            log = root / "harness-output.log"
+            log.write_bytes(b"failure")
+            log.chmod(0o600)
+            actual = log.stat()
+            fields = ("st_dev", "st_ino", "st_mode", "st_nlink", "st_size", "st_mtime_ns", "st_ctime_ns")
+            values = {key: getattr(actual, key) for key in fields}
+            before = SimpleNamespace(**values, st_uid=0, st_gid=0)
+            changed = dict(values, st_mtime_ns=actual.st_mtime_ns + 1)
+            after = SimpleNamespace(**changed, st_uid=0, st_gid=0)
+            with mock.patch.object(COORDINATOR, "contained_directory", return_value=root), mock.patch.object(COORDINATOR.os, "fstat", side_effect=[before, after]):
+                with self.assertRaisesRegex(COORDINATOR.CaseRunError, "changed during bounded projection"):
+                    COORDINATOR.project_case_failure(root, root, COORDINATOR.FRAMEWORK / "tests/cases/fixture.yaml",
+                                                     "no-crs", 0, 77, "a" * 40, os.geteuid(), os.getegid())
+            self.assertFalse((root / "case-000-failure.json").exists())
+
+    def test_live_passing_record_remains_required_and_has_no_failure_projection(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            case_root = root / "case-000"
+            receipt = root / "receipt"
+            case_root.mkdir(mode=0o711)
+            receipt.mkdir(mode=0o700)
+            harness = root / "harness.sh"
+            harness.write_text('mkdir -p "$CASE_ROOT/harness/logs"\nprintf "%s\\n" "$RECORD_JSON" > "$CASE_ROOT/harness/logs/result.json"\n')
+            case = COORDINATOR.FRAMEWORK / "tests/cases/request/headers/phase1_header_block.yaml"
+            expected = record(case)
+            environment = dict(COORDINATOR.SAFE_ENV, CASE_ROOT=str(case_root), RECORD_JSON=json.dumps(expected))
+            with mock.patch.object(COORDINATOR, "HARNESS", harness):
+                code, observed = COORDINATOR.execute_case_record(case, case_root, environment, time.monotonic() + 10,
+                                                               receipt, "no-crs", 0, "a" * 40, os.geteuid(), os.getegid())
+            self.assertEqual(code, 0)
+            self.assertEqual(observed, expected)
+            self.assertEqual(list(receipt.iterdir()), [])
+
     def test_native_complete_catalog_counts_and_variants(self):
         for variant, count in (("no-crs", 60), ("with-crs", 61)):
             with self.subTest(variant=variant):

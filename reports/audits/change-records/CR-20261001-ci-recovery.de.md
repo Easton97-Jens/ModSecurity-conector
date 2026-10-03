@@ -123,7 +123,7 @@ Am selben veröffentlichten Head beobachtete die generische Traefik-Runtime echt
 Binary-Auswahl. Der neue Resolver lässt nur das exakte aktuelle Connector-Build-
 Staging zu, weist unsichere Dateien zurück und bietet keinen geerbten/Cache-
 Fallback; das native Profil bleibt getrennt. Ein dediziertes
-`check-bounded-smoke-runtime-contract` führt die vier zuständigen Unit-Module
+`check-bounded-smoke-runtime-contract` führt die zuständigen Runtime-Unit-Module
 im Full-Workflow aus; die kopierte Updater-Baseline bleibt von Framework-
 Materialisierung isoliert. Der Quell-Security-Review ist jetzt abgeschlossen, ohne verbleibende konkrete
 Findings; finale lokale Validierung steht unten. CI des neuen Heads und
@@ -172,6 +172,7 @@ vollständige Runtime-Evidence bleiben ausstehend.
 - `connectors/traefik/scripts/runtime_smoke.py`
 - `connectors/apache/src/mod_security3.c`
 - `connectors/apache/src/msc_filters.c`
+- `connectors/apache/harness/apache_process_guard.py`
 - `connectors/nginx/config`
 - `connectors/traefik/scripts/start-smoke.sh`
 - `docs/reference/variables.de.md`
@@ -189,8 +190,10 @@ vollständige Runtime-Evidence bleiben ausstehend.
 - `tests/ci_security/test_update_workflow_tools.py`
 - `tests/framework_sha_fixture.py`
 - `tests/test_apache_intervention_cleanup.py`
+- `tests/test_apache_process_guard.py`
 - `tests/test_c_cpp_diagnostics.py`
 - `tests/test_ci_security_workflows.py`
+- `tests/test_collect_no_crs_source.py`
 - `tests/test_full_smoke_workflow_contract.py`
 - `tests/test_framework_revision_pins.py`
 - `tests/test_nginx_root_broker.py`
@@ -484,6 +487,50 @@ actionlint für beide geänderten Workflows bestanden. Diese Korrekturen benöti
 einen neuen exakten Head und frische Hosted-Ergebnisse; fehlgeschlagene
 vollständige/Legacy-Läufe auf `f2b4de6b` sind keine Pässe.
 
+Die nächste Hosted-Aufnahme gehört zum veröffentlichten Head
+`8ddf08b928148c0901f0c42fcfcdc0bced57a4b1`: Alle 21 gewöhnlichen Workflow-Läufe
+bestanden, ebenso [CRS 37120193889](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37120193889),
+[exaktes NGINX 37120193833](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37120193833)
+und [kanonisches No-CRS 37120380513](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37120380513).
+Letzteres beobachtete für jeden aller fünf Connectoren zwei erfolgreiche Fälle,
+echte `200`/`403` und Exit null. Beide Varianten von
+[sequenziellem Full Smoke 37120384019](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37120384019)
+scheiterten: Der Apache-Prozessguard verlangte unabhängig Verzeichnis-Leserecht
+für einen Root-eigenen `0711`-Vorfahren; NGINXs fehlende `result.json` für
+case-000 verdeckte einen frühen nativen Exit. Die tatsächliche NGINX-Ursache
+liegt im erhaltenen Artefakt nicht vor und wird nicht behauptet.
+[Legacy 37120382090](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37120382090)
+führte um `2026-10-03T12:54:00Z` noch seinen nativen Minimal-Runtime-Schritt aus.
+
+Die lokale Apache-Guard-Korrektur verwendet `O_PATH` für Vorfahren und erhält
+`O_RDONLY` für den Leaf sowie Eigentümer-/Modus-/Identitäts-/No-Follow-Prüfungen
+und Namespace-Rechte; die zuständige Suite bestand 62 Tests in 20.042 Sekunden.
+Die lokale NGINX-Korrektur erhält sicher den tatsächlichen Fall-Exit und eine
+private, exklusive Diagnose-JSON-Projektion aus dem festen Root-eigenen
+`0600`-Harness-Log: keine Symlinks/FIFOs/Hardlinks, höchstens 131072 Bytes,
+stabile Descriptor-Identität, escaped begrenzte Ausgabe, Digest des vollständigen
+Logs und aktuelle Parent-/Katalog-/Variantenidentität. Sie erzeugt kein
+normalisiertes oder synthetisches Ergebnis und keinen Pass. Die zuständige
+Suite bestand 30 Tests in 3.568 Sekunden. Natives
+`make check-bounded-smoke-runtime-contract` bestand alle 142 Tests in
+37.498 Sekunden einschließlich des Apache-Guard-Moduls. Dessen isolierte
+Fork-Child-Fixture setzt ausdrücklich umask `022`; der Guard erhält weiterhin
+die umask des Aufrufers. Dies sind lokale Quellprüfungen; keine davon belegt
+die Behebung des nativen NGINX-Fehlers.
+Die separate Apache-Hostversions-Inventarkorrektur akzeptiert genau eine gültige
+native `Server version: Apache/`-stdout-Zeile nach einem erfolgreichen Befehl;
+stderr-Warnungen und der tatsächliche Fehler-Exit bleiben erhalten. Ihr ASCII-
+Versionsmatching weist Unicode-Ziffern in allen drei Positionen, leere oder
+reine Warnungsausgaben, falsche/gemischte Produktfamilien und doppelte
+Versionszeilen zurück. Die zuständige Suite bestand 56 Tests in 2.930 Sekunden
+und die Shell-Syntaxprüfung bestand. Natives
+`make check-no-crs-source-normalization` bestand außerdem alle 169 Tests in
+26.120 Sekunden ohne Skips auf diesen eingefrorenen Host-Inventarquellen.
+Aus einer Warnung wird keine konkrete
+Hostversion behauptet. Auslieferung und
+frische Exact-Head-CI-, Sonar- und Hosted-Runtime-Prüfungen bleiben für diese
+Quellen erforderlich.
+
 ## Bekannte Einschränkungen
 
 Lokale privilegienabhängige Namespace-Integration hatte fünf bestehende Skips. Quick-check im CI-Modus bestand mit den beiden Compiler-Skips wegen fehlender Header; der normale lokale Versuch erreichte das Zeitlimit. Der geschützte Broker-Caller bleibt auf `49c40779a7b6de9f699391bcd524ea069787df42` gepinnt; dieser Patch allein aktiviert die geänderte Broker-Quelle nicht.
@@ -498,4 +545,4 @@ Ein vollständiger gehosteter Parent-Pass und beide geschützten Broker-Runtime-
 
 ## Finaler Diff- und Review-Status
 
-Die ursprünglichen und korrigierten Änderungen wurden in PR 400 bereitgestellt. Für den zuletzt veröffentlichten Head `f2b4de6b` liegt exaktes Sonar `OK` ohne offene Befunde vor; vollständige Smoke- und Legacy-Fehler belegten jedoch die oben beschriebenen Vorfahren-Traversierungs- und Lighttpd-Opt-in-Defekte. Deren gezielte Korrekturen bestanden die finale zuständige Integration und lokale Validierung; Auslieferung und neue Hosted-Evidence des exakten Heads bleiben erforderlich. Frühere Apache-/Traefik-Evidence bleibt an ihren aufgezeichneten historischen Head gebunden. Die Gesamtreparatur bleibt bis zu dieser Evidence und geschützter Aktivierung teilweise abgeschlossen. Die ursprünglichen Arbeitscheckouts bleiben erhalten; nur der Framework-Gitlink des Task-Parents wird wie oben dokumentiert geändert. Weder Parent-master-Integration noch Framework-/MRTS-Quelländerungen werden behauptet. Beide Sprachfassungen enthalten dieselben Werte und Einschränkungen.
+Die ursprünglichen und korrigierten Änderungen wurden in PR 400 bereitgestellt. Der zuletzt veröffentlichte Head `8ddf08b9` bestand gewöhnliche Workflows, kanonisches No-CRS, CRS und exaktes NGINX, aber beide sequenziellen Full-Smoke-Varianten scheiterten und Legacy war zur aufgezeichneten Aufnahme noch aktiv. Die gezielte Apache-Guard-Korrektur und sichere NGINX-Fehlerdiagnostik bestanden ihre zuständigen lokalen Suiten und den integrierten 142-Test-Vertrag; die Apache-Versionsinventar-Validierung bestand 56 Tests. Diese Quellen benötigen Auslieferung und frische Exact-Head-CI-/Sonar-/Runtime-Evidence. Die native NGINX-Ursache bleibt unbelegt. Frühere Evidence behält ihren aufgezeichneten historischen Head. Die Gesamtreparatur bleibt bis zu dieser Evidence und geschützter Aktivierung teilweise abgeschlossen. Die ursprünglichen Arbeitscheckouts bleiben erhalten; nur der Framework-Gitlink des Task-Parents wird wie oben dokumentiert geändert. Weder Parent-master-Integration noch Framework-/MRTS-Quelländerungen werden behauptet. Beide Sprachfassungen enthalten dieselben Werte und Einschränkungen.

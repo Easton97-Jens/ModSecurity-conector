@@ -115,7 +115,7 @@ and successful cases, but inventory inherited a stale binary selection. The
 new resolver admits only the exact current connector-build stage, rejecting
 unsafe files and providing no inherited/cache fallback; the native profile
 remains distinct. A dedicated `check-bounded-smoke-runtime-contract` runs the
-four owning unit modules in the full workflow; the updater copied-tree baseline
+owning runtime unit modules in the full workflow; the updater copied-tree baseline
 remains isolated from Framework materialization. Source security review is now terminal with no remaining concrete findings;
 final local validation is recorded below. New-head CI and complete runtime
 evidence remain outstanding.
@@ -163,6 +163,7 @@ evidence remain outstanding.
 - `connectors/traefik/scripts/runtime_smoke.py`
 - `connectors/apache/src/mod_security3.c`
 - `connectors/apache/src/msc_filters.c`
+- `connectors/apache/harness/apache_process_guard.py`
 - `connectors/nginx/config`
 - `connectors/traefik/scripts/start-smoke.sh`
 - `docs/reference/variables.de.md`
@@ -180,8 +181,10 @@ evidence remain outstanding.
 - `tests/ci_security/test_update_workflow_tools.py`
 - `tests/framework_sha_fixture.py`
 - `tests/test_apache_intervention_cleanup.py`
+- `tests/test_apache_process_guard.py`
 - `tests/test_c_cpp_diagnostics.py`
 - `tests/test_ci_security_workflows.py`
+- `tests/test_collect_no_crs_source.py`
 - `tests/test_full_smoke_workflow_contract.py`
 - `tests/test_framework_revision_pins.py`
 - `tests/test_nginx_root_broker.py`
@@ -456,6 +459,44 @@ that static suite unprivileged. Thirty-seven related tests and both changed
 workflow actionlint checks passed. These corrections need a new exact head and
 fresh hosted results; failed `f2b4de6b` complete/Legacy runs are not passes.
 
+The next hosted snapshot is published head
+`8ddf08b928148c0901f0c42fcfcdc0bced57a4b1`: all 21 ordinary workflow runs
+succeeded, as did [CRS 37120193889](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37120193889),
+[exact NGINX 37120193833](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37120193833)
+and [canonical No-CRS 37120380513](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37120380513).
+The latter observed two successful cases, actual `200`/`403` and exit zero for
+each of all five connectors. Both variants of
+[sequential full smoke 37120384019](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37120384019)
+failed: the Apache process guard independently required directory-read access
+to a root-owned `0711` ancestor; NGINX's absent case-000 `result.json` masked an
+early native exit. The actual NGINX cause is not present in the retained artifact
+and is not claimed. [Legacy 37120382090](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37120382090)
+was still executing its native minimal runtime step at `2026-10-03T12:54:00Z`.
+
+The local Apache guard correction uses `O_PATH` for ancestors and retains
+`O_RDONLY` for the leaf, preserving owner/mode/identity/no-follow checks and
+namespace permissions; its owning suite passed 62 tests in 20.042 seconds.
+The local NGINX correction safely retains the actual case exit and a private,
+exclusive diagnostic JSON projection from the fixed root-owned `0600` harness
+log: no symlinks/FIFO/hardlinks, at most 131072 bytes, stable descriptor identity,
+escaped bounded output, full-log digest and current Parent/catalog/variant
+identity. It creates no normalized or synthetic result and cannot produce a
+pass. The owning suite passed 30 tests in 3.568 seconds. Native
+`make check-bounded-smoke-runtime-contract` passed all 142 tests in 37.498 seconds,
+including the Apache guard module. Its isolated fork-child fixture explicitly
+sets umask `022`; the guard continues honoring the caller's umask. These are
+local source checks; none proves that the native NGINX error is corrected.
+The separate Apache host-version inventory correction accepts exactly one
+valid native `Server version: Apache/` stdout line after a successful command;
+stderr warnings and the actual failure exit remain preserved. Its ASCII-only
+version matching rejects Unicode digits in all three positions, empty or
+warning-only output, wrong/mixed product families and duplicate version lines.
+The owning suite passed 56 tests in 2.930 seconds and shell syntax validation
+passed. Native `make check-no-crs-source-normalization` also passed all 169 tests
+in 26.120 seconds without skips on these frozen host-inventory sources.
+No concrete host version is claimed from a warning. Delivery and fresh
+exact-head CI, Sonar and hosted runtime checks remain required for these sources.
+
 ## Known limitations
 
 Local privilege-dependent namespace integration had five existing skips. CI-mode quick-check passed with the two missing-header compiler skips; the ordinary local attempt timed out. The protected broker caller remains pinned to `49c40779a7b6de9f699391bcd524ea069787df42`; the updated broker source is not activated by this patch alone.
@@ -470,4 +511,4 @@ A full Parent hosted pass and both protected broker runtime profiles are outstan
 
 ## Final diff and review status
 
-Initial and corrective changes were delivered in PR 400. The latest published `f2b4de6b` head has exact Sonar `OK` with zero open findings, but complete smoke and Legacy failures exposed the ancestor-traversal and Lighttpd opt-in defects recorded above. Their focused corrections passed final owning integration and local validation; delivery and new exact-head hosted evidence remain required. Earlier Apache/Traefik evidence remains bound to its recorded historical head. Overall recovery remains partial pending that evidence and protected activation. Original working checkouts are preserved; only the task Parent Framework gitlink is changed as documented above. No Parent master integration or Framework/MRTS source edit is claimed. Both record language versions preserve the same values and limitations.
+Initial and corrective changes were delivered in PR 400. The latest published `8ddf08b9` head passed ordinary workflows, canonical No-CRS, CRS and exact NGINX, but both sequential full-smoke variants failed and Legacy was still active at the recorded snapshot. The focused Apache guard correction and safe NGINX failure diagnostics passed their owning local suites and the integrated 142-test contract; Apache version-inventory validation passed 56 tests. These sources require delivery and fresh exact-head CI/Sonar/runtime evidence. The native NGINX cause remains unproved. Earlier evidence retains its recorded historical head. Overall recovery remains partial pending that evidence and protected activation. Original working checkouts are preserved; only the task Parent Framework gitlink is changed as documented above. No Parent master integration or Framework/MRTS source edit is claimed. Both record language versions preserve the same values and limitations.

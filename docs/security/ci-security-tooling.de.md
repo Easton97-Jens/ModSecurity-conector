@@ -312,10 +312,25 @@ validierten privaten Work-Root.
 Diese Candidate-eigene Functional-A-Route belegt gewöhnliche funktionale
 Ergebnisse. Sie aktiviert den unveränderlichen geschützten Broker nicht und
 liefert keine adversariale Broker-Attestierung.
-`make check-bounded-smoke-runtime-contract` führt die vier zuständigen Runtime-
+`make check-bounded-smoke-runtime-contract` führt die zuständigen Runtime-
 Testmodule in diesem initialisierten Framework-Kontext aus. Die CI-Sicherheits-
 Baseline des kopierten Updater-Baums bleibt getrennt und materialisiert weder
 Framework-Quellen noch Git-Metadaten.
+
+Beendet sich ein nativer NGINX-Fall vor der Erzeugung eines gültigen Ergebnisses,
+erhält der Coordinator seinen tatsächlichen Exit-Code und projiziert Diagnose-
+JSON in den vorhandenen privaten Runner-Beleg. Er liest nur das feste Root-
+eigene, einfach verlinkte reguläre Harness-Log des Falls mit Modus `0600` über
+einen No-Follow-Descriptor, mit einer Grenze von 131072 Bytes und stabiler
+Dateiidentität. Der begrenzte Auszug ist JSON-escaped und enthält den Digest
+des vollständigen Logs sowie die aktuelle Revisions-/Fall-/Variantenidentität.
+Diese Diagnose ist kein normalisiertes Ergebnis und belegt keinen Fall-Pass.
+
+Der Apache-Prozessguard durchquert Vorfahren mit ausschließlich Ausführungsrecht
+über `O_PATH|O_DIRECTORY|O_NOFOLLOW` und erhält `O_RDONLY` für den privaten Leaf.
+Descriptor-relative Eigentümer-, Modus-, Identitäts- und Symlink-Prüfungen bleiben
+verbindlich; der gemeinsame Root-Namespace bleibt `0711` und der Runner-Workspace
+bleibt `0700`.
 
 Das generische Traefik-No-CRS-Host-Inventar löst ausschließlich das exakt
 bereitgestellte Binary unter dem aktuellen Connector-Build-Root über
@@ -326,6 +341,13 @@ diesen Host nicht ersetzen; fehlendes/unsicheres Staging belässt das Inventar
 bei `not_provisioned` und umgeht das Gate für konkrete Versions-Evidence nicht.
 Das native Full-Lifecycle-Profil behält seinen getrennten Vertrag zur
 Binary-Auswahl.
+
+Das Apache-Host-Inventar verlangt einen erfolgreichen nativen Versionsbefehl
+und genau eine gültige `Server version: Apache/`-Zeile aus stdout mit ASCII-
+Versionsziffern. Stderr-Warnungen bleiben auf stderr sichtbar und werden nicht
+zur Hostversion. Leere, reine Warnungs-, doppelte und gemischte Produktfamilien-
+Ausgaben werden abgelehnt; weder Warnungen noch fehlgeschlagene Befehle belegen
+eine konkrete Version.
 
 ## Validierung und Einschränkungen
 
