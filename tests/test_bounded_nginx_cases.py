@@ -50,10 +50,14 @@ class BoundedNginxCasesTests(unittest.TestCase):
             harness = root / "harness.sh"
             harness.write_text("printf 'native setup blocked\\n'\nprintf '\\033[31m::error::payload\\n' >&2\nexit 77\n")
             case = COORDINATOR.FRAMEWORK / "tests/cases/request/headers/phase1_header_block.yaml"
+            environment = dict(COORDINATOR.SAFE_ENV)
+            deadline = time.monotonic() + 10
+            owner = os.geteuid()
+            group = os.getegid()
             with self.simulated_root_log(case_root), mock.patch.object(COORDINATOR, "HARNESS", harness):
                 with self.assertRaisesRegex(COORDINATOR.CaseRunError, "native harness exit=77; private diagnostic:"):
-                    COORDINATOR.execute_case_record(case, case_root, dict(COORDINATOR.SAFE_ENV), time.monotonic() + 10,
-                                                    receipt, "no-crs", 0, "a" * 40, os.geteuid(), os.getegid())
+                    COORDINATOR.execute_case_record(case, case_root, environment, deadline,
+                                                    receipt, "no-crs", 0, "a" * 40, owner, group)
             target = receipt / "case-000-failure.json"
             body = target.read_bytes()
             diagnostic = json.loads(body)
@@ -85,9 +89,12 @@ class BoundedNginxCasesTests(unittest.TestCase):
                     log.chmod(0o644 if kind == "public" else 0o600)
                     if kind == "hardlink":
                         os.link(log, root / "alias")
+                case = COORDINATOR.FRAMEWORK / "tests/cases/fixture.yaml"
+                owner = os.geteuid()
+                group = os.getegid()
                 with self.simulated_root_log(case_root), self.assertRaises(ValueError):
-                    COORDINATOR.project_case_failure(case_root, receipt, COORDINATOR.FRAMEWORK / "tests/cases/fixture.yaml",
-                                                     "no-crs", 0, 77, "a" * 40, os.geteuid(), os.getegid())
+                    COORDINATOR.project_case_failure(case_root, receipt, case,
+                                                     "no-crs", 0, 77, "a" * 40, owner, group)
                 self.assertEqual(list(receipt.iterdir()), [])
 
     def test_failure_log_rejects_nonroot_owner_and_group(self):
@@ -96,10 +103,13 @@ class BoundedNginxCasesTests(unittest.TestCase):
             log = root / "harness-output.log"
             log.write_bytes(b"failure")
             log.chmod(0o600)
+            case = COORDINATOR.FRAMEWORK / "tests/cases/fixture.yaml"
+            owner = os.geteuid()
+            group = os.getegid()
             for uid, gid in ((1001, 0), (0, 1001)):
                 with self.subTest(uid=uid, gid=gid), self.simulated_root_log(root, uid=uid, gid=gid), self.assertRaises(COORDINATOR.CaseRunError):
-                    COORDINATOR.project_case_failure(root, root, COORDINATOR.FRAMEWORK / "tests/cases/fixture.yaml",
-                                                     "no-crs", 0, 77, "a" * 40, os.geteuid(), os.getegid())
+                    COORDINATOR.project_case_failure(root, root, case,
+                                                     "no-crs", 0, 77, "a" * 40, owner, group)
 
     def test_failure_projection_bounds_payload_and_never_overwrites(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -108,10 +118,12 @@ class BoundedNginxCasesTests(unittest.TestCase):
             log.write_bytes(b"\x00" * COORDINATOR.MAX_RECORD_BYTES)
             log.chmod(0o600)
             case = COORDINATOR.FRAMEWORK / "tests/cases/fixture.yaml"
+            owner = os.geteuid()
+            group = os.getegid()
             with self.simulated_root_log(root):
-                target = COORDINATOR.project_case_failure(root, root, case, "no-crs", 0, 1, "a" * 40, os.geteuid(), os.getegid())
+                target = COORDINATOR.project_case_failure(root, root, case, "no-crs", 0, 1, "a" * 40, owner, group)
                 with self.assertRaises(FileExistsError):
-                    COORDINATOR.project_case_failure(root, root, case, "no-crs", 0, 1, "a" * 40, os.geteuid(), os.getegid())
+                    COORDINATOR.project_case_failure(root, root, case, "no-crs", 0, 1, "a" * 40, owner, group)
             self.assertLessEqual(target.stat().st_size, COORDINATOR.MAX_RECORD_BYTES)
             self.assertTrue(json.loads(target.read_bytes())["excerpt_truncated"])
 
@@ -127,10 +139,13 @@ class BoundedNginxCasesTests(unittest.TestCase):
             before = SimpleNamespace(**values, st_uid=0, st_gid=0)
             changed = dict(values, st_mtime_ns=actual.st_mtime_ns + 1)
             after = SimpleNamespace(**changed, st_uid=0, st_gid=0)
+            case = COORDINATOR.FRAMEWORK / "tests/cases/fixture.yaml"
+            owner = os.geteuid()
+            group = os.getegid()
             with mock.patch.object(COORDINATOR, "contained_directory", return_value=root), mock.patch.object(COORDINATOR.os, "fstat", side_effect=[before, after]):
                 with self.assertRaisesRegex(COORDINATOR.CaseRunError, "changed during bounded projection"):
-                    COORDINATOR.project_case_failure(root, root, COORDINATOR.FRAMEWORK / "tests/cases/fixture.yaml",
-                                                     "no-crs", 0, 77, "a" * 40, os.geteuid(), os.getegid())
+                    COORDINATOR.project_case_failure(root, root, case,
+                                                     "no-crs", 0, 77, "a" * 40, owner, group)
             self.assertFalse((root / "case-000-failure.json").exists())
 
     def test_live_passing_record_remains_required_and_has_no_failure_projection(self):

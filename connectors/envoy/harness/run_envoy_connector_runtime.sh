@@ -24,6 +24,8 @@ YAML_TEMPLATE="$CONNECTOR_DIR/config/envoy-ext-authz-smoke.yaml.in"
 NO_CRS_SELECTION_CONSUMER="$REPO_ROOT/ci/runtime/lifecycle/consume-no-crs-selected-cases.sh"
 ENVOY_CONFIG="$RUNTIME_ROOT/envoy.yaml"
 SUMMARY="$RUNTIME_ROOT/runtime-summary.txt"
+ALLOW_PROBE="$RUNTIME_ROOT/allow-client.json"
+DENY_PROBE="$RUNTIME_ROOT/deny-client.json"
 SED_LOG_RANGE='1,160p'
 ENVOY_STDOUT="$RUNTIME_ROOT/envoy.stdout.log"
 ENVOY_STDERR="$RUNTIME_ROOT/envoy.stderr.log"
@@ -242,6 +244,7 @@ while [ "$attempt" -lt 30 ]; do
     allowed_status=$("$PYTHON_BIN" "$HELPER" probe \
         --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
         --url "https://127.0.0.1:$listen_port/allowed" \
+        --evidence-path "$ALLOW_PROBE" \
         --header "X-Request-Id: envoy-allow-1" \
         --forbid-response-header x-msconnector-terminal-authz 2>/dev/null)
     probe_rc=$?
@@ -260,6 +263,7 @@ fi
 if ! blocked_status=$("$PYTHON_BIN" "$HELPER" probe \
     --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
     --url "https://127.0.0.1:$listen_port/blocked" \
+    --evidence-path "$DENY_PROBE" \
     --header "X-Request-Id: envoy-block-1" \
     --header "X-Modsec-Smoke: block" \
     --forbid-response-header x-msconnector-terminal-authz); then

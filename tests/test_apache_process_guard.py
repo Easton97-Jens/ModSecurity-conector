@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import pwd
+import select
 import signal
 import socket
 import stat
@@ -40,7 +41,8 @@ class ApacheRuntimeAncestorPermissionTest(unittest.TestCase):
                     os.setgroups([])
                     os.setgid(gid)
                     os.setuid(uid)
-                self.assertNotEqual(os.geteuid(), 0)
+                if os.geteuid() == 0:
+                    raise RuntimeError("permission exercise requires a non-root identity")
                 exercise()
             except BaseException:
                 os.write(writer, traceback.format_exc().encode()[:8192])
@@ -176,30 +178,42 @@ class ApacheProcessGuardTest(unittest.TestCase):
             return int(listener.getsockname()[1])
 
     def _start_loopback_server(self, port: int) -> subprocess.Popen[bytes]:
+        # These ownership tests need a live listener, not request handling.
+        # Never accept the readiness probe: its transient accepted descriptor
+        # would make a subsequent /proc identity inspection legitimately fail.
+        code = (
+            "import socket, sys, time\n"
+            "listener = socket.socket()\n"
+            "listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)\n"
+            "listener.bind(('127.0.0.1', int(sys.argv[1])))\n"
+            "listener.listen(1)\n"
+            "print('listener-ready', flush=True)\n"
+            "while True: time.sleep(0.05)\n"
+        )
         process = subprocess.Popen(
             [
                 sys.executable,
-                "-m",
-                "http.server",
+                "-c",
+                code,
                 str(port),
-                "--bind",
-                "127.0.0.1",
             ],
-            stdout=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             start_new_session=True,
         )
-        deadline = time.monotonic() + 5.0
-        while time.monotonic() < deadline:
-            if process.poll() is not None:
-                self.fail(f"test HTTP server exited with {process.returncode}")
+        try:
+            ready, _, _ = select.select([process.stdout], [], [], 5.0)
+            if not ready or process.stdout.readline() != b"listener-ready\n":
+                self.fail("test listener did not acknowledge its stable descriptor phase")
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
-                if probe.connect_ex(("127.0.0.1", port)) == 0:
-                    return process
-            time.sleep(0.02)
-        process.kill()
-        process.wait(timeout=2)
-        self.fail("test HTTP server did not become ready")
+                self.assertEqual(probe.connect_ex(("127.0.0.1", port)), 0)
+            return process
+        except BaseException:
+            process.kill()
+            process.wait(timeout=2)
+            raise
+        finally:
+            process.stdout.close()
 
     def _write_fake_httpd(self, port: int) -> tuple[Path, Path, Path]:
         httpd = Path(self.tmp.name) / "httpd"
@@ -583,19 +597,34 @@ class ApacheProcessGuardTest(unittest.TestCase):
         output = self.artifact_root / "run" / "supervisor-race.pid"
         real_close = os.close
         replaced = False
+        pinned_original: list[int] = []
 
         def close_then_replace(fd: int) -> None:
             nonlocal replaced
             is_regular = stat.S_ISREG(os.fstat(fd).st_mode)
+            if is_regular and not replaced:
+                # Keep the unlinked original inode allocated while creating
+                # the replacement; inode reuse would not exercise this guard.
+                pinned_original.append(os.dup(fd))
             real_close(fd)
             if is_regular and not replaced:
                 replaced = True
                 output.unlink()
                 output.write_text("replacement\n", encoding="ascii")
 
-        with mock.patch.object(guard.os, "close", side_effect=close_then_replace):
-            with self.assertRaisesRegex(guard.GuardError, "inode changed"):
-                guard._write_pid_output(output, 123, self.artifact_root)
+        try:
+            with mock.patch.object(guard.os, "close", side_effect=close_then_replace):
+                with self.assertRaisesRegex(guard.GuardError, "inode changed"):
+                    guard._write_pid_output(output, 123, self.artifact_root)
+            original_identity = os.fstat(pinned_original[0])
+            replacement_identity = output.stat()
+            self.assertNotEqual(
+                (original_identity.st_dev, original_identity.st_ino),
+                (replacement_identity.st_dev, replacement_identity.st_ino),
+            )
+        finally:
+            for descriptor in pinned_original:
+                real_close(descriptor)
         self.assertTrue(replaced)
         self.assertEqual(output.read_text(encoding="ascii"), "replacement\n")
         self.assertFalse(list(self.artifact_root.glob(".apache-process-guard-*.tmp")))

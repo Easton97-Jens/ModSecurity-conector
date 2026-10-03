@@ -150,6 +150,12 @@ vollständige Runtime-Evidence bleiben ausstehend.
 - `tests/test_resolve_lighttpd_host_binary.py`
 - `tests/test_trusted_lighttpd_namespace_dispatch_workflow.py`
 - `Makefile`
+- `connectors/envoy/harness/README.de.md`
+- `connectors/envoy/harness/README.md`
+- `connectors/envoy/harness/run_envoy_smoke.sh`
+- `tests/test_envoy_legacy_smoke_evidence.py`
+- `tests/test_legacy_open_connector_smoke.py`
+- `ci/runtime/lifecycle/run-legacy-open-connector-smoke.sh`
 - `ci/lib/framework_revision_pins.py`
 - `ci/provisioning/components/prepare-runtime-components.py`
 - `ci/evidence/reports/refresh-connector-reports.py`
@@ -531,6 +537,46 @@ Hostversion behauptet. Auslieferung und
 frische Exact-Head-CI-, Sonar- und Hosted-Runtime-Prüfungen bleiben für diese
 Quellen erforderlich.
 
+Der veröffentlichte Folgecommit `7690fa0d078e64cef01843ffec5241fc90337f2d` hat
+die exakte Sonar-Analyse `5d294360-a079-4f34-a9f9-28293d6b0148` vom
+`2026-10-03T13:07:01Z`: Gate ERROR, ein `S5779`- und fünf `S5778`-Befunde in
+Tests. Kein Befund wurde unterdrückt. Quellkorrekturen erhalten die Abweisung
+der Root-Identität und berechnen Argumente vor der Exception-Assertion; danach
+bestand der integrierte 142-Test-Vertrag in 34.323 Sekunden.
+
+Der Legacy-Lauf des Vorgängers scheiterte später im Envoy-Kompatibilitätseinstieg
+an fehlendem `ENVOY_BIN`. Sein natives Artefakt belegt dennoch Envoy `1.39.1`,
+Traefik `3.7.13` und Lighttpd `1.4.85`, jeweils mit zwei Live-PASS-Fällen,
+HTTP 200/403 und Exit null. Die Lighttpd-Bereitstellungskorrektur ist damit
+an diesem Head runtime-bestätigt. Der feste Parent-Legacy-Launcher exportiert
+jetzt die exakt zentral vorbereiteten Host-Binaries und bindet Envoy-Service
+und Observer an den aktuellen gemeinsamen Build; sieben ausgeführte Übergabe-
+tests bestanden. Das bestehende Framework verlangt bei Exit null zusätzlich
+nichtleeres Envoy-Legacy-JSONL. Die Parent-Brücke schreibt es ausschließlich aus
+frischen privaten tatsächlichen Probes, Summary und einem passenden nativen
+Deny-Ereignis, erhält tatsächlichen Fehler23/Blocked77 und invalidiert frühere
+PASS-Ausgaben. Ein begrenzter Zwei-Request-Record bleibt von YAML-/CRS-/Body-/
+Full-Matrix-Coverage getrennt. Zuletzt bestanden 45 kombinierte Tests in
+22.618 Sekunden. Natives Start-Wiring führt beide neuen Module in gewöhnlicher
+Connector-CI aus.
+
+Der diagnostische [Full-Lauf 37125765259](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37125765259)
+auf `7690fa0d` stoppte vor Runtime: Die Apache-PID-Replacement-Fixture beider
+Varianten garantierte nach Close/Unlink/Neuerstellung keinen anderen Inode;
+eine Variante traf zusätzlich auf Descriptor-Wechsel des angenommenen HTTP-
+Readiness-Sockets bei strenger Prozessprüfung. Halten des ursprünglichen
+Descriptors entfernt die Abhängigkeit von Inode-Zuteilung; Post-Listen-Handshake
+und eine Never-Accept-Fixture entfernen kurzlebige Descriptors. Tatsächliche
+Hosted-Inode-Wiederverwendung wurde nicht gemessen; lokale Zuteilungsprobes
+sahen keine, die Ursache bleibt daher eine begrenzte Schlussfolgerung. Produkt-
+Ownership-/Cleanup-Prüfungen bleiben unverändert. Die korrigierten 62 Tests
+bestanden als root und unter tatsächlicher vorhandener UID994; 130 gezielte
+Stressiterationen bestanden. Vollständige native NGINX-Ausführung oder die
+verdeckte Fallfehlerdiagnose wurden nicht erreicht. Frische Exact-Head-Sonar-
+und Hosted-Runtime-Evidence bleibt erforderlich.
+
+Finale Integration der eingefrorenen Quellen bestand `make check-bounded-smoke-runtime-contract`:142 Tests in35.865 Sekunden einschließlich korrigierter echter Rechte-/Cleanup-Fixtures. Native Build-/Start-Wiring-Prüfungen bestanden mit allen12 neuen Legacy-Tests in15.496 Sekunden. Unabhängiger Review der eingefrorenen Legacy-/Envoy-/Apache-Fixture-Quellen meldete null konkrete Restbefunde. Diese Ergebnisse validieren lokale Verträge; sie ersetzen keine Hosted-Runtime des neuen Heads.
+
 ## Bekannte Einschränkungen
 
 Lokale privilegienabhängige Namespace-Integration hatte fünf bestehende Skips. Quick-check im CI-Modus bestand mit den beiden Compiler-Skips wegen fehlender Header; der normale lokale Versuch erreichte das Zeitlimit. Der geschützte Broker-Caller bleibt auf `49c40779a7b6de9f699391bcd524ea069787df42` gepinnt; dieser Patch allein aktiviert die geänderte Broker-Quelle nicht.
@@ -545,4 +591,15 @@ Ein vollständiger gehosteter Parent-Pass und beide geschützten Broker-Runtime-
 
 ## Finaler Diff- und Review-Status
 
-Die ursprünglichen und korrigierten Änderungen wurden in PR 400 bereitgestellt. Der zuletzt veröffentlichte Head `8ddf08b9` bestand gewöhnliche Workflows, kanonisches No-CRS, CRS und exaktes NGINX, aber beide sequenziellen Full-Smoke-Varianten scheiterten und Legacy war zur aufgezeichneten Aufnahme noch aktiv. Die gezielte Apache-Guard-Korrektur und sichere NGINX-Fehlerdiagnostik bestanden ihre zuständigen lokalen Suiten und den integrierten 142-Test-Vertrag; die Apache-Versionsinventar-Validierung bestand 56 Tests. Diese Quellen benötigen Auslieferung und frische Exact-Head-CI-/Sonar-/Runtime-Evidence. Die native NGINX-Ursache bleibt unbelegt. Frühere Evidence behält ihren aufgezeichneten historischen Head. Die Gesamtreparatur bleibt bis zu dieser Evidence und geschützter Aktivierung teilweise abgeschlossen. Die ursprünglichen Arbeitscheckouts bleiben erhalten; nur der Framework-Gitlink des Task-Parents wird wie oben dokumentiert geändert. Weder Parent-master-Integration noch Framework-/MRTS-Quelländerungen werden behauptet. Beide Sprachfassungen enthalten dieselben Werte und Einschränkungen.
+Ursprüngliche und korrigierte Quellen wurden in PR400 bereitgestellt. Der
+aktuell veröffentlichte Head `7690fa0d` bestand gewöhnliche Workflows und
+exaktes NGINX, Sonar meldete jedoch sechs Testbefunde und der diagnostische
+Full-Smoke stoppte in Apache-Testfixtures. Deren Quellkorrekturen und die
+erforderlichen Legacy-Binary-/Ergebnisfixes sind lokal validiert und unabhängig
+ohne konkreten Restbefund geprüft. Native NGINX-Fallausführung bleibt unbelegt.
+Nach Auslieferung sind frische Exact-Head-Prüfungen erforderlich; historische
+Ergebnisse behalten ihren aufgezeichneten Head. Master-Integration und
+geschützte Caller-Aktivierung bleiben separat erforderlich; Parent-Merge und
+Framework-/MRTS-Quelländerungen werden nicht behauptet. Ursprüngliche Checkouts
+und Nutzeränderungen bleiben erhalten. Beide Sprachfassungen erhalten dieselben
+Fakten.

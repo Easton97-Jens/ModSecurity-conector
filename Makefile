@@ -534,7 +534,7 @@ memcheck-nginx: check-framework prepare-runtime-components
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" MSCONNECTOR_SMOKE_STAGE=bounded_soak NGINX_MEMCHECK=1 VALGRIND_BIN="$${VALGRIND_BIN:-valgrind}" NGINX_PROTOCOL_PROFILE=h1 NGINX_DOWNSTREAM_PROTOCOL=http1 NGINX_UPSTREAM_PROTOCOL=http1 NGINX_SOAK_CASES="$${NGINX_MEMCHECK_CASES:-allow_without_marker}" NGINX_SOAK_DURATION_SECONDS="$${NGINX_MEMCHECK_DURATION_SECONDS:-30}" NGINX_SOAK_CONCURRENCY=1 MODSECURITY_TEST_VARIANT=no-crs NO_CRS_BASELINE=1 FORCE_ALL_CASES=1 MODSECURITY_RULE_PREAMBLE_FILE="$(NO_CRS_RULES_FILE)" NGINX_HARNESS_PARENT="$${NGINX_HARNESS_PARENT:-$(BUILD_ROOT)/nginx-memcheck-harness}" RESULTS_DIR="$${RESULTS_DIR:-$(BUILD_ROOT)/results/no-crs/no-mrts/nginx-memcheck}" CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/runtime/run-nginx-smoke.sh"
 
 smoke-envoy: check-framework
-	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/runtime/run-envoy-smoke.sh"
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" CASE_SCOPE=all sh ci/runtime/lifecycle/run-legacy-open-connector-smoke.sh envoy
 
 smoke-envoy-modsecurity:
 	DECISION_BACKEND=libmodsecurity $(MAKE) smoke-envoy
@@ -552,7 +552,7 @@ smoke-haproxy: check-framework prepare-runtime-components
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" RESULTS_DIR="$${RESULTS_DIR:-$(BUILD_ROOT)/results/$${MODSECURITY_TEST_VARIANT:-no-crs}/$${MODSECURITY_MRTS_VARIANT:-no-mrts}/haproxy}" CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/runtime/run-haproxy-smoke.sh"
 
 smoke-lighttpd: check-framework
-	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/runtime/run-lighttpd-smoke.sh"
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" CASE_SCOPE=all sh ci/runtime/lifecycle/run-legacy-open-connector-smoke.sh lighttpd
 
 smoke-lighttpd-modsecurity:
 	DECISION_BACKEND=libmodsecurity $(MAKE) smoke-lighttpd
@@ -567,7 +567,7 @@ smoke-lighttpd-crs-secondary:
 	DECISION_BACKEND=libmodsecurity MODSECURITY_RULESET=crs CRS_SMOKE_CASE=secondary $(MAKE) smoke-lighttpd
 
 smoke-traefik: check-framework
-	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/runtime/run-traefik-smoke.sh"
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" CASE_SCOPE=all sh ci/runtime/lifecycle/run-legacy-open-connector-smoke.sh traefik
 
 smoke-traefik-modsecurity:
 	DECISION_BACKEND=libmodsecurity $(MAKE) smoke-traefik
@@ -1162,6 +1162,7 @@ check-remaining-connectors-build-wiring:
 
 check-remaining-connectors-start-wiring:
 	$(PYTHON) ci/checks/connectors/all/check-remaining-connectors-start-wiring.py
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest -v tests.test_legacy_open_connector_smoke tests.test_envoy_legacy_smoke_evidence
 
 check-remaining-connectors-claim-policy:
 	$(PYTHON) ci/checks/connectors/all/check-remaining-connectors-claim-policy.py

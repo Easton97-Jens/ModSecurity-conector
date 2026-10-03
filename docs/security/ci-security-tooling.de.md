@@ -349,6 +349,25 @@ zur Hostversion. Leere, reine Warnungs-, doppelte und gemischte Produktfamilien-
 Ausgaben werden abgelehnt; weder Warnungen noch fehlgeschlagene Befehle belegen
 eine konkrete Version.
 
+Legacy-Ziele der offenen Connectoren verwenden einen festen Parent-Launcher,
+um die exakt zentral vorbereiteten Envoy-, Traefik- und Lighttpd-Binaries an
+die bestehenden Framework-Einstiegspunkte zu übergeben. Er weist geerbte Binary-
+Overrides und unsichere Stage-Dateien zurück. Envoy-Service und Response-Observer
+sind an den aktuellen gemeinsamen Buildroot gebunden; fehlende Binaries bieten
+keinen Fallback auf ältere Services. Die native Start-Wiring-Prüfung führt
+Legacy-Übergabe und Adapter tatsächlicher Ergebnisse über ausgeführte Prozess-
+Fixtures in der gewöhnlichen Connector-CI aus.
+
+Die Envoy-Kompatibilitätsbrücke erhält den gebauten nativen `ext_authz`-Pfad.
+Vor dem bestehenden Legacy-Ergebnisformat verlangt sie frische private Client-
+Beobachtungen ohne Payload für HTTP 200/403, ein passendes Request-Header-Deny-
+Ereignis mit Regel `1000001` und Transaktion `envoy-block-1` sowie bestätigten
+Prozessstopp. Runtime- und Targeted-Dateinamen bezeichnen denselben begrenzten
+Zwei-Request-Record mit tatsächlichem Libmodsecurity-Backend. Native Fehlercodes
+bleiben erhalten, frühere PASS-Ausgaben werden invalidiert. Body-, CRS- und
+Katalogauswahl lassen sich durch dieses Paar nicht belegen; kanonische Katalog-
+IDs und Coverage werden nicht behauptet.
+
 ## Validierung und Einschränkungen
 
 Führen Sie `make check-ci-security-contract` für fokussierte statische Verträge

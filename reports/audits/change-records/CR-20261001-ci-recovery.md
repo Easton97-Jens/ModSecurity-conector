@@ -141,6 +141,12 @@ evidence remain outstanding.
 - `tests/test_resolve_lighttpd_host_binary.py`
 - `tests/test_trusted_lighttpd_namespace_dispatch_workflow.py`
 - `Makefile`
+- `connectors/envoy/harness/README.de.md`
+- `connectors/envoy/harness/README.md`
+- `connectors/envoy/harness/run_envoy_smoke.sh`
+- `tests/test_envoy_legacy_smoke_evidence.py`
+- `tests/test_legacy_open_connector_smoke.py`
+- `ci/runtime/lifecycle/run-legacy-open-connector-smoke.sh`
 - `ci/lib/framework_revision_pins.py`
 - `ci/provisioning/components/prepare-runtime-components.py`
 - `ci/evidence/reports/refresh-connector-reports.py`
@@ -497,6 +503,43 @@ in 26.120 seconds without skips on these frozen host-inventory sources.
 No concrete host version is claimed from a warning. Delivery and fresh
 exact-head CI, Sonar and hosted runtime checks remain required for these sources.
 
+Published follow-up `7690fa0d078e64cef01843ffec5241fc90337f2d` has exact
+Sonar analysis `5d294360-a079-4f34-a9f9-28293d6b0148` at
+`2026-10-03T13:07:01Z`: Gate ERROR, one `S5779` and five `S5778` findings in
+tests. No finding was suppressed. Source corrections retain the non-root
+identity rejection and precompute arguments outside the exception assertion;
+the integrated 142-test contract passed in 34.323 seconds afterwards.
+
+The predecessor Legacy run subsequently failed at the compatibility Envoy
+entrypoint because `ENVOY_BIN` was not passed. Its native artifact nevertheless
+proves Envoy `1.39.1`, Traefik `3.7.13` and Lighttpd `1.4.85`, each with two live
+PASS cases, HTTP 200/403 and exit zero. The Lighttpd provisioning correction is
+therefore runtime-confirmed at that recorded head. The closed Parent Legacy
+launcher now exports the exact centrally prepared host binaries and binds
+Envoy's service/observer to the current shared build; seven executed handoff
+tests passed. The existing Framework additionally requires nonempty Envoy
+Legacy JSONL after exit zero. The Parent bridge writes that format only from
+fresh private actual probes, summary and one matching native deny event,
+retaining actual failure23/blocked77 and invalidating prior PASS. One bounded
+two-request record remains distinct from YAML/CRS/body/full-matrix coverage.
+Its latest combined 45 tests passed in 22.618 seconds. Standard native start
+wiring runs both new modules in ordinary connector CI.
+
+Diagnostic [full run 37125765259](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37125765259)
+on `7690fa0d` stopped before runtime: both variants' Apache PID-replacement
+fixture did not guarantee a different inode after close/unlink/recreate; one
+variant also hit accepted HTTP readiness-socket descriptor churn during strict
+process inspection. Holding the original descriptor removes dependence on
+inode allocation; a post-listen readiness handshake and never-accept fixture
+remove transient descriptors. Actual hosted inode reuse was not measured;
+local allocation probes saw none, so its cause remains a bounded inference.
+Production ownership/cleanup checks are unchanged. The corrected 62 tests
+passed as root and actual existing UID994; 130 targeted stress iterations
+passed. No complete native NGINX execution or hidden case-failure diagnostic
+was reached. Fresh exact-head Sonar and hosted runtime evidence remain required.
+
+Final frozen-source integration passed `make check-bounded-smoke-runtime-contract`:142 tests in35.865 seconds, including the corrected real-permission/cleanup fixtures. Native build/start-wiring checks passed with all12 new Legacy tests in15.496 seconds. Independent frozen Legacy/Envoy/Apache-fixture source review reported zero concrete remaining findings. These results validate local contracts; they do not replace new-head hosted runtime.
+
 ## Known limitations
 
 Local privilege-dependent namespace integration had five existing skips. CI-mode quick-check passed with the two missing-header compiler skips; the ordinary local attempt timed out. The protected broker caller remains pinned to `49c40779a7b6de9f699391bcd524ea069787df42`; the updated broker source is not activated by this patch alone.
@@ -511,4 +554,13 @@ A full Parent hosted pass and both protected broker runtime profiles are outstan
 
 ## Final diff and review status
 
-Initial and corrective changes were delivered in PR 400. The latest published `8ddf08b9` head passed ordinary workflows, canonical No-CRS, CRS and exact NGINX, but both sequential full-smoke variants failed and Legacy was still active at the recorded snapshot. The focused Apache guard correction and safe NGINX failure diagnostics passed their owning local suites and the integrated 142-test contract; Apache version-inventory validation passed 56 tests. These sources require delivery and fresh exact-head CI/Sonar/runtime evidence. The native NGINX cause remains unproved. Earlier evidence retains its recorded historical head. Overall recovery remains partial pending that evidence and protected activation. Original working checkouts are preserved; only the task Parent Framework gitlink is changed as documented above. No Parent master integration or Framework/MRTS source edit is claimed. Both record language versions preserve the same values and limitations.
+Initial and corrective source was delivered in PR400. Current published head
+`7690fa0d` passed ordinary workflows and exact NGINX, but Sonar reported six
+test findings and the diagnostic full smoke stopped in Apache test fixtures.
+Their source corrections and the required Legacy binary/evidence fixes are
+locally validated and independently reviewed with no remaining concrete
+finding. Native NGINX case execution is still unproved. Fresh exact-head checks
+remain required after delivery; historical results retain their recorded head.
+Master integration and protected-caller activation remain separately required;
+no Parent merge or Framework/MRTS source edit is claimed. Original checkouts
+and user changes are preserved. Both language versions retain the same facts.

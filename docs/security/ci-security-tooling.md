@@ -318,6 +318,23 @@ digits. Stderr warnings remain visible on stderr and cannot become the host
 version. Empty, warning-only, duplicate and mixed-family output is rejected;
 neither warnings nor failed commands establish concrete-version evidence.
 
+Legacy open-connector targets use a fixed Parent launcher to export the exact
+centrally prepared Envoy, Traefik and Lighttpd binaries to the existing Framework
+entrypoints. It rejects inherited binary overrides and unsafe staged files.
+Envoy's service and response observer are bound to the current shared build
+root; missing binaries cannot fall back to an older service. The native start
+wiring check exercises the Legacy handoff and actual-result adapter through
+executed process fixtures in the ordinary connector CI.
+
+The Envoy compatibility bridge retains the built native `ext_authz` path. It
+requires fresh private payload-free client observations for HTTP 200/403, a
+matching rule `1000001`/transaction `envoy-block-1`/request-header deny event,
+and confirmed process stop before writing the existing Legacy result format.
+The runtime and targeted filenames identify the same bounded two-request
+record with the actual Libmodsecurity backend. Failed native exits are retained
+and previous PASS outputs invalidated. Body, CRS and catalog selections cannot
+be represented by this pair; canonical catalog IDs and coverage are not claimed.
+
 ## Validation and limitations
 
 Run `make check-ci-security-contract` for focused static contracts and lock
