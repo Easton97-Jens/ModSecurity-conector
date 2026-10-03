@@ -14,9 +14,18 @@
 
 Die Fehler aus Parent-Lauf [36906913089](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/36906913089) und Framework-Lauf [36703337419](https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/36703337419) beheben und aktuelle CI auf verwandte Fehler prüfen. Die Parent-Wartung verlangte fälschlich auch für einen geprüften, bereits gemergten Wartungsbranch einen einzigen Bot-Commit. Weitere Lücken betrafen lange Unix-Socket-Pfade, die Ablehnung des bereitgestellten Traefik-Host-Stagings, Broker-Berechtigungen und Tag-Abruf, unvollständige Updater-Inventare/Eingaben des kopierten Baums sowie vorübergehende API-Fehler der Artefaktbereinigung.
 
+Der Benutzer verlangte anschließend eine einzige gepflegte Stelle für
+`FRAMEWORK_SHA`, weitere gewöhnliche Revisionspins, Komponentenauswahl und
+Toolchains. Dies erweitert den angeforderten Reparaturumfang; es autorisiert
+keine Framework-/MRTS-Quelländerungen oder geschützte Broker-Aktivierung.
+
 ## Akzeptanzkriterien
 
 Regressionen müssen die ursprünglichen Fehler abdecken, ohne Publisher-Identität, Runtime-Isolation, unveränderliche Pins oder standardmäßig verweigerte Berechtigungen abzuschwächen. Die aktuelle gehostete Framework-Veröffentlichung und ihre PR-Prüfungen müssen erfolgreich sein. Gehostete Parent-Validierung und geschützte Broker-Aktivierung bleiben erforderlich, bevor alle Workflows als funktionsfähig gelten.
+
+Gewöhnliche Revisions- und Toolchain-Consumer müssen einen strikten Parent-
+Datensatz verwenden; unabhängige Gitlink-/Commit-Provenienz, Komponenten-
+Zuständigkeit und enger Feldumfang der Updater bleiben durchgesetzt.
 
 ## Implementierungsentscheidung und Begründung
 
@@ -39,47 +48,95 @@ bereitgestellt wird. Es gibt keine globale Aktivierung oder Aktivierung für
 andere Plugins; die Linux-`SO_PEERCRED`-UID-/GID-Authentifizierung bleibt
 intakt und wird nicht zur Umgehung des Importfehlers entfernt.
 
+Gewöhnliche Auswahl wird im exakten Datenrecord mit fünf Feldern
+`ci/tooling/project-versions.lock.json` zentralisiert: Schema `1`, Framework-/MRTS-
+Revisionen, Python `3.14.7` und Go `1.27.1`. Generierte `.python-version`-/
+`.go-version`-Ansichten bleiben mit Setup-Actions kompatibel; die Go-Modul-
+Untergrenze `1.26.5` bleibt getrennt. Komponentendefinitionen gehören weiterhin
+zur `ci/lib/common.sh` des ausgewählten Frameworks; der unveränderliche Framework-
+Pin wählt diese Quelle ohne duplizierte Komponentenautorität aus. Geschützte
+Broker-Tupel bleiben unabhängig. Der Reader prüft den exakten Parent-Git-Blob,
+aufgezeichnete Gitlinks und materialisierte HEADs unabhängiger Repositorys bei
+deaktivierten Replacement-Objekten. Updater erhalten unabhängige zentrale Felder,
+validieren bestehende und neue Kandidaten und teilen einen Directory-`flock`.
+Identitäts-/Inhaltsprüfungen und Erfassungen der Ersetzung vor Directory-fsync
+sichern Rollback ab, ohne crash-atomare Mehrdateiupdates zu behaupten. Die
+zweisprachige [Versionspin-Referenz](../../../docs/reference/version-pins.de.md)
+erläutert diese Kontrollen und native Ansichtssynchronisierung.
+
+Ein weiterer echter Traefik-Host-Fehler lieferte `503`/`403` statt der erlaubten
+Kontrolle: Yaegi wählte den Nicht-Linux-Peer-Credential-Stub, wenn nur moderne
+`//go:build`-Constraints vorhanden waren. Passende ältere Zeilen `// +build linux`
+und `// +build !linux` ergänzen jetzt beide modernen Constraints. Dies erhält
+das fehlgeschlossene Nicht-Linux-Verhalten und die Linux-UID-/GID-Authentifizierung.
+
 ## Geänderte Dateien
 
 - `.github/workflows/ci-security-workflow-lint.yml`
 - `.github/workflows/cleanup-artifacts.yml`
 - `.github/workflows/nginx-root-broker.yml`
+- `.github/workflows/test-connectors-with-crs-no-mrts.yml`
 - `.github/workflows/test-envoy.yml`
 - `.github/workflows/test-traefik.yml`
+- `.github/workflows/update-go-version.yml`
+- `.github/workflows/update-python-version.yml`
 - `.github/workflows/update-submodules.yml`
 - `.github/workflows/update-workflow-tools.yml`
 - `Makefile`
+- `ci/lib/framework_revision_pins.py`
+- `ci/provisioning/components/prepare-runtime-components.py`
 - `ci/runtime/broker/nginx_root_broker.py`
 - `ci/runtime/lifecycle/run-connector-stage.sh`
+- `ci/runtime/lifecycle/with-private-sockets.py`
+- `ci/tooling/project-versions.lock.json`
+- `ci/tools/read-framework-revisions.py`
+- `ci/tools/sync-framework-component-versions.py`
+- `ci/tools/sync-project-versions.py`
 - `ci/tools/update-workflow-tools.py`
+- `ci/tools/verify-framework-candidate-contract.py`
 - `connectors/envoy/harness/envoy_smoke_helper.py`
 - `connectors/envoy/harness/run_envoy_connector_runtime.sh`
 - `connectors/envoy/harness/start_envoy_connector.sh`
 - `connectors/traefik/config/traefik-response-observer-static.yaml`
 - `connectors/traefik/response_observer/.traefik.yml`
-- `connectors/traefik/scripts/start-smoke.sh`
+- `connectors/traefik/response_observer/peercred_linux.go`
+- `connectors/traefik/response_observer/peercred_other.go`
 - `connectors/traefik/scripts/runtime_smoke.py`
+- `connectors/apache/src/mod_security3.c`
+- `connectors/apache/src/msc_filters.c`
+- `connectors/nginx/config`
+- `connectors/traefik/scripts/start-smoke.sh`
 - `docs/reference/variables.de.md`
 - `docs/reference/variables.md`
+- `docs/reference/version-pins.de.md`
+- `docs/reference/version-pins.md`
 - `docs/security/ci-security-tooling.de.md`
 - `docs/security/ci-security-tooling.md`
 - `docs/security/trusted-nginx-root-broker.de.md`
 - `docs/security/trusted-nginx-root-broker.md`
-- `tests/ci_security/test_update_workflow_tools.py`
-- `tests/test_ci_security_workflows.py`
-- `tests/test_nginx_root_broker.py`
-- `tests/test_nginx_root_broker_workflow.py`
-- `tests/test_runtime_env_snapshot_contract.py`
-- `tests/test_traefik_runtime_smoke_security.py`
-- `tests/test_update_submodules_local_git.py`
-- `ci/runtime/lifecycle/with-private-sockets.py`
+- `modules/ModSecurity-test-Framework`
 - `reports/audits/change-records/CR-20261001-ci-recovery.de.md`
 - `reports/audits/change-records/CR-20261001-ci-recovery.md`
-- `tests/test_private_runtime_sockets.py`
-- `.github/workflows/test-connectors-with-crs-no-mrts.yml`
-- `modules/ModSecurity-test-Framework`
-- `ci/provisioning/components/prepare-runtime-components.py`
+- `scripts/version_updater_common.py`
+- `tests/ci_security/test_update_workflow_tools.py`
+- `tests/framework_sha_fixture.py`
+- `tests/test_apache_intervention_cleanup.py`
+- `tests/test_c_cpp_diagnostics.py`
+- `tests/test_ci_security_workflows.py`
+- `tests/test_framework_revision_pins.py`
+- `tests/test_nginx_root_broker.py`
+- `tests/test_nginx_root_broker_workflow.py`
 - `tests/test_prepare_runtime_components.py`
+- `tests/test_private_runtime_sockets.py`
+- `tests/test_project_toolchain_pins.py`
+- `tests/test_runtime_env_snapshot_contract.py`
+- `tests/test_traefik_runtime_smoke_security.py`
+- `tests/test_update_framework_versions.py`
+- `tests/test_update_go_version.py`
+- `tests/test_update_python_version.py`
+- `tests/test_update_submodules_local_git.py`
+- `tests/test_verify_framework_candidate_contract.py`
+- `tests/version_updater_test_support.py`
 
 ## Ausgeführte Befehle
 
@@ -106,6 +163,61 @@ Die integrierte Validierungsaufnahme zur geschlossenen CLI bestand 121 Tests in 
 
 Der hashgeprüfte Traefik-3.7.13-Host bestand alle 20 Runtime-Sicherheitstests, einschließlich echtem Laden der Route und Startabbruch bei fehlender Importfreigabe in einer der beiden Deklarationen. Die nativen Go-Unit-Tests und vet des Observers bestanden ebenfalls mit der vorhandenen Go-1.27.1-Toolchain. Diese Prüfungen belegen Loader-Verhalten und Observer-Quellprüfungen; vollständige gehostete Engine-Transaktionen bleiben separate Evidence.
 
+Die koordinierten zentralen Lock-Regressionsaufnahmen bestanden 18 Reader-Tests,
+16 Toolchain-Tests, eine kombinierte Suite mit 83 Tests und 55 Framework-
+Synchronizer-Tests. Dies sind begrenzte Aufnahmen; finale integrierte und gehostete
+Evidence für den neuen Quell-Head bleibt erforderlich. Die hashverifizierte
+Traefik-Host-/Engine-Validierung bestand 29 Tests ohne Skips, einschließlich
+authentifiziertem `MRC1`-`CLAIM`-Erfolg bei gleicher UID und Ablehnung einer falschen
+UID vor Frame-Bytes. Go-Unit-/vet-Prüfungen des Observers bestanden und der Nicht-
+Linux-Stub blieb fehlgeschlossen. Eine echte lokale Runtime mit aktuellem C-Service
+und gepinntem Traefik beobachtete erlaubte `200` und verweigerte `403`. Diese lokalen
+Prüfungen ersetzen keine gehostete Engine-Evidence des finalen Heads.
+
+Die anschließende native Zentralisierungsvalidierung bestand 216 CI-Sicherheits-
+Vertragstests mit fünf bestehenden Umgebungs-/Privilegien-Skips, 38 vollständige
+Workflow-/Tool-Updater-Tests und 74 Updater-/Sprachvertragstests. Die 19 Reader-
+und 16 zentralen Toolchain-Tests sind im Vertragsergebnis mit 216 Tests enthalten.
+Actionlint bestand für alle 31 Workflows; Zweisprachigkeits-, Link-, Variablen-
+und Connector-Konfigurationsprüfungen bestanden, mit 21 aktuellen generierten
+Konfigurationsdateien. Diese Prüfungen belegen keinen gehosteten Runtime-Erfolg.
+Die Quellreparaturen für Legacy-Event-Pfad und Full-NGINX-Profile-Registry-Root
+sind jetzt wie unten beschrieben implementiert; auch die Apache-`413`-Quellreparatur ist implementiert und besitzt getrennte lokale Evidence unten. Ein Pass aller Workflows wird nicht behauptet.
+
+Der Legacy-Traefik-Smoke-Starter materialisiert jetzt ausschließlich seine
+eingecheckte Standardkonfiguration im privaten Run-Verzeichnis mit Run-lokalem
+`event_path`; eine explizit übergebene Konfiguration bleibt unverändert.
+Staged-NGINX-Konfiguration löst eine fehlende Profile Registry ausschließlich
+aus einem übergebenen kanonischen `common/include`-Layout mit SDK-Header auf.
+Die Priorität eines expliziten Registry-Roots bleibt erhalten; ungültige oder
+unabhängige Roots scheitern. Die Diagnostics-Regression führte vier positive/
+negative Config-Prefix-Fälle aus. Die Traefik-Sicherheitsvalidierung bestand
+31 Tests mit zwei Skips wegen fehlendem Host in diesem lokalen Lauf; eine
+getrennte Startprüfung mit echtem C-Service und gepinntem Host bestand.
+Ein nativer Quick-check nach diesen abgeschlossenen Korrekturen bestand
+(Exit 0, 280 Tests, keine Unit-Skips), ausschließlich mit den beiden expliziten
+NGINX-/HAProxy-C17-Compiler-Skips wegen fehlender Header. Er fand vor der noch
+ausstehenden Apache-Reparatur statt und validiert sie nicht. Die Fixture-
+Grammatikkorrektur deckt stabile Go-Versionen `1.0.0`/`2.0.1` ab; ihr zusätzlicher
+Framework-Lauf mit 32 Tests bestand.
+
+Die Apache-Korrektur löst globale Common-Konfigurationsdefaults lokal in
+`connectors/apache/src/mod_security3.c` und `connectors/apache/src/msc_filters.c`
+auf und erhält explizit konfigurierte Grenzen, statt nicht gesetzte Grenzen
+als null zu behandeln. Alle 12 zuvor fehlschlagenden Fälle bestanden mit echtem
+lokalem Apache `2.4.66` und Engine `3.0.14`. Ein kleiner erlaubter Body lieferte
+`200`; ein übergroßer Body mit `1048577` Bytes lieferte `413` mit korrekten
+Zählern. Die 22 gezielten Tests und C17-Kompilierung mit
+`-Wall -Wextra -Werror` bestanden. Die gehostete ausgewählte Runtime mit Apache
+`2.4.68`/Engine `3.0.16` benötigt weiterhin Evidence des neuen Heads.
+
+Die vollständige Workflow-/Tool-Suite bestand erneut 38 Tests mit der nativen
+Make-Voraussetzung; die Root-Traefik-/Engine-/C++-Validierung mit echtem Host
+bestand 38 Tests ohne Skips. Die begrenzte Report-Nachbesserung läuft noch:
+Full Smoke produziert ausschließlich Apache-/NGINX-Scope, und das bestehende
+vollständige Strict-Gate bleibt erhalten. Weder eine Report-Gate-Korrektur noch
+ein Erfolg aller Workflows wird vor der eigenen Validierung behauptet.
+
 ## Security-Auswirkung
 
 Publisher-Identität, Abstammung gemergter PRs, expliziter Schreibumfang, standardmäßig verweigerte Berechtigungen, unveränderliche Action-Pins und Runtime-Isolation bleiben durchgesetzt. Die Traefik-Staging-Zulassung ist exakt und erweitert das Vertrauen nicht allgemein auf Build-Verzeichnisse. Socket-Wurzeln sind privat und validiert. Die Aktivierung eingeschränkter Yaegi-Imports ist auf den festen lokalen Observer begrenzt und erhält die Linux-Peer-Credential-Authentifizierung; ein Ladefehler bricht den Start ab. Diese Änderung enthält keine Framework-/MRTS-Quelländerungen. Nur der Framework-Gitlink des Task-Parents wird von `9181dc77dfb0685d87fa109e6800dc6052d77cc9` auf den geprüften Framework-master `6948ec5b916e400c4fcaa1b6ccfa64251f606f8d` angehoben; die ursprünglichen Arbeitscheckouts bleiben erhalten und MRTS bleibt `8a6bb546c4c81d8ffc7be801dceac60c6925685f`. Framework-PR 133 war bereits vor der Auswahl gemergt; dieser Task führt keinen Framework-Merge aus.
@@ -124,6 +236,16 @@ Der native Quick-check im CI-Modus nach dem Commit auf `e240bb2d4e21da9eb832c94d
 
 Frische Runtime-Läufe des korrigierten Heads [37103593221](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37103593221) (kanonisches No-CRS), [37103594952](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37103594952) (Legacy Open Connectors), [37103596368](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37103596368) (Full Smoke mit deaktivierter Bereinigung) und [37103555691](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37103555691) (CRS) liefen bei dieser Aufnahme ohne beobachteten Fehler. Laufende Jobs sind keine bestandenen Prüfungen. Bereitstellung, Prüfungen und Sonar-Rücklesung des finalen Heads bleiben in PR 400 und im externen Task-Plan nachgehalten, um eine reine Dokumentations-CI-Schleife zu vermeiden.
 
+Die Maintainability-Korrektur wurde als `f986fe7ef8e46a0a838a8937b2986d6ffd564208`
+veröffentlicht. Ihre exakte Sonar-Analyse um `2026-10-03T06:43:34+0000` meldete
+Quality Gate `OK`, null Bugs, null Vulnerabilities und null Code Smells, ohne
+Unterdrückung oder Gate-Abschwächung. Die vorherigen schweren `e240bb2`-Läufe wurden
+abgelöst/abgebrochen; ihre obige Laufzustandsaufnahme ist historisch und erfüllt
+keine Abschlusskriterien. Die `f986fe7`-CRS-Runde bestand alle fünf ausgewählten
+Connector-Jobs und das Aggregat. Die nachfolgende Zentralisierung und die Yaegi-
+Build-Constraint-Korrekturen benötigen einen neuen exakten Head und frische
+gehostete/Sonar-Evidence; keiner der früheren grünen Scans validiert sie.
+
 ## Bekannte Einschränkungen
 
 Lokale privilegienabhängige Namespace-Integration hatte fünf bestehende Skips. Quick-check im CI-Modus bestand mit den beiden Compiler-Skips wegen fehlender Header; der normale lokale Versuch erreichte das Zeitlimit. Der geschützte Broker-Caller bleibt auf `49c40779a7b6de9f699391bcd524ea069787df42` gepinnt; dieser Patch allein aktiviert die geänderte Broker-Quelle nicht.
@@ -138,4 +260,4 @@ Ein vollständiger gehosteter Parent-Pass und beide geschützten Broker-Runtime-
 
 ## Finaler Diff- und Review-Status
 
-Die ursprünglichen und korrigierten Änderungen wurden in PR 400 bereitgestellt. Für den veröffentlichten korrigierten Head liegt die oben dokumentierte erfolgreiche Sonar- und lokale Quick-check-Aufnahme vor; die Maintainability-Nachbesserung und die vollständige gehostete Runtime-Validierung benötigen weiterhin Evidence des finalen Heads. Die Gesamtreparatur bleibt bis zu dieser Evidence und geschützter Aktivierung teilweise abgeschlossen. Die ursprünglichen Arbeitscheckouts bleiben erhalten; nur der Framework-Gitlink des Task-Parents wird wie oben dokumentiert geändert. Weder Parent-master-Integration noch Framework-/MRTS-Quelländerungen werden behauptet. Beide Sprachfassungen enthalten dieselben Werte und Einschränkungen.
+Die ursprünglichen und korrigierten Änderungen wurden in PR 400 bereitgestellt. Für den veröffentlichten korrigierten Head liegt die oben dokumentierte erfolgreiche Sonar- und lokale Quick-check-Aufnahme vor; die nachfolgenden Zentralisierungs-/Build-Constraint-Korrekturen und die vollständige gehostete Runtime-Validierung benötigen weiterhin Evidence des finalen Heads. Die Gesamtreparatur bleibt bis zu dieser Evidence und geschützter Aktivierung teilweise abgeschlossen. Die ursprünglichen Arbeitscheckouts bleiben erhalten; nur der Framework-Gitlink des Task-Parents wird wie oben dokumentiert geändert. Weder Parent-master-Integration noch Framework-/MRTS-Quelländerungen werden behauptet. Beide Sprachfassungen enthalten dieselben Werte und Einschränkungen.

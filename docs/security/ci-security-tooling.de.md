@@ -70,6 +70,19 @@ kopiert die vollständigen registrierten Vertragseingaben einschließlich ihrer
 Offline-Test-Fixtures; diese read-only-Eingaben erweitern die erlaubten
 Änderungen des Publishers nicht.
 
+## Zentrale gewöhnliche Revisions- und Toolchain-Pins
+
+`ci/tooling/project-versions.lock.json` ist die einzige gepflegte Parent-
+Konfiguration für gewöhnliche Framework-/MRTS-Revisionen und Python-/Go-
+Toolchains. Ihre generierten Setup-Action-Ansichten bleiben `.python-version`
+und `.go-version`. Gewöhnliche Revisionsconsumer prüfen den exakten Parent-
+Lock-Blob, unabhängig aufgezeichnete Gitlinks und materialisierte Repository-
+HEADs bei deaktivierten Git-Replacements. Komponenten bleiben in der
+`ci/lib/common.sh` des ausgewählten Frameworks definiert; Action-/Sicherheits-
+Tool-Pins behalten ihre getrennte Lockdatei. Geschützte Broker-Tupel bleiben
+unabhängig geprüft. [Projekt-Versionspins](../reference/version-pins.de.md)
+erläutern Zuständigkeit, Synchronisierung und Fehlersemantik.
+
 ## Framework-Submodul-Wartung und Artefaktbereinigung
 
 `update-submodules.yml` unterscheidet offene Wartungsbranches von Branches, die
@@ -119,7 +132,10 @@ Betreiberkonfiguration aktiviert dies ausschließlich für dieses lokale Plugin
 Beide Deklarationen sind erforderlich. Das statische Beispiel und beide
 Smoke-Einstiegspunkte aktivieren außerdem `experimental.abortOnPluginFailure`,
 damit ein Observer-Ladefehler den Start abbricht, statt seine Route unverfügbar
-zu lassen.
+zu lassen. Passende ältere Build-Constraints
+`// +build linux` / `// +build !linux` ergänzen die modernen
+`//go:build`-Constraints, damit Yaegi unter Linux die Linux-Credential-
+Implementierung auswählt und anderswo den fehlgeschlossenen Stub erhält.
 
 Diese Aktivierung gilt nur für die feste Repository-eigene Observer-Quelle,
 die ohne Symlinks im privaten Smoke-Arbeitsverzeichnis bereitgestellt wird.
@@ -153,7 +169,7 @@ ohne einen laufenden Wartungsversuch abzubrechen und lässt Arbeit nur für die
 kanonische Nicht-Fork-Ref `master` von `Easton97-Jens/ModSecurity-conector` zu.
 
 Der Resolver verwendet den exakten vertrauenswürdigen Event-SHA, die kanonische
-`.python-version` und `scripts/update-python-version.py --check --json`, um
+Projekt-Lockdatei samt geprüfter `.python-version`-Ansicht und `scripts/update-python-version.py --check --json`, um
 die typisierten Outputs `status`, `current_version`, `latest_version` und
 `update_available` auszugeben. Der Validator installiert und prüft den
 Candidate-Patch unabhängig, löst ihn mit `--expected-version` erneut auf,
@@ -180,7 +196,8 @@ und keinen passenden PR oder genau einen Same-Repository-Draft-PR mit festem
 Titel und Marker `<!-- modsecurity-conector-python-314-updater -->`, Basis
 `master` und deaktiviertem automatischen Merge. Er prüft bei einem bestehenden
 Branch dessen historischen Scope, baut danach von aktuellem vertrauenswürdigem
-`origin/master` neu auf, ändert nur `.python-version`, staged nur diese Datei
+`origin/master` neu auf, ändert nur das Lock-Feld `python_version` samt
+`.python-version`-Ansicht, staged nur diese beiden Dateien
 und verwendet beim sicheren Ersetzen des verifizierten Wartungs-Branch nur die
 exakte Form
 `--force-with-lease=refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_TIP`. Ein
@@ -234,7 +251,8 @@ AddressSanitizer und UndefinedBehaviorSanitizer aus. Die <code>go.mod</code>
 jedes Moduls behält seine Go-Sprachbaseline. Bei seiner begrenzten planmäßigen
 Auflösung wählt der Updater die höchste stabile numerische Go-Release und
 schlägt sie nach read-only-Candidate-Validierung in einem Draft PR vor. Er darf
-nur <code>.go-version</code> und das feste, unabhängig validierte Envoy-
+nur das Feld <code>go_version</code> der Projekt-Lockdatei,
+<code>.go-version</code> und das feste, unabhängig validierte Envoy-
 Komponenten-Bundle ändern; beliebige Modul- oder Dependency-Dateien kann er
 nicht ändern. Das C/C++-Ergebnis beansprucht keine vollständige
 Connector-Abdeckung; eine Erweiterung erfordert reproduzierbare Builds für den

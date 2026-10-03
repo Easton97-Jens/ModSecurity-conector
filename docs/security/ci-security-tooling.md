@@ -67,6 +67,18 @@ requires updating both lists. Proposed-tree validation copies the complete
 registered contract inputs, including their offline test fixtures; those
 read-only inputs do not expand the publisher's permitted changes.
 
+## Central ordinary revision and toolchain pins
+
+`ci/tooling/project-versions.lock.json` is the single maintained Parent
+configuration for ordinary Framework/MRTS revisions and Python/Go toolchains.
+Its generated setup-action views remain `.python-version` and `.go-version`.
+Ordinary revision consumers verify the exact Parent lock blob, independent
+recorded gitlinks and materialized repository HEADs with Git replacements
+disabled. Components remain defined by the selected Framework's `ci/lib/common.sh`;
+action/security-tool pins keep their separate lock. Protected broker tuples
+remain independently reviewed. See [project version pins](../reference/version-pins.md)
+for ownership, synchronization and failure semantics.
+
 ## Framework submodule maintenance and artifact cleanup
 
 `update-submodules.yml` distinguishes open maintenance branches from branches
@@ -111,7 +123,10 @@ to authenticate the response-companion peer. Yaegi must expose the restricted
 plugin through `experimental.localPlugins.modsecurityResponseObserver.settings.useUnsafe`.
 Both declarations are required. The static example and both smoke entry points
 also enable `experimental.abortOnPluginFailure` so an observer loader failure
-aborts startup instead of leaving its route unavailable.
+aborts startup instead of leaving its route unavailable. Matching legacy
+`// +build linux` / `// +build !linux` constraints accompany the modern
+`//go:build` constraints so Yaegi selects the Linux credential implementation
+on Linux and retains the fail-closed stub elsewhere.
 
 This opt-in applies only to the fixed repository-owned observer source, staged
 without symlinks in the private smoke workspace. It is not a global opt-in or
@@ -141,8 +156,8 @@ schedule or `workflow_dispatch`, serializes per repository through
 without cancelling a running maintenance attempt, and admits work only for the
 canonical non-fork `Easton97-Jens/ModSecurity-conector` `master` ref.
 
-The resolver uses the exact trusted event SHA, the canonical `.python-version`,
-and `scripts/update-python-version.py --check --json` to emit the typed
+The resolver uses the exact trusted event SHA, the canonical project lock and
+its checked `.python-version` view, and `scripts/update-python-version.py --check --json` to emit the typed
 `status`, `current_version`, `latest_version`, and `update_available` outputs.
 The validator independently installs and verifies the candidate patch,
 re-resolves it with `--expected-version`, uses hash-locked CI dependencies,
@@ -165,8 +180,9 @@ Before it writes, the publisher requires either no maintenance branch and no
 matching PR, or exactly one same-repository Draft PR with the fixed title and
 marker `<!-- modsecurity-conector-python-314-updater -->`, `master` base, and
 automatic merge disabled. It verifies an existing branch's historical scope,
-then rebuilds from current trusted `origin/master`, applies only
-`.python-version`, stages only that file, and uses the exact
+then rebuilds from current trusted `origin/master`, applies only the
+`python_version` lock field and its `.python-version` view, stages only those
+two files, and uses the exact
 `--force-with-lease=refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_TIP` form only
 when safely replacing the verified maintenance branch. An unconditional force
 push, a default-branch update, merge, or auto-merge is not permitted.
@@ -213,8 +229,8 @@ run for the Common HTTP header parser with C17, AddressSanitizer, and
 UndefinedBehaviorSanitizer. Each module's <code>go.mod</code> still owns its Go
 language baseline. At its bounded scheduled resolution, the updater selects
 the greatest stable numeric Go release and proposes it in a Draft PR after
-read-only candidate validation. It may change only <code>.go-version</code>
-and the fixed, independently validated Envoy component bundle; it cannot alter
+read-only candidate validation. It may change only the <code>go_version</code> field of the project lock,
+<code>.go-version</code> and the fixed, independently validated Envoy component bundle; it cannot alter
 arbitrary module or dependency files. The C/C++ result does not claim full
 connector coverage; expanding it requires reproducible builds for the selected
 connector scope.

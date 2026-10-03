@@ -758,7 +758,7 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
     def test_native_baseline_uses_nonrecursive_updater_inventory_regression(self) -> None:
         """Candidate validation must not invoke the test that validates candidates."""
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
-        baseline = makefile.split("check-ci-security-contract:\n", 1)[1].split(
+        baseline = makefile.split("check-ci-security-contract: check-project-versions\n", 1)[1].split(
             "\n\n", 1
         )[0]
         selector = (

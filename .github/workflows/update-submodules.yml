@@ -284,6 +284,7 @@ jobs:
             --repo-root "$GITHUB_WORKSPACE" \
             --candidate-sha "$CANDIDATE_SHA" \
             --framework-common "$framework_common" \
+            --candidate-framework-root "$GITHUB_WORKSPACE/$SUBMODULE_PATH" \
             --expected-parent-framework-sha "$CURRENT_GITLINK_SHA"
 
       - name: Create private read-only candidate guard
@@ -524,8 +525,7 @@ jobs:
                 -e connectors/haproxy/htx-overlay/version-contract.json \
                 -e scripts/generate_compiler_guides.py \
                 -e tests/test_compiler_guides.py \
-                -e .github/workflows/test-connectors-with-crs-no-mrts.yml \
-                -e tests/test_ci_security_workflows.py \
+                -e ci/tooling/project-versions.lock.json \
                 -e ci/checks/evidence/check-runtime-producer-readiness.py \
                 -e .github/workflows/test-full-smoke-sequential.yml \
                 -e .github/workflows/nginx-root-broker.yml \
@@ -581,8 +581,7 @@ jobs:
                 $6 == "connectors/haproxy/htx-overlay/version-contract.json" ||
                 $6 == "scripts/generate_compiler_guides.py" ||
                 $6 == "tests/test_compiler_guides.py" ||
-                $6 == ".github/workflows/test-connectors-with-crs-no-mrts.yml" ||
-                $6 == "tests/test_ci_security_workflows.py" ||
+                $6 == "ci/tooling/project-versions.lock.json" ||
                 $6 == "ci/checks/evidence/check-runtime-producer-readiness.py" ||
                 $6 == ".github/workflows/test-full-smoke-sequential.yml" ||
                 $6 == ".github/workflows/nginx-root-broker.yml" ||
@@ -945,6 +944,7 @@ jobs:
             --repo-root "$GITHUB_WORKSPACE" \
             --candidate-sha "$CANDIDATE_SHA" \
             --framework-common "$framework_common" \
+            --candidate-framework-root "$GITHUB_WORKSPACE/$SUBMODULE_PATH" \
             --expected-parent-framework-sha "$MASTER_OLD_SHA"
           python3 ci/tools/sync-framework-component-versions.py \
             --sync \
@@ -960,6 +960,7 @@ jobs:
             --repo-root "$GITHUB_WORKSPACE" \
             --candidate-sha "$CANDIDATE_SHA" \
             --framework-common "$framework_common" \
+            --candidate-framework-root "$GITHUB_WORKSPACE/$SUBMODULE_PATH" \
             --expected-parent-framework-sha "$CANDIDATE_SHA"
           python3 scripts/generate_compiler_guides.py
           git -c core.hooksPath=/dev/null add -- \
@@ -973,8 +974,7 @@ jobs:
             connectors/haproxy/htx-overlay/version-contract.json \
             scripts/generate_compiler_guides.py \
             tests/test_compiler_guides.py \
-            .github/workflows/test-connectors-with-crs-no-mrts.yml \
-            tests/test_ci_security_workflows.py \
+            ci/tooling/project-versions.lock.json \
             ci/checks/evidence/check-runtime-producer-readiness.py \
             .github/workflows/test-full-smoke-sequential.yml \
             .github/workflows/nginx-root-broker.yml \

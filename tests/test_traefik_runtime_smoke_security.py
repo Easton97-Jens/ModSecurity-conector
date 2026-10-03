@@ -4,9 +4,11 @@ import argparse
 import importlib.util
 import json
 import os
+import socket
 import stat
 import subprocess
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -342,6 +344,80 @@ class TraefikRuntimeSmokeSecurityTest(unittest.TestCase):
             self.assertNotEqual(undeclared.returncode, 0)
             self.assertIn("syscall", undeclared.stdout + undeclared.stderr)
 
+    def test_peer_credential_platform_constraints_support_native_go_and_host_interpreter(self) -> None:
+        observer = ROOT / "connectors/traefik/response_observer"
+        for name, constraint in (("peercred_linux.go", "linux"), ("peercred_other.go", "!linux")):
+            with self.subTest(source=name):
+                self.assertTrue((observer / name).read_text().startswith(
+                    f"//go:build {constraint}\n// +build {constraint}\n\n"
+                ))
+
+    def test_real_host_authenticates_peer_before_sending_companion_claim(self) -> None:
+        host_selection = os.environ.get("TRAEFIK_BIN")
+        if not host_selection:
+            self.skipTest("TRAEFIK_BIN must provide an already provisioned Linux host")
+        host = Path(host_selection)
+        binary = RUNNER.require_local_executable(host, "test Traefik binary", host.parent)
+        for expected_uid in (os.geteuid(), os.geteuid() + 1):
+            with self.subTest(expected_uid=expected_uid), tempfile.TemporaryDirectory(
+                prefix="traefik-peer-"
+            ) as temporary:
+                runtime = Path(temporary)
+                companion_socket = runtime / "peer.sock"
+                frames: list[bytes] = []
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
+                    listener.bind(str(companion_socket))
+                    os.chmod(companion_socket, 0o600)
+                    listener.listen(1)
+                    listener.settimeout(5)
+
+                    def receive_claim() -> None:
+                        connection, _ = listener.accept()
+                        with connection:
+                            connection.settimeout(5)
+                            header = b""
+                            while len(header) < 12:
+                                chunk = connection.recv(12 - len(header))
+                                if not chunk:
+                                    break
+                                header += chunk
+                            frames.append(header)
+
+                    receiver = threading.Thread(target=receive_claim)
+                    receiver.start()
+                    RUNNER.stage_response_observer(ROOT / "connectors/traefik/response_observer", runtime)
+                    config = runtime / "dynamic.yml"
+                    # Isolate the observer's peer-authentication boundary;
+                    # no forwardAuth service or real engine is involved here.
+                    dynamic = RUNNER.dynamic_config(1, 2, companion_socket).replace(
+                        "      - modsecurity-forwardauth\n", ""
+                    ).replace(
+                        "          timeoutMillis: 5000",
+                        f"          timeoutMillis: 5000\n          expectedPeerUID: {expected_uid}\n"
+                        f"          expectedPeerGID: {os.getegid()}",
+                    )
+                    config.write_text(dynamic)
+                    port = RUNNER.free_port()
+                    command = RUNNER.traefik_command(binary, port, config, runtime / "access.log")
+                    with (runtime / "host.log").open("wb") as log:
+                        process = subprocess.Popen(command, cwd=runtime, stdout=log, stderr=subprocess.STDOUT)
+                        try:
+                            RUNNER.wait_for_traefik(port, process)
+                            # The deliberately incomplete companion closes
+                            # after CLAIM; neither case may reach upstream.
+                            self.assertEqual(RUNNER.http_status(
+                                f"http://127.0.0.1:{port}/peer",
+                                {"X-Msconnector-Response-Handle": "0" * 64},
+                            ), 503)
+                        finally:
+                            RUNNER.stop_process(process)
+                            receiver.join(timeout=6)
+                    self.assertFalse(receiver.is_alive())
+                    if expected_uid == os.geteuid():
+                        self.assertEqual(frames, [b"MRC1\x02\x01\x00\x00\x00\x00\x00\x40"])
+                    else:
+                        self.assertEqual(frames, [b""])
+
     def test_forwardauth_preserves_common_header_limit_for_actual_mrc1_framing(self) -> None:
         service = (ROOT / "connectors" / "traefik" / "src" / "traefik_forwardauth_service_main.c").read_text(
             encoding="utf-8"
@@ -455,3 +531,30 @@ class TraefikRuntimeSmokeSecurityTest(unittest.TestCase):
             self.assertEqual(result.returncode, 77)
             self.assertIn("dot components", result.stderr)
             self.assertEqual(sentinel.read_text(encoding="utf-8"), "keep")
+
+    def test_default_start_config_uses_run_local_event_path_before_validation(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="traefik-start-config-") as temporary:
+            root = Path(temporary)
+            build = root / "build"
+            (build / "traefik-connector").mkdir(parents=True, mode=0o700)
+            connector = self.make_executable(root / "connector")
+            connector.write_text("#!/bin/sh\nexit 19\n")
+            host = self.make_executable(root / "traefik")
+            observer_build = self.make_executable(root / "observer-build")
+            environment = {**os.environ, "BUILD_ROOT": str(build),
+                           "TRAEFIK_CONNECTOR_BIN": str(connector), "TRAEFIK_BIN": str(host),
+                           "TRAEFIK_RESPONSE_OBSERVER_BUILD": str(observer_build)}
+            environment.pop("TRAEFIK_CONNECTOR_CONFIG", None)
+            result = subprocess.run(
+                ["sh", str(ROOT / "connectors/traefik/scripts/start-smoke.sh")],
+                cwd=ROOT, env=environment, capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 19)
+            self.assertIn("config check failed", result.stderr)
+            start = build / "traefik-connector/start-smoke"
+            generated = (start / "traefik-forwardauth.conf").read_text()
+            source = (ROOT / "connectors/traefik/config/traefik-forwardauth.conf").read_text()
+            self.assertEqual(generated, "\n".join(
+                f"event_path={start}/events.jsonl" if line.startswith("event_path=") else line
+                for line in source.splitlines()
+            ) + "\n")

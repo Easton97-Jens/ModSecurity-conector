@@ -342,8 +342,8 @@ check-runtime-path-policy: check-framework
 check-bilingual-docs:
 	$(PYTHON) ci/checks/documentation/check-bilingual-docs.py
 
-check-ci-security-contract:
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest -v tests.test_ci_security_workflows tests.test_validate_submodule_candidate_state tests.test_update_submodules_local_git tests.test_update_framework_versions tests.test_verify_framework_candidate_contract tests.test_prepare_readonly_submodule_validation_sandbox tests.test_run_readonly_submodule_validation_namespace tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_all_locked_action_references_are_in_the_publisher_allowlist
+check-ci-security-contract: check-project-versions
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest -v tests.test_ci_security_workflows tests.test_framework_revision_pins tests.test_project_toolchain_pins tests.test_validate_submodule_candidate_state tests.test_update_submodules_local_git tests.test_update_framework_versions tests.test_verify_framework_candidate_contract tests.test_prepare_readonly_submodule_validation_sandbox tests.test_run_readonly_submodule_validation_namespace tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_all_locked_action_references_are_in_the_publisher_allowlist
 	$(PYTHON) ci/tools/fetch_security_tool.py --tool actionlint --validate-only
 	$(PYTHON) ci/tools/fetch_security_tool.py --tool zizmor --validate-only
 	$(PYTHON) ci/tools/fetch_security_tool.py --tool gitleaks --validate-only
@@ -1330,6 +1330,13 @@ check-python-version-contract:
 check-go-version-contract:
 	$(PYTHON) ci/checks/common/check-go-version-contract.py
 
+.PHONY: check-project-versions sync-project-versions
+check-project-versions:
+	$(PYTHON) ci/tools/sync-project-versions.py --check
+
+sync-project-versions:
+	$(PYTHON) ci/tools/sync-project-versions.py --sync
+
 # Read-only host-runtime gate. Connector workflows set the reviewed runtime
 # identity and any profile-specific prerequisite arguments.
 HOSTRUNTIME_CONNECTOR ?= generic
@@ -1384,6 +1391,7 @@ test-hostruntime-preflight:
 	$(PYTHON) -m unittest -v tests.test_hostruntime_preflight
 
 lint: check-framework
+	$(MAKE) check-project-versions
 	$(MAKE) test-hostruntime-preflight
 	find ci -type f -name '*.sh' -print0 | xargs -0 -r sh -n
 	find connectors/envoy connectors/traefik connectors/lighttpd -type f -name '*.sh' -exec sh -n {} +

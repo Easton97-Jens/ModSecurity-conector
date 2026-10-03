@@ -13,6 +13,7 @@ from pathlib import Path
 
 import yaml
 from yaml.tokens import AliasToken, AnchorToken, KeyToken, ScalarToken, TagToken
+from ci.lib.framework_revision_pins import load_project_version_pins
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -35,8 +36,9 @@ PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE = (
     "Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@"
     + PROTECTED_NGINX_BROKER_SHA
 )
-WITH_CRS_NO_MRTS_FRAMEWORK_SHA = "6948ec5b916e400c4fcaa1b6ccfa64251f606f8d"
-WITH_CRS_NO_MRTS_MRTS_SHA = "8a6bb546c4c81d8ffc7be801dceac60c6925685f"
+PROJECT_VERSION_PINS = load_project_version_pins(ROOT)
+WITH_CRS_NO_MRTS_FRAMEWORK_SHA = PROJECT_VERSION_PINS["framework_sha"]
+WITH_CRS_NO_MRTS_MRTS_SHA = PROJECT_VERSION_PINS["mrts_sha"]
 PROTECTED_NGINX_BROKER_CALLER_MASTER_GATE_TERMS = frozenset(
     {
         "github.event_name == 'workflow_dispatch'",
@@ -51,7 +53,7 @@ LOCKED_ACTION_USE = re.compile(
     r"(?P<prefix>uses:\s+[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?@)"
     r"(?P<sha>[a-f0-9]{40})(?:\s+#\s*v[^\n]+)?"
 )
-SUBMODULE_PUBLISHER_NORMALIZED_SHA256 = "0fb998291b7f5e5abd8e65841b54b8c4e66945bee971846a30e1d20c4c1e1527"
+SUBMODULE_PUBLISHER_NORMALIZED_SHA256 = "510b20d55b4d4293c7e78c826035d1c695a12216de280c59d6f36122112ff708"
 SUBMODULE_PUBLISHER_APP_TOKEN_ACTION = "actions/create-github-app-token"
 SUBMODULE_PUBLISHER_APP_TOKEN_INPUTS = {
     "client-id": "${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}",
@@ -1833,16 +1835,18 @@ jobs:
             "EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base_sha }}",
             job,
         )
-        self.assertIn(f"EXPECTED_FRAMEWORK_SHA: {WITH_CRS_NO_MRTS_FRAMEWORK_SHA}", job)
-        self.assertIn(f"EXPECTED_MRTS_SHA: {WITH_CRS_NO_MRTS_MRTS_SHA}", job)
         literal_framework_shas = re.findall(
-            r"^ {10}FRAMEWORK_SHA: ([0-9a-f]{40})$", workflow, re.MULTILINE
+            r"^\s+(?:EXPECTED_)?(?:FRAMEWORK|MRTS)_SHA: ([0-9a-f]{40})$", workflow, re.MULTILINE
         )
-        self.assertEqual(literal_framework_shas, [WITH_CRS_NO_MRTS_FRAMEWORK_SHA] * 3)
+        self.assertEqual(literal_framework_shas, [])
+        self.assertEqual(workflow.count("FRAMEWORK_SHA: ${{ steps.verify-revisions.outputs.framework_sha }}"), 3)
+        self.assertEqual(workflow.count("MRTS_SHA: ${{ steps.verify-revisions.outputs.mrts_sha }}"), 3)
+        verification = job.split("      - name: Verify pinned Parent, Framework, and MRTS revisions\n", 1)[1].split("      - name:", 1)[0]
+        self.assertIn("id: verify-revisions", verification)
+        self.assertIn("python3 -I ci/tools/read-framework-revisions.py", verification)
+        self.assertIn('--parent-sha "$EXPECTED_PARENT_SHA" --format github-output >> "$GITHUB_OUTPUT"', verification)
         self.assertIn('test "$parent_commit" = "$EXPECTED_PARENT_SHA"', job)
         self.assertIn('test "$EXPECTED_PARENT_SHA" != "$EXPECTED_BASE_SHA"', job)
-        self.assertIn('test "$framework_commit" = "$EXPECTED_FRAMEWORK_SHA"', job)
-        self.assertIn('test "$mrts_commit" = "$EXPECTED_MRTS_SHA"', job)
         self.assertIn("--require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock", job)
         self.assertIn('test "${#CRS_RUNTIME_RUN_ID}" -le 48', job)
         self.assertIn("EVIDENCE_ROOT: \"\"", job)
@@ -3349,12 +3353,12 @@ sudo -n chmod 0750 "$namespace_parent"
             publisher.index("--sync"),
             publisher.index('--expected-parent-framework-sha "$CANDIDATE_SHA"'),
         )
-        for registered_path in (
-            ".github/workflows/test-connectors-with-crs-no-mrts.yml",
-            "tests/test_ci_security_workflows.py",
-        ):
-            with self.subTest(registered_path=registered_path):
-                self.assertEqual(publisher.count(registered_path), 3)
+        self.assertEqual(publisher.count("ci/tooling/project-versions.lock.json"), 3)
+        self.assertNotIn(".github/workflows/test-connectors-with-crs-no-mrts.yml", publisher)
+        self.assertNotIn("tests/test_ci_security_workflows.py", publisher)
+        candidate_root = '--candidate-framework-root "$GITHUB_WORKSPACE/$SUBMODULE_PATH"'
+        self.assertEqual(publisher.count(candidate_root), 2)
+        self.assertEqual(validator.count(candidate_root), 1)
         self.assertIn("python3 scripts/generate_compiler_guides.py", publisher)
         self.assertGreaterEqual(publisher.count("scripts/generate_compiler_guides.py"), 3)
         self.assertGreaterEqual(publisher.count("tests/test_compiler_guides.py"), 3)
@@ -3738,7 +3742,8 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertNotIn('git fetch --no-tags origin', publisher)
         self.assertIn('git reset --hard "origin/$DEFAULT_BRANCH"', publisher)
         self.assertIn('branch_paths="$(git diff --name-only "$merge_base" "origin/$UPDATE_BRANCH")"', publisher)
-        self.assertIn('if [ "$branch_paths" != ".python-version" ]; then', publisher)
+        expected_paths = "$(printf '%s\\n' .python-version ci/tooling/project-versions.lock.json)"
+        self.assertIn(f'if [ "$branch_paths" != "{expected_paths}" ]; then', publisher)
         self.assertIn('"--force-with-lease=refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_TIP"', publisher)
         self.assertNotRegex(publisher, r"git push\s+--force(?:\s|$)")
         self.assertNotRegex(publisher, r"git push\s+--force-with-lease(?:\s|$)")
@@ -3754,10 +3759,14 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn("Recheck the matching Draft pull request after publication", publisher)
         self.assertIn("pullRequest.head.sha !== process.env.EXPECTED_HEAD_SHA", publisher)
         self.assertIn('changed_paths="$(git diff --name-only "origin/$DEFAULT_BRANCH" --)"', publisher)
-        self.assertIn("if [ \"$changed_paths\" != \".python-version\" ]; then", publisher)
-        self.assertIn('git add -- .python-version', publisher)
+        self.assertIn(f'if [ "$changed_paths" != "{expected_paths}" ]; then', publisher)
+        field_check = "python3 ci/tools/sync-project-versions.py --verify-update python"
+        self.assertIn(field_check, publisher)
+        staging = 'git add -- .python-version ci/tooling/project-versions.lock.json'
+        self.assertLess(publisher.index(field_check), publisher.index(staging))
+        self.assertIn(staging, publisher)
         self.assertIn('staged_paths="$(git diff --cached --name-only)"', publisher)
-        self.assertIn('if [ "$staged_paths" != ".python-version" ]; then', publisher)
+        self.assertIn(f'if [ "$staged_paths" != "{expected_paths}" ]; then', publisher)
         self.assertIn("git diff --cached --check", publisher)
         self.assertNotIn("git add -A", publisher)
         self.assertNotIn("git add .", publisher)

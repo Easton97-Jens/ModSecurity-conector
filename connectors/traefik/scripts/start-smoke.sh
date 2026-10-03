@@ -216,6 +216,18 @@ TRAEFIK_DIAGNOSTIC_SED_RANGE='1,160p'
 rm -rf "$START_ROOT"
 mkdir -p "$COMPANION_DIR"
 chmod 700 "$START_ROOT" "$COMPANION_DIR"
+if [ -z "${TRAEFIK_CONNECTOR_CONFIG:-}" ]; then
+    # The checked-in default is a template. A fresh runner must not depend
+    # on its example absolute log directory or write outside this run.
+    START_CONFIG="$START_ROOT/traefik-forwardauth.conf"
+    while IFS= read -r config_line || [ -n "$config_line" ]; do
+        case "$config_line" in
+            event_path=*) printf 'event_path=%s\n' "$START_ROOT/events.jsonl" ;;
+            *) printf '%s\n' "$config_line" ;;
+        esac
+    done < "$CONFIG_PATH" > "$START_CONFIG"
+    CONFIG_PATH="$START_CONFIG"
+fi
 mkdir -p "$START_ROOT/plugins-local/src/$OBSERVER_MODULE"
 cp -R "$OBSERVER_SOURCE/." "$START_ROOT/plugins-local/src/$OBSERVER_MODULE/"
 chmod -R u=rwX,go= "$START_ROOT/plugins-local"

@@ -267,6 +267,7 @@ static apr_status_t apache_input_filter_process_bucket(msc_t *msr,
     const char *data;
     apr_size_t len;
     msconnector_body_limit_plan plan;
+    msconnector_config effective_config;
     int ret;
 
     ret = apr_bucket_read(bucket, &data, &len, block);
@@ -284,10 +285,25 @@ static apr_status_t apache_input_filter_process_bucket(msc_t *msr,
         return apache_input_filter_terminal_error(msr, r,
             HTTP_INTERNAL_SERVER_ERROR);
     }
+    /* A global-only httpd configuration need not pass through the directory
+     * merge hook. Resolve defaults in a local copy, after inheritance, rather
+     * than treating unresolved zero limits as an oversized request. */
+    if (!msconnector_config_merge(&effective_config, NULL,
+            &conf->common_config)) {
+        (void)msc_apache_contract_fail(msr,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
+        apache_emit_contract_failure_event(msr, r,
+            MSCONNECTOR_PHASE_REQUEST_BODY,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR,
+            HTTP_INTERNAL_SERVER_ERROR);
+        ap_remove_input_filter(f);
+        return apache_input_filter_terminal_error(msr, r,
+            HTTP_INTERNAL_SERVER_ERROR);
+    }
     if (!msconnector_body_limit_plan_chunk(msr->request_body_bytes_seen,
             msr->request_body_bytes_inspected,
-            conf->common_config.request_body_limit,
-            conf->common_config.body_limit_action, len, &plan)) {
+            effective_config.request_body_limit,
+            effective_config.body_limit_action, len, &plan)) {
         msr->request_body_bytes_seen = plan.bytes_seen;
         msr->request_body_truncated = 1;
         (void)msc_apache_contract_fail(msr,

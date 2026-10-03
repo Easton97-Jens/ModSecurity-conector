@@ -14,9 +14,18 @@
 
 Recover the failures reported in Parent run [36906913089](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/36906913089) and Framework run [36703337419](https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/36703337419), and inspect current CI for related failures. Parent maintenance wrongly applied the single-bot-commit rule to a reviewed, merged maintenance branch. Additional gaps included long Unix socket paths, rejection of the provisioned Traefik host stage, broker permission/tag-fetch contracts, incomplete updater inventory/copied-tree inputs, and transient artifact cleanup API failures.
 
+The user subsequently requested one maintained location for `FRAMEWORK_SHA`,
+other ordinary revision pins, component selections and toolchains. This extends
+the requested repair scope; it does not authorize Framework/MRTS source edits
+or protected broker activation.
+
 ## Acceptance criteria
 
 Regression checks must cover the original defects without weakening publisher identity, runtime isolation, immutable pins, or deny-default permissions. Current hosted Framework publication and its PR checks must succeed. Parent hosted validation and protected broker activation remain required before claiming all workflows work.
+
+Ordinary revision and toolchain consumers must use one strict Parent record;
+independent gitlink/commit provenance, component ownership and narrow updater
+field scopes must remain enforced.
 
 ## Implementation decision and rationale
 
@@ -37,47 +46,94 @@ staged without symlinks in a private workspace. No global/other-plugin opt-in
 is introduced, and the Linux `SO_PEERCRED` UID/GID authentication remains
 intact rather than being removed to bypass the import failure.
 
+Centralize ordinary selections in the exact five-field data record
+`ci/tooling/project-versions.lock.json`: schema `1`, Framework/MRTS revisions,
+Python `3.14.7` and Go `1.27.1`. Generated `.python-version`/`.go-version`
+views remain compatible with setup actions; the Go module floor `1.26.5`
+remains distinct. Component definitions continue to belong to the selected
+Framework's `ci/lib/common.sh`; the immutable Framework pin selects that source
+without duplicating component authority. Protected broker tuples remain
+independent. The reader checks the exact Parent Git blob, recorded gitlinks and
+materialized independent repository HEADs with replacement objects disabled.
+Updaters preserve unrelated central fields, validate existing and new candidates,
+and share a directory `flock`. Identity/content checks and replacement tracking
+before directory fsync guard rollback without claiming crash-atomic multi-file
+updates. The paired [version-pins reference](../../../docs/reference/version-pins.md)
+explains these controls and native view synchronization.
+
+A further real-host Traefik failure returned `503`/`403` instead of the allow
+control: Yaegi selected the non-Linux peer-credential stub when only modern
+`//go:build` constraints were present. Matching legacy `// +build linux` and
+`// +build !linux` lines now accompany both modern constraints. This preserves
+the non-Linux fail-closed behavior and Linux UID/GID authentication.
+
 ## Changed files
 
 - `.github/workflows/ci-security-workflow-lint.yml`
 - `.github/workflows/cleanup-artifacts.yml`
 - `.github/workflows/nginx-root-broker.yml`
+- `.github/workflows/test-connectors-with-crs-no-mrts.yml`
 - `.github/workflows/test-envoy.yml`
 - `.github/workflows/test-traefik.yml`
+- `.github/workflows/update-go-version.yml`
+- `.github/workflows/update-python-version.yml`
 - `.github/workflows/update-submodules.yml`
 - `.github/workflows/update-workflow-tools.yml`
 - `Makefile`
+- `ci/lib/framework_revision_pins.py`
+- `ci/provisioning/components/prepare-runtime-components.py`
 - `ci/runtime/broker/nginx_root_broker.py`
 - `ci/runtime/lifecycle/run-connector-stage.sh`
+- `ci/runtime/lifecycle/with-private-sockets.py`
+- `ci/tooling/project-versions.lock.json`
+- `ci/tools/read-framework-revisions.py`
+- `ci/tools/sync-framework-component-versions.py`
+- `ci/tools/sync-project-versions.py`
 - `ci/tools/update-workflow-tools.py`
+- `ci/tools/verify-framework-candidate-contract.py`
 - `connectors/envoy/harness/envoy_smoke_helper.py`
 - `connectors/envoy/harness/run_envoy_connector_runtime.sh`
 - `connectors/envoy/harness/start_envoy_connector.sh`
 - `connectors/traefik/config/traefik-response-observer-static.yaml`
 - `connectors/traefik/response_observer/.traefik.yml`
-- `connectors/traefik/scripts/start-smoke.sh`
+- `connectors/traefik/response_observer/peercred_linux.go`
+- `connectors/traefik/response_observer/peercred_other.go`
 - `connectors/traefik/scripts/runtime_smoke.py`
+- `connectors/apache/src/mod_security3.c`
+- `connectors/apache/src/msc_filters.c`
+- `connectors/nginx/config`
+- `connectors/traefik/scripts/start-smoke.sh`
 - `docs/reference/variables.de.md`
 - `docs/reference/variables.md`
+- `docs/reference/version-pins.de.md`
+- `docs/reference/version-pins.md`
 - `docs/security/ci-security-tooling.de.md`
 - `docs/security/ci-security-tooling.md`
 - `docs/security/trusted-nginx-root-broker.de.md`
 - `docs/security/trusted-nginx-root-broker.md`
-- `tests/ci_security/test_update_workflow_tools.py`
-- `tests/test_ci_security_workflows.py`
-- `tests/test_nginx_root_broker.py`
-- `tests/test_nginx_root_broker_workflow.py`
-- `tests/test_runtime_env_snapshot_contract.py`
-- `tests/test_traefik_runtime_smoke_security.py`
-- `tests/test_update_submodules_local_git.py`
-- `ci/runtime/lifecycle/with-private-sockets.py`
+- `modules/ModSecurity-test-Framework`
 - `reports/audits/change-records/CR-20261001-ci-recovery.de.md`
 - `reports/audits/change-records/CR-20261001-ci-recovery.md`
-- `tests/test_private_runtime_sockets.py`
-- `.github/workflows/test-connectors-with-crs-no-mrts.yml`
-- `modules/ModSecurity-test-Framework`
-- `ci/provisioning/components/prepare-runtime-components.py`
+- `scripts/version_updater_common.py`
+- `tests/ci_security/test_update_workflow_tools.py`
+- `tests/framework_sha_fixture.py`
+- `tests/test_apache_intervention_cleanup.py`
+- `tests/test_c_cpp_diagnostics.py`
+- `tests/test_ci_security_workflows.py`
+- `tests/test_framework_revision_pins.py`
+- `tests/test_nginx_root_broker.py`
+- `tests/test_nginx_root_broker_workflow.py`
 - `tests/test_prepare_runtime_components.py`
+- `tests/test_private_runtime_sockets.py`
+- `tests/test_project_toolchain_pins.py`
+- `tests/test_runtime_env_snapshot_contract.py`
+- `tests/test_traefik_runtime_smoke_security.py`
+- `tests/test_update_framework_versions.py`
+- `tests/test_update_go_version.py`
+- `tests/test_update_python_version.py`
+- `tests/test_update_submodules_local_git.py`
+- `tests/test_verify_framework_candidate_contract.py`
+- `tests/version_updater_test_support.py`
 
 ## Commands executed
 
@@ -104,6 +160,56 @@ The closed-CLI integrated validation snapshot passed 121 tests in 101.701 second
 
 The hash-verified Traefik 3.7.13 host passed all 20 runtime-security tests, including real route loading and startup rejection when either import declaration is missing. The observer's native Go unit tests and vet also passed with the existing Go 1.27.1 toolchain. These checks prove loader behavior and observer source checks; complete hosted engine transactions remain separate evidence.
 
+The coordinated central-lock regression snapshots passed 18 reader tests,
+16 toolchain tests, an 83-test combined suite and 55 Framework synchronizer tests.
+These are scoped snapshots; final integrated and hosted evidence for the new
+source head remains required. Hash-verified Traefik host/engine validation passed
+29 tests without skips, including authenticated `MRC1` `CLAIM` success for the
+same UID and rejection of a wrong UID before frame bytes. Observer Go unit/vet
+checks passed and the non-Linux stub remained fail-closed. A real current C
+service plus pinned Traefik local runtime observed allow `200` and deny `403`.
+These local checks do not replace final-head hosted engine evidence.
+
+The subsequent native centralization validation passed 216 CI-security-contract
+tests with five existing environment/privilege skips, 38 full workflow/tool
+updater tests, and 74 updater/language-contract tests. The 19 reader and 16
+central-toolchain tests are included in the 216-test contract result. Actionlint
+passed all 31 workflows; bilingual, link, variable and connector configuration
+checks passed, with 21 generated configuration files current. These checks do
+not establish hosted runtime success. The legacy event-path and full-NGINX profile-registry-root source repairs are
+now implemented as described below; the Apache `413` source repair is also implemented, with separate local evidence below.
+No all-workflow pass is claimed.
+
+The legacy Traefik smoke starter now materializes only its checked-in default
+configuration into the private run directory with a run-local `event_path`;
+an explicitly supplied configuration remains unchanged. Staged NGINX config
+resolves a missing profile registry only from a supplied canonical
+`common/include` layout containing the SDK header. Explicit registry-root
+priority is retained, and invalid or unrelated roots fail. The diagnostics
+regression executed four positive/negative config-prefix cases. Traefik
+security validation passed 31 tests with two missing-host skips in that local
+run; a separate actual C service plus pinned-host startup check passed.
+A native quick-check after these completed fixes passed (exit 0, 280 tests,
+no unit skips), with only the two explicit missing-header NGINX/HAProxy C17
+compiler skips. This preceded the still-pending Apache repair and does not
+validate it. The fixture grammar correction covers stable Go `1.0.0`/`2.0.1`;
+its additional 32-test Framework run passed.
+
+The Apache correction resolves global Common-config defaults locally in
+`connectors/apache/src/mod_security3.c` and `connectors/apache/src/msc_filters.c`,
+preserving explicit configured limits instead of treating unset limits as zero.
+All 12 previously failing cases passed with real local Apache `2.4.66` and engine
+`3.0.14`. Small-body allow returned `200`; an oversized `1048577`-byte body
+returned `413` with accurate counters. The 22 targeted tests and C17 compilation
+with `-Wall -Wextra -Werror` passed. Hosted selected Apache `2.4.68`/engine
+`3.0.16` runtime still requires fresh-head evidence.
+
+The full workflow/tool suite passed 38 tests again with the native Make
+prerequisite, and root host-enabled Traefik/engine/C++ validation passed 38 tests
+without skips. Bounded report follow-up remains in progress: full smoke produces
+only Apache/NGINX scope, and the existing full strict gate is retained. No report-
+gate correction or full-workflow success is claimed before its own validation.
+
 ## Security impact
 
 Publisher identity, merged-PR ancestry, explicit write scope, deny-default permissions, immutable action pins, and runtime isolation remain enforced. The Traefik stage admission is exact rather than a general build-directory trust extension. Socket roots are private and validated. The restricted Yaegi import opt-in is scoped to the fixed local observer and retains Linux peer-credential authentication; loader failure aborts startup. No Framework/MRTS source edits are part of this change. Only the task Parent Framework gitlink is advanced from `9181dc77dfb0685d87fa109e6800dc6052d77cc9` to reviewed Framework master `6948ec5b916e400c4fcaa1b6ccfa64251f606f8d`; the original working checkouts are preserved and MRTS remains `8a6bb546c4c81d8ffc7be801dceac60c6925685f`. Framework PR 133 was already merged before selection; this task performs no Framework merge.
@@ -122,6 +228,15 @@ Post-commit CI-mode native quick-check on `e240bb2d4e21da9eb832c94dec7df672167b6
 
 Fresh corrective-head runtime runs [37103593221](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37103593221) (canonical No-CRS), [37103594952](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37103594952) (legacy Open Connectors), [37103596368](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37103596368) (full smoke with cleanup disabled), and [37103555691](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37103555691) (CRS) were running without an observed failure at this snapshot. Running jobs are not passes. Final-head delivery, checks and Sonar readback remain tracked in PR 400 and the external task plan, avoiding a documentation-only CI loop.
 
+The maintainability correction was published as `f986fe7ef8e46a0a838a8937b2986d6ffd564208`.
+Its exact Sonar analysis at `2026-10-03T06:43:34+0000` reported Quality Gate `OK`,
+zero bugs, zero vulnerabilities and zero code smells, with no suppression or
+gate weakening. The preceding `e240bb2` heavy runs were superseded/cancelled;
+their running-state snapshot above is historical and cannot satisfy completion.
+The `f986fe7` CRS round passed all five selected connector jobs and aggregate.
+Subsequent centralization and Yaegi build-constraint fixes require a new exact
+head and fresh hosted/Sonar evidence; neither earlier green scan validates them.
+
 ## Known limitations
 
 Local privilege-dependent namespace integration had five existing skips. CI-mode quick-check passed with the two missing-header compiler skips; the ordinary local attempt timed out. The protected broker caller remains pinned to `49c40779a7b6de9f699391bcd524ea069787df42`; the updated broker source is not activated by this patch alone.
@@ -136,4 +251,4 @@ A full Parent hosted pass and both protected broker runtime profiles are outstan
 
 ## Final diff and review status
 
-Initial and corrective changes were delivered in PR 400. The published corrective head has the successful Sonar and local quick-check snapshot recorded above; the maintainability follow-up and complete hosted runtime validation still require final-head evidence. Overall recovery remains partial pending that evidence and protected activation. Original working checkouts are preserved; only the task Parent Framework gitlink is changed as documented above. No Parent master integration or Framework/MRTS source edit is claimed. Both record language versions preserve the same values and limitations.
+Initial and corrective changes were delivered in PR 400. The published corrective head has the successful Sonar and local quick-check snapshot recorded above; the subsequent centralization/build-constraint corrections and complete hosted runtime validation still require final-head evidence. Overall recovery remains partial pending that evidence and protected activation. Original working checkouts are preserved; only the task Parent Framework gitlink is changed as documented above. No Parent master integration or Framework/MRTS source edit is claimed. Both record language versions preserve the same values and limitations.
