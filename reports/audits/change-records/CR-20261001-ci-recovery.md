@@ -279,6 +279,25 @@ finding and six maintainability findings. The subsequent source changes above
 address those findings, but their new-head Sonar result remains pending. Earlier
 green scans are historical and do not establish the next head's quality.
 
+The bounded-profile correction was published as
+`5605febc27dd741a561ede13003a7b47cedce5ae` with the observed 16-test profile
+validation. Its exact Sonar analysis at `2026-10-03T08:27:06+0000` reported
+Quality Gate `ERROR`, zero bugs, one vulnerability and one code smell. All seven
+previous `1ca0d4b` findings were resolved. The new `S8705` finding concerns the
+variant interpolated into metadata command arguments: the variant already has
+argparse/identity allowlists and no shell execution, so this observation does
+not validate an injection path. The focused correction selects only literal
+internal commands, and the `S9073` correction splits a composite test assertion;
+neither finding is suppressed. The corrected profile suite passed 17 tests in 9.514 seconds; the added
+pipeline-argument assertion test also passed afterward. The helper returns only
+two internal literal commands, and an invalid variant stops before the generator.
+A new exact-head Sonar analysis remains required.
+
+Normal checks on `5605febc` were successful so far; the five CRS and five No-CRS
+connector runtimes, legacy smoke and sequential full smoke were still pending.
+These partial results are not a full runtime pass and do not validate the
+subsequent command-selection correction.
+
 ## Known limitations
 
 Local privilege-dependent namespace integration had five existing skips. CI-mode quick-check passed with the two missing-header compiler skips; the ordinary local attempt timed out. The protected broker caller remains pinned to `49c40779a7b6de9f699391bcd524ea069787df42`; the updated broker source is not activated by this patch alone.
@@ -293,4 +312,4 @@ A full Parent hosted pass and both protected broker runtime profiles are outstan
 
 ## Final diff and review status
 
-Initial and corrective changes were delivered in PR 400. The latest published `1ca0d4b` head has successful automatic checks and the separate Sonar `ERROR` result recorded above. Pending source corrections and the bounded report profile have local validation; they still require delivery and fresh exact-head hosted/Sonar evidence. Overall recovery remains partial pending that evidence and protected activation. Original working checkouts are preserved; only the task Parent Framework gitlink is changed as documented above. No Parent master integration or Framework/MRTS source edit is claimed. Both record language versions preserve the same values and limitations.
+Initial and corrective changes were delivered in PR 400. The latest published `5605febc` head has the partial normal-check and separate Sonar `ERROR` snapshot recorded above. The focused literal-command/assertion correction remains under validation and requires delivery and fresh exact-head hosted/Sonar evidence. Overall recovery remains partial pending that evidence and protected activation. Original working checkouts are preserved; only the task Parent Framework gitlink is changed as documented above. No Parent master integration or Framework/MRTS source edit is claimed. Both record language versions preserve the same values and limitations.

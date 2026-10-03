@@ -2726,17 +2726,26 @@ def validate_bounded_smoke_snapshot(connector_root: Path, receipt: dict[str, Any
             raise ValueError("bounded smoke snapshot does not reference the exact producer summaries")
 
 
+def bounded_smoke_command_label(variant: str | None) -> str:
+    if variant == "no-crs":
+        return "make test-smoke-sequential-no-crs"
+    if variant == "with-crs":
+        return "make test-smoke-sequential-with-crs"
+    raise ValueError("bounded smoke command requires an explicit supported variant")
+
+
 def refresh_bounded_smoke(connector_root: Path, framework_root: Path, build_root: Path,
                           variant: str | None, env: dict[str, str], catalog: list[ReportSpec]) -> int:
     from runtime_path_utils import open_private_runtime_root
 
+    command_label = bounded_smoke_command_label(variant)
     receipt = validate_bounded_smoke_inputs(connector_root, framework_root, build_root, variant, env)
     command = [sys.executable, str(framework_root / "ci/reporting/update-runtime-snapshot.py"),
                "--framework-root", str(framework_root), "--connector-root", str(connector_root),
                "--output-root", str(connector_root), "--build-root", str(build_root),
                "--apache-exit-code", "0", "--nginx-exit-code", "0",
-               "--apache-command", f"make test-smoke-sequential-{variant}",
-               "--nginx-command", f"make test-smoke-sequential-{variant}"]
+               "--apache-command", command_label,
+               "--nginx-command", command_label]
     snapshot_started_at_ns = time.time_ns()
     snapshot_status, _output, _log = run_command(command, connector_root, env)
     if snapshot_status != 0:

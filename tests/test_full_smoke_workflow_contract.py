@@ -18,7 +18,8 @@ WORKFLOW = ROOT / ".github" / "workflows" / "test-full-smoke-sequential.yml"
 REPORT_ROOT = ROOT / "ci/evidence/reports"
 sys.path.insert(0, str(REPORT_ROOT))
 SPEC = importlib.util.spec_from_file_location("bounded_smoke_report_refresh", REPORT_ROOT / "refresh-connector-reports.py")
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 REPORTS = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = REPORTS
 SPEC.loader.exec_module(REPORTS)
@@ -105,6 +106,15 @@ class FullSmokeWorkflowContractTest(unittest.TestCase):
         self.assertEqual(process.call_args.kwargs["env"]["NO_CRS_BASELINE"], "")
         self.assertEqual(process.call_args.kwargs["env"]["MODSECURITY_TEST_VARIANT"], "with-crs")
         self.assertEqual(process.call_args.kwargs["timeout"], 30)
+
+    def test_snapshot_command_labels_are_closed_literals_and_invalid_variant_never_executes(self) -> None:
+        self.assertEqual(REPORTS.bounded_smoke_command_label("no-crs"), "make test-smoke-sequential-no-crs")
+        self.assertEqual(REPORTS.bounded_smoke_command_label("with-crs"), "make test-smoke-sequential-with-crs")
+        for variant in (None, "", "no-crs; arbitrary", "with-crs --extra"):
+            with (self.subTest(variant=variant), mock.patch.object(REPORTS, "run_command") as execute,
+                  self.assertRaisesRegex(ValueError, "explicit supported variant")):
+                REPORTS.refresh_bounded_smoke(ROOT, self.framework, self.build, variant, self.environment, [])
+            execute.assert_not_called()
 
     def test_bounded_cli_rejects_other_parent_root_before_any_writer(self) -> None:
         arguments = mock.Mock(profile="bounded-smoke", connector_root=str(self.build),
@@ -276,6 +286,8 @@ class FullSmokeWorkflowContractTest(unittest.TestCase):
                 self.assertEqual(status, 2 if stale else 0)
                 self.assertEqual(generator.call_count, 2)
                 self.assertIn("ci/reporting/update-runtime-snapshot.py", " ".join(snapshot.call_args.args[0]))
+                self.assertEqual(snapshot.call_args.args[0][-4:], ["--apache-command",
+                    "make test-smoke-sequential-no-crs", "--nginx-command", "make test-smoke-sequential-no-crs"])
                 receipt = json.loads((self.build / "bounded-smoke-report-refresh.json").read_text())
                 self.assertEqual(receipt["status"], "FAIL" if stale else "PASS")
                 self.assertEqual(receipt["profile"], "bounded-smoke")

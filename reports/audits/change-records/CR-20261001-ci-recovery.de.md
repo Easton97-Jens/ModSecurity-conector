@@ -292,6 +292,26 @@ Maintainability-Findings. Die obigen nachfolgenden Quelländerungen beheben dies
 Findings, aber ihr Sonar-Ergebnis am neuen Head steht noch aus. Frühere grüne
 Scans sind historisch und belegen keine Qualität des nächsten Heads.
 
+Die Korrektur des begrenzten Profils wurde als
+`5605febc27dd741a561ede13003a7b47cedce5ae` mit der beobachteten Profilvalidierung
+von 16 Tests veröffentlicht. Ihre exakte Sonar-Analyse um
+`2026-10-03T08:27:06+0000` meldete Quality Gate `ERROR`, null Bugs, eine
+Vulnerability und einen Code Smell. Alle sieben früheren `1ca0d4b`-Findings waren
+behoben. Das neue Finding `S8705` betrifft die in Metadaten-Befehlsargumente
+interpolierte Variante: Diese besitzt bereits argparse-/Identitäts-Allowlists
+und keine Shell-Ausführung; die Beobachtung validiert daher keinen Injection-
+Pfad. Die gezielte Korrektur wählt ausschließlich literale interne Befehle,
+und die `S9073`-Korrektur teilt eine zusammengesetzte Test-Assertion auf;
+kein Finding wird unterdrückt. Die korrigierte Profilsuite bestand 17 Tests in 9.514 Sekunden; der ergänzte
+Pipeline-Argument-Assertion-Test bestand anschließend ebenfalls. Der Helper
+liefert nur zwei interne Literalbefehle, und eine ungültige Variante stoppt vor
+dem Generator. Eine neue Sonar-Analyse des exakten Heads bleibt erforderlich.
+
+Reguläre Prüfungen auf `5605febc` waren bislang erfolgreich; die fünf CRS- und
+fünf No-CRS-Connector-Runtimes, Legacy Smoke und sequenzieller Full Smoke standen
+noch aus. Diese Teilergebnisse sind kein vollständiger Runtime-Pass und
+validieren die nachfolgende Befehlsauswahlkorrektur nicht.
+
 ## Bekannte Einschränkungen
 
 Lokale privilegienabhängige Namespace-Integration hatte fünf bestehende Skips. Quick-check im CI-Modus bestand mit den beiden Compiler-Skips wegen fehlender Header; der normale lokale Versuch erreichte das Zeitlimit. Der geschützte Broker-Caller bleibt auf `49c40779a7b6de9f699391bcd524ea069787df42` gepinnt; dieser Patch allein aktiviert die geänderte Broker-Quelle nicht.
@@ -306,4 +326,4 @@ Ein vollständiger gehosteter Parent-Pass und beide geschützten Broker-Runtime-
 
 ## Finaler Diff- und Review-Status
 
-Die ursprünglichen und korrigierten Änderungen wurden in PR 400 bereitgestellt. Für den zuletzt veröffentlichten Head `1ca0d4b` liegen erfolgreiche automatische Prüfungen und das getrennte oben dokumentierte Sonar-Ergebnis `ERROR` vor. Ausstehende Quellkorrekturen und das begrenzte Report-Profil besitzen lokale Validierung; sie benötigen weiterhin Auslieferung und frische gehostete/Sonar-Evidence des exakten Heads. Die Gesamtreparatur bleibt bis zu dieser Evidence und geschützter Aktivierung teilweise abgeschlossen. Die ursprünglichen Arbeitscheckouts bleiben erhalten; nur der Framework-Gitlink des Task-Parents wird wie oben dokumentiert geändert. Weder Parent-master-Integration noch Framework-/MRTS-Quelländerungen werden behauptet. Beide Sprachfassungen enthalten dieselben Werte und Einschränkungen.
+Die ursprünglichen und korrigierten Änderungen wurden in PR 400 bereitgestellt. Für den zuletzt veröffentlichten Head `5605febc` liegt die obige Teilaufnahme regulärer Prüfungen samt getrenntem Sonar-Ergebnis `ERROR` vor. Die gezielte Literalbefehls-/Assertion-Korrektur wird noch validiert und benötigt Auslieferung sowie frische gehostete/Sonar-Evidence des exakten Heads. Die Gesamtreparatur bleibt bis zu dieser Evidence und geschützter Aktivierung teilweise abgeschlossen. Die ursprünglichen Arbeitscheckouts bleiben erhalten; nur der Framework-Gitlink des Task-Parents wird wie oben dokumentiert geändert. Weder Parent-master-Integration noch Framework-/MRTS-Quelländerungen werden behauptet. Beide Sprachfassungen enthalten dieselben Werte und Einschränkungen.
