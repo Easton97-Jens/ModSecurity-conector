@@ -88,13 +88,48 @@ artifact retention rules and job permissions remain the same.
 Envoy and Traefik compatibility stages allocate invocation-owned Unix sockets
 in a short private directory through
 `ci/runtime/lifecycle/with-private-sockets.py`. Evidence and build artifacts
-retain their revision-bound paths. The wrapper validates the temporary parent,
+retain their revision-bound paths. The CLI selects only fixed Envoy/Traefik
+lifecycle entry points and their reviewed stage arguments. The shell caller
+passes its selected `RUNNER_TEMP`/`TMPDIR` socket parent explicitly; the wrapper
+validates ownership, safe ancestors, the private directory's mode `0700`, and
+the Unix socket path limit of 108 bytes before starting the selected stage. It does not expose arbitrary
+command execution. The wrapper validates the temporary parent,
 forwards termination signals, rejects leftover live processes, and verifies
-termination before deleting socket files. Direct short-path harness calls keep
+termination before deleting socket files. It retains the directory when safe
+termination or cleanup cannot be established. Direct short-path harness calls keep
 their private fallback directory. The Traefik runner admits the exact prepared
 `BUILD_ROOT/traefik-connector/bin/traefik` path with the same ownership, mode,
 ancestor, and symlink checks as cached binaries; other build-tree executables
 remain inadmissible.
+
+## Traefik response observer loader admission
+
+The fixed checked-in `modsecurityResponseObserver` uses Linux `SO_PEERCRED`
+to authenticate the response-companion peer. Yaegi must expose the restricted
+`syscall` import for that check. The observer's `.traefik.yml` declares
+`useUnsafe: true`, and the operator configuration opts in only for this local
+plugin through `experimental.localPlugins.modsecurityResponseObserver.settings.useUnsafe`.
+Both declarations are required. The static example and both smoke entry points
+also enable `experimental.abortOnPluginFailure` so an observer loader failure
+aborts startup instead of leaving its route unavailable.
+
+This opt-in applies only to the fixed repository-owned observer source, staged
+without symlinks in the private smoke workspace. It is not a global opt-in or
+permission to load another plugin. Existing peer UID/GID authentication and
+private socket admission remain required; disabling `SO_PEERCRED` to avoid an
+interpreter import failure would remove that authentication boundary.
+
+## Pinned Apache HTTPD source recovery
+
+Parent runtime provisioning opts in to a narrow recovery for pinned HTTPD source
+archives: only a direct `404` from the exact canonical
+`https://downloads.apache.org/httpd/httpd-<version>.tar.bz2` URL permits one
+request to `https://archive.apache.org/dist/httpd/` with the same basename.
+The version and configured literal SHA-256 remain unchanged. Redirects,
+authorization failures, timeouts, foreign hosts, and other components do not
+trigger this recovery. The digest is verified before archive listing or
+extraction. Cache identity remains bound to the canonical source tuple; metadata
+records the actual download URL and explicit recovery reason.
 
 ## Constrained Python 3.14 patch updater
 

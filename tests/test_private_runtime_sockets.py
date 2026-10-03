@@ -13,6 +13,29 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 WRAPPER = ROOT / "ci/runtime/lifecycle/with-private-sockets.py"
+ISOLATED_DRIVER = """
+import importlib.util
+from pathlib import Path
+import sys
+spec = importlib.util.spec_from_file_location('private_socket_test_driver', sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+sys.exit(module.run(sys.argv[3:], Path(sys.argv[2])))
+"""
+
+
+def load_wrapper():
+    spec = importlib.util.spec_from_file_location("private_socket_wrapper", WRAPPER)
+    assert spec is not None
+    assert spec.loader is not None
+    wrapper = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(wrapper)
+    return wrapper
+
+
+def driver_command(parent: Path, command: list[str]) -> list[str]:
+    """Exercise the internal supervisor in an isolated test-owned process."""
+    return [sys.executable, "-c", ISOLATED_DRIVER, str(WRAPPER), str(parent), *command]
 
 
 class PrivateRuntimeSocketsTest(unittest.TestCase):
@@ -37,7 +60,7 @@ print(root)
 pathlib.Path(sys.argv[1]).mkdir(parents=True)
 """
             result = subprocess.run(
-                [sys.executable, str(WRAPPER), sys.executable, "-c", code, str(evidence)],
+                driver_command(parent, [sys.executable, "-c", code, str(evidence)]),
                 env=self.environment(parent), capture_output=True, text=True, timeout=10,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -58,7 +81,7 @@ pathlib.Path(sys.argv[1]).mkdir(parents=True)
             long_parent.mkdir(mode=0o700)
             for invalid in (alias, writable, long_parent, Path("relative")):
                 result = subprocess.run(
-                    [sys.executable, str(WRAPPER), sys.executable, "-c", "print('CHILD EXECUTED')"],
+                    driver_command(invalid, [sys.executable, "-c", "print('CHILD EXECUTED')"]),
                     env=self.environment(invalid), capture_output=True, text=True, timeout=10,
                 )
                 self.assertEqual(result.returncode, 1, result.stderr)
@@ -68,8 +91,8 @@ pathlib.Path(sys.argv[1]).mkdir(parents=True)
     def test_sigterm_reaches_child_and_socket_root_is_cleaned(self) -> None:
         with tempfile.TemporaryDirectory(prefix="uds-") as temporary:
             process = subprocess.Popen(
-                [sys.executable, str(WRAPPER), sys.executable, "-u", "-c",
-                 "import os,time; print(os.environ['MSCONNECTOR_PRIVATE_SOCKET_ROOT'], flush=True); time.sleep(60)"],
+                driver_command(Path(temporary), [sys.executable, "-u", "-c",
+                 "import os,time; print(os.environ['MSCONNECTOR_PRIVATE_SOCKET_ROOT'], flush=True); time.sleep(60)"]),
                 env=self.environment(Path(temporary)), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 text=True,
             )
@@ -100,8 +123,7 @@ pathlib.Path(sys.argv[1]).mkdir(parents=True)
                                     "RESPONSE_OBSERVER_BIN": true_binary,
                                     "MSCONNECTOR_NO_CRS_BASELINE": "0"})
                 result = subprocess.run(
-                    [sys.executable, str(WRAPPER), "sh",
-                     str(ROOT / "connectors/envoy/harness" / script)],
+                    driver_command(parent, ["/bin/sh", str(ROOT / "connectors/envoy/harness" / script)]),
                     env=environment, capture_output=True, text=True, timeout=15,
                 )
                 # Dummy host stops at readiness; this verifies path preflight,
@@ -141,7 +163,7 @@ print(os.environ['MSCONNECTOR_PRIVATE_SOCKET_ROOT'], flush=True)
 print(child.pid, flush=True)
 """
             result = subprocess.run(
-                [sys.executable, str(WRAPPER), sys.executable, "-c", code],
+                driver_command(Path(temporary), [sys.executable, "-c", code]),
                 env=self.environment(Path(temporary)), capture_output=True, text=True, timeout=10,
             )
             self.assertEqual(result.returncode, 1, result.stderr)
@@ -155,21 +177,70 @@ print(child.pid, flush=True)
                 self.assertIn(state, {"Z", "X"})
 
     def test_process_readback_failure_retains_socket_root(self) -> None:
-        spec = importlib.util.spec_from_file_location("private_socket_wrapper", WRAPPER)
-        assert spec is not None and spec.loader is not None
-        wrapper = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(wrapper)
+        wrapper = load_wrapper()
         for failure in (OSError("process readback failed"), ValueError("invalid process record")):
             with self.subTest(failure=type(failure).__name__), tempfile.TemporaryDirectory(prefix="uds-") as temporary:
                 parent = Path(temporary)
+                command = [sys.executable, "-c", "pass"]
                 with mock.patch.dict(os.environ, self.environment(parent)), mock.patch.object(
                     wrapper, "stop_group", side_effect=failure
                 ), self.assertRaises(type(failure)):
-                    wrapper.run([sys.executable, "-c", "pass"])
+                    wrapper.run(command, parent)
                 retained = list(parent.glob("mcs.*"))
                 self.assertEqual(len(retained), 1)
                 self.assertTrue(retained[0].is_dir())
                 self.assertEqual(retained[0].stat().st_mode & 0o777, 0o700)
+
+    def test_closed_cli_maps_only_fixed_repository_connector_stages(self) -> None:
+        wrapper = load_wrapper()
+        with tempfile.TemporaryDirectory(prefix="uds-") as temporary:
+            parent = Path(temporary)
+            for connector in ("envoy", "traefik"):
+                for stage in ("start_smoke", "minimal_runtime_smoke", "no_crs_baseline"):
+                    with self.subTest(connector=connector, stage=stage), mock.patch.object(
+                        wrapper, "run", return_value=0
+                    ) as supervisor:
+                        result = wrapper.main(["--socket-parent", str(parent),
+                                               "--connector", connector, "--stage", stage])
+                        self.assertEqual(result, 0)
+                        supervisor.assert_called_once_with(
+                            ["/bin/sh", str(WRAPPER.with_name("run-connector-stage.sh")), connector, stage],
+                            parent,
+                        )
+
+    def test_closed_cli_rejects_commands_extra_arguments_and_invalid_stage_choices(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="uds-") as temporary:
+            parent = Path(temporary)
+            base = ["--socket-parent", str(parent), "--connector", "envoy", "--stage", "start_smoke"]
+            invalid_arguments = (
+                ["/bin/sh", "-c", "printf 'CHILD EXECUTED'"],
+                base + ["/bin/sh"],
+                base + ["--extra", "value"],
+                ["--socket-par", str(parent), "--connector", "envoy", "--stage", "start_smoke"],
+                ["--socket-parent", str(parent), "--connector", "nginx", "--stage", "start_smoke"],
+                ["--socket-parent", str(parent), "--connector", "envoy", "--stage", "build"],
+                ["--connector", "envoy", "--stage", "start_smoke"],
+            )
+            for arguments in invalid_arguments:
+                with self.subTest(arguments=arguments):
+                    result = subprocess.run(
+                        [sys.executable, str(WRAPPER), *arguments], env=self.environment(parent),
+                        capture_output=True, text=True, timeout=10,
+                    )
+                    self.assertEqual(result.returncode, 2, result.stderr)
+                    self.assertEqual(result.stdout, "")
+                    self.assertEqual(list(parent.iterdir()), [])
+
+    def test_closed_cli_rejects_missing_parent_without_environment_fallback(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="uds-") as temporary:
+            parent = Path(temporary)
+            result = subprocess.run(
+                [sys.executable, str(WRAPPER), "--socket-parent", "", "--connector", "envoy", "--stage", "start_smoke"],
+                env=self.environment(parent), capture_output=True, text=True, timeout=10,
+            )
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("existing safe absolute directory", result.stderr)
+            self.assertEqual(list(parent.iterdir()), [])
 
 
 if __name__ == "__main__":

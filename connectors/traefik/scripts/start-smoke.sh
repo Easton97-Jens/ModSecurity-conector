@@ -275,6 +275,8 @@ printf '%s\n' "$service_pid" > "$SERVICE_PID_FILE"
     exec "$TRAEFIK_BIN" \
         "--entryPoints.web.address=$TRAEFIK_LISTEN" \
         "--experimental.localPlugins.modsecurityResponseObserver.moduleName=$OBSERVER_MODULE" \
+        --experimental.localPlugins.modsecurityResponseObserver.settings.useUnsafe=true \
+        --experimental.abortOnPluginFailure=true \
         "--providers.file.filename=$TRAEFIK_CONFIG" \
         --providers.file.watch=false \
         --api=false \

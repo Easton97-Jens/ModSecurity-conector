@@ -140,14 +140,16 @@ class TraefikRuntimeSmokeSecurityTest(unittest.TestCase):
                 )
                 self.assertEqual(trusted_host.path, staged)
                 for rejected in (unexpected, outside, staged.parent / ".." / ".." / ".." / "other/traefik"):
+                    rejected_arguments = self.runtime_args(connector, rejected)
                     with self.subTest(path=rejected), self.assertRaisesRegex(
                         RUNNER.MissingDependency, "must remain below"
                     ):
-                        RUNNER.resolve_runtime_paths(self.runtime_args(connector, rejected), ROOT)
+                        RUNNER.resolve_runtime_paths(rejected_arguments, ROOT)
                 staged.unlink()
                 staged.symlink_to(outside)
+                symlink_arguments = self.runtime_args(connector, staged)
                 with self.assertRaisesRegex(RUNNER.MissingDependency, "symlink"):
-                    RUNNER.resolve_runtime_paths(self.runtime_args(connector, staged), ROOT)
+                    RUNNER.resolve_runtime_paths(symlink_arguments, ROOT)
 
     def test_trusted_executable_rejects_control_characters_before_process_start(self) -> None:
         with tempfile.TemporaryDirectory(prefix="traefik-runtime-root-") as temporary:
@@ -280,6 +282,65 @@ class TraefikRuntimeSmokeSecurityTest(unittest.TestCase):
         self.assertIn('getenv(\n        "MSCONNECTOR_TRAEFIK_FORWARDAUTH_COMPANION_SOCKET")', service)
         self.assertIn("plugins-local/src/$OBSERVER_MODULE", start_smoke)
         self.assertIn("__COMPANION_SOCKET__", start_smoke)
+
+    def test_response_observer_restricted_imports_are_scoped_and_loader_failure_aborts(self) -> None:
+        command = RUNNER.traefik_command(
+            RUNNER.TrustedExecutable(Path("/var/tmp/trusted-traefik")), 18080,
+            Path("/var/tmp/dynamic.yml"), Path("/var/tmp/access.log"),
+        )
+        opt_in = "--experimental.localPlugins.modsecurityResponseObserver.settings.useUnsafe=true"
+        self.assertEqual([argument for argument in command if ".settings.useUnsafe=" in argument], [opt_in])
+        self.assertIn("--experimental.abortOnPluginFailure=true", command)
+        observer = ROOT / "connectors/traefik/response_observer"
+        self.assertIn("\nuseUnsafe: true", (observer / ".traefik.yml").read_text())
+        static = (ROOT / "connectors/traefik/config/traefik-response-observer-static.yaml").read_text()
+        self.assertIn("abortOnPluginFailure: true", static)
+        self.assertEqual(static.count("useUnsafe: true"), 1)
+        self.assertIn("modsecurityResponseObserver:", static)
+        startup = (ROOT / "connectors/traefik/scripts/start-smoke.sh").read_text()
+        self.assertIn(opt_in, startup)
+        self.assertIn("--experimental.abortOnPluginFailure=true", startup)
+
+    def test_real_host_loads_response_observer_and_rejects_missing_import_opt_in(self) -> None:
+        host_selection = os.environ.get("TRAEFIK_BIN")
+        if not host_selection:
+            self.skipTest("TRAEFIK_BIN must provide an already provisioned host for loader verification")
+        host = Path(host_selection)
+        binary = RUNNER.require_local_executable(host, "test Traefik binary", host.parent)
+        with tempfile.TemporaryDirectory(prefix="traefik-loader-") as temporary:
+            runtime = Path(temporary)
+            RUNNER.stage_response_observer(ROOT / "connectors/traefik/response_observer", runtime)
+            config = runtime / "dynamic.yml"
+            config.write_text(RUNNER.dynamic_config(1, 2, runtime / "companion.sock"))
+            port = RUNNER.free_port()
+            command = RUNNER.traefik_command(binary, port, config, runtime / "access.log")
+            with (runtime / "host.log").open("wb") as log:
+                process = subprocess.Popen(command, cwd=runtime, stdout=log, stderr=subprocess.STDOUT)
+                try:
+                    RUNNER.wait_for_traefik(port, process)
+                finally:
+                    RUNNER.stop_process(process)
+            self.assertNotIn("Plugins are disabled", (runtime / "host.log").read_text())
+            # A missing explicit operator opt-in must fail host startup. The
+            # manifest continues to declare its restricted import requirement.
+            missing_opt_in = tuple(argument for argument in command if ".settings.useUnsafe=" not in argument)
+            rejected = subprocess.run(
+                missing_opt_in, cwd=runtime, capture_output=True, text=True, timeout=15,
+            )
+            self.assertNotEqual(rejected.returncode, 0)
+            self.assertIn("restricted imports", rejected.stdout + rejected.stderr)
+            # The operator setting alone must not grant restricted imports to
+            # a plugin that has not explicitly declared that requirement.
+            manifest = runtime / "plugins-local/src" / RUNNER.OBSERVER_MODULE / ".traefik.yml"
+            manifest.write_text("\n".join(
+                line for line in manifest.read_text().splitlines()
+                if not line.startswith("useUnsafe:")
+            ) + "\n")
+            undeclared = subprocess.run(
+                command, cwd=runtime, capture_output=True, text=True, timeout=15,
+            )
+            self.assertNotEqual(undeclared.returncode, 0)
+            self.assertIn("syscall", undeclared.stdout + undeclared.stderr)
 
     def test_forwardauth_preserves_common_header_limit_for_actual_mrc1_framing(self) -> None:
         service = (ROOT / "connectors" / "traefik" / "src" / "traefik_forwardauth_service_main.c").read_text(

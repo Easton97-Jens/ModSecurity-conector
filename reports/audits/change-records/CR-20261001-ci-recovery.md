@@ -22,6 +22,21 @@ Regression checks must cover the original defects without weakening publisher id
 
 Keep open maintenance branches constrained to the configured App; allow reuse of reviewed merged remediation history only after checking PR identity, merge ancestry, and current branch guards. Allocate private, short socket directories while retaining revision-bound artifact roots. Admit only the exact provisioned Traefik host path. Accept the broker caller's exact empty permission mapping and independently acquire/check the approved CRS tag. Complete the explicit updater publisher inventory and read-only copied baseline; run focused inventory coverage in Make and the full suite in CI to avoid recursive candidate validation. Derive action-pin assertions from the central lock. Retry artifact cleanup API calls three times.
 
+The socket wrapper's follow-up interface correction preserves private `0700` roots, ownership/safe-ancestor checks, socket byte limits, termination verification, and retention on unsafe cleanup. Its low-level command runner remains an internal test API rather than CLI command input. Fresh-head hosted/quality evidence is required after this source change.
+
+Fresh hosted Apache CRS job `110539160124` in [run 36912740744](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/36912740744) exposed another required repair: the pinned HTTPD `2.4.68` URL `https://downloads.apache.org/httpd/httpd-2.4.68.tar.bz2` returned `404`, while the identical official archive URL `https://archive.apache.org/dist/httpd/httpd-2.4.68.tar.bz2` returned `200`. The literal SHA-256 stays `68c74d4df38c26bed4dfbdb8f3baf1eb532f3872357becc1bba5d136f6b63c06`. Parent provisioning independently implements the exact direct-404, same-basename official archive recovery already present in reviewed Framework master. It requires explicit HTTPD opt-in, forbids redirect/authentication/timeout/foreign-component fallbacks, verifies the literal digest before archive listing, and preserves canonical cache identity with actual-download metadata. The selected Framework gitlink is synchronized into the CRS workflow and its contract fixture; `common.sh`, `.gitmodules`, and the MRTS revision remain unchanged.
+
+The canonical Traefik No-CRS host built and started but its route failed because
+Yaegi disabled the observer's `syscall` import. The pinned Traefik `3.7.13`
+loader reproduced this failure. The fixed observer manifest now declares
+`useUnsafe: true`, and only its per-plugin operator settings explicitly enable
+that requirement; both declarations are necessary. Static configuration and
+both smoke entry points enable `experimental.abortOnPluginFailure` to fail
+startup when loading fails. The source remains the fixed checked-in observer,
+staged without symlinks in a private workspace. No global/other-plugin opt-in
+is introduced, and the Linux `SO_PEERCRED` UID/GID authentication remains
+intact rather than being removed to bypass the import failure.
+
 ## Changed files
 
 - `.github/workflows/ci-security-workflow-lint.yml`
@@ -38,6 +53,9 @@ Keep open maintenance branches constrained to the configured App; allow reuse of
 - `connectors/envoy/harness/envoy_smoke_helper.py`
 - `connectors/envoy/harness/run_envoy_connector_runtime.sh`
 - `connectors/envoy/harness/start_envoy_connector.sh`
+- `connectors/traefik/config/traefik-response-observer-static.yaml`
+- `connectors/traefik/response_observer/.traefik.yml`
+- `connectors/traefik/scripts/start-smoke.sh`
 - `connectors/traefik/scripts/runtime_smoke.py`
 - `docs/reference/variables.de.md`
 - `docs/reference/variables.md`
@@ -56,12 +74,14 @@ Keep open maintenance branches constrained to the configured App; allow reuse of
 - `reports/audits/change-records/CR-20261001-ci-recovery.de.md`
 - `reports/audits/change-records/CR-20261001-ci-recovery.md`
 - `tests/test_private_runtime_sockets.py`
+- `.github/workflows/test-connectors-with-crs-no-mrts.yml`
+- `modules/ModSecurity-test-Framework`
+- `ci/provisioning/components/prepare-runtime-components.py`
+- `tests/test_prepare_runtime_components.py`
 
 ## Commands executed
 
 All local command entry points used RTK. `rtk proxy env TMPDIR=/var/tmp/codex/ModSecurity-conector PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python check-ci-security-contract`: PASS, 175 tests, five existing environment skips, plus actionlint/zizmor/gitleaks provenance validation. The updater suite passed 38 tests, including real proposed-tree validation; workflow contracts passed 31 tests. Coordinated integrated regression validation passed 118 tests. Actionlint passed all 31 workflows. Quick-check timed out after 600 seconds at the HAProxy check; this is not a full quick-check pass.
-
-
 
 ```sh
 rtk proxy env TMPDIR=/var/tmp/codex/ModSecurity-conector/tmp PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -q tests.test_private_runtime_sockets tests.test_nginx_root_broker tests.test_nginx_root_broker_workflow tests.test_nginx_root_broker_crs_profile tests.ci_security.test_update_workflow_tools
@@ -72,8 +92,6 @@ The integrated 118-test run completed in 98.147 seconds. Task evidence is retain
 
 The bounded repeat of `rtk proxy env CI=true ... timeout 600 make quick-check`, using the same external build/log roots and interpreters, passed (exit 0, 275 tests). Native lint explicitly skipped NGINX and HAProxy C17 compilation because their headers were absent. The earlier local timeout occurred during automatic prerequisite provisioning before HAProxy compiler probes. These results do not prove the two skipped compiler checks. The repeat log is `/var/tmp/codex/ModSecurity-conector/ci-recovery-quick-check-ci.log`.
 
-
-
 ```sh
 rtk proxy env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python ci/tools/new-change-record.py check
 rtk proxy env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python check-bilingual-docs check-doc-links
@@ -82,13 +100,21 @@ rtk git diff --check
 
 Record structure, bilingual documentation, repository path references, documentation links, and diff whitespace checks passed.
 
+The final closed-CLI integrated suite passed 121 tests in 101.701 seconds. The Framework-owned Python 3.14.7 `test-httpd-source-recovery` target passed 18 tests in 57.008 seconds on selected master `6948ec5b916e400c4fcaa1b6ccfa64251f606f8d`; candidate contract verification and native synchronization check passed. The Parent preparation suite passed 95 tests with five existing skips; the generic cache contract passed 45 tests. Live Parent HTTPD acquisition recovered the same official archive after the canonical 404 and verified SHA-256 `68c74d4df38c26bed4dfbdb8f3baf1eb532f3872357becc1bba5d136f6b63c06` before archive listing. A further CI-mode native quick-check passed (exit 0, 280 tests) after the HTTPD/Framework changes, with nine fixture skips because the selected Framework checkout was newer than the still-committed Parent gitlink, plus the two missing-header compiler skips. The log is `/var/tmp/codex/ModSecurity-conector/ci-recovery-quick-check-final.log`. These checks prove acquisition and their respective local contracts; they do not constitute a fresh Parent hosted HTTPD runtime pass or a new Sonar pass.
+
+The hash-verified Traefik 3.7.13 host passed all 20 runtime-security tests, including real route loading and startup rejection when either import declaration is missing. The observer's native Go unit tests and vet also passed with the existing Go 1.27.1 toolchain. These checks prove loader behavior and observer source checks; complete hosted engine transactions remain separate evidence.
+
 ## Security impact
 
-Publisher identity, merged-PR ancestry, explicit write scope, deny-default permissions, immutable action pins, and runtime isolation remain enforced. The Traefik stage admission is exact rather than a general build-directory trust extension. Socket roots are private and validated. No Framework/MRTS source changes or gitlink updates are part of this change.
+Publisher identity, merged-PR ancestry, explicit write scope, deny-default permissions, immutable action pins, and runtime isolation remain enforced. The Traefik stage admission is exact rather than a general build-directory trust extension. Socket roots are private and validated. The restricted Yaegi import opt-in is scoped to the fixed local observer and retains Linux peer-credential authentication; loader failure aborts startup. No Framework/MRTS source edits are part of this change. Only the task Parent Framework gitlink is advanced from `9181dc77dfb0685d87fa109e6800dc6052d77cc9` to reviewed Framework master `6948ec5b916e400c4fcaa1b6ccfa64251f606f8d`; the original working checkouts are preserved and MRTS remains `8a6bb546c4c81d8ffc7be801dceac60c6925685f`. Framework PR 133 was already merged before selection; this task performs no Framework merge.
 
 ## Runtime evidence
 
-Framework fresh publisher run [36908638390](https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/36908638390) succeeded from master `6948ec5` and created Draft [PR 134](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/134), head `51c70128693f0e836d8bff8af947232bca0691fc`. All 20 checks finished without failures, with three advisory skips; Sonar reported OK. This is Framework publisher/PR evidence, not fresh Parent connector runtime evidence. Parent hosted validation remains pending.
+Framework fresh publisher run [36908638390](https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/36908638390) succeeded from master `6948ec5` and created Draft [PR 134](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/134), head `51c70128693f0e836d8bff8af947232bca0691fc`. All 20 checks finished without failures, with three advisory skips; Sonar reported OK. This is Framework publisher/PR evidence, not fresh Parent connector runtime evidence. At initial source delivery, Parent hosted validation was still pending.
+
+Initial Parent delivery used [PR 400](https://github.com/Easton97-Jens/ModSecurity-conector/pull/400), head `35259700fcf0558e430f5fc78cc4f7c3920e92ce`. Normal GitHub checks were green while runtime checks were still running; the exact Sonar result was `ERROR`, with security findings for `S5443` (temporary-path selection from the environment) and `S8705` (generic CLI command), plus five maintainability findings. The subsequent source correction restricts the CLI to fixed Envoy/Traefik lifecycle selectors and an explicitly supplied, validated socket parent. A new head and its Sonar scan are still required for this correction; no green result is claimed. Findings were not suppressed or classified as false positives, and gates were not weakened.
+
+Manual runs of the initial head: [36912803996](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/36912803996) (canonical No-CRS), [36912808790](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/36912808790) (legacy Open Connectors), and [36912813685](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/36912813685) (full smoke with cleanup disabled). The first hosted round is now terminal: canonical No-CRS Envoy, HAProxy and lighttpd passed; CRS Envoy, Traefik, HAProxy and lighttpd passed; exact-head NGINX passed. The canonical Apache job, legacy Open Connectors and full smoke were blocked by the HTTPD 404. Canonical No-CRS Traefik failed at route readiness, exposing the observer loader defect described above. The corrective head requires fresh hosted and Sonar evidence; no all-workflow pass is claimed. Hosted results always bind to their exact SHA; final delivery and CI readback are tracked in PR 400 and the task execution plan.
 
 ## Known limitations
 
@@ -104,4 +130,4 @@ A full Parent hosted pass and both protected broker runtime profiles are outstan
 
 ## Final diff and review status
 
-Local repair and regression verification are available for review; overall recovery remains partial pending Parent hosted evidence and protected activation. Original gitlinks are preserved. No Parent master integration or Framework/MRTS source edit is claimed. Both record language versions preserve the same values and limitations.
+Initial changes were delivered in PR 400; the follow-up socket CLI, HTTPD and fixed-observer corrections remain under validation and require fresh-head hosted/Sonar evidence. Overall recovery remains partial pending that evidence and protected activation. Original working checkouts are preserved; only the task Parent Framework gitlink is changed as documented above. No Parent master integration or Framework/MRTS source edit is claimed. Both record language versions preserve the same values and limitations.

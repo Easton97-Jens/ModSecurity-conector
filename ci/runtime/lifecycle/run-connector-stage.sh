@@ -37,9 +37,12 @@ esac
 case "$connector:$stage:$NO_CRS_ARTIFACT_PROFILE" in
     envoy:start_smoke:*|envoy:minimal_runtime_smoke:*|envoy:no_crs_baseline:generic|traefik:start_smoke:*|traefik:minimal_runtime_smoke:*|traefik:no_crs_baseline:generic)
         if [ -z "${MSCONNECTOR_PRIVATE_SOCKET_ROOT:-}" ]; then
-            exec "$PYTHON" "$SCRIPT_DIR/with-private-sockets.py" sh "$0" "$@"
+            exec "$PYTHON" "$SCRIPT_DIR/with-private-sockets.py" \
+                --socket-parent "${RUNNER_TEMP:-${TMPDIR:-}}" \
+                --connector "$connector" --stage "$stage"
         fi
         ;;
+    *) : ;;
 esac
 
 # A profile-selected stage has no fallback route.  The shared generic runner

@@ -94,13 +94,52 @@ Job-Berechtigungen bleiben gleich.
 Envoy- und Traefik-Kompatibilitäts-Stages erzeugen Invocation-eigene Unix-Sockets
 über `ci/runtime/lifecycle/with-private-sockets.py` in einem kurzen privaten
 Verzeichnis. Evidence- und Build-Artefakte behalten ihre an Revisionen gebundenen
-Pfade. Der Wrapper prüft den temporären Elternpfad, leitet Beendigungssignale
+Pfade. Die CLI wählt ausschließlich feste Envoy-/Traefik-Lifecycle-Einstiegspunkte
+und deren geprüfte Stage-Argumente. Der Shell-Aufrufer übergibt den aus
+`RUNNER_TEMP`/`TMPDIR` ausgewählten Socket-Elternpfad ausdrücklich; der Wrapper
+prüft Eigentümer, sichere Vorfahren, den Modus `0700` des privaten Verzeichnisses
+und die Unix-Socket-Pfadgrenze von 108 Bytes vor dem Start der ausgewählten Stage. Beliebige Befehlsausführung
+ist nicht über die CLI verfügbar. Der Wrapper prüft den temporären Elternpfad, leitet Beendigungssignale
 weiter, weist verbliebene laufende Prozesse zurück und prüft das Prozessende,
-bevor er Socket-Dateien löscht. Direkte Harness-Aufrufe mit kurzen Pfaden
+bevor er Socket-Dateien löscht. Das Verzeichnis bleibt erhalten, wenn sicheres
+Prozessende oder sichere Bereinigung nicht feststeht. Direkte Harness-Aufrufe mit kurzen Pfaden
 behalten ihr privates Fallback-Verzeichnis. Der Traefik-Runner lässt den exakten
 vorbereiteten Pfad `BUILD_ROOT/traefik-connector/bin/traefik` mit denselben
 Eigentümer-, Modus-, Vorfahren- und Symlink-Prüfungen wie bei gecachten Binaries
 zu; andere Executables im Build-Baum bleiben unzulässig.
+
+## Zulassung des Traefik-Response-Observer-Loaders
+
+Der feste eingecheckte `modsecurityResponseObserver` verwendet Linux
+`SO_PEERCRED`, um den Response-Companion-Peer zu authentifizieren. Yaegi muss
+für diese Prüfung den eingeschränkten `syscall`-Import bereitstellen. Die
+`.traefik.yml` des Observers deklariert `useUnsafe: true`; die
+Betreiberkonfiguration aktiviert dies ausschließlich für dieses lokale Plugin
+über `experimental.localPlugins.modsecurityResponseObserver.settings.useUnsafe`.
+Beide Deklarationen sind erforderlich. Das statische Beispiel und beide
+Smoke-Einstiegspunkte aktivieren außerdem `experimental.abortOnPluginFailure`,
+damit ein Observer-Ladefehler den Start abbricht, statt seine Route unverfügbar
+zu lassen.
+
+Diese Aktivierung gilt nur für die feste Repository-eigene Observer-Quelle,
+die ohne Symlinks im privaten Smoke-Arbeitsverzeichnis bereitgestellt wird.
+Sie ist keine globale Aktivierung oder Erlaubnis zum Laden anderer Plugins.
+Die bestehende Peer-UID-/GID-Authentifizierung und private Socket-Zulassung
+bleiben erforderlich; das Abschalten von `SO_PEERCRED` zur Vermeidung eines
+Interpreter-Importfehlers würde diese Authentifizierungsgrenze entfernen.
+
+## Wiederherstellung gepinnter Apache-HTTPD-Quellen
+
+Die Parent-Runtime-Bereitstellung aktiviert eine eng begrenzte Wiederherstellung
+für gepinnte HTTPD-Quellarchive: Nur eine direkte `404`-Antwort der exakten
+kanonischen URL `https://downloads.apache.org/httpd/httpd-<version>.tar.bz2`
+erlaubt einen Abruf unter `https://archive.apache.org/dist/httpd/` mit demselben
+Dateinamen. Version und konfigurierter literaler SHA-256 bleiben unverändert.
+Redirects, Berechtigungsfehler, Zeitüberschreitungen, fremde Hosts und andere
+Komponenten lösen diese Wiederherstellung nicht aus. Der Digest wird vor
+Archivauflistung oder Extraktion geprüft. Die Cache-Identität bleibt an das
+kanonische Quelltupel gebunden; Metadaten erfassen die tatsächliche Download-URL
+und den ausdrücklichen Wiederherstellungsgrund.
 
 ## Eingeschränkter Python-3.14-Patch-Updater
 

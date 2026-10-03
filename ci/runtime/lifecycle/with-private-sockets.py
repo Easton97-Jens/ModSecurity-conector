@@ -2,6 +2,7 @@
 """Run one connector stage with short, invocation-owned Unix socket paths."""
 from __future__ import annotations
 
+import argparse
 import os
 from pathlib import Path
 import signal
@@ -48,70 +49,110 @@ def stop_group(group: int) -> bool:
     return remaining
 
 
-def run(command: list[str]) -> int:
-    selected = os.environ.get("RUNNER_TEMP") or os.environ.get("TMPDIR")
-    if not selected:
-        raise ValueError("RUNNER_TEMP or TMPDIR must select a trusted socket parent")
-    parent = Path(selected)
+def private_socket_root(parent: Path) -> Path:
     if not parent.is_absolute() or not parent.is_dir() or not is_safe_runtime_parent(parent):
         raise ValueError("socket parent must be an existing safe absolute directory")
     ensure_safe_runtime_directory(parent)
     if len(os.fsencode(parent / "mcs.12345678" / "traefik-forwardauth-companion.sock")) >= 108:
         raise ValueError("configured socket parent is too long for Unix sockets")
-    root = Path(tempfile.mkdtemp(prefix="mcs.", dir=parent))
-    safe_to_remove = True
-    try:
-        ensure_safe_runtime_directory(root)
-        environment = dict(os.environ, MSCONNECTOR_PRIVATE_SOCKET_ROOT=str(root))
-        child: subprocess.Popen[bytes] | None = None
-        pending_signals: list[int] = []
-        previous = {}
+    return ensure_safe_runtime_directory(tempfile.mkdtemp(prefix="mcs.", dir=parent))
 
-        def forward(signum: int, _frame: object) -> None:
-            # Include intermediate make/shell processes and their services.
-            # Keep the directory until the stage and its process group exit.
-            if child is None:
-                pending_signals.append(signum)
-            else:
-                try:
-                    os.killpg(child.pid, signum)
-                except ProcessLookupError:
-                    pass
 
+class StageProcessGroup:
+    """Keep socket ownership until every live stage process has stopped."""
+
+    def __init__(self, root: Path) -> None:
+        self.root = root
+        self.child: subprocess.Popen[bytes] | None = None
+        self.pending_signals: list[int] = []
+        self.previous_handlers = {}
+        self.safe_to_remove = True
+        self.lingering = False
+
+    def forward(self, signum: int, _frame: object) -> None:
+        if self.child is None:
+            self.pending_signals.append(signum)
+            return
         try:
-            for signum in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
-                previous[signum] = signal.signal(signum, forward)
-            child = subprocess.Popen(command, env=environment, start_new_session=True)
-            for signum in pending_signals:
-                forward(signum, None)
-            status = child.wait()
+            os.killpg(self.child.pid, signum)
+        except ProcessLookupError:
+            pass
+
+    def __enter__(self) -> StageProcessGroup:
+        for signum in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+            self.previous_handlers[signum] = signal.signal(signum, self.forward)
+        return self
+
+    def execute(self, command: list[str]) -> int:
+        environment = dict(os.environ, MSCONNECTOR_PRIVATE_SOCKET_ROOT=str(self.root))
+        self.child = subprocess.Popen(command, env=environment, start_new_session=True)
+        for signum in self.pending_signals:
+            self.forward(signum, None)
+        return self.child.wait()
+
+    def __exit__(self, _kind: object, _value: object, _traceback: object) -> None:
+        try:
+            if self.child is not None:
+                self.safe_to_remove = False
+                self.lingering = stop_group(self.child.pid)
+                self.child.wait()
+                self.safe_to_remove = True
+        except (OSError, ValueError, RuntimeError):
+            print(f"retained private socket root: {self.root}", file=sys.stderr)
+            raise
         finally:
-            try:
-                if child is not None:
-                    safe_to_remove = False
-                    lingering = stop_group(child.pid)
-                    child.wait()
-                    safe_to_remove = True
-            except (OSError, ValueError, RuntimeError):
-                print(f"retained private socket root: {root}", file=sys.stderr)
-                raise
-            finally:
-                for signum, handler in previous.items():
-                    signal.signal(signum, handler)
-        if lingering and status == 0:
+            for signum, handler in self.previous_handlers.items():
+                signal.signal(signum, handler)
+
+
+def run(command: list[str], parent: Path) -> int:
+    """Supervise a trusted internal command under an explicitly selected parent."""
+    root = private_socket_root(parent)
+    processes = StageProcessGroup(root)
+    try:
+        with processes:
+            status = processes.execute(command)
+        if processes.lingering and status == 0:
             print("FAIL: connector stage left live processes after exit", file=sys.stderr)
             return 1
         return status if status >= 0 else 128 - status
     finally:
-        if safe_to_remove:
+        if processes.safe_to_remove:
             shutil.rmtree(root)
 
 
-if __name__ == "__main__":
+def stage_command(connector: str, stage: str) -> list[str]:
+    """Build a fixed repository stage command from closed literal choices."""
+    if connector == "envoy":
+        selected_connector = "envoy"
+    elif connector == "traefik":
+        selected_connector = "traefik"
+    else:
+        raise ValueError("unsupported private socket connector")
+    if stage == "start_smoke":
+        selected_stage = "start_smoke"
+    elif stage == "minimal_runtime_smoke":
+        selected_stage = "minimal_runtime_smoke"
+    elif stage == "no_crs_baseline":
+        selected_stage = "no_crs_baseline"
+    else:
+        raise ValueError("unsupported private socket stage")
+    return ["/bin/sh", str(Path(__file__).resolve().with_name("run-connector-stage.sh")),
+            selected_connector, selected_stage]
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
+    parser.add_argument("--socket-parent", type=Path, required=True)
+    parser.add_argument("--connector", choices=("envoy", "traefik"), required=True)
+    parser.add_argument("--stage", choices=("start_smoke", "minimal_runtime_smoke", "no_crs_baseline"), required=True)
+    args = parser.parse_args(argv)
     try:
-        if not sys.argv[1:]:
-            raise ValueError("a connector stage command is required")
-        sys.exit(run(sys.argv[1:]))
+        return run(stage_command(args.connector, args.stage), args.socket_parent)
     except (OSError, ValueError, RuntimeError) as exc:
         print(f"FAIL: private socket stage: {exc}", file=sys.stderr)
-        sys.exit(1)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -699,6 +699,25 @@ def prepare_smoke_workspace(repo_root: Path, result_root: Path,
     return log_dir, config_dir, companion_socket, traefik_config, event_path, service_config
 
 
+def traefik_command(
+    binary: TrustedExecutable, port: int, config: Path, access_log: Path
+) -> tuple[str, ...]:
+    """Load only the staged observer, including its authenticated UDS imports."""
+    return binary.arguments(
+        f"--entryPoints.web.address=127.0.0.1:{port}",
+        f"--experimental.localPlugins.modsecurityResponseObserver.moduleName={OBSERVER_MODULE}",
+        "--experimental.localPlugins.modsecurityResponseObserver.settings.useUnsafe=true",
+        "--experimental.abortOnPluginFailure=true",
+        f"--providers.file.filename={config}",
+        "--providers.file.watch=false",
+        "--api=false",
+        "--log.level=ERROR",
+        "--global.sendAnonymousUsage=false",
+        "--accesslog=true",
+        f"--accesslog.filepath={access_log}",
+    )
+
+
 def run(args: argparse.Namespace) -> int:
     repo_root = Path(__file__).resolve().parents[3]
     (build_root, connector_binary, traefik_binary, result_root,
@@ -770,16 +789,8 @@ def run(args: argparse.Namespace) -> int:
             )
             wait_for_tcp(auth_port, service_process, "Traefik forwardAuth service")
 
-            command = traefik_binary.arguments(
-                f"--entryPoints.web.address=127.0.0.1:{traefik_port}",
-                f"--experimental.localPlugins.modsecurityResponseObserver.moduleName={OBSERVER_MODULE}",
-                f"--providers.file.filename={traefik_config}",
-                "--providers.file.watch=false",
-                "--api=false",
-                "--log.level=ERROR",
-                "--global.sendAnonymousUsage=false",
-                "--accesslog=true",
-                f"--accesslog.filepath={traefik_access_path}",
+            command = traefik_command(
+                traefik_binary, traefik_port, traefik_config, traefik_access_path
             )
             (config_dir / "traefik-command.txt").write_text(" ".join(command) + "\n", encoding="utf-8")
             with traefik_stdout_path.open("wb") as traefik_stdout, traefik_stderr_path.open("wb") as traefik_stderr:

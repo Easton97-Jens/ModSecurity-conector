@@ -80,7 +80,7 @@ jobs:
       PROFILE_RUN_ID: with-crs-no-mrts-${{ github.run_id }}-${{ github.run_attempt }}
       EXPECTED_PARENT_SHA: ${{ github.event.pull_request.head.sha || inputs.parent_sha }}
       EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base_sha }}
-      EXPECTED_FRAMEWORK_SHA: 9181dc77dfb0685d87fa109e6800dc6052d77cc9
+      EXPECTED_FRAMEWORK_SHA: 6948ec5b916e400c4fcaa1b6ccfa64251f606f8d
       EXPECTED_MRTS_SHA: 8a6bb546c4c81d8ffc7be801dceac60c6925685f
       EVIDENCE_ROOT: ""
       PYTHONDONTWRITEBYTECODE: "1"
@@ -218,7 +218,7 @@ jobs:
         if: matrix.connector == 'haproxy'
         env:
           PARENT_SHA: ${{ github.event.pull_request.head.sha || inputs.parent_sha }}
-          FRAMEWORK_SHA: 9181dc77dfb0685d87fa109e6800dc6052d77cc9
+          FRAMEWORK_SHA: 6948ec5b916e400c4fcaa1b6ccfa64251f606f8d
           MRTS_SHA: 8a6bb546c4c81d8ffc7be801dceac60c6925685f
           SETUP_PYTHON_PATH: ${{ steps.setup-python.outputs.python-path }}
           TRUSTED_RUNNER_TEMP: ${{ runner.temp }}
@@ -1088,7 +1088,7 @@ jobs:
           CONNECTOR: ${{ matrix.connector }}
           PARENT_SHA: ${{ github.event.pull_request.head.sha || inputs.parent_sha }}
           BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base_sha }}
-          FRAMEWORK_SHA: 9181dc77dfb0685d87fa109e6800dc6052d77cc9
+          FRAMEWORK_SHA: 6948ec5b916e400c4fcaa1b6ccfa64251f606f8d
           MRTS_SHA: 8a6bb546c4c81d8ffc7be801dceac60c6925685f
           PROFILE_RUN_ID_VALUE: with-crs-no-mrts-${{ github.run_id }}-${{ github.run_attempt }}
           CELL_RUN_ID_VALUE: crs-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.connector }}
@@ -1399,7 +1399,7 @@ jobs:
         env:
           EXPECTED_PARENT_SHA: ${{ github.event.pull_request.head.sha || inputs.parent_sha }}
           EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base_sha }}
-          FRAMEWORK_SHA: 9181dc77dfb0685d87fa109e6800dc6052d77cc9
+          FRAMEWORK_SHA: 6948ec5b916e400c4fcaa1b6ccfa64251f606f8d
           MRTS_SHA: 8a6bb546c4c81d8ffc7be801dceac60c6925685f
           PROFILE_RUN_ID_VALUE: with-crs-no-mrts-${{ github.run_id }}-${{ github.run_attempt }}
           CELL_ROOT: ${{ runner.temp }}/with-crs-no-mrts-cells
