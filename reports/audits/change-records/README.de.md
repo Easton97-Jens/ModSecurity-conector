@@ -11,6 +11,11 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20261003-pr355-pr396-integration](CR-20261003-pr355-pr396-integration.de.md)
+  | English companion: `CR-20261003-pr355-pr396-integration.md` — vollständiger
+  Port des geschützten PR-#355-Scopes, Nachfolger-Kompatibilitätskontrollen und
+  getrennte Framework-Bindung; Remote-Supersession bleibt gegated, kein Full-E2E-Claim.
+
 - [CR-20261003-nginx-size-configtest](CR-20261003-nginx-size-configtest.de.md)
   | English companion: `CR-20261003-nginx-size-configtest.md` — selektierte Size-Parser-
   Ablehnung mit frischer case-spezifischer Evidence; kein Full E2E oder Gitlink-Claim.

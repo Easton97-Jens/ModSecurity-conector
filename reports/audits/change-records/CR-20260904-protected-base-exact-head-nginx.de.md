@@ -364,7 +364,13 @@ bleiben Beobachtungen.
 
 ## Geänderte Dateien
 
-Der Protected-Base-Diff gegenüber aktueller Base enthält genau diese 23 Pfade:
+Die anfängliche Protected-Base-Checkliste enthielt diese 23 Pfade. Diese
+historische Liste ist nicht das vollständige finale Inventar von PR #355:
+Am finalen Head `b42ebda511cb9b6dca1de5c23b1b7b55ee400fd8` enthält der
+Diff gegenüber `b779167ff979aa73cdd9321a829f9c693d943760` 25 Pfade,
+einschließlich der beiden nach der anfänglichen Checkliste aufgeführten
+Review-Package-Dateien. Historische Testzahlen und Sonar-Checkpoints unten
+behalten ihren ursprünglichen Umfang und ihre Identität.
 
 - `.github/actionlint.yaml`
 - `.github/workflows/run-protected-nginx-exact-head.yml`
@@ -389,6 +395,11 @@ Der Protected-Base-Diff gegenüber aktueller Base enthält genau diese 23 Pfade:
 - `tests/test_protected_nginx_exact_head_dispatcher.py`
 - `tests/test_protected_nginx_exact_head_runner_preflight.py`
 - `tests/test_protected_nginx_exact_head_workflow.py`
+
+Zusätzliche Review-Package-Pfade im finalen Umfang:
+
+- `docs/security/protected-exact-head-review-package.md`
+- `docs/security/protected-exact-head-review-package.de.md`
 
 ## Ausgeführte Befehle
 

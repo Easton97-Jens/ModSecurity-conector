@@ -332,7 +332,12 @@ candidate WAF semantics and callback/JSONL remain observations.
 
 ## Changed files
 
-The protected-base diff from current Base contains exactly these 23 paths:
+The initial protected-base checklist contained these 23 paths. This historical
+list is not the complete final PR #355 inventory: at final head
+`b42ebda511cb9b6dca1de5c23b1b7b55ee400fd8`, the diff from
+`b779167ff979aa73cdd9321a829f9c693d943760` contains 25 paths, including the
+two review-package files listed after the initial checklist. Historical test
+counts and Sonar checkpoints below retain their original scope and identity.
 
 - `.github/actionlint.yaml`
 - `.github/workflows/run-protected-nginx-exact-head.yml`
@@ -357,6 +362,11 @@ The protected-base diff from current Base contains exactly these 23 paths:
 - `tests/test_protected_nginx_exact_head_dispatcher.py`
 - `tests/test_protected_nginx_exact_head_runner_preflight.py`
 - `tests/test_protected_nginx_exact_head_workflow.py`
+
+Additional final-scope review-package paths:
+
+- `docs/security/protected-exact-head-review-package.md`
+- `docs/security/protected-exact-head-review-package.de.md`
 
 ## Commands executed
 

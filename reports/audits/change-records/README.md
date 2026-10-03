@@ -10,6 +10,11 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20261003-pr355-pr396-integration](CR-20261003-pr355-pr396-integration.md)
+  | [Deutsch](CR-20261003-pr355-pr396-integration.de.md) — complete protected
+  PR #355 scope port, successor compatibility controls and separate Framework
+  dependency binding; remote supersession remains gated, no Full E2E claim.
+
 - [CR-20261003-nginx-size-configtest](CR-20261003-nginx-size-configtest.md)
   | [Deutsch](CR-20261003-nginx-size-configtest.de.md) — selected size-parser
   rejection with fresh per-case retained evidence; no full E2E or Gitlink claim.
