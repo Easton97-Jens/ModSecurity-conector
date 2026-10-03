@@ -67,12 +67,31 @@ control: Yaegi selected the non-Linux peer-credential stub when only modern
 `// +build !linux` lines now accompany both modern constraints. This preserves
 the non-Linux fail-closed behavior and Linux UID/GID authentication.
 
+The sequential smoke report failure was a producer/input mismatch: its native
+Apache/NGINX producer cannot supply the full-matrix/MRTS inputs expected by the
+general strict refresh. Dedicated `test-smoke-sequential-no-crs` and
+`test-smoke-sequential-with-crs` targets now invoke `bounded-smoke` only for that
+workflow. General `test-no-crs`/`test-with-crs` and the complete
+`refresh-all-reports` (`--strict-inputs`) catalog remain intact. Current native
+case discovery supplies Apache 54 and NGINX 60 cases in the diagnosed scope;
+validation discovers exact variant-specific sets instead of hardcoding counts.
+Fresh same-run coverage and runtime-cache reports are mandatory. A private
+receipt is bound through exact Parent blob/gitlink checks to Framework/MRTS,
+the fixed module path, run identity and native case selection. All rows must
+match variant/connector, be live and pass without exceptions. Missing/extra
+cases, revision/variant drift, stale/symlinked inputs and failed/blocked producer
+return codes fail. The snapshot generator must produce fresh Parent-owned,
+run-bound output; generated reports are not staged. This aligns validation with
+the real producer and does not weaken the full gate or promote full-matrix,
+MRTS or response-body evidence.
+
 ## Changed files
 
 - `.github/workflows/ci-security-workflow-lint.yml`
 - `.github/workflows/cleanup-artifacts.yml`
 - `.github/workflows/nginx-root-broker.yml`
 - `.github/workflows/test-connectors-with-crs-no-mrts.yml`
+- `.github/workflows/test-full-smoke-sequential.yml`
 - `.github/workflows/test-envoy.yml`
 - `.github/workflows/test-traefik.yml`
 - `.github/workflows/update-go-version.yml`
@@ -82,6 +101,7 @@ the non-Linux fail-closed behavior and Linux UID/GID authentication.
 - `Makefile`
 - `ci/lib/framework_revision_pins.py`
 - `ci/provisioning/components/prepare-runtime-components.py`
+- `ci/evidence/reports/refresh-connector-reports.py`
 - `ci/runtime/broker/nginx_root_broker.py`
 - `ci/runtime/lifecycle/run-connector-stage.sh`
 - `ci/runtime/lifecycle/with-private-sockets.py`
@@ -120,6 +140,7 @@ the non-Linux fail-closed behavior and Linux UID/GID authentication.
 - `tests/test_apache_intervention_cleanup.py`
 - `tests/test_c_cpp_diagnostics.py`
 - `tests/test_ci_security_workflows.py`
+- `tests/test_full_smoke_workflow_contract.py`
 - `tests/test_framework_revision_pins.py`
 - `tests/test_nginx_root_broker.py`
 - `tests/test_nginx_root_broker_workflow.py`
@@ -206,9 +227,21 @@ with `-Wall -Wextra -Werror` passed. Hosted selected Apache `2.4.68`/engine
 
 The full workflow/tool suite passed 38 tests again with the native Make
 prerequisite, and root host-enabled Traefik/engine/C++ validation passed 38 tests
-without skips. Bounded report follow-up remains in progress: full smoke produces
-only Apache/NGINX scope, and the existing full strict gate is retained. No report-
-gate correction or full-workflow success is claimed before its own validation.
+without skips. The bounded report source correction described below is implemented; its
+final focused regressions passed as recorded below; fresh-head hosted validation
+remains outstanding.
+No full-workflow success is claimed.
+
+Follow-up source validation passed 35 reader/toolchain tests, 34 Framework-sync
+tests, 219 CI-contract tests with five existing environment/privilege skips,
+and 38 full workflow/tool tests. The synchronizer production CLI is now bound
+to its own Parent repository; fixture APIs remain separate. A partial callback,
+ASCII-preserving regex cleanup, isolated exception assertions and status
+refactoring resolve the observed findings without suppression. The final bounded-profile suite passed 16 tests after clearing `FORCE_ALL_CASES`
+and adding fixed CLI-root, path and timeout guards. The combined report/reader/
+integrity suite passed 116 tests before those last guards; that earlier combined
+result does not cover them. Final actionlint passed all 31 workflows. The next
+exact-head Sonar and hosted runtime results remain required.
 
 ## Security impact
 
@@ -237,6 +270,15 @@ The `f986fe7` CRS round passed all five selected connector jobs and aggregate.
 Subsequent centralization and Yaegi build-constraint fixes require a new exact
 head and fresh hosted/Sonar evidence; neither earlier green scan validates them.
 
+The next delivered commit `1ca0d4be9f008f30344a46bb084f324e8fd8f496` passed the
+strict post-commit reader against its actual committed lock blob/gitlinks;
+remote task branch and PR 400 head matched that exact SHA. All automatic checks on this exact head are now terminal and successful,
+including the previously running CRS and exact-head NGINX checks.
+Sonar analysis at `2026-10-03T07:42:59+0000` reported `ERROR`, with one `S8707`
+finding and six maintainability findings. The subsequent source changes above
+address those findings, but their new-head Sonar result remains pending. Earlier
+green scans are historical and do not establish the next head's quality.
+
 ## Known limitations
 
 Local privilege-dependent namespace integration had five existing skips. CI-mode quick-check passed with the two missing-header compiler skips; the ordinary local attempt timed out. The protected broker caller remains pinned to `49c40779a7b6de9f699391bcd524ea069787df42`; the updated broker source is not activated by this patch alone.
@@ -251,4 +293,4 @@ A full Parent hosted pass and both protected broker runtime profiles are outstan
 
 ## Final diff and review status
 
-Initial and corrective changes were delivered in PR 400. The published corrective head has the successful Sonar and local quick-check snapshot recorded above; the subsequent centralization/build-constraint corrections and complete hosted runtime validation still require final-head evidence. Overall recovery remains partial pending that evidence and protected activation. Original working checkouts are preserved; only the task Parent Framework gitlink is changed as documented above. No Parent master integration or Framework/MRTS source edit is claimed. Both record language versions preserve the same values and limitations.
+Initial and corrective changes were delivered in PR 400. The latest published `1ca0d4b` head has successful automatic checks and the separate Sonar `ERROR` result recorded above. Pending source corrections and the bounded report profile have local validation; they still require delivery and fresh exact-head hosted/Sonar evidence. Overall recovery remains partial pending that evidence and protected activation. Original working checkouts are preserved; only the task Parent Framework gitlink is changed as documented above. No Parent master integration or Framework/MRTS source edit is claimed. Both record language versions preserve the same values and limitations.

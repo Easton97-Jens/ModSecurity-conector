@@ -53,11 +53,13 @@ class RevisionLockTests(RevisionFixture):
     def test_toolchain_versions_reject_prereleases_flags_and_unsupported_python_minor(self) -> None:
         for field in ("python_version", "go_version"):
             for value in (None, 1.27, "latest", "--help", "3.14.7; id", "1.27.1-rc1", "1.27.01", "1.２７.1"):
+                data = json.dumps({**self.pins, field: value}).encode()
                 with self.subTest(field=field, value=value), self.assertRaises(FrameworkRevisionPinsError):
-                    parse_framework_revision_pins(json.dumps({**self.pins, field: value}).encode())
+                    parse_framework_revision_pins(data)
         for value in ("3.13.12", "3.15.0", "3.14.07"):
+            data = json.dumps({**self.pins, "python_version": value}).encode()
             with self.subTest(value=value), self.assertRaises(FrameworkRevisionPinsError):
-                parse_framework_revision_pins(json.dumps({**self.pins, "python_version": value}).encode())
+                parse_framework_revision_pins(data)
 
     def test_go_stable_release_contract_includes_zero_minor_and_future_major(self) -> None:
         for value in ("1.0.0", "2.0.1"):
@@ -71,8 +73,9 @@ class RevisionLockTests(RevisionFixture):
         invalid += [{**self.pins, field: value} for field in ("framework_sha", "mrts_sha")
                     for value in (None, 123, "A" * 40, "a" * 39, "a" * 40 + "\n", "ａ" * 40)]
         for value in invalid:
+            data = json.dumps(value).encode()
             with self.subTest(value=value), self.assertRaises(FrameworkRevisionPinsError):
-                parse_framework_revision_pins(json.dumps(value).encode())
+                parse_framework_revision_pins(data)
 
     def test_duplicate_keys_bad_encoding_and_unbounded_data_are_rejected(self) -> None:
         duplicate = json.dumps(self.pins)[:-1] + ', "schema_version": 1}'

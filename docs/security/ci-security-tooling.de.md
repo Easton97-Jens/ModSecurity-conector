@@ -264,6 +264,30 @@ Job absichtlich nicht, weil ihr Head kein vertrauenswürdiger
 Same-Repository-Ref ist. Die Default-Branch-Scorecard lädt SARIF nur mit der
 separaten Berechtigung `security-events: write` hoch.
 
+## Report-Scope des sequenziellen Smokes
+
+`test-full-smoke-sequential.yml` verwendet die dedizierten Ziele
+`test-smoke-sequential-no-crs` / `test-smoke-sequential-with-crs`.
+Sein nativer Producer liefert Apache-/NGINX-Smoke-Ergebnisse, nicht die Full-
+Matrix-, MRTS- und weiteren Runtime-Eingaben der allgemeinen Report-Aktualisierung.
+Das Profil `bounded-smoke` entspricht diesem tatsächlichen Producer-Scope;
+das Verhalten von allgemeinem `test-no-crs`, `test-with-crs` und
+`refresh-all-reports` (`--strict-inputs`) bleibt unverändert.
+
+Das begrenzte Profil verlangt frische Coverage- und Runtime-Cache-Reports aus
+demselben Run. Ein privater Beleg bindet den exakten Parent-Commit, verifizierte
+Framework-/MRTS-Gitlinks und Checkouts, festen Framework-Pfad, Variante, Build-
+Root und native Fallauswahl. Jede ausgewählte Apache-/NGINX-Zeile muss richtige
+Variante und Connector ausweisen, live ausgeführt sein und bestehen; fehlende
+oder zusätzliche Fälle sind unzulässig. Die Produktions-CLI lässt nur ihre festen Parent-/Framework-Roots zu; native
+Fallermittlung ist zeitlich begrenzt und leert geerbte Scope-Steuerungen.
+Fehlgeschlagener/blockierter Producer-Status, veraltete oder symlinkbasierte
+Eingaben, Identitätsdrift und beibehaltene Ausgaben lassen die Validierung scheitern. Der Snapshot-Generator muss frische
+Parent-eigene Ausgabe für diesen Run schreiben, bevor beide verpflichtenden
+Reports erfolgreich sind. Generierte Ausgabe ist Runtime-Evidence und keine
+gestagte Quelländerung. Dieses Smoke-Profil erhöht keine Full-Matrix-, MRTS-
+oder Response-Body-Coverage-Claims.
+
 ## Validierung und Einschränkungen
 
 Führen Sie `make check-ci-security-contract` für fokussierte statische Verträge

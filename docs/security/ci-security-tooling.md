@@ -241,6 +241,29 @@ not analyzed by that job because their head is not a trusted same-repository
 ref. Default-branch Scorecard uploads SARIF with the separate
 `security-events: write` permission only.
 
+## Sequential smoke report scope
+
+`test-full-smoke-sequential.yml` uses the dedicated
+`test-smoke-sequential-no-crs` / `test-smoke-sequential-with-crs` targets.
+Its native producer supplies Apache/NGINX smoke results, not the full-matrix,
+MRTS and other runtime inputs required by the general report refresh. The
+`bounded-smoke` profile matches that actual producer scope; general
+`test-no-crs`, `test-with-crs` and `refresh-all-reports` (`--strict-inputs`) behavior
+remain unchanged.
+
+The bounded profile requires fresh coverage and runtime-cache reports from the
+same run. A private receipt binds the exact Parent commit, verified Framework/
+MRTS gitlinks and checkouts, fixed Framework path, variant, build root and native
+case selection. Every selected Apache/NGINX row must identify its correct
+variant/connector, be live-executed and pass; no missing or extra case is allowed.
+The production CLI admits only its fixed Parent/Framework roots; native case
+discovery is time-bounded and clears inherited scope controls. Failed/blocked
+producer status, stale or symlinked inputs, identity drift and retained outputs
+fail validation. The snapshot generator must write fresh
+Parent-owned output matching this run before either mandatory report succeeds.
+Generated output is runtime evidence, not a staged source change. This smoke
+profile does not promote full-matrix, MRTS or response-body coverage claims.
+
 ## Validation and limitations
 
 Run `make check-ci-security-contract` for focused static contracts and lock

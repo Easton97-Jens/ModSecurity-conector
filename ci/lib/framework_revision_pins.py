@@ -15,7 +15,7 @@ MAX_LOCK_BYTES = 4096
 FRAMEWORK_PATH = "modules/ModSecurity-test-Framework"
 MRTS_PATH = "tools/MRTS"
 HEX40 = re.compile(r"[0-9a-f]{40}", re.ASCII)
-PYTHON_VERSION = re.compile(r"3\.14\.(?:0|[1-9][0-9]*)", re.ASCII)
+PYTHON_VERSION = re.compile(r"3\.14\.(?:0|[1-9]\d*)", re.ASCII)
 GO_VERSION = re.compile(r"[1-9]\d*\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)", re.ASCII)
 
 

@@ -71,7 +71,12 @@ def main(argv: list[str] | None = None) -> int:
     except (UpdaterError, OSError, UnicodeError, subprocess.SubprocessError) as error:
         print(json.dumps({"status": "error", "error": str(error)}))
         return 2
-    print(json.dumps({"status": "synchronized" if args.sync else "valid" if not changed else "drift", "changed": changed}))
+    status = "valid"
+    if args.sync:
+        status = "synchronized"
+    elif changed:
+        status = "drift"
+    print(json.dumps({"status": status, "changed": changed}))
     return int(bool(changed) and args.check)
 
 

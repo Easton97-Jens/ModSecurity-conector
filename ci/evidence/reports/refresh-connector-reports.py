@@ -6,10 +6,11 @@ import hashlib
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -18,6 +19,8 @@ _CI_ROOT = next(parent for parent in Path(__file__).resolve().parents if parent.
 if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
 from typing import Any
+
+from framework_revision_pins import verify_framework_revision_pins
 
 from generated_report_utils import (
     DATA_SOURCE_POLICY,
@@ -2341,6 +2344,9 @@ def refresh_arguments() -> argparse.Namespace:
     parser.add_argument("--build-root", default=os.environ.get("BUILD_ROOT"))
     parser.add_argument("--native-root", default=os.environ.get("MRTS_NATIVE_ROOT"))
     parser.add_argument("--strict-inputs", action="store_true")
+    parser.add_argument("--profile", choices=("full", "bounded-smoke"), default="full")
+    parser.add_argument("--begin-bounded-smoke", action="store_true")
+    parser.add_argument("--variant", choices=("no-crs", "with-crs"))
     parser.add_argument(
         "--render-index-only",
         action="store_true",
@@ -2356,8 +2362,14 @@ def refresh_roots(args: argparse.Namespace) -> tuple[Path, Path, Path, Path, Pat
     from runtime_path_utils import verified_runtime_paths
 
     default_paths = verified_runtime_paths(os.environ)
-    build_root = Path(args.build_root or default_paths["BUILD_ROOT"]).resolve()
-    native_root = Path(args.native_root or build_root / "mrts-native").resolve()
+    build_root = Path(args.build_root or default_paths["BUILD_ROOT"])
+    native_root = Path(args.native_root or build_root / "mrts-native")
+    if args.profile == "bounded-smoke":
+        build_root = build_root.absolute()
+        native_root = native_root.absolute()
+    else:
+        build_root = build_root.resolve()
+        native_root = native_root.resolve()
     report_dir = connector_root / REPORT_DIR
     add_safe_roots(connector_root, framework_root, build_root, native_root, report_dir)
     add_report_roots(report_dir)
@@ -2545,12 +2557,245 @@ def refresh_exit_code(reports: list[dict[str, Any]], strict_inputs: bool) -> int
     return 2 if failed or (strict_inputs and skipped_required) else 0
 
 
+BOUNDED_SMOKE_RECEIPT = "bounded-smoke-producer.json"
+BOUNDED_SMOKE_REPORTS = frozenset({"connector_coverage_reports", "runtime_cache_reports"})
+
+
+def bounded_smoke_identity(connector_root: Path, framework_root: Path, build_root: Path,
+                           variant: str | None, env: dict[str, str]) -> dict[str, str]:
+    if framework_root != connector_root / "modules/ModSecurity-test-Framework":
+        raise ValueError("bounded smoke requires the fixed Parent Framework module path")
+    pins = verify_framework_revision_pins(connector_root, git_sha(connector_root))
+    identity = {"parent_sha": git_sha(connector_root), "framework_sha": str(pins["framework_sha"]),
+                "run_id": env.get("VERIFIED_RUN_ID", ""), "variant": variant or "",
+                "build_root": str(build_root)}
+    if not all(re.fullmatch(r"[0-9a-f]{40}", identity[key]) for key in ("parent_sha", "framework_sha")):
+        raise ValueError("bounded smoke requires exact Parent and Framework revisions")
+    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,160}", identity["run_id"]) or identity["variant"] not in {"no-crs", "with-crs"}:
+        raise ValueError("bounded smoke requires a run ID and explicit variant")
+    return identity
+
+
+def bounded_smoke_expected_cases(connector_root: Path, framework_root: Path,
+                                 env: dict[str, str], variant: str) -> dict[str, list[str]]:
+    # This is exactly the pinned native harness catalog API, with no inherited
+    # TEST_CASE / SMOKE_CASES or canonical-baseline selection narrowing.
+    program = """import json, sys
+sys.path.insert(0, sys.argv[2] + '/tests/runners')
+from runner_core import discover_case_files, load_case
+result = {connector: sorted(str(load_case(path)['name']) for path in
+    discover_case_files(sys.argv[1], connector, scope='all', smoke_cases='',
+                        test_case='', framework_root=sys.argv[2]))
+    for connector in ('apache', 'nginx')}
+print(json.dumps(result))
+"""
+    selection_env = {**env, "MODSECURITY_TEST_VARIANT": variant, "FORCE_ALL_CASES": "", "NO_CRS_BASELINE": ""}
+    process = subprocess.run([sys.executable, "-c", program, str(connector_root), str(framework_root)],
+                             cwd=connector_root, env=selection_env, capture_output=True, text=True, check=False, timeout=30)
+    if process.returncode != 0:
+        raise ValueError("bounded smoke pinned native case discovery failed: " + process.stderr.strip())
+    expected = json.loads(process.stdout)
+    for connector in ("apache", "nginx"):
+        names = expected.get(connector) if isinstance(expected, dict) else None
+        if (not isinstance(names, list) or not names
+                or any(not isinstance(name, str) or not name for name in names)
+                or len(names) != len(set(names))):
+            raise ValueError("bounded smoke pinned native case catalog is incomplete or ambiguous")
+    return expected
+
+
+def begin_bounded_smoke(connector_root: Path, framework_root: Path, build_root: Path,
+                        variant: str | None, env: dict[str, str]) -> None:
+    from runtime_path_utils import open_private_runtime_root
+
+    identity = bounded_smoke_identity(connector_root, framework_root, build_root, variant, env)
+    expected = bounded_smoke_expected_cases(connector_root, framework_root, env, identity["variant"])
+    with open_private_runtime_root(build_root) as root:
+        # O_EXCL receipt creation and a new results directory prohibit reuse of
+        # an earlier run, even when every retained result happened to pass.
+        os.mkdir("results", mode=0o700, dir_fd=root.descriptor)
+        root.create_text(BOUNDED_SMOKE_RECEIPT, json.dumps(
+            {**identity, "started_at_ns": time.time_ns(), "expected_cases": expected}, sort_keys=True
+        ) + "\n")
+
+
+def bounded_smoke_input(build_root: Path, name: str, started_at_ns: int) -> str:
+    from runtime_path_utils import read_runtime_artifact_text
+
+    path = build_root / "results" / name
+    details = path.lstat()
+    if (not stat.S_ISREG(details.st_mode) or details.st_uid != os.geteuid()
+            or details.st_nlink != 1 or stat.S_IMODE(details.st_mode) & 0o022
+            or details.st_size > 16 * 1024 * 1024 or details.st_mtime_ns < started_at_ns):
+        raise ValueError(f"bounded smoke input is unsafe, stale or oversized: {name}")
+    return read_runtime_artifact_text(build_root, path, "bounded smoke input")
+
+
+def bounded_smoke_receipt(connector_root: Path, framework_root: Path, build_root: Path,
+                          variant: str | None, env: dict[str, str]) -> dict[str, Any]:
+    from runtime_path_utils import open_private_runtime_root
+
+    identity = bounded_smoke_identity(connector_root, framework_root, build_root, variant, env)
+    with open_private_runtime_root(build_root) as root:
+        receipt = json.loads(root.read_text(BOUNDED_SMOKE_RECEIPT))
+    if not isinstance(receipt, dict) or any(receipt.get(key) != value for key, value in identity.items()):
+        raise ValueError("bounded smoke producer identity does not match the current run")
+    started_at_ns = receipt.get("started_at_ns")
+    if type(started_at_ns) is not int or not 0 < started_at_ns <= time.time_ns():
+        raise ValueError("bounded smoke producer start time is invalid")
+    expected = bounded_smoke_expected_cases(connector_root, framework_root, env, identity["variant"])
+    if receipt.get("expected_cases") != expected:
+        raise ValueError("bounded smoke producer native case selection changed")
+    return receipt
+
+
+def validate_bounded_smoke_summary(connector: str, text: str, expected: list[str], variant: str) -> None:
+    payload = json.loads(text)
+    summary = payload.get(connector) if isinstance(payload, dict) else None
+    cases = summary.get("cases") if isinstance(summary, dict) else None
+    counts = summary.get("summary") if isinstance(summary, dict) else None
+    if not isinstance(cases, dict) or set(cases) != set(expected):
+        raise ValueError(f"bounded smoke {connector} case IDs differ from the pinned native catalog")
+    required_counts = {"pass": len(expected), "fail": 0, "blocked": 0, "not_executable": 0, "skipped": 0}
+    if (not isinstance(counts, dict) or counts != required_counts
+            or any(type(value) is not int for value in counts.values())):
+        raise ValueError(f"bounded smoke {connector} has incomplete or unsuccessful case counts")
+    if any(not isinstance(row, dict) or row.get("variant") != variant
+           or row.get("executed_connector") != connector for row in cases.values()):
+        raise ValueError(f"bounded smoke {connector} case variant or executed connector differs from the producer")
+    if any(not isinstance(row, dict) or row.get("status") != "pass"
+           or row.get("live_executed") is not True for row in cases.values()):
+        raise ValueError(f"bounded smoke {connector} requires current successful live case results")
+
+
+def validate_bounded_smoke_inputs(connector_root: Path, framework_root: Path, build_root: Path,
+                                  variant: str | None, env: dict[str, str]) -> dict[str, Any]:
+    receipt = bounded_smoke_receipt(connector_root, framework_root, build_root, variant, env)
+    hashes: dict[str, str] = {}
+    for connector in ("apache", "nginx"):
+        rc_name = f"{connector}.rc"
+        summary_name = f"{connector}-summary.json"
+        rc = bounded_smoke_input(build_root, rc_name, receipt["started_at_ns"])
+        summary_text = bounded_smoke_input(build_root, summary_name, receipt["started_at_ns"])
+        if rc.strip() != "0":
+            raise ValueError(f"bounded smoke {connector} producer did not succeed")
+        validate_bounded_smoke_summary(connector, summary_text, receipt["expected_cases"][connector], receipt["variant"])
+        for name, content in ((rc_name, rc), (summary_name, summary_text)):
+            hashes[name] = hashlib.sha256(content.encode("utf-8")).hexdigest()
+    return {**receipt, "input_sha256": hashes}
+
+
+def bounded_smoke_catalog(catalog: list[ReportSpec]) -> list[ReportSpec]:
+    selected = [replace(spec, optional=False) for spec in catalog if spec.name in BOUNDED_SMOKE_REPORTS]
+    if {spec.name for spec in selected} != BOUNDED_SMOKE_REPORTS or len(selected) != len(BOUNDED_SMOKE_REPORTS):
+        raise ValueError("bounded smoke report catalog is incomplete")
+    return selected
+
+
+def bounded_smoke_report_status(reports: list[dict[str, Any]], run_id: str) -> int:
+    return 0 if (len(reports) == len(BOUNDED_SMOKE_REPORTS)
+                 and {report.get("report_name") for report in reports} == BOUNDED_SMOKE_REPORTS
+                 and all(report.get("status") == "generated"
+                         and report.get("freshness_status") == "fresh"
+                         and report.get("verified_run_id") == run_id
+                         for report in reports)) else 2
+
+
+def bounded_smoke_snapshot_path(connector_root: Path) -> Path:
+    return connector_root / "reports/testing/runtime-validation-snapshot.json"
+
+
+def validate_bounded_smoke_snapshot(connector_root: Path, receipt: dict[str, Any], started_at_ns: int) -> None:
+    path = bounded_smoke_snapshot_path(connector_root)
+    details = path.lstat()
+    if (not stat.S_ISREG(details.st_mode) or details.st_uid != os.geteuid()
+            or details.st_nlink != 1 or stat.S_IMODE(details.st_mode) & 0o022
+            or details.st_size > 16 * 1024 * 1024 or details.st_mtime_ns < started_at_ns):
+        raise ValueError("bounded smoke snapshot was not safely regenerated for this refresh")
+    snapshot = json.loads(path.read_text(encoding="utf-8"))
+    commit = snapshot.get("commit", "")
+    if (snapshot.get("build_root") != receipt["build_root"]
+            or not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{7,40}", commit)
+            or not receipt["parent_sha"].startswith(commit)):
+        raise ValueError("bounded smoke snapshot source/run identity differs from the producer")
+    rows = snapshot.get("runtime_smokes", [])
+    for connector in ("apache", "nginx"):
+        expected_path = str(Path(receipt["build_root"]) / "results" / f"{connector}-summary.json")
+        selected = [row for row in rows if isinstance(row, dict) and row.get("connector") == connector]
+        if len(selected) != 1 or selected[0].get("summary_path") != expected_path:
+            raise ValueError("bounded smoke snapshot does not reference the exact producer summaries")
+
+
+def refresh_bounded_smoke(connector_root: Path, framework_root: Path, build_root: Path,
+                          variant: str | None, env: dict[str, str], catalog: list[ReportSpec]) -> int:
+    from runtime_path_utils import open_private_runtime_root
+
+    receipt = validate_bounded_smoke_inputs(connector_root, framework_root, build_root, variant, env)
+    command = [sys.executable, str(framework_root / "ci/reporting/update-runtime-snapshot.py"),
+               "--framework-root", str(framework_root), "--connector-root", str(connector_root),
+               "--output-root", str(connector_root), "--build-root", str(build_root),
+               "--apache-exit-code", "0", "--nginx-exit-code", "0",
+               "--apache-command", f"make test-smoke-sequential-{variant}",
+               "--nginx-command", f"make test-smoke-sequential-{variant}"]
+    snapshot_started_at_ns = time.time_ns()
+    snapshot_status, _output, _log = run_command(command, connector_root, env)
+    if snapshot_status != 0:
+        raise ValueError(f"bounded smoke snapshot generator returned {snapshot_status}")
+    # Revalidate after snapshot generation rather than trusting retained input
+    # or a producer result that changed while a report was being refreshed.
+    if validate_bounded_smoke_inputs(connector_root, framework_root, build_root, variant, env) != receipt:
+        raise ValueError("bounded smoke inputs changed during snapshot generation")
+    validate_bounded_smoke_snapshot(connector_root, receipt, snapshot_started_at_ns)
+    selected = bounded_smoke_catalog(catalog)
+    report_start_ns = time.time_ns()
+    reports = [run_spec(spec, connector_root, framework_root, build_root, env) for spec in selected]
+    status = bounded_smoke_report_status(reports, receipt["run_id"])
+    for spec in selected:
+        for output in spec.outputs:
+            path = resolve_output(output, connector_root)
+            if not path.is_file() or path.is_symlink() or path.stat().st_mtime_ns < report_start_ns:
+                status = 2
+    if validate_bounded_smoke_inputs(connector_root, framework_root, build_root, variant, env) != receipt:
+        raise ValueError("bounded smoke inputs changed during report generation")
+    with open_private_runtime_root(build_root) as root:
+        root.create_text("bounded-smoke-report-refresh.json", json.dumps(
+            {"profile": "bounded-smoke", "status": "PASS" if status == 0 else "FAIL",
+             "producer": receipt, "reports": reports}, indent=2, sort_keys=True
+        ) + "\n")
+    return status
+
+
 def main() -> int:
     args = refresh_arguments()
+    if args.profile == "bounded-smoke":
+        fixed_root = Path(__file__).resolve().parents[3]
+        fixed_framework = fixed_root / FRAMEWORK_SUBMODULE_PATH
+        provided_framework = Path(args.framework_root).absolute() if args.framework_root else fixed_framework
+        if (Path(args.connector_root).absolute() != fixed_root or provided_framework != fixed_framework
+                or args.render_index_only):
+            print("bounded smoke report refresh: FAIL: requires the script Parent/Framework roots and a fresh producer", file=sys.stderr)
+            return 2
+        args.connector_root = str(fixed_root)
+        args.framework_root = str(fixed_framework)
     connector_root, framework_root, build_root, native_root, report_dir = refresh_roots(args)
+    if args.profile == "bounded-smoke":
+        connector_root = Path(__file__).resolve().parents[3]
+        framework_root = connector_root / FRAMEWORK_SUBMODULE_PATH
     if args.render_index_only:
         return render_index_only(connector_root)
     verified_run_id, environment = refresh_environment(connector_root, framework_root, build_root, native_root)
+    if args.profile == "bounded-smoke":
+        try:
+            if args.begin_bounded_smoke:
+                begin_bounded_smoke(connector_root, framework_root, build_root, args.variant, environment)
+                return 0
+            catalog = make_catalog(connector_root, framework_root, build_root, native_root, sys.executable)
+            return refresh_bounded_smoke(connector_root, framework_root, build_root, args.variant, environment, catalog)
+        except (OSError, ValueError, TypeError, subprocess.TimeoutExpired) as error:
+            print(f"bounded smoke report refresh: FAIL: {error}", file=sys.stderr)
+            return 2
+    if args.begin_bounded_smoke or args.variant:
+        raise ValueError("bounded smoke arguments require the bounded-smoke profile")
     catalog = make_catalog(connector_root, framework_root, build_root, native_root, sys.executable)
     reports = [run_spec(spec, connector_root, framework_root, build_root, environment) for spec in catalog]
     refresh_governance_reports(

@@ -10,6 +10,7 @@ import py_compile
 import re
 import shutil
 import stat
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -478,11 +479,38 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "source checkout"):
             set_framework_sha_fixture(ROOT, NEW_FRAMEWORK_SHA)
 
+    def run_copied_cli(self, arguments: tuple[str, ...]) -> int:
+        result = subprocess.run(
+            [sys.executable, str(self.root / "ci/tools/sync-framework-component-versions.py"), *arguments],
+            capture_output=True, text=True, check=False, timeout=30,
+        )
+        if result.returncode not in (0, 1, 2):
+            self.fail(f"copied CLI crashed: {result.stdout} {result.stderr}")
+        return result.returncode
+
+    def test_cli_rejects_alternate_and_symlinked_repository_roots_before_io(self) -> None:
+        link = Path(self.temp.name) / "linked-repository"
+        link.symlink_to(ROOT, target_is_directory=True)
+        before = self.all_target_bytes()
+        for alternative in (self.root, link):
+            with self.subTest(alternative=alternative):
+                with mock.patch.object(SYNC, "synchronize") as synchronize:
+                    self.assertEqual(SYNC.main(("--sync", "--repo-root", str(alternative),
+                                               "--framework-common", str(self.common))), 2)
+                    synchronize.assert_not_called()
+        self.assertEqual(before, self.all_target_bytes())
+
+    def test_cli_passes_only_its_fixed_repository_root_to_writer(self) -> None:
+        with mock.patch.object(SYNC, "synchronize", return_value=[]) as synchronize:
+            self.assertEqual(SYNC.main(("--validate", "--repo-root", str(ROOT),
+                                       "--framework-common", str(self.common))), 0)
+            synchronize.assert_called_once_with(ROOT, self.common, False, None)
+
     def test_cli_validate_sync_check_and_second_sync_are_byte_idempotent(self) -> None:
         framework_sha_arguments = ("--framework-sha", NEW_FRAMEWORK_SHA)
         projection_before = self.framework_sha_projection_bytes()
         self.assertEqual(
-            SYNC.main(
+            self.run_copied_cli(
                 (
                     "--validate",
                     "--repo-root",
@@ -504,10 +532,10 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
             str(self.common),
             *framework_sha_arguments,
         )
-        self.assertEqual(SYNC.main(sync_arguments), 0)
+        self.assertEqual(self.run_copied_cli(sync_arguments), 0)
         after_first_sync = self.all_target_bytes()
         self.assertEqual(
-            SYNC.main(
+            self.run_copied_cli(
                 (
                     "--check",
                     "--repo-root",
@@ -519,7 +547,7 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
             ),
             0,
         )
-        self.assertEqual(SYNC.main(sync_arguments), 0)
+        self.assertEqual(self.run_copied_cli(sync_arguments), 0)
         self.assertEqual(after_first_sync, self.all_target_bytes())
 
     def test_noop_after_sync(self) -> None:
@@ -714,7 +742,7 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         candidate_link = Path(self.temp.name) / "candidate-link.sh"
         candidate_link.symlink_to(self.common)
         self.assertEqual(
-            SYNC.main(
+            self.run_copied_cli(
                 ("--validate", "--repo-root", str(self.root), "--framework-common", str(candidate_link))
             ),
             2,

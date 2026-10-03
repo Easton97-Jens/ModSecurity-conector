@@ -21,6 +21,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 import fcntl
+from functools import partial
 import json
 import os
 from pathlib import Path
@@ -31,7 +32,8 @@ import tempfile
 from urllib.parse import urlsplit
 
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+SCRIPT_REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(SCRIPT_REPOSITORY_ROOT))
 from ci.lib.framework_revision_pins import (
     FrameworkRevisionPinsError, LOCK_RELATIVE_PATH, parse_framework_revision_pins,
 )
@@ -1183,7 +1185,7 @@ def _commit_rendered(rendered: list[RenderedTarget]) -> None:
                 continue
             _require_target_unchanged(item, item.original)
             # Track the replace itself, before directory fsync can fail.
-            _replace_file(item.path, item.replacement, item.mode, lambda: record_replacement(item))
+            _replace_file(item.path, item.replacement, item.mode, partial(record_replacement, item))
     except (OSError, SyncError) as exc:
         rollback_errors = _rollback_rendered(committed, written_metadata)
         if rollback_errors:
@@ -1216,7 +1218,7 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument("--validate", action="store_true", help="parse inputs and targets without requiring an already-synced tree")
     mode.add_argument("--check", action="store_true", help="fail when a fixed target would change")
     mode.add_argument("--sync", action="store_true", help="write the fixed target registry atomically")
-    parser.add_argument("--repo-root", type=Path, default=Path(__file__).parents[2])
+    parser.add_argument("--repo-root", type=Path, default=SCRIPT_REPOSITORY_ROOT)
     parser.add_argument("--framework-common", type=Path, required=True)
     parser.add_argument(
         "--framework-sha",
@@ -1224,8 +1226,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     try:
+        if _absolute(args.repo_root) != SCRIPT_REPOSITORY_ROOT:
+            raise SyncError("CLI repository root must be the repository containing this script")
         changed = synchronize(
-            _absolute(args.repo_root),
+            SCRIPT_REPOSITORY_ROOT,
             _absolute(args.framework_common),
             args.sync,
             args.framework_sha,

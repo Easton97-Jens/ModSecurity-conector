@@ -70,12 +70,33 @@ Kontrolle: Yaegi wählte den Nicht-Linux-Peer-Credential-Stub, wenn nur moderne
 und `// +build !linux` ergänzen jetzt beide modernen Constraints. Dies erhält
 das fehlgeschlossene Nicht-Linux-Verhalten und die Linux-UID-/GID-Authentifizierung.
 
+Der sequenzielle Smoke-Report scheiterte an einem Producer-/Eingabe-Mismatch:
+Sein nativer Apache-/NGINX-Producer kann die von der allgemeinen strikten
+Aktualisierung erwarteten Full-Matrix-/MRTS-Eingaben nicht liefern. Dedizierte
+Ziele `test-smoke-sequential-no-crs` und `test-smoke-sequential-with-crs`
+verwenden jetzt ausschließlich für diesen Workflow `bounded-smoke`.
+Allgemeines `test-no-crs`/`test-with-crs` und der vollständige Katalog von
+`refresh-all-reports` (`--strict-inputs`) bleiben erhalten. Die aktuelle native
+Fallermittlung liefert im diagnostizierten Scope Apache 54 und NGINX 60 Fälle;
+die Validierung ermittelt exakte variantenspezifische Mengen statt fest
+codierter Zahlen. Frische Coverage- und Runtime-Cache-Reports desselben Runs
+sind verpflichtend. Ein privater Beleg ist durch exakte Parent-Blob-/Gitlink-
+Prüfungen an Framework/MRTS, festen Modulpfad, Run-Identität und native
+Fallauswahl gebunden. Alle Zeilen müssen Variante/Connector entsprechen, live
+sein und ohne Ausnahmen bestehen. Fehlende/zusätzliche Fälle, Revisions-/
+Variantendrift, veraltete/symlinkbasierte Eingaben und fehlgeschlagene/blockierte
+Producer-Return-Codes scheitern. Der Snapshot-Generator muss frische Parent-
+eigene, Run-gebundene Ausgabe erzeugen; generierte Reports werden nicht gestagt.
+Dies gleicht die Validierung dem echten Producer an, schwächt das vollständige
+Gate nicht ab und erhöht keine Full-Matrix-, MRTS- oder Response-Body-Evidence.
+
 ## Geänderte Dateien
 
 - `.github/workflows/ci-security-workflow-lint.yml`
 - `.github/workflows/cleanup-artifacts.yml`
 - `.github/workflows/nginx-root-broker.yml`
 - `.github/workflows/test-connectors-with-crs-no-mrts.yml`
+- `.github/workflows/test-full-smoke-sequential.yml`
 - `.github/workflows/test-envoy.yml`
 - `.github/workflows/test-traefik.yml`
 - `.github/workflows/update-go-version.yml`
@@ -85,6 +106,7 @@ das fehlgeschlossene Nicht-Linux-Verhalten und die Linux-UID-/GID-Authentifizier
 - `Makefile`
 - `ci/lib/framework_revision_pins.py`
 - `ci/provisioning/components/prepare-runtime-components.py`
+- `ci/evidence/reports/refresh-connector-reports.py`
 - `ci/runtime/broker/nginx_root_broker.py`
 - `ci/runtime/lifecycle/run-connector-stage.sh`
 - `ci/runtime/lifecycle/with-private-sockets.py`
@@ -123,6 +145,7 @@ das fehlgeschlossene Nicht-Linux-Verhalten und die Linux-UID-/GID-Authentifizier
 - `tests/test_apache_intervention_cleanup.py`
 - `tests/test_c_cpp_diagnostics.py`
 - `tests/test_ci_security_workflows.py`
+- `tests/test_full_smoke_workflow_contract.py`
 - `tests/test_framework_revision_pins.py`
 - `tests/test_nginx_root_broker.py`
 - `tests/test_nginx_root_broker_workflow.py`
@@ -213,10 +236,22 @@ Zählern. Die 22 gezielten Tests und C17-Kompilierung mit
 
 Die vollständige Workflow-/Tool-Suite bestand erneut 38 Tests mit der nativen
 Make-Voraussetzung; die Root-Traefik-/Engine-/C++-Validierung mit echtem Host
-bestand 38 Tests ohne Skips. Die begrenzte Report-Nachbesserung läuft noch:
-Full Smoke produziert ausschließlich Apache-/NGINX-Scope, und das bestehende
-vollständige Strict-Gate bleibt erhalten. Weder eine Report-Gate-Korrektur noch
-ein Erfolg aller Workflows wird vor der eigenen Validierung behauptet.
+bestand 38 Tests ohne Skips. Die unten beschriebene begrenzte Report-Quellkorrektur ist implementiert;
+ihre finalen gezielten Regressionen bestanden wie unten aufgezeichnet;
+gehostete Validierung des neuen Heads steht noch aus. Ein Erfolg aller Workflows wird nicht behauptet.
+
+Die nachfolgende Quellvalidierung bestand 35 Reader-/Toolchain-Tests,
+34 Framework-Sync-Tests, 219 CI-Vertragstests mit fünf bestehenden Umgebungs-/
+Privilegien-Skips und 38 vollständige Workflow-/Tool-Tests. Die Produktions-CLI
+des Synchronizers ist jetzt an ihr eigenes Parent-Repository gebunden;
+Fixture-APIs bleiben getrennt. Partial-Callback, ASCII-erhaltende Regex-
+Bereinigung, isolierte Exception-Assertions und Status-Refactoring beheben die
+beobachteten Findings ohne Unterdrückung. Die finale Suite zum begrenzten Profil bestand 16 Tests nach dem Leeren von
+`FORCE_ALL_CASES` und Ergänzen fester CLI-Root-, Pfad- und Timeout-Schutzbedingungen.
+Die kombinierte Report-/Reader-/Integritätssuite bestand 116 Tests vor diesen
+letzten Schutzbedingungen; dieses frühere kombinierte Ergebnis deckt sie nicht
+ab. Finales actionlint bestand für alle 31 Workflows. Sonar- und gehostete
+Runtime-Ergebnisse des nächsten exakten Heads bleiben erforderlich.
 
 ## Security-Auswirkung
 
@@ -246,6 +281,17 @@ Connector-Jobs und das Aggregat. Die nachfolgende Zentralisierung und die Yaegi-
 Build-Constraint-Korrekturen benötigen einen neuen exakten Head und frische
 gehostete/Sonar-Evidence; keiner der früheren grünen Scans validiert sie.
 
+Der nächste ausgelieferte Commit `1ca0d4be9f008f30344a46bb084f324e8fd8f496`
+bestand den strikten Reader nach dem Commit gegen seine tatsächlich committeten
+Lock-Blob-/Gitlink-Daten; Remote-Task-Branch und PR-400-Head entsprachen exakt
+diesem SHA. Alle automatischen Prüfungen dieses exakten Heads sind jetzt abgeschlossen
+und erfolgreich, einschließlich der zuvor laufenden CRS- und NGINX-Prüfungen
+am exakten Head. Die Sonar-Analyse um
+`2026-10-03T07:42:59+0000` meldete `ERROR` mit einem Finding zu `S8707` und sechs
+Maintainability-Findings. Die obigen nachfolgenden Quelländerungen beheben diese
+Findings, aber ihr Sonar-Ergebnis am neuen Head steht noch aus. Frühere grüne
+Scans sind historisch und belegen keine Qualität des nächsten Heads.
+
 ## Bekannte Einschränkungen
 
 Lokale privilegienabhängige Namespace-Integration hatte fünf bestehende Skips. Quick-check im CI-Modus bestand mit den beiden Compiler-Skips wegen fehlender Header; der normale lokale Versuch erreichte das Zeitlimit. Der geschützte Broker-Caller bleibt auf `49c40779a7b6de9f699391bcd524ea069787df42` gepinnt; dieser Patch allein aktiviert die geänderte Broker-Quelle nicht.
@@ -260,4 +306,4 @@ Ein vollständiger gehosteter Parent-Pass und beide geschützten Broker-Runtime-
 
 ## Finaler Diff- und Review-Status
 
-Die ursprünglichen und korrigierten Änderungen wurden in PR 400 bereitgestellt. Für den veröffentlichten korrigierten Head liegt die oben dokumentierte erfolgreiche Sonar- und lokale Quick-check-Aufnahme vor; die nachfolgenden Zentralisierungs-/Build-Constraint-Korrekturen und die vollständige gehostete Runtime-Validierung benötigen weiterhin Evidence des finalen Heads. Die Gesamtreparatur bleibt bis zu dieser Evidence und geschützter Aktivierung teilweise abgeschlossen. Die ursprünglichen Arbeitscheckouts bleiben erhalten; nur der Framework-Gitlink des Task-Parents wird wie oben dokumentiert geändert. Weder Parent-master-Integration noch Framework-/MRTS-Quelländerungen werden behauptet. Beide Sprachfassungen enthalten dieselben Werte und Einschränkungen.
+Die ursprünglichen und korrigierten Änderungen wurden in PR 400 bereitgestellt. Für den zuletzt veröffentlichten Head `1ca0d4b` liegen erfolgreiche automatische Prüfungen und das getrennte oben dokumentierte Sonar-Ergebnis `ERROR` vor. Ausstehende Quellkorrekturen und das begrenzte Report-Profil besitzen lokale Validierung; sie benötigen weiterhin Auslieferung und frische gehostete/Sonar-Evidence des exakten Heads. Die Gesamtreparatur bleibt bis zu dieser Evidence und geschützter Aktivierung teilweise abgeschlossen. Die ursprünglichen Arbeitscheckouts bleiben erhalten; nur der Framework-Gitlink des Task-Parents wird wie oben dokumentiert geändert. Weder Parent-master-Integration noch Framework-/MRTS-Quelländerungen werden behauptet. Beide Sprachfassungen enthalten dieselben Werte und Einschränkungen.

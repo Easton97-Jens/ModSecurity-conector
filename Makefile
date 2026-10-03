@@ -635,6 +635,22 @@ test-no-crs: check-framework prepare-runtime-components
 test-with-crs: check-framework prepare-runtime-components
 	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env MODSECURITY_TEST_VARIANT=with-crs sh -eu -c '. "$(FRAMEWORK_ROOT)/ci/lib/common.sh"; . "$(CURDIR)/ci/runtime/lifecycle/prepare-fresh-crs-source.sh"; sh "$(FRAMEWORK_ROOT)/ci/provisioning/fetch-crs.sh"; sh "$(FRAMEWORK_ROOT)/ci/provisioning/prepare-crs.sh"; MODSECURITY_RULE_PREAMBLE_FILE="$$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"; RESULTS_DIR="$$BUILD_ROOT/results/with-crs"; export MODSECURITY_RULE_PREAMBLE_FILE RESULTS_DIR; CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/runtime/run-connector-smokes.sh"')
 
+# This bounded Apache/NGINX producer does not claim the full-matrix/MRTS
+# inputs required by refresh-all-reports. Its own reports remain mandatory.
+.PHONY: test-smoke-sequential-no-crs test-smoke-sequential-with-crs
+test-smoke-sequential-no-crs test-smoke-sequential-with-crs: check-framework prepare-runtime-components
+	@set -eu; \
+	variant="$(patsubst test-smoke-sequential-%,%,$@)"; \
+	smoke_root=$$(mktemp -d "$(BUILD_ROOT)/bounded-smoke-$$variant.XXXXXX"); \
+	run_id=$$(basename "$$smoke_root"); \
+	VERIFIED_RUN_ID="$$run_id" "$(FRAMEWORK_PYTHON)" ci/evidence/reports/refresh-connector-reports.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$$smoke_root" --profile bounded-smoke --variant "$$variant" --begin-bounded-smoke; \
+	runtime_rc=0; \
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" MODSECURITY_TEST_VARIANT="$$variant" MODSECURITY_RULE_PREAMBLE_FILE= RESULTS_DIR="$$smoke_root/results" CASE_SCOPE=all FORCE_ALL_CASES= TEST_CASE= SMOKE_CASES= NO_CRS_BASELINE= NO_CRS_SELECTED_CASE_IDS= RUN_ONE_CASE= sh -eu -c 'if [ "$$MODSECURITY_TEST_VARIANT" = with-crs ]; then . "$(CURDIR)/ci/runtime/lifecycle/prepare-fresh-crs-source.sh"; sh "$(FRAMEWORK_ROOT)/ci/provisioning/fetch-crs.sh"; fi; sh "$(FRAMEWORK_ROOT)/ci/runtime/run-connector-smokes.sh"' || runtime_rc=$$?; \
+	refresh_rc=0; \
+	VERIFIED_RUN_ID="$$run_id" MODSECURITY_TEST_VARIANT="$$variant" "$(FRAMEWORK_PYTHON)" ci/evidence/reports/refresh-connector-reports.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$$smoke_root" --profile bounded-smoke --variant "$$variant" || refresh_rc=$$?; \
+	if [ "$$runtime_rc" -ne 0 ]; then exit "$$runtime_rc"; fi; \
+	exit "$$refresh_rc"
+
 # The dedicated Parent runner owns fresh provisioning and evidence validation.
 # Keep only the three newly promoted connectors in this narrow entrypoint.
 with-crs-no-mrts-runtime: check-framework
