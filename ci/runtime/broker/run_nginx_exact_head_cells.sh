@@ -164,7 +164,7 @@ write_mode() {
     case "$actual_tx" in nginx-exact-head-[0-9]*-[0-9]*-[0-9]*) : ;; *) die ;; esac
     callback=0
     if /usr/bin/grep -F "modsecurity_transaction_id=$actual_tx" "$logs/error.log" >/dev/null 2>&1; then callback=1; else callback=0; fi
-    [ "$mode" = on ] && [ "$callback" -eq 1 ] || [ "$mode" = off ] && [ "$callback" -eq 0 ] || die
+    { [ "$mode" = on ] && [ "$callback" -eq 1 ]; } || { [ "$mode" = off ] && [ "$callback" -eq 0 ]; } || die
     jsonl=0
     if [ -s "$logs/events.jsonl" ] && /usr/bin/grep -F '"transaction_id":"'"$actual_tx"'"' "$logs/events.jsonl" >/dev/null 2>&1; then jsonl=1; else jsonl=0; fi
     [ "$jsonl" -eq 1 ] || die

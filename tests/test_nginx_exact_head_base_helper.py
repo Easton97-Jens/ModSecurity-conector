@@ -84,6 +84,24 @@ class NginxExactHeadBaseHelperTests(unittest.TestCase):
         self.assertIn('[ "$mode" = off ] && [ "$callback" -eq 0 ]', self.source)
         self.assertIn('"$logs/events.jsonl"', self.source)
 
+    def test_actual_callback_guard_truth_table(self) -> None:
+        guard = next(line.strip() for line in self.source.splitlines()
+                     if '[ "$mode" = on ]' in line)
+        self.assertTrue(guard.endswith('|| die'), guard)
+        for mode, callback, accepted in (
+            ('on', '1', True), ('off', '0', True),
+            ('on', '0', False), ('off', '1', False),
+            ('on', '2', False), ('off', '2', False), ('unknown', '0', False),
+        ):
+            with self.subTest(mode=mode, callback=callback):
+                completed = subprocess.run(
+                    ['/bin/sh', '-c', 'die() { exit 19; }; mode=$1; callback=$2; '
+                     + guard + '; exit 0', 'callback-guard', mode, callback],
+                    check=False, capture_output=True, text=True,
+                )
+                self.assertEqual(completed.returncode, 0 if accepted else 19,
+                                 completed.stderr)
+
     def test_paths_and_environment_are_allowlisted(self) -> None:
         self.assertIn("PATH=/usr/sbin:/usr/bin:/sbin:/bin", self.source)
         self.assertIn('case "${NGINX_BINARY:-}" in "$CANDIDATE_ROOT/nginx")', self.source)
