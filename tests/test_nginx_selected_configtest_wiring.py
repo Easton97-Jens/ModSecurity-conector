@@ -50,10 +50,13 @@ class SelectedNginxConfigtestWiringTest(unittest.TestCase):
         module.write_bytes(b"unit module boundary")
         self.build = self.base / "build"
         self.build.mkdir()
+        self.build.chmod(0o755)
         self.results = self.build / "results"
         self.results.mkdir()
+        self.results.chmod(0o755)
         self.result_file = self.results / "nginx-results.jsonl"
         self.result_file.write_text('{"case_id":"request_control","status":"PASS"}\n')
+        self.result_file.chmod(0o644)
         self.environment = {**os.environ, "CONNECTOR_ROOT": str(ROOT),
                             "FRAMEWORK_ROOT": str(self.framework), "BUILD_ROOT": str(self.build),
                             "RESULTS_DIR": str(self.results), "NGINX_PREFIX": str(prefix),
@@ -73,6 +76,10 @@ class SelectedNginxConfigtestWiringTest(unittest.TestCase):
         self.assertEqual(rows[1]["status"], "PASS")
         self.assertEqual(rows[1]["configtest_receipt"]["observed_exit_code"], 1)
         self.assertFalse(rows[1]["configtest_receipt"]["process_started"])
+        self.assertEqual(self.build.stat().st_mode & 0o777, 0o755)
+        self.assertEqual(self.results.stat().st_mode & 0o777, 0o755)
+        self.assertEqual(self.result_file.stat().st_mode & 0o777, 0o644)
+        self.assertEqual((self.build / "configtests").stat().st_mode & 0o777, 0o700)
         self.assertNotEqual(self.run_helper().returncode, 0, "duplicate invocation must be rejected")
 
     def test_not_selected_case_is_not_invoked_or_promoted(self):
@@ -81,6 +88,60 @@ class SelectedNginxConfigtestWiringTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse((self.build / "configtests").exists())
         self.assertEqual(len(self.result_file.read_text().splitlines()), 1)
+
+    def test_writable_build_is_rejected_before_invocation(self):
+        original = self.result_file.read_bytes()
+        self.build.chmod(0o777)
+        result = self.run_helper()
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertFalse((self.build / "configtests").exists())
+        self.assertEqual(self.result_file.read_bytes(), original)
+
+    def test_writable_config_parent_is_rejected_without_reuse(self):
+        parent = self.build / "configtests"
+        parent.mkdir()
+        parent.chmod(0o770)
+        original = self.result_file.read_bytes()
+        result = self.run_helper()
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertFalse((parent / "invalid_boolean").exists())
+        self.assertEqual(self.result_file.read_bytes(), original)
+
+    def test_writable_results_is_rejected_before_invocation(self):
+        original = self.result_file.read_bytes()
+        self.results.chmod(0o777)
+        result = self.run_helper()
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertFalse((self.build / "configtests/invalid_boolean").exists())
+        self.assertEqual(self.result_file.read_bytes(), original)
+
+    def test_existing_child_receipt_is_not_appended_after_rejected_invocation(self):
+        child = self.build / "configtests/invalid_boolean"
+        child.mkdir(parents=True, mode=0o700)
+        receipt = child / "source-result.jsonl"
+        receipt.write_text('{"case_id":"invalid_boolean","status":"PASS"}\n')
+        original = self.result_file.read_bytes()
+        result = self.run_helper()
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(self.result_file.read_bytes(), original)
+        self.assertEqual(receipt.read_text(), '{"case_id":"invalid_boolean","status":"PASS"}\n')
+
+    def test_hardlinked_result_file_is_rejected_without_append(self):
+        alias = self.base / "result-alias.jsonl"
+        alias.hardlink_to(self.result_file)
+        original = alias.read_bytes()
+        result = self.run_helper()
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(alias.read_bytes(), original)
+        self.assertFalse((self.build / "configtests/invalid_boolean").exists())
+
+    def test_writable_result_file_is_rejected_without_append(self):
+        self.result_file.chmod(0o666)
+        original = self.result_file.read_bytes()
+        result = self.run_helper()
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(self.result_file.read_bytes(), original)
+        self.assertFalse((self.build / "configtests/invalid_boolean").exists())
 
     def test_two_selected_config_cases_use_distinct_fresh_children(self):
         catalog = self.framework / "tests/cases/no-crs-baseline/catalog.json"

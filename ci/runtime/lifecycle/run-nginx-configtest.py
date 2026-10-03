@@ -17,6 +17,7 @@ import re
 import selectors
 import stat
 import subprocess
+import sys
 import time
 
 
@@ -39,6 +40,11 @@ CONFIGTEST_CONTRACTS = {
     },
 }
 PARENT_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(PARENT_ROOT / "ci/lib"))
+
+from runtime_path_utils import ensure_safe_runtime_directory, fixed_runtime_temp_parent
+
+AUTHORIZED_STORAGE_ROOT = fixed_runtime_temp_parent() / "codex" / "ModSecurity-conector"
 
 
 def absolute_path(value: str) -> Path:
@@ -135,7 +141,7 @@ def main() -> int:
         binary, module, output = map(absolute_path, (args.nginx_binary, args.module, args.output_root))
         if not binary.is_file() or not os.access(binary, os.X_OK) or not module.is_file():
             raise ValueError("an executable binary and regular module are required")
-        storage_root = Path("/var/tmp/codex/ModSecurity-conector")
+        storage_root = AUTHORIZED_STORAGE_ROOT
         if storage_root not in output.parents:
             raise ValueError("output must be under the authorized external task storage")
         if (output == PARENT_ROOT or PARENT_ROOT in output.parents
@@ -144,6 +150,7 @@ def main() -> int:
             raise ValueError("output must be outside the checkout")
         if output.exists() or not output.parent.is_dir():
             raise ValueError("output must be a fresh child of an existing external parent")
+        ensure_safe_runtime_directory(output.parent)
         if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", args.run_id):
             raise ValueError("run identity must be bounded and path-safe")
         for sha in (args.parent_sha, args.framework_sha, args.mrts_sha):

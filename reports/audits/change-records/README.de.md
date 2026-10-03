@@ -11,6 +11,11 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20261003-nginx-configtest-path-authority](CR-20261003-nginx-configtest-path-authority.de.md)
+  | English companion: `CR-20261003-nginx-configtest-path-authority.md` — eigene
+  externe Configtest-Parents und begrenzte Resultdateien zulassen; Source-/
+  Fixture-Validierung und CI-Remediation, kein HTTP- oder Full-E2E-Claim.
+
 - [CR-20261003-pr355-pr396-integration](CR-20261003-pr355-pr396-integration.de.md)
   | English companion: `CR-20261003-pr355-pr396-integration.md` — vollständiger
   Port des geschützten PR-#355-Scopes, Nachfolger-Kompatibilitätskontrollen und

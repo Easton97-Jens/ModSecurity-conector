@@ -10,6 +10,11 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20261003-nginx-configtest-path-authority](CR-20261003-nginx-configtest-path-authority.md)
+  | [Deutsch](CR-20261003-nginx-configtest-path-authority.de.md) — admit owned
+  external configtest parents and bounded result files; source/fixture
+  validation and CI remediation, no HTTP or Full E2E claim.
+
 - [CR-20261003-pr355-pr396-integration](CR-20261003-pr355-pr396-integration.md)
   | [Deutsch](CR-20261003-pr355-pr396-integration.de.md) — complete protected
   PR #355 scope port, successor compatibility controls and separate Framework

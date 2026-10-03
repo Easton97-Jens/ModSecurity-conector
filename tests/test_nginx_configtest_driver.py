@@ -153,6 +153,34 @@ class NginxConfigtestDriverTest(unittest.TestCase):
         self.assertNotEqual(self.invoke().returncode, 0)
         self.assertFalse((self.root / "attempt/source-result.json").exists())
 
+    def test_writable_output_parent_is_rejected_before_invocation(self):
+        for mode in (0o770, 0o777):
+            with self.subTest(mode=oct(mode)):
+                parent = self.root / f"writable-{mode:o}"
+                parent.mkdir(mode=mode)
+                parent.chmod(mode)
+                result = self.invoke(output_name=f"{parent.name}/attempt")
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertFalse((parent / "attempt").exists())
+
+    def test_writable_output_ancestor_is_rejected_before_invocation(self):
+        ancestor = self.root / "untrusted-ancestor"
+        ancestor.mkdir()
+        ancestor.chmod(0o777)
+        parent = ancestor / "owned-parent"
+        parent.mkdir(mode=0o700)
+        result = self.invoke(output_name="untrusted-ancestor/owned-parent/attempt")
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertFalse((parent / "attempt").exists())
+
+    def test_owned_nonwritable_worker_readable_parent_remains_supported(self):
+        parent = self.root / "readable-parent"
+        parent.mkdir(mode=0o755)
+        result = self.invoke(output_name="readable-parent/attempt")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(parent.stat().st_mode & 0o777, 0o755)
+        self.assertEqual((parent / "attempt").stat().st_mode & 0o777, 0o700)
+
     def test_symlink_module_is_rejected_before_invocation(self):
         original = self.module
         self.module = self.root / "link.so"

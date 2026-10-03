@@ -106,6 +106,17 @@ The selected driver dispatches each registered case into its own fresh
 case, and independently executed cases cannot overwrite one shared bundle.
 Keep these local artifacts external; they are not upload or commit material.
 
+Directory admission checks the exact external output parent and its ancestors,
+and the selected driver's build, results and configuration parents, through
+the existing non-following `ensure_safe_runtime_directory` contract. Owned
+`0755` parents are permitted; group- or other-writable parents are rejected.
+Each new case child is private `0700`; an existing case child is rejected
+before result append. An existing result file must be owned by the effective
+UID, regular, have exactly one hard link, have no `0022` permission bits and
+be at most 4 MiB. An otherwise admissible `0644` result file remains allowed.
+These checks retain external-root containment and checkout exclusion; they
+do not add HTTP evidence or change the accepted configtest diagnostics.
+
 The matching Framework contract validates configuration evidence rather than
 inventing a native request event. This operation proves parsing/rejection
 only: no HTTP request, daemon startup, listener, master/worker identity,

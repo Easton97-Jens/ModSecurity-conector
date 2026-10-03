@@ -57,7 +57,7 @@ def main() -> int:
             raise ValueError("duplicate catalog configuration invocations")
         build = driver.absolute_path(os.environ["BUILD_ROOT"])
         results = driver.absolute_path(os.environ["RESULTS_DIR"])
-        storage = Path("/var/tmp/codex/ModSecurity-conector")
+        storage = driver.AUTHORIZED_STORAGE_ROOT
         if storage not in build.parents or any(driver.is_checkout(path) for path in (build, *build.parents)):
             raise ValueError("build output must be external authorized task storage")
         results.relative_to(build)
@@ -65,6 +65,7 @@ def main() -> int:
             raise ValueError("results must be outside all source checkouts")
         if not build.is_dir():
             raise ValueError("build output root must already exist")
+        driver.ensure_safe_runtime_directory(build)
         prefix = driver.absolute_path(os.environ["NGINX_PREFIX"])
         parent_sha = source_identity(ROOT, "rev-parse", "HEAD")
         framework_sha = source_identity(framework, "rev-parse", "HEAD")
@@ -72,13 +73,22 @@ def main() -> int:
         run_id = os.environ["NO_CRS_RUN_ID"]
         output_parent = driver.absolute_path(str(build / "configtests"))
         output_parent.mkdir(mode=0o700, exist_ok=True)
-        results.mkdir(mode=0o700, parents=True, exist_ok=True)
+        driver.ensure_safe_runtime_directory(output_parent)
+        driver.ensure_safe_runtime_directory(results.parent)
+        results.mkdir(mode=0o700, exist_ok=True)
+        driver.ensure_safe_runtime_directory(results)
+        if any((output_parent / case_id).exists() or (output_parent / case_id).is_symlink()
+               for case_id in invocations):
+            raise ValueError("configuration output must be a fresh child")
         result_path = driver.absolute_path(str(results / "nginx-results.jsonl"))
         flags = os.O_RDWR | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW
         with os.fdopen(os.open(result_path, flags, 0o600), "a+", encoding="utf-8") as stream:
             metadata = os.fstat(stream.fileno())
             if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > 4 * 1024 * 1024:
                 raise ValueError("existing result input must be a bounded regular file")
+            if (metadata.st_uid != os.geteuid() or metadata.st_nlink != 1
+                    or stat.S_IMODE(metadata.st_mode) & 0o022):
+                raise ValueError("result input must be owned, single-link, and nonwritable by other users")
             stream.seek(0)
             previous = [json.loads(line) for line in stream if line.strip()]
             if any(row.get("case_id") in invocations for row in previous):

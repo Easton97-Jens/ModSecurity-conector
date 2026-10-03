@@ -113,6 +113,19 @@ frischen Child `configtests/<case_id>` aus; die kanonische Aufbewahrung nutzt
 `inventory/configtests/<case_id>`. Ein Boolean-Receipt erfüllt den Size-Case
 nicht; unabhängig ausgeführte Cases überschreiben kein gemeinsames Bundle.
 
+Die Verzeichniszulassung prüft den genauen externen Ausgabeparent und seine
+Vorfahren sowie Build-, Results- und Konfigurationsparents des selektierten
+Treibers durch den bestehenden Non-Following-Vertrag
+`ensure_safe_runtime_directory`. Eigene `0755`-Parents sind zulässig;
+gruppen- oder fremdschreibbare Parents werden abgelehnt. Jedes neue Case-Child
+ist privat `0700`; ein bestehendes Case-Child wird vor dem Anhängen an
+Results abgelehnt. Eine bestehende Resultdatei muss der effektiven UID gehören,
+regulär sein, genau einen Hardlink besitzen, keine `0022`-Berechtigungsbits
+haben und höchstens 4 MiB groß sein. Eine ansonsten zulässige
+`0644`-Resultdatei bleibt erlaubt. Diese Prüfungen erhalten externe
+Root-Containment und Checkout-Ausschluss; sie ergänzen keine HTTP-Evidence
+und ändern die akzeptierten Configtest-Diagnosen nicht.
+
 Der passende Framework-Vertrag validiert Konfigurations-Evidence, statt ein
 Native-Request-Event zu erfinden. Diese Operation belegt nur Parsing/Ablehnung:
 keine HTTP-Requests, Daemon-Starts, Listener, Master-/Worker-Identität, Reloads
