@@ -10,6 +10,10 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20261003-framework-sonar-gitlink](CR-20261003-framework-sonar-gitlink.md)
+  | [Deutsch](CR-20261003-framework-sonar-gitlink.de.md) — separately bind the
+  published, CI-/Sonar-validated Framework maintenance commit; no new runtime claim.
+
 - [CR-20261003-nginx-configtest-path-authority](CR-20261003-nginx-configtest-path-authority.md)
   | [Deutsch](CR-20261003-nginx-configtest-path-authority.de.md) — admit owned
   external configtest parents and bounded result files; source/fixture

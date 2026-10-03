@@ -11,6 +11,10 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20261003-framework-sonar-gitlink](CR-20261003-framework-sonar-gitlink.de.md)
+  | English companion: `CR-20261003-framework-sonar-gitlink.md` — veröffentlichten,
+  CI-/Sonar-validierten Framework-Wartbarkeitscommit separat binden; kein neuer Runtime-Claim.
+
 - [CR-20261003-nginx-configtest-path-authority](CR-20261003-nginx-configtest-path-authority.de.md)
   | English companion: `CR-20261003-nginx-configtest-path-authority.md` — eigene
   externe Configtest-Parents und begrenzte Resultdateien zulassen; Source-/
