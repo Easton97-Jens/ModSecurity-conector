@@ -2,119 +2,103 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
-Dieses Verzeichnis enthält kleine, repository-relative
-Konfigurationsreferenzen für sechs Host-Wurzeln und die zehn logischen
-Connectorlösungen. Sie sind Lehrmaterial für Konfigurationen, keine
-Deployment-Manifeste und für sich allein keine Evidence.
+Die Beispiele sind der praktische Konfigurationsbegleiter zur
+Hauptdokumentation. Sie decken alle sechs Hostfamilien und alle zehn logischen
+Connector-Lösungen ab. Beginnen Sie hier, wenn der gewünschte Host bereits
+feststeht, aber noch unklar ist, wie die Konfigurationsebenen des Repositorys
+zusammenspielen.
 
-## Struktur und Geltungsbereich
+Beispiele sind **Lehr- und Referenzmaterial**. Sie sind keine
+Produktions-Deployment-Manifeste und beweisen für sich allein kein
+Runtime-Verhalten.
 
-| Verzeichnis | Integrationsmodus | Logische Connectorlösungen | Reines Legacy-Material |
-| --- | --- | --- | --- |
-| [apache/](apache/README.de.md) | natives httpd-Modul | Apache | keines |
-| [nginx/](nginx/README.de.md) | natives NGINX-HTTP-Modul | NGINX | keines |
-| [haproxy/](haproxy/README.de.md) | nativer HTX-Filter und SPOE/SPOP-Bridge | HAProxy HTX; HAProxy SPOE/SPOP mit nativem HTX-Response-Companion | [SPOE/SPOP-Kompatibilitätsmaterial](haproxy/README.de.md#spoespop-kompatibilitätsmaterial) |
-| [envoy/](envoy/README.de.md) | externe Prozessoren | Envoy ext_proc; Envoy ext_authz mit privatem Response-Observer | [ext_authz-Kompatibilitätsmaterial](envoy/README.de.md#ext_authz-kompatibilität) |
-| [traefik/](traefik/README.de.md) | Middleware und UDS-Engine | Traefik Native UDS; Traefik forwardAuth mit privatem Response-Observer | [forwardAuth-Kompatibilitätsmaterial](traefik/README.de.md#forwardauth-kompatibilität) |
-| [lighttpd/](lighttpd/README.de.md) | natives Modul und traffic-owning Sidecar | lighttpd Patched; lighttpd Stock-Sidecar | [Sidecar-Kompatibilitätsmaterial](lighttpd/README.de.md#sidecar-kompatibilität) |
+## Host wählen
 
-Alle Pfade in der Tabelle sind repository-relativ: Sie werden vom Root dieses
-Repositorys aus aufgelöst. Ein Hostpfad wie
-/etc/modsecurity/no-crs-baseline.conf ist ein Installationsbeispiel, kein
-Repositorypfad und kein Wert, der auf jedem Host unverändert übernommen werden
-kann.
+| Hostfamilie | Beispiel-Guide | Logische Lösungen |
+| --- | --- | --- |
+| Apache | [Apache](apache/README.de.md) | `apache` |
+| NGINX | [NGINX](nginx/README.de.md) | `nginx` |
+| HAProxy | [HAProxy](haproxy/README.de.md) | `haproxy-htx`, `haproxy-spoe-spop` |
+| Envoy | [Envoy](envoy/README.de.md) | `envoy-ext-proc`, `envoy-ext-authz` |
+| Traefik | [Traefik](traefik/README.de.md) | `traefik-native-uds`, `traefik-forwardauth` |
+| lighttpd | [lighttpd](lighttpd/README.de.md) | `lighttpd-patched`, `lighttpd-stock` |
 
-## Vier Konfigurationsvarianten
+## Konfigurationsprofil wählen
 
-Jede logische Connectorlösung besitzt Artefakte für `off`, `safe`,
-`strict` und `all`. `all` ist ein umfassendes, quellenbasiertes
-Konfigurationslayout: Es verwendet eine echte `strict`-P4-Policy und führt
-keinen nicht unterstützten P4-Modus `all` ein. Werte, die nicht gleichzeitig
-gelten können oder Credentials benötigen, bleiben mit ihrer Auswahlgrenze
-auskommentiert. Ein Strict-Artefakt behauptet keinen client-sichtbaren
-Post-Commit-Abbruch, wenn sein Hosttransport keinen nachweislich sicheren
-Abort-Hook hat.
+| Profil | Geeignet für | Wichtige Grenze |
+| --- | --- | --- |
+| `off` | Baseline ohne zusätzliches connector-eigenes kumulatives Phase-4-Budget | Konfigurierte libmodsecurity-Response-Body-Inspection und unabhängige Engine-/Host-/Transportlimits gelten weiterhin. |
+| `safe` | Empfohlener Lern-/Startpunkt für die vollständige eingecheckte P1–P4-Form | Späte P4-Ergebnisse, die eine bereits gestartete Response nicht sicher ändern können, bleiben dort nicht-disruptiv, wo dies dokumentiert ist. |
+| `strict` | Test der strikten Late-Action-Policy bei Profilen mit unterstützter Hostaktion | Eine eingecheckte Strict-Datei beweist keinen beobachteten client-sichtbaren Post-Commit-Abbruch. |
+| `all` | Umfassende quellenbasierte Konfigurationsreferenz | `all` ist ein Layout und kein vierter Phase-4-Modus; es verwendet gültige Einstellungen wie `strict`. |
 
-| Logische Connectorlösung | Off | Safe | Strict | All |
+`DetectionOnly`, Engine `Off` und ein deaktivierter Connector sind
+getrennte Konzepte und werden in den hostspezifischen Beispiel-Guides erklärt.
+
+## Zehn logische Lösungen
+
+| Logische Lösung | Off | Safe | Strict | All |
 | --- | --- | --- | --- | --- |
 | Apache | [off](apache/off/httpd.conf) | [safe](apache/safe/httpd.conf) | [strict](apache/strict/httpd.conf) | [all](apache/all/httpd.conf) |
 | NGINX | [off](nginx/off/nginx.conf) | [safe](nginx/safe/nginx.conf) | [strict](nginx/strict/nginx.conf) | [all](nginx/all/nginx.conf) |
 | HAProxy HTX | [off](haproxy/off/haproxy-htx.cfg) | [safe](haproxy/safe/haproxy-htx.cfg) | [strict](haproxy/strict/haproxy-htx.cfg) | [all](haproxy/all/haproxy-htx.cfg) |
 | HAProxy SPOE/SPOP | [off](haproxy/spoe-spop/off/) | [safe](haproxy/spoe-spop/safe/) | [strict](haproxy/spoe-spop/strict/) | [all](haproxy/spoe-spop/all/) |
-| Envoy ext_authz | [off](envoy/ext-authz/off/) | [safe](envoy/ext-authz/safe/) | [strict](envoy/ext-authz/strict/) | [all](envoy/ext-authz/all/) |
 | Envoy ext_proc | [off](envoy/ext-proc/off/) | [safe](envoy/ext-proc/safe/) | [strict](envoy/ext-proc/strict/) | [all](envoy/ext-proc/all/) |
-| Traefik forwardAuth | [off](traefik/forwardauth/off/) | [safe](traefik/forwardauth/safe/) | [strict](traefik/forwardauth/strict/) | [all](traefik/forwardauth/all/) |
+| Envoy ext_authz | [off](envoy/ext-authz/off/) | [safe](envoy/ext-authz/safe/) | [strict](envoy/ext-authz/strict/) | [all](envoy/ext-authz/all/) |
 | Traefik Native UDS | [off](traefik/native-uds/off/) | [safe](traefik/native-uds/safe/) | [strict](traefik/native-uds/strict/) | [all](traefik/native-uds/all/) |
-| lighttpd Stock | [off](lighttpd/stock/off/) | [safe](lighttpd/stock/safe/) | [strict](lighttpd/stock/strict/) | [all](lighttpd/stock/all/) |
+| Traefik forwardAuth | [off](traefik/forwardauth/off/) | [safe](traefik/forwardauth/safe/) | [strict](traefik/forwardauth/strict/) | [all](traefik/forwardauth/all/) |
 | lighttpd Patched | [off](lighttpd/patched/off/) | [safe](lighttpd/patched/safe/) | [strict](lighttpd/patched/strict/) | [all](lighttpd/patched/all/) |
+| lighttpd Stock | [off](lighttpd/stock/off/) | [safe](lighttpd/stock/safe/) | [strict](lighttpd/stock/strict/) | [all](lighttpd/stock/all/) |
 
-## P1--P4-Safe-Kern
+## Was normalerweise angepasst werden muss
 
-P1 bedeutet Request-Header, P2 Request-Body, P3 Response-Header und P4
-Response-Body. Die Safe-Beispiele wählen die dokumentierte Safe-Policy nach
-dem Commit: Kommt eine P4-Entscheidung zu spät für eine saubere
-Response-Änderung, wird sie als nicht-disruptives Ergebnis aufgezeichnet und
-nicht als erfundener HTTP-Status dargestellt.
+| Wert | Warum | Typisches Beispiel |
+| --- | --- | --- |
+| installierter Host-/Modulpfad | Distributionen und Build-Layouts unterscheiden sich | `/etc/nginx/nginx.conf` oder ein installierter Modulpfad |
+| Rules-Dateipfad | Der Host muss die gewünschte geprüfte Rules-Datei lesen können | `/etc/modsecurity/no-crs-baseline.conf` |
+| Listener-/Upstream-Ports | Lokale Anwendungen und Testumgebungen unterscheiden sich | `127.0.0.1:8080` / `127.0.0.1:8081` |
+| Runtime-/Socket-Pfade | Services benötigen beschreibbare, private Runtime-Orte | private UDS oder Runtime-Verzeichnis außerhalb des Checkouts |
+| Log-/Eventpfade | Der Service-Account muss sicher schreiben können | geschütztes und rotiertes JSONL-/Error-Log-Ziel |
 
-Die aktuellen Kernreferenzen sind auf HTTP/1.1 ausgerichtet. Sie bedeuten kein
-vollständiges Connector-Response-Buffering. Eigenschaften wie First Byte vor
-EOS und No Full Buffer gehören, soweit sie ausgeübt werden, zum jeweiligen
-Host-Runner und seiner Evidence, nicht zu einem Versprechen einer statischen
-Konfigurationsdatei.
+Beispiel-Credentials, Private Keys, Cookies, Authorization-Werte oder sensible
+Request-/Response-Bodies dürfen niemals in Versionskontrolle oder
+Review-Evidence kopiert werden.
 
-Strict ist absichtlich eng begrenzt. Ein Strict-Verzeichnis gibt es nur, wenn
-eine tatsächliche eingecheckte Konfigurationsform vorhanden ist. Es behauptet
-nie, dass ein Statuswechsel nach dem Commit, ein Reset oder ein
-Verbindungsabbruch beobachtet wurde. Lesen Sie vor dem Aktivieren die
-connector-spezifische Einschränkung.
+## Typischer Ablauf
 
-## Konfigurationsreferenzen
+1. Hostfamilie und logische Lösung wählen.
+2. Mit dem passenden `safe`-Beispiel beginnen, sofern nicht gezielt eine
+   andere Policy benötigt wird.
+3. Hostspezifischen Beispiel-Guide lesen und Installations-/Runtime-Platzhalter
+   ersetzen.
+4. Hostkonfiguration mit dem nativen Checker validieren.
+5. Build/Start soweit vorhanden über Root-Targets des Repositorys ausführen.
+6. Wenn eine Runtime-Aussage benötigt wird, das passende Lifecycle-/Evidence-
+   Target ausführen und die laufbezogenen Artefakte bewerten.
 
-| Referenz | Geltungsbereich |
-| --- | --- |
-| [Common Runtime](common/common-connector-configuration.de.md) | Vollständige quellenbasierte `key=value`-Parseroberfläche. |
-| [ModSecurity Engine](common/modsecurity-directives.de.md) | Engine-Direktiven, die tatsächlich in eingecheckten Beispielen verwendet werden. |
-| [Regelbeispiele](common/rule-examples.de.md) | Verhalten der Engine bei On, DetectionOnly und Off. |
-| [Apache](apache/configuration-reference.de.md) | Apache-`command_rec`-Direktiven und Beispiel-Hostfelder. |
-| [NGINX](nginx/configuration-reference.de.md) | NGINX-`ngx_command_t`-Direktiven und Beispiel-Hostfelder. |
-| [HAProxy](haproxy/configuration-reference.de.md) | Native HTX-Optionen getrennt von SPOE/SPOP-Kompatibilität. |
-| [Envoy](envoy/configuration-reference.de.md) | ext_proc-YAML-/Service-/CLI-Vertrag getrennt von ext_authz. |
-| [Traefik](traefik/configuration-reference.de.md) | Native Middleware-/UDS-Konfiguration getrennt von forwardAuth. |
-| [lighttpd](lighttpd/configuration-reference.de.md) | Native Plugin-Schlüssel und Common Runtime getrennt vom Sidecar-Proxy. |
+Ein Syntax-/Konfigurationscheck bestätigt nur Parsing/Laden. Er beweist keine
+P1–P4-Ergebnisse, Production Readiness, CRS-Abdeckung oder Strict-Late-Verhalten.
 
-## Regeln und erwartete Ergebnisse
+## Regeln und Phasen-IDs
 
-Jedes Connector-Parent-README enthält seine No-CRS-Regelquelle und seine
-P1--P4-Safe-Absicht. Die rules-Verzeichnisse behalten die eingecheckten
-Profildateien, ohne eine veränderliche Framework-Datei in diese Beispiele zu
-kopieren. Die Safe-Absicht bleibt Konfigurationsanleitung und kein
-Testergebnis.
+Die Repository-No-CRS-Baseline verwendet diese Testprofil-Regel-IDs:
 
-Die No-CRS-Regel-IDs 1100001, 1100101, 1100201 und 1100301 stehen jeweils für
-P1, P2, P3 und P4. Es sind IDs des Repository-Testprofils, keine
-OWASP-Core-Rule-Set-IDs.
+| Regel-ID | Phase | Bedeutung |
+| ---: | ---: | --- |
+| 1100001 | P1 | Request-Header-Deny |
+| 1100101 | P2 | Request-Body-Deny |
+| 1100201 | P3 | Response-Header-Deny |
+| 1100301 | P4 | Response-Body-Entscheidung für die ausgewählte Policy-Grenze |
 
-## Anzupassende Werte
+Dies sind IDs des Repository-Testprofils und keine OWASP-Core-Rule-Set-IDs.
 
-| Wertform | Bedeutung | Beispiel | Sicherheitshinweis |
-| --- | --- | --- | --- |
-| Host-Konfigurationspfad | Datei des installierten Hosts | /etc/nginx/nginx.conf | Distributionsabhängig; vorhandene Hostdateien nicht blind überschreiben. |
-| Rules-Dateipfad | Lesbare ModSecurity-Regeldatei | /etc/modsecurity/no-crs-baseline.conf | Ein geprüftes Ruleset verwenden. Regeln können Traffic blockieren. |
-| Listener- oder Upstream-Adresse | Host und TCP-Port für eine lokale Testroute | 127.0.0.1:8080 | Für lokale Tests Loopback binden, sofern keine Netzfreigabe beabsichtigt ist. |
-| Log- oder Eventpfad | Beschreibbares Host-/Runtime-Ziel | /var/log/modsecurity/connector.jsonl | Logs können Request-Metadaten enthalten; schützen und rotieren. |
-| Privater UDS-Pfad | Absoluter Unix-Domain-Socket-Pfad | /run/traefik-msconnector/engine.sock | In einem Verzeichnis ablegen, das Unberechtigte nicht lesen oder schreiben können. |
+## Detaillierte Konfigurationsreferenzen
 
-Kein Beispiel enthält Credentials, API-Keys, Cookies, Authorization-Header,
-TLS-Private-Keys oder andere Geheimnisse. Solche Werte über den sicheren
-Konfigurationsmechanismus des Hosts bereitstellen; nicht committen und nicht in
-Evidence schreiben.
+Die Host-Guides verlinken quellenbasierte Konfigurationsreferenzen für Common
+Runtime, ModSecurity-Engine-Direktiven und die Parseroberfläche des jeweiligen
+Hosts. Generierte Konfigurationsreferenzen werden über ihre Generatoren
+gepflegt und nicht isoliert manuell editiert.
 
-## Validierung
-
-Vor dem Laden einer Referenz die dokumentierten Hostpfade, den Rules-Dateipfad,
-Adressen und Logziele für die Zielmaschine ersetzen. Danach den nativen
-Konfigurationscheck des Hosts verwenden und dessen Error-Log prüfen. Das
-Connector-README nennt die genaue Referenz und die zu validierende Grenze. Ein
-erfolgreicher Syntaxcheck beweist nur, dass der Host die Konfiguration
-akzeptiert; er beweist weder P1--P4-Verhalten noch Produktionsreife,
-CRS-Abdeckung oder Strict-Late-Intervention.
+Für Konzepte vor Syntax lesen Sie [Konfiguration](../docs/configuration.de.md).
+Für die Semantik von Runtime-Ergebnissen lesen Sie
+[Tests und Nachweise](../docs/testing-and-evidence.de.md).

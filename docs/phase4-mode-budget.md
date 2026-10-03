@@ -2,6 +2,17 @@
 
 **Language:** English | [Deutsch](phase4-mode-budget.de.md)
 
+## Quick orientation
+
+Phase 4 is response-body processing. This document defines only the **extra
+connector-owned cumulative inspection budget** and its `off`, `safe`, and
+`strict` modes.
+
+The key point: `off` disables that extra cumulative budget, **not**
+libmodsecurity response-body inspection. Engine limits, host/transport limits,
+allocation bounds, timeouts, message/frame limits, and native errors remain
+independent safeguards.
+
 ## Scope
 
 This contract covers Apache, NGINX, HAProxy, Envoy, Traefik and lighttpd in this

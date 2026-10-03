@@ -4,6 +4,14 @@
 
 **Sprache:** [English](libmodsecurity.md) | Deutsch
 
+## Schnellorientierung
+
+libmodsecurity ist die gemeinsame Rule-Engine der Connector-Integrationen.
+Diese Seite erklärt, wie das Repository diese Dependency bezieht/baut und
+welche Compiler-Inputs relevant sind. Ein erfolgreicher Engine-Build ist nur
+ein Dependency-Ergebnis; er beweist keinen Hostconnector, kein Phasenmapping,
+kein Ruleset und kein Runtime-Verhalten.
+
 ## Offizielle Quellen
 
 Die aktuelle [ModSecurity-README](https://github.com/owasp-modsecurity/ModSecurity) ist die primäre Buildquelle. Die [Compilation Recipes für v3.x](https://github.com/owasp-modsecurity/ModSecurity/wiki/Compilation-recipes-for-v3.x) dienen nur als ergänzender Hinweis für distributionsspezifische Abhängigkeiten. Historische CentOS-, Ubuntu- oder andere Beispiele daraus sind kein aktueller Standard.

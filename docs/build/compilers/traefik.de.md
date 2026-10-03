@@ -4,6 +4,14 @@
 
 **Sprache:** [English](traefik.md) | Deutsch
 
+## Schnellorientierung
+
+Die direkte Traefik-Lösung `traefik-native-uds` kombiniert Host-/Middleware-
+Seite mit einem lokalen privaten Engine-Service. Diese Seite erklärt die
+benötigten Build-Inputs; generierter/Runtime-UDS-Zustand bleibt außerhalb des
+Source-Baums. Build-Erfolg beweist weder Middleware-Routing,
+Response-Observation noch Strict-Reset-Verhalten.
+
 ## 1. Zweck und ausgewählter Integrationspfad
 
 Dieser Guide beschreibt den manuellen Entwicklungs- und Integrationsbuild für `native-middleware` bei Traefik. Der manuelle Source-Build ist der Hauptpfad; der Repository-Testweg folgt danach als automatisierte Prüfstrecke.

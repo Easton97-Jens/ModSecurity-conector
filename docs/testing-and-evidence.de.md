@@ -2,6 +2,23 @@
 
 **Sprache:** [English](testing-and-evidence.md) | Deutsch
 
+## Schnellorientierung
+
+Dieses Dokument beantwortet vor allem eine Frage: **Was beweist ein Ergebnis
+tatsächlich?**
+
+Betrachten Sie Validierung als Stufenmodell. Dokumentations-/Static-Checks
+belegen Konsistenz; ein Build belegt Kompilieren/Linken seines Targets; ein
+Konfigurationscheck belegt, dass der ausgewählte Host die Konfiguration laden
+kann; ein Smoke belegt nur den engen Traffic-Pfad, den er ausführt;
+Full-Lifecycle-Evidence bindet beobachtetes Verhalten an ein konkretes
+Connector-/Profil-, Ruleset-, Run-ID- und Artefakt-Set.
+
+Ein Ergebnis darf nie auf eine höhere Stufe hochgestuft werden. Insbesondere
+bedeutet `PASS` nur Erfolg im Scope des ausgewählten Befehls/Runs und nicht
+automatisch Production Readiness, CRS-Abdeckung, vollständige
+Protokollabdeckung oder Strict-Verhalten aller Profile.
+
 ## Geltungsbereich
 
 Tests unterscheiden Strukturprüfungen, Build-/Konfigurationsprüfungen,

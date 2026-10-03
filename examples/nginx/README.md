@@ -2,6 +2,17 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
+## Start here
+
+Use this page when NGINX is your target. For a first configuration, start with
+[safe/nginx.conf](safe/nginx.conf), provide a module built for the exact NGINX
+ABI, adapt the rules and runtime paths, and run the native NGINX configuration
+check before starting workers.
+
+NGINX uses the direct logical profile `nginx`. Phase-4 `strict` is a
+configuration policy; a checked-in strict file is not a claim that a safe
+post-commit client-visible abort was observed.
+
 ## Integration and boundary
 
 Integration mode: native NGINX HTTP module. [off/nginx.conf](off/nginx.conf),

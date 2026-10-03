@@ -2,6 +2,14 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
+## Quick orientation
+
+Architecture Decision Records (ADRs) explain **why** durable technical choices
+were made. They are not runtime-status reports. Use an ADR when a decision
+should remain understandable after the implementation details change; use the
+current connector/build/testing documentation for present behavior and current
+run evidence for observed outcomes.
+
 ## Purpose and scope
 
 This directory is the lightweight Architecture Decision Record (ADR) home for

@@ -2,6 +2,16 @@
 
 **Sprache:** [English](common-connector-configuration.md) | Deutsch
 
+## Schnellorientierung
+
+Diese Seite ist eine Referenz und keine empfohlene Copy-Paste-Konfiguration.
+Wählen Sie zuerst Host/Profil im [Beispielindex](../README.de.md); dessen Bundle
+zeigt, welche Common-Runtime-Schlüssel für diese Topologie benötigt werden.
+
+Die wichtigsten Gruppen sind Enable/Rules-Quelle, Request-/Response-Body-Modus
+und Limits, Phase-4-Policy, Metadaten-/Eventlimits und Runtime-Pfade. Entfernen
+Sie Limits nicht nur deshalb, weil der Parser einen größeren Wert akzeptiert.
+
 ## Geltungsbereich
 
 Dies ist die vollständige aktuelle `key=value`-Parseroberfläche von `common/runtime/msconnector_runtime.c`. Daraus folgt nicht, dass jeder Host jeden Schlüssel als Hostdirektive anbietet.

@@ -4,6 +4,14 @@
 
 **Language:** English | [Deutsch](envoy.de.md)
 
+## Quick orientation
+
+Envoy's selected direct route is `envoy-ext-proc`; its processor and bridge
+have native/Go/gRPC build requirements distinct from the Envoy host binary.
+Use the repository preparation/build targets rather than assembling versions
+manually. A successful component build does not prove request/response traffic
+or strict post-commit behavior.
+
 ## 1. Purpose and selected integration path
 
 This guide describes the manual development and integration build for `ext_proc` on Envoy. The manual source build is the primary path; the repository test path follows it as an automated verification route.

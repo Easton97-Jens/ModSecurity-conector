@@ -2,6 +2,16 @@
 
 **Language:** English | [Deutsch](ci-security-tooling.de.md)
 
+## Quick orientation
+
+This page documents **how CI security checks are pinned and bounded**, not a
+claim that the project is universally secure. Read it when changing workflows,
+security scanners, action pins, permissions, or dependency-checking logic.
+
+Keep security tools immutable/reviewable, permissions minimal, and scan results
+bound to the exact commit/run that produced them. A green scanner is one
+security signal, not production certification.
+
 ## Scope
 
 This document describes repository CI controls. It does not establish runtime

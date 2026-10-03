@@ -2,6 +2,18 @@
 
 **Sprache:** [English](modsecurity-directives.md) | Deutsch
 
+## Schnellorientierung
+
+Dies sind ModSecurity-**Engine**-Einstellungen aus den eingecheckten Beispielen.
+Sie sind von Connector-/Host-Einstellungen getrennt. Insbesondere steuert
+`SecRuleEngine` die Engine-Regelauswertung, Response-Body-Direktiven steuern
+die Inspection durch libmodsecurity und Connector-`off/safe/strict` steuert
+eine andere Phase-4-Policy-Ebene.
+
+Das gewählte Host-Bundle zeigt, welche Direktiven in einem vollständigen
+Beispiel kombiniert werden. Aus einer Engine-Direktive allein darf keine
+Host-Unterstützung abgeleitet werden.
+
 ## Geltungsbereich
 
 Aufgeführt werden nur Direktiven, die tatsächlich in eingecheckten Beispielregeldateien verwendet werden. Sie gehören zu libmodsecurity und nicht zu einem Apache-, NGINX-, HAProxy-, Envoy-, Traefik- oder lighttpd-Hostparser.

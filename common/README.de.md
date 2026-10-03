@@ -2,6 +2,18 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
+## Hier beginnen
+
+`common/` enthält connector-neutrale Verträge und wiederverwendbare
+Runtime-Unterstützung. Wenn ein Typ, Helper oder eine Policy von Apache-,
+NGINX-, HAProxy-, Envoy-, Traefik- oder lighttpd-APIs abhängt, gehört er in den
+jeweiligen Connector-Tree.
+
+Für die Konfiguration eines Connectors muss dieses Verzeichnis normalerweise
+nicht geändert werden. Es ist relevant bei gemeinsamer Lifecycle-/
+Konfigurationslogik oder beim Review der Grenze zwischen Hostadaptern und
+wiederverwendbarem Runtime-Code.
+
 ## Zweck und Grenze
 
 \`common/\` enthält wiederverwendbare connector-neutrale Contracts und Helfer,

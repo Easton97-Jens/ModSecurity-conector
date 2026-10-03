@@ -2,6 +2,17 @@
 
 **Language:** English | [Deutsch](nginx.de.md)
 
+## Start here
+
+NGINX uses one direct logical profile: `nginx`, implemented as the native
+NGINX HTTP module route. Start with the [NGINX examples](../../examples/nginx/README.md)
+and ensure the NGINX binary and dynamic module match the same ABI before
+configuration validation.
+
+Use `safe` as the first complete P1–P4 configuration reference. Strict
+configuration expresses the requested late policy; actual post-commit behavior
+still requires matching host runtime evidence.
+
 ## Overview
 
 NGINX uses the selected <code>native-nginx-http-module</code> route. The

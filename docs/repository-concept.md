@@ -2,6 +2,16 @@
 
 **Language:** English | [Deutsch](repository-concept.de.md)
 
+## Quick orientation
+
+This document explains the project's ownership model and long-term repository
+shape. You usually do not need it for a first configuration or build.
+
+The practical rule is: Parent owns connector product integration and its
+orchestration/evidence consumers; the Framework owns reusable test content and
+runners; MRTS is a separate nested boundary. A change in one ownership area
+must not silently redefine another area's source of truth.
+
 ## Authority, scope, and claim discipline
 
 This document is the binding target concept for the product monorepo. It

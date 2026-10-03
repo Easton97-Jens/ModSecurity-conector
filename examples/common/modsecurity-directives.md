@@ -2,6 +2,17 @@
 
 **Language:** English | [Deutsch](modsecurity-directives.de.md)
 
+## Quick orientation
+
+These are ModSecurity **engine** settings used by checked-in examples. They are
+separate from connector/host settings. In particular, `SecRuleEngine` controls
+engine rule evaluation, response-body directives control libmodsecurity
+inspection, and connector `off/safe/strict` controls a different Phase-4
+policy layer.
+
+Use the selected host bundle to see which directives are combined in a complete
+example; do not infer host support from an engine directive alone.
+
 ## Scope
 
 Only directives actually used in checked-in example rule files are listed. They belong to libmodsecurity, not to an Apache, NGINX, HAProxy, Envoy, Traefik, or lighttpd host parser.

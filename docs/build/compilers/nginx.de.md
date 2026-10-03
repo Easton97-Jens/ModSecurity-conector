@@ -4,6 +4,14 @@
 
 **Sprache:** [English](nginx.md) | Deutsch
 
+## Schnellorientierung
+
+Verwenden Sie diese Seite für den nativen `nginx`-Modul-Build. Dynamische
+NGINX-Module sind ABI-sensitiv: Build-Inputs müssen zum ausgewählten
+Host-Binary und seiner Konfiguration passen. Bevorzugen Sie Root-NGINX-Targets
+und behandeln Sie einen erfolgreichen Modul-Build nur als Build-Evidence;
+Load-/Config-/Traffic-Verhalten wird getrennt validiert.
+
 ## 1. Zweck und ausgewählter Integrationspfad
 
 Dieser Guide beschreibt den manuellen Entwicklungs- und Integrationsbuild für `native-nginx-http-module` bei NGINX. Der manuelle Source-Build ist der Hauptpfad; der Repository-Testweg folgt danach als automatisierte Prüfstrecke.

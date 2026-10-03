@@ -4,6 +4,14 @@
 
 **Sprache:** [English](envoy.md) | Deutsch
 
+## Schnellorientierung
+
+Die ausgewählte direkte Envoy-Route ist `envoy-ext-proc`; Prozessor und
+Bridge besitzen native/Go-/gRPC-Build-Anforderungen, die vom Envoy-Host-Binary
+getrennt sind. Verwenden Sie die Repository-Preparation-/Build-Targets statt
+Versionen manuell zusammenzustellen. Ein erfolgreicher Komponenten-Build
+beweist weder Request-/Response-Traffic noch Strict-Post-Commit-Verhalten.
+
 ## 1. Zweck und ausgewählter Integrationspfad
 
 Dieser Guide beschreibt den manuellen Entwicklungs- und Integrationsbuild für `ext_proc` bei Envoy. Der manuelle Source-Build ist der Hauptpfad; der Repository-Testweg folgt danach als automatisierte Prüfstrecke.

@@ -2,6 +2,15 @@
 
 **Language:** English | [Deutsch](rule-examples.de.md)
 
+## Quick orientation
+
+The rule examples demonstrate **engine state**, not connector topology.
+Enforcement can apply disruptive actions where the selected host phase allows
+it; DetectionOnly still evaluates rules but does not apply disruptive engine
+actions; engine Off disables rule evaluation while the host connector can
+remain present. A disabled connector is different again because the connector
+path itself is not active.
+
 ## Rule-engine modes
 
 ```apache

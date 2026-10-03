@@ -2,6 +2,17 @@
 
 **Language:** English | [Deutsch](SECURITY.de.md)
 
+## Quick orientation
+
+For operational hardening, secrets/data handling, runtime paths, permissions,
+and deployment boundaries, read
+[Operations and security](docs/operations-and-security.md).
+
+Do not include credentials, cookies, authorization values, private keys, or
+sensitive request/response bodies in issues, pull requests, logs, run IDs, or
+evidence shared for review. Security reports should follow the private
+reporting path documented below.
+
 ## Reporting a vulnerability
 
 Please do not open a public issue or publish proof-of-concept details for a

@@ -4,6 +4,13 @@
 
 **Language:** English | [Deutsch](nginx.de.md)
 
+## Quick orientation
+
+Use this page for the native `nginx` module build. NGINX dynamic modules are
+ABI-sensitive: build inputs must match the selected host binary/configuration.
+Prefer the root NGINX targets and treat a successful module build as build-layer
+evidence only; load/config/traffic behavior is validated separately.
+
 ## 1. Purpose and selected integration path
 
 This guide describes the manual development and integration build for `native-nginx-http-module` on NGINX. The manual source build is the primary path; the repository test path follows it as an automated verification route.

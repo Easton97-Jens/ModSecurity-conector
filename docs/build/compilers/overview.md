@@ -4,6 +4,13 @@
 
 **Language:** English | [Deutsch](overview.de.md)
 
+## Quick orientation
+
+The build matrix exists to keep compiler/host assumptions explicit. Start with
+the repository-selected toolchain sources and root Make targets, then use this
+overview to understand which native compiler or host SDK is involved. A cell in
+a matrix or a successful compile is not a runtime support statement.
+
 ## Target map
 
 | Connector | Preparation | Build | Config check | Selected full lifecycle |

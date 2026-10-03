@@ -2,6 +2,16 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
+## Start here
+
+lighttpd has two separate logical solutions. `lighttpd-patched` uses the
+repository's patched native route; `lighttpd-stock` uses the traffic-owning
+Stock sidecar. They are not fallback modes for each other.
+
+For a first configuration, pick the solution you actually intend to run and
+start with its `safe` bundle. Match the host/module pair exactly for the
+patched route, and keep Stock sidecar/backend listeners private and bounded.
+
 ## Integration and boundary
 
 There are two logical solutions. [Stock](stock/) is the traffic-owning

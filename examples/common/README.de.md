@@ -2,6 +2,18 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
+## Hier beginnen
+
+Diese Seiten erklären Konfiguration, die mehrere Beispiel-Familien gemeinsam
+nutzen. Lesen Sie [Common-Connector-Konfiguration](common-connector-configuration.de.md)
+für die gemeinsame Runtime-`key=value`-Oberfläche,
+[ModSecurity-Direktiven](modsecurity-directives.de.md) für in Beispielen
+verwendete Engine-Einstellungen und [Regelbeispiele](rule-examples.de.md) für
+den Unterschied zwischen Enforcement, DetectionOnly und Engine Off.
+
+Hostspezifische Parser-Syntax bleibt im passenden Host-Beispiel-Guide und in
+der generierten Konfigurationsreferenz.
+
 Diese zentrale Referenz trennt vier Ebenen: Host-/Connector-Konfiguration, Common Runtime, ModSecurity Engine und Beispielplatzhalter. Die sechs Connector-Referenzen verlinken hierher, ohne Common-Schlüssel als nicht registrierte Hostdirektiven auszugeben.
 
 | Material | Ebene | Zweck |

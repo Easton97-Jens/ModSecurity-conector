@@ -4,6 +4,14 @@
 
 **Language:** English | [Deutsch](traefik.de.md)
 
+## Quick orientation
+
+Traefik's direct `traefik-native-uds` solution combines the host/middleware
+side with a local private engine service. Use this page for the required build
+inputs and keep the generated/runtime UDS state outside source. Build success
+does not prove middleware routing, response observation, or strict reset
+behavior.
+
 ## 1. Purpose and selected integration path
 
 This guide describes the manual development and integration build for `native-middleware` on Traefik. The manual source build is the primary path; the repository test path follows it as an automated verification route.

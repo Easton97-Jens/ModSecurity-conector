@@ -2,6 +2,18 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
+## Hier beginnen
+
+Verwenden Sie diese Seite, wenn NGINX Ihr Zielhost ist. Beginnen Sie für eine
+erste Konfiguration mit [safe/nginx.conf](safe/nginx.conf), stellen Sie ein für
+die exakte NGINX-ABI gebautes Modul bereit, passen Sie Rules- und Runtime-Pfade
+an und führen Sie vor dem Worker-Start den nativen NGINX-Konfigurationscheck
+aus.
+
+NGINX verwendet das direkte logische Profil `nginx`. Phase-4-`strict` ist
+eine Konfigurationspolicy; eine eingecheckte Strict-Datei behauptet keinen
+beobachteten sicheren client-sichtbaren Post-Commit-Abbruch.
+
 ## Integration und Grenze
 
 Integrationsmodus: natives NGINX-HTTP-Modul.

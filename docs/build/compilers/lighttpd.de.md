@@ -4,6 +4,15 @@
 
 **Sprache:** [English](lighttpd.md) | Deutsch
 
+## Schnellorientierung
+
+lighttpd besitzt zwei logische Lösungen mit unterschiedlichen Build-Grenzen.
+Das Profil `lighttpd-patched` benötigt den passenden gepatchten Host-/Modul-
+Build; `lighttpd-stock` behält den Stock-Host und nutzt die getrennte
+begrenzte Sidecar-Topologie. Diese Seite konzentriert sich auf native
+Build-Inputs. Verwenden Sie ein Build-Ergebnis eines Profils niemals als
+Evidence für das andere.
+
 ## 1. Zweck und ausgewählter Integrationspfad
 
 Dieser Guide beschreibt den manuellen Entwicklungs- und Integrationsbuild für `patched-native` bei lighttpd. Der manuelle Source-Build ist der Hauptpfad; der Repository-Testweg folgt danach als automatisierte Prüfstrecke.

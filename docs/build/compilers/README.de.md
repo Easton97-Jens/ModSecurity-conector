@@ -4,6 +4,17 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
+## Hier beginnen
+
+Verwenden Sie die Compiler-Guides erst nach der Auswahl von Host/Profil und nach
+dem Haupt-[Build-Guide](../README.de.md). Diese Seiten erklären Toolchain- und
+hostspezifische Build-Inputs; sie ersetzen keine Root-Make-Targets und beweisen
+kein Runtime-Verhalten.
+
+Wählen Sie den Guide für den zu bauenden Host. libmodsecurity ist die
+gemeinsame Engine-Dependency; jede Hostintegration besitzt zusätzliche
+ABI-/Toolchain-Anforderungen in ihrer eigenen Seite.
+
 ## Zweck
 
 Jeder Detailguide beschreibt einen repository-gesteuerten Testweg, einen

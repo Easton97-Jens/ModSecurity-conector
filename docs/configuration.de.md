@@ -2,6 +2,21 @@
 
 **Sprache:** [English](configuration.md) | Deutsch
 
+## Schnellorientierung
+
+Konfiguration hat drei Ebenen. Klären Sie vor einer Änderung zuerst, **welche
+Ebene die Einstellung besitzt**:
+
+- **Host/Connector:** Modul-/Filter-/Service-Wiring, Listener, Sockets, Hostpfade und Connector-Policy.
+- **Common Runtime:** gemeinsame Limits, Body-Modi, Rules-Dateipfad, Transaktionsmetadaten und – wo verwendet – Phase-4-Modus.
+- **ModSecurity Engine:** `SecRuleEngine`, Request-/Response-Body-Inspection, Body-Limits, MIME-Auswahl und die Rules selbst.
+
+Vollständige quellenbasierte Konfigurationsformen stehen unter
+[Beispiele](../examples/README.de.md). `off`, `safe` und `strict` sind
+Phase-4-Policy-Modi; `all` ist ein Beispiellayout und kein weiterer Modus.
+DetectionOnly, Engine Off und ein deaktivierter Connector sind unterschiedliche
+Zustände.
+
 ## Geltungsbereich
 
 Konfiguration hat drei getrennte Ebenen. Eine Einstellung auf einer Ebene ist
