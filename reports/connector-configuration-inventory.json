@@ -142,7 +142,7 @@
       "runtime_effect": "Legacy compatibility value. Apache no longer uses it as a cumulative WAF response-inspection limit; libModSecurity owns SecResponseBodyLimit policy. The fixed non-configurable 4096-normalized-bucket ceiling remains a separate APR-object/resource guard.",
       "example_file": "examples/apache/safe/httpd.conf",
       "example_value": "",
-      "compatibility_only": true,
+      "compatibility_only": false,
       "deprecated": true,
       "description": "Legacy compatibility value. Apache no longer uses it as a cumulative WAF response-inspection limit; libModSecurity owns SecResponseBodyLimit policy. The fixed non-configurable 4096-normalized-bucket ceiling remains a separate APR-object/resource guard."
     },
@@ -7772,7 +7772,7 @@
       "runtime_effect": "Legacy compatibility value; valid Phase-4 modes do not enforce it as a connector WAF response-inspection limit.",
       "example_file": "examples/nginx/safe/nginx.conf",
       "example_value": "",
-      "compatibility_only": true,
+      "compatibility_only": false,
       "deprecated": true,
       "description": "Legacy compatibility value; valid Phase-4 modes do not enforce it as a connector WAF response-inspection limit."
     },
