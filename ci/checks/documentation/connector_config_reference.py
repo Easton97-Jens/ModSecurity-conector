@@ -321,7 +321,6 @@ DIRECTIVE_DETAILS: dict[str, dict[str, str]] = {
         "default_source": DEFAULT_SOURCE_PHASE4_BODY_LIMIT,
         "effect": "Legacy compatibility value; valid Phase-4 modes do not enforce it as a connector WAF response-inspection limit.",
         "security": "Use libModSecurity SecResponseBodyLimit/SecResponseBodyLimitAction for WAF inspection policy; independent host resource limits remain separate.",
-        "compatibility_only": True,
         "deprecated": True,
     },
 }
