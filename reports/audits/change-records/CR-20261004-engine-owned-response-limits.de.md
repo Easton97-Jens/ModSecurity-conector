@@ -69,6 +69,8 @@ Das Parsen von `modsecurity_phase4_body_limit` bleibt vorerst erhalten, um keine
 - `tests/test_nginx_phase4_mode_budget.py`
 - `tests/test_phase4_all_connector_budget.py`
 - `tests/test_phase4_envoy_budget.py`
+- `tests/run_nginx_body_buffer_fixture.py`
+- `tests/test_nginx_body_buffer_fixture.py`
 - `reports/audits/change-records/CR-20261004-engine-owned-response-limits.md`
 - `reports/audits/change-records/CR-20261004-engine-owned-response-limits.de.md`
 
@@ -82,11 +84,11 @@ Die Änderung entfernt einen Connector-Ablehnungspfad, der ansonsten legitime gr
 
 ## Runtime-Evidence
 
-Es wurde keine Runtime-Evidence erhoben oder beansprucht.
+GitHub Actions auf dem vorherigen PR-Head `b17e5374fdb46854066644a83f2e1b366dbc433a` baute und prüfte den nativen NGINX-Exact-Head-Pfad. Dessen Functional-A-Runtime meldete `passed`; der Job schlug später fehl, weil das Body-Buffer-Fixture weiterhin erwartete, dass das entfernte Connector-Budget `memory-over-limit` abweist. Diese veraltete Erwartung wurde für Memory-/File-/Mixed-Over-Limit-Fälle auf dem aktuellen Branch korrigiert. Dieses Ergebnis des vorherigen Heads ist Remediation-Evidence und keine Verifikation des aktuellen Heads.
 
 ## Bekannte Einschränkungen
 
-Alte Budget-Konfiguration bleibt parsebar und kann deshalb für ältere Automation aktiv aussehen, obwohl sie die WAF-Response-Inspection nicht mehr steuert. Der Branch enthält Source-Level- und Dokumentationsregressionen, aber kein lokal ausgeführtes Projekt-Testergebnis, weil der verpflichtende RTK-Wrapper nicht verfügbar ist.
+Alte Budget-Konfiguration bleibt parsebar und kann deshalb für ältere Automation aktiv aussehen, obwohl sie die WAF-Response-Inspection nicht mehr steuert. Der Branch enthält Source-Level-, Dokumentations- und Native-Fixture-Regressionen, aber kein lokal ausgeführtes Projekt-Testergebnis, weil der verpflichtende RTK-Wrapper nicht verfügbar ist.
 
 ## Verbleibende Risiken
 
@@ -94,7 +96,7 @@ Native Host-Regressionen sind weiterhin nötig, um zu beweisen, dass große Resp
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-`tests.test_nginx_phase4_mode_budget`, `tests.test_phase4_all_connector_budget`, `tests.test_phase4_envoy_budget`, Konfigurationsreferenz-Generierungschecks, Bilingual-/Link-Checks, native Connector-Builds, Host-Runtime-Regressionen, Sanitizer, SonarQube und `git diff --check` wurden nicht ausgeführt, weil der repository-verpflichtende RTK-Wrapper in dieser Umgebung nicht verfügbar ist. CI und Review für den aktuellen Head müssen diese Ergebnisse liefern.
+Lokale `tests.test_nginx_phase4_mode_budget`, `tests.test_phase4_all_connector_budget`, `tests.test_phase4_envoy_budget`, Konfigurationsreferenz-Generierungschecks, Bilingual-/Link-Checks, native Connector-Builds, Host-Runtime-Regressionen, Sanitizer, SonarQube und `git diff --check` wurden nicht ausgeführt, weil der repository-verpflichtende RTK-Wrapper in dieser Umgebung nicht verfügbar ist. GitHub-CI des vorherigen Heads zeigte zwei task-eigene Fehler: fehlende deutsche Generator-Mappings und veraltete NGINX-Over-Limit-Fixture-Erwartungen. Beide sind korrigiert; CI und Review für den aktuellen Head müssen die Remediation verifizieren.
 
 ## Finaler Diff- und Review-Status
 
