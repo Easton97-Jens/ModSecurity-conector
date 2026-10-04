@@ -27,7 +27,7 @@ Connector-eigene kumulierte Phase-4-Response-Budgets duplizierten die libModSecu
 
 Die bestehende API `msconnector_phase4_effective_body_limit` bleibt als Kompatibilitäts-Shim erhalten. Gültige Modi liefern `SIZE_MAX` ausschließlich als arithmetische/Accounting-Grenze; nicht gesetzte oder unbekannte Modi liefern weiterhin null und schlagen fail-closed fehl. NGINX verwendet nun den gemeinsamen Helper statt einer eigenen Safe-/Strict-Budget-Verzweigung. Die Common Runtime erzwingt Reject-Semantik nur bei unmöglichem Response-Zählerüberlauf, damit `ProcessPartial` keinen arithmetischen Überlauf in einen erfolgreichen Append umwandelt.
 
-Das Parsen von `modsecurity_phase4_body_limit` bleibt vorerst erhalten, um keinen sofortigen Konfigurationsbruch zu erzeugen. In den quellenbasierten Konfigurationsmetadaten ist der Wert als deprecated/compatibility-only markiert. Eine Entfernung aus der öffentlichen Konfiguration kann getrennt als Breaking Migration erfolgen.
+Das Parsen von `modsecurity_phase4_body_limit` bleibt vorerst erhalten, um keinen sofortigen Konfigurationsbruch zu erzeugen. In den quellenbasierten Konfigurationsmetadaten bleibt der Wert als native Host-Direktive klassifiziert und ist als deprecated markiert; seine Laufzeitwirkung dient nur der Kompatibilität und ist keine WAF-Inspection-Policy. Eine Entfernung aus der öffentlichen Konfiguration kann getrennt als Breaking Migration erfolgen.
 
 ## Geänderte Dateien
 
