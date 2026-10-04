@@ -62,9 +62,9 @@ libmodsecurity log callback only. It does not change audit logging,
 intervention behavior, request or response handling, hooks, filters, buckets,
 or transaction ownership.
 
-The Phase-4 mode controls additional intervention handling and, in `safe`
-and `strict`, the connector's cumulative body budget. `off` leaves configured
-engine inspection active. There is no connector-owned MIME allowlist;
+The Phase-4 mode controls additional intervention handling only. No mode adds
+a connector-owned cumulative response-inspection budget; configured engine
+inspection remains active. There is no connector-owned MIME allowlist;
 `SecResponseBodyMimeType` and `SecResponseBodyMimeTypesClear` select inspection
 in libModSecurity. Phase 4 / RESPONSE_BODY remains non-promoted; source-level
 strict-mode wiring does not establish a late-abort result.
@@ -190,14 +190,12 @@ type; the engine's own `SecResponseBodyMimeType` configuration selects
 inspection. There is no second connector MIME list or MIME-based intervention
 downgrade.
 
-`modsecurity_phase4_body_limit` defaults to 1048576 bytes (1 MiB), with a
-positive configured maximum of 10485760 bytes (10 MiB). In `safe` and `strict`,
-the cumulative limit is checked before the next data bucket is appended or
-forwarded; an over-limit bucket is rejected rather than partially inspected
-and released. Earlier progressive bytes may already have crossed the next
-filter and cannot be rewritten. In `off`, this extra cumulative budget is
-not enforced, while engine limits, checked counters and lifecycle/error
-handling remain active. There is no additional whole-response buffer.
+`modsecurity_phase4_body_limit` remains accepted as a legacy compatibility
+value, but no Phase-4 mode enforces it as a cumulative WAF inspection limit.
+libModSecurity owns inspection limits through `SecResponseBodyLimit` and
+`SecResponseBodyLimitAction`. Checked counters, lifecycle/error handling and
+the fixed Apache bucket-count safety ceiling remain active. There is no
+additional whole-response buffer.
 
 At the normal decision boundary, Apache's `r->sent_bodyct` and `eos_sent` are
 not commit proof: upstream modules can set them before this filter passes its
