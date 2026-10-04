@@ -23,7 +23,7 @@ This is the complete current `key=value` parser surface of `common/runtime/mscon
 | [`phase4_mode`](#phase4-mode) | Common Runtime | enum | no | off | Common Runtime key=value file | Stores the late P4 policy. Common alone owns no host abort primitive. |
 | [`request_body_limit`](#request-body-limit) | Common Runtime | positive decimal bytes | no | 1048576 | Common Runtime key=value file | Bounds request bytes offered to the engine. |
 | [`request_body_mode`](#request-body-mode) | Common Runtime | enum | no | buffered | Common Runtime key=value file | Selects the Common request-body handling mode; a particular host may support only a subset. |
-| [`response_body_limit`](#response-body-limit) | Common Runtime | positive decimal bytes | no | 1048576 | Common Runtime key=value file | Bounds response bytes offered to the engine. |
+| [`response_body_limit`](#response-body-limit) | Common Runtime | positive decimal bytes | no | 1048576 | Common Runtime key=value file | Bounds host/runtime response capacity where that integration requires bounded storage; it is not libModSecurity inspection policy. |
 | [`response_body_mode`](#response-body-mode) | Common Runtime | enum | no | none | Common Runtime key=value file | Selects the Common response-body handling mode; a particular host may support only a subset. |
 | [`rules_file`](#rules-file) | Common Runtime | path | no | none | Common Runtime key=value file | Loads rules from a local file. |
 | [`rules_inline`](#rules-inline) | Common Runtime | string | no | none | Common Runtime key=value file | Adds inline rule configuration. |
@@ -865,7 +865,7 @@ Limits bound resource use. Selects the Common request-body handling mode; a part
 
 ### Short description
 
-Bounds response bytes offered to the engine.
+Bounds host/runtime response capacity where that integration requires bounded storage; it is not libModSecurity inspection policy.
 
 ### Syntax
 
@@ -899,7 +899,7 @@ Merge: When a host uses msconnector_config, scalar child values override parent 
 
 See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
 
-Bounds response bytes offered to the engine.
+Bounds host/runtime response capacity where that integration requires bounded storage; it is not libModSecurity inspection policy.
 
 ### Validation and errors
 
@@ -913,7 +913,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 ### Safety and operations
 
-The 10 MiB hard cap bounds response-body allocation and engine input even when a deployment raises the 1048576-byte default.
+The 10 MiB configuration cap bounds host/runtime capacity settings where an integration allocates or buffers responses; it is not a libModSecurity WAF inspection limit.
 
 <a id="response-body-mode"></a>
 ## `response_body_mode`
