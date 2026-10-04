@@ -989,16 +989,12 @@ static apr_status_t apache_phase4_append_bucket(msc_t *msr,
             return APR_EGENERAL;
         }
         msr->response_body_seen = 1;
-        /* Phase 4 has an EOS-only final decision. libModSecurity owns the
-         * effective SecResponseBodyMimeType policy, but its C API does not
-         * expose a safe way for this connector to query that selection.
-         * Therefore every response bucket is appended exactly once before the
-         * current non-terminal brigade is forwarded. Processing a bounded
-         * prefix and then forwarding an uninspected tail would recreate the
-         * bypass in safe/strict, so those modes reject an oversize bucket
-         * before forwarding. Off bypasses only this connector budget; checked
-         * accounting and the engine's own limits remain active.
-         * Output committed by an earlier brigade is never rewritten.
+        /* Phase 4 has an EOS-only final decision. libModSecurity owns MIME
+         * selection and response-inspection limits, so every response bucket
+         * is appended exactly once and no P4 mode adds a connector byte
+         * policy. The shared planner is retained only for checked accounting
+         * and integer-overflow rejection. Output committed by an earlier
+         * brigade is never rewritten.
          */
         if (!msconnector_body_limit_plan_chunk(msr->response_body_bytes_seen,
                 msr->response_body_bytes_inspected,

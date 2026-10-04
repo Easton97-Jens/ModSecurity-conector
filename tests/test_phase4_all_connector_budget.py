@@ -1,4 +1,4 @@
-"""Cross-connector P4 budget units and wiring checks; no hosted runtime claim."""
+"""Cross-connector response-limit ownership and wiring checks; no hosted runtime claim."""
 
 from __future__ import annotations
 
@@ -72,15 +72,14 @@ int main(int argc, char **argv)
     } else if (strcmp(argv[1], "enabled-limits") == 0) {
         for (i = 0; i < sizeof(modes)/sizeof(modes[0]); ++i) {
             size_t effective = msconnector_phase4_effective_body_limit(modes[i], limit);
-            CHECK(effective == limit);
+            CHECK(effective == SIZE_MAX);
             CHECK(msconnector_body_limit_plan_chunk(0, 0, effective,
-                MSCONNECTOR_BODY_LIMIT_ACTION_REJECT, limit, &plan));
-            CHECK(plan.append_size == limit);
-            CHECK(!msconnector_body_limit_plan_chunk(limit, limit, effective,
-                MSCONNECTOR_BODY_LIMIT_ACTION_REJECT, 1, &plan));
-            CHECK(plan.append_size == 0);
-            CHECK(!msconnector_body_limit_plan_chunk(0, 0, effective,
                 MSCONNECTOR_BODY_LIMIT_ACTION_REJECT, limit + 1, &plan));
+            CHECK(plan.append_size == limit + 1);
+            CHECK(msconnector_body_limit_plan_chunk(plan.bytes_seen,
+                plan.append_size, effective, MSCONNECTOR_BODY_LIMIT_ACTION_REJECT,
+                limit + 1, &plan));
+            CHECK(plan.bytes_seen == 2 * (limit + 1));
         }
     } else if (strcmp(argv[1], "invalid-modes") == 0) {
         CHECK(msconnector_phase4_effective_body_limit(
@@ -88,9 +87,9 @@ int main(int argc, char **argv)
         CHECK(msconnector_phase4_effective_body_limit(
             (enum msconnector_phase4_mode)77, limit) == 0);
         CHECK(msconnector_phase4_effective_body_limit(
-            MSCONNECTOR_PHASE4_MODE_SAFE, 0) == 0);
+            MSCONNECTOR_PHASE4_MODE_SAFE, 0) == SIZE_MAX);
         CHECK(msconnector_phase4_effective_body_limit(
-            MSCONNECTOR_PHASE4_MODE_STRICT, 0) == 0);
+            MSCONNECTOR_PHASE4_MODE_STRICT, 0) == SIZE_MAX);
     } else if (strcmp(argv[1], "off-overflow") == 0) {
         size_t effective = msconnector_phase4_effective_body_limit(
             MSCONNECTOR_PHASE4_MODE_OFF, limit);
@@ -168,10 +167,10 @@ class Phase4BudgetCUnitTests(unittest.TestCase):
     def test_off_allows_multiple_chunks_above_configured_budget(self) -> None:
         self.run_case("off-large")
 
-    def test_safe_strict_accept_exact_boundary_and_reject_overflowing_chunk(self) -> None:
+    def test_safe_strict_do_not_apply_a_connector_response_budget(self) -> None:
         self.run_case("enabled-limits")
 
-    def test_unset_unknown_and_zero_enabled_limits_are_not_unlimited(self) -> None:
+    def test_invalid_modes_fail_but_valid_modes_ignore_legacy_zero_budget(self) -> None:
         self.run_case("invalid-modes")
 
     def test_off_still_rejects_overflow_and_inconsistent_counters(self) -> None:
@@ -220,9 +219,14 @@ class Phase4BudgetWiringTests(unittest.TestCase):
         self.assertIn("append_response_body_chunk_internal(", function(
             RUNTIME, "append_companion_response_body_chunk"))
         text = function(RUNTIME, "append_response_body_chunk_internal")
-        start = text.index("if (runtime->config.phase4_mode == MSCONNECTOR_PHASE4_MODE_OFF)")
-        self.assertIn("MSCONNECTOR_BODY_LIMIT_ACTION_REJECT",
-                      text[start:text.index("if (!apply_body_limit_plan", start)])
+        self.assertIn(
+            "response_policy.body_limit_action = MSCONNECTOR_BODY_LIMIT_ACTION_REJECT;",
+            text,
+        )
+        self.assertLess(
+            text.index("response_policy.body_limit_action = MSCONNECTOR_BODY_LIMIT_ACTION_REJECT;"),
+            text.index("if (!apply_body_limit_plan"),
+        )
 
     def test_host_allocation_limit_getter_is_not_unlimited(self) -> None:
         text = function(RUNTIME, "msconnector_runtime_response_body_limit")

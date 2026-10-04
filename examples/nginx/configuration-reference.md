@@ -17,7 +17,7 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | [`listen`](#listen) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`load_module`](#load-module) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`modsecurity`](#modsecurity) | Host / Connector | boolean | no | off | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Gates connector transaction creation; it is not SecRuleEngine. |
-| [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive decimal byte count | no | 1048576 | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Bounds response bytes offered to P4 processing by the native connector. |
+| [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive decimal byte count | no | 1048576 | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Legacy compatibility value; valid Phase-4 modes do not enforce it as a connector WAF response-inspection limit. |
 | [`modsecurity_phase4_log`](#modsecurity-phase4-log) | Host / Connector | path | no | not configured | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Opens a connector-owned native NGINX event sink through the Common Runtime's secure no-follow descriptor helper. |
 | [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | enum | no | off | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | off preserves NGINX's native intervention handling without disabling ModSecurity response-body inspection. safe applies an intervention while the response is still changeable and records a late disruptive decision without inventing a new status. strict uses the native abort_connection path after commit. Response MIME selection belongs to ModSecurity through SecResponseBodyMimeType. |
 | [`modsecurity_rules`](#modsecurity-rules) | Host / Connector | string | no | none; optional | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Loads inline content through libmodsecurity during configuration loading. |
@@ -415,7 +415,7 @@ off bypasses connector P1–P4 processing even if a rule file is configured.
 
 ### Short description
 
-Bounds response bytes offered to P4 processing by the native connector.
+Legacy compatibility value; valid Phase-4 modes do not enforce it as a connector WAF response-inspection limit.
 
 ### Syntax
 
@@ -449,7 +449,7 @@ Merge: ngx_conf_merge_* combines scalar/pointer configuration, while msc_rules_m
 
 P1 controls integration; rules and P4 controls affect the stated phase only.
 
-Bounds response bytes offered to P4 processing by the native connector.
+Legacy compatibility value; valid Phase-4 modes do not enforce it as a connector WAF response-inspection limit.
 
 ### Validation and errors
 
@@ -463,7 +463,7 @@ Source-backed example: [examples/nginx/safe/nginx.conf](../../examples/nginx/saf
 
 ### Safety and operations
 
-A larger limit raises memory/CPU exposure; zero is invalid in the native setters.
+Use libModSecurity SecResponseBodyLimit/SecResponseBodyLimitAction for WAF inspection policy; independent host resource limits remain separate.
 
 <a id="modsecurity-phase4-log"></a>
 ## `modsecurity_phase4_log`
