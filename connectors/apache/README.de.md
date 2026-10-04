@@ -64,9 +64,9 @@ Nur libmodsecurity-Protokollrückruf. Es ändert nichts an der Überwachungsprot
 Interventionsverhalten, Anfrage- oder Antwortbehandlung, Hooks, Filter, Buckets,
 oder Transaktionseigentum.
 
-Der Phase-4-Modus steuert die zusätzliche Interventionsbehandlung und in
-`safe` und `strict` das kumulierte Body-Budget des Connectors. `off` lässt die
-konfigurierte Engine-Inspection aktiv. Es gibt keine Connector-eigene
+Der Phase-4-Modus steuert nur die zusätzliche Interventionsbehandlung. Kein
+Modus fügt ein Connector-eigenes kumuliertes Response-Inspection-Budget hinzu;
+die konfigurierte Engine-Inspection bleibt aktiv. Es gibt keine Connector-eigene
 MIME-Allowlist; `SecResponseBodyMimeType` und `SecResponseBodyMimeTypesClear`
 wählen die Inspection in libModSecurity. Phase 4 / RESPONSE_BODY bleibt
 nicht hochgestuft; Strict-Mode-Verkabelung auf Quellebene beweist keinen
@@ -197,15 +197,12 @@ libModSecurity; die eigene `SecResponseBodyMimeType`-Konfiguration der Engine
 wählt die Inspection. Es gibt weder eine zweite Connector-MIME-Liste noch
 eine MIME-basierte Herabstufung von Interventionen.
 
-`modsecurity_phase4_body_limit` hat standardmäßig 1048576 Byte (1 MiB); der
-konfigurierte Wert muss positiv sein und darf höchstens 10485760 Byte (10 MiB)
-betragen. In `safe` und `strict` wird das kumulierte Limit geprüft, bevor der
-nächste Daten-Bucket angehängt oder weitergegeben wird. Ein übergroßer Bucket
-wird abgewiesen, nicht nur teilweise inspiziert und freigegeben. Frühere
-progressive Bytes können den nächsten Filter bereits passiert haben und
-lassen sich nicht umschreiben. In `off` wird dieses zusätzliche kumulierte
-Budget nicht durchgesetzt; Engine-Limits, geprüfte Zähler und Lifecycle-/
-Fehlerbehandlung bleiben aktiv. Es gibt keinen zusätzlichen Puffer für die
+`modsecurity_phase4_body_limit` bleibt als alter Kompatibilitätswert
+akzeptiert, wird aber in keinem Phase-4-Modus als kumuliertes
+WAF-Inspection-Limit durchgesetzt. libModSecurity besitzt die Inspection-Limits
+über `SecResponseBodyLimit` und `SecResponseBodyLimitAction`. Geprüfte
+Zähler, Lifecycle-/Fehlerbehandlung und die feste Apache-Sicherheitsgrenze für
+die Bucket-Anzahl bleiben aktiv. Es gibt keinen zusätzlichen Puffer für die
 gesamte Response.
 
 An der normalen Entscheidungsgrenze sind Apaches `r->sent_bodyct` und
