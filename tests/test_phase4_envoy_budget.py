@@ -54,19 +54,21 @@ import "testing"
 func TestNativeBudgetModeReadback(t *testing.T) {
     var missing *CommonRuntimeEngine
     if missing.Phase4BodyBudgetDisabled() { t.Fatal("nil disables budget") }
-    for _, mode := range []int{-1, 1, 2, 77} {
+    for _, mode := range []int{-1, 77} {
         if (&CommonRuntimeEngine{phase4Mode: mode}).Phase4BodyBudgetDisabled() {
-            t.Fatalf("mode %d disables budget", mode)
+            t.Fatalf("invalid mode %d disables budget", mode)
         }
     }
-    if !(&CommonRuntimeEngine{phase4Mode: 0}).Phase4BodyBudgetDisabled() {
-        t.Fatal("off does not disable budget")
+    for _, mode := range []int{0, 1, 2} {
+        if !(&CommonRuntimeEngine{phase4Mode: mode}).Phase4BodyBudgetDisabled() {
+            t.Fatalf("valid mode %d keeps legacy connector budget", mode)
+        }
     }
 }
 """
 
 class EnvoyPhase4BudgetTests(unittest.TestCase):
-    def test_processor_uses_loaded_mode_without_removing_chunk_limit(self) -> None:
+    def test_processor_disables_legacy_response_budget_without_removing_chunk_limit(self) -> None:
         source = (PROCESSOR / "processor.go").read_text(encoding="utf-8")
         function = go_definition(source, "bodyLimitDecision")
         self.assertIn("state.engine.(Phase4BodyBudgetDisabler)", function)
