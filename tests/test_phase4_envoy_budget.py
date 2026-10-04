@@ -47,7 +47,11 @@ type streamState struct { config Config; engine any; summary Summary }
 type Phase4BodyBudgetDisabler interface { Phase4BodyBudgetDisabled() bool }
 type PassthroughEngine struct{}
 type CommonRuntimeEngine struct { phase4Mode int }
-const commonRuntimePhase4ModeOff = 0
+const (
+    commonRuntimePhase4ModeOff = 0
+    commonRuntimePhase4ModeSafe = 1
+    commonRuntimePhase4ModeStrict = 2
+)
 """
 NATIVE_MODE_TEST = """package processor
 import "testing"
