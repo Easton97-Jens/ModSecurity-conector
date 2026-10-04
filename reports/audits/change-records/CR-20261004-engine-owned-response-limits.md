@@ -27,7 +27,7 @@ Connector-owned cumulative Phase-4 response budgets duplicated libModSecurity po
 
 The existing `msconnector_phase4_effective_body_limit` API remains as a compatibility shim. Valid modes return `SIZE_MAX` only as an arithmetic/accounting ceiling; unset or unknown modes still return zero and fail closed. NGINX now uses that shared helper instead of applying its own safe/strict budget branch. Common Runtime forces reject semantics only for impossible response-counter overflow so `ProcessPartial` cannot convert arithmetic overflow into a successful append.
 
-Legacy `modsecurity_phase4_body_limit` parsing is retained to avoid an immediate configuration-breaking change. It is marked deprecated/compatibility-only in source-backed configuration metadata. Removing the public option can be a separate breaking migration.
+Legacy `modsecurity_phase4_body_limit` parsing is retained to avoid an immediate configuration-breaking change. It remains classified as a native host directive and is marked deprecated in source-backed configuration metadata; its runtime effect is compatibility-only rather than a WAF inspection policy. Removing the public option can be a separate breaking migration.
 
 ## Changed files
 
