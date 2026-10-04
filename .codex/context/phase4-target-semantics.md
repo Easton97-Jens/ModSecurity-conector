@@ -25,6 +25,35 @@ Target state: no separate connector-owned Phase-4 MIME allowlist and no separate
 
 Removing connector MIME selection does not remove body/resource limits, configured body modes, engine settings, or transport limits.
 
+## Response-body limit ownership target
+
+The ModSecurity Engine owns WAF response-inspection scope and byte-limit
+policy through `SecResponseBodyAccess`, `SecResponseBodyMimeType`,
+`SecResponseBodyMimeTypesClear`, `SecResponseBodyLimit`, and
+`SecResponseBodyLimitAction`.
+
+Target state: no Phase-4 mode adds a connector-owned cumulative response-body
+inspection budget. A connector must not reject, truncate, reset, or abort a
+response solely because a connector-specific Phase-4 inspection byte count is
+exceeded, including in `safe` or `strict`.
+
+Legacy `modsecurity_phase4_body_limit` or Common response-budget settings may
+remain parseable during compatibility migration, but they are not WAF policy
+and must not reintroduce mode-specific response rejection. Removal from public
+configuration can happen separately as an explicitly breaking migration.
+
+Independent host and transport resource controls remain valid: fixed chunk or
+frame caps, bounded sidecar storage, allocation ceilings, timeouts, correlation
+limits, file metadata/read validation, and integer-overflow guards. Such limits
+must be documented as host/transport capacity, not as ModSecurity inspection
+policy, and must not become stricter merely because Phase-4 mode is `safe` or
+`strict`.
+
+Streaming/native connectors should not add whole-response buffering solely to
+support Phase 4. File-backed bodies may be materialized through a fixed,
+reusable scratch buffer before `msc_append_response_body`; that scratch size is
+a working-buffer bound, not a response-body inspection limit.
+
 ## Target Phase-4 modes
 
 Valid target values are exactly:
@@ -57,7 +86,7 @@ Already-sent status/headers/bytes cannot be taken back. Keep detection, requeste
 
 Real engine, memory, transport, and processing failures remain failures. Safe late-rule behavior must not convert genuine errors into success.
 
-Body/resource limits, bounded memory, streaming properties, and exactly-once finalization remain required in all modes.
+Independent body/resource safety limits, bounded memory, streaming properties, and exactly-once finalization remain required in all modes. Connector-owned WAF inspection byte policy is not.
 
 ## Configuration and inheritance
 

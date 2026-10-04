@@ -25,6 +25,7 @@
 #include "ngx_http_modsecurity_mapper.h"
 #include "msconnector/event.h"
 #include "msconnector/event_jsonl.h"
+#include "msconnector/phase4_budget.h"
 
 static ngx_http_output_header_filter_pt ngx_http_next_header_filter;
 
@@ -589,8 +590,8 @@ ngx_http_modsecurity_handle_response_header_intervention(ngx_http_request_t *r,
         ret);
 }
 
-/* Keep the metadata counter consistent with the body planner. SIZE_MAX is
- * only an accounting ceiling in off, never an allocation request. */
+/* Keep metadata accounting consistent with the body planner. SIZE_MAX is an
+ * arithmetic ceiling only; it is never a response allocation request. */
 static size_t
 ngx_http_modsecurity_response_body_limit(
     const ngx_http_modsecurity_conf_t *mcf)
@@ -598,13 +599,8 @@ ngx_http_modsecurity_response_body_limit(
     if (mcf == NULL) {
         return 0U;
     }
-    if (mcf->phase4_mode == MSCONNECTOR_PHASE4_MODE_OFF) {
-        return SIZE_MAX;
-    }
-    if (mcf->common_config.phase4_body_limit > 0U) {
-        return mcf->common_config.phase4_body_limit;
-    }
-    return MSCONNECTOR_MAX_BODY_BUFFER_SIZE;
+    return msconnector_phase4_effective_body_limit(
+        mcf->phase4_mode, mcf->common_config.phase4_body_limit);
 }
 
 ngx_int_t
@@ -700,8 +696,8 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
         response_content_type = ngx_str_to_char(r->headers_out.content_type,
             r->pool);
     }
-    /* The contract also checks body bytes. Off must bypass the configured
-     * budget there too, while retaining the contract's overflow checks. */
+    /* The contract tracks body bytes for overflow/lifecycle integrity only;
+     * libModSecurity owns response-inspection limits in every P4 mode. */
     if (mcf == NULL || response_content_type == (char *)-1 ||
         ngx_http_modsecurity_response_header_metrics(r, &response_header_count,
             &response_header_bytes) != NGX_OK ||

@@ -15,7 +15,7 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`ErrorLog`](#errorlog) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`LoadModule`](#loadmodule) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`modsecurity`](#modsecurity) | Host / Connector | Boolescher Wert | nein | off | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Schaltet die Erstellung von Connector-Transaktionen frei; dies ist nicht SecRuleEngine. |
-| [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive dezimale Byteanzahl | nein | 1048576 | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Begrenzt Apache-Response-Bytes, die P4 über aktuelle normalisierte Brigades angeboten werden. Der konfigurierbare Standardwert ist 1048576 Byte; unabhängig davon gilt über Filter-Aufrufe hinweg eine feste, nicht konfigurierbare Obergrenze von 4096 normalisierten Buckets. Eine Limitverletzung schlägt fail-closed fehl, bevor der aktuelle fehlerhafte Bucket weitergeleitet wird; bereits committed Ausgabe wird nicht umgeschrieben. |
+| [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive dezimale Byteanzahl | nein | 1048576 | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Alter Kompatibilitätswert. Apache verwendet ihn nicht mehr als kumuliertes WAF-Response-Inspection-Limit; libModSecurity besitzt die SecResponseBodyLimit-Policy. Die feste, nicht konfigurierbare Obergrenze von 4096 normalisierten Buckets bleibt ein getrennter APR-Objekt-/Ressourcenschutz. |
 | [`modsecurity_phase4_log`](#modsecurity-phase4-log) | Host / Connector | Pfad | nein | none | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Setzt einen Connector-Ereignispfad; aktuelle Apache- und NGINX-Pfade verwenden ihn auch für frühere Regel-/Interventionsmetadaten, nicht nur für P4. |
 | [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | Aufzählung | nein | off | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Apache hängt jeden normalisierten Response-Bucket genau einmal an und leitet nichtterminale Ausgabe ohne Warten auf EOS an den nächsten Filter weiter. Es beendet P4 genau einmal am tatsächlichen EOS. Mit Policy off bewahrt der Connector seinen nativen Interventionspfad. Nach der Commit-Grenze des nächsten Filters zeichnet safe log_only auf und strict fordert abort_connection statt einer späten Statusumschreibung an. |
 | [`modsecurity_rules`](#modsecurity-rules) | Host / Connector | Zeichenkette | nein | kein Wert; optional | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Lädt während des Konfigurationsladens Inline-Inhalt über libmodsecurity. |
@@ -301,7 +301,7 @@ off umgeht die Connector-Verarbeitung P1–P4, auch wenn eine Regeldatei konfigu
 
 ### Kurzbeschreibung
 
-Begrenzt Apache-Response-Bytes, die P4 über aktuelle normalisierte Brigades angeboten werden. Der konfigurierbare Standardwert ist 1048576 Byte; unabhängig davon gilt über Filter-Aufrufe hinweg eine feste, nicht konfigurierbare Obergrenze von 4096 normalisierten Buckets. Eine Limitverletzung schlägt fail-closed fehl, bevor der aktuelle fehlerhafte Bucket weitergeleitet wird; bereits committed Ausgabe wird nicht umgeschrieben.
+Alter Kompatibilitätswert. Apache verwendet ihn nicht mehr als kumuliertes WAF-Response-Inspection-Limit; libModSecurity besitzt die SecResponseBodyLimit-Policy. Die feste, nicht konfigurierbare Obergrenze von 4096 normalisierten Buckets bleibt ein getrennter APR-Objekt-/Ressourcenschutz.
 
 ### Syntax
 
@@ -333,9 +333,9 @@ Zusammenführung: Common-Skalarwerte verwenden einen Kind-vor-Eltern-Merge; Rege
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Nur P4. Das Byte-Limit und die feste Bucket-Obergrenze gelten über Filter-Aufrufe hinweg. Der Adapter hält nur das terminale EOS-Fragment für den einmaligen Abschluss zurück; der Bucket-Zähler wird bei Release oder Discard zurückgesetzt.
+P1–P4-Relevanz: Nur P4-Kompatibilität. Der konfigurierte Bytewert begrenzt die Response-Inspection nicht; die unabhängige feste Bucket-Anzahl-Ressourcengrenze gilt weiterhin über Filter-Aufrufe hinweg.
 
-Begrenzt Apache-Response-Bytes, die P4 über aktuelle normalisierte Brigades angeboten werden. Der konfigurierbare Standardwert ist 1048576 Byte; unabhängig davon gilt über Filter-Aufrufe hinweg eine feste, nicht konfigurierbare Obergrenze von 4096 normalisierten Buckets. Eine Limitverletzung schlägt fail-closed fehl, bevor der aktuelle fehlerhafte Bucket weitergeleitet wird; bereits committed Ausgabe wird nicht umgeschrieben.
+Alter Kompatibilitätswert. Apache verwendet ihn nicht mehr als kumuliertes WAF-Response-Inspection-Limit; libModSecurity besitzt die SecResponseBodyLimit-Policy. Die feste, nicht konfigurierbare Obergrenze von 4096 normalisierten Buckets bleibt ein getrennter APR-Objekt-/Ressourcenschutz.
 
 ### Validierung und Fehler
 
@@ -349,7 +349,7 @@ Quellenbasiertes Beispiel: [examples/apache/safe/httpd.conf](../../examples/apac
 
 ### Sicherheit und Betrieb
 
-Die Byte- und feste Bucket-Obergrenze begrenzen Payload- sowie APR-Objekt-/Setaside-Speicher-/CPU-Exposition pro Transaktion. Jeder akzeptierte aktuelle Bucket wird vor der direkten Weiterleitung genau einmal angehängt; keine vollständige Response zurückhalten oder einen uninspektierten Tail weiterleiten.
+Die feste Bucket-Obergrenze begrenzt weiterhin die APR-Objekt-/Setaside-Exposition pro Transaktion. Die Byte-Policy der Response-Inspection gehört libModSecurity und darf nicht durch safe/strict im Connector neu erzeugt werden.
 
 <a id="modsecurity-phase4-log"></a>
 ## `modsecurity_phase4_log`

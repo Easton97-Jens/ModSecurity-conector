@@ -62,9 +62,9 @@ libmodsecurity log callback only. It does not change audit logging,
 intervention behavior, request or response handling, hooks, filters, buckets,
 or transaction ownership.
 
-The Phase-4 mode controls additional intervention handling and, in `safe`
-and `strict`, the connector's cumulative body budget. `off` leaves configured
-engine inspection active. There is no connector-owned MIME allowlist;
+The Phase-4 mode controls additional intervention handling only. No mode adds
+a connector-owned cumulative response-inspection budget; configured engine
+inspection remains active. There is no connector-owned MIME allowlist;
 `SecResponseBodyMimeType` and `SecResponseBodyMimeTypesClear` select inspection
 in libModSecurity. Phase 4 / RESPONSE_BODY remains non-promoted; source-level
 strict-mode wiring does not establish a late-abort result.
@@ -190,14 +190,12 @@ type; the engine's own `SecResponseBodyMimeType` configuration selects
 inspection. There is no second connector MIME list or MIME-based intervention
 downgrade.
 
-`modsecurity_phase4_body_limit` defaults to 1048576 bytes (1 MiB), with a
-positive configured maximum of 10485760 bytes (10 MiB). In `safe` and `strict`,
-the cumulative limit is checked before the next data bucket is appended or
-forwarded; an over-limit bucket is rejected rather than partially inspected
-and released. Earlier progressive bytes may already have crossed the next
-filter and cannot be rewritten. In `off`, this extra cumulative budget is
-not enforced, while engine limits, checked counters and lifecycle/error
-handling remain active. There is no additional whole-response buffer.
+`modsecurity_phase4_body_limit` remains accepted as a legacy compatibility
+value, but no Phase-4 mode enforces it as a cumulative WAF inspection limit.
+libModSecurity owns inspection limits through `SecResponseBodyLimit` and
+`SecResponseBodyLimitAction`. Checked counters, lifecycle/error handling and
+the fixed Apache bucket-count safety ceiling remain active. There is no
+additional whole-response buffer.
 
 At the normal decision boundary, Apache's `r->sent_bodyct` and `eos_sent` are
 not commit proof: upstream modules can set them before this filter passes its
@@ -232,23 +230,27 @@ evidence exists. The focused H1/H2 evidence placeholder is
 its run-scoped artifacts after execution. This source contract does not label
 either H1 or H2 as passed.
 
-## Phase-4 mode and inspection budget
+## Phase-4 mode and response-body limit ownership
 
 The default mode is `off`; supported values are `off`, `safe`, and `strict`.
-The additional cumulative Phase-4 inspection budget is enforced only in
-`safe` and `strict`. `off` continues to feed configured response inspection to
-libModSecurity and does not turn rule interventions or real engine errors into
-success. The engine's own MIME selection and limits remain authoritative.
+No valid Phase-4 mode adds a connector-owned cumulative response-inspection
+budget. libModSecurity owns WAF inspection selection and limits through
+`SecResponseBodyAccess`, `SecResponseBodyMimeType`,
+`SecResponseBodyMimeTypesClear`, `SecResponseBodyLimit`, and
+`SecResponseBodyLimitAction`.
 
-This rule applies to the native integrations and the Common Runtime-backed
-response paths. A request-only route still requires its supported response
-observer/companion to inspect Phase 4. It does not gain response inspection
-merely by selecting a mode.
+This rule applies to native integrations and Common Runtime-backed response
+paths. A request-only route still requires its supported response
+observer/companion to inspect Phase 4; selecting a mode does not create a
+missing response path.
 
-Independent allocation, buffered-response, message/frame, timeout and transport
-limits remain active in every mode. In particular, a buffered sidecar may still
-reject a response that cannot fit its bounded storage even in `off`. Removing
-the extra inspection budget does not authorize unbounded allocation.
+Legacy connector/runtime budget settings may remain parseable for
+compatibility, but they must not reject or abort a response solely because a
+legacy inspection-byte count is exceeded. Independent allocation,
+buffered-storage, chunk/message/frame, timeout, overflow and transport limits
+remain active in every mode. A buffered sidecar may therefore still reject a
+response that cannot fit its bounded host storage; that is host capacity, not
+WAF inspection policy.
 
-See [the cross-connector budget contract](../../docs/phase4-mode-budget.md) for
-the exact scope, error handling and validation limitations.
+See [the cross-connector response-limit ownership contract](../../docs/phase4-mode-budget.md)
+for the exact scope, compatibility boundary and validation limitations.
