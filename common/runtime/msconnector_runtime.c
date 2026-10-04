@@ -2811,11 +2811,11 @@ static int append_response_body_chunk_internal(
         return 0;
     }
     response_policy = runtime->body_policy;
-    /* With no configured P4 budget, process_partial must not turn an integer
-     * overflow into a successful append. It remains unchanged in safe/strict. */
-    if (runtime->config.phase4_mode == MSCONNECTOR_PHASE4_MODE_OFF) {
-        response_policy.body_limit_action = MSCONNECTOR_BODY_LIMIT_ACTION_REJECT;
-    }
+    /* libModSecurity owns response-inspection limits. The connector-side
+     * planner remains only for checked accounting, so impossible counter
+     * overflow always uses reject semantics instead of ProcessPartial
+     * truncation. Independent host/allocation limits are enforced elsewhere. */
+    response_policy.body_limit_action = MSCONNECTOR_BODY_LIMIT_ACTION_REJECT;
     if (!apply_body_limit_plan(&transaction->response_body, &response_policy,
             msconnector_phase4_effective_body_limit(
                 runtime->config.phase4_mode,
