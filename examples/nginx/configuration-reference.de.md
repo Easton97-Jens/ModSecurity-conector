@@ -17,7 +17,7 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`listen`](#listen) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`load_module`](#load-module) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`modsecurity`](#modsecurity) | Host / Connector | Boolescher Wert | nein | off | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Schaltet die Erstellung von Connector-Transaktionen frei; dies ist nicht SecRuleEngine. |
-| [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive dezimale Byteanzahl | nein | 1048576 | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Begrenzt die vom nativen Connector der P4-Verarbeitung angebotenen Response-Bytes. |
+| [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive dezimale Byteanzahl | nein | 1048576 | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Alter Kompatibilitätswert; gültige Phase-4-Modi erzwingen ihn nicht als Connector-WAF-Response-Inspection-Limit. |
 | [`modsecurity_phase4_log`](#modsecurity-phase4-log) | Host / Connector | Pfad | nein | nicht konfiguriert | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Öffnet über den sicheren No-Follow-Deskriptor-Helper der Common Runtime einen nativen NGINX-Ereignis-Sink im Besitz des Connectors. |
 | [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | Aufzählung | nein | off | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | off bewahrt die native Interventionsbehandlung von NGINX, ohne die ModSecurity-Response-Body-Inspektion zu deaktivieren. safe wendet eine Intervention an, solange die Antwort noch geändert werden kann, und protokolliert eine späte disruptive Entscheidung, ohne einen neuen Status zu erfinden. strict verwendet nach dem Commit den nativen abort_connection-Pfad. Die Response-MIME-Auswahl gehört über SecResponseBodyMimeType zu ModSecurity. |
 | [`modsecurity_rules`](#modsecurity-rules) | Host / Connector | Zeichenkette | nein | kein Wert; optional | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Lädt während des Konfigurationsladens Inline-Inhalt über libmodsecurity. |
@@ -415,7 +415,7 @@ off umgeht die Connector-Verarbeitung P1–P4, auch wenn eine Regeldatei konfigu
 
 ### Kurzbeschreibung
 
-Begrenzt die vom nativen Connector der P4-Verarbeitung angebotenen Response-Bytes.
+Alter Kompatibilitätswert; gültige Phase-4-Modi erzwingen ihn nicht als Connector-WAF-Response-Inspection-Limit.
 
 ### Syntax
 
@@ -449,7 +449,7 @@ Zusammenführung: ngx_conf_merge_* führt Skalar-/Zeigerkonfiguration zusammen, 
 
 P1–P4-Relevanz: P1 steuert die Integration; Regeln und P4-Steuerungen betreffen nur die genannte Phase.
 
-Begrenzt die vom nativen Connector der P4-Verarbeitung angebotenen Response-Bytes.
+Alter Kompatibilitätswert; gültige Phase-4-Modi erzwingen ihn nicht als Connector-WAF-Response-Inspection-Limit.
 
 ### Validierung und Fehler
 
@@ -463,7 +463,7 @@ Quellenbasiertes Beispiel: [examples/nginx/safe/nginx.conf](../../examples/nginx
 
 ### Sicherheit und Betrieb
 
-Ein größeres Limit erhöht die Speicher-/CPU-Exposition; null ist in den nativen Settern ungültig.
+Für die WAF-Inspection-Policy SecResponseBodyLimit/SecResponseBodyLimitAction von libModSecurity verwenden; unabhängige Host-Ressourcenlimits bleiben getrennt.
 
 <a id="modsecurity-phase4-log"></a>
 ## `modsecurity_phase4_log`
