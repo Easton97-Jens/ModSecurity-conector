@@ -12,7 +12,7 @@ func (engine *CommonRuntimeEngine) Phase4BodyBudgetDisabled() bool {
 		return false
 	}
 	switch engine.phase4Mode {
-	case commonRuntimePhase4ModeOff, 1, 2:
+	case commonRuntimePhase4ModeOff, commonRuntimePhase4ModeSafe, commonRuntimePhase4ModeStrict:
 		return true
 	default:
 		return false
