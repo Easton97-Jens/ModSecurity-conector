@@ -65,19 +65,21 @@ Der gemeinsame Lifecycle verwendet das übliche ModSecurity-Phasenmodell:
 | P3 | Response-Header |
 | P4 | Response-Body |
 
-Für Phase 4 gibt es zusätzlich eine Connector-eigene Policy für ein kumulatives
-Inspection-Budget. Aktuell gelten diese Modi:
+Der Phase-4-Modus steuert das **Late-Intervention-Verhalten**. Er erzeugt keine
+zweite connector-eigene WAF-Response-Inspection-Byte-Policy.
 
-| Modus | Zusätzliches kumulatives Phase-4-Budget | Grenze |
+| Modus | Bedeutung für Late Intervention | Response-Inspection-Limits |
 | --- | --- | --- |
-| `off` (Standard) | Wird nicht durchgesetzt | Konfigurierte Engine-Inspection und native Interventions-/Fehlerbehandlung laufen weiter; unabhängige Engine-, Speicher-, Transport- und Allokationslimits gelten weiterhin. |
-| `safe` | Wird durchgesetzt | Behält frühe Durchsetzung und unterstütztes `log_only`-Verhalten für späte Regeln bei. |
-| `strict` | Wird durchgesetzt | Behält frühe Durchsetzung und unterstütztes Late-Abort-Verhalten bei. |
+| `off` (Standard) | Behält native Interventions-/Fehlerbehandlung ohne zusätzliche Safe-/Strict-Late-Action-Policy bei. | Gehören in die libModSecurity-Regeln, zum Beispiel `SecResponseBodyLimit` und `SecResponseBodyLimitAction`. |
+| `safe` | Behält unterstützte frühe Durchsetzung bei; späte Ergebnisse bleiben dort nicht-disruptiv, wo eine bereits committed Response nicht mehr sicher geändert werden kann. | Dieselbe engine-eigene WAF-Inspection-Policy wie in den anderen Modi. |
+| `strict` | Fordert die unterstützte strikte Late-Action für Profile an, die eine solche Hostaktion bereitstellen. | Dieselbe engine-eigene WAF-Inspection-Policy wie in den anderen Modi. |
 
-`off` deaktiviert **nicht** die Response-Body-Inspection von libmodsecurity.
-Ungültige oder nicht gesetzte Moduswerte sind keine Aliase für `off`. Der
-detaillierte connectorübergreifende Vertrag steht unter
-[Phase-4-Modus und kumulative Inspection-Budgets](docs/phase4-mode-budget.de.md).
+Legacy-Connector-Response-Limit-Einstellungen können aus
+Kompatibilitätsgründen weiterhin parsebar bleiben; kein gültiger Phase-4-Modus
+führt jedoch ein getrenntes kumulatives WAF-Response-Inspection-Budget ein.
+Unabhängige Host-/Transport-Kapazitätslimits, begrenzter Speicher,
+Allokationsschutz, Timeouts und Message-/Frame-Limits gelten weiterhin. Siehe
+[Phase-4-Modus und Ownership der Response-Body-Limits](docs/phase4-mode-budget.de.md).
 
 ## Architektur
 
@@ -230,10 +232,11 @@ deploymentspezifische Sicherheitsentscheidungen.
 | Connector-/Profilauswahl | [Connector-Index](docs/connectors/README.de.md) |
 | Konfiguration | [Konfiguration](docs/configuration.de.md) |
 | Variablen und Platzhalter | [Variablen](docs/reference/variables.de.md) |
+| Projekt-/Toolchain-Versions-Pins | [Versions-Pins](docs/reference/version-pins.de.md) |
 | Build und Hostvorbereitung | [Build](docs/build/README.de.md) |
 | Tests, Status und Evidence | [Tests und Nachweise](docs/testing-and-evidence.de.md) |
 | Betrieb und Sicherheit | [Betrieb und Sicherheit](docs/operations-and-security.de.md) |
-| Phase-4-Budget-Semantik | [Phase-4-Modus und Budget](docs/phase4-mode-budget.de.md) |
+| Phase-4-Late-Action und Ownership der Response-Limits | [Phase-4-Modus und Ownership der Response-Limits](docs/phase4-mode-budget.de.md) |
 | Änderungsworkflow | [Nachvollziehbarkeit](docs/change-traceability.de.md) |
 | Aktuelle/historische Reports | [Reports](reports/README.de.md) |
 | Framework-eigene Tests | [ModSecurity-Test-Framework](modules/ModSecurity-test-Framework/README.de.md) |

@@ -32,9 +32,10 @@ Readiness oder ein verifiziertes Runtime-Ergebnis.
 | einen Connector konfigurieren | [Konfiguration](configuration.de.md) | [Beispiele](../examples/README.de.md) |
 | Connector/Profil auswählen | [Connector-Index](connectors/README.de.md) | den passenden Connector-Guide |
 | einen Connector bauen | [Build](build/README.de.md) | [Compiler-Guides](build/compilers/README.de.md) |
-| Phase 1–4 verstehen | [Architektur](architecture.de.md) | [Phase-4-Modus und Budget](phase4-mode-budget.de.md) |
+| Phase 1–4 verstehen | [Architektur](architecture.de.md) | [Phase-4-Modus und Ownership der Response-Limits](phase4-mode-budget.de.md) |
 | Tests ausführen oder Ergebnisse deuten | [Tests und Nachweise](testing-and-evidence.de.md) | [Reports](../reports/README.de.md) |
 | Variablen verstehen | [Variablen](reference/variables.de.md) | [Glossar](reference/glossary.de.md) |
+| Projekt-/Toolchain-Pins verstehen | [Versions-Pins](reference/version-pins.de.md) | [CI-Sicherheitswerkzeuge](security/ci-security-tooling.de.md) |
 | sicher betreiben oder deployen | [Betrieb und Sicherheit](operations-and-security.de.md) | [SECURITY.de.md](../SECURITY.de.md) |
 | CI-Security verstehen | [CI-Sicherheitswerkzeuge](security/ci-security-tooling.de.md) | [Vertrauenswürdiger NGINX-Root-Broker](security/trusted-nginx-root-broker.de.md) |
 | Projektdokumentation ändern | [Nachvollziehbarkeit](change-traceability.de.md) | [Change-Record-Archiv](../reports/audits/change-records/README.de.md) |
@@ -74,8 +75,9 @@ passenden Connector-Einschränkungen, bevor Traffic gesendet wird.
 ## Referenz und Pflege
 
 - [Variablen](reference/variables.de.md) ist die vollständige Variablen-/Platzhalterreferenz.
+- [Versions-Pins](reference/version-pins.de.md) erklärt Ownership und Synchronisierung von Projekt-Toolchains sowie normalen Framework-/MRTS-Revisionen.
 - [Glossar](reference/glossary.de.md) definiert repository-spezifische Begriffe.
-- [Phase-4-Modus und Budget](phase4-mode-budget.de.md) definiert den aktuellen `off`-/`safe`-/`strict`-Vertrag.
+- [Phase-4-Modus und Ownership der Response-Limits](phase4-mode-budget.de.md) definiert den aktuellen `off`-/`safe`-/`strict`-Late-Action-Vertrag und die libModSecurity-eigene WAF-Response-Limit-Grenze.
 - [Reports](../reports/README.de.md) ist der Einstieg für aktuelles und historisches Evidence-/Report-Material.
 - [Common-Source-Tree-Guide](../common/README.de.md) erklärt connector-neutrale Code-Ownership.
 - [Framework-Modul](../modules/ModSecurity-test-Framework/README.de.md) besitzt wiederverwendbare Testfälle, Schemas, Runner und Normalizer.

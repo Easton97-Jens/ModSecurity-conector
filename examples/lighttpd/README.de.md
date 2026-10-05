@@ -62,7 +62,8 @@ den Konfigurationen sind Beispiele für Hostinstallation oder Hostruntime.
 | rules_file | Installierte geprüfte Regeldatei | Pflicht; Runtime-Konfiguration; Engine-Scope | /etc/modsecurity/no-crs-baseline.conf. Regeln können Traffic blockieren. |
 | transaction_id_header | HTTP-Korrelationsheadername | Pflicht; Runtime-Konfiguration; Transaction-Scope | x-modsec-transaction-id. Nur Metadaten, keine Secrets verwenden. |
 | request_body_mode und response_body_mode | none, buffered oder streaming gemäß Hostfähigkeit | Pflicht; Runtime-Konfiguration; Engine-Scope | streaming für den Stock-Sidecar und den passenden Patched-Host; nie auf einem ungepatchten nativen Stock-Modul aktivieren. |
-| request_body_limit, response_body_limit, body_limit_action | Positive Byte-Limits und reject- oder process_partial-Policy | Bei aktivierten Bodies Pflicht; Runtime-Konfiguration; Engine-Scope | 1048576 und reject. Grenzen bedeuten kein vollständiges Connector-Buffering. |
+| request_body_limit, response_body_limit, body_limit_action | Common-Runtime-Controls für Request-/Body-Kapazität | Pflicht, wenn die gewählte Topologie den jeweiligen Body-Pfad aktiviert; Runtime-Konfiguration / Common Runtime | `request_body_limit` begrenzt Common-Request-Verarbeitung. `response_body_limit` beschreibt bei Bedarf begrenzte Host-/Runtime-Response-Kapazität und ist nicht das WAF-Inspection-Byte-Limit. |
+| SecResponseBodyLimit und SecResponseBodyLimitAction | WAF-Response-Inspection-Byte-Policy | ModSecurity-Regeln / Engine-Scope, wenn das ausgewählte Ruleset ein Response-Limit konfiguriert | Engine-eigene Inspection-Policy; unabhängig von `off`, `safe` und `strict`. |
 | phase4_mode | P4-Policy: off, safe oder strict | In diesen Runtime-Dateien Pflicht; Runtime-Konfiguration; Engine-Scope | safe für gepatchtes Safe; all wählt strict. Beweist weder Statuswechsel noch Abbruch. |
 | server.stream-response-body und proxy.server | Gepatchte Delivery-Einstellung und lokale Upstream-Route | In Patched-Bündeln Pflicht; Host-Konfiguration; Server-Scope | 1 und 127.0.0.1:8081. Nur Identity-HTTP/1.1; kein gzip/br- oder HTTP/2-Verhalten ableiten. |
 | event_path | Beschreibbares JSONL-Metadatenziel | In diesen Referenzen Pflicht; Runtime-Konfiguration; Engine-Scope | /var/log/lighttpd/msconnector-events.jsonl. Schützen und rotieren; keine Bodies oder Secrets schreiben. |
@@ -92,7 +93,8 @@ Lifecycle-Anspruch.
 
 Jedes Bündel enthält die Topologie-Artefakte, die Common-Runtime-`key=value`-
 Datei und für Stock die Sidecar-ARGV-Aufzeichnung. Jede Runtime-Datei nutzt
-dieselben begrenzten Header-/Body-/Event-Limits und zeigt quellenvalide
+dieselben begrenzten Request-/Header-/Event-Limits sowie die von ihrer Topologie
+benötigten Host-/Runtime-Response-Kapazitätswerte und zeigt quellenvalide
 inaktive Regelquellen- und Transaktions-ID-Alternativen als Kommentare. Nie
 mehr als eine Regelquelle aktivieren und die statische Transaktions-ID nicht
 produktiv verwenden.

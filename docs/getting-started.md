@@ -49,10 +49,14 @@ solution. As a practical rule:
 
 - `safe` is the best starting point for understanding the complete checked-in
   P1–P4 configuration shape without assuming a late client-visible abort.
-- `off` disables the extra connector-owned cumulative Phase-4 budget; it does
-  not disable configured libmodsecurity response-body inspection.
-- `strict` expresses the strict late-action policy but is only runnable where
-  the selected host/profile supports the required action.
+- `off` keeps native late-intervention handling without an additional
+  Safe/Strict late-action policy; it does not disable configured libModSecurity
+  response-body inspection.
+- `strict` requests the strict late-action policy but is runnable only where
+  the selected host/profile supports the required host action.
+- `off`, `safe`, and `strict` use the same engine-owned WAF
+  response-inspection byte policy. Configure that policy with ModSecurity rules
+  such as `SecResponseBodyLimit` and `SecResponseBodyLimitAction`.
 - `all` is the comprehensive source-backed configuration layout. It selects
   valid settings (typically including `strict`); `all` is not a fourth
   Phase-4 mode.

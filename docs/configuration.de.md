@@ -13,7 +13,11 @@ Ebene die Einstellung besitzt**:
 
 Vollständige quellenbasierte Konfigurationsformen stehen unter
 [Beispiele](../examples/README.de.md). `off`, `safe` und `strict` sind
-Phase-4-Policy-Modi; `all` ist ein Beispiellayout und kein weiterer Modus.
+Phase-4-Late-Action-Policy-Modi; `all` ist ein Beispiellayout und kein
+weiterer Modus. WAF-Response-Inspection-Scope und Byte-Policy gehören über
+Direktiven wie `SecResponseBodyAccess`, `SecResponseBodyMimeType`,
+`SecResponseBodyLimit` und `SecResponseBodyLimitAction` zur ModSecurity
+Engine; der Phase-4-Modus ersetzt oder verändert diese Engine-Limits nicht.
 DetectionOnly, Engine Off und ein deaktivierter Connector sind unterschiedliche
 Zustände.
 

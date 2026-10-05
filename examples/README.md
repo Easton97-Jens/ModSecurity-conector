@@ -25,10 +25,17 @@ deployment manifests and they do not prove runtime behavior by themselves.
 
 | Profile | Use it for | Important boundary |
 | --- | --- | --- |
-| `off` | Baseline with the extra connector-owned cumulative Phase-4 budget disabled | Configured libmodsecurity response-body inspection and independent engine/host/transport limits still apply. |
-| `safe` | Recommended learning/start profile for the full checked-in P1–P4 shape | Late P4 outcomes that cannot safely change a committed response remain non-disruptive where documented. |
-| `strict` | Testing the strict late-action policy on profiles that support the required host action | A checked-in strict file is not proof that a client-visible post-commit abort has been observed. |
+| `off` | Baseline with native late-intervention handling and no additional Safe/Strict late-action policy | It does not disable configured libModSecurity response-body inspection. WAF inspection byte limits remain engine-owned. |
+| `safe` | Recommended learning/start profile for the full checked-in P1–P4 shape | Late P4 outcomes that cannot safely change a committed response remain non-disruptive where documented. It does not add a separate WAF response-byte budget. |
+| `strict` | Testing the strict late-action policy on profiles that support the required host action | A checked-in strict file is not proof that a client-visible post-commit abort has been observed, and it does not change the engine-owned WAF inspection limit. |
 | `all` | Comprehensive source-backed configuration reference | `all` is a layout, not a fourth Phase-4 mode; it uses valid settings such as `strict`. |
+
+For all three Phase-4 modes, configure WAF response-inspection scope and byte
+policy in ModSecurity rules with directives such as `SecResponseBodyAccess`,
+`SecResponseBodyMimeType`, `SecResponseBodyLimit`, and
+`SecResponseBodyLimitAction`. Connector/Common response limits, where still
+present for a topology, describe compatibility or bounded host/runtime capacity
+rather than a mode-specific WAF inspection budget.
 
 `DetectionOnly`, engine `Off`, and a disabled connector are separate
 concepts and are documented in the host-specific example guides.

@@ -27,10 +27,18 @@ Runtime-Verhalten.
 
 | Profil | Geeignet für | Wichtige Grenze |
 | --- | --- | --- |
-| `off` | Baseline ohne zusätzliches connector-eigenes kumulatives Phase-4-Budget | Konfigurierte libmodsecurity-Response-Body-Inspection und unabhängige Engine-/Host-/Transportlimits gelten weiterhin. |
-| `safe` | Empfohlener Lern-/Startpunkt für die vollständige eingecheckte P1–P4-Form | Späte P4-Ergebnisse, die eine bereits gestartete Response nicht sicher ändern können, bleiben dort nicht-disruptiv, wo dies dokumentiert ist. |
-| `strict` | Test der strikten Late-Action-Policy bei Profilen mit unterstützter Hostaktion | Eine eingecheckte Strict-Datei beweist keinen beobachteten client-sichtbaren Post-Commit-Abbruch. |
+| `off` | Baseline mit nativer Late-Intervention-Behandlung und ohne zusätzliche Safe-/Strict-Late-Action-Policy | Konfigurierte libModSecurity-Response-Body-Inspection bleibt aktiv; WAF-Inspection-Byte-Limits bleiben engine-eigen. |
+| `safe` | Empfohlener Lern-/Startpunkt für die vollständige eingecheckte P1–P4-Form | Späte P4-Ergebnisse, die eine bereits gestartete Response nicht sicher ändern können, bleiben dort nicht-disruptiv, wo dies dokumentiert ist. Es entsteht kein getrenntes WAF-Response-Byte-Budget. |
+| `strict` | Test der strikten Late-Action-Policy bei Profilen mit unterstützter Hostaktion | Eine eingecheckte Strict-Datei beweist keinen beobachteten client-sichtbaren Post-Commit-Abbruch und verändert das engine-eigene WAF-Inspection-Limit nicht. |
 | `all` | Umfassende quellenbasierte Konfigurationsreferenz | `all` ist ein Layout und kein vierter Phase-4-Modus; es verwendet gültige Einstellungen wie `strict`. |
+
+Für alle drei Phase-4-Modi werden WAF-Response-Inspection-Scope und Byte-Policy
+in ModSecurity-Regeln mit Direktiven wie `SecResponseBodyAccess`,
+`SecResponseBodyMimeType`, `SecResponseBodyLimit` und
+`SecResponseBodyLimitAction` konfiguriert. Connector-/Common-Response-Limits,
+die für eine Topologie noch vorhanden sind, beschreiben Kompatibilität oder
+begrenzte Host-/Runtime-Kapazität und kein modusspezifisches
+WAF-Inspection-Budget.
 
 `DetectionOnly`, Engine `Off` und ein deaktivierter Connector sind
 getrennte Konzepte und werden in den hostspezifischen Beispiel-Guides erklärt.

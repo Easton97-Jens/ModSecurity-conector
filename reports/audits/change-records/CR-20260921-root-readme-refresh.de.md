@@ -8,7 +8,9 @@
 | --- | --- |
 | Change-ID | `CR-20260921-root-readme-refresh` |
 | Datum (UTC) | 2026-09-21 |
+| Zuletzt aktualisiert (UTC) | 2026-10-05 |
 | Basis-Revision | `5170d24801243cdcd7bf1bca6123bf8cb2c72386` |
+| Synchronisierter aktueller master | `820b6975495bdf0f90aca67eee86e27a3b7d329b` |
 
 ## Motivation und Problemstellung
 
@@ -65,6 +67,16 @@ Der erste PR-Head deckte außerdem einen echten Bilingual-Check-Fehler auf: Im
 englischen Schnellstart stand `cd ModSecurity-connector`, während das
 Repository-Verzeichnis `ModSecurity-conector` heißt. Diese Aktualisierung
 korrigiert den englischen Befehl, sodass der EN/DE-Fenced-Command identisch ist.
+
+Die Aktualisierung vom 2026-10-05 gleicht diese Dokumentation mit master-Commit
+`820b6975495bdf0f90aca67eee86e27a3b7d329b` (PR #402) ab. Der aktuelle
+Vertrag delegiert WAF-Response-Inspection-Aktivierung, MIME-Auswahl und
+Byte-Limit-Policy an libModSecurity. Phase-4-`off` / `safe` / `strict`
+beschreiben jetzt nur das Late-Intervention-Verhalten; Legacy-Connector-
+Response-Limits sind – soweit noch anwendbar – Kompatibilitäts- oder
+Host-/Runtime-Kapazitätswerte. Die leserorientierte Dokumentation und
+Beispiel-Guidance machen diese Ownership nun explizit, und die neue zentrale
+Referenz für Projekt-/Toolchain-Versions-Pins ist in der Navigation verlinkt.
 
 Die Dokumentation unter `licenses/` wird auf Herkunfts-/Referenzinformationen
 vereinfacht. Apache und NGINX halten ihre Upstream-Basisrevision sowie die
@@ -214,6 +226,15 @@ dass im Repository-Übersichtspaar die erforderlichen Literale
 stellt beide Konzepte mit leserorientierten Erklärungen wieder her, anstatt den
 Checker abzuschwächen. Auch diese Ergebnisse sind nur Evidence des früheren
 Heads.
+
+Am 2026-10-05 wurde der Dokumentations-Branch über Merge-Commit
+`58a65130ee14d99b378b731071ee04cfbefc06a6` mit dem aktuellen
+`master`-Commit `820b6975495bdf0f90aca67eee86e27a3b7d329b`
+synchronisiert; Rebase oder Force-Push wurden nicht verwendet. Überlappende
+aktuelle master-Dokumentation blieb die Basis, auf die die leserorientierten
+Ergänzungen erneut abgestimmt wurden. Insbesondere blieben der engine-eigene
+Response-Limit-Vertrag aus PR #402 und die generierten Referenzaktualisierungen
+erhalten, statt manuell überschrieben zu werden.
 
 ## Security-Auswirkung
 

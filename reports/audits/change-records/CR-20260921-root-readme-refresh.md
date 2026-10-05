@@ -8,7 +8,9 @@
 | --- | --- |
 | Change ID | `CR-20260921-root-readme-refresh` |
 | Date (UTC) | 2026-09-21 |
+| Last refreshed (UTC) | 2026-10-05 |
 | Base revision | `5170d24801243cdcd7bf1bca6123bf8cb2c72386` |
+| Current master synchronized | `820b6975495bdf0f90aca67eee86e27a3b7d329b` |
 
 ## Motivation and problem statement
 
@@ -62,6 +64,16 @@ The first PR head also exposed a real bilingual-check failure caused by the
 English quick-start command using `cd ModSecurity-connector` while the
 repository directory is `ModSecurity-conector`. This refresh corrects the
 English command so the EN/DE fenced command content is identical.
+
+The 2026-10-05 refresh reconciles this documentation with master commit
+`820b6975495bdf0f90aca67eee86e27a3b7d329b` (PR #402). The current contract
+delegates WAF response-inspection enablement, MIME selection, and byte-limit
+policy to libModSecurity. Phase-4 `off` / `safe` / `strict` now describe
+late-intervention behavior only; legacy connector response limits are
+compatibility or host/runtime-capacity values where still applicable. The
+reader-facing documentation and example guidance are updated to make that
+ownership explicit, and the new central project/toolchain version-pin reference
+is linked from the navigation.
 
 The `licenses/` documentation is simplified to origin/reference information.
 Apache and NGINX record their upstream base revision and retained upstream
@@ -209,6 +221,14 @@ overview pair was missing the required literals `minimal_runtime_smoke` and
 `capabilities.json`. The successor documentation restores both concepts with
 reader-facing explanations instead of weakening the checker. Those results are
 also prior-head evidence only.
+
+On 2026-10-05 the documentation branch was synchronized with current `master`
+commit `820b6975495bdf0f90aca67eee86e27a3b7d329b` through merge commit
+`58a65130ee14d99b378b731071ee04cfbefc06a6`; no rebase or force-push was
+used. The overlapping current-master documentation was retained as the base,
+then the reader-oriented additions were reconciled on top. In particular, the
+PR #402 engine-owned response-limit contract and generated reference updates
+were preserved instead of being hand-overwritten.
 
 ## Security impact
 

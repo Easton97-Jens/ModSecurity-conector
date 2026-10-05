@@ -63,18 +63,20 @@ The shared lifecycle uses the usual ModSecurity phase model:
 | P3 | Response headers |
 | P4 | Response body |
 
-Phase 4 has an additional connector-owned cumulative inspection-budget policy.
-The current modes are:
+Phase-4 mode controls **late-intervention behavior**. It does not create a
+second connector-owned WAF response-inspection byte policy.
 
-| Mode | Extra cumulative Phase-4 budget | Boundary |
+| Mode | Late-intervention meaning | Response-inspection limits |
 | --- | --- | --- |
-| `off` (default) | Not enforced | Configured engine inspection and native intervention/error handling continue; independent engine, memory, transport, and allocation limits still apply. |
-| `safe` | Enforced | Preserves early enforcement and supported late-rule `log_only` behavior. |
-| `strict` | Enforced | Preserves early enforcement and supported late-abort behavior. |
+| `off` (default) | Preserve native intervention/error handling without the additional Safe/Strict late-action policy. | Owned by libModSecurity rules, for example `SecResponseBodyLimit` and `SecResponseBodyLimitAction`. |
+| `safe` | Preserve supported early enforcement; late outcomes that can no longer safely change a committed response remain non-disruptive where documented. | Same engine-owned WAF inspection policy as other modes. |
+| `strict` | Request the supported strict late action for profiles that provide one. | Same engine-owned WAF inspection policy as other modes. |
 
-`off` does **not** disable libmodsecurity response-body inspection. Invalid or
-unset mode values are not aliases for `off`. The detailed cross-connector
-contract is documented in [Phase-4 mode and cumulative inspection budgets](docs/phase4-mode-budget.md).
+Legacy connector response-limit settings may remain parseable for compatibility,
+but no valid Phase-4 mode adds a separate cumulative WAF response-inspection
+budget. Independent host/transport capacity limits, bounded storage, allocation
+guards, timeouts, and message/frame limits still apply. See
+[Phase-4 mode and response-body limit ownership](docs/phase4-mode-budget.md).
 
 ## Architecture
 
@@ -221,10 +223,11 @@ security decisions.
 | Connector/profile selection | [Connector index](docs/connectors/README.md) |
 | Configuration | [Configuration](docs/configuration.md) |
 | Variables and placeholders | [Variables](docs/reference/variables.md) |
+| Project/toolchain version pins | [Version pins](docs/reference/version-pins.md) |
 | Build and host preparation | [Build](docs/build/README.md) |
 | Tests, status, and evidence | [Testing and evidence](docs/testing-and-evidence.md) |
 | Operations and security | [Operations and security](docs/operations-and-security.md) |
-| Phase-4 budget semantics | [Phase-4 mode and budget](docs/phase4-mode-budget.md) |
+| Phase-4 late-action and response-limit ownership | [Phase-4 mode and response-limit ownership](docs/phase4-mode-budget.md) |
 | Change workflow | [Change traceability](docs/change-traceability.md) |
 | Current/historical reports | [Reports](reports/README.md) |
 | Framework-owned testing | [ModSecurity test Framework/](modules/ModSecurity-test-Framework/README.md) |

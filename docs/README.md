@@ -31,9 +31,10 @@ of production readiness or a verified runtime result.
 | configure a connector | [Configuration](configuration.md) | [Examples](../examples/README.md) |
 | choose a connector/profile | [Connector index](connectors/README.md) | the matching connector guide |
 | build a connector | [Build](build/README.md) | [Compiler guides](build/compilers/README.md) |
-| understand Phase 1–4 | [Architecture](architecture.md) | [Phase-4 mode and budget](phase4-mode-budget.md) |
+| understand Phase 1–4 | [Architecture](architecture.md) | [Phase-4 mode and response-limit ownership](phase4-mode-budget.md) |
 | run tests or interpret a result | [Testing and evidence](testing-and-evidence.md) | [Reports](../reports/README.md) |
 | understand variables | [Variables](reference/variables.md) | [Glossary](reference/glossary.md) |
+| understand project/toolchain pins | [Version pins](reference/version-pins.md) | [CI security tooling](security/ci-security-tooling.md) |
 | operate or deploy safely | [Operations and security](operations-and-security.md) | [SECURITY.md](../SECURITY.md) |
 | understand CI security | [CI security tooling](security/ci-security-tooling.md) | [Trusted NGINX root broker](security/trusted-nginx-root-broker.md) |
 | change project documentation | [Change traceability](change-traceability.md) | [Change Record archive](../reports/audits/change-records/README.md) |
@@ -72,8 +73,9 @@ connector limitations before sending traffic.
 ## Reference and maintenance
 
 - [Variables](reference/variables.md) is the complete variable/placeholder reference.
+- [Version pins](reference/version-pins.md) explains ownership and synchronization of project toolchains and ordinary Framework/MRTS revisions.
 - [Glossary](reference/glossary.md) defines repository-specific terminology.
-- [Phase-4 mode and budget](phase4-mode-budget.md) defines the current `off` / `safe` / `strict` contract.
+- [Phase-4 mode and response-limit ownership](phase4-mode-budget.md) defines the current `off` / `safe` / `strict` late-action contract and the libModSecurity-owned WAF response-limit boundary.
 - [Reports](../reports/README.md) is the entry point for current and historical evidence/report material.
 - [Common source-tree guide](../common/README.md) explains connector-neutral code ownership.
 - [Framework module](../modules/ModSecurity-test-Framework/README.md) owns reusable test cases, schemas, runners, and normalizers.
