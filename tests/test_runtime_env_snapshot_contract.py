@@ -564,7 +564,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
             canonical_runner,
         )
         self.assertIn(
-            "traefik) host_binary=${TRAEFIK_BIN:-$CONNECTOR_COMPONENT_CACHE/traefik/bin/traefik} ;;",
+            'host_binary=$("$PYTHON" "$TRAEFIK_HOST_BINARY_RESOLVER" \\',
             canonical_runner,
         )
         self.assertIn(
@@ -619,11 +619,11 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
                 self.assertIn('BUILD_NGINX_FROM_SOURCE: "1"', nginx_env)
                 self.assertIn("NGINX_SOURCE_MODE: github-release", nginx_env)
                 self.assertIn("NGINX_SOURCE_REPO_URL: https://github.com/nginx/nginx", nginx_env)
-                self.assertIn("NGINX_RELEASE_TAG: release-1.31.5", nginx_env)
-                self.assertIn("NGINX_SOURCE_GIT_REF: release-1.31.5", nginx_env)
-                self.assertIn("NGINX_RELEASE_ASSET_NAME: nginx-1.31.5.tar.gz", nginx_env)
+                self.assertIn("NGINX_RELEASE_TAG: release-1.31.6", nginx_env)
+                self.assertIn("NGINX_SOURCE_GIT_REF: release-1.31.6", nginx_env)
+                self.assertIn("NGINX_RELEASE_ASSET_NAME: nginx-1.31.6.tar.gz", nginx_env)
                 self.assertIn(
-                    "NGINX_SHA256: e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279",
+                    "NGINX_SHA256: 974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1",
                     nginx_env,
                 )
                 self.assertIn('NGINX_REQUIRE_PINNED_PROVENANCE: "1"', nginx_env)
@@ -956,7 +956,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
             encoding="utf-8"
         )
         dispatch_start = workflow.index("  workflow_dispatch:\n")
-        permissions_start = workflow.index("\npermissions:\n", dispatch_start)
+        permissions_start = workflow.index("\npermissions:", dispatch_start)
         dispatch = workflow[dispatch_start:permissions_start]
         cleanup_start = workflow.index("  cleanup-artifacts:\n")
         matrix_start = workflow.index("  manual-heavy-runtime-validation:\n", cleanup_start)
@@ -979,16 +979,56 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
         next_step = workflow.index("\n      - name: Lint and py-compile\n", paths_start)
         initialize_paths = workflow[paths_start:next_step]
 
-        self.assertIn(
-            'verified_root="$RUNNER_TEMP/ModSecurity-conector-verified-${{ matrix.variant }}"',
-            initialize_paths,
-        )
-        self.assertIn('echo "XDG_STATE_HOME=$verified_root/state"', initialize_paths)
-        self.assertIn('echo "PYTHONPYCACHEPREFIX=$verified_root/python-pycache"', initialize_paths)
-        self.assertNotIn(
-            'verified_root="$RUNNER_TEMP/ModSecurity-conector-verified"',
-            initialize_paths,
-        )
+        self.assertIn('functional_job_root="$(/usr/bin/sudo -n /usr/bin/mktemp -d /tmp/ModSecurity-conector-nginx-functional-root.XXXXXX)"', initialize_paths)
+        for fragment in (
+            'test "$(/usr/bin/stat -c \'%u:%g:%a\' "$functional_job_root")" = 0:0:700',
+            '/usr/bin/sudo -n /bin/chmod 711 "$functional_job_root"',
+            'test "$(/usr/bin/stat -c \'%u:%g:%a\' "$functional_job_root")" = 0:0:711',
+            'verified_root="$functional_job_root/ModSecurity-conector-nginx-exact-head"',
+            'functional_parent="$functional_job_root/ModSecurity-conector-nginx-functional-parent"',
+            '/usr/bin/sudo -n /bin/chown "$runner_uid:$runner_gid" "$verified_root"',
+            '/usr/bin/sudo -n /bin/chmod 700 "$verified_root"',
+            'test "$(/usr/bin/stat -c \'%u:%g:%a\' "$verified_root")" = "$runner_uid:$runner_gid:700"',
+            'test "$(/usr/bin/stat -c \'%u:%g:%a\' "$functional_parent")" = 0:0:711',
+            'test "$worker_uid" -ne 0', 'test "$worker_gid" -ne 0',
+            'echo "XDG_STATE_HOME=$verified_root/state"',
+            'echo "PYTHONPYCACHEPREFIX=$verified_root/python-pycache"',
+        ):
+            self.assertIn(fragment, initialize_paths)
+        guard = initialize_paths.split('if /usr/bin/sudo -n /usr/sbin/runuser -u "$NGINX_FUNCTIONAL_WORKER_USER" -- /usr/bin/test -x "$verified_root"; then', 1)[1].split('\n          fi', 1)[0]
+        self.assertIn("exit 1", guard)
+        self.assertNotIn('verified_root="$RUNNER_TEMP/ModSecurity-conector-verified"', initialize_paths)
+
+    def test_legacy_collector_retains_current_normalized_result_without_cache_trees(self) -> None:
+        workflow = (ROOT / ".github/workflows/open-connectors-smoke.yml").read_text()
+        initialize = workflow.split("      - name: Initialize runtime paths\n", 1)[1].split("\n      - name:", 1)[0]
+        self.assertIn('echo "RUNTIME_EVIDENCE_ROOT=$verified_root/evidence/runtime-evidence"', initialize)
+        step = workflow.split("      - name: Collect smoke evidence\n", 1)[1].split("\n      - name:", 1)[0]
+        shell = "\n".join(line[10:] for line in step.split("        run: |\n", 1)[1].splitlines())
+        with tempfile.TemporaryDirectory(prefix="legacy-evidence-collector-") as temporary:
+            base = Path(temporary)
+            verified = base / "verified"
+            evidence = verified / "evidence/runtime-evidence"
+            result = evidence / "no-crs/parent/framework/traefik/run/result.json"
+            result.parent.mkdir(parents=True)
+            payload = {"connector": "traefik", "status": "FAIL", "host_version": "not_provisioned",
+                       "pass_gate_failures": ["PASS requires a concrete host version"]}
+            result.write_text(json.dumps(payload))
+            for tree in ("component-cache", "src", "build/cache"):
+                sentinel = verified / tree / "excluded-sentinel.txt"
+                sentinel.parent.mkdir(parents=True, exist_ok=True)
+                sentinel.write_text("must remain outside uploaded evidence")
+            env = {**os.environ, "VERIFIED_RUN_ROOT": str(verified), "BUILD_ROOT": str(verified / "build"),
+                   "LOG_ROOT": str(verified / "logs"), "RUNTIME_EVIDENCE_ROOT": str(evidence)}
+            completed = subprocess.run(["sh", "-eu", "-c", shell], cwd=base, env=env,
+                                       capture_output=True, text=True, timeout=30)
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            bundle = base / "ci-artifacts/open-connectors"
+            retained = bundle / "normalized-runtime-evidence/no-crs/parent/framework/traefik/run/result.json"
+            self.assertEqual(json.loads(retained.read_text()), payload)
+            self.assertFalse(list(bundle.rglob("excluded-sentinel.txt")))
+            self.assertFalse((bundle / "README.txt").exists())
+
 
 
 if __name__ == "__main__":

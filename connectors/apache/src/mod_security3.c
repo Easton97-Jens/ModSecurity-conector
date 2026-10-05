@@ -106,7 +106,7 @@ int msc_apache_contract_record_request_metadata(msc_t *msr, request_rec *r)
     size_t header_count = 0U;
     size_t header_bytes = 0U;
     const char *content_type;
-    size_t body_limit;
+    msconnector_config effective_config;
 
     if (msr == NULL || r == NULL || !msr->contract_initialized ||
         r->per_dir_config == NULL) {
@@ -122,12 +122,15 @@ int msc_apache_contract_record_request_metadata(msc_t *msr, request_rec *r)
     }
     content_type = r->headers_in == NULL ? NULL :
         apr_table_get(r->headers_in, "Content-Type");
-    body_limit = conf->common_config.request_body_limit > 0U ?
-        conf->common_config.request_body_limit : MSCONNECTOR_MAX_BODY_BUFFER_SIZE;
+    if (!msconnector_config_merge(&effective_config, NULL,
+            &conf->common_config)) {
+        return 0;
+    }
     return msconnector_transaction_contract_record_request_metadata(&msr->contract,
         r->method == NULL ? "GET" : r->method,
         r->unparsed_uri == NULL || r->unparsed_uri[0] == '\0' ? "/" : r->unparsed_uri,
-        content_type, header_count, header_bytes, body_limit) ==
+        content_type, header_count, header_bytes,
+        effective_config.request_body_limit) ==
         MSCONNECTOR_TRANSACTION_TRANSITION_OK;
 }
 

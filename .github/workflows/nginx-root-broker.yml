@@ -28,8 +28,7 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   trusted-root-smoke:
@@ -303,6 +302,22 @@ jobs:
           if [ "$fetch_status" -ne 0 ]; then
             exit "$fetch_status"
           fi
+          verify_broker_source .github/workflows/nginx-root-broker.yml
+          verify_broker_source ci/runtime/broker/nginx_root_broker.py
+          # The broker independently acquires the protected release tag even
+          # when the pinned Framework provisioner fetches only the commit.
+          # Select provenance from the blob-verified broker, never caller data.
+          broker_crs_contract="$(.venv/bin/python -I -c 'import runpy; broker = runpy.run_path("ci/runtime/broker/nginx_root_broker.py"); print(broker["CRS_APPROVED_REPOSITORY"], broker["CRS_RELEASE_TAG"], broker["CRS_APPROVED_COMMIT"])')"
+          read -r broker_crs_repository broker_crs_tag broker_crs_commit broker_crs_extra <<< "$broker_crs_contract"
+          test -n "$broker_crs_repository"
+          test -n "$broker_crs_tag"
+          test -n "$broker_crs_commit"
+          test -z "$broker_crs_extra"
+          test "$(git -C "$CRS_SOURCE_DIR" config --get remote.origin.url)" = "$broker_crs_repository"
+          test "$(git -C "$CRS_SOURCE_DIR" rev-parse HEAD)" = "$broker_crs_commit"
+          git -c core.hooksPath=/dev/null -c protocol.file.allow=never -C "$CRS_SOURCE_DIR" \
+            fetch --depth 1 --no-tags "$broker_crs_repository" "refs/tags/$broker_crs_tag:refs/tags/$broker_crs_tag"
+          test "$(git -C "$CRS_SOURCE_DIR" rev-parse --verify "refs/tags/$broker_crs_tag^{}")" = "$broker_crs_commit"
           verify_broker_source .github/workflows/nginx-root-broker.yml
           verify_broker_source ci/runtime/broker/nginx_root_broker.py
           .venv/bin/python ci/runtime/broker/nginx_root_broker.py prepare-crs-bundle \

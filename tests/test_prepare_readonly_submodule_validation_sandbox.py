@@ -336,7 +336,7 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
                                 framework,
                                 external,
                                 mount_root,
-                                Path(sys.executable),
+                                Path(sys.executable).resolve(strict=True),
                                 identity.uid,
                                 identity.gid,
                                 candidate,
@@ -344,7 +344,8 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
                         )
                     except NAMESPACE_HELPER.NamespaceUnavailable:
                         os._exit(125)
-                    except BaseException:
+                    except BaseException as error:
+                        os.write(2, ("namespace test child failed: " + type(error).__name__ + ": " + ascii(str(error))[:500] + "\n").encode("ascii"))
                         os._exit(1)
                 _pid, status = os.waitpid(child, 0)
                 result = os.waitstatus_to_exitcode(status)

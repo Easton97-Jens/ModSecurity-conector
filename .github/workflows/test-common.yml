@@ -5,11 +5,12 @@ on:
     branches: [master]
   pull_request:
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   common-structure:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -64,6 +65,16 @@ jobs:
           test -f docs/architecture.md
           test -f docs/connectors/README.md
           test -f ci/checks/common/check-common-helpers.sh
+      - name: Run isolated security regressions
+        env:
+          TMPDIR: ${{ runner.temp }}/reported-findings-regressions
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          set -eu
+          umask 077
+          mkdir -p "$TMPDIR"
+          command -v cc >/dev/null
+          python3 -m unittest tests.test_reported_security_regressions -v
       - name: Lightweight framework checks
         run: |
           make setup-dev

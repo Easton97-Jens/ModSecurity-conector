@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -26,6 +27,7 @@ class RuntimeComponentCacheIdentityTest(unittest.TestCase):
         archives: list[dict[str, str]],
         *,
         connector: str = "apache",
+        modsecurity_build_id: str = "modsecurity-build",
     ) -> dict:
         with tempfile.TemporaryDirectory(prefix="connector-cache-identity-") as temporary:
             root = Path(temporary)
@@ -55,7 +57,7 @@ class RuntimeComponentCacheIdentityTest(unittest.TestCase):
                     cache_root,
                     env,
                     connector,
-                    {"build_id": "modsecurity-build", "prefix": "/cache/modsecurity"},
+                    {"build_id": modsecurity_build_id, "prefix": "/cache/modsecurity"},
                     {"build_id": "expat-build", "prefix": "/cache/expat"},
                     archives,
                 )
@@ -113,10 +115,10 @@ class RuntimeComponentCacheIdentityTest(unittest.TestCase):
             {
                 "NGINX_SOURCE_MODE": "github-release",
                 "NGINX_SOURCE_REPO_URL": "https://github.com/nginx/nginx",
-                "NGINX_RELEASE_TAG": "release-1.31.5",
-                "NGINX_SOURCE_GIT_REF": "release-1.31.5",
-                "NGINX_RELEASE_ASSET_NAME": "nginx-1.31.5.tar.gz",
-                "NGINX_SHA256": "e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279",
+                "NGINX_RELEASE_TAG": "release-1.31.6",
+                "NGINX_SOURCE_GIT_REF": "release-1.31.6",
+                "NGINX_RELEASE_ASSET_NAME": "nginx-1.31.6.tar.gz",
+                "NGINX_SHA256": "974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1",
             }
         )
         baseline = components.nginx_pinned_archive_cache_identity(provenance)
@@ -126,10 +128,10 @@ class RuntimeComponentCacheIdentityTest(unittest.TestCase):
             {
                 "mode": "github-release",
                 "repo": "https://github.com/nginx/nginx",
-                "tag": "release-1.31.5",
-                "ref": "release-1.31.5",
-                "asset": "nginx-1.31.5.tar.gz",
-                "sha256": "e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279",
+                "tag": "release-1.31.6",
+                "ref": "release-1.31.6",
+                "asset": "nginx-1.31.6.tar.gz",
+                "sha256": "974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1",
             },
         )
 
@@ -236,6 +238,69 @@ class RuntimeComponentCacheIdentityTest(unittest.TestCase):
         ):
             changed = components.modsecurity_build_inputs({}, git_record, changed_expat, ROOT)
         self.assertNotEqual(first["cache_key"], changed["cache_key"])
+
+
+    def _upgrade_modsecurity_inputs(self, record, env=None):
+        expat = {
+            "actual_head": "expat-source", "prefix": "/cache/expat",
+            "cache_key": "expat-key",
+            "cache_identity": {"cache_key": "expat-key", "source_sha256": "expat-source"},
+        }
+        with mock.patch.object(components, "toolchain_identity", return_value={"cc": "cc"}), \
+             mock.patch.object(components, "patchset_identity", return_value={"sha256": "patchset", "files": []}):
+            return components.modsecurity_build_inputs(env or {}, record, expat, ROOT)
+
+    def test_modsecurity_upgrade_changes_source_submodule_and_flag_cache_identity(self) -> None:
+        record = {
+            "url": "https://github.com/owasp-modsecurity/ModSecurity.git",
+            "expected_ref": "fixture-release", "actual_head": "a" * 40,
+            "submodule_status": "fixture-submodules-a",
+        }
+        baseline = self._upgrade_modsecurity_inputs(record)
+        for field, value in (("actual_head", "b" * 40),
+                             ("expected_ref", "fixture-next-release"),
+                             ("submodule_status", "fixture-submodules-b")):
+            with self.subTest(field=field):
+                changed = self._upgrade_modsecurity_inputs({**record, field: value})
+                self.assertNotEqual(baseline["cache_key"], changed["cache_key"])
+        changed_flags = self._upgrade_modsecurity_inputs(record, {"CXXFLAGS": "-O0"})
+        self.assertNotEqual(baseline["cache_key"], changed_flags["cache_key"])
+
+    def test_connector_is_rebuilt_for_a_different_modsecurity_build(self) -> None:
+        for connector in ("apache", "nginx"):
+            with self.subTest(connector=connector):
+                before = self.connector_plan({}, [], connector=connector)
+                after = self.connector_plan({}, [], connector=connector,
+                                            modsecurity_build_id="next-modsecurity-build")
+                self.assertNotEqual(before["connector_build_id"], after["connector_build_id"])
+
+    def test_modsecurity_runtime_aliases_allow_changed_v3_terminal_suffix(self) -> None:
+        # Synthetic filenames, not a claim that a corresponding release exists.
+        for suffix in ("0.16", "99.99"):
+            with self.subTest(suffix=suffix), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                terminal = root / f"libmodsecurity.so.3.{suffix}"
+                terminal.write_bytes(b"fixture-library")
+                terminal.chmod(0o644)
+                (root / "libmodsecurity.so.3").symlink_to(terminal.name)
+                (root / "libmodsecurity.so").symlink_to("libmodsecurity.so.3")
+                descriptor, details = components._verified_modsecurity_runtime_library(root)
+                try:
+                    self.assertEqual(os.read(descriptor, 128), b"fixture-library")
+                    self.assertEqual(details.st_ino, terminal.stat().st_ino)
+                finally:
+                    os.close(descriptor)
+
+    def test_unreviewed_modsecurity_soname_is_not_silently_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            terminal = root / "libmodsecurity.so.4.0.0"
+            terminal.write_bytes(b"unreviewed-layout")
+            terminal.chmod(0o644)
+            (root / "libmodsecurity.so.3").symlink_to(terminal.name)
+            (root / "libmodsecurity.so").symlink_to("libmodsecurity.so.3")
+            with self.assertRaisesRegex(RuntimeError, "terminal_name_invalid"):
+                components._verified_modsecurity_runtime_library(root)
 
 
 if __name__ == "__main__":

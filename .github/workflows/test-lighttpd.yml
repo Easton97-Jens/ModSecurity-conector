@@ -4,11 +4,12 @@ on:
   push:
   pull_request:
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   lighttpd-contract:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -34,6 +35,7 @@ jobs:
           make check-remaining-connectors-build-wiring
           make check-remaining-connectors-start-wiring
           make check-remaining-connectors-claim-policy
+          PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_trusted_lighttpd_namespace_dispatch_workflow
       - name: Run private fixture namespace contract tests
         env:
           PYTHONDONTWRITEBYTECODE: "1"

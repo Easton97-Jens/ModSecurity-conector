@@ -14,7 +14,7 @@ func (engine phase4BudgetTestEngine) Phase4BodyBudgetDisabled() bool {
 	return engine.disabled
 }
 
-func TestPhase4BodyBudgetModes(t *testing.T) {
+func TestConnectorResponseBudgetCompatibility(t *testing.T) {
 	cases := []struct {
 		name      string
 		direction Direction
@@ -23,13 +23,13 @@ func TestPhase4BodyBudgetModes(t *testing.T) {
 		chunk     int
 		want      Action
 	}{
-		{"off-response-above-budget", DirectionResponse, true, 8, 1, ActionAllow},
-		{"enabled-response-above-budget", DirectionResponse, false, 8, 1, ActionDeny},
-		{"enabled-exact-limit", DirectionResponse, false, 7, 1, ActionAllow},
-		{"off-still-limits-chunk", DirectionResponse, true, 0, 17, ActionDeny},
-		{"off-still-limits-request", DirectionRequest, true, 8, 1, ActionDeny},
-		{"off-still-rejects-overflow", DirectionResponse, true, math.MaxInt64, 1, ActionDeny},
-		{"off-still-rejects-negative-length", DirectionResponse, true, 0, -1, ActionDeny},
+		{"engine-owned-response-limit", DirectionResponse, true, 8, 1, ActionAllow},
+		{"legacy-capability-missing-keeps-host-limit", DirectionResponse, false, 8, 1, ActionDeny},
+		{"legacy-capability-exact-limit", DirectionResponse, false, 7, 1, ActionAllow},
+		{"engine-owned-limit-still-limits-chunk", DirectionResponse, true, 0, 17, ActionDeny},
+		{"engine-owned-limit-still-limits-request", DirectionRequest, true, 8, 1, ActionDeny},
+		{"engine-owned-limit-still-rejects-overflow", DirectionResponse, true, math.MaxInt64, 1, ActionDeny},
+		{"engine-owned-limit-still-rejects-negative-length", DirectionResponse, true, 0, -1, ActionDeny},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

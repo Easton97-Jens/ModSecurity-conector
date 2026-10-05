@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from functools import partial
 from pathlib import Path
@@ -95,3 +96,14 @@ def uses_shared_core(module: object) -> bool:
         and getattr(getattr(module, "_RUNTIME", None).__class__, "__module__", None)
         == "version_updater_common"
     )
+
+
+def write_project_pins(root: Path, **versions: str) -> Path:
+    """Provision a complete central lock for isolated toolchain fixtures."""
+    pins = {"schema_version": 1, "framework_sha": "6" * 40, "mrts_sha": "8" * 40,
+            "python_version": "3.14.7", "go_version": "1.27.1"}
+    pins.update(versions)
+    target = root / "ci/tooling/project-versions.lock.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(pins, indent=2) + "\n", encoding="utf-8")
+    return target
