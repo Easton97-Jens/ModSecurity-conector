@@ -3,11 +3,12 @@ name: Legacy Open Connector Diagnostics
 on:
   workflow_dispatch:
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   open-connectors-smoke:
+    permissions:
+      contents: read
     name: Legacy Envoy, Traefik, and lighttpd diagnostics
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -39,6 +40,7 @@ jobs:
           build_root="$verified_root/build"
           {
             echo "VERIFIED_RUN_ROOT=$verified_root"
+            echo "RUNTIME_EVIDENCE_ROOT=$verified_root/evidence/runtime-evidence"
             echo "XDG_STATE_HOME=/tmp/state"
             echo "SOURCE_ROOT=$verified_root/src"
             echo "BUILD_ROOT=$build_root"
@@ -94,7 +96,7 @@ jobs:
       - name: Native minimal runtime diagnostics
         run: |
           set -eu
-          TMPDIR=/tmp make runtime-smoke-remaining-connectors
+          TMPDIR=/tmp ALLOW_RUNTIME_BUILDS=1 make runtime-smoke-remaining-connectors
 
       - name: Remaining connector readiness contracts
         run: |
@@ -295,6 +297,7 @@ jobs:
           copy_evidence_dir "$VERIFIED_RUN_ROOT/traefik-smoke" "$artifact_root/compatibility/traefik-smoke"
           copy_evidence_dir "$VERIFIED_RUN_ROOT/lighttpd-smoke" "$artifact_root/compatibility/lighttpd-smoke"
           copy_evidence_dir "$LOG_ROOT" "$artifact_root/runtime-logs"
+          copy_evidence_dir "$RUNTIME_EVIDENCE_ROOT" "$artifact_root/normalized-runtime-evidence"
           if [ "$copied" -eq 0 ]; then
             printf 'No allowlisted runtime evidence directory was produced.\n' > "$artifact_root/README.txt"
           fi

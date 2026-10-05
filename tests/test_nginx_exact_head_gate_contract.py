@@ -1,6 +1,8 @@
 import pathlib
 import unittest
 
+import yaml
+
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
@@ -9,7 +11,11 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
     def test_workflow_pins_nginx_and_runs_gate(self):
         workflow = (ROOT / ".github/workflows/test-nginx-exact-head.yml").read_text()
         self.assertIn("runs-on: ubuntu-24.04", workflow)
-        self.assertIn("permissions:\n  contents: read", workflow)
+        parsed = yaml.safe_load(workflow)
+        self.assertEqual(parsed["permissions"], {})
+        self.assertEqual(
+            parsed["jobs"]["nginx-exact-head"]["permissions"], {"contents": "read"}
+        )
         self.assertNotIn("pull_request_target", workflow)
         self.assertIn("ref: ${{ github.event.pull_request.head.sha || github.sha }}", workflow)
         self.assertIn("actual=\"$(git rev-parse --verify 'HEAD^{commit}')\"", workflow)
@@ -80,10 +86,10 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
         self.assertIn("RUNTIME_COMPONENT_TARGET: nginx", workflow)
         self.assertIn("NGINX_SOURCE_MODE: github-release", workflow)
         self.assertIn("NGINX_SOURCE_REPO_URL: https://github.com/nginx/nginx", workflow)
-        self.assertIn("NGINX_RELEASE_TAG: release-1.31.5", workflow)
-        self.assertIn("NGINX_SOURCE_GIT_REF: release-1.31.5", workflow)
-        self.assertIn("NGINX_RELEASE_ASSET_NAME: nginx-1.31.5.tar.gz", workflow)
-        self.assertIn("NGINX_SHA256: e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279", workflow)
+        self.assertIn("NGINX_RELEASE_TAG: release-1.31.6", workflow)
+        self.assertIn("NGINX_SOURCE_GIT_REF: release-1.31.6", workflow)
+        self.assertIn("NGINX_RELEASE_ASSET_NAME: nginx-1.31.6.tar.gz", workflow)
+        self.assertIn("NGINX_SHA256: 974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1", workflow)
         for override in (
             "MRTS_NATIVE_NGINX_BIN",
             "MRTS_NATIVE_NGINX_MODULE_DIR",
@@ -117,7 +123,7 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
             "tests/run_nginx_body_buffer_fixture.py",
             '--connector-root "$CONNECTOR_ROOT"',
             '--expected-head "$EXPECTED_PARENT_SHA"',
-            '--nginx-archive "$NGINX_DOWNLOAD_DIR/nginx-1.31.5.tar.gz"',
+            '--nginx-archive "$NGINX_DOWNLOAD_DIR/nginx-1.31.6.tar.gz"',
             '--nginx-sha256 "$NGINX_SHA256"',
             '--modsecurity-include "$MODSECURITY_INCLUDE_DIR"',
             '--modsecurity-lib "$MODSECURITY_LIB_DIR"',

@@ -7,6 +7,7 @@ import io
 import json
 import os
 from pathlib import Path
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -53,6 +54,68 @@ def load_trusted_framework_baseline(test_case: unittest.TestCase) -> object:
 
 
 class CollectNoCrsSourceTest(unittest.TestCase):
+    def _apache_host_version(self, stdout: str, stderr: str, exit_code: int) -> subprocess.CompletedProcess[str]:
+        source = (ROOT / "ci/runtime/lifecycle/run-no-crs-baseline.sh").read_text(encoding="utf-8")
+        inventory = source.split('if [ -n "$host_binary" ] && [ -x "$host_binary" ]; then', 1)[1].split(
+            "\nlibmodsecurity_version=", 1
+        )[0]
+        with tempfile.TemporaryDirectory(prefix="apache-host-version-") as temporary:
+            binary = Path(temporary) / "httpd"
+            binary.write_text(
+                "#!/bin/sh\n"
+                'test "$#" -eq 1 && test "$1" = -v || exit 91\n'
+                f"printf '%s' {shlex.quote(stdout)}\n"
+                f"printf '%s' {shlex.quote(stderr)} >&2\n"
+                f"exit {exit_code}\n",
+                encoding="utf-8",
+            )
+            binary.chmod(0o700)
+            environment = {
+                **os.environ,
+                "connector": "apache",
+                "host_binary": str(binary),
+                "host_version": "not_provisioned",
+                "PYTHON": sys.executable,
+            }
+            command = 'if [ -n "$host_binary" ] && [ -x "$host_binary" ]; then' + inventory
+            command += '\nprintf "%s\\n" "$host_version"\n'
+            return subprocess.run(
+                ["/bin/sh", "-eu", "-c", command],
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+    def test_apache_host_version_uses_native_stdout_despite_loader_warning(self) -> None:
+        warning = "libpcre2-8.so.0: no version information available\n"
+        result = self._apache_host_version(
+            "Server version: Apache/2.4.68 (Unix)\nServer built: Oct 3 2026\n", warning, 0
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "Server version: Apache/2.4.68 (Unix)\n")
+        self.assertIn(warning, result.stderr)
+
+    def test_apache_host_version_preserves_binary_failure_and_rejects_invalid_output(self) -> None:
+        scenarios = (
+            ("Server version: Apache/2.4.68 (Unix)\n", "native failure\n", 7, 7),
+            ("", "", 0, 2),
+            ("libpcre2-8.so.0: no version information available\n", "", 0, 2),
+            ("Server version: nginx/1.31.6\n", "", 0, 2),
+            ("Server version: Apache/invalid\n", "", 0, 2),
+            ("Server version: Apache/٢.4.68\n", "", 0, 2),
+            ("Server version: Apache/2.٤.68\n", "", 0, 2),
+            ("Server version: Apache/2.4.٦٨\n", "", 0, 2),
+            ("Server version: Apache/2.4.68\nServer version: Apache/2.4.69\n", "", 0, 2),
+            ("Server version: Apache/2.4.68\nServer version: nginx/1.31.6\n", "", 0, 2),
+        )
+        for stdout, stderr, exit_code, expected_code in scenarios:
+            with self.subTest(stdout=stdout, exit_code=exit_code):
+                result = self._apache_host_version(stdout, stderr, exit_code)
+                self.assertEqual(result.returncode, expected_code)
+                self.assertEqual(result.stdout, "")
+                self.assertIn("FAIL: Apache host", result.stderr)
+
     def test_nonpromoted_native_host_is_not_reclassified_as_source_failure(self) -> None:
         self.assertTrue(
             collector.nonpromoted_host_success(

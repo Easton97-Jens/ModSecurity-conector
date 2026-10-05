@@ -34,7 +34,7 @@ FIXTURE_FILE_PAYLOAD = FIXTURE_PAYLOAD + b"X"
 FIXTURE_SHORT_FILE_PAYLOAD = FIXTURE_PAYLOAD[:-1]
 FIXTURE_MIXED_FILE_PAYLOAD = b"FILE-BACKING-XXXX"
 FIXTURE_MIXED_FORWARDED_PAYLOAD = FIXTURE_MIXED_FILE_PAYLOAD[: len(FIXTURE_PAYLOAD)]
-EXPECTED_NGINX_ROOT = "nginx-1.31.5"
+EXPECTED_NGINX_ROOT = "nginx-1.31.6"
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
 MAX_RESPONSE_BYTES = 256 * 1024
@@ -394,8 +394,17 @@ def parse_events(path: Path) -> list[dict[str, Any]]:
 
 
 def validate_positive_events(events: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    expected_paths = {"/memory-within", "/file-within", "/mixed-within"}
-    observed: dict[str, list[dict[str, Any]]] = {path: [] for path in expected_paths}
+    expected_bytes = {
+        "/memory-within": FIXTURE_LIMIT,
+        "/memory-over-limit": FIXTURE_LIMIT + 1,
+        "/file-within": FIXTURE_LIMIT,
+        "/file-over-limit": FIXTURE_LIMIT + 1,
+        "/mixed-within": FIXTURE_LIMIT,
+        "/mixed-over-limit": FIXTURE_LIMIT + 1,
+    }
+    observed: dict[str, list[dict[str, Any]]] = {
+        path: [] for path in expected_bytes
+    }
     for row in events:
         uri = row.get("uri")
         if uri not in observed:
@@ -409,8 +418,8 @@ def validate_positive_events(events: list[dict[str, Any]]) -> dict[str, dict[str
             or
             row.get("rule_id") != "1250001"
             or
-            row.get("body_bytes_seen") != FIXTURE_LIMIT
-            or row.get("body_bytes_inspected") != FIXTURE_LIMIT
+            row.get("body_bytes_seen") != expected_bytes[str(uri)]
+            or row.get("body_bytes_inspected") != expected_bytes[str(uri)]
             or row.get("body_truncated") is not False
             or row.get("truncated") is not False
             or row.get("eos_seen") is not True
@@ -633,9 +642,9 @@ def main(argv: list[str]) -> int:
     )
     normal_cases = (
         ("memory-within", True, True, False, "preserved", "none", FIXTURE_PAYLOAD, "memory"),
-        ("memory-over-limit", False, True, False, "preserved", "none", b"", "none"),
+        ("memory-over-limit", True, True, False, "preserved", "none", FIXTURE_FILE_PAYLOAD, "memory"),
         ("file-within", True, False, True, "file-only", "none", FIXTURE_PAYLOAD, "file"),
-        ("file-over-limit", False, False, True, "file-only", "none", b"", "none"),
+        ("file-over-limit", True, False, True, "file-only", "none", FIXTURE_FILE_PAYLOAD, "file"),
         (
             "mixed-within",
             True,
@@ -646,7 +655,7 @@ def main(argv: list[str]) -> int:
             FIXTURE_MIXED_FORWARDED_PAYLOAD,
             "file",
         ),
-        ("mixed-over-limit", False, True, True, "preserved", "none", b"", "none"),
+        ("mixed-over-limit", True, True, True, "preserved", "none", FIXTURE_MIXED_FILE_PAYLOAD, "file"),
         (
             "invalid-metadata",
             False,

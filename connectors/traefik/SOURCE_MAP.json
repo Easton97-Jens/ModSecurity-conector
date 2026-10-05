@@ -191,8 +191,16 @@
       "purpose": "private-UDS MRC1 Traefik P3/P4 response-observer middleware"
     },
     {
+      "path": "connectors/traefik/response_observer/peercred_linux.go",
+      "purpose": "Linux SO_PEERCRED authentication of the response companion before CLAIM"
+    },
+    {
+      "path": "connectors/traefik/response_observer/peercred_other.go",
+      "purpose": "fail-closed unsupported-platform response companion peer check"
+    },
+    {
       "path": "connectors/traefik/response_observer/observer_test.go",
-      "purpose": "response-observer protocol, ordering, limit, cleanup, and writer behavior unit coverage"
+      "purpose": "response-observer protocol, peer identity, ordering, limit, cleanup, and writer behavior unit coverage"
     },
     {
       "path": "connectors/traefik/response_observer/README.md",

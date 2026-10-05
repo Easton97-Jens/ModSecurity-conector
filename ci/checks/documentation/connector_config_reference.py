@@ -319,8 +319,9 @@ DIRECTIVE_DETAILS: dict[str, dict[str, str]] = {
         "values": ALLOWED_VALUES_POSITIVE_INTEGER,
         "default": "1048576",
         "default_source": DEFAULT_SOURCE_PHASE4_BODY_LIMIT,
-        "effect": "Bounds response bytes offered to P4 processing by the native connector.",
-        "security": "A larger limit raises memory/CPU exposure; zero is invalid in the native setters.",
+        "effect": "Legacy compatibility value; valid Phase-4 modes do not enforce it as a connector WAF response-inspection limit.",
+        "security": "Use libModSecurity SecResponseBodyLimit/SecResponseBodyLimitAction for WAF inspection policy; independent host resource limits remain separate.",
+        "deprecated": True,
     },
 }
 
@@ -351,19 +352,17 @@ APACHE_DIRECTIVE_DETAILS: dict[str, dict[str, str]] = {
     },
     "modsecurity_phase4_body_limit": {
         "effect": (
-            "Bounds Apache response bytes offered to P4 across current normalized brigades. The "
-            "configurable default is 1048576 bytes; independently, a fixed non-configurable "
-            "4096-normalized-bucket ceiling spans filter calls. A limit breach fails closed before "
-            "the current offending bucket is forwarded; already committed output is not rewritten."
+            "Legacy compatibility value. Apache no longer uses it as a cumulative WAF response-inspection "
+            "limit; libModSecurity owns SecResponseBodyLimit policy. The fixed non-configurable "
+            "4096-normalized-bucket ceiling remains a separate APR-object/resource guard."
         ),
         "security": (
-            "The byte and fixed bucket ceilings bound payload and per-transaction APR-object/setaside "
-            "memory/CPU exposure. Each accepted current bucket is appended once before direct forwarding; "
-            "do not retain a full response or forward an uninspected tail."
+            "The fixed bucket ceiling still bounds per-transaction APR-object/setaside exposure. "
+            "Response inspection byte policy belongs to libModSecurity and must not be recreated by safe/strict."
         ),
         "phase_relevance": (
-            "P4 only. The byte limit and fixed bucket ceiling span filter calls. The adapter retains only "
-            "the terminal EOS fragment for the one-shot finish; the bucket count resets on release or discard."
+            "P4 compatibility only. The configured byte value does not gate response inspection; "
+            "the independent fixed bucket-count resource guard still spans filter calls."
         ),
     },
 }
@@ -408,7 +407,8 @@ def _directive_option(
         runtime_effect=detail["effect"],
         example_file=example,
         description=detail["effect"],
-        deprecated=False,
+        compatibility_only=detail.get("compatibility_only", False),
+        deprecated=detail.get("deprecated", False),
     )
 
 
@@ -766,66 +766,68 @@ def extract_lighttpd(root: Path) -> list[dict[str, Any]]:
     ]:
         raise ValueError(f"lighttpd plugin key extractor found unexpected keys: {keys!r}")
     values: list[dict[str, Any]] = []
-    values.append(_option(
-        "lighttpd", "msconnector.enabled", "host_connector_directive", source,
-        "mod_msconnector_set_defaults / config_plugin_values_init",
-        syntax='msconnector.enabled = "enable" | "disable"', value_type=VALUE_TYPE_LIGHTTPD_BOOLEAN, allowed_values=ALLOWED_VALUES_LIGHTTPD_BOOLEAN,
-        default=VALUE_OFF, default_source=DEFAULT_SOURCE_LIGHTTPD_PLUGIN_DATA, required=False,
-        contexts=LIGHTTPD_SERVER_SCOPE, inheritance=LIGHTTPD_DEFAULTS_ONLY_INHERITANCE,
-        merge_behavior=LIGHTTPD_DEFAULTS_MERGE,
-        validation="When enabled, lighttpd validates the runtime file during set-defaults; validate host syntax with lighttpd -tt -f <config>.",
-        phase_relevance="off disables the module P1/P3 callbacks and any patched P2/P4 callbacks.",
-        security_relevance="Disabling the module bypasses connector processing even if a rule file exists.",
-        runtime_effect="Selects whether mod_msconnector initialises Common Runtime.", example_file="examples/lighttpd/off/lighttpd.conf",
-        description="Enables the native lighttpd plugin."))
-    values.append(_option(
-        "lighttpd", "msconnector.config-file", "host_connector_directive", source,
-        "mod_msconnector_set_defaults / msconnector_runtime_config_check",
-        syntax='msconnector.config-file = "<runtime-key-value-file>"', value_type="path", allowed_values="non-empty readable Common Runtime key=value file",
-        default="none", default_source="plugin config_file defaults to NULL", required=True,
-        contexts=LIGHTTPD_SERVER_SCOPE, inheritance="Only defaults are loaded; no documented conditional request-time override.",
-        merge_behavior="Plugin defaults retain the configured string.",
-        validation="Required only when msconnector.enabled is true; missing, unreadable, or invalid runtime configuration returns HANDLER_ERROR during startup.",
-        phase_relevance="The referenced Common Runtime file chooses body modes and P1–P4 policy.",
-        security_relevance="The runtime file contains executable rule paths and limits; use trusted ownership and permissions.",
-        runtime_effect="Loads and creates the connector-neutral runtime before requests are served.", example_file="examples/lighttpd/off/lighttpd.conf",
-        description="Path to the Common Runtime configuration used by the native plugin."))
-    values.append(_option(
-        "lighttpd", "msconnector.expose-host-transaction-id", "host_connector_directive", source,
-        "mod_msconnector_set_defaults / mod_msconnector_emit_host_transaction_id",
-        syntax='msconnector.expose-host-transaction-id = "enable" | "disable"', value_type=VALUE_TYPE_LIGHTTPD_BOOLEAN, allowed_values=ALLOWED_VALUES_LIGHTTPD_BOOLEAN,
-        default=VALUE_OFF, default_source=DEFAULT_SOURCE_LIGHTTPD_PLUGIN_DATA, required=False,
-        contexts=LIGHTTPD_SERVER_SCOPE, inheritance=LIGHTTPD_DEFAULTS_ONLY_INHERITANCE,
-        merge_behavior=LIGHTTPD_DEFAULTS_MERGE,
-        validation="lighttpd parses this server-scoped setting as a boolean during set-defaults; validate host syntax with lighttpd -tt -f <config>.",
-        phase_relevance="P3 response headers only; it does not select or alter Common Runtime transaction-ID input.",
-        security_relevance="When enabled, a server-generated correlation identifier is exposed in a response header. It never reflects a request header; enable it only for trusted runtime evidence.",
-        runtime_effect="Opt-in harness evidence plumbing emits the server-generated host transaction ID as X-Msconnector-Host-Transaction-Id after response-header processing.",
-        example_file="connectors/lighttpd/harness/prepare_native_smoke.sh",
-        example_value='msconnector.expose-host-transaction-id = "enable"',
-        description="Opt-in response-header evidence for the server-generated host transaction ID."))
-    values.append(_option(
-        "lighttpd", "msconnector.request-body-gate", "host_connector_directive", source,
-        "mod_msconnector_set_defaults / mod_msconnector_prepare_request_body",
-        syntax='msconnector.request-body-gate = "pre-upstream"', value_type="enum",
-        allowed_values="pre-upstream when request_body_mode=streaming; absent otherwise",
-        default="none", default_source="plugin request_body_gate defaults to NULL", required=False,
-        contexts=LIGHTTPD_SERVER_SCOPE, inheritance=LIGHTTPD_DEFAULTS_ONLY_INHERITANCE,
-        merge_behavior=LIGHTTPD_DEFAULTS_MERGE,
-        validation="The patched module rejects a missing/other gate value when request_body_mode=streaming and rejects a configured gate for non-streaming request bodies.",
-        phase_relevance="P2 only. The gate keeps the bounded request body from reaching an upstream before the Phase-2 decision completes.",
-        security_relevance="pre-upstream is required for patched streaming P2 so body-bearing requests cannot bypass Common Runtime enforcement before the bounded EOS decision.",
-        runtime_effect="Enables the patched-host pre-upstream request-body gate; stock lighttpd does not select it.",
-        example_file="examples/lighttpd/safe/lighttpd-http1-identity.conf",
-        example_value='msconnector.request-body-gate = "pre-upstream"',
-        description="Patched-host P2 gate that retains a bounded request body before upstream release."))
-    values.append(_option(
-        "lighttpd", "sidecar proxy", "compatibility", LIGHTTPD_SIDECAR_CONFIGURATION,
-        "compatibility-sidecar example", syntax="proxy.server = (...)", value_type="compatibility host setup", allowed_values="ordinary lighttpd proxy fields",
-        default="not a native connector option", default_source=DEFAULT_SOURCE_COMPATIBILITY_EXAMPLE, required=False,
-        contexts="Compatibility example", inheritance="not applicable to native plugin", merge_behavior="not part of mod_msconnector", validation=LIGHTTPD_SIDECAR_VALIDATION,
-        phase_relevance="No native mod_msconnector lifecycle claim.", security_relevance="Do not treat a proxy endpoint as a configured native ModSecurity integration.",
-        runtime_effect="Compatibility-only proxy routing.", example_file=LIGHTTPD_SIDECAR_CONFIGURATION, description="Compatibility-only sidecar proxy setup.", compatibility_only=True))
+    values.extend([
+        _option(
+            "lighttpd", "msconnector.enabled", "host_connector_directive", source,
+            "mod_msconnector_set_defaults / config_plugin_values_init",
+            syntax='msconnector.enabled = "enable" | "disable"', value_type=VALUE_TYPE_LIGHTTPD_BOOLEAN, allowed_values=ALLOWED_VALUES_LIGHTTPD_BOOLEAN,
+            default=VALUE_OFF, default_source=DEFAULT_SOURCE_LIGHTTPD_PLUGIN_DATA, required=False,
+            contexts=LIGHTTPD_SERVER_SCOPE, inheritance=LIGHTTPD_DEFAULTS_ONLY_INHERITANCE,
+            merge_behavior=LIGHTTPD_DEFAULTS_MERGE,
+            validation="When enabled, lighttpd validates the runtime file during set-defaults; validate host syntax with lighttpd -tt -f <config>.",
+            phase_relevance="off disables the module P1/P3 callbacks and any patched P2/P4 callbacks.",
+            security_relevance="Disabling the module bypasses connector processing even if a rule file exists.",
+            runtime_effect="Selects whether mod_msconnector initialises Common Runtime.", example_file="examples/lighttpd/off/lighttpd.conf",
+            description="Enables the native lighttpd plugin."),
+        _option(
+            "lighttpd", "msconnector.config-file", "host_connector_directive", source,
+            "mod_msconnector_set_defaults / msconnector_runtime_config_check",
+            syntax='msconnector.config-file = "<runtime-key-value-file>"', value_type="path", allowed_values="non-empty readable Common Runtime key=value file",
+            default="none", default_source="plugin config_file defaults to NULL", required=True,
+            contexts=LIGHTTPD_SERVER_SCOPE, inheritance="Only defaults are loaded; no documented conditional request-time override.",
+            merge_behavior="Plugin defaults retain the configured string.",
+            validation="Required only when msconnector.enabled is true; missing, unreadable, or invalid runtime configuration returns HANDLER_ERROR during startup.",
+            phase_relevance="The referenced Common Runtime file chooses body modes and P1–P4 policy.",
+            security_relevance="The runtime file contains executable rule paths and limits; use trusted ownership and permissions.",
+            runtime_effect="Loads and creates the connector-neutral runtime before requests are served.", example_file="examples/lighttpd/off/lighttpd.conf",
+            description="Path to the Common Runtime configuration used by the native plugin."),
+        _option(
+            "lighttpd", "msconnector.expose-host-transaction-id", "host_connector_directive", source,
+            "mod_msconnector_set_defaults / mod_msconnector_emit_host_transaction_id",
+            syntax='msconnector.expose-host-transaction-id = "enable" | "disable"', value_type=VALUE_TYPE_LIGHTTPD_BOOLEAN, allowed_values=ALLOWED_VALUES_LIGHTTPD_BOOLEAN,
+            default=VALUE_OFF, default_source=DEFAULT_SOURCE_LIGHTTPD_PLUGIN_DATA, required=False,
+            contexts=LIGHTTPD_SERVER_SCOPE, inheritance=LIGHTTPD_DEFAULTS_ONLY_INHERITANCE,
+            merge_behavior=LIGHTTPD_DEFAULTS_MERGE,
+            validation="lighttpd parses this server-scoped setting as a boolean during set-defaults; validate host syntax with lighttpd -tt -f <config>.",
+            phase_relevance="P3 response headers only; it does not select or alter Common Runtime transaction-ID input.",
+            security_relevance="When enabled, a server-generated correlation identifier is exposed in a response header. It never reflects a request header; enable it only for trusted runtime evidence.",
+            runtime_effect="Opt-in harness evidence plumbing emits the server-generated host transaction ID as X-Msconnector-Host-Transaction-Id after response-header processing.",
+            example_file="connectors/lighttpd/harness/prepare_native_smoke.sh",
+            example_value='msconnector.expose-host-transaction-id = "enable"',
+            description="Opt-in response-header evidence for the server-generated host transaction ID."),
+        _option(
+            "lighttpd", "msconnector.request-body-gate", "host_connector_directive", source,
+            "mod_msconnector_set_defaults / mod_msconnector_prepare_request_body",
+            syntax='msconnector.request-body-gate = "pre-upstream"', value_type="enum",
+            allowed_values="pre-upstream when request_body_mode=streaming; absent otherwise",
+            default="none", default_source="plugin request_body_gate defaults to NULL", required=False,
+            contexts=LIGHTTPD_SERVER_SCOPE, inheritance=LIGHTTPD_DEFAULTS_ONLY_INHERITANCE,
+            merge_behavior=LIGHTTPD_DEFAULTS_MERGE,
+            validation="The patched module rejects a missing/other gate value when request_body_mode=streaming and rejects a configured gate for non-streaming request bodies.",
+            phase_relevance="P2 only. The gate keeps the bounded request body from reaching an upstream before the Phase-2 decision completes.",
+            security_relevance="pre-upstream is required for patched streaming P2 so body-bearing requests cannot bypass Common Runtime enforcement before the bounded EOS decision.",
+            runtime_effect="Enables the patched-host pre-upstream request-body gate; stock lighttpd does not select it.",
+            example_file="examples/lighttpd/safe/lighttpd-http1-identity.conf",
+            example_value='msconnector.request-body-gate = "pre-upstream"',
+            description="Patched-host P2 gate that retains a bounded request body before upstream release."),
+        _option(
+            "lighttpd", "sidecar proxy", "compatibility", LIGHTTPD_SIDECAR_CONFIGURATION,
+            "compatibility-sidecar example", syntax="proxy.server = (...)", value_type="compatibility host setup", allowed_values="ordinary lighttpd proxy fields",
+            default="not a native connector option", default_source=DEFAULT_SOURCE_COMPATIBILITY_EXAMPLE, required=False,
+            contexts="Compatibility example", inheritance="not applicable to native plugin", merge_behavior="not part of mod_msconnector", validation=LIGHTTPD_SIDECAR_VALIDATION,
+            phase_relevance="No native mod_msconnector lifecycle claim.", security_relevance="Do not treat a proxy endpoint as a configured native ModSecurity integration.",
+            runtime_effect="Compatibility-only proxy routing.", example_file=LIGHTTPD_SIDECAR_CONFIGURATION, description="Compatibility-only sidecar proxy setup.", compatibility_only=True),
+    ])
     compatibility_example = LIGHTTPD_SIDECAR_CONFIGURATION
     compatibility_fields = sorted(set(re.findall(r"^\s*([A-Za-z0-9_.-]+)\s*=", _read(root, compatibility_example), flags=re.M)))
     for field in compatibility_fields:
@@ -857,7 +859,7 @@ COMMON_DETAILS: dict[str, dict[str, str]] = {
     "request_body_mode": ("enum", ALLOWED_VALUES_BODY_MODE, "buffered", DEFAULT_SOURCE_RUNTIME_DEFAULTS, "Selects the Common request-body handling mode; a particular host may support only a subset."),
     "response_body_mode": ("enum", ALLOWED_VALUES_BODY_MODE, "none", DEFAULT_SOURCE_RUNTIME_DEFAULTS, "Selects the Common response-body handling mode; a particular host may support only a subset."),
     "request_body_limit": (VALUE_TYPE_POSITIVE_DECIMAL_BYTES, ALLOWED_VALUES_POSITIVE_INTEGER, "1048576", DEFAULT_SOURCE_MAX_BODY_BUFFER, "Bounds request bytes offered to the engine."),
-    "response_body_limit": (VALUE_TYPE_POSITIVE_DECIMAL_BYTES, ALLOWED_VALUES_POSITIVE_INTEGER, "1048576", DEFAULT_SOURCE_MAX_RESPONSE_BODY_BUFFER, "Bounds response bytes offered to the engine."),
+    "response_body_limit": (VALUE_TYPE_POSITIVE_DECIMAL_BYTES, ALLOWED_VALUES_POSITIVE_INTEGER, "1048576", DEFAULT_SOURCE_MAX_RESPONSE_BODY_BUFFER, "Bounds host/runtime response capacity where that integration requires bounded storage; it is not libModSecurity inspection policy."),
     "body_limit_action": ("enum", "reject | process_partial (accepted spelling variants are parser-specific)", "reject", DEFAULT_SOURCE_COMMON_APPLY_DEFAULTS, "Controls whether an over-limit chunk is rejected or truncated before engine input."),
     "late_intervention_timeout": ("non-negative decimal milliseconds", "0 or positive integer", "0", DEFAULT_SOURCE_COMMON_APPLY_DEFAULTS, "Stores an optional late-intervention budget; Common owns no timer/cancellation primitive."),
     "default_block_status": ("HTTP status", "allowed blocking status", "403", DEFAULT_SOURCE_DEFAULT_BLOCK_STATUS, "Fallback status for supported pre-commit block actions."),
@@ -939,8 +941,8 @@ COMMON_OPTION_OVERRIDES: dict[str, dict[str, Any]] = {
             "(10 MiB) hard security cap."
         ),
         "security_relevance": (
-            "The 10 MiB hard cap bounds response-body allocation and engine input even when a deployment "
-            "raises the 1048576-byte default."
+            "The 10 MiB configuration cap bounds host/runtime capacity settings where an integration "
+            "allocates or buffers responses; it is not a libModSecurity WAF inspection limit."
         ),
     },
     "max_header_count": {
@@ -3687,6 +3689,13 @@ GERMAN_TEXT: dict[str, str] = {
     "Bounds Apache response bytes offered to P4 across current normalized brigades. The configurable default is 1048576 bytes; independently, a fixed non-configurable 4096-normalized-bucket ceiling spans filter calls. A limit breach fails closed before the current offending bucket is forwarded; already committed output is not rewritten.": "Begrenzt Apache-Response-Bytes, die P4 über aktuelle normalisierte Brigades angeboten werden. Der konfigurierbare Standardwert ist 1048576 Byte; unabhängig davon gilt über Filter-Aufrufe hinweg eine feste, nicht konfigurierbare Obergrenze von 4096 normalisierten Buckets. Eine Limitverletzung schlägt fail-closed fehl, bevor der aktuelle fehlerhafte Bucket weitergeleitet wird; bereits committed Ausgabe wird nicht umgeschrieben.",
     "The byte and fixed bucket ceilings bound payload and per-transaction APR-object/setaside memory/CPU exposure. Each accepted current bucket is appended once before direct forwarding; do not retain a full response or forward an uninspected tail.": "Die Byte- und feste Bucket-Obergrenze begrenzen Payload- sowie APR-Objekt-/Setaside-Speicher-/CPU-Exposition pro Transaktion. Jeder akzeptierte aktuelle Bucket wird vor der direkten Weiterleitung genau einmal angehängt; keine vollständige Response zurückhalten oder einen uninspektierten Tail weiterleiten.",
     "P4 only. The byte limit and fixed bucket ceiling span filter calls. The adapter retains only the terminal EOS fragment for the one-shot finish; the bucket count resets on release or discard.": "Nur P4. Das Byte-Limit und die feste Bucket-Obergrenze gelten über Filter-Aufrufe hinweg. Der Adapter hält nur das terminale EOS-Fragment für den einmaligen Abschluss zurück; der Bucket-Zähler wird bei Release oder Discard zurückgesetzt.",
+    "Legacy compatibility value; valid Phase-4 modes do not enforce it as a connector WAF response-inspection limit.": "Alter Kompatibilitätswert; gültige Phase-4-Modi erzwingen ihn nicht als Connector-WAF-Response-Inspection-Limit.",
+    "Use libModSecurity SecResponseBodyLimit/SecResponseBodyLimitAction for WAF inspection policy; independent host resource limits remain separate.": "Für die WAF-Inspection-Policy SecResponseBodyLimit/SecResponseBodyLimitAction von libModSecurity verwenden; unabhängige Host-Ressourcenlimits bleiben getrennt.",
+    "Legacy compatibility value. Apache no longer uses it as a cumulative WAF response-inspection limit; libModSecurity owns SecResponseBodyLimit policy. The fixed non-configurable 4096-normalized-bucket ceiling remains a separate APR-object/resource guard.": "Alter Kompatibilitätswert. Apache verwendet ihn nicht mehr als kumuliertes WAF-Response-Inspection-Limit; libModSecurity besitzt die SecResponseBodyLimit-Policy. Die feste, nicht konfigurierbare Obergrenze von 4096 normalisierten Buckets bleibt ein getrennter APR-Objekt-/Ressourcenschutz.",
+    "The fixed bucket ceiling still bounds per-transaction APR-object/setaside exposure. Response inspection byte policy belongs to libModSecurity and must not be recreated by safe/strict.": "Die feste Bucket-Obergrenze begrenzt weiterhin die APR-Objekt-/Setaside-Exposition pro Transaktion. Die Byte-Policy der Response-Inspection gehört libModSecurity und darf nicht durch safe/strict im Connector neu erzeugt werden.",
+    "P4 compatibility only. The configured byte value does not gate response inspection; the independent fixed bucket-count resource guard still spans filter calls.": "Nur P4-Kompatibilität. Der konfigurierte Bytewert begrenzt die Response-Inspection nicht; die unabhängige feste Bucket-Anzahl-Ressourcengrenze gilt weiterhin über Filter-Aufrufe hinweg.",
+    "Bounds host/runtime response capacity where that integration requires bounded storage; it is not libModSecurity inspection policy.": "Begrenzt die Host-/Runtime-Response-Kapazität dort, wo die Integration begrenzten Speicher benötigt; dies ist keine libModSecurity-Inspection-Policy.",
+    "The 10 MiB configuration cap bounds host/runtime capacity settings where an integration allocates or buffers responses; it is not a libModSecurity WAF inspection limit.": "Die Konfigurationsobergrenze von 10 MiB begrenzt Host-/Runtime-Kapazität dort, wo eine Integration Responses alloziert oder puffert; sie ist kein libModSecurity-WAF-Inspection-Limit.",
 
     # Response-capable HAProxy SPOE/SPOP and patched-lighttpd parameters.
     # These remain explicit rather than taking the YAML fallback because they

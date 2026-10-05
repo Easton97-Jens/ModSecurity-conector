@@ -7,11 +7,12 @@ on:
     - cron: '17 3 * * 1'
   workflow_dispatch:
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   protocol-contract:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -36,6 +37,8 @@ jobs:
             tests.test_runtime_component_cache_identity -v
 
   nginx-profile-and-client-preflight:
+    permissions:
+      contents: read
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 45

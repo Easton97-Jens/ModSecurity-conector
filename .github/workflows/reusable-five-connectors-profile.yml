@@ -8,11 +8,12 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   resolve-profile:
+    permissions:
+      contents: read
     name: Resolve closed No-CRS profile
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -36,6 +37,9 @@ jobs:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
+      - name: Verify fixed No-CRS workflow contract
+        run: python3 -m unittest -v tests.test_all_connectors_no_crs_workflow_contract
+
       - name: Resolve fixed connector matrix
         id: profile
         env:
@@ -47,6 +51,8 @@ jobs:
           printf 'matrix=%s\n' "$matrix" >> "$GITHUB_OUTPUT"
 
   no-crs:
+    permissions:
+      contents: read
     name: No-CRS / ${{ matrix.connector }} / ${{ inputs.profile }} / ${{ matrix.protocol }} / ${{ matrix.phase4_mode }}
     needs:
       - resolve-profile
@@ -309,6 +315,8 @@ jobs:
           path: ${{ env.EVIDENCE_ROOT }}/${{ matrix.connector }}/${{ env.NO_CRS_RUN_ID }}/
 
   aggregate:
+    permissions:
+      contents: read
     name: No-CRS / five-connector result aggregate
     if: always()
     needs:

@@ -4,11 +4,12 @@ on:
   push:
   pull_request:
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   envoy-contract:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -26,6 +27,20 @@ jobs:
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Set up Go for response observer tests
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: connectors/envoy/ext_proc/go.mod
+          check-latest: false
+          cache: false
+      - name: Test Envoy response observer
+        working-directory: connectors/envoy/ext_proc
+        env:
+          GOTOOLCHAIN: local
+          TMPDIR: /tmp
+        run: |
+          go test -mod=readonly -count=1 ./internal/responseobserver
+          go test -mod=readonly -count=1 -run 'a^' ./cmd/msconnector-envoy-response-observer
       - name: Check Envoy Common and host contracts
         run: |
           set -eu
@@ -34,6 +49,11 @@ jobs:
           make check-remaining-connectors-build-wiring
           make check-remaining-connectors-start-wiring
           make check-remaining-connectors-claim-policy
+      - name: Exercise private socket and transport regressions
+        env:
+          TMPDIR: ${{ runner.temp }}
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python3 -m unittest -v tests.test_private_runtime_sockets tests.test_envoy_transport_hardening_contract
       - name: Set up repository-selected Go for the native bridge
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:

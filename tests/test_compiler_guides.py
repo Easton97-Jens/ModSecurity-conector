@@ -13,9 +13,11 @@ ROOT = Path(__file__).resolve().parents[1]
 GENERATOR_PATH = ROOT / "scripts" / "generate_compiler_guides.py"
 GUIDE_DIRECTORY = ROOT / "docs" / "build" / "compilers"
 SLUGS = ("apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd")
+MODSECURITY_REF_COMMAND = "MODSECURITY_REF=\"v3.0.17\""
+MODSECURITY_COMMIT_COMMAND = "MODSECURITY_COMMIT=\"1925753989ccce977cdaae417b55c9726c7cf02c\""
 COMMON_BEGINNER_COMMANDS = (
-    'MODSECURITY_REF="v3.0.16"',
-    'MODSECURITY_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"',
+    MODSECURITY_REF_COMMAND,
+    MODSECURITY_COMMIT_COMMAND,
     'git clone --branch "$MODSECURITY_REF" --single-branch https://github.com/owasp-modsecurity/ModSecurity.git ModSecurity',
     "cd ModSecurity",
     "git fetch --tags origin",
@@ -383,8 +385,8 @@ class CompilerGuideGenerationTest(unittest.TestCase):
 
     def test_common_beginner_build_verifies_the_pinned_release_before_building(self) -> None:
         required_commands = (
-            'MODSECURITY_REF="v3.0.16"',
-            'MODSECURITY_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"',
+            MODSECURITY_REF_COMMAND,
+            MODSECURITY_COMMIT_COMMAND,
             'git verify-tag "$MODSECURITY_REF"',
             'git checkout --detach "$MODSECURITY_REF"',
             'test "$(git rev-parse HEAD)" = "$MODSECURITY_COMMIT"',
@@ -412,7 +414,7 @@ class CompilerGuideGenerationTest(unittest.TestCase):
             self.assertLess(content.index(f"## {beginner_heading}"), content.index(f"## {heading}"))
             advanced = h2_section(content, heading)
             for marker in (
-                "v3.0.16",
+                MODSECURITY_REF_COMMAND.split('"', 2)[1],
                 "MODSECURITY_COMMIT",
                 "verify-tag",
                 "SHA",

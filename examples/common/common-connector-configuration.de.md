@@ -23,7 +23,7 @@ Dies ist die vollständige aktuelle `key=value`-Parseroberfläche von `common/ru
 | [`phase4_mode`](#phase4-mode) | Common Runtime | Aufzählung | nein | off | Common-Runtime-key=value-Datei | Speichert die späte P4-Policy. Common allein besitzt keine Host-Abbruchprimitive. |
 | [`request_body_limit`](#request-body-limit) | Common Runtime | positive dezimale Byteanzahl | nein | 1048576 | Common-Runtime-key=value-Datei | Begrenzt die der Engine angebotenen Request-Bytes. |
 | [`request_body_mode`](#request-body-mode) | Common Runtime | Aufzählung | nein | buffered | Common-Runtime-key=value-Datei | Wählt den Common-Modus zur Request-Body-Verarbeitung; ein bestimmter Host unterstützt möglicherweise nur eine Teilmenge. |
-| [`response_body_limit`](#response-body-limit) | Common Runtime | positive dezimale Byteanzahl | nein | 1048576 | Common-Runtime-key=value-Datei | Begrenzt die der Engine angebotenen Response-Bytes. |
+| [`response_body_limit`](#response-body-limit) | Common Runtime | positive dezimale Byteanzahl | nein | 1048576 | Common-Runtime-key=value-Datei | Begrenzt die Host-/Runtime-Response-Kapazität dort, wo die Integration begrenzten Speicher benötigt; dies ist keine libModSecurity-Inspection-Policy. |
 | [`response_body_mode`](#response-body-mode) | Common Runtime | Aufzählung | nein | none | Common-Runtime-key=value-Datei | Wählt den Common-Modus zur Response-Body-Verarbeitung; ein bestimmter Host unterstützt möglicherweise nur eine Teilmenge. |
 | [`rules_file`](#rules-file) | Common Runtime | Pfad | nein | none | Common-Runtime-key=value-Datei | Lädt Regeln aus einer lokalen Datei. |
 | [`rules_inline`](#rules-inline) | Common Runtime | Zeichenkette | nein | none | Common-Runtime-key=value-Datei | Fügt eine Inline-Regelkonfiguration hinzu. |
@@ -865,7 +865,7 @@ Limits begrenzen den Ressourcenverbrauch. Wählt den Common-Modus zur Request-Bo
 
 ### Kurzbeschreibung
 
-Begrenzt die der Engine angebotenen Response-Bytes.
+Begrenzt die Host-/Runtime-Response-Kapazität dort, wo die Integration begrenzten Speicher benötigt; dies ist keine libModSecurity-Inspection-Policy.
 
 ### Syntax
 
@@ -899,7 +899,7 @@ Zusammenführung: Wenn ein Host msconnector_config verwendet, überschreiben Ska
 
 P1–P4-Relevanz: Siehe Laufzeitwirkung; Body-Modi/-Limits betreffen P2 und P4, Header-Limits betreffen P1 und P3.
 
-Begrenzt die der Engine angebotenen Response-Bytes.
+Begrenzt die Host-/Runtime-Response-Kapazität dort, wo die Integration begrenzten Speicher benötigt; dies ist keine libModSecurity-Inspection-Policy.
 
 ### Validierung und Fehler
 
@@ -913,7 +913,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 ### Sicherheit und Betrieb
 
-Die harte Obergrenze von 10 MiB begrenzt Response-Body-Allokation und Engine-Eingabe, auch wenn ein Deployment den Standardwert von 1048576 Byte anhebt.
+Die Konfigurationsobergrenze von 10 MiB begrenzt Host-/Runtime-Kapazität dort, wo eine Integration Responses alloziert oder puffert; sie ist kein libModSecurity-WAF-Inspection-Limit.
 
 <a id="response-body-mode"></a>
 ## `response_body_mode`

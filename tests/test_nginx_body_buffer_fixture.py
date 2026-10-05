@@ -79,7 +79,7 @@ class NginxBodyBufferFixtureContractTest(unittest.TestCase):
     def test_runner_rebuilds_exact_head_modules_and_checks_forwarding(self) -> None:
         source = RUNNER.read_text(encoding="utf-8")
         ast.parse(source, filename=str(RUNNER))
-        self.assertEqual(RUNNER_MODULE.EXPECTED_NGINX_ROOT, "nginx-1.31.5")
+        self.assertEqual(RUNNER_MODULE.EXPECTED_NGINX_ROOT, "nginx-1.31.6")
         self.assertIn("assert_exact_checkout", source)
         self.assertIn("fixture requires a clean exact checkout", source)
         self.assertIn("pwd.getpwuid(os.geteuid())", source)
@@ -130,22 +130,33 @@ class NginxBodyBufferFixtureContractTest(unittest.TestCase):
         self.assertNotIn("MSCONNECTOR_NGINX_BODY_FIXTURE_FAIL_ALLOC", product)
 
     def test_positive_event_accounting_is_retained_with_the_rule_binding(self) -> None:
+        paths = {
+            "/memory-within": RUNNER_MODULE.FIXTURE_LIMIT,
+            "/memory-over-limit": RUNNER_MODULE.FIXTURE_LIMIT + 1,
+            "/file-within": RUNNER_MODULE.FIXTURE_LIMIT,
+            "/file-over-limit": RUNNER_MODULE.FIXTURE_LIMIT + 1,
+            "/mixed-within": RUNNER_MODULE.FIXTURE_LIMIT,
+            "/mixed-over-limit": RUNNER_MODULE.FIXTURE_LIMIT + 1,
+        }
         events = [
             {
                 "uri": path,
                 "rule_id": "1250001",
-                "body_bytes_seen": RUNNER_MODULE.FIXTURE_LIMIT,
-                "body_bytes_inspected": RUNNER_MODULE.FIXTURE_LIMIT,
+                "body_bytes_seen": expected_bytes,
+                "body_bytes_inspected": expected_bytes,
                 "body_truncated": False,
                 "truncated": False,
                 "eos_seen": True,
             }
-            for path in ("/memory-within", "/file-within", "/mixed-within")
+            for path, expected_bytes in paths.items()
         ]
         retained = RUNNER_MODULE.validate_positive_events(events)
-        self.assertEqual(set(retained), {"/memory-within", "/file-within", "/mixed-within"})
-        self.assertEqual(retained["/mixed-within"]["rule_id"], "1250001")
-        self.assertEqual(retained["/file-within"]["body_bytes_seen"], RUNNER_MODULE.FIXTURE_LIMIT)
+        self.assertEqual(set(retained), set(paths))
+        self.assertEqual(retained["/mixed-over-limit"]["rule_id"], "1250001")
+        self.assertEqual(
+            retained["/file-over-limit"]["body_bytes_seen"],
+            RUNNER_MODULE.FIXTURE_LIMIT + 1,
+        )
 
     def test_positive_event_accounting_rejects_a_mixed_file_backing_match_gap(self) -> None:
         events = [

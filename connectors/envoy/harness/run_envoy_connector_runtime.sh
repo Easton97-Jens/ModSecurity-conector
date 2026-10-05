@@ -24,6 +24,8 @@ YAML_TEMPLATE="$CONNECTOR_DIR/config/envoy-ext-authz-smoke.yaml.in"
 NO_CRS_SELECTION_CONSUMER="$REPO_ROOT/ci/runtime/lifecycle/consume-no-crs-selected-cases.sh"
 ENVOY_CONFIG="$RUNTIME_ROOT/envoy.yaml"
 SUMMARY="$RUNTIME_ROOT/runtime-summary.txt"
+ALLOW_PROBE="$RUNTIME_ROOT/allow-client.json"
+DENY_PROBE="$RUNTIME_ROOT/deny-client.json"
 SED_LOG_RANGE='1,160p'
 ENVOY_STDOUT="$RUNTIME_ROOT/envoy.stdout.log"
 ENVOY_STDERR="$RUNTIME_ROOT/envoy.stderr.log"
@@ -33,7 +35,7 @@ UPSTREAM_STDOUT="$RUNTIME_ROOT/upstream.stdout.log"
 UPSTREAM_STDERR="$RUNTIME_ROOT/upstream.stderr.log"
 TLS_CERTIFICATE="$RUNTIME_ROOT/envoy-loopback.crt"
 TLS_PRIVATE_KEY="$RUNTIME_ROOT/envoy-loopback.key"
-PRIVATE_SOCKET_DIR="$RUNTIME_ROOT/mrc"
+PRIVATE_SOCKET_DIR=${MSCONNECTOR_PRIVATE_SOCKET_ROOT:-$RUNTIME_ROOT/mrc}
 RESPONSE_OBSERVER_SOCKET="$PRIVATE_SOCKET_DIR/envoy-response-observer.sock"
 COMPANION_SOCKET="$PRIVATE_SOCKET_DIR/envoy-ext-authz-companion.sock"
 OBSERVER_STDOUT="$RUNTIME_ROOT/response-observer.stdout.log"
@@ -109,6 +111,14 @@ case "$EVENT_LOG_PATH" in
         ;;
 esac
 rm -f "$EVENT_LOG_PATH" "$SUMMARY" "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY"
+set -- prepare-runtime-root --runtime-root "$PRIVATE_SOCKET_DIR"
+if [ -n "${MSCONNECTOR_PRIVATE_SOCKET_ROOT:-}" ]; then
+    set -- "$@" --require-private-mode
+fi
+if ! "$PYTHON_BIN" "$HELPER" "$@"; then
+    echo "envoy_runtime_smoke: FAIL - private socket root is unsafe" >&2
+    exit 1
+fi
 if [ -L "$PRIVATE_SOCKET_DIR" ]; then
     echo "envoy_runtime_smoke: FAIL - private response-observer directory must not be a symlink" >&2
     exit 1
@@ -234,6 +244,7 @@ while [ "$attempt" -lt 30 ]; do
     allowed_status=$("$PYTHON_BIN" "$HELPER" probe \
         --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
         --url "https://127.0.0.1:$listen_port/allowed" \
+        --evidence-path "$ALLOW_PROBE" \
         --header "X-Request-Id: envoy-allow-1" \
         --forbid-response-header x-msconnector-terminal-authz 2>/dev/null)
     probe_rc=$?
@@ -252,6 +263,7 @@ fi
 if ! blocked_status=$("$PYTHON_BIN" "$HELPER" probe \
     --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
     --url "https://127.0.0.1:$listen_port/blocked" \
+    --evidence-path "$DENY_PROBE" \
     --header "X-Request-Id: envoy-block-1" \
     --header "X-Modsec-Smoke: block" \
     --forbid-response-header x-msconnector-terminal-authz); then

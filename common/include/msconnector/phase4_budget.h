@@ -7,21 +7,27 @@
 #include "msconnector/options.h"
 
 /*
- * Effective cumulative inspection budget, not an allocation or wire limit.
- * Off disables the extra Phase-4 budget while retaining SIZE_MAX accounting
- * overflow checks. Never use this value to allocate a response-sized buffer;
- * independent host/transport and libModSecurity limits remain authoritative.
- * Unset/unknown modes return zero and must fail closed, not act as off.
+ * Compatibility helper for legacy connector Phase-4 budget settings.
+ *
+ * Response-inspection scope and limits belong to libModSecurity
+ * (SecResponseBodyAccess, SecResponseBodyMimeType, SecResponseBodyLimit and
+ * SecResponseBodyLimitAction). A valid Phase-4 mode therefore has no separate
+ * connector-owned cumulative inspection ceiling. SIZE_MAX is only an
+ * arithmetic/accounting ceiling and must never be used as an allocation size.
+ *
+ * Independent host, transport, chunk/frame, bounded-storage and allocation
+ * limits remain authoritative. UNSET/unknown modes still return zero so an
+ * invalid configuration cannot silently become unlimited.
  */
 static inline size_t msconnector_phase4_effective_body_limit(
     enum msconnector_phase4_mode mode, size_t configured_limit)
 {
+    (void)configured_limit;
     switch (mode) {
     case MSCONNECTOR_PHASE4_MODE_OFF:
-        return SIZE_MAX;
     case MSCONNECTOR_PHASE4_MODE_SAFE:
     case MSCONNECTOR_PHASE4_MODE_STRICT:
-        return configured_limit;
+        return SIZE_MAX;
     default:
         return 0U;
     }

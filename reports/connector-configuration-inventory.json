@@ -137,14 +137,14 @@
       "inheritance": "Parent value is available to the child unless a child value is set; see the Apache directory-config merge function.",
       "merge_behavior": "Common scalar values use child-over-parent merge; rule sets are merged through msc_rules_merge. Transaction-id expression/static-id are mutually exclusive.",
       "validation": "msc_config_phase4_body_limit returns an Apache configuration error for its documented invalid input; validate the installed configuration with apachectl -t.",
-      "phase_relevance": "P4 only. The byte limit and fixed bucket ceiling span filter calls. The adapter retains only the terminal EOS fragment for the one-shot finish; the bucket count resets on release or discard.",
-      "security_relevance": "The byte and fixed bucket ceilings bound payload and per-transaction APR-object/setaside memory/CPU exposure. Each accepted current bucket is appended once before direct forwarding; do not retain a full response or forward an uninspected tail.",
-      "runtime_effect": "Bounds Apache response bytes offered to P4 across current normalized brigades. The configurable default is 1048576 bytes; independently, a fixed non-configurable 4096-normalized-bucket ceiling spans filter calls. A limit breach fails closed before the current offending bucket is forwarded; already committed output is not rewritten.",
+      "phase_relevance": "P4 compatibility only. The configured byte value does not gate response inspection; the independent fixed bucket-count resource guard still spans filter calls.",
+      "security_relevance": "The fixed bucket ceiling still bounds per-transaction APR-object/setaside exposure. Response inspection byte policy belongs to libModSecurity and must not be recreated by safe/strict.",
+      "runtime_effect": "Legacy compatibility value. Apache no longer uses it as a cumulative WAF response-inspection limit; libModSecurity owns SecResponseBodyLimit policy. The fixed non-configurable 4096-normalized-bucket ceiling remains a separate APR-object/resource guard.",
       "example_file": "examples/apache/safe/httpd.conf",
       "example_value": "",
       "compatibility_only": false,
-      "deprecated": false,
-      "description": "Bounds Apache response bytes offered to P4 across current normalized brigades. The configurable default is 1048576 bytes; independently, a fixed non-configurable 4096-normalized-bucket ceiling spans filter calls. A limit breach fails closed before the current offending bucket is forwarded; already committed output is not rewritten."
+      "deprecated": true,
+      "description": "Legacy compatibility value. Apache no longer uses it as a cumulative WAF response-inspection limit; libModSecurity owns SecResponseBodyLimit policy. The fixed non-configurable 4096-normalized-bucket ceiling remains a separate APR-object/resource guard."
     },
     {
       "connector": "apache",
@@ -835,13 +835,13 @@
       "merge_behavior": "When a host uses msconnector_config, scalar child values override parent values; runtime files are parsed as one concrete configuration.",
       "validation": "Unknown keys, empty values, malformed assignments, zero, non-decimal values, and values above the hard cap of 10485760 bytes (10 MiB hard security cap) fail the runtime configuration check.",
       "phase_relevance": "See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.",
-      "security_relevance": "The 10 MiB hard cap bounds response-body allocation and engine input even when a deployment raises the 1048576-byte default.",
-      "runtime_effect": "Bounds response bytes offered to the engine.",
+      "security_relevance": "The 10 MiB configuration cap bounds host/runtime capacity settings where an integration allocates or buffers responses; it is not a libModSecurity WAF inspection limit.",
+      "runtime_effect": "Bounds host/runtime response capacity where that integration requires bounded storage; it is not libModSecurity inspection policy.",
       "example_file": "examples/lighttpd/safe/msconnector-runtime.conf",
       "example_value": "",
       "compatibility_only": false,
       "deprecated": false,
-      "description": "Bounds response bytes offered to the engine."
+      "description": "Bounds host/runtime response capacity where that integration requires bounded storage; it is not libModSecurity inspection policy."
     },
     {
       "connector": "common",
@@ -7768,13 +7768,13 @@
       "merge_behavior": "ngx_conf_merge_* combines scalar/pointer configuration, while msc_rules_merge combines parent and child rules.",
       "validation": "ngx_conf_set_phase4_body_limit rejects invalid values during nginx -t; NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1 is the registered context mask.",
       "phase_relevance": "P1 controls integration; rules and P4 controls affect the stated phase only.",
-      "security_relevance": "A larger limit raises memory/CPU exposure; zero is invalid in the native setters.",
-      "runtime_effect": "Bounds response bytes offered to P4 processing by the native connector.",
+      "security_relevance": "Use libModSecurity SecResponseBodyLimit/SecResponseBodyLimitAction for WAF inspection policy; independent host resource limits remain separate.",
+      "runtime_effect": "Legacy compatibility value; valid Phase-4 modes do not enforce it as a connector WAF response-inspection limit.",
       "example_file": "examples/nginx/safe/nginx.conf",
       "example_value": "",
       "compatibility_only": false,
-      "deprecated": false,
-      "description": "Bounds response bytes offered to P4 processing by the native connector."
+      "deprecated": true,
+      "description": "Legacy compatibility value; valid Phase-4 modes do not enforce it as a connector WAF response-inspection limit."
     },
     {
       "connector": "nginx",

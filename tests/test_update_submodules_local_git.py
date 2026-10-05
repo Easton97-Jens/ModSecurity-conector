@@ -48,7 +48,25 @@ class UpdateSubmodulesLocalGitTests(unittest.TestCase):
         self.git(framework_source, "init")
         self.git(framework_source, "config", "user.email", "test@example.invalid")
         self.git(framework_source, "config", "user.name", "Update-submodules Test")
-        current = self.commit_file(framework_source, "framework.txt", "A\n", "framework A")
+        self.commit_file(framework_source, "framework.txt", "A\n", "framework A")
+
+        mrts_source = temporary / "mrts-source"
+        mrts_source.mkdir()
+        self.git(mrts_source, "init")
+        self.git(mrts_source, "config", "user.email", "test@example.invalid")
+        self.git(mrts_source, "config", "user.name", "Update-submodules Test")
+        self.commit_file(mrts_source, "mrts.txt", "MRTS A\n", "MRTS A")
+        self.git(
+            framework_source,
+            "-c",
+            "protocol.file.allow=always",
+            "submodule",
+            "add",
+            str(mrts_source),
+            "tools/MRTS",
+        )
+        self.git(framework_source, "commit", "-m", "add MRTS")
+        current = self.git(framework_source, "rev-parse", "HEAD")
 
         parent = temporary / "parent"
         parent.mkdir()
@@ -104,7 +122,7 @@ class UpdateSubmodulesLocalGitTests(unittest.TestCase):
         output = temporary / "github-output"
         script = self.workflow_step("resolve-submodule-update", "Resolve exactly one official submodule commit")
         # GitHub evaluates this one workflow expression before starting Bash.
-        # The local default models a scheduled/non-validation-only invocation.
+        # The local default models a manual publishing/non-validation-only invocation.
         script = re.sub(r"\$\{\{.*?\}\}", "false", script, flags=re.DOTALL)
         environment = {
             **os.environ,
@@ -137,6 +155,8 @@ class UpdateSubmodulesLocalGitTests(unittest.TestCase):
                 "PATH": "/usr/bin:/bin",
                 "SUBMODULE_PATH": "framework",
                 "SUBMODULE_URL": str(framework_source),
+                "ALLOWED_NESTED_GITLINK_PATH": "tools/MRTS",
+                "ALLOWED_NESTED_SUBMODULE_URL": str(framework_source.parent / "mrts-source"),
                 "CURRENT_GITLINK_SHA": current,
                 "CANDIDATE_SHA": candidate,
             },
@@ -276,20 +296,72 @@ class SubmodulePublisherIdentityTests(unittest.TestCase):
             "verify_open_pr_identity",
             "verify_open_draft_pr",
             "verify_merged_pr",
+            "require_only_allowed_update_paths",
+            "require_expected_update_raw",
+            "require_single_updater_commit",
+            "verify_open_branch_history",
+            "read_matching_merged_pr",
         ):
             matches = re.findall(rf"(?ms)^{name}\(\) \{{\n.*?^\}}", self.script)
             self.assertEqual(len(matches), 1, name)
             self.functions.append(matches[0])
 
+    git = UpdateSubmodulesLocalGitTests.git
+    commit_file = UpdateSubmodulesLocalGitTests.commit_file
+
+    def make_publisher_history(
+        self, temporary: Path, *, merged: bool = True, human_only: bool = False
+    ) -> tuple[Path, str, str]:
+        repository = temporary / "publisher"
+        repository.mkdir()
+        self.git(repository, "init", "--initial-branch=master")
+        self.git(repository, "config", "user.name", "Reviewed Maintainer")
+        self.git(repository, "config", "user.email", "maintainer@example.invalid")
+        base = self.commit_file(repository, "README", "parent\n", "Parent base")
+        self.git(repository, "checkout", "-b", self.workflow_env["UPDATE_BRANCH"])
+        if not human_only:
+            self.git(repository, "config", "user.name", self.workflow_env["UPDATER_NAME"])
+            self.git(repository, "config", "user.email", self.workflow_env["UPDATER_EMAIL"])
+            self.git(
+                repository, "update-index", "--add", "--cacheinfo",
+                f"160000,{'a' * 40},{self.workflow_env['SUBMODULE_PATH']}",
+            )
+            self.git(repository, "commit", "-m", self.workflow_env["PR_TITLE"])
+        self.git(repository, "config", "user.name", "Reviewed Maintainer")
+        self.git(repository, "config", "user.email", "maintainer@example.invalid")
+        head = self.commit_file(
+            repository, "test-fixture.py", "# reviewed regression repair\n", "repair candidate fixtures"
+        )
+        self.git(repository, "checkout", "master")
+        if merged:
+            self.git(repository, "merge", "--no-ff", self.workflow_env["UPDATE_BRANCH"], "-m", "Merge reviewed updater PR")
+        merge_sha = self.git(repository, "rev-parse", "HEAD")
+        self.git(repository, "remote", "add", "origin", str(repository))
+        self.git(repository, "update-ref", "refs/remotes/origin/master", merge_sha if merged else base)
+        return repository, head, merge_sha
+
     def run_identity_check(
-        self, function: str, **overrides: str
+        self, function: str, *, repository: Path | None = None, **overrides: str
     ) -> subprocess.CompletedProcess[str]:
-        self.assertIn(function, ("verify_open_draft_pr", "verify_merged_pr"))
+        if repository is None:
+            with tempfile.TemporaryDirectory() as raw:
+                repository, _head, merge_sha = self.make_publisher_history(Path(raw))
+                return self.run_identity_check(
+                    function,
+                    repository=repository,
+                    **{"TEST_MERGE_SHA": merge_sha, **overrides},
+                )
+        self.assertIn(
+            function,
+            ("verify_open_draft_pr", "verify_merged_pr", "merged_branch_state", "verify_open_branch_history"),
+        )
         environment = {
             **os.environ,
             **self.workflow_env,
             "PATH": "/usr/bin:/bin",
             "GITHUB_REPOSITORY": "owner/project",
+            "GITHUB_REPOSITORY_OWNER": "owner",
+            "BASH_ENV": "/dev/null",
             "EXPECTED_PR_AUTHOR": "easton97-jens-framework[bot]",
             "EXPECTED_HEAD": "a" * 40,
             "TEST_AUTHOR": "easton97-jens-framework[bot]",
@@ -304,11 +376,21 @@ class SubmodulePublisherIdentityTests(unittest.TestCase):
             "TEST_BASE_REPO": "owner/project",
             "TEST_HEAD_REPO": "owner/project",
             "TEST_MERGED_AT": "2026-09-20T00:00:00Z",
+            "TEST_MERGE_SHA": "",
+            "TEST_MATCHING_PR_NUMBERS": "374",
             **overrides,
         }
         # No network, token, Git push, or PR mutation is available to these guards.
         gh_stub = r'''
 gh() {
+  if [ "$4" = "repos/$GITHUB_REPOSITORY/pulls" ]; then
+    if [ "$1" != api ] || [ "$2" != --method ] || [ "$3" != GET ] || [ "$6" != state=closed ]; then
+      echo "unexpected GitHub CLI list invocation" >&2
+      return 96
+    fi
+    printf '%s\n' "$TEST_MATCHING_PR_NUMBERS"
+    return 0
+  fi
   if [ "$#" -ne 6 ] || [ "$1" != api ] || [ "$2" != --method ] || [ "$3" != GET ] || [ "$4" != "repos/$GITHUB_REPOSITORY/pulls/374" ] || [ "$5" != --jq ]; then
     echo "unexpected GitHub CLI invocation" >&2
     return 97
@@ -324,17 +406,29 @@ gh() {
     .base.repo.full_name) printf '%s\n' "$TEST_BASE_REPO" ;;
     .head.repo.full_name) printf '%s\n' "$TEST_HEAD_REPO" ;;
     .merged_at) printf '%s\n' "$TEST_MERGED_AT" ;;
+    .merge_commit_sha) printf '%s\n' "$TEST_MERGE_SHA" ;;
     '.body // ""') printf '%s\n' "$TEST_BODY" ;;
     *auto_merge*) printf '%s\n' "$TEST_AUTO_MERGE" ;;
     *) echo "unexpected GitHub CLI query" >&2; return 98 ;;
   esac
 }
 '''
-        script = "\n".join(
-            [self.prelude, gh_stub, *self.functions, f'{function} 374 "$EXPECTED_HEAD"']
-        )
+        if function == "merged_branch_state":
+            # Execute the workflow's actual state-C guard, stopping before any
+            # candidate preparation, credential setup, or publication.
+            match = re.search(r"(?ms)^\s*0:true\)\n(.*?)^\s*;;", self.script)
+            self.assertIsNotNone(match, "publisher merged branch state is missing")
+            assert match is not None
+            suffix = match.group(1)
+            suffix = 'EXPECTED_REMOTE_HEAD="$EXPECTED_HEAD"\n' + suffix
+        elif function == "verify_open_branch_history":
+            suffix = function
+        else:
+            suffix = f'{function} 374 "$EXPECTED_HEAD"'
+        script = "\n".join([self.prelude, gh_stub, *self.functions, suffix])
         return subprocess.run(
             ["/bin/bash", "-ceu", script],
+            cwd=repository,
             env=environment,
             text=True,
             stdout=subprocess.PIPE,
@@ -398,6 +492,84 @@ gh() {
                 result = self.run_identity_check("verify_open_draft_pr", **changes)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertNotIn("unexpected GitHub CLI", result.stderr)
+
+    def test_merged_branch_reuses_reviewed_human_remediation_history(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            repository, head, merge_sha = self.make_publisher_history(Path(raw))
+            result = self.run_identity_check(
+                "merged_branch_state", repository=repository,
+                EXPECTED_HEAD=head, TEST_HEAD_SHA=head, TEST_STATE="closed", TEST_MERGE_SHA=merge_sha,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(self.git(repository, "show", "-s", "--format=%an", head), "Reviewed Maintainer")
+            self.assertEqual(self.git(repository, "rev-parse", "origin/master"), merge_sha)
+            self.assertEqual(self.git(repository, "rev-parse", self.workflow_env["UPDATE_BRANCH"]), head)
+
+    def test_merged_branch_rejects_forged_pr_identity(self) -> None:
+        cases = (
+            {"TEST_AUTHOR": "human"},
+            {"TEST_STATE": "open"},
+            {"TEST_BASE": "other"},
+            {"TEST_HEAD_BRANCH": "other"},
+            {"TEST_HEAD_SHA": "b" * 40},
+            {"TEST_TITLE": "unrelated"},
+            {"TEST_BODY": ""},
+            {"TEST_BODY": self.workflow_env["PR_MARKER"] + "\n" + self.workflow_env["PR_MARKER"]},
+            {"TEST_HEAD_REPO": "foreign/project"},
+            {"TEST_BASE_REPO": "foreign/project"},
+            {"TEST_MERGED_AT": ""},
+            {"TEST_MERGED_AT": "null"},
+            {"TEST_MATCHING_PR_NUMBERS": ""},
+            {"TEST_MATCHING_PR_NUMBERS": "374\n375"},
+        )
+        with tempfile.TemporaryDirectory() as raw:
+            repository, head, merge_sha = self.make_publisher_history(Path(raw))
+            for changes in cases:
+                with self.subTest(changes=changes):
+                    result = self.run_identity_check(
+                        "merged_branch_state", repository=repository,
+                        **{
+                            "EXPECTED_HEAD": head, "TEST_HEAD_SHA": head,
+                            "TEST_STATE": "closed", "TEST_MERGE_SHA": merge_sha, **changes,
+                        },
+                    )
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertNotIn("unexpected GitHub CLI", result.stderr)
+
+    def test_merged_branch_requires_merge_commit_in_current_master_history(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            repository, head, merge_sha = self.make_publisher_history(Path(raw))
+            tree = self.git(repository, "rev-parse", "HEAD^{tree}")
+            unrelated = self.git(repository, "commit-tree", tree, input_text="unrelated merge\n")
+            for invalid_sha in ("", "null", "deadbeef", "f" * 40, unrelated):
+                with self.subTest(merge_sha=invalid_sha):
+                    result = self.run_identity_check(
+                        "merged_branch_state", repository=repository,
+                        EXPECTED_HEAD=head, TEST_HEAD_SHA=head, TEST_STATE="closed", TEST_MERGE_SHA=invalid_sha,
+                    )
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("not reachable", result.stderr)
+            # A previously merged PR cannot authorize reuse after master has
+            # moved to a history that excludes its recorded merge commit.
+            self.git(repository, "update-ref", "refs/remotes/origin/master", unrelated)
+            result = self.run_identity_check(
+                "merged_branch_state", repository=repository,
+                EXPECTED_HEAD=head, TEST_HEAD_SHA=head, TEST_STATE="closed", TEST_MERGE_SHA=merge_sha,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("not reachable", result.stderr)
+
+    def test_open_branch_still_rejects_human_commits(self) -> None:
+        for human_only in (False, True):
+            with self.subTest(human_only=human_only), tempfile.TemporaryDirectory() as raw:
+                repository, _head, _merge_sha = self.make_publisher_history(
+                    Path(raw), merged=False, human_only=human_only,
+                )
+                result = self.run_identity_check("verify_open_branch_history", repository=repository)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(
+                    "not updater-conformant" if human_only else "unexpected commit history", result.stderr,
+                )
 
     def test_app_identity_does_not_accept_an_unmerged_pr(self) -> None:
         for merged_at in ("", "null"):

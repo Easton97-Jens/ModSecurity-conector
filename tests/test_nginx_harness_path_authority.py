@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import json
+import shlex
 from pathlib import Path
 import stat
 import subprocess
@@ -114,6 +116,61 @@ class NginxHarnessPathAuthorityTests(unittest.TestCase):
             capture_output=True,
             env=environment,
         )
+
+    def test_case_metadata_uses_validated_private_work_root_and_rejects_escapes(self) -> None:
+        framework = ROOT / "modules/ModSecurity-test-Framework"
+        case = framework / "tests/cases/phases/phase2/phase2_args_block.yaml"
+        source = HARNESS.read_text()
+        function = "write_case_result() {" + source.split("write_case_result() {", 1)[1].split(
+            "\nrequire_bounded_positive_decimal", 1
+        )[0]
+        with tempfile.TemporaryDirectory(prefix="nginx-case-output-root-") as temporary:
+            verified = Path(temporary) / "verified"
+            build = verified / "build"
+            parent = verified / "nginx-harness"
+            private = parent / "private-work"
+            logs = private / "logs"
+            validator = self.run_validator("--verified-run-root", str(verified),
+                "--directory", "BUILD_ROOT", str(build),
+                "--directory", "NGINX_HARNESS_PARENT", str(parent),
+                "--directory", "NGINX_HARNESS_WORK_ROOT", str(private),
+                "--directory", "LOG_DIR", str(logs), "--quiet")
+            self.assertEqual(validator.returncode, 0, validator.stderr)
+            env = {**os.environ, "PYTHON_BIN": sys.executable,
+                   "CASE_CLI": str(framework / "tests/runners/case_cli.py"),
+                   "BUILD_ROOT": str(build), "NGINX_HARNESS_WORK_ROOT": str(private),
+                   "MODSECURITY_TEST_VARIANT": "no-crs", "PYTHONDONTWRITEBYTECODE": "1"}
+
+            def write_metadata(output: Path, actual_status: str) -> subprocess.CompletedProcess[str]:
+                arguments = (str(case), "blocked" if not actual_status else "pass", actual_status,
+                             str(output), "http_status", "host preflight blocked" if not actual_status else "")
+                return subprocess.run(["sh", "-eu", "-c", function + "\nwrite_case_result " +
+                    " ".join(shlex.quote(argument) for argument in arguments)],
+                    cwd=ROOT, env=env, capture_output=True, text=True, timeout=30)
+
+            for actual_status in ("", "403"):
+                output = logs / ("blocked" if not actual_status else "observed") / "result.json"
+                result = write_metadata(output, actual_status)
+                with self.subTest(actual_status=actual_status):
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    data = json.loads(output.read_text())
+                    self.assertEqual(data["status"], "blocked" if not actual_status else "pass")
+                    self.assertEqual(data["executed_connector"], "nginx")
+            outside = verified / "outside-private-work"
+            escape = private / "escape"
+            escape.symlink_to(outside, target_is_directory=True)
+            for output in (outside / "result.json", escape / "result.json"):
+                result = write_metadata(output, "")
+                with self.subTest(output=output):
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("write path escapes output root", result.stderr)
+                    self.assertFalse(outside.exists())
+            self.assertTrue(escape.is_symlink())
+        # The real entrypoint validates the work root before the multi-case
+        # parent can project metadata for a blocked child process.
+        entry = source.split("initialize_nginx_harness_paths\n", 1)[1]
+        self.assertLess(entry.index("if [ \"$RUN_ONE_CASE\" != \"1\" ]"), entry.index("TEST_CASE=$(resolve_case_path"))
+        self.assertIn("validate_nginx_harness_outer_paths", source.split("initialize_nginx_harness_paths() {", 1)[1].split("\n}\n", 1)[0])
 
     def test_system_root_is_rejected_before_any_output_is_authorized(self) -> None:
         result = self.run_validator(

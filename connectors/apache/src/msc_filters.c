@@ -268,6 +268,7 @@ static apr_status_t apache_input_filter_process_bucket(msc_t *msr,
     const char *data;
     apr_size_t len;
     msconnector_body_limit_plan plan;
+    msconnector_config effective_config;
     int ret;
 
     ret = apr_bucket_read(bucket, &data, &len, block);
@@ -285,10 +286,25 @@ static apr_status_t apache_input_filter_process_bucket(msc_t *msr,
         return apache_input_filter_terminal_error(msr, r,
             HTTP_INTERNAL_SERVER_ERROR);
     }
+    /* A global-only httpd configuration need not pass through the directory
+     * merge hook. Resolve defaults in a local copy, after inheritance, rather
+     * than treating unresolved zero limits as an oversized request. */
+    if (!msconnector_config_merge(&effective_config, NULL,
+            &conf->common_config)) {
+        (void)msc_apache_contract_fail(msr,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
+        apache_emit_contract_failure_event(msr, r,
+            MSCONNECTOR_PHASE_REQUEST_BODY,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR,
+            HTTP_INTERNAL_SERVER_ERROR);
+        ap_remove_input_filter(f);
+        return apache_input_filter_terminal_error(msr, r,
+            HTTP_INTERNAL_SERVER_ERROR);
+    }
     if (!msconnector_body_limit_plan_chunk(msr->request_body_bytes_seen,
             msr->request_body_bytes_inspected,
-            conf->common_config.request_body_limit,
-            conf->common_config.body_limit_action, len, &plan)) {
+            effective_config.request_body_limit,
+            effective_config.body_limit_action, len, &plan)) {
         msr->request_body_bytes_seen = plan.bytes_seen;
         msr->request_body_truncated = 1;
         (void)msc_apache_contract_fail(msr,
@@ -932,16 +948,12 @@ static apr_status_t apache_phase4_append_bucket(msc_t *msr,
             return APR_EGENERAL;
         }
         msr->response_body_seen = 1;
-        /* Phase 4 has an EOS-only final decision. libModSecurity owns the
-         * effective SecResponseBodyMimeType policy, but its C API does not
-         * expose a safe way for this connector to query that selection.
-         * Therefore every response bucket is appended exactly once before the
-         * current non-terminal brigade is forwarded. Processing a bounded
-         * prefix and then forwarding an uninspected tail would recreate the
-         * bypass in safe/strict, so those modes reject an oversize bucket
-         * before forwarding. Off bypasses only this connector budget; checked
-         * accounting and the engine's own limits remain active.
-         * Output committed by an earlier brigade is never rewritten.
+        /* Phase 4 has an EOS-only final decision. libModSecurity owns MIME
+         * selection and response-inspection limits, so every response bucket
+         * is appended exactly once and no P4 mode adds a connector byte
+         * policy. The shared planner is retained only for checked accounting
+         * and integer-overflow rejection. Output committed by an earlier
+         * brigade is never rewritten.
          */
         if (!msconnector_body_limit_plan_chunk(msr->response_body_bytes_seen,
                 msr->response_body_bytes_inspected,
