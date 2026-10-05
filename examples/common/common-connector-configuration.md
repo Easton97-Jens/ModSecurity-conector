@@ -2,12 +2,6 @@
 
 **Language:** English | [Deutsch](common-connector-configuration.de.md)
 
-## Quick orientation
-
-This page is a reference, not a recommended copy-paste configuration. Start by choosing a host/profile from the [examples index](../README.md); its bundle shows which Common Runtime keys are required for that topology.
-
-Keep WAF inspection policy separate from host/runtime capacity: `SecResponseBodyLimit` and `SecResponseBodyLimitAction` belong to the ModSecurity engine. A Common `response_body_limit`, where a profile genuinely uses it, describes bounded host/runtime storage or transport capacity and must not be presented as the WAF response-inspection byte limit.
-
 ## Scope
 
 This is the complete current `key=value` parser surface of `common/runtime/msconnector_runtime.c`. It is not a claim that every host exposes every key as a host directive.
