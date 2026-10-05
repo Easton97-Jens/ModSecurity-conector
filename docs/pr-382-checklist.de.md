@@ -4,7 +4,8 @@
 
 [Draft-PR #382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382),
 Branch `fix/unified-native-results-events-20260921`, Basis
-`5170d24801243cdcd7bf1bca6123bf8cb2c72386`. Aktualisiert: 2026-09-23.
+`5170d24801243cdcd7bf1bca6123bf8cb2c72386`. Aktualisiert: 2026-10-05.
+Der Branch ist über Merge-Commit `dfd5e5b1` mit dem aktuellen `master` `820b6975495bdf0f90aca67eee86e27a3b7d329b` synchronisiert und liegt nicht mehr hinter `master`.
 
 **Bei I09 und I10 fehlt noch mehr als der Live-Host-Nachweis.** Fertiger Code,
 ausgeführte kompilierte Tests, offene native Tests und echte Hostnachweise bleiben
@@ -28,6 +29,15 @@ Referenzen: [Vertrag/Migration](pr-382-event-contract.de.md),
 [Apache-Lebenszyklus](../reports/audits/change-records/CR-20260923-pr382-apache-native-lifecycle.de.md),
 [Apache-Adoption](../reports/audits/change-records/CR-20260923-pr382-apache-adoption.de.md),
 [native Envoy-Testreparatur](../reports/audits/change-records/CR-20260923-pr382-envoy-test-boundaries.de.md).
+
+
+### 2026-10-05 Stack- und Konfliktabgleich
+
+- [x] `master` wurde ohne Force-Push in PR #382 gemergt. Zwölf überlappende Dateien wurden semantisch zusammengeführt: aktuelle CI-/Sicherheitsänderungen aus `master` bleiben gemeinsam mit den PR-#382-Verträgen für native Rückgaben, erste Fehlerursache, Apache-Lifecycle, terminale NGINX-Fehler und native Envoy-Brücke erhalten.
+- [x] Der resultierende PR-#382-Head `dfd5e5b1` wurde mit `mergeable=true` und `behind=0` zurückgelesen; PR #382 bleibt Draft und ungemergt.
+- [x] Zwei durch frische CI sichtbare Merge-Nacharbeiten wurden in `29af9abe` korrigiert: doppelte `permissions` in `.github/workflows/lint.yml` sowie die B09-NGINX-C-Regressionsfixture ohne Stub für den neueren Transaction-Contract. Für diesen Folgecommit ist frische Verifikation erforderlich; die fehlgeschlagenen Merge-Checks werden nicht nachträglich als PASS bezeichnet.
+- [x] Der gestapelte PR #396 wurde geprüft und auf die aktualisierte #382-Basis gezogen. Seine NGINX-Exact-Head-Arbeit bleibt eine getrennte Draft-Abnahmeebene; sie schließt I09-I12 nicht automatisch und belegt keinen kanonischen vollständigen E2E-PASS.
+- [x] Framework-PR #135 ist gemergt. Dessen Merge-Commit `dc41bd22c335156cae02d9049098b92af65b7c57` ist der Framework-Gitlink auf aktuellem `master`/#382. Der historische PR-#396-Zeiger `dd4af7d...` wird daher nicht als aktueller Parent-Gitlink verwendet.
 
 ## 1. Implementierung
 
@@ -83,7 +93,7 @@ Referenzen: [Vertrag/Migration](pr-382-event-contract.de.md),
 - [x] V06a: Historische Apache-Helfer und 16 Negativmutationen bestanden für `1709e1de`; neue 25-Fall-Prüfung siehe V24.
 - [x] V06b: Alle 100 NGINX-Adoption-/Mutationstests bestanden für `f7aa2f2c`, `092dfd1c` und `bced5ce7`.
 - [ ] V07: Alle finalen Freigabeprüfungen/Reviews; keine vollständig grüne Freigabe-CI behauptet.
-- [ ] V07a: Unabhängigen Secret-Scan ohne unbelegte Ausnahme klären. Der [Workflow für 7d05e89f](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35896111802) scheitert weiterhin.
+- [ ] V07a: Unabhängigen Secret-Scan ohne unbelegte Ausnahme klären. Der frische Secret-Scanning-Lauf `37281536909` / Job `111670517150` für den synchronisierten Stack scheitert weiterhin. Aus diesem Status werden keine Secret-Inhalte abgeleitet oder reproduziert.
 - [ ] V08: Echte Hostfälle für ProcessPartial/Reject, MIME/CSV, leere/mehrteilige Bodys/EOS, Budgets und native Fehler.
 - [ ] V09: Spätes Safe/Strict, Fehler vor/nach Commit, Client-Bytes, Reset-Grenze, Nachbarstreams und Bereinigung.
 - [ ] V10: Echte Routenlogs, ungültige/übergroße Metadaten, fehlende Beobachtungen und fehlerhafte physische Ausgaben.
@@ -103,6 +113,10 @@ Referenzen: [Vertrag/Migration](pr-382-event-contract.de.md),
 - [x] V24: Für `3c29004b` bestand der [native Apache-Job 107137107158](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35847504774/job/107137107158) die 20 kompilierten Lifecycle-Fälle und Bootstrap. [Strukturjob 107137106792](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35847504774/job/107137106792) bestand 25 Adoption-/Mutationsfälle und scheiterte erst an getrennt fehlenden Berichtsdatumsfeldern.
 - [x] V25a: `7d05e89f` enthält native Testreparaturen: getrennte gültige 413- und terminale ungültige Bestätigungsfälle, explizit unsichere Dateirechte und erhaltene ursprüngliche Inode. Produktivschutz und bestehende Positivkontrollen bleiben unverändert.
 - [x] V25: Die native Go-Suite aus V20 bestand die V25a-Reparaturen einschließlich erster Fehlerursache und unveränderter Ereignisbytes nach fehlgeschlagenen Wiederholungen. Der ursprüngliche fehlgeschlagene Lauf bleibt als Regressionsbaseline erhalten.
+- [x] V27: `dfd5e5b1` integriert den aktuellen `master` `820b6975` ohne Force-Push in #382; der Branch wurde vor der Folgekorrektur mit `behind=0` und `mergeable=true` zurückgelesen.
+- [x] V28a: `29af9abe` korrigiert die zwei deterministischen Merge-Nachwirkungen aus actionlint und dem begrenzten NGINX-B09-Regressionsbuild. Damit sind die Fixes geliefert, nicht deren frischer CI-Lauf.
+- [ ] V28: Frische CI für `29af9abe` und den späteren Dokumentationshead verlangen; weder die fehlgeschlagenen `dfd5e5b1`-actionlint/B09-Ergebnisse noch ältere grüne Ergebnisse werden vererbt.
+- [x] V29: Beim Stack-Abgleich von PR #396 wurden sechs überlappende Textpfade und der Framework-Gitlink geprüft. Für den Parent-Gitlink ist das gemergte Ergebnis von Framework-PR #135 `dc41bd22` maßgeblich; PR #396 bleibt Draft und braucht eigene Checks nach dem Refresh.
 - [x] V26: [Lint-Job 107304638636](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35897399419/job/107304638636) bestand für `b92459ba` den unveränderten Zweisprachigkeitsvalidator; beide Datumsfelder und die Checkliste sind bestätigt. Gesamtstatus war bei diesem Abruf noch laufend.
 
 ## 3. Sonar: null Befunde und null Duplikation
@@ -146,7 +160,7 @@ verlangt keine gleichen Hostzahlen und erteilt keine neue Reset-/Abbruchfähigke
 - [x] D02: EN/DE-Checkliste trennt implementierten Code von Verifikation.
 - [ ] D03: Connector-Anleitungen/Beispiele und Kompatibilitätsprüfung vervollständigen.
 - [x] D03a: Zweisprachiger Vertrag und Auswerter-/Hash-Migrationswarnungen bleiben erhalten.
-- [x] D04: Tatsächliche Apache-Ergänzungen und veröffentlichte Envoy-Testreparatur abgeglichen; veraltete Behauptung eines unberührten Apache-Modulteils entfernt.
+- [x] D04: Tatsächliche Apache-/Envoy-Arbeit, den Master-Konfliktabgleich vom 05.10., den Stack-Stand von PR #396 und den gemergten Framework-#135-Gitlink abgeglichen; veraltete Vor-Sync-Aussagen entfernt.
 - [ ] D05: Finale Dokument-/Link-/Diff-/CI-Prüfung und PR-/Branch-Abgleich.
 
 ## Revisionsgebundene Nachweise
@@ -160,6 +174,8 @@ Der erste echte Envoy-Lauf [35847504839](https://github.com/Easton97-Jens/ModSec
 scheiterte an drei Fixture-/Erwartungsfällen. Der reparierte vollständige native
 Lauf bestand für `7d05e89f` (V20/V25), ohne geänderten Produktivschutz. Nach Ergänzung
 der Datumsfelder bestand die unveränderte Zweisprachigkeitsprüfung für `b92459ba` (V26).
+
+Am 05.10.2026 wurde #382 in `dfd5e5b1` mit dem aktuellen Master synchronisiert. Frische CI auf diesem Merge bestätigte mehrere Connector-Workflows, zeigte aber zwei deterministische Merge-Nachwirkungen: doppelte Job-Permissions im Lint und eine veraltete kompilierte B09-Fixture. Beide sind in `29af9abe` korrigiert; frische Folgechecks bleiben erforderlich. Secret Scanning bleibt unabhängig offen. PR #396 wurde außerdem als gestapelter Draft geprüft; seine NGINX-Exact-Head-Kette liefert nachgelagerte Evidence, der historische kanonische Lauf war jedoch kein vollständiger E2E-PASS.
 
 Frühere Nachweise bleiben in [der Liste bei ad22918e](https://github.com/Easton97-Jens/ModSecurity-conector/blob/ad22918e92849a10483439d72ac9a50154ec00be/docs/pr-382-checklist.de.md)
 und verlinkten Change Records erhalten. Der Nutzer hat den RTK-Geltungsbereich
