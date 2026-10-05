@@ -45,7 +45,7 @@ getrennte Konzepte und werden in den hostspezifischen Beispiel-Guides erklärt.
 
 ## Zehn logische Lösungen
 
-| Logische Lösung | Off | Safe | Strict | All |
+| Logische Connectorlösung | Off | Safe | Strict | All |
 | --- | --- | --- | --- | --- |
 | Apache | [off](apache/off/httpd.conf) | [safe](apache/safe/httpd.conf) | [strict](apache/strict/httpd.conf) | [all](apache/all/httpd.conf) |
 | NGINX | [off](nginx/off/nginx.conf) | [safe](nginx/safe/nginx.conf) | [strict](nginx/strict/nginx.conf) | [all](nginx/all/nginx.conf) |
@@ -57,6 +57,19 @@ getrennte Konzepte und werden in den hostspezifischen Beispiel-Guides erklärt.
 | Traefik forwardAuth | [off](traefik/forwardauth/off/) | [safe](traefik/forwardauth/safe/) | [strict](traefik/forwardauth/strict/) | [all](traefik/forwardauth/all/) |
 | lighttpd Patched | [off](lighttpd/patched/off/) | [safe](lighttpd/patched/safe/) | [strict](lighttpd/patched/strict/) | [all](lighttpd/patched/all/) |
 | lighttpd Stock | [off](lighttpd/stock/off/) | [safe](lighttpd/stock/safe/) | [strict](lighttpd/stock/strict/) | [all](lighttpd/stock/all/) |
+
+Das `all`-Layout kombiniert quellenbasierte Optionen, führt aber keinen nicht unterstützten P4-Modus `all` ein. Es verwendet einen real unterstützten Phase-4-Wert wie `strict`.
+
+## Kompatibilitäts- und Companion-Grenzen
+
+Einige logische Lösungen benötigen Kompatibilitäts- oder Companion-Pfade. Lesen Sie diese Abschnitte, bevor ein Profil als vollständige P1–P4-Route eingeordnet wird:
+
+- [HAProxy-SPOE/SPOP-Kompatibilitätsmaterial](haproxy/README.de.md#spoespop-kompatibilitätsmaterial)
+- [Envoy-ext_authz-Kompatibilität](envoy/README.de.md#ext_authz-kompatibilität)
+- [Traefik-forwardAuth-Kompatibilität](traefik/README.de.md#forwardauth-kompatibilität)
+- [lighttpd-Sidecar-Kompatibilität](lighttpd/README.de.md#sidecar-kompatibilität)
+
+Diese Links erklären Request-only-/Companion-Grenzen; sie machen aus einer Kompatibilitätsroute keine Evidence für ein anderes logisches Profil.
 
 ## Was normalerweise angepasst werden muss
 

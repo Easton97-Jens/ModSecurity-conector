@@ -218,6 +218,14 @@ restored to current `master` in commit
 remain in manually maintained navigation/configuration pages rather than
 generated output.
 
+The next exact-head lint also enforced the repository's logical-solution
+navigation contract for `examples/README.*`: the root example index must use
+the canonical logical-connector table heading, link the four documented
+compatibility/companion boundaries, and state explicitly that the `all`
+layout never creates an unsupported Phase-4 value. The final example-index
+update restores those reader-facing navigation requirements without changing
+the underlying examples or runtime behavior.
+
 ## Security impact
 
 Documentation only. No product source, parser, runtime policy, default,

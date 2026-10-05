@@ -225,6 +225,16 @@ Ausgaben wurden in Commit
 zurückgestellt. Leserorientierte Erklärungen bleiben damit in manuell
 gepflegten Navigations-/Konfigurationsseiten statt in generierten Ausgaben.
 
+Der nächste Exact-Head-Lint setzte zusätzlich den
+Logical-Solution-Navigationsvertrag des Repositorys für
+`examples/README.*` durch: Der Root-Beispielindex muss den kanonischen
+Tabellenkopf für logische Connectorlösungen verwenden, die vier dokumentierten
+Kompatibilitäts-/Companion-Grenzen verlinken und ausdrücklich festhalten, dass
+das `all`-Layout keinen nicht unterstützten Phase-4-Wert erzeugt. Die finale
+Aktualisierung des Beispielindex stellt diese leserorientierten
+Navigationsanforderungen wieder her, ohne Beispiele oder Runtime-Verhalten zu
+ändern.
+
 ## Security-Auswirkung
 
 Nur Dokumentation. Produkt-Source, Parser, Runtime-Policy, Standardwerte,

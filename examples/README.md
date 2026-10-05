@@ -42,7 +42,7 @@ concepts and are documented in the host-specific example guides.
 
 ## Ten logical solutions
 
-| Logical solution | Off | Safe | Strict | All |
+| Logical connector solution | Off | Safe | Strict | All |
 | --- | --- | --- | --- | --- |
 | Apache | [off](apache/off/httpd.conf) | [safe](apache/safe/httpd.conf) | [strict](apache/strict/httpd.conf) | [all](apache/all/httpd.conf) |
 | NGINX | [off](nginx/off/nginx.conf) | [safe](nginx/safe/nginx.conf) | [strict](nginx/strict/nginx.conf) | [all](nginx/all/nginx.conf) |
@@ -54,6 +54,19 @@ concepts and are documented in the host-specific example guides.
 | Traefik forwardAuth | [off](traefik/forwardauth/off/) | [safe](traefik/forwardauth/safe/) | [strict](traefik/forwardauth/strict/) | [all](traefik/forwardauth/all/) |
 | lighttpd Patched | [off](lighttpd/patched/off/) | [safe](lighttpd/patched/safe/) | [strict](lighttpd/patched/strict/) | [all](lighttpd/patched/all/) |
 | lighttpd Stock | [off](lighttpd/stock/off/) | [safe](lighttpd/stock/safe/) | [strict](lighttpd/stock/strict/) | [all](lighttpd/stock/all/) |
+
+The `all` layout combines source-backed options but never introduces an unsupported `all` phase value. It uses a real supported Phase-4 value such as `strict`.
+
+## Compatibility and companion boundaries
+
+Some logical solutions depend on compatibility or companion paths. Read these before treating the profile as a complete P1–P4 route:
+
+- [HAProxy SPOE/SPOP compatibility material](haproxy/README.md#spoespop-compatibility-material)
+- [Envoy ext_authz compatibility](envoy/README.md#ext_authz-compatibility)
+- [Traefik forwardAuth compatibility](traefik/README.md#forwardauth-compatibility)
+- [lighttpd sidecar compatibility](lighttpd/README.md#sidecar-compatibility)
+
+These links explain the request-only/companion boundaries; they do not turn a compatibility route into evidence for another logical profile.
 
 ## What you normally need to change
 
