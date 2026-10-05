@@ -1,0 +1,566 @@
+# Change Record: CR-20261001-ci-recovery
+
+**Language:** English | [Deutsch](CR-20261001-ci-recovery.de.md)
+
+## Identity
+
+| Field | Value |
+| --- | --- |
+| Change ID | CR-20261001-ci-recovery |
+| Date (UTC) | 2026-10-01 |
+| Base revision | `b0f3bdab429717b5b0311c30c5b4d1153c672ac0` |
+
+## Motivation and problem statement
+
+Recover the failures reported in Parent run [36906913089](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/36906913089) and Framework run [36703337419](https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/36703337419), and inspect current CI for related failures. Parent maintenance wrongly applied the single-bot-commit rule to a reviewed, merged maintenance branch. Additional gaps included long Unix socket paths, rejection of the provisioned Traefik host stage, broker permission/tag-fetch contracts, incomplete updater inventory/copied-tree inputs, and transient artifact cleanup API failures.
+
+The user subsequently requested one maintained location for `FRAMEWORK_SHA`,
+other ordinary revision pins, component selections and toolchains. This extends
+the requested repair scope; it does not authorize Framework/MRTS source edits
+or protected broker activation.
+
+## Acceptance criteria
+
+Regression checks must cover the original defects without weakening publisher identity, runtime isolation, immutable pins, or deny-default permissions. Current hosted Framework publication and its PR checks must succeed. Parent hosted validation and protected broker activation remain required before claiming all workflows work.
+
+Ordinary revision and toolchain consumers must use one strict Parent record;
+independent gitlink/commit provenance, component ownership and narrow updater
+field scopes must remain enforced.
+
+## Implementation decision and rationale
+
+Keep open maintenance branches constrained to the configured App; allow reuse of reviewed merged remediation history only after checking PR identity, merge ancestry, and current branch guards. Allocate private, short socket directories while retaining revision-bound artifact roots. Admit only the exact provisioned Traefik host path. Accept the broker caller's exact empty permission mapping and independently acquire/check the approved CRS tag. Complete the explicit updater publisher inventory and read-only copied baseline; run focused inventory coverage in Make and the full suite in CI to avoid recursive candidate validation. Derive action-pin assertions from the central lock. Retry artifact cleanup API calls three times.
+
+The socket wrapper's follow-up interface correction preserves private `0700` roots, ownership/safe-ancestor checks, socket byte limits, termination verification, and retention on unsafe cleanup. Its low-level command runner remains an internal test API rather than CLI command input. Fresh-head hosted/quality evidence is required after this source change.
+
+Fresh hosted Apache CRS job `110539160124` in [run 36912740744](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/36912740744) exposed another required repair: the pinned HTTPD `2.4.68` URL `https://downloads.apache.org/httpd/httpd-2.4.68.tar.bz2` returned `404`, while the identical official archive URL `https://archive.apache.org/dist/httpd/httpd-2.4.68.tar.bz2` returned `200`. The literal SHA-256 stays `68c74d4df38c26bed4dfbdb8f3baf1eb532f3872357becc1bba5d136f6b63c06`. Parent provisioning independently implements the exact direct-404, same-basename official archive recovery already present in reviewed Framework master. It requires explicit HTTPD opt-in, forbids redirect/authentication/timeout/foreign-component fallbacks, verifies the literal digest before archive listing, and preserves canonical cache identity with actual-download metadata. The selected Framework gitlink is synchronized into the CRS workflow and its contract fixture; `common.sh`, `.gitmodules`, and the MRTS revision remain unchanged.
+
+The canonical Traefik No-CRS host built and started but its route failed because
+Yaegi disabled the observer's `syscall` import. The pinned Traefik `3.7.13`
+loader reproduced this failure. The fixed observer manifest now declares
+`useUnsafe: true`, and only its per-plugin operator settings explicitly enable
+that requirement; both declarations are necessary. Static configuration and
+both smoke entry points enable `experimental.abortOnPluginFailure` to fail
+startup when loading fails. The source remains the fixed checked-in observer,
+staged without symlinks in a private workspace. No global/other-plugin opt-in
+is introduced, and the Linux `SO_PEERCRED` UID/GID authentication remains
+intact rather than being removed to bypass the import failure.
+
+Centralize ordinary selections in the exact five-field data record
+`ci/tooling/project-versions.lock.json`: schema `1`, Framework/MRTS revisions,
+Python `3.14.7` and Go `1.27.1`. Generated `.python-version`/`.go-version`
+views remain compatible with setup actions; the Go module floor `1.26.5`
+remains distinct. Component definitions continue to belong to the selected
+Framework's `ci/lib/common.sh`; the immutable Framework pin selects that source
+without duplicating component authority. Protected broker tuples remain
+independent. The reader checks the exact Parent Git blob, recorded gitlinks and
+materialized independent repository HEADs with replacement objects disabled.
+Updaters preserve unrelated central fields, validate existing and new candidates,
+and share a directory `flock`. Identity/content checks and replacement tracking
+before directory fsync guard rollback without claiming crash-atomic multi-file
+updates. The paired [version-pins reference](../../../docs/reference/version-pins.md)
+explains these controls and native view synchronization.
+
+A further real-host Traefik failure returned `503`/`403` instead of the allow
+control: Yaegi selected the non-Linux peer-credential stub when only modern
+`//go:build` constraints were present. Matching legacy `// +build linux` and
+`// +build !linux` lines now accompany both modern constraints. This preserves
+the non-Linux fail-closed behavior and Linux UID/GID authentication.
+
+The sequential smoke report failure was a producer/input mismatch: its native
+Apache/NGINX producer cannot supply the full-matrix/MRTS inputs expected by the
+general strict refresh. Dedicated `test-smoke-sequential-no-crs` and
+`test-smoke-sequential-with-crs` targets now invoke `bounded-smoke` only for that
+workflow. General `test-no-crs`/`test-with-crs` and the complete
+`refresh-all-reports` (`--strict-inputs`) catalog remain intact. Current native
+case discovery supplies Apache 54 and NGINX 60 cases in the diagnosed scope;
+validation discovers exact variant-specific sets instead of hardcoding counts.
+Fresh same-run coverage and runtime-cache reports are mandatory. A private
+receipt is bound through exact Parent blob/gitlink checks to Framework/MRTS,
+the fixed module path, run identity and native case selection. All rows must
+match variant/connector, be live and pass without exceptions. Missing/extra
+cases, revision/variant drift, stale/symlinked inputs and failed/blocked producer
+return codes fail. The snapshot generator must produce fresh Parent-owned,
+run-bound output; generated reports are not staged. This aligns validation with
+the real producer and does not weaken the full gate or promote full-matrix,
+MRTS or response-body evidence.
+
+A required With-CRS bootstrap correction follows the report profile: superseded
+`5605febc` job `111165203104` genuinely failed at `08:43` UTC because
+`prepare-fresh-crs-source.sh` called `ci_require_absolute_path` before the
+Framework `ci/lib/common.sh` was loaded. This failure occurred despite a
+cancellation request; it is not classified as cancellation-only. Runtime
+returned `77` before producer inputs existed, and the fresh-input gate correctly
+rejected the missing Apache result. The bounded recipe now sources the actual
+Framework common helper before the Parent CRS helper. Executed shell regression
+covers both variants, a fresh `RESULTS_DIR`, empty inherited scope flags, and
+fetch-before-producer ordering and actual relative-path rejection before
+fetching. The 18-test profile run passed in 9.315 seconds. Full report/case validation remains intact.
+
+The published `4d42e818d4fc8ab85ebc028d6276fd3aa380aedc` full-smoke artifacts
+prove Apache 54/54 No-CRS and 55/55 With-CRS cases, all live `PASS`, with zero
+failures or skips. Ordinary NGINX remained blocked by the unprivileged wrapper
+and implicit output-root mismatch; these are not full-smoke passes. The pending
+coordinator reuses the existing typed Functional-A case route for the closed
+ordinary 60/61 NGINX catalogs. Unprivileged preparation precedes a fixed clean
+`sudo`/`env -i` handoff with independently checked committed revisions, native
+catalog, runtime artifacts and prepared CRS. Per-case runtimes are fresh,
+workers remain distinct/non-root, and complete live records are projected to
+private bounded runner evidence before unprivileged native normalization.
+Harness `case-info` explicitly receives its validated private work root as
+`--output-root`. Protected broker activation/attestation remains separate.
+
+On the same published head, generic Traefik runtime observed actual `200`/`403`
+and successful cases, but inventory inherited a stale binary selection. The
+new resolver admits only the exact current connector-build stage, rejecting
+unsafe files and providing no inherited/cache fallback; the native profile
+remains distinct. A dedicated `check-bounded-smoke-runtime-contract` runs the
+owning runtime unit modules in the full workflow; the updater copied-tree baseline
+remains isolated from Framework materialization. Source security review is now terminal with no remaining concrete findings;
+final local validation is recorded below. New-head CI and complete runtime
+evidence remain outstanding.
+
+## Changed files
+
+- `.github/workflows/ci-security-workflow-lint.yml`
+- `.github/workflows/cleanup-artifacts.yml`
+- `.github/workflows/reusable-five-connectors-profile.yml`
+- `.github/workflows/open-connectors-smoke.yml`
+- `.github/workflows/nginx-root-broker.yml`
+- `.github/workflows/test-connectors-with-crs-no-mrts.yml`
+- `.github/workflows/test-full-smoke-sequential.yml`
+- `.github/workflows/test-envoy.yml`
+- `.github/workflows/test-traefik.yml`
+- `.github/workflows/update-go-version.yml`
+- `.github/workflows/update-python-version.yml`
+- `.github/workflows/update-submodules.yml`
+- `.github/workflows/update-workflow-tools.yml`
+- `.github/workflows/test-lighttpd.yml`
+- `ci/lib/runtime_path_utils.py`
+- `tests/test_runtime_path_utils.py`
+- `tests/test_resolve_lighttpd_host_binary.py`
+- `tests/test_trusted_lighttpd_namespace_dispatch_workflow.py`
+- `Makefile`
+- `connectors/envoy/harness/README.de.md`
+- `connectors/envoy/harness/README.md`
+- `connectors/envoy/harness/run_envoy_smoke.sh`
+- `tests/test_envoy_legacy_smoke_evidence.py`
+- `tests/test_legacy_open_connector_smoke.py`
+- `ci/runtime/lifecycle/run-legacy-open-connector-smoke.sh`
+- `ci/lib/framework_revision_pins.py`
+- `ci/provisioning/components/prepare-runtime-components.py`
+- `ci/evidence/reports/refresh-connector-reports.py`
+- `ci/runtime/broker/nginx_root_broker.py`
+- `ci/runtime/lifecycle/run-connector-stage.sh`
+- `ci/runtime/lifecycle/with-private-sockets.py`
+- `ci/tooling/project-versions.lock.json`
+- `ci/tools/read-framework-revisions.py`
+- `ci/tools/sync-framework-component-versions.py`
+- `ci/tools/sync-project-versions.py`
+- `ci/tools/update-workflow-tools.py`
+- `ci/tools/verify-framework-candidate-contract.py`
+- `connectors/envoy/harness/envoy_smoke_helper.py`
+- `connectors/envoy/harness/run_envoy_connector_runtime.sh`
+- `connectors/envoy/harness/start_envoy_connector.sh`
+- `connectors/traefik/config/traefik-response-observer-static.yaml`
+- `connectors/traefik/response_observer/.traefik.yml`
+- `connectors/traefik/response_observer/peercred_linux.go`
+- `connectors/traefik/response_observer/peercred_other.go`
+- `connectors/traefik/scripts/runtime_smoke.py`
+- `connectors/apache/src/mod_security3.c`
+- `connectors/apache/src/msc_filters.c`
+- `connectors/apache/harness/apache_process_guard.py`
+- `connectors/nginx/config`
+- `connectors/traefik/scripts/start-smoke.sh`
+- `docs/reference/variables.de.md`
+- `docs/reference/variables.md`
+- `docs/reference/version-pins.de.md`
+- `docs/reference/version-pins.md`
+- `docs/security/ci-security-tooling.de.md`
+- `docs/security/ci-security-tooling.md`
+- `docs/security/trusted-nginx-root-broker.de.md`
+- `docs/security/trusted-nginx-root-broker.md`
+- `modules/ModSecurity-test-Framework`
+- `reports/audits/change-records/CR-20261001-ci-recovery.de.md`
+- `reports/audits/change-records/CR-20261001-ci-recovery.md`
+- `scripts/version_updater_common.py`
+- `tests/ci_security/test_update_workflow_tools.py`
+- `tests/framework_sha_fixture.py`
+- `tests/test_apache_intervention_cleanup.py`
+- `tests/test_apache_process_guard.py`
+- `tests/test_c_cpp_diagnostics.py`
+- `tests/test_ci_security_workflows.py`
+- `tests/test_collect_no_crs_source.py`
+- `tests/test_full_smoke_workflow_contract.py`
+- `tests/test_framework_revision_pins.py`
+- `tests/test_nginx_root_broker.py`
+- `tests/test_nginx_root_broker_workflow.py`
+- `tests/test_prepare_runtime_components.py`
+- `tests/test_private_runtime_sockets.py`
+- `tests/test_project_toolchain_pins.py`
+- `tests/test_runtime_env_snapshot_contract.py`
+- `tests/test_traefik_runtime_smoke_security.py`
+- `tests/test_update_framework_versions.py`
+- `tests/test_update_go_version.py`
+- `tests/test_update_python_version.py`
+- `tests/test_update_submodules_local_git.py`
+- `tests/test_verify_framework_candidate_contract.py`
+- `tests/version_updater_test_support.py`
+- `ci/runtime/lifecycle/run-bounded-nginx-cases.py`
+- `ci/runtime/lifecycle/resolve-traefik-host-binary.py`
+- `ci/runtime/lifecycle/run-no-crs-baseline.sh`
+- `connectors/nginx/harness/run_nginx_smoke.sh`
+- `tests/test_all_connectors_no_crs_workflow_contract.py`
+- `tests/test_bounded_nginx_cases.py`
+- `tests/test_resolve_traefik_host_binary.py`
+- `tests/test_nginx_harness_path_authority.py`
+
+## Commands executed
+
+All local command entry points used RTK. `rtk proxy env TMPDIR=/var/tmp/codex/ModSecurity-conector PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python check-ci-security-contract`: PASS, 175 tests, five existing environment skips, plus actionlint/zizmor/gitleaks provenance validation. The updater suite passed 38 tests, including real proposed-tree validation; workflow contracts passed 31 tests. Coordinated integrated regression validation passed 118 tests. Actionlint passed all 31 workflows. Quick-check timed out after 600 seconds at the HAProxy check; this is not a full quick-check pass.
+
+```sh
+rtk proxy env TMPDIR=/var/tmp/codex/ModSecurity-conector/tmp PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -q tests.test_private_runtime_sockets tests.test_nginx_root_broker tests.test_nginx_root_broker_workflow tests.test_nginx_root_broker_crs_profile tests.ci_security.test_update_workflow_tools
+rtk proxy bash -c '/root/go/bin/actionlint .github/workflows/*.yml'
+```
+
+The integrated 118-test run completed in 98.147 seconds. Task evidence is retained in `/var/tmp/codex/ModSecurity-conector/ci-recovery-inventory.md`, `/var/tmp/codex/ModSecurity-conector/ci-recovery-20261001-plan.md`, and `/var/tmp/codex/ModSecurity-conector/ci-recovery-ci-contract.log`.
+
+The bounded repeat of `rtk proxy env CI=true ... timeout 600 make quick-check`, using the same external build/log roots and interpreters, passed (exit 0, 275 tests). Native lint explicitly skipped NGINX and HAProxy C17 compilation because their headers were absent. The earlier local timeout occurred during automatic prerequisite provisioning before HAProxy compiler probes. These results do not prove the two skipped compiler checks. The repeat log is `/var/tmp/codex/ModSecurity-conector/ci-recovery-quick-check-ci.log`.
+
+```sh
+rtk proxy env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python ci/tools/new-change-record.py check
+rtk proxy env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python check-bilingual-docs check-doc-links
+rtk git diff --check
+```
+
+Record structure, bilingual documentation, repository path references, documentation links, and diff whitespace checks passed.
+
+The closed-CLI integrated validation snapshot passed 121 tests in 101.701 seconds. The Framework-owned Python 3.14.7 `test-httpd-source-recovery` target passed 18 tests in 57.008 seconds on selected master `6948ec5b916e400c4fcaa1b6ccfa64251f606f8d`; candidate contract verification and native synchronization check passed. The Parent preparation suite passed 95 tests with five existing skips; the generic cache contract passed 45 tests. Live Parent HTTPD acquisition recovered the same official archive after the canonical 404 and verified SHA-256 `68c74d4df38c26bed4dfbdb8f3baf1eb532f3872357becc1bba5d136f6b63c06` before archive listing. Before committing the selected gitlink, a further CI-mode native quick-check passed (exit 0, 280 tests) after the HTTPD/Framework changes, with nine fixture skips because the selected Framework checkout was newer than the still-committed Parent gitlink, plus the two missing-header compiler skips. The log is `/var/tmp/codex/ModSecurity-conector/ci-recovery-quick-check-final.log`. These checks prove acquisition and their respective local contracts; they do not constitute a fresh Parent hosted HTTPD runtime pass or a new Sonar pass.
+
+The hash-verified Traefik 3.7.13 host passed all 20 runtime-security tests, including real route loading and startup rejection when either import declaration is missing. The observer's native Go unit tests and vet also passed with the existing Go 1.27.1 toolchain. These checks prove loader behavior and observer source checks; complete hosted engine transactions remain separate evidence.
+
+The coordinated central-lock regression snapshots passed 18 reader tests,
+16 toolchain tests, an 83-test combined suite and 55 Framework synchronizer tests.
+These are scoped snapshots; final integrated and hosted evidence for the new
+source head remains required. Hash-verified Traefik host/engine validation passed
+29 tests without skips, including authenticated `MRC1` `CLAIM` success for the
+same UID and rejection of a wrong UID before frame bytes. Observer Go unit/vet
+checks passed and the non-Linux stub remained fail-closed. A real current C
+service plus pinned Traefik local runtime observed allow `200` and deny `403`.
+These local checks do not replace final-head hosted engine evidence.
+
+The subsequent native centralization validation passed 216 CI-security-contract
+tests with five existing environment/privilege skips, 38 full workflow/tool
+updater tests, and 74 updater/language-contract tests. The 19 reader and 16
+central-toolchain tests are included in the 216-test contract result. Actionlint
+passed all 31 workflows; bilingual, link, variable and connector configuration
+checks passed, with 21 generated configuration files current. These checks do
+not establish hosted runtime success. The legacy event-path and full-NGINX profile-registry-root source repairs are
+now implemented as described below; the Apache `413` source repair is also implemented, with separate local evidence below.
+No all-workflow pass is claimed.
+
+The legacy Traefik smoke starter now materializes only its checked-in default
+configuration into the private run directory with a run-local `event_path`;
+an explicitly supplied configuration remains unchanged. Staged NGINX config
+resolves a missing profile registry only from a supplied canonical
+`common/include` layout containing the SDK header. Explicit registry-root
+priority is retained, and invalid or unrelated roots fail. The diagnostics
+regression executed four positive/negative config-prefix cases. Traefik
+security validation passed 31 tests with two missing-host skips in that local
+run; a separate actual C service plus pinned-host startup check passed.
+A native quick-check after these completed fixes passed (exit 0, 280 tests,
+no unit skips), with only the two explicit missing-header NGINX/HAProxy C17
+compiler skips. This preceded the still-pending Apache repair and does not
+validate it. The fixture grammar correction covers stable Go `1.0.0`/`2.0.1`;
+its additional 32-test Framework run passed.
+
+The Apache correction resolves global Common-config defaults locally in
+`connectors/apache/src/mod_security3.c` and `connectors/apache/src/msc_filters.c`,
+preserving explicit configured limits instead of treating unset limits as zero.
+All 12 previously failing cases passed with real local Apache `2.4.66` and engine
+`3.0.14`. Small-body allow returned `200`; an oversized `1048577`-byte body
+returned `413` with accurate counters. The 22 targeted tests and C17 compilation
+with `-Wall -Wextra -Werror` passed. Hosted selected Apache `2.4.68`/engine
+`3.0.16` runtime still requires fresh-head evidence.
+
+The full workflow/tool suite passed 38 tests again with the native Make
+prerequisite, and root host-enabled Traefik/engine/C++ validation passed 38 tests
+without skips. The bounded report source correction described below is implemented; its
+final focused regressions passed as recorded below; fresh-head hosted validation
+remains outstanding.
+No full-workflow success is claimed.
+
+Follow-up source validation passed 35 reader/toolchain tests, 34 Framework-sync
+tests, 219 CI-contract tests with five existing environment/privilege skips,
+and 38 full workflow/tool tests. The synchronizer production CLI is now bound
+to its own Parent repository; fixture APIs remain separate. A partial callback,
+ASCII-preserving regex cleanup, isolated exception assertions and status
+refactoring resolve the observed findings without suppression. The final bounded-profile suite passed 16 tests after clearing `FORCE_ALL_CASES`
+and adding fixed CLI-root, path and timeout guards. The combined report/reader/
+integrity suite passed 116 tests before those last guards; that earlier combined
+result does not cover them. Final actionlint passed all 31 workflows. The next
+exact-head Sonar and hosted runtime results remain required.
+
+The final native `make check-bounded-smoke-runtime-contract` passed 61 tests in
+17.044 seconds: 18 report/wiring, 23 coordinator, 14 harness-path and six host-
+resolver tests. Native CI-security validation passed 219 tests in 105.446 seconds
+with five pre-existing privilege skips; the full workflow/tool suite passed
+38 tests in 98.561 seconds, and actionlint passed all 31 workflows. Independent
+security review completed without a remaining concrete finding. These results
+are local source validation, not a hosted pass of the next head.
+
+Published-head legacy run [37111252518](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37111252518)
+failed at `runtime-smoke-traefik`. It uses the same baseline consumer, but the
+host-version root cause was not directly proven because the normalized result
+was absent from retained artifacts. The scoped retention correction exports
+current `RUNTIME_EVIDENCE_ROOT` under verified `evidence/runtime-evidence` and
+includes only that current evidence in the existing collector, without adding
+caches, source or build trees. The frozen retention/topology source passed 71 tests in 29.688 seconds across
+`tests.test_runtime_env_snapshot_contract`, `tests.test_collect_no_crs_source`
+and `tests.test_resolve_traefik_host_binary`. The snapshot contract requires a
+unique root-owned `0711` namespace, a private runner-owned `0700` provisioning
+root and a distinct worker that cannot traverse that private root. Actionlint
+passed all 31 workflows again after these changes.
+
+The additional No-CRS suite exposed two stale test assertions expecting
+workflow-wide read permission instead of the already stricter
+`permissions: {}` plus fixed job-level read grants. The corrected assertions
+preserve deny-default and verify those explicit job grants. The reusable
+five-connector workflow now runs this contract module before matrix resolution.
+The real owning modules `tests.test_no_crs_selected_runner_wiring`,
+`tests.test_five_connector_no_crs_profile` and
+`tests.test_all_connectors_no_crs_workflow_contract` passed 28 tests in
+10.125 seconds. Local source validation is complete for this delivery snapshot;
+fresh exact-head hosted/Sonar evidence remains required. The original legacy
+host-version cause remains unproven because its normalized artifact was absent.
+
+## Security impact
+
+Publisher identity, merged-PR ancestry, explicit write scope, deny-default permissions, immutable action pins, and runtime isolation remain enforced. The Traefik stage admission is exact rather than a general build-directory trust extension. Socket roots are private and validated. The restricted Yaegi import opt-in is scoped to the fixed local observer and retains Linux peer-credential authentication; loader failure aborts startup. No Framework/MRTS source edits are part of this change. Only the task Parent Framework gitlink is advanced from `9181dc77dfb0685d87fa109e6800dc6052d77cc9` to reviewed Framework master `6948ec5b916e400c4fcaa1b6ccfa64251f606f8d`; the original working checkouts are preserved and MRTS remains `8a6bb546c4c81d8ffc7be801dceac60c6925685f`. Framework PR 133 was already merged before selection; this task performs no Framework merge.
+
+## Runtime evidence
+
+Framework fresh publisher run [36908638390](https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/36908638390) succeeded from master `6948ec5` and created Draft [PR 134](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/134), head `51c70128693f0e836d8bff8af947232bca0691fc`. All 20 checks finished without failures, with three advisory skips; Sonar reported OK. This is Framework publisher/PR evidence, not fresh Parent connector runtime evidence. At initial source delivery, Parent hosted validation was still pending.
+
+Initial Parent delivery used [PR 400](https://github.com/Easton97-Jens/ModSecurity-conector/pull/400), head `35259700fcf0558e430f5fc78cc4f7c3920e92ce`. Normal GitHub checks were green while runtime checks were still running; the exact Sonar result was `ERROR`, with security findings for `S5443` (temporary-path selection from the environment) and `S8705` (generic CLI command), plus five maintainability findings. The subsequent source correction restricts the CLI to fixed Envoy/Traefik lifecycle selectors and an explicitly supplied, validated socket parent. This initial-head failure is historical; the published corrective-head result is recorded below. Findings were not suppressed or classified as false positives, and gates were not weakened.
+
+Manual runs of the initial head: [36912803996](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/36912803996) (canonical No-CRS), [36912808790](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/36912808790) (legacy Open Connectors), and [36912813685](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/36912813685) (full smoke with cleanup disabled). The first hosted round is now terminal: canonical No-CRS Envoy, HAProxy and lighttpd passed; CRS Envoy, Traefik, HAProxy and lighttpd passed; exact-head NGINX passed. The canonical Apache job, legacy Open Connectors and full smoke were blocked by the HTTPD 404. Canonical No-CRS Traefik failed at route readiness, exposing the observer loader defect described above. These initial-head results are historical; no all-workflow pass is claimed. Hosted results always bind to their exact SHA; final delivery and CI readback are tracked in PR 400 and the task execution plan.
+
+The corrective commit `e240bb2d4e21da9eb832c94dec7df672167b6636` was published in PR 400. Its exact Sonar analysis at `2026-10-03T06:35:23+0000` reported Quality Gate `OK` and zero vulnerabilities, with four maintainability findings: three regex `S6353` findings and one `prepare_archive` complexity `S3776` finding. The follow-up simplifies that existing helper and uses `re.ASCII` to preserve ASCII-only matching; HTTPD recovery policy and runtime contracts remain unchanged. That follow-up will have a new head, so this Sonar result does not validate it.
+
+Post-commit CI-mode native quick-check on `e240bb2d4e21da9eb832c94dec7df672167b6636` passed (exit 0, 280 tests) with no unit-test skips: the nine earlier gitlink-fixture skips were resolved by committing the selected gitlink. Only the two explicitly reported NGINX/HAProxy compiler checks remained skipped for missing headers.
+
+Fresh corrective-head runtime runs [37103593221](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37103593221) (canonical No-CRS), [37103594952](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37103594952) (legacy Open Connectors), [37103596368](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37103596368) (full smoke with cleanup disabled), and [37103555691](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37103555691) (CRS) were running without an observed failure at this snapshot. Running jobs are not passes. Final-head delivery, checks and Sonar readback remain tracked in PR 400 and the external task plan, avoiding a documentation-only CI loop.
+
+The maintainability correction was published as `f986fe7ef8e46a0a838a8937b2986d6ffd564208`.
+Its exact Sonar analysis at `2026-10-03T06:43:34+0000` reported Quality Gate `OK`,
+zero bugs, zero vulnerabilities and zero code smells, with no suppression or
+gate weakening. The preceding `e240bb2` heavy runs were superseded/cancelled;
+their running-state snapshot above is historical and cannot satisfy completion.
+The `f986fe7` CRS round passed all five selected connector jobs and aggregate.
+Subsequent centralization and Yaegi build-constraint fixes require a new exact
+head and fresh hosted/Sonar evidence; neither earlier green scan validates them.
+
+The next delivered commit `1ca0d4be9f008f30344a46bb084f324e8fd8f496` passed the
+strict post-commit reader against its actual committed lock blob/gitlinks;
+remote task branch and PR 400 head matched that exact SHA. All automatic checks on this exact head are now terminal and successful,
+including the previously running CRS and exact-head NGINX checks.
+Sonar analysis at `2026-10-03T07:42:59+0000` reported `ERROR`, with one `S8707`
+finding and six maintainability findings. The subsequent source changes above
+address those findings, but their new-head Sonar result remains pending. Earlier
+green scans are historical and do not establish the next head's quality.
+
+The bounded-profile correction was published as
+`5605febc27dd741a561ede13003a7b47cedce5ae` with the observed 16-test profile
+validation. Its exact Sonar analysis at `2026-10-03T08:27:06+0000` reported
+Quality Gate `ERROR`, zero bugs, one vulnerability and one code smell. All seven
+previous `1ca0d4b` findings were resolved. The new `S8705` finding concerns the
+variant interpolated into metadata command arguments: the variant already has
+argparse/identity allowlists and no shell execution, so this observation does
+not validate an injection path. The focused correction selects only literal
+internal commands, and the `S9073` correction splits a composite test assertion;
+neither finding is suppressed. The corrected profile suite passed 17 tests in 9.514 seconds; the added
+pipeline-argument assertion test also passed afterward. The helper returns only
+two internal literal commands, and an invalid variant stops before the generator.
+A new exact-head Sonar analysis remains required.
+
+Normal checks on `5605febc` were successful so far; the five CRS and five No-CRS
+connector runtimes, legacy smoke and sequential full smoke were still pending.
+These partial results are not a full runtime pass and do not validate the
+subsequent command-selection correction.
+
+The literal-label correction was published as
+`a0ad0ef7de7ca4aa197705760c0932d68fbb3949`. Exact Sonar analysis at
+`2026-10-03T08:33:53+0000` reported Quality Gate `OK`, zero bugs, vulnerabilities
+and code smells, with all findings resolved without suppression. Normal checks
+are all successful; CRS Envoy/Traefik/lighttpd succeeded, while remaining heavy and
+exact-head runtime checks were pending at this snapshot. The earlier `5605febc`
+No-CRS diagnostic was still active. The bootstrap source correction above will
+have a new head and needs fresh CI/Sonar evidence; `a0ad0ef7` success does not
+verify it or establish that all runtime workflows pass.
+
+The bootstrap commit `4d42e818d4fc8ab85ebc028d6276fd3aa380aedc` has exact Sonar
+analysis at `2026-10-03T08:51:35+0000`: Quality Gate `OK`, zero bugs,
+vulnerabilities/code smells and unresolved issues. The Apache and Traefik
+observations above belong to this published head. They diagnose the remaining
+ordinary NGINX orchestration and host-inventory defects; they do not verify
+the pending source corrections. Final delivery/runtime/Sonar evidence for the
+next head will be retained in PR 400 and the external execution plan rather
+than repeatedly updating versioned documentation solely for CI status.
+
+The ordinary runtime/inventory correction was published as
+`11b7e1b0f64235741c2d05c5107f448ea0ebc9d2`. Its exact Sonar analysis at
+`2026-10-03T10:02:16+0000` reported Quality Gate `ERROR`: zero bugs, one `S8705`
+security finding and ten code smells. The subsequent source correction maps
+the CLI variant explicitly to fixed literals before launcher or path actions;
+unknown values are rejected. Constants, equivalent exception base classes and
+one fallible operation per test context address the accompanying findings.
+No suppression or gate change is used. The corrected coordinator suite passed
+24 tests; native `make check-bounded-smoke-runtime-contract` passed 62 tests
+in 17.263 seconds. A new delivered head and its exact Sonar/hosted runtime
+evidence remain outstanding; these local results are not a new-head hosted pass.
+
+The literal-variant correction was published as
+`ca296f8549c4713d9f0740e3f3e721e4e070a0f0`. Its exact Sonar analysis at
+`2026-10-03T10:17:21+0000` reported Quality Gate `OK`, zero bugs and
+vulnerabilities, with one minor `S7500` finding at coordinator line 271.
+A dict comprehension had avoided the previous `S7494` iterable-list redundancy,
+but this new finding prefers a dict constructor. The minimal follow-up supplies
+real tuple pairs to that constructor, preserving `ValueError` for an assignment
+without `=` and retaining values containing `=`. The corrected owning suite
+passed 24 tests in 3.772 seconds; native
+`make check-bounded-smoke-runtime-contract` passed all 62 tests in 17.598 seconds.
+Direct comparisons preserve empty, duplicate and embedded-`=` assignments
+and the missing-separator exception. This source correction requires its own delivered
+head and final review/evidence rather than promoting the historical `11b7e1b0`
+result or repeatedly editing source for CI status alone.
+
+The next hosted round on `f2b4de6b0c70c9a7a6195a625f93d2a582b88bcf`
+passed its exact Sonar gate with zero open findings, and all five CRS runtime
+cells plus exact NGINX succeeded. Both complete smoke variants then failed
+before case production: the descriptor walker opened the root-owned `0711`
+namespace with `O_RDONLY`, although the runner is deliberately allowed only
+traversal. The helper now uses Linux `O_PATH|O_DIRECTORY|O_NOFOLLOW` for
+ancestors and retains `O_RDONLY` for the actual leaf. Descriptor-relative
+ownership/mode, identity and symlink checks remain enforced; directory modes
+are not widened. Forty-three owning path/artifact tests passed, including a
+real existing unprivileged identity, and the integrated 72-test contract passed
+in 17.191 seconds. Final native integration, including the additional static
+Lighttpd dispatcher suite, passed all 74 tests in 18.777 seconds. The fresh broader security contract
+also passed all 219 tests with five existing environment skips, and all 38
+workflow-updater tests passed.
+
+The same Legacy round passed real Envoy/Traefik `200`/`403` controls; Traefik's
+measured version was `3.7.13`. Lighttpd then failed before starting because its
+fresh isolated stage required a build opt-in that the earlier preparation step
+had not propagated. Only the fixed minimal-runtime invocation now receives
+`ALLOW_RUNTIME_BUILDS=1`; the existing download opt-in, immutable component
+identity, digests and private stage/header checks remain intact. An executed
+workflow-step regression checks this environment handoff and its narrow scope.
+The additional static Lighttpd test validator had two stale permission/trigger
+assumptions; it now checks the existing deny-default/job-read contract and
+requires a valid baseline before negative mutations. Standard Lighttpd CI runs
+that static suite unprivileged. Thirty-seven related tests and both changed
+workflow actionlint checks passed. These corrections need a new exact head and
+fresh hosted results; failed `f2b4de6b` complete/Legacy runs are not passes.
+
+The next hosted snapshot is published head
+`8ddf08b928148c0901f0c42fcfcdc0bced57a4b1`: all 21 ordinary workflow runs
+succeeded, as did [CRS 37120193889](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37120193889),
+[exact NGINX 37120193833](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37120193833)
+and [canonical No-CRS 37120380513](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37120380513).
+The latter observed two successful cases, actual `200`/`403` and exit zero for
+each of all five connectors. Both variants of
+[sequential full smoke 37120384019](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37120384019)
+failed: the Apache process guard independently required directory-read access
+to a root-owned `0711` ancestor; NGINX's absent case-000 `result.json` masked an
+early native exit. The actual NGINX cause is not present in the retained artifact
+and is not claimed. [Legacy 37120382090](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37120382090)
+was still executing its native minimal runtime step at `2026-10-03T12:54:00Z`.
+
+The local Apache guard correction uses `O_PATH` for ancestors and retains
+`O_RDONLY` for the leaf, preserving owner/mode/identity/no-follow checks and
+namespace permissions; its owning suite passed 62 tests in 20.042 seconds.
+The local NGINX correction safely retains the actual case exit and a private,
+exclusive diagnostic JSON projection from the fixed root-owned `0600` harness
+log: no symlinks/FIFO/hardlinks, at most 131072 bytes, stable descriptor identity,
+escaped bounded output, full-log digest and current Parent/catalog/variant
+identity. It creates no normalized or synthetic result and cannot produce a
+pass. The owning suite passed 30 tests in 3.568 seconds. Native
+`make check-bounded-smoke-runtime-contract` passed all 142 tests in 37.498 seconds,
+including the Apache guard module. Its isolated fork-child fixture explicitly
+sets umask `022`; the guard continues honoring the caller's umask. These are
+local source checks; none proves that the native NGINX error is corrected.
+The separate Apache host-version inventory correction accepts exactly one
+valid native `Server version: Apache/` stdout line after a successful command;
+stderr warnings and the actual failure exit remain preserved. Its ASCII-only
+version matching rejects Unicode digits in all three positions, empty or
+warning-only output, wrong/mixed product families and duplicate version lines.
+The owning suite passed 56 tests in 2.930 seconds and shell syntax validation
+passed. Native `make check-no-crs-source-normalization` also passed all 169 tests
+in 26.120 seconds without skips on these frozen host-inventory sources.
+No concrete host version is claimed from a warning. Delivery and fresh
+exact-head CI, Sonar and hosted runtime checks remain required for these sources.
+
+Published follow-up `7690fa0d078e64cef01843ffec5241fc90337f2d` has exact
+Sonar analysis `5d294360-a079-4f34-a9f9-28293d6b0148` at
+`2026-10-03T13:07:01Z`: Gate ERROR, one `S5779` and five `S5778` findings in
+tests. No finding was suppressed. Source corrections retain the non-root
+identity rejection and precompute arguments outside the exception assertion;
+the integrated 142-test contract passed in 34.323 seconds afterwards.
+
+The predecessor Legacy run subsequently failed at the compatibility Envoy
+entrypoint because `ENVOY_BIN` was not passed. Its native artifact nevertheless
+proves Envoy `1.39.1`, Traefik `3.7.13` and Lighttpd `1.4.85`, each with two live
+PASS cases, HTTP 200/403 and exit zero. The Lighttpd provisioning correction is
+therefore runtime-confirmed at that recorded head. The closed Parent Legacy
+launcher now exports the exact centrally prepared host binaries and binds
+Envoy's service/observer to the current shared build; seven executed handoff
+tests passed. The existing Framework additionally requires nonempty Envoy
+Legacy JSONL after exit zero. The Parent bridge writes that format only from
+fresh private actual probes, summary and one matching native deny event,
+retaining actual failure23/blocked77 and invalidating prior PASS. One bounded
+two-request record remains distinct from YAML/CRS/body/full-matrix coverage.
+Its latest combined 45 tests passed in 22.618 seconds. Standard native start
+wiring runs both new modules in ordinary connector CI.
+
+Diagnostic [full run 37125765259](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/37125765259)
+on `7690fa0d` stopped before runtime: both variants' Apache PID-replacement
+fixture did not guarantee a different inode after close/unlink/recreate; one
+variant also hit accepted HTTP readiness-socket descriptor churn during strict
+process inspection. Holding the original descriptor removes dependence on
+inode allocation; a post-listen readiness handshake and never-accept fixture
+remove transient descriptors. Actual hosted inode reuse was not measured;
+local allocation probes saw none, so its cause remains a bounded inference.
+Production ownership/cleanup checks are unchanged. The corrected 62 tests
+passed as root and actual existing UID994; 130 targeted stress iterations
+passed. No complete native NGINX execution or hidden case-failure diagnostic
+was reached. Fresh exact-head Sonar and hosted runtime evidence remain required.
+
+Final frozen-source integration passed `make check-bounded-smoke-runtime-contract`:142 tests in35.865 seconds, including the corrected real-permission/cleanup fixtures. Native build/start-wiring checks passed with all12 new Legacy tests in15.496 seconds. Independent frozen Legacy/Envoy/Apache-fixture source review reported zero concrete remaining findings. These results validate local contracts; they do not replace new-head hosted runtime.
+
+## Known limitations
+
+Local privilege-dependent namespace integration had five existing skips. CI-mode quick-check passed with the two missing-header compiler skips; the ordinary local attempt timed out. The protected broker caller remains pinned to `49c40779a7b6de9f699391bcd524ea069787df42`; the updated broker source is not activated by this patch alone.
+
+## Remaining risks
+
+A reviewed protected broker activation/repin and real evidence for both selected broker profiles are still required. Hosted Parent execution may expose additional runner-specific failures. Current explicit updater inventory prevents silent publication gaps; new workflows must be reviewed and added to both inventory and staging.
+
+## Checks not run and rationale
+
+A full Parent hosted pass and both protected broker runtime profiles are outstanding. Parent master integration was not authorized, so neither integration nor protected activation/repin was performed. NGINX and HAProxy C17 compiler checks lack local header prerequisites.
+
+## Final diff and review status
+
+Initial and corrective source was delivered in PR400. Current published head
+`7690fa0d` passed ordinary workflows and exact NGINX, but Sonar reported six
+test findings and the diagnostic full smoke stopped in Apache test fixtures.
+Their source corrections and the required Legacy binary/evidence fixes are
+locally validated and independently reviewed with no remaining concrete
+finding. Native NGINX case execution is still unproved. Fresh exact-head checks
+remain required after delivery; historical results retain their recorded head.
+Master integration and protected-caller activation remain separately required;
+no Parent merge or Framework/MRTS source edit is claimed. Original checkouts
+and user changes are preserved. Both language versions retain the same facts.

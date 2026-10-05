@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 from pathlib import Path
 import stat
+import subprocess
 import tempfile
 import unittest
+
+import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,6 +23,46 @@ SPEC.loader.exec_module(resolver)
 
 
 class ResolveLighttpdHostBinaryTest(unittest.TestCase):
+    def test_legacy_minimal_runtime_explicitly_allows_private_lighttpd_provisioning(self) -> None:
+        workflow = yaml.safe_load(
+            (ROOT / ".github/workflows/open-connectors-smoke.yml").read_text(
+                encoding="utf-8"
+            )
+        )
+        job = workflow["jobs"]["open-connectors-smoke"]
+        self.assertNotIn("ALLOW_RUNTIME_BUILDS", job["env"])
+        steps = {step["name"]: step for step in job["steps"] if "name" in step}
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            capture = directory / "make-env.txt"
+            fake_make = directory / "make"
+            fake_make.write_text(
+                "#!/bin/sh\n"
+                'printf "%s|%s|%s\\n" "${ALLOW_RUNTIME_DOWNLOADS:-0}" '
+                '"${ALLOW_RUNTIME_BUILDS:-0}" "$*" > "$MAKE_ENV_CAPTURE"\n',
+                encoding="utf-8",
+            )
+            fake_make.chmod(0o700)
+            environment = dict(os.environ)
+            environment.pop("ALLOW_RUNTIME_BUILDS", None)
+            environment.update(job["env"])
+            environment["PATH"] = str(directory) + os.pathsep + os.defpath
+            environment["MAKE_ENV_CAPTURE"] = str(capture)
+            for step_name, expected in (
+                ("Native connector build diagnostics", "1|0|build-remaining-connectors"),
+                ("Native request-free host start diagnostics", "1|0|start-smoke-remaining-connectors"),
+                ("Native minimal runtime diagnostics", "1|1|runtime-smoke-remaining-connectors"),
+            ):
+                with self.subTest(step=step_name):
+                    subprocess.run(
+                        ["/bin/sh", "-c", steps[step_name]["run"]],
+                        env=environment,
+                        check=True,
+                        capture_output=True,
+                        timeout=10,
+                    )
+                    self.assertEqual(capture.read_text().strip(), expected)
+
     def executable(self, path: Path) -> Path:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")

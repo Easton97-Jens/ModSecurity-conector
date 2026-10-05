@@ -342,11 +342,15 @@ check-runtime-path-policy: check-framework
 check-bilingual-docs:
 	$(PYTHON) ci/checks/documentation/check-bilingual-docs.py
 
-check-ci-security-contract:
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest -v tests.test_ci_security_workflows tests.test_validate_submodule_candidate_state tests.test_update_submodules_local_git tests.test_update_framework_versions tests.test_verify_framework_candidate_contract tests.test_prepare_readonly_submodule_validation_sandbox tests.test_run_readonly_submodule_validation_namespace
+check-ci-security-contract: check-project-versions
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest -v tests.test_ci_security_workflows tests.test_framework_revision_pins tests.test_project_toolchain_pins tests.test_validate_submodule_candidate_state tests.test_update_submodules_local_git tests.test_update_framework_versions tests.test_verify_framework_candidate_contract tests.test_prepare_readonly_submodule_validation_sandbox tests.test_run_readonly_submodule_validation_namespace tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_all_locked_action_references_are_in_the_publisher_allowlist
 	$(PYTHON) ci/tools/fetch_security_tool.py --tool actionlint --validate-only
 	$(PYTHON) ci/tools/fetch_security_tool.py --tool zizmor --validate-only
 	$(PYTHON) ci/tools/fetch_security_tool.py --tool gitleaks --validate-only
+
+.PHONY: check-bounded-smoke-runtime-contract
+check-bounded-smoke-runtime-contract: check-framework
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest -v tests.test_full_smoke_workflow_contract tests.test_bounded_nginx_cases tests.test_nginx_harness_path_authority tests.test_resolve_traefik_host_binary tests.test_runtime_path_utils tests.test_resolve_lighttpd_host_binary tests.test_trusted_lighttpd_namespace_dispatch_workflow tests.test_apache_process_guard
 
 check-variable-documentation:
 	$(PYTHON) ci/checks/documentation/check-variable-documentation.py
@@ -530,7 +534,7 @@ memcheck-nginx: check-framework prepare-runtime-components
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" MSCONNECTOR_SMOKE_STAGE=bounded_soak NGINX_MEMCHECK=1 VALGRIND_BIN="$${VALGRIND_BIN:-valgrind}" NGINX_PROTOCOL_PROFILE=h1 NGINX_DOWNSTREAM_PROTOCOL=http1 NGINX_UPSTREAM_PROTOCOL=http1 NGINX_SOAK_CASES="$${NGINX_MEMCHECK_CASES:-allow_without_marker}" NGINX_SOAK_DURATION_SECONDS="$${NGINX_MEMCHECK_DURATION_SECONDS:-30}" NGINX_SOAK_CONCURRENCY=1 MODSECURITY_TEST_VARIANT=no-crs NO_CRS_BASELINE=1 FORCE_ALL_CASES=1 MODSECURITY_RULE_PREAMBLE_FILE="$(NO_CRS_RULES_FILE)" NGINX_HARNESS_PARENT="$${NGINX_HARNESS_PARENT:-$(BUILD_ROOT)/nginx-memcheck-harness}" RESULTS_DIR="$${RESULTS_DIR:-$(BUILD_ROOT)/results/no-crs/no-mrts/nginx-memcheck}" CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/runtime/run-nginx-smoke.sh"
 
 smoke-envoy: check-framework
-	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/runtime/run-envoy-smoke.sh"
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" CASE_SCOPE=all sh ci/runtime/lifecycle/run-legacy-open-connector-smoke.sh envoy
 
 smoke-envoy-modsecurity:
 	DECISION_BACKEND=libmodsecurity $(MAKE) smoke-envoy
@@ -548,7 +552,7 @@ smoke-haproxy: check-framework prepare-runtime-components
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" RESULTS_DIR="$${RESULTS_DIR:-$(BUILD_ROOT)/results/$${MODSECURITY_TEST_VARIANT:-no-crs}/$${MODSECURITY_MRTS_VARIANT:-no-mrts}/haproxy}" CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/runtime/run-haproxy-smoke.sh"
 
 smoke-lighttpd: check-framework
-	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/runtime/run-lighttpd-smoke.sh"
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" CASE_SCOPE=all sh ci/runtime/lifecycle/run-legacy-open-connector-smoke.sh lighttpd
 
 smoke-lighttpd-modsecurity:
 	DECISION_BACKEND=libmodsecurity $(MAKE) smoke-lighttpd
@@ -563,7 +567,7 @@ smoke-lighttpd-crs-secondary:
 	DECISION_BACKEND=libmodsecurity MODSECURITY_RULESET=crs CRS_SMOKE_CASE=secondary $(MAKE) smoke-lighttpd
 
 smoke-traefik: check-framework
-	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/runtime/run-traefik-smoke.sh"
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" CASE_SCOPE=all sh ci/runtime/lifecycle/run-legacy-open-connector-smoke.sh traefik
 
 smoke-traefik-modsecurity:
 	DECISION_BACKEND=libmodsecurity $(MAKE) smoke-traefik
@@ -634,6 +638,22 @@ test-no-crs: check-framework prepare-runtime-components
 
 test-with-crs: check-framework prepare-runtime-components
 	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env MODSECURITY_TEST_VARIANT=with-crs sh -eu -c '. "$(FRAMEWORK_ROOT)/ci/lib/common.sh"; . "$(CURDIR)/ci/runtime/lifecycle/prepare-fresh-crs-source.sh"; sh "$(FRAMEWORK_ROOT)/ci/provisioning/fetch-crs.sh"; sh "$(FRAMEWORK_ROOT)/ci/provisioning/prepare-crs.sh"; MODSECURITY_RULE_PREAMBLE_FILE="$$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"; RESULTS_DIR="$$BUILD_ROOT/results/with-crs"; export MODSECURITY_RULE_PREAMBLE_FILE RESULTS_DIR; CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/runtime/run-connector-smokes.sh"')
+
+# This bounded Apache/NGINX producer does not claim the full-matrix/MRTS
+# inputs required by refresh-all-reports. Its own reports remain mandatory.
+.PHONY: test-smoke-sequential-no-crs test-smoke-sequential-with-crs
+test-smoke-sequential-no-crs test-smoke-sequential-with-crs: check-framework prepare-runtime-components
+	@set -eu; \
+	variant="$(patsubst test-smoke-sequential-%,%,$@)"; \
+	smoke_root=$$(mktemp -d "$(BUILD_ROOT)/bounded-smoke-$$variant.XXXXXX"); \
+	run_id=$$(basename "$$smoke_root"); \
+	VERIFIED_RUN_ID="$$run_id" "$(FRAMEWORK_PYTHON)" ci/evidence/reports/refresh-connector-reports.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$$smoke_root" --profile bounded-smoke --variant "$$variant" --begin-bounded-smoke; \
+	runtime_rc=0; \
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" MODSECURITY_TEST_VARIANT="$$variant" MODSECURITY_RULE_PREAMBLE_FILE= RESULTS_DIR="$$smoke_root/results" CASE_SCOPE=all FORCE_ALL_CASES= TEST_CASE= SMOKE_CASES= NO_CRS_BASELINE= NO_CRS_SELECTED_CASE_IDS= RUN_ONE_CASE= sh -eu -c '. "$(FRAMEWORK_ROOT)/ci/lib/common.sh"; if [ "$$MODSECURITY_TEST_VARIANT" = with-crs ]; then . "$(CURDIR)/ci/runtime/lifecycle/prepare-fresh-crs-source.sh"; sh "$(FRAMEWORK_ROOT)/ci/provisioning/fetch-crs.sh"; sh "$(FRAMEWORK_ROOT)/ci/provisioning/prepare-crs.sh"; MODSECURITY_RULE_PREAMBLE_FILE="$$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"; export MODSECURITY_RULE_PREAMBLE_FILE; fi; apache_rc=0; sh "$(FRAMEWORK_ROOT)/ci/runtime/run-apache-smoke.sh" || apache_rc=$$?; printf "%s\n" "$$apache_rc" > "$$RESULTS_DIR/apache.rc"; nginx_rc=0; "$(FRAMEWORK_PYTHON)" "$(CURDIR)/ci/runtime/lifecycle/run-bounded-nginx-cases.py" --variant "$$MODSECURITY_TEST_VARIANT" || nginx_rc=$$?; if [ "$$apache_rc" -ne 0 ]; then exit "$$apache_rc"; fi; exit "$$nginx_rc"' || runtime_rc=$$?; \
+	refresh_rc=0; \
+	VERIFIED_RUN_ID="$$run_id" MODSECURITY_TEST_VARIANT="$$variant" "$(FRAMEWORK_PYTHON)" ci/evidence/reports/refresh-connector-reports.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$$smoke_root" --profile bounded-smoke --variant "$$variant" || refresh_rc=$$?; \
+	if [ "$$runtime_rc" -ne 0 ]; then exit "$$runtime_rc"; fi; \
+	exit "$$refresh_rc"
 
 # The dedicated Parent runner owns fresh provisioning and evidence validation.
 # Keep only the three newly promoted connectors in this narrow entrypoint.
@@ -1142,6 +1162,7 @@ check-remaining-connectors-build-wiring:
 
 check-remaining-connectors-start-wiring:
 	$(PYTHON) ci/checks/connectors/all/check-remaining-connectors-start-wiring.py
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest -v tests.test_legacy_open_connector_smoke tests.test_envoy_legacy_smoke_evidence
 
 check-remaining-connectors-claim-policy:
 	$(PYTHON) ci/checks/connectors/all/check-remaining-connectors-claim-policy.py
@@ -1330,6 +1351,13 @@ check-python-version-contract:
 check-go-version-contract:
 	$(PYTHON) ci/checks/common/check-go-version-contract.py
 
+.PHONY: check-project-versions sync-project-versions
+check-project-versions:
+	$(PYTHON) ci/tools/sync-project-versions.py --check
+
+sync-project-versions:
+	$(PYTHON) ci/tools/sync-project-versions.py --sync
+
 # Read-only host-runtime gate. Connector workflows set the reviewed runtime
 # identity and any profile-specific prerequisite arguments.
 HOSTRUNTIME_CONNECTOR ?= generic
@@ -1384,6 +1412,7 @@ test-hostruntime-preflight:
 	$(PYTHON) -m unittest -v tests.test_hostruntime_preflight
 
 lint: check-framework
+	$(MAKE) check-project-versions
 	$(MAKE) test-hostruntime-preflight
 	find ci -type f -name '*.sh' -print0 | xargs -0 -r sh -n
 	find connectors/envoy connectors/traefik connectors/lighttpd -type f -name '*.sh' -exec sh -n {} +

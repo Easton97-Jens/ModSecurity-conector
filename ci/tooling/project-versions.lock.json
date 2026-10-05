@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "framework_sha": "dc41bd22c335156cae02d9049098b92af65b7c57",
+  "mrts_sha": "8a6bb546c4c81d8ffc7be801dceac60c6925685f",
+  "python_version": "3.14.7",
+  "go_version": "1.27.1"
+}

@@ -28,6 +28,7 @@
 #include "msconnector/event_jsonl.h"
 #include "msconnector/late_intervention.h"
 #include "msconnector/limits.h"
+#include "msconnector/phase4_budget.h"
 
 static ngx_http_output_body_filter_pt ngx_http_next_body_filter;
 
@@ -149,23 +150,17 @@ ngx_http_modsecurity_plan_limited_response_body(
     }
 
     ctx->response_body_seen = 1;
-    if (mcf->phase4_mode == MSCONNECTOR_PHASE4_MODE_OFF) {
-        /* Disable only the optional budget. The Common planner still owns
-         * accounting and rejects overflow without forwarding the chunk. */
-        limit = SIZE_MAX;
-    } else if (mcf->phase4_mode == MSCONNECTOR_PHASE4_MODE_SAFE ||
-               mcf->phase4_mode == MSCONNECTOR_PHASE4_MODE_STRICT) {
-        limit = mcf->common_config.phase4_body_limit;
-    } else {
+    limit = msconnector_phase4_effective_body_limit(
+        mcf->phase4_mode, mcf->common_config.phase4_body_limit);
+    if (limit == 0U) {
         (void)msconnector_transaction_contract_fail(&ctx->contract,
             MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
         return NGX_ERROR;
     }
 
-    /* In safe/strict a P4 limit applies before the current buffer reaches the next
-     * filter. Passing an inspected prefix and forwarding an uninspected tail
-     * would violate the shared body-limit contract, so NGINX uses the Common
-     * reject plan just like the Apache output filter. */
+    /* Every valid P4 mode has no connector-owned cumulative inspection limit.
+     * Keep the Common planner only for consistent accounting and integer
+     * overflow rejection; libModSecurity owns response inspection policy. */
     if (!msconnector_body_limit_plan_chunk(ctx->response_body_bytes_seen,
             ctx->response_body_bytes_inspected, limit,
             MSCONNECTOR_BODY_LIMIT_ACTION_REJECT, len, &plan)) {

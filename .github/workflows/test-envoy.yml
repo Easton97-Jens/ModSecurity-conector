@@ -48,6 +48,11 @@ jobs:
           make check-remaining-connectors-build-wiring
           make check-remaining-connectors-start-wiring
           make check-remaining-connectors-claim-policy
+      - name: Exercise private socket and transport regressions
+        env:
+          TMPDIR: ${{ runner.temp }}
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python3 -m unittest -v tests.test_private_runtime_sockets tests.test_envoy_transport_hardening_contract
       - name: Collect host runtime preflight evidence
         if: always()
         env:

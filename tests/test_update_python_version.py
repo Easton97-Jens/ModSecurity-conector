@@ -12,6 +12,8 @@ from unittest import mock
 
 from tests.version_updater_test_support import FakeOpener, load_updater, response_factory, uses_shared_core
 
+from tests.version_updater_test_support import write_project_pins
+
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "update-python-version.py"
 updater = load_updater("update_python_version", SCRIPT)
 FakeResponse = response_factory(updater.CANONICAL_RELEASE_API_URL)
@@ -32,6 +34,7 @@ class UpdatePythonVersionTests(unittest.TestCase):
     def _root_with_version(self, root: Path, version: str = "3.14.6") -> Path:
         root.mkdir(parents=True, exist_ok=True)
         (root / ".python-version").write_text(f"{version}\n", encoding="utf-8")
+        write_project_pins(root, python_version=version)
         return root
 
     def _run_cli(

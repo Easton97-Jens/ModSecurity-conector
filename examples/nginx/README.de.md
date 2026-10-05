@@ -4,15 +4,9 @@
 
 ## Hier beginnen
 
-Verwenden Sie diese Seite, wenn NGINX Ihr Zielhost ist. Beginnen Sie für eine
-erste Konfiguration mit [safe/nginx.conf](safe/nginx.conf), stellen Sie ein für
-die exakte NGINX-ABI gebautes Modul bereit, passen Sie Rules- und Runtime-Pfade
-an und führen Sie vor dem Worker-Start den nativen NGINX-Konfigurationscheck
-aus.
+Verwenden Sie diese Seite, wenn NGINX der Zielhost ist. Für eine erste Konfiguration beginnen Sie mit [safe/nginx.conf](safe/nginx.conf), verwenden ein Modul für die exakt passende NGINX-ABI, passen Rules- und Runtime-Pfade an und führen vor dem Start der Worker den nativen NGINX-Konfigurationscheck aus.
 
-NGINX verwendet das direkte logische Profil `nginx`. Phase-4-`strict` ist
-eine Konfigurationspolicy; eine eingecheckte Strict-Datei behauptet keinen
-beobachteten sicheren client-sichtbaren Post-Commit-Abbruch.
+NGINX verwendet das direkte logische Profil `nginx`. Phase-4-`strict` ist eine Late-Action-Konfigurationspolicy; eine eingecheckte Strict-Datei ist kein Nachweis für einen sicher beobachteten client-sichtbaren Post-Commit-Abbruch. WAF-Response-Inspection-Byte-Limits gehören über `SecResponseBodyLimit` zur Engine; die Legacy-Einstellung `modsecurity_phase4_body_limit` dient nur der Kompatibilität.
 
 ## Integration und Grenze
 
@@ -67,7 +61,7 @@ Logs, Listener und Upstream-Werte darin sind Hostbeispiele.
 | modsecurity_rules_file | Lesbare libmodsecurity-Regeldatei | Pflicht; kein Repository-Default; Host-Konfiguration; http-Scope | /etc/modsecurity/modsecurity-phase4.conf. Ein geprüftes Ruleset kann Traffic blockieren. |
 | modsecurity_phase4_mode | P4-Policy: off, safe oder strict | Für Safe-, Strict- oder all-Datei Pflicht; Host-Konfiguration; http-Scope | safe in safe/nginx.conf; all wählt strict. Strict ist hier nur Konfiguration. |
 | modsecurity_phase4_log | Nativer, dem Connector gehörender P4-JSONL-Ereignis-Sink | Optional; http/server/location; bei Auslassung geerbt | Der Common-No-Follow-Helper verlangt ein sicheres Elternverzeichnis, ein reguläres Blatt, geeignete Eigentümer und den privaten Deskriptor-Modus `0600`. Für Rotation ein validiertes Konfigurations-Reload verwenden; das generische NGINX-`USR1`-Erneutöffnen wird nicht unterstützt. |
-| modsecurity_phase4_body_limit | Positives P4-Byte-Limit des Connectors | Optional; Host-Konfiguration; http/server/location-Scope | 1048576 in allen Lifecycle-Profilen; Überschreitung schlägt fail-closed fehl. |
+| modsecurity_phase4_body_limit | Alter Connector-Kompatibilitätswert | Optional; Host-Konfiguration; http/server/location-Scope | Wird für die Migration weiter akzeptiert; kein gültiger Phase-4-Modus erzwingt ihn als WAF-Response-Inspection-Policy. In Regeln SecResponseBodyLimit/SecResponseBodyLimitAction verwenden. |
 | modsecurity_use_error_log | Engine-Meldungen an NGINX-Error-Log weiterleiten | Optional; Host-Konfiguration; http/server/location-Scope | In allen Lifecycle-Profilen on. |
 | modsecurity_transaction_id | Requestbezogener Transaktionsausdruck | Optional; Host-Konfiguration; http/server/location-Scope | Standardmäßig kommentiert, weil `$request_id` eine Host-Request-ID-Variable voraussetzt. Nur einen eindeutigen, servergenerierten Wert aktivieren; URI- oder Header-abgeleitete Werte eignen sich nicht zur Korrelation. |
 | modsecurity_rules_remote | Schlüssel und URL für Remote-Regeln | Optional; Host-Konfiguration; http/server/location-Scope | Standardmäßig kommentiert, weil Zugangsdaten und Endpunkt betreiberabhängig sind. |

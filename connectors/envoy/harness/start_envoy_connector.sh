@@ -24,7 +24,7 @@ SUMMARY="$START_ROOT/start-summary.txt"
 SED_LOG_RANGE='1,160p'
 TLS_CERTIFICATE="$START_ROOT/envoy-loopback.crt"
 TLS_PRIVATE_KEY="$START_ROOT/envoy-loopback.key"
-PRIVATE_SOCKET_DIR="$START_ROOT/mrc"
+PRIVATE_SOCKET_DIR=${MSCONNECTOR_PRIVATE_SOCKET_ROOT:-$START_ROOT/mrc}
 RESPONSE_OBSERVER_SOCKET="$PRIVATE_SOCKET_DIR/envoy-response-observer.sock"
 COMPANION_SOCKET="$PRIVATE_SOCKET_DIR/envoy-ext-authz-companion.sock"
 OBSERVER_STDOUT="$START_ROOT/response-observer.stdout.log"
@@ -82,6 +82,14 @@ if ! "$PYTHON_BIN" "$HELPER" prepare-runtime-root --runtime-root "$START_ROOT"; 
 fi
 trap cleanup EXIT HUP INT TERM
 rm -f "$SUMMARY" "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY"
+set -- prepare-runtime-root --runtime-root "$PRIVATE_SOCKET_DIR"
+if [ -n "${MSCONNECTOR_PRIVATE_SOCKET_ROOT:-}" ]; then
+    set -- "$@" --require-private-mode
+fi
+if ! "$PYTHON_BIN" "$HELPER" "$@"; then
+    echo "envoy_start_smoke: FAIL - private socket root is unsafe" >&2
+    exit 1
+fi
 if [ -L "$PRIVATE_SOCKET_DIR" ]; then
     echo "envoy_start_smoke: FAIL - private response-observer directory must not be a symlink" >&2
     exit 1

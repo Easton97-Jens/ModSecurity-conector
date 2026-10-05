@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import pwd
+import select
 import signal
 import socket
 import stat
@@ -12,10 +14,128 @@ import subprocess
 import sys
 import tempfile
 import time
+import traceback
 import unittest
 from unittest import mock
 
 from connectors.apache.harness import apache_process_guard as guard
+
+
+class ApacheRuntimeAncestorPermissionTest(unittest.TestCase):
+    def _existing_nonroot_identity(self) -> tuple[int, int]:
+        if os.geteuid() != 0:
+            return os.geteuid(), os.getegid()
+        try:
+            account = pwd.getpwnam("nobody")
+        except KeyError:
+            self.skipTest("existing non-root test identity unavailable")
+        return account.pw_uid, account.pw_gid
+
+    def _run_nonroot(self, uid: int, gid: int, exercise) -> None:
+        reader, writer = os.pipe()
+        process = os.fork()
+        if process == 0:
+            os.close(reader)
+            try:
+                if os.geteuid() == 0:
+                    os.setgroups([])
+                    os.setgid(gid)
+                    os.setuid(uid)
+                if os.geteuid() == 0:
+                    raise RuntimeError("permission exercise requires a non-root identity")
+                exercise()
+            except BaseException:
+                os.write(writer, traceback.format_exc().encode()[:8192])
+                os._exit(1)
+            os._exit(0)
+        os.close(writer)
+        try:
+            evidence = os.read(reader, 8192).decode()
+            _, status = os.waitpid(process, 0)
+        finally:
+            os.close(reader)
+        self.assertEqual(os.waitstatus_to_exitcode(status), 0, evidence)
+
+    def _fixture(self, parent: Path, uid: int, gid: int) -> tuple[Path, Path]:
+        parent.chmod(0o755)
+        job = parent / "root-owned-job"
+        job.mkdir(mode=0o711)
+        leaf = job / "runner-root"
+        leaf.mkdir(mode=0o700)
+        if os.geteuid() == 0:
+            os.chown(leaf, uid, gid)
+        job.chmod(0o711 if os.geteuid() == 0 else 0o111)
+        return job, leaf
+
+    def test_prepare_and_private_artifacts_traverse_execute_only_ancestor(self) -> None:
+        uid, gid = self._existing_nonroot_identity()
+        with tempfile.TemporaryDirectory(prefix="apache-execute-ancestor-") as temporary:
+            job, leaf = self._fixture(Path(temporary), uid, gid)
+
+            def exercise() -> None:
+                # This child alone exercises the public-leaf creation mode;
+                # private-runtime tests may leave the parent umask at 077.
+                os.umask(0o022)
+                with self.assertRaises(PermissionError):
+                    os.open(job, os.O_RDONLY | os.O_DIRECTORY)
+                guard.prepare_runtime_directory(leaf, "private runtime", True)
+                output_root = leaf / "output"
+                guard.prepare_runtime_directory(output_root, "output runtime", False)
+                self.assertEqual(stat.S_IMODE(output_root.stat().st_mode), 0o755)
+                run_root = leaf / "run"
+                guard.prepare_runtime_directory(run_root, "private run", True)
+                state = run_root / "state.json"
+                payload = {"permission_boundary": "live"}
+                guard._publish_supervisor_state(payload, state, leaf)
+                self.assertEqual(guard._load(state, leaf), payload)
+                guard._write_pid_output(run_root / "pid", os.getpid(), leaf)
+
+            try:
+                self._run_nonroot(uid, gid, exercise)
+                self.assertEqual(stat.S_IMODE(job.stat().st_mode), 0o711 if os.geteuid() == 0 else 0o111)
+                self.assertEqual(stat.S_IMODE(leaf.stat().st_mode), 0o700)
+                self.assertEqual(stat.S_IMODE((leaf / "run/state.json").stat().st_mode), 0o600)
+            finally:
+                job.chmod(0o711)
+
+    def test_execute_only_traversal_rejects_writable_and_symlink_ancestors(self) -> None:
+        uid, gid = self._existing_nonroot_identity()
+        with tempfile.TemporaryDirectory(prefix="apache-unsafe-ancestor-") as temporary:
+            parent = Path(temporary)
+            job, leaf = self._fixture(parent, uid, gid)
+            job.chmod(0o777)
+            linked = parent / "linked-job"
+            linked.symlink_to(job, target_is_directory=True)
+            paths = (leaf, linked / leaf.name)
+
+            def exercise() -> None:
+                for path in paths:
+                    with self.assertRaises(guard.GuardError):
+                        guard.prepare_runtime_directory(path, "unsafe runtime", True)
+
+            self._run_nonroot(uid, gid, exercise)
+
+    def test_execute_only_leaf_is_not_accepted_or_permission_repaired(self) -> None:
+        uid, gid = self._existing_nonroot_identity()
+        with tempfile.TemporaryDirectory(prefix="apache-unreadable-leaf-") as temporary:
+            job, leaf = self._fixture(Path(temporary), uid, gid)
+            leaf.chmod(0o100)
+
+            def exercise() -> None:
+                with self.assertRaises(guard.GuardError):
+                    guard.prepare_runtime_directory(leaf, "unreadable runtime", True)
+                self.assertEqual(stat.S_IMODE(leaf.stat().st_mode), 0o100)
+
+            try:
+                self._run_nonroot(uid, gid, exercise)
+            finally:
+                job.chmod(0o711)
+                leaf.chmod(0o700)
+
+    def test_missing_path_descriptor_support_fails_closed(self) -> None:
+        with mock.patch.object(guard.os, "O_PATH", None):
+            with self.assertRaisesRegex(guard.GuardError, "requires O_PATH"):
+                guard._runtime_ancestor_open_flags()
 
 
 class ApacheProcessGuardTest(unittest.TestCase):
@@ -58,30 +178,42 @@ class ApacheProcessGuardTest(unittest.TestCase):
             return int(listener.getsockname()[1])
 
     def _start_loopback_server(self, port: int) -> subprocess.Popen[bytes]:
+        # These ownership tests need a live listener, not request handling.
+        # Never accept the readiness probe: its transient accepted descriptor
+        # would make a subsequent /proc identity inspection legitimately fail.
+        code = (
+            "import socket, sys, time\n"
+            "listener = socket.socket()\n"
+            "listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)\n"
+            "listener.bind(('127.0.0.1', int(sys.argv[1])))\n"
+            "listener.listen(1)\n"
+            "print('listener-ready', flush=True)\n"
+            "while True: time.sleep(0.05)\n"
+        )
         process = subprocess.Popen(
             [
                 sys.executable,
-                "-m",
-                "http.server",
+                "-c",
+                code,
                 str(port),
-                "--bind",
-                "127.0.0.1",
             ],
-            stdout=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             start_new_session=True,
         )
-        deadline = time.monotonic() + 5.0
-        while time.monotonic() < deadline:
-            if process.poll() is not None:
-                self.fail(f"test HTTP server exited with {process.returncode}")
+        try:
+            ready, _, _ = select.select([process.stdout], [], [], 5.0)
+            if not ready or process.stdout.readline() != b"listener-ready\n":
+                self.fail("test listener did not acknowledge its stable descriptor phase")
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
-                if probe.connect_ex(("127.0.0.1", port)) == 0:
-                    return process
-            time.sleep(0.02)
-        process.kill()
-        process.wait(timeout=2)
-        self.fail("test HTTP server did not become ready")
+                self.assertEqual(probe.connect_ex(("127.0.0.1", port)), 0)
+            return process
+        except BaseException:
+            process.kill()
+            process.wait(timeout=2)
+            raise
+        finally:
+            process.stdout.close()
 
     def _write_fake_httpd(self, port: int) -> tuple[Path, Path, Path]:
         httpd = Path(self.tmp.name) / "httpd"
@@ -465,19 +597,34 @@ class ApacheProcessGuardTest(unittest.TestCase):
         output = self.artifact_root / "run" / "supervisor-race.pid"
         real_close = os.close
         replaced = False
+        pinned_original: list[int] = []
 
         def close_then_replace(fd: int) -> None:
             nonlocal replaced
             is_regular = stat.S_ISREG(os.fstat(fd).st_mode)
+            if is_regular and not replaced:
+                # Keep the unlinked original inode allocated while creating
+                # the replacement; inode reuse would not exercise this guard.
+                pinned_original.append(os.dup(fd))
             real_close(fd)
             if is_regular and not replaced:
                 replaced = True
                 output.unlink()
                 output.write_text("replacement\n", encoding="ascii")
 
-        with mock.patch.object(guard.os, "close", side_effect=close_then_replace):
-            with self.assertRaisesRegex(guard.GuardError, "inode changed"):
-                guard._write_pid_output(output, 123, self.artifact_root)
+        try:
+            with mock.patch.object(guard.os, "close", side_effect=close_then_replace):
+                with self.assertRaisesRegex(guard.GuardError, "inode changed"):
+                    guard._write_pid_output(output, 123, self.artifact_root)
+            original_identity = os.fstat(pinned_original[0])
+            replacement_identity = output.stat()
+            self.assertNotEqual(
+                (original_identity.st_dev, original_identity.st_ino),
+                (replacement_identity.st_dev, replacement_identity.st_ino),
+            )
+        finally:
+            for descriptor in pinned_original:
+                real_close(descriptor)
         self.assertTrue(replaced)
         self.assertEqual(output.read_text(encoding="ascii"), "replacement\n")
         self.assertFalse(list(self.artifact_root.glob(".apache-process-guard-*.tmp")))

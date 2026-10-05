@@ -284,6 +284,7 @@ jobs:
             --repo-root "$GITHUB_WORKSPACE" \
             --candidate-sha "$CANDIDATE_SHA" \
             --framework-common "$framework_common" \
+            --candidate-framework-root "$GITHUB_WORKSPACE/$SUBMODULE_PATH" \
             --expected-parent-framework-sha "$CURRENT_GITLINK_SHA"
 
       - name: Create private read-only candidate guard
@@ -524,8 +525,7 @@ jobs:
                 -e connectors/haproxy/htx-overlay/version-contract.json \
                 -e scripts/generate_compiler_guides.py \
                 -e tests/test_compiler_guides.py \
-                -e .github/workflows/test-connectors-with-crs-no-mrts.yml \
-                -e tests/test_ci_security_workflows.py \
+                -e ci/tooling/project-versions.lock.json \
                 -e ci/checks/evidence/check-runtime-producer-readiness.py \
                 -e .github/workflows/test-full-smoke-sequential.yml \
                 -e .github/workflows/nginx-root-broker.yml \
@@ -581,8 +581,7 @@ jobs:
                 $6 == "connectors/haproxy/htx-overlay/version-contract.json" ||
                 $6 == "scripts/generate_compiler_guides.py" ||
                 $6 == "tests/test_compiler_guides.py" ||
-                $6 == ".github/workflows/test-connectors-with-crs-no-mrts.yml" ||
-                $6 == "tests/test_ci_security_workflows.py" ||
+                $6 == "ci/tooling/project-versions.lock.json" ||
                 $6 == "ci/checks/evidence/check-runtime-producer-readiness.py" ||
                 $6 == ".github/workflows/test-full-smoke-sequential.yml" ||
                 $6 == ".github/workflows/nginx-root-broker.yml" ||
@@ -819,8 +818,20 @@ jobs:
             pr_title="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.title')"
             pr_author="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.user.login')"
             pr_merged_at="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.merged_at')"
-            if [ "$pr_state" != "closed" ] || [ "$pr_base" != "$DEFAULT_BRANCH" ] || [ "$pr_head" != "$UPDATE_BRANCH" ] || [ "$pr_head_sha" != "$expected_head" ] || [ "$pr_title" != "$PR_TITLE" ] || [ "$pr_author" != "$EXPECTED_PR_AUTHOR" ] || [ "$pr_merged_at" = "null" ] || [ -z "$pr_merged_at" ]; then
+            pr_merge_sha="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.merge_commit_sha')"
+            pr_base_repo="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.base.repo.full_name')"
+            pr_head_repo="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.head.repo.full_name')"
+            pr_body="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.body // ""')"
+            marker_count="$(printf '%s\n' "$pr_body" | awk -v marker="$PR_MARKER" '$0 == marker { count += 1 } END { print count + 0 }')"
+            if [ "$pr_state" != "closed" ] || [ "$pr_base" != "$DEFAULT_BRANCH" ] || [ "$pr_head" != "$UPDATE_BRANCH" ] || [ "$pr_head_sha" != "$expected_head" ] || [ "$pr_title" != "$PR_TITLE" ] || [ "$pr_author" != "$EXPECTED_PR_AUTHOR" ] || [ "$pr_merged_at" = "null" ] || [ -z "$pr_merged_at" ] || [ "$pr_base_repo" != "$GITHUB_REPOSITORY" ] || [ "$pr_head_repo" != "$GITHUB_REPOSITORY" ] || [ "$marker_count" != "1" ]; then
               echo "Merged maintenance pull request is not updater-conformant." >&2
+              exit 1
+            fi
+            # Reviewed remediation commits may have human authors and touch
+            # additional paths. Trust only the exact merged App PR head, whose
+            # merge commit is already part of the current default branch.
+            if ! printf '%s\n' "$pr_merge_sha" | grep -Eq '^[0-9a-f]{40}$' || ! git cat-file -e "$pr_merge_sha^{commit}" || ! git merge-base --is-ancestor "$pr_merge_sha" "origin/$DEFAULT_BRANCH"; then
+              echo "Merged maintenance PR merge commit is not reachable from the current default branch." >&2
               exit 1
             fi
           }
@@ -884,7 +895,6 @@ jobs:
             0:true)
               BRANCH_STATE=C
               git fetch --no-tags origin "refs/heads/$UPDATE_BRANCH:refs/remotes/origin/$UPDATE_BRANCH"
-              require_single_updater_commit "origin/$UPDATE_BRANCH"
               read_matching_merged_pr
               verify_merged_pr "$MERGED_PR_NUMBER" "$EXPECTED_REMOTE_HEAD"
               ;;
@@ -934,6 +944,7 @@ jobs:
             --repo-root "$GITHUB_WORKSPACE" \
             --candidate-sha "$CANDIDATE_SHA" \
             --framework-common "$framework_common" \
+            --candidate-framework-root "$GITHUB_WORKSPACE/$SUBMODULE_PATH" \
             --expected-parent-framework-sha "$MASTER_OLD_SHA"
           python3 ci/tools/sync-framework-component-versions.py \
             --sync \
@@ -949,6 +960,7 @@ jobs:
             --repo-root "$GITHUB_WORKSPACE" \
             --candidate-sha "$CANDIDATE_SHA" \
             --framework-common "$framework_common" \
+            --candidate-framework-root "$GITHUB_WORKSPACE/$SUBMODULE_PATH" \
             --expected-parent-framework-sha "$CANDIDATE_SHA"
           python3 scripts/generate_compiler_guides.py
           git -c core.hooksPath=/dev/null add -- \
@@ -962,8 +974,7 @@ jobs:
             connectors/haproxy/htx-overlay/version-contract.json \
             scripts/generate_compiler_guides.py \
             tests/test_compiler_guides.py \
-            .github/workflows/test-connectors-with-crs-no-mrts.yml \
-            tests/test_ci_security_workflows.py \
+            ci/tooling/project-versions.lock.json \
             ci/checks/evidence/check-runtime-producer-readiness.py \
             .github/workflows/test-full-smoke-sequential.yml \
             .github/workflows/nginx-root-broker.yml \

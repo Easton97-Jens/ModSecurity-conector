@@ -4,12 +4,7 @@
 
 ## Schnellorientierung
 
-Der vertrauenswürdige NGINX-Root-Broker existiert nur für eng begrenzte
-Testoperationen, die tatsächlich Privilegien benötigen. Er ist keine
-allgemeine Root-Shell und kein Deployment-Mechanismus. Broker und erlaubte
-Aktion stammen aus der geschützten vertrauenswürdigen Grenze; unvertrauenswürdige
-PR-Daten werden nur als Input behandelt und vor privilegierten Aktionen
-validiert.
+Der vertrauenswürdige NGINX-Root-Broker existiert nur für eng begrenzte Testoperationen, die tatsächlich Privilegien benötigen. Er ist keine allgemeine Root-Shell und kein Deployment-Mechanismus. Broker und erlaubte Aktion stammen aus der geschützten vertrauenswürdigen Grenze; unvertrauenswürdige PR-Daten werden als Input behandelt und vor privilegierten Aktionen validiert.
 
 Verwenden Sie normale unprivilegierte Workflows, wenn Root nicht erforderlich ist.
 
@@ -161,6 +156,11 @@ Verzeichnisse sein.
 
 ## Versionierter deklarativer Caller-Vertrag
 
+Der aktuelle Caller deklariert auf oberster Ebene `permissions: {}` und
+gewährt jedem zugelassenen Job nur `contents: read`. Der eingeschränkte Parser
+akzeptiert für diesen Vertrag das exakte leere Mapping-Literal `{}`;
+nichtleere Flow-Mappings, Flow-Listen, Anchors und Tags bleiben unzulässig.
+
 Die wiederverwendbare Workflow-Schnittstelle besitzt exakt sechs Inputs:
 
 - `caller_manifest_artifact`
@@ -212,6 +212,17 @@ Snapshot-Vertrag enthält; ein resultierender Parent-master-Dispatch wählt ihn
 damit direkt.
 
 ## Geschützte Artefakte und CRS-Bundle
+
+Der Workflow-Quellstand lädt den geschützten CRS-Release-Tag vor der
+Bundle-Zulassung explizit ohne Root. Repository, Tag und Commit stammen aus den
+blob-verifizierten Broker-Konstanten. Der frische Quellbaum muss den erlaubten
+Origin und HEAD behalten, und der geladene Tag muss zum erlaubten Commit
+aufgelöst werden; bestehende Inhaltsprüfungen gelten weiter. Das unterstützt
+auch einen Framework-Fetcher, der nur den erlaubten Commit ohne Tags
+materialisiert. Die Aktivierung dieser Korrektur erfordert eine geprüfte
+Broker-Revision und ein neues unveränderliches Caller-Tupel; der aktuell
+dokumentierte Caller-Pin `49c40779a7b6de9f699391bcd524ea069787df42` wählt
+den neuen Workflow-Quellstand nicht aus.
 
 Der Workflow baut das geprüfte NGINX-Binary, das ModSecurity-NGINX-Modul und
 die ModSecurity-Shared-Library ohne root aus dem ausgecheckten geschützten

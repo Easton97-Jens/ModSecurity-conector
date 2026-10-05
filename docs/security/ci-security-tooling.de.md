@@ -4,14 +4,9 @@
 
 ## Schnellorientierung
 
-Diese Seite dokumentiert **wie CI-Security-Checks gepinnt und begrenzt sind**;
-sie behauptet nicht, dass das Projekt allgemein sicher zertifiziert ist. Lesen
-Sie sie bei Änderungen an Workflows, Security-Scannern, Action-Pins,
-Berechtigungen oder Dependency-Prüflogik.
+Diese Seite dokumentiert, **wie CI-Security-Checks gepinnt und begrenzt sind**; sie behauptet keine allgemeine Sicherheitszertifizierung des Projekts. Lesen Sie sie bei Änderungen an Workflows, Security-Scannern, Action-Pins, Berechtigungen, Projektversions-Pins oder Dependency-Prüflogik.
 
-Security-Tools bleiben unveränderlich/reviewbar, Berechtigungen minimal und
-Scan-Ergebnisse an exakten Commit/Run gebunden. Ein grüner Scanner ist ein
-Security-Signal und keine Produktionszertifizierung.
+Security-Tools bleiben unveränderlich/reviewbar, Berechtigungen minimal und Scan-Ergebnisse an den exakten Commit/Run gebunden. Ein grüner Scanner ist ein Security-Signal und keine Produktionszertifizierung.
 
 ## Geltungsbereich
 
@@ -74,6 +69,100 @@ Für die gehostete Ausführung konfigurieren Sie die Repository-Variable
 Repository. Die GitHub App muss auf dieses Repository begrenzt sein und darf
 nur `Contents: write`, `Pull requests: write` und `Workflows: write` erhalten.
 
+Der normale CI-Sicherheitsvertrag prüft, dass jeder eingecheckte Workflow durch
+die explizite Publisher-Allowlist und die Staging-Liste abgedeckt ist. Ein neuer
+Workflow erfordert die Aktualisierung beider Listen. Die Proposed-Tree-Prüfung
+kopiert die vollständigen registrierten Vertragseingaben einschließlich ihrer
+Offline-Test-Fixtures; diese read-only-Eingaben erweitern die erlaubten
+Änderungen des Publishers nicht.
+
+## Zentrale gewöhnliche Revisions- und Toolchain-Pins
+
+`ci/tooling/project-versions.lock.json` ist die einzige gepflegte Parent-
+Konfiguration für gewöhnliche Framework-/MRTS-Revisionen und Python-/Go-
+Toolchains. Ihre generierten Setup-Action-Ansichten bleiben `.python-version`
+und `.go-version`. Gewöhnliche Revisionsconsumer prüfen den exakten Parent-
+Lock-Blob, unabhängig aufgezeichnete Gitlinks und materialisierte Repository-
+HEADs bei deaktivierten Git-Replacements. Komponenten bleiben in der
+`ci/lib/common.sh` des ausgewählten Frameworks definiert; Action-/Sicherheits-
+Tool-Pins behalten ihre getrennte Lockdatei. Geschützte Broker-Tupel bleiben
+unabhängig geprüft. [Projekt-Versionspins](../reference/version-pins.de.md)
+erläutern Zuständigkeit, Synchronisierung und Fehlersemantik.
+
+## Framework-Submodul-Wartung und Artefaktbereinigung
+
+`update-submodules.yml` unterscheidet offene Wartungsbranches von Branches, die
+nach einem geprüften Merge übrig bleiben. Ein offener Branch muss weiterhin
+genau einen vertragskonformen Updater-Commit enthalten. Ein verbleibender
+gemergter Branch darf geprüfte menschliche Reparatur-Commits enthalten, wenn
+ein Same-Repository-PR mit exakt diesem Head, App-Autor, festem Titel und Marker
+gemergt wurde und sein Merge-Commit vom aktuellen `origin/master` erreichbar
+ist. Nicht gemergte, fremde, mehrdeutige oder veraltete Identitäten bleiben
+Fehler. Die Veröffentlichung baut weiterhin vom aktuellen `master` neu auf,
+validiert den Kandidaten, prüft Branch-Races und erstellt einen Draft PR ohne
+automatischen Merge.
+
+Die zeitgesteuerte Action in `cleanup-artifacts.yml` wiederholt vorübergehende
+GitHub-API-Fehler bis zu dreimal mit dem begrenzten Backoff der gepinnten Action.
+Dauerhafte Berechtigungsfehler und nach den Wiederholungen verbleibende
+Löschfehler lassen den Job weiterhin scheitern; Aufbewahrungsregeln und
+Job-Berechtigungen bleiben gleich.
+
+## Zulassung von Runtime-Pfaden
+
+Envoy- und Traefik-Kompatibilitäts-Stages erzeugen Invocation-eigene Unix-Sockets
+über `ci/runtime/lifecycle/with-private-sockets.py` in einem kurzen privaten
+Verzeichnis. Evidence- und Build-Artefakte behalten ihre an Revisionen gebundenen
+Pfade. Die CLI wählt ausschließlich feste Envoy-/Traefik-Lifecycle-Einstiegspunkte
+und deren geprüfte Stage-Argumente. Der Shell-Aufrufer übergibt den aus
+`RUNNER_TEMP`/`TMPDIR` ausgewählten Socket-Elternpfad ausdrücklich; der Wrapper
+prüft Eigentümer, sichere Vorfahren, den Modus `0700` des privaten Verzeichnisses
+und die Unix-Socket-Pfadgrenze von 108 Bytes vor dem Start der ausgewählten Stage. Beliebige Befehlsausführung
+ist nicht über die CLI verfügbar. Der Wrapper prüft den temporären Elternpfad, leitet Beendigungssignale
+weiter, weist verbliebene laufende Prozesse zurück und prüft das Prozessende,
+bevor er Socket-Dateien löscht. Das Verzeichnis bleibt erhalten, wenn sicheres
+Prozessende oder sichere Bereinigung nicht feststeht. Direkte Harness-Aufrufe mit kurzen Pfaden
+behalten ihr privates Fallback-Verzeichnis. Der Traefik-Runner lässt den exakten
+vorbereiteten Pfad `BUILD_ROOT/traefik-connector/bin/traefik` mit denselben
+Eigentümer-, Modus-, Vorfahren- und Symlink-Prüfungen wie bei gecachten Binaries
+zu; andere Executables im Build-Baum bleiben unzulässig.
+
+## Zulassung des Traefik-Response-Observer-Loaders
+
+Der feste eingecheckte `modsecurityResponseObserver` verwendet Linux
+`SO_PEERCRED`, um den Response-Companion-Peer zu authentifizieren. Yaegi muss
+für diese Prüfung den eingeschränkten `syscall`-Import bereitstellen. Die
+`.traefik.yml` des Observers deklariert `useUnsafe: true`; die
+Betreiberkonfiguration aktiviert dies ausschließlich für dieses lokale Plugin
+über `experimental.localPlugins.modsecurityResponseObserver.settings.useUnsafe`.
+Beide Deklarationen sind erforderlich. Das statische Beispiel und beide
+Smoke-Einstiegspunkte aktivieren außerdem `experimental.abortOnPluginFailure`,
+damit ein Observer-Ladefehler den Start abbricht, statt seine Route unverfügbar
+zu lassen. Passende ältere Build-Constraints
+`// +build linux` / `// +build !linux` ergänzen die modernen
+`//go:build`-Constraints, damit Yaegi unter Linux die Linux-Credential-
+Implementierung auswählt und anderswo den fehlgeschlossenen Stub erhält.
+
+Diese Aktivierung gilt nur für die feste Repository-eigene Observer-Quelle,
+die ohne Symlinks im privaten Smoke-Arbeitsverzeichnis bereitgestellt wird.
+Sie ist keine globale Aktivierung oder Erlaubnis zum Laden anderer Plugins.
+Die bestehende Peer-UID-/GID-Authentifizierung und private Socket-Zulassung
+bleiben erforderlich; das Abschalten von `SO_PEERCRED` zur Vermeidung eines
+Interpreter-Importfehlers würde diese Authentifizierungsgrenze entfernen.
+
+## Wiederherstellung gepinnter Apache-HTTPD-Quellen
+
+Die Parent-Runtime-Bereitstellung aktiviert eine eng begrenzte Wiederherstellung
+für gepinnte HTTPD-Quellarchive: Nur eine direkte `404`-Antwort der exakten
+kanonischen URL `https://downloads.apache.org/httpd/httpd-<version>.tar.bz2`
+erlaubt einen Abruf unter `https://archive.apache.org/dist/httpd/` mit demselben
+Dateinamen. Version und konfigurierter literaler SHA-256 bleiben unverändert.
+Redirects, Berechtigungsfehler, Zeitüberschreitungen, fremde Hosts und andere
+Komponenten lösen diese Wiederherstellung nicht aus. Der Digest wird vor
+Archivauflistung oder Extraktion geprüft. Die Cache-Identität bleibt an das
+kanonische Quelltupel gebunden; Metadaten erfassen die tatsächliche Download-URL
+und den ausdrücklichen Wiederherstellungsgrund.
+
 ## Eingeschränkter Python-3.14-Patch-Updater
 
 `.github/workflows/update-python-version.yml` hat genau vier Jobs:
@@ -86,7 +175,7 @@ ohne einen laufenden Wartungsversuch abzubrechen und lässt Arbeit nur für die
 kanonische Nicht-Fork-Ref `master` von `Easton97-Jens/ModSecurity-conector` zu.
 
 Der Resolver verwendet den exakten vertrauenswürdigen Event-SHA, die kanonische
-`.python-version` und `scripts/update-python-version.py --check --json`, um
+Projekt-Lockdatei samt geprüfter `.python-version`-Ansicht und `scripts/update-python-version.py --check --json`, um
 die typisierten Outputs `status`, `current_version`, `latest_version` und
 `update_available` auszugeben. Der Validator installiert und prüft den
 Candidate-Patch unabhängig, löst ihn mit `--expected-version` erneut auf,
@@ -113,7 +202,8 @@ und keinen passenden PR oder genau einen Same-Repository-Draft-PR mit festem
 Titel und Marker `<!-- modsecurity-conector-python-314-updater -->`, Basis
 `master` und deaktiviertem automatischen Merge. Er prüft bei einem bestehenden
 Branch dessen historischen Scope, baut danach von aktuellem vertrauenswürdigem
-`origin/master` neu auf, ändert nur `.python-version`, staged nur diese Datei
+`origin/master` neu auf, ändert nur das Lock-Feld `python_version` samt
+`.python-version`-Ansicht, staged nur diese beiden Dateien
 und verwendet beim sicheren Ersetzen des verifizierten Wartungs-Branch nur die
 exakte Form
 `--force-with-lease=refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_TIP`. Ein
@@ -129,6 +219,10 @@ bei einem aktuellen Resultat berichtet er, dass kein Branch, Commit oder PR
 geändert wurde.
 
 ## Workflow-Linting
+
+Das wiederverwendbare Fünf-Connector-Profil prüft seinen No-CRS-Workflow-Vertrag
+vor der Matrixauflösung und verlangt Workflow-weites `permissions: {}` samt
+nur den festen Job-Lesegrants. Dies erkennt Berechtigungs-/Wiring-Drift früh.
 
 `ci-security-workflow-lint.yml` führt checksum-verifiziertes `actionlint` aus
 und übergibt den `ShellCheck`-Pfad des Runners, wenn er verfügbar ist. Zudem
@@ -167,7 +261,8 @@ AddressSanitizer und UndefinedBehaviorSanitizer aus. Die <code>go.mod</code>
 jedes Moduls behält seine Go-Sprachbaseline. Bei seiner begrenzten planmäßigen
 Auflösung wählt der Updater die höchste stabile numerische Go-Release und
 schlägt sie nach read-only-Candidate-Validierung in einem Draft PR vor. Er darf
-nur <code>.go-version</code> und das feste, unabhängig validierte Envoy-
+nur das Feld <code>go_version</code> der Projekt-Lockdatei,
+<code>.go-version</code> und das feste, unabhängig validierte Envoy-
 Komponenten-Bundle ändern; beliebige Modul- oder Dependency-Dateien kann er
 nicht ändern. Das C/C++-Ergebnis beansprucht keine vollständige
 Connector-Abdeckung; eine Erweiterung erfordert reproduzierbare Builds für den
@@ -178,6 +273,106 @@ checkt den exakten Pull-Request-Head aus. Fork-Pull-Requests analysiert dieser
 Job absichtlich nicht, weil ihr Head kein vertrauenswürdiger
 Same-Repository-Ref ist. Die Default-Branch-Scorecard lädt SARIF nur mit der
 separaten Berechtigung `security-events: write` hoch.
+
+## Report-Scope des sequenziellen Smokes
+
+`test-full-smoke-sequential.yml` verwendet die dedizierten Ziele
+`test-smoke-sequential-no-crs` / `test-smoke-sequential-with-crs`.
+Sein nativer Producer liefert Apache-/NGINX-Smoke-Ergebnisse, nicht die Full-
+Matrix-, MRTS- und weiteren Runtime-Eingaben der allgemeinen Report-Aktualisierung.
+Das Profil `bounded-smoke` entspricht diesem tatsächlichen Producer-Scope;
+das Verhalten von allgemeinem `test-no-crs`, `test-with-crs` und
+`refresh-all-reports` (`--strict-inputs`) bleibt unverändert.
+
+Das begrenzte Profil verlangt frische Coverage- und Runtime-Cache-Reports aus
+demselben Run. Ein privater Beleg bindet den exakten Parent-Commit, verifizierte
+Framework-/MRTS-Gitlinks und Checkouts, festen Framework-Pfad, Variante, Build-
+Root und native Fallauswahl. Jede ausgewählte Apache-/NGINX-Zeile muss richtige
+Variante und Connector ausweisen, live ausgeführt sein und bestehen; fehlende
+oder zusätzliche Fälle sind unzulässig. Die Produktions-CLI lässt nur ihre festen Parent-/Framework-Roots zu; native
+Fallermittlung ist zeitlich begrenzt und leert geerbte Scope-Steuerungen.
+Fehlgeschlagener/blockierter Producer-Status, veraltete oder symlinkbasierte
+Eingaben, Identitätsdrift und beibehaltene Ausgaben lassen die Validierung scheitern. Der Snapshot-Generator muss frische
+Parent-eigene Ausgabe für diesen Run schreiben, bevor beide verpflichtenden
+Reports erfolgreich sind. Generierte Ausgabe ist Runtime-Evidence und keine
+gestagte Quelländerung. Dieses Smoke-Profil erhöht keine Full-Matrix-, MRTS-
+oder Response-Body-Coverage-Claims.
+
+## Gewöhnlicher NGINX-Funktionskatalog und Host-Inventar
+
+Der sequenzielle Apache-/NGINX-Producer verwendet
+`ci/runtime/lifecycle/run-bounded-nginx-cases.py` für den gewöhnlichen NGINX-
+Katalog. Er verwendet die bestehende typisierte Functional-A-Runtime je Fall,
+mit festem `sudo`-/`env -i`-Einstiegspunkt, exakten Prüfungen committeter
+Revisionen/Kataloge/Artefakte, einem getrennten Nicht-Root-NGINX-Worker und
+einem Root-eigenen Traversal-Namespace. Builds, Downloads, CRS-Bereitstellung
+und native Normalisierung bleiben unprivilegiert. Vor der privilegierten Fall-
+Runtime werden vorbereitete CRS-Quelle und Preamble gegen die exakte Framework-
+Release-Identität geprüft. Jeder Fall erhält frische Runtime-Pfade; begrenzte
+normalisierte Ergebnisrecords werden in einen privaten Runner-eigenen Beleg
+projiziert. Die vollständige native Fallmenge muss übereinstimmen, live laufen
+und bestehen, bevor eine erfolgreiche Zusammenfassung geschrieben wird. Der
+Harness bindet natives `case-info --output-root` ausdrücklich an seinen
+validierten privaten Work-Root.
+
+Diese Candidate-eigene Functional-A-Route belegt gewöhnliche funktionale
+Ergebnisse. Sie aktiviert den unveränderlichen geschützten Broker nicht und
+liefert keine adversariale Broker-Attestierung.
+`make check-bounded-smoke-runtime-contract` führt die zuständigen Runtime-
+Testmodule in diesem initialisierten Framework-Kontext aus. Die CI-Sicherheits-
+Baseline des kopierten Updater-Baums bleibt getrennt und materialisiert weder
+Framework-Quellen noch Git-Metadaten.
+
+Beendet sich ein nativer NGINX-Fall vor der Erzeugung eines gültigen Ergebnisses,
+erhält der Coordinator seinen tatsächlichen Exit-Code und projiziert Diagnose-
+JSON in den vorhandenen privaten Runner-Beleg. Er liest nur das feste Root-
+eigene, einfach verlinkte reguläre Harness-Log des Falls mit Modus `0600` über
+einen No-Follow-Descriptor, mit einer Grenze von 131072 Bytes und stabiler
+Dateiidentität. Der begrenzte Auszug ist JSON-escaped und enthält den Digest
+des vollständigen Logs sowie die aktuelle Revisions-/Fall-/Variantenidentität.
+Diese Diagnose ist kein normalisiertes Ergebnis und belegt keinen Fall-Pass.
+
+Der Apache-Prozessguard durchquert Vorfahren mit ausschließlich Ausführungsrecht
+über `O_PATH|O_DIRECTORY|O_NOFOLLOW` und erhält `O_RDONLY` für den privaten Leaf.
+Descriptor-relative Eigentümer-, Modus-, Identitäts- und Symlink-Prüfungen bleiben
+verbindlich; der gemeinsame Root-Namespace bleibt `0711` und der Runner-Workspace
+bleibt `0700`.
+
+Das generische Traefik-No-CRS-Host-Inventar löst ausschließlich das exakt
+bereitgestellte Binary unter dem aktuellen Connector-Build-Root über
+`ci/runtime/lifecycle/resolve-traefik-host-binary.py` auf. Eigentümer-, Dateityp-,
+Link-, Schreibmodus-, Ausführbarkeits- und Containment-Prüfungen weisen ein
+unsicheres Staging zurück. Geerbtes `TRAEFIK_BIN` und Shared-Cache-Pfade können
+diesen Host nicht ersetzen; fehlendes/unsicheres Staging belässt das Inventar
+bei `not_provisioned` und umgeht das Gate für konkrete Versions-Evidence nicht.
+Das native Full-Lifecycle-Profil behält seinen getrennten Vertrag zur
+Binary-Auswahl.
+
+Das Apache-Host-Inventar verlangt einen erfolgreichen nativen Versionsbefehl
+und genau eine gültige `Server version: Apache/`-Zeile aus stdout mit ASCII-
+Versionsziffern. Stderr-Warnungen bleiben auf stderr sichtbar und werden nicht
+zur Hostversion. Leere, reine Warnungs-, doppelte und gemischte Produktfamilien-
+Ausgaben werden abgelehnt; weder Warnungen noch fehlgeschlagene Befehle belegen
+eine konkrete Version.
+
+Legacy-Ziele der offenen Connectoren verwenden einen festen Parent-Launcher,
+um die exakt zentral vorbereiteten Envoy-, Traefik- und Lighttpd-Binaries an
+die bestehenden Framework-Einstiegspunkte zu übergeben. Er weist geerbte Binary-
+Overrides und unsichere Stage-Dateien zurück. Envoy-Service und Response-Observer
+sind an den aktuellen gemeinsamen Buildroot gebunden; fehlende Binaries bieten
+keinen Fallback auf ältere Services. Die native Start-Wiring-Prüfung führt
+Legacy-Übergabe und Adapter tatsächlicher Ergebnisse über ausgeführte Prozess-
+Fixtures in der gewöhnlichen Connector-CI aus.
+
+Die Envoy-Kompatibilitätsbrücke erhält den gebauten nativen `ext_authz`-Pfad.
+Vor dem bestehenden Legacy-Ergebnisformat verlangt sie frische private Client-
+Beobachtungen ohne Payload für HTTP 200/403, ein passendes Request-Header-Deny-
+Ereignis mit Regel `1000001` und Transaktion `envoy-block-1` sowie bestätigten
+Prozessstopp. Runtime- und Targeted-Dateinamen bezeichnen denselben begrenzten
+Zwei-Request-Record mit tatsächlichem Libmodsecurity-Backend. Native Fehlercodes
+bleiben erhalten, frühere PASS-Ausgaben werden invalidiert. Body-, CRS- und
+Katalogauswahl lassen sich durch dieses Paar nicht belegen; kanonische Katalog-
+IDs und Coverage werden nicht behauptet.
 
 ## Validierung und Einschränkungen
 

@@ -4,14 +4,11 @@
 
 ## Quick orientation
 
-This is the exhaustive variable reference, not a checklist that every user must
-configure. Prefer root Make targets and checked-in examples first; override a
-variable only when the selected target/host requires it.
+This is the exhaustive variable reference, not a checklist that every user must configure. Prefer root Make targets and checked-in examples first; override a variable only when the selected target/host requires it.
 
-When reading a variable entry, check four things: who sets it, whether it has a
-default, whether it points to source or generated runtime/evidence data, and
-whether changing it affects exposure or trust. Never put secrets or personal
-data into run IDs, paths intended for review, or evidence metadata.
+When reading a variable entry, check four things: who sets it, whether it has a default, whether it points to source or generated runtime/evidence data, and whether changing it affects exposure or trust. Never put secrets or personal data into run IDs, paths intended for review, or evidence metadata.
+
+Project toolchain and ordinary Framework/MRTS revision ownership is documented separately in [version pins](version-pins.md).
 
 This is the central reference for variables accepted by the root <code>Makefile</code>,
 its runtime lifecycle wrappers, and the directly callable connector harnesses.
@@ -108,6 +105,7 @@ or a target must supply the value.
 | <code>CACHE_ROOT</code>, <code>VERIFIED_COMPONENT_CACHE</code>, <code>CONNECTOR_COMPONENT_CACHE</code> | cache | no | <code>cache-v2</code> below the verified root; shared child | absolute directories | Reusable component cache, distinct from a run |
 | <code>VERIFIED_EVIDENCE_ROOT</code>, <code>EVIDENCE_ROOT</code>, <code>RUNTIME_EVIDENCE_ROOT</code> | evidence | no | derived below verified root | absolute directories | Canonical No-CRS and runtime-evidence parent paths |
 | <code>RUNTIME_RUN_ROOT</code>, <code>RUNTIME_LOG_ROOT</code> | runtime | no | derived below verified root | absolute directories | Raw run and per-run log parents |
+| <code>MSCONNECTOR_PRIVATE_SOCKET_ROOT</code> | Envoy/Traefik lifecycle internals | assigned by stage wrapper | unique private child of <code>RUNNER_TEMP</code> or <code>TMPDIR</code> | absolute owner-controlled directory, mode <code>0700</code>; encoded socket path below 108 bytes | Holds invocation-owned Unix sockets separately from long evidence paths; the wrapper verifies process termination before cleanup |
 | <code>VERIFIED_RUN_ID</code> | report run | no | supplied ID, generated UTC/commit ID, or existing manifest ID | filesystem-safe token | Identifies a verified report run |
 | <code>NO_CRS_CONNECTORS</code> | No-CRS selection | no | <code>apache nginx haproxy envoy traefik lighttpd</code> | space-separated connector names | Bounded connector set for aggregate targets |
 | <code>NO_CRS_RUN_ID</code> | No-CRS evidence | yes for evidence checks | none; runners may derive a UTC/commit value | 1–128 ASCII letters/digits plus <code>.</code>, <code>_</code>, <code>-</code>; starts alphanumeric | Canonical evidence namespace |

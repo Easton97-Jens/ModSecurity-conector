@@ -9,6 +9,8 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import tarfile
+import urllib.response
 import unittest
 from unittest import mock
 
@@ -944,6 +946,162 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             records[0]["expected_sha256"],
             PINNED_NGINX_RELEASE_TUPLE["NGINX_SHA256"],
         )
+
+    @staticmethod
+    def httpd_fixture_archive() -> bytes:
+        stream = io.BytesIO()
+        with tarfile.open(fileobj=stream, mode="w:bz2") as archive:
+            content = b"approved HTTPD source\n"
+            member = tarfile.TarInfo("httpd-2.4.68/README")
+            member.size = len(content)
+            archive.addfile(member, io.BytesIO(content))
+        return stream.getvalue()
+
+    @staticmethod
+    def httpd_transport(requested: list[str], responses: dict[str, object]):
+        """Use the real urllib opener/redirect handlers with offline HTTPS I/O."""
+        def transport(request):
+            url = request.full_url
+            requested.append(url)
+            response = responses[url]
+            if isinstance(response, BaseException):
+                raise response
+            if isinstance(response, tuple):
+                code, headers, payload = response
+            else:
+                code, headers, payload = 200, {}, response
+            result = urllib.response.addinfourl(io.BytesIO(payload), headers, url, code)
+            result.msg = "fixture response"
+            return result
+        return transport
+
+    def prepare_httpd_fixture(self, root: Path, expected_sha: str, *, url: str | None = None):
+        source_url = url or "https://downloads.apache.org/httpd/httpd-2.4.68.tar.bz2"
+        return components.prepare_archive(
+            "httpd", source_url, expected_sha, source_url + ".sha256",
+            root / "cache/archives/apache", root / "cache",
+            required_literal_sha256=True,
+            verify_digest_before_archive_list=True,
+            allow_httpd_source_recovery=True,
+        )
+
+    def test_httpd_direct_404_recovers_verified_archive_with_canonical_cache_identity(self) -> None:
+        source_url = "https://downloads.apache.org/httpd/httpd-2.4.68.tar.bz2"
+        archived_url = "https://archive.apache.org/dist/httpd/httpd-2.4.68.tar.bz2"
+        payload = self.httpd_fixture_archive()
+        digest = hashlib.sha256(payload).hexdigest()
+        requests: list[str] = []
+        responses = {source_url: (404, {}, b"not found"), archived_url: payload}
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            with mock.patch.object(
+                components.urllib.request.HTTPSHandler, "https_open",
+                side_effect=self.httpd_transport(requests, responses),
+            ), mock.patch.object(components, "expected_sha_from_url") as digest_lookup:
+                record = self.prepare_httpd_fixture(root, digest)
+            self.assertEqual(record["status"], "present", record)
+            self.assertEqual(requests, [source_url, archived_url])
+            self.assertEqual(record["url"], source_url)
+            self.assertEqual(record["download_url"], archived_url)
+            self.assertEqual(record["source_recovery"], "official_httpd_archive_after_direct_404")
+            self.assertEqual(record["checksum_status"], "PASS")
+            self.assertEqual(record["expected_sha256"], digest)
+            expected_identity = components.archive_cache_identity("httpd", source_url, digest, source_url + ".sha256")
+            marker = components.read_json(components.cache_entry_marker_path(Path(record["path"]), root / "cache"))
+            self.assertEqual(marker["cache_key"], expected_identity["cache_key"])
+            self.assertEqual(Path(record["path"]).read_bytes(), payload)
+            digest_lookup.assert_not_called()
+            with mock.patch.object(components.urllib.request.HTTPSHandler, "https_open") as network:
+                cached = self.prepare_httpd_fixture(root, digest)
+            self.assertEqual(cached["status"], "present", cached)
+            marker_after = components.read_json(components.cache_entry_marker_path(Path(cached["path"]), root / "cache"))
+            self.assertEqual(marker_after["cache_key"], expected_identity["cache_key"])
+            network.assert_not_called()
+
+    def test_httpd_recovery_rejects_redirects_non404_and_foreign404(self) -> None:
+        source_url = "https://downloads.apache.org/httpd/httpd-2.4.68.tar.bz2"
+        archived_url = "https://archive.apache.org/dist/httpd/httpd-2.4.68.tar.bz2"
+        for label, response in (
+            ("redirect", (302, {"Location": archived_url}, b"")),
+            ("authentication", (403, {}, b"forbidden")),
+            ("server error", (503, {}, b"unavailable")),
+            ("timeout", TimeoutError("timeout")),
+            ("foreign404", components.urllib.error.HTTPError("https://foreign.invalid/not-found", 404, "not found", {}, None)),
+        ):
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as raw:
+                requested: list[str] = []
+                with mock.patch.object(
+                    components.urllib.request.HTTPSHandler, "https_open",
+                    side_effect=self.httpd_transport(requested, {source_url: response}),
+                ):
+                    record = self.prepare_httpd_fixture(Path(raw), "a" * 64)
+                self.assertEqual(record["status"], "blocked", record)
+                self.assertEqual(requested, [source_url])
+                self.assertNotIn("source_recovery", record)
+
+    def test_httpd_recovery_rejects_archived_redirect_and_corruption_before_archive_listing(self) -> None:
+        source_url = "https://downloads.apache.org/httpd/httpd-2.4.68.tar.bz2"
+        archived_url = "https://archive.apache.org/dist/httpd/httpd-2.4.68.tar.bz2"
+        payload = self.httpd_fixture_archive()
+        digest = hashlib.sha256(payload).hexdigest()
+        for label, response, expected_sha, expected_status, inspect_calls in (
+            ("archive redirect", (302, {"Location": source_url}, b""), digest, "blocked", 0),
+            ("archive auth", (403, {}, b""), digest, "blocked", 0),
+            ("digest mismatch", payload + b"changed", digest, "corrupt", 0),
+            ("corrupt tar", b"not a tar archive", hashlib.sha256(b"not a tar archive").hexdigest(), "corrupt", 1),
+        ):
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as raw:
+                requested: list[str] = []
+                with mock.patch.object(
+                    components.urllib.request.HTTPSHandler, "https_open",
+                    side_effect=self.httpd_transport(requested, {source_url: (404, {}, b""), archived_url: response}),
+                ), mock.patch.object(components, "archive_can_list", wraps=components.archive_can_list) as inspect_archive:
+                    record = self.prepare_httpd_fixture(Path(raw), expected_sha)
+                self.assertEqual(record["status"], expected_status, record)
+                self.assertEqual(requested, [source_url, archived_url])
+                self.assertEqual(inspect_archive.call_count, inspect_calls)
+                self.assertFalse(Path(record["path"]).exists())
+
+    def test_httpd_recovery_rejects_noncanonical_or_unpinned_inputs_before_side_effects(self) -> None:
+        source_url = "https://downloads.apache.org/httpd/httpd-2.4.68.tar.bz2"
+        for url, digest in (
+            ("https://archive.apache.org/dist/httpd/httpd-2.4.68.tar.bz2", "a" * 64),
+            ("https://downloads.apache.org/httpd/httpd-2.4.68.tar.bz2?mirror=other", "a" * 64),
+            ("https://foreign.invalid/httpd/httpd-2.4.68.tar.bz2", "a" * 64),
+            ("https://downloads.apache.org/httpd/httpd-٢.4.68.tar.bz2", "a" * 64),
+            ("https://downloads.apache.org/httpd/httpd-2.４.68.tar.bz2", "a" * 64),
+            ("https://downloads.apache.org/httpd/httpd-2.4.６８.tar.bz2", "a" * 64),
+            (source_url, ""), (source_url, "not-a-digest"),
+        ):
+            with self.subTest(url=url, digest=digest), tempfile.TemporaryDirectory() as raw:
+                root = Path(raw)
+                with mock.patch.object(components.urllib.request.HTTPSHandler, "https_open") as network:
+                    record = self.prepare_httpd_fixture(root, digest, url=url)
+                self.assertEqual(record["status"], "blocked", record)
+                network.assert_not_called()
+                self.assertFalse((root / "cache").exists())
+
+    def test_httpd_source_recovery_is_an_explicit_single_component_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            with mock.patch.object(components, "prepare_archive", return_value={}) as prepare, mock.patch.object(
+                components, "apr_util_archive_cache_identity", return_value={}
+            ):
+                components.apache_archive_records({}, root / "archives", root / "cache")
+            calls = prepare.call_args_list
+            self.assertEqual(calls[0].args[0], "httpd")
+            self.assertTrue(calls[0].kwargs["allow_httpd_source_recovery"])
+            self.assertTrue(calls[0].kwargs["required_literal_sha256"])
+            self.assertTrue(calls[0].kwargs["verify_digest_before_archive_list"])
+            self.assertTrue(all(not call.kwargs.get("allow_httpd_source_recovery") for call in calls[1:]))
+            with mock.patch.object(components.urllib.request.HTTPSHandler, "https_open") as network:
+                record = components.prepare_archive(
+                    "apr", "https://downloads.apache.org/httpd/httpd-2.4.68.tar.bz2", "a" * 64, "",
+                    root / "archives", required_literal_sha256=True,
+                    verify_digest_before_archive_list=True, allow_httpd_source_recovery=True,
+                )
+            self.assertEqual(record["status"], "blocked", record)
+            network.assert_not_called()
 
     def test_nginx_archive_records_reject_invalid_provenance_before_side_effects(self) -> None:
         invalid_cases: dict[str, dict[str, str]] = {

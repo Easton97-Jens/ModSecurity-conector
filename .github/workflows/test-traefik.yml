@@ -51,6 +51,11 @@ jobs:
           make check-remaining-connectors-build-wiring
           make check-remaining-connectors-start-wiring
           make check-remaining-connectors-claim-policy
+      - name: Exercise staged executable and private socket regressions
+        env:
+          TMPDIR: ${{ runner.temp }}
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python3 -m unittest -v tests.test_private_runtime_sockets tests.test_traefik_runtime_smoke_security
       - name: Collect host runtime preflight evidence
         if: always()
         env:

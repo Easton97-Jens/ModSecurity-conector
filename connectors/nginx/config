@@ -46,6 +46,17 @@ fi
 
 if test -z "$MSCONNECTOR_PROFILE_REGISTRY_ROOT"; then
     ngx_msconnector_profile_registry_candidate="$ngx_addon_dir/../.."
+    # A staged connector copy need not contain the Parent registry. In that
+    # case resolve it only from the supplied, canonical Common SDK layout.
+    if test ! -f "$ngx_msconnector_profile_registry_candidate/connectors/profile_registry.c" -a \
+       -n "$MSCONNECTOR_COMMON_INC" -a -d "$MSCONNECTOR_COMMON_INC"; then
+        ngx_msconnector_common_include_root=$(CDPATH= cd "$MSCONNECTOR_COMMON_INC" && pwd -P)
+        ngx_msconnector_common_parent=$(CDPATH= cd "$ngx_msconnector_common_include_root/../.." && pwd -P)
+        if test "$ngx_msconnector_common_include_root" = "$ngx_msconnector_common_parent/common/include" -a \
+           -f "$ngx_msconnector_common_include_root/msconnector/intervention.h"; then
+            ngx_msconnector_profile_registry_candidate="$ngx_msconnector_common_parent"
+        fi
+    fi
     if test -f "$ngx_msconnector_profile_registry_candidate/connectors/profile_registry.c" -a \
        -f "$ngx_msconnector_profile_registry_candidate/connectors/profile_registry.h"; then
         MSCONNECTOR_PROFILE_REGISTRY_ROOT="$ngx_msconnector_profile_registry_candidate"

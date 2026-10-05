@@ -1,97 +1,84 @@
-# Phase-4-Modus und kumulierte Inspection-Budgets
+# Phase-4-Modus und Eigentümerschaft von Response-Body-Limits
 
 **Sprache:** [English](phase4-mode-budget.md) | Deutsch
 
 ## Schnellorientierung
 
-Phase 4 ist die Response-Body-Verarbeitung. Dieses Dokument definiert nur das
-**zusätzliche connector-eigene kumulative Inspection-Budget** und seine Modi
-`off`, `safe` und `strict`.
+Phase 4 ist die Response-Body-Verarbeitung. Der Phase-4-Modus steuert das **Late-Intervention-Verhalten** und keine zweite connector-eigene WAF-Inspection-Byte-Policy.
 
-Der entscheidende Punkt: `off` deaktiviert dieses zusätzliche kumulative
-Budget, **nicht** die Response-Body-Inspection von libmodsecurity. Engine-Limits,
-Host-/Transportlimits, Allokationsgrenzen, Timeouts, Message-/Frame-Limits und
-native Fehler bleiben unabhängige Schutzmechanismen.
+libModSecurity besitzt die Response-Inspection-Aktivierung, MIME-Auswahl und WAF-Response-Byte-Limits über `SecResponseBodyAccess`, `SecResponseBodyMimeType` / `SecResponseBodyMimeTypesClear`, `SecResponseBodyLimit` und `SecResponseBodyLimitAction`.
+
+Legacy-Connector-Response-Limit-Einstellungen können aus Kompatibilitätsgründen weiterhin parsebar bleiben; `off`, `safe` und `strict` führen aber keine unterschiedlichen kumulativen WAF-Byte-Budgets mehr ein. Unabhängige Host-/Transport-Kapazitätslimits, begrenzter Speicher, Allokationsschutz, Timeouts und Message-/Frame-Limits gelten weiterhin.
 
 ## Geltungsbereich
 
 Dieser Vertrag umfasst Apache, NGINX, HAProxy, Envoy, Traefik und lighttpd in
-diesem Repository. Er betrifft das zusätzliche kumulierte Inspection-Budget
-des Connectors, nicht die Response-Body-Policy von libModSecurity oder andere
-Ressourcenlimits.
+diesem Repository. Der Phase-4-Modus steuert das Verhalten bei späten
+Interventionen; er erzeugt keine zweite Response-Inspection-Policy im Connector.
 
-| Modus | Zusätzliches kumuliertes Phase-4-Budget | Inspection und Fehler |
+## Eigentümerschaft
+
+| Thema | Eigentümer | Erforderliches Verhalten |
 | --- | --- | --- |
-| `off` (Standard) | Nicht durchgesetzt | Konfigurierte Engine-Inspection und native Interventions-/Fehlerbehandlung bleiben aktiv. |
-| `safe` | Durchgesetzt | Bestehende frühe Durchsetzung und spätes `log_only` bei Regelinterventionen bleiben erhalten, soweit unterstützt. |
-| `strict` | Durchgesetzt | Bestehende frühe Durchsetzung und unterstützte späte Abbrüche bleiben erhalten. |
+| Aktivierung der Response-Inspection und MIME-Auswahl | libModSecurity | `SecResponseBodyAccess`, `SecResponseBodyMimeType` und `SecResponseBodyMimeTypesClear` verwenden. |
+| Byte-Limit der WAF-Response-Inspection | libModSecurity | `SecResponseBodyLimit` und `SecResponseBodyLimitAction` verwenden. |
+| Verhalten bei späten Interventionen | Connector/Host | `off`, `safe` und `strict` behalten ihre hostspezifische Interventionssemantik. |
+| Host-/Transportkapazität | Connector/Host | Chunk-/Frame-Limits, begrenzter Speicher, Allokationsgrenzen, Timeouts, Datei-Read-Validierung und Überlaufprüfungen bleiben unabhängige Controls. |
 
-`UNSET` und ungültige Modi sind keine Synonyme für `off`. Konfigurationsprüfung
-und die Anforderung eines positiven konfigurierten Limits gelten in jedem
-Modus weiter. `SecResponseBodyAccess`, `SecResponseBodyMimeType`,
-`SecResponseBodyMimeTypesClear`, `SecResponseBodyLimit` und die Limit-Aktion
-der Engine werden nicht verändert.
+Kein gültiger Phase-4-Modus erzwingt ein zusätzliches Connector-eigenes
+kumuliertes Response-Inspection-Budget. Insbesondere dürfen `safe` und
+`strict` eine Response nicht allein deshalb abweisen oder abbrechen, weil ein
+altes Connector-Inspection-Byte-Limit überschritten wurde.
 
-## Implementierungsgrenzen
+## Kompatibilität
 
-Apache und NGINX verwenden `modsecurity_phase4_body_limit`. Das native
-HAProxy-Binding und Integrationen über die Common Runtime verwenden ihr
-konfiguriertes Response-Inspection-Budget. Kumulativer Planer und sekundärer
-Transaktionszähler müssen übereinstimmen. HAProxy HTX setzt auch sein
-Stream-Budget konsistent. Die Content-Length-Vorprüfung im lighttpd-
-Streaming-Sidecar folgt demselben Modus. Der Go-Prozessor von Envoy fragt den
-geladenen Common-Engine-Modus über eine explizite Budget-Capability ab, nicht
-über die separat konfigurierte Late-Action-Policy. Nachrichten-/Chunk-Limit
-und Überlaufprüfungen des vorzeichenbehafteten Zählers bleiben aktiv.
+Alte Einstellungen wie `modsecurity_phase4_body_limit` dürfen während der
+Konfigurationsmigration weiter akzeptiert werden. Sie sind
+Kompatibilitätswerte, keine WAF-Inspection-Policy, und erzeugen kein nur für
+`safe`/`strict` geltendes kumuliertes Response-Limit. Das Entfernen solcher
+Einstellungen aus der öffentlichen Konfiguration ist eine getrennte Breaking
+Change.
 
-Die Common-Runtime-Änderungen umfassen direkte und Response-Companion-Append-
-Pfade von Envoy, Traefik und lighttpd. Reine Request-Kompatibilitätsrouten
-benötigen weiterhin ihren unterstützten Observer/Companion. Die Protokoll- und
-Companion-Transportlimits von HAProxy SPOE/SPOP bleiben unabhängig und werden
-nicht deaktiviert. Kein bislang ununterstütztes Profil erhält durch diese
-Änderung einen funktionierenden Phase-4-Pfad.
+Common-Runtime-Werte wie `response_body_limit` dürfen weiterhin eine
+begrenzte Host-/Transport- oder Speicherkapazität beschreiben, wenn der Host
+diese Kapazität tatsächlich benötigt. Sie dürfen nicht als Ersatz für
+`SecResponseBodyLimit` dargestellt werden.
 
-Das interne effektive Limit ist in `off` nur als Darstellung eines fehlenden
-konfigurierten kumulierten Limits `SIZE_MAX`. Es ist niemals eine
-Allokationsgröße. Bytezählerüberlauf, ungültige Zeiger, fehlerhafte Datei-Reads,
-Lifecycle-Verstöße und Engine-Fehler bleiben Fehler. `process_partial` darf
-einen Zählerüberlauf in `off` nicht zu einem erfolgreichen unbegrenzten Append
-machen.
+## Streaming und Speicher
 
-## Unabhängige Ressourcenlimits
+Das Entfernen des Connector-Inspection-Budgets erlaubt keine unbegrenzten
+Allokationen. Native/streamende Connectoren sollen Body-Ranges inkrementell an
+libModSecurity übergeben. File-backed NGINX-Buffer verwenden einen festen,
+wiederverwendeten Scratch-Buffer, statt die gesamte Response zu allozieren.
 
-Header-/Event-Limits, maximale Chunks und Nachrichten, Korrelationskapazitäten,
-Timeouts und begrenzter Response-Speicher bleiben aktiv. Der bestehende
-öffentliche Response-Limit-Getter der Common Runtime beschreibt weiterhin die
-begrenzte Host-/Transport-Allokationskapazität. Er darf nicht `SIZE_MAX`
-zurückgeben. Ein puffernder Kompatibilitäts-Sidecar kann deshalb auch in `off`
-eine zu große Response ablehnen; dies ist seine unabhängige Speicherkapazität,
-nicht das deaktivierte zusätzliche kumulierte Phase-4-Budget.
+Puffernde Kompatibilitätsrouten dürfen weiterhin eine Response ablehnen, die
+nicht in ihren begrenzten Host-Speicher passt. Envoy-/gRPC-Chunk- oder
+Message-Limits, HAProxy-Transportlimits, lighttpd-Sidecar-Kapazität,
+Header-/Event-Limits, Korrelationskapazitäten, Timeouts, Pointer-Validierung,
+Datei-Read-Prüfungen und Integer-Überlaufprüfungen bleiben aktiv.
 
-## Native Fehler und NULL-Prüfungen
+## Native Fehler und Interventionsmodi
 
-In NGINX verwendet ein negativer nativer Interventions-Rückgabewert bei `off`
-wie vor PR #377 den Pfad
+Echte Engine-, Speicher-, Transport-, Lifecycle- und Processing-Fehler bleiben
+Fehler. Diese Änderung wandelt sie nicht in `log_only` um.
+
+In NGINX `off` behält ein negatives natives Interventionsergebnis den
+historischen Pfad
 `ngx_http_filter_finalize_request(..., NGX_HTTP_INTERNAL_SERVER_ERROR)`.
 Positive Statuswerte werden unverändert zurückgegeben; bei null läuft die
-Verarbeitung normal weiter. Die Safe-/Strict-Interventionspolicy bleibt
-unverändert.
+Verarbeitung weiter. Das Safe-/Strict-Verhalten bei späten Interventionen
+bleibt von der Eigentümerschaft der Response-Limits getrennt.
 
-Andere Integrationen behalten ihre eigenen Rückgabekonventionen: APR-Status,
-null/nichtnull für Common-Runtime-Erfolg und hostspezifische Transportfehler.
-Die Integer-Konvention von NGINX darf nicht in diese APIs kopiert werden.
-
-P4-Planer, Handler und Logger von NGINX prüfen fehlende Konfiguration. Die
-P4-Bucket- und Interventionspfade von Apache prüfen fehlenden Zustand,
-Konfiguration und Request-Objekte. Der gemeinsame Event-Writer prüft Runtime,
-Event und Datei vor dem Dereferenzieren. Traefik prüft den Service einer
-Session vor dem Lesen ihrer Response-Body-Policy. Bestehende Prüfungen der
-Envoy-Bridge bleiben erhalten.
+Andere Integrationen behalten ihre eigenen Rückgabekonventionen und
+unterstützten Late-Action-Mechanismen.
 
 ## Grenzen der Validierung
 
-Fokussierte kompilierte Helper-/Branch-Tests und Source-Wiring-Prüfungen sind
-keine HTTP-Integrationstests mit laufendem NGINX, httpd, HAProxy, Envoy, Traefik
-oder lighttpd. Vor einem Merge sind native Host-Regressionen, Allokations-/
-Transportprüfungen und CI für den aktuellen Commit nötig. Der [Change Record](../reports/audits/change-records/CR-20260920-phase4-all-connector-budget.de.md) enthält die tatsächlich ausgeführten
-Prüfungen und Ergebnisse.
+Source-Wiring und Unit-Tests können prüfen, dass alle gültigen Modi die alte
+Connector-Inspection-Grenze nur noch auf ein Accounting-Maximum auflösen und
+dass unabhängige Host-Limits weiter verdrahtet sind. Sie beweisen kein
+Live-Verhalten für HTTP/1, HTTP/2, HTTP/3 oder hostspezifische Late-Aborts.
+
+Der Change Record
+[CR-20261004-engine-owned-response-limits](../reports/audits/change-records/CR-20261004-engine-owned-response-limits.de.md)
+beschreibt Implementierungsumfang und Validierungsstatus dieser Migration.

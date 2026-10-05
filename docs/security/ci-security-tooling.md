@@ -4,13 +4,9 @@
 
 ## Quick orientation
 
-This page documents **how CI security checks are pinned and bounded**, not a
-claim that the project is universally secure. Read it when changing workflows,
-security scanners, action pins, permissions, or dependency-checking logic.
+This page documents **how CI security checks are pinned and bounded**, not a claim that the project is universally secure. Read it when changing workflows, security scanners, action pins, permissions, project-version pins, or dependency-checking logic.
 
-Keep security tools immutable/reviewable, permissions minimal, and scan results
-bound to the exact commit/run that produced them. A green scanner is one
-security signal, not production certification.
+Keep security tools immutable/reviewable, permissions minimal, and scan results bound to the exact commit/run that produced them. A green scanner is one security signal, not production certification.
 
 ## Scope
 
@@ -71,6 +67,91 @@ For hosted execution, configure the repository variable
 repository. The GitHub App must be limited to this repository and grant only
 `Contents: write`, `Pull requests: write`, and `Workflows: write`.
 
+The standard CI security contract checks that every checked-in workflow is
+covered by the explicit publisher allowlist and staging list. Adding a workflow
+requires updating both lists. Proposed-tree validation copies the complete
+registered contract inputs, including their offline test fixtures; those
+read-only inputs do not expand the publisher's permitted changes.
+
+## Central ordinary revision and toolchain pins
+
+`ci/tooling/project-versions.lock.json` is the single maintained Parent
+configuration for ordinary Framework/MRTS revisions and Python/Go toolchains.
+Its generated setup-action views remain `.python-version` and `.go-version`.
+Ordinary revision consumers verify the exact Parent lock blob, independent
+recorded gitlinks and materialized repository HEADs with Git replacements
+disabled. Components remain defined by the selected Framework's `ci/lib/common.sh`;
+action/security-tool pins keep their separate lock. Protected broker tuples
+remain independently reviewed. See [project version pins](../reference/version-pins.md)
+for ownership, synchronization and failure semantics.
+
+## Framework submodule maintenance and artifact cleanup
+
+`update-submodules.yml` distinguishes open maintenance branches from branches
+left over after a reviewed merge. An open branch must still contain exactly
+one conforming updater commit. A leftover merged branch may contain reviewed
+human repair commits only when an exact-head, same-repository, App-authored PR
+with the fixed title and marker was merged, and its merge commit is reachable
+from current `origin/master`. Unmerged, foreign, ambiguous, or stale identities
+remain errors. Publication still rebuilds from current `master`, validates the
+candidate, checks branch races, and creates a Draft PR without automatic merge.
+
+The scheduled `cleanup-artifacts.yml` action retries transient GitHub API
+failures up to three times using the pinned action's bounded backoff. Permanent
+authorization errors and deletion failures after retries still fail the job;
+artifact retention rules and job permissions remain the same.
+
+## Runtime path admission
+
+Envoy and Traefik compatibility stages allocate invocation-owned Unix sockets
+in a short private directory through
+`ci/runtime/lifecycle/with-private-sockets.py`. Evidence and build artifacts
+retain their revision-bound paths. The CLI selects only fixed Envoy/Traefik
+lifecycle entry points and their reviewed stage arguments. The shell caller
+passes its selected `RUNNER_TEMP`/`TMPDIR` socket parent explicitly; the wrapper
+validates ownership, safe ancestors, the private directory's mode `0700`, and
+the Unix socket path limit of 108 bytes before starting the selected stage. It does not expose arbitrary
+command execution. The wrapper validates the temporary parent,
+forwards termination signals, rejects leftover live processes, and verifies
+termination before deleting socket files. It retains the directory when safe
+termination or cleanup cannot be established. Direct short-path harness calls keep
+their private fallback directory. The Traefik runner admits the exact prepared
+`BUILD_ROOT/traefik-connector/bin/traefik` path with the same ownership, mode,
+ancestor, and symlink checks as cached binaries; other build-tree executables
+remain inadmissible.
+
+## Traefik response observer loader admission
+
+The fixed checked-in `modsecurityResponseObserver` uses Linux `SO_PEERCRED`
+to authenticate the response-companion peer. Yaegi must expose the restricted
+`syscall` import for that check. The observer's `.traefik.yml` declares
+`useUnsafe: true`, and the operator configuration opts in only for this local
+plugin through `experimental.localPlugins.modsecurityResponseObserver.settings.useUnsafe`.
+Both declarations are required. The static example and both smoke entry points
+also enable `experimental.abortOnPluginFailure` so an observer loader failure
+aborts startup instead of leaving its route unavailable. Matching legacy
+`// +build linux` / `// +build !linux` constraints accompany the modern
+`//go:build` constraints so Yaegi selects the Linux credential implementation
+on Linux and retains the fail-closed stub elsewhere.
+
+This opt-in applies only to the fixed repository-owned observer source, staged
+without symlinks in the private smoke workspace. It is not a global opt-in or
+permission to load another plugin. Existing peer UID/GID authentication and
+private socket admission remain required; disabling `SO_PEERCRED` to avoid an
+interpreter import failure would remove that authentication boundary.
+
+## Pinned Apache HTTPD source recovery
+
+Parent runtime provisioning opts in to a narrow recovery for pinned HTTPD source
+archives: only a direct `404` from the exact canonical
+`https://downloads.apache.org/httpd/httpd-<version>.tar.bz2` URL permits one
+request to `https://archive.apache.org/dist/httpd/` with the same basename.
+The version and configured literal SHA-256 remain unchanged. Redirects,
+authorization failures, timeouts, foreign hosts, and other components do not
+trigger this recovery. The digest is verified before archive listing or
+extraction. Cache identity remains bound to the canonical source tuple; metadata
+records the actual download URL and explicit recovery reason.
+
 ## Constrained Python 3.14 patch updater
 
 `.github/workflows/update-python-version.yml` has exactly four jobs:
@@ -81,8 +162,8 @@ schedule or `workflow_dispatch`, serializes per repository through
 without cancelling a running maintenance attempt, and admits work only for the
 canonical non-fork `Easton97-Jens/ModSecurity-conector` `master` ref.
 
-The resolver uses the exact trusted event SHA, the canonical `.python-version`,
-and `scripts/update-python-version.py --check --json` to emit the typed
+The resolver uses the exact trusted event SHA, the canonical project lock and
+its checked `.python-version` view, and `scripts/update-python-version.py --check --json` to emit the typed
 `status`, `current_version`, `latest_version`, and `update_available` outputs.
 The validator independently installs and verifies the candidate patch,
 re-resolves it with `--expected-version`, uses hash-locked CI dependencies,
@@ -105,8 +186,9 @@ Before it writes, the publisher requires either no maintenance branch and no
 matching PR, or exactly one same-repository Draft PR with the fixed title and
 marker `<!-- modsecurity-conector-python-314-updater -->`, `master` base, and
 automatic merge disabled. It verifies an existing branch's historical scope,
-then rebuilds from current trusted `origin/master`, applies only
-`.python-version`, stages only that file, and uses the exact
+then rebuilds from current trusted `origin/master`, applies only the
+`python_version` lock field and its `.python-version` view, stages only those
+two files, and uses the exact
 `--force-with-lease=refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_TIP` form only
 when safely replacing the verified maintenance branch. An unconditional force
 push, a default-branch update, merge, or auto-merge is not permitted.
@@ -119,6 +201,10 @@ inconsistent resolver, validator, or publisher states; for a current result it
 reports that no branch, commit, or PR changed.
 
 ## Workflow linting
+
+The reusable five-connector profile runs its No-CRS workflow contract before
+matrix resolution, requiring workflow-level `permissions: {}` and only the
+fixed job-level read grants. This catches permission/wiring drift early.
 
 `ci-security-workflow-lint.yml` runs checksum-verified `actionlint` and passes
 the runner's `ShellCheck` path when available. It also runs checksum-verified
@@ -153,8 +239,8 @@ run for the Common HTTP header parser with C17, AddressSanitizer, and
 UndefinedBehaviorSanitizer. Each module's <code>go.mod</code> still owns its Go
 language baseline. At its bounded scheduled resolution, the updater selects
 the greatest stable numeric Go release and proposes it in a Draft PR after
-read-only candidate validation. It may change only <code>.go-version</code>
-and the fixed, independently validated Envoy component bundle; it cannot alter
+read-only candidate validation. It may change only the <code>go_version</code> field of the project lock,
+<code>.go-version</code> and the fixed, independently validated Envoy component bundle; it cannot alter
 arbitrary module or dependency files. The C/C++ result does not claim full
 connector coverage; expanding it requires reproducible builds for the selected
 connector scope.
@@ -164,6 +250,96 @@ checks out the exact pull-request head. Fork pull requests are intentionally
 not analyzed by that job because their head is not a trusted same-repository
 ref. Default-branch Scorecard uploads SARIF with the separate
 `security-events: write` permission only.
+
+## Sequential smoke report scope
+
+`test-full-smoke-sequential.yml` uses the dedicated
+`test-smoke-sequential-no-crs` / `test-smoke-sequential-with-crs` targets.
+Its native producer supplies Apache/NGINX smoke results, not the full-matrix,
+MRTS and other runtime inputs required by the general report refresh. The
+`bounded-smoke` profile matches that actual producer scope; general
+`test-no-crs`, `test-with-crs` and `refresh-all-reports` (`--strict-inputs`) behavior
+remain unchanged.
+
+The bounded profile requires fresh coverage and runtime-cache reports from the
+same run. A private receipt binds the exact Parent commit, verified Framework/
+MRTS gitlinks and checkouts, fixed Framework path, variant, build root and native
+case selection. Every selected Apache/NGINX row must identify its correct
+variant/connector, be live-executed and pass; no missing or extra case is allowed.
+The production CLI admits only its fixed Parent/Framework roots; native case
+discovery is time-bounded and clears inherited scope controls. Failed/blocked
+producer status, stale or symlinked inputs, identity drift and retained outputs
+fail validation. The snapshot generator must write fresh
+Parent-owned output matching this run before either mandatory report succeeds.
+Generated output is runtime evidence, not a staged source change. This smoke
+profile does not promote full-matrix, MRTS or response-body coverage claims.
+
+## Ordinary NGINX functional catalog and host inventory
+
+The sequential Apache/NGINX producer uses
+`ci/runtime/lifecycle/run-bounded-nginx-cases.py` for the ordinary NGINX catalog.
+It reuses the existing typed per-case Functional-A runtime, with a fixed
+`sudo`/`env -i` entry point, exact committed revision/catalog/artifact checks,
+a distinct non-root NGINX worker, and a root-owned traversal namespace.
+Builds, downloads, CRS preparation and native normalization remain unprivileged.
+The prepared CRS source/preamble is checked against the exact Framework
+release identity before the privileged case runtime. Each case receives fresh
+runtime paths; bounded normalized result records are projected to a private
+runner-owned receipt. The complete native case set must match, execute live
+and pass before a successful summary is written. The harness binds native
+`case-info --output-root` explicitly to its validated private work root.
+
+This candidate-owned Functional-A route proves ordinary functional outcomes.
+It does not activate the immutable protected broker or provide adversarial
+broker attestation. `make check-bounded-smoke-runtime-contract` runs the
+owning runtime test modules in this initialized Framework context. The updater's
+copied-tree CI-security baseline remains separate and does not materialize
+Framework sources or Git metadata.
+
+If a native NGINX case exits before producing a valid result, the coordinator
+preserves its actual exit code and projects diagnostic JSON into the existing
+private runner receipt. It reads only the fixed case's root-owned, mode `0600`,
+singly linked regular harness log through a no-follow descriptor, with a
+131072-byte bound and stable file identity. The bounded excerpt is JSON-escaped
+and includes the full log digest and current revision/case/variant identity.
+This diagnostic is not a normalized result and cannot establish a case pass.
+
+The Apache process guard traverses execute-only ancestors with
+`O_PATH|O_DIRECTORY|O_NOFOLLOW` while retaining `O_RDONLY` for the private leaf.
+Descriptor-relative owner, mode, identity and symlink checks remain mandatory;
+the shared root namespace stays `0711` and the runner workspace stays `0700`.
+
+Generic Traefik No-CRS host inventory resolves only the exact staged binary
+under the current connector build root through
+`ci/runtime/lifecycle/resolve-traefik-host-binary.py`. Ownership, file type,
+link, write-mode, executable and confinement checks reject an unsafe stage.
+Inherited `TRAEFIK_BIN` and shared-cache paths cannot substitute for that host;
+a missing/unsafe stage leaves inventory `not_provisioned` and does not bypass
+the concrete-version evidence gate. The native full-lifecycle profile retains
+its distinct binary selection contract.
+
+Apache host inventory requires a successful native version-command exit and
+exactly one valid `Server version: Apache/` line from stdout, with ASCII version
+digits. Stderr warnings remain visible on stderr and cannot become the host
+version. Empty, warning-only, duplicate and mixed-family output is rejected;
+neither warnings nor failed commands establish concrete-version evidence.
+
+Legacy open-connector targets use a fixed Parent launcher to export the exact
+centrally prepared Envoy, Traefik and Lighttpd binaries to the existing Framework
+entrypoints. It rejects inherited binary overrides and unsafe staged files.
+Envoy's service and response observer are bound to the current shared build
+root; missing binaries cannot fall back to an older service. The native start
+wiring check exercises the Legacy handoff and actual-result adapter through
+executed process fixtures in the ordinary connector CI.
+
+The Envoy compatibility bridge retains the built native `ext_authz` path. It
+requires fresh private payload-free client observations for HTTP 200/403, a
+matching rule `1000001`/transaction `envoy-block-1`/request-header deny event,
+and confirmed process stop before writing the existing Legacy result format.
+The runtime and targeted filenames identify the same bounded two-request
+record with the actual Libmodsecurity backend. Failed native exits are retained
+and previous PASS outputs invalidated. Body, CRS and catalog selections cannot
+be represented by this pair; canonical catalog IDs and coverage are not claimed.
 
 ## Validation and limitations
 

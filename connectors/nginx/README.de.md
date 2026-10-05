@@ -96,21 +96,20 @@ Late Result ist `log_only` mit unverändertem sichtbarem Status, während ein
 Strict Late Result nach Commit `abort_connection` statt einer erfundenen
 zweiten Response ist.
 
-Die MIME-Auswahl für den Response-Body liegt bei libModSecurity und wird über
-`SecResponseBodyMimeType` und `SecResponseBodyMimeTypesClear` gesteuert. Der
-NGINX-Connector besitzt keine zusätzliche MIME-Allowlist und stuft eine
-Intervention nicht wegen eines Connector-Content-Type-Scopes herab.
-Response-Buffer werden in jedem Phase-4-Modus an die Engine übergeben; das
-Connector-Budget gilt dabei nur in `safe` und `strict`. Die eigenen
-Inspection-Einstellungen und Limits der Bibliothek bleiben maßgeblich.
+Die MIME-Auswahl und WAF-Inspection-Limits für den Response-Body liegen bei
+libModSecurity und werden über `SecResponseBodyMimeType`,
+`SecResponseBodyMimeTypesClear`, `SecResponseBodyLimit` und
+`SecResponseBodyLimitAction` gesteuert. Der NGINX-Connector besitzt weder
+eine zusätzliche MIME-Allowlist noch ein modusspezifisches kumuliertes
+Inspection-Budget. Response-Buffer werden in jedem Phase-4-Modus inkrementell
+an die Engine übergeben; die Engine-Policy bleibt maßgeblich.
 
 Das lockert #384 nicht: Finales `msc_process_response_body()`-Processing bleibt
 bei einem Ergebnis ungleich `1` fail-closed, während Append-/From-File-
 `ProcessPartial`-Handling für akzeptierte Engine-Chunks absichtlich nicht fatal
-bleibt. In `safe` und `strict` verwendet `modsecurity_phase4_body_limit` den
-Common-Reject-Plan vor dem Forwarding eines über dem Limit liegenden Memory-
-oder File-Buffers. In `off` wird dieses zusätzliche Connector-Budget nicht
-durchgesetzt; geprüfte Bytezähler und begrenzte Datei-Reads bleiben aktiv.
+bleibt. Der alte Wert `modsecurity_phase4_body_limit` weist in `safe` oder
+`strict` keine Response mehr ab; geprüfte Bytezähler, Integer-Überlaufprüfungen
+und begrenzte Datei-Reads bleiben aktiv.
 
 ### Historische Beobachtungen vor der Migration
 
@@ -296,20 +295,20 @@ Der adaptereigene NGINX-Connector registriert derzeit Folgendes:
   gehörende Deskriptor wird über den Common-No-Follow-Helper geöffnet und
   verlangt ein sicheres Elternverzeichnis, ein reguläres Blatt, geeignete
   Eigentümer und den privaten Modus `0600`)
-- `modsecurity_phase4_body_limit <bytes>` (positives Connector-Budget,
-  das nur in `safe` und `strict` durchgesetzt wird; ein über dem Limit
-  liegender aktueller Buffer wird vor dem Downstream-Forwarding abgewiesen)
+- `modsecurity_phase4_body_limit <bytes>` (alter Kompatibilitätswert;
+  wird von der aktuellen Konfiguration weiter akzeptiert, aber nicht als
+  WAF-Response-Inspection-Limit durchgesetzt)
 
 `modsecurity_phase4_mode` hat den Standardwert `off`. `minimal` wird nicht
 mehr akzeptiert. Die entfernte Direktive `modsecurity_phase4_content_types_file`
 muss aus bestehenden NGINX-Konfigurationen entfernt werden; die MIME-Auswahl
 wird stattdessen in libModSecurity konfiguriert.
 
-| Phase-4-Modus | Zusätzliches Connector-Body-Budget | Behandlung später Interventionen |
+| Phase-4-Modus | Connector-WAF-Body-Budget | Behandlung später Interventionen |
 | --- | --- | --- |
-| `off` (Standard) | Nicht durchgesetzt, auch bei konfiguriertem Budget | Positive native Ergebnisse werden zurückgegeben; negative Ergebnisse verwenden wie vor PR #377 die NGINX-Fehlerfinalisierung mit `500`. |
-| `safe` | Durchgesetzt | `log_only` nach Response-Commit; der sichtbare Status bleibt unverändert. |
-| `strict` | Durchgesetzt | `abort_connection` nach Response-Commit; keine erfundene zweite Response. |
+| `off` (Standard) | Keines | Positive native Ergebnisse werden zurückgegeben; negative Ergebnisse verwenden wie vor PR #377 die NGINX-Fehlerfinalisierung mit `500`. |
+| `safe` | Keines | `log_only` nach Response-Commit; der sichtbare Status bleibt unverändert. |
+| `strict` | Keines | `abort_connection` nach Response-Commit; keine erfundene zweite Response. |
 
 `off` deaktiviert weder ModSecurity noch dessen konfigurierte Phase-4-Inspection.
 `SecResponseBodyAccess`, `SecResponseBodyMimeType`, `SecResponseBodyMimeTypesClear`
@@ -317,16 +316,14 @@ und die eigenen Body-Limit-Einstellungen der Bibliothek gelten weiterhin.
 Damit wird nicht behauptet, dass sämtliche Fehlerpfade mit einem früheren
 Upstream-Release identisch sind.
 
-`modsecurity_phase4_body_limit` hat standardmäßig 1048576 Byte (1 MiB). Ein
-konfigurierter Wert muss weiterhin positiv sein und darf höchstens 10485760
-Byte (10 MiB) betragen, auch in `off`; nur die Laufzeitdurchsetzung dieses
-zusätzlichen Budgets ist in `off` deaktiviert. In `safe` und `strict` zählt
-das Limit die kumulierten Response-Bytes über Memory- und File-Buffer,
-erlaubt exakt die konfigurierte Bytezahl und weist den Buffer ab, der diese
-Grenze überschreiten würde. In jedem Modus bleiben Integer-Überlaufprüfungen,
+`modsecurity_phase4_body_limit` behält aus Konfigurationskompatibilität seine
+historischen Parser-/Default-Grenzen, wird aber in keinem gültigen
+Phase-4-Modus als Connector-WAF-Response-Limit durchgesetzt. Für die
+ModSecurity-Inspection-Policy sind `SecResponseBodyLimit` und
+`SecResponseBodyLimitAction` zu verwenden. Integer-Überlaufprüfungen,
 Dateimetadaten-/Read-Prüfungen und der wiederverwendete 32768-Byte-
-Dateilesepuffer aktiv. Eine fehlende Laufzeitkonfiguration führt zu `NGX_ERROR`
-und wird weder als `off` noch als deaktiviertes Logging behandelt.
+Dateilesepuffer bleiben aktiv. Eine fehlende Laufzeitkonfiguration führt
+weiterhin zu `NGX_ERROR`.
 
 Native NGINX-Phase-4-Event-Dateien sind nur über den beim Konfigurationsladen
 erzeugten, dem Connector gehörenden Deskriptor verfügbar. Die generische
@@ -537,31 +534,34 @@ Final-Processing und Body-Ingestion haben unterschiedliche native
 Rückgabeverträge. `msc_process_response_body()` muss exakt `1` zurückgeben;
 ein Fehler bleibt in jedem Modus fail-closed. `msc_append_response_body()`
 weist negative Ergebnisse zurück, behält bei einem Rückgabewert von null
-aber die nichtfatale `ProcessPartial`-Behandlung bei.
-In `safe` und `strict` weist das Connector-eigene Phase-4-Budget einen
-übergroßen aktuellen Buffer zusätzlich vor dessen Weitergabe ab. In `off`
-wird nur dieses zusätzliche Budget umgangen; Engine-Policy sowie
-Zähler- und Datei-Read-Sicherheitsprüfungen gelten weiterhin.
+aber die nichtfatale `ProcessPartial`-Behandlung bei. Kein gültiger
+Phase-4-Modus fügt ein Connector-eigenes kumuliertes
+Response-Inspection-Budget hinzu; Engine-Policy sowie Zähler- und
+Datei-Read-Sicherheitsprüfungen gelten weiterhin.
 
-## Phase-4-Modus und Inspection-Budget
+## Phase-4-Modus und Eigentümerschaft von Response-Body-Limits
 
-Der Standardmodus ist `off`; erlaubt sind `off`, `safe` und `strict`.
-Das zusätzliche kumulierte Phase-4-Inspection-Budget wird nur in `safe` und
-`strict` durchgesetzt. `off` gibt Response-Daten weiterhin gemäß der
-konfigurierten Inspection an libModSecurity weiter und macht weder
-Regelinterventionen noch echte Engine-Fehler zu einem Erfolg. Die MIME-Auswahl
-und eigenen Limits der Engine bleiben maßgeblich.
+Der Standardmodus ist `off`; erlaubt sind `off`, `safe` und `strict`. Kein
+gültiger Phase-4-Modus fügt ein Connector-eigenes kumuliertes
+Response-Inspection-Budget hinzu. libModSecurity besitzt die WAF-Auswahl und
+-Limits über `SecResponseBodyAccess`, `SecResponseBodyMimeType`,
+`SecResponseBodyMimeTypesClear`, `SecResponseBodyLimit` und
+`SecResponseBodyLimitAction`.
 
-Dies gilt für native Integrationen und Response-Pfade über die Common Runtime.
-Eine reine Request-Route benötigt für Phase 4 weiterhin den unterstützten
-Response-Observer beziehungsweise Companion. Die Wahl eines Modus fügt keine
-fehlende Response-Inspection hinzu.
+Diese Regel gilt für native Integrationen und Response-Pfade über die Common
+Runtime. Eine reine Request-Route benötigt für Phase 4 weiterhin den
+unterstützten Response-Observer beziehungsweise Companion; die Wahl eines
+Modus erzeugt keinen fehlenden Response-Pfad.
 
-Unabhängige Limits für Allokationen, gepufferte Responses, Nachrichten/Frames,
-Timeouts und Transport gelten in jedem Modus weiter. Insbesondere kann ein
-puffernder Sidecar auch in `off` eine Response ablehnen, die nicht in seinen
-begrenzten Speicher passt. Das Weglassen des zusätzlichen Inspection-Budgets
-erlaubt keine unbegrenzten Allokationen.
+Alte Connector-/Runtime-Budget-Einstellungen dürfen aus
+Kompatibilitätsgründen weiter parsebar bleiben, dürfen eine Response aber nicht
+allein deshalb abweisen oder abbrechen, weil eine alte Inspection-Bytezahl
+überschritten wurde. Unabhängige Allokations-, Pufferspeicher-,
+Chunk-/Message-/Frame-, Timeout-, Überlauf- und Transportlimits bleiben in
+jedem Modus aktiv. Ein puffernder Sidecar darf deshalb weiterhin eine Response
+ablehnen, die nicht in seinen begrenzten Host-Speicher passt; das ist
+Host-Kapazität und keine WAF-Inspection-Policy.
 
-Der [connectorübergreifende Budget-Vertrag](../../docs/phase4-mode-budget.de.md)
-beschreibt Geltungsbereich, Fehlerbehandlung und Grenzen der Validierung.
+Der [connectorübergreifende Vertrag zur Eigentümerschaft von Response-Limits](../../docs/phase4-mode-budget.de.md)
+beschreibt den genauen Geltungsbereich, die Kompatibilitätsgrenze und die
+Grenzen der Validierung.

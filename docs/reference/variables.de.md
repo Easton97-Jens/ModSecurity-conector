@@ -4,15 +4,11 @@
 
 ## Schnellorientierung
 
-Dies ist die vollständige Variablenreferenz und keine Checkliste, die jeder
-Benutzer vollständig konfigurieren muss. Verwenden Sie zuerst Root-Make-Targets
-und eingecheckte Beispiele; überschreiben Sie eine Variable nur, wenn das
-ausgewählte Target bzw. der Host sie benötigt.
+Dies ist die vollständige Variablenreferenz und keine Checkliste, die jeder Benutzer vollständig konfigurieren muss. Beginnen Sie mit Root-Make-Targets und eingecheckten Beispielen; überschreiben Sie eine Variable nur, wenn das ausgewählte Target bzw. der Host dies benötigt.
 
-Prüfen Sie bei jedem Eintrag vier Punkte: Wer setzt die Variable, gibt es einen
-Default, zeigt sie auf Source oder auf generierte Runtime-/Evidence-Daten und
-verändert ein Override Exposition oder Vertrauen? Secrets oder personenbezogene
-Daten gehören nie in Run-IDs, reviewbare Pfade oder Evidence-Metadaten.
+Prüfen Sie bei einem Variableneintrag vier Punkte: Wer setzt ihn, gibt es einen Default, zeigt er auf Source oder generierte Runtime-/Evidence-Daten und verändert er Exposition oder Trust. Secrets oder personenbezogene Daten gehören nicht in Run-IDs, Review-Pfade oder Evidence-Metadaten.
+
+Die Ownership von Projekt-Toolchains und normalen Framework-/MRTS-Revisionen ist getrennt unter [Versions-Pins](version-pins.de.md) dokumentiert.
 
 Dies ist die zentrale Referenz für Variablen, die das Root-<code>Makefile</code>,
 seine Runtime-Lifecycle-Wrapper und direkt aufrufbare Connector-Harnesses
@@ -115,6 +111,7 @@ verlassen; der Aufrufer oder ein Target muss den Wert liefern.
 | <code>CACHE_ROOT</code>, <code>VERIFIED_COMPONENT_CACHE</code>, <code>CONNECTOR_COMPONENT_CACHE</code> | Cache | nein | <code>cache-v2</code> unter dem Verified-Root; gemeinsames Kind | absolute Verzeichnisse | Wiederverwendbarer Component-Cache, getrennt von einem Lauf |
 | <code>VERIFIED_EVIDENCE_ROOT</code>, <code>EVIDENCE_ROOT</code>, <code>RUNTIME_EVIDENCE_ROOT</code> | Evidence | nein | Unterhalb des Verified-Root abgeleitet | absolute Verzeichnisse | Elternpfade kanonischer No-CRS- und Runtime-Evidence |
 | <code>RUNTIME_RUN_ROOT</code>, <code>RUNTIME_LOG_ROOT</code> | Runtime | nein | Unterhalb des Verified-Root abgeleitet | absolute Verzeichnisse | Elternpfade für Roh-Läufe und pro-Lauf-Logs |
+| <code>MSCONNECTOR_PRIVATE_SOCKET_ROOT</code> | Envoy-/Traefik-Lifecycle-Interna | durch Stage-Wrapper gesetzt | eindeutiges privates Kind von <code>RUNNER_TEMP</code> oder <code>TMPDIR</code> | absolutes, vom Eigentümer kontrolliertes Verzeichnis, Modus <code>0700</code>; codierter Socket-Pfad unter 108 Bytes | Enthält Invocation-eigene Unix-Sockets getrennt von langen Evidence-Pfaden; der Wrapper prüft das Prozessende vor der Bereinigung |
 | <code>VERIFIED_RUN_ID</code> | Report-Lauf | nein | übergebene ID, generierte UTC/Commit-ID oder ID des vorhandenen Manifests | dateisystemsicheres Token | Identifiziert einen Verified-Report-Lauf |
 | <code>NO_CRS_CONNECTORS</code> | No-CRS-Auswahl | nein | <code>apache nginx haproxy envoy traefik lighttpd</code> | durch Leerzeichen getrennte Connector-Namen | Begrenzte Connector-Menge für Aggregate-Targets |
 | <code>NO_CRS_RUN_ID</code> | No-CRS-Evidence | ja für Evidence-Checks | keiner; Runner können einen UTC/Commit-Wert ableiten | 1–128 ASCII-Buchstaben/Ziffern plus <code>.</code>, <code>_</code>, <code>-</code>; beginnt alphanumerisch | Kanonischer Evidence-Namespace |

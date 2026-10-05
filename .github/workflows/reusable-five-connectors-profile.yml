@@ -37,6 +37,9 @@ jobs:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
+      - name: Verify fixed No-CRS workflow contract
+        run: python3 -m unittest -v tests.test_all_connectors_no_crs_workflow_contract
+
       - name: Resolve fixed connector matrix
         id: profile
         env:

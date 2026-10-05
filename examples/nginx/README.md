@@ -4,14 +4,9 @@
 
 ## Start here
 
-Use this page when NGINX is your target. For a first configuration, start with
-[safe/nginx.conf](safe/nginx.conf), provide a module built for the exact NGINX
-ABI, adapt the rules and runtime paths, and run the native NGINX configuration
-check before starting workers.
+Use this page when NGINX is your target. For a first configuration, start with [safe/nginx.conf](safe/nginx.conf), provide a module built for the exact NGINX ABI, adapt the rules and runtime paths, and run the native NGINX configuration check before starting workers.
 
-NGINX uses the direct logical profile `nginx`. Phase-4 `strict` is a
-configuration policy; a checked-in strict file is not a claim that a safe
-post-commit client-visible abort was observed.
+NGINX uses the direct logical profile `nginx`. Phase-4 `strict` is a late-action configuration policy; a checked-in strict file is not a claim that a safe post-commit client-visible abort was observed. WAF response-inspection byte limits are engine-owned through `SecResponseBodyLimit`; the legacy `modsecurity_phase4_body_limit` setting is compatibility-only.
 
 ## Integration and boundary
 
@@ -64,7 +59,7 @@ logs, listener, and upstream values inside them are host examples.
 | modsecurity_rules_file | Readable libmodsecurity rules file | Required; no repository default; host config; http scope | /etc/modsecurity/modsecurity-phase4.conf. A reviewed ruleset can block traffic. |
 | modsecurity_phase4_mode | P4 policy: off, safe, or strict | Required in Safe, Strict, or all file; host config; http scope | safe in safe/nginx.conf; all selects strict. Strict is configuration-only here. |
 | modsecurity_phase4_log | Native connector-owned P4 JSONL event sink | Optional; http/server/location; inherited when unset | Common no-follow helper requires a safe parent, regular leaf, suitable ownership, and private-`0600` descriptor. Use a validated configuration reload for rotation; generic NGINX `USR1` reopening is not supported. |
-| modsecurity_phase4_body_limit | Positive connector P4 byte bound | Optional; host config; http scope | 1048576 in all lifecycle profiles; over-limit handling is fail-closed. |
+| modsecurity_phase4_body_limit | Legacy connector compatibility value | Optional; host config; http scope | Accepted for migration compatibility; no valid Phase-4 mode enforces it as WAF response-inspection policy. Use SecResponseBodyLimit/SecResponseBodyLimitAction in rules. |
 | modsecurity_use_error_log | Forward engine messages to NGINX error log | Optional; host config; http/server/location scope | on in all lifecycle profiles. |
 | modsecurity_transaction_id | Per-request transaction expression | Optional; host config; http/server/location scope | Commented by default because `$request_id` requires a host request-id variable. Enable only a unique, server-generated value; URI- or header-derived values are not suitable for correlation. |
 | modsecurity_rules_remote | Remote rules key and URL | Optional; host config; http/server/location scope | Commented by default because credentials and endpoint ownership are operator-specific. |
