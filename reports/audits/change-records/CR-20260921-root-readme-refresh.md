@@ -101,24 +101,6 @@ license and that no top-level `LICENSE` file exists at this revision.
 - `docs/architecture.md`
 - `docs/build/README.de.md`
 - `docs/build/README.md`
-- `docs/build/compilers/README.de.md`
-- `docs/build/compilers/README.md`
-- `docs/build/compilers/apache.de.md`
-- `docs/build/compilers/apache.md`
-- `docs/build/compilers/envoy.de.md`
-- `docs/build/compilers/envoy.md`
-- `docs/build/compilers/haproxy.de.md`
-- `docs/build/compilers/haproxy.md`
-- `docs/build/compilers/libmodsecurity.de.md`
-- `docs/build/compilers/libmodsecurity.md`
-- `docs/build/compilers/lighttpd.de.md`
-- `docs/build/compilers/lighttpd.md`
-- `docs/build/compilers/nginx.de.md`
-- `docs/build/compilers/nginx.md`
-- `docs/build/compilers/overview.de.md`
-- `docs/build/compilers/overview.md`
-- `docs/build/compilers/traefik.de.md`
-- `docs/build/compilers/traefik.md`
 - `docs/change-traceability.de.md`
 - `docs/change-traceability.md`
 - `docs/configuration.de.md`
@@ -167,14 +149,6 @@ license and that no top-level `LICENSE` file exists at this revision.
 - `examples/README.md`
 - `examples/apache/README.de.md`
 - `examples/apache/README.md`
-- `examples/common/README.de.md`
-- `examples/common/README.md`
-- `examples/common/common-connector-configuration.de.md`
-- `examples/common/common-connector-configuration.md`
-- `examples/common/modsecurity-directives.de.md`
-- `examples/common/modsecurity-directives.md`
-- `examples/common/rule-examples.de.md`
-- `examples/common/rule-examples.md`
 - `examples/envoy/README.de.md`
 - `examples/envoy/README.md`
 - `examples/haproxy/README.de.md`
@@ -229,6 +203,20 @@ used. The overlapping current-master documentation was retained as the base,
 then the reader-oriented additions were reconciled on top. In particular, the
 PR #402 engine-owned response-limit contract and generated reference updates
 were preserved instead of being hand-overwritten.
+
+The exact-head CI for `1475fd927117c4f84ff397067765d36c662fac40`
+then exposed a generator-contract violation in the documentation PR itself:
+manually added orientation sections under `docs/build/compilers/` made the
+generated compiler guides non-idempotent. The generated compiler-guide outputs
+were restored to current `master` in commit
+`ea89fb891a8d600cdae48cc900df56edd5bcd20d`. A follow-up audit of
+`ci/checks/documentation/connector_config_reference.py` showed that the
+`examples/common/` README, Common Runtime reference, ModSecurity directive
+reference, and rule examples are generator-owned too; those outputs were
+restored to current `master` in commit
+`4383310e32ce7f4103689b1cc8f0b766c2be6bb1`. Reader-oriented explanations
+remain in manually maintained navigation/configuration pages rather than
+generated output.
 
 ## Security impact
 

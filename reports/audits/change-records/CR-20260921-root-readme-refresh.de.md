@@ -105,24 +105,6 @@ diesem Stand keine Top-Level-Datei `LICENSE` existiert.
 - `docs/architecture.md`
 - `docs/build/README.de.md`
 - `docs/build/README.md`
-- `docs/build/compilers/README.de.md`
-- `docs/build/compilers/README.md`
-- `docs/build/compilers/apache.de.md`
-- `docs/build/compilers/apache.md`
-- `docs/build/compilers/envoy.de.md`
-- `docs/build/compilers/envoy.md`
-- `docs/build/compilers/haproxy.de.md`
-- `docs/build/compilers/haproxy.md`
-- `docs/build/compilers/libmodsecurity.de.md`
-- `docs/build/compilers/libmodsecurity.md`
-- `docs/build/compilers/lighttpd.de.md`
-- `docs/build/compilers/lighttpd.md`
-- `docs/build/compilers/nginx.de.md`
-- `docs/build/compilers/nginx.md`
-- `docs/build/compilers/overview.de.md`
-- `docs/build/compilers/overview.md`
-- `docs/build/compilers/traefik.de.md`
-- `docs/build/compilers/traefik.md`
 - `docs/change-traceability.de.md`
 - `docs/change-traceability.md`
 - `docs/configuration.de.md`
@@ -171,14 +153,6 @@ diesem Stand keine Top-Level-Datei `LICENSE` existiert.
 - `examples/README.md`
 - `examples/apache/README.de.md`
 - `examples/apache/README.md`
-- `examples/common/README.de.md`
-- `examples/common/README.md`
-- `examples/common/common-connector-configuration.de.md`
-- `examples/common/common-connector-configuration.md`
-- `examples/common/modsecurity-directives.de.md`
-- `examples/common/modsecurity-directives.md`
-- `examples/common/rule-examples.de.md`
-- `examples/common/rule-examples.md`
 - `examples/envoy/README.de.md`
 - `examples/envoy/README.md`
 - `examples/haproxy/README.de.md`
@@ -235,6 +209,21 @@ aktuelle master-Dokumentation blieb die Basis, auf die die leserorientierten
 Ergänzungen erneut abgestimmt wurden. Insbesondere blieben der engine-eigene
 Response-Limit-Vertrag aus PR #402 und die generierten Referenzaktualisierungen
 erhalten, statt manuell überschrieben zu werden.
+
+Die Exact-Head-CI für `1475fd927117c4f84ff397067765d36c662fac40`
+deckte danach eine Generator-Vertragsverletzung im Dokumentations-PR selbst auf:
+manuell ergänzte Orientierungsabschnitte unter `docs/build/compilers/`
+machten die generierten Compiler-Guides nicht idempotent. Die generierten
+Compiler-Guide-Ausgaben wurden in Commit
+`ea89fb891a8d600cdae48cc900df56edd5bcd20d` auf den aktuellen
+`master`-Stand zurückgesetzt. Eine anschließende Prüfung von
+`ci/checks/documentation/connector_config_reference.py` zeigte, dass auch
+README, Common-Runtime-Referenz, ModSecurity-Direktivenreferenz und
+Regelbeispiele unter `examples/common/` generatorverwaltet sind; diese
+Ausgaben wurden in Commit
+`4383310e32ce7f4103689b1cc8f0b766c2be6bb1` auf aktuellen `master`
+zurückgestellt. Leserorientierte Erklärungen bleiben damit in manuell
+gepflegten Navigations-/Konfigurationsseiten statt in generierten Ausgaben.
 
 ## Security-Auswirkung
 
