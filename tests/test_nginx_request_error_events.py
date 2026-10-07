@@ -82,6 +82,10 @@ static void ngx_log_error(int level, void *log, int error, const char *format, .
 }
 static ngx_http_modsecurity_ctx_t *ngx_http_modsecurity_get_module_ctx(
     ngx_http_request_t *r) { (void)r; return present ? &context : NULL; }
+static ngx_http_modsecurity_ctx_t *ngx_http_get_module_ctx(
+    ngx_http_request_t *r, int module) {
+    (void)r; (void)module; return present ? &context : NULL;
+}
 static ngx_http_modsecurity_conf_t *ngx_http_get_module_loc_conf(
     ngx_http_request_t *r, int module) { (void)r; (void)module; return &configuration; }
 static const int ngx_http_modsecurity_module = 0;
