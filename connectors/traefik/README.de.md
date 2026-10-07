@@ -610,25 +610,29 @@ verpflichtenden Observer verwenden oder als fehlkonfiguriert fehlschlagen; sie
 darf P3/P4 nie stillschweigend als unsupported bezeichnen. Event-JSONL und
 Berichte enthalten keine Response-Body-Nutzlast.
 
-## Phase-4-Modus und Inspection-Budget
+## Phase-4-Modus und Eigentümerschaft von Response-Body-Limits
 
-Der Standardmodus ist `off`; erlaubt sind `off`, `safe` und `strict`.
-Das zusätzliche kumulierte Phase-4-Inspection-Budget wird nur in `safe` und
-`strict` durchgesetzt. `off` gibt Response-Daten weiterhin gemäß der
-konfigurierten Inspection an libModSecurity weiter und macht weder
-Regelinterventionen noch echte Engine-Fehler zu einem Erfolg. Die MIME-Auswahl
-und eigenen Limits der Engine bleiben maßgeblich.
+Der Standardmodus ist `off`; erlaubt sind `off`, `safe` und `strict`. Kein
+gültiger Phase-4-Modus fügt ein Connector-eigenes kumuliertes
+Response-Inspection-Budget hinzu. libModSecurity besitzt die WAF-Auswahl und
+-Limits über `SecResponseBodyAccess`, `SecResponseBodyMimeType`,
+`SecResponseBodyMimeTypesClear`, `SecResponseBodyLimit` und
+`SecResponseBodyLimitAction`.
 
-Dies gilt für native Integrationen und Response-Pfade über die Common Runtime.
-Eine reine Request-Route benötigt für Phase 4 weiterhin den unterstützten
-Response-Observer beziehungsweise Companion. Die Wahl eines Modus fügt keine
-fehlende Response-Inspection hinzu.
+Diese Regel gilt für native Integrationen und Response-Pfade über die Common
+Runtime. Eine reine Request-Route benötigt für Phase 4 weiterhin den
+unterstützten Response-Observer beziehungsweise Companion; die Wahl eines
+Modus erzeugt keinen fehlenden Response-Pfad.
 
-Unabhängige Limits für Allokationen, gepufferte Responses, Nachrichten/Frames,
-Timeouts und Transport gelten in jedem Modus weiter. Insbesondere kann ein
-puffernder Sidecar auch in `off` eine Response ablehnen, die nicht in seinen
-begrenzten Speicher passt. Das Weglassen des zusätzlichen Inspection-Budgets
-erlaubt keine unbegrenzten Allokationen.
+Alte Connector-/Runtime-Budget-Einstellungen dürfen aus
+Kompatibilitätsgründen weiter parsebar bleiben, dürfen eine Response aber nicht
+allein deshalb abweisen oder abbrechen, weil eine alte Inspection-Bytezahl
+überschritten wurde. Unabhängige Allokations-, Pufferspeicher-,
+Chunk-/Message-/Frame-, Timeout-, Überlauf- und Transportlimits bleiben in
+jedem Modus aktiv. Ein puffernder Sidecar darf deshalb weiterhin eine Response
+ablehnen, die nicht in seinen begrenzten Host-Speicher passt; das ist
+Host-Kapazität und keine WAF-Inspection-Policy.
 
-Der [connectorübergreifende Budget-Vertrag](../../docs/phase4-mode-budget.de.md)
-beschreibt Geltungsbereich, Fehlerbehandlung und Grenzen der Validierung.
+Der [connectorübergreifende Vertrag zur Eigentümerschaft von Response-Limits](../../docs/phase4-mode-budget.de.md)
+beschreibt den genauen Geltungsbereich, die Kompatibilitätsgrenze und die
+Grenzen der Validierung.

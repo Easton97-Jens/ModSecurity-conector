@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 import shutil
 import sys
@@ -109,6 +110,7 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
             {
                 ".github/workflows/test-connectors-with-crs-no-mrts.yml",
                 "tests/test_ci_security_workflows.py",
+                "ci/tooling/project-versions.lock.json",
             }
         )
         return {self.root / path: (self.root / path).read_bytes() for path in paths}
@@ -260,40 +262,26 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
                 )
 
     def test_stale_framework_sha_fails_closed_without_parent_writes(self) -> None:
-        workflow = self.root / ".github/workflows/test-connectors-with-crs-no-mrts.yml"
-        workflow.write_text(
-            workflow.read_text(encoding="utf-8").replace(CANDIDATE_SHA, "0" * 40),
-            encoding="utf-8",
-        )
+        set_framework_sha_fixture(self.root, "0" * 40)
         before = self.parent_bytes()
-        with self.assertRaisesRegex(VERIFIER.ContractError, "CRS/no-MRTS workflow"):
+        with self.assertRaisesRegex(VERIFIER.ContractError, "revision lock Framework SHA"):
             VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
         self.assertEqual(before, self.parent_bytes())
 
-    def test_stale_framework_fixture_sha_fails_closed_without_parent_writes(self) -> None:
-        fixture = self.root / "tests/test_ci_security_workflows.py"
-        fixture.write_text(
-            fixture.read_text(encoding="utf-8").replace(CANDIDATE_SHA, "0" * 40, 1),
-            encoding="utf-8",
-        )
-        before = self.parent_bytes()
-        with self.assertRaisesRegex(VERIFIER.ContractError, "fixture Framework SHA"):
-            VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
-        self.assertEqual(before, self.parent_bytes())
-
-    def test_stale_literal_framework_sha_consumer_fails_closed_without_parent_writes(self) -> None:
-        workflow = self.root / ".github/workflows/test-connectors-with-crs-no-mrts.yml"
-        literal = f"\n          FRAMEWORK_SHA: {CANDIDATE_SHA}"
-        workflow.write_text(
-            workflow.read_text(encoding="utf-8").replace(
-                literal, "\n          FRAMEWORK_SHA: " + "0" * 40, 1
-            ),
-            encoding="utf-8",
-        )
-        before = self.parent_bytes()
-        with self.assertRaisesRegex(VERIFIER.ContractError, "literal Framework SHA consumer"):
-            VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
-        self.assertEqual(before, self.parent_bytes())
+    def test_malformed_framework_lock_fails_closed_without_parent_writes(self) -> None:
+        lock = self.root / "ci/tooling/project-versions.lock.json"
+        original = json.loads(lock.read_bytes())
+        cases = ("{", "[]", json.dumps(original | {"unknown": 1}),
+                 json.dumps({"schema_version": 1, "framework_sha": CANDIDATE_SHA}),
+                 json.dumps(original | {"mrts_sha": "invalid"}),
+                 '{"schema_version":1,"schema_version":1}')
+        for contents in cases:
+            with self.subTest(contents=contents):
+                lock.write_text(contents)
+                before = self.parent_bytes()
+                with self.assertRaisesRegex(VERIFIER.ContractError, "revision lock"):
+                    VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
+                self.assertEqual(before, self.parent_bytes())
 
     def test_valid_but_stale_nginx_candidate_fails_closed_without_parent_writes(self) -> None:
         stale = CANDIDATE_COMMON.replace("release-1.31.6", "release-1.31.4").replace(
@@ -385,43 +373,26 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
                 ):
                     VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
 
-    def test_quoted_or_commented_literal_framework_sha_is_checked(self) -> None:
-        workflow = self.root / ".github/workflows/test-connectors-with-crs-no-mrts.yml"
-        literal = f"\n          FRAMEWORK_SHA: {CANDIDATE_SHA}"
-        quoted_current = '\n          FRAMEWORK_SHA: "' + CANDIDATE_SHA + '" # candidate pin'
-        workflow.write_text(
-            workflow.read_text(encoding="utf-8").replace(literal, quoted_current, 1),
-            encoding="utf-8",
-        )
-        self.assertEqual(
-            VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)["release_tag"],
-            "release-1.31.6",
-        )
-        workflow.write_text(
-            workflow.read_text(encoding="utf-8").replace(
-                quoted_current, '\n          FRAMEWORK_SHA: "' + "0" * 40 + '" # stale', 1
-            ),
-            encoding="utf-8",
-        )
-        with self.assertRaisesRegex(VERIFIER.ContractError, "literal Framework SHA consumer"):
+    def test_missing_revision_lock_is_rejected(self) -> None:
+        (self.root / "ci/tooling/project-versions.lock.json").unlink()
+        with self.assertRaisesRegex(VERIFIER.ContractError, "revision lock"):
             VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
 
-    def test_literal_framework_sha_pattern_requires_balanced_optional_quotes(self) -> None:
-        accepted = (
-            f"FRAMEWORK_SHA: {CANDIDATE_SHA}",
-            f'FRAMEWORK_SHA: "{CANDIDATE_SHA}" # double quoted',
-            f"FRAMEWORK_SHA: '{CANDIDATE_SHA}' # single quoted",
-        )
-        rejected = (
-            f"FRAMEWORK_SHA: '{CANDIDATE_SHA}\"",
-            f'FRAMEWORK_SHA: "{CANDIDATE_SHA}\'',
-        )
-        for line in accepted:
-            with self.subTest(line=line):
-                self.assertIsNotNone(VERIFIER.LITERAL_FRAMEWORK_SHA.fullmatch(line))
-        for line in rejected:
-            with self.subTest(line=line):
-                self.assertIsNone(VERIFIER.LITERAL_FRAMEWORK_SHA.fullmatch(line))
+    def test_candidate_mrts_gitlink_must_match_locked_selection(self) -> None:
+        from unittest.mock import patch
+        mrts = json.loads((self.root / "ci/tooling/project-versions.lock.json").read_bytes())["mrts_sha"]
+        for observed in (mrts, "0" * 40):
+            with self.subTest(observed=observed):
+                with patch.object(VERIFIER, "read_framework_mrts_gitlink", return_value=observed) as read:
+                    if observed == mrts:
+                        VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common, candidate_framework_root=self.root)
+                    else:
+                        with self.assertRaisesRegex(VERIFIER.ContractError, "MRTS gitlink"):
+                            VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common, candidate_framework_root=self.root)
+                    read.assert_called_once_with(self.root, CANDIDATE_SHA)
+        with patch.object(VERIFIER, "read_framework_mrts_gitlink", side_effect=VERIFIER.FrameworkRevisionPinsError("missing gitlink")):
+            with self.assertRaisesRegex(VERIFIER.ContractError, "cannot verify"):
+                VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common, candidate_framework_root=self.root)
 
     def test_parent_nginx_provenance_policy_requires_both_workflows(self) -> None:
         for projection in VERIFIER.PARENT_NGINX_POLICY_PROJECTIONS:

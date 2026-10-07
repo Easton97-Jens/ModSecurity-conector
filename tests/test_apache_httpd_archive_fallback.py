@@ -29,27 +29,55 @@ class ApacheHttpdArchiveFallbackTest(unittest.TestCase):
         self.payload = buffer.getvalue()
         self.digest = hashlib.sha256(self.payload).hexdigest()
 
-    def _failure(self, status: int) -> RuntimeError:
+    def _failure(self, status: int) -> urllib.error.HTTPError:
         error = urllib.error.HTTPError(SOURCE, status, "synthetic", {}, None)
         self.addCleanup(error.close)
-        return RuntimeError(error)
+        return error
 
     def _prepare(self, outcomes, *, url=SOURCE, digest=None, name="httpd", repeat=False, managed=False):
         with tempfile.TemporaryDirectory(prefix="apache-httpd-archive-") as temporary:
             root = Path(temporary)
             cache_root = root / "cache-v2" if managed else None
             destination = cache_root / "archives" if cache_root else root
-            with mock.patch.object(components, "urlopen_bytes", side_effect=outcomes) as network:
-                record = components.prepare_archive(
-                    name, url, self.digest if digest is None else digest, "", destination, cache_root,
-                    required_literal_sha256=True, verify_digest_before_archive_list=True,
-                )
-                if repeat:
+            if name != "httpd":
+                with mock.patch.object(components, "urlopen_bytes", side_effect=outcomes) as network:
                     record = components.prepare_archive(
                         name, url, self.digest if digest is None else digest, "", destination, cache_root,
                         required_literal_sha256=True, verify_digest_before_archive_list=True,
                     )
                 return record, [call.args[0] for call in network.call_args_list]
+
+            selected = iter(outcomes)
+            requested = []
+
+            def transport(request):
+                requested.append(request.full_url)
+                outcome = next(selected)
+                if isinstance(outcome, BaseException):
+                    raise outcome
+                response = components.urllib.response.addinfourl(
+                    io.BytesIO(outcome), {}, request.full_url, 200,
+                )
+                response.msg = "synthetic"
+                return response
+
+            with mock.patch.object(
+                components.urllib.request.HTTPSHandler,
+                "https_open",
+                side_effect=transport,
+            ):
+                record = components.prepare_archive(
+                    name, url, self.digest if digest is None else digest, "", destination, cache_root,
+                    required_literal_sha256=True, verify_digest_before_archive_list=True,
+                    allow_httpd_source_recovery=True,
+                )
+                if repeat:
+                    record = components.prepare_archive(
+                        name, url, self.digest if digest is None else digest, "", destination, cache_root,
+                        required_literal_sha256=True, verify_digest_before_archive_list=True,
+                        allow_httpd_source_recovery=True,
+                    )
+                return record, requested
 
     def test_primary_404_uses_same_archive_with_verified_digest(self) -> None:
         record, urls = self._prepare([self._failure(404), self.payload])
@@ -93,7 +121,7 @@ class ApacheHttpdArchiveFallbackTest(unittest.TestCase):
             with self.subTest(url=url):
                 record, urls = self._prepare([self._failure(404)], url=url)
                 self.assertEqual(record["status"], "blocked", record)
-                self.assertEqual(urls, [url])
+                self.assertEqual(urls, [])
 
     def test_non_httpd_component_does_not_use_httpd_fallback(self) -> None:
         record, urls = self._prepare([self._failure(404)], name="apr")
@@ -138,6 +166,7 @@ class ApacheHttpdArchiveFallbackTest(unittest.TestCase):
         self.assertEqual(httpd_call.args[:3], ("httpd", SOURCE, self.digest))
         self.assertTrue(httpd_call.kwargs["required_literal_sha256"])
         self.assertTrue(httpd_call.kwargs["verify_digest_before_archive_list"])
+        self.assertTrue(httpd_call.kwargs["allow_httpd_source_recovery"])
 
 
 if __name__ == "__main__":

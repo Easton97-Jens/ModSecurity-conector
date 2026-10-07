@@ -314,11 +314,12 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
             bootstrap.index("followup_status="),
         )
 
-    def test_request_body_filter_uses_a_finite_reject_fallback_before_p2(
+    def test_request_body_filter_resolves_effective_config_before_p2(
         self,
     ) -> None:
-        fallback_limit = self.input_filter_bucket.index("request_body_limit =")
-        fallback_action = self.input_filter_bucket.index("body_limit_action =")
+        merge = self.input_filter_bucket.index(
+            "if (!msconnector_config_merge(&effective_config, NULL,"
+        )
         planner = self.input_filter_bucket.index(
             "if (!msconnector_body_limit_plan_chunk("
         )
@@ -326,25 +327,13 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
         planner_call = self.input_filter_bucket[planner:planner_end]
 
         self.assertIn(
-            "conf->common_config.request_body_limit > 0U", self.input_filter_bucket
+            "&conf->common_config", self.input_filter_bucket[merge:planner]
         )
-        self.assertIn(
-            "MSCONNECTOR_DEFAULT_PHASE4_BODY_LIMIT", self.input_filter_bucket
-        )
-        self.assertIn(
-            "msconnector_body_limit_action_is_supported(\n"
-            "        conf->common_config.body_limit_action)",
-            self.input_filter_bucket,
-        )
-        self.assertIn(
-            "MSCONNECTOR_BODY_LIMIT_ACTION_REJECT", self.input_filter_bucket
-        )
-        self.assertIn("request_body_limit", planner_call)
-        self.assertIn("body_limit_action", planner_call)
+        self.assertIn("effective_config.request_body_limit", planner_call)
+        self.assertIn("effective_config.body_limit_action", planner_call)
         self.assertNotIn("conf->common_config.request_body_limit", planner_call)
         self.assertNotIn("conf->common_config.body_limit_action", planner_call)
-        self.assertLess(fallback_limit, fallback_action)
-        self.assertLess(fallback_action, planner)
+        self.assertLess(merge, planner)
 
     def test_native_bootstrap_prints_the_nonroot_httpd_error_log_on_failure(self) -> None:
         bootstrap = AUTOTOOLS_BOOTSTRAP.read_text(encoding="utf-8")

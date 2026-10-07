@@ -1,7 +1,9 @@
-"""NGINX Phase-4 budget unit tests and source-wiring contracts.
+"""NGINX response-limit ownership unit tests and source-wiring contracts.
 
-The compiled test uses the actual planner, header budget expression, and Common
-body-policy implementation with small NGINX state doubles. It is not a native
+The compiled test uses the actual planner, metadata expression, and Common
+body-policy implementation with small NGINX state doubles. It verifies that
+all valid Phase-4 modes leave WAF response limits to libModSecurity while
+retaining connector accounting/overflow checks. It is not a native
 NGINX/libModSecurity integration or HTTP transport test.
 """
 
@@ -30,6 +32,7 @@ PREAMBLE = r"""
 #include "msconnector/body_policy.h"
 #include "msconnector/options.h"
 #include "msconnector/limits.h"
+#include "msconnector/phase4_budget.h"
 
 typedef int ngx_int_t;
 #define NGX_OK 0
@@ -102,32 +105,29 @@ int main(int argc, char **argv)
         for (i = 0U; i < sizeof(modes) / sizeof(modes[0]); ++i) {
             memset(&ctx, 0, sizeof(ctx));
             conf.phase4_mode = modes[i];
-            CHECK(effective_response_limit(&conf) == limit);
+            CHECK(effective_response_limit(&conf) == SIZE_MAX);
             CHECK(ngx_http_modsecurity_plan_limited_response_body(
-                &ctx, &conf, limit - 1U, &allowed) == NGX_OK);
+                &ctx, &conf, limit, &allowed) == NGX_OK);
+            CHECK(allowed == limit);
             ctx.response_body_bytes_inspected += allowed;
             CHECK(ngx_http_modsecurity_plan_limited_response_body(
                 &ctx, &conf, 1U, &allowed) == NGX_OK);
-            ctx.response_body_bytes_inspected += allowed;
-            CHECK(ctx.response_body_bytes_seen == limit);
-            CHECK(!ctx.response_body_truncated);
-            CHECK(ngx_http_modsecurity_plan_limited_response_body(
-                &ctx, &conf, 1U, &allowed) == NGX_ERROR);
-            CHECK(allowed == 0U);
+            CHECK(allowed == 1U);
             CHECK(ctx.response_body_bytes_seen == limit + 1U);
-            CHECK(ctx.response_body_bytes_inspected == limit);
-            CHECK(ctx.response_body_truncated);
-            CHECK(ctx.contract.error == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT);
+            CHECK(!ctx.response_body_truncated);
+            CHECK(ctx.contract.error == 0);
         }
     } else if (strcmp(argv[1], "safe-strict-large") == 0) {
         for (i = 0U; i < sizeof(modes) / sizeof(modes[0]); ++i) {
             memset(&ctx, 0, sizeof(ctx));
             conf.phase4_mode = modes[i];
             CHECK(ngx_http_modsecurity_plan_limited_response_body(
-                &ctx, &conf, limit + 1U, &allowed) == NGX_ERROR);
-            CHECK(allowed == 0U);
+                &ctx, &conf, limit + 1U, &allowed) == NGX_OK);
+            CHECK(allowed == limit + 1U);
+            CHECK(ctx.response_body_bytes_seen == limit + 1U);
             CHECK(ctx.response_body_bytes_inspected == 0U);
-            CHECK(ctx.response_body_truncated);
+            CHECK(!ctx.response_body_truncated);
+            CHECK(ctx.contract.error == 0);
         }
     } else if (strcmp(argv[1], "off-overflow") == 0) {
         conf.phase4_mode = MSCONNECTOR_PHASE4_MODE_OFF;
@@ -176,7 +176,7 @@ int main(int argc, char **argv)
         CHECK(effective_response_limit(&conf) == SIZE_MAX);
         for (i = 0U; i < sizeof(modes) / sizeof(modes[0]); ++i) {
             conf.phase4_mode = modes[i];
-            CHECK(effective_response_limit(&conf) == MSCONNECTOR_MAX_BODY_BUFFER_SIZE);
+            CHECK(effective_response_limit(&conf) == SIZE_MAX);
         }
     } else if (strcmp(argv[1], "invalid-mode") == 0) {
         conf.phase4_mode = 99U;
@@ -261,10 +261,10 @@ class NginxPhase4BudgetUnitTests(unittest.TestCase):
     def test_off_accounts_for_multiple_buffers_above_configured_budget(self) -> None:
         self.run_case("off-multiple")
 
-    def test_safe_and_strict_allow_exact_limit_then_reject_next_byte(self) -> None:
+    def test_safe_and_strict_do_not_enforce_the_legacy_connector_limit(self) -> None:
         self.run_case("safe-strict-boundary")
 
-    def test_safe_and_strict_reject_oversized_first_buffer(self) -> None:
+    def test_safe_and_strict_accept_a_buffer_above_the_legacy_limit(self) -> None:
         self.run_case("safe-strict-large")
 
     def test_off_still_rejects_counter_overflow(self) -> None:
@@ -316,7 +316,7 @@ class NginxPhase4BudgetWiringTests(unittest.TestCase):
         )
         self.assertEqual(planner.count("msconnector_body_limit_plan_chunk("), 1)
         self.assertNotRegex(planner, r"response_body_bytes_seen\s*\+=")
-        self.assertIn("limit = SIZE_MAX;", planner)
+        self.assertIn("msconnector_phase4_effective_body_limit(", planner)
         self.assertIn("ctx->response_body_bytes_seen = plan.bytes_seen;", planner)
         self.assertIn("*allowed = plan.append_size;", planner)
 

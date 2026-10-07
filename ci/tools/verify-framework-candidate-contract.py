@@ -18,6 +18,13 @@ import os
 from pathlib import Path
 import re
 import stat
+import sys
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from ci.lib.framework_revision_pins import (
+    FrameworkRevisionPinsError, load_framework_revision_pins, read_framework_mrts_gitlink,
+)
 
 
 MAX_INPUT_BYTES = 512 * 1024
@@ -106,9 +113,6 @@ NGINX_EXACT_HEAD_WORKFLOW_PATH = ".github/workflows/test-nginx-exact-head.yml"
 NGINX_FULL_SMOKE_WORKFLOW_PATH = ".github/workflows/test-full-smoke-sequential.yml"
 RUNTIME_COMPONENTS_PATH = "ci/provisioning/components/prepare-runtime-components.py"
 RUNTIME_PRODUCER_READINESS_PATH = "ci/checks/evidence/check-runtime-producer-readiness.py"
-LITERAL_FRAMEWORK_SHA = re.compile(
-    r"(?m)^[ \t]*FRAMEWORK_SHA:[ \t]*(?P<value>(?P<quote>[\"']?)[0-9a-f]{40}(?P=quote))[ \t]*(?:#.*)?$"
-)
 DYNAMIC_SHELL_EVALUATION = re.compile(r"\beval\b", re.ASCII)
 INDIRECT_SHELL_WRITE = re.compile(
     r"\b(?:printf[ \t]+-v|declare[ \t]+-n|export[ \t]+-n)\b",
@@ -635,47 +639,24 @@ def parse_candidate_nginx_handoff(common_path: Path) -> dict[str, str]:
 
 
 def _verify_framework_sha_contract(
-    root: Path, expected_parent_framework_sha: str
+    root: Path, expected_parent_framework_sha: str,
+    candidate_sha: str, candidate_framework_root: Path | None = None,
 ) -> None:
-    workflow = _read_text(
-        _root_relative_path(root, ".github/workflows/test-connectors-with-crs-no-mrts.yml"),
-        "CRS/no-MRTS workflow",
-    )
-    workflow_sha = _unique_match(
-        re.compile(r"(?m)^ {6}EXPECTED_FRAMEWORK_SHA:[ \t]*(?P<value>[0-9a-f]{40})[ \t]*$"),
-        workflow,
-        "CRS/no-MRTS workflow expected Framework SHA",
-    )
-    literal_framework_shas = [
-        _safe_yaml_value(
-            match.group("value"), "CRS/no-MRTS workflow literal Framework SHA"
-        )
-        for match in LITERAL_FRAMEWORK_SHA.finditer(workflow)
-    ]
-    if not literal_framework_shas:
-        raise ContractError("CRS/no-MRTS workflow has no literal Framework SHA consumers")
-    fixture = _read_text(
-        _root_relative_path(root, "tests/test_ci_security_workflows.py"),
-        "CRS/no-MRTS workflow fixture",
-    )
-    fixture_sha = _unique_match(
-        re.compile(
-            r'(?m)^WITH_CRS_NO_MRTS_FRAMEWORK_SHA[ \t]*=[ \t]*"(?P<value>[0-9a-f]{40})"[ \t]*$'
-        ),
-        fixture,
-        "CRS/no-MRTS workflow fixture Framework SHA",
-    )
-    for label, observed in (("workflow", workflow_sha), ("fixture", fixture_sha)):
-        if observed != expected_parent_framework_sha:
-            raise ContractError(
-                f"CRS/no-MRTS {label} Framework SHA does not match expected Parent Framework SHA"
-            )
-    for index, observed in enumerate(literal_framework_shas, start=1):
-        if observed != expected_parent_framework_sha:
-            raise ContractError(
-                f"CRS/no-MRTS workflow literal Framework SHA consumer {index} "
-                "does not match expected Parent Framework SHA"
-            )
+    try:
+        pins = load_framework_revision_pins(root)
+    except (FrameworkRevisionPinsError, OSError) as exc:
+        raise ContractError(f"invalid Framework revision lock: {exc}") from exc
+    if pins["framework_sha"] != expected_parent_framework_sha:
+        raise ContractError("revision lock Framework SHA does not match expected Parent Framework SHA")
+    if candidate_framework_root is not None:
+        framework = _require_directory(candidate_framework_root, "candidate Framework root")
+        try:
+            candidate_mrts_sha = read_framework_mrts_gitlink(framework, candidate_sha)
+        except FrameworkRevisionPinsError as exc:
+            raise ContractError(f"cannot verify candidate Framework MRTS gitlink: {exc}") from exc
+        if candidate_mrts_sha != pins["mrts_sha"]:
+            raise ContractError("candidate Framework MRTS gitlink does not match locked MRTS SHA")
+
 
 
 def _verify_unprotected_nginx_handoff(root: Path, values: dict[str, str]) -> None:
@@ -714,6 +695,7 @@ def verify_contract(
     candidate_sha: str,
     framework_common: Path,
     expected_parent_framework_sha: str | None = None,
+    candidate_framework_root: Path | None = None,
 ) -> dict[str, str]:
     repository_root = _require_directory(root, "repository root")
     if not HEX40.fullmatch(candidate_sha):
@@ -727,7 +709,7 @@ def verify_contract(
         raise ContractError(
             "expected Parent Framework SHA must be exactly 40 lowercase hexadecimal characters"
         )
-    _verify_framework_sha_contract(repository_root, expected_parent_sha)
+    _verify_framework_sha_contract(repository_root, expected_parent_sha, candidate_sha, candidate_framework_root)
     nginx = parse_candidate_nginx_handoff(framework_common)
     _verify_parent_nginx_policy(repository_root)
     _verify_unprotected_nginx_handoff(repository_root, nginx)
@@ -740,6 +722,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--candidate-sha", required=True)
     parser.add_argument("--framework-common", type=Path, required=True)
     parser.add_argument("--expected-parent-framework-sha")
+    parser.add_argument("--candidate-framework-root", type=Path)
     args = parser.parse_args(argv)
     try:
         nginx = verify_contract(
@@ -747,6 +730,7 @@ def main(argv: list[str] | None = None) -> int:
             args.candidate_sha,
             args.framework_common,
             args.expected_parent_framework_sha,
+            args.candidate_framework_root,
         )
     except (ContractError, OSError) as error:
         print(f"verify-framework-candidate-contract: error: {error}")

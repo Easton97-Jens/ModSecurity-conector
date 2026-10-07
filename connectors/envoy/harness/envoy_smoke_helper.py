@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import socket
 import ssl
+import stat
 import sys
 import threading
 import time
@@ -1258,6 +1259,7 @@ def parse_args() -> argparse.Namespace:
     subparsers.add_parser("free-port")
     prepare = subparsers.add_parser("prepare-runtime-root")
     prepare.add_argument("--runtime-root", required=True)
+    prepare.add_argument("--require-private-mode", action="store_true")
     ports = subparsers.add_parser("free-ports")
     ports.add_argument("--count", required=True, type=int)
     serve = subparsers.add_parser("serve-upstream")
@@ -1327,7 +1329,9 @@ def _free_ports_command(args: argparse.Namespace) -> int:
 
 
 def _prepare_runtime_root_command(args: argparse.Namespace) -> int:
-    verified_runtime_root(args.runtime_root)
+    root = verified_runtime_root(args.runtime_root)
+    if args.require_private_mode and stat.S_IMODE(root.stat().st_mode) != 0o700:
+        raise ValueError("private socket root must have mode 0700")
     return 0
 
 

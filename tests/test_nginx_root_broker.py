@@ -1528,6 +1528,28 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
                 framework_sha=framework_sha,
             )
 
+    def test_restricted_caller_yaml_parser_accepts_only_the_exact_empty_mapping_literal(self) -> None:
+        document = BROKER.parse_restricted_caller_workflow_yaml(b"permissions: {}\n")
+        self.assertEqual(document, {"permissions": {}})
+
+    def test_caller_top_level_permissions_remain_exactly_deny_default(self) -> None:
+        raw = (ROOT / ".github/workflows/run-protected-nginx-root-broker.yml").read_bytes()
+        self.assertIn(b"permissions: {}\n", raw)
+        for permissions in (
+            b"permissions:\n  contents: read\n",
+            b"permissions:\n  contents: write\n",
+            b"permissions:\n  actions: read\n",
+        ):
+            with self.subTest(permissions=permissions):
+                changed = raw.replace(b"permissions: {}\n", permissions, 1)
+                document = BROKER.parse_restricted_caller_workflow_yaml(changed)
+                with self.assertRaisesRegex(BROKER.BrokerError, "exactly deny-default"):
+                    BROKER.validate_caller_workflow_document(
+                        document,
+                        broker_sha="49c40779a7b6de9f699391bcd524ea069787df42",
+                        framework_sha="03880bf66b3905940466ff10b3a431a27ecc6b26",
+                    )
+
     def test_restricted_caller_yaml_parser_rejects_indirection_duplicates_and_unsafe_encoding(self) -> None:
         invalid_documents = {
             "byte-order mark": b"\xef\xbb\xbfjobs:\n",
@@ -1538,7 +1560,11 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
             "alias": b"jobs:\n  run: *anchor\n",
             "tag": b"jobs:\n  run: !unsafe value\n",
             "merge": b"jobs:\n  <<: *anchor\n",
-            "flow mapping": b"jobs: {}\n",
+            "nonempty flow mapping": b"jobs: {run: value}\n",
+            "spaced flow mapping": b"jobs: { }\n",
+            "flow list": b"jobs: []\n",
+            "tagged empty mapping": b"permissions: !unsafe {}\n",
+            "anchored empty mapping": b"permissions: &anchor {}\n",
             "duplicate key": b"jobs:\n  run: one\n  run: two\n",
         }
         for name, raw in invalid_documents.items():

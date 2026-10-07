@@ -11,6 +11,8 @@ from unittest import mock
 
 from tests.version_updater_test_support import FakeOpener, load_updater, response_factory, uses_shared_core
 
+from tests.version_updater_test_support import write_project_pins
+
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "update-go-version.py"
 updater = load_updater("update_go_version", SCRIPT)
 FakeResponse = response_factory(updater.CANONICAL_RELEASE_API_URL)
@@ -27,6 +29,7 @@ class UpdateGoVersionTests(unittest.TestCase):
     def root_with_version(self, root: Path, version: str = "1.27.0") -> Path:
         root.mkdir(parents=True, exist_ok=True)
         (root / ".go-version").write_text(f"{version}\n", encoding="utf-8")
+        write_project_pins(root, go_version=version)
         return root
 
     def run_cli(

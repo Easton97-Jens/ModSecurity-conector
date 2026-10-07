@@ -130,22 +130,33 @@ class NginxBodyBufferFixtureContractTest(unittest.TestCase):
         self.assertNotIn("MSCONNECTOR_NGINX_BODY_FIXTURE_FAIL_ALLOC", product)
 
     def test_positive_event_accounting_is_retained_with_the_rule_binding(self) -> None:
+        paths = {
+            "/memory-within": RUNNER_MODULE.FIXTURE_LIMIT,
+            "/memory-over-limit": RUNNER_MODULE.FIXTURE_LIMIT + 1,
+            "/file-within": RUNNER_MODULE.FIXTURE_LIMIT,
+            "/file-over-limit": RUNNER_MODULE.FIXTURE_LIMIT + 1,
+            "/mixed-within": RUNNER_MODULE.FIXTURE_LIMIT,
+            "/mixed-over-limit": RUNNER_MODULE.FIXTURE_LIMIT + 1,
+        }
         events = [
             {
                 "uri": path,
                 "rule_id": "1250001",
-                "body_bytes_seen": RUNNER_MODULE.FIXTURE_LIMIT,
-                "body_bytes_inspected": RUNNER_MODULE.FIXTURE_LIMIT,
+                "body_bytes_seen": expected_bytes,
+                "body_bytes_inspected": expected_bytes,
                 "body_truncated": False,
                 "truncated": False,
                 "eos_seen": True,
             }
-            for path in ("/memory-within", "/file-within", "/mixed-within")
+            for path, expected_bytes in paths.items()
         ]
         retained = RUNNER_MODULE.validate_positive_events(events)
-        self.assertEqual(set(retained), {"/memory-within", "/file-within", "/mixed-within"})
-        self.assertEqual(retained["/mixed-within"]["rule_id"], "1250001")
-        self.assertEqual(retained["/file-within"]["body_bytes_seen"], RUNNER_MODULE.FIXTURE_LIMIT)
+        self.assertEqual(set(retained), set(paths))
+        self.assertEqual(retained["/mixed-over-limit"]["rule_id"], "1250001")
+        self.assertEqual(
+            retained["/file-over-limit"]["body_bytes_seen"],
+            RUNNER_MODULE.FIXTURE_LIMIT + 1,
+        )
 
     def test_positive_event_accounting_rejects_a_mixed_file_backing_match_gap(self) -> None:
         events = [

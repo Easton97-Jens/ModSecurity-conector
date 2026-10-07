@@ -319,8 +319,9 @@ DIRECTIVE_DETAILS: dict[str, dict[str, str]] = {
         "values": ALLOWED_VALUES_POSITIVE_INTEGER,
         "default": "1048576",
         "default_source": DEFAULT_SOURCE_PHASE4_BODY_LIMIT,
-        "effect": "Bounds response bytes offered to P4 processing by the native connector.",
-        "security": "A larger limit raises memory/CPU exposure; zero is invalid in the native setters.",
+        "effect": "Legacy compatibility value; valid Phase-4 modes do not enforce it as a connector WAF response-inspection limit.",
+        "security": "Use libModSecurity SecResponseBodyLimit/SecResponseBodyLimitAction for WAF inspection policy; independent host resource limits remain separate.",
+        "deprecated": True,
     },
 }
 
@@ -351,19 +352,17 @@ APACHE_DIRECTIVE_DETAILS: dict[str, dict[str, str]] = {
     },
     "modsecurity_phase4_body_limit": {
         "effect": (
-            "Bounds Apache response bytes offered to P4 across current normalized brigades. The "
-            "configurable default is 1048576 bytes; independently, a fixed non-configurable "
-            "4096-normalized-bucket ceiling spans filter calls. A limit breach fails closed before "
-            "the current offending bucket is forwarded; already committed output is not rewritten."
+            "Legacy compatibility value. Apache no longer uses it as a cumulative WAF response-inspection "
+            "limit; libModSecurity owns SecResponseBodyLimit policy. The fixed non-configurable "
+            "4096-normalized-bucket ceiling remains a separate APR-object/resource guard."
         ),
         "security": (
-            "The byte and fixed bucket ceilings bound payload and per-transaction APR-object/setaside "
-            "memory/CPU exposure. Each accepted current bucket is appended once before direct forwarding; "
-            "do not retain a full response or forward an uninspected tail."
+            "The fixed bucket ceiling still bounds per-transaction APR-object/setaside exposure. "
+            "Response inspection byte policy belongs to libModSecurity and must not be recreated by safe/strict."
         ),
         "phase_relevance": (
-            "P4 only. The byte limit and fixed bucket ceiling span filter calls. The adapter retains only "
-            "the terminal EOS fragment for the one-shot finish; the bucket count resets on release or discard."
+            "P4 compatibility only. The configured byte value does not gate response inspection; "
+            "the independent fixed bucket-count resource guard still spans filter calls."
         ),
     },
 }
@@ -408,7 +407,8 @@ def _directive_option(
         runtime_effect=detail["effect"],
         example_file=example,
         description=detail["effect"],
-        deprecated=False,
+        compatibility_only=detail.get("compatibility_only", False),
+        deprecated=detail.get("deprecated", False),
     )
 
 
@@ -859,7 +859,7 @@ COMMON_DETAILS: dict[str, dict[str, str]] = {
     "request_body_mode": ("enum", ALLOWED_VALUES_BODY_MODE, "buffered", DEFAULT_SOURCE_RUNTIME_DEFAULTS, "Selects the Common request-body handling mode; a particular host may support only a subset."),
     "response_body_mode": ("enum", ALLOWED_VALUES_BODY_MODE, "none", DEFAULT_SOURCE_RUNTIME_DEFAULTS, "Selects the Common response-body handling mode; a particular host may support only a subset."),
     "request_body_limit": (VALUE_TYPE_POSITIVE_DECIMAL_BYTES, ALLOWED_VALUES_POSITIVE_INTEGER, "1048576", DEFAULT_SOURCE_MAX_BODY_BUFFER, "Bounds request bytes offered to the engine."),
-    "response_body_limit": (VALUE_TYPE_POSITIVE_DECIMAL_BYTES, ALLOWED_VALUES_POSITIVE_INTEGER, "1048576", DEFAULT_SOURCE_MAX_RESPONSE_BODY_BUFFER, "Bounds response bytes offered to the engine."),
+    "response_body_limit": (VALUE_TYPE_POSITIVE_DECIMAL_BYTES, ALLOWED_VALUES_POSITIVE_INTEGER, "1048576", DEFAULT_SOURCE_MAX_RESPONSE_BODY_BUFFER, "Bounds host/runtime response capacity where that integration requires bounded storage; it is not libModSecurity inspection policy."),
     "body_limit_action": ("enum", "reject | process_partial (accepted spelling variants are parser-specific)", "reject", DEFAULT_SOURCE_COMMON_APPLY_DEFAULTS, "Controls whether an over-limit chunk is rejected or truncated before engine input."),
     "late_intervention_timeout": ("non-negative decimal milliseconds", "0 or positive integer", "0", DEFAULT_SOURCE_COMMON_APPLY_DEFAULTS, "Stores an optional late-intervention budget; Common owns no timer/cancellation primitive."),
     "default_block_status": ("HTTP status", "allowed blocking status", "403", DEFAULT_SOURCE_DEFAULT_BLOCK_STATUS, "Fallback status for supported pre-commit block actions."),
@@ -941,8 +941,8 @@ COMMON_OPTION_OVERRIDES: dict[str, dict[str, Any]] = {
             "(10 MiB) hard security cap."
         ),
         "security_relevance": (
-            "The 10 MiB hard cap bounds response-body allocation and engine input even when a deployment "
-            "raises the 1048576-byte default."
+            "The 10 MiB configuration cap bounds host/runtime capacity settings where an integration "
+            "allocates or buffers responses; it is not a libModSecurity WAF inspection limit."
         ),
     },
     "max_header_count": {
@@ -3689,6 +3689,13 @@ GERMAN_TEXT: dict[str, str] = {
     "Bounds Apache response bytes offered to P4 across current normalized brigades. The configurable default is 1048576 bytes; independently, a fixed non-configurable 4096-normalized-bucket ceiling spans filter calls. A limit breach fails closed before the current offending bucket is forwarded; already committed output is not rewritten.": "Begrenzt Apache-Response-Bytes, die P4 über aktuelle normalisierte Brigades angeboten werden. Der konfigurierbare Standardwert ist 1048576 Byte; unabhängig davon gilt über Filter-Aufrufe hinweg eine feste, nicht konfigurierbare Obergrenze von 4096 normalisierten Buckets. Eine Limitverletzung schlägt fail-closed fehl, bevor der aktuelle fehlerhafte Bucket weitergeleitet wird; bereits committed Ausgabe wird nicht umgeschrieben.",
     "The byte and fixed bucket ceilings bound payload and per-transaction APR-object/setaside memory/CPU exposure. Each accepted current bucket is appended once before direct forwarding; do not retain a full response or forward an uninspected tail.": "Die Byte- und feste Bucket-Obergrenze begrenzen Payload- sowie APR-Objekt-/Setaside-Speicher-/CPU-Exposition pro Transaktion. Jeder akzeptierte aktuelle Bucket wird vor der direkten Weiterleitung genau einmal angehängt; keine vollständige Response zurückhalten oder einen uninspektierten Tail weiterleiten.",
     "P4 only. The byte limit and fixed bucket ceiling span filter calls. The adapter retains only the terminal EOS fragment for the one-shot finish; the bucket count resets on release or discard.": "Nur P4. Das Byte-Limit und die feste Bucket-Obergrenze gelten über Filter-Aufrufe hinweg. Der Adapter hält nur das terminale EOS-Fragment für den einmaligen Abschluss zurück; der Bucket-Zähler wird bei Release oder Discard zurückgesetzt.",
+    "Legacy compatibility value; valid Phase-4 modes do not enforce it as a connector WAF response-inspection limit.": "Alter Kompatibilitätswert; gültige Phase-4-Modi erzwingen ihn nicht als Connector-WAF-Response-Inspection-Limit.",
+    "Use libModSecurity SecResponseBodyLimit/SecResponseBodyLimitAction for WAF inspection policy; independent host resource limits remain separate.": "Für die WAF-Inspection-Policy SecResponseBodyLimit/SecResponseBodyLimitAction von libModSecurity verwenden; unabhängige Host-Ressourcenlimits bleiben getrennt.",
+    "Legacy compatibility value. Apache no longer uses it as a cumulative WAF response-inspection limit; libModSecurity owns SecResponseBodyLimit policy. The fixed non-configurable 4096-normalized-bucket ceiling remains a separate APR-object/resource guard.": "Alter Kompatibilitätswert. Apache verwendet ihn nicht mehr als kumuliertes WAF-Response-Inspection-Limit; libModSecurity besitzt die SecResponseBodyLimit-Policy. Die feste, nicht konfigurierbare Obergrenze von 4096 normalisierten Buckets bleibt ein getrennter APR-Objekt-/Ressourcenschutz.",
+    "The fixed bucket ceiling still bounds per-transaction APR-object/setaside exposure. Response inspection byte policy belongs to libModSecurity and must not be recreated by safe/strict.": "Die feste Bucket-Obergrenze begrenzt weiterhin die APR-Objekt-/Setaside-Exposition pro Transaktion. Die Byte-Policy der Response-Inspection gehört libModSecurity und darf nicht durch safe/strict im Connector neu erzeugt werden.",
+    "P4 compatibility only. The configured byte value does not gate response inspection; the independent fixed bucket-count resource guard still spans filter calls.": "Nur P4-Kompatibilität. Der konfigurierte Bytewert begrenzt die Response-Inspection nicht; die unabhängige feste Bucket-Anzahl-Ressourcengrenze gilt weiterhin über Filter-Aufrufe hinweg.",
+    "Bounds host/runtime response capacity where that integration requires bounded storage; it is not libModSecurity inspection policy.": "Begrenzt die Host-/Runtime-Response-Kapazität dort, wo die Integration begrenzten Speicher benötigt; dies ist keine libModSecurity-Inspection-Policy.",
+    "The 10 MiB configuration cap bounds host/runtime capacity settings where an integration allocates or buffers responses; it is not a libModSecurity WAF inspection limit.": "Die Konfigurationsobergrenze von 10 MiB begrenzt Host-/Runtime-Kapazität dort, wo eine Integration Responses alloziert oder puffert; sie ist kein libModSecurity-WAF-Inspection-Limit.",
 
     # Response-capable HAProxy SPOE/SPOP and patched-lighttpd parameters.
     # These remain explicit rather than taking the YAML fallback because they

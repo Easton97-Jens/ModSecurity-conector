@@ -2523,6 +2523,52 @@ def download(url: str, dest: Path) -> None:
     atomic_write_bytes(dest, urlopen_bytes(url, timeout=60))
 
 
+class HttpdSourceNoRedirect(urllib.request.HTTPRedirectHandler):
+    """A retired HTTPD release may move only through the explicit 404 policy."""
+
+    def redirect_request(self, request, response, code, message, headers, new_url):
+        return None
+
+
+def httpd_archive_recovery_url(url: str, expected_sha: str) -> str:
+    require_literal_sha256(expected_sha, "httpd")
+    match = re.fullmatch(
+        r"https://downloads\.apache\.org/httpd/(httpd-\d+\.\d+\.\d+\.tar\.bz2)",
+        url,
+        flags=re.ASCII,
+    )
+    if match is None:
+        raise RuntimeError("httpd_source_recovery_requires_canonical_release_url")
+    return f"https://archive.apache.org/dist/httpd/{match.group(1)}"
+
+
+def download_httpd_source_archive(url: str, dest: Path, expected_sha: str) -> str:
+    """Recover only an exact canonical HTTPD 404, retaining the reviewed digest."""
+    archived_url = httpd_archive_recovery_url(url, expected_sha)
+    opener = urllib.request.build_opener(HttpdSourceNoRedirect())
+
+    def acquire(selected_url: str) -> bytes:
+        try:
+            with opener.open(selected_url, timeout=60) as response:
+                if response.geturl() != selected_url:
+                    raise RuntimeError("httpd_source_redirect_forbidden")
+                return response.read()
+        except urllib.error.HTTPError as error:
+            error.close()
+            raise
+
+    download_url = url
+    try:
+        payload = acquire(url)
+    except urllib.error.HTTPError as error:
+        if error.code != 404 or error.geturl() != url:
+            raise
+        download_url = archived_url
+        payload = acquire(download_url)
+    atomic_write_bytes(dest, payload)
+    return download_url
+
+
 def expected_sha_from_url(url: str, archive_name: str, dest: Path) -> str:
     if not url:
         return ""
@@ -2778,45 +2824,24 @@ def download_archive_if_needed(
     *,
     expected_sha: str = "",
     verify_digest_before_archive_list: bool = False,
-) -> str:
+    allow_httpd_source_recovery: bool = False,
+) -> str | None:
     if not archive_requires_download(
         path,
         expected_sha=expected_sha,
         verify_digest_before_archive_list=verify_digest_before_archive_list,
     ):
-        return ""
+        return None
     if path.exists():
         remove_archive_path(path, cache_root)
     if cache_root is not None:
         mark_managed_cache_entry(path, cache_root, component=component, cache_key=cache_key)
-    return download_archive_source(url, path, component, expected_sha)
-
-
-def download_archive_source(url: str, path: Path, component: str, expected_sha: str) -> str:
-    """Keep a reviewed HTTPD source usable after its official mirror retires it."""
-    try:
-        download(url, path)
-        return url
-    except RuntimeError as exc:
-        # urlopen_bytes preserves the typed final network error as its argument.
-        network_error = exc.args[0] if exc.args else None
-        archive_name = re.fullmatch(
-            r"https://downloads\.apache\.org/httpd/(httpd-\d+\.\d+\.\d+\.tar\.bz2)",
-            url,
-            flags=re.ASCII,
-        )
-        if (
-            component != archive_cache_component("httpd")
-            or not isinstance(network_error, urllib.error.HTTPError)
-            or network_error.code != 404
-            or archive_name is None
-            or LOWERCASE_SHA256_RE.fullmatch(expected_sha) is None
-        ):
-            raise
-        archive_url = f"https://archive.apache.org/dist/httpd/{archive_name.group(1)}"
-        network_error.close()
-        download(archive_url, path)
-        return archive_url
+    if allow_httpd_source_recovery:
+        if component != archive_cache_component("httpd"):
+            raise RuntimeError("httpd_source_recovery_component_invalid")
+        return download_httpd_source_archive(url, path, expected_sha)
+    download(url, path)
+    return None
 
 
 def corrupt_archive_record(
@@ -2863,6 +2888,7 @@ def prepare_archive_with_lock(
     *,
     cache_identity: dict[str, Any] | None = None,
     verify_digest_before_archive_list: bool = False,
+    allow_httpd_source_recovery: bool = False,
 ) -> dict[str, Any]:
     try:
         with BuildLock(cache_entry_lock_path(managed_root, f"archive-{name}", cache_key)):
@@ -2877,6 +2903,7 @@ def prepare_archive_with_lock(
                 _lock_held=True,
                 cache_identity=cache_identity,
                 verify_digest_before_archive_list=verify_digest_before_archive_list,
+                allow_httpd_source_recovery=allow_httpd_source_recovery,
             )
     except TimeoutError as exc:
         record.update(status="blocked", blocker_reason="cache_lock_timeout", details=str(exc))
@@ -2896,6 +2923,7 @@ def prepare_archive_unlocked(
     archive_identity: dict[str, Any],
     *,
     verify_digest_before_archive_list: bool = False,
+    allow_httpd_source_recovery: bool = False,
 ) -> dict[str, Any]:
     component = archive_cache_component(name)
     cache_key = str(archive_identity["cache_key"])
@@ -2909,7 +2937,7 @@ def prepare_archive_unlocked(
         archive_identity,
     ):
         return record
-    download_url = download_archive_if_needed(
+    acquired_url = download_archive_if_needed(
         url,
         path,
         managed_root,
@@ -2917,10 +2945,17 @@ def prepare_archive_unlocked(
         cache_key,
         expected_sha=expected_sha,
         verify_digest_before_archive_list=verify_digest_before_archive_list,
+        allow_httpd_source_recovery=allow_httpd_source_recovery,
     )
     if name == "httpd":
-        # Cache reuse proves bytes/identity, not which endpoint originally fetched them.
-        record.update(download_url=download_url, download_status="downloaded" if download_url else "cached")
+        record.update(
+            download_url=acquired_url or "",
+            download_status="downloaded" if acquired_url is not None else "cached",
+        )
+    if acquired_url is not None:
+        record["download_url"] = acquired_url
+        if acquired_url != url:
+            record["source_recovery"] = "official_httpd_archive_after_direct_404"
     size = path.stat().st_size
     if size <= 0:
         return corrupt_archive_record(record, path, managed_root, "empty_archive")
@@ -2958,6 +2993,19 @@ def archive_checksum_matches(record: dict[str, Any], expected_sha: str, actual_s
     return expected_sha == actual_sha
 
 
+def validate_httpd_source_recovery_policy(
+    name: str,
+    url: str,
+    expected_sha: str,
+    *,
+    required_literal_sha256: bool,
+    verify_digest_before_archive_list: bool,
+) -> None:
+    if name != "httpd" or not required_literal_sha256 or not verify_digest_before_archive_list:
+        raise RuntimeError("httpd_source_recovery_policy_invalid")
+    httpd_archive_recovery_url(url, expected_sha)
+
+
 def prepare_archive(
     name: str,
     url: str,
@@ -2970,6 +3018,7 @@ def prepare_archive(
     _lock_held: bool = False,
     cache_identity: dict[str, Any] | None = None,
     verify_digest_before_archive_list: bool = False,
+    allow_httpd_source_recovery: bool = False,
 ) -> dict[str, Any]:
     archive_name = url.rstrip("/").split("/")[-1] if url else ""
     path = dest_dir / archive_name if archive_name else dest_dir / name
@@ -2988,6 +3037,14 @@ def prepare_archive(
         record.update(status="blocked", blocker_reason="system_path_write_forbidden")
         return record
     try:
+        if allow_httpd_source_recovery:
+            validate_httpd_source_recovery_policy(
+                name,
+                url,
+                expected_sha,
+                required_literal_sha256=required_literal_sha256,
+                verify_digest_before_archive_list=verify_digest_before_archive_list,
+            )
         if required_literal_sha256:
             # A reviewed literal digest is required.  A digest URL is retained
             # as metadata but must not turn an absent override into a
@@ -3022,6 +3079,7 @@ def prepare_archive(
                 archive_cache_key,
                 cache_identity=archive_identity,
                 verify_digest_before_archive_list=verify_digest_before_archive_list,
+                allow_httpd_source_recovery=allow_httpd_source_recovery,
             )
         return prepare_archive_unlocked(
             record,
@@ -3035,6 +3093,7 @@ def prepare_archive(
             managed_root,
             archive_identity,
             verify_digest_before_archive_list=verify_digest_before_archive_list,
+            allow_httpd_source_recovery=allow_httpd_source_recovery,
         )
     except Exception as exc:
         record.update(status="blocked", blocker_reason=str(exc))
@@ -10756,7 +10815,9 @@ def apache_archive_records(env: dict[str, str], archives_root: Path, cache_root:
         prepare_archive(
             "httpd", env.get("HTTPD_SOURCE_URL", ""), env.get("HTTPD_SHA256", ""),
             env.get("HTTPD_SHA256_URL", ""), apache_root, cache_root,
-            required_literal_sha256=True, verify_digest_before_archive_list=True,
+            required_literal_sha256=True,
+            verify_digest_before_archive_list=True,
+            allow_httpd_source_recovery=True,
         ),
         prepare_archive("apr", env.get("APR_SOURCE_URL", ""), env.get("APR_SHA256", ""), env.get("APR_SHA256_URL", ""), apache_root, cache_root),
         prepare_archive(
