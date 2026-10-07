@@ -32,6 +32,14 @@ The earlier worktree is absent, so use a new task-owned worktree from the publis
 - `ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh`, `tests/test_apache_request_transaction_cleanup.py`
 - This EN/DE record, EN/DE archive index and cross-references in the earlier EN/DE readiness record. Other incoming master files are integration history, not separately selected edits.
 
+## 2026-10-03 scope reconciliation
+
+The NGINX statements above describe the October 1 intermediate head. The user
+subsequently excluded NGINX. All four NGINX fixture/contract-test paths now
+match `origin/master`; the final PR neither delivers nor credits that receipt
+identity correction. The remaining nine-profile work is independent of those
+files.
+
 ## Commands executed
 
 All shell commands were RTK-wrapped. Existing `python3` is exact `3.14.7`; no dependency installation. Task output: `/var/tmp/codex/ModSecurity-conector/runs/pr370-refresh-20261001`.

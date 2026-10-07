@@ -238,7 +238,9 @@ test -x "$APACHE_ROOT/configure"
 MAKE_LOG="$WORK_ROOT/autotools-make.log"
 if ! (
     cd "$APACHE_ROOT"
-    for build_attempt in 1 2; do
+    build_attempt=0
+    while [ "$build_attempt" -lt 2 ]; do
+        build_attempt=$((build_attempt + 1))
         CONNECTOR_ROOT="$SOURCE_ROOT" \
         MSCONNECTOR_COMMON_INC="$SOURCE_ROOT/common/include" \
         MSCONNECTOR_COMMON_SRC="$SOURCE_ROOT/common/src" \

@@ -11,6 +11,14 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20261003-pr370-composite-common-runtime](CR-20261003-pr370-composite-common-runtime.de.md)
+  | English companion: `CR-20261003-pr370-composite-common-runtime.md` — angeforderte PR-#370-
+  Composite-Common/Runtime-Korrektur: verschobenes gepuffertes P2, kanonische
+  Go-Composite-Modi, fail-closed Claim-/Cleanup-Ownership und echte
+  Envoy-/Traefik-Lifecycle-Evidence. Katalogabnahme und vollständiges G1–G9
+  aller neun Profile bleiben offen; NGINX ist ausgeschlossen. Keine
+  Produktions-, Merge- oder Nachfolger-Sonar-Behauptung.
+
 - [CR-20261001-pr370-apache-rebuild-readiness](CR-20261001-pr370-apache-rebuild-readiness.de.md)
   | English companion: `CR-20261001-pr370-apache-rebuild-readiness.md` —
   angeforderter PR-#370-Merge-Vorbereitungs-Folgepatch: isoliertes Apache-

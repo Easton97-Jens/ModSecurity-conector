@@ -10,13 +10,28 @@
 #include "common/runtime/msconnector_runtime.h"
 #include "connectors/profile_registry.h"
 
+/* Same lifetime as MSCONNECTOR_ENVOY_EXT_AUTHZ_COMPANION_TTL_MS and
+ * MSCONNECTOR_TRAEFIK_FORWARDAUTH_COMPANION_TTL_MS in the canonical route adapters.
+ * This is not the optional late-intervention deadline, whose default is 0. */
+#define MSC_COMPOSITE_COMPANION_TTL_MS 30000ULL
+
 struct msc_envoy_ext_proc_runtime {
     msconnector_runtime *runtime;
+    unsigned int profile_id;
+    msconnector_runtime_response_companion_registry *companion_registry;
 };
 
 struct msc_envoy_ext_proc_transaction {
     msconnector_runtime_transaction *transaction;
     msconnector_runtime *runtime;
+    msconnector_runtime_response_companion_registry *companion_registry;
+    msconnector_runtime_response_companion_session companion_session;
+    char companion_handle[MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE];
+    char transaction_id[129];
+    int handed_off;
+    int companion_claimed;
+    int companion_consumed;
+    int native_request_body_limit;
     msconnector_decision disruptive_decision;
     int request_finished;
     int response_headers_processed;
@@ -99,6 +114,86 @@ static void msc_envoy_ext_proc_remember_disruptive_decision(
     transaction->has_disruptive_decision = 1;
 }
 
+static void msc_transaction_set_decision(
+    msc_envoy_ext_proc_transaction *transaction,
+    msc_envoy_ext_proc_decision *out,
+    const msconnector_decision *decision)
+{
+    msc_envoy_ext_proc_set_decision(out, decision, transaction->transaction);
+    if (out != NULL) {
+        msc_envoy_ext_proc_copy_text(out->transaction_id,
+            sizeof(out->transaction_id), transaction->transaction_id);
+    }
+}
+
+static void msc_transaction_observe_session_ownership(
+    msc_envoy_ext_proc_transaction *transaction)
+{
+    if (transaction->companion_claimed && !transaction->companion_session.active) {
+        /* Expiry/shutdown may destroy the session's native transaction on an
+         * unsuccessful operation. Never retain its borrowed rule pointers. */
+        memset(&transaction->disruptive_decision, 0,
+            sizeof(transaction->disruptive_decision));
+        transaction->has_disruptive_decision = 0;
+        transaction->terminal = 1;
+    }
+}
+
+static int msc_transaction_claim_companion(
+    msc_envoy_ext_proc_transaction *transaction,
+    char *error, size_t error_len)
+{
+    msconnector_error runtime_error;
+    if (transaction->companion_claimed) {
+        if (transaction->companion_session.active) {
+            return 1;
+        }
+        msc_envoy_ext_proc_set_error(error, error_len,
+            "Common response companion session is no longer active");
+        return 0;
+    }
+    if (!transaction->handed_off) {
+        msc_envoy_ext_proc_set_error(error, error_len,
+            "Common response companion has not been handed off");
+        return 0;
+    }
+    msconnector_error_init(&runtime_error);
+    if (!msconnector_runtime_response_companion_claim_handle(
+            transaction->companion_registry, transaction->companion_handle,
+            &transaction->companion_session, &runtime_error)) {
+        /* The handle is generated internally, never exposed, and consumed
+         * only through this serialized wrapper. Missing + inactive therefore
+         * proves expiry already detached/destroyed the unclaimed entry. */
+        if (runtime_error.code == MSCONNECTOR_ERROR_CORRELATION_MISSING &&
+            !transaction->companion_session.active) {
+            transaction->companion_consumed = 1;
+            transaction->terminal = 1;
+            msconnector_secure_zero(transaction->companion_handle,
+                sizeof(transaction->companion_handle));
+        }
+        msc_envoy_ext_proc_set_runtime_error(error, error_len, &runtime_error,
+            "Common response companion claim failed");
+        return 0;
+    }
+    transaction->companion_claimed = 1;
+    msconnector_secure_zero(transaction->companion_handle,
+        sizeof(transaction->companion_handle));
+    return 1;
+}
+
+int msc_envoy_ext_proc_transaction_claim_response_companion(
+    msc_envoy_ext_proc_transaction *transaction, char *error, size_t error_len)
+{
+    if (transaction == NULL) {
+        msc_envoy_ext_proc_set_error(error, error_len, "Common transaction is missing");
+        return 0;
+    }
+    if (transaction->companion_registry == NULL) {
+        return 1; /* compatibility: direct ext_proc has no companion registry */
+    }
+    return msc_transaction_claim_companion(transaction, error, error_len);
+}
+
 static int msc_envoy_ext_proc_headers(
     const msc_envoy_ext_proc_header *source,
     size_t count,
@@ -175,8 +270,19 @@ static int msc_envoy_ext_proc_finish_request(
     transaction->request_finished = 1;
     transaction->terminal = native_decision.disruptive != 0;
 	msc_envoy_ext_proc_remember_disruptive_decision(transaction, &native_decision);
-    msc_envoy_ext_proc_set_decision(decision, &native_decision,
-        transaction->transaction);
+    msc_transaction_set_decision(transaction, decision, &native_decision);
+    if (transaction->companion_registry != NULL && !transaction->terminal) {
+        if (!msconnector_runtime_response_companion_handoff_with_handle(
+                transaction->companion_registry, transaction->transaction,
+                MSC_COMPOSITE_COMPANION_TTL_MS,
+                transaction->companion_handle, &runtime_error)) {
+            msc_envoy_ext_proc_set_runtime_error(error, error_len, &runtime_error,
+                "Common response companion handoff failed");
+            return 0;
+        }
+        transaction->handed_off = 1;
+        transaction->transaction = NULL; /* registry owns the native transaction */
+    }
     return 1;
 }
 
@@ -189,7 +295,8 @@ static int msc_envoy_ext_proc_finish_response(
     msconnector_error runtime_error;
     msconnector_decision native_decision;
 
-    if (transaction == NULL || transaction->transaction == NULL) {
+    if (transaction == NULL ||
+        (transaction->transaction == NULL && !transaction->companion_session.active)) {
         msc_envoy_ext_proc_set_error(error, error_len,
             "Common response transaction is missing");
         return 0;
@@ -201,8 +308,13 @@ static int msc_envoy_ext_proc_finish_response(
     }
     msconnector_error_init(&runtime_error);
     msconnector_decision_init(&native_decision);
-    if (!msconnector_runtime_transaction_finish_response_body(
-            transaction->transaction, &native_decision, &runtime_error)) {
+    const int result = transaction->companion_registry != NULL ?
+        msconnector_runtime_response_companion_session_finish_response_body(
+            &transaction->companion_session, &native_decision, &runtime_error) :
+        msconnector_runtime_transaction_finish_response_body(
+            transaction->transaction, &native_decision, &runtime_error);
+    if (!result) {
+        msc_transaction_observe_session_ownership(transaction);
         msc_envoy_ext_proc_set_runtime_error(error, error_len, &runtime_error,
             "Common response body finalization failed");
         return 0;
@@ -210,18 +322,22 @@ static int msc_envoy_ext_proc_finish_response(
     transaction->response_finished = 1;
     transaction->terminal = native_decision.disruptive != 0;
 	msc_envoy_ext_proc_remember_disruptive_decision(transaction, &native_decision);
-    msc_envoy_ext_proc_set_decision(decision, &native_decision,
-        transaction->transaction);
+    msc_transaction_set_decision(transaction, decision, &native_decision);
     return 1;
 }
 
-int msc_envoy_ext_proc_runtime_create(
+static int msc_runtime_create_for_route(
     const char *config_path,
+    const char *connector,
+    const char *integration,
+    const char *profile,
+    msconnector_body_mode request_body_mode,
     msc_envoy_ext_proc_runtime **out,
     char *error,
     size_t error_len)
 {
     msc_envoy_ext_proc_runtime *runtime;
+    const msconnector_transaction_profile *selected_profile;
 
     if (out != NULL) {
         *out = NULL;
@@ -239,45 +355,129 @@ int msc_envoy_ext_proc_runtime_create(
     }
     /* Common event identity must remain the canonical connector name. The
      * ext_proc label belongs in integration_mode, never in connector. */
-    if (!msconnector_runtime_create("envoy", config_path,
+    if (!msconnector_runtime_create(connector, config_path,
             &runtime->runtime, error, error_len)) {
         free(runtime);
         return 0;
     }
     if (!msconnector_runtime_set_event_integration_mode(runtime->runtime,
-            "ext_proc")) {
+            integration)) {
         msc_envoy_ext_proc_set_error(error, error_len,
             "could not set Common event integration mode");
         msconnector_runtime_destroy(&runtime->runtime);
         free(runtime);
         return 0;
     }
+    selected_profile = msconnector_profile_registry_find(profile);
     if (!msconnector_runtime_set_transaction_profile(runtime->runtime,
-            msconnector_profile_registry_find("envoy-ext-proc"))) {
+            selected_profile)) {
         msc_envoy_ext_proc_set_error(error, error_len,
             "could not inject Common transaction profile");
         msconnector_runtime_destroy(&runtime->runtime);
         free(runtime);
         return 0;
     }
+    runtime->profile_id = selected_profile->profile_id;
     if (msconnector_runtime_request_body_mode(runtime->runtime) !=
-            MSCONNECTOR_BODY_MODE_STREAMING ||
+            request_body_mode ||
         msconnector_runtime_response_body_mode(runtime->runtime) !=
             MSCONNECTOR_BODY_MODE_STREAMING) {
         msc_envoy_ext_proc_set_error(error, error_len,
-            "Envoy ext_proc Common runtime requires streaming request and response bodies");
+            request_body_mode == MSCONNECTOR_BODY_MODE_STREAMING ?
+                "Envoy ext_proc Common runtime requires streaming request and response bodies" :
+                "Composite Common runtime requires buffered request and streaming response bodies");
         msconnector_runtime_destroy(&runtime->runtime);
         free(runtime);
         return 0;
+    }
+    if (request_body_mode == MSCONNECTOR_BODY_MODE_BUFFERED) {
+        runtime->companion_registry = calloc(1U, sizeof(*runtime->companion_registry));
+        if (runtime->companion_registry == NULL) {
+            msc_envoy_ext_proc_set_error(error, error_len,
+                "Common response companion registry allocation failed");
+            msconnector_runtime_destroy(&runtime->runtime);
+            free(runtime);
+            return 0;
+        }
+        msconnector_runtime_response_companion_registry_init(runtime->companion_registry);
     }
     *out = runtime;
     return 1;
 }
 
+unsigned int msc_envoy_ext_proc_runtime_profile_id(
+    const msc_envoy_ext_proc_runtime *runtime)
+{
+    return runtime == NULL ? 0U : runtime->profile_id;
+}
+
+int msc_envoy_ext_proc_runtime_create(
+    const char *config_path,
+    msc_envoy_ext_proc_runtime **out,
+    char *error,
+    size_t error_len)
+{
+    return msc_runtime_create_for_route(config_path, "envoy", "ext_proc",
+        "envoy-ext-proc", MSCONNECTOR_BODY_MODE_STREAMING,
+        out, error, error_len);
+}
+
+int msc_composite_runtime_create(
+    const char *config_path,
+    enum msc_composite_mode mode,
+    msc_envoy_ext_proc_runtime **out,
+    char *error,
+    size_t error_len)
+{
+    switch (mode) {
+        case MSC_COMPOSITE_ENVOY:
+            return msc_runtime_create_for_route(config_path, "envoy", "ext_authz",
+                "envoy-ext-authz", MSCONNECTOR_BODY_MODE_BUFFERED,
+                out, error, error_len);
+        case MSC_COMPOSITE_TRAEFIK:
+            return msc_runtime_create_for_route(config_path, "traefik", "forwardAuth",
+                "traefik-forwardauth", MSCONNECTOR_BODY_MODE_BUFFERED,
+                out, error, error_len);
+        default:
+            if (out != NULL) {
+                *out = NULL;
+            }
+            msc_envoy_ext_proc_set_error(error, error_len,
+                "unsupported Composite runtime mode");
+            return 0;
+    }
+}
+
+int msc_envoy_ext_proc_runtime_quiesce(
+    msc_envoy_ext_proc_runtime *runtime, char *error, size_t error_len)
+{
+    msconnector_error runtime_error;
+    if (runtime == NULL || runtime->companion_registry == NULL) {
+        return 1;
+    }
+    msconnector_error_init(&runtime_error);
+    if (!msconnector_runtime_response_companion_registry_shutdown(
+            runtime->companion_registry, &runtime_error)) {
+        msc_envoy_ext_proc_set_runtime_error(error, error_len, &runtime_error,
+            "Common response companion registry did not quiesce");
+        return 0;
+    }
+    return 1;
+}
+
 void msc_envoy_ext_proc_runtime_destroy(msc_envoy_ext_proc_runtime **runtime)
 {
+    msconnector_error runtime_error;
     if (runtime == NULL || *runtime == NULL) {
         return;
+    }
+    if ((*runtime)->companion_registry != NULL) {
+        msconnector_error_init(&runtime_error);
+        if (!msconnector_runtime_response_companion_registry_shutdown(
+                (*runtime)->companion_registry, &runtime_error)) {
+            return; /* fail closed: never free a leased native transaction */
+        }
+        free((*runtime)->companion_registry);
     }
     msconnector_runtime_destroy(&(*runtime)->runtime);
     free(*runtime);
@@ -354,9 +554,13 @@ int msc_envoy_ext_proc_transaction_begin(
             "Common transaction allocation failed");
         return 0;
     }
-    result = msconnector_runtime_transaction_begin(runtime->runtime,
-        &native_request, request->transaction_id, &transaction->transaction,
-        &native_decision, &runtime_error);
+    result = runtime->companion_registry != NULL ?
+        msconnector_runtime_transaction_begin_request_headers(runtime->runtime,
+            &native_request, request->transaction_id, &transaction->transaction,
+            &native_decision, &runtime_error) :
+        msconnector_runtime_transaction_begin(runtime->runtime,
+            &native_request, request->transaction_id, &transaction->transaction,
+            &native_decision, &runtime_error);
     free(headers);
     if (!result || transaction->transaction == NULL) {
         msc_envoy_ext_proc_set_runtime_error(error, error_len, &runtime_error,
@@ -366,10 +570,13 @@ int msc_envoy_ext_proc_transaction_begin(
         return 0;
     }
     transaction->runtime = runtime->runtime;
+    transaction->companion_registry = runtime->companion_registry;
+    msc_envoy_ext_proc_copy_text(transaction->transaction_id,
+        sizeof(transaction->transaction_id),
+        msconnector_runtime_transaction_id(transaction->transaction));
     transaction->terminal = native_decision.disruptive != 0;
 	msc_envoy_ext_proc_remember_disruptive_decision(transaction, &native_decision);
-    msc_envoy_ext_proc_set_decision(decision, &native_decision,
-        transaction->transaction);
+    msc_transaction_set_decision(transaction, decision, &native_decision);
     if (end_of_stream) {
         if (msconnector_runtime_request_body_mode(runtime->runtime) ==
             MSCONNECTOR_BODY_MODE_NONE) {
@@ -401,12 +608,17 @@ int msc_envoy_ext_proc_transaction_process_response_headers(
     msconnector_decision native_decision;
     int result;
 
-    if (transaction == NULL || transaction->transaction == NULL ||
+    if (transaction == NULL ||
+        (transaction->transaction == NULL && !transaction->handed_off) ||
         response == NULL || decision == NULL || response->protocol == NULL ||
         transaction->terminal || !transaction->request_finished ||
         transaction->response_headers_processed) {
         msc_envoy_ext_proc_set_error(error, error_len,
             "invalid Common response-header lifecycle");
+        return 0;
+    }
+    if (transaction->companion_registry != NULL &&
+        !msc_transaction_claim_companion(transaction, error, error_len)) {
         return 0;
     }
     if (!msc_envoy_ext_proc_headers(response->headers, response->header_count,
@@ -420,11 +632,16 @@ int msc_envoy_ext_proc_transaction_process_response_headers(
     native_response.header_count = response->header_count;
     msconnector_error_init(&runtime_error);
     msconnector_decision_init(&native_decision);
-    result = msconnector_runtime_transaction_process_response_headers(
-        transaction->transaction, &native_response, &native_decision,
-        &runtime_error);
+    result = transaction->companion_registry != NULL ?
+        msconnector_runtime_response_companion_session_process_response_headers(
+            &transaction->companion_session, &native_response, &native_decision,
+            &runtime_error) :
+        msconnector_runtime_transaction_process_response_headers(
+            transaction->transaction, &native_response, &native_decision,
+            &runtime_error);
     free(headers);
     if (!result) {
+        msc_transaction_observe_session_ownership(transaction);
         msc_envoy_ext_proc_set_runtime_error(error, error_len, &runtime_error,
             "Common response-header processing failed");
         return 0;
@@ -432,8 +649,7 @@ int msc_envoy_ext_proc_transaction_process_response_headers(
     transaction->response_headers_processed = 1;
     transaction->terminal = native_decision.disruptive != 0;
 	msc_envoy_ext_proc_remember_disruptive_decision(transaction, &native_decision);
-    msc_envoy_ext_proc_set_decision(decision, &native_decision,
-        transaction->transaction);
+    msc_transaction_set_decision(transaction, decision, &native_decision);
     if (end_of_stream) {
         if (msconnector_runtime_response_body_mode(transaction->runtime) ==
             MSCONNECTOR_BODY_MODE_NONE) {
@@ -459,7 +675,8 @@ int msc_envoy_ext_proc_transaction_process_body(
     msconnector_decision native_decision;
     int result;
 
-    if (transaction == NULL || transaction->transaction == NULL ||
+    if (transaction == NULL ||
+        (transaction->transaction == NULL && !transaction->handed_off) ||
         body == NULL || decision == NULL || transaction->terminal ||
         (body->body_size > 0U && body->body == NULL)) {
         msc_envoy_ext_proc_set_error(error, error_len,
@@ -474,17 +691,41 @@ int msc_envoy_ext_proc_transaction_process_body(
         return 0;
     }
     if (body->response_direction) {
-        msc_envoy_ext_proc_transaction_mark_response_committed(transaction, 1);
+        if (!msc_envoy_ext_proc_transaction_mark_response_committed(transaction,
+                1, error, error_len)) {
+            return 0;
+        }
     }
     msconnector_error_init(&runtime_error);
     if (body->response_direction) {
-        result = msconnector_runtime_transaction_append_response_body_chunk(
-            transaction->transaction, body->body, body->body_size, &runtime_error);
+        result = transaction->companion_registry != NULL ?
+            msconnector_runtime_response_companion_session_append_response_body_chunk(
+                &transaction->companion_session, body->body, body->body_size, &runtime_error) :
+            msconnector_runtime_transaction_append_response_body_chunk(
+                transaction->transaction, body->body, body->body_size, &runtime_error);
     } else {
         result = msconnector_runtime_transaction_append_request_body_chunk(
             transaction->transaction, body->body, body->body_size, &runtime_error);
     }
     if (!result) {
+        if (!body->response_direction &&
+            runtime_error.code == MSCONNECTOR_ERROR_BODY_TOO_LARGE) {
+            msconnector_runtime_transaction_snapshot snapshot;
+            if (msconnector_runtime_transaction_snapshot_get(transaction->transaction,
+                    &snapshot) &&
+                snapshot.contract.status == MSCONNECTOR_TRANSACTION_STATUS_TERMINAL &&
+                snapshot.contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT) {
+                transaction->terminal = 1;
+                transaction->native_request_body_limit = 1;
+                msconnector_decision_set_body_limit(&native_decision,
+                    "request body exceeds configured limit");
+                native_decision.phase = MSCONNECTOR_PHASE_REQUEST_BODY;
+                msc_envoy_ext_proc_remember_disruptive_decision(transaction, &native_decision);
+                msc_transaction_set_decision(transaction, decision, &native_decision);
+                return 1;
+            }
+        }
+        msc_transaction_observe_session_ownership(transaction);
         msc_envoy_ext_proc_set_runtime_error(error, error_len, &runtime_error,
             body->response_direction ? "Common response-body append failed" :
             "Common request-body append failed");
@@ -493,8 +734,7 @@ int msc_envoy_ext_proc_transaction_process_body(
     msconnector_decision_init(&native_decision);
     native_decision.phase = body->response_direction ? MSCONNECTOR_PHASE_RESPONSE_BODY :
         MSCONNECTOR_PHASE_REQUEST_BODY;
-    msc_envoy_ext_proc_set_decision(decision, &native_decision,
-        transaction->transaction);
+    msc_transaction_set_decision(transaction, decision, &native_decision);
     if (!body->end_of_stream) {
         return 1;
     }
@@ -506,15 +746,28 @@ int msc_envoy_ext_proc_transaction_process_body(
         error_len);
 }
 
-void msc_envoy_ext_proc_transaction_mark_response_committed(
+int msc_envoy_ext_proc_transaction_mark_response_committed(
     msc_envoy_ext_proc_transaction *transaction,
-    int body_started)
+    int body_started, char *error, size_t error_len)
 {
-    if (transaction == NULL || transaction->transaction == NULL) {
-        return;
+    msconnector_error runtime_error;
+    int result;
+    if (transaction == NULL || !transaction->response_headers_processed) {
+        msc_envoy_ext_proc_set_error(error, error_len, "response commitment before headers");
+        return 0;
     }
-    msconnector_runtime_transaction_set_response_commit_state(
-        transaction->transaction, 1, body_started != 0);
+    msconnector_error_init(&runtime_error);
+    result = transaction->companion_registry != NULL ?
+        msconnector_runtime_response_companion_session_set_response_commit_state(
+            &transaction->companion_session, 1, body_started != 0, &runtime_error) :
+        msconnector_runtime_transaction_set_response_commit_state_checked(
+            transaction->transaction, 1, body_started != 0, &runtime_error);
+    if (!result) {
+        msc_transaction_observe_session_ownership(transaction);
+        msc_envoy_ext_proc_set_runtime_error(error, error_len, &runtime_error,
+            "Common response commitment failed");
+    }
+    return result;
 }
 
 int msc_envoy_ext_proc_transaction_record_host_action(
@@ -528,7 +781,8 @@ int msc_envoy_ext_proc_transaction_record_host_action(
     msconnector_error runtime_error;
     msconnector_decision_action native_action;
 
-    if (transaction == NULL || transaction->transaction == NULL ||
+    if (transaction == NULL ||
+        (transaction->transaction == NULL && !transaction->companion_session.active) ||
         !transaction->has_disruptive_decision ||
         transaction->host_action_recorded) {
         msc_envoy_ext_proc_set_error(error, error_len,
@@ -554,10 +808,15 @@ int msc_envoy_ext_proc_transaction_record_host_action(
         return 0;
     }
     msconnector_error_init(&runtime_error);
-    if (!msconnector_runtime_transaction_record_host_action(
+    const int result = transaction->companion_claimed ?
+        msconnector_runtime_response_companion_session_record_host_action(
+            &transaction->companion_session, &transaction->disruptive_decision,
+            native_action, visible_status, transport_result, 0, &runtime_error) :
+        msconnector_runtime_transaction_record_host_action(
             transaction->transaction, &transaction->disruptive_decision,
-            native_action, visible_status, transport_result, 0,
-            &runtime_error)) {
+            native_action, visible_status, transport_result, 0, &runtime_error);
+    if (!result) {
+        msc_transaction_observe_session_ownership(transaction);
         msc_envoy_ext_proc_set_runtime_error(error, error_len, &runtime_error,
             "Common host action recording failed");
         return 0;
@@ -569,27 +828,112 @@ int msc_envoy_ext_proc_transaction_record_host_action(
 const char *msc_envoy_ext_proc_transaction_id(
     const msc_envoy_ext_proc_transaction *transaction)
 {
-    return transaction == NULL || transaction->transaction == NULL ? NULL :
-        msconnector_runtime_transaction_id(transaction->transaction);
+    return transaction == NULL ? NULL : transaction->transaction_id;
 }
 
-void msc_envoy_ext_proc_transaction_close(
-    msc_envoy_ext_proc_transaction *transaction)
+static int msc_transaction_close_session(
+    msc_envoy_ext_proc_transaction *transaction, int completed,
+    msconnector_error *error)
+{
+    const int result = completed ?
+        msconnector_runtime_response_companion_session_release(
+            &transaction->companion_session, error) :
+        msconnector_runtime_response_companion_session_cancel(
+            &transaction->companion_session, 0, error);
+    /* A failed release/cancel may have consumed ownership. Success alone
+     * cannot authorize freeing the wrapper while the session stays active. */
+    if (transaction->companion_session.active) {
+        return MSC_COMMON_CLOSE_UNRESOLVED;
+    }
+    return result ? MSC_COMMON_CLOSE_OK : MSC_COMMON_CLOSE_CONSUMED_ERROR;
+}
+
+int msc_envoy_ext_proc_transaction_close(
+    msc_envoy_ext_proc_transaction *transaction, int request_rejected)
 {
     msconnector_error runtime_error;
+    int close_result = MSC_COMMON_CLOSE_OK;
 
     if (transaction == NULL) {
-        return;
+        return 1;
     }
-    if (transaction->transaction != NULL &&
+    if (transaction->handed_off && !transaction->companion_consumed) {
+        msconnector_error_init(&runtime_error);
+        if (transaction->companion_session.active) {
+            close_result = msc_transaction_close_session(transaction,
+                    transaction->terminal || transaction->response_finished,
+                    &runtime_error);
+            if (close_result == MSC_COMMON_CLOSE_UNRESOLVED) {
+                return 0; /* caller must stop the runtime, ownership is unresolved */
+            }
+        } else if (!transaction->companion_claimed) {
+            /* Closing before P3 is still a cancellation, not a successful
+             * companion finish. Claim privately to preserve that outcome. */
+            char claim_error[512];
+            if (msc_transaction_claim_companion(transaction, claim_error,
+                    sizeof(claim_error))) {
+                close_result = msc_transaction_close_session(transaction, 0, &runtime_error);
+                if (close_result == MSC_COMMON_CLOSE_UNRESOLVED) {
+                    return 0;
+                }
+            } else if (!transaction->companion_consumed) {
+                if (!msconnector_runtime_response_companion_revoke_handle(
+                        transaction->companion_registry, transaction->companion_handle,
+                        &runtime_error)) {
+                    return 0; /* cannot prove registry ownership was consumed */
+                }
+            }
+        }
+    }
+    if (transaction->native_request_body_limit) {
+        msconnector_runtime_transaction_snapshot snapshot;
+        if (transaction->transaction == NULL ||
+            !msconnector_runtime_transaction_snapshot_get(transaction->transaction,
+                &snapshot) ||
+            snapshot.contract.status != MSCONNECTOR_TRANSACTION_STATUS_TERMINAL ||
+            snapshot.contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT) {
+            return MSC_COMMON_CLOSE_UNRESOLVED;
+        }
+        /* A failed/cancelled 413 Send has no host-action receipt, but the
+         * native budget decision is already terminal and ownership is known.
+         * Cancellation cannot rewrite that terminal contract. Finish logging
+         * without inventing a receipt, then release the owned transaction.
+         */
+        if (!msconnector_runtime_transaction_finish_host_rejected_request_body(
+                transaction->transaction, &runtime_error)) {
+            return MSC_COMMON_CLOSE_UNRESOLVED;
+        }
+    } else if (transaction->transaction != NULL &&
+        !transaction->terminal && !transaction->response_finished) {
+        msconnector_error_init(&runtime_error);
+        if (transaction->companion_registry != NULL && request_rejected &&
+            !transaction->request_finished) {
+            if (!msconnector_runtime_transaction_fail(transaction->transaction,
+                    MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, &runtime_error) ||
+                !msconnector_runtime_transaction_record_failure_host_action(
+                    transaction->transaction, 413, 0, &runtime_error) ||
+                !msconnector_runtime_transaction_finish_host_rejected_request_body(
+                    transaction->transaction, &runtime_error)) {
+                return 0;
+            }
+        } else {
+            if (!msconnector_runtime_transaction_cancel(transaction->transaction,
+                    0, &runtime_error)) {
+                return 0;
+            }
+        }
+    } else if (transaction->transaction != NULL &&
         (transaction->terminal || (transaction->request_finished &&
             (!transaction->response_headers_processed ||
                 transaction->response_finished)))) {
         msconnector_error_init(&runtime_error);
-        (void)msconnector_runtime_transaction_finish(transaction->transaction,
-            &runtime_error);
+        if (!msconnector_runtime_transaction_finish(transaction->transaction,
+                &runtime_error)) {
+            return 0;
+        }
     }
     msconnector_runtime_transaction_destroy(&transaction->transaction);
     msconnector_secure_zero(transaction, sizeof(*transaction));
     free(transaction);
+    return close_result;
 }

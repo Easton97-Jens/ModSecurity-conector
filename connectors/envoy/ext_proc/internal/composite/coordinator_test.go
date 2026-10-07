@@ -17,6 +17,28 @@ type fakeEngine struct {
 	lastID        string
 }
 
+type cleanupFailureEngine struct{ transaction processor.Transaction }
+
+func (engine cleanupFailureEngine) Open(context.Context, processor.StreamMetadata) (processor.Transaction, error) {
+	return engine.transaction, nil
+}
+
+type sequenceEngine struct {
+	mu           sync.Mutex
+	transactions []processor.Transaction
+}
+
+func (engine *sequenceEngine) Open(context.Context, processor.StreamMetadata) (processor.Transaction, error) {
+	engine.mu.Lock()
+	defer engine.mu.Unlock()
+	if len(engine.transactions) == 0 {
+		return nil, errors.New("test transaction sequence exhausted")
+	}
+	transaction := engine.transactions[0]
+	engine.transactions = engine.transactions[1:]
+	return transaction, nil
+}
+
 type blockingEngine struct{}
 
 func (blockingEngine) Open(context.Context, processor.StreamMetadata) (processor.Transaction, error) {
@@ -48,6 +70,25 @@ type fakeTx struct {
 	closeCount int
 	committed  bool
 	actions    []processor.HostAction
+}
+
+type cleanupFailureTx struct {
+	fakeTx
+	reportedErr error
+	cleanupErr  error
+}
+
+func (transaction *cleanupFailureTx) Close(ctx context.Context, summary processor.Summary) {
+	transaction.fakeTx.Close(ctx, summary)
+	transaction.mu.Lock()
+	transaction.cleanupErr = transaction.reportedErr
+	transaction.mu.Unlock()
+}
+
+func (transaction *cleanupFailureTx) CleanupFailure() error {
+	transaction.mu.Lock()
+	defer transaction.mu.Unlock()
+	return transaction.cleanupErr
 }
 
 func (f *fakeTx) ProcessHeaders(context.Context, processor.Direction, []processor.Header, bool) (processor.Decision, error) {
@@ -325,6 +366,117 @@ func TestUnactivatedReservationAbortOpensAndClosesEventLifecycle(t *testing.T) {
 	}
 	if _, err := c.Reserve("uds-session-2", snapshot); err != nil {
 		t.Fatalf("capacity not released: %v", err)
+	}
+}
+
+func TestFinishPropagatesTransactionCleanupFailure(t *testing.T) {
+	failure := errors.New("native cleanup ownership unresolved")
+	transaction := &cleanupFailureTx{reportedErr: failure}
+	log := &eventLog{}
+	c, err := New("envoy", []byte("01234567890123456789012345678901"), Limits{}, cleanupFailureEngine{transaction}, log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	admission, decision, err := c.BeginRequest(context.Background(), metadata(), nil, true)
+	if err != nil || decision.Action != processor.ActionAllow {
+		t.Fatalf("BeginRequest = %#v, %v", decision, err)
+	}
+	admission.Finish(context.Background(), "request_eos")
+	if err := c.Err(); !errors.Is(err, failure) {
+		t.Fatalf("Coordinator.Err() = %v, want cleanup failure", err)
+	}
+	if _, _, err := c.BeginRequest(context.Background(), metadata(), nil, true); !errors.Is(err, failure) {
+		t.Fatalf("follow-up admission = %v, want cleanup failure", err)
+	}
+	transaction.mu.Lock()
+	closeCount := transaction.closeCount
+	transaction.mu.Unlock()
+	if closeCount != 1 {
+		t.Fatalf("transaction Close calls = %d, want 1", closeCount)
+	}
+	c.Close()
+	log.mu.Lock()
+	events := append([]Event(nil), log.events...)
+	log.mu.Unlock()
+	var terminal *Event
+	for index := range events {
+		if events[index].Phase == "terminal" {
+			terminal = &events[index]
+		}
+	}
+	if terminal == nil || terminal.Outcome != "failed" || terminal.CleanupOutcome != "failed" ||
+		terminal.Reason != "request_eos" {
+		t.Fatalf("cleanup failure lifecycle = %#v", events)
+	}
+}
+
+func TestSnapshotEntriesRetainsOwnershipUntilFinish(t *testing.T) {
+	c, _ := newTestCoordinator(t, Limits{})
+	admission, _, err := c.BeginRequest(context.Background(), metadata(), nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.mu.Lock()
+	entries := c.snapshotEntriesLocked()
+	_, retained := c.entries[admission.e.id]
+	c.mu.Unlock()
+	if len(entries) != 1 || entries[0] != admission.e || !retained {
+		t.Fatalf("snapshot detached pending cleanup: entries=%d retained=%t", len(entries), retained)
+	}
+	admission.Finish(context.Background(), "test")
+}
+
+func TestCleanupFailureAbortsActivePeerExactlyOnce(t *testing.T) {
+	failure := errors.New("native cleanup ownership unresolved")
+	failed := &cleanupFailureTx{reportedErr: failure}
+	peer := &fakeTx{}
+	engine := &sequenceEngine{transactions: []processor.Transaction{failed, peer}}
+	log := &eventLog{}
+	c, err := New("envoy", []byte("01234567890123456789012345678901"), Limits{}, engine, log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, _, err := c.BeginRequest(context.Background(), metadata(), nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, _, err := c.BeginRequest(context.Background(), metadata(), nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first.Finish(context.Background(), "request_eos")
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		peer.mu.Lock()
+		closed := peer.closeCount
+		peer.mu.Unlock()
+		if closed == 1 {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	c.Close()
+	failed.mu.Lock()
+	failedCloseCount := failed.closeCount
+	failed.mu.Unlock()
+	peer.mu.Lock()
+	peerCloseCount := peer.closeCount
+	peer.mu.Unlock()
+	if failedCloseCount != 1 || peerCloseCount != 1 {
+		t.Fatalf("Close calls failed=%d peer=%d, want 1/1", failedCloseCount, peerCloseCount)
+	}
+	log.mu.Lock()
+	events := append([]Event(nil), log.events...)
+	log.mu.Unlock()
+	peerTerminal := false
+	for _, event := range events {
+		if event.DecisionID == second.e.id && event.Phase == "terminal" &&
+			event.Reason == "native_cleanup_failure" && event.CleanupOutcome == "closed" {
+			peerTerminal = true
+		}
+	}
+	if !peerTerminal {
+		t.Fatalf("active peer abort lifecycle missing: %#v", events)
 	}
 }
 

@@ -17,6 +17,7 @@ package native_middleware
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -41,6 +42,7 @@ const (
 	defaultMaxResponseChunkBytes  = 32 << 10
 	defaultRequestBodyIdleTimeout = 1 * time.Second
 	maximumRequestBodyIdleTimeout = 60 * time.Second
+	responseCompletionTimeout     = time.Second
 	// Keep the native middleware's aggregate request-body ceiling aligned with
 	// the Common Runtime default hard body-buffer bound. A lower deployment
 	// value is supported; a higher one would make the pre-engine guard weaker
@@ -50,10 +52,8 @@ const (
 )
 
 var (
-	// ErrRequestRejected is returned to the downstream handler's request-body
-	// reader after a prospective engine decision rejects a request-body chunk.
-	// The middleware writes the decision only if response headers have not
-	// already committed.
+	// ErrRequestRejected stops request admission after an engine decision or
+	// aggregate body limit rejects a chunk, before the downstream handler runs.
 	ErrRequestRejected = errors.New("modsecurity native middleware: request rejected")
 
 	// ErrResponseRejected is returned from Write/ReadFrom when a prospective
@@ -348,10 +348,9 @@ func newMiddleware(next http.Handler, config Config, name string, engine Transac
 	return &Middleware{next: next, config: config, engine: engine, name: name}, nil
 }
 
-// ServeHTTP evaluates headers and body chunks incrementally. It never collects
-// a complete request or response body: request reads are capped, response
-// writes are sliced for callbacks, and ReadFrom uses at most one bounded first
-// chunk before delegating the remaining stream.
+// ServeHTTP admits a complete bounded request through the engine before calling
+// the downstream handler. Allowed bytes are replayed without a second inspection.
+// Response writes remain streaming and are sliced for bounded engine callbacks.
 func (middleware *Middleware) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	requestContext := request.Context()
 	serverAddress, serverPort, ok := trustedLocalEndpoint(requestContext)
@@ -392,6 +391,12 @@ func (middleware *Middleware) ServeHTTP(writer http.ResponseWriter, request *htt
 	// readable body. Only nil or the canonical NoBody sentinel can skip the
 	// bounded P2 reader without leaving a body-bearing bypass.
 	requestEnd := request.Body == nil || request.Body == http.NoBody
+	if requestEnd && request.ContentLength > 0 {
+		// A middleware adapter must not turn a declared body into header EOS
+		// merely by replacing its source with nil or the NoBody sentinel.
+		newResponseWriter(request, writer, state).writeFailure()
+		return
+	}
 	decision, err := state.processHeaders(requestContext, DirectionRequest, requestHeaders, requestEnd)
 	if err != nil {
 		http.Error(writer, "modsecurity middleware request-header evaluation failed", http.StatusInternalServerError)
@@ -407,14 +412,42 @@ func (middleware *Middleware) ServeHTTP(writer http.ResponseWriter, request *htt
 
 	response := newResponseWriter(request, writer, state)
 	originalBody := request.Body
-	if originalBody != nil {
-		inspectingBody := &inspectingRequestBody{request: request, source: originalBody, state: state}
+	if !requestEnd {
+		inspectingBody := &inspectingRequestBody{request: request, source: originalBody, state: state, controller: http.NewResponseController(writer)}
 		state.requestBody = inspectingBody
-		request.Body = inspectingBody
+		defer inspectingBody.Close()
+		payload, admissionErr := inspectingBody.admit()
+		if admissionErr != nil {
+			// A real server Body.Close can drain unread bytes. Bound that drain
+			// without replacing an earlier operator-controlled host deadline.
+			_ = inspectingBody.closeWithIdleTimeout()
+			if decision, _ := state.pendingRequestResult(); decision.disruptive() {
+				response.writeDecision(decision)
+			} else {
+				response.writeFailure()
+			}
+			return
+		}
+		_ = inspectingBody.closeWithIdleTimeout()
+		request.Body = io.NopCloser(bytes.NewReader(payload))
 		defer func() { request.Body = originalBody }()
+	}
+	if requestContext.Err() != nil {
+		response.writeFailure()
+		return
 	}
 
 	middleware.next.ServeHTTP(response, request)
+	if response.completedDeclaredBody() {
+		// A client may close immediately after reading the declared last byte.
+		// Only a regular handler return with the entire declared entity accepted
+		// permits bounded EOS/cleanup independent of that late cancellation.
+		completionContext, cancelCompletion := context.WithTimeout(context.WithoutCancel(requestContext), responseCompletionTimeout)
+		defer cancelCompletion()
+		defer state.close(completionContext)
+		response.finishWithContext(completionContext)
+		return
+	}
 	response.finish()
 }
 
@@ -521,12 +554,12 @@ func (state *streamState) processRequestBody(contextValue context.Context, chunk
 		return ErrRequestRejected
 	}
 	decision, err := state.engine.ProcessBody(contextValue, DirectionRequest, chunk, end)
-	if end {
-		state.requestEOS = true
-	}
 	if err != nil {
 		state.pendingRequestError = err
 		return err
+	}
+	if end {
+		state.requestEOS = true
 	}
 	if decision.disruptive() {
 		state.pendingRequestDecision = decision
@@ -547,11 +580,11 @@ func (state *streamState) processResponseBody(contextValue context.Context, chun
 	state.responseBodyChunks++
 	state.responseBodyBytes += int64(len(chunk))
 	decision, err := state.engine.ProcessBody(contextValue, DirectionResponse, chunk, end)
-	if end {
-		state.responseEOS = true
-	}
 	if err != nil {
 		return allowDecision(), err
+	}
+	if end {
+		state.responseEOS = true
 	}
 	if decision.disruptive() && !beforeCommit {
 		state.lateAction = "log_only"
@@ -633,7 +666,7 @@ func (state *streamState) recordRequestError(err error) {
 	state.mu.Unlock()
 }
 
-func (state *streamState) markResponseCommit(contextValue context.Context, status int, headersSent bool, bodyStarted bool) {
+func (state *streamState) markResponseCommit(contextValue context.Context, status int, headersSent bool, bodyStarted bool) error {
 	state.mu.Lock()
 	if headersSent || bodyStarted {
 		state.responseCommitted = true
@@ -644,8 +677,9 @@ func (state *streamState) markResponseCommit(contextValue context.Context, statu
 	transaction := state.engine
 	state.mu.Unlock()
 	if committer, ok := transaction.(responseCommitter); ok {
-		_ = committer.SetResponseCommit(contextValue, headersSent, bodyStarted)
+		return committer.SetResponseCommit(contextValue, headersSent, bodyStarted)
 	}
+	return nil
 }
 
 func (state *streamState) acknowledgeApplied(contextValue context.Context, decision Decision) {
@@ -702,11 +736,36 @@ func (state *streamState) close(contextValue context.Context) {
 }
 
 type inspectingRequestBody struct {
-	request   *http.Request
-	source    io.ReadCloser
-	state     *streamState
-	closeOnce sync.Once
-	closeErr  error
+	request    *http.Request
+	source     io.ReadCloser
+	state      *streamState
+	closeOnce  sync.Once
+	closeErr   error
+	bytesRead  int64
+	controller *http.ResponseController
+}
+
+// admit owns at most MaxRequestBodyBytes of replay storage plus one bounded
+// inspection chunk. The inspector rejects an over-limit chunk before returning
+// it, so it can never be appended to the replay buffer or reach downstream.
+func (body *inspectingRequestBody) admit() ([]byte, error) {
+	payload := make([]byte, 0, int(body.state.config.MaxRequestBodyBytes))
+	chunk := make([]byte, body.state.config.MaxRequestChunkBytes)
+	for {
+		count, err := body.Read(chunk)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return nil, err
+		}
+		payload = append(payload, chunk[:count]...)
+		if errors.Is(err, io.EOF) {
+			return payload, nil
+		}
+		if count == 0 {
+			err := errors.New("modsecurity native middleware: request body made no progress")
+			body.state.recordRequestError(err)
+			return nil, err
+		}
+	}
 }
 
 func (body *inspectingRequestBody) Read(buffer []byte) (int, error) {
@@ -719,6 +778,12 @@ func (body *inspectingRequestBody) Read(buffer []byte) (int, error) {
 		buffer = buffer[:body.state.config.MaxRequestChunkBytes]
 	}
 	count, readErr := body.readWithIdleTimeout(buffer)
+	body.bytesRead += int64(count)
+	// Real net/http server bodies return UnexpectedEOF for truncated declared
+	// lengths. Preserve that contract also for injected middleware body sources.
+	if errors.Is(readErr, io.EOF) && body.request.ContentLength > 0 && body.bytesRead < body.request.ContentLength {
+		readErr = io.ErrUnexpectedEOF
+	}
 	if count > 0 {
 		end := errors.Is(readErr, io.EOF)
 		if err := body.state.processRequestBody(body.request.Context(), buffer[:count], end); err != nil {
@@ -741,12 +806,39 @@ func (body *inspectingRequestBody) Close() error {
 	return body.closeErr
 }
 
+func (body *inspectingRequestBody) closeWithIdleTimeout() error {
+	closeContext, cancel := context.WithTimeout(body.request.Context(), time.Duration(body.state.config.RequestBodyIdleTimeoutMillis)*time.Millisecond)
+	watchDone := make(chan struct{})
+	stop := context.AfterFunc(closeContext, func() {
+		defer close(watchDone)
+		if body.controller != nil {
+			_ = body.controller.SetReadDeadline(time.Now())
+		}
+	})
+	defer func() {
+		if !stop() {
+			<-watchDone
+		}
+		cancel()
+	}()
+	return body.Close()
+}
+
 func (body *inspectingRequestBody) readWithIdleTimeout(buffer []byte) (int, error) {
+	if err := body.request.Context().Err(); err != nil {
+		return 0, err
+	}
 	readContext, cancel := context.WithTimeout(body.request.Context(), time.Duration(body.state.config.RequestBodyIdleTimeoutMillis)*time.Millisecond)
 	defer cancel()
+	// Preserve the host's existing absolute ReadTimeout during normal reads.
+	// Only a terminal idle/cancel watchdog may shorten it to unblock a real
+	// net/http body Read before Close takes that body's serialized lock.
 	var interrupted atomic.Bool
 	stop := context.AfterFunc(readContext, func() {
 		interrupted.Store(true)
+		if body.controller != nil {
+			_ = body.controller.SetReadDeadline(time.Now())
+		}
 		_ = body.Close()
 	})
 	count, err := body.source.Read(buffer)
@@ -776,10 +868,42 @@ type responseWriter struct {
 	// still closed exactly once by ServeHTTP's defer, but the engine never gets
 	// a false end-of-stream callback for an incomplete host response.
 	responseIncomplete bool
+	declaredBodyBytes  int64
+	acceptedBodyBytes  int64
+	pendingFinalCommit bool
 }
 
 func newResponseWriter(request *http.Request, target http.ResponseWriter, state *streamState) *responseWriter {
-	return &responseWriter{request: request, target: target, state: state}
+	return &responseWriter{request: request, target: target, state: state, declaredBodyBytes: -1}
+}
+
+func (writer *responseWriter) completedDeclaredBody() bool {
+	return writer.committed && !writer.rejected && !writer.hijacked && !writer.responseIncomplete &&
+		writer.declaredBodyBytes >= 0 && writer.acceptedBodyBytes == writer.declaredBodyBytes
+}
+
+func declaredContentLength(value string) (int64, bool) {
+	if value == "" {
+		return 0, false
+	}
+	for _, character := range value {
+		if character < '0' || character > '9' {
+			return 0, false
+		}
+	}
+	length, err := strconv.ParseInt(value, 10, 64)
+	return length, err == nil
+}
+
+func (writer *responseWriter) recordAcceptedBody(count int64) {
+	writer.acceptedBodyBytes += count
+	if writer.completedDeclaredBody() {
+		// Keep the last body-commit acknowledgement with EOS after a regular
+		// handler return. A successful final Write can itself trigger client FIN.
+		writer.pendingFinalCommit = true
+		return
+	}
+	_ = writer.state.markResponseCommit(writer.requestContext(), 0, true, true)
 }
 
 func (writer *responseWriter) requestContext() context.Context {
@@ -826,7 +950,11 @@ func (writer *responseWriter) writeEmptyResponse() (int, error) {
 	if writer.rejected {
 		return 0, ErrResponseRejected
 	}
-	return writer.target.Write(nil)
+	count, err := writer.target.Write(nil)
+	if err != nil {
+		writer.responseIncomplete = true
+	}
+	return count, err
 }
 
 func (writer *responseWriter) writeResponseChunks(payload []byte) (int, bool, error) {
@@ -866,7 +994,10 @@ func (writer *responseWriter) writeResponseChunk(chunk []byte) (int, bool, error
 	}
 	count, writeErr := writer.target.Write(chunk)
 	if count > 0 {
-		writer.state.markResponseCommit(writer.requestContext(), 0, true, true)
+		if writeErr != nil || count != len(chunk) {
+			writer.responseIncomplete = true
+		}
+		writer.recordAcceptedBody(int64(count))
 		// Traefik's native forwarding path may otherwise retain a small response
 		// chunk until upstream EOS. Flush only bytes the host accepted so a
 		// committed streaming response remains observable before upstream EOF.
@@ -915,6 +1046,12 @@ func (writer *responseWriter) prepareResponseHeaders(status int) bool {
 		return false
 	}
 	writer.responseHeadersEvaluated = true
+	if values := writer.target.Header().Values("Content-Length"); len(values) == 1 &&
+		len(writer.target.Header().Values("Transfer-Encoding")) == 0 {
+		if length, ok := declaredContentLength(values[0]); ok {
+			writer.declaredBodyBytes = length
+		}
+	}
 	if decision.disruptive() {
 		writer.writeDecision(decision)
 		return false
@@ -1079,6 +1216,9 @@ func (writer *responseWriter) ReadFrom(source io.Reader) (int64, error) {
 	}
 	total, complete, err := writer.consumeInitialReadFromChunk(source)
 	if complete {
+		if err != nil {
+			writer.responseIncomplete = true
+		}
 		return total, err
 	}
 
@@ -1086,7 +1226,10 @@ func (writer *responseWriter) ReadFrom(source io.Reader) (int64, error) {
 		inspected := &responseInspectionReader{source: source, writer: writer}
 		count, err := readerFrom.ReadFrom(inspected)
 		if count > 0 {
-			writer.state.markResponseCommit(writer.requestContext(), 0, true, true)
+			if err != nil {
+				writer.responseIncomplete = true
+			}
+			writer.recordAcceptedBody(count)
 		}
 		if err != nil {
 			// ReaderFrom may surface either an upstream read failure or a
@@ -1113,18 +1256,19 @@ func (reader *responseInspectionReader) Read(buffer []byte) (int, error) {
 		buffer = buffer[:reader.writer.state.config.MaxResponseChunkBytes]
 	}
 	count, readErr := reader.source.Read(buffer)
+	if readErr != nil && !errors.Is(readErr, io.EOF) {
+		reader.writer.responseIncomplete = true
+	}
 	if count > 0 {
 		_, err := reader.writer.state.processResponseBody(reader.writer.requestContext(), buffer[:count], false, false)
 		if err != nil {
+			reader.writer.responseIncomplete = true
 			return 0, err
 		}
 	}
-	if errors.Is(readErr, io.EOF) && count == 0 {
-		_, err := reader.writer.state.processResponseBody(reader.writer.requestContext(), nil, true, false)
-		if err != nil {
-			return 0, err
-		}
-	}
+	// EOS is published by finish after ReaderFrom has returned successfully,
+	// including its host write result. A source EOF alone cannot prove that
+	// the wrapped host writer accepted every byte.
 	return count, readErr
 }
 
@@ -1153,6 +1297,10 @@ func copyIntoWriter(writer *responseWriter, source io.Reader) (int64, error) {
 }
 
 func (writer *responseWriter) finish() {
+	writer.finishWithContext(writer.requestContext())
+}
+
+func (writer *responseWriter) finishWithContext(completionContext context.Context) {
 	if writer.finished || writer.hijacked {
 		return
 	}
@@ -1184,7 +1332,12 @@ func (writer *responseWriter) finish() {
 		return
 	}
 
-	_, err := writer.state.processResponseBody(writer.requestContext(), nil, true, false)
+	if writer.pendingFinalCommit {
+		if err := writer.state.markResponseCommit(completionContext, 0, true, true); err != nil {
+			return
+		}
+	}
+	_, err := writer.state.processResponseBody(completionContext, nil, true, false)
 	if err != nil {
 		// Response headers may already be committed. There is no safe replacement
 		// status or claimed abort path here; Close records counters only.

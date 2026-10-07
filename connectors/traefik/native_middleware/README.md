@@ -1,4 +1,4 @@
-# Native Traefik streaming middleware source
+# Native Traefik middleware source
 
 **Language:** English | [Deutsch](README.de.md)
 
@@ -13,16 +13,29 @@ declaration.
 
 ## What the source does
 
-- wraps the request body so reads are capped to `maxRequestChunkBytes` and sent
-  synchronously to a per-request `Transaction` seam; before response-header
-  evaluation it drains any unread body through that same path to request EOS;
+- reads the entire request body before calling the next handler, with reads
+  capped to `maxRequestChunkBytes` and sent synchronously to the per-request
+  `Transaction`; only a complete allowed request EOS admits the handler;
+- buffers at most `maxRequestBodyBytes` (hard cap: 1 MiB) for byte-exact replay
+  to the next handler, without inspecting replayed bytes a second time;
 - enforces `requestBodyIdleTimeoutMillis` independently of the engine timeout
   and `maxRequestBodyBytes`; an idle or cancelled body fails closed before
-  response headers are committed and its owned source is closed;
+  the next handler runs and its owned source is closed;
+- shortens the host response controller's read deadline only after idle/cancel,
+  since a server body's `Close` alone does not unblock a concurrent `Read`;
+  successful reads never replace or clear the operator's absolute ReadTimeout.
+  It follows wrappers exposing `Unwrap`. A wrapper hiding both deadlines and
+  `Unwrap` returns `ErrNotSupported`; custom sources in that fallback must unblock
+  reads on `Close`. Idle enforcement for a real HTTP body behind such an opaque
+  wrapper requires a host read timeout and is not established by source tests;
 - applies the finite `maxRequestBodyBytes` aggregate limit (default and hard
   cap: 1 MiB) before an over-limit chunk reaches the engine. The deterministic
-  pre-commit action is HTTP 413; after that decision it does not drain the
-  remaining source body;
+  pre-commit action is HTTP 413; after that decision it stops inspecting and
+  forwarding request bytes. The host-owned `Body.Close` may drain remaining
+  bytes within the configured idle deadline;
+- rejects truncated declared bodies (including nil/`NoBody` with a positive
+  Content-Length) and read/engine failures through the
+  closed HTTP 500 path, without downstream invocation or invented request EOS;
 - wraps the response writer, evaluates response headers before commitment, and
   slices every `Write` into `maxResponseChunkBytes` callbacks before forwarding
   each slice;
@@ -70,7 +83,7 @@ reset, or client-abort claim.
 ## UDS cancellation, timeout, and cleanup boundary
 
 Each `ServeHTTP` transaction owns one private UDS connection; it is never
-reused by a following request. Every exchange applies the smaller of the
+reused by a following request. Each request/streaming exchange applies the smaller of the
 configured engine timeout and the request-context deadline. A context
 cancellation shortens the connection deadline immediately, unblocks a pending
 read or write, and joins its watcher before the call returns. A timeout,
@@ -78,6 +91,14 @@ cancellation, peer reset, invalid result, or incomplete result discards the
 connection, closes its FD, and marks only that transaction terminal so no
 partial frame can be reused. `Close` is idempotent even when an earlier
 exchange already discarded the connection.
+
+After a regular handler return, a response with an explicit Content-Length
+fully accepted by the host writer can finish even if the client closes after
+reading the last byte. Only this complete response, with no read/write error or
+hijack, uses a context retaining request values but with an independent one-second
+deadline for the final body-commit acknowledgement, response EOS, and cleanup.
+Unknown or incomplete lengths and failed streams keep normal request cancellation.
+An engine error never becomes successful response EOS in `Summary`.
 
 Before a response is committed, the middleware turns an engine-exchange error
 into its closed HTTP 500 path. A canceled host request may already have lost

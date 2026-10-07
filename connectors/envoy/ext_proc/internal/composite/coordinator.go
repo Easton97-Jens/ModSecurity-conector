@@ -184,6 +184,10 @@ func (c *Coordinator) currentFault() error {
 }
 
 func (c *Coordinator) setFault(err error) error {
+	return c.setFaultWithReason(err, "event_delivery_failure")
+}
+
+func (c *Coordinator) setFaultWithReason(err error, reason string) error {
 	if err == nil {
 		return nil
 	}
@@ -195,14 +199,14 @@ func (c *Coordinator) setFault(err error) error {
 	fault := c.fault
 	c.mu.Unlock()
 	if newFault {
-		go c.abortAll("event_delivery_failure")
+		go c.abortAll(reason)
 	}
 	return fault
 }
 
 func (c *Coordinator) abortAll(reason string) {
 	c.mu.Lock()
-	entries := c.takeAllLocked()
+	entries := c.snapshotEntriesLocked()
 	c.mu.Unlock()
 	for _, e := range entries {
 		e.finish(context.Background(), reason)
@@ -234,7 +238,7 @@ func (c *Coordinator) Close() {
 	}
 	c.closed = true
 	close(c.stop)
-	es := c.takeAllLocked()
+	es := c.snapshotEntriesLocked()
 	c.mu.Unlock()
 	<-c.stopped
 	for _, e := range es {
@@ -258,7 +262,7 @@ func (c *Coordinator) Restart() error {
 	}
 	c.mu.Lock()
 	c.key = newKey
-	es := c.takeAllLocked()
+	es := c.snapshotEntriesLocked()
 	c.mu.Unlock()
 	for _, e := range es {
 		e.finish(context.Background(), "restart")
@@ -266,10 +270,12 @@ func (c *Coordinator) Restart() error {
 	return nil
 }
 
-func (c *Coordinator) takeAllLocked() []*entry {
+// snapshotEntriesLocked deliberately retains map ownership until entry.finish
+// is inside finishGate. Concurrent Close must still see every pending cleanup
+// so it cannot close event delivery in the remove-before-finish gap.
+func (c *Coordinator) snapshotEntriesLocked() []*entry {
 	es := make([]*entry, 0, len(c.entries))
-	for id, e := range c.entries {
-		delete(c.entries, id)
+	for _, e := range c.entries {
 		es = append(es, e)
 	}
 	return es
@@ -541,6 +547,15 @@ func finishOutOfOrderClaim(e *entry) {
 }
 
 func (c *Coordinator) Claim(token, session string) (*Response, error) {
+	return c.ClaimContext(context.Background(), token, session)
+}
+
+// ClaimContext admits the private native companion only after validating the
+// public lease, session, state and one-shot claim guards.
+func (c *Coordinator) ClaimContext(ctx context.Context, token, session string) (*Response, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if session == "" || len(session) > 256 {
 		return nil, ErrSession
 	}
@@ -587,6 +602,18 @@ func (c *Coordinator) Claim(token, session string) (*Response, error) {
 		// racing an asynchronous out_of_order cleanup.
 		finishOutOfOrderClaim(e)
 		return nil, ErrOutOfOrder
+	}
+	if claimer, ok := e.tx.(processor.ResponseCompanionClaimer); ok {
+		if err := claimer.ClaimResponseCompanion(ctx); err != nil {
+			e.terminal = true
+			go e.finish(context.WithoutCancel(ctx), "native_claim_failure")
+			return nil, err
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		e.terminal = true
+		go e.finish(context.WithoutCancel(ctx), "cancel")
+		return nil, err
 	}
 	e.claimed, e.session, e.phase, e.last = true, session, phaseResponseHeaders, time.Now()
 	if err := e.emitLocked(Event{DecisionID: e.id, Connector: c.connector, Phase: "claim", Outcome: "accepted", Reason: ""}); err != nil {
@@ -1141,7 +1168,17 @@ func (e *entry) finish(ctx context.Context, why string) {
 		if e.tx != nil {
 			e.tx.Close(ctx, e.summary)
 		}
-		_ = e.emitLocked(Event{DecisionID: e.id, Connector: e.c.connector, Phase: "terminal", Outcome: "closed", Reason: why, CleanupOutcome: "closed", EventTime: time.Now()})
+		outcome, cleanupOutcome := "closed", "closed"
+		if reporter, ok := e.tx.(processor.CleanupFailureReporter); ok {
+			if err := reporter.CleanupFailure(); err != nil {
+				outcome, cleanupOutcome = "failed", "failed"
+				e.c.setFaultWithReason(
+					fmt.Errorf("composite transaction cleanup failed: %w", err),
+					"native_cleanup_failure",
+				)
+			}
+		}
+		_ = e.emitLocked(Event{DecisionID: e.id, Connector: e.c.connector, Phase: "terminal", Outcome: outcome, Reason: why, CleanupOutcome: cleanupOutcome, EventTime: time.Now()})
 	})
 }
 
@@ -1160,7 +1197,6 @@ func (c *Coordinator) Sweep(now time.Time) {
 		if expired {
 			c.mu.Lock()
 			if c.entries[e.id] == e {
-				delete(c.entries, e.id)
 				es = append(es, e)
 			}
 			c.mu.Unlock()

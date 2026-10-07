@@ -10,6 +10,13 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20261003-pr370-composite-common-runtime](CR-20261003-pr370-composite-common-runtime.md)
+  | [Deutsch](CR-20261003-pr370-composite-common-runtime.de.md) — requested PR #370
+  composite Common/runtime repair: deferred buffered P2, canonical Go composite
+  modes, fail-closed claim/cleanup ownership, and actual Envoy/Traefik lifecycle
+  evidence. Catalog acceptance and full nine-profile G1–G9 remain open; NGINX
+  is excluded. No production, merge or successor Sonar claim.
+
 - [CR-20261001-pr370-apache-rebuild-readiness](CR-20261001-pr370-apache-rebuild-readiness.md)
   | [Deutsch](CR-20261001-pr370-apache-rebuild-readiness.de.md) — requested
   PR #370 merge-preparation follow-up: isolated Apache repeated-build/retry

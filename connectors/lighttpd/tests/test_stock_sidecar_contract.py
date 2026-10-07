@@ -1703,7 +1703,9 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
                 self.assertEqual(_status(client_response), 200)
                 self.assertTrue(client_response.endswith(response_body))
                 self.assertEqual(upstream.record_count(), 1)
-                event_text = self._wait_for_event(events, "MSCONN_EVENT_RESPONSE_BLOCKED")
+                event_text = self._wait_for_p4_host_action(
+                    events, "log_only", "safe", False
+                )
             value = json.loads(receipt.read_text(encoding="utf-8"))
         self.assertEqual(value["schema_version"], 2)
         self.assertEqual(value["receipt_kind"], "non_allow")
@@ -1730,6 +1732,98 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
                     return value
             time.sleep(0.02)
         self.fail(f"event marker {marker!r} was not observed: {value!r}")
+
+    @staticmethod
+    def _p4_host_pair(records: list[dict], actual_action: str, mode: str,
+                      connection_aborted: bool) -> tuple[dict, dict] | None:
+        for index, host in enumerate(records):
+            if (host.get("message_id") != "MSCONN_EVENT_RESPONSE_BLOCKED" or
+                    host.get("phase") != "response_body" or
+                    host.get("actual_action") != actual_action or
+                    host.get("late_intervention") is not True or
+                    host.get("late_intervention_mode") != mode or
+                    host.get("connection_aborted") is not connection_aborted):
+                continue
+            for engine in reversed(records[:index]):
+                if (engine.get("message_id") != "MSCONN_EVENT_RESPONSE_BLOCKED" or
+                        engine.get("transaction_id") != host.get("transaction_id")):
+                    continue
+                linked = (
+                    engine.get("phase") == "response_body" and
+                    engine.get("actual_action") == "deny" and
+                    engine.get("late_intervention") is False and
+                    engine.get("connection_aborted") is False and
+                    "late_intervention_mode" not in engine and
+                    type(engine.get("sequence")) is int and
+                    host.get("sequence") == engine["sequence"] + 1 and
+                    host.get("previous_event_hash") == engine.get("event_hash")
+                )
+                return (engine, host) if linked else None
+        return None
+
+    def _wait_for_p4_host_action(self, event_path: Path, actual_action: str,
+                                 mode: str, connection_aborted: bool,
+                                 timeout: float = 3.0) -> str:
+        deadline = time.monotonic() + timeout
+        value = ""
+        while time.monotonic() < deadline:
+            if event_path.exists():
+                value = event_path.read_text(encoding="utf-8")
+                lines = value.splitlines()
+                if value and not value.endswith(("\n", "\r")):
+                    lines = lines[:-1]
+                try:
+                    records = [json.loads(line) for line in lines if line]
+                except json.JSONDecodeError:
+                    records = []
+                if self._p4_host_pair(records, actual_action, mode, connection_aborted):
+                    return value
+            time.sleep(0.02)
+        self.fail(f"correlated P4 host action was not observed: {value!r}")
+
+    def test_p4_waiter_requires_complete_correlated_host_event(self) -> None:
+        engine = {
+            "message_id": "MSCONN_EVENT_RESPONSE_BLOCKED", "transaction_id": "tx",
+            "phase": "response_body", "actual_action": "deny", "late_intervention": False,
+            "connection_aborted": False, "sequence": 7, "previous_event_hash": 0,
+            "event_hash": 123,
+        }
+        host = {
+            **engine, "actual_action": "log_only", "late_intervention": True,
+            "late_intervention_mode": "safe", "sequence": 8,
+            "previous_event_hash": 123, "event_hash": 456,
+        }
+        with tempfile.TemporaryDirectory(prefix="stock-p4-wait-",
+                                         dir=_temporary_root()) as temporary:
+            path = Path(temporary) / "events.jsonl"
+            path.write_text(json.dumps(engine) + "\n", encoding="utf-8")
+            encoded = json.dumps(host) + "\n"
+
+            def publish_host() -> None:
+                time.sleep(0.05)
+                with path.open("a", encoding="utf-8") as stream:
+                    stream.write(encoded[:len(encoded) // 2])
+                    stream.flush()
+                    time.sleep(0.05)
+                    stream.write(encoded[len(encoded) // 2:])
+                    stream.flush()
+
+            publisher = threading.Thread(target=publish_host)
+            publisher.start()
+            started = time.monotonic()
+            observed = self._wait_for_p4_host_action(path, "log_only", "safe", False, 1.0)
+            publisher.join(1.0)
+        self.assertFalse(publisher.is_alive())
+        self.assertGreaterEqual(time.monotonic() - started, 0.09)
+        self.assertIn('"actual_action": "log_only"', observed)
+        for change in (
+            {"transaction_id": "other"}, {"late_intervention": False},
+            {"late_intervention_mode": "strict"}, {"previous_event_hash": 999},
+        ):
+            with self.subTest(change=change):
+                self.assertIsNone(self._p4_host_pair(
+                    [engine, {**host, **change}], "log_only", "safe", False
+                ))
 
     @staticmethod
     def _request(path: str = "/", body: bytes = b"", extra_headers: bytes = b"") -> bytes:
@@ -1843,7 +1937,9 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
             self.assertEqual(_status(response), 200)
             self.assertTrue(response.endswith(p4_body))
             self.assertEqual(upstream.record_count(), 1)
-            event_text = self._wait_for_event(events, "MSCONN_EVENT_RESPONSE_BLOCKED")
+            event_text = self._wait_for_p4_host_action(
+                events, "log_only", "safe", False
+            )
             self.assertIn('"requested_action":"deny"', event_text)
             self.assertIn('"actual_action":"log_only"', event_text)
             self.assertIn('"transport_result":"log_only"', event_text)
@@ -1862,7 +1958,9 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
             # pre-commit 429 decision after the original 200 status line.
             self.assertNotIn(b"HTTP/1.1 429", response)
             self.assertEqual(upstream.record_count(), 1)
-            event_text = self._wait_for_event(events, "MSCONN_EVENT_RESPONSE_BLOCKED")
+            event_text = self._wait_for_p4_host_action(
+                events, "abort_connection", "strict", True
+            )
             self.assertIn('"actual_action":"abort_connection"', event_text)
             self.assertIn('"connection_aborted":true', event_text)
             self.assertNotIn(p4_body.decode("ascii"), event_text)

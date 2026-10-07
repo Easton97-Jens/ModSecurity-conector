@@ -2,6 +2,41 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
+## Go composite Common runtime and observed lifecycle
+
+The separately built `msconnector-composite --mode traefik` selects the
+canonical `traefik / forwardAuth / traefik-forwardauth` identity with buffered
+requests and streaming responses. It uses the additive header-only buffered
+start, explicit request append/EOS, and a private Common response-companion
+session for P3/P4. Direct Envoy ext_proc remains streaming in both directions.
+
+The Go lease/context/deadline is checked before the native claim. Native
+expiry consumes ownership; consumed cleanup errors are not retried. Unresolved
+cleanup permanently faults the coordinator and closes admission for controlled
+restart. Terminal cleanup is guarded once and retains entry ownership until
+it completes. A real Common body-limit failure maps to 413 with actual
+host-action metadata; terminal incomplete-body cleanup does not invent EOS
+or P2 rule evaluation.
+
+On 2026-10-03 external run `p370t.T4wJJ8kA` exercised the real Traefik host,
+local composite middleware and Go Common/libmodsecurity service. Ten cases
+returned `LIFECYCLE_ONLY`: P1 allow/deny, P2 allow/deny/oversize, P3
+deny/redirect, P4 Safe, missing metadata, and P2-to-P3 timeout. P4 Strict
+returned the expected `NON_PASS` because no independent host reset/abort
+was demonstrated. All cases retain `catalog_acceptance=false`.
+
+The final source manifest was unchanged, cleanup reported no issues, and
+ephemeral test keys were removed. Executable/library hashes, loaded-library
+observations, resource samples and upstream observations remain in the
+external evidence. This evidence applies to the Go composite route and does
+not promote the legacy C service's `implemented_not_asserted` or
+`configured_not_exercised` statuses, nor the separate native UDS profile.
+
+Complete G1–G9 acceptance for all nine non-NGINX profiles remains open;
+production readiness is not claimed. See the
+[Change Record](../../reports/audits/change-records/CR-20261003-pr370-composite-common-runtime.md)
+for scope, commands and remaining gaps.
+
 Status: forwardAuth compatibility smoke plus a non-promoted native local-plugin host probe
 Runtime status: targeted local Traefik/Common-runtime allow 200/block 403
 Verification status: not_verified / connector-gap

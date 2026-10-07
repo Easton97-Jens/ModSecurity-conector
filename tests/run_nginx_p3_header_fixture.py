@@ -367,7 +367,7 @@ def main(argv: list[str]) -> int:
         "record_type": "nginx_native_p3_header_fixture",
         "head": head,
         "nginx": {
-            "version": SHARED.EXPECTED_NGINX_VERSION,
+            "version": "1.31.4",
             "archive_sha256": archive_digest,
             "binary_sha256": SHARED.sha256_file(nginx),
             "connector_linkage": "static_test_binary",

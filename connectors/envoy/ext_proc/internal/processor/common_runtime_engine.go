@@ -23,10 +23,10 @@ import (
 const commonRuntimeErrorBufferSize = 512
 
 const (
-	commonRuntimePhase4ModeUnset   = int(C.MSC_ENVOY_EXT_PROC_PHASE4_MODE_UNSET)
-	commonRuntimePhase4ModeOff = int(C.MSC_ENVOY_EXT_PROC_PHASE4_MODE_OFF)
-	commonRuntimePhase4ModeSafe    = int(C.MSC_ENVOY_EXT_PROC_PHASE4_MODE_SAFE)
-	commonRuntimePhase4ModeStrict  = int(C.MSC_ENVOY_EXT_PROC_PHASE4_MODE_STRICT)
+	commonRuntimePhase4ModeUnset  = int(C.MSC_ENVOY_EXT_PROC_PHASE4_MODE_UNSET)
+	commonRuntimePhase4ModeOff    = int(C.MSC_ENVOY_EXT_PROC_PHASE4_MODE_OFF)
+	commonRuntimePhase4ModeSafe   = int(C.MSC_ENVOY_EXT_PROC_PHASE4_MODE_SAFE)
+	commonRuntimePhase4ModeStrict = int(C.MSC_ENVOY_EXT_PROC_PHASE4_MODE_STRICT)
 )
 
 var (
@@ -65,6 +65,29 @@ type CommonRuntimeEngine struct {
 // connector-local runtime configuration. The C ABI rejects non-streaming body
 // modes so this bridge cannot silently degrade into a buffering path.
 func NewCommonRuntimeEngine(configPath string) (*CommonRuntimeEngine, error) {
+	return newCommonRuntimeEngine(configPath, 0)
+}
+
+// CompositeMode selects one reviewed authorization/response-companion route.
+// Its zero value and all other values are invalid; callers cannot supply
+// arbitrary connector, integration or transaction-profile strings.
+type CompositeMode int
+
+const (
+	CompositeModeEnvoy CompositeMode = iota + 1
+	CompositeModeTraefik
+)
+
+// NewCompositeRuntimeEngine creates the selected composite runtime, requiring
+// buffered request admission and a streaming response companion.
+func NewCompositeRuntimeEngine(configPath string, mode CompositeMode) (*CommonRuntimeEngine, error) {
+	if mode != CompositeModeEnvoy && mode != CompositeModeTraefik {
+		return nil, fmt.Errorf("unsupported composite runtime mode %d", mode)
+	}
+	return newCommonRuntimeEngine(configPath, mode)
+}
+
+func newCommonRuntimeEngine(configPath string, mode CompositeMode) (*CommonRuntimeEngine, error) {
 	if strings.TrimSpace(configPath) == "" {
 		return nil, fmt.Errorf("Common runtime config path is required")
 	}
@@ -72,7 +95,16 @@ func NewCommonRuntimeEngine(configPath string) (*CommonRuntimeEngine, error) {
 	defer C.free(unsafe.Pointer(cConfigPath))
 	var runtime *C.msc_envoy_ext_proc_runtime
 	var nativeError [commonRuntimeErrorBufferSize]C.char
-	if C.msc_envoy_ext_proc_runtime_create(cConfigPath, &runtime, &nativeError[0], C.size_t(len(nativeError))) == 0 {
+	var created C.int
+	switch mode {
+	case CompositeModeEnvoy:
+		created = C.msc_composite_runtime_create(cConfigPath, C.MSC_COMPOSITE_ENVOY, &runtime, &nativeError[0], C.size_t(len(nativeError)))
+	case CompositeModeTraefik:
+		created = C.msc_composite_runtime_create(cConfigPath, C.MSC_COMPOSITE_TRAEFIK, &runtime, &nativeError[0], C.size_t(len(nativeError)))
+	default:
+		created = C.msc_envoy_ext_proc_runtime_create(cConfigPath, &runtime, &nativeError[0], C.size_t(len(nativeError)))
+	}
+	if created == 0 {
 		return nil, fmt.Errorf("create Common runtime: %s", nativeErrorText(nativeError[:]))
 	}
 	if runtime == nil {
@@ -92,6 +124,12 @@ func NewCommonRuntimeEngine(configPath string) (*CommonRuntimeEngine, error) {
 			C.msc_envoy_ext_proc_runtime_destroy(&nativeRuntime)
 		},
 	}, nil
+}
+
+func (engine *CommonRuntimeEngine) transactionProfileID() uint {
+	engine.mu.Lock()
+	defer engine.mu.Unlock()
+	return uint(C.msc_envoy_ext_proc_runtime_profile_id(engine.runtime))
 }
 
 // ValidateLateActionPolicy rejects a service policy that would otherwise
@@ -163,6 +201,14 @@ func (engine *CommonRuntimeEngine) Close(ctx context.Context) error {
 	}
 	engine.destructorMu.Lock()
 	if engine.destroyDone == nil {
+		var nativeError [commonRuntimeErrorBufferSize]C.char
+		if C.msc_envoy_ext_proc_runtime_quiesce(engine.runtime, &nativeError[0], C.size_t(len(nativeError))) == 0 {
+			failure := fmt.Errorf("Common companion shutdown: %s", nativeErrorText(nativeError[:]))
+			engine.markTerminalFailure(failure)
+			engine.destructorMu.Unlock()
+			engine.mu.Unlock()
+			return failure
+		}
 		engine.destroyDone = make(chan struct{})
 		destroy := engine.destructor
 		done := engine.destroyDone
@@ -235,6 +281,8 @@ type commonRuntimeTransaction struct {
 	cleanupMu     sync.Mutex
 	cleanupErr    error
 }
+
+func (*commonRuntimeTransaction) OwnsBodyLimitDecisions() {}
 
 func (transaction *commonRuntimeTransaction) ProcessHeaders(ctx context.Context, direction Direction, headers []Header, endOfStream bool) (Decision, error) {
 	ctx = commonRuntimeContext(ctx)
@@ -367,7 +415,11 @@ func (transaction *commonRuntimeTransaction) MarkResponseCommitted(ctx context.C
 	if !transaction.begun || transaction.native == nil {
 		return fmt.Errorf("Common response commit before request headers")
 	}
-	C.msc_envoy_ext_proc_transaction_mark_response_committed(transaction.native, 0)
+	var nativeError [commonRuntimeErrorBufferSize]C.char
+	if C.msc_envoy_ext_proc_transaction_mark_response_committed(transaction.native, 0,
+		&nativeError[0], C.size_t(len(nativeError))) == 0 {
+		return fmt.Errorf("Common response commit: %s", nativeErrorText(nativeError[:]))
+	}
 	return nil
 }
 
@@ -428,7 +480,7 @@ func (transaction *commonRuntimeTransaction) TransactionID() string {
 	return transaction.transactionID
 }
 
-func (transaction *commonRuntimeTransaction) Close(ctx context.Context, _ Summary) {
+func (transaction *commonRuntimeTransaction) Close(ctx context.Context, summary Summary) {
 	if transaction == nil || transaction.engine == nil {
 		return
 	}
@@ -444,11 +496,51 @@ func (transaction *commonRuntimeTransaction) Close(ctx context.Context, _ Summar
 		return
 	}
 	if transaction.native != nil && !transaction.engine.closed {
-		C.msc_envoy_ext_proc_transaction_close(transaction.native)
+		var rejected C.int
+		if summary.CloseReason == CloseImmediateResponse || summary.CloseReason == CloseReason("request_block") {
+			rejected = 1
+		}
+		result := C.msc_envoy_ext_proc_transaction_close(transaction.native, rejected)
+		if result != C.MSC_COMMON_CLOSE_OK {
+			if result == C.MSC_COMMON_CLOSE_CONSUMED_ERROR {
+				transaction.native = nil
+				transaction.closed = true
+				delete(transaction.engine.transactions, transaction)
+			}
+			failure := fmt.Errorf("Common transaction cleanup failed (native result %d)", result)
+			transaction.setCleanupFailure(failure)
+			transaction.engine.markTerminalFailure(failure)
+			return
+		}
 		transaction.native = nil
 	}
 	transaction.closed = true
 	delete(transaction.engine.transactions, transaction)
+}
+
+// ClaimResponseCompanion extends the private native lifetime only after the
+// coordinator has authenticated and admitted its own one-shot response lease.
+func (transaction *commonRuntimeTransaction) ClaimResponseCompanion(ctx context.Context) error {
+	ctx = commonRuntimeContext(ctx)
+	if transaction == nil || transaction.engine == nil {
+		return fmt.Errorf("Common transaction is nil")
+	}
+	if err := lockCommonRuntimeMutex(ctx, &transaction.engine.mu); err != nil {
+		return err
+	}
+	defer transaction.engine.mu.Unlock()
+	if err := transaction.assertUsableLocked(); err != nil {
+		return err
+	}
+	if transaction.native == nil {
+		return fmt.Errorf("Common response companion before request headers")
+	}
+	var nativeError [commonRuntimeErrorBufferSize]C.char
+	if C.msc_envoy_ext_proc_transaction_claim_response_companion(transaction.native,
+		&nativeError[0], C.size_t(len(nativeError))) == 0 {
+		return fmt.Errorf("Common response companion claim: %s", nativeErrorText(nativeError[:]))
+	}
+	return nil
 }
 
 func (transaction *commonRuntimeTransaction) setCleanupFailure(err error) {
@@ -544,6 +636,9 @@ func (transaction *commonRuntimeTransaction) assertUsableLocked() error {
 	}
 	if transaction.engine.closing.Load() {
 		return fmt.Errorf("Common runtime engine is shutting down")
+	}
+	if err := transaction.engine.terminalFailure(); err != nil {
+		return fmt.Errorf("Common runtime engine stopped after cleanup failure: %w", err)
 	}
 	return nil
 }

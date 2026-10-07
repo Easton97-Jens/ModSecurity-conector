@@ -189,6 +189,7 @@ struct msconnector_runtime_transaction {
     int response_original_status;
     int native_started;
     int request_blocked;
+    int request_body_deferred;
     int response_headers_processed;
     int response_headers_sent;
     int response_body_started;
@@ -2376,7 +2377,8 @@ static int begin_native_transaction(
     msconnector_runtime_transaction *transaction,
     const msconnector_request *request,
     msconnector_decision *decision,
-    msconnector_error *error) {
+    msconnector_error *error,
+    int defer_request_body) {
     msconnector_runtime *runtime = transaction->runtime;
     int terminal;
 
@@ -2394,7 +2396,8 @@ static int begin_native_transaction(
             !mark_flow(transaction, MSCONNECTOR_PHASE_REQUEST_HEADERS, error)) {
             return 0;
         }
-        return begin_request_body_processing(transaction, request, decision, error);
+        return defer_request_body ||
+            begin_request_body_processing(transaction, request, decision, error);
     }
     runtime_operation_lock(runtime);
     const int initialized = msconnector_modsecurity_transaction_init(
@@ -2421,16 +2424,18 @@ static int begin_native_transaction(
     if (terminal) {
         return 1;
     }
-    return begin_request_body_processing(transaction, request, decision, error);
+    return defer_request_body ||
+        begin_request_body_processing(transaction, request, decision, error);
 }
 
-int msconnector_runtime_transaction_begin(
+static int transaction_begin(
     msconnector_runtime *runtime,
     const msconnector_request *request,
     const char *host_request_id,
     msconnector_runtime_transaction **out,
     msconnector_decision *decision,
-    msconnector_error *error) {
+    msconnector_error *error,
+    int defer_request_body) {
     msconnector_runtime_transaction *transaction;
 
     if (out != NULL) {
@@ -2444,6 +2449,14 @@ int msconnector_runtime_transaction_begin(
             "runtime, request, output and decision are required", "runtime");
     }
     msconnector_decision_set_allow(decision);
+    if (defer_request_body &&
+        (runtime->body_policy.request_body_mode != MSCONNECTOR_BODY_MODE_BUFFERED ||
+         request->body.data != NULL || request->body.size != 0U)) {
+        (void)runtime_error(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
+            "header-only begin requires buffered mode and an empty body", "runtime");
+        set_invalid_request_decision(runtime, decision, error);
+        return 0;
+    }
     if (!validate_transaction_begin_request(runtime, request, decision, error)) {
         return 0;
     }
@@ -2452,10 +2465,35 @@ int msconnector_runtime_transaction_begin(
         return 0;
     }
     *out = transaction;
-    if (!begin_native_transaction(transaction, request, decision, error)) {
+    if (!begin_native_transaction(transaction, request, decision, error,
+            defer_request_body)) {
         return abort_transaction_begin(out);
     }
+    transaction->request_body_deferred = defer_request_body &&
+        !transaction->request_blocked;
     return 1;
+}
+
+int msconnector_runtime_transaction_begin(
+    msconnector_runtime *runtime,
+    const msconnector_request *request,
+    const char *host_request_id,
+    msconnector_runtime_transaction **out,
+    msconnector_decision *decision,
+    msconnector_error *error) {
+    return transaction_begin(runtime, request, host_request_id, out, decision,
+        error, 0);
+}
+
+int msconnector_runtime_transaction_begin_request_headers(
+    msconnector_runtime *runtime,
+    const msconnector_request *request,
+    const char *host_request_id,
+    msconnector_runtime_transaction **out,
+    msconnector_decision *decision,
+    msconnector_error *error) {
+    return transaction_begin(runtime, request, host_request_id, out, decision,
+        error, 1);
 }
 
 static int apply_body_limit_plan(
@@ -4379,14 +4417,14 @@ int msconnector_runtime_transaction_finish_host_rejected_request_body(
         return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
             "transaction finish previously failed", "runtime");
     }
-    if (!transaction->native_started) {
+    if (!transaction->native_started && !transaction->request_body_deferred) {
         return finish_transaction_with_logging(transaction, error);
     }
-    if (transaction->runtime->body_policy.request_body_mode !=
-            MSCONNECTOR_BODY_MODE_STREAMING ||
+    if ((transaction->runtime->body_policy.request_body_mode !=
+             MSCONNECTOR_BODY_MODE_STREAMING && !transaction->request_body_deferred) ||
         transaction->request_body.finished || transaction->response_headers_processed) {
         return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
-            "host-rejected request body must be incomplete streaming before response processing",
+            "host-rejected request body must be incomplete before response processing",
             "runtime");
     }
     return finish_transaction_with_logging(transaction, error);
@@ -4409,8 +4447,10 @@ int msconnector_runtime_transaction_finish(
         return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
             "transaction finish previously failed", "runtime");
     }
-    if (transaction->native_started && !transaction->request_blocked &&
-        transaction->runtime->body_policy.request_body_mode == MSCONNECTOR_BODY_MODE_STREAMING &&
+    if (!transaction->request_blocked &&
+        ((transaction->native_started &&
+          transaction->runtime->body_policy.request_body_mode == MSCONNECTOR_BODY_MODE_STREAMING) ||
+         transaction->request_body_deferred) &&
         !transaction->request_body.finished) {
         (void)msconnector_transaction_contract_fail(&transaction->contract,
             MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE, transaction_now_ms());
@@ -4419,7 +4459,9 @@ int msconnector_runtime_transaction_finish(
             return 0;
         }
         return contract_error(error, MSCONNECTOR_TRANSACTION_TRANSITION_SKIPPED_PHASE,
-            "streaming request body reached transaction finish without end-of-stream");
+            transaction->request_body_deferred ?
+                "buffered request body reached transaction finish without end-of-stream" :
+                "streaming request body reached transaction finish without end-of-stream");
     }
     if (transaction->native_started && transaction->response_headers_processed &&
         !transaction->request_blocked &&

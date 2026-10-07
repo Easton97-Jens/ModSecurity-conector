@@ -12,6 +12,7 @@ host status/event artifacts but never changes checked-in capability state.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import http.client
 import http.server
 import json
@@ -27,7 +28,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Callable, Iterator
 
 
 class MissingDependency(RuntimeError):
@@ -80,6 +81,8 @@ TRAEFIK_STDOUT_LOG_FILENAME = "traefik.stdout.log"
 # a long canonical run root into an engine-start failure.
 ENGINE_SOCKET_PATH_MAX_BYTES = 100
 TRANSPORT_OBSERVATION_MAX_BODY_BYTES = 64 << 10
+P4_SAFE_PAYLOAD_SHA256 = "765ffa6f38c4948754339b78d277d07395d7d3f73c4f37ba0a81737942076b23"
+ALLOW_PAYLOAD_SHA256 = "e4f0bc4103f4272261f79eb3a2b6c17619e7d4ea33e46e4fbe4800f07e189e12"
 SAFE_RUN_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 
 
@@ -644,31 +647,57 @@ class UpstreamState:
     lock: threading.Lock = field(default_factory=threading.Lock)
 
 
+class UpstreamFixtureError(RuntimeError):
+    """The observer could not fully process a bounded, valid fixture request."""
+
+
+def read_fixture_body(handler: http.server.BaseHTTPRequestHandler) -> int:
+    lengths = handler.headers.get_all("Content-Length", [])
+    if handler.request_version != "HTTP/1.1" or len(lengths) != 1 or \
+            not re.fullmatch(r"[0-9]+", lengths[0]) or \
+            handler.headers.get_all("Transfer-Encoding", []):
+        raise UpstreamFixtureError("invalid upstream request framing")
+    expected = int(lengths[0])
+    if expected > 65536:
+        raise UpstreamFixtureError("upstream fixture body exceeds bound")
+    seen = 0
+    deadline = time.monotonic() + 12
+    previous_timeout = handler.connection.gettimeout()
+    try:
+        while seen < expected:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise UpstreamFixtureError("upstream fixture body deadline")
+            handler.connection.settimeout(remaining)
+            chunk = handler.rfile.read1(min(4096, expected - seen))
+            if not chunk:
+                raise UpstreamFixtureError("truncated upstream fixture body")
+            seen += len(chunk)
+    except (TimeoutError, OSError) as error:
+        raise UpstreamFixtureError("upstream fixture body read failed") from error
+    finally:
+        handler.connection.settimeout(previous_timeout)
+    return seen
+
+
+def write_fixture_chunk(handler: http.server.BaseHTTPRequestHandler, chunk: bytes) -> None:
+    if handler.wfile.write(chunk) != len(chunk):
+        raise UpstreamFixtureError("short upstream fixture response write")
+    handler.wfile.flush()
+
+
 def upstream_handler(state: UpstreamState) -> type[http.server.BaseHTTPRequestHandler]:
     class Handler(http.server.BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
 
-        def handle(self) -> None:
-            try:
-                super().handle()
-            except (BrokenPipeError, ConnectionResetError):
-                return
-
-        def do_POST(self) -> None:  # noqa: N802 - HTTP server callback name
-            expected = int(self.headers.get("Content-Length", "0"))
-            seen = 0
-            while seen < expected:
-                chunk = self.rfile.read(min(4096, expected - seen))
-                if not chunk:
-                    break
-                seen += len(chunk)
+        def do_POST(self) -> bool:  # noqa: N802 - HTTP server callback name
+            seen = read_fixture_body(self)
             p3_requested = self.headers.get("X-Native-Response-Rule") == "block"
             p4_requested = self.headers.get("X-Native-P4-Rule") == "block"
             barrier_requested = self.headers.get("X-Native-P4-Barrier") == "true"
             p1_allow_requested = self.headers.get("X-Request-Id") == P1_ALLOW_TRANSACTION_ID
             if barrier_requested and not p4_requested:
-                self.send_error(http.HTTPStatus.BAD_REQUEST)
-                return
+                raise UpstreamFixtureError("upstream barrier without P4 probe")
             chunks = (
                 b"native-traefik-first-chunk\n",
                 b"no-crs-response-body-marker\n" if p4_requested else b"native-traefik-final-chunk\n",
@@ -686,24 +715,20 @@ def upstream_handler(state: UpstreamState) -> type[http.server.BaseHTTPRequestHa
                 self.send_header("X-Modsec-Upstream", "block")
             self.send_header("Content-Length", str(sum(len(chunk) for chunk in chunks)))
             self.end_headers()
-            try:
-                self.wfile.write(chunks[0])
-                self.wfile.flush()
-                if barrier_requested:
-                    with state.lock:
-                        state.barrier_first_chunk_size = len(chunks[0])
-                        state.barrier_response_bytes = sum(len(chunk) for chunk in chunks)
-                        state.barrier_eos_sent = False
-                    state.barrier_reached.set()
-                    if not state.barrier_release.wait(timeout=20):
-                        return
-                self.wfile.write(chunks[1])
-                self.wfile.flush()
-                if barrier_requested:
-                    with state.lock:
-                        state.barrier_eos_sent = True
-            except (BrokenPipeError, ConnectionResetError):
-                return
+            write_fixture_chunk(self, chunks[0])
+            if barrier_requested:
+                with state.lock:
+                    state.barrier_first_chunk_size = len(chunks[0])
+                    state.barrier_response_bytes = sum(len(chunk) for chunk in chunks)
+                    state.barrier_eos_sent = False
+                state.barrier_reached.set()
+                if not state.barrier_release.wait(timeout=20):
+                    raise UpstreamFixtureError("upstream P4 barrier timed out")
+            write_fixture_chunk(self, chunks[1])
+            if barrier_requested:
+                with state.lock:
+                    state.barrier_eos_sent = True
+            return True
 
         def do_GET(self) -> None:  # noqa: N802 - HTTP server callback name
             with state.lock:
@@ -835,7 +860,31 @@ def request_through_traefik(
     raise RuntimeError(f"native router did not complete expected status {expected_status}: {last_error}")
 
 
-def read_complete_response(response: http.client.HTTPResponse) -> tuple[int, int, bool]:
+def canonical_response_content_length(response: http.client.HTTPResponse) -> int:
+    """Require the closed fixture's one canonical HTTP/1.1 length framing."""
+
+    lengths = response.headers.get_all("Content-Length", [])
+    if (
+        response.version != 11
+        or response.headers.defects
+        or len(lengths) != 1
+        or re.fullmatch(r"(?:0|[1-9][0-9]*)", lengths[0]) is None
+        or response.headers.get_all("Transfer-Encoding", [])
+        or any(
+            "\r" in value or "\n" in value
+            for _, value in response.headers.raw_items()
+        )
+    ):
+        raise RuntimeError("native router returned invalid response framing")
+    expected_length = int(lengths[0])
+    if expected_length > TRANSPORT_OBSERVATION_MAX_BODY_BYTES:
+        raise RuntimeError("native router returned an out-of-range Content-Length")
+    return expected_length
+
+
+def read_complete_response(
+    response: http.client.HTTPResponse, expected_sha256: str | None = None,
+) -> tuple[int, int, bool]:
     """Read one bounded test response without retaining a payload artifact.
 
     The native transport sidecar may record whether a client saw headers, a
@@ -843,17 +892,10 @@ def read_complete_response(response: http.client.HTTPResponse) -> tuple[int, int
     the response itself, including the deliberate Phase-4 marker fixture.
     """
     status = int(response.status)
-    declared_length = response.getheader("Content-Length")
-    expected_length: int | None = None
-    if declared_length is not None:
-        try:
-            expected_length = int(declared_length)
-        except ValueError as exc:
-            raise RuntimeError("native router returned an invalid Content-Length") from exc
-        if expected_length < 0 or expected_length > TRANSPORT_OBSERVATION_MAX_BODY_BYTES:
-            raise RuntimeError("native router returned an out-of-range Content-Length")
+    expected_length = canonical_response_content_length(response)
     body_bytes = 0
     first_byte_received = False
+    digest = hashlib.sha256()
     while True:
         chunk = response.read(4096)
         if not chunk:
@@ -862,34 +904,34 @@ def read_complete_response(response: http.client.HTTPResponse) -> tuple[int, int
         if body_bytes > TRANSPORT_OBSERVATION_MAX_BODY_BYTES:
             raise RuntimeError("native router exceeded the transport observation body limit")
         first_byte_received = True
-    if expected_length is not None and body_bytes != expected_length:
+        digest.update(chunk)
+    if body_bytes != expected_length:
         raise RuntimeError(
             f"native router returned incomplete body {body_bytes}, expected {expected_length}"
         )
+    if expected_sha256 is not None and digest.hexdigest() != expected_sha256:
+        raise RuntimeError("native router returned an unexpected response payload digest")
     return status, body_bytes, first_byte_received
 
 
 def read_response_after_first_byte(
-    response: http.client.HTTPResponse, first_byte_count: int,
+    response: http.client.HTTPResponse, first_byte: bytes,
+    expected_sha256: str | None = None,
 ) -> tuple[int, int]:
     """Finish one response after a separately observed first entity byte.
 
     The caller keeps at most the single byte needed for the barrier assertion
     in memory.  This helper counts the rest without retaining payload data.
     """
-    if first_byte_count < 1:
+    if not first_byte:
         raise RuntimeError("first-byte barrier did not deliver an entity byte")
+    first_byte_count = len(first_byte)
     status = int(response.status)
-    declared_length = response.getheader("Content-Length")
-    expected_length: int | None = None
-    if declared_length is not None:
-        try:
-            expected_length = int(declared_length)
-        except ValueError as exc:
-            raise RuntimeError("native router returned an invalid Content-Length") from exc
-        if expected_length < first_byte_count or expected_length > TRANSPORT_OBSERVATION_MAX_BODY_BYTES:
-            raise RuntimeError("native router returned an invalid bounded entity length")
+    expected_length = canonical_response_content_length(response)
+    if expected_length < first_byte_count:
+        raise RuntimeError("native router returned an invalid bounded entity length")
     body_bytes = first_byte_count
+    digest = hashlib.sha256(first_byte)
     while True:
         chunk = response.read(4096)
         if not chunk:
@@ -897,10 +939,13 @@ def read_response_after_first_byte(
         body_bytes += len(chunk)
         if body_bytes > TRANSPORT_OBSERVATION_MAX_BODY_BYTES:
             raise RuntimeError("native router exceeded the transport observation body limit")
-    if expected_length is not None and body_bytes != expected_length:
+        digest.update(chunk)
+    if body_bytes != expected_length:
         raise RuntimeError(
             f"native router returned incomplete body {body_bytes}, expected {expected_length}"
         )
+    if expected_sha256 is not None and digest.hexdigest() != expected_sha256:
+        raise RuntimeError("native router returned an unexpected response payload digest")
     return status, body_bytes
 
 
@@ -910,6 +955,7 @@ def synchronized_safe_followup_attempt(
     body: bytes,
     safe_request_id: str,
     followup_request_id: str,
+    response_class: type[http.client.HTTPResponse] | None = None,
 ) -> dict[str, int | bool]:
     """Run one first-byte proof attempt on one HTTP/1.1 connection."""
 
@@ -920,6 +966,8 @@ def synchronized_safe_followup_attempt(
         state.barrier_response_bytes = 0
         state.barrier_eos_sent = False
     connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+    if response_class is not None:
+        connection.response_class = response_class
     try:
         connection.request(
             "POST",
@@ -943,7 +991,9 @@ def synchronized_safe_followup_attempt(
         if not first_byte or not upstream_paused or first_chunk_size < 1:
             raise RuntimeError("client did not receive a first body byte while upstream was paused")
         state.barrier_release.set()
-        safe_status, safe_bytes = read_response_after_first_byte(safe_response, len(first_byte))
+        safe_status, safe_bytes = read_response_after_first_byte(
+            safe_response, first_byte, P4_SAFE_PAYLOAD_SHA256
+        )
         first_socket = connection.sock
         if safe_status != http.HTTPStatus.OK or safe_bytes != response_bytes or first_socket is None:
             raise RuntimeError("native safe barrier response did not complete correctly")
@@ -959,7 +1009,9 @@ def synchronized_safe_followup_attempt(
             },
         )
         followup_response = connection.getresponse()
-        followup_status, followup_bytes, followup_first_byte = read_complete_response(followup_response)
+        followup_status, followup_bytes, followup_first_byte = read_complete_response(
+            followup_response, ALLOW_PAYLOAD_SHA256
+        )
         if followup_status != http.HTTPStatus.OK or not followup_first_byte:
             raise RuntimeError("native first-byte follow-up did not complete")
         if first_socket is not connection.sock:
@@ -986,6 +1038,7 @@ def synchronized_safe_followup(
     body: bytes,
     safe_request_id: str,
     followup_request_id: str,
+    response_class: type[http.client.HTTPResponse] | None = None,
 ) -> dict[str, int | bool]:
     """Prove a real Traefik byte crossed the host before upstream EOS."""
 
@@ -994,7 +1047,8 @@ def synchronized_safe_followup(
     while time.monotonic() < deadline:
         try:
             return synchronized_safe_followup_attempt(
-                port, state, body, safe_request_id, followup_request_id
+                port, state, body, safe_request_id, followup_request_id,
+                response_class=response_class,
             )
         except (OSError, http.client.HTTPException, RuntimeError) as exc:
             last_error = exc
@@ -1561,12 +1615,17 @@ def running_traefik_host(
     *,
     engine_description: str,
     host_description: str,
+    engine_binary: Path | None = None,
+    process_started: Callable[[subprocess.Popen[bytes]], None] | None = None,
 ) -> Iterator[None]:
     """Start the common engine/host pair while keeping its log descriptors open."""
 
-    engine_binary = build_engine_service(
-        inputs.runtime_root, artifacts.logs_dir, inputs.include_dir, inputs.library_dir
-    )
+    if engine_binary is None:
+        engine_binary = build_engine_service(
+            inputs.runtime_root, artifacts.logs_dir, inputs.include_dir, inputs.library_dir
+        )
+    else:
+        engine_binary = require_local_executable(engine_binary, "pinned Traefik engine service")
     with (artifacts.logs_dir / "engine.stdout.log").open("wb") as engine_stdout, (
         artifacts.logs_dir / ENGINE_STDERR_LOG_FILENAME
     ).open("wb") as engine_stderr:
@@ -1583,6 +1642,8 @@ def running_traefik_host(
             stdout=engine_stdout,
             stderr=engine_stderr,
         )
+        if process_started is not None:
+            process_started(processes.engine)
         wait_for_socket(setup.engine_socket, processes.engine, engine_description)
         with (artifacts.logs_dir / TRAEFIK_STDOUT_LOG_FILENAME).open("wb") as stdout, (
             artifacts.logs_dir / "traefik.stderr.log"
@@ -1593,6 +1654,8 @@ def running_traefik_host(
                 stdout=stdout,
                 stderr=stderr,
             )
+            if process_started is not None:
+                process_started(processes.traefik)
             wait_for_port(setup.traefik_port, processes.traefik, host_description)
             yield
 

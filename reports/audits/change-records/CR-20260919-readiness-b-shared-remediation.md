@@ -406,6 +406,12 @@ The correction has no fresh hosted receipt yet and does not close NGINX G2--G9
 or promote NGINX to B. The existing non-root worker, no-follow path,
 body-boundary, fail-closed error, and cleanup controls remain unchanged.
 
+Scope reconciliation on 2026-10-03 restored all four NGINX fixture and
+contract-test paths to `origin/master` because the user excluded NGINX from
+the final PR scope. This section therefore records a historical intermediate
+head only; the current PR does not deliver the correction, and its NGINX
+receipts must not be credited as exact version evidence.
+
 ## SonarQube Cloud new-code duplication follow-up — 2026-09-19
 
 PR [#370](https://github.com/Easton97-Jens/ModSecurity-conector/pull/370)

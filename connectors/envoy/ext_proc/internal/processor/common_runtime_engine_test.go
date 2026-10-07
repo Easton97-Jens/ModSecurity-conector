@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +15,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	extprocv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 func TestCommonRuntimeEngineEvaluatesIncrementalLifecycle(t *testing.T) {
@@ -555,6 +559,275 @@ SecRule RESPONSE_HEADERS:X-Msconnector-Vector "@streq msconnector-p3-redirect" "
 	}
 }
 
+func TestCommonRuntimeServiceBodyLimitRecordsNativeDecisionAndSurvives(t *testing.T) {
+	engine, eventPath := newCommonRuntimeEngineForRulesAndLimitTest(t, "SecRuleEngine On\nSecRequestBodyAccess On\n", 32)
+	config := testConfig(LateActionSafe)
+	config.MaxRequestBodyBytes = 32
+	observer := &nativeLimitSummaryObserver{}
+	service, err := NewServiceWithObserver(config, engine, observer)
+	if err != nil {
+		t.Fatalf("NewService() = %v, want nil", err)
+	}
+	stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
+		{request: nativeServiceRequestHeaders(t, false)}, {request: requestBody([]byte(strings.Repeat("x", 33)), true)},
+	}}
+	if err := service.Process(stream); err != nil {
+		t.Fatalf("Process(native limit 33/32) = %v, want nil", err)
+	}
+	if len(stream.sent) != 2 || stream.sent[1].GetImmediateResponse() == nil ||
+		int(stream.sent[1].GetImmediateResponse().GetStatus().GetCode()) != 413 {
+		t.Fatalf("Process(native limit) responses = %#v, want immediate 413", stream.sent)
+	}
+	if len(observer.summaries) != 1 || observer.summaries[0].CloseReason != CloseImmediateResponse ||
+		observer.summaries[0].RequestBodyBytes != 33 || observer.summaries[0].RequestBodyChunks != 1 ||
+		observer.summaries[0].LateAction != LateActionNone {
+		t.Fatalf("native limit completion = %#v, want immediate-response/33 bytes/one chunk/no late action", observer.summaries)
+	}
+	raw, err := os.ReadFile(eventPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	if len(lines) != 1 {
+		t.Fatalf("native body-limit events = %d, want one host-confirmed native budget event; %s", len(lines), raw)
+	}
+	for index, line := range lines {
+		var event map[string]any
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			t.Fatal(err)
+		}
+		if event["event"] != "MSCONN_EVENT_BODY_LIMIT" || event["http_status"] != float64(413) ||
+			event["rule_id"] != "" || event["visible_http_status"] != float64(413) || event["transport_result"] != "http_status" {
+			t.Fatalf("native body-limit event[%d] = %#v, want native413/host413", index, event)
+		}
+	}
+	followup := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
+		{request: nativeServiceRequestHeaders(t, true)}, {request: responseHeaders(true)},
+	}}
+	if err := service.Process(followup); err != nil {
+		t.Fatalf("same-service followup = %v, want nil", err)
+	}
+	if len(followup.sent) != 2 || followup.sent[0].GetImmediateResponse() != nil || followup.sent[1].GetImmediateResponse() != nil {
+		t.Fatalf("same-service followup responses = %#v, want allow", followup.sent)
+	}
+	if len(observer.summaries) != 2 || observer.summaries[1].CloseReason != CloseResponseEOS {
+		t.Fatalf("same-service followup completion = %#v, want response EOS", observer.summaries)
+	}
+}
+
+type nativeLimitSummaryObserver struct{ summaries []Summary }
+
+func (observer *nativeLimitSummaryObserver) Record(summary Summary) error {
+	observer.summaries = append(observer.summaries, summary)
+	return nil
+}
+
+type nativeLimitFailedSendStream struct {
+	*fakeProcessStream
+	abort context.CancelFunc
+}
+
+func (stream *nativeLimitFailedSendStream) Send(response *extprocv3.ProcessingResponse) error {
+	if immediate := response.GetImmediateResponse(); immediate != nil && int(immediate.GetStatus().GetCode()) == 413 {
+		if stream.abort != nil {
+			stream.abort()
+		}
+		return io.ErrClosedPipe
+	}
+	return stream.fakeProcessStream.Send(response)
+}
+
+func TestCommonRuntimeServiceNativeBodyLimitFailedSendDoesNotFaultEngine(t *testing.T) {
+	for _, clientAbort := range []bool{false, true} {
+		t.Run(fmt.Sprintf("client_abort_%t", clientAbort), func(t *testing.T) {
+			engine, eventPath := newCommonRuntimeEngineForRulesAndLimitTest(t, "SecRuleEngine On\nSecRequestBodyAccess On\n", 32)
+			config := testConfig(LateActionSafe)
+			config.MaxRequestBodyBytes = 32
+			observer := &nativeLimitSummaryObserver{}
+			service, err := NewServiceWithObserver(config, engine, observer)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			stream := &nativeLimitFailedSendStream{fakeProcessStream: &fakeProcessStream{
+				contextFactory: testStreamContext(ctx), receive: []receiveResult{
+					{request: nativeServiceRequestHeaders(t, false)}, {request: requestBody([]byte(strings.Repeat("x", 33)), true)},
+				},
+			}}
+			if clientAbort {
+				stream.abort = cancel
+			}
+			processErr := service.Process(stream)
+			if !clientAbort && processErr == nil {
+				t.Fatal("Process(failed native413 send) = nil, want transport error")
+			}
+			if fatal := service.terminalFailure(); fatal != nil {
+				t.Fatalf("Process(failed native413 send) faulted service = %v, want known-owned cleanup", fatal)
+			}
+			if len(observer.summaries) != 1 || observer.summaries[0].CloseReason == CloseImmediateResponse {
+				t.Fatalf("failed send completion = %#v, want transport/cancel outcome without successful413", observer.summaries)
+			}
+			raw, err := os.ReadFile(eventPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(raw), `"transport_result":"http_status"`) || strings.Contains(string(raw), `"visible_http_status":413`) {
+				t.Fatalf("failed native413 send invented successful host confirmation: %s", raw)
+			}
+			followup := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
+				{request: nativeServiceRequestHeaders(t, true)}, {request: responseHeaders(true)},
+			}}
+			if err := service.Process(followup); err != nil {
+				t.Fatalf("same-service followup after failed native413 send = %v, want nil", err)
+			}
+		})
+	}
+}
+
+func TestCommonRuntimeServiceCumulativeRequestLimitAcrossChunks(t *testing.T) {
+	engine, eventPath := newCommonRuntimeEngineForRulesAndLimitTest(t, "SecRuleEngine On\nSecRequestBodyAccess On\n", 32)
+	config := testConfig(LateActionSafe)
+	config.MaxRequestBodyBytes = 32
+	observer := &nativeLimitSummaryObserver{}
+	service, err := NewServiceWithObserver(config, engine, observer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
+		{request: nativeServiceRequestHeaders(t, false)},
+		{request: requestBody([]byte(strings.Repeat("x", 32)), false)},
+		{request: requestBody([]byte("x"), true)},
+	}}
+	if err := service.Process(stream); err != nil {
+		t.Fatalf("Process(native cumulative limit 32+1/32) = %v, want nil", err)
+	}
+	if len(stream.sent) != 3 || stream.sent[1].GetImmediateResponse() != nil ||
+		stream.sent[2].GetImmediateResponse() == nil || int(stream.sent[2].GetImmediateResponse().GetStatus().GetCode()) != 413 {
+		t.Fatalf("cumulative request-limit responses = %#v, want allow32 then deny413", stream.sent)
+	}
+	if len(observer.summaries) != 1 || observer.summaries[0].CloseReason != CloseImmediateResponse ||
+		observer.summaries[0].RequestBodyBytes != 33 || observer.summaries[0].RequestBodyChunks != 2 {
+		t.Fatalf("cumulative request-limit summary = %#v, want immediate/33 bytes/two chunks", observer.summaries)
+	}
+	raw, err := os.ReadFile(eventPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var event map[string]any
+	if err := json.Unmarshal(raw, &event); err != nil {
+		t.Fatal(err)
+	}
+	if event["event"] != "MSCONN_EVENT_BODY_LIMIT" || event["visible_http_status"] != float64(413) ||
+		event["body_bytes_seen"] != float64(33) || event["body_bytes_inspected"] != float64(32) {
+		t.Fatalf("cumulative native limit event = %#v, want seen33/inspected32/host413", event)
+	}
+	followup := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
+		{request: nativeServiceRequestHeaders(t, true)}, {request: responseHeaders(true)},
+	}}
+	if err := service.Process(followup); err != nil {
+		t.Fatalf("same-service followup after cumulative native limit = %v, want nil", err)
+	}
+}
+
+func TestCommonRuntimeServiceResponseAdapterLimitKeepsSafeOutcomeAndSurvives(t *testing.T) {
+	engine, eventPath := newCommonRuntimeEngineForRulesAndLimitsTest(t,
+		"SecRuleEngine On\nSecRequestBodyAccess On\nSecResponseBodyAccess On\nSecResponseBodyMimeType text/plain\n", 32, 32)
+	config := testConfig(LateActionSafe)
+	config.MaxResponseBodyBytes = 32
+	observer := &nativeLimitSummaryObserver{}
+	service, err := NewServiceWithObserver(config, engine, observer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
+		{request: nativeServiceRequestHeaders(t, true)}, {request: responseHeaders(false)},
+		{request: responseBody([]byte(strings.Repeat("x", 33)), true)},
+	}}
+	if err := service.Process(stream); err != nil {
+		t.Fatalf("Process(response adapter limit 33/32) = %v, want Safe continue", err)
+	}
+	if len(stream.sent) != 3 || stream.sent[2].GetResponseBody() == nil || stream.sent[2].GetImmediateResponse() != nil {
+		t.Fatalf("response limit responses = %#v, want body CONTINUE", stream.sent)
+	}
+	if len(observer.summaries) != 1 || observer.summaries[0].CloseReason != CloseResponseEOS ||
+		observer.summaries[0].LateAction != LateActionLogged || observer.summaries[0].ResponseBodyBytes != 33 {
+		t.Fatalf("response adapter limit completion = %#v, want EOS/log-only/33 bytes", observer.summaries)
+	}
+	raw, err := os.ReadFile(eventPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "MSCONN_EVENT_BODY_LIMIT") || strings.Contains(string(raw), `"transport_result":"log_only"`) {
+		t.Fatalf("adapter response limit invented native decision/confirmation: %s", raw)
+	}
+	followup := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
+		{request: nativeServiceRequestHeaders(t, true)}, {request: responseHeaders(true)},
+	}}
+	if err := service.Process(followup); err != nil {
+		t.Fatalf("same-service followup after response adapter limit = %v, want nil", err)
+	}
+}
+
+func TestCommonRuntimeServiceAdapterOnlyLimitsDoNotInventNativeHostAction(t *testing.T) {
+	for _, testCase := range []struct {
+		name        string
+		nativeLimit int
+		chunkLimit  int
+	}{
+		{name: "stricter_adapter_cumulative_budget", nativeLimit: 1024, chunkLimit: 1024},
+		{name: "hard_chunk_ceiling", nativeLimit: 32, chunkLimit: 32},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			engine, eventPath := newCommonRuntimeEngineForRulesAndLimitTest(t, "SecRuleEngine On\nSecRequestBodyAccess On\n", testCase.nativeLimit)
+			config := testConfig(LateActionSafe)
+			config.MaxRequestBodyBytes = 32
+			config.MaxBodyChunkBytes = testCase.chunkLimit
+			service, err := NewService(config, engine)
+			if err != nil {
+				t.Fatal(err)
+			}
+			stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
+				{request: nativeServiceRequestHeaders(t, false)}, {request: requestBody([]byte(strings.Repeat("x", 33)), true)},
+			}}
+			if err := service.Process(stream); err != nil {
+				t.Fatalf("Process(adapter-only limit) = %v, want nil", err)
+			}
+			if len(stream.sent) != 2 || stream.sent[1].GetImmediateResponse() == nil ||
+				int(stream.sent[1].GetImmediateResponse().GetStatus().GetCode()) != 413 {
+				t.Fatalf("Process(adapter-only limit) responses = %#v, want immediate413", stream.sent)
+			}
+			raw, err := os.ReadFile(eventPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(raw), `"transport_result":"http_status"`) || strings.Contains(string(raw), "MSCONN_EVENT_BODY_LIMIT") {
+				t.Fatalf("adapter-only limit invented native limit/host confirmation: %s", raw)
+			}
+			followup := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
+				{request: nativeServiceRequestHeaders(t, true)}, {request: responseHeaders(true)},
+			}}
+			if err := service.Process(followup); err != nil {
+				t.Fatalf("same-service followup after adapter-only limit = %v, want nil", err)
+			}
+		})
+	}
+}
+
+func nativeServiceRequestHeaders(t *testing.T, eos bool) *extprocv3.ProcessingRequest {
+	t.Helper()
+	attributes, err := structpb.NewStruct(map[string]any{
+		"request.protocol": "HTTP/1.1", "source.address": "127.0.0.1", "source.port": 49152,
+		"destination.address": "127.0.0.1", "destination.port": 18080,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := requestHeaders(eos)
+	request.Attributes = map[string]*structpb.Struct{"envoy.filters.http.ext_proc": attributes}
+	return request
+}
+
 func newCommonRuntimeEngineForTest(t *testing.T) (*CommonRuntimeEngine, string) {
 	return newCommonRuntimeEngineForRulesTest(t, `SecRuleEngine On
 SecRequestBodyAccess On
@@ -569,6 +842,16 @@ SecRule RESPONSE_BODY "@contains envoy-phase4-marker" "id:1200004,phase:4,deny,s
 
 func newCommonRuntimeEngineForRulesTest(t *testing.T, rules string) (*CommonRuntimeEngine, string) {
 	t.Helper()
+	return newCommonRuntimeEngineForRulesAndLimitTest(t, rules, 1048576)
+}
+
+func newCommonRuntimeEngineForRulesAndLimitTest(t *testing.T, rules string, requestLimit int) (*CommonRuntimeEngine, string) {
+	t.Helper()
+	return newCommonRuntimeEngineForRulesAndLimitsTest(t, rules, requestLimit, 1048576)
+}
+
+func newCommonRuntimeEngineForRulesAndLimitsTest(t *testing.T, rules string, requestLimit, responseLimit int) (*CommonRuntimeEngine, string) {
+	t.Helper()
 	directory := t.TempDir()
 	rulesPath := filepath.Join(directory, "rules.conf")
 	configPath := filepath.Join(directory, "runtime.conf")
@@ -581,8 +864,8 @@ rules_file=%s
 transaction_id_header=x-request-id
 request_body_mode=streaming
 response_body_mode=streaming
-request_body_limit=1048576
-response_body_limit=1048576
+request_body_limit=%d
+response_body_limit=%d
 body_limit_action=reject
 phase4_mode=safe
 default_block_status=403
@@ -594,7 +877,7 @@ max_header_value_size=8192
 max_total_header_bytes=32768
 max_event_json_bytes=16384
 event_path=%s
-`, rulesPath, eventPath)
+`, rulesPath, requestLimit, responseLimit, eventPath)
 	if err := os.WriteFile(configPath, []byte(config), 0o600); err != nil {
 		t.Fatalf("write runtime config: %v", err)
 	}

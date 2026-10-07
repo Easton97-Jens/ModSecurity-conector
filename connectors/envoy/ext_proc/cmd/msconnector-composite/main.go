@@ -54,7 +54,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	runtime, err := configuredEngine(opts.runtimeConfig)
+	runtime, err := configuredEngine(opts.runtimeConfig, opts.mode)
 	if err != nil {
 		return fmt.Errorf("engine setup: %w", err)
 	}

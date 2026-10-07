@@ -441,6 +441,13 @@ G2--G9 nicht und stuft NGINX nicht auf B hoch. Bestehende Non-root-Worker-,
 No-follow-Pfad-, Body-Boundary-, Fail-closed-Error- und Cleanup-Controls
 bleiben unverändert.
 
+Der Scope-Abgleich vom 2026-10-03 stellte alle vier NGINX-Fixture- und
+Contract-Test-Pfade auf `origin/master` zurück, weil der Benutzer NGINX aus
+dem finalen PR-Scope ausgeschlossen hat. Dieser Abschnitt dokumentiert daher
+nur einen historischen Zwischenstand; der aktuelle PR liefert die Korrektur
+nicht, und seine NGINX-Receipts dürfen nicht als exakte Versions-Evidence
+gewertet werden.
+
 ## SonarQube-Cloud-Follow-up für New-Code-Duplikation — 2026-09-19
 
 PR [#370](https://github.com/Easton97-Jens/ModSecurity-conector/pull/370)

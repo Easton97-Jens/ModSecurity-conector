@@ -45,15 +45,19 @@ func withTestLocalEndpoint(request *http.Request) *http.Request {
 }
 
 type recordingTransaction struct {
-	opens          int
-	headerCalls    []headerCall
-	headerValues   [][]Header
-	bodyCalls      []bodyCall
-	events         []string
-	contexts       []context.Context
-	closed         []Summary
-	headerDecision func(Direction, []Header, bool) Decision
-	bodyDecision   func(Direction, []byte, bool) Decision
+	opens             int
+	headerCalls       []headerCall
+	headerValues      [][]Header
+	bodyCalls         []bodyCall
+	events            []string
+	contexts          []context.Context
+	closed            []Summary
+	headerDecision    func(Direction, []Header, bool) Decision
+	bodyDecision      func(Direction, []byte, bool) Decision
+	bodyError         error
+	honorCancellation bool
+	responseEOSError  error
+	closeContextError error
 }
 
 func (transaction *recordingTransaction) ProcessHeaders(value context.Context, direction Direction, headers []Header, end bool) (Decision, error) {
@@ -196,6 +200,15 @@ func (transaction *recordingTransaction) ProcessBody(value context.Context, dire
 	transaction.contexts = append(transaction.contexts, value)
 	transaction.bodyCalls = append(transaction.bodyCalls, bodyCall{direction: direction, end: end, length: len(body)})
 	transaction.events = append(transaction.events, string(direction)+"-body")
+	if transaction.honorCancellation && value.Err() != nil {
+		return allowDecision(), value.Err()
+	}
+	if direction == DirectionResponse && end && transaction.responseEOSError != nil {
+		return allowDecision(), transaction.responseEOSError
+	}
+	if direction == DirectionRequest && transaction.bodyError != nil {
+		return allowDecision(), transaction.bodyError
+	}
 	if transaction.bodyDecision != nil {
 		return transaction.bodyDecision(direction, body, end), nil
 	}
@@ -203,6 +216,7 @@ func (transaction *recordingTransaction) ProcessBody(value context.Context, dire
 }
 
 func (transaction *recordingTransaction) Close(value context.Context, summary Summary) {
+	transaction.closeContextError = value.Err()
 	transaction.contexts = append(transaction.contexts, value)
 	transaction.closed = append(transaction.closed, summary)
 }
@@ -426,6 +440,7 @@ func newTestMiddlewareWithRequestBodyLimit(t *testing.T, next http.Handler, tran
 type trackingRequestBody struct {
 	reader    *strings.Reader
 	readBytes int
+	closes    int
 }
 
 func newTrackingRequestBody(payload string) *trackingRequestBody {
@@ -438,11 +453,12 @@ func (body *trackingRequestBody) Read(buffer []byte) (int, error) {
 	return count, err
 }
 
-func (*trackingRequestBody) Close() error { return nil }
+func (body *trackingRequestBody) Close() error { body.closes++; return nil }
 
 func TestMiddlewareStreamsRequestAndResponseInBoundedChunks(t *testing.T) {
 	transaction := &recordingTransaction{}
 	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assertRequestBodyCallbacks(t, transaction, len("request"))
 		body, err := io.ReadAll(request.Body)
 		if err != nil {
 			t.Errorf("ReadAll(request.Body) error = %v", err)
@@ -480,6 +496,400 @@ func TestMiddlewareStreamsRequestAndResponseInBoundedChunks(t *testing.T) {
 		t.Fatalf("expected complete committed summary, got %#v", summary)
 	}
 	assertRequestBodyCallbacks(t, transaction, len("request"))
+}
+
+func TestMiddlewareRequestAdmissionNeverCallsDownstreamOnFailure(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		body        func() io.ReadCloser
+		limit       int64
+		deny        bool
+		cancel      bool
+		engineError bool
+		status      int
+	}{
+		{"p2-deny", func() io.ReadCloser { return io.NopCloser(strings.NewReader("request")) }, 10, true, false, false, http.StatusForbidden},
+		{"over-limit", func() io.ReadCloser { return io.NopCloser(strings.NewReader("request")) }, 5, false, false, false, http.StatusRequestEntityTooLarge},
+		{"read-error", func() io.ReadCloser { return failingRequestBody{} }, 10, false, false, false, http.StatusInternalServerError},
+		{"idle", func() io.ReadCloser { return newBlockingRequestBody() }, 10, false, false, false, http.StatusInternalServerError},
+		{"canceled", func() io.ReadCloser { return io.NopCloser(strings.NewReader("request")) }, 10, false, true, false, http.StatusInternalServerError},
+		{"engine-error", func() io.ReadCloser { return io.NopCloser(strings.NewReader("request")) }, 10, false, false, true, http.StatusInternalServerError},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			transaction := &recordingTransaction{}
+			if test.engineError {
+				transaction.bodyError = errors.New("engine body exchange failed")
+			}
+			if test.deny {
+				transaction.bodyDecision = func(direction Direction, _ []byte, _ bool) Decision {
+					if direction == DirectionRequest {
+						return Decision{Action: ActionDeny, Status: http.StatusForbidden}
+					}
+					return allowDecision()
+				}
+			}
+			calls := 0
+			middleware := newTestMiddlewareWithRequestBodyLimit(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) { calls++ }), transaction, test.limit)
+			middleware.config.RequestBodyIdleTimeoutMillis = 10
+			request := httptest.NewRequest(http.MethodPost, "http://example.test/admission", nil)
+			request.Body = test.body()
+			request.ContentLength = -1
+			if test.cancel {
+				ctx, cancel := context.WithCancel(request.Context())
+				cancel()
+				request = request.WithContext(ctx)
+			}
+			response := httptest.NewRecorder()
+			middleware.ServeHTTP(response, withTestLocalEndpoint(request))
+			if calls != 0 || response.Code != test.status {
+				t.Fatalf("downstream calls=%d status=%d; want 0/%d", calls, response.Code, test.status)
+			}
+			if len(transaction.closed) != 1 || transaction.closed[0].RequestEOS {
+				t.Fatalf("incomplete admission close/EOS = %#v", transaction.closed)
+			}
+		})
+	}
+}
+
+func TestMiddlewareShortDeclaredBodyNeverAdmitsOrInventsEOS(t *testing.T) {
+	transaction := &recordingTransaction{}
+	calls := 0
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) { calls++ }), transaction)
+	request := httptest.NewRequest(http.MethodPost, "http://example.test/short", strings.NewReader("ab"))
+	request.ContentLength = 5
+	response := httptest.NewRecorder()
+	middleware.ServeHTTP(response, withTestLocalEndpoint(request))
+	if calls != 0 || response.Code != http.StatusInternalServerError || len(transaction.closed) != 1 || transaction.closed[0].RequestEOS {
+		t.Fatalf("short request admitted or invented EOS: calls=%d status=%d close=%#v", calls, response.Code, transaction.closed)
+	}
+	for _, call := range transaction.bodyCalls {
+		if call.direction == DirectionRequest && call.end {
+			t.Fatal("short declared body sent request EOS to engine")
+		}
+	}
+}
+
+func TestMiddlewareMissingDeclaredBodyNeverAdmitsOrSendsHeaderEOS(t *testing.T) {
+	for _, source := range []io.ReadCloser{nil, http.NoBody} {
+		transaction := &recordingTransaction{}
+		calls := 0
+		middleware := newTestMiddleware(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) { calls++ }), transaction)
+		request := httptest.NewRequest(http.MethodPost, "http://example.test/missing-body", nil)
+		request.Body = source
+		request.ContentLength = 5
+		response := httptest.NewRecorder()
+		middleware.ServeHTTP(response, withTestLocalEndpoint(request))
+		if calls != 0 || response.Code != http.StatusInternalServerError || len(transaction.closed) != 1 || transaction.closed[0].RequestEOS || len(transaction.headerCalls) != 0 {
+			t.Fatalf("missing declared body source=%v: calls=%d status=%d close=%#v headers=%#v", source, calls, response.Code, transaction.closed, transaction.headerCalls)
+		}
+	}
+}
+
+func TestHTTPServerBodyReportsTruncatedDeclaredLength(t *testing.T) {
+	request, err := http.ReadRequest(bufio.NewReader(strings.NewReader("POST /short HTTP/1.1\r\nHost: example.test\r\nContent-Length: 5\r\n\r\nab")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer request.Body.Close()
+	payload, err := io.ReadAll(request.Body)
+	if !errors.Is(err, io.ErrUnexpectedEOF) || string(payload) != "ab" {
+		t.Fatalf("net/http server body = %q/%v, want ab/UnexpectedEOF", payload, err)
+	}
+}
+
+type deadlineResponseWriter struct {
+	*httptest.ResponseRecorder
+	connection net.Conn
+}
+
+type deadlineSpyResponseWriter struct {
+	*httptest.ResponseRecorder
+	mu        sync.Mutex
+	deadlines []time.Time
+}
+
+func (writer *deadlineSpyResponseWriter) SetReadDeadline(deadline time.Time) error {
+	writer.mu.Lock()
+	defer writer.mu.Unlock()
+	writer.deadlines = append(writer.deadlines, deadline)
+	return nil
+}
+
+func TestMiddlewarePreservesHostDeadlineDuringSuccessfulAdmission(t *testing.T) {
+	transaction := &recordingTransaction{}
+	calls := 0
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) { calls++; writer.WriteHeader(http.StatusNoContent) }), transaction)
+	request := httptest.NewRequest(http.MethodPost, "http://example.test/deadline", strings.NewReader("request"))
+	writer := &deadlineSpyResponseWriter{ResponseRecorder: httptest.NewRecorder()}
+	middleware.ServeHTTP(writer, withTestLocalEndpoint(request))
+	writer.mu.Lock()
+	defer writer.mu.Unlock()
+	if calls != 1 || len(writer.deadlines) != 0 {
+		t.Fatalf("success: next=%d host deadline mutations=%v", calls, writer.deadlines)
+	}
+}
+
+func TestMiddlewareOnlyShortensHostDeadlineOnIdleOrCancel(t *testing.T) {
+	for _, cancelRequest := range []bool{false, true} {
+		transaction := &recordingTransaction{}
+		calls := 0
+		middleware := newTestMiddleware(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) { calls++ }), transaction)
+		middleware.config.RequestBodyIdleTimeoutMillis = 10
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		body := newBlockingRequestBody()
+		request := httptest.NewRequest(http.MethodPost, "http://example.test/deadline-abort", nil).WithContext(ctx)
+		request.Body = body
+		request.ContentLength = -1
+		joined := make(chan struct{})
+		if cancelRequest {
+			go func() { defer close(joined); <-body.started; cancel() }()
+		} else {
+			close(joined)
+		}
+		writer := &deadlineSpyResponseWriter{ResponseRecorder: httptest.NewRecorder()}
+		middleware.ServeHTTP(writer, withTestLocalEndpoint(request))
+		<-joined
+		writer.mu.Lock()
+		if calls != 0 || len(writer.deadlines) == 0 {
+			t.Errorf("cancel=%v: next=%d deadlines=%v", cancelRequest, calls, writer.deadlines)
+		}
+		for _, deadline := range writer.deadlines {
+			if deadline.IsZero() || deadline.After(time.Now()) {
+				t.Errorf("cancel=%v: deadline extended or cleared: %v", cancelRequest, deadline)
+			}
+		}
+		writer.mu.Unlock()
+	}
+}
+
+type unwrappingResponseWriter struct{ http.ResponseWriter }
+
+func (writer unwrappingResponseWriter) Unwrap() http.ResponseWriter { return writer.ResponseWriter }
+
+func (writer deadlineResponseWriter) SetReadDeadline(deadline time.Time) error {
+	return writer.connection.SetReadDeadline(deadline)
+}
+
+func TestMiddlewareAdmissionDeadlineUnblocksHTTPBodyRead(t *testing.T) {
+	for _, cancelMode := range []string{"idle", "during-read", "before-read", "p2-close-drain"} {
+		t.Run(cancelMode, func(t *testing.T) {
+			server, client := net.Pipe()
+			defer server.Close()
+			defer client.Close()
+			clientDone := make(chan struct{})
+			go func() {
+				defer close(clientDone)
+				payload := "POST /idle HTTP/1.1\r\nHost: example.test\r\nContent-Length: 5\r\n\r\n"
+				if cancelMode == "p2-close-drain" {
+					payload += "x"
+				}
+				_, _ = io.WriteString(client, payload)
+			}()
+			request, err := http.ReadRequest(bufio.NewReader(server))
+			if err != nil {
+				t.Fatal(err)
+			}
+			<-clientDone
+			ctx, cancel := context.WithCancel(request.Context())
+			defer cancel()
+			request = request.WithContext(ctx)
+			transaction := &recordingTransaction{}
+			wantStatus := http.StatusInternalServerError
+			if cancelMode == "p2-close-drain" {
+				wantStatus = http.StatusForbidden
+				transaction.bodyDecision = func(Direction, []byte, bool) Decision {
+					return Decision{Action: ActionDeny, Status: http.StatusForbidden}
+				}
+			}
+			calls := 0
+			middleware := newTestMiddleware(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) { calls++ }), transaction)
+			middleware.config.RequestBodyIdleTimeoutMillis = 100
+			if cancelMode == "before-read" {
+				cancel()
+			} else if cancelMode == "during-read" {
+				timer := time.AfterFunc(10*time.Millisecond, cancel)
+				defer timer.Stop()
+			}
+			response := httptest.NewRecorder()
+			middleware.ServeHTTP(unwrappingResponseWriter{unwrappingResponseWriter{deadlineResponseWriter{response, server}}}, withTestLocalEndpoint(request))
+			if calls != 0 || response.Code != wantStatus || len(transaction.closed) != 1 || transaction.closed[0].RequestEOS {
+				t.Fatalf("blocked HTTP body: calls=%d status=%d close=%#v", calls, response.Code, transaction.closed)
+			}
+		})
+	}
+}
+
+func TestMiddlewareAdmitsExactReplayOnceAfterEOS(t *testing.T) {
+	payload := "a\x00\xff\r\nbinary"
+	source := newTrackingRequestBody(payload)
+	transaction := &recordingTransaction{}
+	calls := 0
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		calls++
+		assertRequestBodyCallbacks(t, transaction, len(payload))
+		if source.closes != 1 {
+			t.Fatalf("source closes before next = %d, want 1", source.closes)
+		}
+		body, err := io.ReadAll(request.Body)
+		if err != nil || string(body) != payload {
+			t.Fatalf("replay = %q/%v", body, err)
+		}
+		_ = request.Body.Close()
+		writer.WriteHeader(http.StatusNoContent)
+	}), transaction)
+	request := httptest.NewRequest(http.MethodPost, "http://example.test/replay", nil)
+	request.Body = source
+	request.ContentLength = int64(len(payload))
+	middleware.ServeHTTP(httptest.NewRecorder(), withTestLocalEndpoint(request))
+	assertRequestBodyCallbacks(t, transaction, len(payload))
+	if calls != 1 || source.closes != 1 || len(transaction.closed) != 1 || request.Body != source {
+		t.Fatalf("calls=%d source closes=%d transactions=%d original restored=%v", calls, source.closes, len(transaction.closed), request.Body == source)
+	}
+}
+
+type cancelOnWriteResponse struct {
+	*httptest.ResponseRecorder
+	cancel context.CancelFunc
+}
+
+type completionRecordingTransaction struct {
+	*recordingTransaction
+	commitErrors []error
+}
+
+func (transaction *completionRecordingTransaction) SetResponseCommit(ctx context.Context, _ bool, _ bool) error {
+	transaction.commitErrors = append(transaction.commitErrors, ctx.Err())
+	return ctx.Err()
+}
+
+type completionRecordingEngine struct{ transaction Transaction }
+
+func (engine completionRecordingEngine) Open(context.Context, Metadata) (Transaction, error) {
+	return engine.transaction, nil
+}
+
+func (writer cancelOnWriteResponse) Write(payload []byte) (int, error) {
+	count, err := writer.ResponseRecorder.Write(payload)
+	if writer.ResponseRecorder.Body.Len() == len("response") {
+		writer.cancel()
+	}
+	return count, err
+}
+
+func TestMiddlewareCompletesKnownResponseAfterFinalWriteCancellation(t *testing.T) {
+	for _, declaredLength := range []string{"8", "9", "", "+8", " 8", "8,8", "-8"} {
+		t.Run("length="+declaredLength, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.WithValue(context.Background(), testCompletionContextKey{}, "retained"))
+			defer cancel()
+			transaction := &recordingTransaction{honorCancellation: true}
+			committer := &completionRecordingTransaction{recordingTransaction: transaction}
+			middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+				if declaredLength != "" {
+					writer.Header().Set("Content-Length", declaredLength)
+				}
+				_, _ = writer.Write([]byte("response"))
+			}), transaction)
+			middleware.engine = completionRecordingEngine{committer}
+			request := httptest.NewRequest(http.MethodGet, "http://example.test/completion", nil).WithContext(ctx)
+			response := httptest.NewRecorder()
+			middleware.ServeHTTP(cancelOnWriteResponse{response, cancel}, withTestLocalEndpoint(request))
+			if len(transaction.closed) != 1 {
+				t.Fatalf("Close count = %d", len(transaction.closed))
+			}
+			wantEOS := declaredLength == "8"
+			if transaction.closed[0].ResponseEOS != wantEOS {
+				t.Fatalf("response EOS = %v, want %v", transaction.closed[0].ResponseEOS, wantEOS)
+			}
+			if wantEOS {
+				for _, err := range committer.commitErrors {
+					if err != nil {
+						t.Fatalf("completed final commit used canceled context: %v", err)
+					}
+				}
+				closeContext := transaction.contexts[len(transaction.contexts)-1]
+				if transaction.closeContextError != nil || closeContext.Value(testCompletionContextKey{}) != "retained" {
+					t.Fatalf("completion context canceled or lost values: %v", transaction.closeContextError)
+				}
+				if deadline, ok := closeContext.Deadline(); !ok || deadline.Sub(time.Now()) > time.Second {
+					t.Fatal("completion context lacks a one-second hard bound")
+				}
+			}
+		})
+	}
+}
+
+type testCompletionContextKey struct{}
+
+func TestMiddlewareEngineResponseEOSFailureDoesNotClaimEOS(t *testing.T) {
+	transaction := &recordingTransaction{responseEOSError: errors.New("response EOS exchange failed")}
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) { _, _ = writer.Write([]byte("response")) }), transaction)
+	middleware.ServeHTTP(httptest.NewRecorder(), withTestLocalEndpoint(httptest.NewRequest(http.MethodGet, "http://example.test/eos-failure", nil)))
+	if len(transaction.closed) != 1 || transaction.closed[0].ResponseEOS {
+		t.Fatalf("failed EOS acknowledged in summary: %#v", transaction.closed)
+	}
+}
+
+type responseDataErrorReader struct{}
+
+func (responseDataErrorReader) Read(buffer []byte) (int, error) {
+	return copy(buffer, "ab"), errors.New("upstream body failed after declared bytes")
+}
+
+func TestMiddlewareCompleteLengthWithReadErrorDoesNotDetachOrClaimEOS(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	transaction := &recordingTransaction{honorCancellation: true}
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Length", "2")
+		if _, err := writer.(io.ReaderFrom).ReadFrom(responseDataErrorReader{}); err == nil {
+			t.Fatal("ReadFrom lost upstream error")
+		}
+		cancel()
+	}), transaction)
+	request := httptest.NewRequest(http.MethodGet, "http://example.test/read-error", nil).WithContext(ctx)
+	middleware.ServeHTTP(httptest.NewRecorder(), withTestLocalEndpoint(request))
+	if len(transaction.closed) != 1 || transaction.closed[0].ResponseEOS || !errors.Is(transaction.closeContextError, context.Canceled) {
+		t.Fatalf("read error detached or claimed EOS: close=%#v context=%v", transaction.closed, transaction.closeContextError)
+	}
+}
+
+func TestMiddlewareEOSDecisionStopsDownstream(t *testing.T) {
+	transaction := &recordingTransaction{bodyDecision: func(direction Direction, _ []byte, end bool) Decision {
+		if direction == DirectionRequest && end {
+			return Decision{Action: ActionDeny, Status: http.StatusForbidden}
+		}
+		return allowDecision()
+	}}
+	calls := 0
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) { calls++ }), transaction)
+	request := httptest.NewRequest(http.MethodPost, "http://example.test/eos-deny", strings.NewReader("request"))
+	response := httptest.NewRecorder()
+	middleware.ServeHTTP(response, withTestLocalEndpoint(request))
+	if calls != 0 || response.Code != http.StatusForbidden {
+		t.Fatalf("EOS denial: calls=%d status=%d", calls, response.Code)
+	}
+	assertRequestBodyCallbacks(t, transaction, len("request"))
+}
+
+func TestMiddlewareCancellationDuringAdmissionStopsDownstream(t *testing.T) {
+	body := newBlockingRequestBody()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	request := httptest.NewRequest(http.MethodPost, "http://example.test/cancel", nil).WithContext(ctx)
+	request.Body = body
+	request.ContentLength = -1
+	transaction := &recordingTransaction{}
+	calls := 0
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) { calls++ }), transaction)
+	joined := make(chan struct{})
+	go func() { defer close(joined); <-body.started; cancel() }()
+	response := httptest.NewRecorder()
+	middleware.ServeHTTP(response, withTestLocalEndpoint(request))
+	<-joined
+	if calls != 0 || response.Code != http.StatusInternalServerError || len(transaction.closed) != 1 || transaction.closed[0].RequestEOS {
+		t.Fatalf("cancel admission: calls=%d status=%d close=%#v", calls, response.Code, transaction.closed)
+	}
 }
 
 func assertRequestBodyCallbacks(t *testing.T, transaction *recordingTransaction, wantBytes int) {
@@ -685,8 +1095,8 @@ func TestMiddlewareFailsClosedWhenPreCommitRequestDrainFails(t *testing.T) {
 	response := httptest.NewRecorder()
 	middleware.ServeHTTP(response, withTestLocalEndpoint(request))
 
-	if !nextCalled {
-		t.Fatal("next handler was not reached before its response triggered the drain")
+	if nextCalled {
+		t.Fatal("next handler was reached after failed request admission")
 	}
 	if got, want := response.Code, http.StatusInternalServerError; got != want {
 		t.Fatalf("status = %d, want fail-closed status %d", got, want)

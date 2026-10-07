@@ -2,6 +2,42 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
+## Go-Composite-Common-Runtime und beobachteter Lifecycle
+
+Das separat gebaute `msconnector-composite --mode envoy` wählt die kanonische
+Identität `envoy / ext_authz / envoy-ext-authz` mit gepufferten Requests und
+gestreamten Responses. Es verwendet den additiven gepufferten Header-Start,
+explizites Request-Append/EOS und die private Common-Response-Companion-Session
+für P3/P4. Direktes `envoy-ext-proc` behält gestreamte Requests und Responses.
+
+Go-Lease, Kontext und Deadline werden vor dem nativen Claim geprüft. Nativer
+Ablauf konsumiert die Ownership; konsumierte Cleanup-Fehler werden nicht
+wiederholt. Unaufgelöstes Cleanup versetzt den Coordinator dauerhaft in einen
+Fehlerzustand und sperrt die Aufnahme für kontrollierten Neustart. Terminales
+Cleanup ist einmalig geschützt und behält die Entry-Ownership bis zum
+Abschluss. Ein echter Common-Body-Limit-Fehler wird auf 413 abgebildet und mit
+der tatsächlichen Host-Aktion aufgezeichnet; terminales Cleanup eines
+unvollständigen Bodys erfindet weder EOS noch P2-Regelauswertung.
+
+Am 2026-10-03 bestand der externe Lauf `p370efix.LLQmPm7g` den nativen Build,
+344 benannte Tagged-Tests ohne Skips, C17-Companion-Prüfungen, direkten Verkehr
+mit echtem Envoy und die Go-Composite-Lifecycle-Matrix. Der korrigierte
+Fokuslauf `p370efu.Ggj72Jct` liefert Fehler-/Folgeanfrage-Evidence im selben
+Dienst. Die Matrix bleibt `lifecycle_only` mit
+`catalog_acceptance=false`; P4 Strict wird nicht hochgestuft. Diese Evidence
+gilt für das Go-Executable und die gewählte Konfiguration, nicht für die
+beibehaltene C-`ext_authz`-Route. Deren bestehende Einschränkungen
+`implemented_not_asserted` bleiben erhalten.
+
+Source-Manifeste, Executable-/Bibliothekshashes, Beobachtungen geladener
+Bibliotheken, Ressourcenmessungen und Cleanup-Ergebnisse bleiben bei den
+externen Läufen erhalten.
+
+Vollständige G1–G9-Abnahme aller neun Nicht-NGINX-Profile bleibt offen;
+Produktionsreife wird nicht behauptet. Siehe
+[Change Record](../../reports/audits/change-records/CR-20261003-pr370-composite-common-runtime.de.md)
+für Umfang, Befehle und verbleibende Lücken.
+
 
 Status: `minimal_runtime_smoke` / `connector-gap`
 

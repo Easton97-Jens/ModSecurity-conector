@@ -32,6 +32,14 @@ Der frühere Worktree fehlt; daher neuen task-eigenen Worktree vom veröffentlic
 - `ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh`, `tests/test_apache_request_transaction_cleanup.py`
 - Dieser EN/DE-Record, EN/DE-Archivindex und Querverweise im früheren EN/DE-Readiness-Record. Andere eingehende Master-Dateien sind Integrationshistorie, keine separat ausgewählten Edits.
 
+## Scope-Abgleich vom 2026-10-03
+
+Die NGINX-Aussagen oben beschreiben den Zwischenstand vom 1. Oktober. Der
+Benutzer schloss NGINX anschließend aus. Alle vier NGINX-Fixture-/Contract-
+Test-Pfade entsprechen nun `origin/master`; der finale PR liefert oder
+verwertet diese Receipt-Identitätskorrektur nicht. Die verbleibende Arbeit an
+neun Profilen ist von diesen Dateien unabhängig.
+
 ## Ausgeführte Befehle
 
 Alle Shell-Befehle liefen RTK-wrapped. Vorhandenes `python3` ist exakt `3.14.7`; keine Dependency-Installation. Task-Ausgabe: `/var/tmp/codex/ModSecurity-conector/runs/pr370-refresh-20261001`.

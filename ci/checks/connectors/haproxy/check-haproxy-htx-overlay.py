@@ -24,8 +24,16 @@ HTX_RUNTIME = ROOT / "connectors/haproxy/harness/run_haproxy_htx_runtime.sh"
 
 
 def function_body(text: str, signature: str) -> str:
-    start = text.index(signature)
-    open_brace = text.index("{", start)
+    # A forward declaration is not a body: the next opening brace can belong
+    # to an unrelated helper and would silently invalidate lifecycle checks.
+    definitions = []
+    for match in re.finditer(re.escape(signature), text):
+        delimiter = re.search(r"[;{]", text[match.end() :])
+        if delimiter is not None and delimiter.group() == "{":
+            definitions.append((match.start(), match.end() + delimiter.start()))
+    if len(definitions) != 1:
+        raise ValueError(f"expected one function definition: {signature}")
+    start, open_brace = definitions[0]
     depth = 0
     for position in range(open_brace, len(text)):
         if text[position] == "{":

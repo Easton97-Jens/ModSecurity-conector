@@ -46,10 +46,10 @@ static const char *test_private_directory(void)
     return test_private_root;
 }
 
-static void create_runtime_fixture(char config_path[TEST_PATH_SIZE],
+static void create_runtime_fixture_enabled(char config_path[TEST_PATH_SIZE],
     char event_path[TEST_PATH_SIZE], char rules_path[TEST_PATH_SIZE],
     const char *rules_text, const char *request_body_mode,
-    const char *phase4_mode) {
+    const char *phase4_mode, const char *enabled) {
     const char *directory = test_private_directory();
     FILE *config;
     FILE *rules;
@@ -80,7 +80,7 @@ static void create_runtime_fixture(char config_path[TEST_PATH_SIZE],
     config = fdopen(config_fd, "w");
     assert(config != NULL);
     assert(fprintf(config,
-        "enabled=on\n"
+        "enabled=%s\n"
         "rules_file=%s\n"
         "transaction_id_header=x-request-id\n"
         "request_body_mode=%s\n"
@@ -95,9 +95,17 @@ static void create_runtime_fixture(char config_path[TEST_PATH_SIZE],
         "max_header_value_size=512\n"
         "max_total_header_bytes=4096\n"
         "max_event_json_bytes=16384\n"
-        "event_path=%s\n", rules_path, request_body_mode, phase4_mode,
+        "event_path=%s\n", enabled, rules_path, request_body_mode, phase4_mode,
         event_path) > 0);
     assert(fclose(config) == 0);
+}
+
+static void create_runtime_fixture(char config_path[TEST_PATH_SIZE],
+    char event_path[TEST_PATH_SIZE], char rules_path[TEST_PATH_SIZE],
+    const char *rules_text, const char *request_body_mode,
+    const char *phase4_mode) {
+    create_runtime_fixture_enabled(config_path, event_path, rules_path,
+        rules_text, request_body_mode, phase4_mode, "on");
 }
 
 static size_t read_event_jsonl(const char *event_path, char *contents,
@@ -576,6 +584,166 @@ static void *run_parallel_response(void *opaque) {
     return NULL;
 }
 
+static void test_deferred_buffered_request_body(void) {
+    static const unsigned char marker[] = "deferred-marker";
+    static const char rules[] =
+        "SecRuleEngine On\nSecRequestBodyAccess On\n"
+        "SecRule REQUEST_URI \"@streq /blocked\" \"id:1010,phase:1,deny,status:403,log\"\n"
+        "SecRule REQUEST_BODY \"@contains deferred-marker\" \"id:1011,phase:2,deny,status:403,log\"\n";
+    char config_path[TEST_PATH_SIZE], event_path[TEST_PATH_SIZE], rules_path[TEST_PATH_SIZE];
+    msconnector_runtime *runtime = NULL;
+    msconnector_runtime_transaction *transaction = NULL;
+    msconnector_runtime_transaction_snapshot snapshot;
+    msconnector_request request;
+    msconnector_decision decision;
+    msconnector_error error;
+    unsigned char bounded_body[1025];
+
+    create_runtime_fixture(config_path, event_path, rules_path, rules, "buffered", "safe");
+    assert(msconnector_runtime_create("traefik", config_path, &runtime, NULL, 0U));
+    assert(msconnector_runtime_set_event_integration_mode(runtime, "forwardAuth"));
+    assert(msconnector_runtime_set_transaction_profile(runtime,
+        msconnector_profile_registry_find("traefik-forwardauth")));
+    initialize_forwardauth_request(&request, NULL, 0U);
+
+    /* No body buffer, including a non-NULL zero-length buffer, is admitted. */
+    request.body.data = marker;
+    assert(!msconnector_runtime_transaction_begin_request_headers(runtime, &request,
+        "deferred-invalid", &transaction, &decision, &error));
+    assert(transaction == NULL);
+    request.body.data = NULL;
+    request.body.size = 1U;
+    assert(!msconnector_runtime_transaction_begin_request_headers(runtime, &request,
+        "deferred-invalid-size", &transaction, &decision, &error));
+    assert(transaction == NULL);
+    request.body.size = 0U;
+
+    assert(msconnector_runtime_transaction_begin_request_headers(runtime, &request,
+        "deferred-body", &transaction, &decision, &error));
+    assert(msconnector_runtime_transaction_snapshot_get(transaction, &snapshot));
+    assert(!snapshot.request_body.finished);
+    assert(snapshot.contract.completed_phase_mask == MSCONNECTOR_TRANSACTION_PHASE_MASK_P1);
+    assert(msconnector_runtime_transaction_append_request_body_chunk(transaction, marker, 8U, &error));
+    assert(msconnector_runtime_transaction_append_request_body_chunk(transaction,
+        marker + 8U, sizeof(marker) - 1U - 8U, &error));
+    assert(msconnector_runtime_transaction_finish_request_body(transaction, &decision, &error));
+    assert(msconnector_decision_http_status(&decision) == 403);
+    assert(!msconnector_runtime_transaction_finish_request_body(transaction, &decision, &error));
+    assert(!msconnector_runtime_transaction_append_request_body_chunk(transaction, marker, 1U, &error));
+    msconnector_runtime_transaction_destroy(&transaction);
+
+    request.uri = "/blocked";
+    assert(msconnector_runtime_transaction_begin_request_headers(runtime, &request,
+        "deferred-p1-deny", &transaction, &decision, &error));
+    assert(msconnector_decision_http_status(&decision) == 403);
+    assert(!msconnector_runtime_transaction_append_request_body_chunk(transaction, marker, 1U, &error));
+    assert(!msconnector_runtime_transaction_finish_request_body(transaction, &decision, &error));
+    assert(msconnector_runtime_transaction_snapshot_get(transaction, &snapshot));
+    assert((snapshot.contract.completed_phase_mask & MSCONNECTOR_TRANSACTION_PHASE_MASK_P2) == 0U);
+    msconnector_runtime_transaction_destroy(&transaction);
+
+    request.uri = "/empty";
+    assert(msconnector_runtime_transaction_begin_request_headers(runtime, &request,
+        "deferred-empty", &transaction, &decision, &error));
+    assert(msconnector_runtime_transaction_finish_request_body(transaction, &decision, &error));
+    assert(msconnector_decision_action_from_decision(&decision) == MSCONNECTOR_DECISION_ACTION_ALLOW);
+    assert(!msconnector_runtime_transaction_finish_request_body(transaction, &decision, &error));
+    assert(!msconnector_runtime_transaction_finish_host_rejected_request_body(transaction, &error));
+    assert(msconnector_runtime_transaction_cancel(transaction, 0, &error));
+    msconnector_runtime_transaction_destroy(&transaction);
+
+    assert(msconnector_runtime_transaction_begin_request_headers(runtime, &request,
+        "deferred-missing-eos", &transaction, &decision, &error));
+    assert(!msconnector_runtime_transaction_finish(transaction, &error));
+    assert(error.code == MSCONNECTOR_ERROR_PHASE_SEQUENCE);
+    assert(msconnector_runtime_transaction_snapshot_get(transaction, &snapshot));
+    assert(snapshot.contract.status == MSCONNECTOR_TRANSACTION_STATUS_TERMINAL);
+    msconnector_runtime_transaction_destroy(&transaction);
+
+    assert(msconnector_runtime_transaction_begin_request_headers(runtime, &request,
+        "deferred-host-rejected", &transaction, &decision, &error));
+    assert(msconnector_runtime_transaction_append_request_body_chunk(transaction, marker, 1U, &error));
+    assert(msconnector_runtime_transaction_fail(transaction,
+        MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, &error));
+    assert(msconnector_runtime_transaction_record_failure_host_action(transaction, 413, 0, &error));
+    assert(msconnector_runtime_transaction_finish_host_rejected_request_body(transaction, &error));
+    assert(msconnector_runtime_transaction_snapshot_get(transaction, &snapshot));
+    assert(!snapshot.request_body.finished);
+    assert((snapshot.contract.completed_phase_mask & MSCONNECTOR_TRANSACTION_PHASE_MASK_P2) == 0U);
+    assert(!msconnector_runtime_transaction_append_request_body_chunk(transaction, marker, 1U, &error));
+    assert(!msconnector_runtime_transaction_finish_request_body(transaction, &decision, &error));
+    msconnector_runtime_transaction_destroy(&transaction);
+
+    memset(bounded_body, 'x', sizeof(bounded_body));
+    for (size_t size = 1023U; size <= 1025U; ++size) {
+        assert(msconnector_runtime_transaction_begin_request_headers(runtime, &request,
+            "deferred-limit", &transaction, &decision, &error));
+        assert(msconnector_runtime_transaction_append_request_body_chunk(transaction, bounded_body, 512U, &error));
+        if (size <= 1024U) {
+            assert(msconnector_runtime_transaction_append_request_body_chunk(transaction,
+                bounded_body + 512U, size - 512U, &error));
+            assert(msconnector_runtime_transaction_finish_request_body(transaction, &decision, &error));
+            assert(msconnector_decision_action_from_decision(&decision) == MSCONNECTOR_DECISION_ACTION_ALLOW);
+            assert(msconnector_runtime_transaction_cancel(transaction, 0, &error));
+        } else {
+            assert(!msconnector_runtime_transaction_append_request_body_chunk(transaction,
+                bounded_body + 512U, size - 512U, &error));
+            assert(error.code == MSCONNECTOR_ERROR_BODY_TOO_LARGE);
+        }
+        msconnector_runtime_transaction_destroy(&transaction);
+    }
+    msconnector_runtime_destroy(&runtime);
+    assert(unlink(config_path) == 0);
+    assert(unlink(event_path) == 0);
+    assert(unlink(rules_path) == 0);
+}
+
+static void test_deferred_mode_admission_and_disabled_engine(void) {
+    static const char *modes[] = {"none", "streaming", "buffered"};
+    for (size_t index = 0U; index < sizeof(modes) / sizeof(modes[0]); ++index) {
+        char config_path[TEST_PATH_SIZE], event_path[TEST_PATH_SIZE], rules_path[TEST_PATH_SIZE];
+        msconnector_runtime *runtime = NULL;
+        msconnector_runtime_transaction *transaction = NULL;
+        msconnector_runtime_transaction_snapshot snapshot;
+        msconnector_request request;
+        msconnector_decision decision;
+        msconnector_error error;
+        create_runtime_fixture_enabled(config_path, event_path, rules_path,
+            "SecRuleEngine On\n", modes[index], "safe", "off");
+        assert(msconnector_runtime_create("traefik", config_path, &runtime, NULL, 0U));
+        assert(msconnector_runtime_set_event_integration_mode(runtime, "forwardAuth"));
+        assert(msconnector_runtime_set_transaction_profile(runtime,
+            msconnector_profile_registry_find("traefik-forwardauth")));
+        initialize_forwardauth_request(&request, NULL, 0U);
+        if (strcmp(modes[index], "buffered") != 0) {
+            assert(!msconnector_runtime_transaction_begin_request_headers(runtime, &request,
+                "deferred-wrong-mode", &transaction, &decision, &error));
+            assert(transaction == NULL);
+        } else {
+            assert(msconnector_runtime_transaction_begin_request_headers(runtime, &request,
+                "deferred-disabled", &transaction, &decision, &error));
+            assert(msconnector_runtime_transaction_snapshot_get(transaction, &snapshot));
+            assert(snapshot.contract.completed_phase_mask == MSCONNECTOR_TRANSACTION_PHASE_MASK_P1);
+            assert(!msconnector_runtime_transaction_finish(transaction, &error));
+            assert(error.code == MSCONNECTOR_ERROR_PHASE_SEQUENCE);
+            msconnector_runtime_transaction_destroy(&transaction);
+            assert(msconnector_runtime_transaction_begin_request_headers(runtime, &request,
+                "deferred-disabled-eos", &transaction, &decision, &error));
+            assert(msconnector_runtime_transaction_finish_request_body(transaction, &decision, &error));
+            assert(msconnector_runtime_transaction_snapshot_get(transaction, &snapshot));
+            assert(snapshot.request_body.finished);
+            assert(snapshot.contract.completed_phase_mask ==
+                (MSCONNECTOR_TRANSACTION_PHASE_MASK_P1 | MSCONNECTOR_TRANSACTION_PHASE_MASK_P2));
+            assert(msconnector_runtime_transaction_cancel(transaction, 0, &error));
+            msconnector_runtime_transaction_destroy(&transaction);
+        }
+        msconnector_runtime_destroy(&runtime);
+        assert(unlink(config_path) == 0);
+        assert(unlink(event_path) == 0);
+        assert(unlink(rules_path) == 0);
+    }
+}
+
 int main(void) {
     msconnector_runtime *runtime = NULL;
     msconnector_runtime_response_companion_registry registry;
@@ -708,6 +876,8 @@ int main(void) {
     test_oversized_escaped_client_address_is_not_written_or_chained();
     test_buffered_request_body_handoff();
     test_traefik_forwardauth_buffered_p2_handoff();
+    test_deferred_buffered_request_body();
+    test_deferred_mode_admission_and_disabled_engine();
     assert(rmdir(test_private_root) == 0);
     return 0;
 }
