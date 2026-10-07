@@ -10,6 +10,11 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20261007-pr396-ci-fixture-contracts](CR-20261007-pr396-ci-fixture-contracts.md)
+  | [Deutsch](CR-20261007-pr396-ci-fixture-contracts.de.md) — three scoped
+  CI fixture/workflow repairs after successor-head verification; unchanged
+  dependency pins, no Full E2E or fresh runtime coverage claim.
+
 - [CR-20261003-framework-sonar-gitlink](CR-20261003-framework-sonar-gitlink.md)
   | [Deutsch](CR-20261003-framework-sonar-gitlink.de.md) — separately bind the
   published, CI-/Sonar-validated Framework maintenance commit; no new runtime claim.

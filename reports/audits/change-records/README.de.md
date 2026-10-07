@@ -11,6 +11,11 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20261007-pr396-ci-fixture-contracts](CR-20261007-pr396-ci-fixture-contracts.de.md)
+  | English companion: `CR-20261007-pr396-ci-fixture-contracts.md` — drei
+  begrenzte CI-Fixture-/Workflow-Fixes nach Nachfolger-Head-Prüfung; unveränderte
+  Dependency-Pins, kein Full E2E oder frischer Runtime-Coverage-Claim.
+
 - [CR-20261003-framework-sonar-gitlink](CR-20261003-framework-sonar-gitlink.de.md)
   | English companion: `CR-20261003-framework-sonar-gitlink.md` — veröffentlichten,
   CI-/Sonar-validierten Framework-Wartbarkeitscommit separat binden; kein neuer Runtime-Claim.
