@@ -4,6 +4,8 @@
 
 For the 2026-10-01 current-master integration and renewed relevance/validation
 assessment, see [CR-20261001-pr370-refresh-relevance](CR-20261001-pr370-refresh-relevance.md).
+Fresh successor evidence produced on 2026-10-07 is maintained in
+[CR-20261003-pr370-composite-common-runtime](CR-20261003-pr370-composite-common-runtime.md).
 The evidence below is historical, not a successor-head acceptance claim.
 
 ## Identity
@@ -408,8 +410,10 @@ body-boundary, fail-closed error, and cleanup controls remain unchanged.
 
 Scope reconciliation on 2026-10-03 restored all four NGINX fixture and
 contract-test paths to `origin/master` because the user excluded NGINX from
-the final PR scope. This section therefore records a historical intermediate
-head only; the current PR does not deliver the correction, and its NGINX
+readiness-B qualification. The 2026-10-07 clarification permits current-master
+NGINX updates, which the branch now integrates, but still excludes NGINX B
+runtime credit. This section therefore records a historical intermediate head
+only; the current PR does not separately deliver that correction, and its
 receipts must not be credited as exact version evidence.
 
 ## SonarQube Cloud new-code duplication follow-up — 2026-09-19

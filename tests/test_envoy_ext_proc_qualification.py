@@ -218,12 +218,12 @@ class BoundaryDeltaTests(unittest.TestCase):
             with self.subTest(headers=headers), self.assertRaises(q.InvalidEvidence):
                 q.client_receipt(response, 'redirect')
 
-    def test_response33_safe_requires_no_native_event_and_log_only_eos(self):
+    def test_response33_legacy_budget_requires_no_native_event_and_plain_eos(self):
         record = completion('q1-response-limit', 'response_end_of_stream')
         record.update(request_body_bytes=2, request_body_chunks=1, response_header_count=5,
-            response_body_bytes=33, response_body_chunks=1, late_action='log_only')
+            response_body_bytes=33, response_body_chunks=1, late_action='none')
         q.verify_probe('q1-response-limit', 200, 1, [record], [], 'response-limit')
-        for key, value in (('response_body_bytes', 32), ('close_reason', 'grpc_peer_eof'), ('late_action', 'none')):
+        for key, value in (('response_body_bytes', 32), ('close_reason', 'grpc_peer_eof'), ('late_action', 'log_only')):
             broken = dict(record, **{key: value})
             with self.subTest(key=key), self.assertRaises(q.InvalidEvidence):
                 q.verify_probe('q1-response-limit', 200, 1, [broken], [], 'response-limit')
@@ -625,7 +625,7 @@ class ObserverTests(unittest.TestCase):
                         q.verify_origin_probe(origin, 'q1-probe', kind)
 
     def test_blocked_probes_require_no_body_or_header_receipts(self):
-        for kind in ('p1', 'p2', 'limit'):
+        for kind in ('p1', 'p2', 'limit', 'chunked-p2', 'chunked-limit', 'malformed', 'unavailable'):
             origin = SimpleNamespace(lock=threading.Lock(), observations={}, body_receipts={})
             q.verify_origin_probe(origin, 'q1-block', kind)
             origin.observations['q1-block'] = 1

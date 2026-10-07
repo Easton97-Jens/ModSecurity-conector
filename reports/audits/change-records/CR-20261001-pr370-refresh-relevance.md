@@ -32,6 +32,14 @@ The earlier worktree is absent, so use a new task-owned worktree from the publis
 - `ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh`, `tests/test_apache_request_transaction_cleanup.py`
 - This EN/DE record, EN/DE archive index and cross-references in the earlier EN/DE readiness record. Other incoming master files are integration history, not separately selected edits.
 
+## Historical boundary
+
+Unless a later dated section says otherwise, this record describes the
+October 1 checkout and its observed results. Current successor status,
+including the materialized Framework checkout and the later current-master
+merge, is maintained in
+[`CR-20261003-pr370-composite-common-runtime.md`](CR-20261003-pr370-composite-common-runtime.md).
+
 ## 2026-10-03 scope reconciliation
 
 The NGINX statements above describe the October 1 intermediate head. The user
@@ -39,6 +47,15 @@ subsequently excluded NGINX. All four NGINX fixture/contract-test paths now
 match `origin/master`; the final PR neither delivers nor credits that receipt
 identity correction. The remaining nine-profile work is independent of those
 files.
+
+## 2026-10-07 scope clarification
+
+The exclusion applies to NGINX readiness-B qualification and runtime credit,
+not to repository updates. The successor integrates the complete NGINX state
+from current master while making no NGINX B claim.
+
+Fresh successor runtime evidence produced on 2026-10-07 is maintained in
+[CR-20261003-pr370-composite-common-runtime](CR-20261003-pr370-composite-common-runtime.md).
 
 ## Commands executed
 
@@ -68,7 +85,7 @@ The direct Common companion binary validates escaped-event hashing and buffered 
 
 ## Known limitations
 
-The worktree has no materialized Framework checkout. Five pin-bound cases and the Stock runtime-identity prerequisite skip are explicit local gaps. The newer directory regression cannot create its hardcoded `/tmp` fixture in this sandbox. Full local framework-dependent lint/docs and all-ten-profile G1–G9 evidence are not established.
+The October 1 worktree had no materialized Framework checkout. Five pin-bound cases and the Stock runtime-identity prerequisite skip were explicit local gaps. The newer directory regression could not create its hardcoded `/tmp` fixture in that sandbox. Full local framework-dependent lint/docs and all-ten-profile G1–G9 evidence were not established by that run.
 
 ## Remaining risks
 

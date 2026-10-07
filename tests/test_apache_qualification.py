@@ -54,18 +54,16 @@ def valid_safe_p4():
 
 def valid_overlimit():
     value = valid_safe_p4()
-    value.update(message_id="MSCONN_EVENT_BODY_LIMIT", event="body_limit", rule_id="",
-                 action="abort_connection", actual_action="abort_connection", http_status=500,
-                 transport_result="connection_aborted", reason="request_body_limit_exceeded",
+    value.update(message_id="MSCONN_EVENT_PHASE4_LATE_INTERVENTION", rule_id="",
                  uri="/response/1025", method="GET", content_type="text/plain",
-                 body_bytes_seen=1025, body_bytes_inspected=0, body_limit_outcome="reject",
-                 body_truncated=True, connection_aborted=True)
+                 body_bytes_seen=1025, body_bytes_inspected=1025)
     return value
 
 
 def valid_precommit_overlimit():
     value = valid_overlimit()
-    value.update(action="deny", actual_action="deny", visible_http_status=500,
+    value.update(message_id="MSCONN_EVENT_RESPONSE_BLOCKED", action="deny", actual_action="deny", visible_http_status=403,
+                 reason="response_not_committed",
                  transport_result="http_status", late_intervention=False, response_started=False,
                  response_committed=False, headers_sent=False, body_started=False, connection_aborted=False)
     del value["late_intervention_mode"]
@@ -73,6 +71,29 @@ def valid_precommit_overlimit():
 
 
 class ApacheQualificationTest(unittest.TestCase):
+    def test_native_engine_limit_reject_does_not_fabricate_connector_body_limit(self):
+        qualification.assert_response_overlimit([valid_overlimit()], "after_commit")
+        qualification.assert_response_overlimit([valid_precommit_overlimit()], "before_commit")
+        for branch, valid in (("after_commit", valid_overlimit()), ("before_commit", valid_precommit_overlimit())):
+            for changed in ({"body_limit_outcome": "reject"}, {"rule_id": "991004"},
+                            {"message_id": "MSCONN_EVENT_BODY_LIMIT"}, {"http_status": 500},
+                            {"body_bytes_inspected": 0}, {"body_truncated": True}):
+                with self.subTest(branch=branch, changed=changed), self.assertRaises(RuntimeError):
+                    qualification.assert_response_overlimit([{**valid, **changed}], branch)
+
+    def test_legacy_connector_budget_bypass_is_separate_from_native_engine_limit(self):
+        generated = qualification.config(Path("/run/owned"), Path("/module.so"), Path("/modules.conf"), 8000, 8001)
+        self.assertIn("modsecurity_phase4_body_limit 32", generated)
+        self.assertIn("SecResponseBodyLimit 1024\n", qualification.RULES)
+        host = Mock()
+        host.request.side_effect = lambda *_args, **_kwargs: {}
+        host.origin.parallel_peak, host.origin.parallel_errors = 4, []
+        with patch.object(qualification, "exercise_keepalive", return_value=[]):
+            qualification.exercise(host, True)
+        bypass = next(call for call in host.request.call_args_list
+                      if call.args[0] == "response-legacy-connector-budget-bypass")
+        self.assertEqual(bypass.kwargs, {"path": "/response/33", "expected_body": b"x" * 33})
+
     def test_security_module_load_precedes_external_include_and_duplicate_is_fatal(self):
         text = qualification.config(Path("/run/owned"), Path("/mod_security3.so"), Path("/modules.conf"), 8000, 8001)
         self.assertLess(text.index("LoadModule security3_module"), text.index("Include "))
@@ -85,19 +106,182 @@ class ApacheQualificationTest(unittest.TestCase):
             module = Path(directory) / "mod_security3.so"
             module.write_bytes(b"pinned module")
             pin = qualification.input_identity(module)
-            info = module.stat()
-            line = f"1000-2000 r-xp 00000000 {os.major(info.st_dev):x}:{os.minor(info.st_dev):x} {info.st_ino} {module}\n"
+            device, inode = pin["st_dev"], pin["st_ino"]
+            line = (f"1000-2000 r-xp 00000000 {os.major(device):x}:"
+                    f"{os.minor(device):x} {inode} {module}\n")
             qualification.assert_mapped_module(line, module, pin)
-            for changed in ("", line.replace(str(info.st_ino), str(info.st_ino + 1)),
+            other_device = os.makedev(os.major(device), os.minor(device) + 1)
+            for changed in ("", line.replace(str(inode), str(inode + 1)),
                             line.replace(str(module), str(module) + " (deleted)"),
                             line.replace(str(module), str(module.parent / "other.so")),
-                            line.replace(f"{os.major(info.st_dev):x}:{os.minor(info.st_dev):x}", "ff:ff"),
+                            line.replace(f"{os.major(device):x}:{os.minor(device):x}",
+                                         f"{os.major(other_device):x}:{os.minor(other_device):x}"),
                             line + line.replace(str(module), str(module.parent / "alternate_security3.so"))):
                 with self.subTest(maps=changed), self.assertRaises(RuntimeError):
                     qualification.assert_mapped_module(changed, module, pin)
             module.write_bytes(b"changed module")
             with self.assertRaises(RuntimeError):
                 qualification.assert_mapped_module(line, module, pin)
+
+    def test_overlay_device_alias_requires_the_observed_backing_tuple(self):
+        with temporary_directory() as directory:
+            module = Path(directory) / "mod_security3.so"
+            module.write_bytes(b"pinned module")
+            pin = qualification.input_identity(module)
+            alias = os.makedev(os.major(pin["st_dev"]), os.minor(pin["st_dev"]) + 1)
+            line = (f"1000-2000 r-xp 00000000 {os.major(alias):x}:"
+                    f"{os.minor(alias):x} {pin['st_ino']} {module}\n")
+            mountinfo = "1 0 0:48 / / rw - overlay overlay rw\n"
+            overlay_mount = (pin["st_dev"], "overlay", Path("/"), Path("/"))
+            with patch.object(qualification, "effective_mount",
+                              return_value=overlay_mount), \
+                    patch.object(qualification, "backing_mapping_identity",
+                                 return_value=(alias, pin["st_ino"])):
+                qualification.assert_mapped_module(line, module, pin, mountinfo)
+            with patch.object(qualification, "effective_mount",
+                              return_value=overlay_mount), \
+                    patch.object(qualification, "backing_mapping_identity",
+                                 return_value=(os.makedev(255, 255), pin["st_ino"])):
+                with self.assertRaises(RuntimeError):
+                    qualification.assert_mapped_module(line, module, pin, mountinfo)
+            with patch.object(qualification, "effective_mount",
+                              return_value=(pin["st_dev"], "ext4", Path("/"), Path("/"))), \
+                    patch.object(qualification, "backing_mapping_identity",
+                                 return_value=(alias, pin["st_ino"])):
+                with self.assertRaises(RuntimeError):
+                    qualification.assert_mapped_module(line, module, pin, mountinfo)
+            wrong_mount = os.makedev(os.major(pin["st_dev"]), os.minor(pin["st_dev"]) + 2)
+            with patch.object(qualification, "effective_mount",
+                              return_value=(wrong_mount, "overlay", Path("/"), Path("/"))), \
+                    patch.object(qualification, "backing_mapping_identity",
+                                 return_value=(alias, pin["st_ino"])):
+                with self.assertRaises(RuntimeError):
+                    qualification.assert_mapped_module(line, module, pin, mountinfo)
+            pinned_line = (f"2000-3000 r--p 00000000 {os.major(pin['st_dev']):x}:"
+                           f"{os.minor(pin['st_dev']):x} {pin['st_ino']} {module}\n")
+            with patch.object(qualification, "effective_mount",
+                              return_value=overlay_mount), \
+                    patch.object(qualification, "backing_mapping_identity",
+                                 return_value=(alias, pin["st_ino"])), self.assertRaises(RuntimeError):
+                qualification.assert_mapped_module(line + pinned_line, module, pin, mountinfo)
+
+    def test_btrfs_device_alias_requires_mount_and_descriptor_backing_device(self):
+        with temporary_directory() as directory:
+            module = Path(directory) / "mod_security3.so"
+            module.write_bytes(b"pinned module")
+            pin = qualification.input_identity(module)
+            backing = os.makedev(os.major(pin["st_dev"]), os.minor(pin["st_dev"]) + 1)
+            line = (f"1000-2000 r-xp 00000000 {os.major(backing):x}:"
+                    f"{os.minor(backing):x} {pin['st_ino']} {module}\n")
+            mountinfo = "1 0 0:45 /subvolume /safe rw - btrfs /dev/test rw\n"
+            observed = (backing, "btrfs", Path("/subvolume"), Path("/safe"))
+            with patch.object(qualification, "effective_mount", return_value=observed), \
+                    patch.object(qualification, "backing_mapping_identity",
+                                 return_value=(backing, pin["st_ino"])):
+                qualification.assert_mapped_module(line, module, pin, mountinfo)
+            wrong_mount = (os.makedev(os.major(backing), os.minor(backing) + 1), "btrfs",
+                           Path("/subvolume"), Path("/safe"))
+            with patch.object(qualification, "effective_mount", return_value=wrong_mount), \
+                    patch.object(qualification, "backing_mapping_identity",
+                                 return_value=(backing, pin["st_ino"])), self.assertRaises(RuntimeError):
+                qualification.assert_mapped_module(line, module, pin, mountinfo)
+            different_root = (backing, "btrfs", Path("/snapshot"), Path("/safe"))
+            with patch.object(qualification, "effective_mount",
+                              side_effect=(observed, different_root)), \
+                    patch.object(qualification, "backing_mapping_identity",
+                                 return_value=(backing, pin["st_ino"])), self.assertRaises(RuntimeError):
+                qualification.assert_mapped_module(line, module, pin, mountinfo)
+
+    def test_effective_mount_uses_component_boundaries_and_rejects_stacks(self):
+        target = Path("/safe/root/module.so")
+        root = "1 0 0:48 / / rw - overlay overlay rw\n"
+        nested = "2 1 0:49 / /safe/root rw - tmpfs tmpfs rw\n"
+        sibling = "3 1 0:50 / /safe/root-other rw - tmpfs tmpfs rw\n"
+        self.assertEqual(qualification.effective_mount(target, root + sibling),
+                         (os.makedev(0, 48), "overlay", Path("/"), Path("/")))
+        self.assertEqual(qualification.effective_mount(target, root + nested + sibling),
+                         (os.makedev(0, 49), "tmpfs", Path("/"), Path("/safe/root")))
+        with self.assertRaises(RuntimeError):
+            qualification.effective_mount(target, root + nested + nested.replace("2 1", "4 1"))
+        with self.assertRaises(RuntimeError):
+            qualification.effective_mount(target, "1 0 0:48 / \\777 rw - overlay overlay rw\n")
+        stacked = ("1 0 0:1 / / rw - ext4 /dev/root rw\n"
+                   "2 1 0:48 / /safe rw - overlay overlay rw\n"
+                   "3 2 0:48 / /safe/root rw - overlay overlay rw\n"
+                   "4 2 0:49 / /safe rw - tmpfs tmpfs rw\n")
+        with self.assertRaises(RuntimeError):
+            qualification.effective_mount(target, stacked)
+        self.assertEqual(qualification.effective_mount(target, stacked.splitlines(True)[0]
+                         + stacked.splitlines(True)[1] + stacked.splitlines(True)[2] + sibling),
+                         (os.makedev(0, 48), "overlay", Path("/"), Path("/safe/root")))
+
+    def test_effective_mount_rejects_truncated_and_invalid_records(self):
+        target = Path("/safe/module.so")
+        invalid = (
+            "1 0 0:48 / / - overlay overlay rw\n",
+            "1 0 0:48 / / rw - overlay\n",
+            "x 0 0:48 / / rw - overlay overlay rw\n",
+            "1 x 0:48 / / rw - overlay overlay rw\n",
+            "1 0 x:48 / / rw - overlay overlay rw\n",
+            "1 0 0:48 relative / rw - overlay overlay rw\n",
+            "1 0 0:48 / relative rw - overlay overlay rw\n",
+            "1 0 0:48 / / rw - overlay overlay rw - extra\n",
+        )
+        for mountinfo in invalid:
+            with self.subTest(mountinfo=mountinfo), self.assertRaises(RuntimeError):
+                qualification.effective_mount(target, mountinfo)
+
+    def test_backing_mapping_identity_requires_unique_map_and_stable_pin(self):
+        with temporary_directory() as directory:
+            module = Path(directory) / "mod_security3.so"
+            module.write_bytes(b"pinned module")
+            pin = qualification.input_identity(module)
+            line = (f"1000-2000 r--s 00000000 {os.major(pin['st_dev']):x}:"
+                    f"{os.minor(pin['st_dev']):x} {pin['st_ino']} {module}\n")
+            with patch.object(qualification, "proc_read", return_value=line.encode()):
+                self.assertEqual(qualification.backing_mapping_identity(module, pin),
+                                 (pin["st_dev"], pin["st_ino"]))
+            for maps in (b"", (line + line.replace(
+                    f"{os.major(pin['st_dev']):x}:{os.minor(pin['st_dev']):x}", "ff:ff")).encode()):
+                with self.subTest(maps=maps), patch.object(qualification, "proc_read", return_value=maps), \
+                        self.assertRaises(RuntimeError):
+                    qualification.backing_mapping_identity(module, pin)
+
+            def mutate_during_observation(_pid, _name):
+                info = module.stat()
+                os.utime(module, ns=(info.st_atime_ns, pin["st_mtime_ns"] + 1_000_000))
+                return line.encode()
+
+            with patch.object(qualification, "proc_read", side_effect=mutate_during_observation), \
+                    self.assertRaises(RuntimeError):
+                qualification.backing_mapping_identity(module, pin)
+
+    def test_observed_module_maps_requires_stable_shared_mount_context(self):
+        with temporary_directory() as directory:
+            module = Path(directory) / "mod_security3.so"
+            module.write_bytes(b"pinned module")
+            pin = qualification.input_identity(module)
+            maps = (f"1000-2000 r-xp 00000000 {os.major(pin['st_dev']):x}:"
+                    f"{os.minor(pin['st_dev']):x} {pin['st_ino']} {module}\n").encode()
+            mountinfo = b"1 0 0:48 / / rw - overlay overlay rw\n"
+            context = ((1, 2), (3, 4))
+            with patch.object(qualification, "process_mount_context", return_value=context), \
+                    patch.object(qualification, "proc_read", side_effect=(maps, mountinfo)):
+                self.assertEqual(qualification.observed_module_maps(9876, module, pin), maps.decode())
+            other = ((1, 9), (3, 4))
+            with patch.object(qualification, "process_mount_context",
+                              side_effect=(context, other)), self.assertRaises(RuntimeError):
+                qualification.observed_module_maps(9876, module, pin)
+            with patch.object(qualification, "process_mount_context",
+                              side_effect=(context, context, other)), \
+                    patch.object(qualification, "proc_read", side_effect=(maps, mountinfo)), \
+                    self.assertRaises(RuntimeError):
+                qualification.observed_module_maps(9876, module, pin)
+            with patch.object(qualification, "process_mount_context",
+                              side_effect=(context, context, context, other)), \
+                    patch.object(qualification, "proc_read", side_effect=(maps, mountinfo)), \
+                    self.assertRaises(RuntimeError):
+                qualification.observed_module_maps(9876, module, pin)
 
     def test_input_pin_rejects_identical_byte_replacement_between_starts(self):
         with temporary_directory() as directory:
@@ -138,11 +322,11 @@ class ApacheQualificationTest(unittest.TestCase):
         before, after = valid_precommit_overlimit(), valid_overlimit()
         for field in ("action", "actual_action", "visible_http_status", "transport_result",
                       "late_intervention", "response_started", "response_committed",
-                      "headers_sent", "body_started", "connection_aborted"):
+                      "headers_sent", "body_started", "reason", "message_id"):
             with self.subTest(field=field), self.assertRaises(RuntimeError):
                 qualification.assert_response_overlimit([{**before, field: after[field]}], "before_commit")
 
-    def test_aftercommit_wire_receipt_and_log_are_bound_together(self):
+    def test_aftercommit_wire_receipt_and_event_are_bound_together(self):
         host = object.__new__(qualification.Host)
         host.port, host.pid, host.root = 19000, 123, Path("/run/owned")
         host.guard, host.sample = Mock(), Mock()
@@ -153,7 +337,7 @@ class ApacheQualificationTest(unittest.TestCase):
         host.origin.receipts.get.return_value = 1
         for event, allowed in ((valid_overlimit(), True), (valid_precommit_overlimit(), False)):
             response = qualification.StrictHTTPResponse(Mock(makefile=Mock(return_value=io.BytesIO(
-                b"HTTP/1.1 200 OK\r\nContent-Length: 1025\r\n\r\n"))))
+                b"HTTP/1.1 200 OK\r\nContent-Length: 1025\r\n\r\n" + b"x" * 1025))))
             response.begin()
             client = Mock()
             client.getresponse.return_value = response
@@ -163,33 +347,28 @@ class ApacheQualificationTest(unittest.TestCase):
                     case = host.request("response-body-1025", None, path="/response/1025", response_overlimit=True)
                     self.assertEqual(case["status"], 200)
                     self.assertEqual(case["response_overlimit_branch"], "after_commit")
-                    self.assertEqual(case["response_remaining_bytes"], 1025)
-                    self.assertFalse(case["response_framing_complete"])
+                    self.assertEqual(case["response_remaining_bytes"], 0)
+                    self.assertTrue(case["response_framing_complete"])
                 else:
                     with self.assertRaises(RuntimeError):
                         host.request("response-body-1025", None, path="/response/1025", response_overlimit=True)
         message = ("ModSecurity: Phase 4 response gate failed after response commit: "
                    "response body exceeds modsecurity_phase4_body_limit")
         with patch.object(Path, "glob", return_value=[Path("/run/error.log")]):
-            with patch.object(qualification, "bounded_read", return_value=message.encode()):
+            with patch.object(qualification, "bounded_read", return_value=message.encode()), self.assertRaises(RuntimeError):
                 qualification.reconcile_logs(host.root, [case])
-                for changed in ({"response_overlimit_branch": "before_commit"}, {"status": 500},
-                                {"response_framing_complete": True}, {"response_body_bytes": 1},
-                                {"events": [valid_precommit_overlimit()]}):
-                    with self.subTest(changed=changed), self.assertRaises(RuntimeError):
-                        qualification.reconcile_logs(host.root, [{**case, **changed}])
             for wire in (message.replace("after response commit", "before response commit"),
                          message + "\n" + message, message + " trailing"):
                 with patch.object(qualification, "bounded_read", return_value=wire.encode()), \
                         self.assertRaises(RuntimeError):
                     qualification.reconcile_logs(host.root, [case])
 
-    def test_deterministic_local_error_document_is_full_bounded_500(self):
-        wanted = b"qualification-apache-local-error-500"
+    def test_deterministic_engine_reject_document_is_full_bounded_403(self):
+        wanted = qualification.ENGINE_REJECT_BODY
         for body, allowed in ((wanted, True), (b"", False), (wanted[:-1], False),
                               (b"x" * len(wanted), False), (b"<html>dynamic page</html>", False)):
             response = qualification.StrictHTTPResponse(Mock(makefile=Mock(return_value=io.BytesIO(
-                b"HTTP/1.1 500 Internal Server Error\r\nContent-Length: " +
+                b"HTTP/1.1 403 Forbidden\r\nContent-Length: " +
                 str(len(wanted)).encode() + b"\r\n\r\n" + body))))
             response.begin()
             with self.subTest(body=body):
@@ -198,9 +377,9 @@ class ApacheQualificationTest(unittest.TestCase):
                 else:
                     with self.assertRaises(RuntimeError):
                         qualification.bounded_overlimit_body(response, "local-error")
-                self.assertEqual(response.qualification_wire["status"], 500)
+                self.assertEqual(response.qualification_wire["status"], 403)
         generated = qualification.config(Path("/run/owned"), Path("/module.so"), Path("/modules.conf"), 8000, 8001)
-        self.assertIn('ErrorDocument 500 "qualification-apache-local-error-500"', generated)
+        self.assertIn('ErrorDocument 403 "qualification-apache-engine-reject-403"', generated)
 
     def test_failed_attempt_receipts_reconcile_without_accepting_unknown_records(self):
         host = object.__new__(qualification.Host)
@@ -236,14 +415,14 @@ class ApacheQualificationTest(unittest.TestCase):
                 patch.object(qualification, "bounded_read", return_value=data + b'{"transaction_id":"unknown"}\n'), \
                 self.assertRaises(RuntimeError):
             qualification.reconcile_final(host.root, host.probe_failures, {attempt["token"]: 1}, [])
-    def test_overlimit_200_abort_requires_zero_body_and_exact_internal_events(self):
-        for body in (b"", b"x", b"x" * 1025):
+    def test_overlimit_safe_200_requires_complete_original_body_and_native_event(self):
+        for body in (b"", b"x", b"y" * 1025, b"x" * 1025):
             response = qualification.StrictHTTPResponse(Mock(makefile=Mock(return_value=io.BytesIO(
                 b"HTTP/1.1 200 OK\r\nContent-Length: 1025\r\n\r\n" + body))))
             response.begin()
             with self.subTest(body_bytes=len(body)):
-                if not body:
-                    self.assertEqual(qualification.bounded_overlimit_body(response, "overlimit"), b"")
+                if body == b"x" * 1025:
+                    self.assertEqual(qualification.bounded_overlimit_body(response, "overlimit"), body)
                     self.assertEqual(response.qualification_wire["branch"], "after_commit")
                 else:
                     with self.assertRaises(RuntimeError):
@@ -294,7 +473,7 @@ class ApacheQualificationTest(unittest.TestCase):
         self.assertIn("secondary cleanup log", description)
         host.stop.assert_called_once()
 
-    def test_overlimit_dispatch_records_exact_local_500_and_followup(self):
+    def test_overlimit_dispatch_records_exact_engine_403_and_followup(self):
         host = object.__new__(qualification.Host)
         host.port, host.pid, host.root = 19000, 123, Path("/run/owned")
         host.guard, host.sample = Mock(), Mock()
@@ -303,10 +482,10 @@ class ApacheQualificationTest(unittest.TestCase):
         host.origin = Mock()
         host.origin.lock = threading.Lock()
         host.origin.receipts.get.return_value = 1
-        wanted = qualification.LOCAL_ERROR_BODY
+        wanted = qualification.ENGINE_REJECT_BODY
         for body, allowed in ((wanted, True), (b"x" * len(wanted), False)):
             response = qualification.StrictHTTPResponse(Mock(makefile=Mock(return_value=io.BytesIO(
-                b"HTTP/1.1 500 Internal Server Error\r\nContent-Length: " +
+                b"HTTP/1.1 403 Forbidden\r\nContent-Length: " +
                 str(len(wanted)).encode() + b"\r\n\r\n" + body))))
             response.begin()
             client = Mock()
@@ -315,7 +494,7 @@ class ApacheQualificationTest(unittest.TestCase):
                     patch.object(qualification, "events", return_value=[valid_precommit_overlimit()]):
                 if allowed:
                     result = host.request("response-body-1025", None, path="/response/1025", response_overlimit=True)
-                    self.assertEqual(result["status"], 500)
+                    self.assertEqual(result["status"], 403)
                     self.assertEqual(result["response_body_bytes"], len(wanted))
                     self.assertEqual(result["response_declared_bytes"], len(wanted))
                     self.assertEqual(result["response_remaining_bytes"], 0)
@@ -389,28 +568,16 @@ class ApacheQualificationTest(unittest.TestCase):
         with patch.object(http.client.HTTPResponse, "begin"), self.assertRaisesRegex(RuntimeError, "defective"):
             response.begin()
 
-    def test_exact_expected_response_limit_log_only_once(self):
+    def test_legacy_connector_response_limit_failure_is_never_allowed(self):
         message = ("ModSecurity: Phase 4 response gate failed before response commit: "
                    "response body exceeds modsecurity_phase4_body_limit")
-        case = {"case": "response-body-1025", "status": 500, "backend_delta": 1,
-                "events": [valid_precommit_overlimit()], "response_body_bytes": len(qualification.LOCAL_ERROR_BODY),
-                "response_body_sha256": hashlib.sha256(qualification.LOCAL_ERROR_BODY).hexdigest(),
-                "response_declared_bytes": len(qualification.LOCAL_ERROR_BODY), "response_remaining_bytes": 0,
-                "response_framing_complete": True, "response_termination": "local_error_document_complete",
-                "response_overlimit_branch": "before_commit"}
+        case = {"case": "response-body-1025", "events": [valid_precommit_overlimit()]}
         prefix = "[Thu Oct 01 00:00:00.000 2026] [modsecurity:error] [pid 123] [client 127.0.0.1:1] "
         with patch.object(Path, "glob", return_value=[Path("/run/error.log")]):
-            with patch.object(qualification, "bounded_read", return_value=(prefix + message + "\n").encode()):
+            with patch.object(qualification, "bounded_read", return_value=b""):
                 qualification.reconcile_logs(Path("/run"), [case])
-                for cases in ([], [case, case], [{**case, "status": 200}],
-                              [{**case, "backend_delta": 0}], [{**case, "case": "unexpected"}],
-                              [{**case, "response_body_bytes": 1}], [{**case, "response_framing_complete": False}],
-                              [{**case, "response_termination": "timeout"}],
-                              [{**case, "events": [valid_safe_p4()]}]):
-                    with self.subTest(cases=cases), self.assertRaises(RuntimeError):
-                        qualification.reconcile_logs(Path("/run"), cases)
             for wire in (message + " trailing", message.replace("body exceeds", "engine failed"),
-                         message + "\n" + message, "[core:crit] " + message, "",
+                         message + "\n" + message, "[core:crit] " + message, prefix + message,
                          message.replace("before response commit", "after response commit")):
                 with self.subTest(wire=wire), patch.object(qualification, "bounded_read", return_value=wire.encode()), \
                         self.assertRaises(RuntimeError):
@@ -1114,7 +1281,7 @@ class ApacheQualificationTest(unittest.TestCase):
         self.assertIn('LoadModule security3_module "/build/mod_security3.so"', value)
         self.assertIn('modsecurity_transaction_id_expr "%{req:X-Qualification-ID}"', value)
         self.assertIn("modsecurity_phase4_mode safe", value)
-        self.assertIn("modsecurity_phase4_body_limit 1024", value)
+        self.assertIn("modsecurity_phase4_body_limit 32", value)
         self.assertIn("ProxyPass / http://127.0.0.1:18002/", value)
         self.assertIn("SecRequestBodyLimitAction Reject", qualification.RULES)
         self.assertIn("SecResponseBodyLimitAction Reject", qualification.RULES)

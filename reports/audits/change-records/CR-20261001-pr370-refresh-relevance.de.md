@@ -32,6 +32,15 @@ Der frühere Worktree fehlt; daher neuen task-eigenen Worktree vom veröffentlic
 - `ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh`, `tests/test_apache_request_transaction_cleanup.py`
 - Dieser EN/DE-Record, EN/DE-Archivindex und Querverweise im früheren EN/DE-Readiness-Record. Andere eingehende Master-Dateien sind Integrationshistorie, keine separat ausgewählten Edits.
 
+## Historische Abgrenzung
+
+Sofern ein später datierter Abschnitt nichts anderes sagt, beschreibt dieser
+Record den Checkout vom 1. Oktober und seine beobachteten Ergebnisse. Der
+aktuelle Nachfolgerstatus einschließlich des materialisierten Framework-
+Checkouts und des späteren Current-Master-Merges wird in
+[`CR-20261003-pr370-composite-common-runtime.de.md`](CR-20261003-pr370-composite-common-runtime.de.md)
+gepflegt.
+
 ## Scope-Abgleich vom 2026-10-03
 
 Die NGINX-Aussagen oben beschreiben den Zwischenstand vom 1. Oktober. Der
@@ -39,6 +48,16 @@ Benutzer schloss NGINX anschließend aus. Alle vier NGINX-Fixture-/Contract-
 Test-Pfade entsprechen nun `origin/master`; der finale PR liefert oder
 verwertet diese Receipt-Identitätskorrektur nicht. Die verbleibende Arbeit an
 neun Profilen ist von diesen Dateien unabhängig.
+
+## Scope-Klarstellung vom 2026-10-07
+
+Der Ausschluss gilt für NGINX-Reife-B-Qualifikation und Runtime-Anrechnung,
+nicht für Repository-Aktualisierungen. Der Nachfolger integriert den
+vollständigen NGINX-Stand aus aktuellem Master, ohne eine NGINX-B-Behauptung
+aufzustellen.
+
+Frische Nachfolger-Runtime-Evidence vom 2026-10-07 wird in
+[CR-20261003-pr370-composite-common-runtime](CR-20261003-pr370-composite-common-runtime.de.md) gepflegt.
 
 ## Ausgeführte Befehle
 
@@ -68,7 +87,7 @@ Das direkte Common-Companion-Binary validiert Escaped-Event-Hashing und buffered
 
 ## Bekannte Einschränkungen
 
-Der Worktree besitzt keinen materialisierten Framework-Checkout. Fünf Pin-Bound-Fälle und der Stock-Runtime-Identity-Prerequisite-Skip sind explizite lokale Lücken. Die neuere Verzeichnisregression kann ihre fest auf `/tmp` gelegte Fixture in dieser Sandbox nicht erstellen. Vollständige lokale Framework-abhängige Lint-/Docs-Prüfungen und G1–G9-Evidenz für alle zehn Profile sind nicht erbracht.
+Der Worktree vom 1. Oktober besaß keinen materialisierten Framework-Checkout. Fünf Pin-Bound-Fälle und der Stock-Runtime-Identity-Prerequisite-Skip waren explizite lokale Lücken. Die neuere Verzeichnisregression konnte ihre fest auf `/tmp` gelegte Fixture in jener Sandbox nicht erstellen. Vollständige lokale Framework-abhängige Lint-/Docs-Prüfungen und G1–G9-Evidenz für alle zehn Profile wurden durch diesen Lauf nicht erbracht.
 
 ## Verbleibende Risiken
 

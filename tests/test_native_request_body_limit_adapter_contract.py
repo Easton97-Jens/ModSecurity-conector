@@ -52,6 +52,26 @@ class NativeRequestBodyLimitAdapterContractTests(unittest.TestCase):
         self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT", phase2)
         self.assertIn("HTTP_REQUEST_ENTITY_TOO_LARGE", phase2)
 
+    def test_apache_response_limit_classifier_is_narrow_and_precedes_correlation(self) -> None:
+        intervention = function_definition(self.apache, "process_intervention")
+        mapper = function_definition(
+            self.apache, "msc_apache_contract_record_intervention_decision"
+        )
+
+        classifier = intervention.index(
+            "msconnector_intervention_is_response_body_limit_rejection"
+        )
+        normalize = intervention.index("msconnector_intervention_normalize_status")
+        retained = intervention.rindex(
+            "msr->last_intervention_response_body_limit", 0, classifier
+        )
+        self.assertLess(classifier, normalize)
+        self.assertLess(retained, normalize)
+        response_limit = mapper.index("msr->last_intervention_response_body_limit")
+        correlation = mapper.index("msconnector_rule_id_extract_from_message")
+        self.assertLess(response_limit, correlation)
+        self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT", mapper)
+
     def test_nginx_classifies_before_rule_id_correlation_and_emits_body_limit(self) -> None:
         intervention = function_definition(
             self.nginx, "ngx_http_modsecurity_process_intervention"

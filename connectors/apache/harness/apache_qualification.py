@@ -15,6 +15,7 @@ import http.client
 import importlib.util
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import mmap
 import os
 from pathlib import Path
 import re
@@ -30,7 +31,9 @@ import time
 GUARD = Path(__file__).with_name("apache_process_guard.py")
 MAX_ARTIFACT = 8 * 1024 * 1024
 LIMIT = 1024
+LEGACY_CONNECTOR_LIMIT = 32
 LOCAL_ERROR_BODY = b"qualification-apache-local-error-500"
+ENGINE_REJECT_BODY = b"qualification-apache-engine-reject-403"
 RULES = '''SecRuleEngine On
 SecRequestBodyAccess On
 SecRequestBodyLimit 1024
@@ -263,7 +266,7 @@ def bounded_read(path: Path, maximum: int = MAX_ARTIFACT) -> bytes:
 
 
 def proc_read(pid: int, name: str) -> bytes:
-    if pid <= 0 or name not in ("maps", "status"):
+    if pid <= 0 or name not in ("maps", "mountinfo", "status"):
         raise ValueError("unsupported kernel observation")
     fd = os.open(f"/proc/{pid}/{name}", os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     if not stat.S_ISREG(os.fstat(fd).st_mode):
@@ -320,9 +323,118 @@ def reject_security_module_preload(output: bytes) -> None:
         raise RuntimeError("security3 module was loaded more than once")
 
 
-def assert_mapped_module(maps: str, module: Path, expected: dict) -> None:
+def mapping_identity(fields: list[str]) -> tuple[int, int]:
+    try:
+        major, minor = (int(value, 16) for value in fields[3].split(":"))
+        return os.makedev(major, minor), int(fields[4])
+    except (ValueError, OverflowError) as error:
+        raise RuntimeError("malformed security3 module mapping") from error
+
+
+def decode_mount_path(value: str) -> Path:
+    escapes = {"040": " ", "011": "\t", "012": "\n", "134": "\\"}
+    decoded = []
+    index = 0
+    while index < len(value):
+        if value[index] != "\\":
+            decoded.append(value[index])
+            index += 1
+            continue
+        code = value[index + 1:index + 4]
+        if len(code) != 3 or code not in escapes:
+            raise RuntimeError("unsupported mountinfo path escape")
+        decoded.append(escapes[code])
+        index += 4
+    path = Path("".join(decoded))
+    if not path.is_absolute():
+        raise RuntimeError("mountinfo path is not absolute")
+    return path
+
+
+def effective_mount(path: Path, mountinfo: str) -> tuple[int, str, Path, Path]:
+    candidates = []
+    for line in mountinfo.splitlines():
+        fields = line.split()
+        try:
+            separators = [index for index, field in enumerate(fields) if field == "-"]
+            if len(separators) != 1 or separators[0] < 6 or len(fields) != separators[0] + 4:
+                raise RuntimeError("malformed mountinfo observation")
+            separator = separators[0]
+            if (not fields[0].isdecimal() or int(fields[0]) < 1
+                    or not fields[1].isdecimal() or int(fields[1]) < 0):
+                raise RuntimeError("malformed mountinfo observation")
+            device_parts = fields[2].split(":")
+            if len(device_parts) != 2 or not all(value.isdecimal() for value in device_parts):
+                raise RuntimeError("malformed mountinfo observation")
+            root = decode_mount_path(fields[3])
+            mount = decode_mount_path(fields[4])
+            filesystem = fields[separator + 1]
+            major, minor = (int(value, 10) for value in device_parts)
+            device = os.makedev(major, minor)
+        except (IndexError, ValueError, OverflowError) as error:
+            raise RuntimeError("malformed mountinfo observation") from error
+        if path == mount or path.is_relative_to(mount):
+            candidates.append((len(mount.parts), mount, device, filesystem, root))
+    if not candidates:
+        raise RuntimeError("pinned module has no covering mountinfo entry")
+    mounts = [candidate[1] for candidate in candidates]
+    if len(set(mounts)) != len(mounts):
+        raise RuntimeError("pinned module mountinfo is ambiguous")
+    depth = max(candidate[0] for candidate in candidates)
+    selected = [candidate for candidate in candidates if candidate[0] == depth]
+    if len(selected) != 1:
+        raise RuntimeError("pinned module mountinfo is ambiguous")
+    _, mount, device, filesystem, root = selected[0]
+    return device, filesystem, root, mount
+
+
+def proc_link_identity(pid: int, name: str) -> tuple[int, int]:
+    """Open one controlled proc magic link and identify its kernel object."""
+    if pid <= 0 or name not in ("ns/mnt", "root"):
+        raise ValueError("unsupported kernel identity")
+    flags = os.O_CLOEXEC | (os.O_RDONLY if name == "ns/mnt" else os.O_PATH | os.O_DIRECTORY)
+    fd = os.open(f"/proc/{pid}/{name}", flags)
+    try:
+        info = os.fstat(fd)
+        return info.st_dev, info.st_ino
+    finally:
+        os.close(fd)
+
+
+def process_mount_context(pid: int) -> tuple[tuple[int, int], tuple[int, int]]:
+    return proc_link_identity(pid, "ns/mnt"), proc_link_identity(pid, "root")
+
+
+def backing_mapping_identity(module: Path, expected: dict) -> tuple[int, int]:
+    """Observe the kernel mapping tuple for the safely opened pinned DSO."""
+    verify_input_identity(module, expected)
+    fd = file_fd(module, 256 * 1024 * 1024, evidence=False)
+    try:
+        info = os.fstat(fd)
+        fields = ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns")
+        if any(getattr(info, field) != expected[field] for field in fields) or info.st_size < 1:
+            raise RuntimeError("pinned DSO changed before backing-map observation")
+        with mmap.mmap(fd, 1, access=mmap.ACCESS_READ):
+            maps = proc_read(os.getpid(), "maps").decode()
+            identities = set()
+            for line in maps.splitlines():
+                mapping = line.split(maxsplit=5)
+                if len(mapping) == 6 and mapping[5] == str(module):
+                    identities.add(mapping_identity(mapping))
+    finally:
+        os.close(fd)
+    if len(identities) != 1:
+        raise RuntimeError("pinned DSO backing-map identity is missing or ambiguous")
+    verify_input_identity(module, expected)
+    return identities.pop()
+
+
+def assert_mapped_module(maps: str, module: Path, expected: dict,
+                         host_mountinfo: str | None = None) -> None:
     """Bind kernel map path/device/inode to the descriptor-hashed DSO input."""
     found = False
+    identities = set()
+    backing_identity = None
     for line in maps.splitlines():
         fields = line.split(maxsplit=5)
         if len(fields) != 6:
@@ -330,18 +442,45 @@ def assert_mapped_module(maps: str, module: Path, expected: dict) -> None:
         path = fields[5]
         if path != str(module) and "security3" not in Path(path).name:
             continue
-        try:
-            major, minor = (int(value, 16) for value in fields[3].split(":"))
-            device = os.makedev(major, minor)
-            inode = int(fields[4])
-        except (ValueError, OverflowError) as error:
-            raise RuntimeError("malformed security3 module mapping") from error
-        if path != str(module) or device != expected["st_dev"] or inode != expected["st_ino"]:
+        device, inode = mapping_identity(fields)
+        if path != str(module) or inode != expected["st_ino"]:
             raise RuntimeError("loaded security3 module differs from pinned DSO")
+        if device != expected["st_dev"]:
+            if host_mountinfo is None:
+                raise RuntimeError("loaded security3 module differs from pinned DSO")
+            if backing_identity is None:
+                backing_identity = backing_mapping_identity(module, expected)
+            if (device, inode) != backing_identity:
+                raise RuntimeError("loaded security3 module differs from pinned DSO")
+            host_mount = effective_mount(module, host_mountinfo)
+            runner_mount = effective_mount(module, proc_read(os.getpid(), "mountinfo").decode())
+            if host_mount != runner_mount:
+                raise RuntimeError("loaded security3 module differs from pinned DSO")
+            mount_device, filesystem, _, _ = host_mount
+            if not ((filesystem == "overlay" and mount_device == expected["st_dev"])
+                    or (filesystem == "btrfs" and mount_device == backing_identity[0])):
+                raise RuntimeError("loaded security3 module differs from pinned DSO")
+        identities.add((device, inode))
         found = True
-    if not found:
+    if not found or len(identities) != 1:
         raise RuntimeError("pinned security3 module is absent from host mappings")
     verify_input_identity(module, expected)
+
+
+def observed_module_maps(pid: int, module: Path, expected: dict) -> str:
+    """Bind host maps to the runner's unchanged mount namespace and root."""
+    runner_context = process_mount_context(os.getpid())
+    host_context = process_mount_context(pid)
+    if host_context != runner_context:
+        raise RuntimeError("Apache host mount namespace or root differs from qualification runner")
+    maps = proc_read(pid, "maps").decode()
+    mountinfo = proc_read(pid, "mountinfo").decode()
+    assert_mapped_module(maps, module, expected, mountinfo)
+    if process_mount_context(os.getpid()) != runner_context:
+        raise RuntimeError("qualification runner mount namespace or root changed during observation")
+    if process_mount_context(pid) != host_context:
+        raise RuntimeError("Apache host mount namespace or root changed during observation")
+    return maps
 
 
 def trusted_file(value: str) -> Path:
@@ -418,52 +557,12 @@ def reconcile_final(root, cases, receipts, origin_errors):
 
 
 def reconcile_logs(root, cases=()):
-    expected_limit = [case for case in cases if case["case"] == "response-body-1025"]
-    allowed = 0
-    timing = None
-    if len(expected_limit) == 1:
-        case = expected_limit[0]
-        before = (case["status"] == 500 and case["backend_delta"] == 1
-                and case.get("response_body_bytes") == len(LOCAL_ERROR_BODY)
-                and case.get("response_body_sha256") == hashlib.sha256(LOCAL_ERROR_BODY).hexdigest()
-                and case.get("response_declared_bytes") == len(LOCAL_ERROR_BODY)
-                and case.get("response_remaining_bytes") == 0
-                and case.get("response_framing_complete") is True
-                and case.get("response_termination") == "local_error_document_complete"
-                and case.get("response_overlimit_branch") == "before_commit")
-        after = (case["status"] == 200 and case["backend_delta"] == 1
-                 and case.get("response_body_bytes") == 0
-                 and case.get("response_body_sha256") == hashlib.sha256(b"").hexdigest()
-                 and case.get("response_declared_bytes") == LIMIT + 1
-                 and case.get("response_remaining_bytes") == LIMIT + 1
-                 and case.get("response_framing_complete") is False
-                 and case.get("response_termination") == "eof_before_declared_length"
-                 and case.get("response_overlimit_branch") == "after_commit")
-        if before or after:
-            timing = "before" if before else "after"
-            assert_response_overlimit(case["events"], case["response_overlimit_branch"])
-            allowed = 1
-    seen_limit = 0
-    limit_message = (f"ModSecurity: Phase 4 response gate failed {timing} response commit: "
-                     "response body exceeds modsecurity_phase4_body_limit")
     for path in root.glob("*.log"):
         data = bounded_read(path).decode("utf-8", errors="strict")
         for line in data.splitlines():
-            if re.search(r"(?i)\b(?:fatal|crit(?:ical)?|panic|segfault|segmentation fault)\b", line):
-                raise RuntimeError("unexpected fatal/native engine log: " + path.name)
-            # Only a complete known message after Apache's bracketed prefix
-            # is eligible; receipt/Origin reconciliation remains mandatory.
-            matched = re.fullmatch(r"(?:\[[^\]\r\n]+\] )*" + re.escape(limit_message), line)
-            if matched and allowed:
-                seen_limit += 1
-                if seen_limit > allowed:
-                    raise RuntimeError("duplicate response body-limit log")
-                continue
             if re.search(r"(?i)\b(?:fatal|crit(?:ical)?|panic|segfault|segmentation fault)\b|"
                          r"(?i:modsecurity|native|engine).*(?i:internal error|engine error|failed\b|failure\b)", line):
                 raise RuntimeError("unexpected fatal/native engine log: " + path.name)
-    if seen_limit != allowed:
-        raise RuntimeError("expected response body-limit log multiplicity mismatch")
 
 
 def assert_decision(values: list[dict], rule: str | None, phase: str | None,
@@ -514,35 +613,40 @@ def assert_phase4_safe(values: list[dict]) -> None:
 
 def assert_response_overlimit(values: list[dict], branch="after_commit") -> None:
     if len(values) != 1:
-        raise RuntimeError("expected exactly one correlated response-overlimit abort")
+        raise RuntimeError("expected exactly one correlated native engine-limit intervention")
+    if "body_limit_outcome" in values[0]:
+        raise RuntimeError("native engine-limit intervention fabricated connector limit outcome")
     expected = {"connector": "apache", "integration_mode": "native-httpd-module",
-                "message_id": "MSCONN_EVENT_BODY_LIMIT", "event": "body_limit",
+                "message_id": "MSCONN_EVENT_PHASE4_LATE_INTERVENTION", "event": "phase4_intervention",
                 "phase": "response_body", "rule_id": "", "status": "blocked",
-                "requested_action": "deny", "action": "abort_connection",
-                "actual_action": "abort_connection", "http_status": 500,
+                "requested_action": "deny", "action": "log_only",
+                "actual_action": "log_only", "http_status": 403,
                 "original_http_status": 200, "visible_http_status": 200,
-                "transport_result": "connection_aborted", "reason": "request_body_limit_exceeded",
+                "transport_result": "log_only", "reason": "response_committed_safe",
                 "method": "GET", "uri": "/response/1025", "content_type": "text/plain",
-                "body_limit_outcome": "reject", "late_intervention_mode": "safe",
+                "late_intervention_mode": "safe",
                 "late_intervention": True, "response_started": True, "response_committed": True,
                 "headers_sent": True, "body_started": True, "eos_seen": True,
-                "body_bytes_seen": 1025, "body_bytes_inspected": 0, "body_truncated": True,
-                "connection_aborted": True, "client_disconnected": False,
+                # Apache counts successful append calls here; this does not
+                # assert that libModSecurity retained the rejected bucket.
+                "body_bytes_seen": 1025, "body_bytes_inspected": 1025, "body_truncated": False,
+                "connection_aborted": False, "client_disconnected": False,
                 "upstream_disconnected": False, "cancelled": False, "redacted": False,
                 "truncated": False}
     if branch == "before_commit":
-        expected.update(action="deny", actual_action="deny", visible_http_status=500,
+        expected.update(message_id="MSCONN_EVENT_RESPONSE_BLOCKED", reason="response_not_committed",
+                        action="deny", actual_action="deny", visible_http_status=403,
                         transport_result="http_status", late_intervention=False, response_started=False,
                         response_committed=False, headers_sent=False, body_started=False,
                         connection_aborted=False)
         del expected["late_intervention_mode"]
         if "late_intervention_mode" in values[0]:
-            raise RuntimeError("precommit body-limit unexpectedly reports late mode")
+            raise RuntimeError("precommit engine-limit unexpectedly reports late mode")
     elif branch != "after_commit":
         raise RuntimeError("unknown response-overlimit timing branch")
     for field, wanted in expected.items():
         if type(values[0].get(field)) is not type(wanted) or values[0].get(field) != wanted:
-            raise RuntimeError(f"response-overlimit abort {field} mismatch")
+            raise RuntimeError(f"native engine-limit intervention {field} mismatch")
 
 
 def response_framing(response: http.client.HTTPResponse, name: str) -> str:
@@ -660,10 +764,9 @@ def bounded_response_body(response: http.client.HTTPResponse, name: str) -> byte
 
 
 def bounded_overlimit_body(response: http.client.HTTPResponse, name: str) -> bytes:
-    # Bucket/filter scheduling permits two disjoint source paths: before
-    # commit, Apache core emits our deterministic local 500 ErrorDocument;
-    # after commit, it aborts the 200/CL1025 stream without forwarding this
-    # oversize bucket. Never mix either wire result with the other's receipt.
+    # Engine Reject is resolved at EOS. Before commit it produces a local
+    # 403; Safe after commit forwards the complete original body and logs.
+    # The wire branch must agree with its correlated native event.
     response.qualification_wire = {"status": response.status,
                                    "content_lengths": response.headers.get_all("Content-Length", []),
                                    "transfer_encodings": response.headers.get_all("Transfer-Encoding", []),
@@ -683,14 +786,15 @@ def bounded_overlimit_body(response: http.client.HTTPResponse, name: str) -> byt
         raise RuntimeError("response-overlimit local ErrorDocument exceeds bound")
     if response.status == 200:
         if (framing != "content-length" or response.headers.get_all("Content-Length") != [str(LIMIT + 1)]
-                or received or not response.isclosed() or response.length != LIMIT + 1):
-            raise RuntimeError("postcommit overlimit requires CL1025, zero body and premature EOF")
-        response.qualification_wire.update(termination="eof_before_declared_length", branch="after_commit")
+                or received != b"x" * (LIMIT + 1)):
+            raise RuntimeError("postcommit engine-limit requires complete unmodified CL1025 body")
+        assert_response_complete(response, name)
+        response.qualification_wire.update(termination="safe_original_complete", branch="after_commit")
         return received
     assert_response_complete(response, name)
-    if (response_framing(response, name) != "content-length" or response.status != 500
-            or response.headers.get_all("Content-Length") != [str(len(LOCAL_ERROR_BODY))]
-            or received != LOCAL_ERROR_BODY):
+    if (response_framing(response, name) != "content-length" or response.status != 403
+            or response.headers.get_all("Content-Length") != [str(len(ENGINE_REJECT_BODY))]
+            or received != ENGINE_REJECT_BODY):
         raise RuntimeError("unexpected response-overlimit local ErrorDocument status/framing/body")
     response.qualification_wire.update(termination="local_error_document_complete", branch="before_commit")
     return received
@@ -867,6 +971,7 @@ Include "{modules}"
 ErrorLog "{root}/error.log"
 LogLevel warn
 ErrorDocument 500 "{LOCAL_ERROR_BODY.decode('ascii')}"
+ErrorDocument 403 "{ENGINE_REJECT_BODY.decode('ascii')}"
 KeepAlive On
 MaxKeepAliveRequests 100
 KeepAliveTimeout 2
@@ -877,7 +982,7 @@ ProxyPassReverse / http://127.0.0.1:{origin_port}/
 modsecurity on
 modsecurity_transaction_id_expr "%{{req:X-Qualification-ID}}"
 modsecurity_phase4_mode safe
-modsecurity_phase4_body_limit 1024
+modsecurity_phase4_body_limit {LEGACY_CONNECTOR_LIMIT}
 modsecurity_phase4_log "{root}/events.jsonl"
 modsecurity_rules_file "{root}/rules.conf"
 '''
@@ -955,8 +1060,7 @@ class Host:
     def sample(self):
         if self.pid is None:
             raise RuntimeError("missing native host PID")
-        maps = proc_read(self.pid, "maps").decode()
-        assert_mapped_module(maps, self.args.module, self.args.input_pins["module"])
+        maps = observed_module_maps(self.pid, self.args.module, self.args.input_pins["module"])
         reject_security_module_preload(bounded_read(self.root / "launch.log"))
         candidates = {line.split()[-1] for line in maps.splitlines() if "libmodsecurity.so" in line}
         if not candidates:
@@ -1028,9 +1132,10 @@ class Host:
                 # connector evaluation. Its correlated event set must be
                 # empty, just like a non-intervening Allow.
                 assert_decision(observed, rule, phase, expected)
-            elif expected in (413, 500):
-                expected_phase = "request_body" if expected == 413 else "response_body"
-                assert_decision(observed, None, expected_phase, expected, body_limit=True)
+            elif expected == 413:
+                assert_decision(observed, None, "request_body", expected, body_limit=True)
+            else:
+                raise RuntimeError("unsupported qualification decision status")
             self.sample()
             if self.monitor_failures:
                 raise RuntimeError("resource monitor failed: " + self.monitor_failures[0])
@@ -1165,6 +1270,9 @@ def exercise(host: Host, extended: bool) -> list[dict]:
     results.append(host.request("p4-safe-postcommit", 200, 1, path="/p4", safe_postcommit=True,
                                 expected_body=b"qualification-p4-deny"))
     results.append(host.request("response-body-0", 200, path="/response/0", expected_body=b""))
+    results.append(host.request("response-legacy-connector-budget-bypass",
+                                path=f"/response/{LEGACY_CONNECTOR_LIMIT + 1}",
+                                expected_body=b"x" * (LEGACY_CONNECTOR_LIMIT + 1)))
     for size in (LIMIT - 1, LIMIT, LIMIT + 1):
         results.append(host.request(f"response-body-{size}", None if size > LIMIT else 200,
                                     path=f"/response/{size}",

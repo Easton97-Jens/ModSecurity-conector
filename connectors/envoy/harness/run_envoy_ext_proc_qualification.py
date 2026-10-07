@@ -4,6 +4,10 @@
 The versioned STREAMED profile is retained. In particular, a P2 denial that
 has already dispatched headers upstream fails G3 even if its body was stopped.
 The three source/binary pins identify inputs, not a reproducible-build claim.
+The response-limit probe crosses only the legacy connector budget; response
+inspection limits now belong to libModSecurity. An explicit engine Reject or
+ProcessPartial profile requires separately pinned rules and correlated native
+events and is not covered by this fixed-rules campaign.
 """
 from __future__ import annotations
 
@@ -58,6 +62,8 @@ RULES = '''SecRuleEngine On
 SecRequestBodyAccess On
 SecResponseBodyAccess On
 SecResponseBodyMimeType text/plain
+SecResponseBodyLimit 1048576
+SecResponseBodyLimitAction Reject
 SecRule REQUEST_URI "@streq /qualification/p1" "id:1900001,phase:1,deny,status:403,log"
 SecRule REQUEST_BODY "@contains qualification-p2" "id:1900002,phase:2,deny,status:403,log"
 SecRule RESPONSE_HEADERS:X-Qualification "@streq p3" "id:1900003,phase:3,deny,status:403,log"
@@ -253,7 +259,9 @@ def verify_origin_probe(origin, identifier, kind):
     with origin.lock:
         headers = origin.observations.get(identifier, 0)
         receipts = origin.body_receipts.get(identifier, []).copy()
-    expected_count = 0 if kind in ('p1', 'p2', 'limit', 'chunked-p2', 'chunked-limit', 'unavailable') else 1
+    expected_count = 0 if kind in (
+        'p1', 'p2', 'limit', 'chunked-p2', 'chunked-limit', 'malformed', 'unavailable'
+    ) else 1
     if headers != expected_count or len(receipts) != expected_count:
         raise InvalidEvidence('origin header/body receipt count contradicts probe')
     if receipts:
@@ -458,7 +466,6 @@ def validate_common(record: dict):
 
 def verify_probe(transaction_id, status, dispatched, completions, events, kind):
     selected_kind = kind
-    response_limit = kind == 'response-limit'
     redirect = kind == 'redirect'
     kind = {'exact': 'allow', 'chunked-exact': 'allow', 'chunked-p2': 'p2',
         'chunked-limit': 'limit', 'response-zero': 'allow', 'response-exact': 'allow',
@@ -491,7 +498,7 @@ def verify_probe(transaction_id, status, dispatched, completions, events, kind):
         (response_bytes == 0 and completion['response_body_chunks'] == 0) or
         (response_bytes > 0 and 1 <= completion['response_body_chunks'] <= response_bytes)):
         raise InvalidEvidence('response body counters contradict selected probe')
-    if completion['late_action'] != ('log_only' if kind == 'p4' or response_limit else 'none'):
+    if completion['late_action'] != ('log_only' if kind == 'p4' else 'none'):
         raise InvalidEvidence('unexpected completion late action')
     matching_events = [r for r in events if r['transaction_id'] == transaction_id]
     expected_events = 0 if kind in ('allow', 'empty') else 1 if kind == 'limit' else 2
@@ -1610,6 +1617,7 @@ def main(argv=None):
             source_sha256=args.source_sha256, runner_sha256=runner_pin['sha256'], runner_pin=runner_pin,
             runner_pin_verified=True, pins=pins, starts=starts, distinct_service_starts=distinct,
             gaps=['fresh reproducible build provenance', 'complete boundary matrix', 'timeout/abort/failmode matrix',
+                'separately pinned libModSecurity response-limit Reject/ProcessPartial profiles with native event correlation',
                 'external regression', 'canonical G1-G9 acceptance'], controlled_stop_start=distinct and all(
                     record['cleanup_passed'] for record in starts))
         write_new(args.root / 'qualification.json', json.dumps(summary, sort_keys=True, indent=2).encode())

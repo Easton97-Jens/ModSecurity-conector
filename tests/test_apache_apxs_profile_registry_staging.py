@@ -227,7 +227,9 @@ class ApacheApxsProfileRegistryStagingTest(unittest.TestCase):
         )
         self.assertIn('SOURCE_ROOT="$WORK_ROOT/source"', bootstrap)
         self.assertIn(stage_assignment, bootstrap)
-        self.assertIn("for build_attempt in 1 2; do", bootstrap)
+        self.assertIn("build_attempt=0", bootstrap)
+        self.assertIn('while [ "$build_attempt" -lt 2 ]; do', bootstrap)
+        self.assertIn("build_attempt=$((build_attempt + 1))", bootstrap)
         self.assertEqual(bootstrap.count(stage_assignment), 1)
         self.assertNotIn('MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT="$APACHE_ROOT/', bootstrap)
         self.assertNotIn('MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT="$SOURCE_ROOT/', bootstrap)
@@ -238,7 +240,7 @@ class ApacheApxsProfileRegistryStagingTest(unittest.TestCase):
 
     def test_bootstrap_stops_after_each_failed_make(self) -> None:
         bootstrap = AUTOTOOLS_BOOTSTRAP.read_text(encoding="utf-8")
-        loop_start = bootstrap.index("    for build_attempt in 1 2; do")
+        loop_start = bootstrap.index("    build_attempt=0")
         loop_end = bootstrap.index("    done", loop_start) + len("    done")
         build_loop = bootstrap[loop_start:loop_end]
         # Exercise the actual loop in the same conditional shell context.

@@ -4,6 +4,8 @@
 
 Für die Current-Master-Integration und erneute Relevanz-/Validierungsprüfung vom
 2026-10-01 siehe [CR-20261001-pr370-refresh-relevance](CR-20261001-pr370-refresh-relevance.de.md).
+Frische Nachfolger-Evidence vom 2026-10-07 wird in
+[CR-20261003-pr370-composite-common-runtime](CR-20261003-pr370-composite-common-runtime.de.md) gepflegt.
 Die folgende Evidenz ist historisch, keine Akzeptanzbehauptung für den Nachfolger-Head.
 
 ## Identität
@@ -374,8 +376,9 @@ Dies ist ein partieller Parent-only-Remediation-Record. Er beschreibt
 beobachtete lokale Evidenz, einen gehosteten Pre-Correction-Fehler und bekannte
 Grenzen, zertifiziert aber weder das Zehn-Pfad-B-Ziel noch ein Release, ein
 Hosted-Qualitätsergebnis oder einen Merge. Finaler Scoped-Diff und source-
-lokale Dokumentationschecks wurden abgeglichen; der Envoy-Source-/Harness-
-Repair benötigt weiterhin Real-Host-Evidenz. Repositoryweite
+lokale Dokumentationschecks wurden abgeglichen; der korrigierte Apache-Host-
+Wiederholungslauf bestand. Der Envoy-Source-/Harness-Repair benötigt weiterhin
+Real-Host-Evidenz. Repositoryweite
 Dokumentations-Targets bleiben wahrheitsgemäß durch den fehlenden Framework-
 Gitlink blockiert. Der offene Draft-PR ist
 [#370](https://github.com/Easton97-Jens/ModSecurity-conector/pull/370). Die
@@ -443,10 +446,12 @@ bleiben unverändert.
 
 Der Scope-Abgleich vom 2026-10-03 stellte alle vier NGINX-Fixture- und
 Contract-Test-Pfade auf `origin/master` zurück, weil der Benutzer NGINX aus
-dem finalen PR-Scope ausgeschlossen hat. Dieser Abschnitt dokumentiert daher
-nur einen historischen Zwischenstand; der aktuelle PR liefert die Korrektur
-nicht, und seine NGINX-Receipts dürfen nicht als exakte Versions-Evidence
-gewertet werden.
+der Reife-B-Qualifikation ausgeschlossen hat. Die Klarstellung vom 2026-10-07
+erlaubt NGINX-Aktualisierungen aus aktuellem Master, die der Branch nun
+integriert; NGINX-B-Runtime-Anrechnung bleibt ausgeschlossen. Dieser Abschnitt
+dokumentiert daher nur einen historischen Zwischenstand; der aktuelle PR
+liefert diese Korrektur nicht separat, und seine NGINX-Receipts dürfen nicht
+als exakte Versions-Evidence gewertet werden.
 
 ## SonarQube-Cloud-Follow-up für New-Code-Duplikation — 2026-09-19
 

@@ -730,9 +730,9 @@ func TestCommonRuntimeServiceCumulativeRequestLimitAcrossChunks(t *testing.T) {
 	}
 }
 
-func TestCommonRuntimeServiceResponseAdapterLimitKeepsSafeOutcomeAndSurvives(t *testing.T) {
+func TestCommonRuntimeServiceLegacyResponseBudgetAllowsFullBodyAndSurvives(t *testing.T) {
 	engine, eventPath := newCommonRuntimeEngineForRulesAndLimitsTest(t,
-		"SecRuleEngine On\nSecRequestBodyAccess On\nSecResponseBodyAccess On\nSecResponseBodyMimeType text/plain\n", 32, 32)
+		"SecRuleEngine On\nSecRequestBodyAccess On\nSecResponseBodyAccess On\nSecResponseBodyMimeType text/plain\nSecResponseBodyLimit 1048576\nSecResponseBodyLimitAction Reject\n", 32, 32)
 	config := testConfig(LateActionSafe)
 	config.MaxResponseBodyBytes = 32
 	observer := &nativeLimitSummaryObserver{}
@@ -745,21 +745,23 @@ func TestCommonRuntimeServiceResponseAdapterLimitKeepsSafeOutcomeAndSurvives(t *
 		{request: responseBody([]byte(strings.Repeat("x", 33)), true)},
 	}}
 	if err := service.Process(stream); err != nil {
-		t.Fatalf("Process(response adapter limit 33/32) = %v, want Safe continue", err)
+		t.Fatalf("Process(legacy response budget 33/32) = %v, want continue", err)
 	}
-	if len(stream.sent) != 3 || stream.sent[2].GetResponseBody() == nil || stream.sent[2].GetImmediateResponse() != nil {
+	if len(stream.sent) != 3 || stream.sent[2].GetResponseBody() == nil || stream.sent[2].GetImmediateResponse() != nil ||
+		stream.sent[2].GetResponseBody().GetResponse().GetStatus() != extprocv3.CommonResponse_CONTINUE ||
+		stream.sent[2].GetResponseBody().GetResponse().GetBodyMutation() != nil {
 		t.Fatalf("response limit responses = %#v, want body CONTINUE", stream.sent)
 	}
 	if len(observer.summaries) != 1 || observer.summaries[0].CloseReason != CloseResponseEOS ||
-		observer.summaries[0].LateAction != LateActionLogged || observer.summaries[0].ResponseBodyBytes != 33 {
-		t.Fatalf("response adapter limit completion = %#v, want EOS/log-only/33 bytes", observer.summaries)
+		observer.summaries[0].LateAction != LateActionNone || observer.summaries[0].ResponseBodyBytes != 33 {
+		t.Fatalf("legacy response budget completion = %#v, want EOS/no late action/33 bytes", observer.summaries)
 	}
 	raw, err := os.ReadFile(eventPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(raw), "MSCONN_EVENT_BODY_LIMIT") || strings.Contains(string(raw), `"transport_result":"log_only"`) {
-		t.Fatalf("adapter response limit invented native decision/confirmation: %s", raw)
+	if strings.TrimSpace(string(raw)) != "" {
+		t.Fatalf("legacy response budget invented native decision/confirmation: %s", raw)
 	}
 	followup := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
 		{request: nativeServiceRequestHeaders(t, true)}, {request: responseHeaders(true)},

@@ -197,12 +197,12 @@
       "validation": "msc_config_phase4_mode returns an Apache configuration error for its documented invalid input; validate the installed configuration with apachectl -t.",
       "phase_relevance": "P4 only. Apache commits at the next-filter boundary before it forwards a current non-terminal brigade; this setting controls the canonical pre- and post-commit decision mapping.",
       "security_relevance": "Already forwarded response bytes cannot be rewritten. Safe records a post-commit disruptive decision as log_only; strict requests the configured host abort action rather than synthesizing a later 403.",
-      "runtime_effect": "Apache appends each normalized response bucket exactly once and forwards non-terminal output to the next filter without waiting for EOS. It finishes P4 exactly once at actual EOS. With policy off the connector keeps its native intervention path. After the next-filter commitment boundary, safe records log_only and strict requests abort_connection instead of a late status rewrite.",
+      "runtime_effect": "Apache appends each normalized response bucket exactly once and forwards non-terminal output to the next filter without waiting for EOS. It retains only the terminal EOS fragment and finishes P4 exactly once at actual EOS. With policy off the connector keeps its native intervention path. After the next-filter commitment boundary, safe records log_only and strict requests abort_connection instead of a late status rewrite.",
       "example_file": "examples/apache/safe/httpd.conf",
       "example_value": "",
       "compatibility_only": false,
       "deprecated": false,
-      "description": "Apache appends each normalized response bucket exactly once and forwards non-terminal output to the next filter without waiting for EOS. It finishes P4 exactly once at actual EOS. With policy off the connector keeps its native intervention path. After the next-filter commitment boundary, safe records log_only and strict requests abort_connection instead of a late status rewrite."
+      "description": "Apache appends each normalized response bucket exactly once and forwards non-terminal output to the next filter without waiting for EOS. It retains only the terminal EOS fragment and finishes P4 exactly once at actual EOS. With policy off the connector keeps its native intervention path. After the next-filter commitment boundary, safe records log_only and strict requests abort_connection instead of a late status rewrite."
     },
     {
       "connector": "apache",
