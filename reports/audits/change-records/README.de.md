@@ -11,6 +11,11 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20261007-protected-nginx-1316](CR-20261007-protected-nginx-1316.de.md)
+  | English companion: `CR-20261007-protected-nginx-1316.md` — unabhängig
+  autorisierter geschützter NGINX-1.31.6-Tupelabgleich mit Negativtests für
+  altes Release/gekreuzte Paare; unveränderte Guardrails und Gitlinks, keine neue Runtime-Attestierung.
+
 - [CR-20261007-pr396-ci-fixture-contracts](CR-20261007-pr396-ci-fixture-contracts.de.md)
   | English companion: `CR-20261007-pr396-ci-fixture-contracts.md` — drei
   begrenzte CI-Fixture-/Workflow-Fixes nach Nachfolger-Head-Prüfung; unveränderte

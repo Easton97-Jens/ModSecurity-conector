@@ -10,6 +10,11 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20261007-protected-nginx-1316](CR-20261007-protected-nginx-1316.md)
+  | [Deutsch](CR-20261007-protected-nginx-1316.de.md) — independently authorized
+  protected NGINX 1.31.6 tuple alignment with old-release/crossed-pair negative
+  regressions; unchanged guards and Gitlinks, no new runtime attestation.
+
 - [CR-20261007-pr396-ci-fixture-contracts](CR-20261007-pr396-ci-fixture-contracts.md)
   | [Deutsch](CR-20261007-pr396-ci-fixture-contracts.de.md) — three scoped
   CI fixture/workflow repairs after successor-head verification; unchanged

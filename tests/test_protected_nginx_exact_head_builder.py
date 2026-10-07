@@ -229,6 +229,29 @@ class CandidateBuilderTests(unittest.TestCase):
         with self.assertRaisesRegex(B.BuilderError, "source archive digest"):
             B.package(arguments)
 
+    def test_rejects_previous_release_and_crossed_archive_pins(self) -> None:
+        previous_digest = "e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279"
+        current_digest = "974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1"
+        self.archive.unlink()
+        for index, (version, digest) in enumerate((
+            ("1.31.5", previous_digest),
+            ("1.31.6", previous_digest),
+            ("1.31.5", current_digest),
+        )):
+            with self.subTest(version=version, digest=digest):
+                archive = self.archive.parent / f"nginx-{version}.tar.gz"
+                archive.write_bytes(b"source archive")
+                archive.chmod(0o600)
+                arguments = self.package_args()
+                arguments.output_root = str(self.task_root / f"artifacts-{index}")
+                try:
+                    with mock.patch.object(B, "sha256_fd", return_value=digest):
+                        with self.assertRaises(B.BuilderError):
+                            B.package(arguments)
+                    self.assertFalse((Path(arguments.output_root) / "artifact-manifest.json").exists())
+                finally:
+                    archive.unlink()
+
     def test_output_creation_does_not_follow_a_swapped_task_root(self) -> None:
         output_root = self.task_root / "artifacts"
         outside = self.root / "outside"

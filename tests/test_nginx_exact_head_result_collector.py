@@ -234,6 +234,25 @@ class CollectorTests(unittest.TestCase):
                     self._collect()
                 self.assertFalse(self.output.exists())
 
+    def test_rejects_previous_release_and_crossed_runtime_pins(self) -> None:
+        previous_digest = "e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279"
+        current_digest = "974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1"
+        for version, digest in (
+            ("1.31.5", previous_digest),
+            ("1.31.6", previous_digest),
+            ("1.31.5", current_digest),
+        ):
+            with self.subTest(version=version, digest=digest):
+                runtime = json.loads((self.evidence / "runtime.json").read_text(encoding="utf-8"))
+                runtime.update(nginx_version=version, nginx_source_digest=digest)
+                self._write("runtime.json", runtime)
+                try:
+                    with self.assertRaisesRegex(collector.CollectorError, "runtime identity mismatch"):
+                        self._collect()
+                    self.assertFalse(self.output.exists())
+                finally:
+                    self.output.unlink(missing_ok=True)
+
     def test_rejects_missing_cells_and_invalid_master_or_worker_identity(self) -> None:
         (self.evidence / "off.jsonl").unlink()
         with self.assertRaises(collector.CollectorError):

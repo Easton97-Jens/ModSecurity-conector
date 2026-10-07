@@ -483,6 +483,24 @@ class RootLauncherContractTests(unittest.TestCase):
             with self.assertRaisesRegex(LAUNCHER.LauncherError, "schema is unsupported"):
                 LAUNCHER.candidate_manifest(candidate_path, dispatcher)
 
+    def test_rejects_previous_release_and_crossed_candidate_pins(self) -> None:
+        previous_digest = "e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279"
+        current_digest = "974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1"
+        with tempfile.TemporaryDirectory() as temporary:
+            candidate_path = Path(temporary) / "candidate.json"
+            artifacts = {"nginx": b"nginx", "module": b"module", "library": b"library"}
+            for version, digest in (
+                ("1.31.5", previous_digest),
+                ("1.31.6", previous_digest),
+                ("1.31.5", current_digest),
+            ):
+                with self.subTest(version=version, digest=digest):
+                    candidate = candidate_payload(artifacts)
+                    candidate.update(nginx_version=version, nginx_source_digest=digest)
+                    write_json(candidate_path, candidate)
+                    with self.assertRaisesRegex(LAUNCHER.LauncherError, "does not bind pinned NGINX"):
+                        LAUNCHER.candidate_manifest(candidate_path, dispatcher_payload())
+
     def test_security_identifiers_accept_ascii_digits_only(self) -> None:
         with self.assertRaisesRegex(LAUNCHER.LauncherError, "40-character SHA"):
             LAUNCHER.require_sha40("a" * 39 + "١", "test SHA")
