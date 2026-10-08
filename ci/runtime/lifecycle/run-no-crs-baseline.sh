@@ -223,6 +223,28 @@ elif [ -n "$FULL_LIFECYCLE_HOST_PROFILE$FULL_LIFECYCLE_EXECUTED_TARGET" ]; then
     exit 1
 fi
 
+# Selection must describe the same downstream the NGINX harness will use.
+# Preserve its existing HTTP/1 default; an enhanced build profile alone does
+# not select H2/H3. Other connectors and generic plans retain "any".
+selection_downstream_protocol=any
+if [ "$connector" = nginx ] && [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
+    NGINX_DOWNSTREAM_PROTOCOL=${NGINX_DOWNSTREAM_PROTOCOL:-http1}
+    nginx_protocol_profile=${NGINX_PROTOCOL_PROFILE:-h1}
+    case "$nginx_protocol_profile" in
+        h1|h1-h2|h1-h2-h3-quic) ;;
+        *) echo "FAIL: unsupported NGINX_PROTOCOL_PROFILE: $nginx_protocol_profile" >&2; exit 1 ;;
+    esac
+    case "$NGINX_DOWNSTREAM_PROTOCOL:$nginx_protocol_profile" in
+        http1:*|h2:h1-h2|h2:h1-h2-h3-quic|h3:h1-h2-h3-quic) ;;
+        *)
+            echo "FAIL: incompatible NGINX_DOWNSTREAM_PROTOCOL=$NGINX_DOWNSTREAM_PROTOCOL and NGINX_PROTOCOL_PROFILE=$nginx_protocol_profile" >&2
+            exit 1
+            ;;
+    esac
+    selection_downstream_protocol=$NGINX_DOWNSTREAM_PROTOCOL
+    export NGINX_DOWNSTREAM_PROTOCOL
+fi
+
 # One resolver owns every connector-local path.  It deliberately does not use
 # legacy connector-specific environment variables, which prevents a later
 # stage from inheriting another connector's build or run root.
@@ -484,6 +506,7 @@ export RUNTIME_COMPONENT_ENV_SNAPSHOT
     --capabilities "$CAPABILITIES_FILE" \
     --evidence-stage "$evidence_stage" \
     --artifact-profile "$NO_CRS_ARTIFACT_PROFILE" \
+    --downstream-protocol "$selection_downstream_protocol" \
     --output "$PLAN"
 NO_CRS_SELECTED_CASES=$("$PYTHON" -c '
 import json, sys
@@ -539,6 +562,7 @@ fi
     --run-id "$NO_CRS_RUN_ID" \
     --evidence-stage "$evidence_stage" \
     --artifact-profile "$NO_CRS_ARTIFACT_PROFILE" \
+    --downstream-protocol "$selection_downstream_protocol" \
     --host-profile "${FULL_LIFECYCLE_HOST_PROFILE:-default}" \
     --executed-target "$executed_target" \
     --host-version not_provisioned \
