@@ -33,7 +33,15 @@ enum { NGX_OK = 0, NGX_ERROR = -1, NGX_LOG_ERR = 4 };
 static ngx_http_modsecurity_ctx_t context;
 static ngx_http_request_t *active_request;
 static int raw_result = 1, finish_result, calls, finishes, failures, diagnostics;
-static int restores, reenter, nested_result = 99, no_context;
+static int restores, reenter, nested_result = 99, no_context, technical_events;
+static ngx_int_t ngx_http_modsecurity_log_technical_failure(ngx_http_request_t *r,
+        ngx_http_modsecurity_ctx_t *ctx, enum msconnector_phase phase,
+        msconnector_transaction_error_class cause, ngx_int_t http_status) {
+    if (r == NULL || ctx == NULL || phase != MSCONNECTOR_PHASE_LOGGING ||
+        cause == MSCONNECTOR_TRANSACTION_ERROR_NONE || http_status != 0) abort();
+    ++technical_events;
+    return NGX_OK;
+}
 static ngx_int_t ngx_http_modsecurity_log_handler(ngx_http_request_t *request);
 static ngx_http_modsecurity_ctx_t *ngx_http_modsecurity_get_module_ctx(ngx_http_request_t *r) {
     (void)r; return no_context ? NULL : &context;
@@ -77,9 +85,9 @@ int main(int argc, char **argv) {
     second = ngx_http_modsecurity_log_handler(active_request);
     printf("{\"first\":%d,\"second\":%d,\"calls\":%d,\"finishes\":%d,"
         "\"failures\":%d,\"diagnostics\":%d,\"restores\":%d,\"nested\":%d,"
-        "\"logged\":%d,\"failed\":%d,\"cause\":%d}\n",
+        "\"logged\":%d,\"failed\":%d,\"cause\":%d,\"technical_events\":%d}\n",
         first, second, calls, finishes, failures, diagnostics, restores, nested_result,
-        context.logged, context.native_logging_failed, context.contract.error_class);
+        context.logged, context.native_logging_failed, context.contract.error_class,technical_events);
     return 0;
 }
 '''
@@ -118,6 +126,7 @@ class NativeLoggingTests(unittest.TestCase):
         self.assertEqual((event["first"], event["second"]), (0, 0))
         self.assertEqual((event["calls"], event["finishes"], event["restores"]), (1, 1, 1))
         self.assertEqual((event["logged"], event["failed"]), (1, 0))
+        self.assertEqual(event["technical_events"], 0)
 
     def test_zero_negative_and_undocumented_positive_are_persistent_failures(self) -> None:
         for native in (0, -1, -2, 2, 99):
@@ -126,6 +135,7 @@ class NativeLoggingTests(unittest.TestCase):
                 self.assertEqual((event["first"], event["second"]), (-1, -1))
                 self.assertEqual((event["calls"], event["restores"]), (1, 1))
                 self.assertEqual((event["failed"], event["failures"], event["diagnostics"]), (1, 1, 1))
+                self.assertEqual(event["technical_events"], 1)
 
     def test_missing_native_transaction_is_not_dereferenced_or_retried(self) -> None:
         event = self.case("missing")

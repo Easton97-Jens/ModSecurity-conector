@@ -24,6 +24,7 @@
 
 #include "ngx_http_modsecurity_common.h"
 #include "ngx_http_modsecurity_response_body_limit.h"
+#include "ngx_http_modsecurity_cleanup_observation.h"
 #include "msconnector/config.h"
 #include "msconnector/config_parser.h"
 #include "msconnector/directive_adapter.h"
@@ -711,10 +712,56 @@ ngx_http_modsecurity_log_technical_failure(ngx_http_request_t *r,
         "technical");
 }
 
+static void
+ngx_http_modsecurity_cleanup_log_event(ngx_http_modsecurity_ctx_t *ctx,
+    int common_return, int native_cleanup_completed)
+{
+    msconnector_event event;
+    char reason[256];
+    ngx_http_request_t *r;
+    ngx_http_modsecurity_conf_t *mcf;
+    ngx_http_modsecurity_event_request_metadata_t metadata;
+
+    r = ctx->r;
+    if (r == NULL || r->connection == NULL) {
+        return;
+    }
+    mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
+    if (mcf == NULL || mcf->phase4_log_file == NULL ||
+        mcf->phase4_log_file->fd == NGX_INVALID_FILE) {
+        return;
+    }
+    if (!ngx_http_modsecurity_cleanup_observation(&event, reason,
+        sizeof(reason), common_return, &ctx->contract,
+        native_cleanup_completed != 0)) {
+        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+            "modsecurity cleanup observation construction failed");
+        return;
+    }
+    metadata = ngx_http_modsecurity_event_request_metadata(r);
+    event.meta.connector = "nginx";
+    event.meta.integration_mode = "native-nginx-http-module";
+    event.meta.transaction_id = ctx->event_transaction_id.len > 0U
+        ? (const char *)ctx->event_transaction_id.data : "";
+    event.request.method = metadata.method;
+    event.request.uri = metadata.uri;
+    if (ngx_http_modsecurity_write_phase_event_jsonl(r, mcf, &event,
+        "cleanup") != NGX_OK) {
+        /* Cleanup has already completed; its void host hook cannot replace
+         * an earlier response or repeat freed native work. Missing evidence
+         * remains a strict canonical failure, with the write error retained. */
+        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+            "modsecurity cleanup observation write failed");
+    }
+}
+
 void
 ngx_http_modsecurity_cleanup(void *data)
 {
     ngx_http_modsecurity_ctx_t *ctx;
+    int common_return = MSCONNECTOR_TRANSACTION_TRANSITION_INVALID;
+    int observed_contract;
+    int native_cleanup_completed = 0;
 
     ctx = (ngx_http_modsecurity_ctx_t *) data;
 
@@ -722,14 +769,20 @@ ngx_http_modsecurity_cleanup(void *data)
         return;
     }
 
-    if (ctx->contract_initialized) {
-        (void)msconnector_transaction_contract_cleanup(&ctx->contract, 0U);
+    observed_contract = ctx->contract_initialized;
+    if (observed_contract) {
+        common_return = msconnector_transaction_contract_cleanup(&ctx->contract, 0U);
         ctx->contract_initialized = 0;
     }
 
     if (ctx->modsec_transaction != NULL) {
         msc_transaction_cleanup(ctx->modsec_transaction);
         ctx->modsec_transaction = NULL;
+        native_cleanup_completed = 1;
+    }
+    if (observed_contract) {
+        ngx_http_modsecurity_cleanup_log_event(ctx, common_return,
+            native_cleanup_completed);
     }
 
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
@@ -788,6 +841,10 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
                 (const char *) s.data, s.len)) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                 "ModSecurity: invalid canonical transaction identifier");
+            (void)ngx_http_modsecurity_log_technical_failure(r, ctx,
+                MSCONNECTOR_PHASE_REQUEST_HEADERS,
+                MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL,
+                NGX_HTTP_INTERNAL_SERVER_ERROR);
             return NULL;
         }
         transaction_id = ngx_pnalloc(r->pool, s.len + 1U);
@@ -841,8 +898,12 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
     if (ctx->modsec_transaction == NULL) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
             "ModSecurity: failed to create transaction");
-        (void)msconnector_transaction_contract_cleanup(&ctx->contract, 0U);
-        ctx->contract_initialized = 0;
+        (void)msconnector_transaction_contract_fail(&ctx->contract,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
+        (void)ngx_http_modsecurity_log_technical_failure(r, ctx,
+            MSCONNECTOR_PHASE_REQUEST_HEADERS, ctx->contract.error_class,
+            NGX_HTTP_INTERNAL_SERVER_ERROR);
+        ngx_http_modsecurity_cleanup(ctx);
         return NULL;
     }
 
@@ -855,8 +916,9 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
     {
         dd("failed to create the ModSecurity context cleanup");
         ngx_http_set_ctx(r, NULL, ngx_http_modsecurity_module);
-        msc_transaction_cleanup(ctx->modsec_transaction);
-        ctx->modsec_transaction = NULL;
+        (void)msconnector_transaction_contract_fail(&ctx->contract,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
+        ngx_http_modsecurity_cleanup(ctx);
         return NULL;
     }
     cln->handler = ngx_http_modsecurity_cleanup;

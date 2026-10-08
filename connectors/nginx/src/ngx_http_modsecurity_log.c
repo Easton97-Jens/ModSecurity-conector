@@ -134,6 +134,9 @@ ngx_http_modsecurity_logging_failure(ngx_http_request_t *r,
     /* Do not recurse through the failed native audit sink or attempt a new
      * HTTP response from the logging phase. Earlier causes remain intact. */
     ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "%s", message);
+    (void)ngx_http_modsecurity_log_technical_failure(r, ctx,
+        MSCONNECTOR_PHASE_LOGGING,
+        ctx->contract_initialized ? ctx->contract.error_class : cause, 0);
     return NGX_ERROR;
 }
 

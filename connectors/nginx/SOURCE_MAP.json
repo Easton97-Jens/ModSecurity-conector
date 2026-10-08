@@ -163,6 +163,11 @@
       "license": "Apache-2.0",
       "reason": "Repo-owned NGINX Phase-4 error-state helper required by the migrated body filter."
     },
+    "src/ngx_http_modsecurity_cleanup_observation.h": {
+      "base_path": "connectors/nginx/src/ngx_http_modsecurity_cleanup_observation.h",
+      "license": "Apache-2.0",
+      "reason": "Parent-owned post-cleanup observation of actual Common and native transaction cleanup."
+    },
     "src/ngx_http_modsecurity_response_body_limit.h": {
       "base_path": "connectors/nginx/src/ngx_http_modsecurity_response_body_limit.h",
       "license": "Apache-2.0",
