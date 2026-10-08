@@ -160,6 +160,7 @@ HEADER_CTX_DECLARATION_PREFIX_PATTERN = re.compile(
     r'size_t\s+response_header_count\s*;\s*'
     r'size_t\s+response_header_bytes\s*;\s*'
     r'char\s*\*\s*response_content_type\s*=\s*NULL\s*;\s*'
+    r'ngx_http_modsecurity_engine_call_measurement\s+measurement\s*;\s*'
 )
 HEADER_CTX_DIAGNOSTIC_CALL_PATTERN = re.compile(
     r'\bdd\s*\(\s*,\s*ctx\s*\)\s*;'
@@ -688,6 +689,7 @@ C_ALLOWED_EXTERNAL_QUOTED_INCLUDES = frozenset(('stdio.h',))
 C_ALLOWED_EXTERNAL_ANGLE_INCLUDES = frozenset((
     'atomic',
     'ctype.h',
+    'inttypes.h',
     'modsecurity/modsecurity.h',
     'modsecurity/rules.h',
     'modsecurity/rules_set.h',
@@ -698,10 +700,12 @@ C_ALLOWED_EXTERNAL_ANGLE_INCLUDES = frozenset((
     'ngx_http.h',
     'stdarg.h',
     'stdatomic.h',
+    'stdbool.h',
     'stddef.h',
     'stdint.h',
     'stdio.h',
     'string.h',
+    'time.h',
 ))
 CONTROL_FLOW_KEYWORDS = re.compile(r'\b(?:if|for|while|switch)\b')
 ELSE_OR_DO_KEYWORDS = re.compile(r'\b(?:else|do)\b')

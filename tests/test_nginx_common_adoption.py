@@ -31,6 +31,11 @@ PHASE4_ERROR_HEADER = "ngx_http_modsecurity_phase4_error.h"
 SOURCES = (
     "ngx_http_modsecurity_common.h",
     "ngx_http_modsecurity_event_uri.h",
+    "ngx_http_modsecurity_engine_call_budget.h",
+    "ngx_http_modsecurity_request_completion.h",
+    "ngx_http_modsecurity_response_body_limit.h",
+    "ngx_http_modsecurity_cleanup_observation.h",
+    "ngx_http_modsecurity_phase4_observation.h",
     PHASE4_ERROR_HEADER,
     "ngx_http_modsecurity_module.c",
     "ngx_http_modsecurity_mapper.h",
@@ -1469,6 +1474,44 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
             mutate,
             "NGINX request mapper validation fails closed before request-header initialization",
         )
+
+    def test_new_standard_header_local_shadows_and_symlinks_are_rejected(self) -> None:
+        for header in ("inttypes.h", "stdbool.h", "time.h"):
+            for symlink in (False, True):
+                with self.subTest(header=header, symlink=symlink):
+                    def mutate(repository: Path) -> None:
+                        shadow = repository / header
+                        if symlink:
+                            target = repository / "checker-shadow.inc"
+                            target.write_text("#define NGX_OK NGX_ERROR\n", encoding="utf-8")
+                            shadow.symlink_to(target)
+                        else:
+                            shadow.write_text("#define NGX_OK NGX_ERROR\n", encoding="utf-8")
+                    self._assert_rejected(
+                        mutate,
+                        "NGINX critical macro inputs reject aliases of checked lifecycle "
+                        "and response-body controls",
+                    )
+
+    def test_header_measurement_initializer_and_early_timing_are_rejected(self) -> None:
+        signature = "ngx_int_t\nngx_http_modsecurity_header_filter("
+        declaration = "ngx_http_modsecurity_engine_call_measurement measurement;"
+        controls = (
+            declaration.replace(";", " = ngx_http_modsecurity_engine_call_begin();"),
+            declaration + "\n    ngx_http_modsecurity_engine_call_begin(ctx, mcf, &measurement);",
+        )
+        for replacement in controls:
+            with self.subTest(replacement=replacement):
+                def mutate(repository: Path) -> None:
+                    replace_in_function(
+                        repository / "connectors/nginx/src/ngx_http_modsecurity_header_filter.c",
+                        signature, declaration, replacement,
+                    )
+                self._assert_rejected(
+                    mutate,
+                    "NGINX header mapper validation retains its existing eligibility "
+                    "and ordering without a once gate",
+                )
 
     def test_external_angle_include_local_shadow_is_rejected(self) -> None:
         def mutate(repository: Path) -> None:
