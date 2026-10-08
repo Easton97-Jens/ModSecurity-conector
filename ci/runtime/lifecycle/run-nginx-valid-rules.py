@@ -30,8 +30,11 @@ BASE = load_helper("nginx_configtest_driver", HERE / "run-nginx-configtest.py")
 from runtime_path_utils import open_private_runtime_root
 
 PROJECTION = load_helper("nginx_projection", HERE.parent / "common/prepare-nginx-docroot-projection.py")
+BASELINE_RULES_NAME = "no-crs-baseline.conf"
+PROC_ROOT = Path("/proc")
+NATIVE_EVENTS_NAME = "phase1-events.jsonl"
 VALID_RULES_CONTRACT = {"operation": "startup", "directive": "modsecurity_rules_file",
-            "value": "no-crs-baseline.conf", "expected_exit_code": 0,
+            "value": BASELINE_RULES_NAME, "expected_exit_code": 0,
             "expected_outcome": "config_accepted", "error_class": "none",
             "diagnostic_fragments": ["syntax is ok", "test is successful"]}
 CONTRACT = VALID_RULES_CONTRACT
@@ -47,8 +50,8 @@ def config_template(origin: Path, port: int, projection_root: str) -> str:
         'user nobody nogroup;\nworker_processes 1;\ndaemon off;\n'
         f'pid "{origin}/nginx.pid";\nerror_log "{origin}/nginx-error.log";\n'
         'events {}\nhttp {\n  access_log off;\n  modsecurity on;\n'
-        f'  modsecurity_rules_file "{origin}/no-crs-baseline.conf";\n'
-        f'  modsecurity_phase4_log "{origin}/phase1-events.jsonl";\n'
+        f'  modsecurity_rules_file "{origin}/{BASELINE_RULES_NAME}";\n'
+        f'  modsecurity_phase4_log "{origin}/{NATIVE_EVENTS_NAME}";\n'
         '  server {\n'
         f'    listen 127.0.0.1:{port};\n    root "{projection_root}";\n'
         '    location / { try_files $uri /index.html; }\n  }\n}\n'
@@ -94,7 +97,7 @@ def match_native_event(events: list, run_id: str) -> str:
 
 def process_info(pid: int) -> tuple[int, int, str, str] | None:
     try:
-        proc = Path("/proc") / str(pid)
+        proc = PROC_ROOT / str(pid)
         status = (proc / "status").read_text()
         values = {line.split(":", 1)[0]: line.split(":", 1)[1].strip()
                   for line in status.splitlines() if ":" in line}
@@ -112,7 +115,7 @@ def listener_open(port: int) -> bool:
 
 def bind_owned_children(process: subprocess.Popen, handles: dict[int, int]) -> None:
     try:
-        children = (Path("/proc") / str(process.pid) / "task" / str(process.pid) / "children").read_text().split()
+        children = (PROC_ROOT / str(process.pid) / "task" / str(process.pid) / "children").read_text().split()
     except OSError:
         return
     for child in children:
@@ -137,6 +140,24 @@ def pidfd_running(handle: int) -> bool:
     return not select.select([handle], [], [], 0)[0]
 
 
+def verify_startup_captures(output: Path) -> None:
+    for name in ("startup.stdout", "startup.stderr", "nginx-error.log"):
+        path = output / name
+        if path.exists() and path.stat().st_size > BASE.CAPTURE_LIMIT:
+            raise ValueError("startup capture limit exceeded")
+
+
+def observed_owned_roles(process, master, children, worker_handles, port, run_id):
+    for child in children:
+        worker = process_info(int(child))
+        if master and worker and worker[1] == process.pid and worker[2] != "Z":
+            roles = {"run_id": run_id, "master_pid": process.pid, "worker_pid": int(child),
+                     "master_uid": master[0], "worker_uid": worker[0]}
+            if valid_roles(roles) and int(child) in worker_handles and listener_open(port):
+                return roles
+    return None
+
+
 def observe_roles(process: subprocess.Popen, run_id: str, port: int, output: Path,
                   worker_handles: dict[int, int] | None = None) -> dict:
     if worker_handles is None:
@@ -146,54 +167,59 @@ def observe_roles(process: subprocess.Popen, run_id: str, port: int, output: Pat
         bind_owned_children(process, worker_handles)
         if process.poll() is not None:
             raise ValueError("NGINX exited before native request")
-        for name in ("startup.stdout", "startup.stderr", "nginx-error.log"):
-            path = output / name
-            if path.exists() and path.stat().st_size > BASE.CAPTURE_LIMIT:
-                raise ValueError("startup capture limit exceeded")
+        verify_startup_captures(output)
         master = process_info(process.pid)
         try:
-            children = (Path("/proc") / str(process.pid) / "task" / str(process.pid) / "children").read_text().split()
+            children = (PROC_ROOT / str(process.pid) / "task" / str(process.pid) / "children").read_text().split()
         except OSError:
             children = []
-        for child in children:
-            worker = process_info(int(child))
-            if master and worker and worker[1] == process.pid and worker[2] != "Z":
-                roles = {"run_id": run_id, "master_pid": process.pid, "worker_pid": int(child),
-                         "master_uid": master[0], "worker_uid": worker[0]}
-                if valid_roles(roles) and int(child) in worker_handles and listener_open(port):
-                    return roles
+        roles = observed_owned_roles(process, master, children, worker_handles, port, run_id)
+        if roles is not None:
+            return roles
         time.sleep(0.05)
     raise ValueError("root master/nobody worker/listener observation timed out")
 
 
+def request_owned_master_shutdown(process, worker_handles) -> bool:
+    forced = False
+    if process is not None and process.poll() is None:
+        bind_owned_children(process, worker_handles)
+        process.send_signal(signal.SIGQUIT)
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            forced = True
+            process.kill()
+            process.wait(timeout=5)
+    return forced
+
+
+def retire_bound_children(worker_handles) -> tuple[bool, bool]:
+    forced = False
+    bound_running = False
+    for handle in worker_handles.values():
+        if pidfd_running(handle):
+            forced = True
+            try:
+                signal.pidfd_send_signal(handle, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            deadline = time.monotonic() + 2
+            while pidfd_running(handle) and time.monotonic() < deadline:
+                time.sleep(0.02)
+            bound_running = bound_running or pidfd_running(handle)
+    return forced, bound_running
+
+
 def stop_owned_master(process: subprocess.Popen | None, roles: dict, port: int, run_id: str,
                       worker_handles: dict[int, int] | None = None) -> dict:
-    forced = False
     worker_handles = {} if worker_handles is None else worker_handles
-    bound_running = False
     try:
-        if process is not None and process.poll() is None:
-            bind_owned_children(process, worker_handles)
-            process.send_signal(signal.SIGQUIT)
-            try:
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                forced = True
-                process.kill()
-                process.wait(timeout=5)
+        forced = request_owned_master_shutdown(process, worker_handles)
         # Even a normally exited master can leave a child. Retire only handles
         # bound while that exact process was observed as this master's child.
-        for handle in worker_handles.values():
-            if pidfd_running(handle):
-                forced = True
-                try:
-                    signal.pidfd_send_signal(handle, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-                deadline = time.monotonic() + 2
-                while pidfd_running(handle) and time.monotonic() < deadline:
-                    time.sleep(0.02)
-                bound_running = bound_running or pidfd_running(handle)
+        children_forced, bound_running = retire_bound_children(worker_handles)
+        forced = forced or children_forced
     finally:
         for handle in worker_handles.values():
             os.close(handle)
@@ -239,13 +265,36 @@ def bounded_capture(path: Path) -> bytes:
         return raw
 
 
+def execute_native_probe(environment: dict, output: Path, run_id: str, port: int) -> tuple[dict, str]:
+    """Return only a real HTTP deny bound to its strict native event."""
+    curl = subprocess.run(["/usr/bin/curl", "--noproxy", "*", "--http1.1", "--silent", "--show-error",
+                           "--max-time", "5", "--output", os.devnull, "--write-out", "%{http_code}",
+                           "-H", "X-Modsec-Smoke: block", f"http://127.0.0.1:{port}/no-crs/deny"],
+                          env=environment, capture_output=True, timeout=6, check=False)
+    if curl.returncode != 0 or curl.stdout != b"403":
+        raise ValueError("actual H1 deny probe did not return HTTP 403")
+    events_path = output / NATIVE_EVENTS_NAME
+    deadline = time.monotonic() + 2
+    while time.monotonic() < deadline:
+        if events_path.exists() and events_path.stat().st_size:
+            break
+        time.sleep(0.05)
+    raw_events = bounded_capture(events_path)
+    transaction = match_native_event([json.loads(line) for line in raw_events.splitlines() if line.strip()], run_id)
+    request = {"case_id": "valid_rules_file", "run_id": run_id, "operation": "request",
+               "method": "GET", "path": "/no-crs/deny", "header_name": "X-Modsec-Smoke",
+               "header_value": "block", "client_exit_code": curl.returncode,
+               "observed_http_status": int(curl.stdout), "transaction_id": transaction}
+    return request, transaction
+
+
 def run(args) -> bool:
     binary, module, output = BASE.validate_inputs(args)
     if os.geteuid() != 0:
         raise ValueError("valid-rules startup requires root master with nobody worker")
     rules = BASE.absolute_path(args.rules_file)
     framework_root = BASE.absolute_path(args.framework_root)
-    expected_rules = framework_root / "tests/rules/no-crs-baseline.conf"
+    expected_rules = framework_root / "tests/rules" / BASELINE_RULES_NAME
     if rules != expected_rules:
         raise ValueError("rules must be the exact Framework baseline at this checkout")
     parent = BASE.absolute_path(args.projection_parent)
@@ -254,8 +303,8 @@ def run(args) -> bool:
     (output / "logs").mkdir(mode=0o700)
     binary_sha = BASE.snapshot_artifact(binary, output / "nginx-binary", executable=True)
     module_sha = BASE.snapshot_artifact(module, output / "nginx-module.so", executable=False)
-    rules_sha = BASE.snapshot_artifact(rules, output / "no-crs-baseline.conf", executable=False)
-    if (output / "no-crs-baseline.conf").stat().st_size > 65536:
+    rules_sha = BASE.snapshot_artifact(rules, output / BASELINE_RULES_NAME, executable=False)
+    if (output / BASELINE_RULES_NAME).stat().st_size > 65536:
         raise ValueError("rules file capture limit exceeded")
     source = output / "docroot"
     source.mkdir(mode=0o700)
@@ -289,24 +338,7 @@ def run(args) -> bool:
                                         "-p", str(output) + "/"], env=environment,
                                        stdin=subprocess.DEVNULL, stdout=out, stderr=err)
             roles = observe_roles(process, args.run_id, port, output, worker_handles)
-            curl = subprocess.run(["/usr/bin/curl", "--noproxy", "*", "--http1.1", "--silent", "--show-error",
-                                   "--max-time", "5", "--output", os.devnull, "--write-out", "%{http_code}",
-                                   "-H", "X-Modsec-Smoke: block", f"http://127.0.0.1:{port}/no-crs/deny"],
-                                  env=environment, capture_output=True, timeout=6, check=False)
-            if curl.returncode != 0 or curl.stdout != b"403":
-                raise ValueError("actual H1 deny probe did not return HTTP 403")
-            events_path = output / "phase1-events.jsonl"
-            deadline = time.monotonic() + 2
-            while time.monotonic() < deadline:
-                if events_path.exists() and events_path.stat().st_size:
-                    break
-                time.sleep(0.05)
-            raw_events = bounded_capture(events_path)
-            transaction = match_native_event([json.loads(line) for line in raw_events.splitlines() if line.strip()], args.run_id)
-            request = {"case_id": "valid_rules_file", "run_id": args.run_id, "operation": "request",
-                       "method": "GET", "path": "/no-crs/deny", "header_name": "X-Modsec-Smoke",
-                       "header_value": "block", "client_exit_code": curl.returncode,
-                       "observed_http_status": int(curl.stdout), "transaction_id": transaction}
+            request, transaction = execute_native_probe(environment, output, args.run_id, port)
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         failure = str(exc)
     finally:
@@ -315,7 +347,7 @@ def run(args) -> bool:
     raw_request = write_json(output / "request-result.json", request)
     raw_roles = write_json(output / "roles.json", roles)
     raw_cleanup = write_json(output / "cleanup.json", cleanup)
-    events = bounded_capture(output / "phase1-events.jsonl") if (output / "phase1-events.jsonl").exists() else b""
+    events = bounded_capture(output / NATIVE_EVENTS_NAME) if (output / NATIVE_EVENTS_NAME).exists() else b""
     receipt = dict(CONTRACT, schema_version=1, case_id="valid_rules_file", connector="nginx",
                    run_id=args.run_id, integration_mode="native-nginx-http-module",
                    parent_sha=args.parent_sha, framework_sha=args.framework_sha, mrts_sha=args.mrts_sha,

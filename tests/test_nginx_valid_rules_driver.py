@@ -238,6 +238,58 @@ class ValidRulesDriverTest(unittest.TestCase):
         signalled.assert_called_once_with(987, self.driver.signal.SIGKILL)
         self.assertFalse(cleanup["verified"])
 
+    def test_startup_capture_guard_preserves_exact_limit_boundary(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path = root / "startup.stderr"
+            path.write_bytes(b"x" * self.driver.BASE.CAPTURE_LIMIT)
+            self.driver.verify_startup_captures(root)
+            path.write_bytes(b"x" * (self.driver.BASE.CAPTURE_LIMIT + 1))
+            with self.assertRaisesRegex(ValueError, "startup capture limit exceeded"):
+                self.driver.verify_startup_captures(root)
+
+    def test_owned_role_projection_rejects_missing_zombie_foreign_or_unbound_child(self):
+        process = mock.Mock(pid=123)
+        master = (0, 1, "S", "master-start")
+        worker = (65534, 123, "S", "worker-start")
+        with mock.patch.object(self.driver, "process_info", return_value=worker), \
+                mock.patch.object(self.driver, "listener_open", return_value=True):
+            roles = self.driver.observed_owned_roles(process, master, ["124"], {124: 987}, 32123, "unit")
+        self.assertEqual(roles, {"run_id": "unit", "master_pid": 123, "worker_pid": 124,
+                                 "master_uid": 0, "worker_uid": 65534})
+        for candidate, handles in ((None, {124: 987}), ((65534, 123, "Z", "s"), {124: 987}),
+                                   ((65534, 125, "S", "s"), {124: 987}), (worker, {})):
+            with self.subTest(candidate=candidate, handles=handles), \
+                    mock.patch.object(self.driver, "process_info", return_value=candidate), \
+                    mock.patch.object(self.driver, "listener_open", return_value=True):
+                self.assertIsNone(self.driver.observed_owned_roles(process, master, ["124"], handles, 32123, "unit"))
+
+    def test_native_probe_rejects_client_failure_or_wrong_status_before_reading_events(self):
+        for exit_code, status in ((1, b"403"), (0, b"200"), (0, b"000")):
+            with self.subTest(exit_code=exit_code, status=status), \
+                    mock.patch.object(self.driver.subprocess, "run", return_value=mock.Mock(returncode=exit_code, stdout=status)), \
+                    mock.patch.object(self.driver, "bounded_capture") as capture:
+                with self.assertRaisesRegex(ValueError, "actual H1 deny"):
+                    self.driver.execute_native_probe({}, Path("/unused"), "unit", 32123)
+                capture.assert_not_called()
+
+    def test_native_probe_keeps_request_transaction_and_exact_curl_contract(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / self.driver.NATIVE_EVENTS_NAME).write_text("unit native bytes\n")
+            with mock.patch.object(self.driver.subprocess, "run", return_value=mock.Mock(returncode=0, stdout=b"403")) as run, \
+                    mock.patch.object(self.driver, "bounded_capture", return_value=b'{"unit":true}\n'), \
+                    mock.patch.object(self.driver, "match_native_event", return_value="unit-native-tx") as match:
+                request, transaction = self.driver.execute_native_probe({"unit": "environment"}, root, "unit", 32123)
+            self.assertEqual(transaction, "unit-native-tx")
+            self.assertEqual(request["transaction_id"], transaction)
+            self.assertEqual(request["client_exit_code"], 0)
+            self.assertEqual(request["observed_http_status"], 403)
+            match.assert_called_once_with([{"unit": True}], "unit")
+            self.assertIn("--http1.1", run.call_args.args[0])
+            self.assertIn("X-Modsec-Smoke: block", run.call_args.args[0])
+            self.assertEqual(run.call_args.kwargs["timeout"], 6)
+
 
 if __name__ == "__main__":
     unittest.main()

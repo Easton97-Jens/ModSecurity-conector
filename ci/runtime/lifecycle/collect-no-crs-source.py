@@ -83,6 +83,24 @@ def _configtest_source_artifacts(
     return {"configtest_dir": str(bundle)}
 
 
+def _startup_probe_source_fields(row: dict[str, Any], receipt: dict[str, Any]) -> dict[str, Any]:
+    """Preserve only the exact bounded producer-native transaction and rule."""
+    if row.get("case_id") != "valid_rules_file" or receipt.get("operation") != "startup":
+        return {}
+    probe = receipt.get("request_probe")
+    transactions = row.get("transaction_ids")
+    if (not isinstance(probe, dict) or not isinstance(transactions, list)
+            or len(transactions) != 1 or not isinstance(transactions[0], str)
+            or not transactions[0] or len(transactions[0]) > 256
+            or transactions[0] != probe.get("transaction_id")):
+        raise ValueError("startup source requires its exact bounded native-probe transaction")
+    rules = row.get("observed_rule_ids")
+    if (not isinstance(rules, list) or len(rules) != 1
+            or type(rules[0]) is not int or rules[0] != 1100001):
+        raise ValueError("startup source requires its exact integer native-probe rule")
+    return {"transaction_ids": transactions, "observed_rule_ids": rules}
+
+
 def configtest_source_fields(
     row: dict[str, Any], expected_phase: int | None,
     allowed_source_root: Path | None = None,
@@ -106,23 +124,9 @@ def configtest_source_fields(
         raise ValueError("configuration receipt contains unbounded or undeclared fields")
     fields = {"configtest_receipt": receipt}
     fields.update(_configtest_source_identity_fields(row))
-    if row.get("case_id") == "valid_rules_file" and receipt.get("operation") == "startup":
-        # Preserve the producer's exact native-probe transaction binding.
-        # Its retained phase-1 event is validated by the Framework bundle
-        # contract; it is not a fabricated phase-0 canonical event.
-        probe = receipt.get("request_probe")
-        transactions = row.get("transaction_ids")
-        if (not isinstance(probe, dict) or not isinstance(transactions, list)
-                or len(transactions) != 1 or not isinstance(transactions[0], str)
-                or not transactions[0] or len(transactions[0]) > 256
-                or transactions[0] != probe.get("transaction_id")):
-            raise ValueError("startup source requires its exact bounded native-probe transaction")
-        rules = row.get("observed_rule_ids")
-        if (not isinstance(rules, list) or len(rules) != 1
-                or type(rules[0]) is not int or rules[0] != 1100001):
-            raise ValueError("startup source requires its exact integer native-probe rule")
-        fields["transaction_ids"] = transactions
-        fields["observed_rule_ids"] = rules
+    # The retained phase-1 event is validated by the Framework bundle contract;
+    # this projection never creates a phase-0 event.
+    fields.update(_startup_probe_source_fields(row, receipt))
     if "artifacts" in row:
         fields["artifacts"] = _configtest_source_artifacts(row["artifacts"], allowed_source_root, row.get("case_id"))
     return fields
