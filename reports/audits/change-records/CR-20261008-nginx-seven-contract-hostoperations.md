@@ -77,6 +77,21 @@ No path, ownership, symlink, artifact, provenance, validator, or Required rule
 is weakened. No foreign sensitive path is touched. No Common/product change,
 MRTS mutation, protected dispatch, or administrative approval is included.
 
+### Startup JSON writer follow-up
+
+The generic JSON helper could overwrite an existing file or follow a symlink
+in an isolated, task-owned reproducer (two red controls). Its five production
+callers already use fixed names below an authorized, fresh, Root-owned `0700`
+directory; the Sonar content-taint signal is not proof of CLI path exploitation.
+The helper now also enforces the closed five names and external/non-checkout
+authority itself, then uses the existing `PrivateRuntimeRoot` directory-FD API
+for exclusive, no-follow `0600` creation. Serialized bytes remain identical.
+The original two controls are green; four additional driver regressions check
+all legitimate leaves, exact bytes/mode, existing files/links, unknown names,
+nonprivate roots, symlink roots and checkout rejection. A fresh Sonar result
+and integrated native run are still required; no finding disposition or
+Quality-Gate exemption is asserted.
+
 ## Runtime evidence
 
 Four historical-module diagnostic discovery probes returned actual configtest

@@ -1,6 +1,7 @@
 """Driver unit controls are not substitutes for actual native runtime evidence."""
 
 import importlib.util
+import json
 import os
 from pathlib import Path
 import tempfile
@@ -25,6 +26,57 @@ class ValidRulesDriverTest(unittest.TestCase):
         self.assertRegex(first, r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
         self.assertEqual(first, self.driver.projection_name("a" * 128))
         self.assertNotEqual(first, self.driver.projection_name("b" * 128))
+
+    def test_json_writer_preserves_exact_bytes_and_private_mode(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ("request-result.json", "roles.json", "cleanup.json",
+                         "source-result.json", "source-result.jsonl"):
+                path = root / name
+                value = {"run_id": "unit", "value": "../../content-not-a-path"}
+                expected = (json.dumps(value, sort_keys=True) + "\n").encode()
+                self.assertEqual(self.driver.write_json(path, value), expected)
+                self.assertEqual(path.read_bytes(), expected)
+                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+    def test_json_writer_rejects_existing_file_and_symlink_without_overwrite(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "cleanup.json"
+            path.write_bytes(b"owned-sentinel")
+            with self.assertRaises((ValueError, OSError)):
+                self.driver.write_json(path, {"run_id": "unit"})
+            self.assertEqual(path.read_bytes(), b"owned-sentinel")
+            link = root / "roles.json"
+            link.symlink_to(path)
+            with self.assertRaises((ValueError, OSError)):
+                self.driver.write_json(link, {"run_id": "unit"})
+            self.assertEqual(path.read_bytes(), b"owned-sentinel")
+
+    def test_json_writer_rejects_unknown_leaf_and_nonprivate_root(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with self.assertRaisesRegex(ValueError, "closed startup"):
+                self.driver.write_json(root / "unexpected.json", {})
+            root.chmod(0o755)
+            with self.assertRaises(ValueError):
+                self.driver.write_json(root / "cleanup.json", {})
+            self.assertFalse((root / "cleanup.json").exists())
+
+    def test_json_writer_rejects_symlink_root_and_checkout(self):
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory)
+            root = parent / "private"
+            root.mkdir(mode=0o700)
+            link = parent / "linked"
+            link.symlink_to(root, target_is_directory=True)
+            with self.assertRaises(ValueError):
+                self.driver.write_json(link / "cleanup.json", {})
+            (root / ".git").mkdir()
+            (root / ".git" / "HEAD").write_text("ref: refs/heads/unit\n")
+            with self.assertRaisesRegex(ValueError, "outside the checkout"):
+                self.driver.write_json(root / "cleanup.json", {})
+            self.assertFalse((root / "cleanup.json").exists())
 
     def test_native_event_requires_exact_native_transaction_rule_and_request(self):
         event = {"connector": "nginx", "integration_mode": "native-nginx-http-module",

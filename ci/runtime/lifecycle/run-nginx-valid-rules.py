@@ -27,6 +27,8 @@ def load_helper(name: str, path: Path):
 
 HERE = Path(__file__).resolve().parent
 BASE = load_helper("nginx_configtest_driver", HERE / "run-nginx-configtest.py")
+from runtime_path_utils import open_private_runtime_root
+
 PROJECTION = load_helper("nginx_projection", HERE.parent / "common/prepare-nginx-docroot-projection.py")
 VALID_RULES_CONTRACT = {"operation": "startup", "directive": "modsecurity_rules_file",
             "value": "no-crs-baseline.conf", "expected_exit_code": 0,
@@ -207,9 +209,21 @@ def stop_owned_master(process: subprocess.Popen | None, roles: dict, port: int, 
 
 
 def write_json(path: Path, value: dict) -> bytes:
-    raw = (json.dumps(value, sort_keys=True) + "\n").encode()
-    path.write_bytes(raw)
-    return raw
+    """Create only a closed JSON leaf under the existing private output root."""
+    path = BASE.absolute_path(str(path))
+    if path.name not in {"request-result.json", "roles.json", "cleanup.json",
+                         "source-result.json", "source-result.jsonl"}:
+        raise ValueError("JSON artifact name is outside the closed startup contract")
+    root = path.parent
+    if BASE.AUTHORIZED_STORAGE_ROOT not in root.parents:
+        raise ValueError("JSON output must be under authorized external task storage")
+    if any(BASE.is_checkout(ancestor) for ancestor in (root, *root.parents)
+           if BASE.AUTHORIZED_STORAGE_ROOT in ancestor.parents):
+        raise ValueError("JSON output must be outside the checkout")
+    text = json.dumps(value, sort_keys=True) + "\n"
+    with open_private_runtime_root(root) as private_root:
+        private_root.create_text(path.name, text, "startup JSON artifact")
+    return text.encode()
 
 
 def bounded_capture(path: Path) -> bytes:

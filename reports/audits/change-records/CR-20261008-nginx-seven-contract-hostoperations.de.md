@@ -83,6 +83,22 @@ Required-Regeln werden nicht abgeschwächt. Kein fremder sensitiver Pfad wird
 berührt. Common-/Produktänderung, MRTS-Mutation, Protected-Dispatch oder
 administrative Freigabe sind nicht enthalten.
 
+### Folgekorrektur des Startup-JSON-Writers
+
+Der generische JSON-Helfer konnte im isolierten, task-eigenen Reproducer eine
+bestehende Datei überschreiben oder einem Symlink folgen (zwei rote Kontrollen).
+Seine fünf Produktivaufrufer verwenden bereits feste Namen unter einem
+autorisierten, frischen, Root-eigenen `0700`-Verzeichnis; Sonars Content-Taint
+beweist keine CLI-Pfadausnutzung. Der Helfer prüft nun zusätzlich selbst die
+geschlossene Liste der fünf Namen und externe Nicht-Checkout-Autorität. Die
+bestehende Directory-FD-API `PrivateRuntimeRoot` erzeugt Dateien exklusiv,
+ohne Symlink-Follow und mit `0600`. Serialisierte Bytes bleiben identisch.
+Die ursprünglichen zwei Kontrollen sind grün; vier weitere Driver-Regressionen
+prüfen alle legitimen Dateinamen, exakte Bytes/Modi, bestehende Dateien/Links,
+unbekannte Namen, nichtprivate Roots, Symlink-Roots und Checkout-Ablehnung.
+Ein frisches Sonar-Ergebnis und integrierter nativer Lauf bleiben erforderlich;
+weder Finding-Disposition noch Quality-Gate-Ausnahme werden behauptet.
+
 ## Runtime-Evidence
 
 Vier Discovery-Proben mit historischem Modul lieferten tatsächlichen
