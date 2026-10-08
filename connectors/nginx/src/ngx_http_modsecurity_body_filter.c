@@ -15,6 +15,8 @@
 
 #include <ngx_config.h>
 #include <stdint.h>
+#include <inttypes.h>
+#include <stdio.h>
 #include <string.h>
 
 #ifndef MODSECURITY_DDEBUG
@@ -30,6 +32,7 @@
 #include "msconnector/limits.h"
 #include "msconnector/native_result.h"
 #include "ngx_http_modsecurity_phase4_error.h"
+#include "ngx_http_modsecurity_phase4_observation.h"
 #include "msconnector/phase4_budget.h"
 
 static ngx_http_output_body_filter_pt ngx_http_next_body_filter;
@@ -61,6 +64,9 @@ static ngx_int_t ngx_http_modsecurity_plan_limited_response_body(
     size_t len, size_t *allowed);
 static ngx_int_t ngx_http_modsecurity_append_response_body_chunk(
     ngx_http_modsecurity_ctx_t *ctx, u_char *data, size_t bytes);
+static ngx_int_t ngx_http_modsecurity_phase4_log_native_completion(
+    ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf,
+    ngx_http_modsecurity_ctx_t *ctx, int native_result);
 static ngx_int_t ngx_http_modsecurity_append_limited_response_body(ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf, u_char *data, size_t len);
 static ngx_int_t ngx_http_modsecurity_append_file_response_body(
     ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
@@ -185,16 +191,110 @@ ngx_http_modsecurity_plan_limited_response_body(
 }
 
 static ngx_int_t
+ngx_http_modsecurity_phase4_observation_event(ngx_http_request_t *r,
+    ngx_http_modsecurity_ctx_t *ctx, msconnector_event *event,
+    char *content_type, size_t content_type_size)
+{
+    ngx_http_modsecurity_event_request_metadata_t metadata;
+
+    if (r == NULL || ctx == NULL || event == NULL) {
+        return NGX_ERROR;
+    }
+    metadata = ngx_http_modsecurity_event_request_metadata(r);
+    ngx_http_modsecurity_phase4_copy_content_type(r, content_type,
+        content_type_size);
+    msconnector_event_init(event);
+    event->meta.connector = "nginx";
+    event->meta.integration_mode = "native-nginx-http-module";
+    event->meta.transaction_id = ctx->event_transaction_id.len > 0U
+        ? (const char *)ctx->event_transaction_id.data : "";
+    event->decision.phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
+    event->decision.status = MSCONNECTOR_STATUS_OK;
+    event->decision.action = "allow";
+    event->decision.requested_action = "allow";
+    event->decision.actual_action = "allow";
+    event->request.method = metadata.method;
+    event->request.uri = metadata.uri;
+    event->body.content_type = content_type;
+    event->body.bytes_seen = ctx->response_body_bytes_seen;
+    event->body.bytes_inspected = ctx->response_body_bytes_inspected;
+    event->flags.body_truncated = ctx->response_body_truncated;
+    event->flags.headers_sent = r->header_sent ? 1 : 0;
+    event->flags.response_committed = event->flags.headers_sent;
+    event->flags.response_started = event->flags.headers_sent;
+    event->flags.body_started = ctx->response_body_seen;
+    return NGX_OK;
+}
+
+static ngx_int_t
+ngx_http_modsecurity_phase4_log_native_append(ngx_http_request_t *r,
+    ngx_http_modsecurity_ctx_t *ctx, int native_result, size_t bytes,
+    size_t retained)
+{
+    ngx_http_modsecurity_conf_t *mcf;
+    msconnector_event event;
+    char reason[256], content_type[256];
+    int length;
+
+    mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
+    if (mcf == NULL) return NGX_ERROR;
+    if (mcf->phase4_log_file == NULL ||
+        mcf->phase4_log_file->fd == NGX_INVALID_FILE) return NGX_OK;
+    if (ngx_http_modsecurity_phase4_observation_event(r, ctx, &event,
+            content_type, sizeof(content_type)) != NGX_OK) return NGX_ERROR;
+    length = snprintf(reason, sizeof(reason),
+        "native_return=%d;append_size=%zu;append_index=%zu;engine_retained_bytes=%zu",
+        native_result, bytes, ctx->response_body_append_calls, retained);
+    if (length < 0 || (size_t)length >= sizeof(reason)) return NGX_ERROR;
+    event.meta.event = "phase4_append";
+    event.meta.message_id = "MSCONN_PHASE4_APPEND";
+    event.meta.message = "Native response body append returned.";
+    event.decision.reason = reason;
+    return ngx_http_modsecurity_phase4_event_write_result(r, ctx,
+        ngx_http_modsecurity_write_phase_event_jsonl(r, mcf, &event, "phase4"));
+}
+
+static ngx_int_t
+ngx_http_modsecurity_phase4_log_native_completion(ngx_http_request_t *r,
+    ngx_http_modsecurity_conf_t *mcf, ngx_http_modsecurity_ctx_t *ctx,
+    int native_result)
+{
+    msconnector_event event;
+    char reason[128], content_type[256];
+    size_t retained = msc_get_response_body_length(ctx->modsec_transaction);
+
+    if (ngx_http_modsecurity_phase4_observation_event(r, ctx, &event,
+            content_type, sizeof(content_type)) != NGX_OK) return NGX_ERROR;
+    event.meta.message_id = "MSCONN_PHASE4_COMPLETE";
+    if (!ngx_http_modsecurity_phase4_observation(&event, reason, sizeof(reason),
+            native_result, &ctx->contract, retained,
+            ctx->response_body_bytes_seen, ctx->response_body_bytes_inspected,
+            ctx->response_body_append_calls, content_type)) return NGX_ERROR;
+    ctx->response_body_truncated = ctx->response_body_truncated ||
+        retained < ctx->response_body_bytes_inspected;
+    event.flags.body_truncated = ctx->response_body_truncated;
+    if (mcf == NULL) return NGX_ERROR;
+    if (mcf->phase4_log_file == NULL ||
+        mcf->phase4_log_file->fd == NGX_INVALID_FILE) return NGX_OK;
+    return ngx_http_modsecurity_phase4_event_write_result(r, ctx,
+        ngx_http_modsecurity_write_phase_event_jsonl(r, mcf, &event, "phase4"));
+}
+
+static ngx_int_t
 ngx_http_modsecurity_append_response_body_chunk(
     ngx_http_modsecurity_ctx_t *ctx, u_char *data, size_t bytes)
 {
-    if (ctx == NULL || ctx->modsec_transaction == NULL) {
+    int native_result, intervention_result;
+    size_t retained;
+
+    if (ctx == NULL || ctx->modsec_transaction == NULL || ctx->r == NULL) {
         return NGX_ERROR;
     }
     if (bytes == 0U) {
         return NGX_OK;
     }
-    if (data == NULL || ctx->response_body_bytes_inspected > SIZE_MAX - bytes) {
+    if (data == NULL || ctx->response_body_bytes_inspected > SIZE_MAX - bytes ||
+        ctx->response_body_append_calls == SIZE_MAX) {
         (void)msconnector_transaction_contract_fail(&ctx->contract,
             MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, 0U);
         return NGX_ERROR;
@@ -208,13 +308,32 @@ ngx_http_modsecurity_append_response_body_chunk(
             bytes) != MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
         return NGX_ERROR;
     }
-    if (!msconnector_native_body_append_can_continue(
-            msc_append_response_body(ctx->modsec_transaction, data, bytes))) {
+    ctx->native_event_phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
+    ctx->native_event_phase_active = 1;
+    native_result = msc_append_response_body(ctx->modsec_transaction, data, bytes);
+    ctx->native_event_phase_active = 0;
+    if (!msconnector_native_body_append_can_continue(native_result)) {
         (void)msconnector_transaction_contract_fail(&ctx->contract,
             MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, 0U);
         return NGX_ERROR;
     }
     ctx->response_body_bytes_inspected += bytes;
+    ctx->response_body_append_calls++;
+    retained = msc_get_response_body_length(ctx->modsec_transaction);
+    if (retained > ctx->response_body_bytes_inspected) {
+        (void)msconnector_transaction_contract_fail(&ctx->contract,
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, 0U);
+        return NGX_ERROR;
+    }
+    ctx->response_body_truncated = ctx->response_body_truncated ||
+        retained < ctx->response_body_bytes_inspected;
+    if (ngx_http_modsecurity_phase4_log_native_append(ctx->r, ctx,
+            native_result, bytes, retained) != NGX_OK) return NGX_ERROR;
+    /* Reject can return native success with a pending, rule-free limit
+     * intervention. Collect it before any next body filter sees this chunk. */
+    intervention_result = ngx_http_modsecurity_process_intervention(
+        ctx->modsec_transaction, ctx->r, 0);
+    if (intervention_result != 0) return NGX_ERROR;
     return NGX_OK;
 }
 
@@ -359,8 +478,14 @@ ngx_http_modsecurity_phase4_fail_control(ngx_http_request_t *r,
     }
     ctx->phase4_processed = 1;
     ctx->intervention_triggered = 1;
-    status = ctx->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT
-        ? NGX_HTTP_REQUEST_ENTITY_TOO_LARGE : NGX_HTTP_INTERNAL_SERVER_ERROR;
+    if (ctx->native_response_body_limit_rejection) {
+        status = NGX_HTTP_FORBIDDEN;
+    } else if (ctx->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT) {
+        status = NGX_HTTP_GATEWAY_TIME_OUT;
+    } else {
+        status = ctx->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT
+            ? NGX_HTTP_REQUEST_ENTITY_TOO_LARGE : NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
     if (r->header_sent) {
         r->connection->error = 1;
     }
@@ -377,6 +502,7 @@ ngx_http_modsecurity_process_final_response_body(ngx_http_request_t *r,
     ngx_chain_t *in, ngx_uint_t *forwarded)
 {
     ngx_pool_t *old_pool;
+    ngx_http_modsecurity_engine_call_measurement measurement;
     int ret;
 
     *forwarded = 0;
@@ -390,7 +516,23 @@ ngx_http_modsecurity_process_final_response_body(ngx_http_request_t *r,
         return ngx_http_modsecurity_phase4_fail_control(r, mcf, ctx,
             MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE);
     }
+    if (ngx_http_modsecurity_engine_call_begin(r,
+            MSCONNECTOR_PHASE_RESPONSE_BODY, &measurement) != NGX_OK) {
+        ngx_http_modsecurity_pcre_malloc_done(old_pool);
+        return ngx_http_modsecurity_phase4_fail_control(r, mcf, ctx,
+            MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT);
+    }
+    ctx->native_event_phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
+    ctx->native_event_phase_active = 1;
     ret = msc_process_response_body(ctx->modsec_transaction);
+    ctx->native_event_phase_active = 0;
+    ctx->native_response_body_eos = msconnector_native_phase_succeeded(ret);
+    if (ngx_http_modsecurity_engine_call_finish(r,
+            MSCONNECTOR_PHASE_RESPONSE_BODY, &measurement, ret) != NGX_OK) {
+        ngx_http_modsecurity_pcre_malloc_done(old_pool);
+        return ngx_http_modsecurity_phase4_fail_control(r, mcf, ctx,
+            MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT);
+    }
     if (!msconnector_native_phase_succeeded(ret)) {
         ngx_http_modsecurity_pcre_malloc_done(old_pool);
         (void)msconnector_transaction_contract_fail(&ctx->contract,
@@ -418,6 +560,12 @@ ngx_http_modsecurity_process_final_response_body(ngx_http_request_t *r,
             MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE);
     }
     ngx_http_modsecurity_pcre_malloc_done(old_pool);
+
+    if (ngx_http_modsecurity_phase4_log_native_completion(r, mcf, ctx, ret)
+            != NGX_OK) {
+        return ngx_http_modsecurity_phase4_fail_control(r, mcf, ctx,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
+    }
 
     ret = ngx_http_modsecurity_process_intervention(ctx->modsec_transaction, r,
         0);
@@ -975,7 +1123,7 @@ ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurit
     event.flags.body_started = ctx != NULL && ctx->response_body_seen;
     /* The Phase-4 event is emitted from the last_buf/last_in_chain finish
      * path, so this marks engine EOS delivery only. */
-    event.flags.eos_seen = 1;
+    event.flags.eos_seen = ctx != NULL && ctx->native_response_body_eos;
     event.flags.body_truncated = ctx != NULL && ctx->response_body_truncated;
     event.flags.connection_aborted = ctx != NULL && ctx->phase4_strict_abort;
 
@@ -991,6 +1139,7 @@ ngx_http_modsecurity_phase4_log_failure(ngx_http_request_t *r,
     msconnector_event event;
     ngx_http_modsecurity_event_request_metadata_t metadata;
     int body_limit;
+    int engine_timeout;
 
     if (r == NULL || mcf == NULL || ctx == NULL) {
         return NGX_ERROR;
@@ -1004,11 +1153,14 @@ ngx_http_modsecurity_phase4_log_failure(ngx_http_request_t *r,
         return NGX_OK;
     }
     body_limit = ctx->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT;
+    engine_timeout = ctx->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT;
     metadata = ngx_http_modsecurity_event_request_metadata(r);
     msconnector_event_init(&event);
     event.meta.message_id = MSCONN_EVENT_CONNECTOR_ERROR;
     if (body_limit) {
         event.meta.message_id = MSCONN_EVENT_BODY_LIMIT;
+    } else if (engine_timeout) {
+        event.meta.message_id = MSCONN_EVENT_ENGINE_TIMEOUT;
     } else if (ctx->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE) {
         event.meta.message_id = MSCONN_EVENT_INVALID_ENGINE_RESPONSE;
     }
@@ -1025,7 +1177,14 @@ ngx_http_modsecurity_phase4_log_failure(ngx_http_request_t *r,
     event.decision.action = r->header_sent ? "abort_connection" : "error";
     event.decision.actual_action = r->header_sent ? "abort_connection" : "";
     event.http.http_status = body_limit ? NGX_HTTP_REQUEST_ENTITY_TOO_LARGE
-        : NGX_HTTP_INTERNAL_SERVER_ERROR;
+        : engine_timeout ? NGX_HTTP_GATEWAY_TIME_OUT : NGX_HTTP_INTERNAL_SERVER_ERROR;
+    if (ctx->native_response_body_limit_rejection) {
+        event.decision.action = "deny";
+        event.decision.requested_action = "deny";
+        event.decision.actual_action = r->header_sent ? "abort_connection" : "deny";
+        event.http.http_status = NGX_HTTP_FORBIDDEN;
+        event.body.limit_outcome = "reject";
+    }
     event.http.original_http_status = ngx_http_modsecurity_phase4_original_status(r);
     event.http.visible_http_status = r->header_sent ? event.http.original_http_status : 0;
     event.http.transport_result = r->header_sent ? "connection_aborted" : "not_observable";
@@ -1038,7 +1197,8 @@ ngx_http_modsecurity_phase4_log_failure(ngx_http_request_t *r,
     event.flags.response_started = event.flags.headers_sent;
     event.flags.connection_aborted = r->header_sent && r->connection->error;
     event.flags.body_truncated = ctx->response_body_truncated;
-    /* Only successful canonical completion proves delivered engine EOS. */
-    event.flags.eos_seen = ctx->contract.last_completed_phase == MSCONNECTOR_PHASE_RESPONSE_BODY;
+    /* Actual native EOS can precede a post-return budget rejection; never
+     * describe that rejected Common completion as successful phase4 EOS. */
+    event.flags.eos_seen = ctx->native_response_body_eos;
     return ngx_http_modsecurity_write_phase_event_jsonl(r, mcf, &event, "phase4");
 }
