@@ -54,7 +54,7 @@ Finale integrierte Suites, Standard-Lifecycle, aktuelle CI/Sonar und Protected-A
 
 ## Finaler Diff- und Review-Status
 
-## Freigegebene Post-Response-Finish-Folgearbeit
+Freigegebene Post-Response-Finish-Folgearbeit:
 
 Der versuchsgebundene Finish-Interposer bindet exakten Worker und Case-Transaktion, lehnt natives Logging einmal ab und delegiert echtes Common-Cleanup. Der Client hält den tatsächlichen Body-SHA256 fest. Exakte URI-Zuordnung und statische Fixture ohne Redirect verhindern gemeinsame scharfgeschaltete Identität für fremde Listener-Probes/Internal-Redirects. Sieben Parent-Fokustests bestehen nach rotem Identitäts-Scope-Test. `stream-d-finish-r3` belegt unveränderten HTTP-200-Status/Body, exakten Logging-Fehler, echtes Cleanup und Ablehnung der falschen Transaktion (direkte Exits 0/1). Frühere Versuche bleiben erhaltene Fehler. Weder Produkt-Cleanup-Änderung noch Validator-Lockerung waren nötig. Finale Canonical-Coverage bleibt offen.
 
