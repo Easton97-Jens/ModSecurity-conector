@@ -24,6 +24,14 @@ Der neue `ci/runtime/common/nginx_phase4_upstream.py` sendet maximal acht Chunks
 
 ## Geänderte Dateien
 
+Fortsetzung am 2026-10-08: Der eigene curl-Aufruf bewahrt jetzt
+`response.headers` aus der tatsächlichen `--dump-header`-Ausgabe auf und bindet
+deren Bytes in `raw_sha256`. Damit kann der unabhängige Framework-Validator
+Wire-Status, MIME und Framing neben dekodiertem Body und curl-Ergebnis prüfen.
+Die Aufzeichnung verändert keine nativen Beobachtungen oder kanonischen Status.
+Zwei vorhandene Driver-Grenztests bestehen nach der fokussierten Änderung;
+der neue native Produzent benötigt weiterhin Koordinatorintegration und Neubau.
+
 Die beiden neuen Helfer, `tests/test_nginx_phase4_upstream.py`, `tests/test_nginx_phase4_driver.py` und dieses EN/DE-Paar. Zentrale Dispatcher/Collector/Schema/native Producer sind Integrationsabhängigkeiten des Koordinators.
 
 ## Ausgeführte Befehle

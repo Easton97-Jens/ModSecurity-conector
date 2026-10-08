@@ -57,9 +57,14 @@ def configuration(output, port, upstream_port, projection, path, mode, run_id):
 
 def actual_request(args, spec, output, environment, server):
     body = output / "response.bin"
+    # Retain an empty capture even when immediate rejection forwards no bytes.
+    # Curl may otherwise omit its output file; a fresh exclusive leaf preserves
+    # the distinction between observed zero bytes and an absent artifact.
+    body.open("xb").close()
     with (output / "client.stdout").open("wb") as out, (output / "client.stderr").open("wb") as err:
         client = subprocess.Popen(["/usr/bin/curl", "--noproxy", "*", "--http1.1", "--no-buffer", "--silent",
                                    "--show-error", "--max-time", "6", "--output", str(body),
+                                   "--dump-header", str(output / "response.headers"),
                                    "--write-out", "%{http_code}",
                                    f"http://127.0.0.1:{args.port}{spec['request_path']}"],
                                   env=environment, stdout=out, stderr=err)
@@ -140,7 +145,7 @@ def run(args):
     observations["native_events"] = native_observations(raw, spec["request_path"])
     leaves = ("rules.conf", "nginx.conf", "configtest.stdout", "configtest.stderr",
               "startup.stdout", "startup.stderr", "client.stdout", "client.stderr",
-              "response.bin", "phase4-events.jsonl", "nginx-error.log")
+              "response.bin", "response.headers", "phase4-events.jsonl", "nginx-error.log")
     captures = {name: HOST.BASE.digest(HOST.bounded_capture(output / name))
                 for name in leaves if (output / name).exists()}
     observations.update({"case_id": args.case_id, "run_id": args.run_id,

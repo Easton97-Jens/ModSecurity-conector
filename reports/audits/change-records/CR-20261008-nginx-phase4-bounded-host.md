@@ -24,6 +24,14 @@ The new `ci/runtime/common/nginx_phase4_upstream.py` sends at most eight chunks 
 
 ## Changed files
 
+Continuation on 2026-10-08: the dedicated curl invocation now retains
+`response.headers` using its actual `--dump-header` output and includes those
+bytes in `raw_sha256`. This lets the independent Framework operation validator
+check the wire status, MIME and framing alongside the decoded body and curl
+result. Native observations and canonical status remain unchanged by capture.
+Two existing driver-boundary tests pass after this focused capture change;
+the new native producer still requires coordinator integration and rebuild.
+
 The two new helpers, `tests/test_nginx_phase4_upstream.py`, `tests/test_nginx_phase4_driver.py`, and this EN/DE pair. Central dispatcher/collector/schema/native producer are coordinator-owned integration dependencies.
 
 ## Commands executed
