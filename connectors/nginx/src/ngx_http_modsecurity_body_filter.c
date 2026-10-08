@@ -1200,5 +1200,6 @@ ngx_http_modsecurity_phase4_log_failure(ngx_http_request_t *r,
     /* Actual native EOS can precede a post-return budget rejection; never
      * describe that rejected Common completion as successful phase4 EOS. */
     event.flags.eos_seen = ctx->native_response_body_eos;
+    event.flags.timeout_stage = engine_timeout ? "response_body" : NULL;
     return ngx_http_modsecurity_write_phase_event_jsonl(r, mcf, &event, "phase4");
 }

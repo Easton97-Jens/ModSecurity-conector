@@ -71,7 +71,8 @@ typedef struct { const char *method, *uri, *content_type; }
 enum { NGX_OK = 0, NGX_ERROR = -1, NGX_AGAIN = -2, NGX_DONE = -4,
     NGX_DECLINED = -5, NGX_INVALID_FILE = -1, NGX_LOG_WARN = 5,
     NGX_HTTP_BAD_REQUEST = 400, NGX_HTTP_FORBIDDEN = 403,
-    NGX_HTTP_REQUEST_ENTITY_TOO_LARGE = 413, NGX_HTTP_INTERNAL_SERVER_ERROR = 500 };
+    NGX_HTTP_REQUEST_ENTITY_TOO_LARGE = 413, NGX_HTTP_INTERNAL_SERVER_ERROR = 500,
+    NGX_HTTP_GATEWAY_TIME_OUT = 504 };
 static ngx_http_modsecurity_ctx_t context;
 static ngx_http_modsecurity_conf_t configuration;
 static int present, header_case, allocation_failure;
@@ -173,6 +174,8 @@ int main(int argc, char **argv) {
         context.contract.error_class = MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL;
     } else if (strcmp(argv[2], "connector") == 0) {
         context.contract.error_class = MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
+    } else if (strcmp(argv[2], "timeout") == 0) {
+        context.contract.error_class = MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT;
     }
     context.contract.engine_decision = MSCONNECTOR_TRANSACTION_DECISION_ALLOW;
     if (strcmp(argv[6], "block") == 0) {

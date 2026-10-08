@@ -178,6 +178,11 @@
       "license": "Apache-2.0",
       "reason": "Parent-owned bounded URI-only native event projection; other fields retain strict Common serialization."
     },
+    "src/ngx_http_modsecurity_engine_call_budget.h": {
+      "base_path": "connectors/nginx/src/ngx_http_modsecurity_engine_call_budget.h",
+      "license": "Apache-2.0",
+      "reason": "Parent-owned default-disabled monotonic post-return phase-processing budget arithmetic."
+    },
     "src/ngx_http_modsecurity_access.c": {
       "base_path": "src/ngx_http_modsecurity_access.c",
       "license": "Apache-2.0",

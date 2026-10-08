@@ -31,7 +31,9 @@
 #include "msconnector/phase.h"
 #include "msconnector/rule_load_stats.h"
 #include "msconnector/transaction_contract.h"
+#include "msconnector/transaction_state.h"
 #include "ngx_http_modsecurity_event_uri.h"
+#include "ngx_http_modsecurity_engine_call_budget.h"
 
 
 /* #define MSC_USE_RULES_SET 1 */
@@ -379,6 +381,8 @@ typedef struct {
      * synchronized into common_config for connector-neutral semantics. */
     ngx_http_complex_value_t  *transaction_id;
     ngx_uint_t                 phase4_mode;
+    /* NGX-specific post-return budget, in milliseconds; zero disables it. */
+    ngx_uint_t                 engine_call_budget_ms;
     ngx_open_file_t           *phase4_log_file;
     ngx_str_t                  phase4_log_path;
 } ngx_http_modsecurity_conf_t;
@@ -404,6 +408,19 @@ int ngx_http_modsecurity_contract_begin(ngx_http_modsecurity_ctx_t *ctx,
     enum msconnector_phase phase);
 int ngx_http_modsecurity_contract_complete(ngx_http_modsecurity_ctx_t *ctx,
     enum msconnector_phase phase);
+ngx_int_t ngx_http_modsecurity_log_technical_failure(ngx_http_request_t *r,
+    ngx_http_modsecurity_ctx_t *ctx, enum msconnector_phase phase,
+    msconnector_transaction_error_class cause, ngx_int_t http_status);
+
+typedef ngx_http_modsecurity_engine_call_budget
+    ngx_http_modsecurity_engine_call_measurement;
+ngx_int_t ngx_http_modsecurity_engine_call_begin(ngx_http_request_t *r,
+    enum msconnector_phase phase,
+    ngx_http_modsecurity_engine_call_measurement *measurement);
+ngx_int_t ngx_http_modsecurity_engine_call_finish(ngx_http_request_t *r,
+    enum msconnector_phase phase,
+    ngx_http_modsecurity_engine_call_measurement *measurement,
+    int native_result);
 
 typedef struct {
     const char *method;

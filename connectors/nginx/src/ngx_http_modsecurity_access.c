@@ -230,6 +230,10 @@ ngx_http_modsecurity_request_error_log_event(ngx_http_request_t *r,
         ? "reject" : NULL;
     event.flags.eos_seen = phase == MSCONNECTOR_PHASE_REQUEST_BODY &&
         ctx->request_body_processed;
+    if (cause == MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT) {
+        event.http.http_status = NGX_HTTP_GATEWAY_TIME_OUT;
+        event.flags.timeout_stage = msconnector_phase_name(phase);
+    }
 
     /* The request is already terminal. The strict writer diagnoses failure;
      * neither retrying this sink nor changing the original cause is safe. */
@@ -279,8 +283,10 @@ ngx_http_modsecurity_request_result(ngx_http_request_t *r,
         (void)msconnector_transaction_contract_fail(&ctx->contract, cause, 0U);
     }
     ctx->intervention_triggered = 1;
-    ctx->request_error_status = result >= NGX_HTTP_BAD_REQUEST && result <= 599
-        ? result : NGX_HTTP_INTERNAL_SERVER_ERROR;
+    ctx->request_error_status = cause == MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT
+        ? NGX_HTTP_GATEWAY_TIME_OUT
+        : (result >= NGX_HTTP_BAD_REQUEST && result <= 599
+            ? result : NGX_HTTP_INTERNAL_SERVER_ERROR);
     ctx->request_error_status = ngx_http_modsecurity_request_terminal_status(
         r, ctx->request_error_status);
     ngx_http_modsecurity_request_error_log_event(r, mcf, ctx, phase, cause);
@@ -527,6 +533,8 @@ ngx_http_modsecurity_process_request_headers(ngx_http_request_t *r,
     size_t header_count;
     size_t header_bytes;
     int ret;
+    ngx_http_modsecurity_engine_call_measurement measurement;
+    ngx_int_t budget_result;
     msconnector_nginx_intervention_disposition disposition;
 
     method = ngx_str_to_char(r->method_name, r->pool);
@@ -557,10 +565,22 @@ ngx_http_modsecurity_process_request_headers(ngx_http_request_t *r,
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     ctx->native_event_phase = MSCONNECTOR_PHASE_REQUEST_HEADERS;
+    if (ngx_http_modsecurity_engine_call_begin(r,
+            MSCONNECTOR_PHASE_REQUEST_HEADERS, &measurement) != NGX_OK) {
+        ngx_http_modsecurity_pcre_malloc_done(old_pool);
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
     ctx->native_event_phase_active = 1;
     ret = msc_process_request_headers(ctx->modsec_transaction);
     ctx->native_event_phase_active = 0;
+    budget_result = ngx_http_modsecurity_engine_call_finish(r,
+        MSCONNECTOR_PHASE_REQUEST_HEADERS, &measurement, ret);
     ngx_http_modsecurity_pcre_malloc_done(old_pool);
+
+    if (budget_result != NGX_OK) {
+        return ctx->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT
+            ? NGX_HTTP_GATEWAY_TIME_OUT : NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
 
     if (!msconnector_native_phase_succeeded(ret)) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
@@ -843,6 +863,8 @@ ngx_http_modsecurity_inspect_request_body(ngx_http_request_t *r,
     ngx_pool_t *old_pool;
     ngx_int_t rc;
     int ret;
+    ngx_http_modsecurity_engine_call_measurement measurement;
+    ngx_int_t budget_result;
 
     dd("request body is ready to be processed");
     r->write_event_handler = ngx_http_core_run_phases;
@@ -871,10 +893,22 @@ ngx_http_modsecurity_inspect_request_body(ngx_http_request_t *r,
 
     old_pool = ngx_http_modsecurity_pcre_malloc_init(r->pool);
     ctx->native_event_phase = MSCONNECTOR_PHASE_REQUEST_BODY;
+    if (ngx_http_modsecurity_engine_call_begin(r,
+            MSCONNECTOR_PHASE_REQUEST_BODY, &measurement) != NGX_OK) {
+        ngx_http_modsecurity_pcre_malloc_done(old_pool);
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
     ctx->native_event_phase_active = 1;
     ret = msc_process_request_body(ctx->modsec_transaction);
     ctx->native_event_phase_active = 0;
+    budget_result = ngx_http_modsecurity_engine_call_finish(r,
+        MSCONNECTOR_PHASE_REQUEST_BODY, &measurement, ret);
     ngx_http_modsecurity_pcre_malloc_done(old_pool);
+
+    if (budget_result != NGX_OK) {
+        return ctx->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT
+            ? NGX_HTTP_GATEWAY_TIME_OUT : NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
 
     if (!msconnector_native_phase_succeeded(ret)) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,

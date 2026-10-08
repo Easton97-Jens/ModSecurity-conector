@@ -64,6 +64,7 @@ typedef struct { off_t size; int regular; } ngx_file_info_t;
 enum { NGX_OK = 0, NGX_ERROR = -1, NGX_DECLINED = -5,
        NGX_LOG_ERR = 4, NGX_FILE_ERROR = -1,
        NGX_HTTP_INTERNAL_SERVER_ERROR = 500,
+       NGX_HTTP_GATEWAY_TIME_OUT = 504,
        NGX_HTTP_REQUEST_ENTITY_TOO_LARGE = 413 };
 static int append_result = 1, phase_result = 1, file_result = 1;
 static int append_calls, phase_calls, file_calls, completion_calls;
@@ -75,6 +76,15 @@ static void ngx_log_error(int level, void *log, int error, const char *format, .
 static void ngx_http_core_run_phases(ngx_http_request_t *request) { (void)request; }
 static ngx_pool_t *ngx_http_modsecurity_pcre_malloc_init(ngx_pool_t *pool) { return pool; }
 static void ngx_http_modsecurity_pcre_malloc_done(ngx_pool_t *pool) { (void)pool; }
+typedef struct { int enabled; } ngx_http_modsecurity_engine_call_measurement;
+static ngx_int_t ngx_http_modsecurity_engine_call_begin(ngx_http_request_t *r,
+    enum msconnector_phase phase, ngx_http_modsecurity_engine_call_measurement *value) {
+    (void)r; (void)phase; value->enabled=0; return NGX_OK;
+}
+static ngx_int_t ngx_http_modsecurity_engine_call_finish(ngx_http_request_t *r,
+    enum msconnector_phase phase, ngx_http_modsecurity_engine_call_measurement *value, int result) {
+    (void)r; (void)phase; (void)value; (void)result; return NGX_OK;
+}
 static char *ngx_str_to_char(ngx_str_t value, ngx_pool_t *pool) {
     (void)pool; return (char *)value.data;
 }
