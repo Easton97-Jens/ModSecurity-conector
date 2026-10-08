@@ -47,7 +47,7 @@ SEQUENCES = {
     "finish_failure_propagation": (200,),
 }
 KEEPALIVE = {"keep_alive_requests_if_supported", "keepalive_allow_allow", "keepalive_allow_deny_allow", "keepalive_safe_followup"}
-KEEPALIVE.add("transport_keep_alive")
+KEEPALIVE.update({"transport_keep_alive", "transport_sequential_requests"})
 STRICT = {"phase4_strict_http1_client_abort", "phase4_strict_host_survives",
           "phase4_strict_followup_request_succeeds", "keepalive_after_strict_new_connection"}
 WRITE = {"response_short_write_resume", "response_write_would_block_resume"}

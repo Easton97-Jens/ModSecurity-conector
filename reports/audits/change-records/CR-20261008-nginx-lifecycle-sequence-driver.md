@@ -56,6 +56,8 @@ Final integrated suites, standard lifecycle, current-head CI/Sonar and protected
 
 ## Final diff and review status
 
+The `transport_sequential_requests` selection now sends allow/deny/allow on one actual socket, matching its catalog contract. Its red dynamic test observed three connections before correction; two transport tests now pass, including the existing keep-alive allow/allow control. Independent-connection lifecycle cases remain separately selected. Native transport event production and final canonical coverage remain coordinator-owned.
+
 Approved post-response finish follow-up:
 
 The attempt-only finish interposer binds exact worker and case transaction, rejects native logging once and delegates real Common cleanup. The client retains actual body SHA256. An exact-URI transaction map and non-redirecting static fixture prevent unrelated listener probes/internal redirects from sharing the armed identity. Seven Parent focused tests pass after a red identity-scope regression. `stream-d-finish-r3` proves unchanged HTTP 200/body, exact logging error, actual cleanup and wrong-transaction control rejection (direct exits 0/1). Earlier attempts remain retained failures. No product cleanup mutation or validator relaxation was required. Final Canonical coverage remains outstanding.
