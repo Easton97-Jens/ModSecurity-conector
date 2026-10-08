@@ -23,6 +23,7 @@
 
 #include "ngx_http_modsecurity_common.h"
 #include "ngx_http_modsecurity_mapper.h"
+#include "ngx_http_modsecurity_request_completion.h"
 #include "msconnector/event.h"
 #include "msconnector/native_result.h"
 
@@ -523,6 +524,34 @@ ngx_http_modsecurity_request_header_metrics(ngx_http_request_t *r,
         : &r->headers_in.headers, count, bytes);
 }
 
+/* A native P1 completion is distinct from rule callbacks and host delivery.
+ * Emit only from the actual no-intervention continuation below, before P2.
+ * Request-event sink failure remains warning-only, as with existing metadata. */
+static void
+ngx_http_modsecurity_request_completion_log_event(ngx_http_request_t *r,
+    ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf,
+    int native_result)
+{
+    msconnector_event event;
+    ngx_http_modsecurity_event_request_metadata_t metadata;
+
+    if (r == NULL || ctx == NULL || !ctx->contract_initialized ||
+        ctx->modsec_transaction == NULL || mcf == NULL ||
+        mcf->phase4_log_file == NULL ||
+        mcf->phase4_log_file->fd == NGX_INVALID_FILE ||
+        !ngx_http_modsecurity_request_completion(&event, &ctx->contract,
+            native_result)) {
+        return;
+    }
+    metadata = ngx_http_modsecurity_event_request_metadata(r);
+    event.request.method = metadata.method;
+    event.request.uri = metadata.uri;
+    event.body.content_type = metadata.content_type;
+    (void)ngx_http_modsecurity_write_event_jsonl(r, mcf, &event,
+        "modsecurity request completion event serialization failed",
+        "modsecurity request completion log write failed");
+}
+
 static ngx_int_t
 ngx_http_modsecurity_process_request_headers(ngx_http_request_t *r,
     ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf)
@@ -533,6 +562,7 @@ ngx_http_modsecurity_process_request_headers(ngx_http_request_t *r,
     size_t header_count;
     size_t header_bytes;
     int ret;
+    int native_result;
     ngx_http_modsecurity_engine_call_measurement measurement;
     ngx_int_t budget_result;
     msconnector_nginx_intervention_disposition disposition;
@@ -572,6 +602,7 @@ ngx_http_modsecurity_process_request_headers(ngx_http_request_t *r,
     }
     ctx->native_event_phase_active = 1;
     ret = msc_process_request_headers(ctx->modsec_transaction);
+    native_result = ret;
     ctx->native_event_phase_active = 0;
     budget_result = ngx_http_modsecurity_engine_call_finish(r,
         MSCONNECTOR_PHASE_REQUEST_HEADERS, &measurement, ret);
@@ -618,6 +649,8 @@ ngx_http_modsecurity_process_request_headers(ngx_http_request_t *r,
         return ret;
     }
 
+    ngx_http_modsecurity_request_completion_log_event(r, ctx, mcf,
+        native_result);
     return NGX_OK;
 }
 

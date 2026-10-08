@@ -178,6 +178,11 @@
       "license": "Apache-2.0",
       "reason": "Parent-owned bounded actual Engine append and Common completion observation constructor."
     },
+    "src/ngx_http_modsecurity_request_completion.h": {
+      "base_path": "connectors/nginx/src/ngx_http_modsecurity_request_completion.h",
+      "license": "Apache-2.0",
+      "reason": "Parent-owned native/Common P1 completion constructor for the actual no-intervention continuation; no host HTTP status or full-request allow is asserted."
+    },
     "src/ngx_http_modsecurity_event_uri.h": {
       "base_path": "connectors/nginx/src/ngx_http_modsecurity_event_uri.h",
       "license": "Apache-2.0",
