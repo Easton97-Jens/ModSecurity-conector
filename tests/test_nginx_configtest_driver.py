@@ -1,6 +1,8 @@
 """Controlled subprocess controls; these do not claim genuine NGINX evidence."""
 
+import ast
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -15,6 +17,20 @@ DRIVER = ROOT / "ci/runtime/lifecycle/run-nginx-configtest.py"
 
 
 class NginxConfigtestDriverTest(unittest.TestCase):
+    def test_missing_rules_constant_preserves_all_closed_contract_values(self):
+        spec = importlib.util.spec_from_file_location("missing_rules_quality_driver", DRIVER)
+        driver = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(driver)
+        self.assertEqual(driver.MISSING_RULES_FILE_NAME, "missing-rules.conf")
+        contract = driver.CONFIGTEST_CONTRACTS["missing_rules_file"]
+        self.assertEqual(contract["value"], "missing-rules.conf")
+        self.assertEqual(contract["diagnostic_fragments"],
+                         ['"modsecurity_rules_file" directive', "missing-rules.conf", "Failed to open the file"])
+        self.assertEqual(driver.CONFIGTEST_PATH_FIXTURES["missing_rules_file"], ("missing-rules.conf", "absent"))
+        literals = [node.value for node in ast.walk(ast.parse(DRIVER.read_text()))
+                    if isinstance(node, ast.Constant) and node.value == "missing-rules.conf"]
+        self.assertEqual(literals, ["missing-rules.conf"])
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix="nginx-configtest-")
         self.addCleanup(self.temporary.cleanup)

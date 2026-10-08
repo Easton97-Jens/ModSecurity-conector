@@ -24,6 +24,7 @@ import time
 CAPTURE_LIMIT = 65536
 TIMEOUT_SECONDS = 10
 ARTIFACT_LIMIT = 64 * 1024 * 1024
+MISSING_RULES_FILE_NAME = "missing-rules.conf"
 CONFIGTEST_CONTRACTS = {
     "invalid_status": {
         "operation": "configtest", "directive": "modsecurity_rules",
@@ -46,10 +47,10 @@ CONFIGTEST_CONTRACTS = {
         "diagnostic_fragments": ['unknown directive "modsecurity_phase4_content_types_file"'],
     },
     "missing_rules_file": {
-        "operation": "configtest", "directive": "modsecurity_rules_file", "value": "missing-rules.conf",
+        "operation": "configtest", "directive": "modsecurity_rules_file", "value": MISSING_RULES_FILE_NAME,
         "expected_exit_code": 1, "expected_outcome": "config_rejected",
         "error_class": "missing_rules_file",
-        "diagnostic_fragments": ['"modsecurity_rules_file" directive', "missing-rules.conf", "Failed to open the file"],
+        "diagnostic_fragments": ['"modsecurity_rules_file" directive', MISSING_RULES_FILE_NAME, "Failed to open the file"],
     },
     "invalid_rule_syntax": {
         "operation": "configtest", "directive": "modsecurity_rules", "value": "SecRule REQUEST_URI",
@@ -84,7 +85,7 @@ CONFIGTEST_CONTRACTS = {
     },
 }
 CONFIGTEST_PATH_FIXTURES = {
-    "missing_rules_file": ("missing-rules.conf", "absent"),
+    "missing_rules_file": (MISSING_RULES_FILE_NAME, "absent"),
     "unsafe_event_path": ("unsafe-event-directory", "directory"),
     "phase4_invalid_scope_file": ("invalid-content-type-scope.txt", "regular"),
     "phase4_wildcard_scope_rejected": ("wildcard-content-type-scope.txt", "regular"),
