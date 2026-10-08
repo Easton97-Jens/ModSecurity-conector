@@ -14,6 +14,15 @@ SPEC.loader.exec_module(DRIVER)
 
 
 class DriverTests(unittest.TestCase):
+    def test_finish_fault_identity_does_not_capture_listener_probes(self):
+        identity = "a" * 32
+        config = DRIVER.sequence_config(Path("/var/tmp/codex/sequence"), 19000,
+                                        Path("/var/tmp/codex/projection/child"),
+                                        "finish_failure_propagation", fault_transaction=identity)
+        self.assertIn(b"default $request_id;", config)
+        self.assertIn(b'/no-crs/sequence/' + b'a' * 24 + b'/0', config)
+        self.assertIn(b"modsecurity_transaction_id \"$sequence_transaction_id\";", config)
+
     def test_fault_controls_cannot_change_an_unrelated_sequence(self):
         args = argparse.Namespace(case_id="keepalive_allow_allow", fault_negative_control=True)
         with mock.patch.object(DRIVER.BASE, "validate_inputs", return_value=(Path("/binary"), Path("/module"), Path("/output"))):

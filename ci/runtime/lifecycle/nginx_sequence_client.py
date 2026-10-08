@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import http.client
+import hashlib
 import re
 import socket
 import time
@@ -54,7 +55,8 @@ def run_sequence(port, paths, statuses, *, keepalive, headers_seen=None, expect_
             if len(body) > body_limit or not response.isclosed():
                 raise ValueError("response is not a bounded complete HTTP message")
             observations.append({"path": path, "observed_status": response.status,
-                                 "bytes_received": len(body), "http_version": response.version})
+                                 "bytes_received": len(body), "body_sha256": hashlib.sha256(body).hexdigest(),
+                                 "http_version": response.version})
             observations[-1]["declared_length"] = declared
             observations[-1]["framing"] = framing
             observations[-1]["client_error"] = "incomplete_read" if aborted else None
