@@ -39,7 +39,10 @@ PREAMBLE = r"""
 #include "msconnector/config.h"
 #include "msconnector/event.h"
 #include "msconnector/event_jsonl.h"
+#include "msconnector/phase.h"
+#include "msconnector/transaction_state.h"
 #include "msconnector/transaction_contract.h"
+#include "connectors/nginx/src/ngx_http_modsecurity_event_uri.h"
 #define ngx_strlen strlen
 #define ngx_errno 5
 typedef unsigned char u_char;
@@ -214,7 +217,7 @@ def compile_fixture(directory: Path, stem: str, source: str,
     fixture.write_text(source, encoding="utf-8")
     binary = directory / stem
     command = compiler + ["-std=c17", "-Wall", "-Wextra", "-Werror",
-                          "-I", str(ROOT / "common/include"), str(fixture)]
+                          "-I", str(ROOT / "common/include"), "-I", str(ROOT), str(fixture)]
     if common_writer:
         phase_source = (ROOT / "common/src/transaction_state.c").read_text(encoding="utf-8")
         phase = directory / "phase.c"

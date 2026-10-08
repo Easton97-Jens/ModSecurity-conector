@@ -163,6 +163,11 @@
       "license": "Apache-2.0",
       "reason": "Repo-owned NGINX Phase-4 error-state helper required by the migrated body filter."
     },
+    "src/ngx_http_modsecurity_event_uri.h": {
+      "base_path": "connectors/nginx/src/ngx_http_modsecurity_event_uri.h",
+      "license": "Apache-2.0",
+      "reason": "Parent-owned bounded URI-only native event projection; other fields retain strict Common serialization."
+    },
     "src/ngx_http_modsecurity_access.c": {
       "base_path": "src/ngx_http_modsecurity_access.c",
       "license": "Apache-2.0",

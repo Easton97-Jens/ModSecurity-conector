@@ -31,6 +31,7 @@
 #include "msconnector/phase.h"
 #include "msconnector/rule_load_stats.h"
 #include "msconnector/transaction_contract.h"
+#include "ngx_http_modsecurity_event_uri.h"
 
 
 /* #define MSC_USE_RULES_SET 1 */
@@ -456,11 +457,14 @@ ngx_http_modsecurity_write_event_jsonl(
     const char *write_failure_message)
 {
     char line[4096];
+    char uri[MSCONNECTOR_EVENT_URI_SAFE_BUFFER_SIZE];
+    msconnector_event projected;
     int json_truncated = 0;
     size_t line_length;
     ssize_t written;
 
-    if (!msconnector_event_write_jsonl_line(event, line, sizeof(line),
+    if (!ngx_http_modsecurity_bounded_event_uri(event, &projected, uri, sizeof(uri)) ||
+        !msconnector_event_write_jsonl_line(&projected, line, sizeof(line),
         &json_truncated)) {
         ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
             "%s%s", serialization_failure_message,
@@ -487,11 +491,14 @@ ngx_http_modsecurity_write_phase_event_jsonl(
     const msconnector_event *event, const char *phase)
 {
     char line[4096];
+    char uri[MSCONNECTOR_EVENT_URI_SAFE_BUFFER_SIZE];
+    msconnector_event projected;
     int json_truncated = 0;
     size_t line_length;
     ssize_t written;
 
-    if (!msconnector_event_write_jsonl_line(event, line, sizeof(line),
+    if (!ngx_http_modsecurity_bounded_event_uri(event, &projected, uri, sizeof(uri)) ||
+        !msconnector_event_write_jsonl_line(&projected, line, sizeof(line),
         &json_truncated)) {
         ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
             "modsecurity %s common event serialization failed%s", phase,
