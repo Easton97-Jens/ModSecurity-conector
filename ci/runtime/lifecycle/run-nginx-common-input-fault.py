@@ -48,6 +48,22 @@ def read_rows(output, leaf):
     return [json.loads(line) for line in STARTUP.bounded_capture(path).splitlines() if line.strip()]
 
 
+def select_protocol_events(rows, transaction, path):
+    """Project only the actual own-request P1 guard event; never alter raw rows.
+
+    The sink also retains post-native-return cleanup events. Its complete bytes
+    are still hashed below; strict helper validation rejects zero/multiple or
+    malformed selected protocol events rather than choosing a convenient row.
+    """
+    identity = {"event": "protocol_error", "message_id": "MSCONN_EVENT_PROTOCOL_ERROR",
+                "connector": "nginx", "integration_mode": "native-nginx-http-module",
+                "phase": "request_headers", "transaction_id": transaction,
+                "method": "POST", "uri": path}
+    return [row for row in rows if isinstance(row, dict)
+            and all(type(row.get(key)) is type(value) and row.get(key) == value
+                    for key, value in identity.items())]
+
+
 def private_json(output, leaf, value):
     if leaf not in {"input-fault-observation.json", "input-fault-source.json", "input-fault-source.jsonl"}:
         raise ValueError("unknown input-fault artifact")
@@ -145,7 +161,8 @@ def run(args):
     observed = dict(schema_version=1, case_id=args.case_id, run_id=args.run_id, operation="common_mapper_input_fault",
         protocol="http1", client_exit_code=client_exit, observed_http_status=status, path=path, transaction_id=transaction,
         roles=roles, cleanup=cleanup, native_access=access[0] if len(access) == 1 else {},
-        native_fault=faults[0] if len(faults) == 1 else {}, native_events=read_rows(output, "phase1-events.jsonl"),
+        native_fault=faults[0] if len(faults) == 1 else {},
+        native_events=select_protocol_events(read_rows(output, "phase1-events.jsonl"), transaction, path),
         native_diagnostic=diagnostic if diagnostic.encode() in raw_error else None)
     errors = validator.observation_errors(observed, args.case_id, args.run_id)
     if failure:
