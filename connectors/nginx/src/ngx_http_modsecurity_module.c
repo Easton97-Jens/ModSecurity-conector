@@ -23,6 +23,7 @@
 #include "connectors/profile_registry.h"
 
 #include "ngx_http_modsecurity_common.h"
+#include "ngx_http_modsecurity_response_body_limit.h"
 #include "msconnector/config.h"
 #include "msconnector/config_parser.h"
 #include "msconnector/directive_adapter.h"
@@ -98,12 +99,13 @@ ngx_http_modsecurity_contract_record_intervention(ngx_http_request_t *r,
     if (!ctx->contract_initialized) {
         return NGX_OK;
     }
-    if (ctx->native_request_body_limit_rejection) {
+    if (ctx->native_request_body_limit_rejection ||
+        ctx->native_response_body_limit_rejection) {
         if (msconnector_transaction_contract_fail(&ctx->contract,
                 MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, 0U) !=
             MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                "ModSecurity: canonical request body limit decision is invalid");
+                "ModSecurity: canonical body limit decision is invalid");
             return NGX_ERROR;
         }
         return NGX_OK;
@@ -351,6 +353,7 @@ ngx_http_modsecurity_reject_native_intervention(ngx_http_modsecurity_ctx_t *ctx,
         ctx->last_intervention_status = 0;
         ctx->last_intervention_rule_id[0] = '\0';
         ctx->native_request_body_limit_rejection = 0;
+        ctx->native_response_body_limit_rejection = 0;
         ctx->intervention_triggered = 1;
     }
     return NGX_ERROR;
@@ -369,6 +372,7 @@ ngx_http_modsecurity_collect_native_intervention(Transaction *transaction,
             MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
     }
     ctx->native_request_body_limit_rejection = 0;
+    ctx->native_response_body_limit_rejection = 0;
     ctx->last_intervention_status = 0;
     ctx->last_intervention_rule_id[0] = '\0';
     native_result = msc_intervention(transaction, intervention);
@@ -454,6 +458,22 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
             sizeof(ctx->last_intervention_rule_id));
     }
 
+    ctx->native_response_body_limit_rejection =
+        ngx_http_modsecurity_is_response_body_limit_rejection(
+            ctx->native_event_phase, &common_intervention,
+            ctx->last_intervention_rule_id) != 0;
+
+    /* Response rules are evaluated by process_response_body at Engine EOS.
+     * Do not turn an unexpected append-time rule into a fabricated completed
+     * Safe intervention. Only the exact native limit failure is valid here. */
+    if (ctx->native_event_phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
+        ctx->contract.last_completed_phase != MSCONNECTOR_PHASE_RESPONSE_BODY &&
+        !ctx->native_response_body_limit_rejection) {
+        result = ngx_http_modsecurity_reject_native_intervention(ctx,
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE);
+        goto cleanup;
+    }
+
     if (ngx_http_modsecurity_contract_record_intervention(r, ctx, &intervention)
         != NGX_OK) {
         result = NGX_ERROR;
@@ -469,6 +489,13 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
         ngx_log_error(NGX_LOG_ERR, (ngx_log_t *)r->connection->log, 0, "%s", log);
     }
 
+    /* Native response-body Reject is a technical limit failure, not a rule
+     * decision. It must never enter Safe's rule-only log-only path. */
+    if (ctx->native_response_body_limit_rejection) {
+        ctx->intervention_triggered = 1;
+        result = NGX_ERROR;
+        goto cleanup;
+    }
     if (ngx_http_modsecurity_defer_late_phase4_intervention(r, ctx, mcf)) {
         result = intervention.status;
         goto cleanup;
@@ -543,6 +570,7 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
         dd("failed to allocate memory for the context.");
         return NULL;
     }
+    ctx->r = r;
 
     mmcf = ngx_http_get_module_main_conf(r, ngx_http_modsecurity_module);
     mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);

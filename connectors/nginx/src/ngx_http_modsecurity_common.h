@@ -219,6 +219,9 @@ typedef struct {
      * ordinary rule-ID-bearing denies and permits the canonical rule-ID-free
      * BODY_LIMIT/413 translation only at this native boundary. */
     unsigned native_request_body_limit_rejection:1;
+    unsigned native_response_body_limit_rejection:1;
+    unsigned native_response_body_eos:1;
+    size_t response_body_append_calls;
     /* Bounded inspection accounting has one lifetime and no payload ownership.
      * Keep the established member names and order for the native helpers. */
     struct {
