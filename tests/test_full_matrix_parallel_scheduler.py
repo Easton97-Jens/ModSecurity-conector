@@ -12,6 +12,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 from tests.framework_test_trust import trusted_framework_root
 
@@ -308,23 +309,72 @@ printf '%s|%s\\n' "$connector" "$PORT" >> "$CAPTURE_FILE"
         *,
         failure_message: str,
     ) -> None:
-        environment["FAKE_MAKE_SLEEP"] = "0.01"
-        environment["FAKE_MAKE_BLOCK"] = "0"
+        control_environment = environment.copy()
+        control_environment["FAKE_MAKE_SLEEP"] = "0.01"
+        control_environment["FAKE_MAKE_BLOCK"] = "0"
+        # Lock reuse is a separate positive control, not another one-second
+        # lost-completion fault. Metadata finalization is part of each job.
+        control_environment["VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS"] = "30"
         deadline = time.monotonic() + 10
+        last_output = ""
         while time.monotonic() < deadline:
             candidate = subprocess.run(
                 ["sh", str(MATRIX_RUNNER)],
                 cwd=ROOT,
-                env=environment,
+                env=control_environment,
                 capture_output=True,
                 text=True,
                 check=False,
             )
             if candidate.returncode == 0:
                 return
-            self.assertEqual(candidate.returncode, 77, candidate.stdout + candidate.stderr)
+            last_output = candidate.stdout + candidate.stderr
+            self.assertEqual(candidate.returncode, 77, last_output)
+            self.assertIn("another full-matrix run owns", candidate.stderr, last_output)
             time.sleep(0.05)
-        self.fail(failure_message)
+        self.fail(f"{failure_message}\n{last_output}")
+
+    def test_lock_reuse_control_has_its_own_timeout_without_mutating_failure_inputs(self) -> None:
+        environment = {
+            "VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS": "1",
+            "FAKE_MAKE_SLEEP": "30",
+            "FAKE_MAKE_BLOCK": "1",
+        }
+        original = environment.copy()
+        completed = subprocess.CompletedProcess(["sh"], 0, stdout="", stderr="")
+        with mock.patch.object(subprocess, "run", return_value=completed) as run:
+            self.assert_scheduler_lock_reusable_after_descendant_exit(
+                environment, failure_message="lock unavailable",
+            )
+        self.assertEqual(environment, original)
+        control_environment = run.call_args.kwargs["env"]
+        self.assertEqual(control_environment["VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS"], "30")
+        self.assertEqual(control_environment["FAKE_MAKE_SLEEP"], "0.01")
+        self.assertEqual(control_environment["FAKE_MAKE_BLOCK"], "0")
+
+    def test_lock_reuse_control_does_not_retry_a_job_timeout_as_lock_contention(self) -> None:
+        timed_out = subprocess.CompletedProcess(
+            ["sh"], 77, stdout="", stderr="ERROR: full-matrix job completion timed out\n",
+        )
+        completed = subprocess.CompletedProcess(["sh"], 0, stdout="", stderr="")
+        with mock.patch.object(subprocess, "run", side_effect=(timed_out, completed)) as run:
+            with self.assertRaisesRegex(AssertionError, "job completion timed out"):
+                self.assert_scheduler_lock_reusable_after_descendant_exit(
+                    {}, failure_message="lock unavailable",
+                )
+        self.assertEqual(run.call_count, 1)
+
+    def test_lock_reuse_control_retries_only_observed_lock_contention(self) -> None:
+        locked = subprocess.CompletedProcess(
+            ["sh"], 77, stdout="", stderr="ERROR: another full-matrix run owns lock\n",
+        )
+        completed = subprocess.CompletedProcess(["sh"], 0, stdout="", stderr="")
+        with mock.patch.object(subprocess, "run", side_effect=(locked, completed)) as run:
+            with mock.patch.object(time, "sleep"):
+                self.assert_scheduler_lock_reusable_after_descendant_exit(
+                    {}, failure_message="lock unavailable",
+                )
+        self.assertEqual(run.call_count, 2)
 
     def test_explicit_cap_runs_all_planned_jobs_without_exceeding_the_cap(self) -> None:
         with tempfile.TemporaryDirectory(prefix="full-matrix-scheduler-") as temporary:
