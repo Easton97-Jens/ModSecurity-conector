@@ -33,8 +33,9 @@ class EventDriverTests(unittest.TestCase):
                 self.driver.configuration(Path("/var/tmp/codex/owned"), 123, 124, "projection", path, mode, run)
 
     def test_only_actual_phase1_rule_callback_is_selected(self):
-        row = b'{"event":"request_rule_match","connector":"nginx","phase":"request_headers","integration_mode":"native-nginx-http-module","method":"GET","rule_id":"1100402","action":"pass"}\n'
+        row = b'{"event":"rule_match","connector":"nginx","phase":"request_headers","integration_mode":"native-nginx-http-module","method":"GET","rule_id":"1100402","action":"allow"}\n'
         self.assertEqual(len(self.driver.native_callbacks(row, "/actual")), 1)
+        self.assertEqual(self.driver.native_callbacks(row.replace(b"rule_match", b"request_rule_match"), "/actual"), [])
         self.assertEqual(self.driver.native_callbacks(row.replace(b"1100402", b"1100401"), "/actual"), [])
         with self.assertRaises(ValueError):
             self.driver.native_callbacks(b"[]\n", "/actual")

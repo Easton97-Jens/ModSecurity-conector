@@ -45,7 +45,7 @@ def native_callbacks(raw, path):
     events = [json.loads(line) for line in raw.splitlines() if line.strip()]
     if any(not isinstance(event, dict) for event in events):
         raise ValueError("native boundary JSONL must contain objects")
-    return [event for event in events if event.get("event") == "request_rule_match"
+    return [event for event in events if event.get("event") == "rule_match"
             and event.get("connector") == "nginx" and event.get("phase") == "request_headers"
             and event.get("integration_mode") == "native-nginx-http-module"
             and event.get("method") == "GET" and event.get("rule_id") == "1100402"]
