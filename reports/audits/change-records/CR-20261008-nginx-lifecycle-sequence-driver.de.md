@@ -46,6 +46,8 @@ Native Transport-Provenance braucht zentrale Integration. Phase-5-Finish-Failure
 
 ## Verbleibende Risiken
 
+Freigegebene Soft-Budget-Arithmetik: Ein reiner begrenzter Zeit-Header misst abgeschlossene synchrone Aufrufe anhand vom Aufrufer gelieferter monotoner Zeitstempel. Standardwert null deaktiviert ihn; exakt am Budget bleibt zulässig, nur größere Laufzeit überschreitet es. Rückwärts laufende/ungültige Zeitstempel und Überlauf werden abgelehnt. C17-Warnings-as-Errors-Regression schlug zunächst wegen fehlendem Header fehl; danach bestanden Kompilation und Grenzwert-/Kontrollausführung. Die Hilfe ist keine harte Deadline, unterbricht keinen hängenden nativen Engine-Aufruf und belegt keinen Host-Timeout ohne Koordinator-Wiring und echte Diagnose-Evidence.
+
 Diagnostik verwendet verifizierte b7403e-Artefakte und separat gehashte Entwicklungshilfen, keine finalen integrierten Artefakte. Operationsgültigkeit ist nicht Canonical PASS; C17-Kompilation ist keine Runtime-Promotion.
 
 ## Nicht ausgeführte Prüfungen mit Begründung

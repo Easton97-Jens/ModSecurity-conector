@@ -46,6 +46,8 @@ Native transport provenance needs central integration. Phase-5 finish failure ca
 
 ## Remaining risks
 
+Approved soft-budget arithmetic follow-up: a pure bounded-time header measures completed synchronous calls using caller-supplied monotonic timestamps. Default zero disables it; exactly-at-budget remains allowed and strictly greater elapsed time exceeds it. Backward/invalid timestamps and overflow fail validation. C17 warnings-as-errors regression compilation first failed on the absent header, then compilation and boundary/control execution passed. This helper is not a hard deadline, cannot interrupt a hung native engine, and proves no host timeout until coordinator wiring and real diagnostic evidence exist.
+
 Diagnostics use verified b7403e artifacts and separately hashed development helpers, not final integrated artifacts. Operation validity is not Canonical PASS; C17 compilation is not runtime promotion.
 
 ## Checks not run and rationale
