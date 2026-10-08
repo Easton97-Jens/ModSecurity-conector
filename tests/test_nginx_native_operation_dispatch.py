@@ -1,0 +1,213 @@
+"""Pure closed-dispatch/security checks; no NGINX process is started."""
+import importlib.util
+import json
+import os
+from pathlib import Path
+import tempfile
+import unittest
+from unittest.mock import patch
+from types import SimpleNamespace
+
+ROOT = Path(__file__).resolve().parents[1]
+SOURCE_SEAL = {"parent:fixture.py": "b" * 64}
+
+
+def load(leaf):
+    spec = importlib.util.spec_from_file_location(leaf, ROOT / "ci/runtime/lifecycle" / leaf)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class DispatcherTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.driver = load("run-selected-nginx-native-operations.py")
+        cls.source = load("nginx-native-operation-source.py")
+
+    def test_closed_registry_and_selection(self):
+        d = self.driver
+        self.assertEqual(len(d.CONTRACTS), 42)
+        rows = [{"case_id": key, "native_invocations": {"nginx": value}}
+                for key, value in d.CONTRACTS.items()]
+        self.assertEqual(len(d.selected_invocations(rows, list(d.CONTRACTS))), 42)
+        self.assertEqual(d.selected_invocations(rows, ["allow_without_marker"]), [])
+        for missing in ([], [{"case_id": "single_request_cleanup"}]):
+            with self.assertRaises(ValueError):
+                d.selected_invocations(missing, ["single_request_cleanup"])
+        for changed in ({"operation": "arbitrary", "contract_case_id": rows[0]["case_id"]},
+                        dict(rows[0]["native_invocations"]["nginx"], command="evil")):
+            with self.assertRaises(ValueError):
+                d.selected_invocations([dict(rows[0], native_invocations={"nginx": changed})], [rows[0]["case_id"]])
+        for selection in (["../evil"], ["single_request_cleanup"] * 2):
+            with self.assertRaises(ValueError):
+                d.selected_invocations(rows, selection)
+
+    def test_actual_closed_command_and_fault_requirements(self):
+        d = self.driver
+        paths = dict(prefix=Path("/native"), framework=Path("/framework"), output=Path("/owned/out"),
+                     projection=Path("/owned/projection"))
+        identities = {key: "a" * 40 for key in ("parent_sha", "framework_sha", "mrts_sha")}
+        for case, envkey in d.FAULT_ENV.items():
+            with self.assertRaises(ValueError):
+                d.command(case, paths, "run", identities, {})
+            args = d.command(case, paths, "run", identities, {envkey: "/owned/fault.so"})
+            self.assertIn("--fault-library", args)
+            self.assertNotIn("--fault-negative-control", args)
+        for case in d.CONTRACTS:
+            args = d.command(case, paths, "run", identities,
+                             {key: "/owned/fault.so" for key in d.FAULT_ENV.values()})
+            self.assertEqual(args[args.index("--case-id") + 1], case)
+            if case not in d.RAW:
+                self.assertIn("--projection-parent", args)
+
+    def test_source_preserves_bytes_and_never_passes(self):
+        s = self.source
+        with tempfile.TemporaryDirectory(prefix="dispatch-test-", dir="/var/tmp/codex/ModSecurity-conector") as temporary:
+            root = Path(temporary)
+            identity = {key: "a" * 40 for key in ("parent_sha", "framework_sha", "mrts_sha")}
+            receipt = dict(identity, case_id="single_request_cleanup", run_id="run", operation="request_sequence")
+            raw = json.dumps({"cases": [{"case_id": receipt["case_id"], "run_id": "run",
+                              "operation": "request_sequence", "sequence_receipt": receipt}]}).encode()
+            leaf = root / "sequence-source.json"
+            leaf.write_bytes(raw)
+            leaf.chmod(0o600)
+            row = s.build_source(receipt["case_id"], "run", "request_sequence", root, identity, 7,
+                                 source_sha256=SOURCE_SEAL)
+            self.assertEqual(row["status"], "NOT_EXECUTED")
+            self.assertEqual(row["driver_exit_code"], 7)
+            self.assertEqual(leaf.read_bytes(), raw)
+            self.assertEqual(row["native_operation_receipt"]["invocations"][0]["receipt_path"], leaf.name)
+            leaf.unlink()
+            leaf.symlink_to(root / "absent")
+            with self.assertRaises((OSError, ValueError)):
+                s.build_source(receipt["case_id"], "run", "request_sequence", root, identity, 0,
+                               source_sha256=SOURCE_SEAL)
+
+    def test_owned_read_rejects_links_and_permissions(self):
+        s = self.source
+        with tempfile.TemporaryDirectory(prefix="dispatch-test-", dir="/var/tmp/codex/ModSecurity-conector") as temporary:
+            root = Path(temporary)
+            leaf = root / "raw.json"
+            leaf.write_bytes(b"{}")
+            leaf.chmod(0o600)
+            self.assertEqual(s.read_owned(root, "raw.json"), b"{}")
+            os.link(leaf, root / "other")
+            with self.assertRaises(ValueError):
+                s.read_owned(root, "raw.json")
+            (root / "other").unlink()
+            leaf.chmod(0o644)
+            with self.assertRaises(ValueError):
+                s.read_owned(root, "raw.json")
+            for path in ("../raw.json", "/raw.json", "a//raw.json"):
+                with self.assertRaises(ValueError):
+                    s.read_owned(root, path)
+
+    def test_event_children_are_independent_and_parent_sealed(self):
+        s = self.source
+        with tempfile.TemporaryDirectory(prefix="dispatch-test-", dir="/var/tmp/codex/ModSecurity-conector") as temporary:
+            root = Path(temporary)
+            identity = {key: "a" * 40 for key in ("parent_sha", "framework_sha", "mrts_sha")}
+            base = dict(identity, case_id="event_json_limit", operation="native_event_boundary_request")
+            children = []
+            for variant in ("at255", "over256"):
+                (root / variant).mkdir(mode=0o700)
+                raw = json.dumps(dict(base, run_id="run-" + variant)).encode()
+                leaf = root / variant / "source-result.json"
+                leaf.write_bytes(raw)
+                leaf.chmod(0o600)
+                children.append(dict(variant=variant, directory=variant, run_id="run-" + variant,
+                                     receipt_sha256=s.digest(raw)))
+            parent = root / "source-result.json"
+            parent.write_text(json.dumps(dict(base, run_id="run", children=children)))
+            parent.chmod(0o600)
+            row = s.build_source(base["case_id"], "run", base["operation"], root, identity, 0,
+                                 source_sha256=SOURCE_SEAL)
+            wrapper = row["native_operation_receipt"]
+            self.assertEqual([item["name"] for item in wrapper["invocations"]], ["at", "over"])
+            self.assertEqual(wrapper["parent_receipt_sha256"], s.digest(parent.read_bytes()))
+            (root / "at255/source-result.json").write_bytes((root / "over256/source-result.json").read_bytes())
+            with self.assertRaises(ValueError):
+                s.build_source(base["case_id"], "run", base["operation"], root, identity, 0,
+                               source_sha256=SOURCE_SEAL)
+
+    def test_result_append_preserves_other_cases_and_rejects_duplicates(self):
+        d = self.driver
+        with tempfile.TemporaryDirectory(prefix="dispatch-test-", dir="/var/tmp/codex/ModSecurity-conector") as temporary:
+            result = Path(temporary) / "nginx-results.jsonl"
+            previous = b'{"case_id":"allow_without_marker","status":"PASS"}\n'
+            result.write_bytes(previous)
+            result.chmod(0o600)
+            self.assertEqual(d.append_results(result, ["single_request_cleanup"], lambda case:
+                {"case_id": case, "status": "NOT_EXECUTED", "driver_exit_code": 4}), 1)
+            self.assertTrue(result.read_bytes().startswith(previous))
+            retained = result.read_bytes()
+            with self.assertRaises(ValueError):
+                d.append_results(result, ["single_request_cleanup"], lambda _: self.fail("must not invoke"))
+            self.assertEqual(result.read_bytes(), retained)
+            result.chmod(0o644)
+            with self.assertRaises(ValueError):
+                d.append_results(result, ["new_case"], lambda _: self.fail("must not invoke"))
+
+    def test_source_hash_whitelist_and_symlink_denial(self):
+        s = self.source
+        with tempfile.TemporaryDirectory(prefix="dispatch-test-", dir="/var/tmp/codex/ModSecurity-conector") as temporary:
+            root = Path(temporary)
+            leaf = root / "source.py"
+            leaf.write_bytes(b"actual-source")
+            self.assertEqual(s.source_hashes({"parent:source.py"}, root, root),
+                             {"parent:source.py": s.digest(b"actual-source")})
+            for bad in ("parent:../source.py", "other:source.py", "parent:/source.py"):
+                with self.assertRaises(ValueError):
+                    s.source_hashes({bad}, root, root)
+            leaf.unlink()
+            leaf.symlink_to(root / "absent")
+            with self.assertRaises(OSError):
+                s.source_hashes({"parent:source.py"}, root, root)
+
+    def test_dispatch_orchestration_retains_actual_exit_and_fresh_outputs(self):
+        d = self.driver
+        with tempfile.TemporaryDirectory(prefix="dispatch-test-", dir="/var/tmp/codex/ModSecurity-conector") as temporary:
+            root = Path(temporary)
+            framework = root / "framework"
+            catalog_dir = framework / "tests/cases/no-crs-baseline"
+            catalog_dir.mkdir(parents=True, mode=0o700)
+            cases = ["invalid_content_length", "content_length_overflow"]
+            (catalog_dir / "catalog.json").write_text(json.dumps({"cases": [
+                {"case_id": case, "native_invocations": {"nginx": d.CONTRACTS[case]}} for case in cases]}))
+            runners = framework / "tests/runners"
+            runners.mkdir(mode=0o700)
+            (runners / "nginx_native_operation_bundle.py").write_text(
+                'def required_source_paths(case):\n return frozenset({"parent:ci/runtime/lifecycle/run-selected-nginx-native-operations.py"})\n')
+            build = root / "build"
+            build.mkdir(mode=0o700)
+            results = build / "results"
+            results.mkdir(mode=0o700)
+            environment = dict(FRAMEWORK_ROOT=str(framework), BUILD_ROOT=str(build), RESULTS_DIR=str(results),
+                NGINX_PREFIX=str(root / "prefix"), NO_CRS_RUN_ID="test-run", NO_CRS_SELECTED_CASE_IDS=" ".join(cases))
+            commands = []
+            def actual_command(args, **kwargs):
+                commands.append(args)
+                output = Path(args[args.index("--output-root") + 1])
+                output.mkdir(mode=0o700)
+                case = args[args.index("--case-id") + 1]
+                receipt = dict(case_id=case, run_id="test-run", operation="native_h1_parser_rejection",
+                               parent_sha="a" * 40, framework_sha="a" * 40, mrts_sha="a" * 40)
+                path = output / "source-result.json"
+                path.write_text(json.dumps(receipt))
+                path.chmod(0o600)
+                return SimpleNamespace(returncode=7 if len(commands) == 1 else 0)
+            with patch.object(d, "identity", return_value="a" * 40), patch.object(d.subprocess, "run", side_effect=actual_command):
+                self.assertEqual(d.run(environment), 1)
+                with self.assertRaises(FileExistsError):
+                    d.run(environment)
+            self.assertEqual(len(commands), 2)
+            rows = [json.loads(line) for line in (results / "nginx-results.jsonl").read_text().splitlines()]
+            self.assertEqual([row["driver_exit_code"] for row in rows], [7, 0])
+            self.assertEqual({row["status"] for row in rows}, {"NOT_EXECUTED"})
+            self.assertEqual(len({row["native_operation_receipt"]["bundle_root"] for row in rows}), 2)
+            self.assertTrue(all(row["native_operation_receipt"]["source_sha256"] for row in rows))
+
+
+if __name__ == "__main__":
+    unittest.main()
