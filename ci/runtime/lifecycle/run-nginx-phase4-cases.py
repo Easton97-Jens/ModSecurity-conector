@@ -92,12 +92,28 @@ def actual_request(args, spec, output, environment, server):
 
 
 def run(args):
+    framework = HOST.BASE.absolute_path(args.framework_root)
+    input_path = framework / "tests/runners/nginx_phase4_contracts.py"
+    contracts = load("phase4_closed_inputs", input_path)
+    return run_operation(args, contracts.operation(args.case_id), input_path=input_path)
+
+
+def run_operation(args, spec, *, input_path,
+                  upstream_factory=BoundedPhase4Upstream,
+                  upstream_kwargs=None, configuration_factory=configuration,
+                  upstream_path=HERE.parent / "common/nginx_phase4_upstream.py"):
+    """Run a prevalidated closed operation using actual source-bound adapters.
+
+    Callers own specification validation and trusted source/helper selection.
+    Factories only select the bounded actual upstream and native configuration;
+    artifact, role and cleanup authority remains in this shared runtime.
+    """
     binary, module, output = HOST.BASE.validate_inputs(args)
     if os.geteuid() != 0:
         raise ValueError("native host observation requires isolated root master/nobody worker")
     framework = HOST.BASE.absolute_path(args.framework_root)
-    contracts = load("phase4_closed_inputs", framework / "tests/runners/nginx_phase4_contracts.py")
-    spec = contracts.operation(args.case_id)
+    input_path = HOST.BASE.absolute_path(input_path)
+    upstream_path = HOST.BASE.absolute_path(upstream_path)
     output.mkdir(mode=0o700)
     binary_sha = HOST.BASE.snapshot_artifact(binary, output / "nginx-binary", executable=True)
     module_sha = HOST.BASE.snapshot_artifact(module, output / "nginx-module.so", executable=False)
@@ -120,10 +136,10 @@ def run(args):
     observations = {}
     failure = None
     try:
-        with BoundedPhase4Upstream(tuple(chunk.encode() for chunk in spec["response_chunks"]),
-                                  pause=spec["pause_between_chunks"]) as server:
+        with upstream_factory(tuple(chunk.encode() for chunk in spec["response_chunks"]),
+                              pause=spec["pause_between_chunks"], **(upstream_kwargs or {})) as server:
             config = output / "nginx.conf"
-            config.write_text(configuration(output, args.port, server.port, projection, spec["request_path"], spec["nginx_phase4_mode"], args.run_id))
+            config.write_text(configuration_factory(output, args.port, server.port, projection, spec["request_path"], spec["nginx_phase4_mode"], args.run_id))
             code, stdout, stderr, failure = HOST.BASE.invoke(
                 [str(output / "nginx-binary"), "-e", "stderr", "-t", "-c", str(config), "-p", str(output) + "/"], environment)
             (output / "configtest.stdout").write_bytes(stdout)
@@ -149,15 +165,15 @@ def run(args):
     captures = {name: HOST.BASE.digest(HOST.bounded_capture(output / name))
                 for name in leaves if (output / name).exists()}
     observations.update({"case_id": args.case_id, "run_id": args.run_id,
-        "operation": "native_phase4_request", "source_record_id": spec["source_record_id"],
+        "operation": spec["operation"], "source_record_id": spec["source_record_id"],
         "parent_sha": args.parent_sha,
         "framework_sha": args.framework_sha, "mrts_sha": args.mrts_sha,
         "binary_sha256": binary_sha, "module_sha256": module_sha,
         "raw_sha256": captures, "request_method": "GET", "request_path": spec["request_path"],
         "effective_phase4_mode": spec["nginx_phase4_mode"],
         "driver_sha256": HOST.BASE.digest(Path(__file__).read_bytes()),
-        "closed_inputs_sha256": HOST.BASE.digest((framework / "tests/runners/nginx_phase4_contracts.py").read_bytes()),
-        "upstream_driver_sha256": HOST.BASE.digest((HERE.parent / "common/nginx_phase4_upstream.py").read_bytes()),
+        "closed_inputs_sha256": HOST.BASE.digest(input_path.read_bytes()),
+        "upstream_driver_sha256": HOST.BASE.digest(upstream_path.read_bytes()),
         "docroot_projection_parent": str(parent), "docroot_projection_root": str(projection),
         "roles": roles, "cleanup": cleanup, "driver_error": failure,
         "canonical_status": "NOT_EXECUTED", "contract_validation_pending": True})

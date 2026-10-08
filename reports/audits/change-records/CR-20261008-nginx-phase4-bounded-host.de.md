@@ -32,6 +32,16 @@ Die Aufzeichnung verändert keine nativen Beobachtungen oder kanonischen Status.
 Zwei vorhandene Driver-Grenztests bestehen nach der fokussierten Änderung;
 der neue native Produzent benötigt weiterhin Koordinatorintegration und Neubau.
 
+Die vom Koordinator genehmigte Schnittstelle `run_operation` verwendet diese
+Laufzeit zusätzlich für einen separat verantworteten MIME-Adapter. Aufrufer
+liefern ihre vorvalidierte geschlossene Spezifikation, den tatsächlichen Pfad
+der Eingabequelle, begrenzte Upstream-/Konfigurationsfabriken und den tatsächlichen
+Upstream-Quellpfad. Receipts hashen diese gelieferten Quellen; der Standardaufruf
+lädt weiterhin seine ursprüngliche geschlossene Phase4-Eingabequelle. Artefakt-
+Snapshot, native Rollenbeobachtung und PIDFD-Cleanup bleiben in der gemeinsamen
+Laufzeit. Vier fokussierte Driver-/Charakterisierungstests bestehen; kein nativer
+MIME-Lauf wird behauptet.
+
 Die beiden neuen Helfer, `tests/test_nginx_phase4_upstream.py`, `tests/test_nginx_phase4_driver.py` und dieses EN/DE-Paar. Zentrale Dispatcher/Collector/Schema/native Producer sind Integrationsabhängigkeiten des Koordinators.
 
 ## Ausgeführte Befehle

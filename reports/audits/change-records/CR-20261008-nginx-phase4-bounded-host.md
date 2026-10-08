@@ -32,6 +32,14 @@ result. Native observations and canonical status remain unchanged by capture.
 Two existing driver-boundary tests pass after this focused capture change;
 the new native producer still requires coordinator integration and rebuild.
 
+The coordinator-approved `run_operation` seam additionally reuses this runtime
+for a separately owned MIME adapter. Callers pass their prevalidated closed
+specification, actual input source path, bounded upstream/configuration factories
+and actual upstream source path. Receipts hash these actual supplied sources;
+the default phase4 entry still loads its original closed input source. Artifact
+snapshot, native role observation and PIDFD cleanup stay in the shared runtime.
+Four focused driver/characterization tests pass; no native MIME run is claimed.
+
 The two new helpers, `tests/test_nginx_phase4_upstream.py`, `tests/test_nginx_phase4_driver.py`, and this EN/DE pair. Central dispatcher/collector/schema/native producer are coordinator-owned integration dependencies.
 
 ## Commands executed
