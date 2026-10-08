@@ -30,6 +30,7 @@ CHAIN_ERROR_RETURN = (
 PHASE4_ERROR_HEADER = "ngx_http_modsecurity_phase4_error.h"
 SOURCES = (
     "ngx_http_modsecurity_common.h",
+    "ngx_http_modsecurity_event_uri.h",
     PHASE4_ERROR_HEADER,
     "ngx_http_modsecurity_module.c",
     "ngx_http_modsecurity_mapper.h",
@@ -204,6 +205,50 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
             "PASS: NGINX Server resolver preserves the bounded explicit-length response-header sink",
             result.stdout,
         )
+
+    def test_current_projected_jsonl_pipelines_are_reported_without_traceback(self) -> None:
+        result = self._run_checker()
+        self.assertIn(result.returncode, (0, 1), result.stdout + result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+        for caller in ("request", "strict"):
+            self.assertIn(
+                f"PASS: NGINX {caller} JSONL projection and serialization retain "
+                "the active ordered fail-closed pipeline",
+                result.stdout,
+            )
+
+    def test_projected_jsonl_pipeline_rejects_active_bypasses_and_decoys(self) -> None:
+        signature = "static ngx_inline int\nngx_http_modsecurity_write_event_jsonl"
+        anchor = "!ngx_http_modsecurity_bounded_event_uri(event, &projected, uri, sizeof(uri)) ||"
+        cases = (
+            ("projection removed", anchor, "0 ||"),
+            ("short circuit inverted", anchor, anchor.replace("||", "&&")),
+            ("raw event serialized", "msconnector_event_write_jsonl_line(&projected,", "msconnector_event_write_jsonl_line(event,"),
+            ("write before projection", "    if (" + anchor, "    ngx_write_fd(mcf->phase4_log_file->fd, line, 1);\n    if (" + anchor),
+            ("serialization failure ignored", "        return 0;", "        return 1;"),
+        )
+        for name, old, new in cases:
+            for decoy in (False, True):
+                with self.subTest(case=name, inactive_decoy=decoy):
+                    def mutate(repository, old=old, new=new, decoy=decoy):
+                        path = repository / "connectors/nginx/src/ngx_http_modsecurity_common.h"
+                        if decoy:
+                            inject_inactive_decoy(path, signature, old, new)
+                        else:
+                            replace_in_function(path, signature, old, new)
+                    self._assert_rejected(mutate, "NGINX request JSONL projection and serialization retain the active ordered fail-closed pipeline")
+
+    def test_strict_projected_jsonl_pipeline_rejects_raw_event_and_early_success(self) -> None:
+        signature = "static ngx_inline ngx_int_t\nngx_http_modsecurity_write_phase_event_jsonl"
+        for old, new in (
+            ("msconnector_event_write_jsonl_line(&projected,", "msconnector_event_write_jsonl_line(event,"),
+            ("        return NGX_ERROR;", "        return NGX_OK;"),
+        ):
+            with self.subTest(fragment=old):
+                def mutate(repository, old=old, new=new):
+                    path = repository / "connectors/nginx/src/ngx_http_modsecurity_common.h"
+                    replace_all_in_function(path, signature, old, new, 3 if "return" in old else 1)
+                self._assert_rejected(mutate, "NGINX strict JSONL projection and serialization retain the active ordered fail-closed pipeline")
 
     def test_inactive_mapper_validator_decoy_is_rejected(self) -> None:
         def mutate(repository: Path) -> None:

@@ -368,19 +368,6 @@ all_nginx = '\n'.join(p.read_text(errors='ignore') for p in nginx.glob('*.c')) +
 log_event_start = log_c.index('void\nngx_http_modsecurity_log_rule_match_event')
 log_event_end = log_c.index('\n\nvoid\nngx_http_modsecurity_log(', log_event_start)
 log_event = log_c[log_event_start:log_event_end]
-event_metadata_helper_start = common_h.index('static ngx_inline ngx_http_modsecurity_event_request_metadata_t\nngx_http_modsecurity_event_request_metadata')
-event_jsonl_helper_start = common_h.index('static ngx_inline int\nngx_http_modsecurity_write_event_jsonl')
-event_metadata_helper_end = event_jsonl_helper_start
-event_metadata_helper = common_h[event_metadata_helper_start:event_metadata_helper_end]
-event_jsonl_helper_end = common_h.index('\n\n/* Phase 3/4 evidence writes', event_jsonl_helper_start)
-event_jsonl_helper = common_h[event_jsonl_helper_start:event_jsonl_helper_end]
-event_jsonl_serialization_start = event_jsonl_helper.index('if (!msconnector_event_write_jsonl_line')
-event_jsonl_serialization_end = event_jsonl_helper.index('\n\n    line_length', event_jsonl_serialization_start)
-event_jsonl_serialization = event_jsonl_helper[event_jsonl_serialization_start:event_jsonl_serialization_end]
-event_jsonl_write = event_jsonl_helper[event_jsonl_serialization_end:]
-phase_event_jsonl_helper_start = common_h.index('static ngx_inline ngx_int_t\nngx_http_modsecurity_write_phase_event_jsonl')
-phase_event_jsonl_helper_end = common_h.index('\n\n#if !(NGX_PCRE)', phase_event_jsonl_helper_start)
-phase_event_jsonl_helper = common_h[phase_event_jsonl_helper_start:phase_event_jsonl_helper_end]
 server_header_resolver_marker = 'static ngx_int_t\nngx_http_modsecurity_resolv_header_server'
 C_TRIGRAPHS = {
     '??=': '#',
@@ -595,6 +582,46 @@ def c_checked_function(source, signature, allow_outer_include_guard=False):
         return '', ''
     start, end = bounds
     return active[start:end], visible[start:end]
+
+def c_event_jsonl_pipeline(active, strict=False):
+    """Require the live bounded projection/serializer/write pipeline, not tokens."""
+    if not active:
+        return False
+    log = r'ngx_log_error\([^;{}]*\);\s*'
+    failure = 'NGX_ERROR' if strict else '0'
+    prefix = (
+        r'\{\s*char\s+line\[4096\];\s*'
+        r'char\s+uri\[MSCONNECTOR_EVENT_URI_SAFE_BUFFER_SIZE\];\s*'
+        r'msconnector_event\s+projected;\s*int\s+json_truncated\s*=\s*0;\s*'
+        r'size_t\s+line_length;\s*ssize_t\s+written;\s*'
+        r'if\s*\(\s*!ngx_http_modsecurity_bounded_event_uri\(\s*event\s*,\s*'
+        r'&projected\s*,\s*uri\s*,\s*sizeof\(uri\)\s*\)\s*\|\|\s*'
+        r'!msconnector_event_write_jsonl_line\(\s*&projected\s*,\s*line\s*,\s*'
+        r'sizeof\(line\)\s*,\s*&json_truncated\s*\)\s*\)\s*\{\s*'
+        + log + r'return\s+' + failure + r';\s*\}\s*'
+        r'line_length\s*=\s*ngx_strlen\(line\);\s*'
+        r'written\s*=\s*ngx_write_fd\(mcf->phase4_log_file->fd,\s*'
+        r'\(u_char\s*\*\)line,\s*line_length\);\s*'
+    )
+    if strict:
+        tail = (r'if\s*\(written\s*<\s*0\)\s*\{\s*' + log
+                + r'return\s+NGX_ERROR;\s*\}\s*'
+                r'if\s*\(\(size_t\)written\s*!=\s*line_length\)\s*\{\s*'
+                + log + r'return\s+NGX_ERROR;\s*\}\s*return\s+NGX_OK;\s*\}')
+    else:
+        tail = (r'if\s*\(written\s*<\s*0\s*\|\|\s*\(size_t\)written\s*'
+                r'!=\s*line_length\)\s*\{\s*' + log + r'\}\s*return\s+1;\s*\}')
+    return re.fullmatch(prefix + tail, active[active.index('{'):]) is not None
+
+_, event_metadata_helper = c_checked_function(common_h,
+    'static ngx_inline ngx_http_modsecurity_event_request_metadata_t\nngx_http_modsecurity_event_request_metadata', True)
+event_jsonl_active, event_jsonl_helper = c_checked_function(common_h,
+    'static ngx_inline int\nngx_http_modsecurity_write_event_jsonl', True)
+phase_event_jsonl_active, phase_event_jsonl_helper = c_checked_function(common_h,
+    'static ngx_inline ngx_int_t\nngx_http_modsecurity_write_phase_event_jsonl', True)
+event_jsonl_serialization_end = event_jsonl_helper.find('line_length = ngx_strlen(line);')
+event_jsonl_serialization = event_jsonl_helper[:event_jsonl_serialization_end] if event_jsonl_serialization_end >= 0 else ''
+event_jsonl_write = event_jsonl_helper[event_jsonl_serialization_end:] if event_jsonl_serialization_end >= 0 else ''
 
 def c_unmasked_function(source, signature):
     """Return one function after translation/non-code masking, before branch masking."""
@@ -1697,6 +1724,8 @@ response_header_raw_sink_is_owned = (
     and len(response_header_raw_sink_source_occurrences) == 1
 )
 checks = [
+(c_event_jsonl_pipeline(event_jsonl_active), 'NGINX request JSONL projection and serialization retain the active ordered fail-closed pipeline'),
+(c_event_jsonl_pipeline(phase_event_jsonl_active, True), 'NGINX strict JSONL projection and serialization retain the active ordered fail-closed pipeline'),
 (critical_macro_controls_are_safe, 'NGINX critical macro inputs reject aliases of checked lifecycle and response-body controls'),
 ('msconnector_config common_config' in common_h or 'msconnector_config        common_config' in common_h, 'NGINX config embeds msconnector_config common_config'),
 ('"msconnector/phase.h"' in common_h and 'enum msconnector_phase native_event_phase;' in common_h, 'NGINX native event phase has its complete Common enum declaration'),
