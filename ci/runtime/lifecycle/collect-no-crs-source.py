@@ -30,6 +30,11 @@ from runtime_path_utils import (
     write_runtime_artifact_text_atomic,
 )
 
+_NATIVE_SPEC = importlib.util.spec_from_file_location(
+    'nginx_native_collection', Path(__file__).with_name('nginx_native_collection.py'))
+_NATIVE_COLLECTION = importlib.util.module_from_spec(_NATIVE_SPEC)
+_NATIVE_SPEC.loader.exec_module(_NATIVE_COLLECTION)
+
 
 CORE_CASES = {"allow_without_marker": 200, "deny_header_marker_403": 403}
 CONFIGTEST_RECEIPT_FIELDS = {
@@ -645,6 +650,10 @@ def load_jsonl(path: Path) -> list[dict[str, Any]]:
         if not line.strip():
             continue
         value = json.loads(line)
+        if isinstance(value, dict) and 'native_operation_receipt' in value:
+            if len(line.encode('utf-8')) > _NATIVE_COLLECTION.SOURCE.MAX_BYTES:
+                raise ValueError('native source row exceeds collection bound')
+            value = _NATIVE_COLLECTION.SOURCE.decode(line)
         if not isinstance(value, dict):
             raise ValueError(f"JSONL record is not an object: {path}:{number}")
         records.append(value)
@@ -1679,7 +1688,11 @@ def case_row_observations(
     allowed_source_root: Path | None,
     consumed_event_paths: list[Path] | None,
     runner_case_index: dict[Path, str] | None,
+    allowed_native_operation_root: Path | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    if 'native_operation_receipt' in row:
+        return [_NATIVE_COLLECTION.collect_native_row(
+            row, connector, expectations, allowed_native_operation_root)], []
     case_id = observed_case_id(row, expectations, runner_case_index)
     if case_id not in expectations:
         return [], []
@@ -1737,11 +1750,23 @@ def case_observations(
     allowed_source_root: Path | None = None,
     consumed_event_paths: list[Path] | None = None,
     runner_case_index: dict[Path, str] | None = None,
+    allowed_native_operation_root: Path | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     expectations = expectations or default_case_expectations(expected_rule_id)
     observations: list[dict[str, Any]] = []
     derived_events: list[dict[str, Any]] = []
+    native_case_ids: set[str] = set()
+    seen_case_ids: set[str] = set()
     for row in source_case_rows(paths):
+        row_case_id = observed_case_id(row, expectations, runner_case_index)
+        if row_case_id in native_case_ids:
+            raise ValueError('duplicate native source case identity')
+        if 'native_operation_receipt' in row:
+            native_case_id = row.get('case_id')
+            if not isinstance(native_case_id, str) or native_case_id in seen_case_ids:
+                raise ValueError('duplicate or invalid native source case identity')
+            native_case_ids.add(native_case_id)
+        seen_case_ids.add(row_case_id)
         row_observations, row_events = case_row_observations(
             row,
             connector,
@@ -1749,6 +1774,7 @@ def case_observations(
             allowed_source_root,
             consumed_event_paths,
             runner_case_index,
+            allowed_native_operation_root,
         )
         observations.extend(row_observations)
         derived_events.extend(row_events)
@@ -1879,6 +1905,7 @@ def collector_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--source-results-jsonl", action="append", type=Path, default=[])
     parser.add_argument("--source-events", action="append", type=Path, default=[])
     parser.add_argument("--allowed-source-root", type=Path)
+    parser.add_argument("--allowed-native-operation-root", type=Path)
     parser.add_argument("--allowed-log-root", type=Path)
     parser.add_argument("--scrub-source-events", action="store_true")
     parser.add_argument("--source-event-scrub-log", type=Path)
@@ -1932,6 +1959,9 @@ def prepare_collector_arguments(
         parser.error("--allowed-log-root is required to confine lifecycle logs")
     try:
         source_root = prepare_verified_runtime_artifact_root(args.allowed_source_root)
+        if getattr(args, 'allowed_native_operation_root', None) is not None:
+            args.allowed_native_operation_root = _NATIVE_COLLECTION.authority_directory(
+                args.allowed_native_operation_root)
         log_root = prepare_diagnostic_log_root(parser, args, source_root)
         if log_root is None:
             raise ValueError("allowed log root is required to confine lifecycle logs")
@@ -1987,6 +2017,7 @@ def collector_cases_and_events(
         source_root,
         consumed_event_paths,
         runner_case_index,
+        getattr(args, 'allowed_native_operation_root', None),
     )
     observed_case_ids = {
         str(case.get("case_id") or "") for case in cases if isinstance(case, dict)
@@ -1996,6 +2027,12 @@ def collector_cases_and_events(
         for record in native_host_summary_cases(objects)
         if record["case_id"] not in observed_case_ids
     )
+    native_root = getattr(args, 'allowed_native_operation_root', None)
+    if native_root is not None:
+        native_root = _NATIVE_COLLECTION.authority_directory(native_root)
+        if any(path == native_root or native_root in path.parents
+               for path in [*source_events, *consumed_event_paths]):
+            raise ValueError('native bundle raw events cannot enter generic collection or scrubbing')
     return (
         cases,
         event_evidence(source_events, args.expected_rule_id, derived_events),
