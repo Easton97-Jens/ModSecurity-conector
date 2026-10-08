@@ -32,6 +32,125 @@ FULL_LIFECYCLE_HOST_PROFILE=${FULL_LIFECYCLE_HOST_PROFILE:-}
 FULL_LIFECYCLE_EXECUTED_TARGET=${FULL_LIFECYCLE_EXECUTED_TARGET:-}
 EXPECTED_RULE_ID=1100001
 
+# Native operation authority is a separate explicit source/build boundary.
+# This helper runs only after canonical init has preserved the required rows.
+prepare_nginx_native_authority() {
+    NGINX_NATIVE_AUTHORITY_ENABLED=0
+    NGINX_NATIVE_AUTHORITY=
+    NGINX_NATIVE_AUTHORITY_PREFIX=
+    if [ "$connector:$NO_CRS_ARTIFACT_PROFILE" != nginx:full_lifecycle ]; then
+        return 0
+    fi
+    native_selected=$("$PYTHON" - "$FRAMEWORK_ROOT" "$NO_CRS_SELECTED_CASE_IDS" <<'PY'
+import importlib.util
+import json
+import sys
+from pathlib import Path
+
+framework = Path(sys.argv[1])
+reader_path = framework / "tests/runners/nginx_native_operation_bundle.py"
+spec = importlib.util.spec_from_file_location("native_authority_selection", reader_path)
+reader = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(reader)
+catalog = json.loads((framework / "tests/cases/no-crs-baseline/catalog.json").read_text(encoding="utf-8"))
+selected = set(sys.argv[2].split())
+cases = catalog["cases"]
+if len({case["case_id"] for case in cases}) != len(cases):
+    raise SystemExit("duplicate native catalog case identity")
+native = selected & reader.CASE_IDS
+found = set()
+for case in cases:
+    case_id = case["case_id"]
+    if case_id not in selected:
+        continue
+    descriptor = case.get("native_invocations", {}).get("nginx")
+    if case_id in native and not isinstance(descriptor, dict):
+        raise SystemExit("selected required native case has no descriptor")
+    if descriptor is not None:
+        if case_id not in reader.CASE_IDS:
+            raise SystemExit("native descriptor outside closed operation registry")
+        found.add(case_id)
+if native != found:
+    raise SystemExit("selected required native case absent from catalog")
+print("1" if native else "0")
+PY
+    ) || {
+        echo "FAIL: unable to bind selected native authority descriptors" >&2
+        return 1
+    }
+    if [ "$native_selected" = 0 ]; then
+        return 0
+    fi
+    NGINX_NATIVE_AUTHORITY_ENABLED=1
+    NGINX_NATIVE_AUTHORITY_PREFIX=${NGINX_PREFIX:-}
+    if [ -z "$NGINX_NATIVE_AUTHORITY_PREFIX" ]; then
+        echo "BLOCKED: selected native operations require explicit prepared NGINX_PREFIX" >&2
+        return 77
+    fi
+    for native_library in \
+        "${NGX_NATIVE_INPUT_FAULT_LIBRARY:-}" \
+        "${NGX_NATIVE_BEGIN_FAULT_LIBRARY:-}" \
+        "${NGX_NATIVE_FINISH_FAULT_LIBRARY:-}" \
+        "${NGX_NATIVE_WRITE_FAULT_LIBRARY:-}" \
+        "${NGX_NATIVE_ENGINE_BUDGET_FAULT_LIBRARY:-}"; do
+        if [ -z "$native_library" ] || [ ! -f "$native_library" ]; then
+            echo "BLOCKED: selected native operations require all five explicit compiled fault libraries" >&2
+            return 77
+        fi
+    done
+    native_authority_producer=$CONNECTOR_ROOT/ci/runtime/lifecycle/nginx_native_authority.py
+    if [ ! -f "$native_authority_producer" ]; then
+        echo "BLOCKED: explicit native authority producer is missing" >&2
+        return 77
+    fi
+    native_authority_parent=$("$PYTHON" - "$CONNECTOR_ROOT" "$STAGE_BUILD_ROOT" "$NO_CRS_RUN_ID" <<'PY'
+import os
+import re
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(sys.argv[1]) / "ci/lib"))
+from runtime_path_utils import ensure_safe_runtime_directory
+
+stage = Path(sys.argv[2])
+run_id = sys.argv[3]
+if not stage.is_absolute() or ".." in stage.parts or not stage.is_relative_to(Path("/var/tmp/codex/ModSecurity-conector")):
+    raise SystemExit("native authority requires explicit external stage build root")
+if re.fullmatch(r"[A-Za-z0-9_-]{1,128}", run_id) is None:
+    raise SystemExit("native authority requires bounded run identity")
+host = ensure_safe_runtime_directory(stage / "host-runtime")
+descriptor = os.open(host, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+try:
+    leaf = "native-authority-" + run_id
+    os.mkdir(leaf, 0o700, dir_fd=descriptor)
+finally:
+    os.close(descriptor)
+print(host / leaf)
+PY
+    ) || {
+        echo "FAIL: unable to reserve fresh private native authority parent" >&2
+        return 1
+    }
+    "$PYTHON" "$native_authority_producer" \
+        --parent-root "$CONNECTOR_ROOT" \
+        --framework-root "$FRAMEWORK_ROOT" \
+        --mrts-root "$FRAMEWORK_ROOT/tools/MRTS" \
+        --run-id "$NO_CRS_RUN_ID" \
+        --artifact-root "$STAGE_BUILD_ROOT" \
+        --binary-path "$NGINX_NATIVE_AUTHORITY_PREFIX/sbin/nginx" \
+        --module-path "$NGINX_NATIVE_AUTHORITY_PREFIX/modules/ngx_http_modsecurity_module.so" \
+        --input-fault-library "$NGX_NATIVE_INPUT_FAULT_LIBRARY" \
+        --begin-fault-library "$NGX_NATIVE_BEGIN_FAULT_LIBRARY" \
+        --finish-fault-library "$NGX_NATIVE_FINISH_FAULT_LIBRARY" \
+        --write-fault-library "$NGX_NATIVE_WRITE_FAULT_LIBRARY" \
+        --budget-fault-library "$NGX_NATIVE_ENGINE_BUDGET_FAULT_LIBRARY" \
+        --output-parent "$native_authority_parent" || {
+            echo "FAIL: explicit native operation authority could not be sealed" >&2
+            return 1
+        }
+    NGINX_NATIVE_AUTHORITY=$native_authority_parent/native-operation-authority.json
+}
+
 case "$connector" in
     apache|nginx|haproxy|envoy|traefik|lighttpd) ;;
     *) echo "usage: $0 apache|nginx|haproxy|envoy|traefik|lighttpd" >&2; exit 2 ;;
@@ -568,6 +687,8 @@ fi
     --host-version not_provisioned \
     --libmodsecurity-version not_provisioned
 
+prepare_nginx_native_authority
+
 started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 set +e
 CONNECTOR_ROOT="$CONNECTOR_ROOT" \
@@ -771,6 +892,9 @@ set -- \
 if [ "$five_connector_profile_enabled" -eq 1 ]; then
     set -- "$@" --five-connector-profile "$FIVE_CONNECTOR_PROFILE"
 fi
+if [ "$NGINX_NATIVE_AUTHORITY_ENABLED" -eq 1 ]; then
+    set -- "$@" --allowed-native-operation-root "$STAGE_BUILD_ROOT"
+fi
 if [ -n "$source_result" ] && [ -f "$source_result" ]; then
     set -- "$@" --source-result "$source_result"
 fi
@@ -938,6 +1062,11 @@ fi
 CONNECTOR_COMPONENT_CACHE=$SHARED_COMPONENT_CACHE
 VERIFIED_COMPONENT_CACHE=$SHARED_COMPONENT_CACHE
 RUNTIME_COMPONENT_ENV_SNAPSHOT=$runtime_env
+if [ "$NGINX_NATIVE_AUTHORITY_ENABLED" -eq 1 ] && \
+   [ "${NGINX_PREFIX:-}" != "$NGINX_NATIVE_AUTHORITY_PREFIX" ]; then
+    echo "FAIL: runtime snapshot NGINX_PREFIX differs from sealed native authority prefix" >&2
+    stage_rc=1
+fi
 # Store only an allowlisted hash inventory for effective configuration.  Raw
 # rules and host configuration can contain fixture payloads or credentials and
 # must remain in the disposable run root.
@@ -1142,6 +1271,9 @@ set -- \
     --ended-at "$ended_at"
 if [ "$five_connector_profile_enabled" -eq 1 ]; then
     set -- "$@" --source-log "five_connector_profile_receipt=$FIVE_CONNECTOR_PROFILE_RECEIPT"
+fi
+if [ "$NGINX_NATIVE_AUTHORITY_ENABLED" -eq 1 ]; then
+    set -- "$@" --native-operation-authority "$NGINX_NATIVE_AUTHORITY"
 fi
 if [ -n "$FULL_LIFECYCLE_STAGE_REASON" ]; then
     set -- "$@" --stage-reason "$FULL_LIFECYCLE_STAGE_REASON"
