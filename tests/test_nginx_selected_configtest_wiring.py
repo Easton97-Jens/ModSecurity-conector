@@ -237,10 +237,13 @@ class SelectedNginxConfigtestWiringTest(unittest.TestCase):
         # Replay only the old routing decision, without requiring historical
         # Git objects (CI may use a shallow checkout). Both scripts execute.
         current_stage = (ROOT / "ci/runtime/lifecycle/run-connector-stage.sh").read_text()
-        baseline.write_text(current_stage.replace(
-            '    if [ "$connector:$stage" = nginx:no_crs_baseline ]; then\n'
-            '        host_script=$CONNECTOR_ROOT/ci/runtime/lifecycle/run-nginx-selected-host.sh\n'
-            '    fi\n', '', 1))
+        native_route = '        host_script=$CONNECTOR_ROOT/ci/runtime/lifecycle/run-nginx-selected-host.sh\n'
+        legacy_route = '        host_script=$FRAMEWORK_ROOT/ci/runtime/$framework_script\n'
+        self.assertEqual(current_stage.count(native_route), 1)
+        replayed_stage = current_stage.replace(native_route, legacy_route, 1)
+        self.assertNotEqual(replayed_stage, current_stage)
+        self.assertNotIn(native_route, replayed_stage)
+        baseline.write_text(replayed_stage)
         old = subprocess.run(["sh", str(baseline), "nginx", "no_crs_baseline"],
                              env=environment, capture_output=True, text=True, check=False)
         new = subprocess.run(["sh", str(ROOT / "ci/runtime/lifecycle/run-connector-stage.sh"),
