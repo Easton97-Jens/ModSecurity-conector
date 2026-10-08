@@ -9,6 +9,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
 import re
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from response_fixture_omission import validate_omitted_headers
 
 
 MAX_BODY_BYTES = 1024 * 1024
@@ -29,6 +33,7 @@ DEFAULT_HEADERS = (
 class ResponseFixture:
     status: int
     headers: tuple[tuple[str, str], ...]
+    omitted_headers: tuple[str, ...] = ()
 
 
 def _is_relative_to(path: Path, root: Path) -> bool:
@@ -118,9 +123,13 @@ def load_fixture_file(path: Path, safe_roots: list[Path]) -> ResponseFixture:
         raise ValueError(f"invalid response fixture JSON: {fixture_file}") from exc
     if not isinstance(loaded, Mapping):
         raise ValueError("response fixture must be a JSON object")
+    headers = fixture_headers(loaded.get("headers", []))
+    omissions = validate_omitted_headers(loaded.get("omit_headers", []),
+                                        (name for name, _ in headers))
     return ResponseFixture(
         status=normalize_status(loaded.get("status", 200)),
-        headers=fixture_headers(loaded.get("headers", [])),
+        headers=headers,
+        omitted_headers=omissions,
     )
 
 
@@ -136,9 +145,14 @@ def response_fixture(
         if fixture_file is not None
         else ResponseFixture(200, ())
     )
+    combined_headers = configured.headers + tuple(headers or ())
+    # CLI overrides cannot reintroduce a header explicitly declared absent.
+    omissions = validate_omitted_headers(["Content-Type"] if configured.omitted_headers else [],
+                                        (name for name, _ in combined_headers))
     return ResponseFixture(
         status=configured.status if status is None else status,
-        headers=configured.headers + tuple(headers or ()),
+        headers=combined_headers,
+        omitted_headers=omissions,
     )
 
 
@@ -163,7 +177,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(self.fixture.status)
         configured_names = {name.lower() for name, _ in self.fixture.headers}
         for name, value in DEFAULT_HEADERS:
-            if name.lower() not in configured_names:
+            if name.lower() not in configured_names and name.lower() not in self.fixture.omitted_headers:
                 self.send_header(name, value)
         for name, value in self.fixture.headers:
             self.send_header(name, value)
