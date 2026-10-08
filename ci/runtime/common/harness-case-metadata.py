@@ -23,6 +23,9 @@ HEADER_NAME_RE = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$")
 FORBIDDEN_FRAMING_HEADERS = frozenset({"connection", "content-length", "transfer-encoding"})
 PHASE4_MODES = frozenset({"off", "safe", "strict"})
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from response_fixture_omission import validate_omitted_headers
+
 
 def load_case(case_path: Path, framework_root: Path) -> Mapping[str, Any]:
     runners = framework_root.resolve(strict=True) / "tests" / "runners"
@@ -82,7 +85,11 @@ def response_fixture(case: Mapping[str, Any]) -> dict[str, object]:
         header_name, header_value = normalize_header("Content-Type", content_type)
         headers.append([header_name, header_value])
 
-    return {"status": status, "headers": headers}
+    fixture = {"status": status, "headers": headers}
+    if "omit_headers" in response:
+        validate_omitted_headers(response["omit_headers"], (name for name, _ in headers))
+        fixture["omit_headers"] = response["omit_headers"]
+    return fixture
 
 
 def apache_phase4_mode(case: Mapping[str, Any], default: str) -> str:
