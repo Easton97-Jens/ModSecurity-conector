@@ -498,8 +498,9 @@ class RootLauncherContractTests(unittest.TestCase):
                     candidate = candidate_payload(artifacts)
                     candidate.update(nginx_version=version, nginx_source_digest=digest)
                     write_json(candidate_path, candidate)
+                    dispatcher = dispatcher_payload()
                     with self.assertRaisesRegex(LAUNCHER.LauncherError, "does not bind pinned NGINX"):
-                        LAUNCHER.candidate_manifest(candidate_path, dispatcher_payload())
+                        LAUNCHER.candidate_manifest(candidate_path, dispatcher)
 
     def test_security_identifiers_accept_ascii_digits_only(self) -> None:
         with self.assertRaisesRegex(LAUNCHER.LauncherError, "40-character SHA"):
