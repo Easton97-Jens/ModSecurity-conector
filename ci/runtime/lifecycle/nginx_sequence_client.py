@@ -8,6 +8,30 @@ import socket
 import time
 
 
+def capture_http11_wire(port, path):
+    """Retain bounded actual socket bytes; the independent parser proves framing."""
+    if type(port) is not int or not 1024 <= port <= 65535:
+        raise ValueError("wire probe port must be an unprivileged local port")
+    if not isinstance(path, str) or not re.fullmatch(r"/no-crs/sequence/[A-Za-z0-9_/-]{1,128}", path):
+        raise ValueError("wire probe path is outside the closed safe fixture")
+    request = f"GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n".encode("ascii")
+    raw = bytearray()
+    deadline = time.monotonic() + 3
+    with socket.create_connection(("127.0.0.1", port), timeout=3) as connection:
+        connection.sendall(request)
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ValueError("bounded raw HTTP/1.1 capture deadline exceeded")
+            connection.settimeout(remaining)
+            part = connection.recv(min(4096, 32769 - len(raw)))
+            if not part:
+                return request, bytes(raw)
+            raw.extend(part)
+            if len(raw) > 32768:
+                raise ValueError("bounded raw HTTP/1.1 capture exceeded the wire limit")
+
+
 def run_sequence(port, paths, statuses, *, keepalive, headers_seen=None, expect_first_abort=False, backpressure=False):
     if type(port) is not int or not 1024 <= port <= 65535:
         raise ValueError("sequence port must be an unprivileged local port")

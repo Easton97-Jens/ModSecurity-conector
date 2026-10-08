@@ -11,8 +11,8 @@ import subprocess
 import sys
 import time
 
-from nginx_sequence_client import run_sequence
-from nginx_sequence_upstream import SynchronizedUpstream
+from nginx_sequence_client import capture_http11_wire, run_sequence
+from nginx_sequence_upstream import FramingUpstream, SynchronizedUpstream, TRANSPORT_BODY
 
 import importlib.util
 
@@ -47,6 +47,8 @@ SEQUENCES = {
     "finish_failure_propagation": (200,),
     "engine_timeout_before_commit": (504,),
     "engine_timeout_after_commit": (200,),
+    "transport_http11_content_length": (200,),
+    "transport_http11_chunked": (200,),
 }
 KEEPALIVE = {"keep_alive_requests_if_supported", "keepalive_allow_allow", "keepalive_allow_deny_allow", "keepalive_safe_followup"}
 KEEPALIVE.update({"transport_keep_alive", "transport_sequential_requests"})
@@ -55,7 +57,8 @@ STRICT = {"phase4_strict_http1_client_abort", "phase4_strict_host_survives",
 WRITE = {"response_short_write_resume", "response_write_would_block_resume"}
 LATE = STRICT | {"keepalive_safe_followup"} | WRITE
 DEADLINE = {"engine_timeout_before_commit", "engine_timeout_after_commit"}
-UPSTREAM_CASES = LATE | {"engine_timeout_after_commit"}
+FRAMING = {"transport_http11_content_length", "transport_http11_chunked"}
+UPSTREAM_CASES = LATE | {"engine_timeout_after_commit", "transport_http11_chunked"}
 
 
 def sequence_config(output, port, projection, case_id, fault_transaction=None, upstream_port=None, engine_budget_ms=10):
@@ -70,7 +73,7 @@ def sequence_config(output, port, projection, case_id, fault_transaction=None, u
                           'modsecurity_transaction_id "$http_x_modsec_test_transaction";')
     if case_id == "transaction_begin_failure_cleanup":
         log = log.replace("$request_id", fault_transaction)
-    if case_id in DEADLINE | {"finish_failure_propagation"}:
+    if case_id in DEADLINE | FRAMING | {"finish_failure_propagation"}:
         log = log.replace("$request_id", "$sequence_transaction_id")
         log = ('  map $request_uri $sequence_transaction_id { default $request_id; '
                f'"/no-crs/sequence/{fault_transaction[:24]}/0" "{fault_transaction}"; }}\n' + log)
@@ -80,6 +83,10 @@ def sequence_config(output, port, projection, case_id, fault_transaction=None, u
         if type(engine_budget_ms) is not int or engine_budget_ms not in (0, 10, 100):
             raise ValueError("budget probe permits only disabled, exceeded and under-budget controls")
         log += f"\n  modsecurity_engine_call_budget_ms {engine_budget_ms};"
+    if case_id in FRAMING:
+        log += "\n  types { }\n  default_type text/plain;"
+        if case_id not in UPSTREAM_CASES:
+            log += "\n  modsecurity_phase4_mode safe;"
     if case_id in UPSTREAM_CASES:
         mode = "strict" if case_id in STRICT else "safe"
         log += f"\n  modsecurity_phase4_mode {mode};"
@@ -145,7 +152,7 @@ def run(args):
     source = output / "docroot"
     source.mkdir(mode=0o700)
     for name in STARTUP.PROJECTION.PROJECTED_FILENAMES:
-        (source / name).write_bytes(b"bounded-owned-sequence\n")
+        (source / name).write_bytes(TRANSPORT_BODY if args.case_id in FRAMING else b"bounded-owned-sequence\n")
     identity = hashlib.sha256((args.run_id + ":" + args.case_id).encode()).hexdigest()
     token = identity[:24]
     projection = STARTUP.PROJECTION.prepare_projection(
@@ -155,7 +162,11 @@ def run(args):
     with socket.socket() as reservation:
         reservation.bind(("127.0.0.1", 0))
         port = reservation.getsockname()[1]
-    upstream = SynchronizedUpstream(backpressure=args.case_id == "response_write_would_block_resume") if args.case_id in UPSTREAM_CASES else None
+    upstream = None
+    if args.case_id == "transport_http11_chunked":
+        upstream = FramingUpstream(f"/no-crs/sequence/{token}/0")
+    elif args.case_id in UPSTREAM_CASES:
+        upstream = SynchronizedUpstream(backpressure=args.case_id == "response_write_would_block_resume")
     config = sequence_config(output, port, projection, args.case_id, identity[:32],
                              upstream.port if upstream is not None else None, engine_budget_ms)
     (output / "nginx.conf").write_bytes(config)
@@ -219,6 +230,7 @@ def run(args):
     roles = {"master_pid": 0, "worker_pid": 0, "master_uid": -1, "worker_uid": -1}
     process, handles = None, {}
     observations, access = [], []
+    wire_observation = None
     post_roles = None
     upstream_observation = None
     client_exit = None
@@ -235,10 +247,21 @@ def run(args):
                 captured.write(STARTUP.bounded_capture(Path("/proc") / str(roles["worker_pid"]) / "maps"))
             statuses = SEQUENCES[args.case_id]
             paths = [f"/no-crs/sequence/{token}/{index}" for index in range(len(statuses))]
-            observations = run_sequence(port, paths, statuses, keepalive=args.case_id in KEEPALIVE,
-                                        headers_seen=upstream.headers_seen if upstream is not None else None,
-                                        expect_first_abort=args.case_id in STRICT | {"engine_timeout_after_commit"},
-                                        backpressure=args.case_id == "response_write_would_block_resume")
+            if args.case_id in FRAMING:
+                request_wire, response_wire = capture_http11_wire(port, paths[0])
+                for leaf, raw in (("request-wire.bin", request_wire), ("response-wire.bin", response_wire)):
+                    with (output / leaf).open("xb") as capture:
+                        capture.write(raw)
+                wire_observation = {"request_hex": request_wire.hex(), "response_hex": response_wire.hex(),
+                                    "eof_seen": True}
+                parsed = validator.WIRE.parse_http11_response(response_wire)
+                parsed.pop("body")
+                observations = [dict(parsed, path=paths[0], transport_result="completed", client_error=None)]
+            else:
+                observations = run_sequence(port, paths, statuses, keepalive=args.case_id in KEEPALIVE,
+                                            headers_seen=upstream.headers_seen if upstream is not None else None,
+                                            expect_first_abort=args.case_id in STRICT | {"engine_timeout_after_commit"},
+                                            backpressure=args.case_id == "response_write_would_block_resume")
             client_exit = 0
             access = read_access(output, len(statuses))
             post_roles = STARTUP.observe_roles(process, args.run_id, port, output, handles)
@@ -256,9 +279,19 @@ def run(args):
     observed = dict(schema_version=1, operation="request_sequence", protocol="http1", case_id=args.case_id,
                     run_id=args.run_id, client_exit_code=client_exit, requests=observations,
                     native_access=access, roles=roles, cleanup=cleanup)
-    if args.case_id in UPSTREAM_CASES:
+    if args.case_id in FRAMING:
+        observed["wire"] = wire_observation
+        observed["post_sequence_roles"] = post_roles
+        if upstream is not None:
+            observed["upstream_wire"] = upstream_observation
+            for field, leaf in (("request_hex", "upstream-request-wire.bin"),
+                                ("response_hex", "upstream-response-wire.bin")):
+                with (output / leaf).open("xb") as capture:
+                    capture.write(bytes.fromhex(upstream_observation[field]))
+    if args.case_id in UPSTREAM_CASES - FRAMING:
         observed["upstream_barrier"] = upstream_observation
         observed["post_sequence_roles"] = post_roles
+    if args.case_id in UPSTREAM_CASES | FRAMING:
         events_path = output / "phase1-events.jsonl"
         observed["native_events"] = [json.loads(line) for line in STARTUP.bounded_capture(events_path).splitlines()
                                      if line.strip()] if events_path.exists() else []
@@ -304,7 +337,10 @@ def run(args):
     for key, leaf in {"events_sha256": "phase1-events.jsonl", "worker_maps_sha256": "worker-maps.log",
                       "native_writes_sha256": "native-write-observations.jsonl",
                       "native_finish_sha256": "native-finish-observations.jsonl",
-                      "native_budget_sha256": "native-budget-observations.jsonl"}.items():
+                      "native_budget_sha256": "native-budget-observations.jsonl",
+                      "request_wire_sha256": "request-wire.bin", "response_wire_sha256": "response-wire.bin",
+                      "upstream_request_wire_sha256": "upstream-request-wire.bin",
+                      "upstream_response_wire_sha256": "upstream-response-wire.bin"}.items():
         path = output / leaf
         if path.exists():
             receipt[key] = BASE.digest(STARTUP.bounded_capture(path))

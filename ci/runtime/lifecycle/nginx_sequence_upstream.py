@@ -6,6 +6,7 @@ import threading
 
 PREFIX = b"owned-prefix\n" * 400
 SUFFIX = b"no-crs-response-body-marker\n" + b"owned-suffix\n" * 400
+TRANSPORT_BODY = b"transport fixture body"
 
 
 class _Handler(socketserver.StreamRequestHandler):
@@ -79,3 +80,51 @@ class SynchronizedUpstream:
             self.server.shutdown()
         self.server.server_close()
         self.thread.join(timeout=2)
+
+
+class _FramingHandler(socketserver.StreamRequestHandler):
+    def handle(self):
+        self.connection.settimeout(3)
+        lines = []
+        for _ in range(64):
+            line = self.rfile.readline(4096)
+            if not line or len(line) == 4096:
+                return
+            lines.append(line)
+            if sum(map(len, lines)) > 8192:
+                return
+            if line == b"\r\n":
+                break
+        else:
+            return
+        first = lines[0].split(b" ")
+        if len(first) != 3 or first[1] != self.server.expected_path.encode("ascii"):
+            return
+        self.server.framing_request = b"".join(lines)
+        self.server.framing_requests += 1
+        wire = (b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nTransfer-Encoding: chunked\r\n"
+                b"Connection: close\r\n\r\n9\r\ntransport\r\nd\r\n fixture body\r\n0\r\n\r\n")
+        try:
+            self.wfile.write(wire)
+            self.wfile.flush()
+            self.server.framing_response = wire
+        except OSError:
+            self.server.upstream_write_failed = True
+
+
+class FramingUpstream(SynchronizedUpstream):
+    """Actual chunked origin; its wire evidence is separate from downstream."""
+    def __init__(self, path):
+        super().__init__()
+        self.server.RequestHandlerClass = _FramingHandler
+        self.server.expected_path = path
+        self.server.framing_request = b""
+        self.server.framing_response = b""
+        self.server.framing_requests = 0
+
+    def observation(self):
+        return {"request_hex": self.server.framing_request.hex(),
+                "response_hex": self.server.framing_response.hex(),
+                "request_count": self.server.framing_requests,
+                "write_complete": bool(self.server.framing_response),
+                "upstream_write_failed": self.server.upstream_write_failed}

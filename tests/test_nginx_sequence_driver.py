@@ -16,6 +16,22 @@ SPEC.loader.exec_module(DRIVER)
 
 
 class DriverTests(unittest.TestCase):
+    def test_framing_configs_keep_static_and_actual_chunked_origin_separate(self):
+        output = Path("/var/tmp/codex/sequence")
+        projection = Path("/var/tmp/codex/projection/child")
+        content_length = DRIVER.sequence_config(output, 19000, projection, "transport_http11_content_length",
+                                                fault_transaction="a" * 32)
+        chunked = DRIVER.sequence_config(output, 19000, projection, "transport_http11_chunked",
+                                         fault_transaction="a" * 32, upstream_port=19001)
+        self.assertIn(b"try_files /index.html =404;", content_length)
+        self.assertNotIn(b"proxy_pass", content_length)
+        self.assertIn(b"proxy_buffering off; proxy_http_version 1.1;", chunked)
+        self.assertIn(b"proxy_pass http://127.0.0.1:19001;", chunked)
+        for config in (content_length, chunked):
+            self.assertIn(b"types { }", config)
+            self.assertIn(b"default_type text/plain;", config)
+            self.assertEqual(config.count(b"modsecurity_phase4_mode safe;"), 1)
+
     def test_deadline_config_sets_explicit_soft_budget_and_case_only_identity(self):
         config = DRIVER.sequence_config(Path("/var/tmp/codex/sequence"), 19000,
                                         Path("/var/tmp/codex/projection/child"),
