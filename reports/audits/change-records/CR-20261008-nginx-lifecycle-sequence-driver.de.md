@@ -42,7 +42,7 @@ Task `nginx-all-required-20261008T124555Z` hält 13 echte Sequenz-/Mapping-/Allo
 
 ## Bekannte Einschränkungen
 
-Native Transport-Provenance braucht zentrale Integration. Phase-5-Finish-Failure ist nicht ehrlich als Pre-Commit-HTTP500 belegbar; Engine-Timeout braucht definierten Deadline-Vertrag. Required-Auswahl bleibt unverändert.
+Native Transport-Provenance braucht zentrale Integration. Phase-5-Finish-Failure ist nicht ehrlich als Pre-Commit-HTTP500 belegbar. Der freigegebene Engine-Vertrag ist ein standardmäßig deaktiviertes Soft-Budget nach der Rückkehr; Produkt-Wiring und neue native Ausführung bleiben Integrationsabhängigkeiten. Required-Auswahl bleibt unverändert.
 
 ## Verbleibende Risiken
 
@@ -52,9 +52,15 @@ Diagnostik verwendet verifizierte b7403e-Artefakte und separat gehashte Entwickl
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
+Der fortgesetzte Parent-Bilingual-Check scheiterte an 22 vorhandenen fehlenden Framework-Linkzielen im nicht initialisierten isolierten Worktree. Das geänderte EN/DE-Record wird als stärkste verfügbare lokale Alternative direkt geprüft; integrierte Dokumentationsvalidierung bleibt erforderlich. Ruff konnte nicht laufen, weil die ausgewählte Parent-Umgebung kein Ruff-Modul enthält; Abhängigkeiten und Umgebung wurden nicht geändert.
+
 Finale integrierte Suites, Standard-Lifecycle, aktuelle CI/Sonar und Protected-Administration bleiben Koordinator-Verantwortung. Keine Gesamtabnahme.
 
 ## Finaler Diff- und Review-Status
+
+Freigegebene Soft-Budget-Probe-Folgearbeit: `tests/fixtures/nginx_engine_budget_fault.c` delegiert die tatsächliche Phase-1/Phase-4-API, verzögert dann nur den exakten eigenen Worker/die Transaktion um 25ms und hält tatsächlichen monotonen Start/Ende/Dauer und nativen Rückgabewert fest. Sie delegiert Common-Cleanup und hält tatsächlichen Cleanup-Rückgabewert/Completion/Fehlerklassen-Code und -Namen fest; sie ersetzt Cleanup nicht. Der Treiber konfiguriert 10ms Budget, erwartet tatsächliches precommit504 oder committed200 mit abgebrochenem Framing, entfernt Regel1100301 nur für diese technischen Probes und hasht die effektiven Regeln danach. Falsche Transaktion und explizite disabled0/under-budget100-Kontrollen müssen die Timeout-Validierung verfehlen. Der Client akzeptiert nun definierte504-Operationen. Die Receipt enthält den nativen Ledger-Hash.
+
+RTK-umhülltes Parent-Python bestand 14 fokussierte Treiber-/Client-/Transporttests. C17-`-Wall -Wextra -Werror -fPIC -shared -Icommon/include`-Fixture-Kompilierung und C17-Arithmetik-Kompilierung/Ausführung bestanden. Diese Checks belegen Fixture-Kompilierung, Uhr-Grenzwertarithmetik und Treiberkonfiguration/Receipt-Verhalten; keine neu gebaute NGINX-Timeout-Laufzeit wurde ausgeführt. Exaktes natives Ereignispaar und flache Common-Serialisierung validiert das Framework separat. Produkthooks, Gesamtsuites, saubere Artefaktbindung und kanonische Laufzeit bleiben beim Koordinator.
 
 Die Auswahl `transport_sequential_requests` sendet allow/deny/allow nun auf einem tatsächlichen Socket gemäß Katalogvertrag. Der rote dynamische Test beobachtete vor der Korrektur drei Verbindungen; zwei Transporttests bestehen jetzt, einschließlich der vorhandenen Keep-alive-allow/allow-Kontrolle. Lifecycle-Fälle mit unabhängigen Verbindungen bleiben separat ausgewählt. Native Transportereignisse und finale Canonical-Coverage bleiben beim Koordinator.
 

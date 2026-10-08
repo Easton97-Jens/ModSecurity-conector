@@ -45,6 +45,8 @@ SEQUENCES = {
     "transport_keep_alive": (200, 200),
     "transport_sequential_requests": (200, 403, 200),
     "finish_failure_propagation": (200,),
+    "engine_timeout_before_commit": (504,),
+    "engine_timeout_after_commit": (200,),
 }
 KEEPALIVE = {"keep_alive_requests_if_supported", "keepalive_allow_allow", "keepalive_allow_deny_allow", "keepalive_safe_followup"}
 KEEPALIVE.update({"transport_keep_alive", "transport_sequential_requests"})
@@ -52,9 +54,11 @@ STRICT = {"phase4_strict_http1_client_abort", "phase4_strict_host_survives",
           "phase4_strict_followup_request_succeeds", "keepalive_after_strict_new_connection"}
 WRITE = {"response_short_write_resume", "response_write_would_block_resume"}
 LATE = STRICT | {"keepalive_safe_followup"} | WRITE
+DEADLINE = {"engine_timeout_before_commit", "engine_timeout_after_commit"}
+UPSTREAM_CASES = LATE | {"engine_timeout_after_commit"}
 
 
-def sequence_config(output, port, projection, case_id, fault_transaction=None, upstream_port=None):
+def sequence_config(output, port, projection, case_id, fault_transaction=None, upstream_port=None, engine_budget_ms=10):
     text = STARTUP.config_template(output, port, str(projection))
     log = ('  log_format sequence escape=json \'{"uri":"$request_uri","status":$status,'
            '"connection":"$connection","connection_requests":$connection_requests,"remote_port":$remote_port,'
@@ -66,15 +70,21 @@ def sequence_config(output, port, projection, case_id, fault_transaction=None, u
                           'modsecurity_transaction_id "$http_x_modsec_test_transaction";')
     if case_id == "transaction_begin_failure_cleanup":
         log = log.replace("$request_id", fault_transaction)
-    if case_id == "finish_failure_propagation":
+    if case_id in DEADLINE | {"finish_failure_propagation"}:
         log = log.replace("$request_id", "$sequence_transaction_id")
         log = ('  map $request_uri $sequence_transaction_id { default $request_id; '
                f'"/no-crs/sequence/{fault_transaction[:24]}/0" "{fault_transaction}"; }}\n' + log)
         text = text.replace('location / { try_files $uri /index.html; }',
                             'location / { try_files /index.html =404; }')
-    if case_id in LATE:
+    if case_id in DEADLINE:
+        if type(engine_budget_ms) is not int or engine_budget_ms not in (0, 10, 100):
+            raise ValueError("budget probe permits only disabled, exceeded and under-budget controls")
+        log += f"\n  modsecurity_engine_call_budget_ms {engine_budget_ms};"
+    if case_id in UPSTREAM_CASES:
         mode = "strict" if case_id in STRICT else "safe"
         log += f"\n  modsecurity_phase4_mode {mode};"
+        text = text.replace('location / { try_files /index.html =404; }',
+                            'location / { try_files $uri /index.html; }')
         text = text.replace('location / { try_files $uri /index.html; }',
                             'location / { proxy_buffering off; proxy_http_version 1.1; '
                             f'proxy_pass http://127.0.0.1:{upstream_port}; }}')
@@ -102,10 +112,21 @@ def read_access(output, count):
     raise ValueError("native access records did not reach the required request count")
 
 
+def configure_timeout_rules(output):
+    """Bind the receipt to the effective technical probe rules, after removal."""
+    path = output / "no-crs-baseline.conf"
+    with path.open("ab") as configured:
+        configured.write(b"\n# Technical soft-budget probe has no rule-deny premise.\nSecRuleRemoveById 1100301\n")
+    return BASE.digest(STARTUP.bounded_capture(path))
+
+
 def run(args):
     binary, module, output = BASE.validate_inputs(args)
-    if args.fault_negative_control and args.case_id not in WRITE | {"transaction_begin_failure_cleanup", "finish_failure_propagation"}:
+    if args.fault_negative_control and args.case_id not in WRITE | DEADLINE | {"transaction_begin_failure_cleanup", "finish_failure_propagation"}:
         raise ValueError("fault negative control requires its exact native fixture case")
+    engine_budget_ms = getattr(args, "engine_call_budget_ms", 10)
+    if engine_budget_ms != 10 and args.case_id not in DEADLINE:
+        raise ValueError("engine budget controls require their exact timeout fixture case")
     if os.geteuid() != 0:
         raise ValueError("sequence operation requires isolated Root master and nobody worker")
     framework = BASE.absolute_path(args.framework_root)
@@ -119,6 +140,8 @@ def run(args):
         "module_sha256": BASE.snapshot_artifact(module, output / "nginx-module.so", executable=False),
         "rules_sha256": BASE.snapshot_artifact(rules, output / "no-crs-baseline.conf", executable=False),
     }
+    if args.case_id in DEADLINE:
+        hashes["rules_sha256"] = configure_timeout_rules(output)
     source = output / "docroot"
     source.mkdir(mode=0o700)
     for name in STARTUP.PROJECTION.PROJECTED_FILENAMES:
@@ -132,9 +155,9 @@ def run(args):
     with socket.socket() as reservation:
         reservation.bind(("127.0.0.1", 0))
         port = reservation.getsockname()[1]
-    upstream = SynchronizedUpstream(backpressure=args.case_id == "response_write_would_block_resume") if args.case_id in LATE else None
+    upstream = SynchronizedUpstream(backpressure=args.case_id == "response_write_would_block_resume") if args.case_id in UPSTREAM_CASES else None
     config = sequence_config(output, port, projection, args.case_id, identity[:32],
-                             upstream.port if upstream is not None else None)
+                             upstream.port if upstream is not None else None, engine_budget_ms)
     (output / "nginx.conf").write_bytes(config)
     environment = BASE.configtest_environment(args.library_dir)
     write_fd = None
@@ -174,6 +197,19 @@ def run(args):
         environment["LD_PRELOAD"] = str(output / "native-finish-fault.so")
         environment["MSCONNECTOR_OWNED_FINISH_TXID"] = mismatch if args.fault_negative_control else transaction
         environment["MSCONNECTOR_OWNED_FINISH_FD"] = str(write_fd)
+    elif args.case_id in DEADLINE:
+        if args.fault_library is None:
+            raise ValueError("deadline case requires its scoped post-return delay fixture")
+        hashes["fault_library_sha256"] = BASE.snapshot_artifact(
+            BASE.absolute_path(args.fault_library), output / "native-budget-fault.so", executable=False)
+        write_fd = os.open(output / "native-budget-observations.jsonl",
+                           os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        transaction = identity[:32]
+        mismatch = transaction[:-1] + ("0" if transaction[-1] != "0" else "1")
+        environment["LD_PRELOAD"] = str(output / "native-budget-fault.so")
+        environment["MSCONNECTOR_OWNED_BUDGET_TXID"] = mismatch if args.fault_negative_control else transaction
+        environment["MSCONNECTOR_OWNED_BUDGET_FD"] = str(write_fd)
+        environment["MSCONNECTOR_OWNED_BUDGET_PHASE"] = "1" if args.case_id == "engine_timeout_before_commit" else "4"
     elif args.fault_library is not None:
         raise ValueError("fault fixture is only authorized for its exact native boundary case")
     argv = [str(output / "nginx-binary"), "-e", "stderr", "-c", str(output / "nginx.conf"), "-p", str(output) + "/"]
@@ -201,7 +237,7 @@ def run(args):
             paths = [f"/no-crs/sequence/{token}/{index}" for index in range(len(statuses))]
             observations = run_sequence(port, paths, statuses, keepalive=args.case_id in KEEPALIVE,
                                         headers_seen=upstream.headers_seen if upstream is not None else None,
-                                        expect_first_abort=args.case_id in STRICT,
+                                        expect_first_abort=args.case_id in STRICT | {"engine_timeout_after_commit"},
                                         backpressure=args.case_id == "response_write_would_block_resume")
             client_exit = 0
             access = read_access(output, len(statuses))
@@ -220,7 +256,7 @@ def run(args):
     observed = dict(schema_version=1, operation="request_sequence", protocol="http1", case_id=args.case_id,
                     run_id=args.run_id, client_exit_code=client_exit, requests=observations,
                     native_access=access, roles=roles, cleanup=cleanup)
-    if args.case_id in LATE:
+    if args.case_id in UPSTREAM_CASES:
         observed["upstream_barrier"] = upstream_observation
         observed["post_sequence_roles"] = post_roles
         events_path = output / "phase1-events.jsonl"
@@ -232,6 +268,16 @@ def run(args):
     if args.case_id == "finish_failure_propagation":
         observed["native_finish"] = [json.loads(line) for line in STARTUP.bounded_capture(
             output / "native-finish-observations.jsonl").splitlines() if line.strip()]
+    if args.case_id in DEADLINE:
+        observed["budget_ms"] = engine_budget_ms
+        budget_rows = [json.loads(line) for line in STARTUP.bounded_capture(
+            output / "native-budget-observations.jsonl").splitlines() if line.strip()]
+        cleanup_operation = "msconnector_transaction_contract_cleanup"
+        observed["native_budget"] = [row for row in budget_rows if row.get("native_operation") != cleanup_operation]
+        observed["native_cleanup"] = [row for row in budget_rows if row.get("native_operation") == cleanup_operation]
+        events_path = output / "phase1-events.jsonl"
+        observed["native_events"] = [json.loads(line) for line in STARTUP.bounded_capture(events_path).splitlines()
+                                     if line.strip()] if events_path.exists() else []
     fault_contracts = {
         "early_mapping_failure_cleanup": ("early_mapping_failure", "ModSecurity: invalid canonical transaction identifier"),
         "transaction_begin_failure_cleanup": ("transaction_begin_failure", "ModSecurity: failed to create transaction"),
@@ -257,7 +303,8 @@ def run(args):
                    projection_parent=str(parent), projection_root=str(projection))
     for key, leaf in {"events_sha256": "phase1-events.jsonl", "worker_maps_sha256": "worker-maps.log",
                       "native_writes_sha256": "native-write-observations.jsonl",
-                      "native_finish_sha256": "native-finish-observations.jsonl"}.items():
+                      "native_finish_sha256": "native-finish-observations.jsonl",
+                      "native_budget_sha256": "native-budget-observations.jsonl"}.items():
         path = output / leaf
         if path.exists():
             receipt[key] = BASE.digest(STARTUP.bounded_capture(path))
@@ -280,6 +327,8 @@ def main():
     parser.add_argument("--framework-root", required=True)
     parser.add_argument("--projection-parent", required=True)
     parser.add_argument("--fault-library")
+    parser.add_argument("--engine-call-budget-ms", type=int, choices=(0, 10, 100), default=10,
+                        help="Timeout probes: 10ms positive; 0ms disabled or 100ms under-budget controls must fail timeout validation")
     parser.add_argument("--fault-negative-control", action="store_true",
                         help="Deliberately mismatch the owned fault transaction; must not satisfy the fault case")
     args = parser.parse_args()

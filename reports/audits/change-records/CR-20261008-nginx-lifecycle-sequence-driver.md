@@ -42,7 +42,7 @@ Task `nginx-all-required-20261008T124555Z` retains 13 genuine sequence/mapping/a
 
 ## Known limitations
 
-Native transport provenance needs central integration. Phase-5 finish failure cannot honestly be reported as pre-commit HTTP500; engine timeout needs a defined deadline contract. Required selection is unchanged.
+Native transport provenance needs central integration. Phase-5 finish failure cannot honestly be reported as pre-commit HTTP500. The approved engine contract is a default-disabled post-return soft budget; product wiring and fresh native execution remain integration dependencies. Required selection is unchanged.
 
 ## Remaining risks
 
@@ -52,9 +52,15 @@ Diagnostics use verified b7403e artifacts and separately hashed development help
 
 ## Checks not run and rationale
 
+The resumed Parent bilingual check failed on 22 pre-existing missing Framework link targets in the uninitialized isolated worktree. The changed EN/DE record is checked directly as the strongest available local alternative; integrated documentation validation remains required. Ruff could not run because the selected Parent environment has no Ruff module; no dependency or environment was changed.
+
 Final integrated suites, standard lifecycle, current-head CI/Sonar and protected administration remain coordinator responsibilities. No overall acceptance.
 
 ## Final diff and review status
+
+Approved soft-budget probe follow-up: `tests/fixtures/nginx_engine_budget_fault.c` delegates the actual phase-1/phase-4 API, then delays only the exact owned worker/transaction by 25ms and records actual monotonic start/end/elapsed and native return. It delegates Common cleanup and records actual cleanup return/completion/error-class code and name; it does not replace cleanup. The driver configures a 10ms budget, expects actual precommit504 or committed200 with aborted framing, removes rule1100301 only for these technical probes and hashes the effective rules afterward. Wrong-transaction control and explicit disabled0/under-budget100 controls must fail timeout validation. The client now accepts defined504 operations. Receipt includes the native ledger hash.
+
+RTK-wrapped Parent Python passed 14 focused driver/client/transport tests. C17 `-Wall -Wextra -Werror -fPIC -shared -Icommon/include` fixture compilation and C17 arithmetic compilation/execution passed. These checks prove fixture compilation, clock boundary arithmetic and driver configuration/receipt behavior; no rebuilt NGINX timeout runtime has executed. Exact native event pairing and flat Common serialization are validated separately by Framework. Product hooks, full suites, clean artifact binding and canonical runtime remain coordinator-owned.
 
 The `transport_sequential_requests` selection now sends allow/deny/allow on one actual socket, matching its catalog contract. Its red dynamic test observed three connections before correction; two transport tests now pass, including the existing keep-alive allow/allow control. Independent-connection lifecycle cases remain separately selected. Native transport event production and final canonical coverage remain coordinator-owned.
 

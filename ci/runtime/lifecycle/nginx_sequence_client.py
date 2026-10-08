@@ -15,7 +15,7 @@ def run_sequence(port, paths, statuses, *, keepalive, headers_seen=None, expect_
         raise ValueError("sequence requires one to three bounded requests")
     if any(not isinstance(path, str) or not re.fullmatch(r"/no-crs/sequence/[A-Za-z0-9_/-]{1,128}", path) for path in paths):
         raise ValueError("sequence path is outside the closed safe fixture")
-    if any(type(status) is not int or status not in (200, 403, 500) for status in statuses):
+    if any(type(status) is not int or status not in (200, 403, 500, 504) for status in statuses):
         raise ValueError("sequence only supports defined allow/deny operations")
     connection = None
     observations = []

@@ -1,8 +1,10 @@
 """Closed sequence configuration and native-fixture authority tests."""
 import argparse
+import hashlib
 import importlib.util
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 from unittest import mock
 
@@ -14,6 +16,54 @@ SPEC.loader.exec_module(DRIVER)
 
 
 class DriverTests(unittest.TestCase):
+    def test_deadline_config_sets_explicit_soft_budget_and_case_only_identity(self):
+        config = DRIVER.sequence_config(Path("/var/tmp/codex/sequence"), 19000,
+                                        Path("/var/tmp/codex/projection/child"),
+                                        "engine_timeout_before_commit", fault_transaction="a" * 32)
+        self.assertIn(b"modsecurity_engine_call_budget_ms 10;", config)
+        self.assertIn(b"default $request_id;", config)
+
+    def test_timeout_receipt_hash_matches_rules_after_deny_rule_removal(self):
+        original = b'SecRuleEngine On\nSecRule RESPONSE_BODY "@contains marker" "id:1100301,phase:4,deny"\n'
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            path = output / "no-crs-baseline.conf"
+            path.write_bytes(original)
+            observed = DRIVER.configure_timeout_rules(output)
+            effective = path.read_bytes()
+        self.assertIn(b"SecRuleRemoveById 1100301", effective)
+        self.assertEqual(observed, hashlib.sha256(effective).hexdigest())
+        self.assertNotEqual(observed, hashlib.sha256(original).hexdigest())
+
+    def test_postcommit_timeout_uses_actual_unbuffered_upstream_and_case_identity(self):
+        config = DRIVER.sequence_config(Path("/var/tmp/codex/sequence"), 19000,
+                                        Path("/var/tmp/codex/projection/child"),
+                                        "engine_timeout_after_commit", fault_transaction="a" * 32,
+                                        upstream_port=19001)
+        self.assertIn(b"proxy_buffering off;", config)
+        self.assertIn(b"proxy_pass http://127.0.0.1:19001;", config)
+        self.assertIn(b"modsecurity_engine_call_budget_ms 10;", config)
+        self.assertIn(b"default $request_id;", config)
+
+    def test_budget_controls_remain_explicit_and_bounded(self):
+        for budget in (0, 100):
+            config = DRIVER.sequence_config(Path("/var/tmp/codex/sequence"), 19000,
+                                            Path("/var/tmp/codex/projection/child"),
+                                            "engine_timeout_before_commit", fault_transaction="a" * 32,
+                                            engine_budget_ms=budget)
+            self.assertIn(f"modsecurity_engine_call_budget_ms {budget};".encode(), config)
+        with self.assertRaisesRegex(ValueError, "only disabled"):
+            DRIVER.sequence_config(Path("/var/tmp/codex/sequence"), 19000,
+                                   Path("/var/tmp/codex/projection/child"), "engine_timeout_before_commit",
+                                   fault_transaction="a" * 32, engine_budget_ms=-1)
+
+    def test_budget_controls_cannot_change_an_unrelated_case(self):
+        args = argparse.Namespace(case_id="keepalive_allow_allow", fault_negative_control=False,
+                                  engine_call_budget_ms=0)
+        with mock.patch.object(DRIVER.BASE, "validate_inputs", return_value=(Path("/binary"), Path("/module"), Path("/output"))):
+            with self.assertRaisesRegex(ValueError, "exact timeout fixture case"):
+                DRIVER.run(args)
+
     def test_finish_fault_identity_does_not_capture_listener_probes(self):
         identity = "a" * 32
         config = DRIVER.sequence_config(Path("/var/tmp/codex/sequence"), 19000,
