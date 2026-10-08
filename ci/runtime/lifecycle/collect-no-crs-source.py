@@ -80,6 +80,13 @@ def _configtest_source_artifacts(
         for name in VALID_RULES_RAW_FILES:
             runtime_artifact_path(allowed_source_root, bundle / name,
                                   "startup/probe artifact", must_exist=True)
+    removed_api_fixtures = {
+        "phase4_invalid_scope_file": "invalid-content-type-scope.txt",
+        "phase4_wildcard_scope_rejected": "wildcard-content-type-scope.txt",
+    }
+    if case_id in removed_api_fixtures:
+        runtime_artifact_path(allowed_source_root, bundle / removed_api_fixtures[case_id],
+                              "removed-API fixture", must_exist=True)
     return {"configtest_dir": str(bundle)}
 
 
@@ -118,6 +125,8 @@ def configtest_source_fields(
     allowed_fields = CONFIGTEST_RECEIPT_FIELDS
     if row.get("case_id") in {"missing_rules_file", "unsafe_event_path"}:
         allowed_fields = allowed_fields | {"fixture_leaf", "fixture_state"}
+    if row.get("case_id") in {"phase4_invalid_scope_file", "phase4_wildcard_scope_rejected"}:
+        allowed_fields = allowed_fields | {"fixture_leaf", "fixture_state", "fixture_sha256"}
     if row.get("case_id") == "valid_rules_file":
         allowed_fields = allowed_fields | VALID_RULES_RECEIPT_FIELDS
     if set(receipt) - allowed_fields or len(json.dumps(receipt)) > 8192:

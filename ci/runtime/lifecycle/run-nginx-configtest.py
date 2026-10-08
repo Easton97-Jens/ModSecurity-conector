@@ -25,6 +25,26 @@ CAPTURE_LIMIT = 65536
 TIMEOUT_SECONDS = 10
 ARTIFACT_LIMIT = 64 * 1024 * 1024
 CONFIGTEST_CONTRACTS = {
+    "invalid_status": {
+        "operation": "configtest", "directive": "modsecurity_rules",
+        "value": 'SecRule REQUEST_URI "@unconditionalMatch" "id:1100901,phase:1,deny,status:not-a-number"',
+        "expected_exit_code": 1, "expected_outcome": "config_rejected",
+        "error_class": "invalid_status",
+        "diagnostic_fragments": ['"modsecurity_rules" directive Rules error',
+                                 "Expecting an action, got:  status:not-a-number"],
+    },
+    "phase4_invalid_scope_file": {
+        "operation": "configtest", "directive": "modsecurity_phase4_content_types_file",
+        "value": "invalid-content-type-scope.txt", "expected_exit_code": 1,
+        "expected_outcome": "config_rejected", "error_class": "phase4_invalid_scope_file",
+        "diagnostic_fragments": ['unknown directive "modsecurity_phase4_content_types_file"'],
+    },
+    "phase4_wildcard_scope_rejected": {
+        "operation": "configtest", "directive": "modsecurity_phase4_content_types_file",
+        "value": "wildcard-content-type-scope.txt", "expected_exit_code": 1,
+        "expected_outcome": "config_rejected", "error_class": "phase4_wildcard_scope_rejected",
+        "diagnostic_fragments": ['unknown directive "modsecurity_phase4_content_types_file"'],
+    },
     "missing_rules_file": {
         "operation": "configtest", "directive": "modsecurity_rules_file", "value": "missing-rules.conf",
         "expected_exit_code": 1, "expected_outcome": "config_rejected",
@@ -66,6 +86,12 @@ CONFIGTEST_CONTRACTS = {
 CONFIGTEST_PATH_FIXTURES = {
     "missing_rules_file": ("missing-rules.conf", "absent"),
     "unsafe_event_path": ("unsafe-event-directory", "directory"),
+    "phase4_invalid_scope_file": ("invalid-content-type-scope.txt", "regular"),
+    "phase4_wildcard_scope_rejected": ("wildcard-content-type-scope.txt", "regular"),
+}
+CONFIGTEST_REGULAR_FIXTURE_BYTES = {
+    "phase4_invalid_scope_file": b"not a valid media type\n",
+    "phase4_wildcard_scope_rejected": b"text/*\n",
 }
 PARENT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PARENT_ROOT / "ci/lib"))
@@ -213,11 +239,15 @@ def retain_configtest_inputs(binary: Path, module: Path, output: Path, contract:
         leaf, state = fixture
         if state == "directory":
             (output / leaf).mkdir(mode=0o700)
+        elif state == "regular":
+            descriptor = os.open(output / leaf, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+            with os.fdopen(descriptor, "wb") as stream:
+                stream.write(CONFIGTEST_REGULAR_FIXTURE_BYTES[contract["error_class"]])
         if not configtest_fixture_intact(contract["error_class"], output):
             raise ValueError("controlled path fixture does not match its closed initial state")
         value = f'"{output}/{leaf}"'
-    elif contract["error_class"] == "invalid_rule_syntax":
-        value = f'"{value}"'
+    elif contract["directive"] == "modsecurity_rules":
+        value = json.dumps(value)
     configuration = (
         f'load_module "{retained_module}";\n'
         f'pid "{output}/nginx.pid";\n'
@@ -246,9 +276,17 @@ def configtest_fixture_intact(case_id: str, output: Path) -> bool:
             except FileNotFoundError:
                 return True
             return False
-        descriptor = os.open(leaf, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+        flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+        if state == "directory":
+            flags |= os.O_DIRECTORY
+        descriptor = os.open(leaf, flags,
                              dir_fd=directory)
         info = os.fstat(descriptor)
+        if state == "regular":
+            return (stat.S_ISREG(info.st_mode) and info.st_uid == os.geteuid()
+                    and stat.S_IMODE(info.st_mode) == 0o600 and info.st_nlink == 1
+                    and info.st_size <= 512
+                    and os.read(descriptor, 513) == CONFIGTEST_REGULAR_FIXTURE_BYTES[case_id])
         return (stat.S_ISDIR(info.st_mode) and info.st_uid == os.geteuid()
                 and stat.S_IMODE(info.st_mode) == 0o700 and not os.listdir(descriptor))
     except OSError:
@@ -270,6 +308,10 @@ def configtest_result(args, contract: dict, output: Path, artifacts: tuple, capt
     if not configtest_fixture_intact(args.case_id, output):
         failure = failure or "configtest_fixture_changed"
     named_fixture = fixture is None or str(output / fixture[0]) in text
+    if fixture is not None and fixture[1] == "regular":
+        # Removed directives are rejected before their argument file is read.
+        # Bind the genuine diagnostic to the exact retained config and line.
+        named_fixture = f" in {output}/nginx.conf:6" in text
     passed = not failure and exit_code == expected_exit and matched == fragments and named_fixture
     receipt = {
         "schema_version": 1, "case_id": args.case_id, "connector": "nginx",
@@ -289,6 +331,8 @@ def configtest_result(args, contract: dict, output: Path, artifacts: tuple, capt
     }
     if fixture is not None:
         receipt.update(fixture_leaf=fixture[0], fixture_state=fixture[1])
+        if fixture[1] == "regular" and configtest_fixture_intact(args.case_id, output):
+            receipt["fixture_sha256"] = digest((output / fixture[0]).read_bytes())
     result = {"cases": [{"case_id": args.case_id, "status": "PASS" if passed else "FAIL",
                          "live_executed": failure != "configtest_exec_error",
                          "actual_status": exit_code, "observed_result": receipt["observed_outcome"],
