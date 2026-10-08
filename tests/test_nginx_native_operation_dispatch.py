@@ -1,5 +1,6 @@
 """Pure closed-dispatch/security checks; no NGINX process is started."""
 import importlib.util
+from copy import deepcopy
 import json
 import os
 from pathlib import Path
@@ -42,6 +43,39 @@ class DispatcherTests(unittest.TestCase):
         for selection in (["../evil"], ["single_request_cleanup"] * 2):
             with self.assertRaises(ValueError):
                 d.selected_invocations(rows, selection)
+
+    def test_current_native_phase_and_clean_shutdown_overrides(self):
+        expected = {
+            "body_size_nonzero_with_null_data": {"phase": 1, "expected_status": 400},
+            "engine_timeout_before_commit": {"phase": 1, "expected_status": 504, "expected_rule_id": None,
+                                             "expected_native_status": 504, "expected_engine_error_class": "engine_timeout"},
+            "clean_shutdown": {"expected_status": 200},
+        }
+        for case, overrides in expected.items():
+            with self.subTest(case=case):
+                descriptor = {"operation": "common_mapper_input_fault" if case.startswith("body_size_") else "request_sequence",
+                              "contract_case_id": case, "expected_overrides": overrides}
+                self.assertEqual(self.driver.CONTRACTS[case], descriptor)
+                row = {"case_id": case, "native_invocations": {"nginx": descriptor}}
+                self.assertEqual(self.driver.selected_invocations([row], [case]), [case])
+                degraded = deepcopy(descriptor)
+                degraded["expected_overrides"].pop("phase" if "phase" in overrides else "expected_status")
+                wrong = deepcopy(descriptor)
+                wrong["expected_overrides"]["phase" if "phase" in overrides else "expected_status"] = 4 if "phase" in overrides else 0
+                boolean = deepcopy(descriptor)
+                boolean["expected_overrides"]["phase" if "phase" in overrides else "expected_status"] = True
+                for changed in (degraded, wrong, boolean):
+                    with self.assertRaises(ValueError):
+                        self.driver.selected_invocations([{"case_id": case, "native_invocations": {"nginx": changed}}], [case])
+
+    def test_exact_current_framework_registry_selects_all42(self):
+        framework = Path(os.environ.get("NGINX_NATIVE_REGISTRY_FRAMEWORK_ROOT", ROOT / "modules/ModSecurity-test-Framework"))
+        catalog = framework / "tests/cases/no-crs-baseline/catalog.json"
+        if not catalog.is_file():
+            self.skipTest("current Framework registry checkout or explicit NGINX_NATIVE_REGISTRY_FRAMEWORK_ROOT required")
+        rows = [row for row in json.loads(catalog.read_text())["cases"] if "nginx" in row.get("native_invocations", {})]
+        self.assertEqual(len(rows), 42)
+        self.assertEqual(set(self.driver.selected_invocations(rows, [row["case_id"] for row in rows])), set(self.driver.CONTRACTS))
 
     def test_actual_closed_command_and_fault_requirements(self):
         d = self.driver

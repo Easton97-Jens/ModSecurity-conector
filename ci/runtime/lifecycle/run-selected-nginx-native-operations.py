@@ -44,7 +44,9 @@ for case, source in SOURCE.ALIASES.items():
     CONTRACTS[case]["source_record_id"] = source
 OVERRIDES = {
     **{case: {"expected_status": 400} for case in POINTER},
+    "body_size_nonzero_with_null_data": {"phase": 1, "expected_status": 400},
     "finish_failure_propagation": {"expected_status": 200},
+    "clean_shutdown": {"expected_status": 200},
     "phase4_deny_after_commit_log_only_minimal": {"expected_status": 200,
         "expected_result": "late_intervention_log_only_safe", "nginx_phase4_mode": "safe"},
     **{case: {"expected_status": 200, "expected_rule_id": None}
@@ -55,6 +57,8 @@ OVERRIDES = {
               "expected_rule_id": None, "expected_native_status": 504,
               "expected_engine_error_class": "engine_timeout"}
        for case in ("engine_timeout_before_commit", "engine_timeout_after_commit")},
+    "engine_timeout_before_commit": {"phase": 1, "expected_status": 504, "expected_rule_id": None,
+        "expected_native_status": 504, "expected_engine_error_class": "engine_timeout"},
 }
 for case, override in OVERRIDES.items():
     CONTRACTS[case]["expected_overrides"] = override
