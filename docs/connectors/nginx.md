@@ -83,6 +83,20 @@ Use NGINX variables only where the registered directive documents them.
 <code>modsecurity_transaction_id_expr</code> is Apache-specific and is not an
 NGINX directive.
 
+The inspected native source also defines URI-only event projection (256-byte
+buffer, at most 255 JSON-escaped bytes, preserved `?<redacted>` query marker)
+and `modsecurity_engine_call_budget_ms`. Its inherited default `0` disables
+measurement. Only the four synchronous request/response header/body processing
+calls are measured individually with `CLOCK_MONOTONIC` and strict `>` after
+return; connection/URI processing, append, logging, header-add, intervention,
+cleanup, and getters are unmeasured. There is no hard interruption. Common
+completion requires native result exactly `1` and budget acceptance; slow
+invalid returns remain invalid Engine responses. Common cleanup precedes native
+void cleanup; HTTP status cannot prove it. See the
+[source guide](../../connectors/nginx/README.md) for parser and boundary details.
+These source contracts do not establish a new runtime pass: 97 RequiredIDs and
+45 open entries remain, and the new tuple is `NOT_RUN`.
+
 ## P1--P4 lifecycle and protocol boundary
 
 P3 decisions belong to the response-header path before headers are committed.

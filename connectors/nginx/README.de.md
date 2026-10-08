@@ -290,6 +290,8 @@ Der adaptereigene NGINX-Connector registriert derzeit Folgendes:
 - `modsecurity_rules_remote` (abgelehnt: Remote-Regelladen ist durch die gemeinsame Sicherheitsrichtlinie deaktiviert)
 - `modsecurity_transaction_id`
 - `modsecurity_use_error_log on|off`
+- `modsecurity_engine_call_budget_ms <milliseconds>` (NGINX-spezifisches weiches
+  Budget ausgewählter Aufrufe; dezimale Ganzzahl, geerbter Standard `0` deaktiviert die Messung)
 - `modsecurity_phase4_mode off|safe|strict`
 - `modsecurity_phase4_log <path>` (nativer P4-JSONL-Sink; der dem Connector
   gehörende Deskriptor wird über den Common-No-Follow-Helper geöffnet und
@@ -298,6 +300,40 @@ Der adaptereigene NGINX-Connector registriert derzeit Folgendes:
 - `modsecurity_phase4_body_limit <bytes>` (alter Kompatibilitätswert;
   wird von der aktuellen Konfiguration weiter akzeptiert, aber nicht als
   WAF-Response-Inspection-Limit durchgesetzt)
+
+### Native URI-Metadaten und weiches Budget ausgewählter Aufrufe
+
+Der geprüfte native Quellstand begrenzt die Event-URI auf einen 256-Byte-Puffer
+einschließlich abschließendem NUL und höchstens 255 Bytes nach JSON-Escaping.
+Querys werden durch `?<redacted>` ersetzt; dieser 11-Byte-Marker bleibt bei
+langen oder stark escapten Präfixen erhalten (höchstens 244 Präfixbytes bei einer
+langen ASCII-URI mit Query). Redaktions- und Trunkierungsflags beschreiben die
+Projektion. Andere Common-Felder behalten die strikte Validierung. Der feste
+JSONL-Schreibpuffer bleibt 4096 Bytes groß; dies ist weder eine konfigurierbare
+Eventgrößen-Direktive noch eine Erlaubnis für Payload-Logging.
+
+`modsecurity_engine_call_budget_ms` akzeptiert dezimale Millisekunden in `http`,
+`server` und `location`. Kinder erben den Elternwert; Standard `0` deaktiviert
+die Messung. Duplikate im selben Kontext, negative Werte, Einheitensuffixe und
+Überlauf sind ungültig. Nur `msc_process_request_headers()`,
+`msc_process_request_body()`, `msc_process_response_headers()` und
+`msc_process_response_body()` werden einzeln mit `CLOCK_MONOTONIC` gemessen.
+Eine Dauer strikt größer als das Budget wird nach Rückkehr des synchronen
+Aufrufs geprüft. Ein blockierter oder hängender Engine-Aufruf kann nicht
+unterbrochen werden; dies ist weder eine harte Deadline noch ein
+transaktionsweites Budget.
+
+Verbindungsverarbeitung, URI-Verarbeitung, Body-Append, Logging, Header-Add-APIs,
+Interventions-APIs, Cleanup und Getter werden **nicht gemessen**. Common beendet
+eine Phase nur bei tatsächlichem nativem Ergebnis exakt `1` und akzeptiertem
+Budget. Langsame ungültige Ergebnisse wie `0` oder `2` bleiben ungültige
+Engine-Antworten und sind kein positiver Timeout-Nachweis. Common-Transaktions-
+Cleanup erfolgt vor dem nativen void-Aufruf `msc_transaction_cleanup()`;
+ein HTTP-Status allein beweist weder Cleanup noch die Rückkehr dieses Aufrufs.
+
+Dies sind Quellverträge, kein neuer nativer Laufzeit-Pass. Das All-Required-
+Tracking behält 97 RequiredIDs mit 45 offenen Einträgen; das neue Source/Build/
+Runtime-Tupel ist `NOT_RUN`. Frühere Fallevidenz beweist dieses Tupel nicht.
 
 `modsecurity_phase4_mode` hat den Standardwert `off`. `minimal` wird nicht
 mehr akzeptiert. Die entfernte Direktive `modsecurity_phase4_content_types_file`

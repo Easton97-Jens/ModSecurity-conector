@@ -274,6 +274,8 @@ The adapter-owned NGINX connector currently registers:
 - `modsecurity_rules_remote` (rejected: remote rule loading is disabled by the common security policy)
 - `modsecurity_transaction_id`
 - `modsecurity_use_error_log on|off`
+- `modsecurity_engine_call_budget_ms <milliseconds>` (NGINX-specific selected-call
+  soft budget; decimal integer, inherited default `0` disables measurement)
 - `modsecurity_phase4_mode off|safe|strict`
 - `modsecurity_phase4_log <path>` (native P4 JSONL sink; the connector-owned
   descriptor is opened through the Common no-follow helper and requires a safe
@@ -281,6 +283,38 @@ The adapter-owned NGINX connector currently registers:
 - `modsecurity_phase4_body_limit <bytes>` (legacy compatibility value;
   accepted by current configuration parsing but not enforced as a WAF
   response-inspection limit)
+
+### Native URI metadata and selected-call soft budget
+
+The inspected native source bounds the event URI to a 256-byte buffer including
+the terminating NUL and at most 255 bytes after JSON escaping. Queries become
+`?<redacted>`; this 11-byte marker survives long or heavily escaped prefixes
+(at most 244 prefix bytes for a long ASCII query URI). Redaction and truncation
+flags describe the projection. Other Common fields retain strict validation.
+The fixed JSONL writer buffer remains 4096 bytes; this is not a configurable
+event-size directive or permission to log payload.
+
+`modsecurity_engine_call_budget_ms` accepts decimal milliseconds in `http`,
+`server`, and `location`. Children inherit the parent value; default `0`
+disables measurement. Duplicates in the same context, negative values, unit
+suffixes, and overflow are invalid. Only `msc_process_request_headers()`,
+`msc_process_request_body()`, `msc_process_response_headers()`, and
+`msc_process_response_body()` are measured individually with `CLOCK_MONOTONIC`.
+Elapsed time strictly greater than the budget is checked after the synchronous
+call returns. It cannot interrupt a blocked or hung Engine call and is neither
+a hard deadline nor a transaction-wide budget.
+
+Connection processing, URI processing, body append, logging, header-add APIs,
+intervention APIs, cleanup, and getters are **not measured**. Common phase
+completion requires actual native result exactly `1` and budget acceptance.
+Slow invalid returns such as `0` or `2` remain invalid Engine responses, not
+positive timeout evidence. Common transaction cleanup precedes the native void
+`msc_transaction_cleanup()` call; HTTP status alone proves neither cleanup nor
+completion of that native call.
+
+These are source contracts, not a new native runtime pass. All-required tracking
+retains 97 RequiredIDs with 45 open; the new source/build/runtime tuple is
+`NOT_RUN`. Earlier case evidence does not prove this tuple.
 
 `modsecurity_phase4_mode` defaults to `off`. `minimal` is no longer accepted.
 The removed `modsecurity_phase4_content_types_file` directive must be removed
