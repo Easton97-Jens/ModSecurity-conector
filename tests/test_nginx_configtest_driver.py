@@ -62,6 +62,122 @@ class NginxConfigtestDriverTest(unittest.TestCase):
         self.assertFalse(receipt["listener_created"])
         self.assertIn("  modsecurity_phase4_body_limit maybe;", (output / "nginx.conf").read_text())
 
+    def test_target_rejections_execute_closed_native_parser_contracts(self):
+        cases = {
+            "missing_rules_file": ('modsecurity_rules_file', 'missing-rules.conf',
+                                   '\"modsecurity_rules_file\" directive Failed to open the file'),
+            "invalid_rule_syntax": ('modsecurity_rules', 'SecRule REQUEST_URI',
+                                    '\"modsecurity_rules\" directive syntax error'),
+            "unknown_config_key": ('modsecurity_unknown_config_key', 'on',
+                                   'unknown directive \"modsecurity_unknown_config_key\"'),
+            "unsafe_event_path": ('modsecurity_phase4_log', 'unsafe-event-directory',
+                                  'is not a secure private event file'),
+        }
+        for case_id, (directive, value, diagnostic) in cases.items():
+            with self.subTest(case_id=case_id):
+                output = self.root / case_id
+                if case_id == "missing_rules_file":
+                    diagnostic += f" {output}/{value}"
+                elif case_id == "unsafe_event_path":
+                    diagnostic = f'modsecurity_phase4_log "{output}/{value}" {diagnostic}'
+                result = self.invoke(diagnostic=diagnostic, case_id=case_id, output_name=case_id)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                record = json.loads((output / "source-result.json").read_text())["cases"][0]
+                receipt = record["configtest_receipt"]
+                self.assertEqual(receipt["directive"], directive)
+                self.assertEqual(receipt["value"], value)
+                self.assertEqual(receipt["error_class"], case_id)
+                self.assertFalse(receipt["process_started"])
+                self.assertFalse(receipt["listener_created"])
+                rendered = value
+                if case_id in {"missing_rules_file", "unsafe_event_path"}:
+                    rendered = f'"{output}/{value}"'
+                    self.assertEqual(receipt["fixture_leaf"], value)
+                    state = "absent" if case_id == "missing_rules_file" else "directory"
+                    self.assertEqual(receipt["fixture_state"], state)
+                    if state == "absent":
+                        self.assertFalse((output / value).exists())
+                    else:
+                        self.assertEqual((output / value).stat().st_mode & 0o777, 0o700)
+                        self.assertEqual(list((output / value).iterdir()), [])
+                elif case_id == "invalid_rule_syntax":
+                    rendered = f'"{value}"'
+                self.assertIn(f"  {directive} {rendered};", (output / "nginx.conf").read_text())
+
+    def test_target_rejections_reject_wrong_exit_and_other_error_reason(self):
+        for case_id in ("missing_rules_file", "invalid_rule_syntax", "unknown_config_key", "unsafe_event_path"):
+            for exit_code in (0, 1, 2):
+                with self.subTest(case_id=case_id, exit_code=exit_code):
+                    name = f"{case_id}-{exit_code}"
+                    result = self.invoke(diagnostic="module missing", exit_code=exit_code,
+                                         case_id=case_id, output_name=name)
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    record = json.loads((self.root / name / "source-result.json").read_text())["cases"][0]
+                    self.assertEqual(record["status"], "FAIL")
+
+    def test_path_fixture_diagnostics_must_name_exact_owned_target(self):
+        cases = {
+            "missing_rules_file": '"modsecurity_rules_file" directive Failed to open the file /elsewhere/missing-rules.conf',
+            "unsafe_event_path": 'modsecurity_phase4_log "/elsewhere/unsafe-event-directory" is not a secure private event file',
+        }
+        for case_id, diagnostic in cases.items():
+            with self.subTest(case_id=case_id):
+                result = self.invoke(diagnostic=diagnostic, case_id=case_id, output_name=case_id)
+                self.assertEqual(result.returncode, 1, result.stderr)
+
+    def test_target_parser_diagnostics_do_not_promote_wrong_exit_codes(self):
+        for case_id in ("missing_rules_file", "invalid_rule_syntax", "unknown_config_key", "unsafe_event_path"):
+            for exit_code in (0, 2):
+                with self.subTest(case_id=case_id, exit_code=exit_code):
+                    name = f"wrong-exit-{case_id}-{exit_code}"
+                    output = self.root / name
+                    diagnostics = {
+                        "missing_rules_file": f'"modsecurity_rules_file" directive Failed to open the file: {output}/missing-rules.conf',
+                        "invalid_rule_syntax": '"modsecurity_rules" directive syntax error',
+                        "unknown_config_key": 'unknown directive "modsecurity_unknown_config_key"',
+                        "unsafe_event_path": f'modsecurity_phase4_log "{output}/unsafe-event-directory" is not a secure private event file',
+                    }
+                    result = self.invoke(diagnostic=diagnostics[case_id], exit_code=exit_code,
+                                         case_id=case_id, output_name=name)
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    record = json.loads((output / "source-result.json").read_text())["cases"][0]
+                    self.assertEqual(record["status"], "FAIL")
+
+    def test_unsafe_fixture_symlink_substitution_is_not_followed(self):
+        target = self.root / "other-private-directory"
+        target.mkdir(mode=0o700)
+        output = self.root / "unsafe-event-path"
+        diagnostic = f'modsecurity_phase4_log "{output}/unsafe-event-directory" is not a secure private event file'
+        mutation = (f'rmdir "${{5%/*}}/unsafe-event-directory"\n'
+                    f'ln -s "{target}" "${{5%/*}}/unsafe-event-directory"')
+        result = self.invoke(diagnostic=diagnostic, case_id="unsafe_event_path",
+                             output_name=output.name, extra_script=mutation)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        receipt = json.loads((output / "source-result.json").read_text())["cases"][0]["configtest_receipt"]
+        self.assertEqual(receipt["error_class"], "configtest_fixture_changed")
+        self.assertEqual(list(target.iterdir()), [])
+
+    def test_path_fixture_state_mutation_is_not_a_parser_rejection_pass(self):
+        cases = {
+            "missing_rules_file": ('"modsecurity_rules_file" directive Failed to open the file',
+                                   'touch "${5%/*}/missing-rules.conf"'),
+            "unsafe_event_path": ('modsecurity_phase4_log',
+                                  'touch "${5%/*}/unsafe-event-directory/unexpected"'),
+        }
+        for case_id, (diagnostic, mutation) in cases.items():
+            with self.subTest(case_id=case_id):
+                leaf = "missing-rules.conf" if case_id == "missing_rules_file" else "unsafe-event-directory"
+                target = self.root / case_id / leaf
+                if case_id == "missing_rules_file":
+                    diagnostic += f" {target}"
+                else:
+                    diagnostic += f' "{target}" is not a secure private event file'
+                result = self.invoke(diagnostic=diagnostic, case_id=case_id,
+                                     output_name=case_id, extra_script=mutation)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                receipt = json.loads((self.root / case_id / "source-result.json").read_text())["cases"][0]["configtest_receipt"]
+                self.assertEqual(receipt["error_class"], "configtest_fixture_changed")
+
     def test_invalid_size_wrong_diagnostic_and_exit_controls_remain_fail(self):
         controls = [
             ('"modsecurity" directive invalid boolean value', 1),

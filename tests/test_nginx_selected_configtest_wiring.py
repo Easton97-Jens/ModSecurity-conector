@@ -21,6 +21,16 @@ SIZE_CONTRACT = {"operation": "configtest", "directive": "modsecurity_phase4_bod
                  "error_class": "invalid_size",
                  "diagnostic_fragments": ['"modsecurity_phase4_body_limit" directive',
                                           "invalid value for modsecurity_phase4_body_limit"]}
+TARGET_CONTRACTS = {
+    "missing_rules_file": {"directive": "modsecurity_rules_file", "value": "missing-rules.conf",
+                           "diagnostic_fragments": ['"modsecurity_rules_file" directive', "missing-rules.conf", "Failed to open the file"]},
+    "invalid_rule_syntax": {"directive": "modsecurity_rules", "value": "SecRule REQUEST_URI",
+                            "diagnostic_fragments": ['"modsecurity_rules" directive', "syntax error"]},
+    "unknown_config_key": {"directive": "modsecurity_unknown_config_key", "value": "on",
+                           "diagnostic_fragments": ['unknown directive "modsecurity_unknown_config_key"']},
+    "unsafe_event_path": {"directive": "modsecurity_phase4_log", "value": "unsafe-event-directory",
+                          "diagnostic_fragments": ['modsecurity_phase4_log "', 'unsafe-event-directory" is not a secure private event file']},
+}
 
 
 class SelectedNginxConfigtestWiringTest(unittest.TestCase):
@@ -173,6 +183,34 @@ class SelectedNginxConfigtestWiringTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stderr)
         row = json.loads(self.result_file.read_text().splitlines()[-1])
         self.assertEqual(row["status"], "FAIL")
+
+    def test_four_target_rejections_dispatch_exact_contracts_to_fresh_children(self):
+        catalog = self.framework / "tests/cases/no-crs-baseline/catalog.json"
+        cases = []
+        for case_id, fields in TARGET_CONTRACTS.items():
+            contract = {"operation": "configtest", "expected_exit_code": 1,
+                        "expected_outcome": "config_rejected", "error_class": case_id, **fields}
+            cases.append({"case_id": case_id, "config_invocations": {"nginx": contract}})
+        catalog.write_text(json.dumps({"cases": cases}))
+        binary = Path(self.environment["NGINX_PREFIX"]) / "sbin/nginx"
+        binary.write_text(
+            '#!/bin/sh\nroot=${5%/*}\ncase "$(sed -n "6p" "$5")" in\n'
+            '  *modsecurity_rules_file*) echo "\\\"modsecurity_rules_file\\\" directive Failed to open the file: $root/missing-rules.conf" >&2 ;;\n'
+            '  *modsecurity_unknown_config_key*) echo \'unknown directive "modsecurity_unknown_config_key"\' >&2 ;;\n'
+            '  *modsecurity_phase4_log*) echo "modsecurity_phase4_log \\\"$root/unsafe-event-directory\\\" is not a secure private event file" >&2 ;;\n'
+            '  *modsecurity_rules*) echo \'"modsecurity_rules" directive syntax error\' >&2 ;;\n'
+            '  *) exit 99 ;;\nesac\nexit 1\n'
+        )
+        self.environment["NO_CRS_SELECTED_CASE_IDS"] = " ".join(TARGET_CONTRACTS)
+        result = self.run_helper()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        rows = [json.loads(line) for line in self.result_file.read_text().splitlines()][1:]
+        self.assertEqual([row["case_id"] for row in rows], list(TARGET_CONTRACTS))
+        children = [Path(row["artifacts"]["configtest_dir"]) for row in rows]
+        self.assertEqual(len(set(children)), 4)
+        self.assertEqual([child.parent for child in children], [self.build / "configtests"] * 4)
+        self.assertTrue(all(row["status"] == "PASS" for row in rows))
+        self.assertNotEqual(self.run_helper().returncode, 0, "existing case outputs are not reusable")
 
     def test_host_failure_is_retained_after_config_invocation(self):
         self.environment["UNIT_HOST_EXIT"] = "77"

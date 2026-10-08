@@ -39,6 +39,14 @@ CONFIGTEST_RECEIPT_FIELDS = {
     "observed_exit_code", "observed_outcome", "error_class", "diagnostic_fragments",
     "stdout_sha256", "stderr_sha256", "process_started", "listener_created", "timestamp",
 }
+VALID_RULES_RECEIPT_FIELDS = {
+    "request_probe", "cleanup_verified", "listen_port", "docroot_projection_parent",
+    "docroot_projection_root", "rules_sha256", "events_sha256", "request_sha256",
+    "roles_sha256", "cleanup_sha256",
+}
+VALID_RULES_RAW_FILES = (
+    "no-crs-baseline.conf", "phase1-events.jsonl", "request-result.json", "roles.json", "cleanup.json",
+)
 
 
 def _configtest_source_identity_fields(row: dict[str, Any]) -> dict[str, Any]:
@@ -53,7 +61,7 @@ def _configtest_source_identity_fields(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def _configtest_source_artifacts(
-    artifacts: Any, allowed_source_root: Path | None,
+    artifacts: Any, allowed_source_root: Path | None, case_id: str | None = None,
 ) -> dict[str, str]:
     """Validate the closed bundle against its explicit source authority."""
     if not isinstance(artifacts, dict) or set(artifacts) != {"configtest_dir"}:
@@ -68,6 +76,10 @@ def _configtest_source_artifacts(
     for name in ("nginx-binary", "nginx-module.so", "nginx.conf", "stdout.log", "stderr.log"):
         runtime_artifact_path(allowed_source_root, bundle / name,
                               "configuration artifact", must_exist=True)
+    if case_id == "valid_rules_file":
+        for name in VALID_RULES_RAW_FILES:
+            runtime_artifact_path(allowed_source_root, bundle / name,
+                                  "startup/probe artifact", must_exist=True)
     return {"configtest_dir": str(bundle)}
 
 
@@ -85,12 +97,34 @@ def configtest_source_fields(
     receipt = row["configtest_receipt"]
     if expected_phase != 0 or not isinstance(receipt, dict):
         raise ValueError("configuration receipt is not a phase-0 source object")
-    if set(receipt) - CONFIGTEST_RECEIPT_FIELDS or len(json.dumps(receipt)) > 8192:
+    allowed_fields = CONFIGTEST_RECEIPT_FIELDS
+    if row.get("case_id") in {"missing_rules_file", "unsafe_event_path"}:
+        allowed_fields = allowed_fields | {"fixture_leaf", "fixture_state"}
+    if row.get("case_id") == "valid_rules_file":
+        allowed_fields = allowed_fields | VALID_RULES_RECEIPT_FIELDS
+    if set(receipt) - allowed_fields or len(json.dumps(receipt)) > 8192:
         raise ValueError("configuration receipt contains unbounded or undeclared fields")
     fields = {"configtest_receipt": receipt}
     fields.update(_configtest_source_identity_fields(row))
+    if row.get("case_id") == "valid_rules_file" and receipt.get("operation") == "startup":
+        # Preserve the producer's exact native-probe transaction binding.
+        # Its retained phase-1 event is validated by the Framework bundle
+        # contract; it is not a fabricated phase-0 canonical event.
+        probe = receipt.get("request_probe")
+        transactions = row.get("transaction_ids")
+        if (not isinstance(probe, dict) or not isinstance(transactions, list)
+                or len(transactions) != 1 or not isinstance(transactions[0], str)
+                or not transactions[0] or len(transactions[0]) > 256
+                or transactions[0] != probe.get("transaction_id")):
+            raise ValueError("startup source requires its exact bounded native-probe transaction")
+        rules = row.get("observed_rule_ids")
+        if (not isinstance(rules, list) or len(rules) != 1
+                or type(rules[0]) is not int or rules[0] != 1100001):
+            raise ValueError("startup source requires its exact integer native-probe rule")
+        fields["transaction_ids"] = transactions
+        fields["observed_rule_ids"] = rules
     if "artifacts" in row:
-        fields["artifacts"] = _configtest_source_artifacts(row["artifacts"], allowed_source_root)
+        fields["artifacts"] = _configtest_source_artifacts(row["artifacts"], allowed_source_root, row.get("case_id"))
     return fields
 
 
@@ -2047,7 +2081,18 @@ def request_runtime_observed(
     cases: list[dict[str, Any]], nonpromoted_host: bool,
 ) -> bool:
     return allowed is not None or blocked is not None or nonpromoted_host or any(
-        "configtest_receipt" not in case for case in cases
+        "configtest_receipt" not in case or (
+            case.get("case_id") == "valid_rules_file"
+            and case.get("live_executed") is True
+            and isinstance(case.get("configtest_receipt"), dict)
+            and case["configtest_receipt"].get("case_id") == "valid_rules_file"
+            and case["configtest_receipt"].get("operation") == "startup"
+            and case["configtest_receipt"].get("process_started") is True
+            and case["configtest_receipt"].get("listener_created") is True
+            and isinstance(case["configtest_receipt"].get("request_probe"), dict)
+            and case["configtest_receipt"]["request_probe"].get("client_exit_code") == 0
+            and case["configtest_receipt"]["request_probe"].get("observed_http_status") == 403
+        ) for case in cases
     )
 
 

@@ -25,6 +25,30 @@ CAPTURE_LIMIT = 65536
 TIMEOUT_SECONDS = 10
 ARTIFACT_LIMIT = 64 * 1024 * 1024
 CONFIGTEST_CONTRACTS = {
+    "missing_rules_file": {
+        "operation": "configtest", "directive": "modsecurity_rules_file", "value": "missing-rules.conf",
+        "expected_exit_code": 1, "expected_outcome": "config_rejected",
+        "error_class": "missing_rules_file",
+        "diagnostic_fragments": ['"modsecurity_rules_file" directive', "missing-rules.conf", "Failed to open the file"],
+    },
+    "invalid_rule_syntax": {
+        "operation": "configtest", "directive": "modsecurity_rules", "value": "SecRule REQUEST_URI",
+        "expected_exit_code": 1, "expected_outcome": "config_rejected",
+        "error_class": "invalid_rule_syntax",
+        "diagnostic_fragments": ['"modsecurity_rules" directive', "syntax error"],
+    },
+    "unknown_config_key": {
+        "operation": "configtest", "directive": "modsecurity_unknown_config_key", "value": "on",
+        "expected_exit_code": 1, "expected_outcome": "config_rejected",
+        "error_class": "unknown_config_key",
+        "diagnostic_fragments": ['unknown directive "modsecurity_unknown_config_key"'],
+    },
+    "unsafe_event_path": {
+        "operation": "configtest", "directive": "modsecurity_phase4_log", "value": "unsafe-event-directory",
+        "expected_exit_code": 1, "expected_outcome": "config_rejected",
+        "error_class": "unsafe_event_path",
+        "diagnostic_fragments": ['modsecurity_phase4_log "', 'unsafe-event-directory" is not a secure private event file'],
+    },
     "invalid_boolean": {
         "operation": "configtest", "directive": "modsecurity", "value": "maybe",
         "expected_exit_code": 1, "expected_outcome": "config_rejected",
@@ -38,6 +62,10 @@ CONFIGTEST_CONTRACTS = {
         "diagnostic_fragments": ['"modsecurity_phase4_body_limit" directive',
                                  "invalid value for modsecurity_phase4_body_limit"],
     },
+}
+CONFIGTEST_PATH_FIXTURES = {
+    "missing_rules_file": ("missing-rules.conf", "absent"),
+    "unsafe_event_path": ("unsafe-event-directory", "directory"),
 }
 PARENT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PARENT_ROOT / "ci/lib"))
@@ -179,17 +207,56 @@ def retain_configtest_inputs(binary: Path, module: Path, output: Path, contract:
     retained_module = output / "nginx-module.so"
     binary_sha = snapshot_artifact(binary, retained_binary, executable=True)
     module_sha = snapshot_artifact(module, retained_module, executable=False)
+    value = contract["value"]
+    fixture = CONFIGTEST_PATH_FIXTURES.get(contract["error_class"])
+    if fixture is not None:
+        leaf, state = fixture
+        if state == "directory":
+            (output / leaf).mkdir(mode=0o700)
+        if not configtest_fixture_intact(contract["error_class"], output):
+            raise ValueError("controlled path fixture does not match its closed initial state")
+        value = f'"{output}/{leaf}"'
+    elif contract["error_class"] == "invalid_rule_syntax":
+        value = f'"{value}"'
     configuration = (
         f'load_module "{retained_module}";\n'
         f'pid "{output}/nginx.pid";\n'
         f'error_log "{output}/nginx-error.log";\n'
         "events {}\nhttp {\n"
-        f"  {contract['directive']} {contract['value']};\n"
+        f"  {contract['directive']} {value};\n"
         "}\n"
     ).encode("utf-8")
     config_path = output / "nginx.conf"
     config_path.write_bytes(configuration)
     return binary_sha, module_sha, configuration, config_path
+
+
+def configtest_fixture_intact(case_id: str, output: Path) -> bool:
+    """Check the fixed private leaf without following substituted symlinks."""
+    fixture = CONFIGTEST_PATH_FIXTURES.get(case_id)
+    if fixture is None:
+        return True
+    leaf, state = fixture
+    directory = os.open(output, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    descriptor = None
+    try:
+        if state == "absent":
+            try:
+                os.stat(leaf, dir_fd=directory, follow_symlinks=False)
+            except FileNotFoundError:
+                return True
+            return False
+        descriptor = os.open(leaf, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                             dir_fd=directory)
+        info = os.fstat(descriptor)
+        return (stat.S_ISDIR(info.st_mode) and info.st_uid == os.geteuid()
+                and stat.S_IMODE(info.st_mode) == 0o700 and not os.listdir(descriptor))
+    except OSError:
+        return False
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        os.close(directory)
 
 
 def configtest_result(args, contract: dict, output: Path, artifacts: tuple, capture: tuple) -> tuple:
@@ -199,7 +266,11 @@ def configtest_result(args, contract: dict, output: Path, artifacts: tuple, capt
     fragments = contract["diagnostic_fragments"]
     matched = [fragment for fragment in fragments if fragment in text]
     expected_exit = contract["expected_exit_code"]
-    passed = not failure and exit_code == expected_exit and matched == fragments
+    fixture = CONFIGTEST_PATH_FIXTURES.get(args.case_id)
+    if not configtest_fixture_intact(args.case_id, output):
+        failure = failure or "configtest_fixture_changed"
+    named_fixture = fixture is None or str(output / fixture[0]) in text
+    passed = not failure and exit_code == expected_exit and matched == fragments and named_fixture
     receipt = {
         "schema_version": 1, "case_id": args.case_id, "connector": "nginx",
         "operation": "configtest", "run_id": args.run_id,
@@ -216,6 +287,8 @@ def configtest_result(args, contract: dict, output: Path, artifacts: tuple, capt
         "stderr_sha256": digest(stderr), "process_started": False, "listener_created": False,
         "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
+    if fixture is not None:
+        receipt.update(fixture_leaf=fixture[0], fixture_state=fixture[1])
     result = {"cases": [{"case_id": args.case_id, "status": "PASS" if passed else "FAIL",
                          "live_executed": failure != "configtest_exec_error",
                          "actual_status": exit_code, "observed_result": receipt["observed_outcome"],

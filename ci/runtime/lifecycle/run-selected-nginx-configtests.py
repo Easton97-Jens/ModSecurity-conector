@@ -15,6 +15,14 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[3]
 DRIVER = Path(__file__).with_name("run-nginx-configtest.py")
+STARTUP_DRIVER = Path(__file__).with_name("run-nginx-valid-rules.py")
+
+
+def startup_contract() -> dict:
+    spec = importlib.util.spec_from_file_location("nginx_valid_rules_driver", STARTUP_DRIVER)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.VALID_RULES_CONTRACT
 
 
 def source_identity(root: Path, *arguments: str) -> str:
@@ -47,7 +55,8 @@ def supported_invocations(driver, records: list, selected: list[str]) -> list[st
         contract = case.get("config_invocations", {}).get("nginx")
         if contract is None:
             continue  # Never promote other selected cases or infer a runner.
-        expected = driver.CONFIGTEST_CONTRACTS.get(case["case_id"])
+        expected = (startup_contract() if case["case_id"] == "valid_rules_file"
+                    else driver.CONFIGTEST_CONTRACTS.get(case["case_id"]))
         if (expected is None or contract != expected
                 or type(contract["expected_exit_code"]) is not int):
             raise ValueError("selected configuration invocation has no supported host driver")
@@ -98,7 +107,8 @@ def validate_result_input(stream, invocations: list[str]) -> None:
 
 def invoke_configtest(driver, case_id: str, prefix: Path, output: Path, run_id: str, identities: tuple) -> tuple:
     parent_sha, framework_sha, mrts_sha = identities
-    arguments = [sys.executable, str(DRIVER), "--case-id", case_id,
+    entrypoint = STARTUP_DRIVER if case_id == "valid_rules_file" else DRIVER
+    arguments = [sys.executable, str(entrypoint), "--case-id", case_id,
                  "--nginx-binary", str(prefix / "sbin/nginx"),
                  "--module", str(prefix / "modules/ngx_http_modsecurity_module.so"),
                  "--output-root", str(output), "--run-id", run_id,
@@ -106,7 +116,13 @@ def invoke_configtest(driver, case_id: str, prefix: Path, output: Path, run_id: 
                  "--mrts-sha", mrts_sha]
     if os.environ.get("MODSECURITY_LIB_DIR"):
         arguments += ["--library-dir", os.environ["MODSECURITY_LIB_DIR"]]
-    completed = subprocess.run(arguments, check=False, timeout=30)
+    if case_id == "valid_rules_file":
+        framework = driver.absolute_path(os.environ["FRAMEWORK_ROOT"])
+        projection = driver.absolute_path(os.environ["NGINX_DOCROOT_PROJECTION_PARENT"])
+        arguments += ["--rules-file", str(framework / "tests/rules/no-crs-baseline.conf"),
+                      "--projection-parent", str(projection), "--framework-root", str(framework)]
+    completed = subprocess.run(arguments, check=False, timeout=60 if case_id == "valid_rules_file" else 30)
+    print(f"nginx host invocation case={case_id} driver_exit_code={completed.returncode}", file=sys.stderr)
     source = driver.absolute_path(str(output / "source-result.jsonl"))
     if not source.is_file():
         raise ValueError("configuration invocation produced no source result")
