@@ -26,11 +26,11 @@ Reuse safe artifact, projection and pidfd startup helpers. A bounded H1 client n
 
 ## Changed files
 
-`ci/runtime/lifecycle/run-nginx-lifecycle-sequences.py`, `ci/runtime/lifecycle/nginx_sequence_client.py`, `ci/runtime/lifecycle/nginx_sequence_upstream.py`, `tests/fixtures/nginx_transaction_fault.c`, `tests/fixtures/nginx_write_fault.c`, `tests/test_nginx_sequence_client.py`, and this EN/DE pair. Central catalog/dispatch/collection is coordinator-owned.
+`ci/runtime/lifecycle/run-nginx-lifecycle-sequences.py`, `ci/runtime/lifecycle/nginx_sequence_client.py`, `ci/runtime/lifecycle/nginx_sequence_upstream.py`, `tests/fixtures/nginx_transaction_fault.c`, `tests/fixtures/nginx_write_fault.c`, `tests/test_nginx_sequence_client.py`, `tests/test_nginx_sequence_driver.py`, and this EN/DE pair. Central catalog/dispatch/collection is coordinator-owned.
 
 ## Commands executed
 
-RTK-wrapped Parent Python ran four real-loopback client tests, exit 0, after the unsafe-path regression failed and was corrected. Native fixtures compiled with `cc -std=c17 -Wall -Wextra -Werror -fPIC -shared`, exit 0. Framework tests are separate repository evidence.
+RTK-wrapped Parent Python ran four real-loopback client tests and two driver controls, exit 0, after the unsafe-path regression failed and was corrected. Native fixtures compiled with `cc -std=c17 -Wall -Wextra -Werror -fPIC -shared`, exit 0. Framework tests are separate repository evidence. Negative-control flags cannot affect unrelated cases; the begin-control ID is guaranteed to differ from the armed native transaction. Disabled writer controls cannot satisfy the required native write observation.
 
 ## Security impact
 

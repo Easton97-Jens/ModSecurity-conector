@@ -26,11 +26,11 @@ Sichere Artefakt-, Projektions- und pidfd-Startup-Helfer wiederverwenden. Ein be
 
 ## Geänderte Dateien
 
-`ci/runtime/lifecycle/run-nginx-lifecycle-sequences.py`, `ci/runtime/lifecycle/nginx_sequence_client.py`, `ci/runtime/lifecycle/nginx_sequence_upstream.py`, `tests/fixtures/nginx_transaction_fault.c`, `tests/fixtures/nginx_write_fault.c`, `tests/test_nginx_sequence_client.py` und dieses EN/DE-Paar. Zentrale Katalog-/Dispatch-/Collection-Dateien gehören dem Koordinator.
+`ci/runtime/lifecycle/run-nginx-lifecycle-sequences.py`, `ci/runtime/lifecycle/nginx_sequence_client.py`, `ci/runtime/lifecycle/nginx_sequence_upstream.py`, `tests/fixtures/nginx_transaction_fault.c`, `tests/fixtures/nginx_write_fault.c`, `tests/test_nginx_sequence_client.py`, `tests/test_nginx_sequence_driver.py` und dieses EN/DE-Paar. Zentrale Katalog-/Dispatch-/Collection-Dateien gehören dem Koordinator.
 
 ## Ausgeführte Befehle
 
-Parent-Python über RTK führte vier echte Loopback-Clienttests mit Exit 0 aus, nachdem die Unsafe-Path-Regression fehlgeschlagen und behoben war. Native Fixtures wurden mit `cc -std=c17 -Wall -Wextra -Werror -fPIC -shared`, Exit 0, kompiliert. Framework-Tests sind separate Repository-Evidenz.
+Parent-Python über RTK führte vier echte Loopback-Clienttests und zwei Driver-Kontrollen mit Exit 0 aus, nachdem die Unsafe-Path-Regression fehlgeschlagen und behoben war. Native Fixtures wurden mit `cc -std=c17 -Wall -Wextra -Werror -fPIC -shared`, Exit 0, kompiliert. Framework-Tests sind separate Repository-Evidenz. Negativkontroll-Flags können keine fremden Fälle beeinflussen; die Begin-Kontroll-ID unterscheidet sich garantiert von der scharfgeschalteten nativen Transaktion. Deaktivierte Writer-Kontrollen erfüllen die erforderliche native Write-Beobachtung nicht.
 
 ## Security-Auswirkung
 

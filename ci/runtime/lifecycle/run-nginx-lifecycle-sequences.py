@@ -97,6 +97,8 @@ def read_access(output, count):
 
 def run(args):
     binary, module, output = BASE.validate_inputs(args)
+    if args.fault_negative_control and args.case_id not in WRITE | {"transaction_begin_failure_cleanup"}:
+        raise ValueError("fault negative control requires its exact native fixture case")
     if os.geteuid() != 0:
         raise ValueError("sequence operation requires isolated Root master and nobody worker")
     framework = BASE.absolute_path(args.framework_root)
@@ -137,7 +139,9 @@ def run(args):
             fault_library, output / "native-transaction-fault.so", executable=False)
         environment["LD_PRELOAD"] = str(output / "native-transaction-fault.so")
         environment["MSCONNECTOR_OWNED_BEGIN_FAULT"] = "one-native-allocation-failure"
-        environment["MSCONNECTOR_OWNED_BEGIN_TXID"] = "f" * 32 if args.fault_negative_control else identity[:32]
+        transaction = identity[:32]
+        mismatch = transaction[:-1] + ("0" if transaction[-1] != "0" else "1")
+        environment["MSCONNECTOR_OWNED_BEGIN_TXID"] = mismatch if args.fault_negative_control else transaction
     elif args.case_id in WRITE:
         if args.fault_library is None:
             raise ValueError("write-resume operation requires its bounded native fixture library")
@@ -147,6 +151,8 @@ def run(args):
         write_fd = os.open(output / "native-write-observations.jsonl", os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_WRONLY, 0o600)
         environment["LD_PRELOAD"] = str(output / "native-write-fault.so")
         environment["MSCONNECTOR_OWNED_WRITE_FAULT"] = "short_write" if args.case_id == "response_short_write_resume" else "write_would_block"
+        if args.fault_negative_control:
+            environment["MSCONNECTOR_OWNED_WRITE_FAULT"] = "disabled"
         environment["MSCONNECTOR_OWNED_WRITE_URI"] = f"/no-crs/sequence/{token}/0"
         environment["MSCONNECTOR_OWNED_WRITE_PORT"] = str(port)
         environment["MSCONNECTOR_OWNED_WRITE_FD"] = str(write_fd)
