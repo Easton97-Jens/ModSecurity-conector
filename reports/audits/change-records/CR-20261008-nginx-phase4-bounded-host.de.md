@@ -42,6 +42,15 @@ Snapshot, native Rollenbeobachtung und PIDFD-Cleanup bleiben in der gemeinsamen
 Laufzeit. Vier fokussierte Driver-/Charakterisierungstests bestehen; kein nativer
 MIME-Lauf wird behauptet.
 
+Der separat verantwortete Metadatenadapter kann zusätzlich `request_headers`
+und eine vertrauenswürdige `observation_factory` für tatsächliche Request-Phase-
+JSONL liefern. Optionale Header sind auf acht Felder, Token-Namen mit höchstens
+64 Zeichen, druckbare ASCII-Werte mit höchstens 256 Bytes und insgesamt 2048
+Bytes begrenzt. Curl erhält literale Argumente; CR/LF/NUL und weitere Steuerbytes
+scheitern vor Aufzeichnung. Standard-Response-Auswahl und leere Header erhalten
+bisheriges Verhalten. Sechs Driver-Tests prüfen Grenzen und den kontrollierten
+Client-Befehl; sie belegen keine echte Metadatenoperation.
+
 Die beiden neuen Helfer, `tests/test_nginx_phase4_upstream.py`, `tests/test_nginx_phase4_driver.py` und dieses EN/DE-Paar. Zentrale Dispatcher/Collector/Schema/native Producer sind Integrationsabhängigkeiten des Koordinators.
 
 ## Ausgeführte Befehle

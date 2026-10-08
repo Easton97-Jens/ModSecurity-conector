@@ -55,7 +55,27 @@ def configuration(output, port, upstream_port, projection, path, mode, run_id):
             'proxy_http_version 1.1; proxy_buffering off; } } }\n')
 
 
+def request_header_arguments(spec):
+    """Return bounded literal header arguments for trusted closed adapters."""
+    headers = spec.get("request_headers", {})
+    if not isinstance(headers, dict) or len(headers) > 8:
+        raise ValueError("closed request headers must be a mapping of at most eight fields")
+    arguments = []
+    total = 0
+    for name, value in headers.items():
+        if (not isinstance(name, str) or not re.fullmatch(r"[!#$%&'*+.^_`|~0-9A-Za-z-]{1,64}", name)
+                or not isinstance(value, str) or len(value) > 256
+                or any(ord(character) < 32 or ord(character) > 126 for character in value)):
+            raise ValueError("closed request header has an invalid name/value or control byte")
+        total += len(name) + len(value) + 2
+        if total > 2048:
+            raise ValueError("closed request headers exceed bounded total length")
+        arguments.extend(("--header", name + ": " + value))
+    return arguments
+
+
 def actual_request(args, spec, output, environment, server):
+    header_arguments = request_header_arguments(spec)
     body = output / "response.bin"
     # Retain an empty capture even when immediate rejection forwards no bytes.
     # Curl may otherwise omit its output file; a fresh exclusive leaf preserves
@@ -66,6 +86,7 @@ def actual_request(args, spec, output, environment, server):
                                    "--show-error", "--max-time", "6", "--output", str(body),
                                    "--dump-header", str(output / "response.headers"),
                                    "--write-out", "%{http_code}",
+                                   *header_arguments,
                                    f"http://127.0.0.1:{args.port}{spec['request_path']}"],
                                   env=environment, stdout=out, stderr=err)
         first_before_eos = False
@@ -101,6 +122,7 @@ def run(args):
 def run_operation(args, spec, *, input_path,
                   upstream_factory=BoundedPhase4Upstream,
                   upstream_kwargs=None, configuration_factory=configuration,
+                  observation_factory=native_observations,
                   upstream_path=HERE.parent / "common/nginx_phase4_upstream.py"):
     """Run a prevalidated closed operation using actual source-bound adapters.
 
@@ -158,7 +180,7 @@ def run_operation(args, spec, *, input_path,
         cleanup = HOST.stop_owned_master(process, roles, args.port, args.run_id, handles)
     events_path = output / "phase4-events.jsonl"
     raw = HOST.bounded_capture(events_path) if events_path.exists() else b""
-    observations["native_events"] = native_observations(raw, spec["request_path"])
+    observations["native_events"] = observation_factory(raw, spec["request_path"])
     leaves = ("rules.conf", "nginx.conf", "configtest.stdout", "configtest.stderr",
               "startup.stdout", "startup.stderr", "client.stdout", "client.stderr",
               "response.bin", "response.headers", "phase4-events.jsonl", "nginx-error.log")

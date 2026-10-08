@@ -1,7 +1,9 @@
 """Contract guards for actual native observation selection and configuration."""
 import importlib.util
 import json
+import os
 from pathlib import Path
+import tempfile
 import unittest
 from unittest import mock
 from types import SimpleNamespace
@@ -13,6 +15,39 @@ SPEC.loader.exec_module(driver)
 
 
 class NativePhase4DriverTest(unittest.TestCase):
+    def test_optional_request_headers_are_bounded_literal_curl_arguments(self):
+        self.assertEqual(driver.request_header_arguments({}), [])
+        self.assertEqual(driver.request_header_arguments({"request_headers": {"X-Modsec-Smoke": "log-only"}}),
+                         ["--header", "X-Modsec-Smoke: log-only"])
+        for headers in ({"Bad\rName": "value"}, {"Good": "value\nInjected: other"},
+                        {"Good": "\x00"}, {"Good": "é"}, {"Good": "v" * 257},
+                        {"": "value"}, {str(index): "v" for index in range(9)}, []):
+            with self.subTest(headers=headers), self.assertRaises(ValueError):
+                driver.request_header_arguments({"request_headers": headers})
+
+    def test_actual_client_invocation_receives_header_and_header_capture_arguments(self):
+        spec = {"request_headers": {"X-Modsec-Smoke": "log-only"},
+                "request_path": "/unit-only", "pause_between_chunks": False}
+        server = SimpleNamespace(release=mock.Mock(), finished=mock.Mock(),
+                                 observations=mock.Mock(return_value={}))
+        args = SimpleNamespace(port=18081)
+        seen = []
+
+        def client(command, **kwargs):
+            seen.append(command)
+            kwargs["stdout"].write(b"200")
+            return SimpleNamespace(wait=lambda **unused: 0)
+
+        with tempfile.TemporaryDirectory(dir=os.environ.get("RUNNER_TEMP", "/var/tmp/codex/ModSecurity-conector")) as temp:
+            output = Path(temp)
+            with mock.patch.object(driver.subprocess, "Popen", side_effect=client):
+                observed = driver.actual_request(args, spec, output, {}, server)
+            command = seen[0]
+            self.assertEqual(command[command.index("--header") + 1], "X-Modsec-Smoke: log-only")
+            self.assertEqual(command[command.index("--dump-header") + 1], str(output / "response.headers"))
+            self.assertEqual(observed["client_exit_code"], 0)
+            self.assertEqual((output / "response.bin").read_bytes(), b"")
+
     def test_closed_phase4_entry_delegates_without_changing_spec_or_input_identity(self):
         args = SimpleNamespace(framework_root="/trusted-framework", case_id="phase4_body_at_limit")
         spec = {"source_record_id": args.case_id, "operation": "native_phase4_request"}
@@ -32,6 +67,7 @@ class NativePhase4DriverTest(unittest.TestCase):
         self.assertIs(signature.parameters["input_path"].default, inspect.Parameter.empty)
         self.assertIs(signature.parameters["upstream_factory"].default, driver.BoundedPhase4Upstream)
         self.assertIs(signature.parameters["configuration_factory"].default, driver.configuration)
+        self.assertIs(signature.parameters["observation_factory"].default, driver.native_observations)
         self.assertEqual(signature.parameters["upstream_path"].default,
                          PATH.parent.parent / "common/nginx_phase4_upstream.py")
 

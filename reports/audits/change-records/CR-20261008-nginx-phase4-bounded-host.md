@@ -40,6 +40,15 @@ the default phase4 entry still loads its original closed input source. Artifact
 snapshot, native role observation and PIDFD cleanup stay in the shared runtime.
 Four focused driver/characterization tests pass; no native MIME run is claimed.
 
+The separately owned metadata adapter can also supply `request_headers` and a
+trusted `observation_factory` that selects real request-phase JSONL. Optional
+headers are limited to eight fields, token names of at most 64 characters,
+printable ASCII values of at most 256 bytes and a 2048-byte total. They enter
+curl as literal arguments; CR/LF/NUL and other controls fail before capture.
+Default response-phase selection and empty header inputs preserve existing
+behavior. Six driver tests verify boundaries and the controlled client command;
+they do not establish a real metadata operation.
+
 The two new helpers, `tests/test_nginx_phase4_upstream.py`, `tests/test_nginx_phase4_driver.py`, and this EN/DE pair. Central dispatcher/collector/schema/native producer are coordinator-owned integration dependencies.
 
 ## Commands executed
