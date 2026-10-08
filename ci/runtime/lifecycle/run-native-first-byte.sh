@@ -4,7 +4,7 @@
 set -eu
 
 connector=${1:?connector is required}
-SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
 CONNECTOR_ROOT=${CONNECTOR_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)}
 FRAMEWORK_ROOT=${FRAMEWORK_ROOT:-$CONNECTOR_ROOT/modules/ModSecurity-test-Framework}
 PYTHON=${PYTHON:-python3}
@@ -60,6 +60,7 @@ fi
 mkdir -p "$RESULTS_DIR" "$runtime_root"
 
 set +e
+env \
 RUNTIME_COMPONENT_TARGET=$connector \
 CONNECTOR_ROOT="$CONNECTOR_ROOT" \
 FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
