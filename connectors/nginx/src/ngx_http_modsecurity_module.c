@@ -1210,6 +1210,9 @@ ngx_http_modsecurity_merge_conf(ngx_conf_t *cf, void *parent, void *child)
     int rules;
     const char *error = NULL;
 
+    /* The callback context is otherwise used only by debug diagnostics. */
+    (void) cf;
+
     dd("merging loc config [%s] - parent: '%p' child: '%p'",
         ngx_str_to_char(clcf->name, cf->pool), parent,
         child);
