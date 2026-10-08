@@ -691,13 +691,14 @@ prepare_nginx_native_authority
 
 started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 set +e
+env \
 CONNECTOR_ROOT="$CONNECTOR_ROOT" \
 FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
 VERIFIED_RUN_ROOT="$CANONICAL_VERIFIED_RUN_ROOT" \
 VERIFIED_BUILD_ROOT="$STAGE_BUILD_ROOT" \
 VERIFIED_TMP_ROOT="$STAGE_TMP_ROOT" \
 VERIFIED_LOG_ROOT="$STAGE_LOG_ROOT" \
-VERIFIED_COMPONENT_CACHE="$SHARED_COMPONENT_CACHE" \
+VERIFIED_COMPONENT_CACHE="$VERIFIED_COMPONENT_CACHE" \
 CACHE_ROOT="$CACHE_ROOT" \
 CONNECTOR_COMPONENT_CACHE="$SHARED_COMPONENT_CACHE" \
 BUILD_ROOT="$STAGE_BUILD_ROOT" \
@@ -803,6 +804,7 @@ if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
             fi
             if [ "$run_native_first_byte" -eq 1 ]; then
                 native_first_byte_rc=0
+                env \
                 CONNECTOR_ROOT="$CONNECTOR_ROOT" \
                 FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
                 VERIFIED_RUN_ROOT="$CANONICAL_VERIFIED_RUN_ROOT" \
@@ -1060,7 +1062,6 @@ fi
 # A snapshot may supply toolchain paths, but never gets to redirect the
 # resolver-selected cache or the connector-local build root used for inventory.
 CONNECTOR_COMPONENT_CACHE=$SHARED_COMPONENT_CACHE
-VERIFIED_COMPONENT_CACHE=$SHARED_COMPONENT_CACHE
 RUNTIME_COMPONENT_ENV_SNAPSHOT=$runtime_env
 if [ "$NGINX_NATIVE_AUTHORITY_ENABLED" -eq 1 ] && \
    [ "${NGINX_PREFIX:-}" != "$NGINX_NATIVE_AUTHORITY_PREFIX" ]; then
