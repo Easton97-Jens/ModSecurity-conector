@@ -107,6 +107,28 @@ def private_json(output, leaf, value):
     return raw.encode()
 
 
+def begin_ledger_environment(output, environment, transaction, negative_control):
+    """Preopen a private Root-owned descriptor; the fixture validates it again."""
+    descriptor = os.open(output / "native-begin-observations.jsonl",
+                         os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    mismatch = transaction[:-1] + ("0" if transaction[-1] != "0" else "1")
+    environment.update(MSCONNECTOR_OWNED_BEGIN_FAULT="one-native-allocation-failure",
+                       MSCONNECTOR_OWNED_BEGIN_TXID=mismatch if negative_control else transaction,
+                       MSCONNECTOR_OWNED_BEGIN_FD=str(descriptor))
+    return descriptor
+
+
+def native_source_observations(output, case_id):
+    """Retain every original source event, including errors and cleanup."""
+    event_path = output / "phase1-events.jsonl"
+    result = {"native_events": [json.loads(line) for line in STARTUP.bounded_capture(event_path).splitlines()
+                                if line.strip()] if event_path.exists() else []}
+    if case_id == "transaction_begin_failure_cleanup":
+        result["native_begin"] = [json.loads(line) for line in STARTUP.bounded_capture(
+            output / "native-begin-observations.jsonl").splitlines() if line.strip()]
+    return result
+
+
 def read_access(output, count):
     path = output / "native-access.jsonl"
     deadline = time.monotonic() + 2
@@ -179,10 +201,8 @@ def run(args):
         hashes["fault_library_sha256"] = BASE.snapshot_artifact(
             fault_library, output / "native-transaction-fault.so", executable=False)
         environment["LD_PRELOAD"] = str(output / "native-transaction-fault.so")
-        environment["MSCONNECTOR_OWNED_BEGIN_FAULT"] = "one-native-allocation-failure"
         transaction = identity[:32]
-        mismatch = transaction[:-1] + ("0" if transaction[-1] != "0" else "1")
-        environment["MSCONNECTOR_OWNED_BEGIN_TXID"] = mismatch if args.fault_negative_control else transaction
+        write_fd = begin_ledger_environment(output, environment, transaction, args.fault_negative_control)
     elif args.case_id in WRITE:
         if args.fault_library is None:
             raise ValueError("write-resume operation requires its bounded native fixture library")
@@ -269,13 +289,17 @@ def run(args):
         failure = str(exc)
         client_exit = 1
     finally:
-        cleanup = STARTUP.stop_owned_master(process, roles, port, args.run_id, handles)
-        if upstream is not None:
-            upstream_observation = upstream.observation()
-            upstream.stop()
-        if write_fd is not None:
-            os.fsync(write_fd)
-            os.close(write_fd)
+        try:
+            cleanup = STARTUP.stop_owned_master(process, roles, port, args.run_id, handles)
+            if upstream is not None:
+                upstream_observation = upstream.observation()
+                upstream.stop()
+        finally:
+            if write_fd is not None:
+                try:
+                    os.fsync(write_fd)
+                finally:
+                    os.close(write_fd)
     observed = dict(schema_version=1, operation="request_sequence", protocol="http1", case_id=args.case_id,
                     run_id=args.run_id, client_exit_code=client_exit, requests=observations,
                     native_access=access, roles=roles, cleanup=cleanup)
@@ -291,10 +315,7 @@ def run(args):
     if args.case_id in UPSTREAM_CASES - FRAMING:
         observed["upstream_barrier"] = upstream_observation
         observed["post_sequence_roles"] = post_roles
-    if args.case_id in UPSTREAM_CASES | FRAMING:
-        events_path = output / "phase1-events.jsonl"
-        observed["native_events"] = [json.loads(line) for line in STARTUP.bounded_capture(events_path).splitlines()
-                                     if line.strip()] if events_path.exists() else []
+    observed.update(native_source_observations(output, args.case_id))
     if args.case_id in WRITE:
         observed["native_writes"] = [json.loads(line) for line in STARTUP.bounded_capture(
             output / "native-write-observations.jsonl").splitlines() if line.strip()]
@@ -308,9 +329,6 @@ def run(args):
         cleanup_operation = "msconnector_transaction_contract_cleanup"
         observed["native_budget"] = [row for row in budget_rows if row.get("native_operation") != cleanup_operation]
         observed["native_cleanup"] = [row for row in budget_rows if row.get("native_operation") == cleanup_operation]
-        events_path = output / "phase1-events.jsonl"
-        observed["native_events"] = [json.loads(line) for line in STARTUP.bounded_capture(events_path).splitlines()
-                                     if line.strip()] if events_path.exists() else []
     fault_contracts = {
         "early_mapping_failure_cleanup": ("early_mapping_failure", "ModSecurity: invalid canonical transaction identifier"),
         "transaction_begin_failure_cleanup": ("transaction_begin_failure", "ModSecurity: failed to create transaction"),
@@ -337,6 +355,7 @@ def run(args):
     for key, leaf in {"events_sha256": "phase1-events.jsonl", "worker_maps_sha256": "worker-maps.log",
                       "native_writes_sha256": "native-write-observations.jsonl",
                       "native_finish_sha256": "native-finish-observations.jsonl",
+                      "native_begin_sha256": "native-begin-observations.jsonl",
                       "native_budget_sha256": "native-budget-observations.jsonl",
                       "request_wire_sha256": "request-wire.bin", "response_wire_sha256": "response-wire.bin",
                       "upstream_request_wire_sha256": "upstream-request-wire.bin",
