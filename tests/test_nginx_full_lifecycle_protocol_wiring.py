@@ -41,7 +41,7 @@ class NginxFullLifecycleProtocolWiringTest(unittest.TestCase):
 
     def invoke(
         self, target: str = "full-lifecycle-nginx", *, variables: dict[str, str] | None = None,
-        fixture_capabilities: bool = False,
+        fixture_capabilities: bool = False, overpromote_capabilities: bool = False,
     ) -> subprocess.CompletedProcess[str]:
         environment = os.environ.copy()
         for name in (
@@ -59,11 +59,17 @@ class NginxFullLifecycleProtocolWiringTest(unittest.TestCase):
             capability_path = connector_root / "connectors/nginx/capabilities.json"
             capability_path.parent.mkdir(parents=True)
             capabilities = json.loads((ROOT / "connectors/nginx/capabilities.json").read_text(encoding="utf-8"))
-            # Plan-only maximal-capability fixture, not a runtime assertion.
-            capabilities["capabilities"] = {
-                name: {"state": "implemented_not_asserted", "reason": "plan-only test fixture"}
-                for name in capabilities["capabilities"]
+            # Protocol visibility is not an implementation of unrelated
+            # future cases or their missing execution descriptors.
+            protocol_capabilities = {
+                "http2", "http2_downstream", "http2_tls_alpn",
+                "http3_downstream", "http3_quic", "http3_alt_svc",
             }
+            names = capabilities["capabilities"] if overpromote_capabilities else protocol_capabilities
+            for name in names:
+                capabilities["capabilities"][name] = {
+                    "state": "implemented_not_asserted", "reason": "plan-only protocol fixture",
+                }
             capability_path.write_text(json.dumps(capabilities), encoding="utf-8")
         invocation = self.root / "invocation"
         environment.update(
@@ -123,6 +129,7 @@ class NginxFullLifecycleProtocolWiringTest(unittest.TestCase):
 
     def test_http1_plan_excludes_h2_h3_even_with_capable_fixture(self) -> None:
         plan = self.assert_native_plan(self.invoke(fixture_capabilities=True), "http1")
+        self.assertEqual(plan["counts"]["SELECTED"], 97)
         catalog = json.loads((FRAMEWORK / "tests/cases/no-crs-baseline/catalog.json").read_text(encoding="utf-8"))
         selections = {case["case_id"]: case for case in plan["cases"]}
         protocol_cases = [
@@ -133,27 +140,33 @@ class NginxFullLifecycleProtocolWiringTest(unittest.TestCase):
         for case in protocol_cases:
             self.assertEqual(selections[case["case_id"]]["selection_status"], "NOT_APPLICABLE", case["case_id"])
 
-    def test_explicit_h2_plan_preserves_protocol_specific_required_records(self) -> None:
-        self.assert_protocol_specific_plan("h2", "h1-h2")
+    def test_explicit_h2_reaches_selection_but_missing_executors_block_init(self) -> None:
+        self.assert_protocol_requires_executors("h2", "h1-h2", "protocol_h2_negotiated")
 
-    def test_explicit_h3_plan_preserves_protocol_specific_required_records(self) -> None:
-        self.assert_protocol_specific_plan("h3", "h1-h2-h3-quic")
+    def test_explicit_h3_reaches_selection_but_missing_executors_block_init(self) -> None:
+        self.assert_protocol_requires_executors("h3", "h1-h2-h3-quic", "protocol_h3_negotiated")
 
-    def assert_protocol_specific_plan(self, protocol: str, profile: str) -> None:
-        plan = self.assert_native_plan(
-            self.invoke(variables={"NGINX_DOWNSTREAM_PROTOCOL": protocol, "NGINX_PROTOCOL_PROFILE": profile}, fixture_capabilities=True),
-            protocol,
+    def assert_protocol_requires_executors(self, protocol: str, profile: str, required_case: str) -> None:
+        result = self.invoke(
+            variables={"NGINX_DOWNSTREAM_PROTOCOL": protocol, "NGINX_PROTOCOL_PROFILE": profile},
+            fixture_capabilities=True,
         )
-        catalog = json.loads((FRAMEWORK / "tests/cases/no-crs-baseline/catalog.json").read_text(encoding="utf-8"))
-        selected = {case["case_id"]: case for case in plan["cases"]}
-        required = [case for case in catalog["cases"] if case.get("request", {}).get("protocol_profile") == protocol]
-        self.assertTrue(required)
-        for case in required:
-            self.assertEqual(selected[case["case_id"]]["selection_status"], "SELECTED", case["case_id"])
-        for case in catalog["cases"]:
-            required_protocol = case.get("request", {}).get("protocol_profile")
-            if required_protocol and required_protocol != protocol and case["case_id"] in selected:
-                self.assertEqual(selected[case["case_id"]]["selection_status"], "NOT_APPLICABLE", case["case_id"])
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn(required_case + ": selected NGX case has no ", result.stderr)
+        self.assertNotIn(f"Error {INIT_STOP}", result.stderr)
+        calls = [json.loads(line) for line in self.calls.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual([call["argv"][1] for call in calls], ["select"])
+        argv = calls[0]["argv"]
+        self.assertEqual(argv[argv.index("--downstream-protocol") + 1], protocol)
+        self.assertEqual(calls[0]["downstream"], protocol)
+        self.assertFalse((self.root / "invocation/evidence/no-crs-evidence/nginx/protocol-wiring").exists())
+
+    def test_overpromoted_capabilities_do_not_invent_execution_descriptors(self) -> None:
+        result = self.invoke(fixture_capabilities=True, overpromote_capabilities=True)
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("header_count_at_limit: selected NGX case has no ", result.stderr)
+        calls = [json.loads(line) for line in self.calls.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual([call["argv"][1] for call in calls], ["select"])
 
     def test_invalid_and_conflicting_protocols_fail_before_selection(self) -> None:
         for protocol, profile in (("any", "h1"), ("garbage", "h1"), ("h2", "h1"), ("h3", "h1-h2"), ("http1", "invalid")):
