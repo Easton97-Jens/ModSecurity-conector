@@ -134,7 +134,7 @@ PY
     "$PYTHON" "$native_authority_producer" \
         --parent-root "$CONNECTOR_ROOT" \
         --framework-root "$FRAMEWORK_ROOT" \
-        --mrts-root "$FRAMEWORK_ROOT/tools/MRTS" \
+        --mrts-root "${MRTS_ROOT:-$FRAMEWORK_ROOT/tools/MRTS}" \
         --run-id "$NO_CRS_RUN_ID" \
         --artifact-root "$STAGE_BUILD_ROOT" \
         --binary-path "$NGINX_NATIVE_AUTHORITY_PREFIX/sbin/nginx" \

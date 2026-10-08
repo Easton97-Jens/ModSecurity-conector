@@ -37,6 +37,7 @@ class NativeAuthorityWiringTests(unittest.TestCase):
         self.stage = self.root / "stage"
         self.stage.mkdir(mode=0o700)
         self.env = dict(os.environ, connector="nginx", NO_CRS_ARTIFACT_PROFILE="full_lifecycle", CONNECTOR_ROOT=str(self.parent), FRAMEWORK_ROOT=str(self.framework), PYTHON=str(Path(os.sys.executable)), STAGE_BUILD_ROOT=str(self.stage), NO_CRS_RUN_ID="unit-run97", NO_CRS_SELECTED_CASE_IDS="single_request_cleanup allow_without_marker", NGINX_PREFIX=str(self.root / "prepared-prefix"), UNIT_ARGV=str(self.root / "argv.json"))
+        self.env.pop("MRTS_ROOT", None)
         for name in ("INPUT", "BEGIN", "FINISH", "WRITE", "ENGINE_BUDGET"):
             library = self.root / (name + ".so")
             library.write_bytes(b"unit fixture bytes, not compiled runtime proof")
@@ -71,6 +72,16 @@ class NativeAuthorityWiringTests(unittest.TestCase):
                 self.assertFalse((self.root / "argv.json").exists())
         result = self.run_control({"NGINX_PREFIX": ""})
         self.assertEqual(result.returncode, 77, result.stderr)
+
+    def test_explicit_read_only_mrts_root_passes_through_unchanged(self):
+        actual_mrts = self.root / "separate-initialized-mrts"
+        actual_mrts.mkdir(mode=0o700)
+        result = self.run_control({"MRTS_ROOT": str(actual_mrts)})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        args = json.loads((self.root / "argv.json").read_text())
+        values = dict(zip(args[::2], args[1::2], strict=True))
+        self.assertEqual(values["--mrts-root"], str(actual_mrts))
+        self.assertEqual(list(actual_mrts.iterdir()), [])
 
     def test_other_profiles_and_no_native_selection_do_not_promote(self):
         for override in ({"connector": "apache"}, {"NO_CRS_ARTIFACT_PROFILE": "generic"}, {"NO_CRS_SELECTED_CASE_IDS": "allow_without_marker"}):
