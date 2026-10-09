@@ -52,17 +52,20 @@ def read_rows(output, leaf):
     return [json.loads(line) for line in STARTUP.bounded_capture(path).splitlines() if line.strip()]
 
 
-def select_protocol_events(rows, transaction, path):
+def select_protocol_events(rows, transaction):
     """Project only the actual own-request P1 guard event; never alter raw rows.
 
     The sink also retains post-native-return cleanup events. Its complete bytes
     are still hashed below; strict helper validation rejects zero/multiple or
     malformed selected protocol events rather than choosing a convenient row.
+    Common rejected this mapped view before canonical request metadata was
+    recorded, so the source event must retain exact empty method/URI values.
+    Access, fault-ledger, configuration and cleanup evidence bind the request.
     """
     identity = {"event": "protocol_error", "message_id": "MSCONN_EVENT_PROTOCOL_ERROR",
                 "connector": "nginx", "integration_mode": "native-nginx-http-module",
                 "phase": "request_headers", "transaction_id": transaction,
-                "method": "POST", "uri": path}
+                "method": "", "uri": ""}
     return [row for row in rows if isinstance(row, dict)
             and all(type(row.get(key)) is type(value) and row.get(key) == value
                     for key, value in identity.items())]
@@ -190,7 +193,7 @@ def run(args):
         "protocol": "http1", "client_exit_code": client_exit, "observed_http_status": status, "path": path, "transaction_id": transaction,
         "roles": roles, "cleanup": cleanup, "native_access": access[0] if len(access) == 1 else {},
         "native_fault": faults[0] if len(faults) == 1 else {},
-        "native_events": select_protocol_events(read_rows(output, "phase1-events.jsonl"), transaction, path),
+        "native_events": select_protocol_events(read_rows(output, "phase1-events.jsonl"), transaction),
         "native_diagnostic": diagnostic if diagnostic.encode() in raw_error else None}
     errors = validator.observation_errors(observed, args.case_id, args.run_id)
     if failure:

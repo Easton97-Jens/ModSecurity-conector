@@ -182,12 +182,13 @@ class InputFaultDriverTest(unittest.TestCase):
         path = "/no-crs/input-fault/header_count_nonzero_with_null_headers"
         event = dict(event="protocol_error", message_id="MSCONN_EVENT_PROTOCOL_ERROR", connector="nginx",
                      integration_mode="native-nginx-http-module", transaction_id=transaction,
-                     phase="request_headers", method="POST", uri=path, status="error",
+                     phase="request_headers", method="", uri="", status="error",
                      reason="protocol_error", rule_id="")
-        cleanup = dict(event, event="transaction_cleanup", phase="logging", message_id="MSCONN_TRANSACTION_CLEANUP")
+        cleanup = dict(event, event="transaction_cleanup", phase="logging",
+                       message_id="MSCONN_TRANSACTION_CLEANUP", method="POST", uri=path)
         rows = [event, cleanup]
         retained = copy.deepcopy(rows)
-        selected = self.driver.select_protocol_events(rows, transaction, path)
+        selected = self.driver.select_protocol_events(rows, transaction)
         self.assertEqual(selected, [event])
         self.assertEqual(helper.native_event_errors(selected, transaction), [])
         self.assertEqual(rows, retained)
@@ -197,14 +198,19 @@ class InputFaultDriverTest(unittest.TestCase):
             raw = b"".join((json.dumps(row) + "\n").encode() for row in rows)
             leaf.write_bytes(raw)
             before = self.driver.BASE.digest(self.driver.STARTUP.bounded_capture(leaf))
-            self.assertEqual(self.driver.select_protocol_events(self.driver.read_rows(output, leaf.name), transaction, path), [event])
+            self.assertEqual(self.driver.select_protocol_events(self.driver.read_rows(output, leaf.name), transaction), [event])
             self.assertEqual(leaf.read_bytes(), raw)
             self.assertEqual(self.driver.BASE.digest(self.driver.STARTUP.bounded_capture(leaf)), before)
         for field, wrong in (("transaction_id", "b" * 32), ("phase", "response_body"),
-                             ("uri", path + "-wrong"), ("method", "GET"),
+                             ("uri", path), ("method", "POST"),
                              ("connector", "apache"), ("integration_mode", "synthetic")):
             with self.subTest(field=field):
-                selected = self.driver.select_protocol_events([dict(event, **{field: wrong}), cleanup], transaction, path)
+                selected = self.driver.select_protocol_events([dict(event, **{field: wrong}), cleanup], transaction)
                 self.assertTrue(helper.native_event_errors(selected, transaction))
-        selected = self.driver.select_protocol_events([event, event, cleanup], transaction, path)
+        for field in ("method", "uri"):
+            missing = dict(event)
+            del missing[field]
+            self.assertTrue(helper.native_event_errors(
+                self.driver.select_protocol_events([missing, cleanup], transaction), transaction))
+        selected = self.driver.select_protocol_events([event, event, cleanup], transaction)
         self.assertTrue(helper.native_event_errors(selected, transaction))
