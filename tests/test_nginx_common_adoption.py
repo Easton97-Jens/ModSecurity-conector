@@ -15,6 +15,12 @@ ROOT = Path(__file__).resolve().parents[1]
 CHECKER = ROOT / "ci" / "checks" / "connectors" / "nginx" / "check-nginx-common-adoption.py"
 NGINX = ROOT / "connectors" / "nginx"
 CHAIN_APPEND_ANCHOR = "    return ngx_http_modsecurity_append_response_body_buffer(r, ctx, mcf,"
+RULE_ID_CONTRACT_MESSAGE = (
+    "NGINX rule-id extraction delegates only to bounded Common parsing before intervention sinks"
+)
+RULE_ID_SIGNATURE = "static void\nngx_http_modsecurity_extract_intervention_rule_id"
+RULE_ID_CALL = "ngx_http_modsecurity_extract_intervention_rule_id(ctx, &intervention);"
+INTERVENTION_SIGNATURE = "int\nngx_http_modsecurity_process_intervention"
 BODY_LIMIT_CONTRACT_MESSAGE = (
     "NGINX records response-body bytes through the Common bounded plan before append"
 )
@@ -210,6 +216,99 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
             "PASS: NGINX Server resolver preserves the bounded explicit-length response-header sink",
             result.stdout,
         )
+        self.assertIn(f"PASS: {RULE_ID_CONTRACT_MESSAGE}", result.stdout)
+
+    def test_rule_id_delegation_rejects_mutated_wrapper_and_inactive_twins(self) -> None:
+        cases = (
+            ("null guard omitted", "if (intervention->log != NULL)", "if (1)"),
+            ("changed input", "intervention->log,", '"[id 123]",'),
+            ("changed output", "ctx->last_intervention_rule_id,", "other_buffer,"),
+            ("changed size", "sizeof(ctx->last_intervention_rule_id)", "4096"),
+            ("local parser", "(void)msconnector_rule_id_extract_from_message", "(void)strstr"),
+            ("log configuration gate", "if (intervention->log != NULL)",
+             "if (ctx->r && intervention->log != NULL)"),
+        )
+        for label, old, new in cases:
+            with self.subTest(case=label):
+                self._assert_rejected(
+                    lambda repo: replace_in_function(
+                        repo / "connectors/nginx/src/ngx_http_modsecurity_module.c",
+                        RULE_ID_SIGNATURE, old, new),
+                    RULE_ID_CONTRACT_MESSAGE,
+                )
+            with self.subTest(case=label, inactive_twin=True):
+                self._assert_rejected(
+                    lambda repo: inject_inactive_decoy(
+                        repo / "connectors/nginx/src/ngx_http_modsecurity_module.c",
+                        RULE_ID_SIGNATURE, old, new),
+                    RULE_ID_CONTRACT_MESSAGE,
+                )
+
+    def test_rule_id_delegation_rejects_missing_gated_or_late_caller(self) -> None:
+        def mutate(repo: Path, case: str) -> None:
+            path = repo / "connectors/nginx/src/ngx_http_modsecurity_module.c"
+            if case == "omitted":
+                replace_in_function(path, INTERVENTION_SIGNATURE, RULE_ID_CALL, "")
+            elif case == "gated":
+                replace_in_function(path, INTERVENTION_SIGNATURE, RULE_ID_CALL,
+                    "if (mcf->phase4_log_file != NULL) { " + RULE_ID_CALL + " }")
+            elif case == "reset omitted":
+                replace_in_function(path, INTERVENTION_SIGNATURE,
+                    "ctx->last_intervention_rule_id[0] = '\\0';", "")
+            elif case == "reset nonempty":
+                replace_in_function(path, INTERVENTION_SIGNATURE,
+                    "ctx->last_intervention_rule_id[0] = '\\0';",
+                    "ctx->last_intervention_rule_id[0] = '1';")
+            else:
+                replace_in_function(path, INTERVENTION_SIGNATURE, RULE_ID_CALL, "")
+                anchor = {
+                    "after record": "// logging to nginx error log",
+                    "after dispatch": "cleanup:",
+                    "after cleanup": "    return result;",
+                }[case]
+                replace_in_function(path, INTERVENTION_SIGNATURE, anchor,
+                    RULE_ID_CALL + "\n" + anchor)
+
+        for case in ("omitted", "gated", "reset omitted", "reset nonempty",
+                     "after record", "after dispatch", "after cleanup"):
+            with self.subTest(case=case):
+                self._assert_rejected(lambda repo: mutate(repo, case), RULE_ID_CONTRACT_MESSAGE)
+
+    def test_rule_id_delegation_rejects_extra_local_helpers_and_direct_parsers(self) -> None:
+        for extra in (
+            "static void ngx_http_modsecurity_duplicate_rule_id(void) {}\n",
+            "static void duplicate_parser(void) {\n"
+            " (void)msconnector_rule_id_extract_from_message(0, 0, 0);\n}\n",
+        ):
+            with self.subTest(extra=extra):
+                self._assert_rejected(
+                    lambda repo: insert_before_signature(
+                        repo / "connectors/nginx/src/ngx_http_modsecurity_module.c",
+                    RULE_ID_SIGNATURE, extra), RULE_ID_CONTRACT_MESSAGE)
+
+    def test_rule_id_delegation_rejects_direct_early_exits_before_extraction(self) -> None:
+        anchor = "ctx->last_intervention_status = intervention.status;"
+        for early_exit in ("goto cleanup;", "return NGX_ERROR;", "return result;"):
+            with self.subTest(early_exit=early_exit):
+                self._assert_rejected(
+                    lambda repo: replace_in_function(
+                        repo / "connectors/nginx/src/ngx_http_modsecurity_module.c",
+                        INTERVENTION_SIGNATURE, anchor, early_exit + "\n    " + anchor),
+                    RULE_ID_CONTRACT_MESSAGE,
+                )
+
+    def test_rule_id_delegation_rejects_macro_overrides(self) -> None:
+        for symbol in ("msconnector_rule_id_extract_from_message",
+                       "ngx_http_modsecurity_extract_intervention_rule_id",
+                       "ngx_http_modsecurity_process_intervention",
+                       "last_intervention_rule_id", "sizeof", "NULL",
+                       "ctx", "intervention", "log"):
+            with self.subTest(symbol=symbol):
+                self._assert_rejected(
+                    lambda repo: prepend_directive(
+                        repo / "connectors/nginx/src/ngx_http_modsecurity_common.h",
+                        f"#define {symbol}(...) 0"),
+                    "NGINX critical macro inputs reject aliases of checked lifecycle and response-body controls")
 
     def test_current_projected_jsonl_pipelines_are_reported_without_traceback(self) -> None:
         result = self._run_checker()

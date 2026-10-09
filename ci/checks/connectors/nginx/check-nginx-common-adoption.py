@@ -825,10 +825,19 @@ def c_has_unsafe_local_include_directive(source_path, source):
     )
 
 SECURITY_CRITICAL_MACRO_SYMBOLS = frozenset((
+    'NULL',
     'NGX_ERROR',
     'NGX_HTTP_BAD_REQUEST',
     'NGX_OK',
     'msc_add_n_response_header',
+    'msconnector_rule_id_extract_from_message',
+    'ngx_http_modsecurity_extract_intervention_rule_id',
+    'ngx_http_modsecurity_process_intervention',
+    'last_intervention_rule_id',
+    'sizeof',
+    'ctx',
+    'intervention',
+    'log',
     'ngx_http_modsecurity_add_n_response_header',
     'ngx_http_modsecurity_initialize_request',
     'ngx_http_modsecurity_map_request',
@@ -1169,6 +1178,64 @@ critical_macro_controls_are_safe = not any(
     or c_has_unsafe_local_include_directive(path, source)
     for path, source in critical_macro_source_inputs
 )
+
+RULE_ID_HELPER = 'ngx_http_modsecurity_extract_intervention_rule_id'
+RULE_ID_HELPER_PATTERN = re.compile(
+    r'static\s+void\s+' + RULE_ID_HELPER + r'\s*\(\s*'
+    r'ngx_http_modsecurity_ctx_t\s*\*\s*ctx\s*,\s*'
+    r'const\s+ModSecurityIntervention\s*\*\s*intervention\s*\)\s*\{\s*'
+    r'if\s*\(\s*intervention\s*->\s*log\s*!=\s*NULL\s*\)\s*\{\s*'
+    r'\(\s*void\s*\)\s*msconnector_rule_id_extract_from_message\s*\(\s*'
+    r'intervention\s*->\s*log\s*,\s*ctx\s*->\s*last_intervention_rule_id\s*,\s*'
+    r'sizeof\s*\(\s*ctx\s*->\s*last_intervention_rule_id\s*\)\s*\)\s*;\s*'
+    r'\}\s*\}'
+)
+RULE_ID_CALL_PATTERN = re.compile(
+    r'\b' + RULE_ID_HELPER + r'\s*\(\s*ctx\s*,\s*&\s*intervention\s*\)\s*;'
+)
+RULE_ID_RESET_AND_CALL_PATTERN = re.compile(
+    r'ctx\s*->\s*last_intervention_status\s*=\s*intervention\s*\.\s*status\s*;\s*'
+    r'ctx\s*->\s*last_intervention_rule_id\s*\[\s*0\s*\]\s*=\s*'
+    r"'\\0'\s*;\s*" + RULE_ID_CALL_PATTERN.pattern
+)
+
+def c_rule_id_delegation_is_bounded():
+    """Accept only the reviewed Common delegation and its live ordered caller."""
+    helper, _ = c_checked_function(module_c, 'static void\n' + RULE_ID_HELPER)
+    unmasked_helper, _ = c_unmasked_function(module_c, 'static void\n' + RULE_ID_HELPER)
+    caller, visible_caller = c_checked_function(
+        module_c, 'int\nngx_http_modsecurity_process_intervention')
+    connector_code = '\n'.join(
+        c_noncode_views(path.read_text(errors='ignore'))[0]
+        for path in nginx_source_paths
+    )
+    rule_helpers = re.findall(
+        r'\bngx_http_modsecurity_[a-z0-9_]*rule_id\s*\(', connector_code)
+    calls = c_direct_matches(caller, RULE_ID_CALL_PATTERN)
+    reset_calls = c_direct_matches(visible_caller, RULE_ID_RESET_AND_CALL_PATTERN)
+    if (RULE_ID_HELPER_PATTERN.fullmatch(helper) is None
+            or RULE_ID_HELPER_PATTERN.fullmatch(unmasked_helper) is None
+            or len(rule_helpers) != 2
+            or any(re.sub(r'\s+', '', match) != RULE_ID_HELPER + '(' for match in rule_helpers)
+            or len(re.findall(r'\bmsconnector_rule_id_extract_from_message\s*\(',
+                              c_noncode_views(module_c)[0])) != 1
+            or len(calls) != 1 or len(reset_calls) != 1):
+        return False
+    if c_direct_matches(caller[:calls[0].start()], re.compile(r'\b(?:return|goto)\b')):
+        return False
+    # Each use must be live and after extraction, including classification of
+    # native limits, terminal recording, host dispatch, and message cleanup.
+    for name in (
+        'ngx_http_modsecurity_is_response_body_limit_rejection',
+        'ngx_http_modsecurity_contract_record_intervention',
+        'ngx_http_modsecurity_process_redirect_intervention',
+        'ngx_http_modsecurity_process_status_intervention',
+        'msc_intervention_cleanup',
+    ):
+        sinks = list(re.finditer(r'\b' + name + r'\s*\(', caller))
+        if len(sinks) != 1 or calls[0].end() >= sinks[0].start():
+            return False
+    return True
 
 server_header_resolver, _ = c_checked_function(header_c, server_header_resolver_marker)
 custom_server_header_marker = 'ngx_table_elt_t *h = r->headers_out.server;'
@@ -1776,7 +1843,7 @@ checks = [
 ('msconnector_headers_find_first' in mapper_c, 'NGINX mapper uses Common header helpers'),
 (phase4_mime_is_engine_owned, 'NGINX leaves Phase4 MIME selection to the ModSecurity engine'),
 (not re.search(r'ngx_http_modsecurity_[a-z0-9_]*json_escape\s*\(', all_nginx), 'Duplicate NGINX JSON escape helper is absent'),
-(not re.search(r'ngx_http_modsecurity_[a-z0-9_]*rule_id\s*\(', all_nginx), 'Duplicate NGINX rule-id helper is absent'),
+(c_rule_id_delegation_is_bounded(), 'NGINX rule-id extraction delegates only to bounded Common parsing before intervention sinks'),
 ('ngx_http_modsecurity_pool_strndup' in mapper_c and 'out->method = ngx_http_modsecurity_pool_strndup' in mapper_c and 'out->uri = ngx_http_modsecurity_pool_strndup' in mapper_c, 'NGINX request mapper NUL-terminates request string fields'),
 ('Content-Type' in mapper_c and 'Content-Length' in mapper_c and 'msconnector_headers_find_first' in mapper_c, 'NGINX response mapper preserves synthetic special headers'),
 (mapper_c.find(ERR_STATUS_PRESENT) != -1 and mapper_c.find('headers_out.status != 0') != -1 and mapper_c.find(ERR_STATUS_PRESENT) < mapper_c.find('headers_out.status != 0') and 'out->status = (int) r->err_status' in mapper_c, 'NGINX response mapper preserves err_status before headers_out fallback status'),
