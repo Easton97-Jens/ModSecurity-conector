@@ -31,25 +31,27 @@ BASE = STARTUP.BASE
 from runtime_path_utils import open_private_runtime_root
 
 SEQUENCES = {
-    "single_request_cleanup": (200,), "multiple_sequential_requests": (200, 403, 200),
-    "keep_alive_requests_if_supported": (200, 403, 200), "clean_shutdown": (200,),
-    "keepalive_allow_allow": (200, 200), "keepalive_allow_deny_allow": (200, 403, 200),
-    "early_mapping_failure_cleanup": (500,),
-    "transaction_begin_failure_cleanup": (500,),
-    "phase4_strict_http1_client_abort": (200,),
-    "phase4_strict_host_survives": (200, 200),
-    "phase4_strict_followup_request_succeeds": (200, 200),
-    "keepalive_after_strict_new_connection": (200, 200),
-    "keepalive_safe_followup": (200, 200),
-    "response_short_write_resume": (200,),
-    "response_write_would_block_resume": (200,),
-    "transport_keep_alive": (200, 200),
-    "transport_sequential_requests": (200, 403, 200),
-    "finish_failure_propagation": (200,),
-    "engine_timeout_before_commit": (504,),
-    "engine_timeout_after_commit": (200,),
-    "transport_http11_content_length": (200,),
-    "transport_http11_chunked": (200,),
+    # Explicit producer schedules grouped only across adjacent equal inputs.
+    # Keep invocation order and never obtain expectations from the validator.
+    case_id: statuses
+    for statuses, case_ids in (
+        ((200,), ("single_request_cleanup",)),
+        ((200, 403, 200), ("multiple_sequential_requests", "keep_alive_requests_if_supported")),
+        ((200,), ("clean_shutdown",)),
+        ((200, 200), ("keepalive_allow_allow",)),
+        ((200, 403, 200), ("keepalive_allow_deny_allow",)),
+        ((500,), ("early_mapping_failure_cleanup", "transaction_begin_failure_cleanup")),
+        ((200,), ("phase4_strict_http1_client_abort",)),
+        ((200, 200), ("phase4_strict_host_survives", "phase4_strict_followup_request_succeeds",
+                      "keepalive_after_strict_new_connection", "keepalive_safe_followup")),
+        ((200,), ("response_short_write_resume", "response_write_would_block_resume")),
+        ((200, 200), ("transport_keep_alive",)),
+        ((200, 403, 200), ("transport_sequential_requests",)),
+        ((200,), ("finish_failure_propagation",)),
+        ((504,), ("engine_timeout_before_commit",)),
+        ((200,), ("engine_timeout_after_commit", "transport_http11_content_length", "transport_http11_chunked")),
+    )
+    for case_id in case_ids
 }
 KEEPALIVE = {"keep_alive_requests_if_supported", "keepalive_allow_allow", "keepalive_allow_deny_allow", "keepalive_safe_followup"}
 KEEPALIVE.update({"transport_keep_alive", "transport_sequential_requests"})

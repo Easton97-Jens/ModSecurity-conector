@@ -25,64 +25,45 @@ CAPTURE_LIMIT = 65536
 TIMEOUT_SECONDS = 10
 ARTIFACT_LIMIT = 64 * 1024 * 1024
 MISSING_RULES_FILE_NAME = "missing-rules.conf"
+
+
+def rejection_contract(case_id: str, directive: str, value: str, *diagnostics: str) -> dict:
+    """Construct the closed config-only rejection input, never observed evidence."""
+    return {
+        "operation": "configtest", "directive": directive, "value": value,
+        "expected_exit_code": 1, "expected_outcome": "config_rejected",
+        "error_class": case_id, "diagnostic_fragments": list(diagnostics),
+    }
+
+
 CONFIGTEST_CONTRACTS = {
-    "invalid_status": {
-        "operation": "configtest", "directive": "modsecurity_rules",
-        "value": 'SecRule REQUEST_URI "@unconditionalMatch" "id:1100901,phase:1,deny,status:not-a-number"',
-        "expected_exit_code": 1, "expected_outcome": "config_rejected",
-        "error_class": "invalid_status",
-        "diagnostic_fragments": ['"modsecurity_rules" directive Rules error',
-                                 "Expecting an action, got:  status:not-a-number"],
-    },
-    "phase4_invalid_scope_file": {
-        "operation": "configtest", "directive": "modsecurity_phase4_content_types_file",
-        "value": "invalid-content-type-scope.txt", "expected_exit_code": 1,
-        "expected_outcome": "config_rejected", "error_class": "phase4_invalid_scope_file",
-        "diagnostic_fragments": ['unknown directive "modsecurity_phase4_content_types_file"'],
-    },
-    "phase4_wildcard_scope_rejected": {
-        "operation": "configtest", "directive": "modsecurity_phase4_content_types_file",
-        "value": "wildcard-content-type-scope.txt", "expected_exit_code": 1,
-        "expected_outcome": "config_rejected", "error_class": "phase4_wildcard_scope_rejected",
-        "diagnostic_fragments": ['unknown directive "modsecurity_phase4_content_types_file"'],
-    },
-    "missing_rules_file": {
-        "operation": "configtest", "directive": "modsecurity_rules_file", "value": MISSING_RULES_FILE_NAME,
-        "expected_exit_code": 1, "expected_outcome": "config_rejected",
-        "error_class": "missing_rules_file",
-        "diagnostic_fragments": ['"modsecurity_rules_file" directive', MISSING_RULES_FILE_NAME, "Failed to open the file"],
-    },
-    "invalid_rule_syntax": {
-        "operation": "configtest", "directive": "modsecurity_rules", "value": "SecRule REQUEST_URI",
-        "expected_exit_code": 1, "expected_outcome": "config_rejected",
-        "error_class": "invalid_rule_syntax",
-        "diagnostic_fragments": ['"modsecurity_rules" directive', "syntax error"],
-    },
-    "unknown_config_key": {
-        "operation": "configtest", "directive": "modsecurity_unknown_config_key", "value": "on",
-        "expected_exit_code": 1, "expected_outcome": "config_rejected",
-        "error_class": "unknown_config_key",
-        "diagnostic_fragments": ['unknown directive "modsecurity_unknown_config_key"'],
-    },
-    "unsafe_event_path": {
-        "operation": "configtest", "directive": "modsecurity_phase4_log", "value": "unsafe-event-directory",
-        "expected_exit_code": 1, "expected_outcome": "config_rejected",
-        "error_class": "unsafe_event_path",
-        "diagnostic_fragments": ['modsecurity_phase4_log "', 'unsafe-event-directory" is not a secure private event file'],
-    },
-    "invalid_boolean": {
-        "operation": "configtest", "directive": "modsecurity", "value": "maybe",
-        "expected_exit_code": 1, "expected_outcome": "config_rejected",
-        "error_class": "invalid_boolean",
-        "diagnostic_fragments": ['"modsecurity" directive', "invalid boolean value"],
-    },
-    "invalid_size": {
-        "operation": "configtest", "directive": "modsecurity_phase4_body_limit", "value": "maybe",
-        "expected_exit_code": 1, "expected_outcome": "config_rejected",
-        "error_class": "invalid_size",
-        "diagnostic_fragments": ['"modsecurity_phase4_body_limit" directive',
-                                 "invalid value for modsecurity_phase4_body_limit"],
-    },
+    "invalid_status": rejection_contract(
+        "invalid_status", "modsecurity_rules",
+        'SecRule REQUEST_URI "@unconditionalMatch" "id:1100901,phase:1,deny,status:not-a-number"',
+        '"modsecurity_rules" directive Rules error', "Expecting an action, got:  status:not-a-number"),
+    "phase4_invalid_scope_file": rejection_contract(
+        "phase4_invalid_scope_file", "modsecurity_phase4_content_types_file",
+        "invalid-content-type-scope.txt", 'unknown directive "modsecurity_phase4_content_types_file"'),
+    "phase4_wildcard_scope_rejected": rejection_contract(
+        "phase4_wildcard_scope_rejected", "modsecurity_phase4_content_types_file",
+        "wildcard-content-type-scope.txt", 'unknown directive "modsecurity_phase4_content_types_file"'),
+    "missing_rules_file": rejection_contract(
+        "missing_rules_file", "modsecurity_rules_file", MISSING_RULES_FILE_NAME,
+        '"modsecurity_rules_file" directive', MISSING_RULES_FILE_NAME, "Failed to open the file"),
+    "invalid_rule_syntax": rejection_contract(
+        "invalid_rule_syntax", "modsecurity_rules", "SecRule REQUEST_URI",
+        '"modsecurity_rules" directive', "syntax error"),
+    "unknown_config_key": rejection_contract(
+        "unknown_config_key", "modsecurity_unknown_config_key", "on",
+        'unknown directive "modsecurity_unknown_config_key"'),
+    "unsafe_event_path": rejection_contract(
+        "unsafe_event_path", "modsecurity_phase4_log", "unsafe-event-directory",
+        'modsecurity_phase4_log "', 'unsafe-event-directory" is not a secure private event file'),
+    "invalid_boolean": rejection_contract(
+        "invalid_boolean", "modsecurity", "maybe", '"modsecurity" directive', "invalid boolean value"),
+    "invalid_size": rejection_contract(
+        "invalid_size", "modsecurity_phase4_body_limit", "maybe",
+        '"modsecurity_phase4_body_limit" directive', "invalid value for modsecurity_phase4_body_limit"),
 }
 CONFIGTEST_PATH_FIXTURES = {
     "missing_rules_file": (MISSING_RULES_FILE_NAME, "absent"),
