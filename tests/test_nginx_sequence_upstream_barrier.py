@@ -25,6 +25,52 @@ class BarrierQualityTests(unittest.TestCase):
         handler.server.client_headers_seen.wait.return_value = released
         return handler
 
+    @staticmethod
+    def upstream(handler):
+        upstream = UPSTREAM.SynchronizedUpstream.__new__(UPSTREAM.SynchronizedUpstream)
+        upstream.server = handler.server
+        return upstream
+
+    def test_headers_callback_during_prefix_write_observes_armed_publication(self):
+        handler = self.handler(True)
+        handler.server.client_headers_seen = threading.Event()
+        upstream = self.upstream(handler)
+
+        def write(_payload):
+            if handler.wfile.write.call_count == 1:
+                upstream.headers_seen(0)
+
+        handler.wfile.write.side_effect = write
+        handler.handle()
+        self.assertTrue(handler.server.prefix_sent.is_set())
+        self.assertTrue(handler.server.client_headers_seen.is_set())
+        self.assertTrue(handler.server.marker_sent.is_set())
+        self.assertFalse(handler.server.upstream_write_failed)
+
+    def test_headers_callback_during_prefix_flush_observes_armed_publication(self):
+        handler = self.handler(True)
+        handler.server.client_headers_seen = threading.Event()
+        upstream = self.upstream(handler)
+
+        def flush():
+            if handler.wfile.flush.call_count == 1:
+                upstream.headers_seen(0)
+
+        handler.wfile.flush.side_effect = flush
+        handler.handle()
+        self.assertTrue(handler.server.prefix_sent.is_set())
+        self.assertTrue(handler.server.client_headers_seen.is_set())
+        self.assertTrue(handler.server.marker_sent.is_set())
+        self.assertFalse(handler.server.upstream_write_failed)
+
+    def test_headers_callback_before_prefix_publication_is_rejected(self):
+        handler = self.handler(True)
+        handler.server.client_headers_seen = threading.Event()
+        upstream = self.upstream(handler)
+        with self.assertRaisesRegex(ValueError, "client headers preceded the upstream prefix"):
+            upstream.headers_seen(0)
+        self.assertFalse(handler.server.client_headers_seen.is_set())
+
     def test_timeout_keeps_suffix_unsent_and_marker_false(self):
         handler = self.handler(False)
         handler.handle()
@@ -49,6 +95,33 @@ class BarrierQualityTests(unittest.TestCase):
     def test_suffix_write_error_is_observed_without_marking(self):
         handler = self.handler(True)
         handler.wfile.write.side_effect = [None, OSError("controlled suffix write failure")]
+        handler.handle()
+        self.assertTrue(handler.server.prefix_sent.is_set())
+        self.assertTrue(handler.server.upstream_write_failed)
+        self.assertFalse(handler.server.marker_sent.is_set())
+        self.assertFalse(handler.server.barrier_timeout)
+
+    def test_prefix_write_error_clears_publication_and_skips_barrier(self):
+        handler = self.handler(True)
+        handler.wfile.write.side_effect = OSError("controlled prefix write failure")
+        handler.handle()
+        self.assertFalse(handler.server.prefix_sent.is_set())
+        self.assertTrue(handler.server.upstream_write_failed)
+        self.assertFalse(handler.server.marker_sent.is_set())
+        handler.server.client_headers_seen.wait.assert_not_called()
+
+    def test_prefix_flush_error_clears_publication_and_skips_barrier(self):
+        handler = self.handler(True)
+        handler.wfile.flush.side_effect = OSError("controlled prefix flush failure")
+        handler.handle()
+        self.assertFalse(handler.server.prefix_sent.is_set())
+        self.assertTrue(handler.server.upstream_write_failed)
+        self.assertFalse(handler.server.marker_sent.is_set())
+        handler.server.client_headers_seen.wait.assert_not_called()
+
+    def test_suffix_flush_error_is_observed_without_marking(self):
+        handler = self.handler(True)
+        handler.wfile.flush.side_effect = [None, OSError("controlled suffix flush failure")]
         handler.handle()
         self.assertTrue(handler.server.prefix_sent.is_set())
         self.assertTrue(handler.server.upstream_write_failed)

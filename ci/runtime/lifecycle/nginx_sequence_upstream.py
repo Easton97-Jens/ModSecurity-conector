@@ -26,17 +26,24 @@ class _Handler(socketserver.StreamRequestHandler):
         body = prefix + SUFFIX if late else b"owned-followup\n"
         framing = b"Transfer-Encoding: chunked" if late else b"Content-Length: " + str(len(body)).encode()
         header = b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n" + framing + b"\r\nConnection: close\r\n\r\n"
+        prefix_wire = format(len(prefix), "x").encode() + b"\r\n" + prefix + b"\r\n"
+        if late:
+            self.server.prefix_sent.set()
         try:
-            prefix_wire = format(len(prefix), "x").encode() + b"\r\n" + prefix + b"\r\n"
             self.wfile.write(header + (prefix_wire if late else body))
             self.wfile.flush()
-            if late:
-                self.send_marker()
         except OSError:
+            if late:
+                self.server.prefix_sent.clear()
             self.server.upstream_write_failed = True
+            return
+        if late:
+            try:
+                self.send_marker()
+            except OSError:
+                self.server.upstream_write_failed = True
 
     def send_marker(self):
-        self.server.prefix_sent.set()
         if not self.server.client_headers_seen.wait(timeout=5):
             self.server.barrier_timeout = True
             return
