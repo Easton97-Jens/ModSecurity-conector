@@ -137,6 +137,44 @@ class NativePhase4DriverTest(unittest.TestCase):
         self.assertEqual(signature.parameters["upstream_path"].default,
                          PATH.parent.parent / "common/nginx_phase4_upstream.py")
 
+    def test_closed_phase4_entry_flushes_headers_only_for_immediate_body_reject(self):
+        case_ids = (
+            "phase4_marker_split_across_chunks", "phase4_end_of_stream_evaluation",
+            "phase4_deny_after_commit_log_only_minimal", "phase4_body_at_limit",
+            "phase4_body_over_limit", "phase4_body_process_partial", "phase4_body_reject",
+            "full_lifecycle_event_metadata_bounded",
+        )
+        for case_id in case_ids:
+            with self.subTest(case_id=case_id):
+                args = SimpleNamespace(framework_root="/trusted-framework", case_id=case_id)
+                spec = {"source_record_id": case_id, "operation": "native_phase4_request"}
+                inputs = SimpleNamespace(operation=mock.Mock(return_value=spec))
+                with mock.patch.object(driver.HOST.BASE, "absolute_path", side_effect=Path), \
+                        mock.patch.object(driver, "load", return_value=inputs), \
+                        mock.patch.object(driver, "run_operation", return_value=True) as runtime:
+                    self.assertTrue(driver.run(args))
+                call = runtime.call_args
+                self.assertEqual(call.args, (args, spec))
+                self.assertEqual(spec, {"source_record_id": case_id, "operation": "native_phase4_request"})
+                self.assertEqual(call.kwargs["input_path"],
+                                 Path("/trusted-framework/tests/runners/nginx_phase4_contracts.py"))
+                factory = call.kwargs.get("configuration_factory", driver.configuration)
+                config = factory(Path("/owned"), 18081, 18082, Path("/projection"),
+                                 "/exact", "safe", "owned-case-run")
+                self.assertEqual(config.count("postpone_output 0;"), int(case_id == "phase4_body_reject"))
+                baseline = driver.configuration(Path("/owned"), 18081, 18082, Path("/projection"),
+                                                "/exact", "safe", "owned-case-run")
+                self.assertEqual(config.replace("postpone_output 0; ", ""), baseline)
+
+    def test_header_flush_configuration_option_is_keyword_only_and_defaults_off(self):
+        import inspect
+        option = inspect.signature(driver.configuration).parameters["flush_response_headers"]
+        self.assertIs(option.kind, inspect.Parameter.KEYWORD_ONLY)
+        self.assertIs(option.default, False)
+        config = driver.configuration(Path("/owned"), 18081, 18082, Path("/projection"),
+                                      "/exact", "safe", "owned-case-run", flush_response_headers=True)
+        self.assertEqual(config.count("postpone_output 0;"), 1)
+
     def test_foreign_case_phase_or_connector_cannot_be_native_observation(self):
         actual = {"connector": "nginx", "integration_mode": "native-nginx-http-module",
                   "phase": "response_body", "method": "GET", "uri": "/exact"}

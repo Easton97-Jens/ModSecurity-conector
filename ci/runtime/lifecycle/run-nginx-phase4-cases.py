@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Retain real bounded Phase-4 host observations, without synthetic events."""
 import hashlib
+from functools import partial
 import json
 import os
 from pathlib import Path
@@ -73,11 +74,13 @@ def native_observations(raw, path):
             and event.get("method") == "GET" and event.get("uri") == path]
 
 
-def configuration(output, port, upstream_port, projection, path, mode, run_id):
+def configuration(output, port, upstream_port, projection, path, mode, run_id, *,
+                  flush_response_headers=False):
     if mode not in {"off", "safe"}:
         raise ValueError("closed Phase-4 driver allows only existing off and safe contracts")
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", run_id):
         raise ValueError("native transaction prefix must be bounded and configuration-safe")
+    header_flush = "postpone_output 0; " if flush_response_headers else ""
     return (f'load_module "{output}/nginx-module.so";\n'
             'user nobody nogroup;\nworker_processes 1;\ndaemon off;\n'
             f'pid "{output}/nginx.pid";\nerror_log "{output}/nginx-error.log";\n'
@@ -88,7 +91,7 @@ def configuration(output, port, upstream_port, projection, path, mode, run_id):
             f'modsecurity_phase4_log "{output}/phase4-events.jsonl";\n'
             f'server {{ listen 127.0.0.1:{port}; root "{projection}";\n'
             f'location = {path} {{ proxy_pass http://127.0.0.1:{upstream_port}; '
-            'proxy_http_version 1.1; proxy_buffering off; } } }\n')
+            f'proxy_http_version 1.1; proxy_buffering off; {header_flush}}} }} }}\n')
 
 
 def request_header_arguments(spec):
@@ -152,6 +155,11 @@ def run(args):
     framework = HOST.BASE.absolute_path(args.framework_root)
     input_path = framework / "tests/runners/nginx_phase4_contracts.py"
     contracts = load("phase4_closed_inputs", input_path)
+    if args.case_id == "phase4_body_reject":
+        # Flush the already committed headers before an immediate body Reject
+        # aborts the connection; leave all other cases' scheduling unchanged.
+        return run_operation(args, contracts.operation(args.case_id), input_path=input_path,
+                             configuration_factory=partial(configuration, flush_response_headers=True))
     return run_operation(args, contracts.operation(args.case_id), input_path=input_path)
 
 
