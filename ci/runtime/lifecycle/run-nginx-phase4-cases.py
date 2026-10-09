@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Retain real bounded Phase-4 host observations, without synthetic events."""
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -146,8 +147,9 @@ def run_operation(args, spec, *, input_path,
     for name in HOST.PROJECTION.PROJECTED_FILENAMES:
         (source / name).write_bytes(b"phase4-owned-static\n")
     parent = HOST.BASE.absolute_path(args.projection_parent)
+    projection_name = "phase4-" + hashlib.sha256((args.run_id + ":" + args.case_id).encode()).hexdigest()[:24]
     projection = HOST.PROJECTION.prepare_projection(source_docroot=source, private_root=output,
-        projection_parent=parent, projection_root=parent / args.run_id, worker_gid=65534,
+        projection_parent=parent, projection_root=parent / projection_name, worker_gid=65534,
         avoid_roots=[output, HOST.BASE.PARENT_ROOT, framework])
     with socket.socket() as reservation:
         reservation.bind(("127.0.0.1", 0))
