@@ -2,7 +2,9 @@
  * transaction/URI at the real exported Common validation boundary. */
 #define _GNU_SOURCE
 #include <dlfcn.h>
+#include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,11 +12,15 @@
 #include <unistd.h>
 #include "msconnector/request_mapper_contract.h"
 
-typedef void *(*new_transaction_fn)(void *, void *, char *, void *);
+typedef void *(*new_transaction_fn)(void *, void *, const char *, void *);
 typedef int (*validate_fn)(const msconnector_request_mapper_contract *, const msconnector_request *, char *, size_t);
 static pid_t owned_master;
-static char selected_case[64], selected_uri[128], selected_transaction[33];
-static int ledger = -1, active_transaction, triggered;
+static char selected_case[64];
+static char selected_uri[128];
+static char selected_transaction[33];
+static int ledger = -1;
+static int active_transaction;
+static int triggered;
 
 static int owned_worker(void)
 {
@@ -25,27 +31,39 @@ __attribute__((constructor)) static void bind_owned_invocation(void)
 {
     const char *mode = getenv("MSCONNECTOR_OWNED_INPUT_FAULT");
     const char *transaction = getenv("MSCONNECTOR_OWNED_INPUT_TXID");
-    const char *path = getenv("MSCONNECTOR_OWNED_INPUT_LEDGER");
+    const char *descriptor = getenv("MSCONNECTOR_OWNED_INPUT_FD");
     struct stat info;
-    if (getuid() != 0 || mode == NULL || transaction == NULL || path == NULL) { return; }
+    long parsed;
+    int fd;
+    int flags;
+    char *end;
+    ledger = -1;
+    owned_master = 0;
+    if (getuid() != 0 || mode == NULL || transaction == NULL || descriptor == NULL) { return; }
     if (strcmp(mode, "body_size_nonzero_with_null_data") != 0 &&
         strcmp(mode, "header_count_nonzero_with_null_headers") != 0) { return; }
     if (strlen(transaction) != 32U || strspn(transaction, "0123456789abcdef") != 32U ||
-        strncmp(path, "/var/tmp/codex/ModSecurity-conector/", sizeof("/var/tmp/codex/ModSecurity-conector/") - 1U) != 0) { return; }
-    ledger = open(path, O_WRONLY | O_APPEND | O_NOFOLLOW | O_CLOEXEC);
-    if (ledger < 0 || fstat(ledger, &info) != 0 || !S_ISREG(info.st_mode) ||
-        info.st_uid != 0 || (info.st_mode & 0777) != 0600 || info.st_size != 0) {
-        if (ledger >= 0) { close(ledger); }
-        ledger = -1;
-        return;
-    }
+        strlen(descriptor) == 0U || strlen(descriptor) > 10U ||
+        strspn(descriptor, "0123456789") != strlen(descriptor)) { return; }
+    errno = 0;
+    parsed = strtol(descriptor, &end, 10);
+    if (errno != 0 || *end != '\0' || parsed < 3 || parsed > INT_MAX) { return; }
+    fd = (int)parsed;
+    flags = fcntl(fd, F_GETFL);
+    /* The driver owns this pre-opened inode and descriptor lifetime. Never
+     * reopen a pathname from the environment, including a legacy ledger. */
+    if (flags < 0 || ((flags & O_ACCMODE) != O_WRONLY &&
+            (flags & O_ACCMODE) != O_RDWR) ||
+        fstat(fd, &info) != 0 || !S_ISREG(info.st_mode) || info.st_uid != 0 ||
+        info.st_nlink != 1 || (info.st_mode & 0777) != 0600 || info.st_size != 0) { return; }
+    ledger = fd;
     owned_master = getpid();
     (void)snprintf(selected_case, sizeof(selected_case), "%s", mode);
     (void)snprintf(selected_uri, sizeof(selected_uri), "/no-crs/input-fault/%s", mode);
     memcpy(selected_transaction, transaction, sizeof(selected_transaction));
 }
 
-void *msc_new_transaction_with_id(void *engine, void *rules, char *id, void *opaque)
+void *msc_new_transaction_with_id(void *engine, void *rules, const char *id, void *opaque)
 {
     new_transaction_fn original;
     *(void **)(&original) = dlsym(RTLD_NEXT, "msc_new_transaction_with_id");
@@ -68,7 +86,8 @@ int msconnector_request_mapper_validate_output(const msconnector_request_mapper_
         int body = strcmp(selected_case, "body_size_nonzero_with_null_data") == 0;
         const char *diagnostic = body ? "missing body data" : "missing headers";
         char line[768];
-        int result, size;
+        int result;
+        int size;
         triggered = 1;
         if (body) { injected.body.data = NULL; injected.body.size = 1U; }
         else { injected.headers = NULL; injected.header_count = 1U; }

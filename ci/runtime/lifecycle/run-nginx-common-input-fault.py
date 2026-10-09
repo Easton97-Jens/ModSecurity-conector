@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import socket
+import stat
 import subprocess
 import sys
 
@@ -26,6 +27,7 @@ BASE = STARTUP.BASE
 from runtime_path_utils import open_private_runtime_root
 
 CASES = ("body_size_nonzero_with_null_data", "header_count_nonzero_with_null_headers")
+NATIVE_FAULT_LEDGER = "native-input-fault.jsonl"
 
 
 def mismatch_transaction(transaction):
@@ -105,14 +107,25 @@ def prepare(args):
 
 def native_environment(args, output, transaction):
     environment = BASE.configtest_environment(args.library_dir)
-    ledger = output / "native-input-fault.jsonl"
-    descriptor = os.open(ledger, os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_WRONLY, 0o600)
-    os.close(descriptor)
-    environment.update(LD_PRELOAD=str(output / "native-input-fault.so"),
-        MSCONNECTOR_OWNED_INPUT_FAULT=args.case_id,
-        MSCONNECTOR_OWNED_INPUT_TXID=mismatch_transaction(transaction) if args.fault_negative_control else transaction,
-        MSCONNECTOR_OWNED_INPUT_LEDGER=str(ledger))
-    return environment
+    descriptor = None
+    try:
+        with open_private_runtime_root(output) as root:
+            descriptor = os.open(NATIVE_FAULT_LEDGER, os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_WRONLY,
+                                 0o600, dir_fd=root.descriptor)
+        os.fchmod(descriptor, 0o600)
+        details = os.fstat(descriptor)
+        if (descriptor < 3 or not stat.S_ISREG(details.st_mode) or details.st_uid != 0
+                or stat.S_IMODE(details.st_mode) != 0o600 or details.st_nlink != 1 or details.st_size != 0):
+            raise ValueError("fresh owned private input ledger descriptor required")
+        environment.update(LD_PRELOAD=str(output / "native-input-fault.so"),
+            MSCONNECTOR_OWNED_INPUT_FAULT=args.case_id,
+            MSCONNECTOR_OWNED_INPUT_TXID=mismatch_transaction(transaction) if args.fault_negative_control else transaction,
+            MSCONNECTOR_OWNED_INPUT_FD=str(descriptor))
+        return environment, descriptor
+    except BaseException:
+        if descriptor is not None:
+            os.close(descriptor)
+        raise
 
 
 def request(port, path, environment, output):
@@ -134,27 +147,36 @@ def request(port, path, environment, output):
 
 def run(args):
     output, validator, hashes, transaction, port, configuration, projection = prepare(args)
-    environment = native_environment(args, output, transaction)
+    environment, ledger_descriptor = native_environment(args, output, transaction)
     argv = [str(output / "nginx-binary"), "-e", "stderr", "-c", str(output / "nginx.conf"), "-p", str(output) + "/"]
-    code, stdout, stderr, failure = BASE.invoke(argv + ["-t"], environment)
-    (output / "configtest.stdout").write_bytes(stdout)
-    (output / "configtest.stderr").write_bytes(stderr)
+    code, failure = None, None
     process, handles = None, {}
     roles = {"master_pid": 0, "worker_pid": 0, "master_uid": -1, "worker_uid": -1}
     client_exit, status = None, None
     path = "/no-crs/input-fault/" + args.case_id
     try:
+        # Configuration testing receives no inherited ledger descriptor.
+        code, stdout, stderr, failure = BASE.invoke(argv + ["-t"], environment)
+        (output / "configtest.stdout").write_bytes(stdout)
+        (output / "configtest.stderr").write_bytes(stderr)
         if code != 0 or failure:
             raise ValueError("actual config acceptance is required")
         with (output / "startup.stdout").open("xb") as out, (output / "startup.stderr").open("xb") as err:
-            process = subprocess.Popen(argv, env=environment, stdin=subprocess.DEVNULL, stdout=out, stderr=err)
+            process = subprocess.Popen(argv, env=environment, stdin=subprocess.DEVNULL, stdout=out, stderr=err,
+                                       pass_fds=(ledger_descriptor,))
             roles = STARTUP.observe_roles(process, args.run_id, port, output, handles)
             (output / "worker-maps.log").write_bytes(STARTUP.bounded_capture(Path("/proc") / str(roles["worker_pid"]) / "maps"))
             client_exit, status = request(port, path, environment, output)
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         failure = str(exc)
     finally:
-        cleanup = STARTUP.stop_owned_master(process, roles, port, args.run_id, handles)
+        try:
+            cleanup = STARTUP.stop_owned_master(process, roles, port, args.run_id, handles)
+        finally:
+            try:
+                os.fsync(ledger_descriptor)
+            finally:
+                os.close(ledger_descriptor)
     access, faults = read_rows(output, "native-access.jsonl"), read_rows(output, "native-input-fault.jsonl")
     diagnostic = "modsecurity common request mapper validation failed: " + validator.CONTRACTS[args.case_id]["diagnostic"]
     raw_error = STARTUP.bounded_capture(output / "nginx-error.log") if (output / "nginx-error.log").exists() else b""

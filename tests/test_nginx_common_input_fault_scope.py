@@ -24,13 +24,27 @@ class InputFaultScopeTest(unittest.TestCase):
         subprocess.run(flags + [str(ROOT / "tests/fixtures/nginx_common_input_fault_scope.c"), str(obj),
                                  "-o", str(cls.binary)], check=True, capture_output=True, timeout=30)
 
+    def invoke(self, case, control, argument, descriptors=(), extra_environment=None):
+        environment = dict(os.environ)
+        for name in tuple(environment):
+            if name.startswith("MSCONNECTOR_OWNED_INPUT_"):
+                environment.pop(name)
+        environment.update(extra_environment or {})
+        result = subprocess.run([str(self.binary), case, control, str(argument)],
+                                env=environment, pass_fds=descriptors, check=True,
+                                capture_output=True, text=True, timeout=5)
+        return result.stdout.strip()
+
     def probe(self, case, control):
         ledger = self.root / (case + "-" + control + ".jsonl")
         ledger.touch(mode=0o600)
-        result = subprocess.run([str(self.binary), case, control, str(ledger)],
-                                check=True, capture_output=True, text=True, timeout=5)
+        descriptor = os.open(ledger, os.O_RDWR | os.O_NOFOLLOW)
+        try:
+            result = self.invoke(case, control, descriptor, (descriptor,))
+        finally:
+            os.close(descriptor)
         rows = [json.loads(line) for line in ledger.read_text().splitlines() if line]
-        return result.stdout.strip(), rows
+        return result, rows
 
     def test_exact_target_reaches_real_common_guard_once(self):
         for case in ("body_size_nonzero_with_null_data", "header_count_nonzero_with_null_headers"):
@@ -47,3 +61,62 @@ class InputFaultScopeTest(unittest.TestCase):
                 result, rows = self.probe("body_size_nonzero_with_null_data", control)
                 self.assertEqual(result, "1 1")
                 self.assertEqual(rows, [])
+
+    def test_bad_or_non_decimal_descriptor_never_arms(self):
+        for descriptor in ("", "-1", "0", "2", "+3", " 3", "3x", "2147483648", "99999999999", "99999"):
+            with self.subTest(descriptor=descriptor):
+                self.assertEqual(self.invoke("body_size_nonzero_with_null_data", "exact", descriptor), "1 1")
+
+    def test_read_only_hardlink_nonempty_mode_and_foreign_owner_never_arm(self):
+        for control in ("readonly", "hardlink", "nonempty", "mode", "owner"):
+            with self.subTest(control=control):
+                leaf = self.root / (control + ".jsonl")
+                leaf.touch(mode=0o600)
+                if control == "hardlink":
+                    os.link(leaf, self.root / "linked.jsonl")
+                if control == "nonempty":
+                    leaf.write_bytes(b"retained\n")
+                if control == "mode":
+                    leaf.chmod(0o644)
+                before = leaf.read_bytes()
+                descriptor = os.open(leaf, os.O_RDONLY if control == "readonly" else os.O_RDWR)
+                try:
+                    self.assertEqual(self.invoke("body_size_nonzero_with_null_data",
+                        "owner" if control == "owner" else "exact", descriptor, (descriptor,)), "1 1")
+                finally:
+                    os.close(descriptor)
+                self.assertEqual(leaf.read_bytes(), before)
+
+    def test_nonregular_descriptor_never_arms(self):
+        reader, writer = os.pipe()
+        try:
+            self.assertEqual(self.invoke("body_size_nonzero_with_null_data", "exact", writer, (writer,)), "1 1")
+        finally:
+            os.close(reader)
+            os.close(writer)
+
+    def test_legacy_path_is_not_reopened(self):
+        leaf = self.root / "legacy.jsonl"
+        leaf.touch(mode=0o600)
+        self.assertEqual(self.invoke("body_size_nonzero_with_null_data", "legacy", leaf), "1 1")
+        self.assertEqual(leaf.read_bytes(), b"")
+
+    def test_replaced_path_and_legacy_alias_cannot_redirect_open_inode(self):
+        leaf = self.root / "original.jsonl"
+        leaf.touch(mode=0o600)
+        descriptor = os.open(leaf, os.O_RDWR | os.O_NOFOLLOW)
+        retained = self.root / "retained.jsonl"
+        leaf.rename(retained)
+        leaf.touch(mode=0o600)
+        alias = self.root / "alias.jsonl"
+        alias.symlink_to(leaf)
+        try:
+            self.assertEqual(self.invoke("body_size_nonzero_with_null_data", "exact", descriptor, (descriptor,),
+                {"MSCONNECTOR_OWNED_INPUT_LEDGER": str(alias)}), "0 1")
+        finally:
+            os.close(descriptor)
+        rows = [json.loads(line) for line in retained.read_text().splitlines()]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["validator_return"], 0)
+        self.assertIs(rows[0]["diagnostic_match"], True)
+        self.assertEqual(leaf.read_bytes(), b"")

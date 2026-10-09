@@ -3,9 +3,13 @@ import importlib.util
 import copy
 import json
 import os
+import stat
+from contextlib import contextmanager
 from pathlib import Path
 import unittest
 import tempfile
+from types import SimpleNamespace
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -16,6 +20,113 @@ class InputFaultDriverTest(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("input_fault_driver", ROOT / "ci/runtime/lifecycle/run-nginx-common-input-fault.py")
         cls.driver = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cls.driver)
+
+    def test_native_environment_keeps_fresh_owned_fd_not_path_authority(self):
+        args = SimpleNamespace(case_id=self.driver.CASES[0], library_dir=None, fault_negative_control=False)
+        with tempfile.TemporaryDirectory(dir="/var/tmp/codex/ModSecurity-conector") as temporary:
+            output = Path(temporary)
+            result = self.driver.native_environment(args, output, "a" * 32)
+            self.assertIsInstance(result, tuple)
+            environment, descriptor = result
+            self.addCleanup(os.close, descriptor)
+            self.assertGreaterEqual(descriptor, 3)
+            self.assertEqual(environment['MSCONNECTOR_OWNED_INPUT_FD'], str(descriptor))
+            self.assertNotIn('MSCONNECTOR_OWNED_INPUT_LEDGER', environment)
+            details = os.fstat(descriptor)
+            self.assertTrue(stat.S_ISREG(details.st_mode))
+            self.assertEqual((details.st_uid, stat.S_IMODE(details.st_mode), details.st_nlink, details.st_size), (0, 0o600, 1, 0))
+            self.assertFalse(os.get_inheritable(descriptor))
+            with self.assertRaises(FileExistsError):
+                self.driver.native_environment(args, output, "a" * 32)
+
+    def test_ledger_descriptor_not_in_configtest_and_closed_on_startup_failure(self):
+        driver = self.driver
+        args = SimpleNamespace(case_id=driver.CASES[0], run_id='unit-fd', library_dir=None,
+            fault_negative_control=False, parent_sha='a' * 40, framework_sha='b' * 40,
+            mrts_sha='c' * 40, projection_parent='/owned/projection')
+        validator = SimpleNamespace(CONTRACTS={args.case_id: {'diagnostic': 'owned'}},
+                                    observation_errors=lambda *_: [])
+        captured = []
+        def failing_start(*_args, **kwargs):
+            captured.extend(kwargs['pass_fds'])
+            self.assertEqual(len(kwargs['pass_fds']), 1)
+            self.assertEqual(os.fstat(captured[0]).st_size, 0)
+            raise OSError('controlled startup failure')
+        with tempfile.TemporaryDirectory(dir='/var/tmp/codex/ModSecurity-conector') as temporary:
+            output = Path(temporary)
+            prepared = (output, validator, {}, 'a' * 32, 12345, b'unit-config', Path('/owned/projection/child'))
+            with patch.object(driver, 'prepare', return_value=prepared), \
+                    patch.object(driver.BASE, 'invoke', return_value=(0, b'', b'', None)) as configtest, \
+                    patch.object(driver.subprocess, 'Popen', side_effect=failing_start), \
+                    patch.object(driver.STARTUP, 'stop_owned_master', return_value={}), \
+                    patch.object(driver.os, 'fsync', wraps=os.fsync) as syncing:
+                self.assertFalse(driver.run(args))
+            self.assertNotIn('pass_fds', configtest.call_args.kwargs)
+            self.assertEqual(len(captured), 1)
+            self.assertIn(captured[0], [call.args[0] for call in syncing.call_args_list])
+            with self.assertRaises(OSError):
+                os.fstat(captured[0])
+
+    def test_root_context_exit_failure_closes_new_ledger_descriptor(self):
+        driver = self.driver
+        args = SimpleNamespace(case_id=driver.CASES[0], library_dir=None, fault_negative_control=False)
+        original_root, original_open = driver.open_private_runtime_root, os.open
+        captured = []
+
+        @contextmanager
+        def failing_root(output):
+            with original_root(output) as root:
+                yield root
+            raise OSError('controlled root context exit failure')
+
+        def observing_open(path, *values, **kwargs):
+            descriptor = original_open(path, *values, **kwargs)
+            if path == driver.NATIVE_FAULT_LEDGER:
+                captured.append(descriptor)
+            return descriptor
+
+        with tempfile.TemporaryDirectory(dir='/var/tmp/codex/ModSecurity-conector') as temporary:
+            try:
+                with patch.object(driver, 'open_private_runtime_root', side_effect=failing_root), \
+                        patch.object(driver.os, 'open', side_effect=observing_open):
+                    with self.assertRaisesRegex(OSError, 'controlled root context exit failure'):
+                        driver.native_environment(args, Path(temporary), 'a' * 32)
+                self.assertEqual(len(captured), 1)
+                with self.assertRaises(OSError):
+                    os.fstat(captured[0])
+            finally:
+                # The intended RED must not leave the deliberately exposed FD open.
+                for descriptor in captured:
+                    try:
+                        os.close(descriptor)
+                    except OSError:
+                        pass
+
+    def test_configtest_exception_still_closes_ledger_and_never_starts_native(self):
+        driver = self.driver
+        args = SimpleNamespace(case_id=driver.CASES[0], run_id='unit-fd', library_dir=None,
+            fault_negative_control=False, parent_sha='a' * 40, framework_sha='b' * 40,
+            mrts_sha='c' * 40, projection_parent='/owned/projection')
+        validator = SimpleNamespace(CONTRACTS={args.case_id: {'diagnostic': 'owned'}},
+                                    observation_errors=lambda *_: [])
+        captured = []
+        original = driver.native_environment
+        def observing_environment(*values):
+            environment, descriptor = original(*values)
+            captured.append(descriptor)
+            return environment, descriptor
+        with tempfile.TemporaryDirectory(dir='/var/tmp/codex/ModSecurity-conector') as temporary:
+            prepared = (Path(temporary), validator, {}, 'a' * 32, 12345, b'unit-config', Path('/owned/projection/child'))
+            with patch.object(driver, 'prepare', return_value=prepared), \
+                    patch.object(driver, 'native_environment', side_effect=observing_environment), \
+                    patch.object(driver.BASE, 'invoke', side_effect=OSError('controlled configtest failure')), \
+                    patch.object(driver.subprocess, 'Popen') as starting, \
+                    patch.object(driver.STARTUP, 'stop_owned_master', return_value={}):
+                self.assertFalse(driver.run(args))
+            starting.assert_not_called()
+            self.assertEqual(len(captured), 1)
+            with self.assertRaises(OSError):
+                os.fstat(captured[0])
 
     def test_config_binds_true_transaction_and_actual_native_sink(self):
         text = self.driver.fault_config(Path("/var/tmp/codex/owned"), 32123, "/var/tmp/codex/projection/child", "a" * 32)
