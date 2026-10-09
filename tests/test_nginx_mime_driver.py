@@ -1,6 +1,5 @@
 """Pure adapter controls; unit observations are not native runtime evidence."""
 import importlib.util
-import json
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
@@ -46,22 +45,21 @@ class MimeDriverTests(unittest.TestCase):
         operation = {"backend_fixture": {"headers": [], "omit_headers": ["Content-Type"], "status": 200}}
         runtime = SimpleNamespace(run_operation=Mock(return_value=True))
         contract = SimpleNamespace(operation=lambda case: operation)
-        row = {"raw_sha256": {}, "canonical_status": "NOT_EXECUTED"}
         with patch.object(self.driver, "load", side_effect=[contract, runtime]), \
              patch.object(Path, "is_file", return_value=True), \
-             patch.object(self.driver.HOST, "bounded_capture", side_effect=[json.dumps(row).encode(), b"actual fixture"]), \
              patch.object(self.driver.HOST, "write_json") as writer, \
-             patch.object(self.driver.HOST.BASE, "digest", side_effect=lambda value: "actual-hash"):
+             patch.object(self.driver.HOST.BASE, "digest", side_effect=lambda value: "a" * 64):
             self.assertTrue(self.driver.run(args))
-        observed = writer.call_args.args[1]
+        writer.assert_not_called()
+        observed = runtime.run_operation.call_args.kwargs["receipt_metadata"]
         self.assertIs(runtime.run_operation.call_args.args[0], args)
         self.assertIs(runtime.run_operation.call_args.args[1], operation)
         self.assertIs(runtime.run_operation.call_args.kwargs["upstream_factory"], self.driver.MimeUpstream)
         self.assertIs(runtime.run_operation.call_args.kwargs["configuration_factory"], self.driver.configuration)
-        self.assertEqual(observed["canonical_status"], "NOT_EXECUTED")
-        self.assertEqual(observed["raw_sha256"]["response-header-fixture.json"], "actual-hash")
-        self.assertEqual(observed["backend_contract_sha256"], "actual-hash")
-        self.assertEqual(observed["backend_omission_contract_sha256"], "actual-hash")
+        self.assertEqual(runtime.run_operation.call_args.kwargs["extra_capture_leaves"],
+                         ("response-header-fixture.json",))
+        self.assertEqual(observed["backend_contract_sha256"], "a" * 64)
+        self.assertEqual(observed["backend_omission_contract_sha256"], "a" * 64)
 
 
 if __name__ == "__main__":

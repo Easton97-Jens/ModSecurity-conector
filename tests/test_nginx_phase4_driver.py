@@ -15,6 +15,52 @@ SPEC.loader.exec_module(driver)
 
 
 class NativePhase4DriverTest(unittest.TestCase):
+    def test_adapter_receipt_is_sealed_once_with_actual_extra_capture(self):
+        with tempfile.TemporaryDirectory(dir=os.environ.get("RUNNER_TEMP", "/var/tmp/codex/ModSecurity-conector")) as temp:
+            output = Path(temp)
+            fixture = output / "response-header-fixture.json"
+            fixture.write_bytes(b"actual fixture\n")
+            metadata = {"backend_contract_sha256": "a" * 64}
+            row = {"case_id": "unit", "raw_sha256": {}}
+            driver.write_source_result(output, row, receipt_metadata=metadata,
+                                       extra_capture_leaves=(fixture.name,))
+            sealed = (output / "source-result.json").read_bytes()
+            observed = json.loads(sealed)
+            self.assertEqual(observed["backend_contract_sha256"], "a" * 64)
+            self.assertEqual(observed["raw_sha256"][fixture.name], driver.HOST.BASE.digest(fixture.read_bytes()))
+            with self.assertRaises(FileExistsError):
+                driver.write_source_result(output, row, receipt_metadata=metadata,
+                                           extra_capture_leaves=(fixture.name,))
+            self.assertEqual((output / "source-result.json").read_bytes(), sealed)
+
+    def test_adapter_metadata_and_capture_authority_are_closed(self):
+        with tempfile.TemporaryDirectory(dir=os.environ.get("RUNNER_TEMP", "/var/tmp/codex/ModSecurity-conector")) as temp:
+            output = Path(temp)
+            for metadata in ({"case_id": "foreign"}, {"variant": "../foreign"},
+                             {"backend_contract_sha256": "not-a-digest"},
+                             {"request_headers": {"Bad": "value\nInjected"}}):
+                with self.subTest(metadata=metadata), self.assertRaises(ValueError):
+                    driver.write_source_result(output, {"raw_sha256": {}}, receipt_metadata=metadata)
+            for leaf in ("../outside", "nested/file", "source-result.json", "nginx.conf"):
+                with self.subTest(leaf=leaf), self.assertRaises(ValueError):
+                    driver.write_source_result(output, {"raw_sha256": {}}, extra_capture_leaves=(leaf,))
+            with self.assertRaises(ValueError):
+                driver.write_source_result(output, {"variant": "at255", "raw_sha256": {}},
+                                           receipt_metadata={"variant": "over256"})
+            with self.assertRaises(ValueError):
+                driver.write_source_result(output, {"raw_sha256": {}},
+                                           extra_capture_leaves=("response-header-fixture.json",))
+            with self.assertRaises(ValueError):
+                driver.write_source_result(output, {"raw_sha256": {"response-header-fixture.json": "a" * 64}},
+                                           extra_capture_leaves=("response-header-fixture.json",))
+            target = output / "target"
+            target.write_bytes(b"foreign")
+            (output / "response-header-fixture.json").symlink_to(target)
+            with self.assertRaises(ValueError):
+                driver.write_source_result(output, {"raw_sha256": {}},
+                                           extra_capture_leaves=("response-header-fixture.json",))
+            self.assertFalse((output / "source-result.json").exists())
+
     def test_optional_request_headers_are_bounded_literal_curl_arguments(self):
         self.assertEqual(driver.request_header_arguments({}), [])
         self.assertEqual(driver.request_header_arguments({"request_headers": {"X-Modsec-Smoke": "log-only"}}),

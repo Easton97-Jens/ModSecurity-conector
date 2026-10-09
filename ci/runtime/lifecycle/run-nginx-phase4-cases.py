@@ -28,6 +28,34 @@ from nginx_phase4_upstream import BoundedPhase4Upstream
 CLIENT_STDOUT = "client.stdout"
 
 
+def write_source_result(output, observations, *, receipt_metadata=None, extra_capture_leaves=()):
+    """Assemble closed adapter fields before the one exclusive receipt write."""
+    metadata = {} if receipt_metadata is None else receipt_metadata
+    allowed = {"variant", "request_headers", "backend_contract_sha256", "backend_omission_contract_sha256"}
+    if not isinstance(metadata, dict) or set(metadata) - allowed or set(metadata) & set(observations):
+        raise ValueError("adapter receipt metadata is unknown or collides with runtime authority")
+    for name, value in metadata.items():
+        if name == "variant":
+            if not isinstance(value, str) or value not in {"at255", "over256", "long-query"}:
+                raise ValueError("adapter receipt variant must be a closed boundary identity")
+        elif name == "request_headers":
+            request_header_arguments({name: value})
+        elif not isinstance(value, str) or not re.fullmatch(r"[a-f0-9]{64}", value):
+            raise ValueError("adapter receipt source digest must be SHA256")
+    if (not isinstance(extra_capture_leaves, tuple) or len(extra_capture_leaves) > 1
+            or any(leaf != "response-header-fixture.json" for leaf in extra_capture_leaves)):
+        raise ValueError("adapter extra capture must be the closed MIME fixture leaf")
+    captures = dict(observations["raw_sha256"])
+    for leaf in extra_capture_leaves:
+        path = output / leaf
+        if leaf in captures or path.is_symlink() or not path.is_file():
+            raise ValueError("adapter extra capture must be a fresh regular non-symlink leaf")
+        captures[leaf] = HOST.BASE.digest(HOST.bounded_capture(path))
+    receipt = dict(observations, raw_sha256=captures)
+    receipt.update(metadata)
+    HOST.write_json(output / "source-result.json", receipt)
+
+
 def native_observations(raw, path):
     """Select only actual native response-body records matching this request."""
     events = [json.loads(line) for line in raw.splitlines() if line.strip()]
@@ -125,7 +153,8 @@ def run_operation(args, spec, *, input_path,
                   upstream_factory=BoundedPhase4Upstream,
                   upstream_kwargs=None, configuration_factory=configuration,
                   observation_factory=native_observations,
-                  upstream_path=HERE.parent / "common/nginx_phase4_upstream.py"):
+                  upstream_path=HERE.parent / "common/nginx_phase4_upstream.py",
+                  receipt_metadata=None, extra_capture_leaves=()):
     """Run a prevalidated closed operation using actual source-bound adapters.
 
     Callers own specification validation and trusted source/helper selection.
@@ -202,7 +231,8 @@ def run_operation(args, spec, *, input_path,
         "docroot_projection_parent": str(parent), "docroot_projection_root": str(projection),
         "roles": roles, "cleanup": cleanup, "driver_error": failure,
         "canonical_status": "NOT_EXECUTED", "contract_validation_pending": True})
-    HOST.write_json(output / "source-result.json", observations)
+    write_source_result(output, observations, receipt_metadata=receipt_metadata,
+                        extra_capture_leaves=extra_capture_leaves)
     return failure is None and cleanup["verified"]
 
 

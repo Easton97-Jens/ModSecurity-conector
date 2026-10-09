@@ -80,11 +80,9 @@ def run(args):
         child_args.run_id = args.run_id + "-" + variant
         spec = contracts.operation(args.case_id, variant)
         completed = runtime.run_operation(child_args, spec, input_path=input_path,
-            configuration_factory=configuration, upstream_path=Path(__file__), observation_factory=native_callbacks)
+            configuration_factory=configuration, upstream_path=Path(__file__), observation_factory=native_callbacks,
+            receipt_metadata={"variant": variant, "request_headers": spec["request_headers"]})
         child_output = Path(child_args.output_root)
-        receipt = json.loads(HOST.bounded_capture(child_output / SOURCE_RESULT))
-        receipt.update(variant=variant, request_headers=spec["request_headers"])
-        HOST.write_json(child_output / SOURCE_RESULT, receipt)
         retained = HOST.bounded_capture(child_output / SOURCE_RESULT)
         children.append({"variant": variant, "directory": variant, "run_id": child_args.run_id,
                          "receipt_sha256": HOST.BASE.digest(retained)})

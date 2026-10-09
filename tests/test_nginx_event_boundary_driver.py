@@ -1,7 +1,12 @@
 """Pure E-adapter controls; no native host or listener is started."""
 import importlib.util
+import json
+import os
 from pathlib import Path
+import tempfile
+from types import SimpleNamespace
 import unittest
+from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -39,6 +44,43 @@ class EventDriverTests(unittest.TestCase):
         self.assertEqual(self.driver.native_callbacks(row.replace(b"1100402", b"1100401"), "/actual"), [])
         with self.assertRaises(ValueError):
             self.driver.native_callbacks(b"[]\n", "/actual")
+
+    def test_variant_metadata_is_written_once_and_exact_receipt_bytes_are_sealed(self):
+        spec = importlib.util.spec_from_file_location("event_receipt_runtime", ROOT / "ci/runtime/lifecycle/run-nginx-phase4-cases.py")
+        shared = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(shared)
+        with tempfile.TemporaryDirectory(dir=os.environ.get("RUNNER_TEMP", "/var/tmp/codex/ModSecurity-conector")) as temp:
+            output = Path(temp) / "event"
+            args = SimpleNamespace(output_root=str(output), framework_root=str(ROOT),
+                run_id="unit", case_id="event_json_limit", parent_sha="p", framework_sha="f", mrts_sha="m")
+            contracts = SimpleNamespace(operation=lambda case, variant: {"request_headers": {"X-Test": variant}},
+                                        URI_BUFFER_BYTES=256, WRITER_BUFFER_BYTES=4096)
+            retained = {}
+
+            def run_operation(child, operation, **kwargs):
+                child_output = Path(child.output_root)
+                child_output.mkdir(mode=0o700)
+                shared.write_source_result(child_output, {"raw_sha256": {}, "run_id": child.run_id},
+                                           receipt_metadata=kwargs["receipt_metadata"])
+                retained[child_output.name] = (child_output / "source-result.json").read_bytes()
+                return True
+
+            runtime = SimpleNamespace(run_operation=Mock(side_effect=run_operation))
+            read_bytes = Path.read_bytes
+            with patch.object(self.driver.HOST.BASE, "validate_inputs", return_value=(None, None, output)), \
+                 patch.object(self.driver, "load", side_effect=[contracts, runtime]), \
+                 patch.object(Path, "read_bytes", autospec=True, side_effect=lambda path: read_bytes(path)
+                     if path.name == "source-result.json" else b"source dependency"):
+                self.assertTrue(self.driver.run(args))
+            aggregate = json.loads((output / "source-result.json").read_bytes())
+            self.assertEqual(runtime.run_operation.call_count, 2)
+            for child in aggregate["children"]:
+                variant = child["variant"]
+                raw = (output / variant / "source-result.json").read_bytes()
+                self.assertEqual(raw, retained[variant])
+                self.assertEqual(child["receipt_sha256"], self.driver.HOST.BASE.digest(raw))
+                self.assertEqual(json.loads(raw)["variant"], variant)
+                self.assertEqual(json.loads(raw)["request_headers"], {"X-Test": variant})
 
 
 if __name__ == "__main__":

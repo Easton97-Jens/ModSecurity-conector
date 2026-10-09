@@ -131,15 +131,11 @@ def run(args):
     runtime = load("mime_shared_phase4_runtime", runtime_path)
     outcome = runtime.run_operation(args, operation, input_path=input_path,
         upstream_factory=MimeUpstream, upstream_kwargs={"spec": operation, "output": Path(args.output_root)},
-        configuration_factory=configuration, upstream_path=Path(__file__))
-    output = Path(args.output_root)
-    row = json.loads(HOST.bounded_capture(output / "source-result.json"))
-    row["raw_sha256"][RESPONSE_HEADER_FIXTURE] = HOST.BASE.digest(
-        HOST.bounded_capture(output / RESPONSE_HEADER_FIXTURE))
-    row["backend_contract_sha256"] = HOST.BASE.digest(BACKEND_PATH.read_bytes())
-    row["backend_omission_contract_sha256"] = HOST.BASE.digest(
-        (HERE.parent / "common/response_fixture_omission.py").read_bytes())
-    HOST.write_json(output / "source-result.json", row)
+        configuration_factory=configuration, upstream_path=Path(__file__),
+        extra_capture_leaves=(RESPONSE_HEADER_FIXTURE,),
+        receipt_metadata={"backend_contract_sha256": HOST.BASE.digest(BACKEND_PATH.read_bytes()),
+            "backend_omission_contract_sha256": HOST.BASE.digest(
+                (HERE.parent / "common/response_fixture_omission.py").read_bytes())})
     return outcome
 
 
