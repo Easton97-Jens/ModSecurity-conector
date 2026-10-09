@@ -20,16 +20,25 @@ PREAMBLE = r'''
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 #include "msconnector/event_jsonl.h"
 #include "msconnector/transaction_state.h"
 #include "connectors/profile_registry.h"
 #include "ngx_http_modsecurity_cleanup_observation.h"
+#include "ngx_http_modsecurity_event_uri.h"
 typedef long ngx_int_t;
 typedef unsigned char u_char;
 typedef struct { size_t len; u_char *data; } ngx_str_t;
+typedef struct { int live; } ngx_pool_t;
+typedef struct { ngx_str_t value; } header_t;
 typedef struct { int fd; } ngx_open_file_t;
 typedef struct { void *log; } connection_t;
-typedef struct { connection_t *connection; } ngx_http_request_t;
+typedef struct {
+    connection_t *connection;
+    ngx_pool_t *pool;
+    ngx_str_t method_name, unparsed_uri;
+    struct { header_t *content_type; } headers_in;
+} ngx_http_request_t;
 typedef struct { ngx_open_file_t *phase4_log_file; } ngx_http_modsecurity_conf_t;
 typedef struct {
     msconnector_transaction_contract contract;
@@ -37,11 +46,13 @@ typedef struct {
     void *modsec_transaction;
     ngx_http_request_t *r;
     ngx_str_t event_transaction_id;
+    const char *cleanup_method, *cleanup_uri;
 } ngx_http_modsecurity_ctx_t;
 typedef struct { const char *method, *uri, *content_type; }
     ngx_http_modsecurity_event_request_metadata_t;
 enum { NGX_OK=0, NGX_ERROR=-1, NGX_LOG_WARN=5, NGX_INVALID_FILE=-1 };
-static int ngx_http_modsecurity_module, native_calls, writes, errors;
+static int ngx_http_modsecurity_module, native_calls, writes, errors, null_pool_allocations;
+static int allocations, fail_allocation;
 static ngx_http_modsecurity_ctx_t context;
 static ngx_http_modsecurity_conf_t config;
 static char jsonl[4096];
@@ -55,30 +66,50 @@ static void ngx_log_error(int level, void *log, int number, const char *format, 
 static ngx_http_modsecurity_conf_t *ngx_http_get_module_loc_conf(ngx_http_request_t *r, int module) {
     (void)r; (void)module; return &config;
 }
-static ngx_http_modsecurity_event_request_metadata_t
-ngx_http_modsecurity_event_request_metadata(ngx_http_request_t *r) {
-    (void)r; return (ngx_http_modsecurity_event_request_metadata_t){"GET", "/cleanup-control", "text/plain"};
+static void *ngx_pnalloc(ngx_pool_t *pool, size_t length) {
+    if (pool == NULL) { ++null_pool_allocations; return NULL; }
+    if (++allocations == fail_allocation) return NULL;
+    return malloc(length);
 }
-static ngx_int_t ngx_http_modsecurity_write_phase_event_jsonl(ngx_http_request_t *r,
-    ngx_http_modsecurity_conf_t *conf, const msconnector_event *event, const char *phase) {
-    int truncated=0;
-    (void)r; (void)conf;
-    if (strcmp(phase,"cleanup") != 0 || context.modsec_transaction != NULL) abort();
+#define ngx_inline
+#define ngx_memcpy memcpy
+#define dd(...) ((void)0)
+#define ngx_strlen strlen
+#define ngx_errno 5
+static ssize_t ngx_write_fd(int fd, u_char *line, size_t length) {
+    if (fd != 7 || context.modsec_transaction != NULL || length >= sizeof(jsonl)) abort();
     ++writes;
-    return msconnector_event_write_jsonl_line(event,jsonl,sizeof(jsonl),&truncated) && !truncated
-        ? NGX_OK : NGX_ERROR;
+    memcpy(jsonl,line,length); jsonl[length]='\0';
+    return (ssize_t)length;
 }
 '''
 MAIN = r'''
 int main(int argc,char **argv) {
     connection_t connection={0};
-    ngx_http_request_t request={&connection};
+    ngx_pool_t pool={1};
+    /* Deliberately not C strings: reading beyond these slices is invalid. */
+    u_char method[]={'G','E','T'};
+    u_char uri[]={'/','c','l','e','a','n','u','p','-','c','o','n','t','r','o','l'};
+    u_char long_uri[1024];
+    static u_char query_uri[]="/cleanup-control?token=private";
+    ngx_http_request_t request={.connection=&connection,.pool=&pool,
+        .method_name={sizeof(method),method},.unparsed_uri={sizeof(uri),uri}};
     ngx_open_file_t file={7};
     static u_char transaction[]="actual-cleanup-tx";
     int mode;
     if (argc != 2) return 2;
     mode=atoi(argv[1]);
+    if (mode == 6) fail_allocation=2;
+    if (mode == 7) request.method_name.len=request.unparsed_uri.len=0U;
+    if (mode == 9) request.unparsed_uri.data=NULL;
+    if (mode == 10) request.unparsed_uri.len=(size_t)-1;
+    if (mode == 11) request.unparsed_uri=(ngx_str_t){sizeof(query_uri)-1,query_uri};
+    if (mode == 12) {
+        memset(long_uri,'a',sizeof(long_uri)); long_uri[0]='/';
+        request.unparsed_uri=(ngx_str_t){sizeof(long_uri),long_uri};
+    }
     context.r=&request; config.phase4_log_file=&file;
+    PREPARE_METADATA
     context.event_transaction_id=(ngx_str_t){sizeof(transaction)-1,transaction};
     if (msconnector_transaction_contract_init(&context.contract,
         msconnector_profile_registry_find("nginx"),"cleanup-control","nginx","actual-cleanup-tx",
@@ -96,8 +127,13 @@ int main(int argc,char **argv) {
         }
         if (msconnector_transaction_contract_finish(&context.contract,0U) != 0) return 7;
     }
+    if (mode == 5 || mode == 7 || mode == 8 || mode == 11 || mode == 12) request.pool=NULL;
+    if (mode == 8) {
+        memset(method,'X',sizeof(method)); memset(uri,'X',sizeof(uri));
+    }
     ngx_http_modsecurity_cleanup(&context);
-    if (mode == 1) ngx_http_modsecurity_cleanup(&context);
+    if (null_pool_allocations != 0) return 19;
+    if (mode == 1 || mode == 5) ngx_http_modsecurity_cleanup(&context);
     printf("%d %d %d %d %d\n",native_calls,writes,errors,context.contract_initialized,context.modsec_transaction == NULL);
     fputs(jsonl,stdout);
     return 0;
@@ -115,9 +151,24 @@ class NativeCleanupBridgeTests(unittest.TestCase):
         cls.addClassCleanup(temporary.cleanup)
         directory = Path(temporary.name)
         source = (ROOT / "connectors/nginx/src/ngx_http_modsecurity_module.c").read_text()
+        common = (ROOT / "connectors/nginx/src/ngx_http_modsecurity_common.h").read_text()
+        cleanup = function_definition(source, "ngx_http_modsecurity_cleanup_log_event")
+        metadata = function_definition(source, "ngx_str_to_char")
+        prepare = ""
+        if "ngx_http_modsecurity_event_request_metadata(r)" in cleanup:
+            metadata += "\nstatic ngx_inline ngx_http_modsecurity_event_request_metadata_t\n" + function_definition(common, "ngx_http_modsecurity_event_request_metadata")
+        else:
+            metadata += "\nstatic ngx_int_t\n" + function_definition(source, "ngx_http_modsecurity_snapshot_cleanup_metadata")
+            prepare = """if (ngx_http_modsecurity_snapshot_cleanup_metadata(&context) != NGX_OK) {
+                if (mode == 6 || mode == 9 || mode == 10) {
+                    puts("snapshot-rejected"); return 0;
+                }
+                return 18;
+            }"""
         fixture = directory / "cleanup.c"
-        fixture.write_text(PREAMBLE + "static void\n" + function_definition(source, "ngx_http_modsecurity_cleanup_log_event")
-                           + "\nvoid\n" + function_definition(source, "ngx_http_modsecurity_cleanup") + MAIN)
+        writer = "\nstatic ngx_inline ngx_int_t\n" + function_definition(common, "ngx_http_modsecurity_write_phase_event_jsonl")
+        fixture.write_text(PREAMBLE + metadata + writer + "\nstatic void\n" + cleanup
+                           + "\nvoid\n" + function_definition(source, "ngx_http_modsecurity_cleanup") + MAIN.replace("PREPARE_METADATA", prepare))
         cls.binary = directory / "cleanup"
         command = [compiler, "-std=c17", "-Wall", "-Wextra", "-Werror", "-pthread",
                    "-I", str(ROOT / "connectors/nginx/src"), "-I", str(ROOT), "-I", str(ROOT / "common/include"), str(fixture)]
@@ -147,6 +198,53 @@ class NativeCleanupBridgeTests(unittest.TestCase):
     def test_reentry_does_not_duplicate_cleanup_or_observation(self):
         state, _ = self.observe(1)
         self.assertEqual(state, [1, 1, 0, 0, 1])
+
+    def test_destroyed_pool_cleanup_retains_exact_request_metadata_without_allocation(self):
+        state, event = self.observe(5)
+        self.assertEqual(state, [1, 1, 0, 0, 1])
+        self.assertEqual(event["method"], "GET")
+        self.assertEqual(event["uri"], "/cleanup-control")
+
+    def test_snapshot_owns_length_delimited_metadata_after_original_bytes_change(self):
+        state, event = self.observe(8)
+        self.assertEqual(state, [1, 1, 0, 0, 1])
+        self.assertEqual(event["method"], "GET")
+        self.assertEqual(event["uri"], "/cleanup-control")
+
+    def test_actual_empty_metadata_remains_empty_during_pool_cleanup(self):
+        state, event = self.observe(7)
+        self.assertEqual(state, [1, 1, 0, 0, 1])
+        self.assertEqual(event["method"], "")
+        self.assertEqual(event["uri"], "")
+
+    def test_cleanup_keeps_real_query_redaction(self):
+        state, event = self.observe(11)
+        self.assertEqual(state, [1, 1, 0, 0, 1])
+        self.assertEqual(event["uri"], "/cleanup-control?<redacted>")
+        self.assertTrue(event["redacted"])
+        self.assertNotIn("private", json.dumps(event))
+
+    def test_cleanup_keeps_bounded_long_uri_projection(self):
+        state, event = self.observe(12)
+        self.assertEqual(state, [1, 1, 0, 0, 1])
+        self.assertTrue(event["truncated"])
+        self.assertEqual(event["uri"], "/" + "a" * 254)
+
+    def test_invalid_or_unretained_metadata_cannot_admit_a_context(self):
+        for mode in (6, 9, 10):
+            with self.subTest(mode=mode):
+                result = subprocess.run([str(self.binary), str(mode)], capture_output=True,
+                                        text=True, timeout=5, check=False)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout, "snapshot-rejected\n")
+
+    def test_snapshot_precedes_contract_and_cleanup_registration(self):
+        source = (ROOT / "connectors/nginx/src/ngx_http_modsecurity_module.c").read_text()
+        create = function_definition(source, "ngx_http_modsecurity_create_ctx")
+        snapshot = create.index("ngx_http_modsecurity_snapshot_cleanup_metadata(ctx)")
+        self.assertLess(snapshot, create.index("msconnector_transaction_contract_init("))
+        self.assertLess(snapshot, create.index("ngx_pool_cleanup_add("))
+        self.assertIn("return NULL;", create[snapshot:create.index("mmcf =", snapshot)])
 
     def test_incomplete_common_cleanup_is_not_relabelled_success(self):
         state, event = self.observe(2)

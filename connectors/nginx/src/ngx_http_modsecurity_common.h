@@ -160,6 +160,10 @@ typedef struct {
     Transaction *modsec_transaction;
     msconnector_transaction_contract contract;
     unsigned contract_initialized:1;
+    /* Request-pool strings remain alive while pool cleanup callbacks run,
+     * even after NGINX clears r->pool. Never allocate from that cleared pool. */
+    const char *cleanup_method;
+    const char *cleanup_uri;
     ModSecurityIntervention *delayed_intervention;
 
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)

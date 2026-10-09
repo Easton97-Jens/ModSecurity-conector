@@ -722,6 +722,34 @@ ngx_http_modsecurity_log_technical_failure(ngx_http_request_t *r,
         "technical");
 }
 
+/* Snapshot exact length-delimited request identity while the pool is live.
+ * NGINX runs cleanup callbacks before releasing pool storage, but clears the
+ * request's pool pointer first. The existing writer still bounds/redacts URI. */
+static ngx_int_t
+ngx_http_modsecurity_snapshot_cleanup_metadata(ngx_http_modsecurity_ctx_t *ctx)
+{
+    ngx_http_request_t *r = ctx->r;
+    ngx_str_t values[2];
+    const char **outputs[2] = { &ctx->cleanup_method, &ctx->cleanup_uri };
+    size_t index;
+    char *value;
+
+    if (r == NULL || r->pool == NULL) return NGX_ERROR;
+    values[0] = r->method_name;
+    values[1] = r->unparsed_uri;
+    for (index = 0U; index < 2U; ++index) {
+        *outputs[index] = "";
+        if (values[index].len == 0U) continue;
+        if (values[index].data == NULL || values[index].len == (size_t)-1) {
+            return NGX_ERROR;
+        }
+        value = ngx_str_to_char(values[index], r->pool);
+        if (value == NULL || value == (char *)-1) return NGX_ERROR;
+        *outputs[index] = value;
+    }
+    return NGX_OK;
+}
+
 static void
 ngx_http_modsecurity_cleanup_log_event(ngx_http_modsecurity_ctx_t *ctx,
     int common_return, int native_cleanup_completed)
@@ -730,7 +758,6 @@ ngx_http_modsecurity_cleanup_log_event(ngx_http_modsecurity_ctx_t *ctx,
     char reason[256];
     ngx_http_request_t *r;
     ngx_http_modsecurity_conf_t *mcf;
-    ngx_http_modsecurity_event_request_metadata_t metadata;
 
     r = ctx->r;
     if (r == NULL || r->connection == NULL) {
@@ -748,13 +775,12 @@ ngx_http_modsecurity_cleanup_log_event(ngx_http_modsecurity_ctx_t *ctx,
             "modsecurity cleanup observation construction failed");
         return;
     }
-    metadata = ngx_http_modsecurity_event_request_metadata(r);
     event.meta.connector = "nginx";
     event.meta.integration_mode = "native-nginx-http-module";
     event.meta.transaction_id = ctx->event_transaction_id.len > 0U
         ? (const char *)ctx->event_transaction_id.data : "";
-    event.request.method = metadata.method;
-    event.request.uri = metadata.uri;
+    event.request.method = ctx->cleanup_method;
+    event.request.uri = ctx->cleanup_uri;
     if (ngx_http_modsecurity_write_phase_event_jsonl(r, mcf, &event,
         "cleanup") != NGX_OK) {
         /* Cleanup has already completed; its void host hook cannot replace
@@ -826,6 +852,9 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
         return NULL;
     }
     ctx->r = r;
+    if (ngx_http_modsecurity_snapshot_cleanup_metadata(ctx) != NGX_OK) {
+        return NULL;
+    }
 
     mmcf = ngx_http_get_module_main_conf(r, ngx_http_modsecurity_module);
     mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
