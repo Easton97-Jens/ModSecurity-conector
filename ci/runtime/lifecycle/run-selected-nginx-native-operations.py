@@ -17,6 +17,10 @@ ROOT = HERE.parents[2]
 spec = importlib.util.spec_from_file_location("nginx_operation_source", HERE / "nginx-native-operation-source.py")
 SOURCE = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(SOURCE)
+projection_spec = importlib.util.spec_from_file_location("nginx_selected_projection",
+    HERE.parent / "common/prepare-nginx-docroot-projection.py")
+PROJECTION = importlib.util.module_from_spec(projection_spec)
+projection_spec.loader.exec_module(PROJECTION)
 RAW = frozenset({"invalid_content_length", "conflicting_content_length",
                  "duplicate_transfer_encoding", "content_length_overflow"})
 POINTER = frozenset({"header_count_nonzero_with_null_headers", "body_size_nonzero_with_null_data"})
@@ -170,6 +174,29 @@ def safe_build(build, results):
     os.close(SOURCE.directory(results))
 
 
+def projection_parent(environment, build, results, framework):
+    """Use the existing projection authority; never create or relax its parent."""
+    if os.geteuid() != 0:
+        raise ValueError("selected native projection requires the actual Root coordinator")
+    value = environment.get("NGINX_DOCROOT_PROJECTION_PARENT")
+    if not value or ".." in Path(value).parts:
+        raise ValueError("explicit absolute traversal-free NGINX projection parent required")
+    parent = PROJECTION.normalized_absolute(value, "projection parent")
+    os.close(SOURCE.directory(parent, external=False))
+    PROJECTION.ensure_private_parent(parent, "projection parent")
+    verified = environment.get("VERIFIED_RUN_ROOT")
+    if not verified:
+        raise ValueError("explicit VERIFIED_RUN_ROOT required for projection separation")
+    roots = [ROOT, framework, build, results,
+             PROJECTION.normalized_absolute(verified, "verified run root")]
+    roots.extend(PROJECTION.normalized_absolute(environment[key], "private runtime root")
+        for key in ("CACHE_ROOT", "EVIDENCE_ROOT", "LOG_ROOT", "RUN_ROOT", "CONNECTOR_ROOT",
+                    "CONNECTOR_BUILD_ROOT", "REPORTS_DIR") if environment.get(key))
+    if any(PROJECTION.overlaps(parent, root) for root in roots):
+        raise ValueError("NGINX projection parent overlaps source or private runtime authority")
+    return parent
+
+
 def append_results(result_path, cases, invoke):
     descriptor = SOURCE.directory(result_path.parent)
     try:
@@ -224,12 +251,12 @@ def run(environment):
         raise ValueError("bounded native run ID required")
     build, results = Path(environment["BUILD_ROOT"]), Path(environment["RESULTS_DIR"])
     safe_build(build, results)
+    projections = projection_parent(environment, build, results, framework) if any(case not in RAW for case in cases) else None
     host = build / "host-runtime"
     if not host.exists():
         child(build, "host-runtime")
     os.close(SOURCE.directory(host))
     output = child(host, "native-operations-" + run_id)
-    projections = child(output, "projections")
     identities = {"parent_sha": identity(ROOT, "HEAD"), "framework_sha": identity(framework, "HEAD"),
                   "mrts_sha": identity(framework, "HEAD:tools/MRTS"),
                   "parent_framework_gitlink": identity(ROOT, "HEAD:modules/ModSecurity-test-Framework")}
@@ -247,10 +274,9 @@ def run(environment):
     # Reject missing required fixtures before any actual host invocation.
     for case in cases:
         command(case, {"prefix": prefix, "framework": framework, "output": output / case,
-                       "projection": projections / case}, run_id, identities, environment)
+                       "projection": projections}, run_id, identities, environment)
     def invoke(case):
-        projection = child(projections, case)
-        paths = {"prefix": prefix, "framework": framework, "output": output / case, "projection": projection}
+        paths = {"prefix": prefix, "framework": framework, "output": output / case, "projection": projections}
         args = command(case, paths, run_id, identities, environment)
         completed = subprocess.run(args, check=False, timeout=180)
         print(f"nginx native case={case} driver_exit_code={completed.returncode}", file=sys.stderr)
