@@ -904,7 +904,9 @@ if [ "$five_connector_profile_enabled" -eq 1 ]; then
     set -- "$@" --five-connector-profile "$FIVE_CONNECTOR_PROFILE"
 fi
 if [ "$NGINX_NATIVE_AUTHORITY_ENABLED" -eq 1 ]; then
-    set -- "$@" --allowed-native-operation-root "$STAGE_BUILD_ROOT"
+    # Keep generic harness and first-byte logs outside the native bundle
+    # authority so their normal collection/scrubbing cannot touch originals.
+    set -- "$@" --allowed-native-operation-root "$STAGE_BUILD_ROOT/host-runtime/native-operations-$NO_CRS_RUN_ID"
 fi
 if [ -n "$source_result" ] && [ -f "$source_result" ]; then
     set -- "$@" --source-result "$source_result"

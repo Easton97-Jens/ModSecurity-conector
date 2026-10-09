@@ -194,6 +194,75 @@ class NativeCollectionTests(unittest.TestCase):
             collector.collector_cases_and_events(args, self.authority, [])
         self.assertEqual(raw_log.read_bytes(), before)
 
+    def test_mixed_generic_log_stays_outside_exact_native_authority(self):
+        stage = self.authority / 'mixed-stage'
+        native_root = stage / 'host-runtime/native-operations-unit-native'
+        bundle = native_root / 'invalid_content_length'
+        bundle.mkdir(parents=True, mode=0o700)
+        receipt = bundle / 'source-result.json'
+        receipt.write_bytes(self.raw)
+        receipt.chmod(0o600)
+        native_raw = bundle / 'phase1-events.jsonl'
+        native_raw.write_bytes(b'{"native_original":true}\n')
+        native_raw.chmod(0o600)
+
+        native = copy.deepcopy(self.row)
+        native['native_operation_receipt']['bundle_root'] = str(bundle)
+        native['native_operation_receipt']['invocations'][0]['receipt_sha256'] = (
+            hashlib.sha256(self.raw).hexdigest()
+        )
+        native['decision_log_path'] = str(native_raw)
+
+        generic_log = stage / 'nginx-harness/logs/allow_without_marker/phase4.log'
+        generic_log.parent.mkdir(parents=True)
+        generic_log.write_bytes(b'')
+        generic = {
+            'case_id': 'allow_without_marker',
+            'status': 'PASS',
+            'actual_status': 200,
+            'live_executed': True,
+            'connector_phase4_log_path': str(generic_log),
+        }
+        rows = stage / 'results.jsonl'
+        rows.write_text(json.dumps(generic) + '\n' + json.dumps(native) + '\n')
+        catalog = stage / 'catalog.json'
+        catalog.write_text(json.dumps({'cases': [
+            dict(case_id='allow_without_marker', expected_status=200, phase=1),
+            dict(case_id='invalid_content_length', expected_status=400, phase=1),
+        ]}))
+        args = argparse.Namespace(
+            source_events=[],
+            catalog=catalog,
+            source_results_jsonl=[rows],
+            connector='nginx',
+            expected_rule_id='1100001',
+            allowed_native_operation_root=native_root,
+        )
+
+        cases, events, source_paths, consumed = collector.collector_cases_and_events(
+            args, stage, []
+        )
+
+        self.assertEqual(
+            {case['case_id'] for case in cases},
+            {'allow_without_marker', 'invalid_content_length'},
+        )
+        self.assertEqual(source_paths, [])
+        self.assertEqual(consumed, [generic_log])
+        self.assertEqual(events['records'], [])
+        self.assertEqual(receipt.read_bytes(), self.raw)
+        self.assertEqual(native_raw.read_bytes(), b'{"native_original":true}\n')
+
+        generic['connector_phase4_log_path'] = str(native_raw)
+        rows.write_text(json.dumps(generic) + '\n' + json.dumps(native) + '\n')
+        with self.assertRaisesRegex(
+            ValueError,
+            'native bundle raw events cannot enter generic collection or scrubbing',
+        ):
+            collector.collector_cases_and_events(args, stage, [])
+        self.assertEqual(receipt.read_bytes(), self.raw)
+        self.assertEqual(native_raw.read_bytes(), b'{"native_original":true}\n')
+
     def test_original_receipt_symlink_and_hardlink_are_rejected(self):
         target = self.bundle / 'original.json'
         self.receipt.rename(target)

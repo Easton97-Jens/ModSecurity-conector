@@ -127,7 +127,14 @@ class NativeAuthorityWiringTests(unittest.TestCase):
         invoke = self.source.index("\nprepare_nginx_native_authority\n")
         self.assertLess(self.source.index(" init \\\n"), invoke)
         self.assertLess(invoke, self.source.index("started_at="))
-        self.assertIn('--allowed-native-operation-root "$STAGE_BUILD_ROOT"', self.source)
+        self.assertIn(
+            '--allowed-native-operation-root '
+            '"$STAGE_BUILD_ROOT/host-runtime/native-operations-$NO_CRS_RUN_ID"',
+            self.source,
+        )
+        self.assertNotIn(
+            '--allowed-native-operation-root "$STAGE_BUILD_ROOT"', self.source
+        )
         self.assertIn('--native-operation-authority "$NGINX_NATIVE_AUTHORITY"', self.source)
         self.assertIn('"${NGINX_PREFIX:-}" != "$NGINX_NATIVE_AUTHORITY_PREFIX"', self.source)
         self.assertIn('--allowed-source-root "$RAW_DIR"', self.source)
