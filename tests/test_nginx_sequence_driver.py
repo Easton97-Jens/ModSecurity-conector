@@ -16,6 +16,21 @@ SPEC.loader.exec_module(DRIVER)
 
 
 class DriverTests(unittest.TestCase):
+    def test_static_sequence_probes_do_not_create_internal_redirect_contexts(self):
+        output = Path("/var/tmp/codex/sequence")
+        projection = Path("/var/tmp/codex/projection/child")
+        for case_id in sorted(set(DRIVER.SEQUENCES) - DRIVER.UPSTREAM_CASES):
+            with self.subTest(case_id=case_id):
+                config = DRIVER.sequence_config(
+                    output,
+                    19000,
+                    projection,
+                    case_id,
+                    fault_transaction="a" * 32,
+                )
+                self.assertIn(b"location / { try_files /index.html =404; }", config)
+                self.assertNotIn(b"try_files $uri /index.html;", config)
+
     def test_framing_configs_keep_static_and_actual_chunked_origin_separate(self):
         output = Path("/var/tmp/codex/sequence")
         projection = Path("/var/tmp/codex/projection/child")

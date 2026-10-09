@@ -106,7 +106,11 @@ class ReceiptContext(NamedTuple):
 
 
 def sequence_config(output, port, projection, case_id, fault_transaction=None, upstream_port=None, engine_budget_ms=10):
-    text = STARTUP.config_template(output, port, str(projection))
+    # A sequence URI is a probe identity, not a docroot path.  Serve the fixed
+    # projected body without an internal redirect so one request creates one
+    # native transaction context and therefore one cleanup observation.
+    text = STARTUP.config_template(output, port, str(projection)).replace(
+        STATIC_LOCATION, PROBE_LOCATION)
     log = ('  log_format sequence escape=json \'{"uri":"$request_uri","status":$status,'
            '"connection":"$connection","connection_requests":$connection_requests,"remote_port":$remote_port,'
            '"transaction_id":"$request_id"}\';\n'
@@ -121,7 +125,6 @@ def sequence_config(output, port, projection, case_id, fault_transaction=None, u
         log = log.replace("$request_id", "$sequence_transaction_id")
         log = ('  map $request_uri $sequence_transaction_id { default $request_id; '
                f'"/no-crs/sequence/{fault_transaction[:24]}/0" "{fault_transaction}"; }}\n' + log)
-        text = text.replace(STATIC_LOCATION, PROBE_LOCATION)
     if case_id in DEADLINE:
         if type(engine_budget_ms) is not int or engine_budget_ms not in (0, 10, 100):
             raise ValueError("budget probe permits only disabled, exceeded and under-budget controls")
@@ -133,8 +136,7 @@ def sequence_config(output, port, projection, case_id, fault_transaction=None, u
     if case_id in UPSTREAM_CASES:
         mode = "strict" if case_id in STRICT else "safe"
         log += f"\n  modsecurity_phase4_mode {mode};"
-        text = text.replace(PROBE_LOCATION, STATIC_LOCATION)
-        text = text.replace(STATIC_LOCATION,
+        text = text.replace(PROBE_LOCATION,
                             'location / { proxy_buffering off; proxy_http_version 1.1; '
                             f'proxy_pass http://127.0.0.1:{upstream_port}; }}')
     return text.replace("  access_log off;", log).encode()
