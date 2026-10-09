@@ -136,3 +136,33 @@ class BarrierQualityTests(unittest.TestCase):
         self.assertFalse(handler.server.prefix_sent.is_set())
         self.assertFalse(handler.server.marker_sent.is_set())
         handler.wfile.write.assert_called_once()
+
+    def test_incomplete_or_oversize_headers_never_arm_publication(self):
+        requests = (
+            b"",
+            b"G" * 4096,
+            b"GET /no-crs/sequence/0",
+            b"GET /no-crs/sequence/0 HTTP/1.1\r\nHost: localhost\r\n",
+            b"GET /no-crs/sequence/0 HTTP/1.1\r\n" + b"H" * 4096,
+        )
+        for request in requests:
+            with self.subTest(request_length=len(request)):
+                handler = self.handler(True)
+                handler.rfile = io.BytesIO(request)
+                handler.handle()
+                handler.wfile.write.assert_not_called()
+                handler.wfile.flush.assert_not_called()
+                handler.server.client_headers_seen.wait.assert_not_called()
+                self.assertFalse(handler.server.prefix_sent.is_set())
+                self.assertFalse(handler.server.marker_sent.is_set())
+                self.assertFalse(handler.server.upstream_write_failed)
+
+    def test_malformed_complete_request_never_arms_publication(self):
+        handler = self.handler(True)
+        handler.rfile = io.BytesIO(b"malformed\r\n\r\n")
+        with self.assertRaises(IndexError):
+            handler.handle()
+        handler.wfile.write.assert_not_called()
+        handler.server.client_headers_seen.wait.assert_not_called()
+        self.assertFalse(handler.server.prefix_sent.is_set())
+        self.assertFalse(handler.server.marker_sent.is_set())

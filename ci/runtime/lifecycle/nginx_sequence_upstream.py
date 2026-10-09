@@ -10,16 +10,21 @@ TRANSPORT_BODY = b"transport fixture body"
 
 
 class _Handler(socketserver.StreamRequestHandler):
-    def handle(self):
+    def read_request_head(self):
         first = self.rfile.readline(4096)
         if not first or len(first) == 4096:
-            return
+            return None
         while True:
             line = self.rfile.readline(4096)
             if not line or len(line) == 4096:
-                return
+                return None
             if line == b"\r\n":
-                break
+                return first
+
+    def handle(self):
+        first = self.read_request_head()
+        if first is None:
+            return
         path = first.split(b" ", 2)[1]
         late = path.endswith(b"/0")
         prefix = PREFIX * 40 if self.server.backpressure else PREFIX
