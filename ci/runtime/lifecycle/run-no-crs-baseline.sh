@@ -588,7 +588,16 @@ if [ -e "$RAW_DIR" ] || [ -L "$RAW_DIR" ]; then
     exit 1
 fi
 
-mkdir -p "$RAW_DIR" "$LOG_DIR" "$RESULTS_DIR"
+if [ "$connector:$NO_CRS_ARTIFACT_PROFILE" = nginx:full_lifecycle ]; then
+    # The root master creates this fresh run; its unprivileged worker must
+    # traverse it to reach harness-owned state. Keep results/logs private and
+    # use an exclusive leaf mkdir so an existing run is never reused/chmodded.
+    mkdir -p "$(dirname "$RAW_DIR")"
+    mkdir -m 0711 "$RAW_DIR"
+    mkdir -p "$LOG_DIR" "$RESULTS_DIR"
+else
+    mkdir -p "$RAW_DIR" "$LOG_DIR" "$RESULTS_DIR"
+fi
 
 # Reserve one exact local runtime-env destination before entering the stage.
 # The stage receives this path unchanged, and this canonical runner later
