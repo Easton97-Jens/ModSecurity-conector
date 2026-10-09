@@ -268,10 +268,11 @@ class SequenceDriverPhasesTests(unittest.TestCase):
             output = Path(temporary)
             descriptor = os.open(output / "ledger", os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
             args = argparse.Namespace(case_id="single_request_cleanup", run_id="controlled-run")
+            invocation = DRIVER.PreparedInvocation(19000, [], {}, descriptor, 1, "config failed")
+            validator = mock.Mock()
             with mock.patch.object(DRIVER.STARTUP, "stop_owned_master", side_effect=ValueError("cleanup failed")):
                 with self.assertRaisesRegex(ValueError, "cleanup failed"):
-                    invocation = DRIVER.PreparedInvocation(19000, [], {}, descriptor, 1, "config failed")
-                    DRIVER.execute_sequence(args, output, "a" * 24, None, mock.Mock(), invocation)
+                    DRIVER.execute_sequence(args, output, "a" * 24, None, validator, invocation)
             with self.assertRaises(OSError):
                 os.fstat(descriptor)
 
@@ -280,11 +281,12 @@ class SequenceDriverPhasesTests(unittest.TestCase):
             output = Path(temporary)
             descriptor = os.open(output / "ledger", os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
             args = argparse.Namespace(case_id="single_request_cleanup", run_id="controlled-run")
+            invocation = DRIVER.PreparedInvocation(19000, [], {}, descriptor, 1, "config failed")
+            validator = mock.Mock()
             with mock.patch.object(DRIVER.STARTUP, "stop_owned_master", return_value={}), \
                  mock.patch.object(DRIVER.os, "fsync", side_effect=OSError("sync failed")):
                 with self.assertRaisesRegex(OSError, "sync failed"):
-                    invocation = DRIVER.PreparedInvocation(19000, [], {}, descriptor, 1, "config failed")
-                    DRIVER.execute_sequence(args, output, "a" * 24, None, mock.Mock(), invocation)
+                    DRIVER.execute_sequence(args, output, "a" * 24, None, validator, invocation)
             with self.assertRaises(OSError):
                 os.fstat(descriptor)
 

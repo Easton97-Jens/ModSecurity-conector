@@ -101,11 +101,14 @@ class SelectedNativeProjectionTests(unittest.TestCase):
             receipt = output / row["case_id"] / "input-fault-source.json"
             invocation = row["native_operation_receipt"]["invocations"][0]
             self.assertEqual(invocation["receipt_sha256"], DISPATCH.SOURCE.digest(receipt.read_bytes()))
+        source_docroot = output / self.cases[0] / "docroot"
+        worker_gid = os.getegid()
+        avoid_roots = [self.build]
         for projected in self.projections:
             with self.assertRaisesRegex(ValueError, "already exists"):
-                PROJECTOR.prepare_projection(source_docroot=output / self.cases[0] / "docroot",
+                PROJECTOR.prepare_projection(source_docroot=source_docroot,
                     private_root=output, projection_parent=self.parent, projection_root=projected,
-                    worker_gid=os.getegid(), avoid_roots=[self.build])
+                    worker_gid=worker_gid, avoid_roots=avoid_roots)
 
     def test_old_private_parent_topology_is_rejected_by_unchanged_helper(self):
         output = self.build / "old-output"
