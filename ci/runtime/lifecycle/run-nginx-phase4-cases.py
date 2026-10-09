@@ -135,8 +135,8 @@ def run_operation(args, spec, *, input_path,
     if os.geteuid() != 0:
         raise ValueError("native host observation requires isolated root master/nobody worker")
     framework = HOST.BASE.absolute_path(args.framework_root)
-    input_path = HOST.BASE.absolute_path(input_path)
-    upstream_path = HOST.BASE.absolute_path(upstream_path)
+    input_path = HOST.BASE.absolute_path(os.fspath(input_path))
+    upstream_path = HOST.BASE.absolute_path(os.fspath(upstream_path))
     output.mkdir(mode=0o700)
     binary_sha = HOST.BASE.snapshot_artifact(binary, output / "nginx-binary", executable=True)
     module_sha = HOST.BASE.snapshot_artifact(module, output / "nginx-module.so", executable=False)
