@@ -10,6 +10,7 @@ import socket
 import subprocess
 import sys
 import time
+from typing import NamedTuple
 
 from nginx_sequence_client import capture_http11_wire, run_sequence
 from nginx_sequence_upstream import FramingUpstream, SynchronizedUpstream, TRANSPORT_BODY
@@ -59,6 +60,47 @@ LATE = STRICT | {"keepalive_safe_followup"} | WRITE
 DEADLINE = {"engine_timeout_before_commit", "engine_timeout_after_commit"}
 FRAMING = {"transport_http11_content_length", "transport_http11_chunked"}
 UPSTREAM_CASES = LATE | {"engine_timeout_after_commit", "transport_http11_chunked"}
+RULES_LEAF = "no-crs-baseline.conf"
+ACCESS_LEAF = "native-access.jsonl"
+EVENTS_LEAF = "phase1-events.jsonl"
+CONFIG_LEAF = "nginx.conf"
+BINARY_LEAF = "nginx-binary"
+MODULE_LEAF = "nginx-module.so"
+BEGIN_LEDGER = "native-begin-observations.jsonl"
+WRITE_LEDGER = "native-write-observations.jsonl"
+FINISH_LEDGER = "native-finish-observations.jsonl"
+BUDGET_LEDGER = "native-budget-observations.jsonl"
+STATIC_LOCATION = 'location / { try_files $uri /index.html; }'
+PROBE_LOCATION = 'location / { try_files /index.html =404; }'
+
+
+class PreparedInvocation(NamedTuple):
+    """Actual listener, child launch inputs, and completed config-test result."""
+    port: int
+    argv: list[str]
+    environment: dict[str, str]
+    fault_descriptor: int | None
+    config_exit_code: int
+    config_failure: str | None
+
+
+class ExecutionOutcome(NamedTuple):
+    """Observed execution and wire facts, without receipt or PASS projection."""
+    observed: dict[str, object]
+    wire: dict[str, object] | None
+    post_roles: dict[str, int] | None
+    upstream_observation: dict[str, object] | None
+    failure: str | None
+    live_executed: bool
+
+
+class ReceiptContext(NamedTuple):
+    """Snapshots, original config bytes, projection provenance and config exit."""
+    hashes: dict[str, str]
+    config: bytes
+    projection_parent: Path
+    projection_root: Path
+    config_exit_code: int
 
 
 def sequence_config(output, port, projection, case_id, fault_transaction=None, upstream_port=None, engine_budget_ms=10):
@@ -77,8 +119,7 @@ def sequence_config(output, port, projection, case_id, fault_transaction=None, u
         log = log.replace("$request_id", "$sequence_transaction_id")
         log = ('  map $request_uri $sequence_transaction_id { default $request_id; '
                f'"/no-crs/sequence/{fault_transaction[:24]}/0" "{fault_transaction}"; }}\n' + log)
-        text = text.replace('location / { try_files $uri /index.html; }',
-                            'location / { try_files /index.html =404; }')
+        text = text.replace(STATIC_LOCATION, PROBE_LOCATION)
     if case_id in DEADLINE:
         if type(engine_budget_ms) is not int or engine_budget_ms not in (0, 10, 100):
             raise ValueError("budget probe permits only disabled, exceeded and under-budget controls")
@@ -90,9 +131,8 @@ def sequence_config(output, port, projection, case_id, fault_transaction=None, u
     if case_id in UPSTREAM_CASES:
         mode = "strict" if case_id in STRICT else "safe"
         log += f"\n  modsecurity_phase4_mode {mode};"
-        text = text.replace('location / { try_files /index.html =404; }',
-                            'location / { try_files $uri /index.html; }')
-        text = text.replace('location / { try_files $uri /index.html; }',
+        text = text.replace(PROBE_LOCATION, STATIC_LOCATION)
+        text = text.replace(STATIC_LOCATION,
                             'location / { proxy_buffering off; proxy_http_version 1.1; '
                             f'proxy_pass http://127.0.0.1:{upstream_port}; }}')
     return text.replace("  access_log off;", log).encode()
@@ -109,7 +149,7 @@ def private_json(output, leaf, value):
 
 def begin_ledger_environment(output, environment, transaction, negative_control):
     """Preopen a private Root-owned descriptor; the fixture validates it again."""
-    descriptor = os.open(output / "native-begin-observations.jsonl",
+    descriptor = os.open(output / BEGIN_LEDGER,
                          os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     mismatch = transaction[:-1] + ("0" if transaction[-1] != "0" else "1")
     environment.update(MSCONNECTOR_OWNED_BEGIN_FAULT="one-native-allocation-failure",
@@ -120,17 +160,17 @@ def begin_ledger_environment(output, environment, transaction, negative_control)
 
 def native_source_observations(output, case_id):
     """Retain every original source event, including errors and cleanup."""
-    event_path = output / "phase1-events.jsonl"
+    event_path = output / EVENTS_LEAF
     result = {"native_events": [json.loads(line) for line in STARTUP.bounded_capture(event_path).splitlines()
                                 if line.strip()] if event_path.exists() else []}
     if case_id == "transaction_begin_failure_cleanup":
         result["native_begin"] = [json.loads(line) for line in STARTUP.bounded_capture(
-            output / "native-begin-observations.jsonl").splitlines() if line.strip()]
+            output / BEGIN_LEDGER).splitlines() if line.strip()]
     return result
 
 
 def read_access(output, count):
-    path = output / "native-access.jsonl"
+    path = output / ACCESS_LEAF
     deadline = time.monotonic() + 2
     while time.monotonic() < deadline:
         if path.exists():
@@ -143,14 +183,13 @@ def read_access(output, count):
 
 def configure_timeout_rules(output):
     """Bind the receipt to the effective technical probe rules, after removal."""
-    path = output / "no-crs-baseline.conf"
+    path = output / RULES_LEAF
     with path.open("ab") as configured:
         configured.write(b"\n# Technical soft-budget probe has no rule-deny premise.\nSecRuleRemoveById 1100301\n")
     return BASE.digest(STARTUP.bounded_capture(path))
 
 
-def run(args):
-    binary, module, output = BASE.validate_inputs(args)
+def validate_sequence_controls(args):
     if args.fault_negative_control and args.case_id not in WRITE | DEADLINE | {"transaction_begin_failure_cleanup", "finish_failure_propagation"}:
         raise ValueError("fault negative control requires its exact native fixture case")
     engine_budget_ms = getattr(args, "engine_call_budget_ms", 10)
@@ -158,95 +197,130 @@ def run(args):
         raise ValueError("engine budget controls require their exact timeout fixture case")
     if os.geteuid() != 0:
         raise ValueError("sequence operation requires isolated Root master and nobody worker")
-    framework = BASE.absolute_path(args.framework_root)
-    validator = load("nginx_sequence_contract", framework / "tests/runners/nginx_lifecycle_sequence.py")
-    rules = framework / "tests/rules/no-crs-baseline.conf"
-    parent = BASE.absolute_path(args.projection_parent)
+    return engine_budget_ms
+
+
+def prepare_sequence_assets(binary, module, output, framework, case_id):
+    rules = framework / "tests/rules" / RULES_LEAF
     output.mkdir(mode=0o700)
     (output / "logs").mkdir(mode=0o700)
     hashes = {
-        "binary_sha256": BASE.snapshot_artifact(binary, output / "nginx-binary", executable=True),
-        "module_sha256": BASE.snapshot_artifact(module, output / "nginx-module.so", executable=False),
-        "rules_sha256": BASE.snapshot_artifact(rules, output / "no-crs-baseline.conf", executable=False),
+        "binary_sha256": BASE.snapshot_artifact(binary, output / BINARY_LEAF, executable=True),
+        "module_sha256": BASE.snapshot_artifact(module, output / MODULE_LEAF, executable=False),
+        "rules_sha256": BASE.snapshot_artifact(rules, output / RULES_LEAF, executable=False),
     }
-    if args.case_id in DEADLINE:
+    if case_id in DEADLINE:
         hashes["rules_sha256"] = configure_timeout_rules(output)
     source = output / "docroot"
     source.mkdir(mode=0o700)
     for name in STARTUP.PROJECTION.PROJECTED_FILENAMES:
-        (source / name).write_bytes(TRANSPORT_BODY if args.case_id in FRAMING else b"bounded-owned-sequence\n")
+        (source / name).write_bytes(TRANSPORT_BODY if case_id in FRAMING else b"bounded-owned-sequence\n")
+    return hashes, source
+
+
+def prepare_sequence_projection(args, source, output, parent, framework):
     identity = hashlib.sha256((args.run_id + ":" + args.case_id).encode()).hexdigest()
     token = identity[:24]
     projection = STARTUP.PROJECTION.prepare_projection(
         source_docroot=source, private_root=output, projection_parent=parent,
         projection_root=parent / ("sequence-" + token), worker_gid=65534,
         avoid_roots=[output, BASE.PARENT_ROOT, framework])
-    with socket.socket() as reservation:
-        reservation.bind(("127.0.0.1", 0))
-        port = reservation.getsockname()[1]
-    upstream = None
-    if args.case_id == "transport_http11_chunked":
-        upstream = FramingUpstream(f"/no-crs/sequence/{token}/0")
-    elif args.case_id in UPSTREAM_CASES:
-        upstream = SynchronizedUpstream(backpressure=args.case_id == "response_write_would_block_resume")
-    config = sequence_config(output, port, projection, args.case_id, identity[:32],
-                             upstream.port if upstream is not None else None, engine_budget_ms)
-    (output / "nginx.conf").write_bytes(config)
-    environment = BASE.configtest_environment(args.library_dir)
-    write_fd = None
+    return identity, token, projection
+
+
+def sequence_upstream(case_id, token):
+    if case_id == "transport_http11_chunked":
+        return FramingUpstream(f"/no-crs/sequence/{token}/0")
+    if case_id in UPSTREAM_CASES:
+        return SynchronizedUpstream(backpressure=case_id == "response_write_would_block_resume")
+    return None
+
+
+def snapshot_fault(args, output, hashes, leaf, missing_message):
+    if args.fault_library is None:
+        raise ValueError(missing_message)
+    hashes["fault_library_sha256"] = BASE.snapshot_artifact(
+        BASE.absolute_path(args.fault_library), output / leaf, executable=False)
+    return str(output / leaf)
+
+
+def prepare_write_fault(args, output, token, port, environment, hashes):
+    preload = snapshot_fault(args, output, hashes, "native-write-fault.so",
+        "write-resume operation requires its bounded native fixture library")
+    descriptor = os.open(output / WRITE_LEDGER, os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_WRONLY, 0o600)
+    environment["LD_PRELOAD"] = preload
+    environment["MSCONNECTOR_OWNED_WRITE_FAULT"] = "short_write" if args.case_id == "response_short_write_resume" else "write_would_block"
+    if args.fault_negative_control:
+        environment["MSCONNECTOR_OWNED_WRITE_FAULT"] = "disabled"
+    environment["MSCONNECTOR_OWNED_WRITE_URI"] = f"/no-crs/sequence/{token}/0"
+    environment["MSCONNECTOR_OWNED_WRITE_PORT"] = str(port)
+    environment["MSCONNECTOR_OWNED_WRITE_FD"] = str(descriptor)
+    return descriptor
+
+
+def prepare_transaction_fault(args, output, identity, environment, hashes):
+    finishing = args.case_id == "finish_failure_propagation"
+    leaf = "native-finish-fault.so" if finishing else "native-budget-fault.so"
+    message = ("post-response finish failure requires its exact owned native fixture" if finishing else
+               "deadline case requires its scoped post-return delay fixture")
+    preload = snapshot_fault(args, output, hashes, leaf, message)
+    descriptor = os.open(output / (FINISH_LEDGER if finishing else BUDGET_LEDGER),
+                         os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    transaction = identity[:32]
+    mismatch = transaction[:-1] + ("0" if transaction[-1] != "0" else "1")
+    environment["LD_PRELOAD"] = preload
+    prefix = "MSCONNECTOR_OWNED_FINISH" if finishing else "MSCONNECTOR_OWNED_BUDGET"
+    environment[prefix + "_TXID"] = mismatch if args.fault_negative_control else transaction
+    environment[prefix + "_FD"] = str(descriptor)
+    if not finishing:
+        environment[prefix + "_PHASE"] = "1" if args.case_id == "engine_timeout_before_commit" else "4"
+    return descriptor
+
+
+def prepare_sequence_fault(args, output, identity, token, port, environment, hashes):
     if args.case_id == "transaction_begin_failure_cleanup":
-        if args.fault_library is None:
-            raise ValueError("native begin-failure operation requires its bounded fixture library")
-        fault_library = BASE.absolute_path(args.fault_library)
-        hashes["fault_library_sha256"] = BASE.snapshot_artifact(
-            fault_library, output / "native-transaction-fault.so", executable=False)
-        environment["LD_PRELOAD"] = str(output / "native-transaction-fault.so")
+        environment["LD_PRELOAD"] = snapshot_fault(args, output, hashes, "native-transaction-fault.so",
+            "native begin-failure operation requires its bounded fixture library")
         transaction = identity[:32]
-        write_fd = begin_ledger_environment(output, environment, transaction, args.fault_negative_control)
-    elif args.case_id in WRITE:
-        if args.fault_library is None:
-            raise ValueError("write-resume operation requires its bounded native fixture library")
-        fault_library = BASE.absolute_path(args.fault_library)
-        hashes["fault_library_sha256"] = BASE.snapshot_artifact(
-            fault_library, output / "native-write-fault.so", executable=False)
-        write_fd = os.open(output / "native-write-observations.jsonl", os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_WRONLY, 0o600)
-        environment["LD_PRELOAD"] = str(output / "native-write-fault.so")
-        environment["MSCONNECTOR_OWNED_WRITE_FAULT"] = "short_write" if args.case_id == "response_short_write_resume" else "write_would_block"
-        if args.fault_negative_control:
-            environment["MSCONNECTOR_OWNED_WRITE_FAULT"] = "disabled"
-        environment["MSCONNECTOR_OWNED_WRITE_URI"] = f"/no-crs/sequence/{token}/0"
-        environment["MSCONNECTOR_OWNED_WRITE_PORT"] = str(port)
-        environment["MSCONNECTOR_OWNED_WRITE_FD"] = str(write_fd)
-    elif args.case_id == "finish_failure_propagation":
-        if args.fault_library is None:
-            raise ValueError("post-response finish failure requires its exact owned native fixture")
-        hashes["fault_library_sha256"] = BASE.snapshot_artifact(
-            BASE.absolute_path(args.fault_library), output / "native-finish-fault.so", executable=False)
-        write_fd = os.open(output / "native-finish-observations.jsonl", os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_WRONLY, 0o600)
-        transaction = identity[:32]
-        mismatch = transaction[:-1] + ("0" if transaction[-1] != "0" else "1")
-        environment["LD_PRELOAD"] = str(output / "native-finish-fault.so")
-        environment["MSCONNECTOR_OWNED_FINISH_TXID"] = mismatch if args.fault_negative_control else transaction
-        environment["MSCONNECTOR_OWNED_FINISH_FD"] = str(write_fd)
-    elif args.case_id in DEADLINE:
-        if args.fault_library is None:
-            raise ValueError("deadline case requires its scoped post-return delay fixture")
-        hashes["fault_library_sha256"] = BASE.snapshot_artifact(
-            BASE.absolute_path(args.fault_library), output / "native-budget-fault.so", executable=False)
-        write_fd = os.open(output / "native-budget-observations.jsonl",
-                           os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-        transaction = identity[:32]
-        mismatch = transaction[:-1] + ("0" if transaction[-1] != "0" else "1")
-        environment["LD_PRELOAD"] = str(output / "native-budget-fault.so")
-        environment["MSCONNECTOR_OWNED_BUDGET_TXID"] = mismatch if args.fault_negative_control else transaction
-        environment["MSCONNECTOR_OWNED_BUDGET_FD"] = str(write_fd)
-        environment["MSCONNECTOR_OWNED_BUDGET_PHASE"] = "1" if args.case_id == "engine_timeout_before_commit" else "4"
-    elif args.fault_library is not None:
+        return begin_ledger_environment(output, environment, transaction, args.fault_negative_control)
+    if args.case_id in WRITE:
+        return prepare_write_fault(args, output, token, port, environment, hashes)
+    if args.case_id == "finish_failure_propagation" or args.case_id in DEADLINE:
+        return prepare_transaction_fault(args, output, identity, environment, hashes)
+    if args.fault_library is not None:
         raise ValueError("fault fixture is only authorized for its exact native boundary case")
-    argv = [str(output / "nginx-binary"), "-e", "stderr", "-c", str(output / "nginx.conf"), "-p", str(output) + "/"]
-    exit_code, stdout, stderr, failure = BASE.invoke(argv + ["-t"], environment)
-    (output / "configtest.stdout").write_bytes(stdout)
-    (output / "configtest.stderr").write_bytes(stderr)
+    return None
+
+
+def capture_sequence_wire(args, output, port, token):
+    """Publish captured facts before parsing can reject the actual response."""
+    if args.case_id not in FRAMING:
+        return None, None
+    request_wire, response_wire = capture_http11_wire(port, f"/no-crs/sequence/{token}/0")
+    for leaf, raw in (("request-wire.bin", request_wire), ("response-wire.bin", response_wire)):
+        with (output / leaf).open("xb") as capture:
+            capture.write(raw)
+    wire = {"request_hex": request_wire.hex(), "response_hex": response_wire.hex(), "eof_seen": True}
+    return wire, response_wire
+
+
+def capture_sequence_requests(args, port, token, upstream, validator, response_wire):
+    statuses = SEQUENCES[args.case_id]
+    paths = [f"/no-crs/sequence/{token}/{index}" for index in range(len(statuses))]
+    if args.case_id not in FRAMING:
+        observations = run_sequence(port, paths, statuses, keepalive=args.case_id in KEEPALIVE,
+            headers_seen=upstream.headers_seen if upstream is not None else None,
+            expect_first_abort=args.case_id in STRICT | {"engine_timeout_after_commit"},
+            backpressure=args.case_id == "response_write_would_block_resume")
+        return observations
+    parsed = validator.WIRE.parse_http11_response(response_wire)
+    parsed.pop("body")
+    return [dict(parsed, path=paths[0], transport_result="completed", client_error=None)]
+
+
+def execute_sequence(args, output, token, upstream, validator,
+                     invocation: PreparedInvocation) -> ExecutionOutcome:
+    port, argv, environment, write_fd, exit_code, failure = invocation
     roles = {"master_pid": 0, "worker_pid": 0, "master_uid": -1, "worker_uid": -1}
     process, handles = None, {}
     observations, access = [], []
@@ -265,25 +339,10 @@ def run(args):
             roles = STARTUP.observe_roles(process, args.run_id, port, output, handles)
             with (output / "worker-maps.log").open("xb") as captured:
                 captured.write(STARTUP.bounded_capture(Path("/proc") / str(roles["worker_pid"]) / "maps"))
-            statuses = SEQUENCES[args.case_id]
-            paths = [f"/no-crs/sequence/{token}/{index}" for index in range(len(statuses))]
-            if args.case_id in FRAMING:
-                request_wire, response_wire = capture_http11_wire(port, paths[0])
-                for leaf, raw in (("request-wire.bin", request_wire), ("response-wire.bin", response_wire)):
-                    with (output / leaf).open("xb") as capture:
-                        capture.write(raw)
-                wire_observation = {"request_hex": request_wire.hex(), "response_hex": response_wire.hex(),
-                                    "eof_seen": True}
-                parsed = validator.WIRE.parse_http11_response(response_wire)
-                parsed.pop("body")
-                observations = [dict(parsed, path=paths[0], transport_result="completed", client_error=None)]
-            else:
-                observations = run_sequence(port, paths, statuses, keepalive=args.case_id in KEEPALIVE,
-                                            headers_seen=upstream.headers_seen if upstream is not None else None,
-                                            expect_first_abort=args.case_id in STRICT | {"engine_timeout_after_commit"},
-                                            backpressure=args.case_id == "response_write_would_block_resume")
+            wire_observation, response_wire = capture_sequence_wire(args, output, port, token)
+            observations = capture_sequence_requests(args, port, token, upstream, validator, response_wire)
             client_exit = 0
-            access = read_access(output, len(statuses))
+            access = read_access(output, len(SEQUENCES[args.case_id]))
             post_roles = STARTUP.observe_roles(process, args.run_id, port, output, handles)
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         failure = str(exc)
@@ -300,9 +359,17 @@ def run(args):
                     os.fsync(write_fd)
                 finally:
                     os.close(write_fd)
-    observed = dict(schema_version=1, operation="request_sequence", protocol="http1", case_id=args.case_id,
-                    run_id=args.run_id, client_exit_code=client_exit, requests=observations,
-                    native_access=access, roles=roles, cleanup=cleanup)
+    observed = {"schema_version": 1, "operation": "request_sequence", "protocol": "http1",
+                "case_id": args.case_id, "run_id": args.run_id, "client_exit_code": client_exit,
+                "requests": observations, "native_access": access, "roles": roles, "cleanup": cleanup}
+    return ExecutionOutcome(observed, wire_observation, post_roles, upstream_observation,
+                            failure, process is not None)
+
+
+def add_sequence_observations(args, output, outcome: ExecutionOutcome, upstream, engine_budget_ms):
+    observed = outcome.observed
+    wire_observation, post_roles = outcome.wire, outcome.post_roles
+    upstream_observation = outcome.upstream_observation
     if args.case_id in FRAMING:
         observed["wire"] = wire_observation
         observed["post_sequence_roles"] = post_roles
@@ -316,16 +383,21 @@ def run(args):
         observed["upstream_barrier"] = upstream_observation
         observed["post_sequence_roles"] = post_roles
     observed.update(native_source_observations(output, args.case_id))
+    add_native_fault_observations(args, output, observed, engine_budget_ms)
+
+
+def ledger_rows(output, leaf):
+    return [json.loads(line) for line in STARTUP.bounded_capture(output / leaf).splitlines() if line.strip()]
+
+
+def add_native_fault_observations(args, output, observed, engine_budget_ms):
     if args.case_id in WRITE:
-        observed["native_writes"] = [json.loads(line) for line in STARTUP.bounded_capture(
-            output / "native-write-observations.jsonl").splitlines() if line.strip()]
+        observed["native_writes"] = ledger_rows(output, WRITE_LEDGER)
     if args.case_id == "finish_failure_propagation":
-        observed["native_finish"] = [json.loads(line) for line in STARTUP.bounded_capture(
-            output / "native-finish-observations.jsonl").splitlines() if line.strip()]
+        observed["native_finish"] = ledger_rows(output, FINISH_LEDGER)
     if args.case_id in DEADLINE:
         observed["budget_ms"] = engine_budget_ms
-        budget_rows = [json.loads(line) for line in STARTUP.bounded_capture(
-            output / "native-budget-observations.jsonl").splitlines() if line.strip()]
+        budget_rows = ledger_rows(output, BUDGET_LEDGER)
         cleanup_operation = "msconnector_transaction_contract_cleanup"
         observed["native_budget"] = [row for row in budget_rows if row.get("native_operation") != cleanup_operation]
         observed["native_cleanup"] = [row for row in budget_rows if row.get("native_operation") == cleanup_operation]
@@ -340,31 +412,34 @@ def run(args):
         triggered = diagnostic.encode() in native_error
         observed["fault"] = {"requested": requested, "triggered": triggered,
                              "native_diagnostic": diagnostic if triggered else None}
-    errors = validator.observation_errors(observed, args.case_id, args.run_id)
-    if failure:
-        errors.append(failure)
-    observed_raw = private_json(output, "sequence-observation.json", observed)
-    receipt = dict(hashes, schema_version=1, case_id=args.case_id, run_id=args.run_id,
+
+
+def sequence_receipt(args, output, context: ReceiptContext, observed_raw, client_exit):
+    receipt = dict(context.hashes, schema_version=1, case_id=args.case_id, run_id=args.run_id,
                    operation="request_sequence", parent_sha=args.parent_sha,
                    framework_sha=args.framework_sha, mrts_sha=args.mrts_sha,
-                   observed_exit_code=exit_code, client_exit_code=client_exit,
-                   observed_sha256=BASE.digest(observed_raw), config_sha256=BASE.digest(config),
-                   native_access_sha256=BASE.digest(STARTUP.bounded_capture(output / "native-access.jsonl"))
-                       if (output / "native-access.jsonl").exists() else None,
-                   projection_parent=str(parent), projection_root=str(projection))
-    for key, leaf in {"events_sha256": "phase1-events.jsonl", "worker_maps_sha256": "worker-maps.log",
-                      "native_writes_sha256": "native-write-observations.jsonl",
-                      "native_finish_sha256": "native-finish-observations.jsonl",
-                      "native_begin_sha256": "native-begin-observations.jsonl",
-                      "native_budget_sha256": "native-budget-observations.jsonl",
+                   observed_exit_code=context.config_exit_code, client_exit_code=client_exit,
+                   observed_sha256=BASE.digest(observed_raw), config_sha256=BASE.digest(context.config),
+                   native_access_sha256=BASE.digest(STARTUP.bounded_capture(output / ACCESS_LEAF))
+                       if (output / ACCESS_LEAF).exists() else None,
+                   projection_parent=str(context.projection_parent), projection_root=str(context.projection_root))
+    for key, leaf in {"events_sha256": EVENTS_LEAF, "worker_maps_sha256": "worker-maps.log",
+                      "native_writes_sha256": WRITE_LEDGER,
+                      "native_finish_sha256": FINISH_LEDGER,
+                      "native_begin_sha256": BEGIN_LEDGER,
+                      "native_budget_sha256": BUDGET_LEDGER,
                       "request_wire_sha256": "request-wire.bin", "response_wire_sha256": "response-wire.bin",
                       "upstream_request_wire_sha256": "upstream-request-wire.bin",
                       "upstream_response_wire_sha256": "upstream-response-wire.bin"}.items():
         path = output / leaf
         if path.exists():
             receipt[key] = BASE.digest(STARTUP.bounded_capture(path))
+    return receipt
+
+
+def publish_sequence_source(args, output, live_executed, receipt, errors):
     # Host-only evidence is not Canonical PASS for transport event contracts.
-    row = {"case_id": args.case_id, "run_id": args.run_id, "live_executed": process is not None,
+    row = {"case_id": args.case_id, "run_id": args.run_id, "live_executed": live_executed,
            "operation": "request_sequence", "sequence_observation_valid": not errors,
            "errors": errors, "sequence_receipt": receipt, "artifacts": {"sequence_dir": str(output)}}
     private_json(output, "sequence-source.json", {"cases": [row]})
@@ -372,6 +447,39 @@ def run(args):
     for error in errors:
         print(error, file=sys.stderr)
     return not errors
+
+
+def run(args):
+    binary, module, output = BASE.validate_inputs(args)
+    engine_budget_ms = validate_sequence_controls(args)
+    framework = BASE.absolute_path(args.framework_root)
+    validator = load("nginx_sequence_contract", framework / "tests/runners/nginx_lifecycle_sequence.py")
+    parent = BASE.absolute_path(args.projection_parent)
+    hashes, source = prepare_sequence_assets(binary, module, output, framework, args.case_id)
+    identity, token, projection = prepare_sequence_projection(args, source, output, parent, framework)
+    with socket.socket() as reservation:
+        reservation.bind(("127.0.0.1", 0))
+        port = reservation.getsockname()[1]
+    upstream = sequence_upstream(args.case_id, token)
+    config = sequence_config(output, port, projection, args.case_id, identity[:32],
+                             upstream.port if upstream is not None else None, engine_budget_ms)
+    (output / CONFIG_LEAF).write_bytes(config)
+    environment = BASE.configtest_environment(args.library_dir)
+    write_fd = prepare_sequence_fault(args, output, identity, token, port, environment, hashes)
+    argv = [str(output / BINARY_LEAF), "-e", "stderr", "-c", str(output / CONFIG_LEAF), "-p", str(output) + "/"]
+    exit_code, stdout, stderr, failure = BASE.invoke(argv + ["-t"], environment)
+    (output / "configtest.stdout").write_bytes(stdout)
+    (output / "configtest.stderr").write_bytes(stderr)
+    invocation = PreparedInvocation(port, argv, environment, write_fd, exit_code, failure)
+    outcome = execute_sequence(args, output, token, upstream, validator, invocation)
+    add_sequence_observations(args, output, outcome, upstream, engine_budget_ms)
+    errors = validator.observation_errors(outcome.observed, args.case_id, args.run_id)
+    if outcome.failure:
+        errors.append(outcome.failure)
+    observed_raw = private_json(output, "sequence-observation.json", outcome.observed)
+    context = ReceiptContext(hashes, config, parent, projection, exit_code)
+    receipt = sequence_receipt(args, output, context, observed_raw, outcome.observed["client_exit_code"])
+    return publish_sequence_source(args, output, outcome.live_executed, receipt, errors)
 
 
 def main():

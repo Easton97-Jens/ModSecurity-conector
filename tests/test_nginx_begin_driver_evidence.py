@@ -68,14 +68,17 @@ class BeginDriverEvidenceTests(unittest.TestCase):
     def test_actual_host_call_and_finally_preserve_descriptor_and_hash_contract(self):
         tree = ast.parse(PATH.read_text())
         run = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "run")
-        calls = [node for node in ast.walk(run) if isinstance(node, ast.Call)]
+        self.assertIn("execute_sequence(", ast.unparse(run))
+        execution = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "execute_sequence")
+        calls = [node for node in ast.walk(execution) if isinstance(node, ast.Call)]
         popen = next(node for node in calls if isinstance(node.func, ast.Attribute) and node.func.attr == "Popen")
         forwarded = next(keyword.value for keyword in popen.keywords if keyword.arg == "pass_fds")
         self.assertIn("write_fd", ast.unparse(forwarded))
-        finalizers = [node for node in ast.walk(run) if isinstance(node, ast.Try)]
+        finalizers = [node for node in ast.walk(execution) if isinstance(node, ast.Try)]
         self.assertTrue(any("os.fsync(write_fd)" in ast.unparse(node) and "os.close(write_fd)" in ast.unparse(node)
                             for attempt in finalizers for node in attempt.finalbody))
-        self.assertIn('"native_begin_sha256": "native-begin-observations.jsonl"', PATH.read_text())
+        self.assertIn('"native_begin_sha256": BEGIN_LEDGER', PATH.read_text())
+        self.assertEqual(DRIVER.BEGIN_LEDGER, "native-begin-observations.jsonl")
 
 
 if __name__ == "__main__":
