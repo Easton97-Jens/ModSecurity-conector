@@ -24,6 +24,7 @@ def load(name, path):
 
 HOST = load("phase4_owned_host", HERE / "run-nginx-valid-rules.py")
 from nginx_phase4_upstream import BoundedPhase4Upstream
+CLIENT_STDOUT = "client.stdout"
 
 
 def native_observations(raw, path):
@@ -81,7 +82,7 @@ def actual_request(args, spec, output, environment, server):
     # Curl may otherwise omit its output file; a fresh exclusive leaf preserves
     # the distinction between observed zero bytes and an absent artifact.
     body.open("xb").close()
-    with (output / "client.stdout").open("wb") as out, (output / "client.stderr").open("wb") as err:
+    with (output / CLIENT_STDOUT).open("wb") as out, (output / "client.stderr").open("wb") as err:
         client = subprocess.Popen(["/usr/bin/curl", "--noproxy", "*", "--http1.1", "--no-buffer", "--silent",
                                    "--show-error", "--max-time", "6", "--output", str(body),
                                    "--dump-header", str(output / "response.headers"),
@@ -104,7 +105,7 @@ def actual_request(args, spec, output, environment, server):
             client.kill()
             exit_code = client.wait(timeout=2)
         server.finished.wait(6)
-    raw_status = HOST.bounded_capture(output / "client.stdout")
+    raw_status = HOST.bounded_capture(output / CLIENT_STDOUT)
     return {"client_exit_code": exit_code,
             "observed_http_status": int(raw_status) if raw_status.isdigit() else None,
             "response_bytes_received": body.stat().st_size if body.exists() else 0,
@@ -182,7 +183,7 @@ def run_operation(args, spec, *, input_path,
     raw = HOST.bounded_capture(events_path) if events_path.exists() else b""
     observations["native_events"] = observation_factory(raw, spec["request_path"])
     leaves = ("rules.conf", "nginx.conf", "configtest.stdout", "configtest.stderr",
-              "startup.stdout", "startup.stderr", "client.stdout", "client.stderr",
+              "startup.stdout", "startup.stderr", CLIENT_STDOUT, "client.stderr",
               "response.bin", "response.headers", "phase4-events.jsonl", "nginx-error.log")
     captures = {name: HOST.BASE.digest(HOST.bounded_capture(output / name))
                 for name in leaves if (output / name).exists()}

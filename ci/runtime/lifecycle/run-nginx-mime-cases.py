@@ -24,6 +24,7 @@ def load(name, path):
 HOST = load("mime_owned_host", HERE / "run-nginx-valid-rules.py")
 BACKEND_PATH = HERE.parent / "common/response-header-test-backend.py"
 BACKEND = load("mime_existing_backend", BACKEND_PATH)
+RESPONSE_HEADER_FIXTURE = "response-header-fixture.json"
 
 
 def configuration(output, port, upstream_port, projection, path, mode, run_id):
@@ -60,7 +61,7 @@ class MimeUpstream:
         self.sizes, self.error = [], "none"
 
     def __enter__(self):
-        fixture_path = self.output / "response-header-fixture.json"
+        fixture_path = self.output / RESPONSE_HEADER_FIXTURE
         fixture_path.write_text(json.dumps(self.spec["backend_fixture"], sort_keys=True) + "\n")
         fixture = BACKEND.load_fixture_file(fixture_path, [self.output])
         owner = self
@@ -133,8 +134,8 @@ def run(args):
         configuration_factory=configuration, upstream_path=Path(__file__))
     output = Path(args.output_root)
     row = json.loads(HOST.bounded_capture(output / "source-result.json"))
-    row["raw_sha256"]["response-header-fixture.json"] = HOST.BASE.digest(
-        HOST.bounded_capture(output / "response-header-fixture.json"))
+    row["raw_sha256"][RESPONSE_HEADER_FIXTURE] = HOST.BASE.digest(
+        HOST.bounded_capture(output / RESPONSE_HEADER_FIXTURE))
     row["backend_contract_sha256"] = HOST.BASE.digest(BACKEND_PATH.read_bytes())
     row["backend_omission_contract_sha256"] = HOST.BASE.digest(
         (HERE.parent / "common/response_fixture_omission.py").read_bytes())

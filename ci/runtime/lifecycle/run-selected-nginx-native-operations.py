@@ -62,13 +62,36 @@ OVERRIDES = {
 }
 for case, override in OVERRIDES.items():
     CONTRACTS[case]["expected_overrides"] = override
-FAULT_ENV = {**{case: "NGX_NATIVE_INPUT_FAULT_LIBRARY" for case in POINTER},
+FAULT_ENV = {**dict.fromkeys(POINTER, "NGX_NATIVE_INPUT_FAULT_LIBRARY"),
     "transaction_begin_failure_cleanup": "NGX_NATIVE_BEGIN_FAULT_LIBRARY",
     "finish_failure_propagation": "NGX_NATIVE_FINISH_FAULT_LIBRARY",
-    **{case: "NGX_NATIVE_WRITE_FAULT_LIBRARY" for case in
-       ("response_short_write_resume", "response_write_would_block_resume")},
-    **{case: "NGX_NATIVE_ENGINE_BUDGET_FAULT_LIBRARY" for case in
-       ("engine_timeout_before_commit", "engine_timeout_after_commit")}}
+    **dict.fromkeys(("response_short_write_resume", "response_write_would_block_resume"),
+                    "NGX_NATIVE_WRITE_FAULT_LIBRARY"),
+    **dict.fromkeys(("engine_timeout_before_commit", "engine_timeout_after_commit"),
+                    "NGX_NATIVE_ENGINE_BUDGET_FAULT_LIBRARY")}
+SCRIPT_BY_CASE = {
+    case: script
+    for cases, script in (
+        (RAW, "run-nginx-raw-h1.py"),
+        (POINTER, "run-nginx-common-input-fault.py"),
+        (MIME, "run-nginx-mime-cases.py"),
+        (PHASE4, "run-nginx-phase4-cases.py"),
+        (SEQUENCES, "run-nginx-lifecycle-sequences.py"),
+        (EVENTS, "run-nginx-event-boundary-cases.py"),
+    )
+    for case in cases
+}
+
+
+def has_native_descriptor(record, case):
+    descriptor = record.get("native_invocations", {}).get("nginx")
+    if descriptor is None:
+        if case in CONTRACTS:
+            raise ValueError("selected native case lacks its required registry descriptor")
+        return False  # Existing52 and configuration3 remain other owners' work.
+    if case not in CONTRACTS or json.dumps(descriptor, sort_keys=True) != json.dumps(CONTRACTS[case], sort_keys=True):
+        raise ValueError("catalog native invocation differs from the closed host contract")
+    return True
 
 
 def selected_invocations(records, selected):
@@ -83,28 +106,26 @@ def selected_invocations(records, selected):
         catalog_ids.add(case)
         if case not in selected:
             continue
-        descriptor = record.get("native_invocations", {}).get("nginx")
-        if descriptor is None:
-            if case in CONTRACTS:
-                raise ValueError("selected native case lacks its required registry descriptor")
-            continue  # Existing52 and configuration3 remain other owners' work.
-        if case not in CONTRACTS or json.dumps(descriptor, sort_keys=True) != json.dumps(CONTRACTS[case], sort_keys=True):
-            raise ValueError("catalog native invocation differs from the closed host contract")
-        found.append(case)
+        if has_native_descriptor(record, case):
+            found.append(case)
     if (set(selected) & set(CONTRACTS)) - set(found):
         raise ValueError("selected native case missing from registry")
     return found
 
 
+def fault_arguments(case, environment):
+    if case not in FAULT_ENV:
+        return []
+    library = environment.get(FAULT_ENV[case])
+    if not library or not Path(library).is_absolute():
+        raise ValueError("required native fault library missing: " + FAULT_ENV[case])
+    return ["--fault-library", library]
+
+
 def command(case, paths, run_id, identities, environment):
     if case not in CONTRACTS:
         raise ValueError("unknown native case")
-    script = ("run-nginx-raw-h1.py" if case in RAW else
-              "run-nginx-common-input-fault.py" if case in POINTER else
-              "run-nginx-mime-cases.py" if case in MIME else
-              "run-nginx-phase4-cases.py" if case in PHASE4 else
-              "run-nginx-lifecycle-sequences.py" if case in SEQUENCES else
-              "run-nginx-event-boundary-cases.py")
+    script = SCRIPT_BY_CASE[case]
     args = [sys.executable, str(HERE / script), "--case-id", case,
             "--nginx-binary", str(paths["prefix"] / "sbin/nginx"),
             "--module", str(paths["prefix"] / "modules/ngx_http_modsecurity_module.so"),
@@ -116,11 +137,7 @@ def command(case, paths, run_id, identities, environment):
         args += ["--projection-parent", str(paths["projection"])]
     if environment.get("MODSECURITY_LIB_DIR"):
         args += ["--library-dir", environment["MODSECURITY_LIB_DIR"]]
-    if case in FAULT_ENV:
-        library = environment.get(FAULT_ENV[case])
-        if not library or not Path(library).is_absolute():
-            raise ValueError("required native fault library missing: " + FAULT_ENV[case])
-        args += ["--fault-library", library]
+    args += fault_arguments(case, environment)
     return args
 
 
@@ -213,9 +230,9 @@ def run(environment):
     os.close(SOURCE.directory(host))
     output = child(host, "native-operations-" + run_id)
     projections = child(output, "projections")
-    identities = dict(parent_sha=identity(ROOT, "HEAD"), framework_sha=identity(framework, "HEAD"),
-                      mrts_sha=identity(framework, "HEAD:tools/MRTS"),
-                      parent_framework_gitlink=identity(ROOT, "HEAD:modules/ModSecurity-test-Framework"))
+    identities = {"parent_sha": identity(ROOT, "HEAD"), "framework_sha": identity(framework, "HEAD"),
+                  "mrts_sha": identity(framework, "HEAD:tools/MRTS"),
+                  "parent_framework_gitlink": identity(ROOT, "HEAD:modules/ModSecurity-test-Framework")}
     reader_path = framework / "tests/runners/nginx_native_operation_bundle.py"
     # Import only the explicitly owned reader API, never a catalog-selected script.
     SOURCE.source_hashes({"framework:tests/runners/nginx_native_operation_bundle.py"}, ROOT, framework)
@@ -229,11 +246,11 @@ def run(environment):
         raise ValueError("absolute NGINX prefix required")
     # Reject missing required fixtures before any actual host invocation.
     for case in cases:
-        command(case, dict(prefix=prefix, framework=framework, output=output / case,
-                           projection=projections / case), run_id, identities, environment)
+        command(case, {"prefix": prefix, "framework": framework, "output": output / case,
+                       "projection": projections / case}, run_id, identities, environment)
     def invoke(case):
         projection = child(projections, case)
-        paths = dict(prefix=prefix, framework=framework, output=output / case, projection=projection)
+        paths = {"prefix": prefix, "framework": framework, "output": output / case, "projection": projection}
         args = command(case, paths, run_id, identities, environment)
         completed = subprocess.run(args, check=False, timeout=180)
         print(f"nginx native case={case} driver_exit_code={completed.returncode}", file=sys.stderr)

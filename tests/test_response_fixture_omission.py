@@ -35,7 +35,7 @@ class ResponseFixtureOmissionTests(unittest.TestCase):
             try:
                 with build_opener(ProxyHandler({})).open(f"http://127.0.0.1:{server.server_port}/", timeout=2) as response:
                     self.assertEqual(response.status, 200)
-                    self.assertEqual(response.headers.get_all("Content-Type"), None)
+                    self.assertIsNone(response.headers.get_all("Content-Type"))
                     self.assertEqual(response.read(), b"bounded-fixture")
                     self.assertEqual(response.headers["Content-Length"], "15")
             finally:

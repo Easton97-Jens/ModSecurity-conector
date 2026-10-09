@@ -21,6 +21,11 @@ def load(name, path):
 
 
 HOST = load("event_boundary_owned_host", HERE / "run-nginx-valid-rules.py")
+SOURCE_RESULT = "source-result.json"
+EVENT_VARIANTS = {
+    "event_metadata_truncation": ("long-query",),
+    "event_json_limit": ("at255", "over256"),
+}
 
 
 def configuration(output, port, upstream_port, projection, path, mode, run_id):
@@ -52,11 +57,9 @@ def native_callbacks(raw, path):
 
 
 def variants_for(case_id):
-    if case_id == "event_metadata_truncation":
-        return ("long-query",)
-    if case_id == "event_json_limit":
-        return ("at255", "over256")
-    raise ValueError("unknown closed event boundary identity")
+    if not isinstance(case_id, str) or case_id not in EVENT_VARIANTS:
+        raise ValueError("unknown closed event boundary identity")
+    return EVENT_VARIANTS[case_id]
 
 
 def run(args):
@@ -79,23 +82,23 @@ def run(args):
         completed = runtime.run_operation(child_args, spec, input_path=input_path,
             configuration_factory=configuration, upstream_path=Path(__file__), observation_factory=native_callbacks)
         child_output = Path(child_args.output_root)
-        receipt = json.loads(HOST.bounded_capture(child_output / "source-result.json"))
+        receipt = json.loads(HOST.bounded_capture(child_output / SOURCE_RESULT))
         receipt.update(variant=variant, request_headers=spec["request_headers"])
-        HOST.write_json(child_output / "source-result.json", receipt)
-        retained = HOST.bounded_capture(child_output / "source-result.json")
+        HOST.write_json(child_output / SOURCE_RESULT, receipt)
+        retained = HOST.bounded_capture(child_output / SOURCE_RESULT)
         children.append({"variant": variant, "directory": variant, "run_id": child_args.run_id,
                          "receipt_sha256": HOST.BASE.digest(retained)})
         succeeded = succeeded and completed
-    row = dict(schema_version=1, case_id=args.case_id, run_id=args.run_id,
-               operation="native_event_boundary_request", parent_sha=args.parent_sha,
-               framework_sha=args.framework_sha, mrts_sha=args.mrts_sha, children=children,
-               uri_buffer_bytes=contracts.URI_BUFFER_BYTES, writer_buffer_bytes=contracts.WRITER_BUFFER_BYTES,
-               driver_sha256=HOST.BASE.digest(Path(__file__).read_bytes()),
-               closed_inputs_sha256=HOST.BASE.digest(input_path.read_bytes()),
-               closed_input_dependencies_sha256={name: HOST.BASE.digest((input_path.parent / name).read_bytes())
-                   for name in ("nginx_common_input_faults.py", "nginx_mime_operations.py")},
-               canonical_status="NOT_EXECUTED", contract_validation_pending=True)
-    HOST.write_json(output / "source-result.json", row)
+    row = {"schema_version": 1, "case_id": args.case_id, "run_id": args.run_id,
+           "operation": "native_event_boundary_request", "parent_sha": args.parent_sha,
+           "framework_sha": args.framework_sha, "mrts_sha": args.mrts_sha, "children": children,
+           "uri_buffer_bytes": contracts.URI_BUFFER_BYTES, "writer_buffer_bytes": contracts.WRITER_BUFFER_BYTES,
+           "driver_sha256": HOST.BASE.digest(Path(__file__).read_bytes()),
+           "closed_inputs_sha256": HOST.BASE.digest(input_path.read_bytes()),
+           "closed_input_dependencies_sha256": {name: HOST.BASE.digest((input_path.parent / name).read_bytes())
+               for name in ("nginx_common_input_faults.py", "nginx_mime_operations.py")},
+           "canonical_status": "NOT_EXECUTED", "contract_validation_pending": True}
+    HOST.write_json(output / SOURCE_RESULT, row)
     return succeeded
 
 

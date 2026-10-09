@@ -31,15 +31,18 @@ class _Handler(socketserver.StreamRequestHandler):
             self.wfile.write(header + (prefix_wire if late else body))
             self.wfile.flush()
             if late:
-                self.server.prefix_sent.set()
-                if not self.server.client_headers_seen.wait(timeout=5):
-                    self.server.barrier_timeout = True
-                    return
-                self.wfile.write(format(len(SUFFIX), "x").encode() + b"\r\n" + SUFFIX + b"\r\n0\r\n\r\n")
-                self.wfile.flush()
-                self.server.marker_sent.set()
+                self.send_marker()
         except OSError:
             self.server.upstream_write_failed = True
+
+    def send_marker(self):
+        self.server.prefix_sent.set()
+        if not self.server.client_headers_seen.wait(timeout=5):
+            self.server.barrier_timeout = True
+            return
+        self.wfile.write(format(len(SUFFIX), "x").encode() + b"\r\n" + SUFFIX + b"\r\n0\r\n\r\n")
+        self.wfile.flush()
+        self.server.marker_sent.set()
 
 
 class SynchronizedUpstream:

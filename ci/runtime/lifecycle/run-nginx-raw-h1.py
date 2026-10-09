@@ -30,6 +30,7 @@ def load_helper(name, path):
 HERE = Path(__file__).resolve().parent
 HOST = load_helper("raw_h1_owned_host", HERE / "run-nginx-valid-rules.py")
 BASE = HOST.BASE
+NGINX_CONFIG = "nginx.conf"
 
 
 def config_template(output: Path, port: int, upstream: int) -> str:
@@ -128,8 +129,8 @@ def run(args) -> bool:
     thread = threading.Thread(target=upstream.serve_forever, daemon=True)
     port = reserve_port()
     configuration = config_template(output, port, upstream.server_port).encode()
-    (output / "nginx.conf").write_bytes(configuration)
-    args_t = [str(output / "nginx-binary"), "-e", "stderr", "-t", "-c", str(output / "nginx.conf"), "-p", str(output) + "/"]
+    (output / NGINX_CONFIG).write_bytes(configuration)
+    args_t = [str(output / "nginx-binary"), "-e", "stderr", "-t", "-c", str(output / NGINX_CONFIG), "-p", str(output) + "/"]
     config_exit, stdout, stderr, config_failure = BASE.invoke(args_t, environment)
     (output / "stdout.log").write_bytes(stdout)
     (output / "stderr.log").write_bytes(stderr)
@@ -138,7 +139,7 @@ def run(args) -> bool:
         if config_exit != 0 or config_failure:
             raise ValueError("actual native configuration did not load")
         with (output / "startup.stdout").open("xb") as out, (output / "startup.stderr").open("xb") as err:
-            process = subprocess.Popen([str(output / "nginx-binary"), "-e", "stderr", "-c", str(output / "nginx.conf"),
+            process = subprocess.Popen([str(output / "nginx-binary"), "-e", "stderr", "-c", str(output / NGINX_CONFIG),
                                         "-p", str(output) + "/"], env=environment, stdin=subprocess.DEVNULL,
                                        stdout=out, stderr=err)
             roles = HOST.observe_roles(process, args.run_id, port, output, handles)
@@ -170,7 +171,7 @@ def run(args) -> bool:
     valid = failure is None and cleanup["verified"] and not thread.is_alive()
     for name, data in (("roles.json", roles), ("cleanup.json", cleanup)):
         HOST.write_json(output / name, data)
-    for name in ("nginx.conf", "stdout.log", "stderr.log", "startup.stdout", "startup.stderr", "access.jsonl",
+    for name in (NGINX_CONFIG, "stdout.log", "stderr.log", "startup.stdout", "startup.stderr", "access.jsonl",
                  "nginx-error.log", "native-events.jsonl", "fault-request.bin", "fault-response.bin",
                  "control-request.bin", "control-response.bin", "roles.json", "cleanup.json"):
         if (output / name).exists():

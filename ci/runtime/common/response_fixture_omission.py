@@ -10,8 +10,7 @@ def validate_omitted_headers(value: object, configured_names: Iterable[str]) -> 
     """Validate independent omission metadata against configured header names."""
     if not isinstance(value, list) or value not in ([], ["Content-Type"]):
         raise ValueError("omit_headers must be [] or exactly ['Content-Type']")
-    if not value:
-        return ()
-    if any(name.lower() == "content-type" for name in configured_names):
+    if value and any(name.lower() == "content-type" for name in configured_names):
         raise ValueError("omitted Content-Type must not also be configured, even empty")
-    return ("content-type",)
+    # This API returns an immutable collection, not a fixed-arity tuple record.
+    return tuple(name.lower() for name in value)
