@@ -35,7 +35,11 @@ __attribute__((constructor)) static void bind_attempt(void)
         strlen(descriptor) > 5U || strspn(descriptor, "0123456789") != strlen(descriptor)) {
         return;
     }
-    kind = strcmp(mode, "short_write") == 0 ? 1 : strcmp(mode, "write_would_block") == 0 ? 2 : 0;
+    if (strcmp(mode, "short_write") == 0) {
+        kind = 1;
+    } else {
+        kind = strcmp(mode, "write_would_block") == 0 ? 2 : 0;
+    }
     target_port = atoi(port);
     evidence_fd = atoi(descriptor);
     if (kind == 0 || target_port < 1024 || target_port > 65535 || evidence_fd < 3 ||
@@ -50,7 +54,8 @@ __attribute__((constructor)) static void bind_attempt(void)
 
 static int owned_socket(int fd, int *peer_port)
 {
-    struct sockaddr_in local, peer;
+    struct sockaddr_in local = {0};
+    struct sockaddr_in peer = {0};
     socklen_t size = sizeof(local);
     if (master <= 0 || getuid() != 65534 || getppid() != master ||
         getsockname(fd, (struct sockaddr *)&local, &size) != 0 ||
@@ -93,7 +98,8 @@ ssize_t recv(int fd, void *buffer, size_t size, int flags)
 static void observe(int fd, size_t requested, ssize_t returned, int error, int fault)
 {
     char line[320];
-    int peer_port, length;
+    int peer_port;
+    int length;
     if (evidence_fd < 0 || records >= 16 || !owned_socket(fd, &peer_port)) {
         return;
     }
@@ -113,7 +119,9 @@ ssize_t writev(int fd, const struct iovec *vectors, int count)
     writev_fn original;
     ssize_t returned;
     size_t requested = 0U;
-    int peer_port, fault = 0, saved;
+    int peer_port;
+    int fault = 0;
+    int saved;
     *(void **)(&original) = dlsym(RTLD_NEXT, "writev");
     if (original == NULL) {
         _exit(126);

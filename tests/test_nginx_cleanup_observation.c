@@ -12,8 +12,7 @@ static void init_contract(msconnector_transaction_contract *contract)
 
 static void complete_contract(msconnector_transaction_contract *contract)
 {
-    enum msconnector_phase phase;
-    for (phase = MSCONNECTOR_PHASE_REQUEST_HEADERS;
+    for (enum msconnector_phase phase = MSCONNECTOR_PHASE_REQUEST_HEADERS;
          phase <= MSCONNECTOR_PHASE_RESPONSE_BODY; phase++) {
         assert(msconnector_transaction_contract_begin_phase(contract, phase, 1) == 0);
         assert(msconnector_transaction_contract_complete_phase(contract, phase, 2) == 0);

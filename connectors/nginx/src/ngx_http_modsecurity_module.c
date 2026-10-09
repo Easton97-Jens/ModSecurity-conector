@@ -190,9 +190,12 @@ ngx_http_modsecurity_engine_call_finish(ngx_http_request_t *r,
     ctx = ngx_http_modsecurity_get_module_ctx(r);
     mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
     if (ctx == NULL || !ctx->contract_initialized || mcf == NULL) return NGX_ERROR;
-    result = measurement->enabled && clock_gettime(CLOCK_MONOTONIC, &end) != 0
-        ? -1 : ngx_http_modsecurity_engine_budget_finish(measurement,
+    if (measurement->enabled && clock_gettime(CLOCK_MONOTONIC, &end) != 0) {
+        result = -1;
+    } else {
+        result = ngx_http_modsecurity_engine_budget_finish(measurement,
             measurement->enabled ? &end : NULL);
+    }
     if (result < 0) {
         (void)msconnector_transaction_contract_fail(&ctx->contract,
             MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
@@ -527,6 +530,17 @@ ngx_http_modsecurity_defer_late_phase4_intervention(ngx_http_request_t *r,
          mcf->phase4_mode == MSCONNECTOR_PHASE4_MODE_STRICT);
 }
 
+static void
+ngx_http_modsecurity_extract_intervention_rule_id(ngx_http_modsecurity_ctx_t *ctx,
+    const ModSecurityIntervention *intervention)
+{
+    if (intervention->log != NULL) {
+        (void)msconnector_rule_id_extract_from_message(intervention->log,
+            ctx->last_intervention_rule_id,
+            sizeof(ctx->last_intervention_rule_id));
+    }
+}
+
 int
 ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_request_t *r, ngx_int_t early_log)
 {
@@ -583,11 +597,7 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
     /* Extract only the bounded rule ID before libmodsecurity's message is
      * released.  Phase-4 evidence is metadata-only, so retaining a complete
      * intervention message in the request pool is unnecessary. */
-    if (intervention.log != NULL) {
-        (void)msconnector_rule_id_extract_from_message(intervention.log,
-            ctx->last_intervention_rule_id,
-            sizeof(ctx->last_intervention_rule_id));
-    }
+    ngx_http_modsecurity_extract_intervention_rule_id(ctx, &intervention);
 
     ctx->native_response_body_limit_rejection =
         ngx_http_modsecurity_is_response_body_limit_rejection(

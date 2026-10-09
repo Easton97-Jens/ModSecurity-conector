@@ -8,14 +8,18 @@ int main(void)
 {
     msconnector_transaction_contract contract = {0};
     msconnector_event event;
-    char reason[128], json[8192];
-    int truncated = 0, result;
+    char reason[128];
+    char json[8192];
+    int truncated = 0;
+    int result;
+    const ngx_http_modsecurity_phase4_counters counters = {64, 65, 65, 2};
     contract.active_phase = -1;
     contract.last_completed_phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
     contract.completed_phase_mask = MSCONNECTOR_TRANSACTION_PHASE_MASK_P4;
 #define MAKE(native, retained, seen, supplied, calls) \
     ngx_http_modsecurity_phase4_observation(&event, reason, sizeof(reason), \
-        (native), &contract, (retained), (seen), (supplied), (calls), "text/plain")
+        (native), &contract, &(const ngx_http_modsecurity_phase4_counters){ \
+            (retained), (seen), (supplied), (calls)}, "text/plain")
     msconnector_event_init(&event);
     if (!MAKE(1, 64, 65, 65, 2)) return 1;
     event.meta.connector = "nginx";
@@ -42,16 +46,19 @@ int main(void)
     if (MAKE(1, 64, 65, 65, 2)) return 8;
     contract.active_phase = -1;
     if (ngx_http_modsecurity_phase4_observation(&event, reason, 8, 1,
-        &contract, 64, 65, 65, 2, "text/plain")) return 9;
+        &contract, &counters, "text/plain")) return 9;
     if (ngx_http_modsecurity_phase4_observation(NULL, reason, sizeof(reason),
-        1, &contract, 64, 65, 65, 2, NULL) ||
+        1, &contract, &counters, NULL) ||
         ngx_http_modsecurity_phase4_observation(&event, NULL, sizeof(reason),
-        1, &contract, 64, 65, 65, 2, NULL) ||
+        1, &contract, &counters, NULL) ||
         ngx_http_modsecurity_phase4_observation(&event, reason, sizeof(reason),
-        1, NULL, 64, 65, 65, 2, NULL)) return 13;
+        1, NULL, &counters, NULL)) return 13;
     event.flags.eos_seen = 0;
     event.meta.event = "sentinel";
     if (MAKE(2, 64, 65, 65, 2) || event.flags.eos_seen ||
         strcmp(event.meta.event, "sentinel") != 0) return 14;
+    if (ngx_http_modsecurity_phase4_observation(&event, reason, sizeof(reason),
+        1, &contract, NULL, "text/plain") || event.flags.eos_seen ||
+        strcmp(event.meta.event, "sentinel") != 0) return 15;
     return 0;
 }

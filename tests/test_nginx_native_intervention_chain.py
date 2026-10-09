@@ -27,6 +27,7 @@ FUNCTIONS = {
         ("ngx_int_t", "ngx_http_modsecurity_reject_native_intervention"),
         ("ngx_int_t", "ngx_http_modsecurity_collect_native_intervention"),
         ("int", "ngx_http_modsecurity_defer_late_phase4_intervention"),
+        ("void", "ngx_http_modsecurity_extract_intervention_rule_id"),
         ("int", "ngx_http_modsecurity_process_intervention"),
     ),
     "ngx_http_modsecurity_body_filter.c": (

@@ -233,7 +233,8 @@ ngx_http_modsecurity_phase4_log_native_append(ngx_http_request_t *r,
 {
     ngx_http_modsecurity_conf_t *mcf;
     msconnector_event event;
-    char reason[256], content_type[256];
+    char reason[256];
+    char content_type[256];
     int length;
 
     mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
@@ -260,16 +261,19 @@ ngx_http_modsecurity_phase4_log_native_completion(ngx_http_request_t *r,
     int native_result)
 {
     msconnector_event event;
-    char reason[128], content_type[256];
+    char reason[128];
+    char content_type[256];
     size_t retained = msc_get_response_body_length(ctx->modsec_transaction);
+    const ngx_http_modsecurity_phase4_counters counters = {
+        retained, ctx->response_body_bytes_seen,
+        ctx->response_body_bytes_inspected, ctx->response_body_append_calls
+    };
 
     if (ngx_http_modsecurity_phase4_observation_event(r, ctx, &event,
             content_type, sizeof(content_type)) != NGX_OK) return NGX_ERROR;
     event.meta.message_id = "MSCONN_PHASE4_COMPLETE";
     if (!ngx_http_modsecurity_phase4_observation(&event, reason, sizeof(reason),
-            native_result, &ctx->contract, retained,
-            ctx->response_body_bytes_seen, ctx->response_body_bytes_inspected,
-            ctx->response_body_append_calls, content_type)) return NGX_ERROR;
+            native_result, &ctx->contract, &counters, content_type)) return NGX_ERROR;
     ctx->response_body_truncated = ctx->response_body_truncated ||
         retained < ctx->response_body_bytes_inspected;
     event.flags.body_truncated = ctx->response_body_truncated;
@@ -284,7 +288,8 @@ static ngx_int_t
 ngx_http_modsecurity_append_response_body_chunk(
     ngx_http_modsecurity_ctx_t *ctx, u_char *data, size_t bytes)
 {
-    int native_result, intervention_result;
+    int native_result;
+    int intervention_result;
     size_t retained;
 
     if (ctx == NULL || ctx->modsec_transaction == NULL || ctx->r == NULL) {
@@ -1176,8 +1181,12 @@ ngx_http_modsecurity_phase4_log_failure(ngx_http_request_t *r,
     event.decision.requested_action = body_limit ? "deny" : "error";
     event.decision.action = r->header_sent ? "abort_connection" : "error";
     event.decision.actual_action = r->header_sent ? "abort_connection" : "";
-    event.http.http_status = body_limit ? NGX_HTTP_REQUEST_ENTITY_TOO_LARGE
-        : engine_timeout ? NGX_HTTP_GATEWAY_TIME_OUT : NGX_HTTP_INTERNAL_SERVER_ERROR;
+    if (body_limit) {
+        event.http.http_status = NGX_HTTP_REQUEST_ENTITY_TOO_LARGE;
+    } else {
+        event.http.http_status = engine_timeout ? NGX_HTTP_GATEWAY_TIME_OUT
+            : NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
     if (ctx->native_response_body_limit_rejection) {
         event.decision.action = "deny";
         event.decision.requested_action = "deny";

@@ -75,9 +75,13 @@ static int process(void *transaction, int phase, const char *symbol)
 {
     typedef int (*original_fn)(void *);
     original_fn original;
-    struct timespec start, end, wait = { 0, 25000000 };
+    struct timespec start;
+    struct timespec end;
+    struct timespec wait = { 0, 25000000 };
     char line[512];
-    int result, length, retries;
+    int result;
+    int length;
+    int retries;
     int active = owned(transaction, phase);
     *(void **)(&original) = dlsym(RTLD_NEXT, symbol);
     if (original == NULL) {
@@ -132,7 +136,8 @@ int msconnector_transaction_contract_cleanup(msconnector_transaction_contract *c
     typedef const char *(*name_fn)(msconnector_transaction_error_class);
     original_fn original;
     name_fn error_name;
-    int result, length;
+    int result;
+    int length;
     char line[512];
     *(void **)(&original) = dlsym(RTLD_NEXT, "msconnector_transaction_contract_cleanup");
     if (original == NULL) {

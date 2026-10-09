@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import re
 import unittest
+from unittest.mock import patch
 
 from tests.c_source_contract import function_definition, matching_delimiter
 
@@ -234,12 +235,18 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         self.assertIn("MSCONNECTOR_TRANSACTION_TRANSITION_OK", record)
         self.assertIn("canonical intervention decision", record)
 
-        self.assertIn("if (intervention.log != NULL)", intervention)
+        extract_helper = function_definition(
+            self.module, "ngx_http_modsecurity_extract_intervention_rule_id"
+        )
+        self.assertIn("if (intervention->log != NULL)", extract_helper)
+        self.assertIn("msconnector_rule_id_extract_from_message(intervention->log,", extract_helper)
+        self.assertIn("sizeof(ctx->last_intervention_rule_id)", extract_helper)
+        self.assertNotIn("phase4_log_file", extract_helper)
         self.assertNotIn(
             "mcf->phase4_log_file != NULL && intervention.log != NULL",
             intervention,
         )
-        extract = intervention.index("msconnector_rule_id_extract_from_message")
+        extract = intervention.index("ngx_http_modsecurity_extract_intervention_rule_id(ctx, &intervention);")
         terminal = intervention.index(
             "ngx_http_modsecurity_contract_record_intervention(r, ctx, &intervention)"
         )
@@ -248,6 +255,21 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         self.assertLess(extract, terminal)
         self.assertLess(terminal, redirect)
         self.assertLess(terminal, status)
+        self.assertLess(extract, intervention.index("msc_intervention_cleanup(&intervention)"))
+
+    def test_rule_id_helper_guard_rejects_missing_late_or_unbounded_extraction(self) -> None:
+        call = "ngx_http_modsecurity_extract_intervention_rule_id(ctx, &intervention);"
+        mutations = (
+            self.module.replace(call, "/* extraction omitted */"),
+            self.module.replace(call, "").replace("msc_intervention_cleanup(&intervention);",
+                "msc_intervention_cleanup(&intervention); " + call),
+            self.module.replace("sizeof(ctx->last_intervention_rule_id)", "unbounded_size"),
+            self.module.replace("if (intervention->log != NULL)", "if (ctx->r && intervention->log != NULL)"),
+        )
+        for index, source in enumerate(mutations):
+            with self.subTest(mutation=index), patch.object(self, "module", source):
+                with self.assertRaises((AssertionError, ValueError)):
+                    self.test_disruptive_interventions_record_terminal_contract_decisions_before_host_sinks()
 
     def test_final_body_processing_accepts_only_success_one(self) -> None:
         request = function_definition(
