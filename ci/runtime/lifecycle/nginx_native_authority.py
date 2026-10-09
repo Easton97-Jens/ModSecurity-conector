@@ -13,9 +13,9 @@ import subprocess
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
-from runtime_path_utils import open_private_runtime_root
+from runtime_path_utils import fixed_runtime_temp_parent, open_private_runtime_root
 
-EXTERNAL_ROOT = Path("/var/tmp/codex/ModSecurity-conector")
+EXTERNAL_ROOT = fixed_runtime_temp_parent() / "codex" / "ModSecurity-conector"
 ARTIFACT_LIMIT = 64 * 1024 * 1024
 FAULT_LIBRARIES = {
     "input": ("body_size_nonzero_with_null_data", "header_count_nonzero_with_null_headers"),
@@ -152,11 +152,11 @@ def produce_native_authority(*, parent_root, framework_root, mrts_root, run_id,
             require((details.st_dev, details.st_ino) == expected, "explicit root changed")
         finally:
             os.close(descriptor)
-    document = dict(schema_version=1, connector="nginx", run_id=run_id,
-                    artifact_root=str(artifact_root), parent_root=str(sources[0]), framework_root=str(sources[1]),
-                    parent_sha=revisions[0], framework_sha=revisions[1], mrts_sha=revisions[2],
-                    binary_sha256=digests["binary"], module_sha256=digests["module"],
-                    fault_library_sha256={case: digests[key] for key, cases in FAULT_LIBRARIES.items() for case in cases})
+    document = {"schema_version": 1, "connector": "nginx", "run_id": run_id,
+                    "artifact_root": str(artifact_root), "parent_root": str(sources[0]), "framework_root": str(sources[1]),
+                    "parent_sha": revisions[0], "framework_sha": revisions[1], "mrts_sha": revisions[2],
+                    "binary_sha256": digests["binary"], "module_sha256": digests["module"],
+                    "fault_library_sha256": {case: digests[key] for key, cases in FAULT_LIBRARIES.items() for case in cases}}
     raw = (json.dumps(document, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n").encode()
     require(len(raw) <= 16384, "authority document exceeds bound")
     with open_private_runtime_root(output_parent) as directory:
@@ -167,7 +167,7 @@ def produce_native_authority(*, parent_root, framework_root, mrts_root, run_id,
             stream.flush()
             os.fsync(stream.fileno())
         os.fsync(directory.descriptor)
-    return dict(authority_path=output_parent / "native-operation-authority.json", authority_sha256=hashlib.sha256(raw).hexdigest(), document=document)
+    return {"authority_path": output_parent / "native-operation-authority.json", "authority_sha256": hashlib.sha256(raw).hexdigest(), "document": document}
 
 
 def main(argv=None):

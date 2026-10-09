@@ -21,6 +21,35 @@ class InputFaultDriverTest(unittest.TestCase):
         cls.driver = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cls.driver)
 
+    def test_request_rejects_nonclosed_path_or_port_before_subprocess(self):
+        path = "/no-crs/input-fault/header_count_nonzero_with_null_headers"
+        invalid = [(12345, path + suffix) for suffix in ("/foreign", "?query", "#fragment", "\n", "%2f..")]
+        invalid += [(12345, "--output=/foreign"), (12345, "http://foreign"),
+                    (True, path), ("12345", path), (0, path), (65536, path)]
+        with tempfile.TemporaryDirectory(dir="/var/tmp/codex/ModSecurity-conector") as temporary:
+            for port, request_path in invalid:
+                with self.subTest(port=port, path=request_path), patch.object(self.driver.subprocess, "run",
+                        return_value=SimpleNamespace(returncode=0, stdout=b"200", stderr=b"")) as running:
+                    with self.assertRaises(ValueError):
+                        self.driver.request(port, request_path, {}, Path(temporary))
+                    running.assert_not_called()
+
+    def test_request_preserves_actual_capture_exit_and_strips_fault_environment(self):
+        environment = {"LD_PRELOAD": "fixture", "MSCONNECTOR_OWNED_INPUT_TXID": "a" * 32, "KEEP": "yes"}
+        with tempfile.TemporaryDirectory(dir="/var/tmp/codex/ModSecurity-conector") as temporary:
+            output = Path(temporary)
+            for case in self.driver.CASES:
+                path = "/no-crs/input-fault/" + case
+                with patch.object(self.driver.subprocess, "run", return_value=SimpleNamespace(
+                        returncode=7, stdout=b"400", stderr=b"actual error")) as running:
+                    self.assertEqual(self.driver.request(12345, path, environment, output), (7, 400))
+                command = running.call_args.args[0]
+                self.assertEqual(command[-2:], ["--", "http://127.0.0.1:12345" + path])
+                self.assertEqual(running.call_args.kwargs["env"], {"KEEP": "yes"})
+                self.assertEqual((output / "client.stdout").read_bytes(), b"400")
+                self.assertEqual((output / "client.stderr").read_bytes(), b"actual error")
+            self.assertIn("LD_PRELOAD", environment)
+
     def test_native_environment_keeps_fresh_owned_fd_not_path_authority(self):
         args = SimpleNamespace(case_id=self.driver.CASES[0], library_dir=None, fault_negative_control=False)
         with tempfile.TemporaryDirectory(dir="/var/tmp/codex/ModSecurity-conector") as temporary:

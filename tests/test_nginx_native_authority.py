@@ -17,6 +17,10 @@ SPEC.loader.exec_module(MODULE)
 
 
 class AuthorityTests(unittest.TestCase):
+    def test_fixed_storage_is_exact_and_environment_independent(self):
+        with patch.dict(os.environ, {'TMPDIR': '/foreign', 'TEMP': '/foreign', 'RUNNER_TEMP': '/foreign'}):
+            self.assertEqual(MODULE.EXTERNAL_ROOT, Path('/var/tmp/codex/ModSecurity-conector'))
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(dir="/var/tmp/codex/ModSecurity-conector/tmp")
         self.addCleanup(self.temp.cleanup)
@@ -67,35 +71,40 @@ class AuthorityTests(unittest.TestCase):
             for case in cases:
                 self.assertEqual(document["fault_library_sha256"][case], hashlib.sha256(library.encode()).hexdigest())
         self.assertEqual(result["authority_sha256"], hashlib.sha256(path.read_bytes()).hexdigest())
+        kwargs = self.kwargs()
         with self.assertRaises((ValueError, FileExistsError)):
-            MODULE.produce_native_authority(**self.kwargs())
+            MODULE.produce_native_authority(**kwargs)
 
     def test_dirty_source_rejected(self):
         for source in (self.p, self.f, self.m):
             with self.subTest(source=source):
                 dirty = source / "untracked"
                 dirty.write_text("dirty")
+                kwargs = self.kwargs()
                 with self.assertRaises(ValueError):
-                    MODULE.produce_native_authority(**self.kwargs())
+                    MODULE.produce_native_authority(**kwargs)
                 dirty.unlink()
 
     def test_changed_clean_child_pin_rejected(self):
         (self.m / "tracked").write_text("new")
         self.git(self.m, "commit", "-qam", "new")
+        kwargs = self.kwargs()
         with self.assertRaises(ValueError):
-            MODULE.produce_native_authority(**self.kwargs())
+            MODULE.produce_native_authority(**kwargs)
 
     def test_artifact_link_write_and_bounds_rejected(self):
         binary = self.files["binary"]
         for mode in (0o420, 0o402):
             binary.chmod(mode)
+            kwargs = self.kwargs()
             with self.assertRaises(ValueError):
-                MODULE.produce_native_authority(**self.kwargs())
+                MODULE.produce_native_authority(**kwargs)
         binary.chmod(0o400)
         link = self.artifacts / "link"
         os.link(binary, link)
+        kwargs = self.kwargs()
         with self.assertRaises(ValueError):
-            MODULE.produce_native_authority(**self.kwargs())
+            MODULE.produce_native_authority(**kwargs)
         link.unlink()
         link.symlink_to(binary)
         kwargs = self.kwargs()
@@ -148,8 +157,9 @@ class AuthorityTests(unittest.TestCase):
                 (self.p / "late-change").write_text("changed")
             return digest
         with patch.object(MODULE, "hash_artifact", side_effect=dirty_after_hash):
+            kwargs = self.kwargs()
             with self.assertRaises(ValueError):
-                MODULE.produce_native_authority(**self.kwargs())
+                MODULE.produce_native_authority(**kwargs)
         (self.p / "late-change").unlink()
         calls = 0
         def changed_digest(path, **kwargs):
@@ -157,8 +167,9 @@ class AuthorityTests(unittest.TestCase):
             calls += 1
             return original(path, **kwargs) if calls <= 7 else "0" * 64
         with patch.object(MODULE, "hash_artifact", side_effect=changed_digest):
+            kwargs = self.kwargs()
             with self.assertRaises(ValueError):
-                MODULE.produce_native_authority(**self.kwargs())
+                MODULE.produce_native_authority(**kwargs)
         self.assertFalse((self.output / "native-operation-authority.json").exists())
 
 

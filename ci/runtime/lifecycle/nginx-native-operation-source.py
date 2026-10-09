@@ -7,10 +7,15 @@ import os
 from pathlib import Path
 import re
 import stat
+import sys
 
-STORAGE = Path("/var/tmp/codex/ModSecurity-conector")
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from runtime_path_utils import fixed_runtime_temp_parent
+
+STORAGE = fixed_runtime_temp_parent() / "codex" / "ModSecurity-conector"
 MAX_BYTES = 4 * 1024 * 1024
 MODE = "native-nginx-http-module"
+SOURCE_RESULT = "source-result.json"
 ALIASES = {"phase4_end_of_stream_evaluation": "phase4_marker_split_across_chunks",
            "full_lifecycle_event_metadata_bounded": "phase4_body_over_limit"}
 
@@ -74,9 +79,13 @@ def unique_object(pairs):
     return result
 
 
+def invalid_json_number(_value):
+    raise ValueError("invalid JSON number")
+
+
 def decode(raw):
     return json.loads(raw, object_pairs_hook=unique_object,
-                      parse_constant=lambda _: (_ for _ in ()).throw(ValueError("invalid JSON number")))
+                      parse_constant=invalid_json_number)
 
 
 def digest(raw):
@@ -134,7 +143,7 @@ def receipt_identity(raw, case_id, run_id, operation, identities):
     return value
 
 
-def build_source(case_id, run_id, operation, bundle_root, identities, driver_exit_code, *, source_sha256):
+def validate_source_identity(case_id, run_id, identities, driver_exit_code, source_sha256):
     if (not re.fullmatch(r"[a-z][a-z0-9_]{0,127}", case_id)
             or not re.fullmatch(r"[A-Za-z0-9_-]{1,96}", run_id)
             or type(driver_exit_code) is not int):
@@ -148,43 +157,59 @@ def build_source(case_id, run_id, operation, bundle_root, identities, driver_exi
                    or not re.fullmatch(r"[0-9a-f]{64}", value)
                    for name, value in source_sha256.items())):
         raise ValueError("actual namespaced source SHA seals required")
+
+
+def event_source_paths(root, case_id, run_id, operation, identities, wrapper):
+    parent_raw = read_owned(root, SOURCE_RESULT)
+    parent = receipt_identity(parent_raw, case_id, run_id, operation, identities)
+    variants = ("at255", "over256") if case_id == "event_json_limit" else ("long-query",)
+    if case_id not in {"event_json_limit", "event_metadata_truncation"}:
+        raise ValueError("unknown event boundary case")
+    children = parent.get("children", [])
+    if not isinstance(children, list) or any(not isinstance(child, dict) for child in children):
+        raise ValueError("event parent children must be a bounded object list")
+    if [child.get("variant") for child in children] != list(variants):
+        raise ValueError("event parent does not seal exact variants")
+    wrapper.update(parent_receipt_path=SOURCE_RESULT, parent_receipt_sha256=digest(parent_raw))
+    names = {"at255": "at", "over256": "over", "long-query": "main"}
+    paths = [(names[variant], variant + "/" + SOURCE_RESULT, run_id + "-" + variant) for variant in variants]
+    return paths, children
+
+
+def main_source_paths(operation, run_id):
+    leaves = {"native_h1_parser_rejection": SOURCE_RESULT,
+              "native_phase4_request": SOURCE_RESULT,
+              "request_sequence": "sequence-source.json",
+              "common_mapper_input_fault": "input-fault-source.json"}
+    if operation not in leaves:
+        raise ValueError("unknown closed native operation")
+    return [("main", leaves[operation], run_id)]
+
+
+def validate_event_child(child, path, child_run, sealed):
+    if (child.get("directory") != path.split("/")[0] or child.get("run_id") != child_run
+            or child.get("receipt_sha256") != sealed):
+        raise ValueError("event child differs from original parent seal")
+
+
+def build_source(case_id, run_id, operation, bundle_root, identities, driver_exit_code, *, source_sha256):
+    validate_source_identity(case_id, run_id, identities, driver_exit_code, source_sha256)
     root = Path(bundle_root)
-    wrapper = dict(schema_version=1, case_id=case_id, run_id=run_id, operation=operation,
-                   integration_mode=MODE, bundle_root=str(root), invocations=[], source_sha256=source_sha256)
+    wrapper = {"schema_version": 1, "case_id": case_id, "run_id": run_id, "operation": operation,
+               "integration_mode": MODE, "bundle_root": str(root), "invocations": [], "source_sha256": source_sha256}
     if case_id in ALIASES:
         wrapper["source_record_id"] = ALIASES[case_id]
     if operation == "native_event_boundary_request":
-        parent_raw = read_owned(root, "source-result.json")
-        parent = receipt_identity(parent_raw, case_id, run_id, operation, identities)
-        variants = ("at255", "over256") if case_id == "event_json_limit" else ("long-query",)
-        if case_id not in {"event_json_limit", "event_metadata_truncation"}:
-            raise ValueError("unknown event boundary case")
-        children = parent.get("children", [])
-        if not isinstance(children, list) or any(not isinstance(child, dict) for child in children):
-            raise ValueError("event parent children must be a bounded object list")
-        if [child.get("variant") for child in children] != list(variants):
-            raise ValueError("event parent does not seal exact variants")
-        wrapper.update(parent_receipt_path="source-result.json", parent_receipt_sha256=digest(parent_raw))
-        paths = [("at" if variant == "at255" else "over" if variant == "over256" else "main",
-                  variant + "/source-result.json", run_id + "-" + variant) for variant in variants]
+        paths, children = event_source_paths(root, case_id, run_id, operation, identities, wrapper)
     else:
-        leaves = {"native_h1_parser_rejection": "source-result.json",
-                  "native_phase4_request": "source-result.json",
-                  "request_sequence": "sequence-source.json",
-                  "common_mapper_input_fault": "input-fault-source.json"}
-        if operation not in leaves:
-            raise ValueError("unknown closed native operation")
-        paths = [("main", leaves[operation], run_id)]
+        paths = main_source_paths(operation, run_id)
     for index, (name, path, child_run) in enumerate(paths):
         raw = read_owned(root, path)
         receipt_identity(raw, case_id, child_run, operation, identities)
         sealed = digest(raw)
         if operation == "native_event_boundary_request":
-            child = children[index]
-            if (child.get("directory") != path.split("/")[0] or child.get("run_id") != child_run
-                    or child.get("receipt_sha256") != sealed):
-                raise ValueError("event child differs from original parent seal")
-        wrapper["invocations"].append(dict(name=name, receipt_path=path, receipt_sha256=sealed))
+            validate_event_child(children[index], path, child_run, sealed)
+        wrapper["invocations"].append({"name": name, "receipt_path": path, "receipt_sha256": sealed})
     return dict(case_id=case_id, run_id=run_id, connector="nginx", operation=operation,
                 integration_mode=MODE, status="NOT_EXECUTED", canonical_status="NOT_EXECUTED",
                 **identities, driver_exit_code=driver_exit_code, native_operation_receipt=wrapper)

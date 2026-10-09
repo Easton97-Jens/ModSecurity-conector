@@ -51,6 +51,28 @@ class NativeCollectionTests(unittest.TestCase):
             '--allowed-native-operation-root', str(self.authority)])
         self.assertEqual(args.allowed_native_operation_root, self.authority)
 
+    def test_authority_precedes_identity_and_seal_validation(self):
+        # Exercise the public collection seam with simultaneous invalid inputs.
+        row = copy.deepcopy(self.row)
+        row['connector'] = 'foreign'
+        with self.assertRaisesRegex(ValueError, '^native collection requires explicit caller authority$'):
+            collector.case_row_observations(row, 'nginx', {}, None, [], None)
+
+    def test_source_hash_unknown_fields_and_missing_seal_are_independent(self):
+        for mutation in ('namespace', 'digest', 'unknown', 'missing'):
+            row = copy.deepcopy(self.row)
+            wrapper = row['native_operation_receipt']
+            if mutation == 'namespace':
+                wrapper['source_sha256'] = {'foreign:file': 'b' * 64}
+            elif mutation == 'digest':
+                wrapper['source_sha256'] = {'parent:file': 'invalid'}
+            elif mutation == 'unknown':
+                wrapper['invocations'][0]['unknown'] = True
+            else:
+                del wrapper['invocations'][0]['receipt_sha256']
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                self.collect(row)
+
     def test_original_wrapper_identity_and_raw_survive_without_promotion(self):
         original = copy.deepcopy(self.row)
         result = self.collect()

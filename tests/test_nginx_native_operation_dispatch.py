@@ -112,11 +112,37 @@ class DispatcherTests(unittest.TestCase):
             self.assertEqual(row["driver_exit_code"], 7)
             self.assertEqual(leaf.read_bytes(), raw)
             self.assertEqual(row["native_operation_receipt"]["invocations"][0]["receipt_path"], leaf.name)
+            conflicting = dict(identity, case_id='foreign')
+            with self.assertRaises(TypeError):
+                s.build_source(receipt["case_id"], "run", "request_sequence", root, conflicting, 0,
+                               source_sha256=SOURCE_SEAL)
             leaf.unlink()
             leaf.symlink_to(root / "absent")
             with self.assertRaises((OSError, ValueError)):
                 s.build_source(receipt["case_id"], "run", "request_sequence", root, identity, 0,
                                source_sha256=SOURCE_SEAL)
+
+    def test_source_json_and_identity_rejections_keep_diagnostic_order(self):
+        source = self.source
+        for raw, message in [(b'{"x":1,"x":2}', 'duplicate source JSON key'),
+                             (b'{"x":NaN}', 'invalid JSON number'),
+                             (b'{"x":Infinity}', 'invalid JSON number')]:
+            with self.subTest(raw=raw), self.assertRaisesRegex(ValueError, '^' + message + '$'):
+                source.decode(raw)
+        identity = {key: 'a' * 40 for key in ('parent_sha', 'framework_sha', 'mrts_sha')}
+        for case, run, revisions, exit_code, seals, message in [
+                ('../case', 'run', identity, 0, SOURCE_SEAL, 'invalid source identity or actual driver exit'),
+                ('case', 'run', identity, True, SOURCE_SEAL, 'invalid source identity or actual driver exit'),
+                ('case', 'run', {}, 0, SOURCE_SEAL, 'source identities require exact Git SHAs'),
+                ('case', 'run', identity, 0, {}, 'actual namespaced source SHA seals required')]:
+            with self.subTest(message=message), self.assertRaisesRegex(ValueError, '^' + message + '$'):
+                source.build_source(case, run, 'request_sequence', Path('/nonexistent'), revisions,
+                                    exit_code, source_sha256=seals)
+
+    def test_fixed_source_storage_is_policy_exact_and_environment_independent(self):
+        with patch.dict(os.environ, {'TMPDIR': '/foreign', 'TEMP': '/foreign', 'RUNNER_TEMP': '/foreign'}):
+            source = load('nginx-native-operation-source.py')
+        self.assertEqual(source.STORAGE, Path('/var/tmp/codex/ModSecurity-conector'))
 
     def test_owned_read_rejects_links_and_permissions(self):
         s = self.source

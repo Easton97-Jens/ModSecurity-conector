@@ -24,6 +24,7 @@ FIELDS = frozenset({'schema_version', 'case_id', 'run_id', 'operation', 'integra
 OUTER = ('case_id', 'run_id', 'connector', 'operation', 'integration_mode', 'status',
          'canonical_status', 'parent_sha', 'framework_sha', 'mrts_sha',
          'parent_framework_gitlink', 'driver_exit_code', 'native_operation_receipt')
+SOURCE_RESULT = 'source-result.json'
 
 
 def _text(value, pattern):
@@ -62,9 +63,7 @@ def _sealed_leaf(root, path, seal):
         raise ValueError('native original receipt differs from its source seal')
 
 
-def collect_native_row(row, connector, expectations, allowed_root):
-    """Check reference safety only; original proof belongs to Framework reader."""
-    authority = authority_directory(allowed_root)
+def validate_outer_identity(row, connector, expectations):
     case = row.get('case_id')
     contract = DISPATCH.CONTRACTS.get(case) if isinstance(case, str) else None
     if connector != 'nginx' or row.get('connector') != connector or case not in expectations or contract is None:
@@ -77,6 +76,10 @@ def collect_native_row(row, connector, expectations, allowed_root):
     if any(not _text(row.get(key), r'[0-9a-f]{40}') for key in
            ('parent_sha', 'framework_sha', 'mrts_sha', 'parent_framework_gitlink')):
         raise ValueError('native source requires exact Git revisions')
+    return case, contract
+
+
+def validate_wrapper_identity(row, case, contract):
     wrapper = row.get('native_operation_receipt')
     extra = {'source_record_id'} if case in SOURCE.ALIASES else set()
     event = contract['operation'] == 'native_event_boundary_request'
@@ -88,29 +91,30 @@ def collect_native_row(row, connector, expectations, allowed_root):
             or any(wrapper[key] != row[key] for key in ('case_id', 'run_id', 'operation', 'integration_mode'))
             or (case in SOURCE.ALIASES and wrapper['source_record_id'] != SOURCE.ALIASES[case])):
         raise ValueError('native wrapper identity differs from source')
-    reference = wrapper['bundle_root']
-    if not isinstance(reference, str) or len(reference) > 4096:
-        raise ValueError('native bundle reference is not bounded')
-    bundle = Path(reference)
-    if not bundle.is_absolute() or authority not in bundle.parents or '..' in bundle.parts:
-        raise ValueError('native bundle must be strictly beneath caller authority')
-    authority_directory(bundle)
-    hashes = wrapper['source_sha256']
+    return wrapper, event
+
+
+def validate_source_seals(hashes):
     if (not isinstance(hashes, dict) or not 1 <= len(hashes) <= 128
             or any(not _text(name, r'(?:parent|framework):[A-Za-z0-9_./-]{1,512}')
                    or any(part in ('', '.', '..') for part in name.partition(':')[2].split('/'))
                    or not _text(value, r'[0-9a-f]{64}') for name, value in hashes.items())):
         raise ValueError('native source seals must be bounded namespaced paths')
+
+
+def expected_invocations(bundle, wrapper, case, contract, event):
     if event:
-        expected = [('at', 'at255/source-result.json'), ('over', 'over256/source-result.json')] if case == 'event_json_limit' else [('main', 'long-query/source-result.json')]
-        if wrapper['parent_receipt_path'] != 'source-result.json':
+        expected = [('at', 'at255/' + SOURCE_RESULT), ('over', 'over256/' + SOURCE_RESULT)] if case == 'event_json_limit' else [('main', 'long-query/' + SOURCE_RESULT)]
+        if wrapper['parent_receipt_path'] != SOURCE_RESULT:
             raise ValueError('event parent receipt path is not closed')
         _sealed_leaf(bundle, wrapper['parent_receipt_path'], wrapper['parent_receipt_sha256'])
-    else:
-        leaves = {'native_h1_parser_rejection': 'source-result.json', 'native_phase4_request': 'source-result.json',
-                  'request_sequence': 'sequence-source.json', 'common_mapper_input_fault': 'input-fault-source.json'}
-        expected = [('main', leaves[contract['operation']])]
-    invocations = wrapper['invocations']
+        return expected
+    leaves = {'native_h1_parser_rejection': SOURCE_RESULT, 'native_phase4_request': SOURCE_RESULT,
+              'request_sequence': 'sequence-source.json', 'common_mapper_input_fault': 'input-fault-source.json'}
+    return [('main', leaves[contract['operation']])]
+
+
+def validate_invocations(bundle, invocations, expected):
     if not isinstance(invocations, list) or len(invocations) != len(expected):
         raise ValueError('native invocation list is not closed')
     for invocation, (name, path) in zip(invocations, expected, strict=True):
@@ -118,6 +122,23 @@ def collect_native_row(row, connector, expectations, allowed_root):
                 or invocation['name'] != name or invocation['receipt_path'] != path):
             raise ValueError('native invocation identity/path is not closed')
         _sealed_leaf(bundle, path, invocation['receipt_sha256'])
+
+
+def collect_native_row(row, connector, expectations, allowed_root):
+    """Check reference safety only; original proof belongs to Framework reader."""
+    authority = authority_directory(allowed_root)
+    case, contract = validate_outer_identity(row, connector, expectations)
+    wrapper, event = validate_wrapper_identity(row, case, contract)
+    reference = wrapper['bundle_root']
+    if not isinstance(reference, str) or len(reference) > 4096:
+        raise ValueError('native bundle reference is not bounded')
+    bundle = Path(reference)
+    if not bundle.is_absolute() or authority not in bundle.parents or '..' in bundle.parts:
+        raise ValueError('native bundle must be strictly beneath caller authority')
+    authority_directory(bundle)
+    validate_source_seals(wrapper['source_sha256'])
+    expected = expected_invocations(bundle, wrapper, case, contract, event)
+    validate_invocations(bundle, wrapper['invocations'], expected)
     result = {key: copy.deepcopy(row[key]) for key in OUTER}
     if row['driver_exit_code'] != 0:
         result['status'] = 'FAIL'

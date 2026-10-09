@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import socket
 import stat
 import subprocess
@@ -28,6 +29,7 @@ from runtime_path_utils import open_private_runtime_root
 
 CASES = ("body_size_nonzero_with_null_data", "header_count_nonzero_with_null_headers")
 NATIVE_FAULT_LEDGER = "native-input-fault.jsonl"
+NGINX_ERROR_LOG = "nginx-error.log"
 
 
 def mismatch_transaction(transaction):
@@ -129,6 +131,10 @@ def native_environment(args, output, transaction):
 
 
 def request(port, path, environment, output):
+    if (type(port) is not int or not 1 <= port <= 65535
+            or not isinstance(path, str) or re.fullmatch(
+                r"/no-crs/input-fault/(?:body_size_nonzero_with_null_data|header_count_nonzero_with_null_headers)", path) is None):
+        raise ValueError("closed input-fault request path and port required")
     client_environment = dict(environment)
     # The fixture is loaded only into the owned native master/worker, never curl.
     client_environment.pop("LD_PRELOAD", None)
@@ -137,7 +143,7 @@ def request(port, path, environment, output):
             client_environment.pop(name)
     result = subprocess.run(["/usr/bin/curl", "--noproxy", "*", "--http1.1", "--silent", "--show-error",
         "--max-time", "5", "--output", os.devnull, "--write-out", "%{http_code}",
-        "--data-binary", "owned", f"http://127.0.0.1:{port}{path}"],
+        "--data-binary", "owned", "--", f"http://127.0.0.1:{port}{path}"],
         env=client_environment, capture_output=True, timeout=6, check=False)
     (output / "client.stdout").write_bytes(result.stdout)
     (output / "client.stderr").write_bytes(result.stderr)
@@ -155,7 +161,7 @@ def run(args):
     client_exit, status = None, None
     path = "/no-crs/input-fault/" + args.case_id
     try:
-        # Configuration testing receives no inherited ledger descriptor.
+        # No pass_fds: configuration testing cannot arm the inherited-FD fixture.
         code, stdout, stderr, failure = BASE.invoke(argv + ["-t"], environment)
         (output / "configtest.stdout").write_bytes(stdout)
         (output / "configtest.stderr").write_bytes(stderr)
@@ -177,33 +183,33 @@ def run(args):
                 os.fsync(ledger_descriptor)
             finally:
                 os.close(ledger_descriptor)
-    access, faults = read_rows(output, "native-access.jsonl"), read_rows(output, "native-input-fault.jsonl")
+    access, faults = read_rows(output, "native-access.jsonl"), read_rows(output, NATIVE_FAULT_LEDGER)
     diagnostic = "modsecurity common request mapper validation failed: " + validator.CONTRACTS[args.case_id]["diagnostic"]
-    raw_error = STARTUP.bounded_capture(output / "nginx-error.log") if (output / "nginx-error.log").exists() else b""
-    observed = dict(schema_version=1, case_id=args.case_id, run_id=args.run_id, operation="common_mapper_input_fault",
-        protocol="http1", client_exit_code=client_exit, observed_http_status=status, path=path, transaction_id=transaction,
-        roles=roles, cleanup=cleanup, native_access=access[0] if len(access) == 1 else {},
-        native_fault=faults[0] if len(faults) == 1 else {},
-        native_events=select_protocol_events(read_rows(output, "phase1-events.jsonl"), transaction, path),
-        native_diagnostic=diagnostic if diagnostic.encode() in raw_error else None)
+    raw_error = STARTUP.bounded_capture(output / NGINX_ERROR_LOG) if (output / NGINX_ERROR_LOG).exists() else b""
+    observed = {"schema_version": 1, "case_id": args.case_id, "run_id": args.run_id, "operation": "common_mapper_input_fault",
+        "protocol": "http1", "client_exit_code": client_exit, "observed_http_status": status, "path": path, "transaction_id": transaction,
+        "roles": roles, "cleanup": cleanup, "native_access": access[0] if len(access) == 1 else {},
+        "native_fault": faults[0] if len(faults) == 1 else {},
+        "native_events": select_protocol_events(read_rows(output, "phase1-events.jsonl"), transaction, path),
+        "native_diagnostic": diagnostic if diagnostic.encode() in raw_error else None}
     errors = validator.observation_errors(observed, args.case_id, args.run_id)
     if failure:
         errors.append(failure)
     raw = private_json(output, "input-fault-observation.json", observed)
-    receipt = dict(schema_version=1, case_id=args.case_id, run_id=args.run_id, operation="common_mapper_input_fault",
-        parent_sha=args.parent_sha, framework_sha=args.framework_sha, mrts_sha=args.mrts_sha, artifacts_sha256=hashes,
-        observed_sha256=BASE.digest(raw), config_sha256=BASE.digest(configuration), configtest_exit_code=code,
-        projection_root=str(projection), projection_parent=args.projection_parent)
+    receipt = {"schema_version": 1, "case_id": args.case_id, "run_id": args.run_id, "operation": "common_mapper_input_fault",
+        "parent_sha": args.parent_sha, "framework_sha": args.framework_sha, "mrts_sha": args.mrts_sha, "artifacts_sha256": hashes,
+        "observed_sha256": BASE.digest(raw), "config_sha256": BASE.digest(configuration), "configtest_exit_code": code,
+        "projection_root": str(projection), "projection_parent": args.projection_parent}
     receipt["raw_artifacts_sha256"] = {
         leaf: BASE.digest(STARTUP.bounded_capture(output / leaf))
-        for leaf in ("native-access.jsonl", "native-input-fault.jsonl", "phase1-events.jsonl",
-                     "worker-maps.log", "nginx-error.log", "configtest.stdout", "configtest.stderr",
+        for leaf in ("native-access.jsonl", NATIVE_FAULT_LEDGER, "phase1-events.jsonl",
+                     "worker-maps.log", NGINX_ERROR_LOG, "configtest.stdout", "configtest.stderr",
                      "client.stdout", "client.stderr", "startup.stdout", "startup.stderr")
         if (output / leaf).exists()
     }
-    row = dict(case_id=args.case_id, run_id=args.run_id, operation="common_mapper_input_fault",
-        live_executed=process is not None, input_fault_observation_valid=not errors, errors=errors,
-        input_fault_receipt=receipt, artifacts={"input_fault_dir": str(output)})
+    row = {"case_id": args.case_id, "run_id": args.run_id, "operation": "common_mapper_input_fault",
+        "live_executed": process is not None, "input_fault_observation_valid": not errors, "errors": errors,
+        "input_fault_receipt": receipt, "artifacts": {"input_fault_dir": str(output)}}
     private_json(output, "input-fault-source.json", {"cases": [row]})
     private_json(output, "input-fault-source.jsonl", row)
     for error in errors:
