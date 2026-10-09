@@ -43,6 +43,13 @@ the observations and calls the unchanged exclusive `HOST.write_json` exactly
 once. This keeps the producer authoritative and fixes orchestration rather than
 weakening a freshness or Canonical validator.
 
+The exact-Head PR analysis of the published implementation subsequently
+reported `python:S3776` because the shared writer reached Cognitive Complexity
+19 against the limit of 15. The follow-up keeps the same expressions and
+validation order but moves only the closed metadata checks into a pure helper.
+Capture validation, hashing and the one exclusive write remain together in the
+writer; no runtime or evidence semantics change.
+
 ## Changed files
 
 `ci/runtime/lifecycle/run-nginx-phase4-cases.py`,
@@ -82,6 +89,24 @@ as a Make command-line override and thereby defeated six tests' intentional
 case-local roots. The corrected environment-scoped invocation first passed all
 20 optional-prerequisite tests and then the complete lint gate.
 
+The mandatory exact-Head Sonar gate on Parent
+`ade09e1ebeee6ef049614b87305605969506f939` reproduced one open issue at
+`run-nginx-phase4-cases.py:31` (`python:S3776`, complexity 19). After the
+minimal extraction, the Event/MIME/Phase-4 focus passed 16 tests (log SHA-256
+`e7dea7e9967c2984a3ed6264a02f7cd1af9fbe99471145d63a3c8d9485e2d4ac`),
+the Parent matrix passed 113 tests without skips (log SHA-256
+`aabd427239fe9aa511dbee688517b12fb907dad99d3b6ef9ecaea4f7301fe76a`),
+and the Framework matrix remained 74/74 (log SHA-256
+`1f2c1a733077a2a1df739f539de9afa3f3e0fdeb279100dd96a401d3c42a0af2`).
+Python compilation and `git diff --check` also passed. The complete Parent
+`make lint` gate passed with no skip/failure marker (exit 0; log SHA-256
+`c46a091719cac62046aad9cc09a50eed7c9397048a11d50dcee1dacd37e2d9ff`). The
+authenticated local Sonar CLI could query the exact finding through the
+canonical wrapper, but its
+file analyzer could not install a required analyzer into the read-only local
+tool cache; therefore only the new exact-Head remote analysis can close the
+Sonar finding.
+
 ## Security impact
 
 The change preserves exclusive/no-follow receipt creation, private runtime-root
@@ -101,6 +126,10 @@ supervisor/native exit 2; it is not reused or relabeled. The first failing
 event child proves configtest 0, client exit 0, HTTP 200, Root master, nobody
 worker and verified cleanup before the receipt rewrite failed. No post-fix
 native runtime has run yet.
+R9 did produce and prewarm genuine revision-bound build artifacts with exit 0,
+but it did not execute requests. Because the Sonar follow-up changes the Parent
+revision, R9 remains diagnostic and cannot be relabeled as later Exact-Head
+evidence.
 
 ## Known limitations
 
@@ -118,9 +147,10 @@ PASS; those counts are failure evidence, not a post-fix conclusion.
 
 ## Checks not run and rationale
 
-Clean-Head Parent lint, current remote CI/Sonar, the post-fix NGINX build and
-full 97-record local lifecycle, and protected Exact-Head were not yet run at
-this checkpoint. The completed lint above is a frozen-worktree pre-commit gate.
+Clean-Head Parent lint and the revision-bound R9 build/prewarm passed for the
+primary fix. The maintainability follow-up still needs clean-Head lint and a
+new current-SHA remote CI/Sonar analysis. No post-fix request, full 97-record
+local lifecycle or protected Exact-Head run has completed at this checkpoint.
 A raw default-severity ShellCheck over the unchanged large NGINX smoke harness
 still reports its existing warnings; the
 repository warning-level lifecycle checks are green, and unrelated shell
@@ -135,6 +165,10 @@ expanded and complete lint gates, syntax, documentation and whitespace checks.
 Independent security and code review found no
 actionable issue. Code review noted exact adapter-profile partitioning as an
 optional hardening refinement, not a demonstrated defect: all actual callers
-are fixed and incomplete records remain rejected by Framework validation. No
-commit, push, PR-state change, merge, retarget, protected dispatch or
-Framework/MRTS change has occurred for this fix at this checkpoint.
+are fixed and incomplete records remain rejected by Framework validation. The
+primary fix was committed and normally pushed as
+`ade09e1ebeee6ef049614b87305605969506f939`; remote branch and Draft PR #396
+read back that exact SHA. The maintainability-only follow-up still requires a
+separate commit, normal push, new remote Sonar readback and fresh build/runtime
+evidence. No merge, retarget, protected dispatch or Framework/MRTS change has
+occurred.

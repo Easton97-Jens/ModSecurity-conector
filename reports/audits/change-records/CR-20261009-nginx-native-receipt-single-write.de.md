@@ -45,6 +45,14 @@ den Observations zusammen und ruft das unveränderte exklusive `HOST.write_json`
 genau einmal auf. Damit bleibt der Producer autoritativ; repariert wird die
 Orchestrierung und keine Freshness- oder Canonical-Validierung wird gelockert.
 
+Die Exact-Head-PR-Analyse der veröffentlichten Implementierung meldete danach
+`python:S3776`, weil der gemeinsame Writer eine Cognitive Complexity von 19
+bei einem Grenzwert von 15 erreichte. Der Follow-up behält dieselben Ausdrücke
+und dieselbe Prüfungsreihenfolge bei, verschiebt aber ausschließlich die
+geschlossenen Metadata-Prüfungen in einen reinen Helper. Capture-Validierung,
+Hashing und der eine exklusive Write bleiben gemeinsam im Writer; Runtime- und
+Evidence-Semantik ändern sich nicht.
+
 ## Geänderte Dateien
 
 `ci/runtime/lifecycle/run-nginx-phase4-cases.py`,
@@ -87,6 +95,24 @@ absichtlich Case-lokalen Roots von sechs Tests außer Kraft. Der korrigierte,
 auf die Umgebung begrenzte Aufruf bestand zuerst alle 20 Optional-Prerequisite-
 Tests und danach das vollständige Lint-Gate.
 
+Das verpflichtende Exact-Head-Sonar-Gate auf Parent
+`ade09e1ebeee6ef049614b87305605969506f939` reproduzierte genau ein offenes
+Issue bei `run-nginx-phase4-cases.py:31` (`python:S3776`, Complexity 19). Nach
+der minimalen Extraktion bestand der Event-/MIME-/Phase-4-Fokus 16 Tests (Log-
+SHA-256 `e7dea7e9967c2984a3ed6264a02f7cd1af9fbe99471145d63a3c8d9485e2d4ac`),
+die Parent-Matrix bestand 113 Tests ohne Skips (Log-SHA-256
+`aabd427239fe9aa511dbee688517b12fb907dad99d3b6ef9ecaea4f7301fe76a`),
+und die Framework-Matrix blieb bei 74/74 (Log-SHA-256
+`1f2c1a733077a2a1df739f539de9afa3f3e0fdeb279100dd96a401d3c42a0af2`).
+Python-Kompilierung und `git diff --check` bestanden ebenfalls. Die
+vollständige Parent-Prüfung `make lint` bestand ohne Skip-/Failure-Marker (Exit
+0; Log-SHA-256
+`c46a091719cac62046aad9cc09a50eed7c9397048a11d50dcee1dacd37e2d9ff`). Die
+authentifizierte lokale Sonar-CLI konnte den exakten Befund über den
+kanonischen Wrapper abfragen, aber ihr File-Analyzer konnte einen benötigten
+Analyzer nicht in den schreibgeschützten lokalen Tool-Cache installieren;
+daher kann nur die neue Exact-Head-Remote-Analyse den Sonar-Befund schließen.
+
 ## Security-Auswirkung
 
 Die Änderung erhält exklusive/no-follow Receipt-Erstellung, private Runtime-
@@ -108,6 +134,10 @@ umetikettiert. Das erste fehlschlagende Event-Child belegt Configtest 0,
 Client-Exit 0, HTTP 200, Root-Master, nobody-Worker und verifiziertes Cleanup,
 bevor das Receipt-Überschreiben scheiterte. Nach dem Fix lief noch keine native
 Runtime.
+R9 erzeugte und prewarmte echte revisionsgebundene Build-Artefakte mit Exit 0,
+führte aber keine Requests aus. Da der Sonar-Follow-up die Parent-Revision
+ändert, bleibt R9 diagnostisch und darf nicht als spätere Exact-Head-Evidence
+umetikettiert werden.
 
 ## Bekannte Einschränkungen
 
@@ -127,10 +157,11 @@ Zahlen sind Fehler-Evidence und keine Post-Fix-Schlussfolgerung.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-Clean-Head-Parent-Lint, aktuelle Remote-CI/Sonar, der Post-Fix-NGINX-Build und
-vollständige lokale 97-Record-Lifecycle sowie geschützter Exact-Head wurden an
-diesem Checkpoint noch nicht ausgeführt. Der oben abgeschlossene Lint ist ein
-Pre-Commit-Gate auf dem eingefrorenen Worktree. Ein roher Default-Severity-
+Clean-Head-Parent-Lint und der revisionsgebundene R9-Build/Prewarm bestanden
+für den primären Fix. Der Maintainability-Follow-up benötigt weiterhin
+Clean-Head-Lint und eine neue aktuelle Remote-CI-/Sonar-Analyse. Kein Post-Fix-
+Request, vollständiger lokaler 97-Record-Lifecycle oder geschützter Exact-Head-
+Lauf ist an diesem Checkpoint abgeschlossen. Ein roher Default-Severity-
 ShellCheck über den unveränderten großen NGINX-Smoke-Harness meldet weiterhin
 seine bestehenden
 Warnings; die Warning-Level-Lifecycle-Prüfungen des Repositories sind grün,
@@ -148,6 +179,9 @@ und Code-Reviews fanden kein handlungsrelevantes Problem. Der Code-Review hielt
 eine exakte Adapter-Profiltrennung als optionale Härtung fest, nicht als
 nachgewiesenen Defekt: Alle tatsächlichen Aufrufer sind fest verdrahtet und
 unvollständige Records werden weiterhin durch die Framework-Validierung
-abgelehnt. Für diesen Fix erfolgten an diesem Checkpoint weder Commit, Push,
-PR-Statusänderung, Merge, Retarget, geschützter Dispatch noch Framework-/MRTS-
-Änderung.
+abgelehnt. Der primäre Fix wurde als
+`ade09e1ebeee6ef049614b87305605969506f939` committed und normal gepusht;
+Remote-Branch und Draft-PR #396 lasen exakt diesen SHA zurück. Der reine
+Maintainability-Follow-up benötigt noch einen separaten Commit, normalen Push,
+neuen Remote-Sonar-Readback und frische Build-/Runtime-Evidence. Merge,
+Retarget, geschützter Dispatch oder Framework-/MRTS-Änderung erfolgten nicht.

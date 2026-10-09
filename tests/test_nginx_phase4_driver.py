@@ -15,6 +15,26 @@ SPEC.loader.exec_module(driver)
 
 
 class NativePhase4DriverTest(unittest.TestCase):
+    def test_adapter_receipt_accepts_all_closed_metadata_without_mutating_inputs(self):
+        with tempfile.TemporaryDirectory(dir=os.environ.get("RUNNER_TEMP", "/var/tmp/codex/ModSecurity-conector")) as temp:
+            output = Path(temp)
+            metadata = {
+                "variant": "long-query",
+                "request_headers": {"X-Modsec-Smoke": "log-only"},
+                "backend_contract_sha256": "a" * 64,
+                "backend_omission_contract_sha256": "b" * 64,
+            }
+            row = {"case_id": "unit", "raw_sha256": {}}
+            expected_metadata = dict(metadata, request_headers=dict(metadata["request_headers"]))
+            expected_row = dict(row, raw_sha256=dict(row["raw_sha256"]))
+
+            driver.write_source_result(output, row, receipt_metadata=metadata)
+
+            observed = json.loads((output / "source-result.json").read_bytes())
+            self.assertEqual({name: observed[name] for name in metadata}, metadata)
+            self.assertEqual(metadata, expected_metadata)
+            self.assertEqual(row, expected_row)
+
     def test_adapter_receipt_is_sealed_once_with_actual_extra_capture(self):
         with tempfile.TemporaryDirectory(dir=os.environ.get("RUNNER_TEMP", "/var/tmp/codex/ModSecurity-conector")) as temp:
             output = Path(temp)

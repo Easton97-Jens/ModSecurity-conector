@@ -28,8 +28,8 @@ from nginx_phase4_upstream import BoundedPhase4Upstream
 CLIENT_STDOUT = "client.stdout"
 
 
-def write_source_result(output, observations, *, receipt_metadata=None, extra_capture_leaves=()):
-    """Assemble closed adapter fields before the one exclusive receipt write."""
+def _validated_receipt_metadata(receipt_metadata, observations):
+    """Return closed adapter metadata after validating its source authority."""
     metadata = {} if receipt_metadata is None else receipt_metadata
     allowed = {"variant", "request_headers", "backend_contract_sha256", "backend_omission_contract_sha256"}
     if not isinstance(metadata, dict) or set(metadata) - allowed or set(metadata) & set(observations):
@@ -42,6 +42,12 @@ def write_source_result(output, observations, *, receipt_metadata=None, extra_ca
             request_header_arguments({name: value})
         elif not isinstance(value, str) or not re.fullmatch(r"[a-f0-9]{64}", value):
             raise ValueError("adapter receipt source digest must be SHA256")
+    return metadata
+
+
+def write_source_result(output, observations, *, receipt_metadata=None, extra_capture_leaves=()):
+    """Assemble closed adapter fields before the one exclusive receipt write."""
+    metadata = _validated_receipt_metadata(receipt_metadata, observations)
     if (not isinstance(extra_capture_leaves, tuple) or len(extra_capture_leaves) > 1
             or any(leaf != "response-header-fixture.json" for leaf in extra_capture_leaves)):
         raise ValueError("adapter extra capture must be the closed MIME fixture leaf")
