@@ -31,7 +31,7 @@ Referenzen: [Vertrag/Migration](pr-382-event-contract.de.md),
 [native Envoy-Testreparatur](../reports/audits/change-records/CR-20260923-pr382-envoy-test-boundaries.de.md).
 
 
-## 2026-10-10 nachgelagerter NGINX-H1-Systemnachweis aus PR #396
+## Historisches R16: 2026-10-10 nachgelagerter NGINX-H1-Systemnachweis aus PR #396
 
 Dies ist ein nachgelagerter NGINX-H1-Systemnachweis aus PR #396, kein Runtime-Test
 des unveränderten PR-#382-Produktstands. Die Dokumentationsbasis ist
@@ -61,13 +61,13 @@ den getesteten #396-Code noch verändert sie dessen Gitlinks.
 Öffentliche Zusammenfassungen: [PR-#396-R16-Ergebnis](https://github.com/Easton97-Jens/ModSecurity-conector/pull/396#issuecomment-6100868299)
 und [Framework-PR-#137-Umfang](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/137#issuecomment-6100868488).
 
-**Die lokale Abnahme bleibt wegen einer Messlücke BLOCKED:** Der exakte numerische
+**Zum R16-Checkpoint blieb die lokale Abnahme wegen einer Messlücke BLOCKED:** Der exakte numerische
 Exit des generischen H1-Strict-curl-Prozesses wurde nicht persistiert. Sein
 Fehlschlag ist als nonzero bekannt, aber die Diagnosenummer `52` beweist keinen
 Exit 52. Dies ist vom nativen Strict-Driver und dessen erwarteter
 Incomplete-Read-Evidence getrennt. Canonical PASS und gemessene Writer-Exits
-schließen den fehlenden direkten Client-Statusnachweis nicht. PR #396 bleibt
-deshalb Draft; hier wird weder ein gesamter lokaler E2E-Abnahme-PASS noch ein
+schließen den fehlenden direkten Client-Statusnachweis nicht. PR #396 blieb
+deshalb bei diesem Checkpoint Draft; hier wird weder ein gesamter lokaler E2E-Abnahme-PASS noch ein
 Ready-Übergang behauptet.
 
 Raw-Evidence und Record-Zuordnung bleiben lokal unter
@@ -86,6 +86,35 @@ diese Referenz mergt keinen der PRs.
 Soft-Budget-Fälle belegen Überschreitungserkennung nach Engine-Rückkehr, keinen
 harten Abbruch einer hängenden Engine. Transport-Short-Write-/EAGAIN-Beobachtungen
 belegen keinen physischen Event-Log-Sink-Short-Write.
+
+## R17: nachgelagerter NGINX-H1-Systemnachweis aus PR #396
+
+**Nachgelagerter NGINX-H1-Systemnachweis aus PR #396.** Der [öffentliche R17-Bericht](https://github.com/Easton97-Jens/ModSecurity-conector/pull/396#issuecomment-6101794434) wurde vor dieser Dokumentationsänderung veröffentlicht. Er dokumentiert genau einen freigegebenen lokalen Standard-Full97; er testet weder das PR-#382-Produkt noch diese spätere Dokumentationsrevision. Dokumentationsbasis: `b2622a5d6ca746485c08f4789208299a111f47c7`. Keine Produktquellen- oder Gitlink-Änderungen.
+
+| Bindung | Tatsächliches R17-Ergebnis |
+| --- | --- |
+| Getesteter Parent | `2f02370b07149265841411894f1a2cf7f1e978ff` |
+| Getestetes Framework / MRTS | `9f41f80db7bf53b57429457bce0dda675d2ec5d7` / `8a6bb546c4c81d8ffc7be801dceac60c6925685f` |
+| Run / Target | `nginx_full97_2f02_20261010_r17` / `make full-lifecycle-nginx` |
+| System / Isolation | Ubuntu 26.04.1 LTS; Kernel 7.0.0-38-generic; x86_64/KVM; GCC 15.2.0; Python 3.14.7; NGINX 1.31.6; private Mount-/PID-/Network-Namespaces, Loopback, echter Root UID 0 / nobody UID 65534 |
+| Tatsächlicher Lifecycle | Exit 0; 554.091 Sekunden; lokaler begrenzter funktionaler PASS |
+| Original-Canonical / Auswahl | PASS; unveränderte 97 Required = 14 YAML + 42 native + 10 Config + 31 explizite Ableitungen; null Required FAIL/BLOCKED/NOT_EXECUTED/missing; Schemafehlerlisten leer |
+| Übriges Inventar / Source-Platzhalter | 34 nicht ausgewählte NOT_EXECUTED + 35 NOT_APPLICABLE; originales source-result erhält 31 PASS + 42 NOT_EXECUTED-Platzhalter, mit tatsächlicher spezialisierter nativer Lineage statt synthetischem PASS |
+| Generischer Strict-Direktabschluss des Clients | Tatsächlicher normaler curl-Exit 52, keine Diagnoseableitung; Invocation `669ba1b19fc340618d62148d715e5fc3`, Child-PID 10440; Rule 1100301 strict/abort; exakte Case-/Run-/Source-/Log-/TX-Bindung |
+| Client-Beobachtungsgrenze | Tatsächlicher curl-HTTP-Wert 000; Producer-/Originalstatus 200 ist ein anderer Beobachter. Native Strict erhielt separat HTTP 200, 10428 Bytes, chunked/incomplete_read/connection_aborted, Driver-Exit 0 |
+| First-Byte-Source-Writer | Tatsächlicher normaler Exit 0; Invocation `1515086ec928494aafd0b0a0fceab107`, Child-PID 12514; ursprüngliche Barrier-/EOS-/Identitätsbindung erhalten |
+| Direktabschluss-Inventar | 34 curl-Paare = 16 primäre + 1 First-Byte + 17 Readiness; 16 Programm-Abschlusspaare, alle normaler Exit 0, keine Signale |
+| HTTP / Lifecycle / Cleanup | 79 Nicht-Readiness-HTTP-Operationen einschließlich vier positiver Kontrollen; 17 Readiness separat; 61 echte Server-Lifecycles / Cleanup-Beobachtungen; 17 Reloads |
+| Config / Native / Projections | 10 Config-Operationen (neun normale Reject-Exits 1, ein akzeptierter Start Exit 0); 43 native Invocations für 42 native Required-Records; 57 getrennte frische root-owned direkte Projection-Kinder ohne Symlinks |
+| Source / finales Prüfsummenledger | 3554 Source-Dateihashes unverändert; 2589 finale Einträge, unabhängiger Prüfsummencheck Exit 0; SHA256 `b79fbe3e2b7cf2806c8698f2a6fd7f1f1a4c4f06aed8075924311d4d1c27d97a` |
+
+Der externe Direct-Child-Recorder nutzte den bestehenden curl-Einspeisepunkt ohne funktionale Parent-/Framework-/MRTS-Änderungen. Er persistierte den tatsächlichen `subprocess.Popen/direct-child.wait`-Status unter Erhalt von Argumenten, Streams und Signalen; keine pauschale nonzero=PASS-Regel. Die konkrete Strict-Oracle, echte Rule-/Transport- und exakte Identitätsbindung bleiben erforderlich. Ein echter begrenzter Fokus ging dem einzelnen Full97 voraus. Fehlgeschlagene Fokusvorbereitungen vor Requests sowie historische R15/R16 bleiben unverändert.
+
+Dies schließt die R16-Messlücke **nur für den neuen lokalen R17-NGINX-H1-Umfang**. Es ist kein Protected Exact-Head, H2/H3, CRS, Off, Produktion, anderer Connector oder Runtime-PASS für eine spätere Dokumentations-SHA. Framework-PR #137 war bereits mit getestetem Head `9f41f80…` gemergt; sein Merge-Commit ändert den getesteten Gitlink nicht. Diese Referenz behauptet weder Ready-, Merge- noch Retarget-Aktion für #396. #382 bleibt Draft.
+
+Die [I09–I12-Restmatrix](pr-382-i09-i12-rest-matrix.de.md) enthält 56 explizite Zeilen für 14 getrennte Routenteile, jeweils mit Vertrag, Source-/Test-SHA, offener Implementierung/Hostnachweis und nächster Aktion. Breite I09–I12 und V08–V10 bleiben unabgehakt; erledigte I09f/I10e bleiben erledigt. Apaches void-Sinkabschluss und SPOP ungeprüftes `fputs` sind sourcebestätigte getrennte Implementierungslücken. Transport-Short-Write/EAGAIN beweist keine physische Sink-Fehlerbehandlung; Soft-Budgets erkennen Überschreitung nach Rückkehr, keinen harten Abbruch.
+
+Lokale Raw-Evidence bleibt unter `/var/tmp/codex/ModSecurity-conector/analysis/nginx-strict-client-full97-r17-20261010T193127Z` und dem getrennten Runtime-Root. Der öffentliche Bericht ist eine Zusammenfassung, kein herunterladbares Raw-Bundle. Prüfsummen allein beweisen keinen semantischen PASS.
 
 ### Historischer Stack- und Konfliktabgleich vom 05.10.2026
 
@@ -125,10 +154,12 @@ belegen keinen physischen Event-Log-Sink-Short-Write.
 - [x] I11d: Runtime erhält erste Ereignisfehler ohne Ausgabepointer, verhindert Write-Wiederholung und Abschluss-/Snapshot-Verdeckung und erhält Hash-Regeln (`68f78e07`; V21).
 - [ ] I12: Jede direkte, Companion-, Middleware- und Sidecar-Route getrennt samt echten Host-/Transport-/Logergebnissen prüfen.
 - [x] I12a: Zehn separate ext_proc-C-Brückenfälle für Fehler, Wiedereintritt und Leerantwort bestehen (V22); kein Abschluss von ext_authz/Companion oder Live-gRPC.
-- [x] I12b: Nachgelagertes R16 aus PR #396 führte die native NGINX-H1-Standardroute mit echter Root/nobody-Trennung und frischen Projektionen aus. Dies schließt nur diesen Ausführungsreferenz-Teilbereich, weder einen PR-#382-Produkttest noch die wegen einer Messlücke blockierte gesamte lokale Abnahme.
+- [x] I12b: Nachgelagertes R17 aus PR #396 führte die NGINX-H1-Standardroute mit echtem Root/nobody und frischen Projektionen aus, lokaler begrenzter funktionaler PASS. Dies schließt nur den Ausführungsreferenz-Teilbereich, keinen PR-#382-Produkttest oder breiten I12; R16 bleibt historisch.
 - [x] I13: Begrenzter HAProxy-Rule-ID-Dekodierer und geordnete Bereinigung ohne geänderte Phasen-/Besitzsemantik ausgelagert.
 - [x] I14: Alle 96 ursprünglichen NGINX-Adoption-Fälle plus vier Regressionen erhalten.
 - [x] I15: HAProxy-Helfer-/Aufrufstellenprüfung und acht isolierte Regressionen erhalten.
+
+Die [neunspaltige I09–I12-Matrix](pr-382-i09-i12-rest-matrix.de.md) zeigt verbleibende Implementierung und Hostnachweise für alle 14 Routenteile explizit; diese Inventur schließt keinen breiten Punkt.
 
 ### Was vor „nur Hostnachweis fehlt“ noch nötig ist
 
@@ -152,11 +183,11 @@ belegen keinen physischen Event-Log-Sink-Short-Write.
 - [ ] V07: Alle finalen Freigabeprüfungen/Reviews; keine vollständig grüne Freigabe-CI behauptet.
 - [ ] V07a: Unabhängigen Secret-Scan ohne unbelegte Ausnahme klären. Der frische Secret-Scanning-Lauf `37281536909` / Job `111670517150` für den synchronisierten Stack scheitert weiterhin. Aus diesem Status werden keine Secret-Inhalte abgeleitet oder reproduziert.
 - [ ] V08: Echte Hostfälle für ProcessPartial/Reject, MIME/CSV, leere/mehrteilige Bodys/EOS, Budgets und native Fehler.
-- [x] V08a: R16 liefert echte NGINX-H1-Zuordnungen der erforderlichen Operationen und 97/97 ursprüngliche Required-PASS einschließlich nativer/Config-/Fault-Operationen; 31 explizite Ableitungen sind Records, keine zusätzlichen Requests. Andere Hosts/Profile und der breitere V08-Umfang bleiben offen.
+- [x] V08a: R17 liefert echte NGINX-H1-Operationszuordnungen und originale 97/97 Required-PASS (14 YAML / 42 native / 10 Config / 31 explizite Ableitungen). Ableitungen sind Records, keine zusätzlichen Requests; andere Hosts/Profile und breiter V08 bleiben offen.
 - [ ] V09: Spätes Safe/Strict, Fehler vor/nach Commit, Client-Bytes, Reset-Grenze, Nachbarstreams und Bereinigung.
-- [x] V09a: R16 erhält echte native Safe-/Strict-Entscheidungs-, Abort-/Incomplete-Read- und Cleanup-Evidence. Der exakte numerische Exit des generischen Strict-curl-Prozesses bleibt NOT SEPARATELY MEASURED; dies ist keine vollständige Client-Exit-Abnahme oder Erledigung von V09.
+- [x] V09a: R17 erhält echte Safe-/Strict-, native Incomplete-Read-/Abort- und Cleanup-Evidence sowie tatsächlichen normalen generischen Strict-curl-Exit 52 mit Case-/Run-/Rule-Bindung. Dies schließt nur diese Messlücke; andere Profile, Nachbarstreams und breiter V09 bleiben offen.
 - [ ] V10: Echte Routenlogs, ungültige/übergroße Metadaten, fehlende Beobachtungen und fehlerhafte physische Ausgaben.
-- [x] V10a: R16 besitzt schemagültige Canonical-Evidence und 13 direkte Child-Abschlussreceipts für neun erforderliche Programme einschließlich genau eines First-Byte-Source-Writers mit Exit 0. Dies schließt nicht sämtliche physischen Sink-/Logverträge aus V10.
+- [x] V10a: R17 besitzt schemagültiges Original-Canonical, 16 echte Programmabschlüsse alle normaler Exit 0, genau einen First-Byte-Source-Writer mit Exit 0 und 34 echte curl-Paare. Dies schließt nicht sämtliche physischen Sink-/Logverträge des breiten V10.
 - [x] V11: Echte Common-JSONL-/Hash-Tests erhalten Nachweise/Redaktion; Familiennamen sind keine Hostläufe.
 - [x] V12: Acht kompilierte HAProxy-Helfertests und Binding-Compile/Link bestanden für `039b7f12`.
 - [x] V13: Neun NGINX-Request-/Dateitests mit kontrollierten Grenzen, keine vollständige Dateileser-Integration.

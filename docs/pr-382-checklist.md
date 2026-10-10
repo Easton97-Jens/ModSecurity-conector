@@ -30,7 +30,7 @@ References: [contract/migration](pr-382-event-contract.md),
 [Envoy native test repair](../reports/audits/change-records/CR-20260923-pr382-envoy-test-boundaries.md).
 
 
-## 2026-10-10 downstream NGINX-H1 system evidence from PR #396
+## Historical R16: 2026-10-10 downstream NGINX-H1 system evidence from PR #396
 
 This is a downstream NGINX-H1 system evidence reference from PR #396, not a
 runtime test of the unchanged PR #382 product revision. The documentation base
@@ -60,12 +60,12 @@ the tested #396 code nor changes its Gitlinks.
 Public summaries: [PR #396 R16 result](https://github.com/Easton97-Jens/ModSecurity-conector/pull/396#issuecomment-6100868299)
 and [Framework PR #137 scope](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/137#issuecomment-6100868488).
 
-**Local acceptance remains BLOCKED by a measurement gap:** the generic H1
+**At the R16 checkpoint, local acceptance remained BLOCKED by a measurement gap:** the generic H1
 Strict curl process's exact numeric exit was not persisted. Its failure is
 known to be nonzero, but the diagnostic number `52` is not proof of exit 52.
 This is distinct from the native Strict driver and its expected incomplete-read
 evidence. Canonical PASS and measured writer exits do not close that missing
-direct client-status requirement. PR #396 therefore remains Draft; no overall
+direct client-status requirement. PR #396 therefore remained Draft at that checkpoint; no overall
 local E2E acceptance PASS or Ready transition is claimed here.
 
 Raw evidence and per-record mapping are retained locally below
@@ -82,6 +82,35 @@ review readiness is evaluated separately; neither PR is merged by this reference
 Soft-budget cases prove overrun detection after the engine returns, not hard
 cancellation of a hanging engine. Transport short-write/EAGAIN observations do
 not prove physical event-log sink short-write.
+
+## R17: downstream NGINX-H1 system evidence from PR #396
+
+**Nachgelagerter NGINX-H1-Systemnachweis aus PR #396.** The [public R17 report](https://github.com/Easton97-Jens/ModSecurity-conector/pull/396#issuecomment-6101794434) was published before this documentation change. It records one authorized standard local Full97; it does not test the PR #382 product or this later documentation revision. Documentation base: `b2622a5d6ca746485c08f4789208299a111f47c7`. No product source or Gitlink changes.
+
+| Binding | Actual R17 result |
+| --- | --- |
+| Tested Parent | `2f02370b07149265841411894f1a2cf7f1e978ff` |
+| Tested Framework / MRTS | `9f41f80db7bf53b57429457bce0dda675d2ec5d7` / `8a6bb546c4c81d8ffc7be801dceac60c6925685f` |
+| Run / target | `nginx_full97_2f02_20261010_r17` / `make full-lifecycle-nginx` |
+| System / isolation | Ubuntu 26.04.1 LTS; kernel 7.0.0-38-generic; x86_64/KVM; GCC 15.2.0; Python 3.14.7; NGINX 1.31.6; private mount/PID/network namespaces, loopback, actual Root UID 0 / nobody UID 65534 |
+| Actual lifecycle | Exit 0; 554.091 seconds; local scoped functional PASS |
+| Original Canonical / selection | PASS; unchanged 97 Required = 14 YAML + 42 native + 10 config + 31 explicit derivations; zero required FAIL/BLOCKED/NOT_EXECUTED/missing; schema error lists empty |
+| Other inventory / source placeholders | 34 unselected NOT_EXECUTED + 35 NOT_APPLICABLE; original source-result retains 31 PASS + 42 NOT_EXECUTED placeholders, with actual specialized native lineage instead of synthetic PASS |
+| Generic Strict direct client completion | Actual normal curl exit 52, not diagnostic inference; invocation `669ba1b19fc340618d62148d715e5fc3`, child PID 10440; Rule 1100301 strict/abort; exact case/run/source/log/TX binding |
+| Client observation boundary | Actual curl HTTP value 000; producer/original status 200 is a different observer. Native Strict separately received HTTP 200, 10428 bytes, chunked/incomplete_read/connection_aborted, driver exit 0 |
+| First-Byte source writer | Actual normal exit 0; invocation `1515086ec928494aafd0b0a0fceab107`, child PID 12514; original barrier/EOS/identity binding retained |
+| Direct completion inventory | 34 curl pairs = 16 primary + 1 First-Byte + 17 readiness; 16 program completion pairs, all normal exit 0, no signals |
+| HTTP / lifecycle / cleanup | 79 non-readiness HTTP operations including four positive controls; 17 readiness separately; 61 real server lifecycles / cleanup observations; 17 reloads |
+| Config / native / projections | 10 config operations (nine normal reject exits 1, one accepted startup exit 0); 43 native invocations for 42 native Required records; 57 distinct fresh root-owned nonsymlink direct projection children |
+| Source / final checksum ledger | 3554 source-file hashes unchanged; 2589 final entries, independent checksum check exit 0; SHA256 `b79fbe3e2b7cf2806c8698f2a6fd7f1f1a4c4f06aed8075924311d4d1c27d97a` |
+
+The external direct-child recorder used the existing curl injection seam without Parent/Framework/MRTS functional changes. It persisted actual `subprocess.Popen/direct-child.wait` status, preserving arguments, streams and signals; no blanket nonzero=PASS rule. The specific Strict oracle, genuine rule/transport and exact identities remain required. A genuine bounded focus preceded the single Full97. Failed pre-request focus setups and historical R15/R16 remain unchanged.
+
+This closes the R16 measurement gap **only for the new R17 NGINX-H1 local scope**. It is not Protected Exact-Head, H2/H3, CRS, Off, production, other connectors or a runtime PASS for a later documentation SHA. Framework PR #137 was already merged with tested head `9f41f80…`; its merge commit does not change the tested Gitlink. This reference claims no Ready, merge or retarget action for #396. #382 remains Draft.
+
+The [I09–I12 remaining-work matrix](pr-382-i09-i12-rest-matrix.md) lists 56 explicit rows across 14 separate route legs, each with contract, source/test SHA, open implementation/host proof and next action. Broad I09–I12 and V08–V10 stay unchecked; completed I09f/I10e remain completed. Apache's void sink completion and SPOP's unchecked `fputs` are source-confirmed separate implementation gaps. Transport short-write/EAGAIN does not prove physical sink failure handling; soft budgets detect overrun after return, not hard cancellation.
+
+Local raw evidence remains under `/var/tmp/codex/ModSecurity-conector/analysis/nginx-strict-client-full97-r17-20261010T193127Z` and its separate runtime root. The public report is a summary, not a downloadable raw bundle. Checksums alone do not establish semantic PASS.
 
 ### Historical 2026-10-05 stack and conflict reconciliation
 
@@ -121,10 +150,12 @@ not prove physical event-log sink short-write.
 - [x] I11d: Runtime retains original event errors with NULL output, prevents failed-write retry and completion/snapshot masking, and preserves hash advancement rules (`68f78e07`; V21).
 - [ ] I12: Verify each direct, companion, middleware and sidecar route separately, including actual host/transport/log results.
 - [x] I12a: Ten separate ext_proc C-bridge failure/re-entry/empty-response scenarios pass (V22); not ext_authz/companion or live gRPC completion.
-- [x] I12b: Downstream R16 from PR #396 executed the standard native NGINX-H1 route with actual Root/nobody separation and fresh projections. This closes only that execution-reference subset, not PR #382 product testing or the measurement-blocked overall local acceptance.
+- [x] I12b: Downstream R17 from PR #396 executed the standard NGINX-H1 route with actual Root/nobody and fresh projections, locally scoped functional PASS. This closes only the execution-reference subset, not PR #382 product testing or broad I12; R16 remains historical.
 - [x] I13: Bounded HAProxy Rule-ID decoder and ordered cleanup extracted without changing phase/ownership semantics.
 - [x] I14: All 96 original NGINX adoption cases plus four regressions retained.
 - [x] I15: HAProxy helper/callsite adoption checks and eight isolated regressions retained.
+
+The [nine-column I09–I12 matrix](pr-382-i09-i12-rest-matrix.md) makes the remaining implementation and host evidence explicit for all 14 route legs; no broad checkbox is closed by this inventory.
 
 ### What remains before "only host proof is missing"
 
@@ -148,11 +179,11 @@ not prove physical event-log sink short-write.
 - [ ] V07: All final-release checks and review; overall release CI is not claimed green.
 - [ ] V07a: Resolve independent secret scanning without an unsupported exception. The fresh exact-range Secret scanning run `37281536909` / job `111670517150` still fails on the synchronized stack. No secret contents are inferred or reproduced from that status.
 - [ ] V08: Real-host ProcessPartial/Reject, MIME/CSV, empty/multiple-chunk/EOS, budgets and native errors.
-- [x] V08a: R16 supplies actual NGINX-H1 required operation mappings and 97/97 original Required-PASS, including native/config/fault operations; 31 explicit derivations are records, not additional requests. Other hosts/profiles and broader V08 coverage remain open.
+- [x] V08a: R17 supplies actual NGINX-H1 operation mappings and original 97/97 Required-PASS (14 YAML / 42 native / 10 config / 31 explicit derivations). Derivations are records, not additional requests; other hosts/profiles and broad V08 remain open.
 - [ ] V09: Late Safe/Strict, pre/post-commit failures, client bytes, reset scope, neighboring streams and cleanup.
-- [x] V09a: R16 preserves genuine native Safe/Strict decision, abort/incomplete-read and cleanup evidence. The generic Strict curl process's exact numeric exit remains NOT SEPARATELY MEASURED; this is not complete client-exit acceptance or closure of V09.
+- [x] V09a: R17 preserves genuine Safe/Strict, native incomplete-read/abort and cleanup evidence, plus actual normal generic Strict curl exit 52 bound to its case/run/rule. This closes that measurement gap only; other profiles, neighboring streams and broad V09 remain open.
 - [ ] V10: Actual route logs, invalid/oversized metadata, missing observations and failed physical sinks.
-- [x] V10a: R16 has schema-valid Canonical evidence and 13 direct-child completion receipts for nine required programs, including exactly one First-Byte source writer exit 0. This does not close every physical sink/log contract in V10.
+- [x] V10a: R17 has schema-valid original Canonical, 16 actual program completions all normal exit 0, exactly one First-Byte source writer exit 0, and 34 genuine curl pairs. This does not close every physical sink/log contract in broad V10.
 - [x] V11: Actual Common JSONL/hash tests retain evidence/redaction; family labels are not host runs.
 - [x] V12: Eight compiled HAProxy helper cases and binding compile/link checks passed at `039b7f12`.
 - [x] V13: Nine NGINX request/file cases with controlled boundaries, not full file-reader integration.
