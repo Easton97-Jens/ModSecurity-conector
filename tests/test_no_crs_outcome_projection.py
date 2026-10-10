@@ -60,3 +60,19 @@ class OutcomeProjectionTests(unittest.TestCase):
         self.assertFalse(COLLECTOR.case_passes(
             "PASS", True, 200, None, "1100301", 4,
             "phase4_deny_after_commit_log_only", {"1100301"}, records))
+
+    def test_explicit_generic_fault_contracts_remain_observable(self):
+        cases = (
+            ("upstream_reset_before_headers", 3, "upstream_reset", None),
+            ("upstream_reset_after_headers", 4, "upstream_reset", None),
+            ("upstream_reset_during_body", 4, "upstream_reset", None),
+            ("upstream_timeout", 4, "timeout", None),
+            ("response_short_write_resume", 4, "short_write", "1100301"),
+        )
+        for case_id, phase, transport, rule in cases:
+            with self.subTest(case_id=case_id):
+                records = [{"phase": phase, "transaction_id": "one",
+                            "transport_result": transport}]
+                self.assertTrue(COLLECTOR.case_passes(
+                    "PASS", True, 502, None, rule, phase, case_id,
+                    {rule} if rule else set(), records))

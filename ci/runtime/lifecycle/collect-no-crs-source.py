@@ -1615,9 +1615,15 @@ def case_passes(
     phase_matches = not structured_runtime_case or any(
         record.get("phase") == expected_phase for record in records
     )
+    normal_outcome_case = case_id in {
+        "phase3_deny_before_commit", "phase3_redirect_before_commit",
+        "phase4_deny_after_commit_log_only", "phase4_deny_after_commit_abort",
+        "phase4_deny_after_commit_log_only_safe", "phase4_rule_observed",
+        "phase4_no_full_response_buffering", "phase4_first_byte_before_response_end",
+    }
     return (
         status == "PASS" and live and status_matches and rule_matches and phase_matches
-        and not any(observed_technical_failure(record) for record in records)
+        and not (normal_outcome_case and any(observed_technical_failure(record) for record in records))
     )
 
 

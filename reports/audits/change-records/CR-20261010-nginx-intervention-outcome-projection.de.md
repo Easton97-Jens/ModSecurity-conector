@@ -34,6 +34,7 @@ Interventionsentscheidungen werden getrennt vom späteren Lifecycle-Zustand proj
 
 ## Security-Auswirkung
 
+
 Validatoren, Datenschutz-Allowlist, Required-Scope und Produktsemantik nicht abgeschwächt. Der Receipt speichert keinen Response-Payload. MRTS unverändert.
 
 ## Runtime-Evidence
@@ -42,9 +43,11 @@ Historischer R13 unverändert. Offline-Fixtures sind kein neuer Runtime-Lauf. Fr
 
 ## Bekannte Einschränkungen
 
-Unit-Regressionen sind kein Full97- oder Protected-Exact-Head-Nachweis.
+Unit-Regressionen sind kein Full97- oder Protected-Exact-Head-Nachweis. Tests liefen auf der uncommitted Sourceüberlagerung der Basis-Revision, nicht als Exact-Head-Runtime. Die aufgeführten Test-Payloads wurden in `rtk proxy bash -c` mit Log-/Exit-Erfassung ausgeführt. Python-Kompilierung, Shell-Syntax, Change-Record-Struktur und `git diff --check` bestanden. ShellCheck mit `--severity=warning` meldete auf Basis und geändertem Harness dieselben sieben bestehenden Warnungen, jeweils Exit 1; keine Unterdrückung.
 
 ## Verbleibende Risiken
+
+Der unabhängige Review zeigte, dass ein globales technisches Fehlerveto positive generische Reset-/Timeout-/Resume-Verträge ablehnen würde. Die Folgekorrektur begrenzt das Veto auf die acht betroffenen normalen Interventions-/First-Byte-IDs; fünf positive Fault-Kontrollen reproduzieren die Regression vor der Korrektur. Eine Rule-ID allein unterscheidet normale und Fault-Verträge nicht ausreichend. Der ursprüngliche A-Commit wird nicht umgeschrieben.
 
 Frischer Phase-3-Deny/Redirect- und Phase-4-Safe/Strict-Fokus muss Entscheidungen, Rollen und Cleanup prüfen.
 

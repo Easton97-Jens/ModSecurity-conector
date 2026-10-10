@@ -34,6 +34,7 @@ Intervention decision fields are projected separately from later lifecycle state
 
 ## Security impact
 
+
 No validator, privacy allowlist, Required scope or product semantics weakened. No response payload is retained in the receipt. MRTS unchanged.
 
 ## Runtime evidence
@@ -42,9 +43,11 @@ Historical R13 is unchanged. Offline fixtures are not a new runtime run. Fresh r
 
 ## Known limitations
 
-Unit regressions are not Full97 or protected Exact-Head proof.
+Unit regressions are not Full97 or protected Exact-Head proof. Tests ran against the uncommitted source overlay on the base revision, not as exact-head runtime. Listed test payloads were executed inside `rtk proxy bash -c` with log/exit capture. Python compilation, shell syntax, Change Record structure and `git diff --check` passed. ShellCheck with `--severity=warning` reported the same seven existing warnings on baseline and changed harness, both exit 1; no suppression.
 
 ## Remaining risks
+
+Independent review found that a global technical-failure veto would reject positive generic reset/timeout/resume contracts. The follow-up scopes the veto to the eight affected normal intervention/First-Byte IDs; five positive fault controls reproduce the regression before the correction. A rule ID alone is not a sufficient normal-versus-fault discriminator. This correction does not rewrite the original A commit.
 
 Fresh Phase-3 deny/redirect and Phase-4 Safe/Strict focus must verify decisions, roles and cleanup.
 
