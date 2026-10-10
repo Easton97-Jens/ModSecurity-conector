@@ -42,7 +42,7 @@ typedef struct { unsigned status; ngx_str_t content_type, status_line; void *loc
 typedef struct { connection_t *connection; int header_sent, err_status, error_page, filter_need_in_memory, header_only; headers_t headers_out; ngx_pool_t *pool; } ngx_http_request_t;
 typedef struct { int fd; } ngx_open_file_t;
 typedef ngx_http_modsecurity_engine_call_budget ngx_http_modsecurity_engine_call_measurement;
-typedef struct { ngx_uint_t engine_call_budget_ms; ngx_open_file_t *phase4_log_file; int phase4_mode; struct { size_t phase4_body_limit; } common_config; } ngx_http_modsecurity_conf_t;
+typedef struct { ngx_uint_t engine_call_budget_ms; ngx_open_file_t *phase4_log_file; int phase4_mode; } ngx_http_modsecurity_conf_t;
 typedef struct {
     msconnector_transaction_contract contract;
     int contract_initialized, native_response_body_eos, native_event_phase_active;

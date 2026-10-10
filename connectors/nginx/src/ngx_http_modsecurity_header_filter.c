@@ -600,7 +600,7 @@ ngx_http_modsecurity_response_body_limit(
         return 0U;
     }
     return msconnector_phase4_effective_body_limit(
-        mcf->phase4_mode, mcf->common_config.phase4_body_limit);
+        mcf->phase4_mode);
 }
 
 ngx_int_t

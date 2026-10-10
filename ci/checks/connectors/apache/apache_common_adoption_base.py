@@ -331,7 +331,7 @@ checks.append(("msconnector_config_merge(&destination->common_config" in config_
 checks.append(("msconnector_config_validate(&destination->common_config" in config_c, "Apache config validation path uses msconnector_config_validate"))
 checks.append(("msconnector_parse_bool" in config_c, "Apache bool parsing uses Common parser"))
 checks.append(("msconnector_parse_phase4_mode" in config_c, "Apache phase4 parsing uses Common parser"))
-checks.append(("msconnector_parse_size" in config_c, "Apache size parsing uses Common parser"))
+checks.append(("MSCONNECTOR_DIRECTIVE_PHASE4_BODY_LIMIT" not in config_c and "msc_config_phase4_body_limit" not in config_c, "Apache no longer registers or parses the removed Phase-4 body-limit API"))
 checks.append(("MSCONNECTOR_DIRECTIVE_" in config_c and "msconnector_directive_adapter_find" in config_c, "Apache directives reference Common directive names and adapter lookup"))
 checks.append(("int msc_apache_map_request" in mapper_h + mapper_c and "request_rec *r" in mapper_h + mapper_c, "Apache request_rec mapper is present"))
 checks.append(("msconnector_request_mapper_contract" in mapper_h + mapper_c and "msconnector_request_mapper_validate_output" in mapper_c, "Request mapper uses Common contract validation"))

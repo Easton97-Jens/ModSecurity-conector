@@ -107,8 +107,9 @@ an die Engine übergeben; die Engine-Policy bleibt maßgeblich.
 Das lockert #384 nicht: Finales `msc_process_response_body()`-Processing bleibt
 bei einem Ergebnis ungleich `1` fail-closed, während Append-/From-File-
 `ProcessPartial`-Handling für akzeptierte Engine-Chunks absichtlich nicht fatal
-bleibt. Der alte Wert `modsecurity_phase4_body_limit` weist in `safe` oder
-`strict` keine Response mehr ab; geprüfte Bytezähler, Integer-Überlaufprüfungen
+bleibt. Die Direktive `modsecurity_phase4_body_limit` ist entfernt; kein Modus
+erzeugt ein konfigurierbares kumuliertes Inspection-Limit des Connectors.
+Geprüfte Bytezähler, Integer-Überlaufprüfungen
 und begrenzte Datei-Reads bleiben aktiv.
 
 ### Historische Beobachtungen vor der Migration
@@ -297,9 +298,6 @@ Der adaptereigene NGINX-Connector registriert derzeit Folgendes:
   gehörende Deskriptor wird über den Common-No-Follow-Helper geöffnet und
   verlangt ein sicheres Elternverzeichnis, ein reguläres Blatt, geeignete
   Eigentümer und den privaten Modus `0600`)
-- `modsecurity_phase4_body_limit <bytes>` (alter Kompatibilitätswert;
-  wird von der aktuellen Konfiguration weiter akzeptiert, aber nicht als
-  WAF-Response-Inspection-Limit durchgesetzt)
 
 ### Native URI-Metadaten und weiches Budget ausgewählter Aufrufe
 
@@ -376,9 +374,10 @@ und der separate First-Byte-Pfad bleiben unverändert. Der Direktivenname
 beschränkt den Sink nicht auf Phase 4: native Request- und Response-Phase-
 Events nutzen denselben Deskriptor.
 
-`modsecurity_phase4_body_limit` behält aus Konfigurationskompatibilität seine
-historischen Parser-/Default-Grenzen, wird aber in keinem gültigen
-Phase-4-Modus als Connector-WAF-Response-Limit durchgesetzt. Für die
+`modsecurity_phase4_body_limit` ist entfernt und wird nicht stillschweigend
+ignoriert. Aus bestehenden Konfigurationen entfernen; auch ein früher gültiger
+Wert ist eine unbekannte Direktive. Es gibt kein Ersatz-Limit als konfigurierbare
+kumulierte Phase-4-Grenze des Connectors. Für die
 ModSecurity-Inspection-Policy sind `SecResponseBodyLimit` und
 `SecResponseBodyLimitAction` zu verwenden. Integer-Überlaufprüfungen,
 Dateimetadaten-/Read-Prüfungen und der wiederverwendete 32768-Byte-
@@ -640,10 +639,9 @@ Runtime. Eine reine Request-Route benötigt für Phase 4 weiterhin den
 unterstützten Response-Observer beziehungsweise Companion; die Wahl eines
 Modus erzeugt keinen fehlenden Response-Pfad.
 
-Alte Connector-/Runtime-Budget-Einstellungen dürfen aus
-Kompatibilitätsgründen weiter parsebar bleiben, dürfen eine Response aber nicht
-allein deshalb abweisen oder abbrechen, weil eine alte Inspection-Bytezahl
-überschritten wurde. Unabhängige Allokations-, Pufferspeicher-,
+Es gibt keine Ersatz-Einstellung für Connector-Inspection-Bytes.
+Common-Runtime-Speicherlimits sind keine WAF-Inspection-Policy. Unabhängige
+Allokations-, Pufferspeicher-,
 Chunk-/Message-/Frame-, Timeout-, Überlauf- und Transportlimits bleiben in
 jedem Modus aktiv. Ein puffernder Sidecar darf deshalb weiterhin eine Response
 ablehnen, die nicht in seinen begrenzten Host-Speicher passt; das ist

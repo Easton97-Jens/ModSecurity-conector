@@ -30,7 +30,7 @@ class ApachePhase4ResponseRegressionWiringTest(unittest.TestCase):
         self.assertIn("custom-MIME pre-commit deny released original response bytes before EOS", source)
         self.assertIn("engine ProcessPartial failure", source)
         self.assertIn("bypass reproduction did not take the Safe log_only fallback", source)
-        self.assertIn("APACHE_PHASE4_BODY_LIMIT", source)
+        self.assertNotIn("APACHE_PHASE4_BODY_LIMIT", source)
         self.assertIn("assert_single_h1_status", source)
         self.assertIn("assert_text_response_headers", source)
         self.assertIn("--http1.1", source)

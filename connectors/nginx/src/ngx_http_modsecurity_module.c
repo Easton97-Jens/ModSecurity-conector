@@ -53,7 +53,6 @@ static void ngx_http_modsecurity_cleanup_rules(void *data);
 static void ngx_http_modsecurity_cleanup_phase4_log(void *data);
 static char *ngx_conf_set_phase4_mode(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static char *ngx_conf_set_phase4_log(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
-static char *ngx_conf_set_phase4_body_limit(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static char *ngx_conf_set_engine_call_budget(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static char *ngx_conf_set_common_flag_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static ngx_int_t ngx_http_modsecurity_process_redirect_intervention(
@@ -1223,25 +1222,6 @@ ngx_conf_set_common_flag_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     return NGX_CONF_OK;
 }
 
-static char *
-ngx_conf_set_phase4_body_limit(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
-{
-    (void)cmd;
-    ngx_http_modsecurity_conf_t *mcf = conf;
-    ngx_str_t *value = cf->args->elts;
-    char *limit = ngx_str_to_char(value[1], cf->pool);
-    size_t parsed = 0U;
-
-    if (limit == (char *)-1 || limit == NULL) {
-        return NGX_CONF_ERROR;
-    }
-    if (!msconnector_parse_size(limit, &parsed)) {
-        return "invalid value for modsecurity_phase4_body_limit";
-    }
-    mcf->common_config.phase4_body_limit = parsed;
-    return NGX_CONF_OK;
-}
-
 /* A unit is deliberately not accepted: this host-specific contract is an
  * integer number of milliseconds, with zero disabling the measurement. */
 static char *
@@ -1315,14 +1295,6 @@ static ngx_command_t ngx_http_modsecurity_commands[] =  {
     ngx_string(MSCONNECTOR_DIRECTIVE_PHASE4_LOG),
     NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
     ngx_conf_set_phase4_log,
-    NGX_HTTP_LOC_CONF_OFFSET,
-    0,
-    NULL
-  },
-  {
-    ngx_string(MSCONNECTOR_DIRECTIVE_PHASE4_BODY_LIMIT),
-    NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
-    ngx_conf_set_phase4_body_limit,
     NGX_HTTP_LOC_CONF_OFFSET,
     0,
     NULL

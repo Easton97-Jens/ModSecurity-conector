@@ -958,8 +958,7 @@ static apr_status_t apache_phase4_append_bucket(msc_t *msr,
         if (!msconnector_body_limit_plan_chunk(msr->response_body_bytes_seen,
                 msr->response_body_bytes_inspected,
                 msconnector_phase4_effective_body_limit(
-                    conf->common_config.phase4_mode,
-                    conf->common_config.phase4_body_limit),
+                    conf->common_config.phase4_mode),
                 MSCONNECTOR_BODY_LIMIT_ACTION_REJECT, len, &plan))
         {
             msr->response_body_bytes_seen = plan.bytes_seen;
@@ -1784,8 +1783,7 @@ static apr_status_t apache_output_filter_process_headers(msc_t *msr,
     content_type = apache_response_content_type(r);
     if (!apache_contract_record_response_metadata(msr, r, content_type,
             msconnector_phase4_effective_body_limit(
-                conf->common_config.phase4_mode,
-                conf->common_config.phase4_body_limit)))
+                conf->common_config.phase4_mode)))
     {
         (void)msc_apache_contract_fail(msr,
             MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
@@ -1935,7 +1933,7 @@ static apr_status_t apache_output_filter_prepare_response_brigade(msc_t *msr,
         {
             return apache_phase4_fail_closed(msr, filter, *brigade,
                 msr->response_body_truncated
-                    ? "response body exceeds modsecurity_phase4_body_limit"
+                    ? "response body accounting overflow"
                     : "failed to append response body to libmodsecurity");
         }
     }

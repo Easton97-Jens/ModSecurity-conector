@@ -38,8 +38,8 @@
 static ngx_http_output_body_filter_pt ngx_http_next_body_filter;
 
 /* File-only nginx buffers need bounded materialization before the native
- * libModSecurity append API can inspect them. This is deliberately much
- * smaller than the configurable transaction limit and is reused per request. */
+ * libModSecurity append API can inspect them. The fixed-size scratch buffer
+ * is reused per request; it is not a cumulative response-inspection limit. */
 #define NGX_HTTP_MODSECURITY_PHASE4_FILE_READ_CHUNK 32768U
 
 static ngx_int_t
@@ -163,7 +163,7 @@ ngx_http_modsecurity_plan_limited_response_body(
 
     ctx->response_body_seen = 1;
     limit = msconnector_phase4_effective_body_limit(
-        mcf->phase4_mode, mcf->common_config.phase4_body_limit);
+        mcf->phase4_mode);
     if (limit == 0U) {
         (void)msconnector_transaction_contract_fail(&ctx->contract,
             MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);

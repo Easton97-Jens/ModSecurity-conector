@@ -49,7 +49,6 @@ typedef struct {
 } ngx_http_modsecurity_ctx_t;
 typedef struct {
     unsigned long phase4_mode;
-    struct { size_t phase4_body_limit; } common_config;
 } ngx_http_modsecurity_conf_t;
 static int msconnector_transaction_contract_fail(
     test_contract *contract, int error, unsigned long now)
@@ -76,7 +75,6 @@ int main(int argc, char **argv)
         MSCONNECTOR_PHASE4_MODE_SAFE, MSCONNECTOR_PHASE4_MODE_STRICT
     };
     size_t i;
-    conf.common_config.phase4_body_limit = limit;
     CHECK(argc == 2);
 
     if (strcmp(argv[1], "off-large") == 0) {
@@ -171,7 +169,6 @@ int main(int argc, char **argv)
         }
     } else if (strcmp(argv[1], "metadata-defaults") == 0) {
         CHECK(effective_response_limit(NULL) == 0U);
-        conf.common_config.phase4_body_limit = 0U;
         conf.phase4_mode = MSCONNECTOR_PHASE4_MODE_OFF;
         CHECK(effective_response_limit(&conf) == SIZE_MAX);
         for (i = 0U; i < sizeof(modes) / sizeof(modes[0]); ++i) {

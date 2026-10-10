@@ -269,7 +269,6 @@ def write_config(
             f"    modsecurity_rules_file {rules};",
             "    modsecurity_phase4_mode safe;",
             f"    modsecurity_phase4_log {phase4_log};",
-            f"    modsecurity_phase4_body_limit {FIXTURE_LIMIT};",
             *(location(mode) for mode in modes),
             "  }",
             "}",

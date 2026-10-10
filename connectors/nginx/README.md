@@ -104,8 +104,8 @@ remains authoritative.
 This does not relax #384: final `msc_process_response_body()` processing
 remains fail-closed for a result other than `1`, while append/from-file
 `ProcessPartial` handling remains intentionally nonfatal for accepted engine
-chunks. The legacy `modsecurity_phase4_body_limit` value no longer rejects a
-response in `safe` or `strict`; checked byte accounting, integer-overflow
+chunks. The `modsecurity_phase4_body_limit` directive is removed; no mode adds
+a connector-configurable cumulative inspection cap. Checked byte accounting, integer-overflow
 guards and bounded file reads remain active.
 
 ### Historical pre-migration observations
@@ -280,9 +280,6 @@ The adapter-owned NGINX connector currently registers:
 - `modsecurity_phase4_log <path>` (native P4 JSONL sink; the connector-owned
   descriptor is opened through the Common no-follow helper and requires a safe
   parent, regular leaf, suitable ownership, and private `0600` mode)
-- `modsecurity_phase4_body_limit <bytes>` (legacy compatibility value;
-  accepted by current configuration parsing but not enforced as a WAF
-  response-inspection limit)
 
 ### Native URI metadata and selected-call soft budget
 
@@ -353,9 +350,9 @@ their own directive; direct harness defaults and the separate First-Byte
 route are unchanged. The name of the directive does not limit the sink to
 Phase 4: native request- and response-phase events use the same descriptor.
 
-`modsecurity_phase4_body_limit` keeps its historical parser/default bounds for
-configuration compatibility, but the value is no longer enforced as a
-connector WAF response limit in any valid Phase-4 mode. Use
+`modsecurity_phase4_body_limit` is removed, not silently ignored. Remove it from
+existing configurations; even a formerly valid value is an unknown directive.
+There is no replacement connector-configurable cumulative Phase-4 limit. Use
 `SecResponseBodyLimit` and `SecResponseBodyLimitAction` for ModSecurity
 inspection policy. Integer-overflow checks, file metadata/read checks, and the
 reusable 32768-byte file scratch buffer remain active. An absent runtime
@@ -593,9 +590,8 @@ paths. A request-only route still requires its supported response
 observer/companion to inspect Phase 4; selecting a mode does not create a
 missing response path.
 
-Legacy connector/runtime budget settings may remain parseable for
-compatibility, but they must not reject or abort a response solely because a
-legacy inspection-byte count is exceeded. Independent allocation,
+There is no replacement connector inspection-byte setting. Common Runtime
+storage limits are not WAF inspection policy. Independent allocation,
 buffered-storage, chunk/message/frame, timeout, overflow and transport limits
 remain active in every mode. A buffered sidecar may therefore still reject a
 response that cannot fit its bounded host storage; that is host capacity, not

@@ -17,7 +17,6 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`listen`](#listen) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`load_module`](#load-module) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`modsecurity`](#modsecurity) | Host / Connector | Boolescher Wert | nein | off | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Schaltet die Erstellung von Connector-Transaktionen frei; dies ist nicht SecRuleEngine. |
-| [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive dezimale Byteanzahl | nein | 1048576 | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Alter Kompatibilitätswert; gültige Phase-4-Modi erzwingen ihn nicht als Connector-WAF-Response-Inspection-Limit. |
 | [`modsecurity_phase4_log`](#modsecurity-phase4-log) | Host / Connector | Pfad | nein | nicht konfiguriert | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Öffnet über den sicheren No-Follow-Deskriptor-Helper der Common Runtime einen nativen NGINX-Ereignis-Sink im Besitz des Connectors. |
 | [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | Aufzählung | nein | off | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | off bewahrt die native Interventionsbehandlung von NGINX, ohne die ModSecurity-Response-Body-Inspektion zu deaktivieren. safe wendet eine Intervention an, solange die Antwort noch geändert werden kann, und protokolliert eine späte disruptive Entscheidung, ohne einen neuen Status zu erfinden. strict verwendet nach dem Commit den nativen abort_connection-Pfad. Die Response-MIME-Auswahl gehört über SecResponseBodyMimeType zu ModSecurity. |
 | [`modsecurity_rules`](#modsecurity-rules) | Host / Connector | Zeichenkette | nein | kein Wert; optional | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Lädt während des Konfigurationsladens Inline-Inhalt über libmodsecurity. |
@@ -409,61 +408,6 @@ Quellenbasiertes Beispiel: [examples/nginx/off/nginx.conf](../../examples/nginx/
 ### Sicherheit und Betrieb
 
 off umgeht die Connector-Verarbeitung P1–P4, auch wenn eine Regeldatei konfiguriert ist.
-
-<a id="modsecurity-phase4-body-limit"></a>
-## `modsecurity_phase4_body_limit`
-
-### Kurzbeschreibung
-
-Alter Kompatibilitätswert; gültige Phase-4-Modi erzwingen ihn nicht als Connector-WAF-Response-Inspection-Limit.
-
-### Syntax
-
-```text
-modsecurity_phase4_body_limit <positive-bytes>;
-```
-
-### Gültige Kontexte
-
-- NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location)
-
-### Werte
-
-| Typ | Zulässige Werte | Erforderlich |
-| --- | --- | --- |
-| positive dezimale Byteanzahl | positive Ganzzahl | nein |
-
-### Standardwert
-
-1048576
-
-Quelle: `common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_BODY_LIMIT`.
-
-### Vererbung und Zusammenführung
-
-http → server → location; ein Kind erbt, wenn es keinen Wert setzt.
-
-Zusammenführung: ngx_conf_merge_* führt Skalar-/Zeigerkonfiguration zusammen, während msc_rules_merge Eltern- und Kindregeln zusammenführt.
-
-### Phasen und Laufzeitwirkung
-
-P1–P4-Relevanz: P1 steuert die Integration; Regeln und P4-Steuerungen betreffen nur die genannte Phase.
-
-Alter Kompatibilitätswert; gültige Phase-4-Modi erzwingen ihn nicht als Connector-WAF-Response-Inspection-Limit.
-
-### Validierung und Fehler
-
-ngx_conf_set_phase4_body_limit weist ungültige Werte während nginx -t ab; NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1 ist die registrierte Kontextmaske.
-
-### Beispiel
-
-Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
-
-Quellenbasiertes Beispiel: [examples/nginx/safe/nginx.conf](../../examples/nginx/safe/nginx.conf).
-
-### Sicherheit und Betrieb
-
-Für die WAF-Inspection-Policy SecResponseBodyLimit/SecResponseBodyLimitAction von libModSecurity verwenden; unabhängige Host-Ressourcenlimits bleiben getrennt.
 
 <a id="modsecurity-phase4-log"></a>
 ## `modsecurity_phase4_log`

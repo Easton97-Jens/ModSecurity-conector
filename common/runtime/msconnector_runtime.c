@@ -708,7 +708,6 @@ static int assign_limit_config_value(
     } else if (target == &runtime->body_policy.response_body_limit) {
         runtime->config.response_body_limit = parsed;
         runtime->limits.max_response_body_bytes = parsed;
-        runtime->config.phase4_body_limit = parsed;
     }
     return 1;
 }
@@ -2679,8 +2678,7 @@ static int validate_and_record_response_headers(
             response->header_count,
             header_bytes(response->headers, response->header_count),
             msconnector_phase4_effective_body_limit(
-                runtime->config.phase4_mode,
-                runtime->body_policy.response_body_limit)) !=
+                runtime->config.phase4_mode)) !=
             MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
         return contract_error(error, MSCONNECTOR_TRANSACTION_TRANSITION_INVALID,
             "response metadata violates the shared transaction contract");
@@ -2857,8 +2855,7 @@ static int append_response_body_chunk_internal(
     response_policy.body_limit_action = MSCONNECTOR_BODY_LIMIT_ACTION_REJECT;
     if (!apply_body_limit_plan(&transaction->response_body, &response_policy,
             msconnector_phase4_effective_body_limit(
-                runtime->config.phase4_mode,
-                response_policy.response_body_limit), size, &append_size, error,
+                runtime->config.phase4_mode), size, &append_size, error,
             "response body exceeds configured limit")) {
         (void)msconnector_transaction_contract_fail(&transaction->contract,
             MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, transaction_now_ms());

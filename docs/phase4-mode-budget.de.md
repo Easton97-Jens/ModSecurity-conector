@@ -24,12 +24,13 @@ altes Connector-Inspection-Byte-Limit überschritten wurde.
 
 ## Kompatibilität
 
-Alte Einstellungen wie `modsecurity_phase4_body_limit` dürfen während der
-Konfigurationsmigration weiter akzeptiert werden. Sie sind
-Kompatibilitätswerte, keine WAF-Inspection-Policy, und erzeugen kein nur für
-`safe`/`strict` geltendes kumuliertes Response-Limit. Das Entfernen solcher
-Einstellungen aus der öffentlichen Konfiguration ist eine getrennte Breaking
-Change.
+`modsecurity_phase4_body_limit` ist repositoryweit entfernt, einschließlich
+Apache, NGINX und der gemeinsamen Common-Konfigurations-API. Aus der
+Host-Konfiguration entfernen; auch ein früher gültiger Wert ist jetzt eine
+unbekannte Direktive. Es gibt keinen Ersatz als konfigurierbares kumuliertes
+Phase-4-Inspection-Limit des Connectors. Dies ist eine beabsichtigte Breaking
+Change der Konfiguration. Für die WAF-Inspection-Policy `SecResponseBodyLimit`
+und `SecResponseBodyLimitAction` in Engine-Regeln verwenden.
 
 Common-Runtime-Werte wie `response_body_limit` dürfen weiterhin eine
 begrenzte Host-/Transport- oder Speicherkapazität beschreiben, wenn der Host

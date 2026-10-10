@@ -15,7 +15,6 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`ErrorLog`](#errorlog) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`LoadModule`](#loadmodule) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`modsecurity`](#modsecurity) | Host / Connector | Boolescher Wert | nein | off | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Schaltet die Erstellung von Connector-Transaktionen frei; dies ist nicht SecRuleEngine. |
-| [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive dezimale Byteanzahl | nein | 1048576 | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Alter Kompatibilitätswert. Apache verwendet ihn nicht mehr als kumuliertes WAF-Response-Inspection-Limit; libModSecurity besitzt die SecResponseBodyLimit-Policy. Die feste, nicht konfigurierbare Obergrenze von 4096 normalisierten Buckets bleibt ein getrennter APR-Objekt-/Ressourcenschutz. |
 | [`modsecurity_phase4_log`](#modsecurity-phase4-log) | Host / Connector | Pfad | nein | none | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Setzt einen Connector-Ereignispfad; aktuelle Apache- und NGINX-Pfade verwenden ihn auch für frühere Regel-/Interventionsmetadaten, nicht nur für P4. |
 | [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | Aufzählung | nein | off | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Apache hängt jeden normalisierten Response-Bucket genau einmal an und leitet nichtterminale Ausgabe ohne Warten auf EOS an den nächsten Filter weiter. Es beendet P4 genau einmal am tatsächlichen EOS. Mit Policy off bewahrt der Connector seinen nativen Interventionspfad. Nach der Commit-Grenze des nächsten Filters zeichnet safe log_only auf und strict fordert abort_connection statt einer späten Statusumschreibung an. |
 | [`modsecurity_rules`](#modsecurity-rules) | Host / Connector | Zeichenkette | nein | kein Wert; optional | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Lädt während des Konfigurationsladens Inline-Inhalt über libmodsecurity. |
@@ -295,61 +294,6 @@ Quellenbasiertes Beispiel: [examples/apache/off/httpd.conf](../../examples/apach
 ### Sicherheit und Betrieb
 
 off umgeht die Connector-Verarbeitung P1–P4, auch wenn eine Regeldatei konfiguriert ist.
-
-<a id="modsecurity-phase4-body-limit"></a>
-## `modsecurity_phase4_body_limit`
-
-### Kurzbeschreibung
-
-Alter Kompatibilitätswert. Apache verwendet ihn nicht mehr als kumuliertes WAF-Response-Inspection-Limit; libModSecurity besitzt die SecResponseBodyLimit-Policy. Die feste, nicht konfigurierbare Obergrenze von 4096 normalisierten Buckets bleibt ein getrennter APR-Objekt-/Ressourcenschutz.
-
-### Syntax
-
-```text
-modsecurity_phase4_body_limit <positive-bytes>
-```
-
-### Gültige Kontexte
-
-- Apache RSRC_CONF | ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln)
-
-### Werte
-
-| Typ | Zulässige Werte | Erforderlich |
-| --- | --- | --- |
-| positive dezimale Byteanzahl | positive Ganzzahl | nein |
-
-### Standardwert
-
-1048576
-
-Quelle: `common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_BODY_LIMIT`.
-
-### Vererbung und Zusammenführung
-
-Der Elternwert steht dem Kind zur Verfügung, sofern kein Kindwert gesetzt ist; siehe die Apache-Merge-Funktion für Verzeichniskonfigurationen.
-
-Zusammenführung: Common-Skalarwerte verwenden einen Kind-vor-Eltern-Merge; Regelsätze werden über msc_rules_merge zusammengeführt. Transaktions-ID-Ausdruck und statische ID schließen sich gegenseitig aus.
-
-### Phasen und Laufzeitwirkung
-
-P1–P4-Relevanz: Nur P4-Kompatibilität. Der konfigurierte Bytewert begrenzt die Response-Inspection nicht; die unabhängige feste Bucket-Anzahl-Ressourcengrenze gilt weiterhin über Filter-Aufrufe hinweg.
-
-Alter Kompatibilitätswert. Apache verwendet ihn nicht mehr als kumuliertes WAF-Response-Inspection-Limit; libModSecurity besitzt die SecResponseBodyLimit-Policy. Die feste, nicht konfigurierbare Obergrenze von 4096 normalisierten Buckets bleibt ein getrennter APR-Objekt-/Ressourcenschutz.
-
-### Validierung und Fehler
-
-msc_config_phase4_body_limit liefert für die dokumentierte ungültige Eingabe einen Apache-Konfigurationsfehler; die installierte Konfiguration mit apachectl -t validieren.
-
-### Beispiel
-
-Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
-
-Quellenbasiertes Beispiel: [examples/apache/safe/httpd.conf](../../examples/apache/safe/httpd.conf).
-
-### Sicherheit und Betrieb
-
-Die feste Bucket-Obergrenze begrenzt weiterhin die APR-Objekt-/Setaside-Exposition pro Transaktion. Die Byte-Policy der Response-Inspection gehört libModSecurity und darf nicht durch safe/strict im Connector neu erzeugt werden.
 
 <a id="modsecurity-phase4-log"></a>
 ## `modsecurity_phase4_log`

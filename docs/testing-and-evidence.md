@@ -85,10 +85,11 @@ certificates, raw request bodies, raw response bodies, or local runtime output.
 The closed `invalid_boolean` and `invalid_size` configuration contracts use
 `ci/runtime/lifecycle/run-nginx-configtest.py`. An actual `nginx -e stderr -t`
 must reject `modsecurity maybe;` with exit 1 and both `"modsecurity" directive`
-and `invalid boolean value` diagnostics. For `invalid_size`, the input is
-`modsecurity_phase4_body_limit maybe;`, with exit 1 and both
-`"modsecurity_phase4_body_limit" directive` and
-`invalid value for modsecurity_phase4_body_limit` diagnostics. An unrelated
+and `invalid boolean value` diagnostics. The Required ID `invalid_size` is
+retained but explicitly migrated to removed-API rejection: the formerly valid
+input `modsecurity_phase4_body_limit 1048576;` must produce exit 1 and
+`unknown directive "modsecurity_phase4_body_limit"`, classified as
+`removed_directive`. This is not an engine response-limit test. An unrelated
 module-loading failure, wrong directive, missing diagnostic, timeout, or wrong
 exit is not a passing negative test.
 

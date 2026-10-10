@@ -94,6 +94,12 @@ placeholders are documented in [Build](docs/build/README.md) and
 
 ## Evidence boundary
 
+Configuration migration: `modsecurity_phase4_body_limit` is removed, including
+Apache, NGINX and Common. Remove it from existing host configurations; use
+engine `SecResponseBodyLimit` / `SecResponseBodyLimitAction` for WAF policy.
+Independent host resource guards remain active. See the
+[response-limit ownership contract](docs/phase4-mode-budget.md).
+
 Evidence is stored under an externally located runtime/evidence tree, normally
 <code>EVIDENCE_ROOT/connector/run-id</code>. The names <code>connector</code>
 and <code>run-id</code> are conceptual components, not literal directory

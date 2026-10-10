@@ -60,9 +60,9 @@ class NginxConfigtestDriverTest(unittest.TestCase):
                 "--mrts-sha", "c" * 40]
         return subprocess.run(args, capture_output=True, text=True, timeout=15)
 
-    def test_invalid_size_executes_its_exact_configuration_contract(self):
+    def test_invalid_size_rejects_removed_api_with_formerly_valid_value(self):
         result = self.invoke(
-            diagnostic='"modsecurity_phase4_body_limit" directive invalid value for modsecurity_phase4_body_limit',
+            diagnostic='unknown directive "modsecurity_phase4_body_limit"',
             case_id="invalid_size",
         )
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -71,12 +71,12 @@ class NginxConfigtestDriverTest(unittest.TestCase):
         receipt = record["configtest_receipt"]
         self.assertEqual(record["case_id"], "invalid_size")
         self.assertEqual(receipt["directive"], "modsecurity_phase4_body_limit")
-        self.assertEqual(receipt["value"], "maybe")
-        self.assertEqual(receipt["error_class"], "invalid_size")
+        self.assertEqual(receipt["value"], "1048576")
+        self.assertEqual(receipt["error_class"], "removed_directive")
         self.assertEqual(receipt["observed_exit_code"], 1)
         self.assertFalse(receipt["process_started"])
         self.assertFalse(receipt["listener_created"])
-        self.assertIn("  modsecurity_phase4_body_limit maybe;", (output / "nginx.conf").read_text())
+        self.assertIn("  modsecurity_phase4_body_limit 1048576;", (output / "nginx.conf").read_text())
 
     def test_target_rejections_execute_closed_native_parser_contracts(self):
         cases = {
@@ -200,7 +200,10 @@ class NginxConfigtestDriverTest(unittest.TestCase):
             ('"other" directive invalid value for modsecurity_phase4_body_limit', 1),
             ('"modsecurity_phase4_body_limit" directive wrong value', 1),
             ('invalid value for modsecurity_phase4_body_limit', 1),
-            ('"modsecurity_phase4_body_limit" directive invalid value for modsecurity_phase4_body_limit', 0),
+            ('"modsecurity_phase4_body_limit" directive invalid value for modsecurity_phase4_body_limit', 1),
+            ('unknown directive "other"', 1),
+            ('unknown directive "modsecurity_phase4_body_limit"', 0),
+            ('unknown directive "modsecurity_phase4_body_limit"', 2),
         ]
         for index, (diagnostic, exit_code) in enumerate(controls):
             with self.subTest(diagnostic=diagnostic, exit_code=exit_code):

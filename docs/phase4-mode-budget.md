@@ -24,11 +24,12 @@ exceeded.
 
 ## Compatibility
 
-Legacy settings such as `modsecurity_phase4_body_limit` may remain accepted
-while configurations migrate. They are compatibility values, not WAF
-inspection policy, and do not create a safe/strict-only cumulative response
-limit. Removing such settings from public configuration is a separate breaking
-change.
+`modsecurity_phase4_body_limit` is removed repository-wide, including Apache,
+NGINX and the shared Common configuration API. Remove it from host configuration;
+even a formerly valid value is now an unknown directive. There is no replacement
+connector-configurable cumulative Phase-4 inspection limit. This is an intentional
+breaking configuration change. Use `SecResponseBodyLimit` and
+`SecResponseBodyLimitAction` in engine rules for WAF inspection policy.
 
 Common Runtime `response_body_limit` values can still describe bounded
 host/transport or storage capacity where a host genuinely needs that capacity.

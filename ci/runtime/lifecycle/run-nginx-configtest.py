@@ -62,8 +62,8 @@ CONFIGTEST_CONTRACTS = {
     "invalid_boolean": rejection_contract(
         "invalid_boolean", "modsecurity", "maybe", '"modsecurity" directive', "invalid boolean value"),
     "invalid_size": rejection_contract(
-        "invalid_size", "modsecurity_phase4_body_limit", "maybe",
-        '"modsecurity_phase4_body_limit" directive', "invalid value for modsecurity_phase4_body_limit"),
+        "removed_directive", "modsecurity_phase4_body_limit", "1048576",
+        'unknown directive "modsecurity_phase4_body_limit"'),
 }
 CONFIGTEST_PATH_FIXTURES = {
     "missing_rules_file": (MISSING_RULES_FILE_NAME, "absent"),

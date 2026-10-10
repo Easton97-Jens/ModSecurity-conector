@@ -16,11 +16,10 @@ CONTRACT = {"operation": "configtest", "directive": "modsecurity", "value": "may
             "expected_exit_code": 1, "expected_outcome": "config_rejected",
             "error_class": "invalid_boolean",
             "diagnostic_fragments": ['"modsecurity" directive', "invalid boolean value"]}
-SIZE_CONTRACT = {"operation": "configtest", "directive": "modsecurity_phase4_body_limit", "value": "maybe",
+SIZE_CONTRACT = {"operation": "configtest", "directive": "modsecurity_phase4_body_limit", "value": "1048576",
                  "expected_exit_code": 1, "expected_outcome": "config_rejected",
-                 "error_class": "invalid_size",
-                 "diagnostic_fragments": ['"modsecurity_phase4_body_limit" directive',
-                                          "invalid value for modsecurity_phase4_body_limit"]}
+                 "error_class": "removed_directive",
+                 "diagnostic_fragments": ['unknown directive "modsecurity_phase4_body_limit"']}
 TARGET_CONTRACTS = {
     "missing_rules_file": {"directive": "modsecurity_rules_file", "value": "missing-rules.conf",
                            "diagnostic_fragments": ['"modsecurity_rules_file" directive', "missing-rules.conf", "Failed to open the file"]},
@@ -161,7 +160,7 @@ class SelectedNginxConfigtestWiringTest(unittest.TestCase):
         binary = Path(self.environment["NGINX_PREFIX"]) / "sbin/nginx"
         binary.write_text(
             '#!/bin/sh\ncase "$(sed -n "6p" "$5")" in\n'
-            '  *modsecurity_phase4_body_limit*) echo \'"modsecurity_phase4_body_limit" directive invalid value for modsecurity_phase4_body_limit\' >&2 ;;\n'
+            '  *modsecurity_phase4_body_limit*) echo \'unknown directive "modsecurity_phase4_body_limit"\' >&2 ;;\n'
             '  *) echo \'"modsecurity" directive invalid boolean value\' >&2 ;;\n'
             'esac\nexit 1\n'
         )
