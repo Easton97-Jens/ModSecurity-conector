@@ -39,7 +39,10 @@ PREAMBLE = r"""
 #include "msconnector/config.h"
 #include "msconnector/event.h"
 #include "msconnector/event_jsonl.h"
+#include "msconnector/phase.h"
+#include "msconnector/transaction_state.h"
 #include "msconnector/transaction_contract.h"
+#include "connectors/nginx/src/ngx_http_modsecurity_event_uri.h"
 #define ngx_strlen strlen
 #define ngx_errno 5
 typedef unsigned char u_char;
@@ -68,7 +71,8 @@ typedef struct { const char *method, *uri, *content_type; }
 enum { NGX_OK = 0, NGX_ERROR = -1, NGX_AGAIN = -2, NGX_DONE = -4,
     NGX_DECLINED = -5, NGX_INVALID_FILE = -1, NGX_LOG_WARN = 5,
     NGX_HTTP_BAD_REQUEST = 400, NGX_HTTP_FORBIDDEN = 403,
-    NGX_HTTP_REQUEST_ENTITY_TOO_LARGE = 413, NGX_HTTP_INTERNAL_SERVER_ERROR = 500 };
+    NGX_HTTP_REQUEST_ENTITY_TOO_LARGE = 413, NGX_HTTP_INTERNAL_SERVER_ERROR = 500,
+    NGX_HTTP_GATEWAY_TIME_OUT = 504 };
 static ngx_http_modsecurity_ctx_t context;
 static ngx_http_modsecurity_conf_t configuration;
 static int present, header_case, allocation_failure;
@@ -82,6 +86,10 @@ static void ngx_log_error(int level, void *log, int error, const char *format, .
 }
 static ngx_http_modsecurity_ctx_t *ngx_http_modsecurity_get_module_ctx(
     ngx_http_request_t *r) { (void)r; return present ? &context : NULL; }
+static ngx_http_modsecurity_ctx_t *ngx_http_get_module_ctx(
+    ngx_http_request_t *r, int module) {
+    (void)r; (void)module; return present ? &context : NULL;
+}
 static ngx_http_modsecurity_conf_t *ngx_http_get_module_loc_conf(
     ngx_http_request_t *r, int module) { (void)r; (void)module; return &configuration; }
 static const int ngx_http_modsecurity_module = 0;
@@ -166,6 +174,8 @@ int main(int argc, char **argv) {
         context.contract.error_class = MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL;
     } else if (strcmp(argv[2], "connector") == 0) {
         context.contract.error_class = MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
+    } else if (strcmp(argv[2], "timeout") == 0) {
+        context.contract.error_class = MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT;
     }
     context.contract.engine_decision = MSCONNECTOR_TRANSACTION_DECISION_ALLOW;
     if (strcmp(argv[6], "block") == 0) {
@@ -210,7 +220,7 @@ def compile_fixture(directory: Path, stem: str, source: str,
     fixture.write_text(source, encoding="utf-8")
     binary = directory / stem
     command = compiler + ["-std=c17", "-Wall", "-Wextra", "-Werror",
-                          "-I", str(ROOT / "common/include"), str(fixture)]
+                          "-I", str(ROOT / "common/include"), "-I", str(ROOT), str(fixture)]
     if common_writer:
         phase_source = (ROOT / "common/src/transaction_state.c").read_text(encoding="utf-8")
         phase = directory / "phase.c"

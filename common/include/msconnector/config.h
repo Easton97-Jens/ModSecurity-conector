@@ -28,7 +28,6 @@ typedef struct msconnector_config {
     const char *transaction_id_expr;
     enum msconnector_phase4_mode phase4_mode;
     const char *phase4_log_path;
-    size_t phase4_body_limit;
     size_t request_body_limit;
     size_t response_body_limit;
     msconnector_body_limit_action body_limit_action;

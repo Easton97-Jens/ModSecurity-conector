@@ -36,7 +36,6 @@ DEFAULT_SOURCE_USE_ERROR_LOG = "common/include/msconnector/options.h:MSCONNECTOR
 ALLOWED_VALUES_PHASE4_MODE = "off | safe | strict"
 DEFAULT_SOURCE_PHASE4_MODE = "common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_MODE"
 ALLOWED_VALUES_POSITIVE_INTEGER = "positive integer"
-DEFAULT_SOURCE_PHASE4_BODY_LIMIT = "common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_BODY_LIMIT"
 REMOTE_RULE_VALUE_TYPE = "registered but always rejected runtime setting"
 REMOTE_RULE_ALLOWED_VALUES = "no value is accepted"
 REMOTE_RULE_DEFAULT = "no usable value"
@@ -120,7 +119,6 @@ NGINX_DIRECTIVE_SYNTAX = {
     "modsecurity": "modsecurity on | off;",
     "modsecurity_use_error_log": "modsecurity_use_error_log on | off;",
     "modsecurity_phase4_mode": "modsecurity_phase4_mode off | safe | strict;",
-    "modsecurity_phase4_body_limit": "modsecurity_phase4_body_limit <positive-bytes>;",
     "modsecurity_rules_remote": "modsecurity_rules_remote <key> <url>;",
 }
 
@@ -314,15 +312,6 @@ DIRECTIVE_DETAILS: dict[str, dict[str, str]] = {
         "effect": "Sets a connector event path; current Apache and NGINX paths also use it for earlier rule/intervention metadata, not only P4.",
         "security": "Treat JSONL metadata as sensitive operational data and set safe ownership/rotation.",
     },
-    "modsecurity_phase4_body_limit": {
-        "type": "positive decimal byte count",
-        "values": ALLOWED_VALUES_POSITIVE_INTEGER,
-        "default": "1048576",
-        "default_source": DEFAULT_SOURCE_PHASE4_BODY_LIMIT,
-        "effect": "Legacy compatibility value; valid Phase-4 modes do not enforce it as a connector WAF response-inspection limit.",
-        "security": "Use libModSecurity SecResponseBodyLimit/SecResponseBodyLimitAction for WAF inspection policy; independent host resource limits remain separate.",
-        "deprecated": True,
-    },
 }
 
 
@@ -348,21 +337,6 @@ APACHE_DIRECTIVE_DETAILS: dict[str, dict[str, str]] = {
             "P4 only. Apache commits at the next-filter boundary before it forwards a current "
             "non-terminal brigade; this setting controls the canonical pre- and post-commit "
             "decision mapping."
-        ),
-    },
-    "modsecurity_phase4_body_limit": {
-        "effect": (
-            "Legacy compatibility value. Apache no longer uses it as a cumulative WAF response-inspection "
-            "limit; libModSecurity owns SecResponseBodyLimit policy. The fixed non-configurable "
-            "4096-normalized-bucket ceiling remains a separate APR-object/resource guard."
-        ),
-        "security": (
-            "The fixed bucket ceiling still bounds per-transaction APR-object/setaside exposure. "
-            "Response inspection byte policy belongs to libModSecurity and must not be recreated by safe/strict."
-        ),
-        "phase_relevance": (
-            "P4 compatibility only. The configured byte value does not gate response inspection; "
-            "the independent fixed bucket-count resource guard still spans filter calls."
         ),
     },
 }
@@ -421,8 +395,8 @@ def extract_apache(root: Path) -> list[dict[str, Any]]:
         text,
         flags=re.S,
     )
-    if len(expected) != 10:
-        raise ValueError(f"Apache command_rec extractor found {len(expected)}, expected 10")
+    if len(expected) != 9:
+        raise ValueError(f"Apache command_rec extractor found {len(expected)}, expected 9")
     result: list[dict[str, Any]] = []
     for take, macro, handler in expected:
         name = macros[macro]
@@ -433,8 +407,6 @@ def extract_apache(root: Path) -> list[dict[str, Any]]:
             syntax = "modsecurity On | Off"
         elif name == "modsecurity_phase4_mode":
             syntax = "modsecurity_phase4_mode off | safe | strict"
-        elif name == "modsecurity_phase4_body_limit":
-            syntax = "modsecurity_phase4_body_limit <positive-bytes>"
         elif name == "modsecurity_transaction_id_expr":
             syntax = "modsecurity_transaction_id_expr <apache-string-expression>"
         example = "examples/apache/safe/httpd.conf"
@@ -473,8 +445,8 @@ def extract_nginx(root: Path) -> list[dict[str, Any]]:
         table,
         flags=re.ASCII,
     )
-    if len(expected) != 9:
-        raise ValueError(f"NGINX ngx_command_t extractor found {len(expected)}, expected 9")
+    if len(expected) != 8:
+        raise ValueError(f"NGINX ngx_command_t extractor found {len(expected)}, expected 8")
     result: list[dict[str, Any]] = []
     for macro, context_flags, handler in expected:
         name = macros[macro]
@@ -2961,7 +2933,8 @@ def _assert_common_source_defaults(root: Path) -> None:
         "MSCONNECTOR_DEFAULT_ENABLE MSCONNECTOR_BOOL_OFF": "common enabled default",
         "MSCONNECTOR_DEFAULT_USE_ERROR_LOG MSCONNECTOR_BOOL_ON": "common error-log default",
         "MSCONNECTOR_DEFAULT_PHASE4_MODE MSCONNECTOR_PHASE4_MODE_OFF": "common phase4 default",
-        "MSCONNECTOR_DEFAULT_PHASE4_BODY_LIMIT 1048576": "common phase4 byte default",
+        "MSCONNECTOR_DEFAULT_REQUEST_BODY_LIMIT 1048576": "common request storage default",
+        "MSCONNECTOR_DEFAULT_RESPONSE_BODY_LIMIT 1048576": "common response storage default",
     }
     for token, label in expected_tokens.items():
         if token not in options_header:
@@ -2991,9 +2964,9 @@ def _assert_documented_defaults(by_key: dict[tuple[str, str], str]) -> None:
         ("common", "max_header_value_size"): "8192", ("common", "max_total_header_bytes"): "65536",
         ("common", "max_event_json_bytes"): "16384",
         ("apache", "modsecurity"): VALUE_OFF, ("apache", "modsecurity_use_error_log"): "on",
-        ("apache", "modsecurity_phase4_mode"): VALUE_OFF, ("apache", "modsecurity_phase4_body_limit"): "1048576",
+        ("apache", "modsecurity_phase4_mode"): VALUE_OFF,
         ("nginx", "modsecurity"): VALUE_OFF, ("nginx", "modsecurity_use_error_log"): "on",
-        ("nginx", "modsecurity_phase4_mode"): VALUE_OFF, ("nginx", "modsecurity_phase4_body_limit"): "1048576",
+        ("nginx", "modsecurity_phase4_mode"): VALUE_OFF,
         ("haproxy", "phase4-mode"): VALUE_OFF,
     }
     for key, expected in expected_defaults.items():
@@ -3381,7 +3354,6 @@ GERMAN_TEXT: dict[str, str] = {
     DEFAULT_SOURCE_MAX_RESPONSE_BODY_BUFFER: DEFAULT_SOURCE_MAX_RESPONSE_BODY_BUFFER,
     DEFAULT_SOURCE_MAX_TOTAL_HEADER_BYTES: DEFAULT_SOURCE_MAX_TOTAL_HEADER_BYTES,
     DEFAULT_SOURCE_ENABLE: DEFAULT_SOURCE_ENABLE,
-    DEFAULT_SOURCE_PHASE4_BODY_LIMIT: DEFAULT_SOURCE_PHASE4_BODY_LIMIT,
     DEFAULT_SOURCE_PHASE4_MODE: DEFAULT_SOURCE_PHASE4_MODE,
     DEFAULT_SOURCE_USE_ERROR_LOG: DEFAULT_SOURCE_USE_ERROR_LOG,
     DEFAULT_SOURCE_RUNTIME_DEFAULTS: DEFAULT_SOURCE_RUNTIME_DEFAULTS,

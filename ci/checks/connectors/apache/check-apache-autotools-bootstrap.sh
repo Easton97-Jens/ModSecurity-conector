@@ -393,7 +393,6 @@ modsecurity on
 modsecurity_rules "SecRuleEngine On"
 modsecurity_rules "SecRule REQUEST_URI \"@streq /blocked\" \"id:100001,phase:1,deny,status:403,log\""
 modsecurity_phase4_mode off
-modsecurity_phase4_body_limit 1048576
 
 <LocationMatch "^/__modsec_txid_length/">
     modsecurity_transaction_id_expr "%{REQUEST_URI}"

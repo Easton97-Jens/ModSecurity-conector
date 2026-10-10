@@ -269,7 +269,6 @@ def write_config(
             f"    modsecurity_rules_file {rules};",
             "    modsecurity_phase4_mode safe;",
             f"    modsecurity_phase4_log {phase4_log};",
-            f"    modsecurity_phase4_body_limit {FIXTURE_LIMIT};",
             *(location(mode) for mode in modes),
             "  }",
             "}",
@@ -409,8 +408,14 @@ def validate_positive_events(events: list[dict[str, Any]]) -> dict[str, dict[str
         uri = row.get("uri")
         if uri not in observed:
             continue
+        # Append/completion/cleanup telemetry shares the request URI but does
+        # not claim the rule intervention being measured. Retain those rows
+        # in the original event log; they cannot satisfy this accounting.
+        if row.get("event") != "phase4_intervention":
+            continue
         if (
-            type(row.get("body_bytes_seen")) is not int
+            row.get("phase") != "response_body"
+            or type(row.get("body_bytes_seen")) is not int
             or type(row.get("body_bytes_inspected")) is not int
             or type(row.get("body_truncated")) is not bool
             or type(row.get("truncated")) is not bool

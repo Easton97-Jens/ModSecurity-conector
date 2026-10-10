@@ -31,6 +31,9 @@
 #include "msconnector/phase.h"
 #include "msconnector/rule_load_stats.h"
 #include "msconnector/transaction_contract.h"
+#include "msconnector/transaction_state.h"
+#include "ngx_http_modsecurity_event_uri.h"
+#include "ngx_http_modsecurity_engine_call_budget.h"
 
 
 /* #define MSC_USE_RULES_SET 1 */
@@ -157,6 +160,10 @@ typedef struct {
     Transaction *modsec_transaction;
     msconnector_transaction_contract contract;
     unsigned contract_initialized:1;
+    /* Request-pool strings remain alive while pool cleanup callbacks run,
+     * even after NGINX clears r->pool. Never allocate from that cleared pool. */
+    const char *cleanup_method;
+    const char *cleanup_uri;
     ModSecurityIntervention *delayed_intervention;
 
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
@@ -218,6 +225,9 @@ typedef struct {
      * ordinary rule-ID-bearing denies and permits the canonical rule-ID-free
      * BODY_LIMIT/413 translation only at this native boundary. */
     unsigned native_request_body_limit_rejection:1;
+    unsigned native_response_body_limit_rejection:1;
+    unsigned native_response_body_eos:1;
+    size_t response_body_append_calls;
     /* Bounded inspection accounting has one lifetime and no payload ownership.
      * Keep the established member names and order for the native helpers. */
     struct {
@@ -375,6 +385,8 @@ typedef struct {
      * synchronized into common_config for connector-neutral semantics. */
     ngx_http_complex_value_t  *transaction_id;
     ngx_uint_t                 phase4_mode;
+    /* NGX-specific post-return budget, in milliseconds; zero disables it. */
+    ngx_uint_t                 engine_call_budget_ms;
     ngx_open_file_t           *phase4_log_file;
     ngx_str_t                  phase4_log_path;
 } ngx_http_modsecurity_conf_t;
@@ -400,6 +412,19 @@ int ngx_http_modsecurity_contract_begin(ngx_http_modsecurity_ctx_t *ctx,
     enum msconnector_phase phase);
 int ngx_http_modsecurity_contract_complete(ngx_http_modsecurity_ctx_t *ctx,
     enum msconnector_phase phase);
+ngx_int_t ngx_http_modsecurity_log_technical_failure(ngx_http_request_t *r,
+    ngx_http_modsecurity_ctx_t *ctx, enum msconnector_phase phase,
+    msconnector_transaction_error_class cause, ngx_int_t http_status);
+
+typedef ngx_http_modsecurity_engine_call_budget
+    ngx_http_modsecurity_engine_call_measurement;
+ngx_int_t ngx_http_modsecurity_engine_call_begin(ngx_http_request_t *r,
+    enum msconnector_phase phase,
+    ngx_http_modsecurity_engine_call_measurement *measurement);
+ngx_int_t ngx_http_modsecurity_engine_call_finish(ngx_http_request_t *r,
+    enum msconnector_phase phase,
+    ngx_http_modsecurity_engine_call_measurement *measurement,
+    int native_result);
 
 typedef struct {
     const char *method;
@@ -456,11 +481,14 @@ ngx_http_modsecurity_write_event_jsonl(
     const char *write_failure_message)
 {
     char line[4096];
+    char uri[MSCONNECTOR_EVENT_URI_SAFE_BUFFER_SIZE];
+    msconnector_event projected;
     int json_truncated = 0;
     size_t line_length;
     ssize_t written;
 
-    if (!msconnector_event_write_jsonl_line(event, line, sizeof(line),
+    if (!ngx_http_modsecurity_bounded_event_uri(event, &projected, uri, sizeof(uri)) ||
+        !msconnector_event_write_jsonl_line(&projected, line, sizeof(line),
         &json_truncated)) {
         ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
             "%s%s", serialization_failure_message,
@@ -487,11 +515,14 @@ ngx_http_modsecurity_write_phase_event_jsonl(
     const msconnector_event *event, const char *phase)
 {
     char line[4096];
+    char uri[MSCONNECTOR_EVENT_URI_SAFE_BUFFER_SIZE];
+    msconnector_event projected;
     int json_truncated = 0;
     size_t line_length;
     ssize_t written;
 
-    if (!msconnector_event_write_jsonl_line(event, line, sizeof(line),
+    if (!ngx_http_modsecurity_bounded_event_uri(event, &projected, uri, sizeof(uri)) ||
+        !msconnector_event_write_jsonl_line(&projected, line, sizeof(line),
         &json_truncated)) {
         ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
             "modsecurity %s common event serialization failed%s", phase,

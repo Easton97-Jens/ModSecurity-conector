@@ -64,7 +64,6 @@ APACHE_PROFILE_EVIDENCE_SCRIPT="$REPO_ROOT/ci/runtime/lifecycle/with-crs-no-mrts
 MSCONNECTOR_FULL_LIFECYCLE_SYNC="${MSCONNECTOR_FULL_LIFECYCLE_SYNC:-0}"
 FULL_LIFECYCLE_EVIDENCE_OUTPUT="${FULL_LIFECYCLE_EVIDENCE_OUTPUT:-}"
 MSCONNECTOR_PHASE4_SYNC_EXPECTATION="${MSCONNECTOR_PHASE4_SYNC_EXPECTATION:-first_byte}"
-APACHE_PHASE4_BODY_LIMIT="${APACHE_PHASE4_BODY_LIMIT:-1048576}"
 SYNCHRONIZED_UPSTREAM="${SYNCHRONIZED_UPSTREAM:-$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py}"
 APACHE_PHASE4_SYNCHRONIZED_UPSTREAM_CONTROL_ROOT="${APACHE_PHASE4_SYNCHRONIZED_UPSTREAM_CONTROL_ROOT:-0}"
 APACHE_PHASE4_ROGUE_TEST="${APACHE_PHASE4_ROGUE_TEST:-0}"
@@ -531,12 +530,6 @@ render_config() {
         off|safe|strict) ;;
         *) fail "unsupported resolved APACHE_PHASE4_MODE=${APACHE_PHASE4_MODE:-}" ;;
     esac
-    case "$APACHE_PHASE4_BODY_LIMIT" in
-        ""|*[!0-9]*) fail "APACHE_PHASE4_BODY_LIMIT must be a positive integer" ;;
-        *) ;;
-    esac
-    [ "$APACHE_PHASE4_BODY_LIMIT" -gt 0 ] || \
-        fail "APACHE_PHASE4_BODY_LIMIT must be a positive integer"
     sed \
         -e "s|@@RUNTIME_ROOT@@|$(escape_sed "$RUNTIME_ROOT")|g" \
         -e "s|@@LOG_DIR@@|$(escape_sed "$LOG_DIR")|g" \
@@ -548,7 +541,6 @@ render_config() {
         -e "s|@@RULES_FILE@@|$(escape_sed "$RULES_FILE")|g" \
         -e "s|@@APACHE_PHASE4_LOG@@|$(escape_sed "$APACHE_PHASE4_LOG_FILE")|g" \
         -e "s|@@APACHE_PHASE4_MODE@@|$(escape_sed "$APACHE_PHASE4_MODE")|g" \
-        -e "s|@@APACHE_PHASE4_BODY_LIMIT@@|$(escape_sed "$APACHE_PHASE4_BODY_LIMIT")|g" \
         -e "s|@@APACHE_PHASE4_EXTRA_CONFIG@@|$(escape_sed "$APACHE_PHASE4_EXTRA_CONFIG")|g" \
         "$TEMPLATE" > "$CONFIG_FILE"
 }

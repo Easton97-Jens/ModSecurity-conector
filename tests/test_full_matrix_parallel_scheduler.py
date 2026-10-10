@@ -12,6 +12,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 from tests.framework_test_trust import trusted_framework_root
 
@@ -215,6 +216,38 @@ PY
 
 update_activity 1 start
 
+if [ "${FAKE_MAKE_REFILL_BARRIER:-0}" = "1" ]; then
+    if ! "$FAKE_PYTHON" - "$FAKE_STATE_DIR" "$connector" \
+        "$MODSECURITY_MRTS_VARIANT" "$FAKE_MAKE_BARRIER_TIMEOUT" <<'PY'
+from pathlib import Path
+import sys
+import time
+
+state = Path(sys.argv[1])
+connector, variant = sys.argv[2:4]
+timeout = float(sys.argv[4])
+
+def await_marker(name):
+    deadline = time.monotonic() + timeout
+    while not (state / name).is_file():
+        if time.monotonic() >= deadline:
+            raise SystemExit("fixture refill barrier timed out: " + name)
+        time.sleep(0.01)
+
+if connector == "apache" and variant == "no-mrts":
+    (state / "first-apache-started").touch()
+    await_marker("queued-apache-started")
+elif connector == "nginx" and variant == "no-mrts":
+    await_marker("first-apache-started")
+elif connector == "apache" and variant == "with-mrts":
+    (state / "queued-apache-started").touch()
+PY
+    then
+        update_activity -1 end
+        exit 97
+    fi
+fi
+
 case "$connector" in
     apache) sleep_seconds="${FAKE_MAKE_APACHE_SLEEP:-${FAKE_MAKE_SLEEP:-0.1}}" ;;
     nginx) sleep_seconds="${FAKE_MAKE_NGINX_SLEEP:-${FAKE_MAKE_SLEEP:-0.1}}" ;;
@@ -308,23 +341,72 @@ printf '%s|%s\\n' "$connector" "$PORT" >> "$CAPTURE_FILE"
         *,
         failure_message: str,
     ) -> None:
-        environment["FAKE_MAKE_SLEEP"] = "0.01"
-        environment["FAKE_MAKE_BLOCK"] = "0"
+        control_environment = environment.copy()
+        control_environment["FAKE_MAKE_SLEEP"] = "0.01"
+        control_environment["FAKE_MAKE_BLOCK"] = "0"
+        # Lock reuse is a separate positive control, not another one-second
+        # lost-completion fault. Metadata finalization is part of each job.
+        control_environment["VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS"] = "30"
         deadline = time.monotonic() + 10
+        last_output = ""
         while time.monotonic() < deadline:
             candidate = subprocess.run(
                 ["sh", str(MATRIX_RUNNER)],
                 cwd=ROOT,
-                env=environment,
+                env=control_environment,
                 capture_output=True,
                 text=True,
                 check=False,
             )
             if candidate.returncode == 0:
                 return
-            self.assertEqual(candidate.returncode, 77, candidate.stdout + candidate.stderr)
+            last_output = candidate.stdout + candidate.stderr
+            self.assertEqual(candidate.returncode, 77, last_output)
+            self.assertIn("another full-matrix run owns", candidate.stderr, last_output)
             time.sleep(0.05)
-        self.fail(failure_message)
+        self.fail(f"{failure_message}\n{last_output}")
+
+    def test_lock_reuse_control_has_its_own_timeout_without_mutating_failure_inputs(self) -> None:
+        environment = {
+            "VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS": "1",
+            "FAKE_MAKE_SLEEP": "30",
+            "FAKE_MAKE_BLOCK": "1",
+        }
+        original = environment.copy()
+        completed = subprocess.CompletedProcess(["sh"], 0, stdout="", stderr="")
+        with mock.patch.object(subprocess, "run", return_value=completed) as run:
+            self.assert_scheduler_lock_reusable_after_descendant_exit(
+                environment, failure_message="lock unavailable",
+            )
+        self.assertEqual(environment, original)
+        control_environment = run.call_args.kwargs["env"]
+        self.assertEqual(control_environment["VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS"], "30")
+        self.assertEqual(control_environment["FAKE_MAKE_SLEEP"], "0.01")
+        self.assertEqual(control_environment["FAKE_MAKE_BLOCK"], "0")
+
+    def test_lock_reuse_control_does_not_retry_a_job_timeout_as_lock_contention(self) -> None:
+        timed_out = subprocess.CompletedProcess(
+            ["sh"], 77, stdout="", stderr="ERROR: full-matrix job completion timed out\n",
+        )
+        completed = subprocess.CompletedProcess(["sh"], 0, stdout="", stderr="")
+        with mock.patch.object(subprocess, "run", side_effect=(timed_out, completed)) as run:
+            with self.assertRaisesRegex(AssertionError, "job completion timed out"):
+                self.assert_scheduler_lock_reusable_after_descendant_exit(
+                    {}, failure_message="lock unavailable",
+                )
+        self.assertEqual(run.call_count, 1)
+
+    def test_lock_reuse_control_retries_only_observed_lock_contention(self) -> None:
+        locked = subprocess.CompletedProcess(
+            ["sh"], 77, stdout="", stderr="ERROR: another full-matrix run owns lock\n",
+        )
+        completed = subprocess.CompletedProcess(["sh"], 0, stdout="", stderr="")
+        with mock.patch.object(subprocess, "run", side_effect=(locked, completed)) as run:
+            with mock.patch.object(time, "sleep"):
+                self.assert_scheduler_lock_reusable_after_descendant_exit(
+                    {}, failure_message="lock unavailable",
+                )
+        self.assertEqual(run.call_count, 2)
 
     def test_explicit_cap_runs_all_planned_jobs_without_exceeding_the_cap(self) -> None:
         with tempfile.TemporaryDirectory(prefix="full-matrix-scheduler-") as temporary:
@@ -374,8 +456,10 @@ printf '%s|%s\\n' "$connector" "$PORT" >> "$CAPTURE_FILE"
             environment = self.matrix_environment(root, bin_dir, capture_file)
             environment["FULL_MATRIX_VARIANTS"] = "no-crs/no-mrts no-crs/with-mrts"
             environment["FULL_MATRIX_MAX_PARALLEL_JOBS"] = "2"
-            environment["FAKE_MAKE_APACHE_SLEEP"] = "0.8"
-            environment["FAKE_MAKE_NGINX_SLEEP"] = "0.05"
+            environment["FAKE_MAKE_APACHE_SLEEP"] = "0"
+            environment["FAKE_MAKE_NGINX_SLEEP"] = "0"
+            environment["FAKE_MAKE_REFILL_BARRIER"] = "1"
+            environment["FAKE_MAKE_BARRIER_TIMEOUT"] = "15"
 
             process = subprocess.run(
                 ["sh", str(MATRIX_RUNNER)],
@@ -384,6 +468,7 @@ printf '%s|%s\\n' "$connector" "$PORT" >> "$CAPTURE_FILE"
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=60,
             )
 
             self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
@@ -399,6 +484,9 @@ printf '%s|%s\\n' "$connector" "$PORT" >> "$CAPTURE_FILE"
             apache_ends = sorted(item for item in events if item[1] == "end" and item[2] == "apache")
             self.assertEqual(len(starts), 4)
             self.assertEqual(len(apache_ends), 2)
+            self.assertEqual(sum(event[1] == "end" for event in events), 4)
+            self.assertTrue((root / "state" / "first-apache-started").is_file())
+            self.assertTrue((root / "state" / "queued-apache-started").is_file())
             self.assertLess(
                 starts[2][0],
                 apache_ends[0][0],
@@ -412,6 +500,33 @@ printf '%s|%s\\n' "$connector" "$PORT" >> "$CAPTURE_FILE"
                 if line
             ]
             self.assertEqual(len(manifest_rows), 4)
+
+    def test_refill_barrier_rejects_missing_queued_start_and_cleans_activity(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="full-matrix-refill-negative-") as temporary:
+            root = Path(temporary)
+            self.write_fake_make(root)
+            state = root / "state"
+            state.mkdir()
+            (state / "active").write_text("0\n", encoding="utf-8")
+            (state / "maximum").write_text("0\n", encoding="utf-8")
+            environment = os.environ.copy()
+            environment.update({
+                "FAKE_STATE_DIR": str(state), "FAKE_PYTHON": sys.executable,
+                "CAPTURE_FILE": str(root / "capture"), "PORT": "29001",
+                "MODSECURITY_MRTS_VARIANT": "no-mrts", "FAKE_MAKE_BLOCK": "0",
+                "FAKE_MAKE_REFILL_BARRIER": "1", "FAKE_MAKE_BARRIER_TIMEOUT": "0.1",
+            })
+            process = subprocess.run(
+                [str(root / "make"), "smoke-apache"], cwd=ROOT, env=environment,
+                capture_output=True, text=True, check=False, timeout=10,
+            )
+            self.assertEqual(process.returncode, 97, process.stdout + process.stderr)
+            self.assertIn("fixture refill barrier timed out: queued-apache-started", process.stderr)
+            self.assertTrue((state / "first-apache-started").is_file())
+            self.assertFalse((state / "queued-apache-started").exists())
+            self.assertEqual((state / "active").read_text(encoding="utf-8").strip(), "0")
+            events = (state / "events").read_text(encoding="utf-8").splitlines()
+            self.assertEqual([event.split("|")[1] for event in events], ["start", "end"])
 
     def test_default_cap_uses_the_detected_online_cpu_count(self) -> None:
         with tempfile.TemporaryDirectory(prefix="full-matrix-scheduler-detected-cap-") as temporary:

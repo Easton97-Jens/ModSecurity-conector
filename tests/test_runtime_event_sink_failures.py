@@ -25,7 +25,8 @@ FUNCTIONS = (
     "valid_host_action", "valid_host_transport_result", "bounded_c_string",
     "phase4_mode_name", "utc_calendar_time", "timestamp_now",
     "populate_event_body", "populate_event_response_state", "populate_event_host_action",
-    "write_event_jsonl", "write_transaction_event_jsonl", "emit_decision_event",
+    "write_event_jsonl", "write_transaction_event_jsonl",
+    "emit_integrity_chained_event_locked", "emit_decision_event",
     "contract_terminal_message_id", "contract_terminal_phase", "contract_terminal_http_status",
     "emit_contract_terminal_event", "msconnector_runtime_transaction_record_host_action",
     "msconnector_runtime_transaction_snapshot_get", "runtime_transaction_cleanup_checked",
@@ -41,7 +42,9 @@ INCLUDES = r'''
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <time.h>
+#include <unistd.h>
 #include "common/runtime/msconnector_runtime.h"
 #include "msconnector/config.h"
 #include "msconnector/dos_guard.h"

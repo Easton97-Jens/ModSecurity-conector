@@ -265,7 +265,6 @@ write_apache_modsecurity_conf() {
     modsecurity_rules_file $mrts_load
     modsecurity_phase4_mode safe
     modsecurity_phase4_log $phase4_log
-    modsecurity_phase4_body_limit 1048576
 </IfModule>
 EOF
     return 0

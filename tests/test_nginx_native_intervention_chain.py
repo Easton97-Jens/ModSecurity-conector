@@ -27,6 +27,7 @@ FUNCTIONS = {
         ("ngx_int_t", "ngx_http_modsecurity_reject_native_intervention"),
         ("ngx_int_t", "ngx_http_modsecurity_collect_native_intervention"),
         ("int", "ngx_http_modsecurity_defer_late_phase4_intervention"),
+        ("void", "ngx_http_modsecurity_extract_intervention_rule_id"),
         ("int", "ngx_http_modsecurity_process_intervention"),
     ),
     "ngx_http_modsecurity_body_filter.c": (
@@ -47,6 +48,7 @@ PREAMBLE = r'''
 #include "msconnector/native_result.h"
 #include "msconnector/rule_id.h"
 #include "msconnector/transaction_state.h"
+#include "ngx_http_modsecurity_response_body_limit.h"
 #include "connectors/profile_registry.h"
 #define ngx_memzero(pointer, length) memset(pointer, 0, length)
 #define ngx_strcmp strcmp
@@ -72,6 +74,8 @@ typedef struct {
     Transaction *modsec_transaction;
     int contract_initialized, intervention_triggered, logged;
     int native_request_body_limit_rejection;
+    int native_response_body_limit_rejection;
+    int native_response_body_eos, native_event_phase_active;
     enum msconnector_phase native_event_phase;
     ngx_int_t last_intervention_status;
     char last_intervention_rule_id[MSCONNECTOR_MAX_RULE_ID_LENGTH + 1U];
@@ -83,12 +87,13 @@ typedef struct { ngx_uint_t phase4_mode; msconnector_config common_config; }
     ngx_http_modsecurity_conf_t;
 enum { NGX_OK = 0, NGX_ERROR = -1, NGX_DECLINED = -5, NGX_LOG_ERR = 4,
        NGX_HTTP_FORBIDDEN = 403, NGX_HTTP_TOO_MANY_REQUESTS = 429,
-       NGX_HTTP_REQUEST_ENTITY_TOO_LARGE = 413, NGX_HTTP_INTERNAL_SERVER_ERROR = 500 };
+       NGX_HTTP_REQUEST_ENTITY_TOO_LARGE = 413, NGX_HTTP_INTERNAL_SERVER_ERROR = 500,
+       NGX_HTTP_GATEWAY_TIME_OUT = 504 };
 static int ngx_http_modsecurity_module;
 static ngx_http_modsecurity_ctx_t context;
 static ngx_http_modsecurity_conf_t config;
 static int raw_result, phase_result = 1, disruptive = 1, use_redirect;
-static int missing_context, missing_config, missing_rule;
+static int missing_context, missing_config, missing_rule, response_limit;
 static int collections, cleanups, native_phases, status_updates, redirects, forwards;
 static int events, errors, core_calls, sink_result;
 static char observed_action[32];
@@ -108,7 +113,8 @@ static int msc_intervention(Transaction *transaction, ModSecurityIntervention *o
     (void)transaction; ++collections;
     out->disruptive = disruptive;
     out->status = use_redirect ? 302 : 403;
-    out->log = owned_text(missing_rule ? "no rule identifier" : rule_text);
+    out->log = owned_text(response_limit ? "Response body limit is marked to reject the request"
+                         : missing_rule ? "no rule identifier" : rule_text);
     out->url = use_redirect ? owned_text("/redirect") : NULL;
     return raw_result;
 }
@@ -140,6 +146,20 @@ static int ngx_http_modsecurity_contract_complete(ngx_http_modsecurity_ctx_t *ct
 }
 static ngx_pool_t *ngx_http_modsecurity_pcre_malloc_init(ngx_pool_t *pool) { return pool; }
 static void ngx_http_modsecurity_pcre_malloc_done(ngx_pool_t *pool) { (void)pool; }
+typedef struct { int enabled; } ngx_http_modsecurity_engine_call_measurement;
+static ngx_int_t ngx_http_modsecurity_engine_call_begin(ngx_http_request_t *r,
+    enum msconnector_phase phase, ngx_http_modsecurity_engine_call_measurement *value) {
+    (void)r; (void)phase; value->enabled=0; return NGX_OK;
+}
+static ngx_int_t ngx_http_modsecurity_engine_call_finish(ngx_http_request_t *r,
+    enum msconnector_phase phase, ngx_http_modsecurity_engine_call_measurement *value, int result) {
+    (void)r; (void)phase; (void)value; (void)result; return NGX_OK;
+}
+static ngx_int_t ngx_http_modsecurity_phase4_log_native_completion(ngx_http_request_t *r,
+    ngx_http_modsecurity_conf_t *conf, ngx_http_modsecurity_ctx_t *ctx, int result) {
+    (void)r; (void)conf; (void)ctx;
+    return result == 1 ? NGX_OK : NGX_ERROR;
+}
 static ngx_int_t ngx_http_modsecurity_log_handler(ngx_http_request_t *r) { (void)r; return NGX_OK; }
 static ngx_int_t ngx_http_modsecurity_process_redirect_intervention(ngx_http_request_t *r,
         ngx_http_modsecurity_ctx_t *ctx, ModSecurityIntervention *intervention) {
@@ -211,13 +231,16 @@ int main(int argc, char **argv) {
     missing_context = strcmp(argv[5], "missing-context") == 0;
     missing_config = strcmp(argv[5], "missing-config") == 0;
     missing_rule = strcmp(argv[5], "missing-rule") == 0;
+    response_limit = strcmp(argv[5], "response-limit") == 0;
     if (strcmp(argv[5], "sink-error") == 0) { sink_result = NGX_ERROR; }
     if (strcmp(argv[5], "native-error") == 0) { phase_result = 0; }
     if (!prepare_context(request.header_sent)) { return 3; }
     context.modsec_transaction = strcmp(argv[5], "missing-transaction") == 0 ? NULL : &transaction;
     context.phase4_processed = 1;
-    result = ngx_http_modsecurity_process_final_response_body(&request, &context,
-        &config, &chain, &forwarded);
+    result = strcmp(argv[5], "unexpected-append-rule") == 0
+        ? ngx_http_modsecurity_process_intervention(&transaction, &request, 0)
+        : ngx_http_modsecurity_process_final_response_body(&request, &context,
+            &config, &chain, &forwarded);
     printf("{\"result\":%ld,\"raw_calls\":%d,\"cleanup\":%d,\"native\":%d,"
         "\"events\":%d,\"errors\":%d,\"forwards\":%d,\"status_updates\":%d,"
         "\"redirects\":%d,\"cause\":\"%s\",\"rule\":\"%s\","
@@ -336,12 +359,33 @@ class NativeInterventionChainTests(unittest.TestCase):
                 self.assertEqual(result["cleanup"], 1)
                 self.assertEqual(result["forwards"], 0)
 
+    def test_unexpected_append_time_rule_does_not_forge_engine_eos(self):
+        for mode in ("off", "safe", "strict"):
+            value = self.case(mode=mode, scenario="unexpected-append-rule")
+            self.assertEqual(value["result"], -1)
+            self.assertEqual(value["cause"], "invalid_engine_response")
+            self.assertEqual(value["rule"], "")
+            self.assertEqual(value["forwards"], 0)
+            self.assertEqual(value["events"], 0)
+            self.assertEqual(value["cleanup"], 1)
+
     def test_missing_rule_correlation_does_not_become_safe_allow(self):
         result = self.case(scenario="missing-rule")
         self.assertEqual(result["result"], -1)
         self.assertEqual(result["cause"], "invalid_engine_response")
         self.assertEqual(result["events"], 0)
         self.assertEqual(result["cleanup"], 1)
+
+    def test_exact_native_response_body_limit_is_not_a_rule_or_safe_allow(self):
+        for mode in ("off", "safe", "strict"):
+            with self.subTest(mode=mode):
+                result = self.case(mode=mode, scenario="response-limit")
+                self.assertEqual(result["result"], -1)
+                self.assertEqual(result["cause"], "body_limit")
+                self.assertEqual(result["rule"], "")
+                self.assertEqual(result["forwards"], 0)
+                self.assertEqual(result["events"], 0)
+                self.assertEqual(result["cleanup"], 1)
 
     def test_failed_evaluation_does_not_call_native_intervention(self):
         result = self.case(scenario="native-error")

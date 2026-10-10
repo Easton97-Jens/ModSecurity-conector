@@ -1436,8 +1436,7 @@ static int sidecar_exchange_response(sidecar_exchange_state *state) {
     if (!state->payload.response_headers.no_body &&
         state->payload.response_headers.content_length >
             msconnector_phase4_effective_body_limit(
-                msconnector_runtime_phase4_mode(state->dependencies.runtime),
-                state->response_limit)) {
+                msconnector_runtime_phase4_mode(state->dependencies.runtime))) {
         int status = msconnector_runtime_error_http_status(state->dependencies.runtime,
             MSCONNECTOR_ERROR_BODY_TOO_LARGE);
         int written;

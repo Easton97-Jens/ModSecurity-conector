@@ -171,7 +171,6 @@ void msconnector_config_init(msconnector_config *config) {
     config->transaction_id_expr = 0;
     config->phase4_mode = MSCONNECTOR_PHASE4_MODE_UNSET;
     config->phase4_log_path = 0;
-    config->phase4_body_limit = 0;
     config->request_body_limit = 0;
     config->response_body_limit = 0;
     config->body_limit_action = MSCONNECTOR_BODY_LIMIT_ACTION_UNSET;
@@ -199,16 +198,12 @@ void msconnector_config_apply_defaults(msconnector_config *config) {
         config->phase4_mode = MSCONNECTOR_DEFAULT_PHASE4_MODE;
     }
 
-    if (config->phase4_body_limit == 0U) {
-        config->phase4_body_limit = MSCONNECTOR_DEFAULT_PHASE4_BODY_LIMIT;
-    }
-
     if (config->request_body_limit == 0U) {
-        config->request_body_limit = MSCONNECTOR_DEFAULT_PHASE4_BODY_LIMIT;
+        config->request_body_limit = MSCONNECTOR_DEFAULT_REQUEST_BODY_LIMIT;
     }
 
     if (config->response_body_limit == 0U) {
-        config->response_body_limit = config->phase4_body_limit;
+        config->response_body_limit = MSCONNECTOR_DEFAULT_RESPONSE_BODY_LIMIT;
     }
 
     if (config->body_limit_action == MSCONNECTOR_BODY_LIMIT_ACTION_UNSET) {
@@ -262,7 +257,6 @@ int msconnector_config_merge(
     merge_transaction_id_pair(out, parent, child);
     out->phase4_mode = merge_phase4_mode(parent->phase4_mode, child->phase4_mode);
     out->phase4_log_path = merge_string(parent->phase4_log_path, child->phase4_log_path);
-    out->phase4_body_limit = merge_size_value(parent->phase4_body_limit, child->phase4_body_limit);
     out->request_body_limit = merge_size_value(
         parent->request_body_limit, child->request_body_limit);
     out->response_body_limit = merge_size_value(
@@ -306,8 +300,7 @@ int msconnector_config_validate(const msconnector_config *config, char *error, s
         return 0;
     }
 
-    if (config->phase4_body_limit > MSCONNECTOR_MAX_CONFIG_BODY_BYTES ||
-        config->request_body_limit > MSCONNECTOR_MAX_CONFIG_BODY_BYTES ||
+    if (config->request_body_limit > MSCONNECTOR_MAX_CONFIG_BODY_BYTES ||
         config->response_body_limit > MSCONNECTOR_MAX_CONFIG_BODY_BYTES) {
         set_error(error, error_len,
             "configured body limit exceeds the hard security cap");

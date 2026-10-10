@@ -4,10 +4,11 @@
 set -eu
 
 connector=${1:?connector is required}
-SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
 CONNECTOR_ROOT=${CONNECTOR_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)}
 FRAMEWORK_ROOT=${FRAMEWORK_ROOT:-$CONNECTOR_ROOT/modules/ModSecurity-test-Framework}
 PYTHON=${PYTHON:-python3}
+VERIFIED_RUN_ROOT=${VERIFIED_RUN_ROOT:-${RUNNER_TEMP:-${TMPDIR:-/var/tmp}}/ModSecurity-conector-verified}
 BUILD_ROOT=${BUILD_ROOT:?BUILD_ROOT is required}
 RESULTS_DIR=${RESULTS_DIR:?RESULTS_DIR is required}
 HOST_RUNTIME_ROOT=${HOST_RUNTIME_ROOT:?HOST_RUNTIME_ROOT is required}
@@ -25,6 +26,10 @@ case "$connector" in
         # This route invokes NGINX directly, so opt in here rather than
         # changing the direct-harness default used by local smoke commands.
         NGINX_DOCROOT_PROJECTION=1
+        # The portable fixture deliberately has no host policy. Bind this
+        # native Safe proof separately from its generated case environment.
+        export NGINX_SYNCHRONIZED_PHASE4_MODE=safe
+        export NGINX_PHASE4_LOG_SCOPE=server_with_location_override
         ;;
     *) echo "usage: $0 apache|nginx" >&2; exit 2 ;;
 esac
@@ -42,10 +47,20 @@ runtime_root=$HOST_RUNTIME_ROOT/first-byte-$connector
 # emits sanitized diagnostics separately after collection.
 log_root=$HOST_RUNTIME_ROOT/$connector-first-byte-logs
 results_output=$RESULTS_DIR/$connector-first-byte-results.jsonl
-synchronized_control_root=$HOST_RUNTIME_ROOT/..
+synchronized_control_root=${SYNCHRONIZED_UPSTREAM_CONTROL_ROOT:-$HOST_RUNTIME_ROOT/..}
+if [ "$connector" = nginx ]; then
+    # First-byte is an independent harness invocation, not another consumer
+    # of a batch case's projection. Preserve authority and never pre-create it.
+    "$PYTHON" "$CONNECTOR_ROOT/ci/runtime/common/validate-nginx-harness-paths.py" --quiet \
+        --verified-run-root "$VERIFIED_RUN_ROOT" \
+        --existing-private-directory NGINX_DOCROOT_PROJECTION_PARENT "${NGINX_DOCROOT_PROJECTION_PARENT:-}" \
+        --existing-direct-child NGINX_DOCROOT_PROJECTION_ROOT "${NGINX_DOCROOT_PROJECTION_ROOT:-}" "${NGINX_DOCROOT_PROJECTION_PARENT:-}"
+    NGINX_DOCROOT_PROJECTION_ROOT=$("$PYTHON" -c 'import pathlib, re, sys, uuid; seed = pathlib.Path(sys.argv[1]); re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", seed.name) or sys.exit("unsafe projection root name"); print(seed.with_name("nginx-first-byte-" + uuid.uuid4().hex))' "$NGINX_DOCROOT_PROJECTION_ROOT")
+fi
 mkdir -p "$RESULTS_DIR" "$runtime_root"
 
 set +e
+env \
 RUNTIME_COMPONENT_TARGET=$connector \
 CONNECTOR_ROOT="$CONNECTOR_ROOT" \
 FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \

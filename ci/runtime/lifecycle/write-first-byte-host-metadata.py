@@ -20,6 +20,7 @@ if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
 
 from runtime_path_utils import prepare_verified_runtime_artifact_root, runtime_artifact_path
+from first_byte_binding import create_binding, paused_append
 
 
 def phase4_record(path: Path) -> dict[str, Any]:
@@ -61,6 +62,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--phase4-log", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--paused-file", type=Path)
+    parser.add_argument("--release-file", type=Path)
+    parser.add_argument("--evidence", type=Path)
+    parser.add_argument("--binding-output", type=Path)
     args = parser.parse_args(argv)
 
     runtime_root = prepare_verified_runtime_artifact_root()
@@ -68,7 +73,15 @@ def main(argv: list[str] | None = None) -> int:
         runtime_root, args.phase4_log, "Phase-4 log", must_exist=True
     )
     output = runtime_artifact_path(runtime_root, args.output, "output")
-    event = phase4_record(phase4_log)
+    paused = release = None
+    if args.paused_file is not None:
+        paused = runtime_artifact_path(runtime_root, args.paused_file, "paused record", must_exist=True)
+        release = runtime_artifact_path(runtime_root, args.release_file, "release marker")
+        if release.exists():
+            raise ValueError("host metadata snapshot must precede upstream release")
+        event, _, _ = paused_append(phase4_log)
+    else:
+        event = phase4_record(phase4_log)
     if event.get("response_committed") is not True:
         raise ValueError("host Phase-4 event does not confirm response_committed=true")
     seen = nonnegative(event, "body_bytes_seen")
@@ -86,6 +99,13 @@ def main(argv: list[str] | None = None) -> int:
         "connector_owned_full_response_buffer": False,
     }
     output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    if args.binding_output is not None:
+        if paused is None or release is None or args.evidence is None:
+            raise ValueError("first-byte binding requires paused, release and evidence paths")
+        evidence = runtime_artifact_path(runtime_root, args.evidence, "first-byte evidence", must_exist=True)
+        binding_output = runtime_artifact_path(runtime_root, args.binding_output, "first-byte binding")
+        binding = create_binding(phase4_log, evidence, paused, release)
+        binding_output.write_text(json.dumps(binding, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return 0
 
 

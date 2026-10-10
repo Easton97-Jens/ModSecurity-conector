@@ -15,7 +15,6 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | [`ErrorLog`](#errorlog) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`LoadModule`](#loadmodule) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`modsecurity`](#modsecurity) | Host / Connector | boolean | no | off | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Gates connector transaction creation; it is not SecRuleEngine. |
-| [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive decimal byte count | no | 1048576 | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Legacy compatibility value. Apache no longer uses it as a cumulative WAF response-inspection limit; libModSecurity owns SecResponseBodyLimit policy. The fixed non-configurable 4096-normalized-bucket ceiling remains a separate APR-object/resource guard. |
 | [`modsecurity_phase4_log`](#modsecurity-phase4-log) | Host / Connector | path | no | none | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Sets a connector event path; current Apache and NGINX paths also use it for earlier rule/intervention metadata, not only P4. |
 | [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | enum | no | off | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Apache appends each normalized response bucket exactly once and forwards non-terminal output to the next filter without waiting for EOS. It finishes P4 exactly once at actual EOS. With policy off the connector keeps its native intervention path. After the next-filter commitment boundary, safe records log_only and strict requests abort_connection instead of a late status rewrite. |
 | [`modsecurity_rules`](#modsecurity-rules) | Host / Connector | string | no | none; optional | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Loads inline content through libmodsecurity during configuration loading. |
@@ -295,61 +294,6 @@ Source-backed example: [examples/apache/off/httpd.conf](../../examples/apache/of
 ### Safety and operations
 
 off bypasses connector P1–P4 processing even if a rule file is configured.
-
-<a id="modsecurity-phase4-body-limit"></a>
-## `modsecurity_phase4_body_limit`
-
-### Short description
-
-Legacy compatibility value. Apache no longer uses it as a cumulative WAF response-inspection limit; libModSecurity owns SecResponseBodyLimit policy. The fixed non-configurable 4096-normalized-bucket ceiling remains a separate APR-object/resource guard.
-
-### Syntax
-
-```text
-modsecurity_phase4_body_limit <positive-bytes>
-```
-
-### Valid contexts
-
-- Apache RSRC_CONF | ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules)
-
-### Values
-
-| Type | Allowed values | Required |
-| --- | --- | --- |
-| positive decimal byte count | positive integer | no |
-
-### Default
-
-1048576
-
-Source: `common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_BODY_LIMIT`.
-
-### Inheritance and merge
-
-Parent value is available to the child unless a child value is set; see the Apache directory-config merge function.
-
-Merge: Common scalar values use child-over-parent merge; rule sets are merged through msc_rules_merge. Transaction-id expression/static-id are mutually exclusive.
-
-### Phases and runtime effect
-
-P4 compatibility only. The configured byte value does not gate response inspection; the independent fixed bucket-count resource guard still spans filter calls.
-
-Legacy compatibility value. Apache no longer uses it as a cumulative WAF response-inspection limit; libModSecurity owns SecResponseBodyLimit policy. The fixed non-configurable 4096-normalized-bucket ceiling remains a separate APR-object/resource guard.
-
-### Validation and errors
-
-msc_config_phase4_body_limit returns an Apache configuration error for its documented invalid input; validate the installed configuration with apachectl -t.
-
-### Example
-
-Selected value: use the syntax above and the source-backed file below.
-
-Source-backed example: [examples/apache/safe/httpd.conf](../../examples/apache/safe/httpd.conf).
-
-### Safety and operations
-
-The fixed bucket ceiling still bounds per-transaction APR-object/setaside exposure. Response inspection byte policy belongs to libModSecurity and must not be recreated by safe/strict.
 
 <a id="modsecurity-phase4-log"></a>
 ## `modsecurity_phase4_log`

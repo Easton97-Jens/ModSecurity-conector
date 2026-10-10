@@ -611,8 +611,7 @@ static haproxy_modsecurity_body_phase response_body_phase(
         &transaction->response_body.started, &transaction->response_body.bytes_seen,
         &transaction->response_body.bytes_inspected,
         msconnector_phase4_effective_body_limit(
-            transaction->engine->common_config.phase4_mode,
-            transaction->engine->common_config.response_body_limit),
+            transaction->engine->common_config.phase4_mode),
         "missing transaction or response body",
         "response headers must be processed before response body chunks",
         "response body append after end-of-stream",
@@ -904,7 +903,7 @@ static int process_request_body(
     msconnector_resource_limits limits;
 
     msconnector_resource_limits_init(&limits);
-    if (request == 0 || request->body_len > MSCONNECTOR_DEFAULT_PHASE4_BODY_LIMIT ||
+    if (request == 0 || request->body_len > MSCONNECTOR_DEFAULT_REQUEST_BODY_LIMIT ||
             !msconnector_resource_limits_body_ok(
                 request->body_len, limits.max_request_body_bytes)) {
         copy_message(decision->log_message, sizeof(decision->log_message),
@@ -1573,8 +1572,7 @@ int haproxy_modsecurity_transaction_process_response_headers(
     if (msconnector_transaction_contract_record_response_metadata(
             &transaction->contract, status, 0, response->header_count, 0U,
             msconnector_phase4_effective_body_limit(
-                transaction->engine->common_config.phase4_mode,
-                transaction->engine->common_config.response_body_limit)) !=
+                transaction->engine->common_config.phase4_mode)) !=
             MSCONNECTOR_TRANSACTION_TRANSITION_OK ||
         msconnector_transaction_contract_complete_phase(&transaction->contract,
             MSCONNECTOR_TRANSACTION_PHASE_P3, 0U) !=

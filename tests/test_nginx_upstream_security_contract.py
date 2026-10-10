@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import re
 import unittest
+from unittest.mock import patch
 
 from tests.c_source_contract import function_definition, matching_delimiter
 
@@ -150,11 +151,52 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         native_failure = conditional_block(
             create_ctx, "if (ctx->modsec_transaction == NULL)"
         )
-        self.assertIn(
-            "msconnector_transaction_contract_cleanup(&ctx->contract, 0U);",
-            native_failure,
-        )
-        self.assertIn("ctx->contract_initialized = 0;", native_failure)
+        self.assert_native_creation_failure_cleanup(native_failure, self.module)
+
+    def assert_native_creation_failure_cleanup(self, failure: str, module: str) -> None:
+        self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U", failure)
+        self.assertIn("MSCONNECTOR_PHASE_REQUEST_HEADERS, ctx->contract.error_class", failure)
+        self.assertIn("NGX_HTTP_INTERNAL_SERVER_ERROR", failure)
+        self.assertIn("ngx_http_modsecurity_cleanup(ctx);", failure)
+        self.assertLess(failure.index("msconnector_transaction_contract_fail"),
+                        failure.index("ngx_http_modsecurity_log_technical_failure"))
+        self.assertLess(failure.index("ngx_http_modsecurity_log_technical_failure"),
+                        failure.index("ngx_http_modsecurity_cleanup(ctx);"))
+        self.assertLess(failure.index("ngx_http_modsecurity_cleanup(ctx);"),
+                        failure.index("return NULL;"))
+        self.assertNotIn("ctx->contract_initialized = 0;", failure)
+        cleanup = function_definition(module, "ngx_http_modsecurity_cleanup")
+        common = conditional_block(cleanup, "if (observed_contract)")
+        self.assertIn("common_return = msconnector_transaction_contract_cleanup(&ctx->contract, 0U);", common)
+        self.assertLess(common.index("msconnector_transaction_contract_cleanup"),
+                        common.index("ctx->contract_initialized = 0;"))
+        native = conditional_block(cleanup, "if (ctx->modsec_transaction != NULL)")
+        self.assertIn("msc_transaction_cleanup(ctx->modsec_transaction);", native)
+        self.assertLess(native.index("msc_transaction_cleanup"),
+                        native.index("ctx->modsec_transaction = NULL;"))
+        self.assertLess(native.index("ctx->modsec_transaction = NULL;"),
+                        native.index("native_cleanup_completed = 1;"))
+        self.assertLess(cleanup.index(common), cleanup.index(native))
+        self.assertLess(cleanup.index(native), cleanup.index("ngx_http_modsecurity_cleanup_log_event"))
+
+    def test_native_creation_cleanup_guard_rejects_missing_or_late_cleanup(self) -> None:
+        failure = conditional_block(function_definition(self.module,
+            "ngx_http_modsecurity_create_ctx"), "if (ctx->modsec_transaction == NULL)")
+        for replacement in ("", "return NULL; ngx_http_modsecurity_cleanup(ctx);"):
+            with self.subTest(replacement=replacement):
+                changed = failure.replace("ngx_http_modsecurity_cleanup(ctx);", replacement, 1)
+                with self.assertRaises(AssertionError):
+                    self.assert_native_creation_failure_cleanup(changed, self.module)
+
+    def test_native_creation_cleanup_guard_rejects_missing_common_cleanup(self) -> None:
+        failure = conditional_block(function_definition(self.module,
+            "ngx_http_modsecurity_create_ctx"), "if (ctx->modsec_transaction == NULL)")
+        changed = self.module.replace(
+            "common_return = msconnector_transaction_contract_cleanup(&ctx->contract, 0U);",
+            "common_return = 0;", 1)
+        self.assertNotEqual(changed, self.module)
+        with self.assertRaises(AssertionError):
+            self.assert_native_creation_failure_cleanup(failure, changed)
 
     def test_transaction_id_complex_value_does_not_append_a_synthetic_nul(self) -> None:
         setter = function_definition(self.module, "ngx_conf_set_transaction_id")
@@ -193,12 +235,18 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         self.assertIn("MSCONNECTOR_TRANSACTION_TRANSITION_OK", record)
         self.assertIn("canonical intervention decision", record)
 
-        self.assertIn("if (intervention.log != NULL)", intervention)
+        extract_helper = function_definition(
+            self.module, "ngx_http_modsecurity_extract_intervention_rule_id"
+        )
+        self.assertIn("if (intervention->log != NULL)", extract_helper)
+        self.assertIn("msconnector_rule_id_extract_from_message(intervention->log,", extract_helper)
+        self.assertIn("sizeof(ctx->last_intervention_rule_id)", extract_helper)
+        self.assertNotIn("phase4_log_file", extract_helper)
         self.assertNotIn(
             "mcf->phase4_log_file != NULL && intervention.log != NULL",
             intervention,
         )
-        extract = intervention.index("msconnector_rule_id_extract_from_message")
+        extract = intervention.index("ngx_http_modsecurity_extract_intervention_rule_id(ctx, &intervention);")
         terminal = intervention.index(
             "ngx_http_modsecurity_contract_record_intervention(r, ctx, &intervention)"
         )
@@ -207,6 +255,21 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         self.assertLess(extract, terminal)
         self.assertLess(terminal, redirect)
         self.assertLess(terminal, status)
+        self.assertLess(extract, intervention.index("msc_intervention_cleanup(&intervention)"))
+
+    def test_rule_id_helper_guard_rejects_missing_late_or_unbounded_extraction(self) -> None:
+        call = "ngx_http_modsecurity_extract_intervention_rule_id(ctx, &intervention);"
+        mutations = (
+            self.module.replace(call, "/* extraction omitted */"),
+            self.module.replace(call, "").replace("msc_intervention_cleanup(&intervention);",
+                "msc_intervention_cleanup(&intervention); " + call),
+            self.module.replace("sizeof(ctx->last_intervention_rule_id)", "unbounded_size"),
+            self.module.replace("if (intervention->log != NULL)", "if (ctx->r && intervention->log != NULL)"),
+        )
+        for index, source in enumerate(mutations):
+            with self.subTest(mutation=index), patch.object(self, "module", source):
+                with self.assertRaises((AssertionError, ValueError)):
+                    self.test_disruptive_interventions_record_terminal_contract_decisions_before_host_sinks()
 
     def test_final_body_processing_accepts_only_success_one(self) -> None:
         request = function_definition(
@@ -295,14 +358,7 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         response_append = function_definition(
             self.body, "ngx_http_modsecurity_append_response_body_chunk"
         )
-        self.assertRegex(
-            response_append,
-            re.compile(
-                r"if\s*\(!msconnector_native_body_append_can_continue\s*\(\s*"
-                r"msc_append_response_body\s*\(ctx->modsec_transaction,\s*data,\s*bytes\)\)\)",
-                re.DOTALL,
-            ),
-        )
+        self.assert_response_append_return_guard(response_append)
         failed_append = conditional_block(response_append, "if (!msconnector_native_body_append_can_continue")
         self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE", failed_append)
         self.assertIn("return NGX_ERROR;", failed_append)
@@ -316,6 +372,31 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
             response_append,
             re.compile(r"msc_append_response_body\s*\(.*?\)\s*!=\s*1", re.DOTALL),
         )
+
+    def assert_response_append_return_guard(self, append: str) -> None:
+        call = "native_result = msc_append_response_body(ctx->modsec_transaction, data, bytes);"
+        guard = "if (!msconnector_native_body_append_can_continue(native_result))"
+        self.assertEqual(append.count(call), 1)
+        self.assertIn(guard, append)
+        between = append[append.index(call) + len(call):append.index(guard)]
+        self.assertEqual(between.strip(), "ctx->native_event_phase_active = 0;")
+        self.assertLess(append.index(guard), append.index("ctx->response_body_bytes_inspected += bytes;"))
+        self.assertLess(append.index(guard), append.index("ctx->response_body_append_calls++;"))
+
+    def test_response_append_guard_rejects_ignored_overwritten_or_unchecked_results(self) -> None:
+        append = function_definition(self.body, "ngx_http_modsecurity_append_response_body_chunk")
+        changes = (
+            ("native_result = msc_append_response_body", "msc_append_response_body"),
+            ("ctx->native_event_phase_active = 0;", "ctx->native_event_phase_active = 0; native_result = 1;"),
+            ("msconnector_native_body_append_can_continue(native_result)", "msconnector_native_body_append_can_continue(1)"),
+            ("ctx->native_event_phase_active = 0;", "ctx->native_event_phase_active = 0; ctx->response_body_append_calls++;"),
+        )
+        for old, new in changes:
+            with self.subTest(replacement=new):
+                changed = append.replace(old, new, 1)
+                self.assertNotEqual(changed, append)
+                with self.assertRaises(AssertionError):
+                    self.assert_response_append_return_guard(changed)
 
     def test_connection_and_uri_preserve_the_shared_failure_boundary(self) -> None:
         helper_name = "ngx_http_modsecurity_request_native_result"
@@ -654,7 +735,8 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         self.assertNotIn("phase4_in_scope", self.body)
         self.assertNotIn("phase4_content_types", self.module + self.common)
         self.assertNotIn("content_type", append_chain)
-        self.assertIn("phase4_body_limit", plan)
+        self.assertIn("msconnector_phase4_effective_body_limit(", plan)
+        self.assertNotIn("common_config.phase4_body_limit", plan)
         self.assertIn("MSCONNECTOR_BODY_LIMIT_ACTION_REJECT", plan)
         self.assertIn("msc_append_response_body", append)
         self.assertIn("ngx_http_modsecurity_append_response_body_buffer", append_chain)

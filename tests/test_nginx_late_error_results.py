@@ -1,7 +1,9 @@
 """Exercise actual NGINX P4 functions and the real Common late-action policy.
 
 Native evaluation, core response generation, and the JSONL sink are controlled
-collaborators. These are compiled control-flow/producer tests, not a live host
+collaborators. Budget measurement and native-completion observation are also
+controlled boundaries; their production implementations are not tested here.
+These are compiled control-flow/producer tests, not a live host
 or client-transport claim. Core re-entry models filter_finalize_request.
 """
 from __future__ import annotations
@@ -78,6 +80,9 @@ typedef struct {
     int phase4_terminal_error_started, phase4_terminal_error_emitting;
     int response_committed, response_body_seen, response_body_truncated;
     int response_replaced;
+    int native_response_body_limit_rejection, native_response_body_eos;
+    enum msconnector_phase native_event_phase;
+    int native_event_phase_active;
     size_t response_body_bytes_seen, response_body_bytes_inspected;
     ngx_str_t event_transaction_id;
     char last_intervention_rule_id[MSCONNECTOR_MAX_RULE_ID_LENGTH + 1U];
@@ -88,11 +93,14 @@ typedef struct { const char *method, *uri, *content_type; }
 enum { NGX_OK = 0, NGX_ERROR = -1, NGX_DECLINED = -5,
     NGX_LOG_ERR = 4, NGX_INVALID_FILE = -1, NGX_HTTP_OK = 200,
     NGX_HTTP_FORBIDDEN = 403, NGX_HTTP_REQUEST_ENTITY_TOO_LARGE = 413,
-    NGX_HTTP_INTERNAL_SERVER_ERROR = 500 };
+    NGX_HTTP_INTERNAL_SERVER_ERROR = 500, NGX_HTTP_GATEWAY_TIME_OUT = 504 };
+typedef struct { int unused; } ngx_http_modsecurity_engine_call_measurement;
 static int ngx_http_modsecurity_module;
 static ngx_http_modsecurity_ctx_t context;
 static int native_result = 1, intervention_result, sink_result;
 static int fail_begin, fail_complete, fail_commit;
+static int fail_completion_observation;
+static int completion_observations;
 static int native_calls, intervention_calls, completions, writes, forwards;
 static int core_calls, core_status, core_body_gate = 99, last_eos = -1;
 static char last_id[100], last_actual[40];
@@ -127,7 +135,33 @@ static ngx_int_t ngx_http_modsecurity_contract_record_response_commit(
     (void)ctx; (void)r; return fail_commit ? NGX_ERROR : NGX_OK;
 }
 static int msc_process_response_body(void *transaction) {
-    (void)transaction; ++native_calls; return native_result;
+    if (transaction != &context || !context.native_event_phase_active ||
+        context.native_event_phase != MSCONNECTOR_PHASE_RESPONSE_BODY) abort();
+    ++native_calls; return native_result;
+}
+/* This fixture selects the disabled-budget boundary, not a timing proof. */
+static ngx_int_t ngx_http_modsecurity_engine_call_begin(ngx_http_request_t *r,
+    enum msconnector_phase phase, ngx_http_modsecurity_engine_call_measurement *m) {
+    (void)r; (void)m;
+    if (phase != MSCONNECTOR_PHASE_RESPONSE_BODY) abort();
+    return NGX_OK;
+}
+static ngx_int_t ngx_http_modsecurity_engine_call_finish(ngx_http_request_t *r,
+    enum msconnector_phase phase, ngx_http_modsecurity_engine_call_measurement *m,
+    int result) {
+    (void)r; (void)m;
+    if (phase != MSCONNECTOR_PHASE_RESPONSE_BODY || result != native_result ||
+        context.native_event_phase_active) abort();
+    return NGX_OK;
+}
+/* Keep successful completion observations separate from late-error writes. */
+static ngx_int_t ngx_http_modsecurity_phase4_log_native_completion(
+    ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf,
+    ngx_http_modsecurity_ctx_t *ctx, int result) {
+    (void)r; (void)mcf;
+    if (result != 1 || !ctx->native_response_body_eos || completions != 1) abort();
+    ++completion_observations;
+    return fail_completion_observation ? NGX_ERROR : NGX_OK;
 }
 static int ngx_http_modsecurity_process_intervention(void *transaction,
     ngx_http_request_t *r, int early) {
@@ -208,6 +242,9 @@ int main(int argc, char **argv) {
     }
     if (strcmp(argv[6], "complete") == 0) { fail_complete = 1; }
     if (strcmp(argv[6], "commit") == 0) { fail_commit = 1; }
+    if (strcmp(argv[6], "completion-observation") == 0) {
+        fail_completion_observation = 1;
+    }
     if (strcmp(argv[6], "body-limit") == 0) {
         context.contract.error_class = MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT;
         result = ngx_http_modsecurity_phase4_fail_control(&request, &config,
@@ -224,12 +261,13 @@ int main(int argc, char **argv) {
     }
     printf("{\"result\":%ld,\"retry\":%ld,\"flush\":%ld,"
         "\"native\":%d,\"intervention\":%d,\"completions\":%d,"
+        "\"completion_observations\":%d,"
         "\"writes\":%d,\"forwards\":%d,\"core\":%d,\"core_status\":%d,"
         "\"core_gate\":%d,\"emitting\":%d,\"error\":%d,\"abort\":%d,"
         "\"eos\":%d,\"id\":\"%s\",\"actual\":\"%s\","
         "\"off\":%d,\"safe\":%d,\"strict\":%d}\n",
         result, retry, flush, native_calls, intervention_calls, completions,
-        writes, forwards, core_calls, core_status, core_body_gate,
+        completion_observations, writes, forwards, core_calls, core_status, core_body_gate,
         context.phase4_terminal_error_emitting, context.contract.error_class,
         context.phase4_strict_abort, last_eos, last_id, last_actual,
         MSCONNECTOR_PHASE4_MODE_OFF, MSCONNECTOR_PHASE4_MODE_SAFE,
@@ -302,6 +340,7 @@ class NginxLateErrorResultsTests(unittest.TestCase):
                         result = self.invoke(mode, committed, native=native)
                         self.assert_terminal(result, committed)
                         self.assertEqual(result["completions"], 0)
+                        self.assertEqual(result["completion_observations"], 0)
                         self.assertEqual(result["intervention"], 0)
                         self.assertEqual(result["eos"], 0)
                         self.assertEqual(result["writes"], 1)
@@ -332,6 +371,7 @@ class NginxLateErrorResultsTests(unittest.TestCase):
             result = self.invoke(mode)
             self.assertEqual(result["result"], 0)
             self.assertEqual(result["completions"], 1)
+            self.assertEqual(result["completion_observations"], 1)
             self.assertEqual(result["retry"], -5)
             self.assertEqual(result["writes"], 0)
             self.assertEqual(result["error"], 0)
@@ -376,6 +416,20 @@ class NginxLateErrorResultsTests(unittest.TestCase):
         self.assertEqual(result["core"], 1)
         self.assertEqual(result["writes"], 1)
         self.assertEqual(result["native"], 0)
+
+    def test_completion_observation_failure_is_terminal_before_intervention(self) -> None:
+        for mode in self.modes:
+            for committed in (0, 1):
+                with self.subTest(mode=mode, committed=committed):
+                    result = self.invoke(mode, committed, scenario="completion-observation")
+                    self.assert_terminal(result, committed)
+                    self.assertEqual(result["native"], 1)
+                    self.assertEqual(result["completions"], 1)
+                    self.assertEqual(result["completion_observations"], 1)
+                    self.assertEqual(result["intervention"], 0)
+                    self.assertEqual(result["writes"], 1)
+                    self.assertEqual(result["eos"], 1)
+                    self.assertEqual(result["id"], "MSCONN_EVENT_CONNECTOR_ERROR")
 
 
 if __name__ == "__main__":
