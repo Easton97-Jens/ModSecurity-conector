@@ -2,6 +2,12 @@
 
 **Sprache:** [English](ci-security-tooling.md) | Deutsch
 
+## Schnellorientierung
+
+Diese Seite dokumentiert, **wie CI-Security-Checks gepinnt und begrenzt sind**; sie behauptet keine allgemeine Sicherheitszertifizierung des Projekts. Lesen Sie sie bei Änderungen an Workflows, Security-Scannern, Action-Pins, Berechtigungen, Projektversions-Pins oder Dependency-Prüflogik.
+
+Security-Tools bleiben unveränderlich/reviewbar, Berechtigungen minimal und Scan-Ergebnisse an den exakten Commit/Run gebunden. Ein grüner Scanner ist ein Security-Signal und keine Produktionszertifizierung.
+
 ## Geltungsbereich
 
 Dieses Dokument beschreibt CI-Kontrollen des Repositorys. Es belegt keine

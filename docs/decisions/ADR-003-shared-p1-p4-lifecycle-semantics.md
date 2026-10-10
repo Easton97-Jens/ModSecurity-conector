@@ -2,6 +2,14 @@
 
 **Language:** English | [Deutsch](ADR-003-shared-p1-p4-lifecycle-semantics.de.md)
 
+## Quick orientation
+
+This ADR defines the shared meaning of P1–P4 across connector integrations:
+request headers, request body, response headers, and response body. It defines a
+common semantic model, not identical host hooks or identical late-action
+capabilities. Each logical profile still has to map those phases through its
+actual host topology and prove runtime behavior independently.
+
 ## ID
 
 ADR-003

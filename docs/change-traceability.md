@@ -2,6 +2,15 @@
 
 **Language:** English | [Deutsch](change-traceability.de.md)
 
+## Quick orientation
+
+This policy keeps documentation and delivery facts reviewable. For a normal
+non-trivial change, the practical rule is: update English and German together,
+keep technical literals identical, record only checks that actually ran, do not
+turn build/static results into runtime claims, and update generated material
+through its generator. The pull-request description and any required Change
+Record must match the final diff and observed results.
+
 This policy makes bilingual maintenance part of the definition of done for
 repository-owned, versioned, reader-facing content. It applies to every
 feature, bug fix, security fix, and other non-trivial change.

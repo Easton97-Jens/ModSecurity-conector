@@ -2,6 +2,20 @@
 
 **Sprache:** [English](architecture.md) | Deutsch
 
+## Schnellorientierung
+
+Lesen Sie dieses Dokument, wenn Sie verstehen möchten, **wie ein Request durch
+das Projekt läuft**. Drei Grenzen sind dabei wichtig:
+
+- der Host besitzt seine nativen Hooks, Filter, Transportdetails und Objekt-Lebensdauer;
+- `common/` besitzt connector-neutrale Verträge und wiederverwendbares Runtime-Verhalten;
+- das Framework besitzt wiederverwendbare Testfälle, Schemas, Runner und Normalizer.
+
+P1/P2 sind Request-Header/-Body und P3/P4 Response-Header/-Body. Eine Route
+kann nur Phasen beanspruchen, die ihr ausgewählter Host bzw. ihr Profil
+tatsächlich sichtbar macht. Build-Ausgabe, Konfigurationsladen und Source-Wiring
+sind von Live-Host-Evidence getrennt.
+
 ## Geltungsbereich
 
 Dies ist die aktuelle maßgebliche Architekturreferenz des Connector-Repositorys.

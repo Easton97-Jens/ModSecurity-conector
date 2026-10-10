@@ -1,40 +1,40 @@
-# Herkunft der Apache-Connector-Lizenz
+# Herkunft und Lizenzreferenz des Apache-Connectors
 
 **Sprache:** [English](ORIGIN.md) | Deutsch
 
-Status: implemented
+## Herkunft
 
-Dieses Verzeichnis spiegelt die Upstream-Lizenz- und Attributionsdateien für
-den kontrollierten Apache-Connector-Quellimport. Phase 11 migrierte den
-aktiven Build-Source nach `connectors/apache/src/` und entfernte den früheren
-`connectors/apache/upstream/`-Referenzbaum, nachdem ein materialisierter
-Apache-Build und Smoke-Run erfolgreich waren. Phase 12 entfernte doppelte
-Attributions-/Historien-Dateien aus dem aktiven Source-Baum; dieses Verzeichnis
-ist nun der dauerhafte Ort für diese Dateien.
+| Feld | Referenz |
+| --- | --- |
+| Upstream-Repository | https://github.com/owasp-modsecurity/ModSecurity-apache |
+| Branch | `master` |
+| Source-Basis | `0488c77f69669584324b70460614a382224b4883` |
+| Beobachtete Version | `v0.0.9-beta1-26-g0488c77` |
+| Beobachtete Upstream-Lizenz | Apache-2.0 |
 
-Lokale Repository-Referenz: `connectors/apache/`, `licenses/apache/`
-Upstream-Source: https://github.com/owasp-modsecurity/ModSecurity-apache
-Source-Branch: `master`
-Source-Commit: `0488c77f69669584324b70460614a382224b4883`
-Source-Describe: `v0.0.9-beta1-26-g0488c77`
-Lizenz: Apache-2.0
+Der lokale Apache-Connector verwendet diese Upstream-Quelle als
+Provenienzbasis.
 
-| Repository | Lokale Repository-Referenz | Upstream | Beobachteter Commit | Beobachtete Version/Tag | Lizenz |
-| --- | --- | --- | --- | --- | --- |
-| ModSecurity-apache | `connectors/apache/`, `licenses/apache/` | https://github.com/owasp-modsecurity/ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 |
+## Was hier aufbewahrt wird
 
-## Dateien
-
-| Zentraler Pfad | Source-Pfad | Zweck |
+| Datei | Herkunft | Zweck |
 | --- | --- | --- |
-| `licenses/apache/LICENSE` | Upstream `LICENSE` | Apache-2.0-Lizenztext für adaptereigenen Apache-Connector-Source |
-| `licenses/apache/AUTHORS` | Upstream `AUTHORS` | Upstream-Attribution |
-| `licenses/apache/CHANGES` | Upstream `CHANGES` | Upstream-Änderungskontext |
+| `licenses/apache/LICENSE` | Upstream-`LICENSE` | Upstream-Apache-2.0-Lizenztext aufbewahren |
+| `licenses/apache/AUTHORS` | Upstream-`AUTHORS` | Upstream-Attribution aufbewahren |
+| `licenses/apache/CHANGES` | Upstream-`CHANGES` | Upstream-Änderungshistorie/-kontext aufbewahren |
 
-## Importierte Source-Zuordnung
+## Unterschied zum lokalen Repository
 
-Die vollständige Dateifür-Datei-Source-Zuordnung bleibt in
-`connectors/apache/ORIGIN.md` und `connectors/apache/SOURCE_MAP.json`.
-Dieses zentrale Lizenzverzeichnis ist ein Attributionsindex und ersetzt nicht
-die funktionalen Apache-Source-Dateien, die für den adaptereigenen
-Apache-Autotools-Source-Baum benötigt werden.
+Der Apache-Connector unter `connectors/apache/` ist kein unveränderter
+Checkout von ModSecurity-apache. Er enthält importiertes bzw. abgeleitetes
+Upstream-Material zusammen mit repository-lokalen Anpassungen und
+repository-eigenen Support-Dateien.
+
+Die verbindliche Herkunft auf Dateiebene steht in
+`connectors/apache/SOURCE_MAP.json`. Dort ist festgehalten, welche Dateien auf
+der Upstream-Quelle basieren, welche lokalen Änderungen oder zusätzlichen
+Source-Basen gelten und welche Dateien repository-eigen sind.
+
+Die Dateien in diesem Verzeichnis dokumentieren Upstream-Herkunft und
+Upstream-Lizenzbasis für das relevante Material. Sie definieren keine Lizenz
+für nicht zugehörige Dateien oder für das Repository als Ganzes.

@@ -2,6 +2,15 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
+## Schnellorientierung
+
+Architecture Decision Records (ADRs) erklären **warum** dauerhafte technische
+Entscheidungen getroffen wurden. Sie sind keine Runtime-Statusberichte.
+Verwenden Sie einen ADR, wenn eine Entscheidung auch nach Änderungen an
+Implementierungsdetails verständlich bleiben soll; für aktuelles Verhalten
+gelten die aktuellen Connector-/Build-/Test-Dokumente und für beobachtete
+Ergebnisse die aktuelle Run-Evidence.
+
 ## Zweck und Geltungsbereich
 
 Dieses Verzeichnis ist der schlanke Ort für Architecture Decision Records

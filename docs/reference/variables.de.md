@@ -2,6 +2,14 @@
 
 **Sprache:** [English](variables.md) | Deutsch
 
+## Schnellorientierung
+
+Dies ist die vollständige Variablenreferenz und keine Checkliste, die jeder Benutzer vollständig konfigurieren muss. Beginnen Sie mit Root-Make-Targets und eingecheckten Beispielen; überschreiben Sie eine Variable nur, wenn das ausgewählte Target bzw. der Host dies benötigt.
+
+Prüfen Sie bei einem Variableneintrag vier Punkte: Wer setzt ihn, gibt es einen Default, zeigt er auf Source oder generierte Runtime-/Evidence-Daten und verändert er Exposition oder Trust. Secrets oder personenbezogene Daten gehören nicht in Run-IDs, Review-Pfade oder Evidence-Metadaten.
+
+Die Ownership von Projekt-Toolchains und normalen Framework-/MRTS-Revisionen ist getrennt unter [Versions-Pins](version-pins.de.md) dokumentiert.
+
 Dies ist die zentrale Referenz für Variablen, die das Root-<code>Makefile</code>,
 seine Runtime-Lifecycle-Wrapper und direkt aufrufbare Connector-Harnesses
 annehmen. Sie ist bewusst zurückhaltend: Ein deklarierter Source-, Build- oder

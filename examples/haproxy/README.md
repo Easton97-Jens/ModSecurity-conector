@@ -2,6 +2,16 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
+## Start here
+
+HAProxy has two logical solutions. Use native `haproxy-htx` when you want the
+direct HTX filter route; use `haproxy-spoe-spop` only when you intentionally
+want the request-side SPOE/SPOP path together with its mandatory native HTX
+response companion.
+
+For a first configuration, choose the matching `safe` bundle. Do not treat the
+historical SPOE compatibility files as a complete P1–P4 solution.
+
 ## Integration and boundary
 
 Integration mode: native HTX filter. The native [off](off/haproxy-htx.cfg)

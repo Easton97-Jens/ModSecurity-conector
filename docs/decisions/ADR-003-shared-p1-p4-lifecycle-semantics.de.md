@@ -2,6 +2,15 @@
 
 **Sprache:** [English](ADR-003-shared-p1-p4-lifecycle-semantics.md) | Deutsch
 
+## Schnellorientierung
+
+Dieser ADR definiert die gemeinsame Bedeutung von P1–P4 über Connector-
+Integrationen hinweg: Request-Header, Request-Body, Response-Header und
+Response-Body. Er definiert ein gemeinsames semantisches Modell und keine
+identischen Host-Hooks oder identischen Late-Action-Fähigkeiten. Jedes logische
+Profil muss diese Phasen weiterhin durch seine tatsächliche Hosttopologie
+abbilden und Runtime-Verhalten unabhängig nachweisen.
+
 ## ID
 
 ADR-003

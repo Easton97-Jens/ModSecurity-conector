@@ -2,6 +2,12 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
+## Hier beginnen
+
+Verwenden Sie diese Seite, wenn NGINX der Zielhost ist. Für eine erste Konfiguration beginnen Sie mit [safe/nginx.conf](safe/nginx.conf), verwenden ein Modul für die exakt passende NGINX-ABI, passen Rules- und Runtime-Pfade an und führen vor dem Start der Worker den nativen NGINX-Konfigurationscheck aus.
+
+NGINX verwendet das direkte logische Profil `nginx`. Phase-4-`strict` ist eine Late-Action-Konfigurationspolicy; eine eingecheckte Strict-Datei ist kein Nachweis für einen sicher beobachteten client-sichtbaren Post-Commit-Abbruch. WAF-Response-Inspection-Byte-Limits gehören über `SecResponseBodyLimit` zur Engine; die Legacy-Einstellung `modsecurity_phase4_body_limit` dient nur der Kompatibilität.
+
 ## Integration und Grenze
 
 Integrationsmodus: natives NGINX-HTTP-Modul.
