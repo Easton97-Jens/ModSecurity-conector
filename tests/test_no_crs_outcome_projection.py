@@ -1,0 +1,62 @@
+"""Collector regression fixtures, not new runtime evidence."""
+import unittest
+
+from tests.test_collect_no_crs_source_helpers import COLLECTOR
+
+
+class OutcomeProjectionTests(unittest.TestCase):
+    def intervention(self, tx="one"):
+        return {"event": "phase4_intervention", "transaction_id": tx,
+                "phase": 4, "rule_id": 1100301, "http_status": 403,
+                "original_http_status": 200, "visible_http_status": 200,
+                "requested_action": "deny", "actual_action": "log_only",
+                "late_intervention": True, "response_committed": True}
+
+    def test_completion_does_not_replace_intervention_outcome(self):
+        outcome = COLLECTOR.canonical_semantics([
+            self.intervention(), {"event": "phase4_completion", "phase": 4,
+                                 "transaction_id": "one", "http_status": 0,
+                                 "late_intervention": False},
+            {"event": "cleanup", "transaction_id": "one", "response_committed": False}])
+        self.assertEqual(outcome["http_status"], 403)
+        self.assertTrue(outcome["late_intervention"])
+        self.assertTrue(outcome["response_committed"])
+
+    def test_later_technical_failure_is_not_hidden(self):
+        records = [self.intervention(), {"event": "internal_error", "phase": 4,
+                   "transaction_id": "one", "status": "error", "http_status": 500,
+                   "transport_result": "engine_error"}]
+        outcome = COLLECTOR.canonical_semantics(records)
+        self.assertEqual(outcome["http_status"], 500)
+        self.assertEqual(outcome["transport_result"], "engine_error")
+
+    def test_different_transactions_are_not_combined(self):
+        self.assertEqual(COLLECTOR.canonical_semantics([
+            self.intervention(), self.intervention("two")]), {})
+
+    def test_wrong_rule_or_phase_cannot_fill_matching_decision(self):
+        for changes in ({"rule_id": 1100302}, {"phase": 3}):
+            with self.subTest(changes=changes):
+                outcome = COLLECTOR.canonical_semantics(
+                    [dict(self.intervention(), **changes)], "1100301", 4)
+                self.assertNotIn("actual_action", outcome)
+                self.assertNotIn("http_status", outcome)
+
+    def test_non_intervention_observation_keeps_own_values(self):
+        self.assertEqual(COLLECTOR.canonical_semantics([
+            {"visible_http_status": 200}]), {"visible_http_status": 200})
+
+    def test_first_technical_error_keeps_priority(self):
+        outcome = COLLECTOR.canonical_semantics([
+            self.intervention(), {"event": "internal_error", "status": "error",
+                                 "transaction_id": "one", "http_status": 500},
+            {"event": "internal_error", "status": "error",
+             "transaction_id": "one", "http_status": 502}])
+        self.assertEqual(outcome["http_status"], 500)
+
+    def test_fault_without_outcome_fields_still_prevents_case_pass(self):
+        records = [self.intervention(), {"event": "internal_error", "phase": 4,
+                   "transaction_id": "one", "status": "error"}]
+        self.assertFalse(COLLECTOR.case_passes(
+            "PASS", True, 200, None, "1100301", 4,
+            "phase4_deny_after_commit_log_only", {"1100301"}, records))

@@ -1233,7 +1233,18 @@ def first_byte_counter_conflicts(
     return existing is not None and existing != evidence[field]
 
 
-def canonical_semantics(records: list[dict[str, Any]]) -> dict[str, Any]:
+def observed_technical_failure(record: dict[str, Any]) -> bool:
+    """Identify an explicit runtime fault without inventing outcome fields."""
+    return record.get("status") == "error" or record.get("transport_result") in {
+        "engine_error", "host_error", "timeout", "short_write", "upstream_reset",
+    }
+
+
+def canonical_semantics(
+    records: list[dict[str, Any]],
+    expected_rule_id: str | None = None,
+    expected_phase: int | None = None,
+) -> dict[str, Any]:
     """Project only producer-observed Phase-4 metadata.
 
     This intentionally does not fill defaults.  A missing runtime value must
@@ -1263,12 +1274,46 @@ def canonical_semantics(records: list[dict[str, Any]]) -> dict[str, Any]:
         "upstream_response_finished_at_first_byte",
         "no_full_response_buffering",
     }
+    normalized_records = [sanitized_event(record) for record in records]
+    identities = set().union(*(record_transaction_ids(record) for record in records))
+    if len(identities) > 1:
+        return {}
     output: dict[str, Any] = {}
-    for record in records:
-        normalized = sanitized_event(record)
+    for normalized in normalized_records:
         for field in fields:
             if field in normalized:
                 output[field] = normalized[field]
+    # Completion/cleanup events describe lifecycle state, not the earlier
+    # decision or the Host action. Preserve a single evidenced intervention;
+    # never assemble that decision from unrelated rule/phase observations.
+    interventions = [
+        record for record in normalized_records
+        if record.get("event") in {"phase3_intervention", "phase4_intervention"}
+        and (expected_rule_id is None or str(record.get("rule_id")) == expected_rule_id)
+        and (expected_phase is None or record.get("phase") == expected_phase)
+    ]
+    decision_fields = fields - {
+        "body_bytes_seen", "body_bytes_inspected", "client_first_byte_received",
+        "first_chunk_size", "upstream_paused", "upstream_eos_sent_at_first_byte",
+        "first_byte_before_response_end", "upstream_response_finished_at_first_byte",
+        "no_full_response_buffering",
+    }
+    if any(record.get("event") in {"phase3_intervention", "phase4_intervention"}
+           for record in normalized_records):
+        for key in decision_fields:
+            output.pop(key, None)
+    if interventions:
+        decisions = [{key: value for key, value in record.items() if key in decision_fields}
+                     for record in interventions]
+        if any(decision != decisions[0] for decision in decisions[1:]):
+            return {}
+        output.update(decisions[0])
+    # A genuine subsequent technical fault remains authoritative. This is not
+    # a general last-event rule; retain the first evidenced technical failure.
+    for record in normalized_records:
+        if observed_technical_failure(record):
+            output.update({key: value for key, value in record.items() if key in fields})
+            break
     return output
 
 
@@ -1541,7 +1586,10 @@ def case_passes(
     phase_matches = not structured_runtime_case or any(
         record.get("phase") == expected_phase for record in records
     )
-    return status == "PASS" and live and status_matches and rule_matches and phase_matches
+    return (
+        status == "PASS" and live and status_matches and rule_matches and phase_matches
+        and not any(observed_technical_failure(record) for record in records)
+    )
 
 
 def default_case_expectations(expected_rule_id: str) -> dict[str, tuple[int, str | None]]:
@@ -1652,7 +1700,7 @@ def case_observation_payload(
             )
             else "FAIL"
         ),
-        **canonical_semantics([row, *runtime_records]),
+        **canonical_semantics([row, *runtime_records], expected_rule_id, expected_phase),
         **configtest_source_fields(row, expected_phase, allowed_source_root),
     }
 
