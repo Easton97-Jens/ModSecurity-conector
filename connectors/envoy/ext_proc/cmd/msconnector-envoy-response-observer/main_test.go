@@ -39,7 +39,9 @@ func (listener replacingResponseObserverListener) Accept() (net.Conn, error) {
 	return nil, errors.New("not implemented")
 }
 func (listener replacingResponseObserverListener) Close() error {
-	if err := os.Remove(listener.path); err != nil {
+	// Retain the original inode while replacing the path. Remove-and-create
+	// can recycle that inode and fail to model a different file identity.
+	if err := os.Rename(listener.path, listener.path+".original"); err != nil {
 		return err
 	}
 	return os.WriteFile(listener.path, []byte("replacement"), 0600)
@@ -334,6 +336,7 @@ func TestServeResponseObserverForcesStopAfterGracefulStopDeadline(t *testing.T) 
 	case <-contextValue.Done():
 		t.Fatal("blocking stream did not start")
 	}
+
 	signals <- syscall.SIGTERM
 	select {
 	case err := <-result:
@@ -383,6 +386,7 @@ func TestServeResponseObserverStopsPreHandshakePeerAfterGracefulStopDeadline(t *
 	case <-time.After(time.Second):
 		t.Fatal("pre-handshake peer was not accepted")
 	}
+
 	signals <- syscall.SIGTERM
 	select {
 	case err := <-result:

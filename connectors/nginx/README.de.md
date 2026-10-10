@@ -107,8 +107,9 @@ an die Engine übergeben; die Engine-Policy bleibt maßgeblich.
 Das lockert #384 nicht: Finales `msc_process_response_body()`-Processing bleibt
 bei einem Ergebnis ungleich `1` fail-closed, während Append-/From-File-
 `ProcessPartial`-Handling für akzeptierte Engine-Chunks absichtlich nicht fatal
-bleibt. Der alte Wert `modsecurity_phase4_body_limit` weist in `safe` oder
-`strict` keine Response mehr ab; geprüfte Bytezähler, Integer-Überlaufprüfungen
+bleibt. Die Direktive `modsecurity_phase4_body_limit` ist entfernt; kein Modus
+erzeugt ein konfigurierbares kumuliertes Inspection-Limit des Connectors.
+Geprüfte Bytezähler, Integer-Überlaufprüfungen
 und begrenzte Datei-Reads bleiben aktiv.
 
 ### Historische Beobachtungen vor der Migration
@@ -290,14 +291,47 @@ Der adaptereigene NGINX-Connector registriert derzeit Folgendes:
 - `modsecurity_rules_remote` (abgelehnt: Remote-Regelladen ist durch die gemeinsame Sicherheitsrichtlinie deaktiviert)
 - `modsecurity_transaction_id`
 - `modsecurity_use_error_log on|off`
+- `modsecurity_engine_call_budget_ms <milliseconds>` (NGINX-spezifisches weiches
+  Budget ausgewählter Aufrufe; dezimale Ganzzahl, geerbter Standard `0` deaktiviert die Messung)
 - `modsecurity_phase4_mode off|safe|strict`
 - `modsecurity_phase4_log <path>` (nativer P4-JSONL-Sink; der dem Connector
   gehörende Deskriptor wird über den Common-No-Follow-Helper geöffnet und
   verlangt ein sicheres Elternverzeichnis, ein reguläres Blatt, geeignete
   Eigentümer und den privaten Modus `0600`)
-- `modsecurity_phase4_body_limit <bytes>` (alter Kompatibilitätswert;
-  wird von der aktuellen Konfiguration weiter akzeptiert, aber nicht als
-  WAF-Response-Inspection-Limit durchgesetzt)
+
+### Native URI-Metadaten und weiches Budget ausgewählter Aufrufe
+
+Der geprüfte native Quellstand begrenzt die Event-URI auf einen 256-Byte-Puffer
+einschließlich abschließendem NUL und höchstens 255 Bytes nach JSON-Escaping.
+Querys werden durch `?<redacted>` ersetzt; dieser 11-Byte-Marker bleibt bei
+langen oder stark escapten Präfixen erhalten (höchstens 244 Präfixbytes bei einer
+langen ASCII-URI mit Query). Redaktions- und Trunkierungsflags beschreiben die
+Projektion. Andere Common-Felder behalten die strikte Validierung. Der feste
+JSONL-Schreibpuffer bleibt 4096 Bytes groß; dies ist weder eine konfigurierbare
+Eventgrößen-Direktive noch eine Erlaubnis für Payload-Logging.
+
+`modsecurity_engine_call_budget_ms` akzeptiert dezimale Millisekunden in `http`,
+`server` und `location`. Kinder erben den Elternwert; Standard `0` deaktiviert
+die Messung. Duplikate im selben Kontext, negative Werte, Einheitensuffixe und
+Überlauf sind ungültig. Nur `msc_process_request_headers()`,
+`msc_process_request_body()`, `msc_process_response_headers()` und
+`msc_process_response_body()` werden einzeln mit `CLOCK_MONOTONIC` gemessen.
+Eine Dauer strikt größer als das Budget wird nach Rückkehr des synchronen
+Aufrufs geprüft. Ein blockierter oder hängender Engine-Aufruf kann nicht
+unterbrochen werden; dies ist weder eine harte Deadline noch ein
+transaktionsweites Budget.
+
+Verbindungsverarbeitung, URI-Verarbeitung, Body-Append, Logging, Header-Add-APIs,
+Interventions-APIs, Cleanup und Getter werden **nicht gemessen**. Common beendet
+eine Phase nur bei tatsächlichem nativem Ergebnis exakt `1` und akzeptiertem
+Budget. Langsame ungültige Ergebnisse wie `0` oder `2` bleiben ungültige
+Engine-Antworten und sind kein positiver Timeout-Nachweis. Common-Transaktions-
+Cleanup erfolgt vor dem nativen void-Aufruf `msc_transaction_cleanup()`;
+ein HTTP-Status allein beweist weder Cleanup noch die Rückkehr dieses Aufrufs.
+
+Dies sind Quellverträge, kein neuer nativer Laufzeit-Pass. Das All-Required-
+Tracking behält 97 RequiredIDs mit 45 offenen Einträgen; das neue Source/Build/
+Runtime-Tupel ist `NOT_RUN`. Frühere Fallevidenz beweist dieses Tupel nicht.
 
 `modsecurity_phase4_mode` hat den Standardwert `off`. `minimal` wird nicht
 mehr akzeptiert. Die entfernte Direktive `modsecurity_phase4_content_types_file`
@@ -316,9 +350,34 @@ und die eigenen Body-Limit-Einstellungen der Bibliothek gelten weiterhin.
 Damit wird nicht behauptet, dass sämtliche Fehlerpfade mit einem früheren
 Upstream-Release identisch sind.
 
-`modsecurity_phase4_body_limit` behält aus Konfigurationskompatibilität seine
-historischen Parser-/Default-Grenzen, wird aber in keinem gültigen
-Phase-4-Modus als Connector-WAF-Response-Limit durchgesetzt. Für die
+Der synchronisierte native First-Byte-Beweis des Parents wählt ausdrücklich
+`NGINX_SYNCHRONIZED_PHASE4_MODE=safe` und den bestehenden nativen Phase-4-Log-Scope
+`server_with_location_override`. Der Harness bewahrt diese literale
+Caller-Policy über das Laden der portablen Case-Umgebung hinweg und wendet
+sie ausschließlich bei `MSCONNECTOR_FULL_LIFECYCLE_SYNC=1` an. Fehlende,
+`off`-, `strict`- oder ungültige synchronisierte Policy-Werte werden vor dem
+NGINX-Start abgewiesen; ein synchronisierter Override außerhalb dieser Route
+wird ebenfalls abgewiesen. Normale direkte Smoke-Defaults und Case-eigene
+Modi bleiben unverändert. Ein vollständiger Test-Payload allein bedeutet
+keinen Erfolg: Der Beweis verlangt weiterhin curl-Exit `0`, HTTP `200` und
+tatsächliche native Phase-4-Evidence. Regel `1100301` bleibt disruptiv; die
+späte Safe-Behandlung erhält die bereits committete Response, nicht eine
+geänderte Regel oder eine Ausnahme für Transportfehler.
+
+Die NGINX-No-CRS-Lifecycle-Stage des Parents wählt
+`NGINX_PHASE4_LOG_SCOPE=location_if_missing`. Nach der Materialisierung jedes
+Cases ergänzt der Harness genau eine `modsecurity_phase4_log`-Direktive im
+Location-Kontext für dessen private `LOG_DIR/phase4.log`, falls das erzeugte
+Location-Include keine solche Direktive enthält. Connector-spezifische
+Phase-4-Fixtures behalten ihre eigene Direktive; die direkten Harness-Defaults
+und der separate First-Byte-Pfad bleiben unverändert. Der Direktivenname
+beschränkt den Sink nicht auf Phase 4: native Request- und Response-Phase-
+Events nutzen denselben Deskriptor.
+
+`modsecurity_phase4_body_limit` ist entfernt und wird nicht stillschweigend
+ignoriert. Aus bestehenden Konfigurationen entfernen; auch ein früher gültiger
+Wert ist eine unbekannte Direktive. Es gibt kein Ersatz-Limit als konfigurierbare
+kumulierte Phase-4-Grenze des Connectors. Für die
 ModSecurity-Inspection-Policy sind `SecResponseBodyLimit` und
 `SecResponseBodyLimitAction` zu verwenden. Integer-Überlaufprüfungen,
 Dateimetadaten-/Read-Prüfungen und der wiederverwendete 32768-Byte-
@@ -426,6 +485,33 @@ Relevante Framework-Pfade:
 - `modules/ModSecurity-test-Framework/tests/cases/`
 - `modules/ModSecurity-test-Framework/tests/cases/connector-specific/nginx/`
 - `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`
+
+Der Legacy-Case-Request des Parent-Harness verlangt
+`NGINX_DOWNSTREAM_PROTOCOL=http1`. Er übergibt Curl `-q --http1.1` als erste
+Optionen, damit eine Benutzer-`curlrc` diesen begrenzten H1-Request nicht
+verändert. Eigene `CURL`-Wrapper müssen beide Optionen akzeptieren. Direkte
+H2/H3-Aufrufe dieser Request-Funktion werden blockiert; die getrennte H2/H3-
+Protokollprobe bleibt nicht promotend. Der fokussierte Kommando-Test belegt die
+Client-Optionen, nicht die ausgehandelte Version jedes Runtime-Requests.
+
+Generierte leere Request-Header werden mit Curls `Header;`-Notation gesendet.
+Die unveränderte Übergabe des materialisierten `Header: ` würde den Header
+unterdrücken, nicht einen vorhandenen Leerwert senden. Eine echte Loopback-
+Regression unterscheidet vorhandene leere von fehlenden, gewöhnlichen und
+doppelten Headern. Das Framework-Fixture `empty_header_value` verlangt Präsenz
+und Leerwert gemeinsam für einen Treffer der Regel `1100503`; HTTP `200`
+allein reicht nicht. Der isolierte Host-Probe mit vorhandenem Cache erzeugte
+dieses native Event, und der unveränderte Collector/Normalizer akzeptierte den
+einzelnen Case. Sein Aggregat bleibt `FAIL`; kein neuer Exact-Head-E2E oder
+vollständiger kanonischer PASS wird behauptet. Siehe den
+[Leerheader-Change-Record](../../reports/audits/change-records/CR-20261001-nginx-empty-header-driver.de.md).
+
+Eine isolierte `transaction_id_generated_or_fallback`-Diagnose beobachtete HTTP
+`200`, eine tatsächliche Audit-Request-Zeile mit `HTTP/1.1`, einen Root-Master
+mit `nobody`-Worker, die native Regel `1100502` und einen PASS für diesen Case
+aus dem unveränderten Parent-Source-Collector. Ihr Ein-Case-Aggregat ist
+`FAIL`; dies ist kein kanonischer oder Exact-Head-Lifecycle-PASS. Siehe den
+[H1-Request-Binding-Change-Record](../../reports/audits/change-records/CR-20261001-nginx-h1-request-binding.de.md).
 
 Historisch generierte Beweise halten NGINX `partial` fest:
 
@@ -553,10 +639,9 @@ Runtime. Eine reine Request-Route benötigt für Phase 4 weiterhin den
 unterstützten Response-Observer beziehungsweise Companion; die Wahl eines
 Modus erzeugt keinen fehlenden Response-Pfad.
 
-Alte Connector-/Runtime-Budget-Einstellungen dürfen aus
-Kompatibilitätsgründen weiter parsebar bleiben, dürfen eine Response aber nicht
-allein deshalb abweisen oder abbrechen, weil eine alte Inspection-Bytezahl
-überschritten wurde. Unabhängige Allokations-, Pufferspeicher-,
+Es gibt keine Ersatz-Einstellung für Connector-Inspection-Bytes.
+Common-Runtime-Speicherlimits sind keine WAF-Inspection-Policy. Unabhängige
+Allokations-, Pufferspeicher-,
 Chunk-/Message-/Frame-, Timeout-, Überlauf- und Transportlimits bleiben in
 jedem Modus aktiv. Ein puffernder Sidecar darf deshalb weiterhin eine Response
 ablehnen, die nicht in seinen begrenzten Host-Speicher passt; das ist

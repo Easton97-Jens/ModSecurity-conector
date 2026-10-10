@@ -1356,8 +1356,7 @@ static int haproxy_modsecurity_htx_filter_attach(struct stream *s, struct filter
     }
     ctx->request.body_limit = config->common_config.request_body_limit;
     ctx->response.body_limit = msconnector_phase4_effective_body_limit(
-        config->common_config.phase4_mode,
-        config->common_config.response_body_limit);
+        config->common_config.phase4_mode);
     ctx->companion.mode =
         haproxy_modsecurity_htx_companion_enabled(config);
     filter->ctx = ctx;

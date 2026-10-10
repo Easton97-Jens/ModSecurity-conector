@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import ast
+import hashlib
 import os
 from pathlib import Path
 import shutil
@@ -26,6 +28,43 @@ def replace_once(path: Path, old: str, new: str) -> None:
     if source.count(old) != 1:
         raise AssertionError(f"expected one mutable fragment in {path}: {old!r}")
     path.write_text(source.replace(old, new, 1), encoding="utf-8")
+
+
+def is_check_call(node: ast.AST, method: str) -> bool:
+    return (
+        isinstance(node, ast.Expr)
+        and isinstance(node.value, ast.Call)
+        and isinstance(node.value.func, ast.Attribute)
+        and isinstance(node.value.func.value, ast.Name)
+        and node.value.func.value.id == "checks"
+        and node.value.func.attr == method
+    )
+
+
+class ApacheAdoptionCheckBatchingTests(unittest.TestCase):
+    def test_consecutive_module_checks_are_batched(self) -> None:
+        tree = ast.parse((CHECKER_DIRECTORY / "apache_common_adoption_base.py").read_text())
+        for first, second in zip(tree.body, tree.body[1:]):
+            self.assertFalse(is_check_call(first, "append") and is_check_call(second, "append"))
+
+    def test_batching_preserves_every_predicate_message_and_order(self) -> None:
+        tree = ast.parse((CHECKER_DIRECTORY / "apache_common_adoption_base.py").read_text())
+        normalized = []
+        for node in tree.body:
+            if is_check_call(node, "extend"):
+                self.assertEqual(len(node.value.args), 1)
+                self.assertIsInstance(node.value.args[0], ast.List)
+                self.assertFalse(node.value.keywords)
+                normalized.extend(ast.Expr(value=ast.Call(
+                    func=ast.Attribute(value=ast.Name(id="checks", ctx=ast.Load()),
+                                       attr="append", ctx=ast.Load()),
+                    args=[item], keywords=[])) for item in node.value.args[0].elts)
+            else:
+                normalized.append(node)
+        tree.body = normalized
+        # Frozen ff162ecb AST, without positions; expands only the batching seam.
+        digest = hashlib.sha256(ast.dump(tree, include_attributes=False).encode()).hexdigest()
+        self.assertEqual(digest, "e4c8c695231cd915ac6315199df346cfd9cd45f894e76fbe6661bf0ff1df0227")
 
 
 class ApacheCommonAdoptionCheckerTests(unittest.TestCase):
@@ -262,14 +301,42 @@ class ApacheCommonAdoptionCheckerTests(unittest.TestCase):
         def mutate(filters: Path) -> None:
             replace_once(
                 filters,
-                "            (const unsigned char *)data, plan.append_size) != 1) {\n",
-                "            (const unsigned char *)data, len) != 1) {\n",
+                "            (const unsigned char *)data, plan.append_size))) {\n",
+                "            (const unsigned char *)data, len))) {\n",
             )
 
         self._assert_rejected(
             mutate,
             "Apache Phase2 bounded bucket helper reads, plans, records, appends",
         )
+
+    def test_inverted_shared_request_append_guard_is_rejected(self) -> None:
+        def mutate(filters: Path) -> None:
+            replace_once(filters,
+                "!msconnector_native_body_append_can_continue(msc_append_request_body(msr->t,",
+                "msconnector_native_body_append_can_continue(msc_append_request_body(msr->t,")
+        self._assert_rejected(mutate, "Apache Phase2 bounded bucket helper reads, plans, records, appends")
+
+    def test_inverted_shared_phase_guard_is_rejected(self) -> None:
+        def mutate(filters: Path) -> None:
+            replace_once(filters,
+                "if (!msconnector_native_phase_succeeded(msc_process_request_body(msr->t)))",
+                "if (msconnector_native_phase_succeeded(msc_process_request_body(msr->t)))")
+        self._assert_rejected(mutate, "Apache Phase2 one-shot gate precedes processing")
+
+    def test_missing_serialization_failure_return_is_rejected(self) -> None:
+        def mutate(filters: Path) -> None:
+            replace_once(filters,
+                '            json_truncated ? "truncated" : "failed");\n        return;\n',
+                '            json_truncated ? "truncated" : "failed");\n')
+        self._assert_rejected(mutate, "Apache P3/P4 events reject serialization failure")
+
+    def test_technical_errors_cannot_be_logged_as_rule_blocks(self) -> None:
+        def mutate(filters: Path) -> None:
+            replace_once(filters,
+                "? MSCONNECTOR_STATUS_ERROR : MSCONNECTOR_STATUS_BLOCKED;",
+                "? MSCONNECTOR_STATUS_BLOCKED : MSCONNECTOR_STATUS_BLOCKED;")
+        self._assert_rejected(mutate, "Apache P3/P4 intervention events distinguish technical errors")
 
     def test_phase3_response_header_failures_are_not_ignored(self) -> None:
         mutations = (

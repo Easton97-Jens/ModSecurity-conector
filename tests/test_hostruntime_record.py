@@ -231,6 +231,80 @@ class HostRuntimeRecordTest(unittest.TestCase):
             self.assertEqual(manifest_payload["artifacts"]["optional"], {"state": "not_produced"})
             self.assertEqual(manifest_payload["artifacts"]["not-applicable"], {"state": "not_applicable"})
 
+    def binary_projection_fixture(self, root: Path, data: bytes) -> tuple[Path, Path, Path, Path]:
+        result, manifest, output, summary = self.projection_fixture(root)
+        binary = root / "logs/run.log"
+        binary.write_bytes(data)
+        payload = json.loads(manifest.read_text(encoding="utf-8"))
+        payload["artifacts"]["log"]["sha256"] = hashlib.sha256(data).hexdigest()
+        manifest.write_text(json.dumps(payload), encoding="utf-8")
+        return result, manifest, output, summary
+
+    def test_manifest_projection_accepts_non_utf8_binary_bytes(self) -> None:
+        data = b"\x7fELF\x00\xb3\xff\x80\r\n"
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            result, manifest, output, summary = self.binary_projection_fixture(root, data)
+            self.invoke_projection(root, result, manifest, output, summary)
+            projected = json.loads(manifest.read_text(encoding="utf-8"))
+            self.assertEqual(projected["artifacts"]["log"]["sha256"], hashlib.sha256(data).hexdigest())
+            self.assertEqual(json.loads(output.read_text(encoding="utf-8"))["status"], "PASS")
+
+    def test_artifact_digest_changes_with_binary_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            artifact = root / "binary"
+            first = b"\x7fELF\xff\x00" * ((1 << 20) // 6 + 1)
+            second = first[:-1] + b"\x80"
+            artifact.write_bytes(first)
+            first_digest = writer.artifact_sha256(root, artifact, "binary")
+            self.assertEqual(first_digest, hashlib.sha256(first).hexdigest())
+            artifact.write_bytes(second)
+            second_digest = writer.artifact_sha256(root, artifact, "binary")
+            self.assertEqual(second_digest, hashlib.sha256(second).hexdigest())
+            self.assertNotEqual(first_digest, second_digest)
+
+    def test_manifest_projection_hashes_original_text_line_endings(self) -> None:
+        data = b"payload-free\r\nsecond line\r\n"
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            result, manifest, output, summary = self.binary_projection_fixture(root, data)
+            self.invoke_projection(root, result, manifest, output, summary)
+            projected = json.loads(manifest.read_text(encoding="utf-8"))
+            self.assertEqual(projected["artifacts"]["log"]["sha256"], hashlib.sha256(data).hexdigest())
+
+    def test_manifest_projection_rejects_changed_binary_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            result, manifest, output, summary = self.binary_projection_fixture(root, b"\x7fELF\xff")
+            (root / "logs/run.log").write_bytes(b"\x7fELF\x80")
+            with self.assertRaises(SystemExit) as raised:
+                self.invoke_projection(root, result, manifest, output, summary)
+            self.assertEqual(raised.exception.code, 2)
+            self.assertFalse(output.exists())
+            self.assertFalse(summary.exists())
+
+    def test_manifest_projection_rejects_missing_binary(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            result, manifest, output, summary = self.binary_projection_fixture(root, b"\x7fELF\xff")
+            (root / "logs/run.log").unlink()
+            with self.assertRaises(SystemExit) as raised:
+                self.invoke_projection(root, result, manifest, output, summary)
+            self.assertEqual(raised.exception.code, 2)
+            self.assertFalse(output.exists())
+
+    def test_manifest_projection_still_requires_json_text(self) -> None:
+        for filename in ("result.json", "manifest.json"):
+            with self.subTest(filename=filename), tempfile.TemporaryDirectory() as name:
+                root = Path(name)
+                result, manifest, output, summary = self.binary_projection_fixture(root, b"\x7fELF\xff")
+                (root / filename).write_bytes(b"\xff\x80")
+                with self.assertRaises(SystemExit) as raised:
+                    self.invoke_projection(root, result, manifest, output, summary)
+                self.assertEqual(raised.exception.code, 2)
+                self.assertFalse(output.exists())
+
     def test_manifest_projection_rejects_existing_non_produced_target(self) -> None:
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)

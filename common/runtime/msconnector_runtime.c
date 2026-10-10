@@ -29,6 +29,7 @@
 #include "msconnector/limits.h"
 #include "msconnector/memory.h"
 #include "msconnector/modsecurity_engine.h"
+#include "msconnector/native_result.h"
 #include "msconnector/path_policy.h"
 #include "msconnector/rule_id.h"
 #include "msconnector/rule_loader.h"
@@ -194,10 +195,10 @@ struct msconnector_runtime_transaction {
     int response_body_started;
     int host_action_event_emitted;
     int terminal_event_emitted;
-    /* A failed serializer must not be replaced by a different synthetic
-     * terminal event: that would advance the shared integrity chain without
-     * an authoritative representation of the original event. */
-    int event_write_failed;
+    /* Retain the first event failure class, not a boolean that would turn
+     * physical I/O failure into an event-size error on the next callback.
+     * Zero means no failure. No borrowed error text or body is retained. */
+    msconnector_error_code event_write_failed;
     int response_companion_handed_off;
     int finish_attempted;
     int finished;
@@ -223,6 +224,14 @@ static int runtime_error(
     const char *source) {
     msconnector_error_set(error, code, message, source);
     return 0;
+}
+
+static int replay_event_write_failure(
+    const msconnector_runtime_transaction *transaction,
+    msconnector_error *error) {
+    return runtime_error(error, transaction->event_write_failed,
+        msconnector_error_default_message(transaction->event_write_failed),
+        "runtime");
 }
 
 /* The final event-file descriptor policy is shared with native hosts.  Keep
@@ -699,7 +708,6 @@ static int assign_limit_config_value(
     } else if (target == &runtime->body_policy.response_body_limit) {
         runtime->config.response_body_limit = parsed;
         runtime->limits.max_response_body_bytes = parsed;
-        runtime->config.phase4_body_limit = parsed;
     }
     return 1;
 }
@@ -1124,6 +1132,11 @@ static int native_decision(
     memset(&intervention, 0, sizeof(intervention));
     intervention.status = 200;
     intervention_result = msc_intervention(native->transaction, &intervention);
+    if (intervention_result != 0 && intervention_result != 1) {
+        msc_intervention_cleanup(&intervention);
+        return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
+            "invalid native intervention result", "msc_intervention");
+    }
     disruptive = intervention_result != 0 || intervention.disruptive != 0;
     body_limit = native_is_request_body_limit_rejection(phase, &intervention);
     native->rule_id[0] = '\0';
@@ -1243,7 +1256,8 @@ static int native_append_request_body(
     msconnector_native_transaction *native = native_transaction;
     (void)userdata;
     if (size > 0U &&
-        msc_append_request_body(native->transaction, data, size) != 1) {
+        !msconnector_native_body_append_can_continue(
+            msc_append_request_body(native->transaction, data, size))) {
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
             "request body append failed", "libmodsecurity");
     }
@@ -1257,7 +1271,8 @@ static int native_finish_request_body(
     msconnector_error *error) {
     msconnector_native_transaction *native = native_transaction;
     msconnector_runtime *runtime = userdata;
-    if (msc_process_request_body(native->transaction) != 1) {
+    if (!msconnector_native_phase_succeeded(
+            msc_process_request_body(native->transaction))) {
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
             "request body processing failed", "libmodsecurity");
     }
@@ -1311,7 +1326,8 @@ static int native_append_response_body(
     msconnector_native_transaction *native = native_transaction;
     (void)userdata;
     if (size > 0U &&
-        msc_append_response_body(native->transaction, data, size) != 1) {
+        !msconnector_native_body_append_can_continue(
+            msc_append_response_body(native->transaction, data, size))) {
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
             "response body append failed", "libmodsecurity");
     }
@@ -1325,7 +1341,8 @@ static int native_finish_response_body(
     msconnector_error *error) {
     msconnector_native_transaction *native = native_transaction;
     msconnector_runtime *runtime = userdata;
-    if (msc_process_response_body(native->transaction) != 1) {
+    if (!msconnector_native_phase_succeeded(
+            msc_process_response_body(native->transaction))) {
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
             "response body processing failed", "libmodsecurity");
     }
@@ -1882,6 +1899,27 @@ static int write_event_jsonl(
     return 1;
 }
 
+/* Capture failure even when the caller supplied no error output. Subsequent
+ * attempts must neither touch the sink nor replace its original error class.
+ * The caller holds the runtime operation lock during this write. */
+static int write_transaction_event_jsonl(
+    msconnector_runtime_transaction *transaction,
+    const msconnector_event *event,
+    msconnector_error *error) {
+    msconnector_error write_error;
+
+    if (transaction->event_write_failed != MSCONNECTOR_ERROR_NONE) {
+        return replay_event_write_failure(transaction, error);
+    }
+    msconnector_error_init(&write_error);
+    if (write_event_jsonl(transaction->runtime, event, &write_error)) {
+        return 1;
+    }
+    transaction->event_write_failed = write_error.code == MSCONNECTOR_ERROR_NONE
+        ? MSCONNECTOR_ERROR_INTERNAL : write_error.code;
+    return replay_event_write_failure(transaction, error);
+}
+
 /* The caller holds the runtime operation lock. */
 static int emit_integrity_chained_event_locked(
     msconnector_runtime_transaction *transaction,
@@ -1898,8 +1936,7 @@ static int emit_integrity_chained_event_locked(
     event->integrity.previous_hash = runtime->previous_event_hash;
     event->integrity.event_hash = msconnector_integrity_event_hash(
         event, event->integrity.previous_hash);
-    if (!write_event_jsonl(runtime, event, error)) {
-        transaction->event_write_failed = 1;
+    if (!write_transaction_event_jsonl(transaction, event, error)) {
         return 0;
     }
     runtime->previous_event_hash = event->integrity.event_hash;
@@ -1920,9 +1957,8 @@ static int emit_decision_event(
         return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
             "event input is required", "runtime");
     }
-    if (transaction->event_write_failed) {
-        return runtime_error(error, MSCONNECTOR_ERROR_EVENT_TOO_LARGE,
-            "event JSONL serialization previously failed", "runtime");
+    if (transaction->event_write_failed != MSCONNECTOR_ERROR_NONE) {
+        return replay_event_write_failure(transaction, error);
     }
     runtime = transaction->runtime;
     if (runtime->event_file == NULL ||
@@ -2035,12 +2071,11 @@ static int emit_contract_terminal_event(
         return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
             "terminal event transaction is required", "runtime");
     }
+    if (transaction->event_write_failed != MSCONNECTOR_ERROR_NONE) {
+        return replay_event_write_failure(transaction, error);
+    }
     if (transaction->terminal_event_emitted) {
         return 1;
-    }
-    if (transaction->event_write_failed) {
-        return runtime_error(error, MSCONNECTOR_ERROR_EVENT_TOO_LARGE,
-            "event JSONL serialization previously failed", "runtime");
     }
     runtime = transaction->runtime;
     if (!msconnector_transaction_contract_decision_policy(&transaction->contract,
@@ -2067,8 +2102,11 @@ static int emit_contract_terminal_event(
     event.meta.integration_mode = runtime->integration_mode;
     event.meta.transaction_id = transaction->metadata.transaction_id;
     event.decision.phase = body_decision.phase;
-    event.decision.status = policy.host_action == MSCONNECTOR_DECISION_ACTION_LOG_ONLY ?
-        MSCONNECTOR_STATUS_ERROR : MSCONNECTOR_STATUS_BLOCKED;
+    /* A fail-closed host action does not turn a technical failure into a
+     * ModSecurity rule block. Body-limit rejection remains a policy outcome. */
+    event.decision.status = transaction->contract.error_class ==
+        MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT ?
+        MSCONNECTOR_STATUS_BLOCKED : MSCONNECTOR_STATUS_ERROR;
     event.decision.action = msconnector_decision_action_name(policy.host_action);
     event.decision.requested_action = event.decision.action;
     event.decision.actual_action = event.decision.action;
@@ -2640,8 +2678,7 @@ static int validate_and_record_response_headers(
             response->header_count,
             header_bytes(response->headers, response->header_count),
             msconnector_phase4_effective_body_limit(
-                runtime->config.phase4_mode,
-                runtime->body_policy.response_body_limit)) !=
+                runtime->config.phase4_mode)) !=
             MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
         return contract_error(error, MSCONNECTOR_TRANSACTION_TRANSITION_INVALID,
             "response metadata violates the shared transaction contract");
@@ -2818,8 +2855,7 @@ static int append_response_body_chunk_internal(
     response_policy.body_limit_action = MSCONNECTOR_BODY_LIMIT_ACTION_REJECT;
     if (!apply_body_limit_plan(&transaction->response_body, &response_policy,
             msconnector_phase4_effective_body_limit(
-                runtime->config.phase4_mode,
-                response_policy.response_body_limit), size, &append_size, error,
+                runtime->config.phase4_mode), size, &append_size, error,
             "response body exceeds configured limit")) {
         (void)msconnector_transaction_contract_fail(&transaction->contract,
             MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, transaction_now_ms());
@@ -3075,6 +3111,9 @@ int msconnector_runtime_transaction_record_host_action(
         return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
             "transaction and disruptive decision are required", "runtime");
     }
+    if (transaction->event_write_failed != MSCONNECTOR_ERROR_NONE) {
+        return replay_event_write_failure(transaction, error);
+    }
     if (transaction->finish_attempted || transaction->finished) {
         return contract_error(error, MSCONNECTOR_TRANSACTION_TRANSITION_AFTER_TERMINAL,
             "host action after transaction finish is not allowed");
@@ -3108,11 +3147,6 @@ int msconnector_runtime_transaction_record_host_action(
         actual_action != MSCONNECTOR_DECISION_ACTION_DROP) {
         return runtime_error(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
             "a connection abort requires an abort or drop host action", "runtime");
-    }
-    if (actual_action == MSCONNECTOR_DECISION_ACTION_STREAM_RESET &&
-        connection_aborted) {
-        return runtime_error(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
-            "a stream reset must not be reported as a connection abort", "runtime");
     }
     if (actual_action == MSCONNECTOR_DECISION_ACTION_STREAM_RESET &&
         strcmp(transport_result, "stream_reset") != 0) {
@@ -3165,11 +3199,11 @@ int msconnector_runtime_transaction_record_failure_host_action(
     }
     reason = msconnector_transaction_error_class_name(
         transaction->contract.error_class);
-    if (connection_aborted) {
-        msconnector_decision_set_connection_abort(&decision, NULL, reason);
-    } else {
-        msconnector_decision_set_error(&decision, visible_http_status, reason);
-    }
+    /* Keep the technical cause even when the host can only abort. The
+     * observed transport action is supplied separately below. */
+    msconnector_decision_set_error(&decision,
+        connection_aborted ? transaction->runtime->config.default_error_status :
+            visible_http_status, reason);
     decision.phase = contract_terminal_phase(&transaction->contract);
     return msconnector_runtime_transaction_record_host_action(transaction,
         &decision,
@@ -4100,7 +4134,8 @@ int msconnector_runtime_response_companion_release(
         return 0;
     }
     result = msconnector_runtime_transaction_finish(entry->transaction, error);
-    if (response_companion_registry_detach_in_use(registry, entry, &detached)) {
+    if (response_companion_registry_detach_in_use(registry, entry,
+            &detached)) {
         response_companion_destroy_detached_entry(&detached, 0);
     }
     return result;
@@ -4282,8 +4317,10 @@ int msconnector_runtime_transaction_finalize_and_snapshot(
             "transaction and snapshot are required", "runtime");
     }
     transaction = *transaction_pointer;
-    if (!runtime_transaction_cleanup_checked(transaction, error) ||
-        !msconnector_runtime_transaction_snapshot_get(transaction, snapshot) ||
+    if (!runtime_transaction_cleanup_checked(transaction, error)) {
+        return 0;
+    }
+    if (!msconnector_runtime_transaction_snapshot_get(transaction, snapshot) ||
         !snapshot->finished || !snapshot->contract.cleanup_started ||
         !snapshot->contract.cleanup_complete ||
         snapshot->contract.status != MSCONNECTOR_TRANSACTION_STATUS_CLEANED) {
@@ -4308,6 +4345,9 @@ int msconnector_runtime_transaction_process_response(
     if (transaction == NULL || response == NULL || decision == NULL) {
         return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
             "transaction, response and decision are required", "runtime");
+    }
+    if (transaction->event_write_failed != MSCONNECTOR_ERROR_NONE) {
+        return replay_event_write_failure(transaction, error);
     }
     runtime = transaction->runtime;
     msconnector_decision_set_allow(decision);
@@ -4372,6 +4412,9 @@ int msconnector_runtime_transaction_finish_host_rejected_request_body(
         return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
             "transaction is required", "runtime");
     }
+    if (transaction->event_write_failed != MSCONNECTOR_ERROR_NONE) {
+        return replay_event_write_failure(transaction, error);
+    }
     if (transaction->finished) {
         return 1;
     }
@@ -4401,6 +4444,9 @@ int msconnector_runtime_transaction_finish(
     if (transaction == NULL) {
         return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
             "transaction is required", "runtime");
+    }
+    if (transaction->event_write_failed != MSCONNECTOR_ERROR_NONE) {
+        return replay_event_write_failure(transaction, error);
     }
     if (transaction->finished) {
         return 1;

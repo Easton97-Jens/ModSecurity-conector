@@ -15,14 +15,34 @@ ROOT = Path(__file__).resolve().parents[1]
 CHECKER = ROOT / "ci" / "checks" / "connectors" / "nginx" / "check-nginx-common-adoption.py"
 NGINX = ROOT / "connectors" / "nginx"
 CHAIN_APPEND_ANCHOR = "    return ngx_http_modsecurity_append_response_body_buffer(r, ctx, mcf,"
+RULE_ID_CONTRACT_MESSAGE = (
+    "NGINX rule-id extraction delegates only to bounded Common parsing before intervention sinks"
+)
+RULE_ID_SIGNATURE = "static void\nngx_http_modsecurity_extract_intervention_rule_id"
+RULE_ID_CALL = "ngx_http_modsecurity_extract_intervention_rule_id(ctx, &intervention);"
+INTERVENTION_SIGNATURE = "int\nngx_http_modsecurity_process_intervention"
 BODY_LIMIT_CONTRACT_MESSAGE = (
     "NGINX records response-body bytes through the Common bounded plan before append"
 )
 CHAIN_CALL_CONTRACT_MESSAGE = (
     "NGINX response-body chain loop directly calls the reviewed bounded wrapper"
 )
+CHAIN_ERROR_RETURN = (
+    "        if (ret != NGX_OK) {\n"
+    "            return ngx_http_modsecurity_phase4_fail_control(r, mcf, ctx,\n"
+    "                MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);\n"
+    "        }\n"
+)
+PHASE4_ERROR_HEADER = "ngx_http_modsecurity_phase4_error.h"
 SOURCES = (
     "ngx_http_modsecurity_common.h",
+    "ngx_http_modsecurity_event_uri.h",
+    "ngx_http_modsecurity_engine_call_budget.h",
+    "ngx_http_modsecurity_request_completion.h",
+    "ngx_http_modsecurity_response_body_limit.h",
+    "ngx_http_modsecurity_cleanup_observation.h",
+    "ngx_http_modsecurity_phase4_observation.h",
+    PHASE4_ERROR_HEADER,
     "ngx_http_modsecurity_module.c",
     "ngx_http_modsecurity_mapper.h",
     "ngx_http_modsecurity_mapper.c",
@@ -185,8 +205,8 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
 
     def _assert_rejected(self, mutate, message: str) -> None:
         result = self._run_checker(mutate)
-        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn(message, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn(f"FAIL: {message}", result.stdout.splitlines())
 
     def test_current_helper_aware_contract_is_accepted(self) -> None:
         result = self._run_checker()
@@ -196,6 +216,143 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
             "PASS: NGINX Server resolver preserves the bounded explicit-length response-header sink",
             result.stdout,
         )
+        self.assertIn(f"PASS: {RULE_ID_CONTRACT_MESSAGE}", result.stdout)
+
+    def test_rule_id_delegation_rejects_mutated_wrapper_and_inactive_twins(self) -> None:
+        cases = (
+            ("null guard omitted", "if (intervention->log != NULL)", "if (1)"),
+            ("changed input", "intervention->log,", '"[id 123]",'),
+            ("changed output", "ctx->last_intervention_rule_id,", "other_buffer,"),
+            ("changed size", "sizeof(ctx->last_intervention_rule_id)", "4096"),
+            ("local parser", "(void)msconnector_rule_id_extract_from_message", "(void)strstr"),
+            ("log configuration gate", "if (intervention->log != NULL)",
+             "if (ctx->r && intervention->log != NULL)"),
+        )
+        for label, old, new in cases:
+            with self.subTest(case=label):
+                self._assert_rejected(
+                    lambda repo: replace_in_function(
+                        repo / "connectors/nginx/src/ngx_http_modsecurity_module.c",
+                        RULE_ID_SIGNATURE, old, new),
+                    RULE_ID_CONTRACT_MESSAGE,
+                )
+            with self.subTest(case=label, inactive_twin=True):
+                self._assert_rejected(
+                    lambda repo: inject_inactive_decoy(
+                        repo / "connectors/nginx/src/ngx_http_modsecurity_module.c",
+                        RULE_ID_SIGNATURE, old, new),
+                    RULE_ID_CONTRACT_MESSAGE,
+                )
+
+    def test_rule_id_delegation_rejects_missing_gated_or_late_caller(self) -> None:
+        def mutate(repo: Path, case: str) -> None:
+            path = repo / "connectors/nginx/src/ngx_http_modsecurity_module.c"
+            if case == "omitted":
+                replace_in_function(path, INTERVENTION_SIGNATURE, RULE_ID_CALL, "")
+            elif case == "gated":
+                replace_in_function(path, INTERVENTION_SIGNATURE, RULE_ID_CALL,
+                    "if (mcf->phase4_log_file != NULL) { " + RULE_ID_CALL + " }")
+            elif case == "reset omitted":
+                replace_in_function(path, INTERVENTION_SIGNATURE,
+                    "ctx->last_intervention_rule_id[0] = '\\0';", "")
+            elif case == "reset nonempty":
+                replace_in_function(path, INTERVENTION_SIGNATURE,
+                    "ctx->last_intervention_rule_id[0] = '\\0';",
+                    "ctx->last_intervention_rule_id[0] = '1';")
+            else:
+                replace_in_function(path, INTERVENTION_SIGNATURE, RULE_ID_CALL, "")
+                anchor = {
+                    "after record": "// logging to nginx error log",
+                    "after dispatch": "cleanup:",
+                    "after cleanup": "    return result;",
+                }[case]
+                replace_in_function(path, INTERVENTION_SIGNATURE, anchor,
+                    RULE_ID_CALL + "\n" + anchor)
+
+        for case in ("omitted", "gated", "reset omitted", "reset nonempty",
+                     "after record", "after dispatch", "after cleanup"):
+            with self.subTest(case=case):
+                self._assert_rejected(lambda repo: mutate(repo, case), RULE_ID_CONTRACT_MESSAGE)
+
+    def test_rule_id_delegation_rejects_extra_local_helpers_and_direct_parsers(self) -> None:
+        for extra in (
+            "static void ngx_http_modsecurity_duplicate_rule_id(void) {}\n",
+            "static void duplicate_parser(void) {\n"
+            " (void)msconnector_rule_id_extract_from_message(0, 0, 0);\n}\n",
+        ):
+            with self.subTest(extra=extra):
+                self._assert_rejected(
+                    lambda repo: insert_before_signature(
+                        repo / "connectors/nginx/src/ngx_http_modsecurity_module.c",
+                    RULE_ID_SIGNATURE, extra), RULE_ID_CONTRACT_MESSAGE)
+
+    def test_rule_id_delegation_rejects_direct_early_exits_before_extraction(self) -> None:
+        anchor = "ctx->last_intervention_status = intervention.status;"
+        for early_exit in ("goto cleanup;", "return NGX_ERROR;", "return result;"):
+            with self.subTest(early_exit=early_exit):
+                self._assert_rejected(
+                    lambda repo: replace_in_function(
+                        repo / "connectors/nginx/src/ngx_http_modsecurity_module.c",
+                        INTERVENTION_SIGNATURE, anchor, early_exit + "\n    " + anchor),
+                    RULE_ID_CONTRACT_MESSAGE,
+                )
+
+    def test_rule_id_delegation_rejects_macro_overrides(self) -> None:
+        for symbol in ("msconnector_rule_id_extract_from_message",
+                       "ngx_http_modsecurity_extract_intervention_rule_id",
+                       "ngx_http_modsecurity_process_intervention",
+                       "last_intervention_rule_id", "sizeof", "NULL",
+                       "ctx", "intervention", "log"):
+            with self.subTest(symbol=symbol):
+                self._assert_rejected(
+                    lambda repo: prepend_directive(
+                        repo / "connectors/nginx/src/ngx_http_modsecurity_common.h",
+                        f"#define {symbol}(...) 0"),
+                    "NGINX critical macro inputs reject aliases of checked lifecycle and response-body controls")
+
+    def test_current_projected_jsonl_pipelines_are_reported_without_traceback(self) -> None:
+        result = self._run_checker()
+        self.assertIn(result.returncode, (0, 1), result.stdout + result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+        for caller in ("request", "strict"):
+            self.assertIn(
+                f"PASS: NGINX {caller} JSONL projection and serialization retain "
+                "the active ordered fail-closed pipeline",
+                result.stdout,
+            )
+
+    def test_projected_jsonl_pipeline_rejects_active_bypasses_and_decoys(self) -> None:
+        signature = "static ngx_inline int\nngx_http_modsecurity_write_event_jsonl"
+        anchor = "!ngx_http_modsecurity_bounded_event_uri(event, &projected, uri, sizeof(uri)) ||"
+        cases = (
+            ("projection removed", anchor, "0 ||"),
+            ("short circuit inverted", anchor, anchor.replace("||", "&&")),
+            ("raw event serialized", "msconnector_event_write_jsonl_line(&projected,", "msconnector_event_write_jsonl_line(event,"),
+            ("write before projection", "    if (" + anchor, "    ngx_write_fd(mcf->phase4_log_file->fd, line, 1);\n    if (" + anchor),
+            ("serialization failure ignored", "        return 0;", "        return 1;"),
+        )
+        for name, old, new in cases:
+            for decoy in (False, True):
+                with self.subTest(case=name, inactive_decoy=decoy):
+                    def mutate(repository, old=old, new=new, decoy=decoy):
+                        path = repository / "connectors/nginx/src/ngx_http_modsecurity_common.h"
+                        if decoy:
+                            inject_inactive_decoy(path, signature, old, new)
+                        else:
+                            replace_in_function(path, signature, old, new)
+                    self._assert_rejected(mutate, "NGINX request JSONL projection and serialization retain the active ordered fail-closed pipeline")
+
+    def test_strict_projected_jsonl_pipeline_rejects_raw_event_and_early_success(self) -> None:
+        signature = "static ngx_inline ngx_int_t\nngx_http_modsecurity_write_phase_event_jsonl"
+        for old, new in (
+            ("msconnector_event_write_jsonl_line(&projected,", "msconnector_event_write_jsonl_line(event,"),
+            ("        return NGX_ERROR;", "        return NGX_OK;"),
+        ):
+            with self.subTest(fragment=old):
+                def mutate(repository, old=old, new=new):
+                    path = repository / "connectors/nginx/src/ngx_http_modsecurity_common.h"
+                    replace_all_in_function(path, signature, old, new, 3 if "return" in old else 1)
+                self._assert_rejected(mutate, "NGINX strict JSONL projection and serialization retain the active ordered fail-closed pipeline")
 
     def test_inactive_mapper_validator_decoy_is_rejected(self) -> None:
         def mutate(repository: Path) -> None:
@@ -1417,6 +1574,44 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
             "NGINX request mapper validation fails closed before request-header initialization",
         )
 
+    def test_new_standard_header_local_shadows_and_symlinks_are_rejected(self) -> None:
+        for header in ("inttypes.h", "stdbool.h", "time.h"):
+            for symlink in (False, True):
+                with self.subTest(header=header, symlink=symlink):
+                    def mutate(repository: Path) -> None:
+                        shadow = repository / header
+                        if symlink:
+                            target = repository / "checker-shadow.inc"
+                            target.write_text("#define NGX_OK NGX_ERROR\n", encoding="utf-8")
+                            shadow.symlink_to(target)
+                        else:
+                            shadow.write_text("#define NGX_OK NGX_ERROR\n", encoding="utf-8")
+                    self._assert_rejected(
+                        mutate,
+                        "NGINX critical macro inputs reject aliases of checked lifecycle "
+                        "and response-body controls",
+                    )
+
+    def test_header_measurement_initializer_and_early_timing_are_rejected(self) -> None:
+        signature = "ngx_int_t\nngx_http_modsecurity_header_filter("
+        declaration = "ngx_http_modsecurity_engine_call_measurement measurement;"
+        controls = (
+            declaration.replace(";", " = ngx_http_modsecurity_engine_call_begin();"),
+            declaration + "\n    ngx_http_modsecurity_engine_call_begin(ctx, mcf, &measurement);",
+        )
+        for replacement in controls:
+            with self.subTest(replacement=replacement):
+                def mutate(repository: Path) -> None:
+                    replace_in_function(
+                        repository / "connectors/nginx/src/ngx_http_modsecurity_header_filter.c",
+                        signature, declaration, replacement,
+                    )
+                self._assert_rejected(
+                    mutate,
+                    "NGINX header mapper validation retains its existing eligibility "
+                    "and ordering without a once gate",
+                )
+
     def test_external_angle_include_local_shadow_is_rejected(self) -> None:
         def mutate(repository: Path) -> None:
             decoy = repository / "ngx_config.h"
@@ -2480,11 +2675,7 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
             "        ret = ngx_http_modsecurity_append_response_chain_buffer(r, ctx, mcf,\n"
             "            chain);\n"
         )
-        error_return = (
-            "        if (ret != NGX_OK) {\n"
-            "            return ret;\n"
-            "        }\n"
-        )
+        error_return = CHAIN_ERROR_RETURN
         raw_alias = (
             bounded_call
             + error_return
@@ -3107,10 +3298,51 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
             replace_in_function(
                 repository / "connectors/nginx/src/ngx_http_modsecurity_body_filter.c",
                 "static ngx_int_t\nngx_http_modsecurity_process_response_body_chain",
-                "        ret = ngx_http_modsecurity_append_response_chain_buffer(r, ctx, mcf,\n"
-                "            chain);\n        if (ret != NGX_OK) {\n            return ret;\n        }",
-                "        ret = ngx_http_modsecurity_append_response_chain_buffer(r, ctx, mcf,\n"
-                "            chain);\n        if (ret != NGX_OK) {\n            return NGX_OK;\n        }",
+                CHAIN_ERROR_RETURN,
+                "        if (ret != NGX_OK) {\n"
+                "            return NGX_OK;\n"
+                "        }\n",
+            )
+        self._assert_rejected(mutate, CHAIN_CALL_CONTRACT_MESSAGE)
+
+    def test_fixture_copies_the_actual_phase4_error_header(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="nginx-common-adoption-") as temporary:
+            repository = self._copy_repository(Path(temporary))
+            self.assertEqual(
+                (repository / "connectors/nginx/src" / PHASE4_ERROR_HEADER).read_bytes(),
+                (NGINX / "src" / PHASE4_ERROR_HEADER).read_bytes(),
+            )
+
+    def test_missing_phase4_error_header_is_rejected(self) -> None:
+        def mutate(repository: Path) -> None:
+            (repository / "connectors/nginx/src" / PHASE4_ERROR_HEADER).unlink()
+        self._assert_rejected(
+            mutate,
+            "NGINX critical macro inputs reject aliases of checked lifecycle and response-body controls",
+        )
+
+    def test_phase4_error_header_macro_mutation_is_rejected(self) -> None:
+        def mutate(repository: Path) -> None:
+            prepend_directive(
+                repository / "connectors/nginx/src" / PHASE4_ERROR_HEADER,
+                "#define NGX_ERROR NGX_OK",
+            )
+        self._assert_rejected(
+            mutate,
+            "NGINX critical macro inputs reject aliases of checked lifecycle and response-body controls",
+        )
+
+    def test_chain_error_dispatch_result_cannot_be_discarded(self) -> None:
+        def mutate(repository: Path) -> None:
+            replace_in_function(
+                repository / "connectors/nginx/src/ngx_http_modsecurity_body_filter.c",
+                "static ngx_int_t\nngx_http_modsecurity_process_response_body_chain",
+                CHAIN_ERROR_RETURN,
+                "        if (ret != NGX_OK) {\n"
+                "            (void)ngx_http_modsecurity_phase4_fail_control(r, mcf, ctx,\n"
+                "                MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);\n"
+                "            return NGX_OK;\n"
+                "        }\n",
             )
         self._assert_rejected(mutate, CHAIN_CALL_CONTRACT_MESSAGE)
 

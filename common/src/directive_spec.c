@@ -11,7 +11,6 @@ static const msconnector_directive_spec specs[] = {
     {MSCONNECTOR_DIRECTIVE_TRANSACTION_ID_EXPR, MSCONNECTOR_DIRECTIVE_VALUE_STRING, 0, 0, "Connector-parsed transaction ID expression."},
     {MSCONNECTOR_DIRECTIVE_PHASE4_MODE, MSCONNECTOR_DIRECTIVE_VALUE_ENUM, "off", "off|safe|strict", "Response-body intervention policy; off preserves native connector handling."},
     {MSCONNECTOR_DIRECTIVE_PHASE4_LOG, MSCONNECTOR_DIRECTIVE_VALUE_PATH, 0, 0, "Phase 4 log path."},
-    {MSCONNECTOR_DIRECTIVE_PHASE4_BODY_LIMIT, MSCONNECTOR_DIRECTIVE_VALUE_SIZE, "1048576", 0, "Deprecated compatibility value; libModSecurity owns response inspection limits."},
     {MSCONNECTOR_DIRECTIVE_REQUEST_BODY_LIMIT, MSCONNECTOR_DIRECTIVE_VALUE_SIZE, "1048576", 0, "Maximum request bytes offered to the body-inspection policy."},
     {MSCONNECTOR_DIRECTIVE_RESPONSE_BODY_LIMIT, MSCONNECTOR_DIRECTIVE_VALUE_SIZE, "1048576", 0, "Host/runtime response capacity; not a libModSecurity inspection policy."},
     {MSCONNECTOR_DIRECTIVE_BODY_LIMIT_ACTION, MSCONNECTOR_DIRECTIVE_VALUE_ENUM, "reject", "reject|process_partial", "Action when a body exceeds its inspection limit."},

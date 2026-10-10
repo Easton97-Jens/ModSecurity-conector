@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -151,6 +153,159 @@ class NginxFunctionalMaterializationLayoutTest(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("write path escapes output root", result.stderr)
             self.assertFalse((runtime_root / "conf" / "modsecurity-smoke.conf").exists())
+
+    def parent_stage_paths(self, invocation: Path) -> dict[str, str]:
+        """Execute the Parent's actual child assignments without starting a host."""
+        runner = ROOT / "ci/runtime/lifecycle/run-no-crs-baseline.sh"
+        script = runner.read_text(encoding="utf-8")
+        assignments = script.split("BUILD_ROOT=$CONNECTOR_BUILD_ROOT\n", 1)[1]
+        assignments = "BUILD_ROOT=$CONNECTOR_BUILD_ROOT\n" + assignments.split(
+            "PLAN=$CONNECTOR_RUN_ROOT/plan.json\n", 1
+        )[0]
+        names = (
+            "BUILD_ROOT", "STAGE_BUILD_ROOT", "STAGE_TMP_ROOT", "STAGE_LOG_ROOT",
+            "STAGE_RESULTS_DIR", "STAGE_RUNTIME_ROOT", "NGINX_RUN_ROOT",
+            "STAGE_NGINX_HARNESS_PARENT", "SHARED_COMPONENT_CACHE",
+        )
+        capture = "import json,os; print(json.dumps({k:os.environ.get(k,'') for k in " + repr(names) + "}))"
+        environment = {
+            "PATH": os.defpath,
+            "PYTHON": sys.executable,
+            "connector": "nginx",
+            "CONNECTOR_BUILD_ROOT": str(invocation / "build/nginx/path-test"),
+            "CONNECTOR_RUN_ROOT": str(invocation / "runs/nginx/path-test"),
+            "CONNECTOR_LOG_ROOT": str(invocation / "run-logs/nginx/path-test"),
+            "EVIDENCE_RUN_ROOT": str(invocation / "evidence/no-crs-evidence/nginx/path-test"),
+            "SHARED_COMPONENT_CACHE": str(invocation / "cache-v2/shared"),
+        }
+        result = subprocess.run(
+            ["sh", "-eu", "-c", assignments + "\nexport " + " ".join(names)
+             + '\nexec "$PYTHON" -c "$1"', "capture", capture],
+            env=environment, check=False, capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return json.loads(result.stdout)
+
+    def test_parent_nginx_stage_materializes_inside_raw_host_work(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="nginx-lifecycle-paths-") as temporary:
+            invocation = Path(temporary)
+            paths = self.parent_stage_paths(invocation)
+            output_root = Path(paths["STAGE_BUILD_ROOT"])
+            output_root.mkdir(parents=True, mode=0o700)
+            runtime = Path(paths["STAGE_RUNTIME_ROOT"]) / CASE_NAME
+            result = self.materialize(
+                output_root=output_root, runtime_root=runtime,
+                log_root=Path(paths["NGINX_RUN_ROOT"]) / "logs" / CASE_NAME,
+                server_log_root=Path(paths["NGINX_RUN_ROOT"]) / "server-logs" / CASE_NAME,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            raw_root = invocation / "runs/nginx/path-test"
+            output_root.relative_to(raw_root)
+            for name in ("STAGE_TMP_ROOT", "STAGE_LOG_ROOT", "STAGE_RESULTS_DIR",
+                         "STAGE_RUNTIME_ROOT", "NGINX_RUN_ROOT"):
+                Path(paths[name]).relative_to(output_root)
+            self.assertEqual(Path(paths["STAGE_NGINX_HARNESS_PARENT"]), output_root)
+            self.assertEqual(Path(paths["BUILD_ROOT"]), invocation / "build/nginx/path-test")
+            self.assertEqual(Path(paths["SHARED_COMPONENT_CACHE"]), invocation / "cache-v2/shared")
+
+    def test_parent_first_byte_call_materializes_under_same_child_root(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="nginx-first-byte-paths-") as temporary:
+            invocation = Path(temporary)
+            paths = self.parent_stage_paths(invocation)
+            connector = invocation / "connector"
+            connector.mkdir()
+            (connector / "Makefile").write_text("# fixture repository boundary\n", encoding="utf-8")
+            common = connector / "ci/runtime/common"
+            common.mkdir(parents=True)
+            shutil.copyfile(ROOT / "ci/runtime/common/validate-nginx-harness-paths.py",
+                            common / "validate-nginx-harness-paths.py")
+            library = connector / "ci/lib"
+            library.mkdir(parents=True)
+            shutil.copyfile(ROOT / "ci/lib/runtime_path_utils.py", library / "runtime_path_utils.py")
+            projection_parent = invocation / "external-projection"
+            projection_parent.mkdir(mode=0o711)
+            wrapper = connector / "ci/provisioning/cache/with-runtime-components.sh"
+            wrapper.parent.mkdir(parents=True)
+            wrapper.write_text(
+                '#!/bin/sh\nset -eu\n'
+                'RUNTIME_REPORT_OUTPUT_ROOT=${RUNTIME_REPORT_OUTPUT_ROOT:-$BUILD_ROOT/runtime-component-reports}\n'
+                'case "$RUNTIME_COMPONENT_ENV_SNAPSHOT" in\n'
+                '    "$RUNTIME_REPORT_OUTPUT_ROOT"/*) ;;\n'
+                '    *) echo "snapshot escapes report root" >&2; exit 1 ;;\n'
+                'esac\nexec "$@"\n',
+                encoding="utf-8",
+            )
+            wrapper.chmod(0o700)
+            first_byte = connector / "ci/runtime/lifecycle/run-native-first-byte.sh"
+            first_byte.parent.mkdir(parents=True)
+            first_byte.write_text(
+                (ROOT / "ci/runtime/lifecycle/run-native-first-byte.sh").read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            # Stop at the host seam after calling the real Framework materializer.
+            # This proves paths without creating a server, sending a request or
+            # claiming runtime evidence from a test double.
+            harness = connector / "connectors/nginx/harness/run_nginx_smoke.sh"
+            harness.parent.mkdir(parents=True)
+            check_control = (
+                "import os,sys; from pathlib import Path; "
+                "sys.path.insert(0, str(Path(os.environ['FRAMEWORK_ROOT']) / 'tests/runners')); "
+                "from synchronized_upstream import _require_control_root, _resolve_control_path; "
+                "root=_require_control_root(os.environ['SYNCHRONIZED_UPSTREAM_CONTROL_ROOT']); "
+                "_resolve_control_path(os.environ['FULL_LIFECYCLE_EVIDENCE_OUTPUT'], "
+                "control_root=root, label='evidence output'); print('control-root=' + str(root))"
+            )
+            harness.write_text(
+                '#!/bin/sh\nset -eu\n'
+                'mkdir -p "$BUILD_ROOT"\n'
+                '"$PYTHON" "$FRAMEWORK_ROOT/tests/runners/case_cli.py" materialize '
+                '--case "$TEST_CASE" --rules-file "$RUNTIME_ROOT/conf/modsecurity-smoke.conf" '
+                '--env-file "$RUNTIME_ROOT/conf/case.env" '
+                '--headers-file "$RUNTIME_ROOT/conf/request-headers.txt" '
+                '--body-file "$RUNTIME_ROOT/conf/request-body.bin" '
+                '--docroot "$RUNTIME_ROOT/htdocs" '
+                '--rules-preamble-file "$NO_CRS_RULES_FILE" '
+                '--nginx-location-directives-file "$RUNTIME_ROOT/conf/nginx-location-directives.conf" '
+                '--nginx-runtime-config-dir "$RUNTIME_ROOT/conf"\n'
+                'printf "materialized-first-byte=%s\\n" "$RUNTIME_ROOT"\n'
+                '"$PYTHON" -c "$CONTROL_CHECK"\nexit 78\n',
+                encoding="utf-8",
+            )
+            harness.chmod(0o700)
+            script = (ROOT / "ci/runtime/lifecycle/run-no-crs-baseline.sh").read_text(encoding="utf-8")
+            call = script.split("native_first_byte_rc=0\n", 1)[1].split(
+                " || native_first_byte_rc=$?", 1
+            )[0]
+            environment = {
+                "PATH": os.defpath, "PYTHON": sys.executable,
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "CONNECTOR_ROOT": str(connector), "FRAMEWORK_ROOT": str(FRAMEWORK_ROOT),
+                "VERIFIED_RUN_ROOT": str(invocation), "connector": "nginx",
+                "CANONICAL_VERIFIED_RUN_ROOT": str(invocation),
+                "NO_CRS_RULES_FILE": str(RULE_PREAMBLE),
+                "RESULTS_DIR": str(invocation / "runs/nginx/path-test/results"),
+                "HOST_RUNTIME_ROOT": str(invocation / "runs/nginx/path-test/host-runtime"),
+                "HOST_LOG_ROOT": str(invocation / "run-logs/nginx/path-test/host"),
+                "FIRST_BYTE_EVIDENCE": str(invocation / "runs/nginx/path-test/first-byte-evidence.json"),
+                "CONNECTOR_RUN_ROOT": str(invocation / "runs/nginx/path-test"),
+                "RUNTIME_REPORT_OUTPUT_ROOT": str(invocation / "build/nginx/path-test/runtime-component-reports"),
+                "RUNTIME_COMPONENT_ENV_SNAPSHOT": str(invocation / "build/nginx/path-test/runtime-component-reports/runtime-env.sh"),
+                "CONTROL_CHECK": check_control,
+                "NGINX_DOCROOT_PROJECTION_PARENT": str(invocation / "external-projection"),
+                "NGINX_DOCROOT_PROJECTION_ROOT": str(invocation / "external-projection/docroot"),
+                **paths,
+            }
+            result = subprocess.run(
+                ["sh", "-eu", "-c", call], env=environment,
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 78, result.stderr)
+            self.assertIn("materialized-first-byte=", result.stdout)
+            self.assertIn("control-root=" + environment["CONNECTOR_RUN_ROOT"], result.stdout)
+            output_root = Path(paths["STAGE_BUILD_ROOT"])
+            rules = Path(paths["STAGE_RUNTIME_ROOT"]) / "first-byte-nginx/conf/modsecurity-smoke.conf"
+            self.assertTrue(rules.is_file())
+            rules.relative_to(output_root)
 
 
 if __name__ == "__main__":

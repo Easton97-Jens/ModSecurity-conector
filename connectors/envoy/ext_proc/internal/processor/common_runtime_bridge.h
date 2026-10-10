@@ -115,6 +115,12 @@ void msc_envoy_ext_proc_transaction_mark_response_committed(
     msc_envoy_ext_proc_transaction *transaction,
     int body_started);
 
+/* New callers must check one for success. The compatibility void entry point
+ * above retains failures internally but cannot report them immediately. */
+int msc_envoy_ext_proc_transaction_mark_response_committed_checked(
+    msc_envoy_ext_proc_transaction *transaction,
+    int body_started, char *error, size_t error_len);
+
 int msc_envoy_ext_proc_transaction_record_host_action(
     msc_envoy_ext_proc_transaction *transaction,
     int action,

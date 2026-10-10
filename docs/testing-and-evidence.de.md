@@ -86,6 +86,58 @@ Zugangsdaten, Cookies, Authorization-Werte, private Schlüssel, Zertifikate,
 rohe Request-Bodies, rohe Response-Bodies oder lokale Runtime-Ausgabe werden
 nicht eingecheckt.
 
+### Selektierte NGINX-Konfigurations-Evidence ohne Requests
+
+Die geschlossenen Konfigurationsverträge `invalid_boolean` und `invalid_size`
+verwenden `ci/runtime/lifecycle/run-nginx-configtest.py`. Eine echte Invocation
+`nginx -e stderr -t` muss `modsecurity maybe;` mit Exit 1 und beiden Diagnosen
+`"modsecurity" directive` und `invalid boolean value` abweisen. Für
+`invalid_size` bleibt die Required-ID erhalten, wird aber ausdrücklich auf
+Ablehnung der entfernten API migriert: Der früher gültige Input
+`modsecurity_phase4_body_limit 1048576;` muss Exit 1 und
+`unknown directive "modsecurity_phase4_body_limit"` erzeugen, klassifiziert als
+`removed_directive`. Dies ist kein Engine-Response-Limit-Test. Ein
+nicht zugehöriger Modul-Ladefehler, eine falsche Direktive, eine fehlende
+Diagnose, Timeout oder falscher Exit sind kein bestandener Negativtest.
+
+Jede Invocation benötigt ein frisches externes Ausgabeverzeichnis unter
+`/var/tmp/codex/ModSecurity-conector`, außerhalb von Checkouts und ohne
+Symlink-Pfade. Der Treiber bewahrt Snapshots `nginx-binary` und
+`nginx-module.so` auf und verwendet genau diese; beide sind auf je 64 MiB
+begrenzt. Zusammen mit `nginx.conf`, `stdout.log` und `stderr.log` bilden sie
+das digestgebundene Evidence-Bundle aus fünf Dateien; Captures sind gemeinsam
+auf 64 KiB und die Ausführung auf 10 Sekunden begrenzt. `source-result.json`
+und sein Companion `source-result.jsonl` mit einem Datensatz tragen Receipt
+und `artifacts.configtest_dir` für den offiziellen Collector. Diese lokalen
+Artefakte bleiben extern; sie sind weder Upload- noch Commit-Material.
+Der selektierte Treiber führt jeden registrierten Case in einem eigenen
+frischen Child `configtests/<case_id>` aus; die kanonische Aufbewahrung nutzt
+`inventory/configtests/<case_id>`. Ein Boolean-Receipt erfüllt den Size-Case
+nicht; unabhängig ausgeführte Cases überschreiben kein gemeinsames Bundle.
+
+Die Verzeichniszulassung prüft den genauen externen Ausgabeparent und seine
+Vorfahren sowie Build-, Results- und Konfigurationsparents des selektierten
+Treibers durch den bestehenden Non-Following-Vertrag
+`ensure_safe_runtime_directory`. Eigene `0755`-Parents sind zulässig;
+gruppen- oder fremdschreibbare Parents werden abgelehnt. Jedes neue Case-Child
+ist privat `0700`; ein bestehendes Case-Child wird vor dem Anhängen an
+Results abgelehnt. Eine bestehende Resultdatei muss der effektiven UID gehören,
+regulär sein, genau einen Hardlink besitzen, keine `0022`-Berechtigungsbits
+haben und höchstens 4 MiB groß sein. Eine ansonsten zulässige
+`0644`-Resultdatei bleibt erlaubt. Diese Prüfungen erhalten externe
+Root-Containment und Checkout-Ausschluss; sie ergänzen keine HTTP-Evidence
+und ändern die akzeptierten Configtest-Diagnosen nicht.
+
+Der passende Framework-Vertrag validiert Konfigurations-Evidence, statt ein
+Native-Request-Event zu erfinden. Diese Operation belegt nur Parsing/Ablehnung:
+keine HTTP-Requests, Daemon-Starts, Listener, Master-/Worker-Identität, Reloads
+oder Protokoll-Coverage werden behauptet. Vom Aufrufer übergebene Source-SHAs
+benötigen unabhängiges Run-Provenienz-Binding; vertrauenswürdige Build-Inputs
+bleiben Voraussetzung. Die Verträge sind auf `invalid_boolean` und
+`invalid_size` begrenzt, nicht
+auf alle Phase-0-Katalog-Cases, und können weder vollständige Required-Coverage
+noch Exact-Head-E2E-PASS belegen.
+
 ### HAProxy-Hosted-Evidence-Projektion
 
 Die feste HAProxy-Runtime-Zelle `with-crs/no-mrts` darf Evidence erst hochladen,

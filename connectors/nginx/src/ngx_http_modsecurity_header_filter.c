@@ -600,7 +600,7 @@ ngx_http_modsecurity_response_body_limit(
         return 0U;
     }
     return msconnector_phase4_effective_body_limit(
-        mcf->phase4_mode, mcf->common_config.phase4_body_limit);
+        mcf->phase4_mode);
 }
 
 ngx_int_t
@@ -625,6 +625,7 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
     size_t response_header_count;
     size_t response_header_bytes;
     char *response_content_type = NULL;
+    ngx_http_modsecurity_engine_call_measurement measurement;
 
 
 /* XXX: if NOT_MODIFIED, do we need to process it at all?  see xslt_header_filter() */
@@ -735,7 +736,31 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
             "ModSecurity: invalid canonical P3 transition");
         return NGX_ERROR;
     }
+    ctx->native_event_phase = MSCONNECTOR_PHASE_RESPONSE_HEADERS;
+    if (ngx_http_modsecurity_engine_call_begin(r,
+            MSCONNECTOR_PHASE_RESPONSE_HEADERS, &measurement) != NGX_OK) {
+        ngx_http_modsecurity_pcre_malloc_done(old_pool);
+        ctx->response_headers_processing_failed = 1;
+        (void)ngx_http_modsecurity_log_technical_failure(r, ctx,
+            MSCONNECTOR_PHASE_RESPONSE_HEADERS, ctx->contract.error_class,
+            NGX_HTTP_INTERNAL_SERVER_ERROR);
+        return NGX_ERROR;
+    }
     ret = msc_process_response_headers(ctx->modsec_transaction, status, http_response_ver);
+    if (ngx_http_modsecurity_engine_call_finish(r,
+            MSCONNECTOR_PHASE_RESPONSE_HEADERS, &measurement, ret) != NGX_OK) {
+        ngx_http_modsecurity_pcre_malloc_done(old_pool);
+        ctx->response_headers_processing_failed = 1;
+        /* Valid over-budget P3 calls already wrote timing plus a single
+         * technical timeout. Clock failures need their own sealed cause. */
+        if (ctx->contract.error_class !=
+                MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT) {
+            (void)ngx_http_modsecurity_log_technical_failure(r, ctx,
+                MSCONNECTOR_PHASE_RESPONSE_HEADERS, ctx->contract.error_class,
+                NGX_HTTP_INTERNAL_SERVER_ERROR);
+        }
+        return NGX_ERROR;
+    }
     if (ret != 1) {
         ngx_http_modsecurity_pcre_malloc_done(old_pool);
         ctx->response_headers_processing_failed = 1;
@@ -748,6 +773,10 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
         }
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
             "ModSecurity: native response header processing failed");
+        (void)ngx_http_modsecurity_log_technical_failure(r, ctx,
+            MSCONNECTOR_PHASE_RESPONSE_HEADERS,
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE,
+            NGX_HTTP_INTERNAL_SERVER_ERROR);
         return NGX_ERROR;
     }
     if (ngx_http_modsecurity_contract_complete(ctx,

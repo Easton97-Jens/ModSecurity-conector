@@ -80,6 +80,53 @@ capability boundary.
 Do not commit credentials, cookies, authorization values, private keys,
 certificates, raw request bodies, raw response bodies, or local runtime output.
 
+### Selected NGINX configuration-only evidence
+
+The closed `invalid_boolean` and `invalid_size` configuration contracts use
+`ci/runtime/lifecycle/run-nginx-configtest.py`. An actual `nginx -e stderr -t`
+must reject `modsecurity maybe;` with exit 1 and both `"modsecurity" directive`
+and `invalid boolean value` diagnostics. The Required ID `invalid_size` is
+retained but explicitly migrated to removed-API rejection: the formerly valid
+input `modsecurity_phase4_body_limit 1048576;` must produce exit 1 and
+`unknown directive "modsecurity_phase4_body_limit"`, classified as
+`removed_directive`. This is not an engine response-limit test. An unrelated
+module-loading failure, wrong directive, missing diagnostic, timeout, or wrong
+exit is not a passing negative test.
+
+Each invocation requires a fresh external output directory below
+`/var/tmp/codex/ModSecurity-conector`, outside checkouts and without symlink
+paths. The driver retains and actually uses `nginx-binary` and
+`nginx-module.so` snapshots, bounded to 64 MiB each. Together with `nginx.conf`,
+`stdout.log`, and `stderr.log`, these form the five-file digest-bound evidence
+bundle; captures are limited to 64 KiB combined and execution to 10 seconds.
+`source-result.json` and its single-record `source-result.jsonl` companion
+carry the receipt and `artifacts.configtest_dir` for the official collector.
+The selected driver dispatches each registered case into its own fresh
+`configtests/<case_id>` child; canonical retention uses
+`inventory/configtests/<case_id>`. A Boolean receipt cannot fulfill the size
+case, and independently executed cases cannot overwrite one shared bundle.
+Keep these local artifacts external; they are not upload or commit material.
+
+Directory admission checks the exact external output parent and its ancestors,
+and the selected driver's build, results and configuration parents, through
+the existing non-following `ensure_safe_runtime_directory` contract. Owned
+`0755` parents are permitted; group- or other-writable parents are rejected.
+Each new case child is private `0700`; an existing case child is rejected
+before result append. An existing result file must be owned by the effective
+UID, regular, have exactly one hard link, have no `0022` permission bits and
+be at most 4 MiB. An otherwise admissible `0644` result file remains allowed.
+These checks retain external-root containment and checkout exclusion; they
+do not add HTTP evidence or change the accepted configtest diagnostics.
+
+The matching Framework contract validates configuration evidence rather than
+inventing a native request event. This operation proves parsing/rejection
+only: no HTTP request, daemon startup, listener, master/worker identity,
+reload, or protocol coverage is claimed. Caller-provided source SHAs require
+independent run-provenance binding; trusted build inputs remain a prerequisite.
+The contracts are limited to `invalid_boolean` and `invalid_size`, not every
+phase-0 catalog case,
+and cannot establish full required coverage or exact-head E2E PASS.
+
 ### HAProxy hosted evidence projection
 
 The fixed `with-crs/no-mrts` HAProxy runtime cell may upload evidence only

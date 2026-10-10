@@ -7,7 +7,7 @@
 #include "msconnector/options.h"
 
 /*
- * Compatibility helper for legacy connector Phase-4 budget settings.
+ * Checked-accounting ceiling for connector Phase-4 modes.
  *
  * Response-inspection scope and limits belong to libModSecurity
  * (SecResponseBodyAccess, SecResponseBodyMimeType, SecResponseBodyLimit and
@@ -20,9 +20,8 @@
  * invalid configuration cannot silently become unlimited.
  */
 static inline size_t msconnector_phase4_effective_body_limit(
-    enum msconnector_phase4_mode mode, size_t configured_limit)
+    enum msconnector_phase4_mode mode)
 {
-    (void)configured_limit;
     switch (mode) {
     case MSCONNECTOR_PHASE4_MODE_OFF:
     case MSCONNECTOR_PHASE4_MODE_SAFE:

@@ -453,35 +453,11 @@ func TestCommonRuntimeEngineUsesCanonicalEnvoyEventIdentity(t *testing.T) {
 }
 
 func TestCommonRuntimeEngineClassifiesModSecurityBodyLimitWithoutRuleID(t *testing.T) {
-	const body = "envoy-body-limit-payload-must-not-be-an-event-field"
-	engine, eventPath := newCommonRuntimeEngineForRulesTest(t, `SecRuleEngine On
-SecRequestBodyAccess On
-SecRequestBodyLimit 32
-SecRequestBodyLimitAction Reject
-`)
+	transaction, eventPath := newCommonBodyLimitTransaction(t)
 	contextValue := context.Background()
-	transaction, err := engine.Open(contextValue, commonTestStreamMetadata("body-limit-without-rule-id"))
-	if err != nil {
-		t.Fatalf("Open() error = %v", err)
-	}
-	defer transaction.Close(contextValue, Summary{CloseReason: CloseImmediateResponse})
-
-	decision, err := transaction.ProcessHeaders(contextValue, DirectionRequest,
-		[]Header{{Name: "host", Value: []byte("example.test")}}, false)
-	assertCommonDecision(t, "request headers", decision, err, ActionAllow, 0)
-	decision, err = transaction.ProcessBody(contextValue, DirectionRequest, []byte(body), true)
-	assertCommonDecision(t, "body limit", decision, err, ActionDeny, 413)
-	if decision.RuleID != "" {
-		t.Fatalf("body-limit rule ID=%q, want empty", decision.RuleID)
-	}
 	recorder, ok := transaction.(HostActionRecorder)
 	if !ok {
 		t.Fatal("Common transaction does not expose host-action recording")
-	}
-	if err := recorder.RecordHostAction(contextValue, HostAction{
-		Action: AppliedActionRedirect, VisibleStatus: 302, TransportResult: "http_status",
-	}); err == nil {
-		t.Fatal("RecordHostAction() accepted a non-413 body-limit action")
 	}
 	if err := recorder.RecordHostAction(contextValue, HostAction{
 		Action: AppliedActionDeny, VisibleStatus: 413, TransportResult: "http_status",
@@ -493,7 +469,7 @@ SecRequestBodyLimitAction Reject
 	if err != nil {
 		t.Fatalf("ReadFile(%s): %v", eventPath, err)
 	}
-	if strings.Contains(string(raw), body) {
+	if strings.Contains(string(raw), commonBodyLimitPayload) {
 		t.Fatal("event JSONL retained a request-body payload")
 	}
 	foundBodyLimit := false

@@ -76,12 +76,15 @@ class NginxErrorPageInterventionTests(unittest.TestCase):
             + classifier
             + r"""
 typedef struct { int error_page; } ngx_http_request_t;
+typedef struct { int unused; } msconnector_transaction_contract;
 typedef struct {
     void *modsec_transaction;
     int intervention_triggered;
+    msconnector_transaction_contract contract;
 } ngx_http_modsecurity_ctx_t;
 typedef struct { int unused; } ngx_http_modsecurity_conf_t;
 enum {
+    MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE = 1,
     NGX_HTTP_INTERNAL_SERVER_ERROR = 500,
     NGX_DECLINED = -5,
     NGX_OK = 0,
@@ -90,6 +93,14 @@ enum {
 };
 static int native_result;
 static int event_calls;
+static int msconnector_transaction_contract_fail(
+    msconnector_transaction_contract *contract, int error_class, unsigned int rule_id)
+{
+    (void)contract;
+    (void)error_class;
+    (void)rule_id;
+    return 0;
+}
 static int ngx_http_modsecurity_process_intervention(
     void *transaction, ngx_http_request_t *r, int early_log)
 {

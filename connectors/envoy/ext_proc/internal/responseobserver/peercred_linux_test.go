@@ -15,7 +15,7 @@ func peerTestID(value int) *int {
 }
 
 func TestDialWithExpectedPeerRejectsMismatchBeforeClaim(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "companion.sock")
+	path := filepath.Join(testSocketDir(t), "companion.sock")
 	listener, err := net.Listen("unix", path)
 	if err != nil {
 		t.Fatal(err)

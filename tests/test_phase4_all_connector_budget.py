@@ -60,7 +60,7 @@ int main(int argc, char **argv)
     CHECK(argc == 2);
     if (strcmp(argv[1], "off-large") == 0) {
         size_t effective = msconnector_phase4_effective_body_limit(
-            MSCONNECTOR_PHASE4_MODE_OFF, limit);
+            MSCONNECTOR_PHASE4_MODE_OFF);
         CHECK(effective == SIZE_MAX);
         CHECK(msconnector_body_limit_plan_chunk(0, 0, effective,
             MSCONNECTOR_BODY_LIMIT_ACTION_REJECT, limit + 1, &plan));
@@ -71,7 +71,7 @@ int main(int argc, char **argv)
         CHECK(plan.bytes_seen == 2 * (limit + 1));
     } else if (strcmp(argv[1], "enabled-limits") == 0) {
         for (i = 0; i < sizeof(modes)/sizeof(modes[0]); ++i) {
-            size_t effective = msconnector_phase4_effective_body_limit(modes[i], limit);
+            size_t effective = msconnector_phase4_effective_body_limit(modes[i]);
             CHECK(effective == SIZE_MAX);
             CHECK(msconnector_body_limit_plan_chunk(0, 0, effective,
                 MSCONNECTOR_BODY_LIMIT_ACTION_REJECT, limit + 1, &plan));
@@ -83,16 +83,16 @@ int main(int argc, char **argv)
         }
     } else if (strcmp(argv[1], "invalid-modes") == 0) {
         CHECK(msconnector_phase4_effective_body_limit(
-            MSCONNECTOR_PHASE4_MODE_UNSET, limit) == 0);
+            MSCONNECTOR_PHASE4_MODE_UNSET) == 0);
         CHECK(msconnector_phase4_effective_body_limit(
-            (enum msconnector_phase4_mode)77, limit) == 0);
+            (enum msconnector_phase4_mode)77) == 0);
         CHECK(msconnector_phase4_effective_body_limit(
-            MSCONNECTOR_PHASE4_MODE_SAFE, 0) == SIZE_MAX);
+            MSCONNECTOR_PHASE4_MODE_SAFE) == SIZE_MAX);
         CHECK(msconnector_phase4_effective_body_limit(
-            MSCONNECTOR_PHASE4_MODE_STRICT, 0) == SIZE_MAX);
+            MSCONNECTOR_PHASE4_MODE_STRICT) == SIZE_MAX);
     } else if (strcmp(argv[1], "off-overflow") == 0) {
         size_t effective = msconnector_phase4_effective_body_limit(
-            MSCONNECTOR_PHASE4_MODE_OFF, limit);
+            MSCONNECTOR_PHASE4_MODE_OFF);
         CHECK(!msconnector_body_limit_plan_chunk(SIZE_MAX - 1, 0, effective,
             MSCONNECTOR_BODY_LIMIT_ACTION_REJECT, 2, &plan));
         CHECK(!msconnector_body_limit_plan_chunk(1, 2, effective,
@@ -164,13 +164,13 @@ class Phase4BudgetCUnitTests(unittest.TestCase):
                                 text=True, timeout=10)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
-    def test_off_allows_multiple_chunks_above_configured_budget(self) -> None:
+    def test_off_allows_multiple_chunks_above_one_megabyte(self) -> None:
         self.run_case("off-large")
 
     def test_safe_strict_do_not_apply_a_connector_response_budget(self) -> None:
         self.run_case("enabled-limits")
 
-    def test_invalid_modes_fail_but_valid_modes_ignore_legacy_zero_budget(self) -> None:
+    def test_invalid_modes_fail_but_valid_modes_have_no_inspection_budget(self) -> None:
         self.run_case("invalid-modes")
 
     def test_off_still_rejects_overflow_and_inconsistent_counters(self) -> None:
@@ -193,7 +193,7 @@ class Phase4BudgetWiringTests(unittest.TestCase):
                 text = function(APACHE, name)
                 self.assertIn("msconnector_phase4_effective_body_limit(", text)
                 self.assertIn("conf->common_config.phase4_mode", text)
-                self.assertIn("conf->common_config.phase4_body_limit", text)
+                self.assertNotIn("conf->common_config.phase4_body_limit", text)
         append = function(APACHE, "apache_phase4_append_bucket")
         self.assertLess(append.index("msconnector_body_limit_plan_chunk("),
                         append.index("msc_append_response_body("))

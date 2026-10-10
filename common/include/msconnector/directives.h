@@ -13,7 +13,6 @@ extern "C" {
 #define MSCONNECTOR_DIRECTIVE_TRANSACTION_ID_EXPR "modsecurity_transaction_id_expr"
 #define MSCONNECTOR_DIRECTIVE_PHASE4_MODE "modsecurity_phase4_mode"
 #define MSCONNECTOR_DIRECTIVE_PHASE4_LOG "modsecurity_phase4_log"
-#define MSCONNECTOR_DIRECTIVE_PHASE4_BODY_LIMIT "modsecurity_phase4_body_limit"
 #define MSCONNECTOR_DIRECTIVE_REQUEST_BODY_LIMIT "modsecurity_request_body_limit"
 #define MSCONNECTOR_DIRECTIVE_RESPONSE_BODY_LIMIT "modsecurity_response_body_limit"
 #define MSCONNECTOR_DIRECTIVE_BODY_LIMIT_ACTION "modsecurity_body_limit_action"

@@ -32,6 +32,48 @@ RUNNER_MODULE = load_runner()
 
 
 class NginxBodyBufferFixtureContractTest(unittest.TestCase):
+    @staticmethod
+    def _positive_events() -> list[dict[str, object]]:
+        return [
+            {
+                "uri": "/" + mode,
+                "event": "phase4_intervention",
+                "phase": "response_body",
+                "rule_id": "1250001",
+                "body_bytes_seen": RUNNER_MODULE.FIXTURE_LIMIT + extra,
+                "body_bytes_inspected": RUNNER_MODULE.FIXTURE_LIMIT + extra,
+                "body_truncated": False,
+                "truncated": False,
+                "eos_seen": True,
+            }
+            for kind in ("memory", "file", "mixed")
+            for mode, extra in ((kind + "-within", 0), (kind + "-over-limit", 1))
+        ]
+
+    @classmethod
+    def _telemetry_events(cls) -> list[dict[str, object]]:
+        return [
+            dict(
+                row,
+                event=event,
+                phase=phase,
+                rule_id="",
+                body_bytes_seen=(
+                    row["body_bytes_seen"] if event != "transaction_cleanup" else 0
+                ),
+                body_bytes_inspected=(
+                    row["body_bytes_inspected"] if event != "transaction_cleanup" else 0
+                ),
+                eos_seen=event == "phase4_completion",
+            )
+            for row in cls._positive_events()
+            for event, phase in (
+                ("phase4_append", "response_body"),
+                ("phase4_completion", "response_body"),
+                ("transaction_cleanup", "logging"),
+            )
+        ]
+
     def test_fixture_configuration_keeps_the_test_module_separate(self) -> None:
         config = (FIXTURE / "config").read_text(encoding="utf-8")
         self.assertIn("ngx_http_body_buffer_fixture_module", config)
@@ -138,18 +180,7 @@ class NginxBodyBufferFixtureContractTest(unittest.TestCase):
             "/mixed-within": RUNNER_MODULE.FIXTURE_LIMIT,
             "/mixed-over-limit": RUNNER_MODULE.FIXTURE_LIMIT + 1,
         }
-        events = [
-            {
-                "uri": path,
-                "rule_id": "1250001",
-                "body_bytes_seen": expected_bytes,
-                "body_bytes_inspected": expected_bytes,
-                "body_truncated": False,
-                "truncated": False,
-                "eos_seen": True,
-            }
-            for path, expected_bytes in paths.items()
-        ]
+        events = self._positive_events()
         retained = RUNNER_MODULE.validate_positive_events(events)
         self.assertEqual(set(retained), set(paths))
         self.assertEqual(retained["/mixed-over-limit"]["rule_id"], "1250001")
@@ -160,19 +191,57 @@ class NginxBodyBufferFixtureContractTest(unittest.TestCase):
 
     def test_positive_event_accounting_rejects_a_mixed_file_backing_match_gap(self) -> None:
         events = [
-            {
-                "uri": path,
-                "rule_id": "1250001" if path != "/mixed-within" else "",
-                "body_bytes_seen": RUNNER_MODULE.FIXTURE_LIMIT,
-                "body_bytes_inspected": RUNNER_MODULE.FIXTURE_LIMIT,
-                "body_truncated": False,
-                "truncated": False,
-                "eos_seen": True,
-            }
-            for path in ("/memory-within", "/file-within", "/mixed-within")
+            row for row in self._positive_events()
+            if str(row["uri"]).endswith("-within")
         ]
+        next(row for row in events if row["uri"] == "/mixed-within")["rule_id"] = ""
         with self.assertRaises(RUNNER_MODULE.FixtureFailure):
             RUNNER_MODULE.validate_positive_events(events)
+
+    def test_positive_events_coexist_with_retained_same_uri_telemetry(self) -> None:
+        events = self._positive_events() + self._telemetry_events()
+        original = [dict(row) for row in events]
+        accounting = RUNNER_MODULE.validate_positive_events(events)
+        self.assertEqual(len(accounting), 6)
+        self.assertEqual(events, original)
+
+    def test_telemetry_alone_cannot_prove_positive_accounting(self) -> None:
+        events = self._telemetry_events()
+        with self.assertRaises(RUNNER_MODULE.FixtureFailure):
+            RUNNER_MODULE.validate_positive_events(events)
+
+    def test_positive_identity_and_accounting_mismatches_fail(self) -> None:
+        for field, value in (
+            ("phase", "logging"),
+            ("rule_id", "other"),
+            ("body_bytes_seen", 0),
+            ("body_bytes_seen", True),
+            ("body_bytes_inspected", 0),
+            ("body_bytes_inspected", True),
+            ("eos_seen", False),
+            ("eos_seen", 1),
+            ("body_truncated", True),
+            ("body_truncated", 1),
+            ("truncated", True),
+            ("truncated", 1),
+            ("event", "phase4_append"),
+        ):
+            with self.subTest(field=field):
+                events = self._positive_events()
+                events[0][field] = value
+                with self.assertRaises(RUNNER_MODULE.FixtureFailure):
+                    RUNNER_MODULE.validate_positive_events(events)
+
+    def test_duplicate_or_mismatched_positive_event_fails(self) -> None:
+        for mismatch in (False, True):
+            with self.subTest(mismatch=mismatch):
+                events = self._positive_events()
+                duplicate = dict(events[0])
+                if mismatch:
+                    duplicate["rule_id"] = "other"
+                events.append(duplicate)
+                with self.assertRaises(RUNNER_MODULE.FixtureFailure):
+                    RUNNER_MODULE.validate_positive_events(events)
 
     def test_configtest_failure_summary_is_bounded_and_classified(self) -> None:
         output = (

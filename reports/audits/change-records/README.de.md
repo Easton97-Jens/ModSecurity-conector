@@ -11,6 +11,59 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20261007-protected-nginx-1316](CR-20261007-protected-nginx-1316.de.md)
+  | English companion: `CR-20261007-protected-nginx-1316.md` — unabhängig
+  autorisierter geschützter NGINX-1.31.6-Tupelabgleich mit Negativtests für
+  altes Release/gekreuzte Paare; unveränderte Guardrails und Gitlinks, keine neue Runtime-Attestierung.
+
+- [CR-20261007-pr396-ci-fixture-contracts](CR-20261007-pr396-ci-fixture-contracts.de.md)
+  | English companion: `CR-20261007-pr396-ci-fixture-contracts.md` — drei
+  begrenzte CI-Fixture-/Workflow-Fixes nach Nachfolger-Head-Prüfung; unveränderte
+  Dependency-Pins, kein Full E2E oder frischer Runtime-Coverage-Claim.
+
+- [CR-20261003-framework-sonar-gitlink](CR-20261003-framework-sonar-gitlink.de.md)
+  | English companion: `CR-20261003-framework-sonar-gitlink.md` — veröffentlichten,
+  CI-/Sonar-validierten Framework-Wartbarkeitscommit separat binden; kein neuer Runtime-Claim.
+
+- [CR-20261003-nginx-configtest-path-authority](CR-20261003-nginx-configtest-path-authority.de.md)
+  | English companion: `CR-20261003-nginx-configtest-path-authority.md` — eigene
+  externe Configtest-Parents und begrenzte Resultdateien zulassen; Source-/
+  Fixture-Validierung und CI-Remediation, kein HTTP- oder Full-E2E-Claim.
+
+- [CR-20261003-pr355-pr396-integration](CR-20261003-pr355-pr396-integration.de.md)
+  | English companion: `CR-20261003-pr355-pr396-integration.md` — vollständiger
+  Port des geschützten PR-#355-Scopes, Nachfolger-Kompatibilitätskontrollen und
+  getrennte Framework-Bindung; Remote-Supersession bleibt gegated, kein Full-E2E-Claim.
+
+- [CR-20261003-nginx-size-configtest](CR-20261003-nginx-size-configtest.de.md)
+  | English companion: `CR-20261003-nginx-size-configtest.md` — selektierte Size-Parser-
+  Ablehnung mit frischer case-spezifischer Evidence; kein Full E2E oder Gitlink-Claim.
+
+- [CR-20261001-nginx-configtest-collection](CR-20261001-nginx-configtest-collection.de.md)
+  | English companion: `CR-20261001-nginx-configtest-collection.md` — begrenzte
+  Konfigurations-Receipts und autorisierte Retained-Bundle-Referenzen erhalten,
+  ohne Request-Ausführung zu behaupten; getrennt von Treiber/Wiring-Delivery.
+
+- [CR-20261001-nginx-configtest-receipt](CR-20261001-nginx-configtest-receipt.de.md)
+  | English companion: `CR-20261001-nginx-configtest-receipt.md` — geschlossene
+  selektierte `invalid_boolean`-Konfigurations-Invocation und Retained-Artifact-
+  Receipt; kein HTTP-, Full-Coverage-, Exact-Head-E2E- oder Gitlink-Claim.
+
+- [CR-20261001-nginx-empty-header-driver](CR-20261001-nginx-empty-header-driver.de.md)
+  | English companion: `CR-20261001-nginx-empty-header-driver.md` — vorhandene
+  leere Request-Header im Parent-Treiber erhalten; eine echte Native-Event-
+  Diagnose, kein Full-E2E oder Gitlink-Update.
+
+- [CR-20261001-nginx-h1-request-binding](CR-20261001-nginx-h1-request-binding.de.md)
+  | English companion: `CR-20261001-nginx-h1-request-binding.md` — Parent-H1-Curl-
+  Binding und Non-H1-Guard für Legacy-Requests mit einer isolierten echten
+  Host-Diagnose; kein kanonischer oder Exact-Head-Lifecycle-PASS.
+
+- [CR-20261001-nginx-audit-result-pointer](CR-20261001-nginx-audit-result-pointer.de.md)
+  | English companion: `CR-20261001-nginx-audit-result-pointer.md` — erforderliche
+  Parent-Evidence-Pointer-Korrektur in der nutzerautorisierten NGINX-Canonical-
+  Contract-Untersuchung; keine synthetischen Events, kein Full-E2E-PASS oder Gitlink-Eingriff.
+
 - [CR-20260919-submodule-updater-workflows-capability](CR-20260919-submodule-updater-workflows-capability.de.md)
   | English companion: `CR-20260919-submodule-updater-workflows-capability.md` —
   der aktuelle Benutzer hat diese Parent-only-Korrektur für GitHub-Actions-Lauf
@@ -176,6 +229,13 @@ angelegt werden.
   Traceability und einen Draft PR. Sie initialisiert oder verändert weder
   Framework/MRTS noch einen Gitlink, CI-Berechtigungen oder Dependencies und
   autorisiert keinen Merge.
+- [CR-20260904-protected-base-exact-head-nginx](CR-20260904-protected-base-exact-head-nginx.de.md)
+  | English companion: `CR-20260904-protected-base-exact-head-nginx.md` — Vorbereitung
+  eines geschützten Base-Dispatchers, privilegierten Launchers und unabhängigen
+  Collectors für NGINX-Exact-Head-Evidence. Geschützte Environment und
+  dedizierter Runner fehlen weiterhin; kein Hosted-Ergebnis und kein Merge
+  werden behauptet. Ausschließlich Vorbereitung — keine Merge-Autorisierung.
+
 - [CR-20260903-no-crs-doc-consistency-repair](CR-20260903-no-crs-doc-consistency-repair.de.md) —
   der aktuelle Benutzer autorisierte diese Parent-only-Reparatur des
   reproduzierten Traefik-No-CRS-Dokumentations-/Capability-Katalog-

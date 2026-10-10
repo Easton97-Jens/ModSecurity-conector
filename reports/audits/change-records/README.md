@@ -10,6 +10,59 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20261007-protected-nginx-1316](CR-20261007-protected-nginx-1316.md)
+  | [Deutsch](CR-20261007-protected-nginx-1316.de.md) — independently authorized
+  protected NGINX 1.31.6 tuple alignment with old-release/crossed-pair negative
+  regressions; unchanged guards and Gitlinks, no new runtime attestation.
+
+- [CR-20261007-pr396-ci-fixture-contracts](CR-20261007-pr396-ci-fixture-contracts.md)
+  | [Deutsch](CR-20261007-pr396-ci-fixture-contracts.de.md) — three scoped
+  CI fixture/workflow repairs after successor-head verification; unchanged
+  dependency pins, no Full E2E or fresh runtime coverage claim.
+
+- [CR-20261003-framework-sonar-gitlink](CR-20261003-framework-sonar-gitlink.md)
+  | [Deutsch](CR-20261003-framework-sonar-gitlink.de.md) — separately bind the
+  published, CI-/Sonar-validated Framework maintenance commit; no new runtime claim.
+
+- [CR-20261003-nginx-configtest-path-authority](CR-20261003-nginx-configtest-path-authority.md)
+  | [Deutsch](CR-20261003-nginx-configtest-path-authority.de.md) — admit owned
+  external configtest parents and bounded result files; source/fixture
+  validation and CI remediation, no HTTP or Full E2E claim.
+
+- [CR-20261003-pr355-pr396-integration](CR-20261003-pr355-pr396-integration.md)
+  | [Deutsch](CR-20261003-pr355-pr396-integration.de.md) — complete protected
+  PR #355 scope port, successor compatibility controls and separate Framework
+  dependency binding; remote supersession remains gated, no Full E2E claim.
+
+- [CR-20261003-nginx-size-configtest](CR-20261003-nginx-size-configtest.md)
+  | [Deutsch](CR-20261003-nginx-size-configtest.de.md) — selected size-parser
+  rejection with fresh per-case retained evidence; no full E2E or Gitlink claim.
+
+- [CR-20261001-nginx-configtest-collection](CR-20261001-nginx-configtest-collection.md)
+  | [Deutsch](CR-20261001-nginx-configtest-collection.de.md) — preserve bounded
+  configuration receipts and authorized retained-bundle references without
+  claiming request execution; independent of driver/wiring delivery.
+
+- [CR-20261001-nginx-configtest-receipt](CR-20261001-nginx-configtest-receipt.md)
+  | [Deutsch](CR-20261001-nginx-configtest-receipt.de.md) — closed selected
+  `invalid_boolean` configuration invocation and retained-artifact receipt;
+  no HTTP, full coverage, exact-head E2E, or gitlink claim.
+
+- [CR-20261001-nginx-empty-header-driver](CR-20261001-nginx-empty-header-driver.md)
+  | [Deutsch](CR-20261001-nginx-empty-header-driver.de.md) — preserve present
+  empty request headers in the Parent driver; one real native-event diagnostic,
+  no full E2E or Gitlink update.
+
+- [CR-20261001-nginx-h1-request-binding](CR-20261001-nginx-h1-request-binding.md)
+  | [Deutsch](CR-20261001-nginx-h1-request-binding.de.md) — Parent H1 Curl
+  binding and non-H1 legacy-request guard, with one isolated real-host
+  diagnostic; no canonical or exact-head lifecycle PASS.
+
+- [CR-20261001-nginx-audit-result-pointer](CR-20261001-nginx-audit-result-pointer.md)
+  | [Deutsch](CR-20261001-nginx-audit-result-pointer.de.md) — required Parent
+  evidence-pointer correction in the user-authorized NGINX canonical-contract
+  investigation; no synthetic events, full E2E PASS, or Gitlink change.
+
 - [CR-20260919-submodule-updater-workflows-capability](CR-20260919-submodule-updater-workflows-capability.md)
   | [Deutsch](CR-20260919-submodule-updater-workflows-capability.de.md) — the
   current user requested this Parent-only correction for GitHub Actions run
@@ -161,6 +214,13 @@ reports without an explicit repository-policy decision or user decision.
   focused regression evidence, paired traceability, and a Draft PR. It does
   not initialize or modify Framework/MRTS, change a Gitlink, alter CI
   permissions or dependencies, or authorize a merge.
+- [CR-20260904-protected-base-exact-head-nginx](CR-20260904-protected-base-exact-head-nginx.md)
+  | [Deutsch](CR-20260904-protected-base-exact-head-nginx.de.md) — preparation
+  of a protected-base dispatcher, privileged launcher, and independent
+  collector for candidate NGINX exact-head evidence. The protected Environment
+  and dedicated runner remain unavailable; no hosted result or merge is
+  asserted. Preparation only — no merge authorization.
+
 - [CR-20260903-no-crs-doc-consistency-repair](CR-20260903-no-crs-doc-consistency-repair.md)
   | [Deutsch](CR-20260903-no-crs-doc-consistency-repair.de.md) — the current
   user authorized this Parent-only repair of the reproduced Traefik No-CRS

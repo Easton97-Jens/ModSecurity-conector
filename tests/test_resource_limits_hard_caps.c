@@ -50,16 +50,13 @@ static void test_config_body_limits(void) {
 
     msconnector_config_init(&config);
     msconnector_config_apply_defaults(&config);
+    assert(config.request_body_limit == 1048576U);
+    assert(config.response_body_limit == 1048576U);
     assert(msconnector_config_validate(&config, 0, 0));
 
-    config.phase4_body_limit = MSCONNECTOR_MAX_CONFIG_BODY_BYTES;
     config.request_body_limit = MSCONNECTOR_MAX_CONFIG_BODY_BYTES;
     config.response_body_limit = MSCONNECTOR_MAX_CONFIG_BODY_BYTES;
     assert(msconnector_config_validate(&config, 0, 0));
-
-    config.phase4_body_limit = MSCONNECTOR_MAX_CONFIG_BODY_BYTES + 1U;
-    assert(!msconnector_config_validate(&config, 0, 0));
-    config.phase4_body_limit = MSCONNECTOR_MAX_CONFIG_BODY_BYTES;
 
     config.request_body_limit = MSCONNECTOR_MAX_CONFIG_BODY_BYTES + 1U;
     assert(!msconnector_config_validate(&config, 0, 0));
