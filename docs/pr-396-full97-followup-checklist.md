@@ -116,5 +116,4 @@ The eight pending records are closed derivations of blocked basis records, not p
 
 D: `phase4_out_of_scope_content_type` and `phase4_missing_content_type` remain Case-PASS. Their `requested_action` and `actual_action` = string `allow` violate the nested enum at `$.phase4_case_results[17]` / `[18]`: four schema errors, not four runtime FAILs.
 
-Open: A/B/C/D test-first repairs, genuine bounded focus probes, consistent integration and current quality gates. `issue-record-matrix.csv` contains all 97 records with original status, operation, raw evidence, boundary, owner and dependency; fresh focus/Full97 columns stay separate. No Required reduction or historical status changes.
-
+Open: genuine bounded focus probes, consistent Gitlink integration and current quality gates. Implemented commits: Parent A `b0d75ef6bbc33228423aef65d8ea3409387ab30f`, B `58d07970b755d7435c23030e844a32e2f6b6b583`, scoped positive-fault follow-up `7672340c57b3f7c80f4f5c68fc55fecca2ae4af8`; Framework C `e8a8f98a4c24958616b15b98aadedcc73345a786`, D `0c7f224731cda059decee026c7bd32e58bf9aa21`. These commits alone do not establish runtime acceptance. `issue-record-matrix.csv` contains all 97 records with original status, operation, raw evidence, boundary, owner and dependency; fresh focus/Full97 columns stay separate. No Required reduction or historical status changes.
