@@ -2524,19 +2524,12 @@ send_synchronized_first_byte_request() {
         i=$((i + 1))
         sleep 0.1
     done
-    : > "$SYNCHRONIZED_RELEASE_FILE"
-    set +e
-    wait "$FIRST_BYTE_CLIENT_PID"
-    client_rc=$?
-    set -e
     [ "$observed_first_byte" -eq 1 ] || fail "client did not receive a first response byte while upstream was paused"
-    [ "$client_rc" -eq 0 ] || fail "synchronized client failed after upstream release rc=$client_rc"
-    http_status=$(cat "$LOG_DIR/first-byte-status.txt" 2>/dev/null || true)
-    [ "$http_status" = "200" ] || fail "synchronized safe response status was not 200: $http_status"
-    [ -s "$NGINX_PHASE4_LOG_FILE" ] || fail "Phase-4 host log is missing after synchronized response"
+    [ -s "$NGINX_PHASE4_LOG_FILE" ] || fail "Phase-4 append log is missing at first byte"
     FIRST_BYTE_HOST_METADATA="$SYNCHRONIZED_DIR/host-metadata.json"
     "$PYTHON_BIN" "$REPO_ROOT/ci/runtime/lifecycle/write-first-byte-host-metadata.py" \
-        --phase4-log "$NGINX_PHASE4_LOG_FILE" --output "$FIRST_BYTE_HOST_METADATA" || \
+        --phase4-log "$NGINX_PHASE4_LOG_FILE" --output "$FIRST_BYTE_HOST_METADATA" \
+        --paused-file "$SYNCHRONIZED_PAUSED_FILE" --release-file "$SYNCHRONIZED_RELEASE_FILE" || \
         fail "could not derive bounded host metadata from the Phase-4 event"
     "$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --merge-evidence \
         --control-root "$SYNCHRONIZED_CONTROL_ROOT" \
@@ -2546,6 +2539,20 @@ send_synchronized_first_byte_request() {
         --evidence-origin real_host \
         --output "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" || \
         fail "could not write synchronized first-byte evidence"
+    "$PYTHON_BIN" "$REPO_ROOT/ci/runtime/lifecycle/write-first-byte-host-metadata.py" \
+        --phase4-log "$NGINX_PHASE4_LOG_FILE" --output "$FIRST_BYTE_HOST_METADATA" \
+        --paused-file "$SYNCHRONIZED_PAUSED_FILE" --release-file "$SYNCHRONIZED_RELEASE_FILE" \
+        --evidence "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" \
+        --binding-output "$FULL_LIFECYCLE_EVIDENCE_OUTPUT.binding.json" || \
+        fail "could not bind first-byte snapshot to the paused native append"
+    : > "$SYNCHRONIZED_RELEASE_FILE"
+    set +e
+    wait "$FIRST_BYTE_CLIENT_PID"
+    client_rc=$?
+    set -e
+    [ "$client_rc" -eq 0 ] || fail "synchronized client failed after upstream release rc=$client_rc"
+    http_status=$(cat "$LOG_DIR/first-byte-status.txt" 2>/dev/null || true)
+    [ "$http_status" = "200" ] || fail "synchronized safe response status was not 200: $http_status"
     printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
     printf '%s\n' "http_status" > "$LOG_DIR/observed-transport-result.txt"
     return 0

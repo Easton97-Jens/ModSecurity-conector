@@ -29,6 +29,7 @@ from runtime_path_utils import (
     runtime_artifact_path,
     write_runtime_artifact_text_atomic,
 )
+from first_byte_binding import event_digest, verify_binding
 
 _NATIVE_SPEC = importlib.util.spec_from_file_location(
     'nginx_native_collection', Path(__file__).with_name('nginx_native_collection.py'))
@@ -1183,11 +1184,18 @@ def normalize_first_byte_counters(value: dict[str, Any]) -> bool:
 
 
 def merge_first_byte_evidence(
-    records: list[dict[str, Any]], evidence: dict[str, Any] | None
+    records: list[dict[str, Any]], evidence: dict[str, Any] | None,
+    binding: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Attach bounded causal metadata only to observed Phase-4 host events."""
     if evidence is None:
         return records
+    if binding is not None:
+        matches = [record for record in records
+                   if record.get("transaction_id") == binding.get("transaction_id")
+                   and event_digest(record) == binding.get("event_sha256")]
+        if len(matches) != 1:
+            raise ValueError("first-byte append identity is missing or ambiguous")
     fields = (
         "client_first_byte_received",
         "first_byte_before_response_end",
@@ -1204,7 +1212,11 @@ def merge_first_byte_evidence(
     for record in records:
         candidate = dict(record)
         phase = safe_metadata_value("phase", candidate.get("phase"))
-        if phase == 4:
+        matches_binding = binding is None or (
+            record.get("transaction_id") == binding.get("transaction_id")
+            and event_digest(record) == binding.get("event_sha256")
+        )
+        if phase == 4 and matches_binding:
             merge_first_byte_fields(candidate, evidence, fields)
         merged.append(candidate)
     return merged
@@ -1314,6 +1326,11 @@ def canonical_semantics(
         if observed_technical_failure(record):
             output.update({key: value for key, value in record.items() if key in fields})
             break
+    snapshots = [record for record in normalized_records
+                 if record.get("client_first_byte_received") is True]
+    if len(snapshots) == 1:
+        snapshot_fields = fields - decision_fields
+        output.update({key: value for key, value in snapshots[0].items() if key in snapshot_fields})
     return output
 
 
@@ -1508,6 +1525,7 @@ def row_runtime_records(
     decision_path: Path | None,
     allowed_source_root: Path | None,
     consumed_event_paths: list[Path] | None,
+    connector: str | None = None,
 ) -> list[dict[str, Any]]:
     """Collect raw producer events, preserving transaction and barrier binding."""
 
@@ -1521,10 +1539,21 @@ def row_runtime_records(
             for record in records
             if transaction_ids.intersection(record_transaction_ids(record))
         ]
-    return merge_first_byte_evidence(
-        records,
-        first_byte_evidence_record(row.get("first_byte_evidence_path"), allowed_source_root),
-    )
+    evidence = first_byte_evidence_record(row.get("first_byte_evidence_path"), allowed_source_root)
+    binding = None
+    if connector == "nginx" and row.get("first_byte_evidence_path"):
+        if evidence is None:
+            raise ValueError("NGINX first-byte snapshot does not satisfy the real-host contract")
+        if allowed_source_root is None:
+            raise ValueError("NGINX first-byte binding requires an authorized source root")
+        binding_path = contained_source_event_path(Path(str(row.get("first_byte_binding_path") or "")), allowed_source_root)
+        binding = load_json(binding_path)
+        log_path = contained_source_event_path(Path(str(row["connector_phase4_log_path"])), allowed_source_root)
+        evidence_path = contained_source_event_path(Path(str(row["first_byte_evidence_path"])), allowed_source_root)
+        if binding_path != Path(str(evidence_path) + ".binding.json"):
+            raise ValueError("first-byte binding belongs to another snapshot invocation")
+        verify_binding(binding, log_path, evidence_path, allowed_source_root)
+    return merge_first_byte_evidence(records, evidence, binding)
 
 
 def row_rule_ids(row: dict[str, Any], runtime_records: list[dict[str, Any]]) -> set[str]:
@@ -1757,7 +1786,7 @@ def case_row_observations(
     status = str(row.get("status") or row.get("result") or "").upper()
     live = row.get("live_executed", True) is not False
     runtime_records = row_runtime_records(
-        row, decision_path, allowed_source_root, consumed_event_paths
+        row, decision_path, allowed_source_root, consumed_event_paths, connector
     )
     observed_rule_ids = row_rule_ids(row, runtime_records)
     canonical_records = [sanitized_event(record) for record in runtime_records]
