@@ -91,6 +91,16 @@ def verify_binding(
                                         "first-byte binding", must_exist=True)
     if binding_path.stat().st_mtime_ns > release.stat().st_mtime_ns:
         raise ValueError("first-byte binding was written after upstream release")
+    event = bound_append(binding, log)
+    snapshot = json.loads(evidence.read_bytes())
+    if any(snapshot.get(name) != event.get(name) for name in
+           ("body_bytes_seen", "body_bytes_inspected", "response_committed")):
+        raise ValueError("first-byte counter/event binding mismatch")
+    return event
+
+
+def bound_append(binding: dict[str, Any], log: Path) -> dict[str, Any]:
+    """Verify the sealed prefix and exact original append in check order."""
     size = binding.get("log_prefix_size")
     index = binding.get("event_index")
     if (not isinstance(size, int) or isinstance(size, bool) or size < 1
@@ -108,8 +118,4 @@ def verify_binding(
             or event.get("response_committed") is not True
             or event.get("eos_seen") is True):
         raise ValueError("first-byte transaction/event binding mismatch")
-    snapshot = json.loads(evidence.read_bytes())
-    if any(snapshot.get(name) != event.get(name) for name in
-           ("body_bytes_seen", "body_bytes_inspected", "response_committed")):
-        raise ValueError("first-byte counter/event binding mismatch")
     return event

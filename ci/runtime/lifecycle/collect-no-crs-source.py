@@ -1298,28 +1298,15 @@ def canonical_semantics(
     # Completion/cleanup events describe lifecycle state, not the earlier
     # decision or the Host action. Preserve a single evidenced intervention;
     # never assemble that decision from unrelated rule/phase observations.
-    interventions = [
-        record for record in normalized_records
-        if record.get("event") in {"phase3_intervention", "phase4_intervention"}
-        and (expected_rule_id is None or str(record.get("rule_id")) == expected_rule_id)
-        and (expected_phase is None or record.get("phase") == expected_phase)
-    ]
     decision_fields = fields - {
         "body_bytes_seen", "body_bytes_inspected", "client_first_byte_received",
         "first_chunk_size", "upstream_paused", "upstream_eos_sent_at_first_byte",
         "first_byte_before_response_end", "upstream_response_finished_at_first_byte",
         "no_full_response_buffering",
     }
-    if any(record.get("event") in {"phase3_intervention", "phase4_intervention"}
-           for record in normalized_records):
-        for key in decision_fields:
-            output.pop(key, None)
-    if interventions:
-        decisions = [{key: value for key, value in record.items() if key in decision_fields}
-                     for record in interventions]
-        if any(decision != decisions[0] for decision in decisions[1:]):
-            return {}
-        output.update(decisions[0])
+    if not restore_intervention_decision(
+            output, normalized_records, decision_fields, expected_rule_id, expected_phase):
+        return {}
     # A genuine subsequent technical fault remains authoritative. This is not
     # a general last-event rule; retain the first evidenced technical failure.
     for record in normalized_records:
@@ -1332,6 +1319,30 @@ def canonical_semantics(
         snapshot_fields = fields - decision_fields
         output.update({key: value for key, value in snapshots[0].items() if key in snapshot_fields})
     return output
+
+
+def restore_intervention_decision(
+    output: dict[str, Any], records: list[dict[str, Any]], decision_fields: set[str],
+    expected_rule_id: str | None, expected_phase: int | None,
+) -> bool:
+    """Restore one matching decision, rejecting contradictory observations."""
+    interventions = [
+        record for record in records
+        if record.get("event") in {"phase3_intervention", "phase4_intervention"}
+        and (expected_rule_id is None or str(record.get("rule_id")) == expected_rule_id)
+        and (expected_phase is None or record.get("phase") == expected_phase)
+    ]
+    if any(record.get("event") in {"phase3_intervention", "phase4_intervention"}
+           for record in records):
+        for key in decision_fields:
+            output.pop(key, None)
+    if interventions:
+        decisions = [{key: value for key, value in record.items() if key in decision_fields}
+                     for record in interventions]
+        if any(decision != decisions[0] for decision in decisions[1:]):
+            return False
+        output.update(decisions[0])
+    return True
 
 
 def native_runner_core_case_alias(

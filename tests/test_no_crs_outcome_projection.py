@@ -46,6 +46,23 @@ class OutcomeProjectionTests(unittest.TestCase):
         self.assertEqual(COLLECTOR.canonical_semantics([
             {"visible_http_status": 200}]), {"visible_http_status": 200})
 
+    def test_conflicting_matching_decisions_fail_closed(self):
+        self.assertEqual(COLLECTOR.canonical_semantics([
+            self.intervention(), dict(self.intervention(), http_status=404)],
+            "1100301", 4), {})
+
+    def test_snapshot_restoration_preserves_first_fault_decision(self):
+        outcome = COLLECTOR.canonical_semantics([
+            self.intervention(),
+            {"transaction_id": "one", "client_first_byte_received": True,
+             "body_bytes_seen": 17, "body_bytes_inspected": 17},
+            {"transaction_id": "one", "status": "error", "http_status": 500,
+             "body_bytes_seen": 44},
+            {"transaction_id": "one", "status": "error", "http_status": 502}],
+            "1100301", 4)
+        self.assertEqual(outcome["http_status"], 500)
+        self.assertEqual(outcome["body_bytes_seen"], 17)
+
     def test_first_technical_error_keeps_priority(self):
         outcome = COLLECTOR.canonical_semantics([
             self.intervention(), {"event": "internal_error", "status": "error",

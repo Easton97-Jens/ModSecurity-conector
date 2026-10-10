@@ -57,6 +57,19 @@ class FirstByteBindingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "bytes changed"):
             verify_binding(self.binding, self.log, self.snapshot, self.root)
 
+    def test_invalid_position_precedes_changed_prefix(self):
+        self.log.write_text('{}\n')
+        for changes in ({"log_prefix_size": True}, {"event_index": False},
+                        {"log_prefix_size": 0}, {"event_index": -1}):
+            with self.subTest(changes=changes), self.assertRaisesRegex(
+                    ValueError, "^invalid first-byte event position$"):
+                verify_binding(dict(self.binding, **changes), self.log, self.snapshot, self.root)
+
+    def test_snapshot_mismatch_precedes_invalid_position(self):
+        self.snapshot.write_text('{}')
+        with self.assertRaisesRegex(ValueError, "^first-byte snapshot bytes changed$"):
+            verify_binding(dict(self.binding, event_index=-1), self.log, self.snapshot, self.root)
+
     def test_wrong_transaction_or_event_position_rejected(self):
         for changes in ({"transaction_id": "other"}, {"event_index": 1}):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
