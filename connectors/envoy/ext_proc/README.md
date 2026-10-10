@@ -2,6 +2,40 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
+## Go composite Common runtime and observed lifecycle
+
+The separately built `msconnector-composite --mode envoy` selects the canonical
+`envoy / ext_authz / envoy-ext-authz` identity with buffered requests and
+streaming responses. It uses the additive header-only buffered start,
+explicit request append/EOS, and the private Common response-companion session
+for P3/P4. Direct `envoy-ext-proc` defaults to streaming requests and responses;
+its explicit buffered-admission host profile is described below.
+
+The Go lease/context/deadline is checked before the native claim. Native
+expiry consumes ownership; consumed cleanup errors are not retried. Unresolved
+cleanup permanently faults the coordinator and closes admission for controlled
+restart. Terminal cleanup is guarded once and retains entry ownership until
+it completes. A real Common body-limit failure is mapped to 413 and recorded
+with the actual host action; terminal incomplete-body cleanup does not invent
+EOS or P2 rule evaluation.
+
+On 2026-10-03 the external run `p370efix.LLQmPm7g` passed the native build,
+344 named tagged tests with zero skips, C17 companion checks, direct real-Envoy
+traffic, and the Go composite lifecycle matrix. The focused corrected run
+`p370efu.Ggj72Jct` supplies the same-service failure/follow-up evidence.
+The matrix remains `lifecycle_only` with `catalog_acceptance=false`; P4 Strict
+is not promoted. This evidence applies to the Go executable and selected
+configuration, not to the retained C `ext_authz` route. Its existing
+`implemented_not_asserted` limitations remain.
+
+Source manifests, executable/library hashes, loaded-library observations,
+resource sampling, and cleanup outcomes are retained with the external runs.
+
+Complete G1–G9 acceptance for all nine non-NGINX profiles remains open;
+production readiness is not claimed. See the
+[Change Record](../../../reports/audits/change-records/CR-20261003-pr370-composite-common-runtime.md)
+for scope, commands and remaining gaps.
+
 This directory is a pinned Go implementation of Envoy's official
 `envoy.service.ext_proc.v3.ExternalProcessor` gRPC interface. It is separate
 from the existing C `ext_authz` service and does not change that selected,
@@ -107,7 +141,18 @@ a downstream client or upstream reset.
 The pinned dependency is the official generated Envoy Go API module in
 `go.mod`/`go.sum`. `../config/envoy-ext-proc-versions.env` records the intended
 Framework-synchronized Envoy release and `../config/envoy-ext-proc-streaming.yaml.in` uses
-only `STREAMED` body modes, never `BUFFERED`.
+only `STREAMED` body modes by default. The explicit
+`PROFILE=buffered-admission` rendering selects Envoy request `BUFFERED`, response
+`STREAMED`, and a 65536-byte listener buffer. Headers and trailers remain `SEND`.
+Common retains `request_body_mode=streaming`: Envoy delivers the admitted request
+as one EOS body callback. This profile holds upstream admission until the full
+request decision, including delayed downstream chunks. The direct qualification
+campaign uses this profile with a 32-byte Common request limit; the larger bounded
+host buffer lets the 33-byte overshoot reach Common for its native classification.
+The existing streaming profile remains available for its separate contract.
+When the response adapter discards an over-limit chunk, real body or trailer EOS
+finishes Common with an empty final callback. Discarded bytes never reach Common;
+cancellation before EOS keeps the native cancellation lifecycle.
 
 ## Dependency security floors
 

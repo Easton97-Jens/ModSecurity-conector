@@ -28,6 +28,7 @@
 #include "msconnector/late_intervention.h"
 #include "msconnector/limits.h"
 #include "msconnector/memory.h"
+#include "msconnector/rule_id.h"
 #include "msconnector/transaction_contract.h"
 
 #define SPOP_FRAME_MAX 65536U
@@ -4481,7 +4482,8 @@ static int copy_spop_bridge_decision(msconnector_decision *destination,
         return 0;
     }
     if (!msconnector_decision_is_disruptive(source)) {
-        if (source->kind != MSCONNECTOR_DECISION_KIND_ALLOW) {
+        if (source->kind != MSCONNECTOR_DECISION_KIND_ALLOW ||
+                source->rule_id != NULL) {
             msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
                 "SPOP response decision has an unsupported non-disruptive kind",
                 "haproxy-spoe-spop");
@@ -4490,7 +4492,7 @@ static int copy_spop_bridge_decision(msconnector_decision *destination,
         msconnector_decision_set_allow(destination);
         return 1;
     }
-    if (storage == NULL || source->rule_id != NULL || source->reason == NULL ||
+    if (storage == NULL || source->reason == NULL ||
             source->log_message != NULL || !source->intervention.disruptive ||
             source->intervention.status != source->http_status ||
             source->intervention.log_message != source->reason) {
@@ -4498,6 +4500,18 @@ static int copy_spop_bridge_decision(msconnector_decision *destination,
             "SPOP response decision has an unsupported borrowed-text shape",
             "haproxy-spoe-spop");
         return 0;
+    }
+    if (source->rule_id != NULL &&
+            (!copy_bridge_native_decision_text(storage->rule_id,
+                sizeof(storage->rule_id), source->rule_id) ||
+             !msconnector_rule_id_validate(storage->rule_id))) {
+        msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
+            "SPOP response rule ID is invalid or exceeds bounded storage",
+            "haproxy-spoe-spop");
+        return 0;
+    }
+    if (source->rule_id == NULL) {
+        storage->rule_id[0] = '\0';
     }
     if (!copy_bridge_native_decision_text(storage->log_message,
             sizeof(storage->log_message), source->reason)) {
@@ -4517,11 +4531,13 @@ static int copy_spop_bridge_decision(msconnector_decision *destination,
             return 0;
         }
         msconnector_decision_set_redirect(destination, source->http_status,
-            storage->redirect_url, NULL, storage->log_message);
+            storage->redirect_url, source->rule_id == NULL ? NULL : storage->rule_id,
+            storage->log_message);
     } else if (source->kind == MSCONNECTOR_DECISION_KIND_DENY &&
             source->redirect_url == NULL &&
             source->intervention.redirect_url == NULL) {
-        msconnector_decision_set_deny(destination, source->http_status, NULL,
+        msconnector_decision_set_deny(destination, source->http_status,
+            source->rule_id == NULL ? NULL : storage->rule_id,
             storage->log_message);
     } else {
         msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
@@ -4586,13 +4602,33 @@ static int set_bridge_native_decision(spop_bridge_task_context *context,
         msconnector_error_set(&context->error, MSCONNECTOR_ERROR_INTERNAL,
             "SPOP response decision storage is unavailable", "haproxy-spoe-spop");
         return 0;
-    } else if (strcmp(native_decision->action, "redirect") == 0) {
+    }
+    storage->rule_id[0] = '\0';
+    if (native_decision->rule_id < 0) {
+        msconnector_error_set(&context->error, MSCONNECTOR_ERROR_INTERNAL,
+            "SPOP response native rule ID is invalid", "haproxy-spoe-spop");
+        return 0;
+    }
+    if (native_decision->rule_id > 0) {
+        int written = snprintf(storage->rule_id, sizeof(storage->rule_id),
+            "%d", native_decision->rule_id);
+        if (written < 1 || (size_t)written >= sizeof(storage->rule_id)) {
+            msconnector_error_set(&context->error, MSCONNECTOR_ERROR_INTERNAL,
+                "SPOP response native rule ID exceeds bounded storage",
+                "haproxy-spoe-spop");
+            return 0;
+        }
+    }
+    if (strcmp(native_decision->action, "redirect") == 0) {
         msconnector_decision_set_redirect(&context->decision,
-            native_decision->status, storage->redirect_url, NULL,
+            native_decision->status, storage->redirect_url,
+            native_decision->rule_id == 0 ? NULL : storage->rule_id,
             storage->log_message);
     } else {
         msconnector_decision_set_deny(&context->decision,
-            native_decision->status, NULL, storage->log_message);
+            native_decision->status,
+            native_decision->rule_id == 0 ? NULL : storage->rule_id,
+            storage->log_message);
     }
     return 1;
 }

@@ -11,6 +11,28 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20261003-pr370-composite-common-runtime](CR-20261003-pr370-composite-common-runtime.de.md)
+  | English companion: `CR-20261003-pr370-composite-common-runtime.md` — angeforderte PR-#370-
+  Composite-Common/Runtime-Korrektur: verschobenes gepuffertes P2, kanonische
+  Go-Composite-Modi, fail-closed Claim-/Cleanup-Ownership und echte
+  Envoy-/Traefik-Lifecycle-Evidence. Katalogabnahme und vollständiges G1–G9
+  aller neun Profile bleiben offen; NGINX ist ausgeschlossen. Keine
+  Produktions-, Merge- oder Nachfolger-Sonar-Behauptung.
+
+- [CR-20261001-pr370-apache-rebuild-readiness](CR-20261001-pr370-apache-rebuild-readiness.de.md)
+  | English companion: `CR-20261001-pr370-apache-rebuild-readiness.md` —
+  angeforderter PR-#370-Merge-Vorbereitungs-Folgepatch: isoliertes Apache-
+  Wiederholungsbuild-/Retry-Staging, fail-fast Zweifach-Build-CI-Regressionen und
+  gepinnte HTTPD-Quellwiederherstellung. Enthält das ausdrücklich autorisierte
+  geprüfte Framework-PR-#133-Dependency-Update und seine exakten SHA-Projektionen.
+  Keine neue NGINX-Arbeit, kein Merge oder vollständiger Neun-Profil-G1–G9-/Readiness-B-Nachweis.
+
+- [CR-20261001-pr370-refresh-relevance](CR-20261001-pr370-refresh-relevance.de.md)
+  | English companion: `CR-20261001-pr370-refresh-relevance.md` — angeforderte
+  PR-#370-Relevanzprüfung und normale Current-Master-Integration gemäß aktueller
+  Traceability-Policy. Frische lokale Evidenz; Exact-Head-Delivery-Status im PR.
+  Kein Merge oder Readiness-B-Nachweis für alle zehn Profile.
+
 - [CR-20260919-submodule-updater-workflows-capability](CR-20260919-submodule-updater-workflows-capability.de.md)
   | English companion: `CR-20260919-submodule-updater-workflows-capability.md` —
   der aktuelle Benutzer hat diese Parent-only-Korrektur für GitHub-Actions-Lauf
@@ -30,8 +52,16 @@ angelegt werden.
   Pin-Boundary-Regression-Coverage und lässt Framework-/MRTS-Source, Gitlinks,
   Permissions, Hosted-Reruns und Merge-State unverändert.
 
+- [CR-20260919-readiness-b-shared-remediation](CR-20260919-readiness-b-shared-remediation.de.md)
+  | English companion: `CR-20260919-readiness-b-shared-remediation.md` — hält
+  die scoped Parent-only-Shared-Remediation für die Readiness-B-Arbeit über
+  zehn Integrationen fest. Er trennt beobachtete lokale Evidenz von der noch
+  unvollständigen Runtime- und Regelprofil-Evidenz über zehn Pfade; keine
+  Framework-/MRTS-/Gitlink-Änderung, kein Zehn-Pfad-B-Nachweis, kein
+  Envoy-Host-Ergebnis und kein Merge wird behauptet.
+
 - [CR-20260919-update-submodule-sha-projection](CR-20260919-update-submodule-sha-projection.de.md)
-  | English companion: CR-20260919-update-submodule-sha-projection.md — der
+  | English companion: `CR-20260919-update-submodule-sha-projection.md` — der
   aktuelle Benutzer hat diese Parent-only-Korrektur für den verlinkten
   GitHub-Actions-Run 35441775719 angefordert. Der Record hält die geschlossene
   Static-SHA-Projektionskorrektur und die fokussierte `python:S8786`-

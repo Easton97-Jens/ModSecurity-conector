@@ -1079,6 +1079,88 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
         self.assertIn("response_trailer_mode: SEND", template)
         self.assertIn('path: "@RESPONSE_OBSERVER_SOCKET@"', template)
 
+    def test_ext_authz_response_companion_profile_is_selected_and_complete(self) -> None:
+        runtime = EXT_AUTHZ_RUNTIME_PATH.read_text(encoding="utf-8")
+        rules = (
+            ROOT / "common" / "rules" / "modsecurity_response_companion_smoke.conf"
+        ).read_text(encoding="utf-8")
+        helper = load_helper()
+
+        self.assertIn(
+            'RESPONSE_COMPANION_RULES_FILE=$REPO_ROOT/common/rules/modsecurity_response_companion_smoke.conf',
+            runtime,
+        )
+        self.assertIn('if [ -z "${RULES_FILE:-}" ]; then', runtime)
+        self.assertIn('RULES_FILE=$RESPONSE_COMPANION_RULES_FILE', runtime)
+        self.assertIn('RULES_SOURCE=response_companion_default', runtime)
+        self.assertIn('RULES_FILE=$TARGETED_RULES_FILE', runtime)
+        self.assertIn('RULES_SOURCE=request_phase_default', runtime)
+        self.assertIn('RULES_SOURCE=operator', runtime)
+        self.assertLess(
+            runtime.index('case "$RESPONSE_PHASE_SMOKE" in'),
+            runtime.index('[ -f "$RULES_FILE" ]'),
+        )
+        self.assertIn('SecRule REQUEST_URI "@streq /phase3-block"', rules)
+        self.assertIn('chain', rules)
+        self.assertIn(
+            'SecRule RESPONSE_HEADERS:X-Modsec-Upstream "@streq block" "t:none"',
+            rules,
+        )
+
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), helper.UpstreamHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            p3_connection = http.client.HTTPConnection(
+                "127.0.0.1", server.server_port, timeout=2,
+            )
+            try:
+                p3_connection.request("GET", "/phase3-block")
+                p3_response = p3_connection.getresponse()
+                self.assertEqual(p3_response.status, 200)
+                self.assertEqual(p3_response.getheader("X-Modsec-Upstream"), "block")
+                self.assertEqual(p3_response.read(), b"envoy connector upstream ok\n")
+            finally:
+                p3_connection.close()
+
+            p4_connection = http.client.HTTPConnection(
+                "127.0.0.1", server.server_port, timeout=2,
+            )
+            try:
+                p4_connection.request("GET", "/phase4-marker")
+                p4_response = p4_connection.getresponse()
+                self.assertEqual(p4_response.status, 200)
+                self.assertEqual(
+                    p4_response.read(), b"no-crs-response-body-marker\n",
+                )
+            finally:
+                p4_connection.close()
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+    def test_ext_authz_protected_uri_cannot_be_overridden_by_request_headers(self) -> None:
+        profile = (
+            ROOT / "connectors" / "envoy" / "src" / "envoy_ext_authz_service_main.c"
+        ).read_text(encoding="utf-8")
+        template = EXT_AUTHZ_TEMPLATE.read_text(encoding="utf-8")
+
+        self.assertNotIn("envoy_original_uri_headers", profile)
+        self.assertIn(
+            '"envoy",\n    "ext_authz",\n    NULL,\n    NULL,\n    0U,',
+            profile,
+        )
+        self.assertNotIn("path_prefix: /auth", template)
+        self.assertIn("disallowed_headers:\n                patterns:", template)
+        for header in (
+            "x-envoy-original-path",
+            "x-forwarded-uri",
+            "x-original-uri",
+        ):
+            with self.subTest(header=header):
+                self.assertIn(f"- exact: {header}", template)
+
     def test_envoy_smokes_reject_unsafe_root_without_tls_cleanup(self) -> None:
         true_binary = shutil.which("true")
         self.assertIsNotNone(true_binary)
@@ -1101,6 +1183,7 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
                     "ENVOY_BIN": true_binary,
                     "SERVICE_BIN": true_binary,
                     "RESPONSE_OBSERVER_BIN": true_binary,
+                    "MSCONNECTOR_RESPONSE_PHASE_SMOKE": "1",
                 },
                 "RUNTIME_ROOT is unsafe for private runtime artifacts",
             ),

@@ -7,12 +7,18 @@ REPO_ROOT=$(CDPATH= cd "$CONNECTOR_DIR/../.." && pwd)
 . "$SCRIPT_DIR/lib/tls_yaml_render.sh"
 BUILD_ROOT=${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecurity-conector-build}
 TEMPLATE=${TEMPLATE:-$SCRIPT_DIR/envoy-ext-proc-streaming.yaml.in}
+PROFILE=${PROFILE:-streaming}
 VERSION_LOCK=${VERSION_LOCK:-$SCRIPT_DIR/envoy-ext-proc-versions.env}
 OUTPUT_CONFIG=${OUTPUT_CONFIG:-$BUILD_ROOT/envoy-ext-proc/config/envoy-ext-proc.streaming.yaml}
 LISTEN_PORT=${LISTEN_PORT:-18080}
 UPSTREAM_PORT=${UPSTREAM_PORT:-18081}
 EXT_PROC_PORT=${EXT_PROC_PORT:-18083}
 ADMIN_PORT=${ADMIN_PORT:-19001}
+case "$PROFILE" in
+    streaming) request_mode=STREAMED; listener_buffer='' ;;
+    buffered-admission) request_mode=BUFFERED; listener_buffer='    per_connection_buffer_limit_bytes: 65536' ;;
+    *) echo "envoy_ext_proc_config: unknown profile: $PROFILE" >&2; exit 2 ;;
+esac
 TLS_CERTIFICATE=${TLS_CERTIFICATE:-}
 TLS_PRIVATE_KEY=${TLS_PRIVATE_KEY:-}
 
@@ -93,6 +99,9 @@ envoy_release=$(sed -n 's/^ENVOY_RELEASE=//p' "$VERSION_LOCK")
 
 mkdir -p "$(dirname "$OUTPUT_CONFIG")"
 sed \
+    -e "s|request_body_mode: STREAMED|request_body_mode: $request_mode|" \
+    -e "/  - name: msconnector_ext_proc_listener/a\\
+$listener_buffer" \
     -e "s|@ENVOY_RELEASE@|$envoy_release|g" \
     -e "s|@LISTEN_PORT@|$LISTEN_PORT|g" \
     -e "s|@UPSTREAM_PORT@|$UPSTREAM_PORT|g" \

@@ -325,6 +325,41 @@ claim, P3/P4, TTL expiry, cancel, parallel transactions, stream reuse, and
 shutdown cleanup. Native host compilation and live transport evidence remain
 separate from these unit/component checks.
 
+## Deferred buffered request start and composite ownership
+
+`msconnector_runtime_transaction_begin_request_headers()` is additive: it
+opens P1 only when `request_body_mode=buffered`, `body.data == NULL`, and
+`body.size == 0`. The adapter must explicitly append bounded request chunks
+and call `msconnector_runtime_transaction_finish_request_body()` at EOS before
+P3 or companion handoff. Even an empty entity requires that EOS call. The
+ordinary `msconnector_runtime_transaction_begin()` continues to process the
+complete buffered entity, including an empty entity.
+
+A host rejecting an incomplete request with 413 uses
+`msconnector_runtime_transaction_finish_host_rejected_request_body()` for
+terminal logging and cleanup. This path does not fabricate request EOS or a P2
+decision and cannot replace normal body completion.
+
+The Go `msconnector-composite` executable selects only the closed Envoy or
+Traefik composite mode. Their canonical identities are respectively
+`envoy / ext_authz / envoy-ext-authz` and
+`traefik / forwardAuth / traefik-forwardauth`; both require buffered request
+and streaming response bodies. Direct `envoy / ext_proc / envoy-ext-proc`
+retains streaming request and response bodies. Unknown modes fail startup.
+
+The Go lease claim is validated, including its context and deadline, before
+the private Common companion claim. Both ownership layers share the bounded
+lease lifetime. Expiry consumes expired native state; a consumed cleanup
+error is never retried as though a native pointer remained valid. An unresolved
+native cleanup faults the coordinator, records failed cleanup, closes
+admission, and requires controlled restart. Shutdown retains entry ownership
+until the guarded terminal cleanup finishes.
+
+Fresh Go composite host evidence is recorded in
+[CR-20261003-pr370-composite-common-runtime](../../reports/audits/change-records/CR-20261003-pr370-composite-common-runtime.md).
+It does not promote legacy C-route statuses or establish complete G1–G9
+readiness for the nine non-NGINX profiles.
+
 ## Related references
 
 - [Common design](design.md)

@@ -2,6 +2,42 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
+## Go-Composite-Common-Runtime und beobachteter Lifecycle
+
+Das separat gebaute `msconnector-composite --mode envoy` wählt die kanonische
+Identität `envoy / ext_authz / envoy-ext-authz` mit gepufferten Requests und
+gestreamten Responses. Es verwendet den additiven gepufferten Header-Start,
+explizites Request-Append/EOS und die private Common-Response-Companion-Session
+für P3/P4. Direktes `envoy-ext-proc` behält gestreamte Requests und Responses.
+
+Go-Lease, Kontext und Deadline werden vor dem nativen Claim geprüft. Nativer
+Ablauf konsumiert die Ownership; konsumierte Cleanup-Fehler werden nicht
+wiederholt. Unaufgelöstes Cleanup versetzt den Coordinator dauerhaft in einen
+Fehlerzustand und sperrt die Aufnahme für kontrollierten Neustart. Terminales
+Cleanup ist einmalig geschützt und behält die Entry-Ownership bis zum
+Abschluss. Ein echter Common-Body-Limit-Fehler wird auf 413 abgebildet und mit
+der tatsächlichen Host-Aktion aufgezeichnet; terminales Cleanup eines
+unvollständigen Bodys erfindet weder EOS noch P2-Regelauswertung.
+
+Am 2026-10-03 bestand der externe Lauf `p370efix.LLQmPm7g` den nativen Build,
+344 benannte Tagged-Tests ohne Skips, C17-Companion-Prüfungen, direkten Verkehr
+mit echtem Envoy und die Go-Composite-Lifecycle-Matrix. Der korrigierte
+Fokuslauf `p370efu.Ggj72Jct` liefert Fehler-/Folgeanfrage-Evidence im selben
+Dienst. Die Matrix bleibt `lifecycle_only` mit
+`catalog_acceptance=false`; P4 Strict wird nicht hochgestuft. Diese Evidence
+gilt für das Go-Executable und die gewählte Konfiguration, nicht für die
+beibehaltene C-`ext_authz`-Route. Deren bestehende Einschränkungen
+`implemented_not_asserted` bleiben erhalten.
+
+Source-Manifeste, Executable-/Bibliothekshashes, Beobachtungen geladener
+Bibliotheken, Ressourcenmessungen und Cleanup-Ergebnisse bleiben bei den
+externen Läufen erhalten.
+
+Vollständige G1–G9-Abnahme aller neun Nicht-NGINX-Profile bleibt offen;
+Produktionsreife wird nicht behauptet. Siehe
+[Change Record](../../reports/audits/change-records/CR-20261003-pr370-composite-common-runtime.de.md)
+für Umfang, Befehle und verbleibende Lücken.
+
 
 Status: `minimal_runtime_smoke` / `connector-gap`
 
@@ -64,8 +100,10 @@ die Nichtförderungsbedingungen stehen im
 
 ## Quelllayout
 
-- `src/envoy_ext_authz_service_main.c` definiert das Envoy-Hostprofil,
-  Original-URI-Header-Präferenzen und den Service-Einstiegspunkt.
+- `src/envoy_ext_authz_service_main.c` definiert das Envoy-Hostprofil, das den
+  Zielwert der Autorisierungsanfrage auswertet und keine vom Client
+  gelieferten Original-URI-Override-Header konsumiert, sowie den
+  Service-Einstiegspunkt.
 - `src/envoy_modsecurity_mapper.c` enthält schlanke C17-Aufrufe an die
   generischen Common-Request- und Response-Mapper.
 - `config/envoy-ext-authz.conf` ist die eingecheckte Konfigurationsvorlage.
@@ -129,6 +167,14 @@ Loopback-HTTP-Dienst. Fehlende Binärdateien sind GESPERRT; Konfigurations-, Pro
 Zuordnungs- und Statusfehler lassen den Smoke fehlschlagen. Alle Prozesse werden bei
 Erfolg oder Misserfolg gestoppt.
 
+Wenn `MSCONNECTOR_RESPONSE_PHASE_SMOKE=1` ohne explizite `RULES_FILE` gesetzt
+ist, wählt der Smoke die eingecheckte P1/P3/P4-Response-Companion-Fixture. Ihr
+P3-Fall bindet `/phase3-block` und den vom Upstream erzeugten Response-Header
+`X-Modsec-Upstream: block`; ihre P4-Fixture liefert den begrenzten Marker. Eine
+explizite `RULES_FILE` bleibt eine Bedienerwahl. Dies stellt nur einen
+Source-/Harness-Vertrag wieder her; ein echter Envoy-Lauf bleibt für
+Host-Evidenz erforderlich.
+
 Für einen vom Bediener gesteuerten Vordergrunddienst:
 
 ```sh
@@ -137,10 +183,16 @@ make -C connectors/envoy serve-envoy-connector \
   LISTEN_ADDRESS=127.0.0.1 LISTEN_PORT=18082
 ```
 
-Die Vorlagenkonfiguration ermöglicht die Anforderungsverarbeitung und verwendet `x-request-id` als Host
-Transaktions-ID-Header, begrenzt den Anforderungstext auf 4096 Bytes und deaktiviert den Antworttext
-Verarbeitung, verwendet 403/500-Block-/Fehler-Standardwerte, wendet explizite Header/Ereignisse an
-begrenzt und schreibt JSONL, das nur Metadaten enthält, außerhalb des Checkouts.
+Die Vorlagenkonfiguration ermöglicht die Anforderungsverarbeitung, verwendet
+`x-request-id` als Host-Transaktions-ID-Header, begrenzt den Anforderungstext
+auf 4096 Bytes, verwendet 403/500-Block-/Fehler-Standardwerte, wendet
+explizite Header-/Ereignisgrenzen an und schreibt nur Metadaten enthaltendes
+JSONL außerhalb des Checkouts. Ihre HTTP-Autorisierungsanfrage hat keinen
+Callback-Pfadpräfix, sodass Envoy das geschützte Downstream-Request-Ziel als
+`Path` liefert; Profil und Vorlage weisen `x-envoy-original-path`,
+`x-forwarded-uri` und `x-original-uri` als Policy-Selection-Inputs zurück. Der
+direkte Dienst erhält selbst keine Response-Bodies; der verpflichtende
+Response-Observer behandelt P3/P4.
 
 Der unabhängige ext_proc-Volllebenszyklusdienst verfügt über eigene Befehle. Es ist
 Eine normale ausführbare Datei erfordert explizite libmodsecurity-Header und Bibliothekspfade:

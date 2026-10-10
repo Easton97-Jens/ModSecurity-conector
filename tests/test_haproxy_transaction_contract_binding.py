@@ -1,6 +1,7 @@
 """Focused source contract checks for the HAProxy transaction adapter."""
 
 import os
+import runpy
 import shutil
 import subprocess
 import tempfile
@@ -256,8 +257,17 @@ def test_spop_request_id_parser_validates_length_delimited_bytes_before_copy() -
     assert "A\\0X" in parser
     assert "A" in parser
     assert "UUID" in parser
-    assert "run_spop_request_id_validation_self_test" in spop_source
-    assert '"SPOP request-id validation self-test failed\\n"' in spop_source
+    protocol_tests = spop_source[spop_source.index(
+        "static int run_spop_protocol_self_tests(") : spop_source.index(
+        "typedef struct spop_self_test_context")]
+    assert "run_spop_request_id_validation_self_test() != 0 ||" in protocol_tests
+    assert "return -1;" in protocol_tests
+    self_test = spop_source[spop_source.index("static int run_self_test(") :
+        spop_source.index("static void stop_response_transport_or_exit(")]
+    failure = self_test[self_test.index("if (run_spop_protocol_self_tests() != 0)") :
+        self_test.index("if (prepare_spop_self_test(")]
+    assert '"SPOP protocol self-test failed\\n"' in failure
+    assert "return 1;" in failure
 
 
 def test_spop_response_body_chunks_do_not_finalize_without_transport_eos() -> None:
@@ -609,6 +619,7 @@ def test_spop_delayed_owner_lifetime_harness_is_asan_ubsan_clean() -> None:
                 "-Icommon/runtime",
                 "-Iconnectors/haproxy/src",
                 "tests/haproxy_spop_response_companion_lifetime_test.c",
+                "common/src/rule_id.c",
                 "common/src/decision.c",
                 "common/src/error.c",
                 "common/src/intervention.c",
@@ -649,17 +660,45 @@ def test_spop_stop_failure_exits_without_releasing_worker_owned_state() -> None:
         / "src"
         / "haproxy_spop_diagnostic_runtime.c"
     ).read_text(encoding="utf-8")
-    start = spop_source.index("static int destroy_agent_runtime(")
-    end = spop_source.index("static int run_agent_server(", start)
-    cleanup = spop_source[start:end]
-    stop = cleanup.index("spop_transport_stop_bounded")
-    failure = cleanup.index("event=spop-response-transport-shutdown-failed")
-    terminal = cleanup[failure:cleanup.index("    }\n", failure)]
+    start = spop_source.index("static void stop_response_transport_or_exit(")
+    end = spop_source.index("static void destroy_agent_owner_queue_or_exit(", start)
+    transport_cleanup = spop_source[start:end]
+    stop = transport_cleanup.index("spop_transport_stop_bounded")
+    failure = transport_cleanup.index("event=spop-response-transport-shutdown-failed")
+    terminal = transport_cleanup[failure:transport_cleanup.index("    }\n", failure)]
     assert "_Exit(SPOP_OWNER_RESTART_EXIT_CODE);" in terminal
     assert "close_owned_stream" not in terminal
     assert "haproxy_spop_response_companion_backend_expire" not in terminal
     assert "spop_owner_queue_destroy(state)" not in terminal
     assert stop < failure
+    start = spop_source.index("static int destroy_agent_runtime(")
+    end = spop_source.index("static int run_agent_server(", start)
+    cleanup = spop_source[start:end]
+    stop = cleanup.index("stop_response_transport_or_exit(state);")
+    for release in ("expire_agent_response_backend(state);",
+            "destroy_agent_owner_queue_or_exit(state);",
+            "destroy_agent_response_backend_or_exit(state);",
+            "transaction_cache_destroy(state);",
+            "haproxy_modsecurity_engine_destroy(state->engine);",
+            "cleanup_failed |= close_agent_owned_streams("):
+        assert stop < cleanup.index(release)
+
+
+def test_htx_checker_extracts_definition_after_forward_declaration() -> None:
+    checker = runpy.run_path(str(Path(__file__).resolve().parents[1] /
+        "ci/checks/connectors/haproxy/check-haproxy-htx-overlay.py"))
+    extract = checker["function_body"]
+    source = "static int finish(int x);\nstatic int other(void) { return 0; }\nstatic int finish(int x) { if (x) { return 1; } return 0; }"
+    assert extract(source, "static int finish(") == (
+        "static int finish(int x) { if (x) { return 1; } return 0; }")
+    for invalid in ("static int finish(int x);", source +
+            "\nstatic int finish(int x) { return x; }"):
+        try:
+            extract(invalid, "static int finish(")
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("missing or duplicate definition accepted")
 
 
 def test_htx_early_response_uses_common_phase_error_path() -> None:

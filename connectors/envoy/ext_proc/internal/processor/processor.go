@@ -183,6 +183,13 @@ type Transaction interface {
 	Close(context.Context, Summary)
 }
 
+// ResponseCompanionClaimer is optional. The authenticated one-shot lease
+// coordinator calls it before accepting a response claim, never from a token
+// supplied directly to the native bridge.
+type ResponseCompanionClaimer interface {
+	ClaimResponseCompanion(context.Context) error
+}
+
 // CleanupFailureReporter is an optional transaction capability. Native
 // cleanup cannot safely free a transaction while another native call owns the
 // engine mutex; implementations report that bounded cleanup failure so the
@@ -232,6 +239,13 @@ type HostAction struct {
 // never a prospective decision or a failed gRPC send.
 type HostActionRecorder interface {
 	RecordHostAction(context.Context, HostAction) error
+}
+
+// BodyLimitDecisionOwner evaluates bounded request chunks through its native
+// body budget even when the adapter's cumulative ceiling was just exceeded.
+// This establishes a real pending native decision before host confirmation.
+type BodyLimitDecisionOwner interface {
+	OwnsBodyLimitDecisions()
 }
 
 // Observer receives metadata-only stream completion records. It must never
@@ -840,6 +854,7 @@ func (state *streamState) handleHeaders(ctx context.Context, direction Direction
 	}
 
 	decision := limitDecision
+	engineDecision := decision.Action == ActionAllow
 	if decision.Action == ActionAllow {
 		decision, err = state.processHeaders(ctx, direction, headers, message.GetEndOfStream())
 		if err != nil {
@@ -847,7 +862,11 @@ func (state *streamState) handleHeaders(ctx context.Context, direction Direction
 		}
 	}
 	state.recordHeaderProgress(direction, headers, message.GetEndOfStream())
-	return state.responseForDecision(headerPhase(direction), decision, state.responseDone)
+	response, terminal, err := state.responseForDecision(headerPhase(direction), decision, state.responseDone)
+	if !engineDecision {
+		state.pendingHostAction = nil
+	}
+	return response, terminal, err
 }
 
 func (state *streamState) recordHeaderArrival(direction Direction) error {
@@ -910,16 +929,43 @@ func (state *streamState) handleBody(ctx context.Context, direction Direction, m
 
 	body := message.GetBody()
 	decision := state.bodyLimitDecision(direction, len(body))
-	if decision.Action == ActionAllow {
+	engineDecision := decision.Action == ActionAllow
+	_, nativeBudget := state.transaction.(BodyLimitDecisionOwner)
+	// Keep the chunk/allocation ceiling hard. Only one bounded cumulative
+	// overshoot can reach Common, which owns its own limit classification.
+	requestOvershoot := nativeBudget && direction == DirectionRequest && len(body) <= state.config.MaxBodyChunkBytes
+	if engineDecision || requestOvershoot {
 		processedDecision, err := state.processBody(ctx, direction, body, message.GetEndOfStream())
 		if err != nil {
 			return nil, false, err
 		}
-		decision = processedDecision
+		if engineDecision || processedDecision.disruptive() {
+			decision = processedDecision
+			engineDecision = true
+		}
+	}
+	// An adapter-discarded response chunk still carries the real EOS. Finish
+	// Common's accepted prefix without admitting the discarded payload; leaving
+	// it unfinished would falsely classify ordinary EOS as client cancellation.
+	if !engineDecision && direction == DirectionResponse && message.GetEndOfStream() {
+		processedDecision, err := state.processBody(ctx, direction, nil, true)
+		if err != nil {
+			return nil, false, err
+		}
+		if processedDecision.disruptive() {
+			decision = processedDecision
+			engineDecision = true
+		}
 	}
 
 	state.recordBodyProgress(direction, len(body), message.GetEndOfStream())
-	return state.responseForDecision(bodyPhase(direction), decision, state.responseDone)
+	response, terminal, err := state.responseForDecision(bodyPhase(direction), decision, state.responseDone)
+	if !engineDecision {
+		// An adapter-only rejection has no pending Common intervention. It
+		// must not masquerade as a successfully applied native decision.
+		state.pendingHostAction = nil
+	}
+	return response, terminal, err
 }
 
 func (state *streamState) validateBodyOrder(direction Direction) error {

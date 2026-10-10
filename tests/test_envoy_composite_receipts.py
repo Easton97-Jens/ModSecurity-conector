@@ -1,6 +1,11 @@
 from __future__ import annotations
 
 import unittest
+import json
+import os
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
 
 
@@ -9,6 +14,53 @@ HARNESS = ROOT / "connectors" / "envoy" / "harness" / "run_envoy_composite_matri
 
 
 class EnvoyCompositeReceiptContractTest(unittest.TestCase):
+    def test_follow_up_binds_independent_upstream_receipts(self) -> None:
+        source = HARNESS.read_text(encoding="utf-8")
+        follow_up = source.split("run_follow_up_case() {", 1)[1].split("# No X-Request-Id", 1)[0]
+        self.assertIn('start_catalog_upstream "$2" "$case_dir/upstream.stdout.log" "$case_dir/upstream.stderr.log" 0 "$follow_up_request_observation" "$follow_up_response_observation"', follow_up)
+        deny_check = 'check_follow_up_upstream "$follow_up_request_observation" "$follow_up_response_observation" not_reached'
+        allow_check = 'check_follow_up_upstream "$follow_up_request_observation" "$follow_up_response_observation" response_observed'
+        self.assertLess(follow_up.index(deny_check), follow_up.index('allow_status=$('))
+        self.assertLess(follow_up.index(allow_check), follow_up.index('cleanup || fail'))
+        self.assertIn('"$follow_up_response_observation" "$case_config" "$allow_probe" response_observed', follow_up)
+
+    def test_follow_up_receipt_validator_rejects_missing_unsafe_or_false_receipts(self) -> None:
+        source = HARNESS.read_text(encoding="utf-8")
+        validator = source.split("check_follow_up_upstream() {", 1)[1].split("<<'PY'\n", 1)[1].split("\nPY", 1)[0]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            request, response = root / "request.json", root / "response.json"
+            def check(state: str) -> subprocess.CompletedProcess[str]:
+                return subprocess.run([sys.executable, "-", str(request), str(response), state], input=validator, text=True, capture_output=True)
+            self.assertEqual(check("not_reached").returncode, 0)
+            self.assertNotEqual(check("response_observed").returncode, 0)
+            for path, observed in ((request, False), (response, True)):
+                path.write_text(json.dumps({"request_observed": True, "response_observed": observed, "composite_lease_header_present": False}), encoding="ascii")
+                os.chmod(path, 0o600)
+            valid_result = check("response_observed")
+            self.assertEqual(valid_result.returncode, 0, valid_result.stderr)
+            self.assertNotEqual(check("not_reached").returncode, 0)
+            hardlink = root / "response-hardlink.json"
+            os.link(response, hardlink)
+            self.assertNotEqual(check("response_observed").returncode, 0)
+            hardlink.unlink()
+            self.assertEqual(check("response_observed").returncode, 0)
+            response.write_text(json.dumps({"request_observed": True, "response_observed": 1, "composite_lease_header_present": False}), encoding="ascii")
+            self.assertNotEqual(check("response_observed").returncode, 0)
+            response.write_text(json.dumps({"request_observed": True, "response_observed": True, "composite_lease_header_present": True}), encoding="ascii")
+            self.assertNotEqual(check("response_observed").returncode, 0)
+            response.write_text(json.dumps({"request_observed": True, "response_observed": True, "composite_lease_header_present": False}), encoding="ascii")
+            os.chmod(response, 0o644)
+            self.assertNotEqual(check("response_observed").returncode, 0)
+            os.chmod(response, 0o600)
+            response.write_text('{"request_observed":true,"response_observed":false,"composite_lease_header_present":false}', encoding="ascii")
+            self.assertNotEqual(check("response_observed").returncode, 0)
+            response.write_text("x" * 1025, encoding="ascii")
+            self.assertNotEqual(check("response_observed").returncode, 0)
+            response.unlink()
+            response.symlink_to(request)
+            self.assertNotEqual(check("response_observed").returncode, 0)
+
     def test_real_cases_bind_receipts_to_started_runtime_inputs(self) -> None:
         source = HARNESS.read_text(encoding="utf-8")
 
@@ -51,7 +103,7 @@ class EnvoyCompositeReceiptContractTest(unittest.TestCase):
         )
         self.assertIn('maximum_bytes = 256 * 1024', source)
         self.assertIn('maximum_line_bytes = 16 * 1024', source)
-        self.assertIn('os.O_RDONLY | no_follow', source)
+        self.assertIn('os.O_RDONLY | no_follow | non_block', source)
         self.assertIn('MAX_EVENT_LOG_BYTES = 256 * 1024', source)
         self.assertIn('check_client_probe "$case_probe"', source)
         self.assertIn('upstream-request-observation.json', source)

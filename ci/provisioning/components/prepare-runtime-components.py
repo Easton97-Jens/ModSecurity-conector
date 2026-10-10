@@ -329,7 +329,8 @@ FRAMEWORK_GUARD_RUNTIME_ROOT_ENV_KEYS = (
     "MRTS_NATIVE_ROOT",
 )
 APR_UTIL_VERSION_RE = re.compile(r"\d+(?:\.\d+)+", re.ASCII)
-APR_UTIL_SHA256_RE = re.compile(r"[0-9a-f]{64}")
+LOWERCASE_SHA256_RE = re.compile(r"[0-9a-f]{64}")
+APR_UTIL_SHA256_RE = LOWERCASE_SHA256_RE
 SHELL_QUOTED_ENV_RE = re.compile(r"([A-Z_][A-Z0-9_]*)='([^']*)'")
 GIT_STATUS_SHORT_ARGS = (
     "status",
@@ -2830,7 +2831,7 @@ def download_archive_if_needed(
         expected_sha=expected_sha,
         verify_digest_before_archive_list=verify_digest_before_archive_list,
     ):
-        return
+        return None
     if path.exists():
         remove_archive_path(path, cache_root)
     if cache_root is not None:
@@ -2946,6 +2947,11 @@ def prepare_archive_unlocked(
         verify_digest_before_archive_list=verify_digest_before_archive_list,
         allow_httpd_source_recovery=allow_httpd_source_recovery,
     )
+    if name == "httpd":
+        record.update(
+            download_url=acquired_url or "",
+            download_status="downloaded" if acquired_url is not None else "cached",
+        )
     if acquired_url is not None:
         record["download_url"] = acquired_url
         if acquired_url != url:

@@ -42,12 +42,19 @@ static_resources:
                 - exact: content-type
                 - exact: x-modsec-smoke
                 - exact: x-request-id
+              # The protected request target is the HTTP authorization
+              # request's Path. Never let a downstream-provided URI hint
+              # become a policy-selection input for this profile.
+              disallowed_headers:
+                patterns:
+                - exact: x-envoy-original-path
+                - exact: x-forwarded-uri
+                - exact: x-original-uri
               http_service:
                 server_uri:
                   uri: http://127.0.0.1:@AUTHZ_PORT@
                   cluster: ext_authz
                   timeout: 1s
-                path_prefix: /auth
                 authorization_response:
                   # The authorization service creates this opaque, one-time
                   # capability server-side.  It goes only to the following

@@ -875,6 +875,39 @@ PY
     envoy_pid=; service_pid=; upstream_pid=; envoy_start_token=; service_start_token=; upstream_start_token=
 }
 
+check_follow_up_upstream() {
+    "$PYTHON_BIN" - "$1" "$2" "$3" <<'PY'
+import json, os, pathlib, stat, sys
+request, response = map(pathlib.Path, sys.argv[1:3])
+state = sys.argv[3]
+if state == "not_reached":
+    if any(os.path.lexists(path) for path in (request, response)):
+        raise SystemExit("follow-up deny unexpectedly reached upstream")
+elif state == "response_observed":
+    no_follow = getattr(os, "O_NOFOLLOW", 0)
+    non_block = getattr(os, "O_NONBLOCK", 0)
+    if not no_follow:
+        raise SystemExit("follow-up receipt requires O_NOFOLLOW")
+    for path, completed in ((request, False), (response, True)):
+        descriptor = os.open(path, os.O_RDONLY | no_follow | non_block)
+        with os.fdopen(descriptor, "rb") as stream:
+            info = os.fstat(stream.fileno())
+            if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                    or info.st_nlink != 1 or stat.S_IMODE(info.st_mode) != 0o600):
+                raise SystemExit("follow-up receipt is not an owner-only regular file")
+            raw = stream.read(1025)
+        if len(raw) > 1024:
+            raise SystemExit("follow-up receipt exceeds bounded metadata limit")
+        value = json.loads(raw)
+        expected = {"request_observed": True, "response_observed": completed,
+                    "composite_lease_header_present": False}
+        if value != expected or any(type(value[key]) is not bool for key in expected):
+            raise SystemExit("follow-up upstream receipt has unexpected metadata")
+else:
+    raise SystemExit("unsupported follow-up upstream observation state")
+PY
+}
+
 run_follow_up_case() {
     case_id=follow_up_control
     case_dir="$RUNTIME_ROOT/cases/$case_id"; ensure_directory "$case_dir" || fail "unsafe case directory: $case_id"
@@ -882,7 +915,9 @@ run_follow_up_case() {
     deny_probe="$case_dir/deny-probe.json"; allow_probe="$case_dir/allow-probe.json"
     deny_log="$case_dir/p1-deny.events.jsonl"; allow_log="$case_dir/p1-allow.events.jsonl"
     summary="$case_dir/follow-up-summary.json"; case_config="$case_dir/envoy.yaml"
-    for artifact in "$case_event_log" "$deny_probe" "$allow_probe" "$deny_log" "$allow_log" "$summary" "$case_config"; do
+    follow_up_request_observation="$case_dir/upstream-request-observation.json"
+    follow_up_response_observation="$case_dir/upstream-response-observation.json"
+    for artifact in "$case_event_log" "$deny_probe" "$allow_probe" "$deny_log" "$allow_log" "$summary" "$case_config" "$follow_up_request_observation" "$follow_up_response_observation"; do
         within_runtime "$artifact"; [ ! -L "$artifact" ] || fail "symlink artifact: $artifact"; rm -f "$artifact"
     done
     set -- $($PYTHON_BIN "$HELPER" free-ports --count 4)
@@ -891,7 +926,7 @@ run_follow_up_case() {
     "$ENVOY_BIN" --mode validate -c "$case_config" --base-id "$(($1 + $4))" --disable-hot-restart \
         >"$case_dir/envoy-validate.stdout.log" 2>"$case_dir/envoy-validate.stderr.log" ||
         fail "Envoy rejected config for case $case_id"
-    start_catalog_upstream "$2" "$case_dir/upstream.stdout.log" "$case_dir/upstream.stderr.log"
+    start_catalog_upstream "$2" "$case_dir/upstream.stdout.log" "$case_dir/upstream.stderr.log" 0 "$follow_up_request_observation" "$follow_up_response_observation"
     "$COMPOSITE_BIN" --mode envoy --listen "127.0.0.1:$3" --runtime-config "$COMPOSITE_RUNTIME_CONFIG" \
         --event-log "$case_event_log" >"$case_dir/composite.stdout.log" 2>"$case_dir/composite.stderr.log" &
     service_pid=$!; service_start_token=$(start_token "$service_pid") || fail "composite ownership unavailable"
@@ -908,6 +943,7 @@ run_follow_up_case() {
     set -e
     [ "$deny_rc" -eq 0 ] || fail "follow-up deny probe failed"
     [ "$deny_status" = 403 ] || fail "follow-up deny status was not 403: $deny_status"
+    check_follow_up_upstream "$follow_up_request_observation" "$follow_up_response_observation" not_reached || fail "follow-up deny upstream evidence failed"
     set +e
     allow_status=$("$PYTHON_BIN" "$HELPER" probe --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
         --url "https://127.0.0.1:$1/vector/allow" --method GET --no-redirect --evidence-path "$allow_probe")
@@ -915,6 +951,16 @@ run_follow_up_case() {
     set -e
     [ "$allow_rc" -eq 0 ] || fail "follow-up allow probe failed"
     [ "$allow_status" = 200 ] || fail "follow-up allow status was not 200: $allow_status"
+    # The backend flushes its response before fsyncing the metadata receipt.
+    # Bound the wait for that independent observation rather than infer it
+    # from the client status or lifecycle events.
+    receipt_attempt=0
+    while ! check_follow_up_upstream "$follow_up_request_observation" "$follow_up_response_observation" response_observed 2>/dev/null; do
+        receipt_attempt=$((receipt_attempt + 1))
+        [ "$receipt_attempt" -lt 20 ] || fail "follow-up allow upstream receipt timeout"
+        sleep 0.1
+    done
+    check_follow_up_upstream "$follow_up_request_observation" "$follow_up_response_observation" response_observed || fail "follow-up allow upstream evidence failed"
     cleanup || fail "bounded cleanup failed for case $case_id"
     "$PYTHON_BIN" - "$case_event_log" "$deny_log" "$allow_log" "$summary" <<'PY'
 import json, os, pathlib, sys
@@ -953,7 +999,7 @@ PY
     check_event_log "$deny_log" "$case_dir/p1-deny-structural.json" follow_up_p1_deny || fail "follow-up deny evidence failed"
     check_event_log "$allow_log" "$case_dir/p1-allow-structural.json" follow_up_p1_allow || fail "follow-up allow evidence failed"
     write_case_record "$case_dir/p1-deny-case-input.json" follow_up_p1_deny P1 "$deny_status" "$deny_log" "$deny_probe" "$case_dir/p1-deny-structural.json" same_service_process_two_sequential_requests "" "$case_config" "$deny_probe" not_reached
-    write_case_record "$case_dir/p1-allow-case-input.json" follow_up_p1_allow P1 "$allow_status" "$allow_log" "$allow_probe" "$case_dir/p1-allow-structural.json" same_service_process_two_sequential_requests "" "$case_config" "$allow_probe" not_reached
+    write_case_record "$case_dir/p1-allow-case-input.json" follow_up_p1_allow P1 "$allow_status" "$allow_log" "$allow_probe" "$case_dir/p1-allow-structural.json" same_service_process_two_sequential_requests "$follow_up_response_observation" "$case_config" "$allow_probe" response_observed
     envoy_pid=; service_pid=; upstream_pid=; envoy_start_token=; service_start_token=; upstream_start_token=
 }
 

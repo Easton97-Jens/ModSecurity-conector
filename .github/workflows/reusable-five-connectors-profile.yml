@@ -211,7 +211,11 @@ jobs:
           CONNECTOR: ${{ matrix.connector }}
         run: |
           set -euo pipefail
-          make "build-$CONNECTOR"
+          if [ "$CONNECTOR" = envoy ]; then
+            ENVOY_EXT_PROC_COMMON_TEST=1 make "build-$CONNECTOR"
+          else
+            make "build-$CONNECTOR"
+          fi
 
       - name: Validate configuration load
         env:
