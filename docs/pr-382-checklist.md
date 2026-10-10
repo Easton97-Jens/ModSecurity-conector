@@ -4,15 +4,15 @@
 
 [Draft PR #382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382),
 branch `fix/unified-native-results-events-20260921`, base
-`5170d24801243cdcd7bf1bca6123bf8cb2c72386`. Updated: 2026-10-05.
-The branch is synchronized through current `master` `820b6975495bdf0f90aca67eee86e27a3b7d329b` via merge commit `dfd5e5b1`; it is no longer behind `master`.
+`5170d24801243cdcd7bf1bca6123bf8cb2c72386`. Updated: 2026-10-10.
+Historical 2026-10-05 stack readback: the branch was synchronized through then-current `master` `820b6975495bdf0f90aca67eee86e27a3b7d329b` via merge commit `dfd5e5b1`, with no commits behind at that readback.
 
 **I09 and I10 are not yet reduced to live-host proof alone.** Completed code,
 executed compiled tests, pending native tests and actual host evidence remain
 separate. The Apache module subset is now implemented and must not remain
 listed as an untouched intervention/initialization/audit defect.
 
-Latest published test repair: `7d05e89fc12dca64c7129553d0c83157e956e0f3`.
+Historical published test repair (2026-10-05): `7d05e89fc12dca64c7129553d0c83157e956e0f3`.
 Its Sonar analysis confirms zero findings and displayed 0.0% new duplication.
 Its complete native Envoy job has now passed, including actual Common/libModSecurity
 and libmodsecurity-tagged Go tests (V20/V25). The date-field and paired-checklist
@@ -30,7 +30,60 @@ References: [contract/migration](pr-382-event-contract.md),
 [Envoy native test repair](../reports/audits/change-records/CR-20260923-pr382-envoy-test-boundaries.md).
 
 
-### 2026-10-05 stack and conflict reconciliation
+## 2026-10-10 downstream NGINX-H1 system evidence from PR #396
+
+This is a downstream NGINX-H1 system evidence reference from PR #396, not a
+runtime test of the unchanged PR #382 product revision. The documentation base
+is `2a5704f82fdae4ba75902eb3f4244225838e1747`; this reference neither integrates
+the tested #396 code nor changes its Gitlinks.
+
+| Binding | Observed value |
+| --- | --- |
+| Tested Parent | `777a244f0689c320475b030b9e7adbb3192febbe` |
+| Tested Framework | `9f41f80db7bf53b57429457bce0dda675d2ec5d7` (PR #137) |
+| Tested MRTS | `8a6bb546c4c81d8ffc7be801dceac60c6925685f` |
+| Run / date (UTC) | `nginx_full97_777a_20261010_r16` / 2026-10-10 |
+| Standard target | `make full-lifecycle-nginx` through the isolated RTK-wrapped supervisor |
+| Concrete local test system | Ubuntu 26.04.1 LTS; kernel 7.0.0-38-generic; x86_64; KVM (actual host readback); GCC 15.2.0; Python 3.14.7; NGINX 1.31.6 |
+| Isolation / identities | Private mount/PID/network namespaces; loopback; actual Root master UID 0 / nobody worker UID 65534 |
+| Original Canonical / schema | `PASS`; 97/97 selected Required-PASS; both schema error lists empty |
+| Remaining inventory | 34 unselected `NOT_EXECUTED`, 35 `NOT_APPLICABLE`; no selected non-PASS record |
+| Direct measured completions | 13 completions for nine exact scripts, all exit 0, no signals |
+| First-Byte writer | `write-first-byte-source-results.py`: exactly one direct Child wait, exit 0; invocation `1d65c03b1453430eaeede8c1271dd487` |
+| Make / supervisor / collector / validator | 0 / 0 / 0 / 0 |
+| Actual HTTP operations | 79 non-readiness requests: 75 primary/fault requests plus four parser controls; 17 readiness probes counted separately |
+| Other actual operations | 61 server lifecycles / 61 cleanup observations; 17 reloads; 10 config operations (nine specific rejections exit 1, one accepted startup exit 0) |
+| Binding observations | 57 fresh root-owned direct projection children; 43 native invocation receipts for 42 native Required records; 24 worker Engine/module mappings |
+| Runtime checksum ledger SHA256 | `2c35f93c059dd80bbe84bb158f52bff3bfbe97b81d44379e53ecb3e2bce0e246` |
+| Source / ledger verification | 3552 source-file hashes unchanged; runtime ledger 2514 entries, independent checksum check exit 0 |
+
+Public summaries: [PR #396 R16 result](https://github.com/Easton97-Jens/ModSecurity-conector/pull/396#issuecomment-6100868299)
+and [Framework PR #137 scope](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/137#issuecomment-6100868488).
+
+**Local acceptance remains BLOCKED by a measurement gap:** the generic H1
+Strict curl process's exact numeric exit was not persisted. Its failure is
+known to be nonzero, but the diagnostic number `52` is not proof of exit 52.
+This is distinct from the native Strict driver and its expected incomplete-read
+evidence. Canonical PASS and measured writer exits do not close that missing
+direct client-status requirement. PR #396 therefore remains Draft; no overall
+local E2E acceptance PASS or Ready transition is claimed here.
+
+Raw evidence and per-record mapping are retained locally below
+`/var/tmp/codex/ModSecurity-conector/analysis/nginx-full97-777a244f-20261010T181030Z`
+and its separate task runtime root. Local files are not downloadable GitHub
+artifacts; the public PR report is a summary, not the raw bundle. Historical R15
+retains its original Canonical PASS and separate First-Byte-writer measurement
+gap; this fresh run does not rewrite it.
+
+This proves only the observed NGINX-H1 contracts on that concrete local system.
+It is not H2/H3, CRS, Off, all-platform, production, cross-connector or Protected
+Exact-Head acceptance. Broad I09-I12 and V08-V10 remain open. Framework PR #137's
+review readiness is evaluated separately; neither PR is merged by this reference.
+Soft-budget cases prove overrun detection after the engine returns, not hard
+cancellation of a hanging engine. Transport short-write/EAGAIN observations do
+not prove physical event-log sink short-write.
+
+### Historical 2026-10-05 stack and conflict reconciliation
 
 - [x] `master` was merged into PR #382 without force-push. Twelve overlapping files were reconciled semantically: current master CI/security changes were retained together with PR #382 native-result, first-error, Apache lifecycle, NGINX terminal-error and Envoy native-bridge contracts.
 - [x] The resulting PR #382 head `dfd5e5b1` was read back as `mergeable=true`, `behind=0`; PR #382 remains Draft and unmerged.
@@ -68,6 +121,7 @@ References: [contract/migration](pr-382-event-contract.md),
 - [x] I11d: Runtime retains original event errors with NULL output, prevents failed-write retry and completion/snapshot masking, and preserves hash advancement rules (`68f78e07`; V21).
 - [ ] I12: Verify each direct, companion, middleware and sidecar route separately, including actual host/transport/log results.
 - [x] I12a: Ten separate ext_proc C-bridge failure/re-entry/empty-response scenarios pass (V22); not ext_authz/companion or live gRPC completion.
+- [x] I12b: Downstream R16 from PR #396 executed the standard native NGINX-H1 route with actual Root/nobody separation and fresh projections. This closes only that execution-reference subset, not PR #382 product testing or the measurement-blocked overall local acceptance.
 - [x] I13: Bounded HAProxy Rule-ID decoder and ordered cleanup extracted without changing phase/ownership semantics.
 - [x] I14: All 96 original NGINX adoption cases plus four regressions retained.
 - [x] I15: HAProxy helper/callsite adoption checks and eight isolated regressions retained.
@@ -94,8 +148,11 @@ References: [contract/migration](pr-382-event-contract.md),
 - [ ] V07: All final-release checks and review; overall release CI is not claimed green.
 - [ ] V07a: Resolve independent secret scanning without an unsupported exception. The fresh exact-range Secret scanning run `37281536909` / job `111670517150` still fails on the synchronized stack. No secret contents are inferred or reproduced from that status.
 - [ ] V08: Real-host ProcessPartial/Reject, MIME/CSV, empty/multiple-chunk/EOS, budgets and native errors.
+- [x] V08a: R16 supplies actual NGINX-H1 required operation mappings and 97/97 original Required-PASS, including native/config/fault operations; 31 explicit derivations are records, not additional requests. Other hosts/profiles and broader V08 coverage remain open.
 - [ ] V09: Late Safe/Strict, pre/post-commit failures, client bytes, reset scope, neighboring streams and cleanup.
+- [x] V09a: R16 preserves genuine native Safe/Strict decision, abort/incomplete-read and cleanup evidence. The generic Strict curl process's exact numeric exit remains NOT SEPARATELY MEASURED; this is not complete client-exit acceptance or closure of V09.
 - [ ] V10: Actual route logs, invalid/oversized metadata, missing observations and failed physical sinks.
+- [x] V10a: R16 has schema-valid Canonical evidence and 13 direct-child completion receipts for nine required programs, including exactly one First-Byte source writer exit 0. This does not close every physical sink/log contract in V10.
 - [x] V11: Actual Common JSONL/hash tests retain evidence/redaction; family labels are not host runs.
 - [x] V12: Eight compiled HAProxy helper cases and binding compile/link checks passed at `039b7f12`.
 - [x] V13: Nine NGINX request/file cases with controlled boundaries, not full file-reader integration.
