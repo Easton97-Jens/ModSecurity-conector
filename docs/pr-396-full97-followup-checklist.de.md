@@ -2,118 +2,162 @@
 
 **Sprache:** [English](pr-396-full97-followup-checklist.md) | Deutsch
 
-Aktualisiert: 2026-10-10. [Draft PR #396](https://github.com/Easton97-Jens/ModSecurity-conector/pull/396).
-Nur die freigegebene NGINX-R13-Folgearbeit; die [übergeordnete PR-382-Checkliste](pr-382-checklist.de.md) bleibt unverändert. Keine I09–I12-/Cross-Connector-/Secret-Scan-Abnahme.
+Aktualisiert2026-10-10. [ParentPR396](https://github.com/Easton97-Jens/ModSecurity-conector/pull/396) und [FrameworkPR137](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/137) bleiben OPEN/DRAFT. Die bestehende A–D-Fixkette, repositoryweite API-Entfernung und B-Zwei-Event-Folgefix sind abgeschlossen und begrenzt tatsächlich nachgewiesen; **kein neuer Full97/kein Gesamt-Exact-Head-PASS**. Required97 unverändert; MRTS8a6bb546c4c81d8ffc7be801dceac60c6925685f/NGINX1.31.6. Die [übergeordnete PR382-Checkliste](pr-382-checklist.de.md) und deren I09–I12/CrossConnector/SecretScan-Scope bleiben separat.
 
 ## Revisions- und Evidence-Vertrag
 
-- Tested baseline Parent: `dca17fd5690c2ec2b8806024d1061744db8c3ad8`.
-- Tested baseline Framework: `4c6c21e8622840b4c218d8ea5520dd0b10b3fac9`.
-- MRTS: `8a6bb546c4c81d8ffc7be801dceac60c6925685f`.
-- Current Parent: `dca17fd5690c2ec2b8806024d1061744db8c3ad8`.
-- Current Framework: `4c6c21e8622840b4c218d8ea5520dd0b10b3fac9`.
+| Binding | Tested Parent | Tested Framework | Meaning |
+| --- | --- | --- | --- |
+| R | `dca17fd5690c2ec2b8806024d1061744db8c3ad8` | `4c6c21e8622840b4c218d8ea5520dd0b10b3fac9` | Unveränderliches historisches R13; ursprüngliche RED-Tests liefen auf ausdrücklich gekennzeichneten Test-/Source-Arbeits-Overlays dieser Basen. |
+| G | `b4044d10682cb2881c218fe84cebe41e61b235c2` | `3a1932ef9060103d3a63b47d87c36006af954ee6` | Historical tested source; frische Parent345-/Framework413-/Namespace61-Tests sowie nativer Parent-Lint/Dokumentationscheck. |
+| L | `2686b07aaf64b0541d743b53970008bd86caa91f` | `3a1932ef9060103d3a63b47d87c36006af954ee6` | Tatsächlich vollständiger nativer Framework-Lint:604 Testausführungen /19 Suiten, Exit0; nicht auf den späteren Parent G umetikettiert. |
+| N | `ff162ecb11217320a81829169a72ca4a5a4081f9` | `1bfc4f8e8e4aa9d618c4cfb2205badd5008d8f75` | Entfernungsintegration; Parent-Lint300/keine SKIPs/Exit0 und Framework415/keine SKIPs/Exit0. Zwei Config-Startversuche endeten137 vor NGINX. |
+| C | `4423e13e7fb26285a93b0c08323a37491e5941a2` | `1bfc4f8e8e4aa9d618c4cfb2205badd5008d8f75` | Historischer vollständiger bounded AB/CD-Checkpoint: ConfigPASS, AB16PASS2FAIL79NE/CD6PASS2FAIL89NE; damaligerB-Pairingdefekt. Tests/Lint nur an dieserBinding. |
+| T | `34127a6a462ec448b6b1d0c1d7cf16541c8ab55f` | `9f41f80db7bf53b57429457bce0dda675d2ec5d7` | Aktueller clean veröffentlichter Runtime-getesteter Sourcehead: readyAB und readyCD boundedPASS, eigene OriginalaggregateweiterFAIL. |
 
-R13 bleibt unverändert: 97 Required = 80 originale Case-PASS / 9 FAIL / 8 NOT_EXECUTED; zusätzlich vier Aggregat-Schemafehler für zwei dieser MIME-Case-PASS. Make/Supervisor 2, Canonical FAIL, Validator 1. Kein neuer Full97; Freigabe **NEIN**. Protected **BLOCKED / NOT RUN**.
+R/G/L/N/C sind ausschließlich historische Testbindungen; T ist Runtime-getesteter Sourcehead, nicht der zukünftige finalDocs-onlyPRhead. Ein spätererDocscommit wird mit exaktemSHA in PRmetadata/externalintegrationlog und eigenemCI/readback ausgewiesen, ohne rekursiveSelfSHA und ohne geerbteRuntime. FinaleDocs-Publikation/ownCI/Seal bleibt Root-ownedPENDING; tatsächliche aktuellePRclosingContentReadbacks an341/9f sind bereits belegt.
 
-Code implementiert, Fokus geprüft und Full97 bestätigt sind verschiedene Meilensteine. Dokumentationscommits erben keinen Runtime-Nachweis. Jeder erledigte Punkt verweist auf einen SHA-gebundenen Nachweis; lokale Dateien sind keine öffentlichen GitHub-Downloads.
+| Fix key | Separate commit | Responsibility |
+| --- | --- | --- |
+| A | `b0d75ef6bbc33228423aef65d8ea3409387ab30f` | Parent: identitätsgebundene Interventionswerte. |
+| AF | `7672340c57b3f7c80f4f5c68fc55fecca2ae4af8` | Parent: ausdrücklich positive Fehlerverträge erhalten. |
+| B | `58d07970b755d7435c23030e844a32e2f6b6b583` | Parent: First-Byte-Snapshot vor Release und eindeutiger bytegebundener Receipt. |
+| C | `e8a8f98a4c24958616b15b98aadedcc73345a786` | Framework: beobachtete native H1-Protokoll-/Eventbindung. |
+| D | `0c7f224731cda059decee026c7bd32e58bf9aa21` | Framework: eng begrenztes bestehendes MIME-Allow-Gesamtschema. |
+| I | `2686b07aaf64b0541d743b53970008bd86caa91f` | Separate Parent-Integration des Framework-Gitlinks. |
+| S | `b4044d10682cb2881c218fe84cebe41e61b235c2` | Zwei verhaltenserhaltende Helfer für tatsächliche `python:S3776`-Findings; keine Suppression. |
+| Rm | `41eaa6c7` | Parent: repositoryweite Entfernung der Body-Limit-API; historische/negative Fixtures erhalten. |
+| Rf | `1bfc4f8e8e4aa9d618c4cfb2205badd5008d8f75` | Framework: Required-ID `invalid_size` unverändert, Migration auf echte Ablehnung der entfernten Direktive. |
+| Ri | `ff162ecb11217320a81829169a72ca4a5a4081f9` | Separater Parent-Framework-Gitlink-Commit; MRTS unverändert. |
+| Rc | `4423e13e7fb26285a93b0c08323a37491e5941a2` | Separater relevanter Checker-/CI-Folgefix mit Regressionen; keine Suppression. |
+| Bp | `873e51fbebbedb163a5c75a22a7abe0158861a40` | SeparaterFramework-Zwei-Originalevent-Pairingfix. |
+| Bq | `9f41f80db7bf53b57429457bce0dda675d2ec5d7` | Minimaler taskrelevanter S3776/S107-Qualitätsfolgefix, ohneSuppression. |
+| Pi | `34127a6a462ec448b6b1d0c1d7cf16541c8ab55f` | SeparaterParent-GitlinkCommit; MRTSunverändert. |
 
-Lokaler Task-Nachweis: `/var/tmp/codex/ModSecurity-conector/analysis/nginx-full97-followup-20261010T084822Z/`. `baseline-reconciliation.json` und `issue-record-matrix.csv` lesen ausschließlich historische Inputs; **NOT A NEW RUNTIME RUN**. B0–B3, D1, E1–E2: Parent/Framework-Baseline-SHAs oben; Readback und Originalvergleich bestehen, kein Fixcommit, keine neue Runtime. Originalbericht: `/var/tmp/codex/ModSecurity-conector/analysis/nginx-full97-dca17fd5-20261009T225409Z/report.md`.
+## Aktuelle echte bounded Evidence — T
 
-## B — Baseline
+- readyAB: fünf echteH1Operationen, Driver/Supervisor0/255.841s/runtime0/finalize1/validator0. Alle sieben A/B-IDs und acht historischeNE-Ableitungen einzelnOriginalPASS; OriginalCanonicalFAIL18PASS79NE97Required. Rootmaster5/nobodyWorker10/FreshProjections5/Cleanup5/59HashInodebindungen/311Ledgergültig.
+- readyCD: vierOperationen (dreiNative + FirstByte, Readinessprobe separat), Driver/Supervisor0/237.518s/nativeHost0/FirstByte0/runtime0/finalize1/validator0. SechsScopedIDsPASS, OriginalCanonicalFAIL8PASS89NE97Required. NativeMIME2 GET200/27Bytes; StrictH1.1chunked200/10428Bytes/incomplete_read/connection_aborted. Insgesamt vierRootmaster/fünfWorker/vierfrischeRootownedSymlinkfreieDirektprojections, nativeCleanupseparatverified,219Ledger0/taskHostLingering[]. GenerischeCounts nichtaufNativegesamtheitübertragen.
+- CurrentFreshInputOffline C8+D16revalidation0/5.790s: H1/NativeAuthority/Canonicalevent/schema0, alle24Mismatchkontrollenabgelehnt; OriginalBundle/fünfDocs/Statusunverändert. Keine neueRuntimeinvocation.
+- invalid_size: gleicherRequiredRecord, echteUnknownDirective-Ablehnung des früher gültigen1048576, NGINX-t1/Driver0/70.97s/keinHTTP. Repositoryweite modsecurity_phase4_body_limit-API entfernt; keineAlias-/deprecatedRegistrierung. SecResponseBodyLimit/fourEngineLimitCases/independent1MiBDefaults/Hardcaps/Invalidmode/Overflowguard bleiben.
 
-- [x] B0: Aktuelle Revisionen, Branches, Gitlinks und erhaltenes R13 prüfen. (`baseline-reconciliation.json`; baseline SHA binding above).
-- [x] B1: Alle neun ursprünglichen FAIL-Records zuordnen. (`baseline-reconciliation.json`; baseline SHA binding above).
-- [x] B2: Alle acht ursprünglichen NOT_EXECUTED ihrer ersten fehlenden Grenze zuordnen. (`baseline-reconciliation.json`; baseline SHA binding above).
-- [x] B3: Vier verschachtelte Fehler den zwei MIME-Allow-Case-PASS zuordnen. (`baseline-reconciliation.json`; baseline SHA binding above).
+AB undCD **nicht zu Full97PASS vereinen**. Alle97fresh_full97 NOTRUN/approvalrequired. AuditreadyAB/readyCD VERIFIED_BOUNDED_ONLY/errors[]/incomplete[]; RootfullreadonlyAudit0. AgentGuardedRawlogReadlimit ausdrücklich sichtbar; RootprüfteNativeReceipts und aktuelleLoader-/Hash-Inodebindungen separat.
 
-## A — Interventionswerte
+## Aktuelle Quality, Evidence und Grenzen
 
-- [ ] A1: Ungültige Eventsequenz reproduzieren.
-- [ ] A2: Producer, überschriebene Felder und maßgeblichen Beobachtungszeitpunkt bestimmen.
-- [ ] A3: Rote Regressionen nachweisen.
-- [ ] A4: Minimale identitätsgebundene Korrektur implementieren.
-- [ ] A5: Positiv-, technische Fehler-, Cross-TX- und Prioritätskontrollen bestehen.
-- [ ] A6: Echten begrenzten Host-Fokus prüfen.
-- [ ] A7: Integrieren und getesteten SHA binden.
-- [ ] A8: Originalstatus in neuem Full97 bestätigen (Freigabe erforderlich).
+GetesteteSourcebindungT: ParentnativeLint0/171.913s; cleanFrameworkfullLint604Tests19Suites0SKIPExit0/1234.301s; cleanNoCRS4230SKIPExit0/188.042s; Namespace610SKIPExit0/5.884s. CIParent22SUCCESS2SKIP/Framework11SUCCESS3advisorySKIP0pending; exactParentSonar14:24:46 undFramework14:23:39 GateOK/0OPEN-CONFIRMEDFindings. HostedCI nichtProtected. Die zweiParenteventgatedPreflightSKIPs beweisenkeinH2/H3; FrameworkOSV/Scorecard/fullhistorySecretScanAdvisorySKIPs sindkeineausgeführtenPASS.
 
-## B — First-Byte-Snapshot
+SiebenNGINXauxiliaryund16Apache/MRTSParentShellCheck-Baselinediagnosen/Python3.14.7≠CI3.14.8 und zweiindependentlyreproduzierte113-Baselinetestfehler bleibenoffen, nichtunterdrückt. Historischeworkingtree604-Läufe nichtcleanCommitumetikettiert. FrühereFailedRuntime/Config137/V3adapter/Sonar873twoFindings/HTTP400-502/Vortex403 unverändert in vollständigemexternenBericht/OriginalReceipts erhalten; keineaktivenCheckpointbehauptungen daraus.
 
-- [ ] B4: Invocation-/Zeit-/Countervertrag bestimmen.
-- [ ] B5: Fehlerhafte Snapshotbindung und rote Kontrollen reproduzieren.
-- [ ] B6: Korrigieren und veraltete/falsche Zeit-/TX-/Invocation-Snapshots ablehnen.
-- [ ] B7: Echten kausalen First-Byte-Fokus mit vollständiger Safe-Antwort ausführen.
-- [ ] B8: Integrieren und getesteten SHA binden.
-- [ ] B9: In neuem Full97 bestätigen (Freigabe erforderlich).
+LokaleNachweise unter nginx-full97-followup-20261010T084822Z: removal-focus-audit/r14-ready-ab-v4/audit.json, r14-ready-cd-v4/audit.json; fresh-cd-revalidation-34127a6a/offline-revalidation.json; artifact-audit-r14-ready-ab/; namespace-quality-34127a6a/; r14-framework-final-readback.json/r14-parent-pre-docs-readback.json. LokalePfade sindkeineöffentlichenGitHubDownloads.
 
-## C — Native H1-Bindung
+HistorischesR13 bleibt97Required=80CasePASS/9FAIL/8NE, plusviernestedSchemafehlerinzweiMIMEPASS; Make/Supervisor2/Validator1/CanonicalFAIL und79genuineRequests erhalten. Alle80ControlsbleibenBasis, nichtneuFull97ausgeführt;19A-Dplusinvalid_sizeScopedRowsaktuell,77Controlsunverändert.
 
-- [ ] C1: Beobachtetes Protokoll über Operation/Receipt/Event nach Canonical verfolgen.
-- [ ] C2: Erste fehlende Identitätsbindung reproduzieren.
-- [ ] C3: Strikt korrigieren; Protokoll-/Identitäts-/Artefakt-Negativkontrollen erhalten.
-- [ ] C4: Echten nativen H1-Fokus prüfen.
-- [ ] C5: Framework und Parent konsistent integrieren.
-- [ ] C6: In neuem Full97 bestätigen (Freigabe erforderlich).
+## Baseline
 
-## D — MIME-Gesamtschema
+- [x] B0: Baseline-Revisionen, Branches/Gitlinks und erhaltenes R13 prüfen. Bindung R; Originalvergleich/Readback bestanden; kein Fix; `baseline-reconciliation.json`, `checks/baseline_pr396.log`, `checks/baseline_pr137.log`; nur historisch.
+- [x] B1: Alle neun ursprünglichen FAIL-Records zuordnen. Bindung R; deterministischer Original-Matrix-/Resultat-Abgleich bestanden; kein Fix; `baseline-reconciliation.json`, `issue-record-matrix.csv`; kein neuer Runtime-Status.
+- [x] B2: Alle acht ursprünglichen NOT_EXECUTED ihrer ersten fehlenden Grenze zuordnen. Bindung R; Original-Record-/Basis-Abgleich bestanden; kein Fix; derselbe Abgleich/dieselbe Matrix; explizite Ableitungen, keine pauschal fehlenden Driver.
+- [x] B3: Vier verschachtelte Fehler zwei MIME-Allow-Case-PASS zuordnen. Bindung R; Original-JSON-/Schema-Pfade abgeglichen; kein Fix; `baseline-reconciliation.json`; zwei Cases, nicht vier zusätzliche Runtime-FAILs.
 
-- [x] D1: Vier Fehler getrennt von zwei Case-PASS erfassen. (`baseline-reconciliation.json`; baseline SHA binding above).
-- [ ] D2: Case-Result, Producer, verschachteltes Aggregat und Validator verfolgen.
-- [ ] D3: RED über tatsächliche dynamische Aggregation nachweisen.
-- [ ] D4: Eng begründeten schemakonformen Vertrag implementieren.
-- [ ] D5: Beide echten MIME-Allow-Cases und Mismatchkontrollen prüfen.
-- [ ] D6: Integrieren und getesteten SHA binden.
-- [ ] D7: Neues Full97-Aggregat validieren (Freigabe erforderlich).
+## A — Intervention
 
-## E — Acht abgeleitete Records
+- [x] A1: Überschriebene Interventionsfolge reproduzieren. Bindung R als Arbeitsregression, an G bestätigt; `tests.test_no_crs_outcome_projection`, RED Exit1 / G-Gruppe Exit0; Fixes A+AF+S; `parent-ab/a-red.log`, `parent-quality-b4044d10/native-selection-snapshot-authority.log`; nur Unit-Evidence.
+- [x] A2: Parent-Projector, überschriebene Entscheidungsfelder und Beobachtungszeitpunkt bestimmen. Bindungen R/G; Trace plus Abschluss-/technische Fehler-Tests an G bestanden; Fixes A+AF+S; A-Change-Record und dieselben Unit-Logs. Regel-/Phasen-/TX-gebundene Entscheidung bleibt getrennt vom späteren Lifecycle-Zustand; echte technische Fehler bleiben sichtbar.
+- [x] A3: RED vor der Reparatur nachweisen. Bindung R als Arbeitstests; vier gültige Fehlerkontrollen, Exit1; Fix A; `parent-ab/a-red.log`. Ein ungültiges Nichtinterventions-Fixture wurde offen korrigiert; es zählt nicht als Produktdefekt.
+- [x] A4: Minimale identitätsgebundene Reparatur implementieren. Bindung G; Parent-Outcome-/Collector-Regressionsgruppen Exit0; Fixes A+AF+S; `parent-quality-b4044d10/run-checks.sh`, `results.md`; keine Produkt-/Validator-/Required-Änderung.
+- [x] A5: Positiv-, technische Fehler-, Cross-TX- und Prioritätskontrollen bestehen. Bindung G; Parent345 einschließlich betroffener Normal- und positiver Fehlerpfade, Exit0; Fixes A+AF+S; `parent-quality-b4044d10/results.md`, `parent-sonar-followup/results.md`; keine globale nonzero=PASS-Regel oder technische Fehler-Vetos.
+- [x] A6: Bindung T; echte vierA-Basisrequests/originalCanonicalPASS anP341/F9f. Root/nobody/Freshness/Cleanup/Artefakte311Ledgergültig; ready-AB-v4 VERIFIED_BOUNDED_ONLY. KeinFull97.
+- [x] A7: AktuelleBindingT341/9f integriert/clean/veröffentlicht, exakteGitlinksM8aunverändert. CurrentParentnative302/FrameworkNoCRS423/fullLint60419/Namespace61Exit0; echteA-BasisPASS. UrsprünglicheG/L-Belegebleibenhistorisch, keinFull97.
+- [ ] A8: Originalstatus in einem neu freigegebenen Full97 bestätigen.
 
-- [x] E1: Jeden Record seiner ersten blockierten Grenze zuordnen. (`baseline-reconciliation.json`; baseline SHA binding above).
-- [x] E2: A–D-Abhängigkeiten von unabhängigen Ursachen unterscheiden. (`baseline-reconciliation.json`; baseline SHA binding above).
-- [ ] E3: Freigegebene Korrekturen und begrenzte Fokusnachweise abschließen.
-- [ ] E4: Frische Originalstatus im Full97 messen (Freigabe erforderlich).
+## B — First-Byte
 
-## Q — Integration und Qualität
+- [x] B4: Invocation-/Zeit-/Countervertrag bestimmen. Bindungen R/G; Capture-vor-Release-Ordnungsregression an G bestanden; Fix B; `parent-ab/b-red.log`, B-Change-Record, `parent-quality-b4044d10/native-selection-snapshot-authority.log`. Snapshot wird bei pausiertem Upstream gemessen, nicht nach Response-Abschluss.
+- [x] B5: Capture nach Release und fehlenden eindeutigen gebundenen Merge reproduzieren. Bindung R als Arbeitstests; RED Exit1; Fix B; `parent-ab/b-red.log`; historische/Test-Inputs, keine neuen Requests.
+- [x] B6: Bindung korrigieren und Mismatchkontrollen erhalten. Bindung G; `tests.test_nginx_first_byte_binding` sowie Collector-/Framework-Suiten Exit0; Fixes B+S; `parent-quality-b4044d10/run-checks.sh`, `framework-quality-b4044d10/no-crs-suite.json`. Falsche Invocation/TX/Zeit, veralteter oder manipulierter Snapshot, doppeltes Event und passende Counter ohne Herkunft bleiben abgelehnt; spätere kumulative Counter bleiben erhalten.
+- [x] B7: Bindung T; echter synchronisierter FirstByte, beideBoriginalCanonicalPASS; closed17Append/44RuleInterventionPaar, Snapshot/Order/identities/SafeAntwort geprüft. ready-AB-v4/errors[]/incomplete[], driver0; OriginalgesamtFAIL79fehlendeRequired bleibt. Nurbounded, keinFull97.
+- [x] B8: AktuelleBindingT; Frameworkpairing873+minimalQuality9f und Parentgitlink341 integriert, genuineAB/CDFirstByte/nobufferPASS, Legacy/MixedTXMismatchkontrollenundNoCRS4230. KeineRuleinjection/Eventmerge/Counterserialization/Guardabschwächung. B-PairingfixverändertApache nicht; repositoryweiteAPI-Entfernung änderteApache separat.
+- [ ] B9: In einem neu freigegebenen Full97 bestätigen.
 
-- [ ] Q1: Erfolgreiche bestehende Regressionen erhalten.
-- [ ] Q2: Erforderliche Parent-/Framework-Tests und Lint bestehen.
-- [ ] Q3: Gitlinks und verifizierte Remote-Heads binden.
-- [ ] Q4: Frische CI/Sonar des aktuellen Heads zurücklesen.
-- [ ] Q5: EN/DE-Checkliste und PR-Beschreibung abgleichen.
+## C — Native H1
 
-## F — Gesamtabnahme
+- [x] C1: Reale Beobachtung → Operation/Receipt → Canonical-Protokoll/Event verfolgen. Bindung R als Input plus G-Verträge; originale native Bytes im ausdrücklich aktuellen Validator-Replay erneut geöffnet, Exit0; Fix C; `framework-cd/c-historical-replay-v3.log`, C-Change-Record. H1 wird aus beobachteter HTTP-Version11 und passender URI/TX/Case/Run/Phase/Rule abgeleitet, nie aus einem Environment-Default.
+- [x] C2: Erste fehlende Canonical-Bindung reproduzieren. Bindung R als Arbeitsregression; C RED Exit1; Fix C; `framework-cd/c-red.log`, `baseline-reconciliation.json`; originale Runtime-Operation vorhanden, Canonical-Protokollfelder/Event fehlten.
+- [x] C3: Strenge Bindung implementieren und Negativkontrollen erhalten. Bindung G; Framework413 Exit0 und ausdrücklich historischer C-Replay Exit0; Fix C; `framework-quality-b4044d10/no-crs-suite.json`, `framework-cd/c-historical-replay-v3.log`. Falsches Protokoll/Invocation/TX/Case, fehlende Beobachtung, veralteter Receipt, falsches Modul/Bytes und Canonical-Manipulation bleiben abgelehnt; keine H1→H2/H3-Umetikettierung.
+- [x] C4: Bindung T341/9f; echter readyCDStrictH1CasePASS/nativeHost0, freshretainedC8negative0/H1-Canonicalevent-Authorityreopened. Rootauditv4VERIFIED_BOUNDED_ONLY/219Ledger0/Cleanup/Freshness, nativeCaseIdentitätenseparat. KeinFull97.
+- [x] C5: AktuelleBindingT sauberintegriert/veröffentlicht, exakteGitlinksP341/F9f/M8a/RemoteOPEN-DRAFT, cleanNoCRS423/fullLint60419/CI-Sonar0; genuineCD/retainedCnegativesbelegt, MRTSunverändert. KeineHistoryrewrite.
+- [ ] C6: In einem neu freigegebenen Full97 bestätigen.
 
-- [ ] F1: Ausdrückliche Freigabe für einen neuen Full97 erhalten.
-- [ ] F2: Neuen Full97 tatsächlich ausführen.
+## D — MIME
+
+- [x] D1: Vier Schemafehler getrennt von zwei Case-PASS erfassen. Bindung R; exakte originale JSON-Pfade/Typ/Wert abgeglichen; kein Fix; `baseline-reconciliation.json`; ursprüngliches verschachteltes Action-Enum lehnte String `allow` ab.
+- [x] D2: Reader/Normalizer → tatsächliche Aggregatprojektion → verschachteltes Schema verfolgen. Bindung R als Input und G-Tests; historischer tatsächlicher Gesamt-Producer-Replay schema-valid, Exit0, insgesamt weiter FAIL; Fix D; `framework-cd/d-historical-replay.log`, D-Change-Record; kein neues Runtime-Resultat.
+- [x] D3: RED über tatsächliche dynamische Aggregation nachweisen. Bindung R als Arbeitstest; zwei Subtests reproduzieren vier Enumfehler, Exit1; Fix D; `framework-cd/d-red.log`; kein handgeschriebener Schema-only-Ersatz.
+- [x] D4: Eng begründeten Schemavertrag implementieren. Bindung G; Framework413 Exit0; Fix D; `framework-quality-b4044d10/no-crs-suite.json`, `framework-cd/d-green.log`. Nur die zwei exakten vorhandenen Case-/Resultat-Paare erlauben `allow/allow`, ohne Rule, späte Intervention oder Abort; Required-Felder, Geschlossenheit und reales null/completed-Transportverhalten bleiben erhalten. Acht Mismatchkontrollen pro MIME-Case bleiben negativ.
+- [x] D5: BindungT341/9f; beideechtenreadyCDMIMECasePASS, frischesAggregateSchemaErrors[]/Validator0, currentfreshD16negatives0. OriginalCanonicalFAIL8PASS89NEbleibt. Evidence currentCDauditv4/freshOfflineJSON, nurbounded.
+- [x] D6: AktuelleBindingTSchema/Producer/sourceHashesundGitlinksgebunden, cleanNoCRS423/fullLint60419/CI0 und echteMIME+freshD16negatives0. HistorischevierSchemafehler inzweiCasePASSunverändert.
+- [ ] D7: Gesamtes frisches Full97-Aggregat nach Freigabe validieren.
+
+## E — Derivations
+
+- [x] E1: Jeden Record seiner ersten blockierten Grenze zuordnen. Bindung R; originaler deterministischer Basis-/Record-Abgleich bestanden; kein Fix; `baseline-reconciliation.json`, `issue-record-matrix.csv`; exakte Zuordnung unten.
+- [x] E2: A–D-Abhängigkeiten von unabhängigen Ursachen unterscheiden. Bindungen R/G; geschlossene Ableitungs-/Selection-Verträge und Framework413 Exit0; Fixes A+AF+B+C+D+I soweit zutreffend; dieselbe Matrix und `framework-quality-b4044d10/no-crs-suite.json`; kein unnötiger neuer Driver oder erfundene Evidence.
+- [x] E3: Bindung T; alle acht historischenNE-Ableitungen einzeln neuerreadyABCanonicalPASS anP341/F9f, keineExtraRequests/synthetischeEvidence. OriginalABCanonicalFAIL/79NEweiteroffen; keinFull97.
+- [ ] E4: Alle frischen Originalstatus in einem neu freigegebenen Full97 messen.
+
+## Q — Quality / integration
+
+- [x] Q1: AktuelleBindingT relevanteRegressionen/Standards: Parentnative302/FrameworkNoCRS423/fullLint60419/Namespace61jeExit0/keineSKIPs, currentAB/CDScopeRecordsPASS und C8D16Negativkontrollen0. Alle80historischenControlsbewahrt, nichtalle80neuRuntimeausgeführt. G/LhistorischeSuitesnurzusätzlich.
+- [x] Q2: AktuelleBindingT nativeParentLint302/0/171.913s, cleanFrameworkNoCRS423/0/188.042s, cleanFrameworkfullLint60419/0/1234.301s, Namespace61/0/5.884s, jeweilskeineSKIPs. NativeDocs/CR/Standardsprüfungenbelegt. SiebenNGINX/16Apache-MRTSauxiliaryBaselinewarnungen/Python3.14.7≠CI3.14.8/AdvisorySKIPsweiterhinexplizit; Docs-onlyNachfolgerprüfungenRootpending.
+- [x] Q3: AktuelleBindingT Parent341lokal/Remote/PR396undFramework9flokal/Remote/PR137exactOPEN-DRAFT/clean/Gitlinks/M8aunverändert zurückgelesen. SeparateFramework873Pairing→9fQuality→Parent341Pin; keineHistoryrewrite. FinalDocs-onlyPRheadkommtseparatinPRmetadata/externalintegrationlog mitownReadback/CI, nichtRuntimegeerbt.
+- [x] Q4: GetesteteSourcebindung T=P341/F9f: terminalCIParent22SUCCESS2SKIP/Framework11SUCCESS3advisorySKIP, beideexactSonarGateOK/0OPEN-CONFIRMEDFindings. Framework14:23:39/Parent14:24:46; exactRootreadbacks. DieserNachweis gilt nicht automatisch für späterenDocs-onlyPRhead; dessen eigeneCI/readbackstehtseparatPENDING. KeinProtected/Full97.
+- [x] Q5: EN/DE-Schlussinhalt mit tatsächlich veröffentlichtem kontrollierten PR137/396-Fortschrittsblock abgeglichen; exact9f/341OPEN-DRAFT undhistorischerTailunverändert rückgelesen, r14-framework-final-readback.json/r14-parent-pre-docs-readback.json. Diese Inhaltsabnahme schließt nicht späterenDocs-onlyHead/Publikation/CI ein; finalePairedVersionedDocs durchRoot nochPENDING.
+
+## F — Full97
+
+- [ ] F1: Ausdrückliche Freigabe für einen neuen lokalen Full97 erhalten.
+- [ ] F2: Diesen neuen Full97 auf dem eingefrorenen freigegebenen Tupel tatsächlich ausführen.
 - [ ] F3: Gesamtes frisches Aggregatschema validieren.
-- [ ] F4: Gültige Evidence für jeden Required-Record prüfen.
-- [ ] F5: Canonical PASS und tatsächliche Lifecycle-/Validator-Exits prüfen.
-- [ ] F6: Vollständiges Cleanup und frische Prüfsummen prüfen.
+- [ ] F4: Gültige Evidence für jeden unveränderten Required-Record prüfen.
+- [ ] F5: Canonical PASS und echte Lifecycle-/Supervisor-/Validator-Exits prüfen.
+- [ ] F6: Vollständiges Cleanup und frische Prüfsummen dieses Laufs bestätigen.
 
-## P — Protected, separat
+## P — Protected
 
 - [ ] P1: Trusted Base unabhängig freigeben.
 - [ ] P2: Zulässige Basis-/Gitlink-/Workflow-Bindung prüfen.
-- [ ] P3: Runner und Environment administrativ prüfen.
+- [ ] P3: Runner und Environment administrativ freigeben.
 - [ ] P4: Exact-Base-Host-Gate prüfen.
-- [ ] P5: Zulässigen geschützten Lauf starten und auswerten.
+- [ ] P5: Zulässigen geschützten Lauf erst nach diesen Voraussetzungen starten/auswerten.
 
-## Record-Zuordnung und Rest
+## Record-Status — aktuelle begrenzte T-Nachweise, kein Full97
 
-A: `phase3_deny_before_commit`, `phase3_redirect_before_commit`, `phase4_deny_after_commit_log_only`, `phase4_deny_after_commit_abort`, `phase4_deny_after_commit_log_only_safe`. A+B: `phase4_rule_observed`, `phase4_no_full_response_buffering`, `phase4_first_byte_before_response_end`. C: `phase4_strict_http1_client_abort`.
+Alle folgenden Zeilen haben einen aktuellen begrenzten PASS; historische Status bleiben unverändert. Full97 steht für jede Zeile auf NOTRUN. `issue-record-matrix.csv` enthält alle97 Records und genaue Inputs/Evidence/Commits; eine Ableitung ist kein zusätzlicher Request.
 
-Die acht Pending sind geschlossene Ableitungen blockierter Basis-Records, keine pauschal fehlenden Drivers:
+| Record ID | Historischer R13 | Aktuelle Evidence |
+| --- | --- | --- |
+| phase3_deny_before_commit | FAIL | readyAB A-Request |
+| phase3_redirect_before_commit | FAIL | readyAB A-Request |
+| phase4_deny_after_commit_log_only | FAIL | readyAB A-Request |
+| phase4_deny_after_commit_abort | FAIL | readyAB A-Request |
+| phase4_deny_after_commit_log_only_safe | FAIL | readyAB explizite Safe-Basisableitung |
+| phase4_rule_observed | FAIL | readyAB/readyCD echter FirstByte-Rule-Beleg |
+| phase4_no_full_response_buffering | FAIL | readyAB/readyCD FirstByte |
+| phase4_first_byte_before_response_end | FAIL | readyAB/readyCD FirstByte |
+| phase4_strict_http1_client_abort | FAIL | readyCD tatsächliches Strict-H1 |
+| phase4_event_contains_original_status | NOT_EXECUTED | readyAB explizite A-Basisableitung |
+| phase4_event_contains_late_intervention_action | NOT_EXECUTED | readyAB explizite A-Basisableitung |
+| event_has_no_response_body_payload | NOT_EXECUTED | readyAB explizite A/B-Basisableitung |
+| phase3_original_and_visible_status | NOT_EXECUTED | readyAB explizite A-Basisableitung |
+| phase4_deny_after_commit_abort_strict | NOT_EXECUTED | readyAB explizite A-Basisableitung |
+| phase4_status_metadata | NOT_EXECUTED | readyAB explizite A-Basisableitung |
+| phase4_action_metadata | NOT_EXECUTED | readyAB explizite A-Basisableitung |
+| phase4_no_payload_event | NOT_EXECUTED | readyAB explizite A/B-Basisableitung |
+| phase4_out_of_scope_content_type | CasePASS; zwei Schemafehler | readyCD echtes MIME; schemavalid |
+| phase4_missing_content_type | CasePASS; zwei Schemafehler | readyCD echtes MIME; schemavalid |
+| invalid_size | PASS; alter API-Vertrag | echter Removed-API-Configtest |
 
-| Record | Basis / Grenze |
-| --- | --- |
-| phase4_event_contains_original_status | A: phase4_deny_after_commit_log_only / phase4_deny_after_commit_abort |
-| phase4_event_contains_late_intervention_action | A: phase4_deny_after_commit_log_only / phase4_deny_after_commit_abort |
-| event_has_no_response_body_payload | A+B: phase4_rule_observed |
-| phase3_original_and_visible_status | A: phase3_deny_before_commit |
-| phase4_deny_after_commit_abort_strict | A: phase4_deny_after_commit_abort |
-| phase4_status_metadata | A: phase4_event_contains_original_status |
-| phase4_action_metadata | A: phase4_event_contains_late_intervention_action |
-| phase4_no_payload_event | A+B: event_has_no_response_body_payload |
+## Abschlussgrenze
 
-D: `phase4_out_of_scope_content_type` und `phase4_missing_content_type` bleiben Case-PASS. Je `requested_action` und `actual_action` = String `allow` verletzen das verschachtelte Enum in `$.phase4_case_results[17]` / `[18]`, insgesamt vier Schemafehler. Kein vierfacher Runtime-FAIL.
-
-Offen: reale begrenzte Fokusproben, konsistente Gitlink-Integration und aktuelle Qualitätsgates. Implementierte Commits: Parent A `b0d75ef6bbc33228423aef65d8ea3409387ab30f`, B `58d07970b755d7435c23030e844a32e2f6b6b583`, begrenzte Positive-Fault-Folgekorrektur `7672340c57b3f7c80f4f5c68fc55fecca2ae4af8`; Framework C `e8a8f98a4c24958616b15b98aadedcc73345a786`, D `0c7f224731cda059decee026c7bd32e58bf9aa21`. Diese Commits allein belegen keine Runtime-Abnahme. `issue-record-matrix.csv` enthält alle 97 Records samt Originalstatus, Operation, Raw-Evidence, Grenze, Owner und Abhängigkeit; neue Fokus-/Full97-Spalten bleiben separat. Keine Required-Verkleinerung und keine historischen Statusänderungen.
+NEXT FULL97: **NOT RUN — FULL97_FREIGABE: NEIN**. ErstnachfinalenReadbacks/Seal einmalkonkreteFreigabe mitexakterTuple/boundedEvidence/Restliste/Required97/Root-nobodyRuntimeanfragen. Protected **BLOCKED / NOT RUN**, separateunabhängigeTrustedBase1.31.6Digest/Gitlink/Workflow/Runner/Environment/ExactBaseHostGatefreigabefehlt. KeinCandidateVerifieralsTrustedRootChecker. PRsOPEN/DRAFT, keinMerge/Retarget/Undraft. **OVERALL EXACT-HEAD E2E PASS: NO.**
