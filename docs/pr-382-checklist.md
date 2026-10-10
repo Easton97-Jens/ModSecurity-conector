@@ -5,7 +5,7 @@
 [Draft PR #382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382),
 branch `fix/unified-native-results-events-20260921`, base
 `5170d24801243cdcd7bf1bca6123bf8cb2c72386`. Updated: 2026-10-10.
-Historical 2026-10-05 stack readback: the branch was synchronized through then-current `master` `820b6975495bdf0f90aca67eee86e27a3b7d329b` via merge commit `dfd5e5b1`, with no commits behind at that readback.
+Current 2026-10-10 stack readback: the branch is synchronized through `master` `3019722fbda40dc281b861c1cc38085be2f430a0` via merge commit `b3dc0139`; `behind=0` and GitHub reports the PR mergeable. Framework PR #137 is merged and the Parent now pins its merge commit `99a7985c1be92a2297b1b59208f64df6768f2cbf`. Stacked PR #396 is merged into #382 at `da50b67c`; its later historical source-head SHA remains evidence provenance only.
 
 **I09 and I10 are not yet reduced to live-host proof alone.** Completed code,
 executed compiled tests, pending native tests and actual host evidence remain
