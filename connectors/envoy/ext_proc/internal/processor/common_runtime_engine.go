@@ -448,7 +448,15 @@ func (transaction *commonRuntimeTransaction) Close(ctx context.Context, _ Summar
 		return
 	}
 	if transaction.native != nil && !transaction.engine.closed {
-		C.msc_envoy_ext_proc_transaction_close(transaction.native)
+		var nativeError [commonRuntimeErrorBufferSize]C.char
+		var finishCode C.int
+		C.msc_envoy_ext_proc_transaction_close_checked(transaction.native,
+			&nativeError[0], C.size_t(len(nativeError)), &finishCode)
+		if finishCode == C.MSCONNECTOR_ERROR_PHASE_SEQUENCE {
+			transaction.setCleanupFailure(fmt.Errorf("%w: %s", ErrTransactionFinishPhaseSequence, nativeErrorText(nativeError[:])))
+		} else if finishCode != C.MSCONNECTOR_ERROR_NONE {
+			transaction.setCleanupFailure(fmt.Errorf("Common runtime finish: %s", nativeErrorText(nativeError[:])))
+		}
 		transaction.native = nil
 	}
 	transaction.closed = true
@@ -458,7 +466,9 @@ func (transaction *commonRuntimeTransaction) Close(ctx context.Context, _ Summar
 func (transaction *commonRuntimeTransaction) setCleanupFailure(err error) {
 	transaction.cleanupMu.Lock()
 	defer transaction.cleanupMu.Unlock()
-	transaction.cleanupErr = err
+	if transaction.cleanupErr == nil {
+		transaction.cleanupErr = err
+	}
 }
 
 // markTerminalFailure prevents new native work as soon as a transaction cannot

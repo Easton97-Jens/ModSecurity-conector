@@ -75,7 +75,7 @@ class ApacheTerminalContractFailureTests(unittest.TestCase):
         )
         failure_event = c_function(
             self.filters_source,
-            "static void apache_emit_contract_failure_event_with_action(",
+            "static msconnector_error_code apache_emit_contract_failure_event_with_action(",
         )
         failure_name = c_function(
             self.filters_source,
@@ -114,7 +114,7 @@ class ApacheTerminalContractFailureTests(unittest.TestCase):
         )
         failure_event = c_function(
             self.filters_source,
-            "static void apache_emit_contract_failure_event_with_action(",
+            "static msconnector_error_code apache_emit_contract_failure_event_with_action(",
         )
 
         guard = "if (apache_phase4_response_committed(msr, r))"

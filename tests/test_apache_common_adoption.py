@@ -62,10 +62,10 @@ class ApacheAdoptionCheckBatchingTests(unittest.TestCase):
             else:
                 normalized.append(node)
         tree.body = normalized
-        # Frozen AST after the I09 equality-versus-assignment parser correction;
-        # positions are omitted and only the batching seam is expanded.
+        # Frozen combined I09/I11 AST; positions are omitted and only the
+        # batching seam is expanded.
         digest = hashlib.sha256(ast.dump(tree, include_attributes=False).encode()).hexdigest()
-        self.assertEqual(digest, "b9788fb0516a56f037209532a48b0a0d11eefab1db363fe144b0b3de36a58cba")
+        self.assertEqual(digest, "9ee132ce5bc083cda7eb17649ab68336451400a5d98a77a31a6e8a61ea37cbdd")
 
     def test_status_comparison_is_not_a_second_assignment(self) -> None:
         source = """void apache_log_intervention_event(void) {
@@ -340,9 +340,23 @@ class ApacheCommonAdoptionCheckerTests(unittest.TestCase):
     def test_missing_serialization_failure_return_is_rejected(self) -> None:
         def mutate(filters: Path) -> None:
             replace_once(filters,
-                '            json_truncated ? "truncated" : "failed");\n        return;\n',
-                '            json_truncated ? "truncated" : "failed");\n')
+                "        return apache_event_sink_result(msr, r,\n"
+                "            json_truncated ? MSCONNECTOR_ERROR_EVENT_TOO_LARGE\n"
+                "                : MSCONNECTOR_ERROR_INTERNAL, mandatory);\n",
+                "")
         self._assert_rejected(mutate, "Apache P3/P4 events reject serialization failure")
+
+    def test_unchecked_or_incomplete_physical_write_is_rejected(self) -> None:
+        for original, changed in (
+            ("rc = apr_file_write_full(file, line, length, &written);",
+             "(void)apr_file_write_full(file, line, length, &written);"),
+            ("rc != APR_SUCCESS || written != length", "rc != APR_SUCCESS"),
+            ("close_rc != APR_SUCCESS", "close_rc == APR_SUCCESS"),
+        ):
+            with self.subTest(original=original):
+                def mutate(filters: Path) -> None:
+                    replace_once(filters, original, changed)
+                self._assert_rejected(mutate, "Apache P3/P4 events reject serialization failure")
 
     def test_technical_errors_cannot_be_logged_as_rule_blocks(self) -> None:
         def mutate(filters: Path) -> None:

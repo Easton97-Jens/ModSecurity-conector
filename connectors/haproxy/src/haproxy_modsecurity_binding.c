@@ -217,14 +217,20 @@ static void transaction_failure(haproxy_modsecurity_transaction *transaction,
     }
 }
 
-int haproxy_modsecurity_error_event_write(
+int haproxy_modsecurity_error_event_write_checked(
         const haproxy_modsecurity_decision *decision, const char *transaction_id,
-        char *line, size_t line_size) {
+        char *line, size_t line_size, msconnector_error *error) {
     msconnector_event event;
     const char *id;
     int truncated = 0;
-    if (decision == NULL || decision->error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+    if (line == NULL || line_size == 0U || decision == NULL) {
+        msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
+            "HAProxy error event serialization input is invalid", "haproxy");
         return 0;
+    }
+    line[0] = '\0';
+    if (decision->error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+        return 1;
     }
     switch (decision->error_class) {
     case MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE: id = MSCONN_EVENT_INVALID_ENGINE_RESPONSE; break;
@@ -251,7 +257,19 @@ int haproxy_modsecurity_error_event_write(
     event.decision.action = event.decision.requested_action;
     event.decision.actual_action = "";
     event.decision.rule_id = "";
-    return msconnector_event_write_jsonl_line(&event, line, line_size, &truncated);
+    if (!msconnector_event_write_jsonl_line(&event, line, line_size, &truncated)) {
+        msconnector_error_set(error, truncated ? MSCONNECTOR_ERROR_EVENT_TOO_LARGE :
+            MSCONNECTOR_ERROR_INTERNAL, "HAProxy error event serialization failed", "haproxy");
+        return 0;
+    }
+    return 1;
+}
+
+int haproxy_modsecurity_error_event_write(
+        const haproxy_modsecurity_decision *decision, const char *transaction_id,
+        char *line, size_t line_size) {
+    return haproxy_modsecurity_error_event_write_checked(decision, transaction_id,
+        line, line_size, NULL) && line[0] != '\0';
 }
 
 const char *haproxy_modsecurity_transaction_id(
@@ -259,11 +277,18 @@ const char *haproxy_modsecurity_transaction_id(
     return transaction != NULL ? transaction->request_id : "";
 }
 
-int haproxy_modsecurity_transaction_error_event_write(
+int haproxy_modsecurity_transaction_error_event_write_checked(
         haproxy_modsecurity_transaction *transaction,
-        haproxy_modsecurity_decision *decision, char *line, size_t line_size) {
-    if (transaction == NULL || transaction->error_event_emitted || decision == NULL) {
+        haproxy_modsecurity_decision *decision, char *line, size_t line_size,
+        msconnector_error *error) {
+    if (transaction == NULL || decision == NULL || line == NULL || line_size == 0U) {
+        msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
+            "HAProxy transaction error event input is invalid", "haproxy");
         return 0;
+    }
+    line[0] = '\0';
+    if (transaction->error_event_emitted) {
+        return 1;
     }
     if (transaction->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) {
         decision->error_class = transaction->contract.error_class;
@@ -271,12 +296,19 @@ int haproxy_modsecurity_transaction_error_event_write(
     if (transaction->contract.error_phase >= 0) {
         decision->phase = decision_phase_from_contract(transaction->contract.error_phase);
     }
-    if (!haproxy_modsecurity_error_event_write(decision, transaction->request_id,
-            line, line_size)) {
+    if (!haproxy_modsecurity_error_event_write_checked(decision, transaction->request_id,
+            line, line_size, error)) {
         return 0;
     }
-    transaction->error_event_emitted = 1;
+    transaction->error_event_emitted = line[0] != '\0';
     return 1;
+}
+
+int haproxy_modsecurity_transaction_error_event_write(
+        haproxy_modsecurity_transaction *transaction,
+        haproxy_modsecurity_decision *decision, char *line, size_t line_size) {
+    return haproxy_modsecurity_transaction_error_event_write_checked(transaction,
+        decision, line, line_size, NULL) && line[0] != '\0';
 }
 
 typedef int (*haproxy_modsecurity_body_append)(

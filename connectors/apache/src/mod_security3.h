@@ -37,6 +37,7 @@
 
 #include "msc_filters.h"
 #include "msconnector/config.h"
+#include "msconnector/error.h"
 #include "msconnector/phase.h"
 #include "msconnector/rule_load_stats.h"
 #include "msconnector/transaction_contract.h"
@@ -134,6 +135,9 @@ typedef struct
     int native_event_phase_active;
     int request_body_limit_rejection;
     int contract_failure_event_emitted;
+    msconnector_error_code event_sink_error;
+    int mandatory_event_failed;
+    int terminal_event_attempted;
     /* Native callbacks are synchronous but may re-enter Apache hooks. */
     int collecting;
     int logging_attempted;
@@ -257,12 +261,12 @@ extern const command_rec module_directives[];
 
 int process_intervention (Transaction *t, request_rec *r);
 int msc_finalize_request_body(msc_t *msr, request_rec *r);
-void apache_emit_intervention_event(msc_t *msr, request_rec *r,
+msconnector_error_code apache_emit_intervention_event(msc_t *msr, request_rec *r,
     const apache_intervention_event_input *input);
-void apache_emit_contract_failure_event(msc_t *msr, request_rec *r,
+msconnector_error_code apache_emit_contract_failure_event(msc_t *msr, request_rec *r,
     enum msconnector_phase phase,
     msconnector_transaction_error_class error_class, int status);
-void apache_log_rule_match_event(msc_t *msr, request_rec *r,
+msconnector_error_code apache_log_rule_match_event(msc_t *msr, request_rec *r,
     enum msconnector_phase phase, const char *rule_id);
 
 int msc_apache_init(apr_pool_t *pool);

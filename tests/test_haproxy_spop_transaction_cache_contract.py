@@ -3,6 +3,8 @@
 from pathlib import Path
 import unittest
 
+from tests.c_source_contract import function_definition
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = (
@@ -47,8 +49,15 @@ class HAProxySPOPTransactionCacheContractTests(unittest.TestCase):
             "haproxy_modsecurity_transaction_append_response_body_chunk(", response
         )
         self.assertIn("transaction_cache_store(state, request->request_id, transaction)", response)
-        self.assertIn("haproxy_modsecurity_transaction_finish_with_decision(transaction, decision) != 0", response)
-        self.assertIn("haproxy_modsecurity_transaction_abort_with_error(transaction, decision->error_class)", response)
+        self.assertIn("finish_production_response_transaction(state, request, transaction,", response)
+        finish = function_definition(SOURCE, "finish_production_response_transaction")
+        self.assertIn("haproxy_modsecurity_transaction_finish_with_decision(transaction, decision) != 0", finish)
+        self.assertIn("set_processing_failure(state, decision, phase,", finish)
+        self.assertIn("decision_log_write(state, request, decision, 0, *decision_text)", finish)
+        self.assertIn("decision, decision_origin, decision_text, modsec_rc)", response)
+        self.assertIn("const int phase = request->is_response_body ? 4 : 3;", finish)
+        self.assertIn("if (modsec_rc != 0)", finish)
+        self.assertIn("haproxy_modsecurity_transaction_abort_with_error(transaction, decision->error_class)", finish)
 
     def test_request_only_harness_exercises_peer_local_response_guard(self) -> None:
         self.assertIn("set_response_phase_disabled_failure(decision, phase)", SOURCE)

@@ -100,6 +100,16 @@ int main(int argc,char **argv) {
   CHECK(decision.error_class==MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE && decision.phase==2);
   CHECK(haproxy_modsecurity_transaction_error_event_write(tx,&decision,line,sizeof(line))==1);
   fputs(line,stdout);CHECK(haproxy_modsecurity_transaction_error_event_write(tx,&decision,line,sizeof(line))==0);
+  msconnector_error error;msconnector_error_init(&error);
+  CHECK(haproxy_modsecurity_transaction_error_event_write_checked(tx,&decision,line,sizeof(line),&error)==1 && line[0]=='\0');
+  CHECK(error.code==MSCONNECTOR_ERROR_NONE);
+  tx->error_event_emitted=0;
+  CHECK(!haproxy_modsecurity_transaction_error_event_write_checked(tx,&decision,line,1,&error));
+  CHECK(error.code==MSCONNECTOR_ERROR_EVENT_TOO_LARGE && !tx->error_event_emitted);
+  msconnector_error_init(&error);
+  CHECK(!haproxy_modsecurity_error_event_write_checked(&decision,"test-id",NULL,0,&error));
+  CHECK(error.code==MSCONNECTOR_ERROR_INTERNAL);
+  CHECK(haproxy_modsecurity_transaction_error_event_write_checked(tx,&decision,line,sizeof(line),NULL)==1 && line[0]!='\0');
  } else {
   const int response_phase=argv[1][0]=='r';
   enum msconnector_phase phase=response_phase?MSCONNECTOR_TRANSACTION_PHASE_P4:MSCONNECTOR_TRANSACTION_PHASE_P2;
@@ -164,11 +174,11 @@ class HaproxyNativeResultsTests(unittest.TestCase):
         source = SOURCE.read_text()
         declarations = source[source.index("struct haproxy_modsecurity_engine {"):source.index("msconnector_transaction_error_class haproxy_modsecurity_transaction_error(")]
         declarations += source[source.index("typedef int (*haproxy_modsecurity_body_append)"):source.index("static int haproxy_common_sdk_probe_semantics")]
-        names = ["copy_message", "init_decision", "native_error_decision", "contract_phase_from_decision", "decision_phase_from_contract", "retain_transaction_failure", "transaction_failure", "haproxy_modsecurity_error_event_write", "haproxy_modsecurity_transaction_error_event_write", "init_intervention", "capture_log_rule_id", "capture_intervention", "record_contract_decision", "begin_contract_phase", "validate_body_preconditions", "append_body_chunk", "finish_body", "request_body_phase", "response_body_phase", "request_text_or_default", "process_request_connection", "process_request_headers", "transaction_cleanup", "begin_transaction_protocol", "add_response_headers", "haproxy_modsecurity_transaction_process_response_headers", "process_transaction_logging", "haproxy_modsecurity_transaction_finish_with_decision", "haproxy_modsecurity_transaction_finish"]
+        names = ["copy_message", "init_decision", "native_error_decision", "contract_phase_from_decision", "decision_phase_from_contract", "retain_transaction_failure", "transaction_failure", "haproxy_modsecurity_error_event_write_checked", "haproxy_modsecurity_error_event_write", "haproxy_modsecurity_transaction_error_event_write_checked", "haproxy_modsecurity_transaction_error_event_write", "init_intervention", "capture_log_rule_id", "capture_intervention", "record_contract_decision", "begin_contract_phase", "validate_body_preconditions", "append_body_chunk", "finish_body", "request_body_phase", "response_body_phase", "request_text_or_default", "process_request_connection", "process_request_headers", "transaction_cleanup", "begin_transaction_protocol", "add_response_headers", "haproxy_modsecurity_transaction_process_response_headers", "process_transaction_logging", "haproxy_modsecurity_transaction_finish_with_decision", "haproxy_modsecurity_transaction_finish"]
         declarations += "static int map_response_for_transaction(haproxy_modsecurity_transaction *t,const haproxy_modsecurity_response *r,haproxy_modsecurity_decision *d){(void)t;(void)r;(void)d;return 1;}\n"
         fixture = PREAMBLE + declarations + "\n".join(function_definition(source, name) for name in names) + MAIN
         (directory / "fixture.c").write_text(fixture)
-        common = ["transaction_state.c", "decision.c", "decision_action.c", "rule_id.c", "log_sanitize.c", "intervention.c", "http_status.c", "event.c", "event_jsonl.c", "json_escape.c", "status.c"]
+        common = ["error.c", "transaction_state.c", "decision.c", "decision_action.c", "rule_id.c", "log_sanitize.c", "intervention.c", "http_status.c", "event.c", "event_jsonl.c", "json_escape.c", "status.c"]
         args = shlex.split(os.environ.get("CC", "cc")) + ["-std=c17", "-Wall", "-Wextra", "-Werror", "-ffunction-sections", "-Wl,--gc-sections", "-I", str(ROOT), "-I", str(ROOT / "common/include"), str(directory / "fixture.c")] + [str(ROOT / "common/src" / name) for name in common] + [str(ROOT / "connectors/profile_registry.c"), "-o", str(cls.binary)]
         result = subprocess.run(args, capture_output=True, text=True, timeout=90)
         if result.returncode:

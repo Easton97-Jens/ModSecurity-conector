@@ -188,13 +188,17 @@ review_guards: list[tuple[bool, str]] = [
     (
         base.tokens_in_order(
             request_body_finalizer,
+            "if (msr->intervention.mandatory_event_failed ||",
+            "msr->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE)",
+            "return HTTP_INTERNAL_SERVER_ERROR;",
             "if (msr->request_body_processed)",
             f"return {INTERVENTION_SENTINEL};",
             P2_PROCESS,
             f"msc_apache_contract_complete(msr,\n            {REQUEST_BODY_PHASE})",
             "msr->request_body_processed = 1;",
             "intervention = process_intervention(msr->t, r);",
-            "return intervention;",
+            "return msr->intervention.mandatory_event_failed\n"
+            "        ? HTTP_INTERNAL_SERVER_ERROR : intervention;",
         )
         # This helper is part of the P2 call graph. A known-unreachable
         # lexical decoy must not satisfy its completion/intervention contract.

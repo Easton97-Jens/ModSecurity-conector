@@ -267,28 +267,28 @@ def native_redirect_storage_is_checked(text: str) -> bool:
 
 intervention_event_helper = source_section(
     filters_c,
-    "static void apache_log_intervention_event",
-    "static void apache_phase4_log_event",
+    "static msconnector_error_code apache_log_intervention_event",
+    "static msconnector_error_code apache_phase4_log_event",
 )
 intervention_http_helper = source_section(
     filters_c,
     "static void apache_intervention_set_http",
-    "static void apache_intervention_write_event",
+    "static msconnector_error_code apache_intervention_write_event",
 )
 intervention_writer = source_section(
     filters_c,
-    "static void apache_intervention_write_event",
-    "static void apache_log_intervention_event",
+    "static msconnector_error_code apache_intervention_write_event",
+    "static msconnector_error_code apache_log_intervention_event",
 )
 intervention_writer_code = function_section(filters_c, "apache_intervention_write_event")
 phase4_event_wrapper = source_section(
     filters_c,
-    "static void apache_phase4_log_event",
-    "static void apache_phase3_log_event",
+    "static msconnector_error_code apache_phase4_log_event",
+    "static msconnector_error_code apache_phase3_log_event",
 )
 phase3_event_wrapper = source_section(
     filters_c,
-    "static void apache_phase3_log_event",
+    "static msconnector_error_code apache_phase3_log_event",
     "static apr_status_t apache_phase4_append_bucket",
 )
 request_body_finalizer = function_section(filters_c, "msc_finalize_request_body")
@@ -371,12 +371,18 @@ checks.extend([
     (
         "char line[4096];" in intervention_writer_code
         and function_call_count(intervention_writer_code, "msconnector_event_write_jsonl_line") == 1
-        and function_call_count(intervention_writer_code, "apr_file_puts") == 1
+        and function_call_count(intervention_writer_code, "apr_file_write_full") == 1
+        and tokens_in_order(intervention_writer_code,
+            "msconnector_event_write_jsonl_line", "apache_open_event_file",
+            "rc = apr_file_write_full", "rc != APR_SUCCESS || written != length",
+            "code = MSCONNECTOR_ERROR_IO;", "apr_file_close",
+            "close_rc != APR_SUCCESS", "code = MSCONNECTOR_ERROR_IO;",
+            "return apache_event_sink_result(msr, r, code, mandatory);")
         and "apr_psprintf" not in intervention_writer_code
         and re.search(
             r"if\s*\(\s*!msconnector_event_write_jsonl_line\([^;]+?\)\s*\)\s*\{\s*"
-            r"ap_log_rerror\([^;]+?\);\s*return\s*;\s*\}\s*"
-            r"rc\s*=\s*apr_file_puts\(line,\s*file\);",
+            r"ap_log_rerror\([^;]+?\);\s*return\s+apache_event_sink_result\([^;]+?\);\s*\}\s*"
+            r"rc\s*=\s*apache_open_event_file\(",
             intervention_writer_code, re.DOTALL) is not None,
         "Apache P3/P4 events reject serialization failure before the single canonical JSONL write",
     ),
@@ -501,12 +507,12 @@ checks.extend([
         "Apache preserves redirect through the canonical decision mapper and native Location sink",
     ),
     (
-        "failed to open intervention log" in intervention_event_helper
+        "failed to open intervention log" in intervention_writer
         and "failed to write intervention log" in intervention_writer
         and "common intervention event serialization %s" in intervention_writer
-        and "failed to close intervention log" in intervention_event_helper
+        and "failed to close intervention log" in intervention_writer
         and RC_NOT_SUCCESS in intervention_writer_code
-        and "apr_file_close" in intervention_event_helper,
+        and "apr_file_close" in intervention_writer,
         "Apache reports open, canonical write, serialization, and close failures for shared P3/P4 event logging",
     ),
     ("msconnector_rule_id_extract_from_message" in filters_c, "Apache rule-id extraction uses Common helper"),
