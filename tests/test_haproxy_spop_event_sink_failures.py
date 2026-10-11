@@ -24,7 +24,8 @@ FUNCTIONS = (
     "dirname_to_buffer", "open_append_file_or_standard", "log_streams_share_inode",
     "open_agent_logs", "close_agent_owned_streams", "json_write_string",
     "safe_decision_name", "phase4_requested_action", "phase4_common_event_write",
-    "safe_decision_reason_code", "decision_log_write", "decision_log_failed",
+    "safe_decision_reason_code", "decision_log_render_metadata", "decision_log_finish_staging",
+    "decision_log_write", "decision_log_failed",
     "copy_spop_string", "copy_cstring", "runtime_init_decision", "set_response_phase_disabled_failure",
     "set_admission_failure", "ensure_notify_request_id", "notify_request_has_required_endpoints",
     "protocol_failure_requires_enforcement", "mode_enforces", "production_ack_enforces",
@@ -187,7 +188,7 @@ int main(int argc, char **argv) {
             code = 0;
         } else if (strcmp(argv[1], "direct-write") == 0 || strcmp(argv[1], "direct-flush") == 0) {
             first = phase4_common_event_write(file, &request, &decision,
-                "deny", "", 200, "fixture", &error);
+                "deny", "", "fixture", &error);
             code = error.code;
             again = first;
         } else if (strcmp(argv[1], "serialize") == 0) {
@@ -195,13 +196,13 @@ int main(int argc, char **argv) {
             memset(reason, 'r', sizeof(reason) - 1U);
             reason[sizeof(reason) - 1U] = '\0';
             first = phase4_common_event_write(file, &request, &decision,
-                "deny", "", 200, reason, &error);
+                "deny", "", reason, &error);
             code = error.code;
             again = first;
             size = ftell(file);
         } else if (strcmp(argv[1], "invalid") == 0) {
             first = phase4_common_event_write(file, NULL, &decision,
-                "deny", "", 200, "fixture", &error);
+                "deny", "", "fixture", &error);
             code = error.code;
             again = first;
             size = ftell(file);
@@ -297,8 +298,8 @@ class HaproxySpopEventSinkFailureTests(unittest.TestCase):
         (void)fflush(state->decision_log);
     }""", 1)
         cls.compile_fixture(compiler, old, "unchecked")
-        staging_anchor = """    if (!event_serialized && error.code == MSCONNECTOR_ERROR_IO) {
-        msconnector_error_set(&error, MSCONNECTOR_ERROR_INTERNAL,
+        staging_anchor = """    if (!event_serialized && error->code == MSCONNECTOR_ERROR_IO) {
+        msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
             "SPOP event staging failed", "haproxy-spoe-spop");
     }"""
         if text.count(staging_anchor) != 1:
@@ -340,6 +341,10 @@ class HaproxySpopEventSinkFailureTests(unittest.TestCase):
         event = next(record for record in records if record.get("event") == "engine_decision")
         self.assertEqual(event["requested_action"], "deny")
         self.assertEqual(event["actual_action"], "")
+        self.assertEqual(event["original_http_status"], records[0]["original_http_status"])
+        self.assertEqual(event["visible_http_status"], records[0]["visible_http_status"])
+        self.assertEqual(event["original_http_status"], 200)
+        self.assertEqual(event["visible_http_status"], 200)
         self.assertEqual(result["original"], 1)
 
     def assert_failure(self, scenario: str) -> None:

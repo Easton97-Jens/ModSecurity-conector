@@ -105,6 +105,33 @@ class HaproxyCommonAdoptionCheckerTests(unittest.TestCase):
             "HAProxy pre-ACK response metadata leaves actual host action and transport unobserved",
         )
 
+    def test_removed_metadata_renderer_call_is_rejected_despite_foreign_decoys(self) -> None:
+        def mutate(mapper: Path) -> None:
+            runtime = mapper.with_name("haproxy_spop_diagnostic_runtime.c")
+            call = ("decision_log_render_metadata(file, state, request, decision,\n"
+                    "        modsecurity_processed, decision_text, phase4_disruptive);")
+            replace_once(runtime, call, "/* renderer omitted */")
+            with runtime.open("a", encoding="utf-8") as source:
+                source.write(f"\n/* {call} */\nstatic void foreign_renderer_decoy(void) {{\n{call}\n}}\n")
+
+        self._assert_rejected(
+            mutate,
+            "HAProxy mandatory decision writer invokes the metadata renderer with current operation state",
+        )
+
+    def test_predicted_common_event_action_is_rejected_despite_safe_renderer(self) -> None:
+        def mutate(mapper: Path) -> None:
+            runtime = mapper.with_name("haproxy_spop_diagnostic_runtime.c")
+            action = 'phase4_requested_action(decision, decision_text), "",'
+            replace_once(runtime, action, action.replace('""', '"deny"'))
+            with runtime.open("a", encoding="utf-8") as source:
+                source.write(f"\n/* {action} */\n")
+
+        self._assert_rejected(
+            mutate,
+            "HAProxy pre-ACK response metadata leaves actual host action and transport unobserved",
+        )
+
     def test_removed_preallocation_host_rejection_is_rejected_despite_decoys(self) -> None:
         def mutate(mapper: Path) -> None:
             replace_once(

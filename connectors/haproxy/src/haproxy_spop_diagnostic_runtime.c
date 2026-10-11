@@ -2938,13 +2938,13 @@ static int phase4_common_event_write(
         const haproxy_modsecurity_decision *decision,
         const char *requested_action,
         const char *actual_action,
-        int original_status,
         const char *reason_code,
         msconnector_error *error) {
     msconnector_event event;
     char line[4096];
     char rule_id[32];
     int json_truncated = 0;
+    int original_status;
 
     if (file == 0 || request == 0 || decision == 0 ||
             requested_action == 0 || actual_action == 0) {
@@ -2953,6 +2953,8 @@ static int phase4_common_event_write(
         return 0;
     }
 
+    original_status = request->has_response_status ?
+        (int)request->response_status : 200;
     (void)snprintf(rule_id, sizeof(rule_id), "%u", decision->rule_id);
     msconnector_event_init(&event);
     event.meta.message_id = MSCONN_EVENT_RESPONSE_BLOCKED;
@@ -3047,63 +3049,24 @@ static const char *safe_decision_reason_code(
     return "modsecurity_allow";
 }
 
-static int decision_log_write(
-        agent_state *state,
+static void decision_log_render_metadata(
+        FILE *file,
+        const agent_state *state,
         const notify_request *request,
         const haproxy_modsecurity_decision *decision,
         int modsecurity_processed,
-        const char *decision_text) {
-    /*
-     * Canonical evidence is metadata-only.  Do not serialize request values,
-     * redirect targets, matched data, or libmodsecurity intervention messages:
-     * those strings can contain bodies, credentials, cookies, or other input.
-     */
-    FILE *file;
-    const char *reason_code;
+        const char *decision_text,
+        int phase4_disruptive) {
+    /* Canonical evidence never includes payloads or native intervention text. */
     const char *decision_name;
-    const char *requested_action = 0;
-    const char *actual_action = 0;
-    int phase4_disruptive;
+    const char *reason_code;
+    const char *requested_action = NULL;
+    const char *actual_action = NULL;
     int original_status;
     time_t now;
-    char *serialized = NULL;
-    size_t serialized_size = 0U;
-    msconnector_error error;
-    int success = 0;
-    int event_serialized = 1;
-
-    if (state == 0 || request == 0 || decision == 0 ||
-            !state->decision_log_lock_initialized ||
-            pthread_mutex_lock(&state->decision_log_lock) != 0) {
-        return 0;
-    }
-    /* An omitted decision log is optional. A configured failed sink is not. */
-    if (state->decision_log_error.code != MSCONNECTOR_ERROR_NONE) {
-        goto unlock;
-    }
-    if (state->decision_log == NULL) {
-        success = state->config.decision_log[0] == '\0';
-        if (!success) {
-            msconnector_error_set(&state->decision_log_error, MSCONNECTOR_ERROR_IO,
-                "SPOP decision sink is unavailable", "haproxy-spoe-spop");
-        }
-        goto unlock;
-    }
-    msconnector_error_init(&error);
-    /* Stage both records so serialization failure never touches the sink. All
-     * inputs are bounded fields; the combined record also has a hard size cap. */
-    file = open_memstream(&serialized, &serialized_size);
-    if (file == NULL) {
-        msconnector_error_set(&state->decision_log_error, MSCONNECTOR_ERROR_INTERNAL,
-            "SPOP decision serialization allocation failed", "haproxy-spoe-spop");
-        goto unlock;
-    }
     decision_name = safe_decision_name(decision_text, decision);
     reason_code = safe_decision_reason_code(
         decision, modsecurity_processed, decision_text);
-    phase4_disruptive = modsecurity_processed && request->is_response_body &&
-        decision->phase == 4 &&
-        decision->disruptive != 0;
     original_status = request->has_response_status ?
         (int)request->response_status : 200;
     if (phase4_disruptive) {
@@ -3169,38 +3132,98 @@ static int decision_log_write(
     fputs("\"reason\":", file);
     json_write_string(file, reason_code);
     fputs("}\n", file);
-    if (phase4_disruptive) {
-        event_serialized = phase4_common_event_write(file, request, decision, requested_action,
-            actual_action, original_status, reason_code, &error);
-    }
 #undef JSON_FIELD_STRING
 #undef JSON_FIELD_UINT
 #undef JSON_FIELD_INT
 #undef JSON_FIELD_BOOL
+}
+
+static void decision_log_finish_staging(
+        FILE *file,
+        int event_serialized,
+        const size_t *serialized_size,
+        msconnector_error *error) {
     /* This FILE is the serialization memory stream, not the physical sink.
      * Its stdio failure is an allocation/serialization error at this boundary. */
-    if (!event_serialized && error.code == MSCONNECTOR_ERROR_IO) {
-        msconnector_error_set(&error, MSCONNECTOR_ERROR_INTERNAL,
+    if (!event_serialized && error->code == MSCONNECTOR_ERROR_IO) {
+        msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
             "SPOP event staging failed", "haproxy-spoe-spop");
     }
-    if (ferror(file) || fflush(file) != 0) {
-        if (error.code == MSCONNECTOR_ERROR_NONE) {
-            msconnector_error_set(&error, MSCONNECTOR_ERROR_INTERNAL,
-                "SPOP decision serialization failed", "haproxy-spoe-spop");
-        }
+    if ((ferror(file) || fflush(file) != 0) &&
+            error->code == MSCONNECTOR_ERROR_NONE) {
+        msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
+            "SPOP decision serialization failed", "haproxy-spoe-spop");
     }
-    if (fclose(file) != 0 && error.code == MSCONNECTOR_ERROR_NONE) {
-        msconnector_error_set(&error, MSCONNECTOR_ERROR_INTERNAL,
+    if (fclose(file) != 0 && error->code == MSCONNECTOR_ERROR_NONE) {
+        msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
             "SPOP decision serialization close failed", "haproxy-spoe-spop");
     }
-    if (!event_serialized && error.code == MSCONNECTOR_ERROR_NONE) {
-        msconnector_error_set(&error, MSCONNECTOR_ERROR_INTERNAL,
+    if (!event_serialized && error->code == MSCONNECTOR_ERROR_NONE) {
+        msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
             "SPOP event serialization result is unavailable", "haproxy-spoe-spop");
     }
-    if (error.code == MSCONNECTOR_ERROR_NONE && serialized_size > RUNTIME_TEXT_LIMIT) {
-        msconnector_error_set(&error, MSCONNECTOR_ERROR_EVENT_TOO_LARGE,
+    if (error->code == MSCONNECTOR_ERROR_NONE && *serialized_size > RUNTIME_TEXT_LIMIT) {
+        msconnector_error_set(error, MSCONNECTOR_ERROR_EVENT_TOO_LARGE,
             "SPOP decision record exceeds the bounded sink size", "haproxy-spoe-spop");
     }
+}
+
+static int decision_log_write(
+        agent_state *state,
+        const notify_request *request,
+        const haproxy_modsecurity_decision *decision,
+        int modsecurity_processed,
+        const char *decision_text) {
+    /*
+     * Canonical evidence is metadata-only.  Do not serialize request values,
+     * redirect targets, matched data, or libmodsecurity intervention messages:
+     * those strings can contain bodies, credentials, cookies, or other input.
+     */
+    FILE *file;
+    int phase4_disruptive;
+    char *serialized = NULL;
+    size_t serialized_size = 0U;
+    msconnector_error error;
+    int success = 0;
+    int event_serialized = 1;
+
+    if (state == 0 || request == 0 || decision == 0 ||
+            !state->decision_log_lock_initialized ||
+            pthread_mutex_lock(&state->decision_log_lock) != 0) {
+        return 0;
+    }
+    /* An omitted decision log is optional. A configured failed sink is not. */
+    if (state->decision_log_error.code != MSCONNECTOR_ERROR_NONE) {
+        goto unlock;
+    }
+    if (state->decision_log == NULL) {
+        success = state->config.decision_log[0] == '\0';
+        if (!success) {
+            msconnector_error_set(&state->decision_log_error, MSCONNECTOR_ERROR_IO,
+                "SPOP decision sink is unavailable", "haproxy-spoe-spop");
+        }
+        goto unlock;
+    }
+    msconnector_error_init(&error);
+    /* Stage both records so serialization failure never touches the sink. All
+     * inputs are bounded fields; the combined record also has a hard size cap. */
+    file = open_memstream(&serialized, &serialized_size);
+    if (file == NULL) {
+        msconnector_error_set(&state->decision_log_error, MSCONNECTOR_ERROR_INTERNAL,
+            "SPOP decision serialization allocation failed", "haproxy-spoe-spop");
+        goto unlock;
+    }
+    phase4_disruptive = modsecurity_processed && request->is_response_body &&
+        decision->phase == 4 && decision->disruptive != 0;
+    decision_log_render_metadata(file, state, request, decision,
+        modsecurity_processed, decision_text, phase4_disruptive);
+    if (phase4_disruptive) {
+        event_serialized = phase4_common_event_write(file, request, decision,
+            phase4_requested_action(decision, decision_text), "",
+            safe_decision_reason_code(decision, modsecurity_processed, decision_text),
+            &error);
+    }
+    decision_log_finish_staging(file, event_serialized, &serialized_size, &error);
     if (error.code == MSCONNECTOR_ERROR_NONE &&
             (fputs(serialized, state->decision_log) == EOF ||
              ferror(state->decision_log) || fflush(state->decision_log) != 0)) {
