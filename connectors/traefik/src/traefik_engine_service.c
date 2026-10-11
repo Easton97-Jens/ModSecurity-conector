@@ -252,8 +252,12 @@ static int traefik_engine_wait_for_socket_event(int socket_fd, short events,
         polled = poll(&descriptor, 1U, timeout);
         if (polled > 0) {
             if ((descriptor.revents & (POLLERR | POLLHUP | POLLNVAL)) != 0) {
-                errno = (descriptor.revents & POLLNVAL) != 0 ? EBADF :
-                    (descriptor.revents & POLLHUP) != 0 ? ECONNRESET : EIO;
+                errno = EIO;
+                if ((descriptor.revents & POLLNVAL) != 0) {
+                    errno = EBADF;
+                } else if ((descriptor.revents & POLLHUP) != 0) {
+                    errno = ECONNRESET;
+                }
                 return 0;
             }
             return (descriptor.revents & events) != 0;

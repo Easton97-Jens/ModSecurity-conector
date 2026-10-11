@@ -67,6 +67,8 @@ Kanonische error_phase und geprüften einmaligen Auditabschluss erhalten; undoku
 - `docs/pr-382-i09-route-audit.md`
 - `reports/audits/change-records/CR-20261011-i09-native-route-reconciliation.de.md`
 - `reports/audits/change-records/CR-20261011-i09-native-route-reconciliation.md`
+- `reports/audits/i09-native-route-command-evidence.de.md`
+- `reports/audits/i09-native-route-command-evidence.md`
 - `tests/test_apache_common_adoption.py`
 - `tests/test_apache_i09_filter_events.py`
 - `tests/test_apache_native_security_contract.py`
@@ -85,6 +87,7 @@ Kanonische error_phase und geprüften einmaligen Auditabschluss erhalten; undoku
 - `tests/test_i09_native_decision.py`
 - `tests/test_native_api_fail_closed_contract.py`
 - `tests/test_native_request_body_limit_adapter_contract.py`
+- `tests/test_runtime_event_sink_failures.py`
 
 ## Ausgeführte Befehle
 
@@ -113,3 +116,5 @@ Kein Deployment, Merge, Live-Host-/CRS-/H2-/H3-/vollständige Runtime-Matrix ode
 ## Finaler Diff- und Review-Status
 
 Isolierter Task-Branch wird auf PR382 mit unveränderter obiger Basis gestapelt. Unabhängiger Source-Review fand Denial-/Terminal-Finish-Fälle; beide sind bestätigt und mit kompilierten Kontrollen behoben. Der Folge-Review fand keine verbleibende wesentliche I09-Lücke dieser Pfade. Framework/MRTS-Gitlinks bleiben unverändert. Draft-Auslieferung bedeutet weder Release, Ready, CI-/Quality-Gate-PASS noch Merge.
+
+Draft-CI-Korrekturen und tatsächliche Folgeprüfungen: [Befehlsbericht](../i09-native-route-command-evidence.de.md). Draft-PR [#408](https://github.com/Easton97-Jens/ModSecurity-conector/pull/408) ist auf PR #382 gestapelt. Commit `e15f31f2b5c0aa4b9e85efbdf015985b076ff633` erzeugte echte CI-Fehler: fehlende Apache/APR-Voraussetzungen, zwei fehlende temporäre Verzeichnisse, lokale Befehls-Pfade in der Produktdokumentation und 29 Sonar-Befunde. Das serverseitige Sonar-Quality-Gate bestand; die Repository-Gates für null Issues/Duplikation scheiterten. Authentifiziertes Readback fand vier neue duplizierte Zeilen in zwei Common-Finish-Preflight-Blöcken. Der Folgecommit ergänzt reine CI-Voraussetzungen, portable Testpfade, gepaarte Auditevidenz für originale Befehle und verhaltenserhaltende Common-/HAProxy-/Traefik-Helfer. Kein Scanner-Grenzwert, Negativtest oder Fehlervertrag wurde abgeschwächt. Grüne Connector-Läufe des alten Heads bestätigen den Folge-Head nicht. Erfolgreiche API-Readback-Befehle unten belegen nur Readback, nicht null Befunde. Fremde generierte Cache-Berichte und Environment-Snapshot-Dateien erschienen während der Arbeit und bleiben außerhalb des Commit-Scopes erhalten.

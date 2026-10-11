@@ -4657,6 +4657,18 @@ static void spop_bridge_error_event_write(spop_bridge_task_context *context,
     }
 }
 
+static msconnector_transaction_error_class spop_bridge_terminal_error(
+        const haproxy_spop_response_companion_owner_command *command)
+{
+    if (command->operation != HAPROXY_SPOP_RESPONSE_COMPANION_CANCEL) {
+        return command->error_class;
+    }
+    if (command->connection_aborted) {
+        return MSCONNECTOR_TRANSACTION_ERROR_UPSTREAM_DISCONNECT;
+    }
+    return MSCONNECTOR_TRANSACTION_ERROR_CLIENT_CANCEL;
+}
+
 static void run_spop_bridge_native_operation(spop_bridge_task_context *context,
         haproxy_modsecurity_decision *native_decision)
 {
@@ -4708,10 +4720,7 @@ static void run_spop_bridge_native_operation(spop_bridge_task_context *context,
     case HAPROXY_SPOP_RESPONSE_COMPANION_CANCEL:
     case HAPROXY_SPOP_RESPONSE_COMPANION_EXPIRE:
     case HAPROXY_SPOP_RESPONSE_COMPANION_FAIL:
-        native_decision->error_class =
-            command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_CANCEL ?
-                (command->connection_aborted ? MSCONNECTOR_TRANSACTION_ERROR_UPSTREAM_DISCONNECT :
-                    MSCONNECTOR_TRANSACTION_ERROR_CLIENT_CANCEL) : command->error_class;
+        native_decision->error_class = spop_bridge_terminal_error(command);
         native_decision->phase = 4;
         spop_bridge_error_event_write(context, native_decision);
         haproxy_modsecurity_transaction_abort_with_error(context->transaction,
@@ -4722,6 +4731,52 @@ static void run_spop_bridge_native_operation(spop_bridge_task_context *context,
     default:
         break;
     }
+}
+
+static msconnector_transaction_error_class spop_bridge_operation_error(
+        const spop_bridge_task_context *context,
+        const haproxy_modsecurity_decision *native_decision)
+{
+    if (native_decision->error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+        return native_decision->error_class;
+    }
+    if (context->transaction_consumed) {
+        return MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
+    }
+    const msconnector_transaction_error_class retained_error =
+        haproxy_modsecurity_transaction_error(context->transaction);
+    if (retained_error == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+        return MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE;
+    }
+    return retained_error;
+}
+
+static msconnector_error_code spop_bridge_error_code(
+        msconnector_transaction_error_class error_class)
+{
+    switch (error_class) {
+    case MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT: return MSCONNECTOR_ERROR_BODY_TOO_LARGE;
+    case MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE: return MSCONNECTOR_ERROR_MODSECURITY_FAILURE;
+    case MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT: return MSCONNECTOR_ERROR_TIMEOUT;
+    case MSCONNECTOR_TRANSACTION_ERROR_ENGINE_UNAVAILABLE: return MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE;
+    case MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR: return MSCONNECTOR_ERROR_INTERNAL;
+    default: return MSCONNECTOR_ERROR_PHASE_SEQUENCE;
+    }
+}
+
+static void record_spop_bridge_operation_failure(spop_bridge_task_context *context,
+        haproxy_modsecurity_decision *native_decision)
+{
+    const msconnector_transaction_error_class error_class =
+        spop_bridge_operation_error(context, native_decision);
+    msconnector_error_set(&context->error, spop_bridge_error_code(error_class),
+        "SPOP response companion owner operation failed", "haproxy-spoe-spop");
+    if (native_decision->error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+        native_decision->error_class = error_class;
+        native_decision->phase = context->command.operation ==
+            HAPROXY_SPOP_RESPONSE_COMPANION_RESPONSE_HEADERS ? 3 : 4;
+    }
+    spop_bridge_error_event_write(context, native_decision);
 }
 
 static void run_spop_bridge_task(void *opaque) {
@@ -4739,30 +4794,7 @@ static void run_spop_bridge_task(void *opaque) {
     context->success = 0;
     run_spop_bridge_native_operation(context, &native_decision);
     if (!context->success) {
-        const msconnector_transaction_error_class retained_error =
-            native_decision.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE ?
-            native_decision.error_class : context->transaction_consumed ?
-            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR :
-            haproxy_modsecurity_transaction_error(context->transaction);
-        const msconnector_transaction_error_class error_class = retained_error !=
-            MSCONNECTOR_TRANSACTION_ERROR_NONE ? retained_error :
-            MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE;
-        const msconnector_error_code code = error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT ?
-            MSCONNECTOR_ERROR_BODY_TOO_LARGE :
-            error_class == MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE ?
-            MSCONNECTOR_ERROR_MODSECURITY_FAILURE :
-            error_class == MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT ? MSCONNECTOR_ERROR_TIMEOUT :
-            error_class == MSCONNECTOR_TRANSACTION_ERROR_ENGINE_UNAVAILABLE ? MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE :
-            error_class == MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR ? MSCONNECTOR_ERROR_INTERNAL :
-            MSCONNECTOR_ERROR_PHASE_SEQUENCE;
-        msconnector_error_set(&context->error, code,
-            "SPOP response companion owner operation failed", "haproxy-spoe-spop");
-        if (native_decision.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
-            native_decision.error_class = error_class;
-            native_decision.phase = context->command.operation ==
-                HAPROXY_SPOP_RESPONSE_COMPANION_RESPONSE_HEADERS ? 3 : 4;
-        }
-        spop_bridge_error_event_write(context, &native_decision);
+        record_spop_bridge_operation_failure(context, &native_decision);
         return;
     }
     if (!set_bridge_native_decision(context, &native_decision)) {

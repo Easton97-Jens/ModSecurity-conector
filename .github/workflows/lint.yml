@@ -68,6 +68,12 @@ jobs:
       - name: Verify runtime event sink failures
         if: ${{ !cancelled() }}
         run: python -m unittest -v tests.test_runtime_event_sink_failures tests.test_runtime_host_action_validation
+      - name: Install I09 Apache compiled-test prerequisites
+        if: ${{ !cancelled() }}
+        run: |
+          set -eu
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes apache2-dev build-essential
       - name: Verify I09 route API and terminal error regressions
         if: ${{ !cancelled() }}
         run: make check-i09-native-routes

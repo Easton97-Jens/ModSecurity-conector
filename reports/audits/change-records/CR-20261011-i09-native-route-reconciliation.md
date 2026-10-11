@@ -60,6 +60,8 @@ Retain canonical error_phase and checked once-only logging; normalize undocument
 - `docs/pr-382-i09-route-audit.md`
 - `reports/audits/change-records/CR-20261011-i09-native-route-reconciliation.de.md`
 - `reports/audits/change-records/CR-20261011-i09-native-route-reconciliation.md`
+- `reports/audits/i09-native-route-command-evidence.de.md`
+- `reports/audits/i09-native-route-command-evidence.md`
 - `tests/test_apache_common_adoption.py`
 - `tests/test_apache_i09_filter_events.py`
 - `tests/test_apache_native_security_contract.py`
@@ -78,6 +80,7 @@ Retain canonical error_phase and checked once-only logging; normalize undocument
 - `tests/test_i09_native_decision.py`
 - `tests/test_native_api_fail_closed_contract.py`
 - `tests/test_native_request_body_limit_adapter_contract.py`
+- `tests/test_runtime_event_sink_failures.py`
 
 ## Commands executed
 
@@ -106,3 +109,5 @@ No deployment, merge, live-host/CRS/H2/H3/full runtime matrix or physical sink f
 ## Final diff and review status
 
 Isolated task branch is stacked on PR382 at the unchanged base revision above. Independent source review found the denial/terminal-finish cases, both confirmed and fixed with compiled controls; follow-up review found no residual material I09 gap in those paths. Framework/MRTS Gitlinks remain unchanged. Draft delivery does not imply release, Ready, CI/Quality-Gate pass or merge.
+
+Draft CI remediation and actual follow-up checks: [command evidence](../i09-native-route-command-evidence.md). Draft PR [#408](https://github.com/Easton97-Jens/ModSecurity-conector/pull/408) is stacked on PR #382. Commit `e15f31f2b5c0aa4b9e85efbdf015985b076ff633` produced real CI failures: absent Apache/APR prerequisites, two missing temporary directories, local command paths in product documentation and 29 Sonar findings. Sonar server Quality Gate passed but repository zero-issue/zero-duplication gates failed; authenticated readback found four new duplicated lines in two Common finish-preflight blocks. The follow-up supplies CI-only prerequisites, portable temporary paths, paired audit evidence for original commands and behavior-preserving Common/HAProxy/Traefik helpers. No scanner threshold, negative test or error contract was weakened. Old-head green connector runs do not certify the follow-up head. Successful API readback commands below prove readback only, not zero findings. Unrelated generated cache reports and environment snapshot files appeared during work and are preserved outside the scoped commit.

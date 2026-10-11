@@ -1117,6 +1117,15 @@ static int native_intervention_status(
     return intervention == NULL ? 0 : intervention->status;
 }
 
+static void native_capture_rule_id(
+    msconnector_native_transaction *native,
+    const ModSecurityIntervention *intervention) {
+    if (intervention->log != NULL) {
+        (void)msconnector_rule_id_extract_from_message(
+            intervention->log, native->rule_id, sizeof(native->rule_id));
+    }
+}
+
 static int native_decision(
     const msconnector_runtime *runtime,
     msconnector_native_transaction *native,
@@ -1143,11 +1152,8 @@ static int native_decision(
     }
     disruptive = intervention_result == 1 && intervention.disruptive != 0;
     body_limit = native_is_request_body_limit_rejection(phase, &intervention);
-    if (disruptive && intervention.log != NULL) {
-        (void)msconnector_rule_id_extract_from_message(
-            intervention.log, native->rule_id, sizeof(native->rule_id));
-    }
     if (disruptive) {
+        native_capture_rule_id(native, &intervention);
         int intervention_status = msconnector_intervention_normalize_status(
             intervention.url, native_intervention_status(phase, &intervention),
             runtime->config.default_block_status);
@@ -4436,9 +4442,11 @@ static int finish_transaction_with_logging(
     return 1;
 }
 
-int msconnector_runtime_transaction_finish_host_rejected_request_body(
+static int prepare_transaction_finish(
     msconnector_runtime_transaction *transaction,
-    msconnector_error *error) {
+    msconnector_error *error,
+    int *already_finished) {
+    *already_finished = 0;
     if (error != NULL) {
         msconnector_error_init(error);
     }
@@ -4450,12 +4458,27 @@ int msconnector_runtime_transaction_finish_host_rejected_request_body(
         return replay_event_write_failure(transaction, error);
     }
     if (transaction->finished) {
+        *already_finished = 1;
         return 1;
     }
     if (transaction->finish_attempted) {
         return runtime_error(error, transaction->finish_error == MSCONNECTOR_ERROR_NONE ?
             MSCONNECTOR_ERROR_INTERNAL : transaction->finish_error,
             "transaction finish previously failed", "runtime");
+    }
+    return 1;
+}
+
+int msconnector_runtime_transaction_finish_host_rejected_request_body(
+    msconnector_runtime_transaction *transaction,
+    msconnector_error *error) {
+    int already_finished;
+
+    if (!prepare_transaction_finish(transaction, error, &already_finished)) {
+        return 0;
+    }
+    if (already_finished) {
+        return 1;
     }
     if (!transaction->native_started) {
         return finish_transaction_with_logging(transaction, error);
@@ -4473,23 +4496,13 @@ int msconnector_runtime_transaction_finish_host_rejected_request_body(
 int msconnector_runtime_transaction_finish(
     msconnector_runtime_transaction *transaction,
     msconnector_error *error) {
-    if (error != NULL) {
-        msconnector_error_init(error);
+    int already_finished;
+
+    if (!prepare_transaction_finish(transaction, error, &already_finished)) {
+        return 0;
     }
-    if (transaction == NULL) {
-        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
-            "transaction is required", "runtime");
-    }
-    if (transaction->event_write_failed != MSCONNECTOR_ERROR_NONE) {
-        return replay_event_write_failure(transaction, error);
-    }
-    if (transaction->finished) {
+    if (already_finished) {
         return 1;
-    }
-    if (transaction->finish_attempted) {
-        return runtime_error(error, transaction->finish_error == MSCONNECTOR_ERROR_NONE ?
-            MSCONNECTOR_ERROR_INTERNAL : transaction->finish_error,
-            "transaction finish previously failed", "runtime");
     }
     if (transaction->native_started && !transaction->request_blocked &&
         transaction->runtime->body_policy.request_body_mode == MSCONNECTOR_BODY_MODE_STREAMING &&

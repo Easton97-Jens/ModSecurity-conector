@@ -157,14 +157,14 @@ int main(int argc,char **argv) {
 class HaproxyNativeResultsTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        temporary = tempfile.TemporaryDirectory(prefix="haproxy-native-", dir=os.environ.get("TMPDIR", "/var/tmp/codex/ModSecurity-conector"))
+        temporary = tempfile.TemporaryDirectory(prefix="haproxy-native-", dir=os.environ.get("TMPDIR") or os.environ.get("RUNNER_TEMP"))
         cls.addClassCleanup(temporary.cleanup)
         directory = Path(temporary.name)
         cls.binary = directory / "fixture"
         source = SOURCE.read_text()
         declarations = source[source.index("struct haproxy_modsecurity_engine {"):source.index("msconnector_transaction_error_class haproxy_modsecurity_transaction_error(")]
         declarations += source[source.index("typedef int (*haproxy_modsecurity_body_append)"):source.index("static int haproxy_common_sdk_probe_semantics")]
-        names = ["copy_message", "init_decision", "native_error_decision", "transaction_failure", "haproxy_modsecurity_error_event_write", "haproxy_modsecurity_transaction_error_event_write", "init_intervention", "capture_log_rule_id", "capture_intervention", "record_contract_decision", "begin_contract_phase", "validate_body_preconditions", "append_body_chunk", "finish_body", "request_body_phase", "response_body_phase", "request_text_or_default", "process_request_connection", "process_request_headers", "transaction_cleanup", "begin_transaction_protocol", "add_response_headers", "haproxy_modsecurity_transaction_process_response_headers", "haproxy_modsecurity_transaction_finish_with_decision", "haproxy_modsecurity_transaction_finish"]
+        names = ["copy_message", "init_decision", "native_error_decision", "contract_phase_from_decision", "decision_phase_from_contract", "retain_transaction_failure", "transaction_failure", "haproxy_modsecurity_error_event_write", "haproxy_modsecurity_transaction_error_event_write", "init_intervention", "capture_log_rule_id", "capture_intervention", "record_contract_decision", "begin_contract_phase", "validate_body_preconditions", "append_body_chunk", "finish_body", "request_body_phase", "response_body_phase", "request_text_or_default", "process_request_connection", "process_request_headers", "transaction_cleanup", "begin_transaction_protocol", "add_response_headers", "haproxy_modsecurity_transaction_process_response_headers", "process_transaction_logging", "haproxy_modsecurity_transaction_finish_with_decision", "haproxy_modsecurity_transaction_finish"]
         declarations += "static int map_response_for_transaction(haproxy_modsecurity_transaction *t,const haproxy_modsecurity_response *r,haproxy_modsecurity_decision *d){(void)t;(void)r;(void)d;return 1;}\n"
         fixture = PREAMBLE + declarations + "\n".join(function_definition(source, name) for name in names) + MAIN
         (directory / "fixture.c").write_text(fixture)

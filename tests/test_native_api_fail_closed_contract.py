@@ -60,7 +60,7 @@ class NativeAPIFailClosedContractTests(unittest.TestCase):
     def test_real_native_predicates_reject_unknown_results_and_preserve_partial(self) -> None:
         compiler = shutil.which("cc")
         self.assertIsNotNone(compiler)
-        with tempfile.TemporaryDirectory(prefix="native-results-", dir=os.environ.get("TMPDIR", "/var/tmp/codex/ModSecurity-conector")) as directory:
+        with tempfile.TemporaryDirectory(prefix="native-results-", dir=os.environ.get("TMPDIR") or os.environ.get("RUNNER_TEMP")) as directory:
             fixture = Path(directory) / "results.c"
             binary = Path(directory) / "results"
             fixture.write_text('#include "msconnector/native_result.h"\nint main(void) { int values[]={-2,-1,0,1,2,17}; for(unsigned i=0;i<6;i++){int r=values[i]; if(msconnector_native_phase_succeeded(r)!=(r==1))return 1; if(msconnector_native_body_append_can_continue(r)!=(r==0||r==1))return 2;} return 0;}\n')

@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+from tests.c_source_contract import function_definition
 
 
 SOURCE = (
@@ -62,7 +63,10 @@ def test_mapping_rejection_is_terminal_and_not_ignored() -> None:
     response_stage = SOURCE[response_start:response_end]
     assert "haproxy_modsecurity_map_owned_response" in response_mapper
     assert "transaction_failure(transaction, decision, MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR" in response_mapper
-    assert "msconnector_transaction_contract_fail" in SOURCE[SOURCE.index("static void transaction_failure("):SOURCE.index("int haproxy_modsecurity_error_event_write(")]
+    failure = function_definition(SOURCE, "transaction_failure")
+    retained = function_definition(SOURCE, "retain_transaction_failure")
+    assert "retain_transaction_failure(transaction, decision, error_class)" in failure
+    assert "msconnector_transaction_contract_fail(&transaction->contract, error_class, 0U)" in retained
     assert "if (!map_response_for_transaction(transaction, response, decision))" in response_stage
     assert "return 1;" in response_stage
     assert "common response mapper validation skipped" not in response_mapper

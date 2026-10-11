@@ -534,6 +534,21 @@ static int haproxy_modsecurity_htx_finish_context(
     }
 }
 
+static int haproxy_modsecurity_htx_error_phase(
+    const struct haproxy_modsecurity_htx_filter_context *ctx)
+{
+    if (ctx->response.headers_seen) {
+        return 4;
+    }
+    if (ctx->request.finished) {
+        return 3;
+    }
+    if (ctx->request.headers_seen) {
+        return 2;
+    }
+    return 1;
+}
+
 static void haproxy_modsecurity_htx_report_error(
     struct haproxy_modsecurity_htx_filter_context *ctx)
 {
@@ -548,8 +563,7 @@ static void haproxy_modsecurity_htx_report_error(
         if (ctx->lifecycle.error.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
             ctx->lifecycle.error.error_class = MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
         }
-        ctx->lifecycle.error.phase = ctx->response.headers_seen ? 4 :
-            ctx->request.finished ? 3 : ctx->request.headers_seen ? 2 : 1;
+        ctx->lifecycle.error.phase = haproxy_modsecurity_htx_error_phase(ctx);
     }
     if (haproxy_modsecurity_error_event_write(&ctx->lifecycle.error,
             ctx->lifecycle.transaction_id, line, sizeof(line))) {
@@ -827,7 +841,15 @@ static int haproxy_modsecurity_htx_append_payload(
         if (type == HTX_BLK_UNUSED) {
             continue;
         }
-        if (type == HTX_BLK_DATA) {
+        if (type != HTX_BLK_DATA) {
+            if (offset != 0U || block_size > remaining) {
+                return -1;
+            }
+            remaining -= block_size;
+            offset = 0U;
+            continue;
+        }
+        {
             struct ist value = htx_get_blk_value(htx, blk);
             haproxy_modsecurity_decision decision;
 
@@ -853,11 +875,6 @@ static int haproxy_modsecurity_htx_append_payload(
             }
             *body_bytes_seen += value.len;
             remaining -= (unsigned int)value.len;
-        } else {
-            if (offset != 0U || block_size > remaining) {
-                return -1;
-            }
-            remaining -= block_size;
         }
         offset = 0U;
     }

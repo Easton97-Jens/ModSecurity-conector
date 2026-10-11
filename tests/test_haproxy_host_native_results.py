@@ -96,12 +96,12 @@ int main(void) {
 
 class HaproxyHostNativeResultsTests(unittest.TestCase):
     def test_host_error_reentry_and_bridge_error_classification(self):
-        with tempfile.TemporaryDirectory(prefix="haproxy-host-native-", dir=os.environ.get("TMPDIR", "/var/tmp/codex/ModSecurity-conector")) as temporary:
+        with tempfile.TemporaryDirectory(prefix="haproxy-host-native-", dir=os.environ.get("TMPDIR") or os.environ.get("RUNNER_TEMP")) as temporary:
             directory = Path(temporary)
             htx = (ROOT / "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c").read_text()
             spop = (ROOT / "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c").read_text()
-            functions = [function_definition(htx, name) for name in ("haproxy_modsecurity_htx_abort_context", "haproxy_modsecurity_htx_finish_context", "haproxy_modsecurity_htx_report_error", "haproxy_modsecurity_htx_fail_closed_precommit", "haproxy_modsecurity_htx_fail_closed_postcommit")]
-            functions += [function_definition(spop, name) for name in ("run_spop_bridge_native_operation", "run_spop_bridge_task")]
+            functions = [function_definition(htx, name) for name in ("haproxy_modsecurity_htx_abort_context", "haproxy_modsecurity_htx_finish_context", "haproxy_modsecurity_htx_error_phase", "haproxy_modsecurity_htx_report_error", "haproxy_modsecurity_htx_fail_closed_precommit", "haproxy_modsecurity_htx_fail_closed_postcommit")]
+            functions += [function_definition(spop, name) for name in ("spop_bridge_terminal_error", "run_spop_bridge_native_operation", "spop_bridge_operation_error", "spop_bridge_error_code", "record_spop_bridge_operation_failure", "run_spop_bridge_task")]
             fixture = directory / "fixture.c"
             fixture.write_text(PREAMBLE + "\n".join(functions) + MAIN)
             binary = directory / "fixture"

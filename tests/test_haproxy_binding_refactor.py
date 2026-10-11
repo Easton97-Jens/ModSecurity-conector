@@ -143,7 +143,8 @@ class HaproxyBindingRefactorTests(unittest.TestCase):
         source = SOURCE.read_text(encoding="utf-8")
         functions = (("copy_message", "void"), ("init_decision", "void"), ("native_error_decision", "void"),
                      ("capture_log_rule_id", "void"), ("request_text_or_default", "const char *"),
-                     ("cleanup_evaluation_resources", "void"), ("eval_request_internal", "int"))
+                     ("cleanup_evaluation_resources", "void"), ("evaluate_request_phases", "int"),
+                     ("finish_evaluation_logging", "int"), ("eval_request_internal", "int"))
         fixture = PREAMBLE + "\n".join(extract(source, name, result) for name, result in functions) + MAIN
         (directory / "fixture.c").write_text(fixture, encoding="utf-8")
         result = subprocess.run(

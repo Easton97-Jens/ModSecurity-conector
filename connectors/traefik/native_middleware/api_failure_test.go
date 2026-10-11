@@ -30,43 +30,58 @@ func (tx *failingHostTransaction) AcknowledgeLateLogOnly(context.Context, int) e
 }
 
 func TestResponseCommitFailureStopsBodyAndEOS(t *testing.T) {
-	for _, fail := range []bool{false, true} {
-		t.Run(map[bool]string{false: "success", true: "failure"}[fail], func(t *testing.T) {
-			tx := &failingHostTransaction{}
-			if fail {
-				tx.commitErr = errHostBridge
-			}
+	cases := []struct {
+		name      string
+		commitErr error
+		wantEOS   bool
+		check     func(*testing.T, *responseWriter, *failingHostTransaction, *httptest.ResponseRecorder, int, error)
+	}{
+		{"success", nil, true, assertSuccessfulResponseWrite},
+		{"failure", errHostBridge, false, assertFailedCommitStopsResponse},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			tx := &failingHostTransaction{commitErr: test.commitErr}
 			state := &streamState{config: *CreateConfig(), engine: tx, requestEOS: true}
 			target := httptest.NewRecorder()
 			writer := newResponseWriter(httptest.NewRequest(http.MethodGet, "/", nil), target, state)
 			n, err := writer.Write([]byte("first"))
-			if fail {
-				if !errors.Is(err, errHostBridge) || n != 0 || target.Body.Len() != 0 {
-					t.Fatalf("commit failure forwarded body: n=%d err=%v body=%q", n, err, target.Body.String())
-				}
-				before := len(tx.bodyCalls)
-				if _, err = writer.Write([]byte("retry")); !errors.Is(err, errHostBridge) {
-					t.Fatalf("reentry error = %v", err)
-				}
-				writer.finish()
-				if len(tx.bodyCalls) != before {
-					t.Fatal("engine reentered after failed commit")
-				}
-			} else {
-				if n != 5 || err != nil {
-					t.Fatalf("success write n=%d err=%v", n, err)
-				}
-				writer.finish()
-				if !state.responseEOS {
-					t.Fatal("successful stream missing EOS")
-				}
+			test.check(t, writer, tx, target, n, err)
+			state.close(context.Background())
+			state.close(context.Background())
+			if len(tx.closed) != 1 {
+				t.Fatalf("cleanup count = %d", len(tx.closed))
 			}
-			state.close(context.Background())
-			state.close(context.Background())
-			if len(tx.closed) != 1 || fail && tx.closed[0].ResponseEOS {
+			if tx.closed[0].ResponseEOS != test.wantEOS {
 				t.Fatalf("cleanup summary = %+v", tx.closed)
 			}
 		})
+	}
+}
+
+func assertFailedCommitStopsResponse(t *testing.T, writer *responseWriter, tx *failingHostTransaction, target *httptest.ResponseRecorder, n int, err error) {
+	t.Helper()
+	if !errors.Is(err, errHostBridge) || n != 0 || target.Body.Len() != 0 {
+		t.Fatalf("commit failure forwarded body: n=%d err=%v body=%q", n, err, target.Body.String())
+	}
+	before := len(tx.bodyCalls)
+	if _, err = writer.Write([]byte("retry")); !errors.Is(err, errHostBridge) {
+		t.Fatalf("reentry error = %v", err)
+	}
+	writer.finish()
+	if len(tx.bodyCalls) != before {
+		t.Fatal("engine reentered after failed commit")
+	}
+}
+
+func assertSuccessfulResponseWrite(t *testing.T, writer *responseWriter, _ *failingHostTransaction, _ *httptest.ResponseRecorder, n int, err error) {
+	t.Helper()
+	if n != 5 || err != nil {
+		t.Fatalf("success write n=%d err=%v", n, err)
+	}
+	writer.finish()
+	if !writer.state.responseEOS {
+		t.Fatal("successful stream missing EOS")
 	}
 }
 

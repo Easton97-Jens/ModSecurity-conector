@@ -162,37 +162,58 @@ msconnector_transaction_error_class haproxy_modsecurity_transaction_error(
         MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
 }
 
+static enum msconnector_phase contract_phase_from_decision(int phase) {
+    switch (phase) {
+    case 1: return MSCONNECTOR_PHASE_REQUEST_HEADERS;
+    case 2: return MSCONNECTOR_PHASE_REQUEST_BODY;
+    case 3: return MSCONNECTOR_PHASE_RESPONSE_HEADERS;
+    case 4: return MSCONNECTOR_PHASE_RESPONSE_BODY;
+    default: return MSCONNECTOR_PHASE_LOGGING;
+    }
+}
+
+static int decision_phase_from_contract(int phase) {
+    switch (phase) {
+    case MSCONNECTOR_PHASE_REQUEST_HEADERS: return 1;
+    case MSCONNECTOR_PHASE_REQUEST_BODY: return 2;
+    case MSCONNECTOR_PHASE_RESPONSE_HEADERS: return 3;
+    case MSCONNECTOR_PHASE_RESPONSE_BODY: return 4;
+    default: return 5;
+    }
+}
+
+static msconnector_transaction_error_class retain_transaction_failure(
+        haproxy_modsecurity_transaction *transaction,
+        const haproxy_modsecurity_decision *decision,
+        msconnector_transaction_error_class error_class) {
+    if (transaction->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+        return transaction->contract.error_class;
+    }
+    (void)msconnector_transaction_contract_fail(&transaction->contract, error_class, 0U);
+    if (transaction->contract.error_phase < 0 && decision != NULL) {
+        transaction->contract.error_phase = contract_phase_from_decision(decision->phase);
+    }
+    return error_class;
+}
+
 static void transaction_failure(haproxy_modsecurity_transaction *transaction,
         haproxy_modsecurity_decision *decision,
         msconnector_transaction_error_class error_class, const char *message) {
     if (transaction != NULL) {
-        if (transaction->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) {
-            error_class = transaction->contract.error_class;
-        } else {
-            (void)msconnector_transaction_contract_fail(&transaction->contract,
-                error_class, 0U);
-            if (transaction->contract.error_phase < 0 && decision != NULL) {
-                transaction->contract.error_phase = decision->phase == 1 ? MSCONNECTOR_PHASE_REQUEST_HEADERS :
-                    decision->phase == 2 ? MSCONNECTOR_PHASE_REQUEST_BODY :
-                    decision->phase == 3 ? MSCONNECTOR_PHASE_RESPONSE_HEADERS :
-                    decision->phase == 4 ? MSCONNECTOR_PHASE_RESPONSE_BODY : MSCONNECTOR_PHASE_LOGGING;
-            }
-        }
+        error_class = retain_transaction_failure(transaction, decision, error_class);
     }
-    if (decision != NULL) {
-        native_error_decision(decision, message);
-        decision->error_class = error_class;
-        if (transaction != NULL && transaction->contract.error_phase >= 0) {
-            decision->phase = transaction->contract.error_phase == MSCONNECTOR_PHASE_REQUEST_HEADERS ? 1 :
-                transaction->contract.error_phase == MSCONNECTOR_PHASE_REQUEST_BODY ? 2 :
-                transaction->contract.error_phase == MSCONNECTOR_PHASE_RESPONSE_HEADERS ? 3 :
-                transaction->contract.error_phase == MSCONNECTOR_PHASE_RESPONSE_BODY ? 4 : 5;
-        }
-        if (error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT) {
-            decision->body_limit = 1;
-            decision->status = 413;
-            copy_message(decision->action, sizeof(decision->action), "deny");
-        }
+    if (decision == NULL) {
+        return;
+    }
+    native_error_decision(decision, message);
+    decision->error_class = error_class;
+    if (transaction != NULL && transaction->contract.error_phase >= 0) {
+        decision->phase = decision_phase_from_contract(transaction->contract.error_phase);
+    }
+    if (error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT) {
+        decision->body_limit = 1;
+        decision->status = 413;
+        copy_message(decision->action, sizeof(decision->action), "deny");
     }
 }
 
@@ -223,10 +244,7 @@ int haproxy_modsecurity_error_event_write(
     event.meta.connector = "haproxy";
     event.meta.transaction_id = transaction_id != NULL ? transaction_id : "";
     event.meta.message_id = id;
-    event.decision.phase = decision->phase == 1 ? MSCONNECTOR_PHASE_REQUEST_HEADERS :
-        decision->phase == 2 ? MSCONNECTOR_PHASE_REQUEST_BODY :
-        decision->phase == 3 ? MSCONNECTOR_PHASE_RESPONSE_HEADERS :
-        decision->phase == 4 ? MSCONNECTOR_PHASE_RESPONSE_BODY : MSCONNECTOR_PHASE_LOGGING;
+    event.decision.phase = contract_phase_from_decision(decision->phase);
     event.decision.status = decision->error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT ?
         MSCONNECTOR_STATUS_BLOCKED : MSCONNECTOR_STATUS_ERROR;
     event.decision.requested_action = decision->error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT ? "deny" : "error";
@@ -251,10 +269,7 @@ int haproxy_modsecurity_transaction_error_event_write(
         decision->error_class = transaction->contract.error_class;
     }
     if (transaction->contract.error_phase >= 0) {
-        decision->phase = transaction->contract.error_phase == MSCONNECTOR_PHASE_REQUEST_HEADERS ? 1 :
-            transaction->contract.error_phase == MSCONNECTOR_PHASE_REQUEST_BODY ? 2 :
-            transaction->contract.error_phase == MSCONNECTOR_PHASE_RESPONSE_HEADERS ? 3 :
-            transaction->contract.error_phase == MSCONNECTOR_PHASE_RESPONSE_BODY ? 4 : 5;
+        decision->phase = decision_phase_from_contract(transaction->contract.error_phase);
     }
     if (!haproxy_modsecurity_error_event_write(decision, transaction->request_id,
             line, line_size)) {
@@ -1066,6 +1081,40 @@ static void cleanup_evaluation_resources(Transaction *transaction,
     }
 }
 
+static int evaluate_request_phases(Transaction *transaction,
+        const haproxy_modsecurity_request *request,
+        const char *safe_uri, const char *safe_method,
+        haproxy_modsecurity_decision *decision) {
+    if (process_request_connection(transaction, request, decision) != 0) {
+        return 1;
+    }
+    if (msc_process_uri(transaction, safe_uri, safe_method, "1.1") != 1) {
+        native_error_decision(decision, "msc_process_uri failed");
+        return 1;
+    }
+    if (process_request_headers(transaction, request, decision) != 0 ||
+            capture_intervention(transaction, 1, decision) != 0) {
+        return 1;
+    }
+    if (decision->disruptive != 0) {
+        return 0;
+    }
+    if (process_request_body(transaction, request, decision) != 0) {
+        return 1;
+    }
+    return capture_intervention(transaction, 2, decision) != 0;
+}
+
+static int finish_evaluation_logging(Transaction *transaction,
+        haproxy_modsecurity_decision *decision) {
+    if (!msconnector_native_phase_succeeded(msc_process_logging(transaction))) {
+        decision->phase = 5;
+        native_error_decision(decision, "msc_process_logging failed");
+        return 1;
+    }
+    return 0;
+}
+
 static int eval_request_internal(
         const haproxy_modsecurity_request *request,
         const char *rules_text,
@@ -1111,38 +1160,8 @@ static int eval_request_internal(
         decision->error_class = MSCONNECTOR_TRANSACTION_ERROR_ENGINE_UNAVAILABLE;
         goto cleanup;
     }
-    if (process_request_connection(transaction, request, decision) != 0) {
-        goto cleanup;
-    }
-    if (msc_process_uri(transaction, safe_uri, safe_method, "1.1") != 1) {
-        native_error_decision(decision, "msc_process_uri failed");
-        goto cleanup;
-    }
-    if (process_request_headers(transaction, request, decision) != 0) {
-        goto cleanup;
-    }
-    if (capture_intervention(transaction, 1, decision) != 0) {
-        goto cleanup;
-    }
-    if (decision->disruptive != 0) {
-        if (!msconnector_native_phase_succeeded(msc_process_logging(transaction))) {
-            decision->phase = 5;
-            native_error_decision(decision, "msc_process_logging failed");
-            goto cleanup;
-        }
-        rc = 0;
-        goto cleanup;
-    }
-
-    if (process_request_body(transaction, request, decision) != 0) {
-        goto cleanup;
-    }
-    if (capture_intervention(transaction, 2, decision) != 0) {
-        goto cleanup;
-    }
-    if (!msconnector_native_phase_succeeded(msc_process_logging(transaction))) {
-        decision->phase = 5;
-        native_error_decision(decision, "msc_process_logging failed");
+    if (evaluate_request_phases(transaction, request, safe_uri, safe_method, decision) != 0 ||
+            finish_evaluation_logging(transaction, decision) != 0) {
         goto cleanup;
     }
     rc = 0;
@@ -1799,40 +1818,47 @@ int haproxy_modsecurity_transaction_finish(
     return haproxy_modsecurity_transaction_finish_with_decision(transaction, NULL);
 }
 
+static int process_transaction_logging(
+        haproxy_modsecurity_transaction *transaction,
+        haproxy_modsecurity_decision *decision) {
+    if (transaction->transaction == NULL || transaction->logging_done) {
+        return 0;
+    }
+    const int logging_result = msc_process_logging(transaction->transaction);
+    transaction->logging_done = 1;
+    if (msconnector_native_phase_succeeded(logging_result)) {
+        return 0;
+    }
+    if (decision != NULL) {
+        init_decision(decision, 5);
+    }
+    transaction_failure(transaction, decision,
+        MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE,
+        "msc_process_logging failed");
+    return 1;
+}
+
 int haproxy_modsecurity_transaction_finish_with_decision(
         haproxy_modsecurity_transaction *transaction,
         haproxy_modsecurity_decision *decision) {
-    int result = 0;
-
-    if (transaction != 0) {
-        if (transaction->transaction != NULL && !transaction->logging_done) {
-            const int logging_result = msc_process_logging(transaction->transaction);
-            transaction->logging_done = 1;
-            if (!msconnector_native_phase_succeeded(logging_result)) {
-                if (decision != NULL) {
-                    init_decision(decision, 5);
-                }
-                transaction_failure(transaction, decision,
-                    MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE,
-                    "msc_process_logging failed");
-                result = 1;
-            }
+    if (transaction == NULL) {
+        return 0;
+    }
+    int result = process_transaction_logging(transaction, decision);
+    if (transaction->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+        result = 1;
+        if (decision != NULL && decision->error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+            transaction_failure(transaction, decision, transaction->contract.error_class,
+                "transaction finish failed");
         }
-        if (transaction->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) {
-            result = 1;
-            if (decision != NULL && decision->error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
-                transaction_failure(transaction, decision, transaction->contract.error_class,
-                    "transaction finish failed");
-            }
-        }
-        if (result == 0) {
-            result = msconnector_transaction_contract_finish(&transaction->contract, 0U) ==
-                MSCONNECTOR_TRANSACTION_TRANSITION_OK ? 0 : 1;
-            if (result != 0 && decision != NULL) {
-                transaction_failure(transaction, decision,
-                    MSCONNECTOR_TRANSACTION_ERROR_CLEANUP_INCOMPLETE,
-                    "incomplete transaction at finish");
-            }
+    }
+    if (result == 0) {
+        result = msconnector_transaction_contract_finish(&transaction->contract, 0U) ==
+            MSCONNECTOR_TRANSACTION_TRANSITION_OK ? 0 : 1;
+        if (result != 0 && decision != NULL) {
+            transaction_failure(transaction, decision,
+                MSCONNECTOR_TRANSACTION_ERROR_CLEANUP_INCOMPLETE,
+                "incomplete transaction at finish");
         }
     }
     transaction_cleanup(transaction, 0);
