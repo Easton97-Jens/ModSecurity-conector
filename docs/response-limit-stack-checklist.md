@@ -11,7 +11,7 @@ Base branch: `fix/unified-native-results-events-20260921`.
 Exact base: `2619b20b9d2e70fa07cbe71f664b48ff3c105380`.
 Expanded-task starting head: `6576661724841e26802a93b19d8bbfbdb5c8235a`.
 No new PR or PR/master merge. The user authorized regular base merges from #382
-into the existing #407 branch; published history is retained. Delivery is pending
+into the existing #407 branch; published history is retained. Head `cec340f3` has been analyzed; repair follow-up delivery is pending
 at this documentation snapshot.
 
 ## Implementation
@@ -158,8 +158,44 @@ bounded-URI/Envoy-bridge run passed 130 tests in 694.670 seconds
 hidden files in Common, all connectors and examples, found no additional active
 own cumulative body cap, directive injection or fallback beyond the disclosed
 authorization/sample constraints; no hidden plugin manifest contains a retired
-key. Independent P2/P4 EOS and sticky-IO review found no finding. Push/readback and current-head CI/Sonar remain pending; the remote
-#407 head is still `6576661724841e26802a93b19d8bbfbdb5c8235a`.
+key. Independent P2/P4 EOS and sticky-IO review found no finding. The later analyzed #407 head is `cec340f3`; follow-up commit, push/readback
+and renewed exact-head CI/Sonar after its repairs remain pending.
+
+## Current Sonar repair snapshot
+
+The first completed analysis of `cec340f3` reported 32 issues (one bug,
+two vulnerabilities, 29 code smells), zero hotspots and seven new duplication
+blocks totaling 65 lines. This analysis is not a passing Gate result. Source
+repairs are locally frozen; they retain checks and assertions and alter no
+scanner exceptions or Gate controls. Renewed exact-head CI/Sonar and follow-up
+commit/push remain pending; live status is in
+[PR #407](https://github.com/Easton97-Jens/ModSecurity-conector/pull/407).
+
+Current local reruns passed: Common with 207 native scenarios and 13 genuine
+methods, native selection with 131 tests/185 subtests, Go/C builds and security
+checks, and 16 root CI fixture tests covering pending-request state/counts,
+runtime construction and modeled NGINX intervention. The earlier 212-test/
+201-subtest selection is a separate run; repeated checks are not added into a
+combined test total. Current stock-sidecar validation passed 57/58; only its
+known RST empty-event defect remains open there. Together with the Common legacy
+lossy-event assertion, two baseline defects remain open. Evidence is under
+`common/sonar-cec/`, `native/sonar-cec/`, `remaining/sonar-cec/` and
+`root-checks/ci-fixture-repairs-final.log` in the external task run directory.
+Generated references now inventory 22 lighttpd items.
+
+The optional technical CLI argument `--spool-directory` selects private request
+spooling. The default is the validated private parent of `--config`. For `/etc`
+or read-only configuration storage, explicitly select an existing canonical,
+effective-service-UID-owned, writable 0700 directory. Startup checks ancestors,
+no-follow directory descriptors and file creation before readiness. Request
+files are exclusively created 0600 files and immediately unlinked. Startup,
+descriptor and disk failures remain technical failures. No `TMPDIR` or public
+fallback, total-body cap or unlimited full-body RAM allocation is introduced.
+Operators whose configuration parent is not private must supply this storage
+argument.
+
+The disclosed active authorization/sample caps and ten missing host-profile
+proofs remain; complete removal or fully verified delivery is not claimed.
 
 ## Historical evidence boundary
 

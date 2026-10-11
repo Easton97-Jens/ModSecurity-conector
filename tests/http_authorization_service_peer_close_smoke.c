@@ -28,7 +28,15 @@
 #include <unistd.h>
 
 struct msconnector_runtime { int unused; };
-struct msconnector_runtime_transaction { int unused; };
+struct msconnector_runtime_transaction {
+    int unused;
+    size_t request_body_bytes;
+    int request_body_finished;
+    msconnector_transaction_error_class request_body_failure;
+};
+
+#include "fixtures/http_authorization_request_stream_stubs.h"
+
 static struct msconnector_runtime fake_runtime;
 static int ready_fd = -1;
 static int release_fd = -1;
@@ -440,6 +448,7 @@ cleanup:
 }
 
 int main(void) {
+    msconnector_test_request_stream_stubs_smoke();
     const int result = run_peer_test();
 
     if (result == EXIT_SUCCESS) {
@@ -448,21 +457,4 @@ int main(void) {
         fputs("http authorization peer-close smoke: failed\n", stderr);
     }
     return result;
-}
-
-msconnector_body_mode msconnector_runtime_request_body_mode(const msconnector_runtime *runtime) {
-    (void)runtime; return MSCONNECTOR_BODY_MODE_BUFFERED;
-}
-int msconnector_runtime_transaction_append_request_body_chunk(msconnector_runtime_transaction *transaction,
-    const unsigned char *body, size_t size, msconnector_error *error) {
-    (void)body; (void)size; msconnector_error_init(error); return transaction != NULL;
-}
-int msconnector_runtime_transaction_finish_request_body(msconnector_runtime_transaction *transaction,
-    msconnector_decision *decision, msconnector_error *error) {
-    msconnector_error_init(error); msconnector_decision_set_allow(decision); return transaction != NULL;
-}
-
-int msconnector_runtime_transaction_fail(msconnector_runtime_transaction *transaction,
-    msconnector_transaction_error_class error_class, msconnector_error *error) {
-    (void)error_class; msconnector_error_init(error); return transaction != NULL;
 }

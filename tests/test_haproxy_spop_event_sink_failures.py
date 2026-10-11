@@ -32,7 +32,7 @@ FUNCTIONS = (
     "process_production_notify", "finish_production_response_transaction", "process_production_response_notify", "fail_mode_closed",
     "set_processing_failure", "set_response_correlation_failure",
     "build_response_from_notify",
-    "process_production_request_notify", "build_modsecurity_request_from_notify",
+    "notify_request_has_complete_body_sample", "process_production_request_notify", "build_modsecurity_request_from_notify",
     "notify_request_method", "notify_request_uri", "finish_or_store_request_transaction",
 )
 STUBS = r'''

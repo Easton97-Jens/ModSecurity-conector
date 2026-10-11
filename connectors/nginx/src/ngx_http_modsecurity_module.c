@@ -658,10 +658,8 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
 
     // logging to nginx error log can be disable by setting `modsecurity_use_error_log` to off
     if (mcf->common_config.use_error_log == MSCONNECTOR_BOOL_ON) {
-        log = intervention.log;
-        if (intervention.log == NULL) {
-          log = "(no log message was specified)";
-        }
+        log = intervention.log != NULL ? intervention.log :
+            "(no log message was specified)";
         ngx_log_error(NGX_LOG_ERR, (ngx_log_t *)r->connection->log, 0, "%s", log);
     }
 

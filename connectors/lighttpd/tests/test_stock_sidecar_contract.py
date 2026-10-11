@@ -286,7 +286,7 @@ class _RunningSidecar:
 class StockSidecarSourceContractTest(unittest.TestCase):
     def _compile_and_run_c_harness(
         self, harness_source: str, *, prefix: str, filename: str,
-        compiler: str, include_directory: Path,
+        compiler: str, include_directory: Path, link_crypto: bool = False,
     ) -> None:
         harness_source = harness_source.replace(
             "__SIDECAR_SOURCE__", SIDECAR_SOURCE.as_posix()
@@ -295,7 +295,7 @@ class StockSidecarSourceContractTest(unittest.TestCase):
             directory = Path(temporary)
             harness = directory / f"{filename}.c"
             binary = directory / filename
-            harness.write_text(harness_source, encoding="utf-8")
+            harness.write_text(harness_source.replace("__TEST_ROOT__", directory.as_posix()), encoding="utf-8")
             compiled = subprocess.run(
                 [
                     compiler,
@@ -304,6 +304,7 @@ class StockSidecarSourceContractTest(unittest.TestCase):
                     "-I.", "-Icommon/include", "-Icommon/runtime",
                     "-Iconnectors/lighttpd/stock_sidecar", f"-I{include_directory}",
                     str(harness), "-Wl,--gc-sections", "-o", str(binary),
+                    *(["-lcrypto"] if link_crypto else []),
                 ],
                 cwd=ROOT,
                 text=True,
@@ -315,6 +316,74 @@ class StockSidecarSourceContractTest(unittest.TestCase):
                 [str(binary)], cwd=ROOT, text=True, capture_output=True, check=False,
             )
             self.assertEqual(executed.returncode, 0, executed.stderr)
+
+    def test_private_spool_anchors_storage_and_rejects_unsafe_roots(self) -> None:
+        compiler = shutil.which("cc")
+        include_directory = Path(os.environ.get("MODSECURITY_INCLUDE_DIR", "/usr/include"))
+        if compiler is None or not (include_directory / "modsecurity/modsecurity.h").is_file():
+            self.skipTest("requires C compiler and libmodsecurity headers")
+        runtime = COMMON_RUNTIME.read_text(encoding="utf-8")
+        start = runtime.index("int msconnector_runtime_private_directory_ancestors_are_safe(")
+        end = runtime.index("typedef struct msconnector_runtime_owned_config", start)
+        harness = r'''
+#define MSCONNECTOR_STOCK_SIDECAR_MAIN
+#define main stock_sidecar_program_main
+#include "__SIDECAR_SOURCE__"
+#undef main
+#include <assert.h>
+#include <dirent.h>
+static uid_t effective_uid;
+uid_t geteuid(void) { return effective_uid; }
+#define RUNTIME_PATH_SIZE 4096U
+__ANCESTOR_CHECK__
+static int entries(const char *path) {
+    DIR *directory=opendir(path);struct dirent *entry;int count=0;
+    assert(directory!=NULL);
+    while ((entry=readdir(directory))!=NULL) {
+        if (strcmp(entry->d_name,".")!=0 && strcmp(entry->d_name,"..")!=0) ++count;
+    }
+    assert(closedir(directory)==0);return count;
+}
+int main(void) {
+    const char *root="__TEST_ROOT__";
+    effective_uid=getuid();
+    char safe[4096],moved[4096],unsafe[4096],link[4096],config[4096];
+    struct stat info;char bytes[4];
+    assert(snprintf(safe,sizeof(safe),"%s/safe",root)>0);
+    assert(snprintf(moved,sizeof(moved),"%s/moved",root)>0);
+    assert(snprintf(unsafe,sizeof(unsafe),"%s/unsafe",root)>0);
+    assert(snprintf(link,sizeof(link),"%s/link",root)>0);
+    assert(mkdir(safe,0700)==0);assert(mkdir(unsafe,0700)==0);
+    assert(chmod(unsafe,0777)==0);assert(sidecar_open_spool_directory(unsafe)<0);
+    assert(chmod(unsafe,0500)==0);assert(sidecar_open_spool_directory(unsafe)<0);
+    assert(chmod(unsafe,0700)==0);
+    effective_uid=getuid()+1U;assert(sidecar_open_spool_directory(unsafe)<0);effective_uid=getuid();
+    assert(symlink(safe,link)==0);assert(sidecar_open_spool_directory(link)<0);
+    assert(setenv("TMPDIR",unsafe,1)==0);
+    assert(snprintf(config,sizeof(config),"%s/runtime.conf",safe)>0);
+    sidecar_options options={.config="/etc/runtime.conf",.spool_directory_fd=-1};
+    assert(!sidecar_prepare_spool_directory(&options));
+    options.spool_directory=safe;
+    assert(sidecar_prepare_spool_directory(&options));assert(close(options.spool_directory_fd)==0);
+    options.spool_directory=NULL;options.config=config;
+    assert(sidecar_prepare_spool_directory(&options));
+    int directory_fd=options.spool_directory_fd;
+    assert((fcntl(directory_fd,F_GETFD)&FD_CLOEXEC)!=0);
+    assert(rename(safe,moved)==0);assert(symlink(unsafe,safe)==0);
+    int body=sidecar_open_request_spool(directory_fd);assert(body>=0);
+    assert(fstat(body,&info)==0);assert(S_ISREG(info.st_mode));assert(info.st_nlink==0);
+    assert((info.st_mode&0777)==0600);assert(info.st_uid==geteuid());
+    assert((fcntl(body,F_GETFD)&FD_CLOEXEC)!=0);
+    assert(write(body,"body",4)==4);assert(lseek(body,0,SEEK_SET)==0);assert(read(body,bytes,4)==4);assert(memcmp(bytes,"body",4)==0);
+    assert(entries(moved)==0);assert(entries(unsafe)==0);
+    assert(close(body)==0);assert(fcntl(body,F_GETFD)<0 && errno==EBADF);
+    assert(close(directory_fd)==0);assert(fcntl(directory_fd,F_GETFD)<0 && errno==EBADF);
+    assert(unlink(safe)==0);assert(unlink(link)==0);assert(rmdir(moved)==0);assert(rmdir(unsafe)==0);
+    return 0;
+}
+'''.replace("__ANCESTOR_CHECK__", runtime[start:end])
+        self._compile_and_run_c_harness(harness, prefix="stock-private-spool-",
+            filename="spool_security", compiler=compiler, include_directory=include_directory, link_crypto=True)
 
     def test_real_backend_event_selection_separates_engine_and_host_action(self) -> None:
         harness = _load_real_backend_harness()
@@ -884,7 +953,7 @@ class StockSidecarSourceContractTest(unittest.TestCase):
         self.assertIn('"127.0.0.1:"', source)
         self.assertNotIn("MSCONNECTOR_ERROR_BODY_TOO_LARGE", source)
         self.assertIn("sidecar_open_request_spool", source)
-        self.assertIn("unlinkat(directory_fd, \"body\", 0)", source)
+        self.assertIn("unlinkat(directory_fd, name, 0)", source)
         self.assertIn("O_NOFOLLOW | O_CLOEXEC", source)
         self.assertIn("sidecar_connection_value_allowed", source)
         self.assertIn("sidecar_headers_has_name", source)

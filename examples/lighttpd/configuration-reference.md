@@ -11,6 +11,7 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 
 | Option | Layer | Type | Required | Default | Context | Short description |
 | --- | --- | --- | --- | --- | --- | --- |
+| [`--spool-directory`](#spool-directory) | Environment / runtime | path | no | validated private parent of --config | Stock lighttpd sidecar startup | Optional private request-spool directory; supply it when the configuration parent cannot provide suitable storage. |
 | [`msconnector.config-file`](#msconnector-config-file) | Host / Connector | path | yes | none | T_CONFIG_SCOPE_SERVER | Path to the Common Runtime configuration used by the native plugin. |
 | [`msconnector.enabled`](#msconnector-enabled) | Host / Connector | lighttpd boolean | no | off | T_CONFIG_SCOPE_SERVER | Enables the native lighttpd plugin. |
 | [`msconnector.expose-host-transaction-id`](#msconnector-expose-host-transaction-id) | Host / Connector | lighttpd boolean | no | off | T_CONFIG_SCOPE_SERVER | Opt-in response-header evidence for the server-generated host transaction ID. |
@@ -105,6 +106,61 @@ lighttpd -tt -f <config>
 Repository targets: `make check-config-lighttpd` and `make check-config-all-connectors`.
 
 ## Option details
+
+<a id="spool-directory"></a>
+## `--spool-directory`
+
+### Short description
+
+Optional private request-spool directory; supply it when the configuration parent cannot provide suitable storage.
+
+### Syntax
+
+```text
+--spool-directory /run/msconnector-lighttpd
+```
+
+### Valid contexts
+
+- Stock lighttpd sidecar startup
+
+### Values
+
+| Type | Allowed values | Required |
+| --- | --- | --- |
+| path | existing canonical writable directory, effective-UID-owned and mode 0700 | no |
+
+### Default
+
+validated private parent of --config
+
+Source: `sidecar_prepare_spool_directory`.
+
+### Inheritance and merge
+
+not applicable
+
+Merge: One startup value; no request-time override.
+
+### Phases and runtime effect
+
+P2 request ingestion and replay after native allow.
+
+Selects disk spool storage with bounded IO buffers; it sets no total-body limit or engine action.
+
+### Validation and errors
+
+Startup validates ancestors, pins no-follow directory descriptors and probes file creation; unsuitable storage requires an explicit private directory.
+
+### Example
+
+Selected example value: `--spool-directory /run/msconnector-lighttpd`.
+
+Source-backed example: `connectors/lighttpd/README.md`.
+
+### Safety and operations
+
+Request files are exclusively created as 0600 beneath the pinned private directory and immediately unlinked; no environment or public temporary-directory fallback.
 
 <a id="msconnector-config-file"></a>
 ## `msconnector.config-file`

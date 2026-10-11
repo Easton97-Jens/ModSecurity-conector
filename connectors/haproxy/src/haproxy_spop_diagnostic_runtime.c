@@ -3920,6 +3920,13 @@ static void finish_or_store_request_transaction(
     (void)decision_log_write(state, request, decision, 0, *decision_text);
 }
 
+static int notify_request_has_complete_body_sample(const notify_request *request)
+{
+    return request->body_len <= UINT_MAX &&
+        (!request->has_body_len_arg ||
+         request->body_len == (size_t)request->advertised_body_len);
+}
+
 static void process_production_request_notify(
         agent_state *state,
         const notify_request *request,
@@ -3941,9 +3948,7 @@ static void process_production_request_notify(
     /* This route owns one complete SPOP sample, not a request streaming
      * protocol. Reject incomplete representation as transport admission, not
      * an Engine body-limit result or an invented inspection prefix. */
-    if (request->body_len > UINT_MAX ||
-        (request->has_body_len_arg &&
-         request->body_len != (size_t)request->advertised_body_len)) {
+    if (!notify_request_has_complete_body_sample(request)) {
         *decision_text = set_admission_failure(decision, 2,
             "incomplete SPOP request body sample is unsupported");
         decision_log_write(state, request, decision, 0, *decision_text);

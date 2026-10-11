@@ -93,7 +93,8 @@ static void fill_request_chunk(unsigned char *chunk, size_t count,
     if (multipart) {
         const char *prefix = "--X\r\nContent-Disposition: form-data; name=\"p\"\r\n\r\n";
         const char *suffix = "\r\n--X--\r\n";
-        size_t prefix_size = strlen(prefix), suffix_size = strlen(suffix);
+        size_t prefix_size = strlen(prefix);
+        size_t suffix_size = strlen(suffix);
         for (size_t i = 0U; i < count; ++i) {
             size_t position = offset + i;
             if (position < prefix_size) chunk[i] = (unsigned char)prefix[position];
@@ -102,15 +103,51 @@ static void fill_request_chunk(unsigned char *chunk, size_t count,
     }
 }
 
+typedef struct request_payload {
+    size_t length;
+    size_t chunk_size;
+    size_t marker;
+    const char *input_kind;
+} request_payload;
+
+/* Consume every intervention allocation, including invalid return values. */
+static int take_native_intervention(Transaction *transaction, int *status) {
+    ModSecurityIntervention intervention = {0};
+    intervention.status = 200;
+    int native_result = msc_intervention(transaction, &intervention);
+    int valid = native_result == 0 || native_result == 1;
+    *status = 0;
+    if (valid && (native_result || intervention.disruptive)) *status = intervention.status;
+    msc_intervention_cleanup(&intervention);
+    return valid;
+}
+
+static int append_native_reference(Transaction *transaction, const request_payload *payload,
+    const char *content_type, int *pending_status) {
+    unsigned char scratch[65536];
+    for (size_t offset = 0U; offset < payload->length;) {
+        size_t count = payload->length - offset < payload->chunk_size
+            ? payload->length - offset : payload->chunk_size;
+        fill_request_chunk(scratch, count, offset, payload->marker, payload->length,
+            strncmp(content_type, "multipart/", 10U) == 0);
+        int native_result = msc_append_request_body(transaction, scratch, count);
+        if (native_result != 0 && native_result != 1) return 0;
+        int status;
+        if (!take_native_intervention(transaction, &status)) return 0;
+        if (*pending_status == 0) *pending_status = status;
+        offset += count;
+    }
+    return 1;
+}
+
 /* Independent genuine engine execution records its native prefix and result.
  * Common's offered-byte counters are deliberately not used to infer either. */
-static int native_request_reference(const char *rules_path, size_t length,
-    size_t chunk_size, size_t marker, const char *content_type, size_t *prefix, int *status) {
+static int native_request_reference(const char *rules_path, const request_payload *payload,
+    const char *content_type, size_t *prefix, int *status) {
     ModSecurity *engine = msc_init();
     RulesSet *rules = msc_create_rules_set();
     Transaction *transaction = NULL;
     const char *diagnostic = NULL;
-    unsigned char scratch[65536];
     int result = 0;
     int pending_status = 0;
     if (engine == NULL || rules == NULL ||
@@ -122,37 +159,52 @@ static int native_request_reference(const char *rules_path, size_t length,
         msc_add_request_header(transaction, (const unsigned char *)"Content-Type",
             (const unsigned char *)content_type) != 1 ||
         msc_process_request_headers(transaction) != 1) goto cleanup;
-    for (size_t offset = 0; offset < length;) {
-        size_t count = length - offset < chunk_size ? length - offset : chunk_size;
-        fill_request_chunk(scratch, count, offset, marker, length,
-            strncmp(content_type, "multipart/", 10U) == 0);
-        int native_result = msc_append_request_body(transaction, scratch, count);
-        if (native_result != 0 && native_result != 1) goto cleanup;
-        ModSecurityIntervention intervention = {0};
-        intervention.status = 200;
-        int native_intervention = msc_intervention(transaction, &intervention);
-        if (native_intervention != 0 && native_intervention != 1) {
-            msc_intervention_cleanup(&intervention); goto cleanup;
-        }
-        if (pending_status == 0 && (native_intervention || intervention.disruptive))
-            pending_status = intervention.status;
-        msc_intervention_cleanup(&intervention);
-        offset += count;
-    }
+    if (!append_native_reference(transaction, payload, content_type, &pending_status)) goto cleanup;
     *prefix = msc_get_request_body_length(transaction);
     if (msc_process_request_body(transaction) != 1) goto cleanup;
-    ModSecurityIntervention intervention = {0};
-    intervention.status = 200;
-    int native_intervention = msc_intervention(transaction, &intervention);
-    *status = pending_status != 0 ? pending_status :
-        (native_intervention || intervention.disruptive ? intervention.status : 0);
-    msc_intervention_cleanup(&intervention);
+    if (!take_native_intervention(transaction, status)) goto cleanup;
+    if (pending_status != 0) *status = pending_status;
     result = 1;
 cleanup:
     if (transaction != NULL) msc_transaction_cleanup(transaction);
     if (rules != NULL) (void)msc_rules_cleanup(rules);
     if (engine != NULL) msc_cleanup(engine);
     return result;
+}
+
+static int write_request_input(FILE *input, const request_payload *payload) {
+    unsigned char scratch[65536];
+    for (size_t offset = 0U; offset < payload->length;) {
+        size_t count = payload->length - offset < payload->chunk_size
+            ? payload->length - offset : payload->chunk_size;
+        fill_request_chunk(scratch, count, offset, payload->marker, payload->length,
+            strcmp(payload->input_kind, "multipart") == 0);
+        if (fwrite(scratch, 1U, count, input) != count) return 0;
+        offset += count;
+    }
+    return fseek(input, 0L, SEEK_SET) == 0;
+}
+
+static int append_request_chunks(msconnector_runtime_transaction *transaction, FILE *input,
+    const request_payload *payload, msconnector_error *error) {
+    unsigned char scratch[65536];
+    for (size_t offset = 0U; offset < payload->length;) {
+        size_t count = payload->length - offset < payload->chunk_size
+            ? payload->length - offset : payload->chunk_size;
+        if (input != NULL) {
+            if (fread(scratch, 1U, count, input) != count) {
+                msconnector_error_set(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
+                    "test input read failed", "fixture");
+                return 0;
+            }
+        } else {
+            fill_request_chunk(scratch, count, offset, payload->marker, payload->length,
+                strcmp(payload->input_kind, "multipart") == 0);
+        }
+        if (!msconnector_runtime_transaction_append_request_body_chunk(transaction, scratch, count, error)) return 0;
+        offset += count;
+    }
+    return 1;
 }
 
 static int request_limit_test(int argc, char **argv) {
@@ -163,8 +215,12 @@ static int request_limit_test(int argc, char **argv) {
     msconnector_request request = {0};
     msconnector_decision decision;
     msconnector_header headers[] = {{"Content-Type", 12U, "text/plain", 10U}};
-    unsigned char scratch[65536];
-    char rules[4096], config[4096], events[4096], input_path[4096], diagnostic[1024];
+    const unsigned char accounting_probe = 'x';
+    char rules[4096];
+    char config[4096];
+    char events[4096];
+    char input_path[4096];
+    char diagnostic[1024];
     FILE *file = NULL;
     FILE *input = NULL;
     int result = 1;
@@ -180,7 +236,7 @@ static int request_limit_test(int argc, char **argv) {
     const size_t length = (size_t)strtoull(argv[8], NULL, 10);
     const size_t chunk_size = (size_t)strtoull(argv[9], NULL, 10);
     const size_t marker = (size_t)strtoull(argv[10], NULL, 10);
-    CHECK(limit > 0 && no_files_limit > 0 && chunk_size > 0 && chunk_size <= sizeof(scratch));
+    CHECK(limit > 0 && no_files_limit > 0 && chunk_size > 0 && chunk_size <= 65536U);
     CHECK(marker <= length && length - marker >= 6U);
     CHECK(snprintf(rules, sizeof(rules), "%s/request-rules", argv[2]) > 0);
     CHECK(snprintf(config, sizeof(config), "%s/request-config", argv[2]) > 0);
@@ -202,7 +258,8 @@ static int request_limit_test(int argc, char **argv) {
         headers[0].value = "multipart/form-data; boundary=X";
         headers[0].value_size = strlen(headers[0].value);
     }
-    CHECK(native_request_reference(rules, length, chunk_size, marker, headers[0].value, &native_prefix, &native_status));
+    const request_payload payload = {length, chunk_size, marker, argv[11]};
+    CHECK(native_request_reference(rules, &payload, headers[0].value, &native_prefix, &native_status));
     file = fopen(config, "w"); CHECK(file != NULL);
     CHECK(fprintf(file, "enabled=on\nrules_file=%s\nrequest_body_mode=%s\n"
         "response_body_mode=none\nphase4_mode=safe\nevent_path=%s\n", rules, argv[7], events) > 0);
@@ -221,21 +278,9 @@ static int request_limit_test(int argc, char **argv) {
     CHECK(!snapshot.request_body.finished);
     if (strcmp(argv[11], "file") == 0) {
         input = fopen(input_path, "w+b"); CHECK(input != NULL);
-        for (size_t offset = 0; offset < length;) {
-            size_t count = length - offset < chunk_size ? length - offset : chunk_size;
-            fill_request_chunk(scratch, count, offset, marker, length, strcmp(argv[11], "multipart") == 0);
-            CHECK(fwrite(scratch, 1U, count, input) == count);
-            offset += count;
-        }
-        CHECK(fseek(input, 0L, SEEK_SET) == 0);
+        CHECK(write_request_input(input, &payload));
     } else CHECK(strcmp(argv[11], "memory") == 0 || strcmp(argv[11], "urlencoded") == 0 || strcmp(argv[11], "multipart") == 0);
-    for (size_t offset = 0; offset < length;) {
-        size_t count = length - offset < chunk_size ? length - offset : chunk_size;
-        if (input != NULL) CHECK(fread(scratch, 1U, count, input) == count);
-        else fill_request_chunk(scratch, count, offset, marker, length, strcmp(argv[11], "multipart") == 0);
-        CHECK(msconnector_runtime_transaction_append_request_body_chunk(transaction, scratch, count, &error));
-        offset += count;
-    }
+    CHECK(append_request_chunks(transaction, input, &payload, &error));
     CHECK(msconnector_runtime_transaction_finish_request_body(transaction, &decision, &error));
     CHECK(decision.disruptive ? decision.intervention.status == native_status : native_status == 0);
     CHECK(msconnector_runtime_transaction_snapshot_get(transaction, &snapshot));
@@ -249,8 +294,8 @@ static int request_limit_test(int argc, char **argv) {
     msconnector_runtime_transaction_destroy(&transaction);
     CHECK(msconnector_runtime_transaction_begin_request_stream(runtime, &request,
         "request-overflow", &transaction, &decision, &error));
-    CHECK(msconnector_runtime_transaction_append_request_body_chunk(transaction, scratch, 1U, &error));
-    CHECK(!msconnector_runtime_transaction_append_request_body_chunk(transaction, scratch, SIZE_MAX, &error));
+    CHECK(msconnector_runtime_transaction_append_request_body_chunk(transaction, &accounting_probe, 1U, &error));
+    CHECK(!msconnector_runtime_transaction_append_request_body_chunk(transaction, &accounting_probe, SIZE_MAX, &error));
     CHECK(error.code == MSCONNECTOR_ERROR_HOST_API_FAILURE);
     CHECK(msconnector_runtime_transaction_snapshot_get(transaction, &snapshot));
     CHECK(snapshot.contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);

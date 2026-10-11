@@ -291,3 +291,15 @@ sofort unlinked Spooldatei. Er spielt die Datei erst nach nativem P2-Allow ab.
 Dateisystemfehler führen zum Abbruch; Vollbody-RAM-Allokation und eigene
 Gesamtbody-Grenze entfallen. Gepatchte Host-Queue und die eigene Einstellung
 `server.max-request-size` benötigen unabhängige Hostbelege.
+
+Das optionale technische CLI-Argument `--spool-directory /run/msconnector-lighttpd`
+wählt den Speicherort für Request-Spooldateien. Ohne dieses Argument verwendet
+der Sidecar das Elternverzeichnis von `--config`. Es muss bereits existieren,
+kanonisch, beschreibbar, Eigentum der effektiven Service-UID und im Modus 0700
+sein. Beim Start werden die Vorfahren geprüft, Verzeichnisdeskriptoren ohne
+Symlink-Verfolgung festgehalten und die Dateierstellung geprüft. Für eine
+Konfiguration unter `/etc` ist ein separates privates Laufzeitverzeichnis
+anzugeben. Es gibt keinen Fallback auf Umgebungsvariablen oder öffentliche
+Temporärverzeichnisse. Request-Dateien werden exklusiv im Modus 0600 unter dem
+festgehaltenen Verzeichnis erstellt und sofort unlinked; diese Speicheroption
+führt kein Gesamtbody-Limit ein.

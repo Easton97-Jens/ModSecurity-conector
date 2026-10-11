@@ -14,7 +14,8 @@ static int handoff_calls;
 static int handoff(const msconnector_runtime *runtime, msconnector_runtime_transaction *transaction,
     void *userdata, char handle[MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE], msconnector_error *error) {
     msconnector_runtime_transaction_snapshot snapshot;
-    (void)runtime; (void)userdata; (void)error;
+    (void)runtime; (void)userdata;
+    msconnector_error_init(error);
     assert(msconnector_runtime_transaction_snapshot_get(transaction, &snapshot));
     assert(snapshot.request_body.finished);
     assert(snapshot.request_body.bytes_seen == expected_length);
@@ -28,11 +29,13 @@ static int handoff(const msconnector_runtime *runtime, msconnector_runtime_trans
 }
 typedef struct writer { int fd; size_t length; size_t marker; int expected_status; } writer;
 static void *client(void *opaque) {
-    writer *input = opaque;
-    char header[512], response[4096];
+    const writer *input = opaque;
+    char header[512];
+    char response[4096];
     unsigned char chunk[65536];
     connection_deadline deadline;
-    size_t offset = 0U, used = 0U;
+    size_t offset = 0U;
+    size_t used = 0U;
     assert(connection_deadline_init(&deadline, 15000UL));
     int length = snprintf(header, sizeof(header), "POST /stream HTTP/1.1\r\nHost: localhost\r\nContent-Type: text/plain\r\nContent-Length: %zu\r\n\r\n", input->length);
     assert(length > 0 && send_all(input->fd, header, (size_t)length, &deadline));
@@ -63,7 +66,9 @@ static void *client(void *opaque) {
 }
 int main(int argc, char **argv) {
     if (argc != 8) { fprintf(stderr, "required: directory request-limit no-files-limit action body-length marker expected-status\n"); return 2; }
-    char rules_path[4096], config_path[4096], error_text[512];
+    char rules_path[4096];
+    char config_path[4096];
+    char error_text[512];
     size_t limit = (size_t)strtoull(argv[2], NULL, 10);
     size_t no_files_limit = (size_t)strtoull(argv[3], NULL, 10);
     assert(limit > 0U && no_files_limit > 0U &&

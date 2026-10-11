@@ -266,3 +266,13 @@ immediately unlinked spool file. It replays the file only after native P2 allows
 the request. Disk/filesystem failures fail closed; no full-body RAM allocation or
 connector total-body cap remains. Patched-host request queue storage and its own
 `server.max-request-size` need independent host evidence.
+
+The optional technical CLI argument `--spool-directory /run/msconnector-lighttpd`
+selects request-spool storage. Without it, the sidecar uses the parent of
+`--config`. The directory must already exist, be canonical, owned by the
+effective service UID, writable and mode 0700. Startup checks the ancestor
+chain, pins no-follow directory descriptors and verifies file creation. For
+configuration under `/etc`, supply a separate private runtime directory. There
+is no environment or public temporary-directory fallback. Request files are
+0600, created exclusively beneath the pinned directory and immediately unlinked;
+this storage option introduces no total-body limit.

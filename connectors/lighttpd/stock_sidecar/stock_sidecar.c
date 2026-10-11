@@ -1,3 +1,4 @@
+#define _DEFAULT_SOURCE
 #define _POSIX_C_SOURCE 200809L
 
 #include "stock_sidecar.h"
@@ -15,6 +16,7 @@
 #include <fcntl.h>
 #include <netdb.h>
 #include <openssl/sha.h>
+#include <openssl/rand.h>
 #include <poll.h>
 #include <pthread.h>
 #include <signal.h>
@@ -43,6 +45,8 @@ typedef struct sidecar_options {
     const char *config;
     const char *listen;
     const char *upstream;
+    const char *spool_directory;
+    int spool_directory_fd;
     uint64_t timeout_ms;
 } sidecar_options;
 
@@ -980,30 +984,106 @@ static int sidecar_runtime_limits_supported(const msconnector_runtime *runtime) 
 
 /* Request data remains private and unlinked while native P2 runs.  Replay
  * starts only after its actual allow result; RAM use is one fixed IO chunk. */
-static int sidecar_open_request_spool(void) {
-    const char *parent = getenv("TMPDIR");
-    char directory[1024];
+static int sidecar_open_request_spool(int directory_fd) {
+    unsigned char random[16];
+    char name[sizeof("request-") + sizeof(random) * 2U];
+    static const char hex[] = "0123456789abcdef";
     struct stat info;
-    int directory_fd = -1;
-    int descriptor = -1;
-    int path_length;
-    if (parent == NULL || parent[0] == '\0') parent = "/var/tmp";
-    if (parent[0] != '/' || !msconnector_runtime_private_directory_ancestors_are_safe(parent)) return -1;
-    path_length = snprintf(directory, sizeof(directory), "%s/msconnector-spool-XXXXXX", parent);
-    if (path_length < 0 || (size_t)path_length >= sizeof(directory) || mkdtemp(directory) == NULL) return -1;
-    directory_fd = open(directory, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
-    if (directory_fd >= 0 && fstat(directory_fd, &info) == 0 &&
-        info.st_uid == geteuid() && (info.st_mode & 0777) == 0700) {
-        descriptor = openat(directory_fd, "body", O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
-        if (descriptor >= 0 && unlinkat(directory_fd, "body", 0) != 0) {
-            close(descriptor); descriptor = -1;
-            (void)unlinkat(directory_fd, "body", 0);
-        }
+    int descriptor;
+    if (directory_fd < 0 || RAND_bytes(random, sizeof(random)) != 1) return -1;
+    memcpy(name, "request-", 8U);
+    for (size_t index = 0U; index < sizeof(random); ++index) {
+        name[8U + index * 2U] = hex[random[index] >> 4U];
+        name[9U + index * 2U] = hex[random[index] & 15U];
     }
-    if (directory_fd >= 0) close(directory_fd);
-    if (rmdir(directory) != 0 && descriptor >= 0) { close(descriptor); descriptor = -1; }
+    name[sizeof(name) - 1U] = '\0';
+    descriptor = openat(directory_fd, name,
+        O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
+    if (descriptor < 0) return -1;
+    if (unlinkat(directory_fd, name, 0) != 0) {
+        close(descriptor);
+        (void)unlinkat(directory_fd, name, 0);
+        return -1;
+    }
+    if (fstat(descriptor, &info) != 0 || !S_ISREG(info.st_mode) ||
+        info.st_uid != geteuid() || (info.st_mode & 0777) != 0600 || info.st_nlink != 0) {
+        close(descriptor);
+        return -1;
+    }
     return descriptor;
 }
+
+static int sidecar_spool_ancestor_pair_safe(int parent_fd, int child_fd) {
+    struct stat parent, child;
+    if (fstat(parent_fd, &parent) != 0 || fstat(child_fd, &child) != 0 ||
+        (parent.st_uid != geteuid() && parent.st_uid != 0) ||
+        (child.st_uid != geteuid() && child.st_uid != 0)) return 0;
+    return (parent.st_mode & (S_IWGRP | S_IWOTH)) == 0 ||
+        ((parent.st_mode & S_ISVTX) != 0 && child.st_uid == geteuid());
+}
+
+static int sidecar_spool_directory_is_private(int directory_fd) {
+    struct stat info;
+    return fstat(directory_fd, &info) == 0 && info.st_uid == geteuid() &&
+        (info.st_mode & 0777) == 0700;
+}
+
+/* Walk through pinned no-follow descriptors; a pathname replacement cannot
+ * redirect later request file creation into another directory. */
+static int sidecar_open_spool_directory(const char *path) {
+    char copy[4096];
+    char *component;
+    int directory_fd;
+    if (path == NULL || strlen(path) >= sizeof(copy) ||
+        !msconnector_runtime_private_directory_ancestors_are_safe(path)) return -1;
+    memcpy(copy, path, strlen(path) + 1U);
+    directory_fd = open("/", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (directory_fd < 0) return -1;
+    component = copy + 1U;
+    while (*component != '\0') {
+        char *separator = strchr(component, '/');
+        int next;
+        if (separator != NULL) *separator = '\0';
+        next = openat(directory_fd, component,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+        if (next < 0 || !sidecar_spool_ancestor_pair_safe(directory_fd, next)) {
+            if (next >= 0) close(next);
+            close(directory_fd);
+            return -1;
+        }
+        close(directory_fd);
+        directory_fd = next;
+        if (separator == NULL) break;
+        component = separator + 1U;
+    }
+    if (!sidecar_spool_directory_is_private(directory_fd)) {
+        close(directory_fd);
+        return -1;
+    }
+    /* Readiness proves private file creation, including read-only filesystem
+     * failures, without retaining a filename or a descriptor. */
+    int probe = sidecar_open_request_spool(directory_fd);
+    if (probe < 0) { close(directory_fd); return -1; }
+    close(probe);
+    return directory_fd;
+}
+
+static int sidecar_prepare_spool_directory(sidecar_options *options) {
+    char parent[4096];
+    const char *path = options->spool_directory;
+    if (path == NULL) {
+        char *separator;
+        if (options->config == NULL || strlen(options->config) >= sizeof(parent)) return 0;
+        memcpy(parent, options->config, strlen(options->config) + 1U);
+        separator = strrchr(parent, '/');
+        if (separator == NULL || separator == parent) return 0;
+        *separator = '\0';
+        path = parent;
+    }
+    options->spool_directory_fd = sidecar_open_spool_directory(path);
+    return options->spool_directory_fd >= 0;
+}
+
 static int sidecar_read_request_body(sidecar_exchange_state *state) {
     unsigned char chunk[SIDECAR_IO_CHUNK];
     while (state->payload.body_read < state->payload.request_headers.content_length) {
@@ -1029,7 +1109,7 @@ static int sidecar_read_request_body(sidecar_exchange_state *state) {
     }
     return 1;
 }
-static int sidecar_replay_request_body(sidecar_exchange_state *state) {
+static int sidecar_replay_request_body(const sidecar_exchange_state *state) {
     unsigned char chunk[SIDECAR_IO_CHUNK];
     size_t replayed = 0U;
     if (state->payload.body_read == 0U) return 1;
@@ -1415,7 +1495,7 @@ static int sidecar_exchange_request(sidecar_exchange_state *state) {
         return 0;
     }
     if (state->payload.request_headers.content_length > 0U) {
-        state->payload.request_spool_fd = sidecar_open_request_spool();
+        state->payload.request_spool_fd = sidecar_open_request_spool(state->dependencies.options->spool_directory_fd);
         if (state->payload.request_spool_fd < 0 || !sidecar_read_request_body(state)) return 0;
     }
     if (!msconnector_runtime_transaction_finish_request_body(state->transaction,
@@ -1588,11 +1668,13 @@ static void *sidecar_worker_main(void *argument) {
 static int sidecar_parse_args(int argc, char **argv, sidecar_options *options) {
     memset(options, 0, sizeof(*options));
     options->timeout_ms = SIDECAR_DEFAULT_TIMEOUT_MS;
+    options->spool_directory_fd = -1;
     for (size_t i = 1U; i < (size_t)argc; i += 2U) {
         if (i + 1U >= (size_t)argc) return 0;
         if (strcmp(argv[i], "--config") == 0) options->config = argv[i + 1U];
         else if (strcmp(argv[i], "--listen") == 0) options->listen = argv[i + 1U];
         else if (strcmp(argv[i], "--upstream") == 0) options->upstream = argv[i + 1U];
+        else if (strcmp(argv[i], "--spool-directory") == 0) options->spool_directory = argv[i + 1U];
         else if (strcmp(argv[i], "--timeout-ms") == 0) {
             size_t value;
             if (!sidecar_decimal(argv[i + 1U], &value) || value == 0U) return 0;
@@ -1686,8 +1768,14 @@ int msconnector_stock_sidecar_main(int argc, char **argv) {
         msconnector_runtime_destroy(&runtime);
         return 78;
     }
+    if (!sidecar_prepare_spool_directory(&options)) {
+        (void)fprintf(stderr, "private request spool unavailable; supply --spool-directory with a canonical effective-UID-owned 0700 writable directory\n");
+        msconnector_runtime_destroy(&runtime);
+        return 78;
+    }
     listener = sidecar_listener(options.listen);
     if (listener < 0) {
+        close(options.spool_directory_fd);
         msconnector_runtime_destroy(&runtime);
         return 69;
     }
@@ -1709,6 +1797,7 @@ int msconnector_stock_sidecar_main(int argc, char **argv) {
     }
     close(listener);
     sidecar_wait_for_workers(&context);
+    close(options.spool_directory_fd);
     (void)pthread_mutex_destroy(&context.lock);
     msconnector_error_init(&error);
     msconnector_runtime_destroy(&runtime);

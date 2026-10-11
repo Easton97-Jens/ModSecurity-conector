@@ -73,6 +73,7 @@ ALLOWED_VALUES_RULE_ENGINE = "On | Off | DetectionOnly"
 DEFAULT_NO_EXAMPLE = "No default is inferred from examples."
 ALLOWED_VALUES_TITLE_CASE_ON_OFF = "On | Off"
 ALLOWED_VALUES_LIMIT_ACTION = "ProcessPartial | Reject"
+ALLOWED_VALUES_POSITIVE_BYTE_COUNT = "positive byte count"
 HOST_DEFINED_NOT_IMPLEMENTED = "Host-defined; not implemented by this connector."
 VALIDATE_APACHE = "apachectl -t"
 VALIDATE_NGINX = "nginx -t"
@@ -824,7 +825,31 @@ def extract_lighttpd(root: Path) -> list[dict[str, Any]]:
             runtime_effect="Configures the retained sidecar compatibility example.", example_file=compatibility_example,
             description="Compatibility-only lighttpd host field.", compatibility_only=True,
         ))
+    values.append(extract_lighttpd_spool_directory(root))
     return values
+
+
+def extract_lighttpd_spool_directory(root: Path) -> dict[str, Any]:
+    source = "connectors/lighttpd/stock_sidecar/stock_sidecar.c"
+    text = _read(root, source)
+    registration = 'strcmp(argv[i], "--spool-directory") == 0) options->spool_directory = argv[i + 1U]'
+    if registration not in text or "sidecar_prepare_spool_directory(&options)" not in text:
+        raise ValueError("stock lighttpd spool-directory parser or startup wiring changed")
+    return _option(
+        "lighttpd", "--spool-directory", "runtime_cli_flag", source,
+        "sidecar_parse_args / sidecar_prepare_spool_directory",
+        syntax="--spool-directory /run/msconnector-lighttpd", value_type="path",
+        allowed_values="existing canonical writable directory, effective-UID-owned and mode 0700",
+        default="validated private parent of --config", default_source="sidecar_prepare_spool_directory", required=False,
+        contexts="Stock lighttpd sidecar startup", inheritance=NOT_APPLICABLE,
+        merge_behavior="One startup value; no request-time override.",
+        validation="Startup validates ancestors, pins no-follow directory descriptors and probes file creation; unsuitable storage requires an explicit private directory.",
+        phase_relevance="P2 request ingestion and replay after native allow.",
+        security_relevance="Request files are exclusively created as 0600 beneath the pinned private directory and immediately unlinked; no environment or public temporary-directory fallback.",
+        runtime_effect="Selects disk spool storage with bounded IO buffers; it sets no total-body limit or engine action.",
+        example_file="connectors/lighttpd/README.md", example_value="--spool-directory /run/msconnector-lighttpd",
+        description="Optional private request-spool directory; supply it when the configuration parent cannot provide suitable storage.",
+    )
 
 
 COMMON_DETAILS: dict[str, dict[str, str]] = {
@@ -1011,12 +1036,12 @@ def extract_common_runtime(root: Path) -> list[dict[str, Any]]:
 ENGINE_DETAILS: dict[str, tuple[str, str, str, str]] = {
     "SecRuleEngine": ("SecRuleEngine On | Off | DetectionOnly", ALLOWED_VALUES_RULE_ENGINE, "The used examples select On; no repository source establishes a global engine default.", "Controls rule execution/disruptive action inside libmodsecurity, independently of the host connector switch."),
     "SecRequestBodyAccess": ("SecRequestBodyAccess On | Off", ALLOWED_VALUES_TITLE_CASE_ON_OFF, DEFAULT_NO_EXAMPLE, "On makes request-body input available to engine P2 only when the host supplies it; Off leaves P1 headers available but removes body input from P2. Request inspection limits and actions belong to SecRequestBodyLimit, SecRequestBodyNoFilesLimit, and SecRequestBodyLimitAction. Incremental connector working buffers do not set a total-body limit; separate host authorization-buffer constraints remain documented limitations."),
-    "SecRequestBodyLimit": ("SecRequestBodyLimit <bytes>", "positive byte count", DEFAULT_NO_EXAMPLE, "Exclusively sets the engine request-body inspection limit; the connector has no corresponding option, default, or second enforcement logic."),
-    "SecRequestBodyNoFilesLimit": ("SecRequestBodyNoFilesLimit <bytes>", "positive byte count", DEFAULT_NO_EXAMPLE, "Sets the engine limit for request-body data excluding uploaded files; this independent native constraint also applies to non-file request data."),
+    "SecRequestBodyLimit": ("SecRequestBodyLimit <bytes>", ALLOWED_VALUES_POSITIVE_BYTE_COUNT, DEFAULT_NO_EXAMPLE, "Exclusively sets the engine request-body inspection limit; the connector has no corresponding option, default, or second enforcement logic."),
+    "SecRequestBodyNoFilesLimit": ("SecRequestBodyNoFilesLimit <bytes>", ALLOWED_VALUES_POSITIVE_BYTE_COUNT, DEFAULT_NO_EXAMPLE, "Sets the engine limit for request-body data excluding uploaded files; this independent native constraint also applies to non-file request data."),
     "SecRequestBodyLimitAction": ("SecRequestBodyLimitAction ProcessPartial | Reject", ALLOWED_VALUES_LIMIT_ACTION, DEFAULT_NO_EXAMPLE, "Exclusively selects the native request-limit action. The connector preserves actual engine results, including DetectionOnly behavior, without choosing rejection or a prefix."),
     "SecResponseBodyAccess": ("SecResponseBodyAccess On | Off", ALLOWED_VALUES_TITLE_CASE_ON_OFF, DEFAULT_NO_EXAMPLE, "On makes P4 possible only when the host supplies response bytes that are in scope; Off removes response-body input from P4. It does not widen SecResponseBodyMimeType, override SecResponseBodyLimit/SecResponseBodyLimitAction, or force a status change after headers commit. With the selected safe late-intervention policy, a post-commit disruptive result is recorded as log_only rather than a promised later 403; response capture can add bounded memory, CPU, and sensitive-data exposure."),
     "SecResponseBodyMimeType": ("SecResponseBodyMimeType <type/subtype> [...]", "one or more MIME types", DEFAULT_NO_EXAMPLE, "Scopes engine response-body inspection by MIME type."),
-    "SecResponseBodyLimit": ("SecResponseBodyLimit <bytes>", "positive byte count", DEFAULT_NO_EXAMPLE, "Exclusively sets the response-body inspection limit; the connector has no corresponding option, default, or second enforcement logic."),
+    "SecResponseBodyLimit": ("SecResponseBodyLimit <bytes>", ALLOWED_VALUES_POSITIVE_BYTE_COUNT, DEFAULT_NO_EXAMPLE, "Exclusively sets the response-body inspection limit; the connector has no corresponding option, default, or second enforcement logic."),
     "SecResponseBodyLimitAction": ("SecResponseBodyLimitAction ProcessPartial | Reject", ALLOWED_VALUES_LIMIT_ACTION, DEFAULT_NO_EXAMPLE, "Exclusively selects Reject or ProcessPartial when the engine inspection limit is exceeded; the connector forwards native results and interventions."),
     "SecAuditEngine": ("SecAuditEngine RelevantOnly", "engine audit mode", DEFAULT_NO_EXAMPLE, "Enables the selected audit-log policy."),
     "SecAuditLogType": ("SecAuditLogType Serial", "audit log type", DEFAULT_NO_EXAMPLE, "Sets the selected audit-log write mode."),
@@ -3035,6 +3060,16 @@ def _inline_literal(value: str) -> str:
 
 
 GERMAN_TEXT: dict[str, str] = {
+    "existing canonical writable directory, effective-UID-owned and mode 0700": "vorhandenes kanonisches, beschreibbares Verzeichnis mit Eigentümer entsprechend der effektiven UID und Modus 0700",
+    "validated private parent of --config": "geprüftes privates Elternverzeichnis von --config",
+    "sidecar_prepare_spool_directory": "sidecar_prepare_spool_directory",
+    "Stock lighttpd sidecar startup": "Start des Sidecars für ungepatchtes lighttpd",
+    "One startup value; no request-time override.": "Ein Wert beim Start; kein Überschreiben während eines Requests.",
+    "Startup validates ancestors, pins no-follow directory descriptors and probes file creation; unsuitable storage requires an explicit private directory.": "Beim Start werden die Vorfahren geprüft, Verzeichnis-Descriptoren ohne Symlink-Folgen fixiert und die Dateierstellung getestet; bei ungeeignetem Speicher ist ein explizites privates Verzeichnis erforderlich.",
+    "P2 request ingestion and replay after native allow.": "P2-Request-Einlesen und Wiedergabe nach nativem Allow.",
+    "Request files are exclusively created as 0600 beneath the pinned private directory and immediately unlinked; no environment or public temporary-directory fallback.": "Request-Dateien werden exklusiv mit Modus 0600 unter dem fixierten privaten Verzeichnis erstellt und sofort aus dem Verzeichnis entfernt; es gibt keinen Fallback über die Umgebung oder ein öffentliches temporäres Verzeichnis.",
+    "Selects disk spool storage with bounded IO buffers; it sets no total-body limit or engine action.": "Wählt den Spool-Speicher auf Datenträger mit begrenzten IO-Puffern; setzt kein Gesamtbody-Limit und keine Engine-Aktion.",
+    "Optional private request-spool directory; supply it when the configuration parent cannot provide suitable storage.": "Optionales privates Request-Spool-Verzeichnis; angeben, wenn das Konfigurations-Elternverzeichnis keinen geeigneten Speicher bereitstellt.",
     # Types.  Identifiers, enum members, syntax, paths, and literal example
     # values deliberately stay unchanged; their surrounding explanations do
     # not.  Keeping this table at the rendering boundary leaves the JSON
@@ -3135,7 +3170,7 @@ GERMAN_TEXT: dict[str, str] = {
     "parser-supported compatibility value": "vom Parser unterstützter Kompatibilitätswert",
     "path or glob": "Pfad oder Glob",
     "path without a parent-directory segment": "Pfad ohne übergeordnetes Verzeichnissegment",
-    "positive byte count": "positive Byteanzahl",
+    ALLOWED_VALUES_POSITIVE_BYTE_COUNT: "positive Byteanzahl",
     ALLOWED_VALUES_POSITIVE_INTEGER: "positive Ganzzahl",
     "positive value": "positiver Wert",
     "positive; uds maximum 128": "positiv; UDS-Maximum 128",

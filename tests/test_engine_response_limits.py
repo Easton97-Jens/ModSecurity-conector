@@ -165,8 +165,10 @@ class EngineResponseLimits(unittest.TestCase):
 
     def test_request_helpers_require_each_native_policy_parameter(self):
         for limit, no_files_limit, action in ((None, 128, "Reject"), (128, None, "Reject"), (128, 128, None)):
+            policy = NativeRequestPolicy(limit, no_files_limit, action, "On")
+            payload = RequestPayload("buffered", 128, 17, 0, "memory")
             with self.assertRaisesRegex(ValueError, "requires explicit"):
-                request_fixture_arguments(self.directory, NativeRequestPolicy(limit, no_files_limit, action, "On"), RequestPayload("buffered", 128, 17, 0, "memory"))
+                request_fixture_arguments(self.directory, policy, payload)
         result = subprocess.run([str(self.binary), "--request"], capture_output=True, text=True, timeout=5)
         self.assertEqual(result.returncode, 2)
         self.assertIn("request required:", result.stderr)

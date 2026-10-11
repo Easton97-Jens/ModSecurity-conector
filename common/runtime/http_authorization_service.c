@@ -58,7 +58,7 @@ typedef struct parsed_http_request {
     size_t header_buffer_size;
     msconnector_header *headers;
     size_t header_count;
-    uint8_t *body;
+    const uint8_t *body;
     size_t body_size;
     size_t content_length;
     char *method;
@@ -669,7 +669,7 @@ static int prepare_request_body(
         return 0;
     }
     request->content_length = content_length;
-    request->body = (uint8_t *)body_start;
+    request->body = (const uint8_t *)body_start;
     request->body_size = buffered_body_size < content_length
         ? buffered_body_size : content_length;
     return 1;

@@ -501,9 +501,15 @@ func assertCompleteRequestStream(t *testing.T, transaction *recordingTransaction
 	if source.readBytes != inputBytes || len(transaction.closed) != 1 || !transaction.closed[0].RequestEOS {
 		t.Fatal("request not completely inspected before response")
 	}
+	assertCompleteRequestCallbacks(t, transaction.bodyCalls, inputBytes)
+	assertRequestCompletedBeforeResponse(t, transaction.events)
+}
+
+func assertCompleteRequestCallbacks(t *testing.T, calls []bodyCall, inputBytes int) {
+	t.Helper()
 	total := 0
 	eos := 0
-	for _, call := range transaction.bodyCalls {
+	for _, call := range calls {
 		if call.direction == DirectionRequest {
 			total += call.length
 			if call.end {
@@ -514,8 +520,12 @@ func assertCompleteRequestStream(t *testing.T, transaction *recordingTransaction
 	if total != inputBytes || eos != 1 {
 		t.Fatalf("engine bytes=%d want=%d EOS=%d want=1", total, inputBytes, eos)
 	}
+}
+
+func assertRequestCompletedBeforeResponse(t *testing.T, events []string) {
+	t.Helper()
 	lastRequest, firstResponse := -1, -1
-	for index, event := range transaction.events {
+	for index, event := range events {
 		if event == "request-body" {
 			lastRequest = index
 		}
@@ -524,7 +534,7 @@ func assertCompleteRequestStream(t *testing.T, transaction *recordingTransaction
 		}
 	}
 	if lastRequest < 0 || firstResponse <= lastRequest {
-		t.Fatalf("P3 preceded request completion: events=%v", transaction.events)
+		t.Fatalf("P3 preceded request completion: events=%v", events)
 	}
 }
 

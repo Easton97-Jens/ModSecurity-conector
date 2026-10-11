@@ -40,7 +40,12 @@ struct msconnector_runtime {
 
 struct msconnector_runtime_transaction {
     int finished;
+    size_t request_body_bytes;
+    int request_body_finished;
+    msconnector_transaction_error_class request_body_failure;
 };
+
+#include "fixtures/http_authorization_request_stream_stubs.h"
 
 static msconnector_runtime fake_runtime = {0};
 static pthread_mutex_t test_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -530,6 +535,7 @@ static int deferred_cleanup_finished(void) {
 }
 
 int main(void) {
+    msconnector_test_request_stream_stubs_smoke();
     static const char request[] = "GET /ok HTTP/1.1\r\nHost: smoke.test\r\n"
         "Connection: close\r\n\r\n";
     char oversized_host_request[sizeof("GET /ok HTTP/1.1\r\nHost: ") - 1U + 1024U +
@@ -615,21 +621,4 @@ done:
         (void)puts("http authorization detached-worker smoke: passed");
     }
     return result;
-}
-
-msconnector_body_mode msconnector_runtime_request_body_mode(const msconnector_runtime *runtime) {
-    (void)runtime; return MSCONNECTOR_BODY_MODE_BUFFERED;
-}
-int msconnector_runtime_transaction_append_request_body_chunk(msconnector_runtime_transaction *transaction,
-    const unsigned char *body, size_t size, msconnector_error *error) {
-    (void)body; (void)size; msconnector_error_init(error); return transaction != NULL;
-}
-int msconnector_runtime_transaction_finish_request_body(msconnector_runtime_transaction *transaction,
-    msconnector_decision *decision, msconnector_error *error) {
-    msconnector_error_init(error); msconnector_decision_set_allow(decision); return transaction != NULL;
-}
-
-int msconnector_runtime_transaction_fail(msconnector_runtime_transaction *transaction,
-    msconnector_transaction_error_class error_class, msconnector_error *error) {
-    (void)error_class; msconnector_error_init(error); return transaction != NULL;
 }

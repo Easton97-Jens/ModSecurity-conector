@@ -258,7 +258,7 @@ def main() -> int:
         request_limit = os.environ["NGINX_REQUEST_BODY_LIMIT"]
         request_no_files_limit = os.environ["NGINX_REQUEST_BODY_NO_FILES_LIMIT"]
         request_limit_action = os.environ["NGINX_REQUEST_BODY_LIMIT_ACTION"]
-        require(all(re.fullmatch(r"[1-9][0-9]*", value) is not None
+        require(all(re.fullmatch(r"[1-9]\d*", value, flags=re.ASCII) is not None
                     for value in (request_limit, request_no_files_limit)),
                 "explicit positive native request limits are required")
         require(request_limit_action in ("Reject", "ProcessPartial"),

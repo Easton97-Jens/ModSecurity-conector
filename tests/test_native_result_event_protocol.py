@@ -151,7 +151,13 @@ typedef struct { int value; } Transaction;
 typedef struct { int value; } msconnector_runtime;
 typedef struct { int code; } msconnector_error;
 typedef struct { int phase, disruptive; } msconnector_decision;
-typedef struct { Transaction *transaction; msconnector_decision pending_response_decision; int response_decision_pending; } msconnector_native_transaction;
+typedef struct {
+    Transaction *transaction;
+    msconnector_decision pending_request_decision;
+    int request_decision_pending;
+    msconnector_decision pending_response_decision;
+    int response_decision_pending;
+} msconnector_native_transaction;
 #define MSCONNECTOR_ERROR_MODSECURITY_FAILURE 1
 #define MSCONNECTOR_PHASE_REQUEST_BODY 3
 #define MSCONNECTOR_PHASE_RESPONSE_BODY 5
@@ -182,7 +188,7 @@ int main(void) {
         int append_ok=results[i]==0 || results[i]==1;
         native_result=results[i]; calls=decisions=0; error.code=0;
         CHECK(native_append_request_body(&runtime,&native,(const unsigned char *)"abc",3,&error)==append_ok);
-        CHECK(calls==1 && decisions==0 && error.code==(append_ok ? 0:1));
+        CHECK(calls==1 && decisions==append_ok && error.code==(append_ok ? 0:1));
         calls=decisions=0; error.code=0;
         CHECK(native_append_response_body(&runtime,&native,(const unsigned char *)"abc",3,&error)==append_ok);
         CHECK(calls==1 && decisions==append_ok && error.code==(append_ok ? 0:1));

@@ -12,7 +12,8 @@ Exakte Basis: `2619b20b9d2e70fa07cbe71f664b48ff3c105380`.
 Starthead des erweiterten Auftrags: `6576661724841e26802a93b19d8bbfbdb5c8235a`.
 Kein neuer PR und kein PR-/master-Merge. Der Nutzer erlaubt reguläre Basis-Merges
 von #382 in den bestehenden #407-Branch; veröffentlichte Historie bleibt erhalten.
-Die Auslieferung ist zum Stand dieses Dokumentationssnapshots offen.
+Der Head `cec340f3` wurde analysiert; die Auslieferung des Reparatur-Follow-ups
+ist zum Stand dieses Dokumentationssnapshots offen.
 
 ## Implementierung
 
@@ -165,9 +166,46 @@ einschließlich versteckter Dateien unter Common, allen Connectoren und Beispiel
 fand keine zusätzliche aktive eigene kumulative Bodygrenze, Direktiveninjektion
 oder Fallback außerhalb der ausgewiesenen Autorisierungs-/Sample-Grenzen; kein
 verstecktes Pluginmanifest enthält einen entfernten Schlüssel. Unabhängiger
-Review von P2-/P4-EOS und persistentem IO-Fehler fand keinen Befund. Push/Readback und CI/Sonar des
-aktuellen Heads bleiben offen; #407-Remotehead ist weiterhin
-`6576661724841e26802a93b19d8bbfbdb5c8235a`.
+Review von P2-/P4-EOS und persistentem IO-Fehler fand keinen Befund. Der später analysierte #407-Head ist `cec340f3`; Follow-up-Commit,
+Push/Readback und neue exakte Head-CI/Sonar nach dessen Reparaturen bleiben offen.
+
+## Aktueller Sonar-Reparatur-Snapshot
+
+Die erste abgeschlossene Analyse von `cec340f3` meldete 32 Issues (ein Bug,
+zwei Vulnerabilities, 29 Code Smells), null Hotspots und sieben neue
+Duplikationsblöcke mit 65 Zeilen. Diese Analyse ist kein bestandener Gate-Nachweis.
+Die Quellcode-Reparaturen sind lokal eingefroren; sie erhalten Prüfungen und
+Assertions und ändern keine Scanner-Ausnahmen oder Gate-Steuerung. Neue exakte
+Head-CI/Sonar und Follow-up-Commit/Push bleiben offen; der Live-Status steht in
+[PR #407](https://github.com/Easton97-Jens/ModSecurity-conector/pull/407).
+
+Aktuelle lokale Wiederholungen bestanden: Common mit 207 nativen Szenarien und
+13 echten Methoden, native Auswahl mit 131 Tests/185 Subtests, Go-/C-Builds und
+Sicherheitsprüfungen sowie 16 Root-CI-Fixturetests für Pending-Request-Zustand/-
+Zähler, Runtime-Konstruktor und modellierte NGINX-Intervention. Die frühere
+212-Test-/201-Subtest-Auswahl ist ein eigener Lauf; wiederholte Prüfungen werden
+nicht zu einer Gesamttestzahl addiert. Aktueller Stock-Sidecar-Lauf bestand 57/58;
+nur der bekannte RST-Fehler mit leeren Events bleibt dort offen. Zusammen mit
+der Common-Legacy-Lossy-Event-Assertion bleiben zwei Basisdefekte offen.
+Nachweise liegen unter `common/sonar-cec/`, `native/sonar-cec/`,
+`remaining/sonar-cec/` und `root-checks/ci-fixture-repairs-final.log` im externen
+Task-Laufverzeichnis. Generierte Referenzen erfassen nun 22 lighttpd-Einträge.
+
+Das optionale technische CLI-Argument `--spool-directory` wählt private
+Request-Dateipufferung. Standard ist der validierte private Elternpfad von
+`--config`. Bei `/etc` oder schreibgeschützter Konfigurationsablage muss ein
+bereits existierender kanonischer, vom effektiven Service-UID besessener,
+schreibbarer 0700-Pfad explizit angegeben werden. Startup prüft Elternpfade,
+No-follow-Directory-Descriptoren und Dateierzeugung vor Bereitschaft. Request-
+Dateien sind exklusiv erzeugte 0600-Dateien und sofort entlinkt. Startup-/
+Descriptor-/Datenträgerfehler bleiben technische Fehler. Kein `TMPDIR`- oder
+öffentlicher Fallback, keine Gesamtbodygrenze und keine unbegrenzte RAM-
+Vollbody-Allokation werden eingeführt. Betreiber mit nicht privatem
+Konfigurationselternpfad müssen dieses Storage-Argument setzen.
+
+Die ausgewiesenen aktiven Autorisierungs-/Sample-Grenzen und zehn fehlenden
+Hostprofile-Nachweise bleiben bestehen; weder vollständige Entfernung noch
+vollständig verifizierte Auslieferung wird behauptet.
 
 ## Grenze historischer Nachweise
 
