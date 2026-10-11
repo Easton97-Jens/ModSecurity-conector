@@ -2,7 +2,7 @@
 
 **Sprache:** [English](pr-382-i09-route-audit.md) | Deutsch
 
-Datum: 2026-10-11. Isolierter Worktree: `/var/tmp/codex/ModSecurity-conector/source/i09-20261011`, Branch `fix/i09-native-route-reconciliation-20261011`. Start-HEAD: `0df51024008fc84f0a6820f3b011055b69c3a3e2`; geprüftes `origin/master` und Merge-Base: `3019722fbda40dc281b861c1cc38085be2f430a0`. Die Ergebnisse beschreiben den Arbeitsstand dieses Tasks, keinen veröffentlichten Stand. Die lokale integrierte Code-/API-Validierung ist abgeschlossen; aktuelle PR-CI erfordert Korrekturen vor der Abnahme.
+Datum: 2026-10-11. Isolierter Worktree: `/var/tmp/codex/ModSecurity-conector/source/i09-20261011`, Branch `fix/i09-native-route-reconciliation-20261011`. Start-HEAD: `0df51024008fc84f0a6820f3b011055b69c3a3e2`; geprüftes `origin/master` und Merge-Base: `3019722fbda40dc281b861c1cc38085be2f430a0`. Die Ergebnisse beschreiben die geprüfte Code-/API-Ebene. Die lokale integrierte Validierung ist abgeschlossen; Delivery-Abnahme folgt den Prüfungen am aktuellen Head von Draft-PR #408.
 
 Anfangsstatus des isolierten Worktrees: sauber am angeforderten Start-HEAD.
 
@@ -62,7 +62,7 @@ Neue kompilierte C-/Go-Regressionen und angepasste Contract-Tests prüfen echte 
 
 ## Belege und Validierungsgrenzen
 
-Externe Belegwurzel: `/var/tmp/codex/ModSecurity-conector/analysis/i09-20261011`. Command-JSON enthält exakten Befehl, Arbeitsverzeichnis, Exitcode, Anzahl und Logpfad; ein Dateiname mit `green` allein beweist nichts. Frühere fehlgeschlagene Logs bleiben erhalten. Die bekannten Code-/API-Lücken sind geschlossen; aktuelle PR-CI erfordert Korrekturen; getrennte Host-/Evidenzakzeptanz bleibt ausstehend.
+Externe Belegwurzel: `/var/tmp/codex/ModSecurity-conector/analysis/i09-20261011`. Command-JSON enthält exakten Befehl, Arbeitsverzeichnis, Exitcode, Anzahl und Logpfad; ein Dateiname mit `green` allein beweist nichts. Frühere fehlgeschlagene Logs bleiben erhalten. Die bekannten Code-/API-Lücken sind geschlossen; getrennte Host-/Evidenzakzeptanz bleibt ausstehend. Delivery-Prüfungen des aktuellen Heads stehen in Draft-PR #408.
 
 | Beleg | Beobachtetes Ergebnis / Grenze |
 | --- | --- |
@@ -80,8 +80,8 @@ Kompilierte Tests führen produktive Funktionen mit kontrollierten Fehler-Seams 
 
 I10 bleibt für routenspezifische unterstützte Host-Durchsetzung und beobachtete Pre-/Postcommit-Ergebnisse offen. I11 bleibt für Weitergabe physischer Sink-Fehler bei Serialisierung/Open/Write/Short-write/Close offen; der Apache-void-Writer und ungeprüfte SPOP-Sink-Writes bleiben gesonderter bekannter Scope. I12 und V08–V10 bleiben für Live-Host-/Companion-Bytes, Transport, Cleanup und Folgegesundheit am exakten Stand offen. Native Stock-lighttpd-Body-Hooks und clientseitig belegter Patched-Strict-Abort bleiben nicht unterstützt beziehungsweise unbelegt. H2/H3-, CRS-, Off- und Produktionsbelege werden nicht abgeleitet. Siehe [Restmatrix](pr-382-i09-i12-rest-matrix.de.md) und [Checkliste](pr-382-checklist.de.md).
 
-**I09 IMPLEMENTATION COMPLETE – only separate host/evidence acceptance remains.** Die Aussage betrifft die bekannte I09-Code-/API-Implementierung. Lokale Prüfungen: 33 kompilierte Methoden plus Common-C17-Smoke, 74 Contract-Tests, 19 Adoption-Tests, HAProxy 194/12 Skips, Traefik 86/4, lighttpd 178/13, Go-Race 56/30/21 und Vet bestanden; natives Envoy gebaut/getestet. Aktuelle PR-CI erfordert Korrekturen vor der Abnahme. Sonar 403, fehlende vollständige HTX-Host-Header und unveränderte Baseline-Workflow-/generierte Apache-Dokumentwortlautfehler sind separate Nicht-PASS-Ergebnisse. I10/I11/I12 sind keine verbliebenen I09-Implementierungslücken.
+**I09 IMPLEMENTATION COMPLETE – only separate host/evidence acceptance remains.** Die Aussage betrifft die bekannte I09-Code-/API-Implementierung. Lokale Prüfungen: 33 kompilierte Methoden plus Common-C17-Smoke, 74 Contract-Tests, 19 Adoption-Tests, HAProxy 194/12 Skips, Traefik 86/4, lighttpd 178/13, Go-Race 56/30/21 und Vet bestanden; natives Envoy gebaut/getestet. Lokale Vortex-Analyse lieferte 403; authentifiziertes Cloud-Readback und CI-Ergebnisse des exakten Heads werden separat dokumentiert. Fehlende vollständige HTX-Host-Header und unveränderte Baseline-Workflow-/generierte Apache-Dokumentwortlautfehler sind separate Nicht-PASS-Ergebnisse. I10/I11/I12 sind keine verbliebenen I09-Implementierungslücken.
 
 ## Abschließender Befehlsabgleich
 
-Exakte Befehle, Exit-Codes, Testzahlen und aufbewahrte rote beziehungsweise fehlgeschlagene Versuche stehen im [Befehlsbericht](../reports/audits/i09-native-route-command-evidence.de.md). Die CI des ersten Draft-Commits `e15f31f2b5c0aa4b9e85efbdf015985b076ff633` bestätigte Fehler bei Testvoraussetzungen, temporären Testpfaden, lokalen Dokumentationspfaden und 29 neue Sonar-Befunde. Diese werden in einem normalen Folgecommit korrigiert; CI-/Quality-Gate-Abnahme bleibt bis zum neuen Head offen.
+Exakte Befehle, Exit-Codes, Testzahlen und aufbewahrte rote beziehungsweise fehlgeschlagene Versuche stehen im [Befehlsbericht](../reports/audits/i09-native-route-command-evidence.de.md). Die CI des ersten Draft-Commits `e15f31f2b5c0aa4b9e85efbdf015985b076ff633` bestätigte Fehler bei Testvoraussetzungen, temporären Testpfaden, lokalen Dokumentationspfaden und 29 neue Sonar-Befunde. Normale Folgecommits korrigieren diese Befunde. Der Bericht erhält beobachtete Ergebnisse jedes Heads; Delivery-Abnahme erfordert Prüfung des aktuellen PR-Heads.

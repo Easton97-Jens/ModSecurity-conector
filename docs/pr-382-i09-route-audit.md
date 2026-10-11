@@ -2,7 +2,7 @@
 
 **Language:** English | [Deutsch](pr-382-i09-route-audit.de.md)
 
-Date: 2026-10-11. Isolated worktree: `/var/tmp/codex/ModSecurity-conector/source/i09-20261011`, branch `fix/i09-native-route-reconciliation-20261011`. Starting HEAD: `0df51024008fc84f0a6820f3b011055b69c3a3e2`; inspected `origin/master` and merge base: `3019722fbda40dc281b861c1cc38085be2f430a0`. Results below describe the task working tree, not a released revision. Local integrated code/API validation is complete; current PR CI requires remediation before acceptance.
+Date: 2026-10-11. Isolated worktree: `/var/tmp/codex/ModSecurity-conector/source/i09-20261011`, branch `fix/i09-native-route-reconciliation-20261011`. Starting HEAD: `0df51024008fc84f0a6820f3b011055b69c3a3e2`; inspected `origin/master` and merge base: `3019722fbda40dc281b861c1cc38085be2f430a0`. Results below describe the audited code/API layer. Local integrated validation is complete; delivery acceptance is determined by checks on the current head of Draft PR #408.
 
 Initial isolated worktree status: clean at the requested starting HEAD.
 
@@ -62,7 +62,7 @@ New compiled C/Go regressions and updated contract tests exercise real productio
 
 ## Evidence and validation limits
 
-External evidence root: `/var/tmp/codex/ModSecurity-conector/analysis/i09-20261011`. Command JSON records include exact command, cwd, exit code, count and log path; a filename containing `green` alone proves nothing. Earlier failed logs remain retained. Known code/API gaps are closed; current PR CI and separate host/evidence acceptance remain pending.
+External evidence root: `/var/tmp/codex/ModSecurity-conector/analysis/i09-20261011`. Command JSON records include exact command, cwd, exit code, count and log path; a filename containing `green` alone proves nothing. Earlier failed logs remain retained. Known code/API gaps are closed; separate host/evidence acceptance remains pending. Current-head delivery checks are reported in Draft PR #408.
 
 | Evidence | Observed result / boundary |
 | --- | --- |
@@ -80,8 +80,8 @@ Compiled tests execute production functions with controlled fault seams and real
 
 I10 remains open for route-specific supported host enforcement and observed pre/postcommit outcomes. I11 remains open for physical sink serialization/open/write/short-write/close propagation; Apache's void writer and SPOP's unchecked sink writes remain separate known scope. I12 and V08–V10 remain open for exact-revision live host/companion bytes, transport, cleanup and follow-up health. Stock native lighttpd body hooks and patched Strict client-validated abort remain unsupported/unproved. H2/H3, CRS, Off and production evidence are not inferred. See the [remaining-work matrix](pr-382-i09-i12-rest-matrix.md) and [checklist](pr-382-checklist.md).
 
-**I09 IMPLEMENTATION COMPLETE – only separate host/evidence acceptance remains.** This statement concerns the known I09 code/API implementation. Local checks passed: 33 compiled methods plus Common C17 smoke, 74 contract tests, 19 adoption tests, HAProxy 194/12 skips, Traefik 86/4, lighttpd 178/13, Go race 56/30/21 and vet; native Envoy built/tested. Current PR CI requires remediation before acceptance. Sonar 403, unavailable complete HTX host headers and unchanged baseline workflow/generated Apache documentation wording failures are separate nonpasses. I10/I11/I12 are not remaining I09 implementation gaps.
+**I09 IMPLEMENTATION COMPLETE – only separate host/evidence acceptance remains.** This statement concerns the known I09 code/API implementation. Local checks passed: 33 compiled methods plus Common C17 smoke, 74 contract tests, 19 adoption tests, HAProxy 194/12 skips, Traefik 86/4, lighttpd 178/13, Go race 56/30/21 and vet; native Envoy built/tested. Local Vortex analysis returned 403; authenticated Cloud readback and exact-head CI results are recorded separately. Unavailable complete HTX host headers and unchanged baseline workflow/generated Apache documentation wording failures are separate nonpasses. I10/I11/I12 are not remaining I09 implementation gaps.
 
 ## Final command reconciliation
 
-Exact commands, exit codes, test counts and retained red or failed attempts are in the [command evidence report](../reports/audits/i09-native-route-command-evidence.md). CI for the first Draft commit `e15f31f2b5c0aa4b9e85efbdf015985b076ff633` identified test prerequisites, temporary paths, local documentation paths and 29 new Sonar findings. These are being corrected in a normal follow-up commit; CI/Quality-Gate acceptance remains open until the new head is verified.
+Exact commands, exit codes, test counts and retained red or failed attempts are in the [command evidence report](../reports/audits/i09-native-route-command-evidence.md). CI for the first Draft commit `e15f31f2b5c0aa4b9e85efbdf015985b076ff633` identified test prerequisites, temporary paths, local documentation paths and 29 new Sonar findings. Normal follow-up commits correct these findings. The report retains each head's observed results; delivery acceptance requires verification of the current PR head.

@@ -2,8 +2,6 @@
 
 **Sprache:** [English](CR-20261011-i09-native-route-reconciliation.md) | Deutsch
 
-Nur eine Vorlage. Alle offenen Abschnitte mit tatsächlichen Fakten ausfüllen; keine Validierung wird behauptet.
-
 ## Identität
 
 | Feld | Wert |
@@ -11,11 +9,6 @@ Nur eine Vorlage. Alle offenen Abschnitte mit tatsächlichen Fakten ausfüllen; 
 | Change-ID | CR-20261011-i09-native-route-reconciliation |
 | Datum (UTC) | 2026-10-11 |
 | Basis-Revision | `498653c2a193d34b7b25b2903b1e4db1c45e7f73` |
-
-
-
-
-
 
 ## Motivation und Problemstellung
 
@@ -35,6 +28,7 @@ Kanonische error_phase und geprüften einmaligen Auditabschluss erhalten; undoku
 - `Makefile`
 - `ci/checks/connectors/apache/apache_common_adoption_base.py`
 - `ci/checks/connectors/apache/check-apache-common-adoption.py`
+- `ci/checks/connectors/apache/check-apache-rules-set-cleanup.sh`
 - `common/include/msconnector/event_protocol.h`
 - `common/include/msconnector/modsecurity_engine.h`
 - `common/include/msconnector/transaction_contract.h`
@@ -111,7 +105,7 @@ Live-Reset-/Client-Byte-/Nachbarstream-/Log-Sink-Verhalten und finale Release-Ve
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-Kein Deployment, Merge, Live-Host-/CRS-/H2-/H3-/vollständige Runtime-Matrix oder physische Sink-Fehlermatrix. Keine Paket-/Header-Provisionierung. Ruff/pytest fehlen; Python-Syntax, Repository-Checks und kompilierte Tests liefern passende Alternativen. Unterbrochene HTX-C17-Provisionierungsversuche sind kein PASS.
+Kein Deployment, Merge, Live-Host-/CRS-/H2-/H3-/vollständige Runtime-Matrix oder physische Sink-Fehlermatrix. Keine lokale Paket-/Header-Provisionierung; CI ergänzt die erforderlichen SDK-Pakete. Ruff/pytest fehlen; Python-Syntax, Repository-Checks und kompilierte Tests liefern passende Alternativen. Unterbrochene HTX-C17-Provisionierungsversuche sind kein PASS.
 
 ## Finaler Diff- und Review-Status
 
@@ -120,3 +114,7 @@ Isolierter Task-Branch wird auf PR382 mit unveränderter obiger Basis gestapelt.
 Draft-CI-Korrekturen und tatsächliche Folgeprüfungen: [Befehlsbericht](../i09-native-route-command-evidence.de.md). Draft-PR [#408](https://github.com/Easton97-Jens/ModSecurity-conector/pull/408) ist auf PR #382 gestapelt. Commit `e15f31f2b5c0aa4b9e85efbdf015985b076ff633` erzeugte echte CI-Fehler: fehlende Apache/APR-Voraussetzungen, zwei fehlende temporäre Verzeichnisse, lokale Befehls-Pfade in der Produktdokumentation und 29 Sonar-Befunde. Das serverseitige Sonar-Quality-Gate bestand; die Repository-Gates für null Issues/Duplikation scheiterten. Authentifiziertes Readback fand vier neue duplizierte Zeilen in zwei Common-Finish-Preflight-Blöcken. Der Folgecommit ergänzt reine CI-Voraussetzungen, portable Testpfade, gepaarte Auditevidenz für originale Befehle und verhaltenserhaltende Common-/HAProxy-/Traefik-Helfer. Kein Scanner-Grenzwert, Negativtest oder Fehlervertrag wurde abgeschwächt. Grüne Connector-Läufe des alten Heads bestätigen den Folge-Head nicht. Erfolgreiche API-Readback-Befehle unten belegen nur Readback, nicht null Befunde. Fremde generierte Cache-Berichte und Environment-Snapshot-Dateien erschienen während der Arbeit und bleiben außerhalb des Commit-Scopes erhalten.
 
 Finaler CI-Voraussetzungsabgleich: CI für `27b32df9e4b207906700f5c98bd3399941a8ca11`, Lint-Run `38122479270`/Job `114419887846`, bestätigte einen verbleibenden Setupfehler: `msc_filters.h:2:10: fatal error: modsecurity/modsecurity.h: No such file or directory`. Das I09-Target führte 23 Methoden mit einem Apache-Fixture-Setupfehler aus; alle HAProxy-Fixtures bestanden. Die bereits in Apache-CI genutzte Voraussetzung `libmodsecurity-dev` wird ergänzt; Kompilierung bleibt verpflichtend. Der exakte Sonar-Head-Check `114420352962` meldete einen Verschachtelungsbefund im Traefik-Poll-Fehlermapper und 0.0% neue Codeduplikation. Extraktion des Poll-Fehlermappers erhält POLLNVAL/EBADF vor POLLHUP/ECONNRESET und Fallback EIO; fünf kompilierte Kontrollen und die tatsächliche C17-Translation-Unit bestehen. Ein serverseitig bestandenes Quality Gate genügt der strikten Null-Befund-Abnahme nicht; Prüfungen am aktualisierten Head bleiben erforderlich.
+
+## Apache-Harness-Linkerabgleich
+
+Am exakten Head `f49de8c3ca6731af9753848be75da5724a638b70` bestanden Lint-Run `38123028562`/Job `114421500877` den I09-Schritt mit 33 Methoden und beide strikten Sonar-Gates. Authentifiziertes Cloud-Readback/Check `114421798669` meldete null neue Issues, akzeptierte Issues, Hotspots und Annotationen; rohe neue Duplikation betrug null Zeilen, null Blöcke und 0,0%. Nur Lightweight-Lint scheiterte: Der bestehende native Apache-RulesSet-Harness hatte undefinierte `__wrap_ap_log_perror_`-Referenzen in einem GCC-LTO-Objekt. SDK-Bereitstellung machte diese unveränderte Baseline-Prüfung ausführbar. Der Runner verankert nun den bestehenden Wrapper explizit mit `--undefined`; `--wrap`, LTO, Section-GC, Warnungen und alle Cleanup-Assertions bleiben erhalten. Der konkrete Eliminierungsmechanismus ist eine Schlussfolgerung: Lokales GCC15 bestand bereits vor der Korrektur einschließlich LTO/Whole-program; nur der erhaltene gehostete Lauf ist rote Evidenz. Native Default-, LTO- und ASAN/UBSAN-Läufe bestehen nach der Korrektur, ebenso 51 Lifecycle-Methoden und der separate native Request-Cleanup-Harness. Unabhängiger begrenzter Review fand keinen wesentlichen Befund. Gehostete Prüfung des aktualisierten Heads bleibt erforderlich; grüne frühere Heads belegen dessen Abnahme nicht.
