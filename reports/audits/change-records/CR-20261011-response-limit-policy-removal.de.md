@@ -96,6 +96,13 @@ nativ zugeordnete pytest-Lauf bestand 136 Tests und 174 Subtests, einschließlic
 19 Tests erforderlicher Fixture-Helper. Externe Laufartefakte bleiben
 unter `/var/tmp/codex/ModSecurity-conector/runs/engine-response-limits-20261011/`.
 
+Nach erster CI-/Sonar-Rückmeldung bestanden: 30 Common-Native-/Event-/Fehlertests
+einschließlich aller 81 echten Engine-Szenarien; 58 HAProxy-Tests und 53 Subtests,
+Binding-/Self-Test-/SPOP-Build und Adoption-/HTX-Prüfungen; 27 Apache-Tests und
+NGINX-Adoption; 33 Traefik-/Private-Socket-Tests (zwei Hosttests übersprungen),
+sieben Engine-Service-Tests und Traefik-Integrationsverträge. Unabhängiger Review
+fand kein konkretes Problem im sieben Dateien umfassenden Reparaturdiff.
+
 ## Security-Auswirkung
 
 Nicht vertrauenswürdige Response-Daten erreichen die Engine ohne
@@ -150,8 +157,11 @@ vollständiger Verifikation abgeglichen werden.
 ## Nicht ausgeführte Prüfungen mit Begründung
 
 Keine frische gehostete Zehn-Profil-Matrix wurde ausgeführt: Die erforderlichen
-gepinnten Hostumgebungen und Laufnachweise fehlen. Noch existiert keine
-abgeschlossene Sonar-Analyse für den neuen PR-Head; die Analyse des Basis-PRs
+gepinnten Hostumgebungen und Laufnachweise fehlen. Die erste abgeschlossene
+Sonar-Analyse von `77e8085b663b46c9eb22b11864aadd0161dc5060` schlug mit zehn
+Issues, keinen Hotspots und keiner Duplikation fehl. Ressourcen-Cleanup,
+Deklarationen, Helper-Komplexität und Fixture-Parameter wurden repariert;
+eine abgeschlossene Analyse des Folge-Heads ist weiter erforderlich. Die Analyse des Basis-PRs
 belegt diese Änderung nicht. Wegen fehlender Hostartefakte blockierte native
 NGINX-/HAProxy-Prüfungen sind keine bestandenen Prüfungen. Der frische integrierte Wiederholungslauf bestand. Der frische native pytest-
 Lauf bestand 136 Tests und 174 Subtests in 44,77 Sekunden. Abschließende
@@ -163,9 +173,13 @@ Die fünf neuen Basisdateien und der Framework-Gitlink blieben unverändert.
 
 Die Diff-Whitespace-Prüfung im Implementierungsworktree bestand. Statischer
 Quellcode-Sicherheitsreview fand kein aktuelles Problem; seine Diff-Whitespace-
-Prüfung bestand. Inhaltsreview und Abgleich mit frischer Basis sind abgeschlossen; die lokale
-Änderung ist zur Commit-Vorbereitung bereit. Aktueller
-Auslieferungsstand ist lokale Arbeit; dieser Record behauptet keinen neuen
-Draft-PR, Push oder Merge. Die
+Prüfung bestand. Inhaltsreview und Abgleich mit frischer Basis sind abgeschlossen.
+Der Task-Branch wurde committet und gepusht; der gestapelte
+[Draft-PR #407](https://github.com/Easton97-Jens/ModSecurity-conector/pull/407)
+ist gegen den angegebenen Basis-Branch offen. Die erste Head-CI fand den
+geprüften Apache-Checker-Fingerprint und die Traefik-Erwartung an die reine
+Header-API; beide Testverträge wurden ohne Assertion-Entfernung aktualisiert.
+Die Folgeauslieferung benötigt frisches CI-/Sonar-Readback des exakten Heads.
+Es wurde nicht gemergt. Die
 [Stack-Checkliste](../../../docs/response-limit-stack-checklist.de.md) trennt
 Implementierung, ausführbare Tests und fehlende echte Hostnachweise.

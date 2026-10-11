@@ -11,21 +11,27 @@
 #include "tests/transaction_phase_test_support.h"
 #include "connectors/profile_registry.h"
 
-#define CHECK(x) do { if (!(x)) { fprintf(stderr, "line %d: %s (%s)\n", __LINE__, #x, error.message); return 1; } } while (0)
+#define CHECK(x) do { if (!(x)) { fprintf(stderr, "line %d: %s (%s)\n", __LINE__, #x, error.message); goto cleanup; } } while (0)
 /* Configuration loading only: no response inspection and no fixture defaults. */
 static int config_omission_test(const char *directory) {
-    char rules[4096], config[4096], diagnostic[1024];
+    char rules[4096];
+    char config[4096];
+    char diagnostic[1024];
     FILE *file;
     msconnector_runtime *runtime = NULL;
     if (snprintf(rules, sizeof(rules), "%s/omitted-rules", directory) < 0 ||
         snprintf(config, sizeof(config), "%s/omitted-config", directory) < 0) return 1;
     file = fopen(rules, "w");
     if (file == NULL) return 1;
-    if (fputs("SecRuleEngine On\n", file) == EOF || fclose(file) != 0) return 1;
+    int written = fputs("SecRuleEngine On\n", file) != EOF;
+    int closed = fclose(file) == 0;
+    if (!written || !closed) return 1;
     file = fopen(config, "w");
     if (file == NULL) return 1;
-    if (fprintf(file, "enabled=on\nrules_file=%s\nrequest_body_mode=none\n"
-            "response_body_mode=none\nphase4_mode=safe\n", rules) < 0 || fclose(file) != 0) return 1;
+    written = fprintf(file, "enabled=on\nrules_file=%s\nrequest_body_mode=none\n"
+            "response_body_mode=none\nphase4_mode=safe\n", rules) >= 0;
+    closed = fclose(file) == 0;
+    if (!written || !closed) return 1;
     if (!msconnector_runtime_create("lighttpd", config, &runtime,
             diagnostic, sizeof(diagnostic))) {
         fprintf(stderr, "config-only omission failed: %s\n", diagnostic);
@@ -36,6 +42,44 @@ static int config_omission_test(const char *directory) {
     return 0;
 }
 
+static int close_test_file(FILE **file) {
+    FILE *owned = *file;
+    *file = NULL;
+    return fclose(owned) == 0;
+}
+
+static int append_test_body(msconnector_runtime_transaction *tx, size_t length,
+    size_t chunk_size, size_t marker_offset, size_t *offset,
+    msconnector_error *error) {
+    unsigned char chunk[65536];
+    while (*offset < length) {
+        size_t count = length - *offset < chunk_size ? length - *offset : chunk_size;
+        memset(chunk, 'x', count);
+        for (size_t i = 0; i < count; ++i) {
+            size_t position = *offset + i;
+            if (position >= marker_offset && position - marker_offset < 6U)
+                chunk[i] = (unsigned char)"MARKER"[position - marker_offset];
+        }
+        if (!msconnector_runtime_transaction_append_response_body_chunk(tx, chunk, count, error)) { return 0; }
+        *offset += count;
+    }
+    return 1;
+}
+
+static int check_reject_evidence(const char *events) {
+    char evidence[16384];
+    FILE *file = fopen(events, "r");
+    if (file == NULL) return 0;
+    size_t count = fread(evidence, 1U, sizeof(evidence) - 1U, file);
+    int readable = !ferror(file);
+    int closed = fclose(file) == 0;
+    if (!readable || !closed) return 0;
+    evidence[count] = '\0';
+    return strstr(evidence, "MSCONN_EVENT_BODY_LIMIT") != NULL &&
+        strstr(evidence, "\"body_limit_outcome\":\"reject\"") != NULL &&
+        strstr(evidence, "MSCONN_EVENT_INVALID_ENGINE_RESPONSE") == NULL;
+}
+
 int main(int argc, char **argv) {
     msconnector_error error;
     msconnector_runtime *runtime = NULL;
@@ -44,11 +88,20 @@ int main(int argc, char **argv) {
     msconnector_runtime_transaction_snapshot snapshot;
     msconnector_response response = {0};
     msconnector_header headers[] = {{"Content-Type", 12U, "text/plain", 10U}};
-    unsigned char chunk[65536];
-    char config[4096], rules[4096], events[4096], message[1024];
-    size_t limit, length, chunk_size, offset = 0;
-    int partial, expect_marker, appended = 1, finished;
-    FILE *file;
+    char config[4096];
+    char rules[4096];
+    char events[4096];
+    char message[1024];
+    size_t limit;
+    size_t length;
+    size_t chunk_size;
+    size_t offset = 0;
+    int partial;
+    int expect_marker;
+    int appended;
+    int finished;
+    int result = 1;
+    FILE *file = NULL;
     msconnector_error_init(&error);
     if (argc == 3 && strcmp(argv[1], "--config-only") == 0) {
         return config_omission_test(argv[2]);
@@ -62,7 +115,7 @@ int main(int argc, char **argv) {
     chunk_size = (size_t)strtoull(argv[6], NULL, 10);
     const size_t marker_offset = (size_t)strtoull(argv[7], NULL, 10);
     partial = strcmp(argv[3], "ProcessPartial") == 0;
-    CHECK(limit > 0U && chunk_size > 0U && chunk_size <= sizeof(chunk));
+    CHECK(limit > 0U && chunk_size > 0U && chunk_size <= 65536U);
     CHECK(partial || strcmp(argv[3], "Reject") == 0);
     CHECK(marker_offset <= length && length - marker_offset >= 6U);
     CHECK(snprintf(config, sizeof(config), "%s/config", argv[1]) > 0);
@@ -77,11 +130,11 @@ int main(int argc, char **argv) {
         "SecAction \"id:710002,phase:4,pass,nolog\"\n"
         "SecRule RESPONSE_BODY \"@contains MARKER\" \"id:710001,phase:4,deny,status:451,log\"\n",
         limit, argv[3]) > 0);
-    CHECK(fclose(file) == 0);
+    CHECK(close_test_file(&file));
     file = fopen(config, "w"); CHECK(file != NULL);
     CHECK(fprintf(file, "enabled=on\nrules_file=%s\nrequest_body_mode=none\n"
         "response_body_mode=streaming\nphase4_mode=%s\nevent_path=%s\n", rules, argv[4], events) > 0);
-    CHECK(fclose(file) == 0);
+    CHECK(close_test_file(&file));
     CHECK(msconnector_runtime_create("lighttpd", config, &runtime, message, sizeof(message)) ||
           (fprintf(stderr, "%s\n", message), 0));
     CHECK(msconnector_runtime_set_event_integration_mode(runtime, "stock-lighttpd-sidecar"));
@@ -90,17 +143,7 @@ int main(int argc, char **argv) {
     response.status = 200; response.http_version = "HTTP/1.1";
     response.headers = headers; response.header_count = 1U;
     CHECK(msconnector_runtime_transaction_process_response_headers(tx, &response, &decision, &error));
-    while (offset < length) {
-        size_t count = length - offset < chunk_size ? length - offset : chunk_size;
-        memset(chunk, 'x', count);
-        for (size_t i = 0; i < count; ++i) {
-            size_t position = offset + i;
-            if (position >= marker_offset && position - marker_offset < 6U)
-                chunk[i] = (unsigned char)"MARKER"[position - marker_offset];
-        }
-        if (!msconnector_runtime_transaction_append_response_body_chunk(tx, chunk, count, &error)) { appended = 0; break; }
-        offset += count;
-    }
+    appended = append_test_body(tx, length, chunk_size, marker_offset, &offset, &error);
     expect_marker = marker_offset + 6U <= (length < limit ? length : limit);
     if (length <= limit || partial) {
         CHECK(appended && offset == length);
@@ -126,18 +169,16 @@ int main(int argc, char **argv) {
     msconnector_runtime_transaction_destroy(&tx);
     msconnector_runtime_destroy(&runtime);
     if (length > limit && !partial && appended) {
-        char evidence[16384];
-        file = fopen(events, "r"); CHECK(file != NULL);
-        size_t count = fread(evidence, 1U, sizeof(evidence) - 1U, file);
-        CHECK(!ferror(file)); CHECK(fclose(file) == 0);
-        evidence[count] = '\0';
-        CHECK(strstr(evidence, "MSCONN_EVENT_BODY_LIMIT") != NULL);
-        CHECK(strstr(evidence, "\"body_limit_outcome\":\"reject\"") != NULL);
-        CHECK(strstr(evidence, "MSCONN_EVENT_INVALID_ENGINE_RESPONSE") == NULL);
+        CHECK(check_reject_evidence(events));
     }
     file = fopen(config, "a"); CHECK(file != NULL);
-    CHECK(fputs("response_body_limit=128\n", file) != EOF); CHECK(fclose(file) == 0);
+    CHECK(fputs("response_body_limit=128\n", file) != EOF); CHECK(close_test_file(&file));
     CHECK(!msconnector_runtime_config_check("lighttpd", config, message, sizeof(message)));
     CHECK(strstr(message, "unknown") != NULL);
-    return 0;
+    result = 0;
+cleanup:
+    if (file != NULL && fclose(file) != 0) result = 1;
+    msconnector_runtime_transaction_destroy(&tx);
+    msconnector_runtime_destroy(&runtime);
+    return result;
 }

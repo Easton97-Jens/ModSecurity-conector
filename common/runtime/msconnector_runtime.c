@@ -1106,6 +1106,22 @@ static int native_intervention_status(
     return intervention == NULL ? 0 : intervention->status;
 }
 
+static int native_copy_redirect_target(
+    msconnector_native_transaction *native,
+    const char *url,
+    msconnector_error *error) {
+    int length;
+    if (!msconnector_intervention_has_redirect_url(url)) {
+        return 1;
+    }
+    length = snprintf(native->redirect_url, sizeof(native->redirect_url), "%s", url);
+    if (length < 0 || (size_t)length >= sizeof(native->redirect_url)) {
+        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+            "redirect target exceeds the native runtime limit", "runtime");
+    }
+    return 1;
+}
+
 static int native_decision(
     const msconnector_runtime *runtime,
     msconnector_native_transaction *native,
@@ -1117,7 +1133,6 @@ static int native_decision(
     int intervention_result;
     int disruptive;
     int body_limit;
-    int redirect_length;
     int response_limit;
 
     memset(&intervention, 0, sizeof(intervention));
@@ -1147,15 +1162,9 @@ static int native_decision(
             runtime->config.default_block_status);
         (void)snprintf(native->reason, sizeof(native->reason), "%s",
             "ModSecurity rule requested an intervention");
-        if (msconnector_intervention_has_redirect_url(intervention.url)) {
-            redirect_length = snprintf(native->redirect_url,
-                sizeof(native->redirect_url), "%s", intervention.url);
-            if (redirect_length < 0 ||
-                (size_t)redirect_length >= sizeof(native->redirect_url)) {
-                msc_intervention_cleanup(&intervention);
-                return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
-                    "redirect target exceeds the native runtime limit", "runtime");
-            }
+        if (!native_copy_redirect_target(native, intervention.url, error)) {
+            msc_intervention_cleanup(&intervention);
+            return 0;
         }
         if (body_limit) {
             msconnector_decision_set_body_limit(decision, native->reason);

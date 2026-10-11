@@ -755,6 +755,27 @@ static int haproxy_modsecurity_htx_begin_request(
     return 0;
 }
 
+static int haproxy_modsecurity_htx_append_data(
+    struct haproxy_modsecurity_htx_filter_context *ctx, struct ist value,
+    haproxy_modsecurity_htx_append_body_chunk append_body_chunk,
+    size_t *body_bytes_seen, const size_t *request_body_limit)
+{
+    haproxy_modsecurity_decision decision;
+
+    /* `value.ptr` is borrowed from HAProxy's current HTX buffer. */
+    if (value.len > UINT_MAX ||
+        *body_bytes_seen > SIZE_MAX - value.len ||
+        (request_body_limit && (value.len > *request_body_limit ||
+         *body_bytes_seen > *request_body_limit - value.len)) ||
+        append_body_chunk(
+            ctx->transaction, (const unsigned char *)value.ptr,
+            (unsigned int)value.len, &decision) != 0) {
+        return -1;
+    }
+    *body_bytes_seen += value.len;
+    return 0;
+}
+
 static int haproxy_modsecurity_htx_append_payload(
     struct filter *filter, struct http_msg *msg, unsigned int offset, unsigned int len,
     haproxy_modsecurity_htx_append_body_chunk append_body_chunk,
@@ -783,7 +804,6 @@ static int haproxy_modsecurity_htx_append_payload(
         }
         if (type == HTX_BLK_DATA) {
             struct ist value = htx_get_blk_value(htx, blk);
-            haproxy_modsecurity_decision decision;
 
             if (offset > value.len) {
                 return -1;
@@ -792,17 +812,10 @@ static int haproxy_modsecurity_htx_append_payload(
             if (value.len > remaining) {
                 value = isttrim(value, remaining);
             }
-            /* `value.ptr` is borrowed from HAProxy's current HTX buffer. */
-            if (value.len > UINT_MAX ||
-                *body_bytes_seen > SIZE_MAX - value.len ||
-                (request_body_limit && (value.len > *request_body_limit ||
-                 *body_bytes_seen > *request_body_limit - value.len)) ||
-                append_body_chunk(
-                    ctx->transaction, (const unsigned char *)value.ptr,
-                    (unsigned int)value.len, &decision) != 0) {
+            if (haproxy_modsecurity_htx_append_data(ctx, value,
+                    append_body_chunk, body_bytes_seen, request_body_limit) != 0) {
                 return -1;
             }
-            *body_bytes_seen += value.len;
             remaining -= (unsigned int)value.len;
         } else {
             if (offset != 0U || block_size > remaining) {

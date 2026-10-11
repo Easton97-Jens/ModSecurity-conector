@@ -62,9 +62,10 @@ class ApacheAdoptionCheckBatchingTests(unittest.TestCase):
             else:
                 normalized.append(node)
         tree.body = normalized
-        # Frozen ff162ecb AST, without positions; expands only the batching seam.
+        # Reviewed engine-owned response-limit checker AST, without positions;
+        # expands only the batching seam.
         digest = hashlib.sha256(ast.dump(tree, include_attributes=False).encode()).hexdigest()
-        self.assertEqual(digest, "e4c8c695231cd915ac6315199df346cfd9cd45f894e76fbe6661bf0ff1df0227")
+        self.assertEqual(digest, "7075a6c5e03c3b3eb88b536201fff98bb02dc66f047de299fb8c021f9e42fe5a")
 
 
 class ApacheCommonAdoptionCheckerTests(unittest.TestCase):

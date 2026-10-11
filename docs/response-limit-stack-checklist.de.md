@@ -8,7 +8,8 @@ Basis-PR: [#382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382)
 Basis-Branch: `fix/unified-native-results-events-20260921`.
 Exakte Basis: `498653c2a193d34b7b25b2903b1e4db1c45e7f73`.
 Neuer Branch: `fix/engine-owned-response-limits-stack-20261011`.
-Der neue Draft-PR richtet sich gegen den Basis-Branch; kein Merge ist autorisiert.
+Draft-PR: [#407](https://github.com/Easton97-Jens/ModSecurity-conector/pull/407),
+gegen den Basis-Branch; kein Merge ist autorisiert.
 
 ## Implementierung
 
@@ -29,6 +30,13 @@ Der neue Draft-PR richtet sich gegen den Basis-Branch; kein Merge ist autorisier
 - [x] Ausgewählte integrierte Common-/Connector-/Sicherheits-/Regressionstests und Dokumentationsprüfungen; Basisfehler unten separat ausgewiesen.
 - [ ] Abgeschlossene Sonar-Analyse des neuen PR-Heads: keine neuen Issues/Hotspots und
   keine New-Code-Duplikation; keine Scanner-Ausnahmen oder abgeschwächten Prüfungen.
+
+Die erste abgeschlossene Analyse von `77e8085b663b46c9eb22b11864aadd0161dc5060`
+meldete zehn Issues, keine Hotspots und keine Duplikation. Folgeänderungen beheben
+Ressourcen-Cleanup, Deklarationen, Helper-Komplexität und Fixture-Parameter;
+auch geprüfter Apache-Fingerprint und Traefik-API-Erwartung wurden aktualisiert.
+Der neue Head benötigt seine eigene abgeschlossene Analyse; der laufende
+Auslieferungsstand steht in #407.
 
 Common-Validierung mit echter Library bestand 81 Szenarien; HAProxy-Binding-
 Validierung bestand 16 Fälle. Envoy bestand acht echte CGo-/libModSecurity-

@@ -427,6 +427,26 @@ static int begin_contract_phase(haproxy_modsecurity_transaction *transaction,
         phase, 0U);
 }
 
+static int capture_pending_response_intervention(
+        haproxy_modsecurity_transaction *transaction,
+        haproxy_modsecurity_decision *decision) {
+    /* Observe native append outcomes without deriving Allow from its rc.
+     * Retain the first intervention through subsequent chunks and EOS. */
+    if (capture_intervention(transaction->transaction, 4, decision) != 0) {
+        (void)msconnector_transaction_contract_fail(&transaction->contract,
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, 0U);
+        return 1;
+    }
+    if (decision->disruptive && !transaction->response_intervention_pending) {
+        transaction->pending_response_intervention = *decision;
+        transaction->response_intervention_pending = 1;
+    }
+    if (transaction->response_intervention_pending) {
+        *decision = transaction->pending_response_intervention;
+    }
+    return 0;
+}
+
 static int validate_body_preconditions(
         haproxy_modsecurity_transaction *transaction,
         haproxy_modsecurity_decision *decision,
@@ -532,20 +552,7 @@ static int append_body_chunk(
     *phase->body_started = 1;
     *phase->body_bytes_inspected += body_len;
     if (phase->phase == 4) {
-        /* Observe native append outcomes without deriving Allow from its rc.
-         * Retain the first intervention through subsequent chunks and EOS. */
-        if (capture_intervention(transaction->transaction, 4, decision) != 0) {
-            (void)msconnector_transaction_contract_fail(&transaction->contract,
-                MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, 0U);
-            return 1;
-        }
-        if (decision->disruptive && !transaction->response_intervention_pending) {
-            transaction->pending_response_intervention = *decision;
-            transaction->response_intervention_pending = 1;
-        }
-        if (transaction->response_intervention_pending) {
-            *decision = transaction->pending_response_intervention;
-        }
+        return capture_pending_response_intervention(transaction, decision);
     }
     return 0;
 }

@@ -92,6 +92,13 @@ pytest sweep passed 136 tests and 174 subtests, including 19 required-fixture
 helper tests. External run artifacts are retained
 under `/var/tmp/codex/ModSecurity-conector/runs/engine-response-limits-20261011/`.
 
+Follow-up validation after the first CI/Sonar feedback passed: 30 Common native,
+event and error tests including all 81 genuine engine scenarios; 58 HAProxy tests
+and 53 subtests, binding/self-test/SPOP build and adoption/HTX checks; 27 Apache
+tests and the NGINX adoption check; 33 Traefik/private-socket tests (two hosted
+tests skipped), seven engine-service tests and Traefik integration contracts.
+Independent review found no concrete issue in the seven-file repair diff.
+
 ## Security impact
 
 Untrusted response data reaches the engine without a connector inspection
@@ -142,8 +149,11 @@ claiming complete verification.
 ## Checks not run and rationale
 
 No fresh ten-profile hosted matrix was run: the required pinned host environments
-and run evidence are unavailable. No completed Sonar analysis exists for the new
-PR head at this point; base-PR analysis is not evidence for this change. NGINX/
+and run evidence are unavailable. The first completed Sonar analysis of
+`77e8085b663b46c9eb22b11864aadd0161dc5060` failed with ten issues, zero hotspots
+and zero duplication. Resource cleanup, declarations, helper complexity and
+fixture parameters were repaired; a completed analysis of the follow-up head
+is still required. Base-PR analysis is not evidence for this change. NGINX/
 HAProxy native checks blocked by missing host artifacts are not passes. The fresh integrated rerun passed. The fresh native pytest run passed 136 tests
 and 174 subtests in 44.77 seconds. Final Common helper/SDK/security/memory/flow/
 adapter/directive checks, 21 generated references, bilingual documentation, paths
@@ -152,8 +162,12 @@ and links passed. The five newer base files and Framework gitlink stayed unchang
 ## Final diff and review status
 
 Implementation worktree diff whitespace check passed. Static source safety review found no current issue, and its diff whitespace
-check passed; content review and fresh-base reconciliation are complete; the local change is
-ready for commit preparation. The current delivery
-state is local work; no new Draft PR, push or merge is claimed in this record.
+check passed; content review and fresh-base reconciliation are complete.
+The task branch was committed and pushed, and stacked
+[Draft PR #407](https://github.com/Easton97-Jens/ModSecurity-conector/pull/407)
+is open against the specified base branch. First-head CI exposed the reviewed
+Apache checker fingerprint and Traefik header-only API expectations; both test
+contracts were updated without removing their assertions. Follow-up delivery
+requires fresh exact-head CI/Sonar readback. No merge was performed.
 The [stack checklist](../../../docs/response-limit-stack-checklist.md) separates
 implementation, executable tests and missing real-host evidence.
