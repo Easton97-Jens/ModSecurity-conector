@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"golang.org/x/sys/unix"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -629,5 +631,138 @@ SecRule RESPONSE_BODY "@contains marker-past-former-budget" "id:1200994,phase:4,
 	assertCommonDecision(t, "engine tail rule", d, err, ActionDeny, 451)
 	if d.RuleID != "1200994" {
 		t.Fatalf("rule ID=%q", d.RuleID)
+	}
+}
+
+func TestCommonRuntimeCleanupFailureRetainsFirstCause(t *testing.T) {
+	transaction := &commonRuntimeTransaction{}
+	first := errors.New("first cleanup failure")
+	transaction.setCleanupFailure(first)
+	transaction.setCleanupFailure(errors.New("later cleanup failure"))
+	if got := transaction.CleanupFailure(); got != first {
+		t.Fatalf("CleanupFailure() = %v, want first cause %v", got, first)
+	}
+}
+
+func TestCommonRuntimeCloseReportsTerminalEventSinkFailure(t *testing.T) {
+	for _, mode := range []string{"incomplete-request", "incomplete-response"} {
+		t.Run(mode, func(t *testing.T) {
+			testCommonRuntimeTerminalSinkFailure(t, mode)
+		})
+	}
+}
+
+func testCommonRuntimeTerminalSinkFailure(t *testing.T, mode string) {
+	t.Helper()
+	engine, eventPath := newCommonRuntimeEngineForTest(t, 1048576, "Reject", 1048576, "Reject")
+	ctx := context.Background()
+	tx, err := engine.Open(ctx, commonTestStreamMetadata(mode))
+	if err != nil {
+		t.Fatal(err)
+	}
+	native := tx.(*commonRuntimeTransaction)
+	prepareIncompleteNativeTransaction(t, ctx, tx, mode)
+	// Runtime owns an already-open FILE*. Replace only this test's event FD
+	// with a real read-only file description; changing the pathname cannot
+	// inject a failure into an existing open descriptor.
+	sinkFD := nativeEventDescriptor(t, eventPath)
+	readOnly, err := os.Open(eventPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer readOnly.Close()
+	if err := unix.Dup2(int(readOnly.Fd()), sinkFD); err != nil {
+		t.Fatal(err)
+	}
+	tx.Close(ctx, Summary{CloseReason: ClosePeerEOF})
+	first := native.CleanupFailure()
+	if first == nil || !strings.Contains(first.Error(), "I/O error") {
+		t.Fatalf("CleanupFailure(after physical sink failure) = %v, want Common I/O event output failure", first)
+	}
+	healthy, err := os.OpenFile(eventPath, os.O_WRONLY|os.O_APPEND, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer healthy.Close()
+	if err := unix.Dup2(int(healthy.Fd()), sinkFD); err != nil {
+		t.Fatal(err)
+	}
+	tx.Close(ctx, Summary{CloseReason: ClosePeerEOF})
+	if got := native.CleanupFailure(); got != first {
+		t.Fatalf("CleanupFailure(after repeated close) = %v, want %v", got, first)
+	}
+	if err := engine.Close(ctx); err != nil {
+		t.Fatalf("engine Close(after failed sink) = %v", err)
+	}
+	content, err := os.ReadFile(eventPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(content) != 0 {
+		t.Fatalf("Close(retry) wrote %d bytes, want 0", len(content))
+	}
+}
+
+func prepareIncompleteNativeTransaction(t *testing.T, ctx context.Context, tx Transaction, mode string) {
+	t.Helper()
+	decision, err := tx.ProcessHeaders(ctx, DirectionRequest, []Header{{Name: "x-safe", Value: []byte("allow")}}, mode != "incomplete-request")
+	if err != nil || decision.Action != ActionAllow {
+		t.Fatalf("ProcessHeaders(request) = %#v, %v, want allow", decision, err)
+	}
+	if mode == "incomplete-response" {
+		decision, err = tx.ProcessHeaders(ctx, DirectionResponse, []Header{{Name: ":status", Value: []byte("200")}}, false)
+		if err != nil || decision.Action != ActionAllow {
+			t.Fatalf("ProcessHeaders(response) = %#v, %v, want allow", decision, err)
+		}
+	}
+}
+
+func nativeEventDescriptor(t *testing.T, eventPath string) int {
+	t.Helper()
+	descriptors, err := os.ReadDir("/proc/self/fd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sinkFD := -1
+	for _, descriptor := range descriptors {
+		target, err := os.Readlink("/proc/self/fd/" + descriptor.Name())
+		if err == nil && target == eventPath {
+			if sinkFD != -1 {
+				t.Fatal("multiple native event descriptors")
+			}
+			sinkFD, err = strconv.Atoi(descriptor.Name())
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if sinkFD == -1 {
+		t.Fatal("native event descriptor not found")
+	}
+	return sinkFD
+}
+
+func TestCommonRuntimeCloseIncompleteHealthySinkKeepsSequenceEvent(t *testing.T) {
+	engine, eventPath := newCommonRuntimeEngineForTest(t, 1048576, "Reject", 1048576, "Reject")
+	ctx := context.Background()
+	tx, err := engine.Open(ctx, commonTestStreamMetadata("healthy-incomplete"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.ProcessHeaders(ctx, DirectionRequest, []Header{{Name: "x-safe", Value: []byte("allow")}}, false); err != nil {
+		t.Fatal(err)
+	}
+	tx.Close(ctx, Summary{CloseReason: ClosePeerEOF})
+	err = tx.(*commonRuntimeTransaction).CleanupFailure()
+	if !errors.Is(err, ErrTransactionFinishPhaseSequence) {
+		t.Fatalf("CleanupFailure(incomplete with healthy sink) = %v, want transaction-local sequence failure", err)
+	}
+	content, readErr := os.ReadFile(eventPath)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	if len(lines) != 1 {
+		t.Fatalf("incomplete close terminal events = %d, want 1", len(lines))
 	}
 }

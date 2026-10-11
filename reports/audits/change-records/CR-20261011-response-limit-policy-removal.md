@@ -8,7 +8,7 @@
 | --- | --- |
 | Change ID | CR-20261011-response-limit-policy-removal |
 | Date (UTC) | 2026-10-11 |
-| Base revision | `492663334d89428dce084792145ef94e91579788` |
+| Base revision | `2619b20b9d2e70fa07cbe71f664b48ff3c105380` |
 
 ## Motivation and problem statement
 
@@ -59,7 +59,7 @@ manifest changes are included.
 
 ## Commands executed
 
-Observed current checks and retained artifacts are under `/var/tmp/codex/ModSecurity-conector/runs/body-policy-removal-20261011/`:
+Observed earlier expanded-task checks and retained artifacts are under `/var/tmp/codex/ModSecurity-conector/runs/body-policy-removal-20261011/`:
 `common/real-engine.log` (nine methods, 193 scenarios), Common combined final
 run (30 tests), `root-checks/common-contracts.log` (all selected Common targets)
 and `root-checks/docs.log` (21 generated references, EN/DE/path/link checks and
@@ -97,7 +97,7 @@ not establish hosted runtime safety.
 
 ## Runtime evidence
 
-Current Common real-library validation passed nine methods: 112 native request
+Earlier expanded-task Common real-library validation passed nine methods: 112 native request
 and 81 response scenarios (193 total). A later combined run passed 30 tests.
 Four real authorization-socket cases use a 2 MiB body: a tail marker produces
 native 451 under a high limit, the same payload under a low ProcessPartial limit
@@ -167,29 +167,63 @@ not weakened.
 The active authorization profiles do not provide unrestricted incremental
 request ingestion. Pinned current host evidence is missing for all ten profiles,
 including buffer ownership, protocol lifecycle and late intervention delivery.
-Local native reconciliation and full quick-check passed. Changed-head CI/Sonar
-and expanded PR delivery verification remain open. Overall verification is partial.
+Local native I09 reconciliation and full quick-check passed. Final I11 affected/
+full validation passed. Changed-head CI/Sonar and expanded PR delivery remain
+open at this local snapshot. Overall verification is partial.
 
 ## Checks not run and rationale
 
 No complete current request/response ten-profile hosted matrix was run; required
 pinned host environments and run evidence are unavailable. The renewed full
-quick-check passed after checker repairs. Current changed-head CI/Sonar is
+quick-check passed on the recorded I09 base after checker repairs. Final I11
+affected/full validation passed with exit 0; the additional combined NGINX/
+bounded-URI/bridge run passed 130 tests. Current changed-head CI/Sonar is
 pending. Historical response-only checks and starting-head Sonar results apply
 only to their revisions and are not evidence for the current expanded diff.
 
 ## Current base reconciliation
 
-The base advanced to `492663334d89428dce084792145ef94e91579788` (I09). Its typed native failures,
-operation-specific results, error-phase retention, once-only cleanup and compiled
-regressions are combined with removal of connector body policy. Common
-reconciliation passed 30 focused tests, including 13 genuine engine tests.
-Traefik native/composite/observer Go packages, I09 lighttpd/Traefik tests and both
-C builds passed. The stock RST event gap remains 35/36; the rebuilt Common
-legacy lossy-event test still exits 134 at assertion 209. These are current-base
-observations. Whole-tree quick-check and native I09 reconciliation must be
-renewed after the base merge; earlier quick-check evidence is pre-integration.
-PR #382 is checked repeatedly while work continues.
+The selected current #382 base is `2619b20b9d2e70fa07cbe71f664b48ff3c105380` (I11).
+The ordinary I09 integration is committed as `2bb1a1e0`; authorized ordinary
+I11 base integration is locally complete and source is frozen. Published history
+is retained; no PR/master merge or force-push is performed.
+
+On integrated I09 base `492663334d89428dce084792145ef94e91579788`, `check-i09-native-routes`
+passed 33 tests and native `make quick-check` passed with exit 0, including ten
+unittest groups totaling 302 tests (`root-checks/resume-base492-check.log`).
+The old SPOP source assertions pass with upstream I09 fixes. Earlier Common
+reconciliation passed 30 focused tests including 13 genuine engine tests;
+Traefik Go packages, I09 lighttpd/Traefik tests and both C builds passed.
+Stock-sidecar remains 35/36 due to unchanged RST empty-event behavior; rebuilt
+Common legacy lossy-event validation exits 134 at assertion 209. Assertions are
+retained.
+
+On selected I11 base `2619b20b9d2e70fa07cbe71f664b48ff3c105380`,
+final native selection passed 20 modules with 212 tests and 201 subtests in
+58.51 seconds, including 13 genuine engine methods. Apache C17, APR/LTO cleanup
+and adoption checks passed, as did genuine HAProxy binding/build/self-test/SPOP
+protocol checks. Additional real APR-bucket and production-append regressions
+for P2/P4 passed 20 methods and ten subtests: native pending 403 through EOS,
+and sticky `/dev/full` IO failure with 500 and no replay. Independent review
+found no finding. All eight Envoy packages passed pure Go and real
+CGo/libModSecurity validation, and its binary built. Evidence:
+`native/base261/validation-status.json` and `remaining/base261/validation.md`.
+
+The final aggregate native Make run on I11 passed with exit 0:
+`check-i09-native-routes` with 33 tests, `check-apache-event-sink` with 20 tests,
+`check-haproxy-spop-event-sink` with 19 tests and `quick-check` with ten unittest
+groups and 304 tests. Security/memory/flow/helper/documentation checks,
+21 generated files and diff checks passed. Actual Apache, NGINX and HAProxy
+C17 compilation passed; earlier local compilation evidence gaps are closed,
+while hosted matrix evidence remains missing. Evidence:
+`root-checks/base261-final-make.log`. The additional combined NGINX adoption/
+bounded-URI/Envoy-bridge run passed 130 tests in 694.670 seconds
+(`root-checks/base261-root-targeted.log`). Final targeted inventory, including
+hidden files in Common, all connectors and examples, found no additional active
+own cumulative body cap, directive injection or fallback beyond the disclosed
+authorization/sample constraints; no hidden plugin manifest contains a retired
+key. Independent P2/P4 EOS and sticky-IO review found no finding. Push/readback and current-head CI/Sonar remain pending; the remote
+#407 head is still `6576661724841e26802a93b19d8bbfbdb5c8235a`.
 
 ## Final diff and review status
 

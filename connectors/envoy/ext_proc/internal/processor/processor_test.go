@@ -1752,3 +1752,61 @@ func sameHostActions(left, right []HostAction) bool {
 	}
 	return true
 }
+
+type reportedCleanupTransaction struct {
+	*recordingTransaction
+	err error
+}
+
+func (tx *reportedCleanupTransaction) CleanupFailure() error { return tx.err }
+func TestStreamCloseKeepsIncompleteFinishLocalAndSinkFailureFatal(t *testing.T) {
+	for _, mode := range []string{"sink", "incomplete"} {
+		t.Run(mode, func(t *testing.T) {
+			testStreamCloseFailureClassification(t, mode)
+		})
+	}
+}
+
+func testStreamCloseFailureClassification(t *testing.T, mode string) {
+	t.Helper()
+	first := errors.New("mandatory event sink failure")
+	if mode == "incomplete" {
+		first = fmt.Errorf("%w: incomplete body", ErrTransactionFinishPhaseSequence)
+	}
+	tx := &reportedCleanupTransaction{recordingTransaction: &recordingTransaction{}, err: first}
+	state := newStreamState(testConfig(LateActionSafe), nil, discardObserver{})
+	state.transaction = tx
+	if got := state.closeOwned(CloseContextCanceled); !errors.Is(got, first) {
+		t.Fatalf("closeOwned(cancel) = %v, want %v", got, first)
+	}
+	if mode == "sink" && !errors.Is(state.cleanupFailure, first) {
+		t.Fatalf("cleanupFailure = %v, want fatal sink cause %v", state.cleanupFailure, first)
+	}
+	if mode == "incomplete" && state.cleanupFailure != nil {
+		t.Fatalf("cleanupFailure = %v, want no process failure for incomplete lifecycle", state.cleanupFailure)
+	}
+	if got := state.closeOwned(CloseContextCanceled); got != nil {
+		t.Fatalf("closeOwned(retry) = %v, want no duplicate work", got)
+	}
+	if len(tx.closed) != 1 {
+		t.Fatalf("closeOwned(retry) close calls = %d, want 1", len(tx.closed))
+	}
+}
+
+type cleanupEvidenceFailureObserver struct{ err error }
+
+func (observer cleanupEvidenceFailureObserver) Record(Summary) error { return observer.err }
+func TestStreamCloseMetadataSinkFailureRemainsFatalAfterIncompleteFinish(t *testing.T) {
+	first := fmt.Errorf("%w: incomplete body", ErrTransactionFinishPhaseSequence)
+	sinkErr := errors.New("metadata physical write failure")
+	tx := &reportedCleanupTransaction{recordingTransaction: &recordingTransaction{}, err: first}
+	state := newStreamState(testConfig(LateActionSafe), nil, cleanupEvidenceFailureObserver{err: sinkErr})
+	state.transaction = tx
+	got := state.closeOwned(CloseContextCanceled)
+	if !errors.Is(got, first) || !errors.Is(got, sinkErr) {
+		t.Fatalf("closeOwned(cancel) = %v, want both first finish and sink cause", got)
+	}
+	if state.cleanupFailure != got {
+		t.Fatalf("cleanupFailure = %v, want fatal combined cause %v", state.cleanupFailure, got)
+	}
+}

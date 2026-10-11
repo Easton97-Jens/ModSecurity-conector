@@ -1,6 +1,7 @@
 #ifndef HAPROXY_MODSECURITY_BINDING_H
 #define HAPROXY_MODSECURITY_BINDING_H
 
+#include "msconnector/error.h"
 #include "msconnector/config.h"
 #include "msconnector/crs.h"
 #include "msconnector/decision_action.h"
@@ -158,6 +159,15 @@ void haproxy_modsecurity_transaction_abort_with_error(
 int haproxy_modsecurity_error_event_write(
     const haproxy_modsecurity_decision *decision, const char *transaction_id,
     char *line, size_t line_size);
+/* Checked serialization returns 1 for rendered output or an omitted duplicate/no-error
+ * (empty line), and 0 with INTERNAL or EVENT_TOO_LARGE on failure. No sink I/O. */
+int haproxy_modsecurity_error_event_write_checked(
+    const haproxy_modsecurity_decision *decision, const char *transaction_id,
+    char *line, size_t line_size, msconnector_error *error);
+int haproxy_modsecurity_transaction_error_event_write_checked(
+    haproxy_modsecurity_transaction *transaction,
+    haproxy_modsecurity_decision *decision, char *line, size_t line_size,
+    msconnector_error *error);
 const char *haproxy_modsecurity_transaction_id(
     const haproxy_modsecurity_transaction *transaction);
 int haproxy_modsecurity_transaction_error_event_write(

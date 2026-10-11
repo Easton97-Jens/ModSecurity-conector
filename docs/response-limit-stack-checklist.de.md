@@ -8,7 +8,7 @@ Der bestehende [Draft-PR #407](https://github.com/Easton97-Jens/ModSecurity-cone
 bleibt auf [#382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382) gestapelt.
 Branch: `fix/engine-owned-response-limits-stack-20261011`.
 Basis-Branch: `fix/unified-native-results-events-20260921`.
-Exakte Basis: `492663334d89428dce084792145ef94e91579788`.
+Exakte Basis: `2619b20b9d2e70fa07cbe71f664b48ff3c105380`.
 Starthead des erweiterten Auftrags: `6576661724841e26802a93b19d8bbfbdb5c8235a`.
 Kein neuer PR und kein PR-/master-Merge. Der Nutzer erlaubt reguläre Basis-Merges
 von #382 in den bestehenden #407-Branch; veröffentlichte Historie bleibt erhalten.
@@ -26,13 +26,17 @@ Die Auslieferung ist zum Stand dieses Dokumentationssnapshots offen.
 
 ## Aktuelle ausführbare Nachweise
 
+Die früheren Komponentenergebnisse unten behalten ihren Revisionsbezug.
+Der Basisabgleich dokumentiert den bestandenen aktuellen I11-Gesamtcheck separat.
+
 - [x] Echte Request-/Response-Prüfungen unter/exakt/über Limit, Aktionen, Chunks/Dateien, unterschiedliche Limits, DetectionOnly und Marker jenseits früherer Connectorgrenzen.
 - [x] Echter 2-MiB-Autorisierungssocket-Lebenszyklus ohne doppelten Präfix.
 - [x] Ausgewählte Komponentenbuilds, Verträge, Sicherheits-/Konfigurations- und Dokumentationsprüfungen.
-- [x] Abschließender vollständiger `quick-check` und finaler nativer Testabgleich.
+- [x] Abschließender vollständiger `quick-check` und nativer I09-Abgleich auf dokumentierter I09-Basis.
+- [x] Betroffene/vollständige Validierung auf finaler gemergter I11-Basis.
 - [ ] CI/Sonar des aktuellen geänderten Heads: keine neuen Issues, Hotspots oder Duplikate.
 
-Aktuelle Common-Validierung mit echter Library bestand neun Methoden: 112 native
+Frühere Common-Validierung der Erweiterung mit echter Library bestand neun Methoden: 112 native
 Request- und 81 Response-Szenarien (193 insgesamt). Ein späterer kombinierter
 Lauf bestand 30 Tests. Vier echte Autorisierungssocketfälle verwenden einen
 2-MiB-Body: Ein Tail-Marker liefert bei hohem Limit nativ 451, dieselbe Payload
@@ -119,17 +123,51 @@ Ownership, HTTP/1/2/3-Lebenszyklen, Commit-Zeitpunkte oder Late-Abort-Verhalten.
 
 ## Aktueller Basisabgleich
 
-Die Basis ist auf `492663334d89428dce084792145ef94e91579788` (I09) vorgerückt. Typisierte native Fehler,
-operationsspezifische Ergebnisse, erhaltene Fehlerphase, einmaliges Cleanup und
-kompilierte Regressionen werden mit der Entfernung eigener Body-Policy verbunden.
-Common-Abgleich bestand 30 gezielte Tests einschließlich 13 echter Engine-Tests.
-Traefik-Native-/Composite-/Observer-Go-Packages, I09-lighttpd-/Traefik-Tests und
-beide C-Builds bestanden. Der Stock-RST-Event-Gap bleibt bei 35/36; der neu
-gebaute ältere Common-Lossy-Eventtest endet weiter mit 134 an Assertion 209.
-Dies sind Beobachtungen der aktuellen Basis. Whole-Tree-quick-check und nativer
-I09-Abgleich müssen nach dem Basis-Merge erneut laufen; frühere quick-check-
-Nachweise gelten für den Stand vor Integration. PR #382 wird während der Arbeit
-wiederholt geprüft.
+Die ausgewählte aktuelle #382-Basis ist `2619b20b9d2e70fa07cbe71f664b48ff3c105380` (I11).
+Die reguläre I09-Integration ist als `2bb1a1e0` committed; die autorisierte
+reguläre I11-Basisintegration ist lokal abgeschlossen und der Quellcode eingefroren.
+Veröffentlichte Historie bleibt erhalten; kein PR-/Master-Merge oder Force-Push erfolgt.
+
+Auf integrierter I09-Basis `492663334d89428dce084792145ef94e91579788` bestand
+`check-i09-native-routes` 33 Tests und natives `make quick-check` mit Exit 0,
+einschließlich zehn Unittest-Gruppen mit insgesamt 302 Tests
+(`root-checks/resume-base492-check.log`). Die alten SPOP-Quellcode-Assertions
+bestehen mit Upstream-I09-Fixes. Früherer Common-Abgleich bestand 30 gezielte
+Tests einschließlich 13 echter Engine-Tests; Traefik-Go-Packages, I09-lighttpd-/
+Traefik-Tests und beide C-Builds bestanden. Stock-Sidecar bleibt wegen
+unverändertem RST-Verhalten mit leeren Events bei 35/36; neu gebaute Common-
+Legacy-Lossy-Eventvalidierung beendet sich bei Assertion 209 mit Exit 134.
+Assertions bleiben erhalten.
+
+Auf ausgewählter I11-Basis `2619b20b9d2e70fa07cbe71f664b48ff3c105380`
+bestand die finale native Auswahl über 20 Module mit 212 Tests und 201 Subtests
+in 58,51 Sekunden einschließlich 13 echter Engine-Methoden. Apache-C17-,
+APR-/LTO-Cleanup- und Adoptionsprüfungen sowie echte HAProxy-Binding-/Build-/
+Selftest-/SPOP-Protokollprüfungen bestanden. Zusätzliche echte APR-Bucket- und
+Production-Append-Regressionsprüfungen für P2/P4 bestanden 20 Methoden und zehn
+Subtests: natives Pending-403 bis EOS sowie persistenter `/dev/full`-IO-Fehler
+mit 500 ohne Replay. Unabhängiger Review fand keinen Befund. Alle acht Envoy-
+Packages bestanden rein in Go sowie mit echter CGo-/libModSecurity-Anbindung;
+der Binary-Build bestand. Nachweise: `native/base261/validation-status.json`
+und `remaining/base261/validation.md`.
+
+Der abschließende aggregierte native Make-Lauf auf I11 bestand mit Exit 0:
+`check-i09-native-routes` mit 33 Tests, `check-apache-event-sink` mit 20 Tests,
+`check-haproxy-spop-event-sink` mit 19 Tests und `quick-check` mit zehn Unittest-
+Gruppen und 304 Tests. Security-/Speicher-/Flow-/Helper-/Dokumentationsprüfungen,
+21 generierte Dateien und Diffprüfung bestanden. Tatsächliche Apache-, NGINX-
+und HAProxy-C17-Compileprüfungen bestanden; ältere lokale Compile-Nachweislücken
+sind damit geschlossen, nicht die fehlende Hostmatrix. Nachweis:
+`root-checks/base261-final-make.log`. Der zusätzliche kombinierte NGINX-Adoptions-/
+Bounded-URI-/Envoy-Bridge-Lauf bestand 130 Tests in 694,670 Sekunden
+(`root-checks/base261-root-targeted.log`). Die abschließende gezielte Inventur
+einschließlich versteckter Dateien unter Common, allen Connectoren und Beispielen
+fand keine zusätzliche aktive eigene kumulative Bodygrenze, Direktiveninjektion
+oder Fallback außerhalb der ausgewiesenen Autorisierungs-/Sample-Grenzen; kein
+verstecktes Pluginmanifest enthält einen entfernten Schlüssel. Unabhängiger
+Review von P2-/P4-EOS und persistentem IO-Fehler fand keinen Befund. Push/Readback und CI/Sonar des
+aktuellen Heads bleiben offen; #407-Remotehead ist weiterhin
+`6576661724841e26802a93b19d8bbfbdb5c8235a`.
 
 ## Grenze historischer Nachweise
 

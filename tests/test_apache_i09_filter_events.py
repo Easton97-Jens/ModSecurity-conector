@@ -22,7 +22,7 @@ MODULE = ROOT / "connectors/apache/src/mod_security3.c"
 FUNCTIONS = (
     "apache_intervention_message_id", "apache_intervention_content_type",
     "apache_intervention_body_bytes_seen", "apache_intervention_body_bytes_inspected",
-    "apache_intervention_set_http", "apache_intervention_write_event",
+    "apache_intervention_set_http", "apache_event_sink_result", "apache_intervention_write_event",
     "apache_log_intervention_event", "apache_contract_failure_event_name",
     "apache_contract_failure_reason", "apache_emit_contract_failure_event_with_action",
     "apache_emit_contract_failure_event", "msc_finalize_request_body",
@@ -56,15 +56,19 @@ static const char *apache_phase4_mode_name(enum msconnector_phase4_mode mode) { 
 static apr_status_t apache_open_event_file(apr_file_t **file, const char *path, apr_pool_t *pool) {
     (void)path; (void)pool; *file = (apr_file_t *)captured; return APR_SUCCESS;
 }
-static apr_status_t fixture_puts(const char *line, apr_file_t *file) {
-    (void)file; ++writes; snprintf(captured, sizeof(captured), "%s", line); return APR_SUCCESS;
+static apr_status_t fixture_write_full(apr_file_t *file, const void *data,
+    apr_size_t size, apr_size_t *written) {
+    (void)file; ++writes;
+    if (size >= sizeof(captured)) return APR_EGENERAL;
+    memcpy(captured, data, size); captured[size] = '\0'; *written = size;
+    return APR_SUCCESS;
 }
 static apr_status_t fixture_close(apr_file_t *file) { (void)file; ++closes; return APR_SUCCESS; }
-#define apr_file_puts fixture_puts
+#define apr_file_write_full fixture_write_full
 #define apr_file_close fixture_close
-void apache_emit_contract_failure_event(msc_t *, request_rec *, enum msconnector_phase,
+msconnector_error_code apache_emit_contract_failure_event(msc_t *, request_rec *, enum msconnector_phase,
     msconnector_transaction_error_class, int);
-static void apache_log_intervention_event(msc_t *, request_rec *, const apache_intervention_event_input *);
+static msconnector_error_code apache_log_intervention_event(msc_t *, request_rec *, const apache_intervention_event_input *);
 int process_intervention(Transaction *t, request_rec *r) { (void)t; (void)r; return N_INTERVENTION_STATUS; }
 int msc_apache_contract_record_intervention_decision(msc_t *msr) { (void)msr; return 1; }
 const char *msc_apache_contract_intervention_action(const msc_t *msr) { (void)msr; return "deny"; }
@@ -81,9 +85,10 @@ static int apache_contract_record_response_metadata(msc_t *msr, request_rec *r,
 static int apache_phase3_snapshot_response_state(msc_t *msr, request_rec *r) {
     msr->response_status_snapshot = r->status; msr->response_headers_snapshot_taken = 1; return 1;
 }
-static void apache_phase3_log_event(msc_t *msr, request_rec *r,
+static msconnector_error_code apache_phase3_log_event(msc_t *msr, request_rec *r,
     const char *wanted, const char *actual, int status) {
     (void)msr; (void)r; (void)wanted; (void)actual; (void)status;
+    return MSCONNECTOR_ERROR_NONE;
 }
 static void fixture_remove(ap_filter_t *f) { (void)f; }
 #define ap_remove_output_filter fixture_remove

@@ -7,7 +7,7 @@ Branch `fix/unified-native-results-events-20260921`, Basis
 `5170d24801243cdcd7bf1bca6123bf8cb2c72386`. Aktualisiert: 2026-10-11.
 Aktueller Stack-Abruf vom 10.10.2026: Der Branch ist über Merge-Commit `b3dc0139` mit `master` `3019722fbda40dc281b861c1cc38085be2f430a0` synchronisiert; `behind=0` und GitHub meldet den PR als mergebar. Framework-PR #137 ist gemergt und der Parent pinnt jetzt dessen Merge-Commit `99a7985c1be92a2297b1b59208f64df6768f2cbf`. Der gestapelte PR #396 ist in #382 bei `da50b67c` gemergt; sein späterer historischer Source-Head bleibt nur Evidence-Provenienz.
 
-**I09 ist am 11.10.2026 für die geprüften Code-/API-Verträge abgeschlossen.** Der [aktuelle I09-Routenaudit](pr-382-i09-route-audit.de.md) deckt 14 Routenteile für zehn Profile ab. I10/I11/I12 bleiben offen; Codebelege schließen weder Live-Host-Nachweise noch Freigabe-CI ab. Die abgeschlossenen Apache-Modulkorrekturen bleiben erhalten.
+**I09 ist am 11.10.2026 für die geprüften Code-/API-Verträge abgeschlossen.** Der [aktuelle I09-Routenaudit](pr-382-i09-route-audit.de.md) deckt 14 Routenteile für zehn Profile ab. I10/I12 bleiben offen; die getrennt abgeschlossene I11-Implementierung schließt weder Live-Host-Nachweise noch Freigabe-CI ab. Die abgeschlossenen Apache-Modulkorrekturen bleiben erhalten.
 
 Historische veröffentlichte Testreparatur (05.10.2026): `7d05e89fc12dca64c7129553d0c83157e956e0f3`.
 Sonar bestätigt dafür null Befunde und angezeigte 0,0 % neue Duplikation.
@@ -27,6 +27,14 @@ Referenzen: [Vertrag/Migration](pr-382-event-contract.de.md),
 [Apache-Adoption](../reports/audits/change-records/CR-20260923-pr382-apache-adoption.de.md),
 [native Envoy-Testreparatur](../reports/audits/change-records/CR-20260923-pr382-envoy-test-boundaries.de.md).
 
+
+## Aktueller I11-Sink-Abgleich vom 2026-10-11
+
+Integrationsstand: Der veröffentlichte I11-Head `6a79efe7` und PR-#382-Basis `492663334d89428dce084792145ef94e91579788` (I09 / PR #408) sind in PR #406 kombiniert. Frische lokale Integrationsprüfungen und Konfliktentscheidungen stehen im [Integrations-Change-Record](../reports/audits/change-records/CR-20261011-pr406-i09-i11-conflict-resolution.de.md). Die folgenden I09-/I11-Belege gehören zu ihren getrennten früheren Revisionen; sie sind kein CI- oder Live-Host-Nachweis des aktuellen Heads. Delivery-Prüfungen des gepushten Heads werden getrennt in PR #406 verfolgt.
+
+Der isolierte Branch `fix/i11-event-sink-parity-20261011` basiert auf `0df51024008fc84f0a6820f3b011055b69c3a3e2` von PR #382. Codearbeit und aktuelle kompilierte Tests erfüllen die I11-Implementierungsakzeptanz; I11 ist `[x]`, Live-Host-Nachweise I12/V10 bleiben offen. [Change Record](../reports/audits/change-records/CR-20261011-pr382-i11-physical-sink-parity.de.md) und [Restmatrix](pr-382-i09-i12-rest-matrix.de.md) trennen aktuelle Patchnachweise von historischen R16/R17- und offenen I12/V10-Nachweisen. Die folgende historische Beschreibung ungeprüfter Apache-/SPOP-Sinks gilt für ihren damaligen Stand, nicht für den aktuellen Patch.
+
+I11-Belege vor der Integration (veröffentlichter Head `6a79efe7`): physische Sinktests 50, Common/Event-Regressionen 60, vollständig instrumentierte C-ASan/UBSan-Tests 46, Apache-native/C17 45 und Adoption 28, Envoy-native/tagged 218 Tests/324 Cases/8 Pakete sowie Race 105/164/3 bestehen. Alle 110 NGINX-Adoptionsmethoden bestehen in vier disjunkten Shards mit 28+28+27+27 Tests. Bilingual-/Pfad-/Link-, Workflow-, Format- und Change-Record-Checks bestehen. Breite Apache-Suite: aktueller Patch 215 Tests, 7 Failures/7 Errors; unveränderte Basis 195 Tests, 8 Failures/7 Errors. Keine neuen Fail-/Errorsets; der frühere precommit_rate_limit-Fixturefehler besteht jetzt. Drei UID/chown-Environmentfehler treten auf beiden Ständen auf. HAProxy-Suite: 203 Tests, fünf auf der Basis reproduzierte Fehler, zwölf Skips. Keine dieser breiten Suites wird als vollständig grün behauptet.
 
 ## Historisches R16: 2026-10-10 nachgelagerter NGINX-H1-Systemnachweis aus PR #396
 
@@ -77,7 +85,7 @@ schreibt es nicht um.
 
 Dies belegt nur die beobachteten NGINX-H1-Verträge auf diesem konkreten lokalen
 System. Es ist keine H2/H3-, CRS-, Off-, Alle-Plattformen-, Produktions-,
-Connector-übergreifende oder Protected-Exact-Head-Abnahme. Die breiten I10-I12 und
+Connector-übergreifende oder Protected-Exact-Head-Abnahme. I10/I12 und
 V08-V10 bleiben offen; I09-Code/API ist durch den aktuellen Routenaudit abgeschlossen. Die Review-Reife von Framework-PR #137 wird separat geprüft;
 diese Referenz mergt keinen der PRs.
 Soft-Budget-Fälle belegen Überschreitungserkennung nach Engine-Rückkehr, keinen
@@ -109,7 +117,7 @@ Der externe Direct-Child-Recorder nutzte den bestehenden curl-Einspeisepunkt ohn
 
 Dies schließt die R16-Messlücke **nur für den neuen lokalen R17-NGINX-H1-Umfang**. Es ist kein Protected Exact-Head, H2/H3, CRS, Off, Produktion, anderer Connector oder Runtime-PASS für eine spätere Dokumentations-SHA. Framework-PR #137 war bereits mit getestetem Head `9f41f80…` gemergt; sein Merge-Commit ändert den getesteten Gitlink nicht. Diese Referenz behauptet weder Ready-, Merge- noch Retarget-Aktion für #396. #382 bleibt Draft.
 
-Die [I09–I12-Restmatrix](pr-382-i09-i12-rest-matrix.de.md) enthält 56 explizite Zeilen für 14 getrennte Routenteile, jeweils mit Vertrag, Source-/Test-SHA, offener Implementierung/Hostnachweis und nächster Aktion. Die historische I09-Codeinventur wird durch den Audit vom 11.10.2026 ersetzt; breite I10–I12 und V08–V10 bleiben unabgehakt; erledigte I09f/I10e bleiben erledigt. Apaches void-Sinkabschluss und SPOP ungeprüftes `fputs` sind sourcebestätigte getrennte Implementierungslücken. Transport-Short-Write/EAGAIN beweist keine physische Sink-Fehlerbehandlung; Soft-Budgets erkennen Überschreitung nach Rückkehr, keinen harten Abbruch.
+Die [I09–I12-Restmatrix](pr-382-i09-i12-rest-matrix.de.md) enthält 56 explizite Zeilen für 14 getrennte Routenteile, jeweils mit Vertrag, Source-/Test-SHA, offener Implementierung/Hostnachweis und nächster Aktion. Die historische I09-Codeinventur wird durch den Audit vom 11.10.2026 ersetzt; I10/I12 und V08–V10 bleiben unabgehakt; erledigte I09f/I10e bleiben erledigt. Die historischen Befunde zu Apaches void-Sinkabschluss und SPOP ungeprüftem `fputs` sind durch die getrennt verifizierten I11-Korrekturen geschlossen. Transport-Short-Write/EAGAIN beweist keine physische Sink-Fehlerbehandlung; Soft-Budgets erkennen Überschreitung nach Rückkehr, keinen harten Abbruch.
 
 Lokale Raw-Evidence bleibt unter `/var/tmp/codex/ModSecurity-conector/analysis/nginx-strict-client-full97-r17-20261010T193127Z` und dem getrennten Runtime-Root. Der öffentliche Bericht ist eine Zusammenfassung, kein herunterladbares Raw-Bundle. Prüfsummen allein beweisen keinen semantischen PASS.
 
@@ -150,11 +158,15 @@ Lokale Raw-Evidence bleibt unter `/var/tmp/codex/ModSecurity-conector/analysis/n
 - [x] I10c: Echte NGINX-Collector-/Dispatcher-/P4-Kettentests erhalten späte Regeln, Off-Verhalten und Bereinigung (`1ce569e1`; V17).
 - [x] I10d: Fehlerhafter Envoy-Antwortbeginn stoppt vor Append; leeres EOS erfindet keinen Bodybeginn. Geprüfte C-ABI reicht Fehler bis Go weiter; Kompatibilitäts-ABI bleibt erhalten (`31200e8c`, `81e53a94`). Native Verifikation bestand für `7d05e89f` (V20).
 - [x] I10e: Apache-Collector ändert keine bereits gesendeten Location-Header und verwendet bei technischen Fehlern keine alten Regelmetadaten. Audit markiert seinen Versuch vor Callbacks und setzt keine ausführbare Intervention aus der Logphase durch. Für `3c29004b` vorhanden; V24 prüft kompilierte APR-/native Grenzen, kein Live-httpd.
-- [ ] I11: Erzeuger-/Ausgabeparität, Kennungen/Ursachen, beobachtete Aktionen, doppelte terminale Ereignisse und Öffnungs-/Schreib-/Kurzschreib-/Serialisierungsfehler abschließen.
+- [x] I11: Erzeuger-/Ausgabeparität, Kennungen/Ursachen, beobachtete Aktionen, doppelte terminale Ereignisse und Öffnungs-/Schreib-/Kurzschreib-/Serialisierungsfehler abschließen.
 - [x] I11a: Fehlende Transportbeobachtungen belegen keine Regel-/Fehlerdurchsetzung; eigene Datensätze und tatsächliche Nachweise bleiben erhalten.
 - [x] I11b: Verpflichtende NGINX-Phase-4-Logfehler bleiben terminal; ungültige Ausgaben und wiederholte Writes sind begrenzt.
 - [x] I11c: Fehlende-Beobachtung-Behandlung umfasst Body-Limits, nicht unterstützte Fähigkeiten, Abbruch und Upstream-Disconnect (`3730eaa0`; V18).
 - [x] I11d: Runtime erhält erste Ereignisfehler ohne Ausgabepointer, verhindert Write-Wiederholung und Abschluss-/Snapshot-Verdeckung und erhält Hash-Regeln (`68f78e07`; V21).
+- [x] I11e: Apache propagiert typisierte physische Sink-Ergebnisse bis Request-/Filter-Pfaden; verpflichtende und diagnostische Events bleiben getrennt.
+- [x] I11f: HAProxy SPOP prüft Serialisierung, fputs/ferror/fflush und eigenes fclose; erster Sinkfehler sperrt Retry und erfolgreichen ACK-Fallback.
+- [x] I11g: Common-Wiederholungsschutz bleibt erhalten; Apache/SPOP und Envoy-Writer erhalten erste Ursache und verhindern weitere physische Writes nach Sinkfehler.
+- [x] I11h: Alle 14 Producer-/Sink-Routenteile sind abgeglichen und aktuelle kompilierte Tests bestehen; keine bekannte I11-Implementierungslücke bleibt. Baseline-/Environment- und I12/V10-Grenzen bleiben getrennt.
 - [ ] I12: Jede direkte, Companion-, Middleware- und Sidecar-Route getrennt samt echten Host-/Transport-/Logergebnissen prüfen.
 - [x] I12a: Zehn separate ext_proc-C-Brückenfälle für Fehler, Wiedereintritt und Leerantwort bestehen (V22); kein Abschluss von ext_authz/Companion oder Live-gRPC.
 - [x] I12b: Nachgelagertes R17 aus PR #396 führte die NGINX-H1-Standardroute mit echtem Root/nobody und frischen Projektionen aus, lokaler begrenzter funktionaler PASS. Dies schließt nur den Ausführungsreferenz-Teilbereich, keinen PR-#382-Produkttest oder breiten I12; R16 bleibt historisch.
@@ -168,9 +180,9 @@ Die [neunspaltige I09–I12-Matrix](pr-382-i09-i12-rest-matrix.de.md) zeigt verb
 
 | Punkt | Verbleibende Anforderung |
 | --- | --- |
-| I09 | Code-/API-Scope am 11.10.2026 abgeschlossen; aktueller [14-Routenteile-Audit](pr-382-i09-route-audit.de.md) ersetzt die frühere offene Codeinventur. I10/I11/I12 und Host-/Freigabenachweise bleiben getrennt offen. |
+| I09 | Code-/API-Scope am 11.10.2026 abgeschlossen; aktueller [14-Routenteile-Audit](pr-382-i09-route-audit.de.md) ersetzt die frühere offene Codeinventur. I10/I12 und Host-/Freigabenachweise bleiben getrennt offen; I11-Implementierung ist im vor der Integration verifizierten Umfang abgeschlossen. |
 | I10 | Fehlerweitergabe jeder verbleibenden Route bis zur Hoststeuerung einschließlich Fehlern nach Antwortbeginn prüfen. Native Envoy-Verifikation ist jetzt unter V20 abgeschlossen, keine offene Voraussetzung mehr. Fehlende Prüfungen in einem Helfer allein beweisen keinen Fehler, wenn Common bereits weitere Aufrufe verhindert. |
-| I11 | Apaches void-Ereignisschreiber/-Aufrufer brauchen vollständige physische Fehlerweitergabe; HAProxy SPOP muss sein Common-Event-fputs-Ergebnis behandeln. Der ursprüngliche Runtime-I/O-Wiedergabefehler ist behoben. Dies bleibt Implementierungsarbeit, nicht bloß Live-Nachweis. |
+| I11 | Implementierung vollständig und kompiliert verifiziert; keine bekannte Producer-/Physical-Sink-Lücke bleibt. Breite Baseline-/Environmentfehler, fehlende HAProxy-C17-Header und I12/V10-Live-Host-Nachweise sind getrennt ausgewiesen. |
 | I12 | Routebezogene Host-, Client-Byte-/Reset-, Nachbarstream-, Cleanup- und physische Logfälle ausführen. Request-only benötigt seinen wirklichen Response-Companion. |
 
 ## 2. Verifikation
@@ -280,4 +292,4 @@ nicht verfügbar war.
 
 ## I09-Codeabschluss vom 11.10.2026
 
-Die integrierten Belege umfassen 33 kompilierte Methoden, Common-C17-Smoke, Contracts 74, Adoption 19, HAProxy 194, Traefik 86, lighttpd 178 und Go 56/30/21. Counts bezeichnen die jeweiligen Suiten, keine Summe eindeutiger Fälle. Alle 219 NGINX-Methoden sind belegt: 180 vor dem ursprünglichen 1800s-Timeout abgeschlossen und 39 mit Exit 0 fortgesetzt; der ursprüngliche Gesamtbefehl bleibt als Timeout dokumentiert. Vollständiger HTX-Host-Header-Build ist nicht verfügbar; Sonar liefert 403, und ein bereits auf der Basis vorhandener Validator-/Dokumentationswortlautfehler bleibt eine externe Validierungsgrenze. Dies ändert weder I09-Codebefunde noch offene V06/V07-Freigabeprüfungen oder V08–V10-Live-Nachweise. R16/R17 bleiben historisch; kein Release-/Runtime-PASS wird abgeleitet.
+Die integrierten Belege umfassen 33 kompilierte Methoden, Common-C17-Smoke, Contracts 74, Adoption 19, HAProxy 194, Traefik 86, lighttpd 178 und Go 56/30/21. Counts bezeichnen die jeweiligen Suiten, keine Summe eindeutiger Fälle. Alle 219 NGINX-Methoden sind belegt: 180 vor dem ursprünglichen 1800s-Timeout abgeschlossen und 39 mit Exit 0 fortgesetzt; der ursprüngliche Gesamtbefehl bleibt als Timeout dokumentiert. Vollständiger HTX-Host-Header-Build ist nicht verfügbar; die historische lokale I09-Vortex-Analyse lieferte Sonar 403, und ein bereits auf der Basis vorhandener Validator-/Dokumentationswortlautfehler war eine getrennte Validierungsgrenze. Diese historischen Ergebnisse beschreiben nicht die Cloud-Analyse am aktuellen Head von PR #406. Dies ändert weder I09-Codebefunde noch offene V06/V07-Freigabeprüfungen oder V08–V10-Live-Nachweise. R16/R17 bleiben historisch; kein Release-/Runtime-PASS wird abgeleitet.

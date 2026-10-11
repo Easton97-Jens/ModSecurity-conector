@@ -176,11 +176,14 @@ type Transaction interface {
 	Close(context.Context, Summary)
 }
 
-// CleanupFailureReporter is an optional transaction capability. Native
-// cleanup cannot safely free a transaction while another native call owns the
-// engine mutex; implementations report that bounded cleanup failure so the
-// stream handler can return a controlled error and the supervisor can restart
-// the process.
+// ErrTransactionFinishPhaseSequence identifies a native incomplete lifecycle
+// whose mandatory event was delivered and whose resources were safely freed.
+// It remains a failed transaction completion without requiring a process restart.
+var ErrTransactionFinishPhaseSequence = errors.New("transaction finish phase sequence")
+
+// CleanupFailureReporter reports mandatory finish-event failures and unsafe
+// native cleanup. A semantic ErrTransactionFinishPhaseSequence is local to the
+// transaction; sink failures and unsafe cleanup require controlled restart.
 type CleanupFailureReporter interface {
 	CleanupFailure() error
 }
@@ -701,7 +704,7 @@ func (state *streamState) deferCleanupUntilOperationReturns(service *Service, op
 	}
 	go func() {
 		<-operationDone
-		if err := state.closeOwned(reason); err != nil {
+		if err := state.closeOwned(reason); state.cleanupFailure != nil {
 			service.reportFatal(fmt.Errorf("ext_proc deferred native operation cleanup failed: %w", err))
 		}
 	}()
@@ -1680,7 +1683,11 @@ func (state *streamState) closeOwned(reason CloseReason) error {
 	state.summary.TransactionID = state.transactionID
 	state.summary.CloseReason = reason
 	summary := state.summary
-	resultChannel := make(chan error, 1)
+	type cleanupResult struct {
+		err   error
+		fatal bool
+	}
+	resultChannel := make(chan cleanupResult, 1)
 	go func() {
 		var cleanupErr error
 		if state.transaction != nil {
@@ -1694,22 +1701,22 @@ func (state *streamState) closeOwned(reason CloseReason) error {
 		observerErr := state.observer.Record(summary)
 		if cleanupErr != nil {
 			if observerErr != nil {
-				resultChannel <- fmt.Errorf("transaction cleanup: %w; metadata evidence: %v", cleanupErr, observerErr)
+				resultChannel <- cleanupResult{err: fmt.Errorf("transaction cleanup: %w; metadata evidence: %w", cleanupErr, observerErr), fatal: true}
 				return
 			}
-			resultChannel <- cleanupErr
+			resultChannel <- cleanupResult{err: cleanupErr, fatal: !errors.Is(cleanupErr, ErrTransactionFinishPhaseSequence)}
 			return
 		}
-		resultChannel <- observerErr
+		resultChannel <- cleanupResult{err: observerErr, fatal: observerErr != nil}
 	}()
 	timer := time.NewTimer(state.config.cleanupTimeout())
 	defer timer.Stop()
 	select {
-	case err := <-resultChannel:
-		if err != nil {
-			state.cleanupFailure = err
+	case result := <-resultChannel:
+		if result.fatal {
+			state.cleanupFailure = result.err
 		}
-		return err
+		return result.err
 	case <-timer.C:
 		state.cleanupFailure = fmt.Errorf("ext_proc transaction cleanup remained blocked after bounded cleanup grace; controlled restart required")
 		return state.cleanupFailure

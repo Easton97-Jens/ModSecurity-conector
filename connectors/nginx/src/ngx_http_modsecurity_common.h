@@ -506,6 +506,7 @@ ngx_http_modsecurity_write_event_jsonl(
     if (written < 0 || (size_t)written != line_length) {
         ngx_log_error(NGX_LOG_WARN, r->connection->log,
             written < 0 ? ngx_errno : 0, "%s", write_failure_message);
+        return 0;
     }
 
     return 1;

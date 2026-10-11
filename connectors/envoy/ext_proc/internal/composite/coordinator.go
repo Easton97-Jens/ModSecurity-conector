@@ -155,9 +155,14 @@ func New(connector string, key []byte, limits Limits, engine processor.Transacti
 }
 func (c *Coordinator) dispatchEvents() {
 	defer close(c.eventDone)
+	failed := false
 	for ev := range c.events {
+		if failed {
+			continue // Drain queued events without replaying a failed sink.
+		}
 		if err := c.observer.Observe(ev); err != nil {
-			c.setFault(fmt.Errorf("%w: %v", ErrObserver, err))
+			failed = true
+			c.setFault(fmt.Errorf("%w: %w", ErrObserver, err))
 		}
 	}
 }
@@ -293,9 +298,13 @@ func (c *Coordinator) BeginRequest(ctx context.Context, meta processor.StreamMet
 		fault := c.fault
 		c.mu.Unlock()
 		tx.Close(context.WithoutCancel(ctx), e.summary)
+		cleanupErr := c.recordCleanupFailure(tx)
 		c.releaseCapacity()
 		if fault != nil {
 			return nil, processor.Decision{}, fault
+		}
+		if cleanupErr != nil {
+			return nil, processor.Decision{}, cleanupErr
 		}
 		return nil, processor.Decision{}, ErrClosed
 	}
@@ -1078,11 +1087,27 @@ func (e *entry) finish(ctx context.Context, why string) {
 		delete(e.c.entries, e.id)
 		e.c.mu.Unlock()
 		e.c.releaseCapacity()
+		outcome, cleanupOutcome := "closed", "closed"
 		if e.tx != nil {
 			e.tx.Close(ctx, e.summary)
+			if err := e.c.recordCleanupFailure(e.tx); err != nil {
+				outcome, cleanupOutcome = "failed", "failed"
+			}
 		}
-		_ = e.emitLocked(Event{DecisionID: e.id, Connector: e.c.connector, Phase: "terminal", Outcome: "closed", Reason: why, CleanupOutcome: "closed", EventTime: time.Now()})
+		_ = e.emitLocked(Event{DecisionID: e.id, Connector: e.c.connector, Phase: "terminal", Outcome: outcome, Reason: why, CleanupOutcome: cleanupOutcome, EventTime: time.Now()})
 	})
+}
+
+func (c *Coordinator) recordCleanupFailure(tx processor.Transaction) error {
+	reporter, ok := tx.(processor.CleanupFailureReporter)
+	if !ok {
+		return nil
+	}
+	err := reporter.CleanupFailure()
+	if err != nil && !errors.Is(err, processor.ErrTransactionFinishPhaseSequence) {
+		c.setFault(fmt.Errorf("transaction cleanup: %w", err))
+	}
+	return err
 }
 
 func (c *Coordinator) Sweep(now time.Time) {

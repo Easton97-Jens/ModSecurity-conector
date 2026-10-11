@@ -187,6 +187,7 @@ int msc_apache_contract_record_intervention_decision(msc_t *msr)
     msconnector_transaction_decision_kind kind;
 
     if (msr == NULL || !msr->contract_initialized ||
+        msr->intervention.mandatory_event_failed ||
         msr->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) {
         return 0;
     }
@@ -233,6 +234,21 @@ int msc_apache_contract_fail(msc_t *msr,
 int msc_apache_contract_finish(msc_t *msr)
 {
     if (msr == NULL || !msr->contract_initialized) {
+        return 0;
+    }
+    /* Audit completion is a mandatory boundary even when the only failed
+     * producer was a diagnostic callback after an earlier terminal event. */
+    if (msr->intervention.event_sink_error != MSCONNECTOR_ERROR_NONE) {
+        msr->intervention.mandatory_event_failed = 1;
+        if (msr->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+            (void)msc_apache_contract_fail(msr,
+                msr->intervention.event_sink_error == MSCONNECTOR_ERROR_EVENT_TOO_LARGE
+                    ? MSCONNECTOR_TRANSACTION_ERROR_EVENT_LIMIT
+                    : MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
+        }
+        return 0;
+    }
+    if (msr->intervention.mandatory_event_failed) {
         return 0;
     }
     return msconnector_transaction_contract_finish(&msr->contract,
@@ -340,7 +356,10 @@ void modsecurity_log_cb(void *log, const void* data)
         msconnector_rule_id_extract_from_message(msg, rule_id,
             sizeof(rule_id)) > 0)
     {
-        apache_log_rule_match_event(msr, r, msr->native_event_phase, rule_id);
+        /* Non-disruptive rule matches are diagnostic. The writer reports
+         * failure and retains it for any later mandatory event, without
+         * converting this void native callback into an enforcement hook. */
+        (void)apache_log_rule_match_event(msr, r, msr->native_event_phase, rule_id);
     }
 
     if (r->per_dir_config != NULL) {
@@ -489,6 +508,9 @@ int process_intervention (Transaction *t, request_rec *r)
         msr->t != t || r->pool == NULL) {
         return apache_record_failure(msr, r,
             MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
+    }
+    if (msr->intervention.mandatory_event_failed) {
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
     if (msr->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE ||
         msr->intervention.collecting) {
@@ -1287,7 +1309,10 @@ static int apache_emit_phase1_intervention_event(msc_t *msr, request_rec *r,
     event_input.reason = reason;
     event_input.original_status = r->status;
     event_input.response_already_committed = 0;
-    apache_emit_intervention_event(msr, r, &event_input);
+    if (apache_emit_intervention_event(msr, r, &event_input) !=
+        MSCONNECTOR_ERROR_NONE) {
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
     return intervention_status;
 }
 
