@@ -412,7 +412,7 @@ int msc_envoy_ext_proc_transaction_begin(
             "Common transaction allocation failed");
         return 0;
     }
-    result = msconnector_runtime_transaction_begin(runtime->runtime,
+    result = msconnector_runtime_transaction_begin_request_stream(runtime->runtime,
         &native_request, request->transaction_id, &transaction->transaction,
         &native_decision, &runtime_error);
     free(headers);

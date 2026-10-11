@@ -127,6 +127,7 @@ typedef struct notify_request {
     int has_headers_text;
     int has_body;
     int has_body_len_arg;
+    unsigned int advertised_body_len;
     int has_response_status;
     int is_response;
     int is_response_body;
@@ -167,7 +168,6 @@ typedef struct agent_config {
     unsigned int expected_status;
     };
     struct {
-    unsigned int request_body_limit;
     unsigned int response_body_timeout_ms;
     unsigned int spoe_timeout_ms;
     unsigned int worker_count;
@@ -1915,13 +1915,12 @@ static int parse_notify_body_length_argument(
         const unsigned char *data,
         size_t len,
         size_t *pos) {
-    unsigned int ignored_body_len = 0U;
 
     if (!KEY_EQUALS_LITERAL(arg_name, arg_name_len, "body_len") &&
             !KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_body_len")) {
         return 1;
     }
-    return read_typed_uint32_loose(data, len, pos, &ignored_body_len,
+    return read_typed_uint32_loose(data, len, pos, &request->advertised_body_len,
         &request->has_body_len_arg);
 }
 
@@ -2521,7 +2520,6 @@ static void config_init(agent_config *config) {
     config->response_companion_gid = UINT_MAX;
     copy_spop_string(config->log_file, sizeof(config->log_file),
         (const unsigned char *)"-", sizeof("-") - 1U);
-    config->request_body_limit = 65532U;
     config->response_body_timeout_ms = 0U;
     config->spoe_timeout_ms = 2000U;
     /* A slow or incomplete HELLO consumes one bounded peer worker only. */
@@ -2646,10 +2644,6 @@ static int config_set_scalar_identity(agent_config *config, const char *key,
 
 static int config_set_scalar_limits(agent_config *config, const char *key,
         const char *value) {
-    if (strcmp(key, "request-body-limit") == 0) {
-        return parse_bounded_uint(value, MSCONNECTOR_MAX_CONFIG_BODY_BYTES,
-            &config->request_body_limit) == 0 ? 1 : -1;
-    }
     if (strcmp(key, "response-body-timeout") == 0) {
         return parse_bounded_uint_range(value, 0UL, 60000UL,
             &config->response_body_timeout_ms) == 0 ? 1 : -1;
@@ -2721,6 +2715,14 @@ static int config_set_endpoint(agent_config *config, const char *key, const char
 
 static int config_set(agent_config *config, const char *key, const char *value) {
     if (config == 0 || key == 0 || value == 0) {
+        return -1;
+    }
+    if (strcmp(key, "request-body-limit") == 0 ||
+            strcmp(key, "response-body-limit") == 0 ||
+            strcmp(key, "body-limit-action") == 0) {
+        fprintf(stderr,
+            "%s is removed; configure native SecRequestBodyLimit/Action or SecResponseBodyLimit/Action in the rules file\n",
+            key);
         return -1;
     }
     {
@@ -3415,34 +3417,6 @@ static int send_malformed_notify_outcome(
         &ack_payload);
 }
 
-static unsigned int bounded_body_length(
-        size_t body_len,
-        unsigned int limit,
-        int limit_enabled) {
-    unsigned int bounded = body_len <= 0xffffffffUL ? (unsigned int)body_len : 0U;
-
-    if (limit_enabled && bounded > limit) {
-        bounded = limit;
-    }
-    return bounded;
-}
-
-static int body_exceeds_limit(size_t body_len, unsigned int limit,
-        int limit_enabled)
-{
-    return limit_enabled && (body_len > (size_t)limit || body_len > 0xffffffffUL);
-}
-
-static const char *set_body_limit_failure(
-        haproxy_modsecurity_decision *decision, int phase, int response)
-{
-    runtime_init_decision(decision, phase, "deny", response ? 502 : 413,
-        response ? "response body exceeds the configured limit" :
-        "request body exceeds the configured limit");
-    decision->disruptive = 1;
-    return "body-limit";
-}
-
 static const char *notify_request_method(const notify_request *request) {
     return request->has_method ? request->method : "GET";
 }
@@ -3732,8 +3706,6 @@ static void process_production_response_notify(
 
 static void build_modsecurity_request_from_notify(
         const notify_request *request,
-        unsigned int body_limit,
-        int body_limit_enabled,
         const char *rules_file,
         haproxy_modsecurity_request *modsec_request) {
     memset(modsec_request, 0, sizeof(*modsec_request));
@@ -3747,8 +3719,7 @@ static void build_modsecurity_request_from_notify(
     modsec_request->headers = (const haproxy_modsecurity_header *)request->headers;
     modsec_request->header_count = request->header_count;
     modsec_request->body = request->body;
-    modsec_request->body_len = bounded_body_length(request->body_len,
-        body_limit, body_limit_enabled);
+    modsec_request->body_len = (unsigned int)request->body_len;
     modsec_request->rules_file = rules_file;
 }
 
@@ -3793,13 +3764,18 @@ static void process_production_request_notify(
         decision_log_write(state, request, decision, 0, *decision_text);
         return;
     }
-    if (body_exceeds_limit(request->body_len, state->config.request_body_limit, 1)) {
-        *decision_text = set_body_limit_failure(decision, 2, 0);
+    /* This route owns one complete SPOP sample, not a request streaming
+     * protocol. Reject incomplete representation as transport admission, not
+     * an Engine body-limit result or an invented inspection prefix. */
+    if (request->body_len > UINT_MAX ||
+        (request->has_body_len_arg &&
+         request->body_len != (size_t)request->advertised_body_len)) {
+        *decision_text = set_admission_failure(decision, 2,
+            "incomplete SPOP request body sample is unsupported");
         decision_log_write(state, request, decision, 0, *decision_text);
         return;
     }
-    build_modsecurity_request_from_notify(request, state->config.request_body_limit,
-        1, 0, &modsec_request);
+    build_modsecurity_request_from_notify(request, 0, &modsec_request);
     modsec_rc = haproxy_modsecurity_transaction_begin(
         state->engine, &modsec_request, decision, &transaction);
     if (modsec_rc != 0) {
@@ -5015,17 +4991,6 @@ static int run_spop_owner_queue_self_test(void)
     return rc;
 }
 
-static int run_spop_body_limit_self_test(void)
-{
-    if (body_exceeds_limit(1024U, 1024U, 1) ||
-            !body_exceeds_limit(1025U, 1024U, 1) ||
-            !body_exceeds_limit(SIZE_MAX, 1024U, 1) ||
-            body_exceeds_limit(SIZE_MAX, 1024U, 0)) {
-        return -1;
-    }
-    return 0;
-}
-
 static int run_spop_request_id_validation_self_test(void)
 {
     static const unsigned char valid[] = {
@@ -5071,6 +5036,35 @@ static int run_spop_request_id_validation_self_test(void)
         }
     }
     return 0;
+}
+
+static int run_spop_incomplete_request_sample_self_test(void)
+{
+    agent_state state;
+    notify_request request;
+    haproxy_modsecurity_decision decision;
+    int processed = 0;
+    spop_ack_decision_origin origin = SPOP_ACK_FAILURE_DECISION;
+    const char *text = NULL;
+    char handle[HAPROXY_SPOP_RESPONSE_COMPANION_HANDLE_STORAGE] = {0};
+
+    memset(&state, 0, sizeof(state));
+    memset(&request, 0, sizeof(request));
+    memset(&decision, 0, sizeof(decision));
+    request.has_client_ip = 1;
+    request.has_server_ip = 1;
+    strcpy(request.client_ip, "127.0.0.1");
+    strcpy(request.server_ip, "127.0.0.1");
+    request.has_body_len_arg = 1;
+    request.advertised_body_len = 9U;
+    request.body_len = 8U;
+    /* No engine is present: incomplete sample admission must terminate
+     * before native ownership is created, independent of fail-open mode. */
+    process_production_request_notify(&state, &request, &decision,
+        &processed, &origin, &text, handle);
+    return !processed && decision.disruptive && decision.status == 503 &&
+        !decision.body_limit && text != NULL &&
+        strcmp(text, "admission-failure") == 0 && handle[0] == '\0' ? 0 : -1;
 }
 
 static int run_spop_notify_failure_self_test(void)
@@ -5366,7 +5360,7 @@ static int evaluate_legacy_notify(
     haproxy_modsecurity_request modsec_request;
 
     if (rules_file != 0 && rules_file[0] != '\0') {
-        build_modsecurity_request_from_notify(request, 0U, 0, rules_file,
+        build_modsecurity_request_from_notify(request, rules_file,
             &modsec_request);
         log_line(log, "rules file loaded path=%s", rules_file);
         return haproxy_modsecurity_eval_request(&modsec_request, decision);
@@ -6036,9 +6030,9 @@ static int run_spop_protocol_self_tests(void)
     if (self_test_rejects_oversized_endpoint_port() != 0 ||
             self_test_rejects_fin_unset_frame() != 0 ||
             run_spop_owner_queue_self_test() != 0 ||
-            run_spop_body_limit_self_test() != 0 ||
             run_spop_request_id_validation_self_test() != 0 ||
             run_spop_notify_failure_self_test() != 0 ||
+            run_spop_incomplete_request_sample_self_test() != 0 ||
             run_spop_malformed_notify_socket_self_test() != 0 ||
             run_spop_write_deadline_self_test() != 0 ||
             run_spop_peer_close_write_self_test() != 0) {

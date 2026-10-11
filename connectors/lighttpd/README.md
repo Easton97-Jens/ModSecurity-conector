@@ -106,11 +106,9 @@ Phase-2 decision. An allowed chunked request may then be forwarded as
 through the patched borrowed request hook and proxy/upstream dispatch remains
 held until request-body EOS has produced the Common P2 decision. A disruptive,
 body-limit, engine, mapping, or host error terminates the request before any
-upstream byte is released. A declared Content-Length above the Common P2
-limit is rejected before body reading; chunked ranges are bounded by the same
-limit in the hook. Because this gate retains the host queue until EOS, its
-streaming profile requires `body_limit_action=reject`; `process_partial` is
-rejected while request streaming is selected. The response streaming contract
+upstream byte is released. Every borrowed MEM/FILE range reaches the native
+engine through bounded scratch buffers; the module owns no cumulative byte
+limit and selects neither Reject nor ProcessPartial. The response contract
 remains restricted to HTTP/1.1 identity entity bytes. This source/build
 contract is still not a real-host promotion.
 The checked-in patched smoke still uses both modes as `none`; setting its
@@ -124,15 +122,12 @@ configuration with managed absolute paths.
 
 ## HTTP/1.1 pre-upstream Phase-2 gate
 
-This bounded profile requires `mod_proxy` before `mod_msconnector` in
-`server.modules`, HTTP/1.1, a positive Common request-body limit,
-`body_limit_action=reject`, and the patched host/module pair. The connector
-suppresses active host request streaming before each body read. ModSecurity
-still receives borrowed body ranges, but no request byte may connect to or
-reach the proxy upstream until terminal EOS has produced an allow decision.
-The retained-body bound comes from the positive Common `request_body_limit`
-(default 1 MiB) and rejecting read cycle; the module does not assign
-`server.max-request-size`, which remains a host-level defense-in-depth limit.
+This profile requires `mod_proxy` before `mod_msconnector` in
+`server.modules`, HTTP/1.1 and the patched host/module pair. The connector
+suppresses host request streaming until native P2 completes at EOS. The host
+queue may retain memory/file chunks for later upstream delivery; the connector
+does not impose a total body size. `server.max-request-size` remains a separate
+host setting whose effective value needs real-host evidence.
 
 The repository-owned gate runner validates a delayed Phase-2 marker as `403`
 with zero preterminal upstream connections, and a delayed benign chunked
@@ -140,9 +135,7 @@ with zero preterminal upstream connections, and a delayed benign chunked
 request as `Content-Length`. Preconfigured `server.stream-request-body`, an
 `Incremental` request, and an explicitly enabled body-bearing `Upgrade` plus
 `gw.upgrade-with-request-body` request are rejected with `501` before an
-upstream connection. It also verifies that a streaming configuration with
-`body_limit_action=process_partial` fails to load before a listener or
-upstream connection exists. HTTP/2, HTTP/3, other stream handlers,
+upstream connection. Native `SecRequestBodyLimitAction` controls the engine action. HTTP/2, HTTP/3, other stream handlers,
 response-body P4, and unrestricted upstream request streaming remain outside
 this profile.
 
@@ -253,11 +246,23 @@ observer/companion to inspect Phase 4; selecting a mode does not create a
 missing response path.
 
 Connector/runtime cumulative response-size settings have been removed;
-unknown legacy keys are rejected during configuration loading. Independent allocation,
-buffered-storage, chunk/message/frame, timeout, overflow and transport limits
-remain active in every mode. A buffered sidecar may therefore still reject a
-response that cannot fit its bounded host storage; that is host capacity, not
-WAF inspection policy.
+unknown legacy keys are rejected during configuration loading. Independent chunk/message/frame, timeout, overflow and transport limits
+remain active in every mode. The stock sidecar uses bounded streaming response
+blocks; it does not retain a complete response body.
 
 See [the cross-connector response-limit ownership contract](../../docs/phase4-mode-budget.md)
 for the exact scope, compatibility boundary and validation limitations.
+
+## Native body policy and remaining host limits
+
+Request limit/action belong exclusively to `SecRequestBodyLimit` and
+`SecRequestBodyLimitAction`; response limit/action belong exclusively to
+`SecResponseBodyLimit` and `SecResponseBodyLimitAction`. The connector adds no
+body-size option, default or cumulative enforcement. Bounded IO blocks and
+checked counters do not select an engine limit or action.
+
+The stock sidecar ingests request blocks into the native engine and a private,
+immediately unlinked spool file. It replays the file only after native P2 allows
+the request. Disk/filesystem failures fail closed; no full-body RAM allocation or
+connector total-body cap remains. Patched-host request queue storage and its own
+`server.max-request-size` need independent host evidence.

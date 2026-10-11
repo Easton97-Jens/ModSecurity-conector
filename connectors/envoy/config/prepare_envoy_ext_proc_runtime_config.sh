@@ -57,8 +57,6 @@ umask 077
     printf '%s\n' 'transaction_id_header=x-request-id'
     printf '%s\n' 'request_body_mode=streaming'
     printf '%s\n' 'response_body_mode=streaming'
-    printf '%s\n' 'request_body_limit=10485760'
-    printf '%s\n' 'body_limit_action=reject'
     printf '%s\n' 'phase4_mode=safe'
     printf '%s\n' 'default_block_status=403'
     printf '%s\n' 'default_error_status=500'

@@ -131,16 +131,7 @@ func handleAdmissionError(ctx, cleanupCtx context.Context, admission *composite.
 		}
 		return denied(decision), nil
 	}
-	if errors.Is(err, composite.ErrLimit) {
-		decision = normalizePolicyDecision(decision, err)
-		if admission != nil {
-			if recordErr := admission.RecordRequestBodyLimitHostAction(); recordErr != nil {
-				return nil, authFailure(recordErr)
-			}
-			admission.Finish(cleanupCtx, "request_body_limit")
-		}
-		return denied(decision), nil
-	}
+
 	return nil, authFailure(err)
 }
 

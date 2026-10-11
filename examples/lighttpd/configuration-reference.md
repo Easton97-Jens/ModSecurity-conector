@@ -58,8 +58,6 @@ Host/connector switches bind or configure host integration. They are not the sam
 | `phase4_event_log` | Selected runtime profile key | [phase4_event_log](../common/common-connector-configuration.md#phase4-event-log) |
 | `request_body_mode` | Selected runtime profile key | [request_body_mode](../common/common-connector-configuration.md#request-body-mode) |
 | `response_body_mode` | Selected runtime profile key | [response_body_mode](../common/common-connector-configuration.md#response-body-mode) |
-| `request_body_limit` | Selected runtime profile key | [request_body_limit](../common/common-connector-configuration.md#request-body-limit) |
-| `body_limit_action` | Selected runtime profile key | [body_limit_action](../common/common-connector-configuration.md#body-limit-action) |
 | `late_intervention_timeout` | Selected runtime profile key | [late_intervention_timeout](../common/common-connector-configuration.md#late-intervention-timeout) |
 | `default_block_status` | Selected runtime profile key | [default_block_status](../common/common-connector-configuration.md#default-block-status) |
 | `default_error_status` | Selected runtime profile key | [default_error_status](../common/common-connector-configuration.md#default-error-status) |

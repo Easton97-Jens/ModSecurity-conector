@@ -36,12 +36,10 @@ type Action string
 const (ActionAllow Action = "allow"; ActionDeny Action = "deny")
 type Decision struct { Action Action; Status int }
 func allowDecision() Decision { return Decision{Action: ActionAllow} }
-func payloadTooLargeDecision() Decision { return Decision{Action: ActionDeny} }
 type Config struct {
     MaxBodyChunkBytes int
-    MaxRequestBodyBytes int64
 }
-type Summary struct { RequestBodyBytes int64; ResponseBodyBytes int64 }
+type Summary struct { RequestBodyBytes int64; ResponseBodyBytes int64; RequestBodyChunks uint64; ResponseBodyChunks uint64 }
 type streamState struct { config Config; engine any; summary Summary }
 type PassthroughEngine struct{}
 type CommonRuntimeEngine struct { phase4Mode int }
@@ -57,8 +55,9 @@ class EnvoyPhase4BudgetTests(unittest.TestCase):
         source = (PROCESSOR / "processor.go").read_text(encoding="utf-8")
         function = go_definition(source, "bodyLimitDecision")
         self.assertNotIn("Phase4BodyBudgetDisabler", source)
-        self.assertIn("direction == DirectionRequest && next > state.config.MaxRequestBodyBytes", function)
-        self.assertNotIn("math.MaxInt64", function)
+        self.assertNotIn("MaxRequestBodyBytes", function)
+        self.assertIn("bodyLength > state.config.MaxBodyChunkBytes", function)
+        self.assertIn("Status: 500", function)
         self.assertIn("cumulativeBodyBytes(current, bodyLength)", function)
         self.assertNotIn("LateActionPolicy", function)
 

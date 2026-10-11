@@ -8,7 +8,6 @@ Dies ist die vollständige aktuelle `key=value`-Parseroberfläche von `common/ru
 
 | Option | Layer | Type | Required | Default | Context | Short description |
 | --- | --- | --- | --- | --- | --- | --- |
-| [`body_limit_action`](#body-limit-action) | Common Runtime | Aufzählung | nein | reject | Common-Runtime-key=value-Datei | Steuert, ob ein Request-Chunk über dem Limit vor der Engine-Eingabe abgewiesen oder gekürzt wird; Response-Limits und -Aktionen gehören ausschließlich libModSecurity. |
 | [`default_block_status`](#default-block-status) | Common Runtime | HTTP-Status | nein | 403 | Common-Runtime-key=value-Datei | Fallback-Status für unterstützte Sperraktionen vor dem Commit. |
 | [`default_error_status`](#default-error-status) | Common Runtime | HTTP-Fehlerstatus | nein | 500 | Common-Runtime-key=value-Datei | Fallback-Status für Runtime-Fehler. |
 | [`enabled`](#enabled) | Common Runtime | Boolescher Wert | nein | off | Common-Runtime-key=value-Datei | Aktiviert die Common Runtime; die aktivierte Runtime erfordert eine Inline- oder lokale Regeldateiquelle. |
@@ -21,7 +20,6 @@ Dies ist die vollständige aktuelle `key=value`-Parseroberfläche von `common/ru
 | [`max_total_header_bytes`](#max-total-header-bytes) | Common Runtime | positive dezimale Byteanzahl | nein | 65536 | Common-Runtime-key=value-Datei | Begrenzt die gesamte Header-Byteanzahl. |
 | [`phase4_event_log`](#phase4-event-log) | Common Runtime | Pfad-Alias | nein | none | Common-Runtime-key=value-Datei | Alias für event_path. |
 | [`phase4_mode`](#phase4-mode) | Common Runtime | Aufzählung | nein | off | Common-Runtime-key=value-Datei | Speichert die späte P4-Policy. Common allein besitzt keine Host-Abbruchprimitive. |
-| [`request_body_limit`](#request-body-limit) | Common Runtime | positive dezimale Byteanzahl | nein | 1048576 | Common-Runtime-key=value-Datei | Begrenzt die der Engine angebotenen Request-Bytes. |
 | [`request_body_mode`](#request-body-mode) | Common Runtime | Aufzählung | nein | buffered | Common-Runtime-key=value-Datei | Wählt den Common-Modus zur Request-Body-Verarbeitung; ein bestimmter Host unterstützt möglicherweise nur eine Teilmenge. |
 | [`response_body_mode`](#response-body-mode) | Common Runtime | Aufzählung | nein | none | Common-Runtime-key=value-Datei | Wählt den Common-Modus zur Response-Body-Verarbeitung; ein bestimmter Host unterstützt möglicherweise nur eine Teilmenge. |
 | [`rules_file`](#rules-file) | Common Runtime | Pfad | nein | none | Common-Runtime-key=value-Datei | Lädt Regeln aus einer lokalen Datei. |
@@ -33,61 +31,6 @@ Dies ist die vollständige aktuelle `key=value`-Parseroberfläche von `common/ru
 | [`use_error_log`](#use-error-log) | Common Runtime | Boolescher Wert | nein | on | Common-Runtime-key=value-Datei | Speichert die Common-Logging-Präferenz. Ein Connector muss sie verwenden, bevor eine Logging-Wirkung beim Host behauptet werden kann. |
 
 ## Optionsdetails
-
-<a id="body-limit-action"></a>
-## `body_limit_action`
-
-### Kurzbeschreibung
-
-Steuert, ob ein Request-Chunk über dem Limit vor der Engine-Eingabe abgewiesen oder gekürzt wird; Response-Limits und -Aktionen gehören ausschließlich libModSecurity.
-
-### Syntax
-
-```text
-body_limit_action=<value>
-```
-
-### Gültige Kontexte
-
-- Common-Runtime-key=value-Datei
-
-### Werte
-
-| Typ | Zulässige Werte | Erforderlich |
-| --- | --- | --- |
-| Aufzählung | reject \| process_partial (akzeptierte Schreibvarianten sind parserspezifisch) | nein |
-
-### Standardwert
-
-reject
-
-Quelle: `common/src/config.c:msconnector_config_apply_defaults`.
-
-### Vererbung und Zusammenführung
-
-Keine Vererbung auf Dateiebene; Hostintegrationen können ihre eigene Konfiguration vor dem Start der Common Runtime zusammenführen.
-
-Zusammenführung: Wenn ein Host msconnector_config verwendet, überschreiben Skalarkindwerte Elternwerte; Runtime-Dateien werden als eine konkrete Konfiguration geparst.
-
-### Phasen und Laufzeitwirkung
-
-P1–P4-Relevanz: Siehe Laufzeitwirkung; Body-Modi/-Limits betreffen P2 und P4, Header-Limits betreffen P1 und P3.
-
-Steuert, ob ein Request-Chunk über dem Limit vor der Engine-Eingabe abgewiesen oder gekürzt wird; Response-Limits und -Aktionen gehören ausschließlich libModSecurity.
-
-### Validierung und Fehler
-
-Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und schlüsselspezifisch ungültige Werte lassen die Runtime-Konfigurationsprüfung fehlschlagen.
-
-### Beispiel
-
-Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
-
-Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../../examples/lighttpd/safe/msconnector-runtime.conf).
-
-### Sicherheit und Betrieb
-
-Limits begrenzen den Ressourcenverbrauch. Steuert, ob ein Request-Chunk über dem Limit vor der Engine-Eingabe abgewiesen oder gekürzt wird; Response-Limits und -Aktionen gehören ausschließlich libModSecurity.
 
 <a id="default-block-status"></a>
 ## `default_block_status`
@@ -126,7 +69,7 @@ Zusammenführung: Wenn ein Host msconnector_config verwendet, überschreiben Ska
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Siehe Laufzeitwirkung; Body-Modi/-Limits betreffen P2 und P4, Header-Limits betreffen P1 und P3.
+P1–P4-Relevanz: Siehe Runtime-Wirkung; Body-Modi betreffen P2 und P4, Header-Limits P1 und P3.
 
 Fallback-Status für unterstützte Sperraktionen vor dem Commit.
 
@@ -181,7 +124,7 @@ Zusammenführung: Wenn ein Host msconnector_config verwendet, überschreiben Ska
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Siehe Laufzeitwirkung; Body-Modi/-Limits betreffen P2 und P4, Header-Limits betreffen P1 und P3.
+P1–P4-Relevanz: Siehe Runtime-Wirkung; Body-Modi betreffen P2 und P4, Header-Limits P1 und P3.
 
 Fallback-Status für Runtime-Fehler.
 
@@ -236,7 +179,7 @@ Zusammenführung: Wenn ein Host msconnector_config verwendet, überschreiben Ska
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Siehe Laufzeitwirkung; Body-Modi/-Limits betreffen P2 und P4, Header-Limits betreffen P1 und P3.
+P1–P4-Relevanz: Siehe Runtime-Wirkung; Body-Modi betreffen P2 und P4, Header-Limits P1 und P3.
 
 Aktiviert die Common Runtime; die aktivierte Runtime erfordert eine Inline- oder lokale Regeldateiquelle.
 
@@ -291,7 +234,7 @@ Zusammenführung: Wenn ein Host msconnector_config verwendet, überschreiben Ska
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Siehe Laufzeitwirkung; Body-Modi/-Limits betreffen P2 und P4, Header-Limits betreffen P1 und P3.
+P1–P4-Relevanz: Siehe Runtime-Wirkung; Body-Modi betreffen P2 und P4, Header-Limits P1 und P3.
 
 Hängt bei Konfiguration JSONL-Ereignisse an, die nur Metadaten enthalten.
 
@@ -346,7 +289,7 @@ Zusammenführung: Wenn ein Host msconnector_config verwendet, überschreiben Ska
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Siehe Laufzeitwirkung; Body-Modi/-Limits betreffen P2 und P4, Header-Limits betreffen P1 und P3.
+P1–P4-Relevanz: Siehe Runtime-Wirkung; Body-Modi betreffen P2 und P4, Header-Limits P1 und P3.
 
 Speichert ein optionales Budget für späte Interventionen; Common besitzt keine Timer-/Abbruchprimitive.
 
@@ -401,7 +344,7 @@ Zusammenführung: Wenn ein Host msconnector_config verwendet, überschreiben Ska
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Siehe Laufzeitwirkung; Body-Modi/-Limits betreffen P2 und P4, Header-Limits betreffen P1 und P3.
+P1–P4-Relevanz: Siehe Runtime-Wirkung; Body-Modi betreffen P2 und P4, Header-Limits P1 und P3.
 
 Begrenzt die Größe serialisierter Metadatenereignisse.
 
@@ -456,7 +399,7 @@ Zusammenführung: Wenn ein Host msconnector_config verwendet, überschreiben Ska
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Siehe Laufzeitwirkung; Body-Modi/-Limits betreffen P2 und P4, Header-Limits betreffen P1 und P3.
+P1–P4-Relevanz: Siehe Runtime-Wirkung; Body-Modi betreffen P2 und P4, Header-Limits P1 und P3.
 
 Begrenzt die akzeptierte Headeranzahl.
 
@@ -511,7 +454,7 @@ Zusammenführung: Wenn ein Host msconnector_config verwendet, überschreiben Ska
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Siehe Laufzeitwirkung; Body-Modi/-Limits betreffen P2 und P4, Header-Limits betreffen P1 und P3.
+P1–P4-Relevanz: Siehe Runtime-Wirkung; Body-Modi betreffen P2 und P4, Header-Limits P1 und P3.
 
 Begrenzt die Größe jedes Headernamens.
 
@@ -566,7 +509,7 @@ Zusammenführung: Wenn ein Host msconnector_config verwendet, überschreiben Ska
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Siehe Laufzeitwirkung; Body-Modi/-Limits betreffen P2 und P4, Header-Limits betreffen P1 und P3.
+P1–P4-Relevanz: Siehe Runtime-Wirkung; Body-Modi betreffen P2 und P4, Header-Limits P1 und P3.
 
 Begrenzt die Größe jedes Headerwerts.
 
@@ -621,7 +564,7 @@ Zusammenführung: Wenn ein Host msconnector_config verwendet, überschreiben Ska
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Siehe Laufzeitwirkung; Body-Modi/-Limits betreffen P2 und P4, Header-Limits betreffen P1 und P3.
+P1–P4-Relevanz: Siehe Runtime-Wirkung; Body-Modi betreffen P2 und P4, Header-Limits P1 und P3.
 
 Begrenzt die gesamte Header-Byteanzahl.
 
@@ -676,7 +619,7 @@ Zusammenführung: Wenn ein Host msconnector_config verwendet, überschreiben Ska
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Siehe Laufzeitwirkung; Body-Modi/-Limits betreffen P2 und P4, Header-Limits betreffen P1 und P3.
+P1–P4-Relevanz: Siehe Runtime-Wirkung; Body-Modi betreffen P2 und P4, Header-Limits P1 und P3.
 
 Alias für event_path.
 
@@ -731,7 +674,7 @@ Zusammenführung: Wenn ein Host msconnector_config verwendet, überschreiben Ska
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Siehe Laufzeitwirkung; Body-Modi/-Limits betreffen P2 und P4, Header-Limits betreffen P1 und P3.
+P1–P4-Relevanz: Siehe Runtime-Wirkung; Body-Modi betreffen P2 und P4, Header-Limits P1 und P3.
 
 Speichert die späte P4-Policy. Common allein besitzt keine Host-Abbruchprimitive.
 
@@ -748,61 +691,6 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 ### Sicherheit und Betrieb
 
 Limits begrenzen den Ressourcenverbrauch. Speichert die späte P4-Policy. Common allein besitzt keine Host-Abbruchprimitive.
-
-<a id="request-body-limit"></a>
-## `request_body_limit`
-
-### Kurzbeschreibung
-
-Begrenzt die der Engine angebotenen Request-Bytes.
-
-### Syntax
-
-```text
-request_body_limit=<value>
-```
-
-### Gültige Kontexte
-
-- Common-Runtime-key=value-Datei
-
-### Werte
-
-| Typ | Zulässige Werte | Erforderlich |
-| --- | --- | --- |
-| positive dezimale Byteanzahl | 1 bis 10485760 Byte (harte Obergrenze 10 MiB) | nein |
-
-### Standardwert
-
-1048576
-
-Quelle: `common/include/msconnector/limits.h:MSCONNECTOR_MAX_BODY_BUFFER_SIZE`.
-
-### Vererbung und Zusammenführung
-
-Keine Vererbung auf Dateiebene; Hostintegrationen können ihre eigene Konfiguration vor dem Start der Common Runtime zusammenführen.
-
-Zusammenführung: Wenn ein Host msconnector_config verwendet, überschreiben Skalarkindwerte Elternwerte; Runtime-Dateien werden als eine konkrete Konfiguration geparst.
-
-### Phasen und Laufzeitwirkung
-
-P1–P4-Relevanz: Siehe Laufzeitwirkung; Body-Modi/-Limits betreffen P2 und P4, Header-Limits betreffen P1 und P3.
-
-Begrenzt die der Engine angebotenen Request-Bytes.
-
-### Validierung und Fehler
-
-Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen, null, nichtdezimalen Werte und Werte oberhalb der harten Obergrenze von 10485760 Byte (harte Sicherheitsobergrenze 10 MiB) weist die Runtime-Konfigurationsprüfung zurück.
-
-### Beispiel
-
-Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
-
-Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../../examples/lighttpd/safe/msconnector-runtime.conf).
-
-### Sicherheit und Betrieb
-
-Die harte Obergrenze von 10 MiB begrenzt Request-Body-Allokation und Engine-Eingabe, auch wenn ein Deployment den Standardwert von 1048576 Byte anhebt.
 
 <a id="request-body-mode"></a>
 ## `request_body_mode`
@@ -841,7 +729,7 @@ Zusammenführung: Wenn ein Host msconnector_config verwendet, überschreiben Ska
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Siehe Laufzeitwirkung; Body-Modi/-Limits betreffen P2 und P4, Header-Limits betreffen P1 und P3.
+P1–P4-Relevanz: Siehe Runtime-Wirkung; Body-Modi betreffen P2 und P4, Header-Limits P1 und P3.
 
 Wählt den Common-Modus zur Request-Body-Verarbeitung; ein bestimmter Host unterstützt möglicherweise nur eine Teilmenge.
 
@@ -896,7 +784,7 @@ Zusammenführung: Wenn ein Host msconnector_config verwendet, überschreiben Ska
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Siehe Laufzeitwirkung; Body-Modi/-Limits betreffen P2 und P4, Header-Limits betreffen P1 und P3.
+P1–P4-Relevanz: Siehe Runtime-Wirkung; Body-Modi betreffen P2 und P4, Header-Limits P1 und P3.
 
 Wählt den Common-Modus zur Response-Body-Verarbeitung; ein bestimmter Host unterstützt möglicherweise nur eine Teilmenge.
 
@@ -951,7 +839,7 @@ Zusammenführung: Wenn ein Host msconnector_config verwendet, überschreiben Ska
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Siehe Laufzeitwirkung; Body-Modi/-Limits betreffen P2 und P4, Header-Limits betreffen P1 und P3.
+P1–P4-Relevanz: Siehe Runtime-Wirkung; Body-Modi betreffen P2 und P4, Header-Limits P1 und P3.
 
 Lädt Regeln aus einer lokalen Datei.
 
@@ -1006,7 +894,7 @@ Zusammenführung: Wenn ein Host msconnector_config verwendet, überschreiben Ska
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Siehe Laufzeitwirkung; Body-Modi/-Limits betreffen P2 und P4, Header-Limits betreffen P1 und P3.
+P1–P4-Relevanz: Siehe Runtime-Wirkung; Body-Modi betreffen P2 und P4, Header-Limits P1 und P3.
 
 Fügt eine Inline-Regelkonfiguration hinzu.
 
@@ -1171,7 +1059,7 @@ Zusammenführung: Wenn ein Host msconnector_config verwendet, überschreiben Ska
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Siehe Laufzeitwirkung; Body-Modi/-Limits betreffen P2 und P4, Header-Limits betreffen P1 und P3.
+P1–P4-Relevanz: Siehe Runtime-Wirkung; Body-Modi betreffen P2 und P4, Header-Limits P1 und P3.
 
 Setzt eine statische Runtime-Transaktionskennung.
 
@@ -1226,7 +1114,7 @@ Zusammenführung: Wenn ein Host msconnector_config verwendet, überschreiben Ska
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Siehe Laufzeitwirkung; Body-Modi/-Limits betreffen P2 und P4, Header-Limits betreffen P1 und P3.
+P1–P4-Relevanz: Siehe Runtime-Wirkung; Body-Modi betreffen P2 und P4, Header-Limits P1 und P3.
 
 Wählt den Fallback-Namen des Korrelations-Headers.
 
@@ -1281,7 +1169,7 @@ Zusammenführung: Wenn ein Host msconnector_config verwendet, überschreiben Ska
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Siehe Laufzeitwirkung; Body-Modi/-Limits betreffen P2 und P4, Header-Limits betreffen P1 und P3.
+P1–P4-Relevanz: Siehe Runtime-Wirkung; Body-Modi betreffen P2 und P4, Header-Limits P1 und P3.
 
 Speichert die Common-Logging-Präferenz. Ein Connector muss sie verwenden, bevor eine Logging-Wirkung beim Host behauptet werden kann.
 

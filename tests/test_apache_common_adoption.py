@@ -62,10 +62,10 @@ class ApacheAdoptionCheckBatchingTests(unittest.TestCase):
             else:
                 normalized.append(node)
         tree.body = normalized
-        # Reviewed engine-owned response-limit checker AST, without positions;
+        # Reviewed engine-owned request/response-limit checker AST, without positions;
         # expands only the batching seam.
         digest = hashlib.sha256(ast.dump(tree, include_attributes=False).encode()).hexdigest()
-        self.assertEqual(digest, "7075a6c5e03c3b3eb88b536201fff98bb02dc66f047de299fb8c021f9e42fe5a")
+        self.assertEqual(digest, "b302ffe99565408d6900443310fd449c4013cffb1545b9805a1c7a1186875e78")
 
 
 class ApacheCommonAdoptionCheckerTests(unittest.TestCase):
@@ -186,7 +186,7 @@ class ApacheCommonAdoptionCheckerTests(unittest.TestCase):
 
         self._assert_rejected(
             mutate,
-            "Apache Phase2 bounded bucket helper reads, plans, records, appends",
+            "Apache Phase2 bucket helper validates pointers and arithmetic, records and appends complete chunks, captures intervention, and forwards after native success",
         )
 
     def test_unreachable_pipeline_decoy_is_rejected(self) -> None:
@@ -201,11 +201,9 @@ class ApacheCommonAdoptionCheckerTests(unittest.TestCase):
             )
             replace_once(
                 filters,
-                "    if (plan.truncated)\n"
-                "        msr->request_body_truncated = 1;\n"
+                "    msr->request_body_bytes_inspected += len;\n"
                 "    APR_BUCKET_REMOVE(bucket);\n",
-                "    if (plan.truncated)\n"
-                "        msr->request_body_truncated = 1;\n"
+                "    msr->request_body_bytes_inspected += len;\n"
                 "    }\n"
                 "    APR_BUCKET_REMOVE(bucket);\n",
             )
@@ -298,17 +296,17 @@ class ApacheCommonAdoptionCheckerTests(unittest.TestCase):
             "Apache input-filter errors enter Apache core through the input-side terminal bridge",
         )
 
-    def test_unbounded_append_is_rejected(self) -> None:
+    def test_prefix_truncation_is_rejected(self) -> None:
         def mutate(filters: Path) -> None:
             replace_once(
                 filters,
-                "            (const unsigned char *)data, plan.append_size))) {\n",
                 "            (const unsigned char *)data, len))) {\n",
+                "            (const unsigned char *)data, len / 2U))) {\n",
             )
 
         self._assert_rejected(
             mutate,
-            "Apache Phase2 bounded bucket helper reads, plans, records, appends",
+            "Apache Phase2 bucket helper validates pointers and arithmetic, records and appends complete chunks, captures intervention, and forwards after native success",
         )
 
     def test_inverted_shared_request_append_guard_is_rejected(self) -> None:
@@ -316,7 +314,7 @@ class ApacheCommonAdoptionCheckerTests(unittest.TestCase):
             replace_once(filters,
                 "!msconnector_native_body_append_can_continue(msc_append_request_body(msr->t,",
                 "msconnector_native_body_append_can_continue(msc_append_request_body(msr->t,")
-        self._assert_rejected(mutate, "Apache Phase2 bounded bucket helper reads, plans, records, appends")
+        self._assert_rejected(mutate, "Apache Phase2 bucket helper validates pointers and arithmetic, records and appends complete chunks, captures intervention, and forwards after native success")
 
     def test_inverted_shared_phase_guard_is_rejected(self) -> None:
         def mutate(filters: Path) -> None:

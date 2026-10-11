@@ -13,7 +13,10 @@ Aufgeführt werden nur Direktiven, die tatsächlich in eingecheckten Beispielreg
 | [`SecAuditLog`](#secauditlog) | ModSecurity Engine | ModSecurity-Engine-Direktive | nein | Aus den Beispielen wird kein Standardwert abgeleitet. | geladene ModSecurity-Konfigurations-/Regeldatei | Setzt den Engine-Audit-Log-Pfad. |
 | [`SecAuditLogParts`](#secauditlogparts) | ModSecurity Engine | ModSecurity-Engine-Direktive | nein | Aus den Beispielen wird kein Standardwert abgeleitet. | geladene ModSecurity-Konfigurations-/Regeldatei | Wählt Audit-Log-Teile aus. |
 | [`SecAuditLogType`](#secauditlogtype) | ModSecurity Engine | ModSecurity-Engine-Direktive | nein | Aus den Beispielen wird kein Standardwert abgeleitet. | geladene ModSecurity-Konfigurations-/Regeldatei | Setzt den ausgewählten Schreibmodus für das Audit-Log. |
-| [`SecRequestBodyAccess`](#secrequestbodyaccess) | ModSecurity Engine | ModSecurity-Engine-Direktive | nein | Aus den Beispielen wird kein Standardwert abgeleitet. | geladene ModSecurity-Konfigurations-/Regeldatei | On stellt der Engine P2 eine Request-Body-Eingabe nur bereit, wenn der Host sie liefert; Off lässt P1-Header verfügbar, entfernt aber die Body-Eingabe aus P2. Die Direktive setzt weder ein Body-Größenlimit noch einen Request-MIME-Geltungsbereich: Diese bleiben Zuordnungsentscheidungen von Host/Engine und, sofern ausgewählt, Steuerungen über Common-Runtime-request_body_limit/Body-Modus. Das Aktivieren der Body-Verarbeitung kann Buffering-, Speicher-, CPU- und Logging-Exposition hinzufügen; daher Hosteingaben begrenzen. |
+| [`SecRequestBodyAccess`](#secrequestbodyaccess) | ModSecurity Engine | ModSecurity-Engine-Direktive | nein | Aus den Beispielen wird kein Standardwert abgeleitet. | geladene ModSecurity-Konfigurations-/Regeldatei | On stellt der Engine P2 eine Request-Body-Eingabe nur bereit, wenn der Host sie liefert; Off lässt P1-Header verfügbar, entfernt aber die Body-Eingabe aus P2. Request-Inspektionslimits und Aktionen gehören zu SecRequestBodyLimit, SecRequestBodyNoFilesLimit und SecRequestBodyLimitAction. Inkrementelle Connector-Arbeitspuffer setzen kein Gesamtbody-Limit; separate Grenzen der Host-Autorisierungspuffer bleiben dokumentierte Einschränkungen. |
+| [`SecRequestBodyLimit`](#secrequestbodylimit) | ModSecurity Engine | ModSecurity-Engine-Direktive | nein | Aus den Beispielen wird kein Standardwert abgeleitet. | geladene ModSecurity-Konfigurations-/Regeldatei | Setzt ausschließlich das Request-Body-Inspektionslimit der Engine; der Connector besitzt keine entsprechende Option, keinen Default und keine zweite Durchsetzungslogik. |
+| [`SecRequestBodyLimitAction`](#secrequestbodylimitaction) | ModSecurity Engine | ModSecurity-Engine-Direktive | nein | Aus den Beispielen wird kein Standardwert abgeleitet. | geladene ModSecurity-Konfigurations-/Regeldatei | Wählt ausschließlich die native Request-Limitaktion. Der Connector bewahrt tatsächliche Engine-Ergebnisse einschließlich DetectionOnly-Verhalten, ohne selbst Ablehnung oder ein Präfix auszuwählen. |
+| [`SecRequestBodyNoFilesLimit`](#secrequestbodynofileslimit) | ModSecurity Engine | ModSecurity-Engine-Direktive | nein | Aus den Beispielen wird kein Standardwert abgeleitet. | geladene ModSecurity-Konfigurations-/Regeldatei | Setzt das Engine-Limit für Request-Body-Daten ohne hochgeladene Dateien; diese eigenständige native Grenze gilt auch für Request-Daten ohne Datei-Uploads. |
 | [`SecResponseBodyAccess`](#secresponsebodyaccess) | ModSecurity Engine | ModSecurity-Engine-Direktive | nein | Aus den Beispielen wird kein Standardwert abgeleitet. | geladene ModSecurity-Konfigurations-/Regeldatei | On ermöglicht P4 nur, wenn der Host Response-Bytes im Geltungsbereich bereitstellt; Off entfernt die Response-Body-Eingabe aus P4. Es erweitert SecResponseBodyMimeType nicht, überschreibt SecResponseBodyLimit/SecResponseBodyLimitAction nicht und erzwingt keine Statusänderung nach dem Header-Commit. Mit der ausgewählten sicheren Late-Intervention-Policy wird ein disruptives Ergebnis nach dem Commit als log_only statt als versprochene spätere 403 protokolliert; das Erfassen der Response kann begrenzte Speicher-, CPU- und Sensitivdaten-Exposition hinzufügen. |
 | [`SecResponseBodyLimit`](#secresponsebodylimit) | ModSecurity Engine | ModSecurity-Engine-Direktive | nein | Aus den Beispielen wird kein Standardwert abgeleitet. | geladene ModSecurity-Konfigurations-/Regeldatei | Legt ausschließlich das Response-Body-Inspection-Limit fest; der Connector besitzt dafür keine Option, keinen Default und keine zweite Durchsetzungslogik. |
 | [`SecResponseBodyLimitAction`](#secresponsebodylimitaction) | ModSecurity Engine | ModSecurity-Engine-Direktive | nein | Aus den Beispielen wird kein Standardwert abgeleitet. | geladene ModSecurity-Konfigurations-/Regeldatei | Wählt ausschließlich Reject oder ProcessPartial beim Überschreiten des Engine-Inspection-Limits; der Connector verarbeitet native Ergebnisse und Interventionen weiter. |
@@ -314,7 +317,7 @@ Die Engine-Policy kann Traffic inspizieren, protokollieren, erkennen oder unterb
 
 ### Kurzbeschreibung
 
-On stellt der Engine P2 eine Request-Body-Eingabe nur bereit, wenn der Host sie liefert; Off lässt P1-Header verfügbar, entfernt aber die Body-Eingabe aus P2. Die Direktive setzt weder ein Body-Größenlimit noch einen Request-MIME-Geltungsbereich: Diese bleiben Zuordnungsentscheidungen von Host/Engine und, sofern ausgewählt, Steuerungen über Common-Runtime-request_body_limit/Body-Modus. Das Aktivieren der Body-Verarbeitung kann Buffering-, Speicher-, CPU- und Logging-Exposition hinzufügen; daher Hosteingaben begrenzen.
+On stellt der Engine P2 eine Request-Body-Eingabe nur bereit, wenn der Host sie liefert; Off lässt P1-Header verfügbar, entfernt aber die Body-Eingabe aus P2. Request-Inspektionslimits und Aktionen gehören zu SecRequestBodyLimit, SecRequestBodyNoFilesLimit und SecRequestBodyLimitAction. Inkrementelle Connector-Arbeitspuffer setzen kein Gesamtbody-Limit; separate Grenzen der Host-Autorisierungspuffer bleiben dokumentierte Einschränkungen.
 
 ### Syntax
 
@@ -346,9 +349,9 @@ Zusammenführung: Engine-spezifisch; Include-Reihenfolge und Regelkonfiguration 
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: P2. On erlaubt Body-Inspektion erst, nachdem der Connector Request-Bytes bereitgestellt hat; ausgewählter Host-/Runtime-Body-Modus und Limit bestimmen, wie viele Bytes die Engine erreichen können.
+P1–P4-Relevanz: P2. On erlaubt Body-Inspektion erst, nachdem der Connector Request-Bytes bereitgestellt hat; der Body-Modus bestimmt die Verfügbarkeit der Eingabe, während native Request-Limitdirektiven die Engine-Inspektion steuern.
 
-On stellt der Engine P2 eine Request-Body-Eingabe nur bereit, wenn der Host sie liefert; Off lässt P1-Header verfügbar, entfernt aber die Body-Eingabe aus P2. Die Direktive setzt weder ein Body-Größenlimit noch einen Request-MIME-Geltungsbereich: Diese bleiben Zuordnungsentscheidungen von Host/Engine und, sofern ausgewählt, Steuerungen über Common-Runtime-request_body_limit/Body-Modus. Das Aktivieren der Body-Verarbeitung kann Buffering-, Speicher-, CPU- und Logging-Exposition hinzufügen; daher Hosteingaben begrenzen.
+On stellt der Engine P2 eine Request-Body-Eingabe nur bereit, wenn der Host sie liefert; Off lässt P1-Header verfügbar, entfernt aber die Body-Eingabe aus P2. Request-Inspektionslimits und Aktionen gehören zu SecRequestBodyLimit, SecRequestBodyNoFilesLimit und SecRequestBodyLimitAction. Inkrementelle Connector-Arbeitspuffer setzen kein Gesamtbody-Limit; separate Grenzen der Host-Autorisierungspuffer bleiben dokumentierte Einschränkungen.
 
 ### Validierung und Fehler
 
@@ -362,7 +365,172 @@ Quellenbasiertes Beispiel: [examples/apache/rules/detection-only.conf](../../exa
 
 ### Sicherheit und Betrieb
 
-Request-Bodys können Zugangsdaten oder personenbezogene Daten enthalten. Begrenzte Body-Limits, passende MIME-/Parser-Policy und geschützte Audit-/Debug-Logs verwenden; hier wird keine Leistungskennzahl abgeleitet.
+Request-Bodys können Zugangsdaten oder personenbezogene Daten enthalten. Native Engine-Body-Limits, passende MIME-/Parser-Policy und geschützte Audit-/Debug-Logs konfigurieren; hier wird keine Leistungskennzahl abgeleitet.
+
+<a id="secrequestbodylimit"></a>
+## `SecRequestBodyLimit`
+
+### Kurzbeschreibung
+
+Setzt ausschließlich das Request-Body-Inspektionslimit der Engine; der Connector besitzt keine entsprechende Option, keinen Default und keine zweite Durchsetzungslogik.
+
+### Syntax
+
+```text
+SecRequestBodyLimit <bytes>
+```
+
+### Gültige Kontexte
+
+- geladene ModSecurity-Konfigurations-/Regeldatei
+
+### Werte
+
+| Typ | Zulässige Werte | Erforderlich |
+| --- | --- | --- |
+| ModSecurity-Engine-Direktive | positive Byteanzahl | nein |
+
+### Standardwert
+
+Aus den Beispielen wird kein Standardwert abgeleitet.
+
+Quelle: `nicht abgeleitet; dokumentiert ist nur die Nutzung in eingecheckten Beispielen`.
+
+### Vererbung und Zusammenführung
+
+Engine-spezifisch; keine Merge-Einstellung des Hostconnectors.
+
+Zusammenführung: Engine-spezifisch; Include-Reihenfolge und Regelkonfiguration bestimmen das wirksame Verhalten.
+
+### Phasen und Laufzeitwirkung
+
+P1–P4-Relevanz: Siehe Laufzeitwirkung der Direktive.
+
+Setzt ausschließlich das Request-Body-Inspektionslimit der Engine; der Connector besitzt keine entsprechende Option, keinen Default und keine zweite Durchsetzungslogik.
+
+### Validierung und Fehler
+
+Der Host/libmodsecurity weist ungültige Engine-Syntax beim Laden der Regeldatei ab.
+
+### Beispiel
+
+Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
+
+Quellenbasiertes Beispiel: [examples/apache/rules/detection-only.conf](../../examples/apache/rules/detection-only.conf).
+
+### Sicherheit und Betrieb
+
+Die Engine-Policy kann Traffic inspizieren, protokollieren, erkennen oder unterbrechen; Regel- und Audit-Log-Pfade schützen.
+
+<a id="secrequestbodylimitaction"></a>
+## `SecRequestBodyLimitAction`
+
+### Kurzbeschreibung
+
+Wählt ausschließlich die native Request-Limitaktion. Der Connector bewahrt tatsächliche Engine-Ergebnisse einschließlich DetectionOnly-Verhalten, ohne selbst Ablehnung oder ein Präfix auszuwählen.
+
+### Syntax
+
+```text
+SecRequestBodyLimitAction ProcessPartial | Reject
+```
+
+### Gültige Kontexte
+
+- geladene ModSecurity-Konfigurations-/Regeldatei
+
+### Werte
+
+| Typ | Zulässige Werte | Erforderlich |
+| --- | --- | --- |
+| ModSecurity-Engine-Direktive | ProcessPartial \| Reject | nein |
+
+### Standardwert
+
+Aus den Beispielen wird kein Standardwert abgeleitet.
+
+Quelle: `nicht abgeleitet; dokumentiert ist nur die Nutzung in eingecheckten Beispielen`.
+
+### Vererbung und Zusammenführung
+
+Engine-spezifisch; keine Merge-Einstellung des Hostconnectors.
+
+Zusammenführung: Engine-spezifisch; Include-Reihenfolge und Regelkonfiguration bestimmen das wirksame Verhalten.
+
+### Phasen und Laufzeitwirkung
+
+P1–P4-Relevanz: Siehe Laufzeitwirkung der Direktive.
+
+Wählt ausschließlich die native Request-Limitaktion. Der Connector bewahrt tatsächliche Engine-Ergebnisse einschließlich DetectionOnly-Verhalten, ohne selbst Ablehnung oder ein Präfix auszuwählen.
+
+### Validierung und Fehler
+
+Der Host/libmodsecurity weist ungültige Engine-Syntax beim Laden der Regeldatei ab.
+
+### Beispiel
+
+Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
+
+Quellenbasiertes Beispiel: [examples/apache/rules/detection-only.conf](../../examples/apache/rules/detection-only.conf).
+
+### Sicherheit und Betrieb
+
+Die Engine-Policy kann Traffic inspizieren, protokollieren, erkennen oder unterbrechen; Regel- und Audit-Log-Pfade schützen.
+
+<a id="secrequestbodynofileslimit"></a>
+## `SecRequestBodyNoFilesLimit`
+
+### Kurzbeschreibung
+
+Setzt das Engine-Limit für Request-Body-Daten ohne hochgeladene Dateien; diese eigenständige native Grenze gilt auch für Request-Daten ohne Datei-Uploads.
+
+### Syntax
+
+```text
+SecRequestBodyNoFilesLimit <bytes>
+```
+
+### Gültige Kontexte
+
+- geladene ModSecurity-Konfigurations-/Regeldatei
+
+### Werte
+
+| Typ | Zulässige Werte | Erforderlich |
+| --- | --- | --- |
+| ModSecurity-Engine-Direktive | positive Byteanzahl | nein |
+
+### Standardwert
+
+Aus den Beispielen wird kein Standardwert abgeleitet.
+
+Quelle: `nicht abgeleitet; dokumentiert ist nur die Nutzung in eingecheckten Beispielen`.
+
+### Vererbung und Zusammenführung
+
+Engine-spezifisch; keine Merge-Einstellung des Hostconnectors.
+
+Zusammenführung: Engine-spezifisch; Include-Reihenfolge und Regelkonfiguration bestimmen das wirksame Verhalten.
+
+### Phasen und Laufzeitwirkung
+
+P1–P4-Relevanz: Siehe Laufzeitwirkung der Direktive.
+
+Setzt das Engine-Limit für Request-Body-Daten ohne hochgeladene Dateien; diese eigenständige native Grenze gilt auch für Request-Daten ohne Datei-Uploads.
+
+### Validierung und Fehler
+
+Der Host/libmodsecurity weist ungültige Engine-Syntax beim Laden der Regeldatei ab.
+
+### Beispiel
+
+Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
+
+Quellenbasiertes Beispiel: [examples/apache/rules/detection-only.conf](../../examples/apache/rules/detection-only.conf).
+
+### Sicherheit und Betrieb
+
+Die Engine-Policy kann Traffic inspizieren, protokollieren, erkennen oder unterbrechen; Regel- und Audit-Log-Pfade schützen.
 
 <a id="secresponsebodyaccess"></a>
 ## `SecResponseBodyAccess`

@@ -936,16 +936,19 @@ func (state *streamState) bodyLimitDecision(direction Direction, bodyLength int)
 		return Decision{Action: ActionDeny, Status: 500}
 	}
 	current := state.summary.RequestBodyBytes
+	chunks := state.summary.RequestBodyChunks
 	if direction == DirectionResponse {
 		current = state.summary.ResponseBodyBytes
+		chunks = state.summary.ResponseBodyChunks
 	}
-	next, ok := cumulativeBodyBytes(current, bodyLength)
+	if chunks == math.MaxUint64 {
+		return Decision{Action: ActionDeny, Status: 500}
+	}
+	_, ok := cumulativeBodyBytes(current, bodyLength)
 	if !ok {
 		return Decision{Action: ActionDeny, Status: 500}
 	}
-	if direction == DirectionRequest && next > state.config.MaxRequestBodyBytes {
-		return payloadTooLargeDecision()
-	}
+
 	return allowDecision()
 }
 
@@ -962,10 +965,6 @@ func cumulativeBodyBytes(current int64, bodyLength int) (int64, bool) {
 		return 0, false
 	}
 	return current + increment, true
-}
-
-func payloadTooLargeDecision() Decision {
-	return Decision{Action: ActionDeny, Status: int(typev3.StatusCode_PayloadTooLarge)}
 }
 
 func (state *streamState) recordBodyProgress(direction Direction, bodyLength int, endOfStream bool) {

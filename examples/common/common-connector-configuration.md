@@ -8,7 +8,6 @@ This is the complete current `key=value` parser surface of `common/runtime/mscon
 
 | Option | Layer | Type | Required | Default | Context | Short description |
 | --- | --- | --- | --- | --- | --- | --- |
-| [`body_limit_action`](#body-limit-action) | Common Runtime | enum | no | reject | Common Runtime key=value file | Controls whether an over-limit request chunk is rejected or truncated before engine input; response limits and actions belong exclusively to libModSecurity. |
 | [`default_block_status`](#default-block-status) | Common Runtime | HTTP status | no | 403 | Common Runtime key=value file | Fallback status for supported pre-commit block actions. |
 | [`default_error_status`](#default-error-status) | Common Runtime | HTTP error status | no | 500 | Common Runtime key=value file | Fallback status for runtime errors. |
 | [`enabled`](#enabled) | Common Runtime | boolean | no | off | Common Runtime key=value file | Enables the Common Runtime; enabled runtime requires an inline or local-file rule source. |
@@ -21,7 +20,6 @@ This is the complete current `key=value` parser surface of `common/runtime/mscon
 | [`max_total_header_bytes`](#max-total-header-bytes) | Common Runtime | positive decimal bytes | no | 65536 | Common Runtime key=value file | Bounds total header bytes. |
 | [`phase4_event_log`](#phase4-event-log) | Common Runtime | path alias | no | none | Common Runtime key=value file | Alias for event_path. |
 | [`phase4_mode`](#phase4-mode) | Common Runtime | enum | no | off | Common Runtime key=value file | Stores the late P4 policy. Common alone owns no host abort primitive. |
-| [`request_body_limit`](#request-body-limit) | Common Runtime | positive decimal bytes | no | 1048576 | Common Runtime key=value file | Bounds request bytes offered to the engine. |
 | [`request_body_mode`](#request-body-mode) | Common Runtime | enum | no | buffered | Common Runtime key=value file | Selects the Common request-body handling mode; a particular host may support only a subset. |
 | [`response_body_mode`](#response-body-mode) | Common Runtime | enum | no | none | Common Runtime key=value file | Selects the Common response-body handling mode; a particular host may support only a subset. |
 | [`rules_file`](#rules-file) | Common Runtime | path | no | none | Common Runtime key=value file | Loads rules from a local file. |
@@ -33,61 +31,6 @@ This is the complete current `key=value` parser surface of `common/runtime/mscon
 | [`use_error_log`](#use-error-log) | Common Runtime | boolean | no | on | Common Runtime key=value file | Stores the Common logging preference. A connector must consume it before a host logging effect can be claimed. |
 
 ## Option details
-
-<a id="body-limit-action"></a>
-## `body_limit_action`
-
-### Short description
-
-Controls whether an over-limit request chunk is rejected or truncated before engine input; response limits and actions belong exclusively to libModSecurity.
-
-### Syntax
-
-```text
-body_limit_action=<value>
-```
-
-### Valid contexts
-
-- Common Runtime key=value file
-
-### Values
-
-| Type | Allowed values | Required |
-| --- | --- | --- |
-| enum | reject \| process_partial (accepted spelling variants are parser-specific) | no |
-
-### Default
-
-reject
-
-Source: `common/src/config.c:msconnector_config_apply_defaults`.
-
-### Inheritance and merge
-
-No file-level inheritance; host integrations may merge their own configuration before starting Common Runtime.
-
-Merge: When a host uses msconnector_config, scalar child values override parent values; runtime files are parsed as one concrete configuration.
-
-### Phases and runtime effect
-
-See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
-
-Controls whether an over-limit request chunk is rejected or truncated before engine input; response limits and actions belong exclusively to libModSecurity.
-
-### Validation and errors
-
-Unknown keys, empty values, malformed assignments, and key-specific invalid values fail the runtime configuration check.
-
-### Example
-
-Selected value: use the syntax above and the source-backed file below.
-
-Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../examples/lighttpd/safe/msconnector-runtime.conf).
-
-### Safety and operations
-
-Limits bound resource use. Controls whether an over-limit request chunk is rejected or truncated before engine input; response limits and actions belong exclusively to libModSecurity.
 
 <a id="default-block-status"></a>
 ## `default_block_status`
@@ -126,7 +69,7 @@ Merge: When a host uses msconnector_config, scalar child values override parent 
 
 ### Phases and runtime effect
 
-See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
+See runtime effect; body modes affect P2 and P4, header limits affect P1 and P3.
 
 Fallback status for supported pre-commit block actions.
 
@@ -181,7 +124,7 @@ Merge: When a host uses msconnector_config, scalar child values override parent 
 
 ### Phases and runtime effect
 
-See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
+See runtime effect; body modes affect P2 and P4, header limits affect P1 and P3.
 
 Fallback status for runtime errors.
 
@@ -236,7 +179,7 @@ Merge: When a host uses msconnector_config, scalar child values override parent 
 
 ### Phases and runtime effect
 
-See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
+See runtime effect; body modes affect P2 and P4, header limits affect P1 and P3.
 
 Enables the Common Runtime; enabled runtime requires an inline or local-file rule source.
 
@@ -291,7 +234,7 @@ Merge: When a host uses msconnector_config, scalar child values override parent 
 
 ### Phases and runtime effect
 
-See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
+See runtime effect; body modes affect P2 and P4, header limits affect P1 and P3.
 
 Appends metadata-only JSONL events when configured.
 
@@ -346,7 +289,7 @@ Merge: When a host uses msconnector_config, scalar child values override parent 
 
 ### Phases and runtime effect
 
-See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
+See runtime effect; body modes affect P2 and P4, header limits affect P1 and P3.
 
 Stores an optional late-intervention budget; Common owns no timer/cancellation primitive.
 
@@ -401,7 +344,7 @@ Merge: When a host uses msconnector_config, scalar child values override parent 
 
 ### Phases and runtime effect
 
-See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
+See runtime effect; body modes affect P2 and P4, header limits affect P1 and P3.
 
 Bounds serialized metadata event size.
 
@@ -456,7 +399,7 @@ Merge: When a host uses msconnector_config, scalar child values override parent 
 
 ### Phases and runtime effect
 
-See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
+See runtime effect; body modes affect P2 and P4, header limits affect P1 and P3.
 
 Bounds accepted header count.
 
@@ -511,7 +454,7 @@ Merge: When a host uses msconnector_config, scalar child values override parent 
 
 ### Phases and runtime effect
 
-See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
+See runtime effect; body modes affect P2 and P4, header limits affect P1 and P3.
 
 Bounds each header-name size.
 
@@ -566,7 +509,7 @@ Merge: When a host uses msconnector_config, scalar child values override parent 
 
 ### Phases and runtime effect
 
-See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
+See runtime effect; body modes affect P2 and P4, header limits affect P1 and P3.
 
 Bounds each header-value size.
 
@@ -621,7 +564,7 @@ Merge: When a host uses msconnector_config, scalar child values override parent 
 
 ### Phases and runtime effect
 
-See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
+See runtime effect; body modes affect P2 and P4, header limits affect P1 and P3.
 
 Bounds total header bytes.
 
@@ -676,7 +619,7 @@ Merge: When a host uses msconnector_config, scalar child values override parent 
 
 ### Phases and runtime effect
 
-See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
+See runtime effect; body modes affect P2 and P4, header limits affect P1 and P3.
 
 Alias for event_path.
 
@@ -731,7 +674,7 @@ Merge: When a host uses msconnector_config, scalar child values override parent 
 
 ### Phases and runtime effect
 
-See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
+See runtime effect; body modes affect P2 and P4, header limits affect P1 and P3.
 
 Stores the late P4 policy. Common alone owns no host abort primitive.
 
@@ -748,61 +691,6 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 ### Safety and operations
 
 Limits bound resource use. Stores the late P4 policy. Common alone owns no host abort primitive.
-
-<a id="request-body-limit"></a>
-## `request_body_limit`
-
-### Short description
-
-Bounds request bytes offered to the engine.
-
-### Syntax
-
-```text
-request_body_limit=<value>
-```
-
-### Valid contexts
-
-- Common Runtime key=value file
-
-### Values
-
-| Type | Allowed values | Required |
-| --- | --- | --- |
-| positive decimal bytes | 1 through 10485760 bytes (10 MiB hard cap) | no |
-
-### Default
-
-1048576
-
-Source: `common/include/msconnector/limits.h:MSCONNECTOR_MAX_BODY_BUFFER_SIZE`.
-
-### Inheritance and merge
-
-No file-level inheritance; host integrations may merge their own configuration before starting Common Runtime.
-
-Merge: When a host uses msconnector_config, scalar child values override parent values; runtime files are parsed as one concrete configuration.
-
-### Phases and runtime effect
-
-See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
-
-Bounds request bytes offered to the engine.
-
-### Validation and errors
-
-Unknown keys, empty values, malformed assignments, zero, non-decimal values, and values above the hard cap of 10485760 bytes (10 MiB hard security cap) fail the runtime configuration check.
-
-### Example
-
-Selected value: use the syntax above and the source-backed file below.
-
-Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../examples/lighttpd/safe/msconnector-runtime.conf).
-
-### Safety and operations
-
-The 10 MiB hard cap bounds request-body allocation and engine input even when a deployment raises the 1048576-byte default.
 
 <a id="request-body-mode"></a>
 ## `request_body_mode`
@@ -841,7 +729,7 @@ Merge: When a host uses msconnector_config, scalar child values override parent 
 
 ### Phases and runtime effect
 
-See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
+See runtime effect; body modes affect P2 and P4, header limits affect P1 and P3.
 
 Selects the Common request-body handling mode; a particular host may support only a subset.
 
@@ -896,7 +784,7 @@ Merge: When a host uses msconnector_config, scalar child values override parent 
 
 ### Phases and runtime effect
 
-See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
+See runtime effect; body modes affect P2 and P4, header limits affect P1 and P3.
 
 Selects the Common response-body handling mode; a particular host may support only a subset.
 
@@ -951,7 +839,7 @@ Merge: When a host uses msconnector_config, scalar child values override parent 
 
 ### Phases and runtime effect
 
-See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
+See runtime effect; body modes affect P2 and P4, header limits affect P1 and P3.
 
 Loads rules from a local file.
 
@@ -1006,7 +894,7 @@ Merge: When a host uses msconnector_config, scalar child values override parent 
 
 ### Phases and runtime effect
 
-See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
+See runtime effect; body modes affect P2 and P4, header limits affect P1 and P3.
 
 Adds inline rule configuration.
 
@@ -1171,7 +1059,7 @@ Merge: When a host uses msconnector_config, scalar child values override parent 
 
 ### Phases and runtime effect
 
-See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
+See runtime effect; body modes affect P2 and P4, header limits affect P1 and P3.
 
 Sets a static runtime transaction identifier.
 
@@ -1226,7 +1114,7 @@ Merge: When a host uses msconnector_config, scalar child values override parent 
 
 ### Phases and runtime effect
 
-See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
+See runtime effect; body modes affect P2 and P4, header limits affect P1 and P3.
 
 Selects the fallback correlation-header name.
 
@@ -1281,7 +1169,7 @@ Merge: When a host uses msconnector_config, scalar child values override parent 
 
 ### Phases and runtime effect
 
-See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
+See runtime effect; body modes affect P2 and P4, header limits affect P1 and P3.
 
 Stores the Common logging preference. A connector must consume it before a host logging effect can be claimed.
 

@@ -1,87 +1,116 @@
-# Response-limit stack checklist
+# Request/response body-limit stack checklist
 
 **Language:** English | [Deutsch](response-limit-stack-checklist.de.md)
 
 ## Stack identity
 
-Base PR: [#382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382).
+Existing [Draft PR #407](https://github.com/Easton97-Jens/ModSecurity-conector/pull/407)
+remains stacked on [#382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382).
+Branch: `fix/engine-owned-response-limits-stack-20261011`.
 Base branch: `fix/unified-native-results-events-20260921`.
 Exact base: `498653c2a193d34b7b25b2903b1e4db1c45e7f73`.
-New branch: `fix/engine-owned-response-limits-stack-20261011`.
-Draft PR: [#407](https://github.com/Easton97-Jens/ModSecurity-conector/pull/407),
-targeting the base branch; no merge is authorized.
+Expanded-task starting head: `6576661724841e26802a93b19d8bbfbdb5c8235a`.
+No new PR or merge; expanded changes have not yet been pushed at this snapshot.
 
 ## Implementation
 
-- [x] Inventory Common and all ten actual logical adapter profiles.
-- [x] Remove response options/defaults, metadata ceilings, SIZE_MAX policy helper,
-  cumulative byte rejection and connector truncation from response ingestion.
-- [x] Preserve request policy, engine access/MIME configuration and host modes.
-- [x] Verify native response BODY_LIMIT recognition and retained interventions.
-- [x] Preserve technical frame/chunk/scratch/buffer/descriptor/header/event guards.
-- [x] Update generated configuration references, examples and EN/DE ownership docs.
+- [x] Trace Common and all ten logical direct/companion/middleware/sidecar profiles.
+- [x] Remove Common request/response body policy fields, defaults, merge/parser logic and connector `body_limit_action`; remove adapter/service policy consumers.
+- [x] Use native request and response directives; no connector-injected limits, rule-text inference, chosen Reject/ProcessPartial or cumulative truncation.
+- [x] Retain native append interventions/results through EOS and phase completion, including actual DetectionOnly semantics.
+- [x] Replace socket full-body allocation and stock-sidecar fallback with incremental processing/private spooling; retain technical safeguards.
+- [x] Reject removed options and update examples, generator and EN/DE references.
+- [ ] Eliminate all active profile total-body constraints: the concrete authorization limitations below remain.
 
-## Executable tests
+## Current executable evidence
 
-- [x] Configuration inventories and removed options; explicit checked-in fixtures.
-- [x] Real libModSecurity below/exact/above, Reject/ProcessPartial, multichunk,
-  different explicit limits, supported modes and payloads above old 1 MiB.
-- [x] File-backed HAProxy binding component tests; hosted adapter proof remains open.
-- [x] Selected integrated Common/connector/safety/regression tests and documentation checks; base failures are listed separately below.
-- [x] Completed Sonar analysis for the new PR source head: zero new issues/hotspots and
-  zero new-code duplication; no scanner exceptions or relaxed checks.
+- [x] Genuine request/response below/equal/above, actions, chunks/files, varied limits, DetectionOnly and markers beyond former connector ceilings.
+- [x] Real 2 MiB authorization-socket lifecycle and no duplicate prefix.
+- [x] Selected component builds, contracts, safety/configuration and documentation checks.
+- [x] Terminal full `quick-check` and final native test reconciliation.
+- [ ] Current changed-head CI/Sonar: zero new issues, hotspots and duplication.
 
-The first completed analysis of `77e8085b663b46c9eb22b11864aadd0161dc5060`
-reported ten issues, zero hotspots and zero duplication. Follow-up source changes
-address resource cleanup, declarations, helper complexity and fixture parameters;
-the reviewed Apache fingerprint and Traefik API expectation were updated too.
-The completed analysis of `777d67efcd040b98d7d0c288379ab55012ef51b1`
-reported zero new issues and hotspots, but two new duplicated lines/blocks
-(0.2%). The shared Authz fixture setup now replaces that duplication; the
-compiler-guide generator also removes its obsolete response option. The new
-source head `6875be20f0c9c30b4ca8ad9ec62f65ac35d863cd` passed its completed
-analysis: zero new issues, hotspots, duplicated lines, blocks and density;
-Quality Gate OK. The full local `make quick-check` passed too. Final PR-head
-readback, including documentation follow-ups, is recorded in #407.
+Current Common real-library validation passed nine methods: 112 native request
+and 81 response scenarios (193 total). A later combined run passed 30 tests.
+Four real authorization-socket cases use a 2 MiB body: a tail marker produces
+native 451 under a high limit, the same payload under a low ProcessPartial limit
+produces 200, low Reject produces native 403, and a marker-free body is allowed.
+The callback completes P2 before handoff without offering a prefix twice.
 
-Common real-library validation passed 81 scenarios; HAProxy binding validation
-passed 16 cases. Envoy passed eight real CGo/libModSecurity packages and its
-binary build. MRC1/observer component checks and 31 lighttpd gate/supervisor/
-namespace tests passed. The stock-sidecar suite passed 33/34; its RST event
-failure and the legacy Common lossy-event assertion were reproduced on the base.
-Their assertions remain intact. The fresh-tree integrated 57-test run passed in 22.053 seconds, including 81
-native Common scenarios and a matching phase-4 rule. The fresh native-owned
-136-test/174-subtest sweep passed in 44.77 seconds. Common contracts, safety
-checks, 21 generated references, bilingual documentation, paths and links passed
-in the final run. Two further native binding expectations
-failed unchanged on the base. A broader interrupted sweep is not a pass. Apache C17 syntax passed; NGINX/HAProxy native checks lack host artifacts.
+Common helper/SDK/security/memory/flow/adapter/directive checks passed. Six
+configuration-reference tests passed; all 21 generated files are current.
+EN/DE, path/link checks and 22 compiler-guide tests passed. Apache C17 passed;
+HAProxy binding/self-test/SPOP C builds and 104 tests with 119 subtests passed,
+with the final genuine request/response suite passing 13 methods in 13.62 seconds. Envoy passed eight Go
+packages and its real CGo build. Traefik Go/C builds and socket-protocol self-tests
+passed. lighttpd C build, 15 gate tests and two isolated Envoy tests passed.
+Stock-sidecar validation passed 35/36; its unchanged RST empty-event base defect
+remains open. The Common legacy lossy-event assertion and two old SPOP source
+assertions also remain unchanged base failures; assertions are preserved.
 
-## Missing real-host evidence
+The terminal native `make quick-check` passed (exit 0): ten unittest groups
+with 302 tests plus lint, contracts, security, memory, documentation, generated
+references, helpers, actionlint and diff checks.
 
-Complete hosted response-limit evidence remains separate for each profile below:
-limit boundaries, both actions, supported modes and the full response lifecycle.
-Individual NGINX event/buffer fixtures, builds, source wiring, stubs and Common
-engine tests do not establish this full matrix. Current-head CI results are in #407.
+Final Common native validation passed 13 methods and 168 subtests in 14.34
+seconds (`root-checks/final-common-native.log`), including the four HTTP cases.
+HAProxy's genuine suite passed 13 methods in 13.62 seconds; Response DetectionOnly
+preserved the actual native 65536-byte prefix for a 120000-byte body in four
+chunks: Reject append results `[1,1,1,1]`, ProcessPartial `[1,1,0,0]`, EOS `1`.
+Seven configuration-reference tests passed, including strict removed-key tombstone
+mutations. All NGINX adoption/mutation checks passed. A combined four-file sweep
+passed 145 tests and 163 subtests with two stale Apache planner expectations;
+after correcting those expectations, all six Apache checks passed and preserve
+native append `0`/`1` continuation and exact EOS `1` guards. Independent review
+identified case-alias/JSON-null removed-key acceptance; EqualFold matching and
+24 negative cases now pass with the entire Traefik Go suite. Seven additional
+Traefik forwardAuth tests passed. No review finding remains open.
 
-- [ ] Apache native hosted lifecycle.
-- [ ] NGINX native hosted lifecycle and memory/file buffer delivery.
-- [ ] HAProxy native HTX hosted lifecycle.
-- [ ] HAProxy SPOE/SPOP with native-HTX response companion hosted lifecycle.
-- [ ] Envoy ext_proc hosted lifecycle.
-- [ ] Envoy ext_authz with response observer hosted lifecycle.
-- [ ] Traefik native UDS middleware hosted lifecycle.
-- [ ] Traefik forwardAuth with response observer hosted lifecycle.
-- [ ] lighttpd Stock sidecar hosted lifecycle.
-- [ ] lighttpd patched native hosted lifecycle.
+Current changed-head CI/Sonar and zero-new-code
+issues/hotspots/duplication verification are pending; live results are linked in
+[PR #407](https://github.com/Easton97-Jens/ModSecurity-conector/pull/407).
 
-## Safety and evidence limits
+## Active cumulative/sample limitations
 
-Fixed working-buffer capacity is not an engine limit. The active lighttpd sidecar
-streams fixed scratch chunks. Its buffered legacy exchange is compiled out under
-`#if 0`; its retained 1 MiB capacity is not a current runtime response ceiling.
-NGINX file scratch, MRC1 frames/body chunks, Envoy gRPC messages, Traefik UDS,
-HAProxy SPOP/HTX frames, header/event metadata, overflow guards and transport
-timeouts remain active. No historical runtime report is a result for this head.
+Full removal across all active profiles is not claimed.
 
-See [ownership contract](phase4-mode-budget.md) and
+| Active route | Remaining limit and actual scope |
+| --- | --- |
+| Envoy ext_authz | Host `max_request_bytes=4096/33` bounds the complete request sample sent to authorization; its response observer does not make request ingestion incremental. |
+| Traefik forwardAuth | Host `maxBodySize=4096/33` bounds the buffered authorization request. |
+| Composite Traefik authorization response | Host `maxResponseBodySize=32768` bounds the authorization response, not the upstream application response. |
+| HAProxy SPOE/SPOP | One request sample per bounded protocol message/frame; incomplete-sample admission fails with 503 before the engine, not native `BODY_LIMIT`. Native HTX is separate. |
+
+## Technical safety
+
+Incremental HTTP work buffers are 16 KiB; file-read scratch is 32 KiB.
+MRC1 retains individual 64 KiB frames and 32 KiB body chunks. Pointer/integer
+checks, descriptors/file ranges, message controls, header/event metadata and
+timeouts remain. Stock lighttpd uses private unlinked spooling with bounded RAM
+and withholds upstream replay until native P2 allows it; disk failures remain
+technical failures. The legacy full-body fallback is removed. These controls
+are scoped operations/storage safeguards, not replacement inspection limits.
+
+## Missing current host evidence
+
+No complete current ten-profile request/response hosted matrix exists. Engine,
+socket and component evidence does not prove host buffer ownership, HTTP/1/2/3
+lifecycles, commit timing or late-abort behavior.
+
+- [ ] Apache native.
+- [ ] NGINX native, including memory/file buffers.
+- [ ] HAProxy native HTX.
+- [ ] HAProxy SPOE/SPOP with native-HTX response companion.
+- [ ] Envoy ext_proc.
+- [ ] Envoy ext_authz with response observer.
+- [ ] Traefik native UDS middleware.
+- [ ] Traefik forwardAuth with response observer.
+- [ ] lighttpd Stock sidecar.
+- [ ] lighttpd patched native.
+
+## Historical evidence boundary
+
+Earlier response-only checks and completed Sonar results, including the starting
+head, establish only those revisions. They do not verify the expanded current
+diff. See the [ownership contract](phase4-mode-budget.md) and
 [Change Record](../reports/audits/change-records/CR-20261011-response-limit-policy-removal.md).

@@ -1,5 +1,7 @@
 # Apache Connector
 
+Request- and response-body inspection limits and actions belong exclusively to libModSecurity: configure `SecRequestBodyLimit`, `SecRequestBodyNoFilesLimit`, `SecRequestBodyLimitAction`, `SecResponseBodyLimit`, and `SecResponseBodyLimitAction` in the engine rules. The connector has no body-size option, default, fallback, cumulative rejection, or inspection-prefix truncation. Checked counters, pointer/file validation, and bounded scratch or transport frames remain technical safety controls.
+
 **Language:** English | [Deutsch](README.de.md)
 
 Status: adapter-owned source migration complete

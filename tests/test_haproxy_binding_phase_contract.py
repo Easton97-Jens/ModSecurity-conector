@@ -99,20 +99,18 @@ class HaproxyBindingPhaseContractTests(unittest.TestCase):
         )
         self.assertIsNotNone(helper)
         body = helper.group(0)
-        self.assertIn("body_limit == 0U", body)
-        self.assertIn("(size_t)body_len > body_limit - *phase->body_bytes_seen", body)
+        self.assertIn("SIZE_MAX - (size_t)body_len", body)
+        self.assertNotIn("body_limit -", body)
         self.assertLess(
-            body.index("(size_t)body_len > body_limit - *phase->body_bytes_seen"),
+            body.index("SIZE_MAX - (size_t)body_len"),
             body.index("phase->append_body("),
         )
 
-    def test_only_request_uses_common_body_limit_policy(self):
-        self.assertIn(
-            "transaction->engine->common_config.request_body_limit", SOURCE
-        )
+    def test_neither_direction_has_connector_body_limit_policy(self):
+        self.assertNotIn("common_config.request_body_limit", SOURCE)
         self.assertNotIn("contract.response_body_limit", SOURCE)
         self.assertNotIn("common_config.response_body_limit", SOURCE)
-        self.assertIn("if (phase->phase == 2)", SOURCE)
+        self.assertIn("capture_pending_body_intervention(transaction, decision, phase->phase)", SOURCE)
         self.assertIn("SIZE_MAX - (size_t)body_len", SOURCE)
 
 

@@ -1,6 +1,7 @@
 """Real libModSecurity limit effects through the HAProxy binding, not host proof."""
 from pathlib import Path
 import os
+import ctypes
 import subprocess
 import tempfile
 import unittest
@@ -97,6 +98,7 @@ class HaproxyRealEngineResponseLimitTests(unittest.TestCase):
         cls.binary = cls.runroot / "limits"
         objroot = cls.build / "haproxy-modsecurity-binding"
         resolution = dict(line.split("=", 1) for line in (objroot / "paths.env").read_text().splitlines() if "=" in line)
+        cls.engine_library = resolution["MODSECURITY_LIBRARY"]
         # Reuse native build objects and selected real engine; exclude probe/main().
         objects = [str(p) for p in objroot.glob("*.o") if p.name != "haproxy_modsecurity_binding_self_test.o" and not p.name.startswith("verify_")]
         compiled = subprocess.run(["cc", "-std=c17", "-Wall", "-Wextra", "-Werror",
@@ -107,12 +109,12 @@ class HaproxyRealEngineResponseLimitTests(unittest.TestCase):
         if compiled.returncode:
             raise AssertionError(compiled.stdout + compiled.stderr)
 
-    def run_case(self, *, limit, action, length, reject, match, mode, representation, marker_offset=None, phase4_pass=False):
+    def run_case(self, *, limit, action, length, reject, match, engine_mode, mode, representation, marker_offset=None, phase4_pass=False):
         # Required arguments are deliberately explicit at every test invocation.
         if limit <= 0 or action not in {"Reject", "ProcessPartial"}:
             raise ValueError("explicit positive SecResponseBodyLimit and valid SecResponseBodyLimitAction required")
         rules = self.runroot / "case.conf"
-        rules.write_text(f"SecRuleEngine On\nSecRequestBodyAccess Off\nSecResponseBodyAccess On\n"
+        rules.write_text(f"SecRuleEngine {engine_mode}\nSecRequestBodyAccess Off\nSecResponseBodyAccess On\n"
             f"SecResponseBodyMimeType text/plain\nSecResponseBodyLimit {limit}\n"
             f"SecResponseBodyLimitAction {action}\nSecAuditEngine Off\n"
             'SecRule RESPONSE_BODY "@contains Z" "id:1250801,phase:4,deny,status:403,log"\n')
@@ -140,34 +142,95 @@ class HaproxyRealEngineResponseLimitTests(unittest.TestCase):
                 with self.subTest(action=action, length=length):
                     self.run_case(limit=8, action=action, length=length,
                         reject=action == "Reject" and length > 8,
-                        match=length <= 8, mode=1, representation="memory")
+                        match=length <= 8, engine_mode="On", mode=1, representation="memory")
 
     def test_same_engine_configuration_across_modes_and_chunks(self):
         for mode in (0, 1, 2):
             self.run_case(limit=70000, action="Reject", length=65537,
-                reject=False, match=True, mode=mode, representation="memory")
+                reject=False, match=True, engine_mode="On", mode=mode, representation="memory")
             self.run_case(limit=65536, action="ProcessPartial", length=65537,
-                reject=False, match=False, mode=mode, representation="file")
+                reject=False, match=False, engine_mode="On", mode=mode, representation="file")
 
     def test_large_file_has_no_hidden_one_mib_connector_limit(self):
         self.run_case(limit=2097152, action="Reject", length=1048577,
-            reject=False, match=True, mode=1, representation="file")
+            reject=False, match=True, engine_mode="On", mode=1, representation="file")
         self.run_case(limit=1048576, action="Reject", length=1048577,
-            reject=True, match=False, mode=1, representation="file")
+            reject=True, match=False, engine_mode="On", mode=1, representation="file")
 
     def test_process_partial_still_evaluates_rules_in_engine_retained_prefix(self):
         self.run_case(limit=8, action="ProcessPartial", length=9,
-            reject=False, match=True, mode=1, representation="memory", marker_offset=3)
+            reject=False, match=True, engine_mode="On", mode=1, representation="memory", marker_offset=3)
 
     def test_reject_retains_native_intervention_across_later_chunks(self):
         self.run_case(limit=65536, action="Reject", length=120000,
-            reject=True, match=False, mode=1, representation="memory", phase4_pass=True)
+            reject=True, match=False, engine_mode="On", mode=1, representation="memory", phase4_pass=True)
+
+    def test_detection_only_native_prefix_and_nondisruptive_binding(self):
+        library = ctypes.CDLL(self.engine_library)
+        pointer = ctypes.c_void_p
+        string = ctypes.c_char_p
+        signatures = {
+            "msc_init": ([], pointer), "msc_create_rules_set": ([], pointer),
+            "msc_rules_add": ([pointer, string, ctypes.POINTER(string)], ctypes.c_int),
+            "msc_new_transaction": ([pointer, pointer, pointer], pointer),
+            "msc_process_connection": ([pointer, string, ctypes.c_int, string, ctypes.c_int], ctypes.c_int),
+            "msc_process_uri": ([pointer, string, string, string], ctypes.c_int),
+            "msc_process_request_headers": ([pointer], ctypes.c_int),
+            "msc_process_request_body": ([pointer], ctypes.c_int),
+            "msc_add_response_header": ([pointer, string, string], ctypes.c_int),
+            "msc_process_response_headers": ([pointer, ctypes.c_int, string], ctypes.c_int),
+            "msc_append_response_body": ([pointer, string, ctypes.c_size_t], ctypes.c_int),
+            "msc_get_response_body_length": ([pointer], ctypes.c_size_t),
+            "msc_get_response_body": ([pointer], pointer),
+            "msc_process_response_body": ([pointer], ctypes.c_int),
+            "msc_transaction_cleanup": ([pointer], None),
+            "msc_rules_cleanup": ([pointer], ctypes.c_int), "msc_cleanup": ([pointer], None),
+        }
+        for name, (arguments, result) in signatures.items():
+            function = getattr(library, name)
+            function.argtypes, function.restype = arguments, result
+        for action in ("Reject", "ProcessPartial"):
+            with self.subTest(action=action):
+                # Binding completes actual P4 without a fabricated disruptive decision.
+                self.run_case(limit=65536, action=action, length=120000,
+                    reject=False, match=False, engine_mode="DetectionOnly", mode=1,
+                    representation="memory", phase4_pass=True)
+                rules = ("SecRuleEngine DetectionOnly\nSecRequestBodyAccess Off\n"
+                    "SecResponseBodyAccess On\nSecResponseBodyMimeType text/plain\n"
+                    "SecResponseBodyLimit 65536\n"
+                    f"SecResponseBodyLimitAction {action}\nSecAuditEngine Off\n")
+                engine, ruleset = library.msc_init(), library.msc_create_rules_set()
+                transaction = None
+                try:
+                    error = string()
+                    self.assertGreaterEqual(library.msc_rules_add(ruleset, rules.encode(), ctypes.byref(error)), 0)
+                    transaction = library.msc_new_transaction(engine, ruleset, None)
+                    self.assertTrue(transaction)
+                    self.assertEqual(library.msc_process_connection(transaction, b"127.0.0.1", 1234, b"127.0.0.1", 80), 1)
+                    self.assertEqual(library.msc_process_uri(transaction, b"/", b"GET", b"1.1"), 1)
+                    self.assertEqual(library.msc_process_request_headers(transaction), 1)
+                    self.assertEqual(library.msc_process_request_body(transaction), 1)
+                    library.msc_add_response_header(transaction, b"Content-Type", b"text/plain")
+                    self.assertEqual(library.msc_process_response_headers(transaction, 200, b"HTTP/1.1"), 1)
+                    payload = b"prefix-Z" + b"a" * (120000 - 9) + b"T"
+                    results = [library.msc_append_response_body(transaction, payload[offset:offset + 32768],
+                        len(payload[offset:offset + 32768])) for offset in range(0, len(payload), 32768)]
+                    self.assertEqual(results, [1, 1, 1, 1] if action == "Reject" else [1, 1, 0, 0])
+                    retained = library.msc_get_response_body_length(transaction)
+                    self.assertEqual(retained, 65536)
+                    self.assertEqual(ctypes.string_at(library.msc_get_response_body(transaction), retained), payload[:65536])
+                    self.assertEqual(library.msc_process_response_body(transaction), 1)
+                finally:
+                    if transaction:
+                        library.msc_transaction_cleanup(transaction)
+                    library.msc_rules_cleanup(ruleset)
+                    library.msc_cleanup(engine)
 
     def test_missing_fixture_limit_or_action_fails_at_creation(self):
         with self.assertRaisesRegex(TypeError, "limit"):
-            self.run_case(action="Reject", length=7, reject=False, match=True, mode=1, representation="memory")
+            self.run_case(action="Reject", length=7, reject=False, match=True, engine_mode="On", mode=1, representation="memory")
         with self.assertRaisesRegex(TypeError, "action"):
-            self.run_case(limit=8, length=7, reject=False, match=True, mode=1, representation="memory")
+            self.run_case(limit=8, length=7, reject=False, match=True, engine_mode="On", mode=1, representation="memory")
 
 
 if __name__ == "__main__":

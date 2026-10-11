@@ -57,8 +57,6 @@ rules_file=%s
 transaction_id_header=x-request-id
 request_body_mode=streaming
 response_body_mode=streaming
-request_body_limit=10485760
-body_limit_action=reject
 phase4_mode=safe
 default_block_status=403
 default_error_status=500
@@ -82,8 +80,6 @@ event_path=%s
 		Capacity:       1,
 		TTL:            time.Second,
 		IdleTTL:        time.Second,
-		MaxRequestBody: 32,
-		MaxBodyChunks:  256,
 		MaxHeaders:     256,
 		MaxHeaderBytes: 64 << 10,
 	}, engine, observer)

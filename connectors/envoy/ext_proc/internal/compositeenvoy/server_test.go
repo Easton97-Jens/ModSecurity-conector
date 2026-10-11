@@ -94,7 +94,7 @@ func TestAuthRequestExcludesClientSuppliedCompositeLeaseHeader(t *testing.T) {
 
 func TestCheckAcceptsExactly32ByteBodyAndMintsLease(t *testing.T) {
 	opener := &recordingOpener{}
-	coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 2, MaxRequestBody: 32}, opener, nil)
+	coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 2}, opener, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,9 +112,9 @@ func TestCheckAcceptsExactly32ByteBodyAndMintsLease(t *testing.T) {
 	}
 }
 
-func TestCheckRejects33ByteBodyWith413(t *testing.T) {
+func TestCheckForwards33ByteBodyWithoutConnectorPolicy(t *testing.T) {
 	opener := &recordingOpener{}
-	coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 2, MaxRequestBody: 32}, opener, nil)
+	coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 2}, opener, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,8 +127,8 @@ func TestCheckRejects33ByteBodyWith413(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.GetDeniedResponse() == nil || response.GetDeniedResponse().GetStatus().GetCode() != 413 {
-		t.Fatalf("33-byte body response=%v, want fail-closed 413", response)
+	if response.GetOkResponse() == nil {
+		t.Fatalf("33-byte body response=%v, want engine allow", response)
 	}
 }
 
@@ -189,7 +189,7 @@ func TestCheckUsesCanonicalCommonTransportForDenyAndBodyLimit(t *testing.T) {
 	tests := []canonicalTransportCase{
 		{name: "p1 deny", headerAction: processor.ActionDeny, bodyAction: processor.ActionAllow, wantStatus: 403, wantNativeAction: true},
 		{name: "p2 deny", headerAction: processor.ActionAllow, bodyAction: processor.ActionDeny, body: []byte("p2"), wantStatus: 403, wantNativeAction: true},
-		{name: "p2 body limit", headerAction: processor.ActionAllow, bodyAction: processor.ActionAllow, body: make([]byte, 33), wantStatus: 413},
+		{name: "p2 native body reject", headerAction: processor.ActionAllow, bodyAction: processor.ActionDeny, body: make([]byte, 33), wantStatus: 403, wantNativeAction: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) { runCanonicalTransportCase(t, test) })
@@ -199,7 +199,7 @@ func TestCheckUsesCanonicalCommonTransportForDenyAndBodyLimit(t *testing.T) {
 func runCanonicalTransportCase(t *testing.T, test canonicalTransportCase) {
 	t.Helper()
 	opener := &strictRequestOpener{headerAction: test.headerAction, bodyAction: test.bodyAction, status: 403, rejectNativeHostAction: !test.wantNativeAction}
-	coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 2, MaxRequestBody: 32}, opener, nil)
+	coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 2}, opener, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -126,6 +126,12 @@ int msc_finalize_request_body(msc_t *msr, request_rec *r)
     msr->native_event_phase_active = 1;
     intervention = process_intervention(msr->t, r);
     msr->native_event_phase_active = 0;
+    if (msr->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE &&
+        msr->request_intervention_pending)
+    {
+        msr->intervention = msr->pending_request_intervention;
+        intervention = msr->last_intervention_status;
+    }
     if (intervention != N_INTERVENTION_STATUS)
     {
         if (!msc_apache_contract_record_intervention_decision(msr))
@@ -146,7 +152,7 @@ int msc_finalize_request_body(msc_t *msr, request_rec *r)
             apache_emit_contract_failure_event(msr, r,
                 MSCONNECTOR_PHASE_REQUEST_BODY,
                 MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT,
-                HTTP_REQUEST_ENTITY_TOO_LARGE);
+                msr->last_intervention_status);
         }
         else
         {
@@ -266,8 +272,6 @@ static apr_status_t apache_input_filter_process_bucket(msc_t *msr,
 {
     const char *data;
     apr_size_t len;
-    msconnector_body_limit_plan plan;
-    msconnector_config effective_config;
     int ret;
 
     ret = apr_bucket_read(bucket, &data, &len, block);
@@ -285,11 +289,10 @@ static apr_status_t apache_input_filter_process_bucket(msc_t *msr,
         return apache_input_filter_terminal_error(msr, r,
             HTTP_INTERNAL_SERVER_ERROR);
     }
-    /* A global-only httpd configuration need not pass through the directory
-     * merge hook. Resolve defaults in a local copy, after inheritance, rather
-     * than treating unresolved zero limits as an oversized request. */
-    if (!msconnector_config_merge(&effective_config, NULL,
-            &conf->common_config)) {
+    (void)conf;
+    if ((len > 0 && data == NULL) ||
+        msr->request_body_bytes_seen > SIZE_MAX - len ||
+        msr->request_body_bytes_inspected > SIZE_MAX - len) {
         (void)msc_apache_contract_fail(msr,
             MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
         apache_emit_contract_failure_event(msr, r,
@@ -300,41 +303,23 @@ static apr_status_t apache_input_filter_process_bucket(msc_t *msr,
         return apache_input_filter_terminal_error(msr, r,
             HTTP_INTERNAL_SERVER_ERROR);
     }
-    if (!msconnector_body_limit_plan_chunk(msr->request_body_bytes_seen,
-            msr->request_body_bytes_inspected,
-            effective_config.request_body_limit,
-            effective_config.body_limit_action, len, &plan)) {
-        msr->request_body_bytes_seen = plan.bytes_seen;
-        msr->request_body_truncated = 1;
+    if (!msc_apache_contract_record_body(msr, 0, len)) {
         (void)msc_apache_contract_fail(msr,
-            MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT);
+            MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE);
         apache_emit_contract_failure_event(msr, r,
             MSCONNECTOR_PHASE_REQUEST_BODY,
-            MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT,
-            HTTP_REQUEST_ENTITY_TOO_LARGE);
+            MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE,
+            HTTP_INTERNAL_SERVER_ERROR);
         ap_remove_input_filter(f);
         return apache_input_filter_terminal_error(msr, r,
-            HTTP_REQUEST_ENTITY_TOO_LARGE);
+            HTTP_INTERNAL_SERVER_ERROR);
     }
-    if (plan.append_size > 0 &&
-        !msc_apache_contract_record_body(msr, 0, plan.append_size)) {
-        msconnector_transaction_error_class error_class =
-            msr->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT
-            ? MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT
-            : MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE;
-        int status = error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT
-            ? HTTP_REQUEST_ENTITY_TOO_LARGE : HTTP_INTERNAL_SERVER_ERROR;
-
-        msr->request_body_bytes_seen = msr->contract.request_body_bytes;
-        (void)msc_apache_contract_fail(msr, error_class);
-        apache_emit_contract_failure_event(msr, r,
-            MSCONNECTOR_PHASE_REQUEST_BODY, error_class, status);
-        ap_remove_input_filter(f);
-        return apache_input_filter_terminal_error(msr, r, status);
-    }
-    if (plan.append_size > 0 &&
+    msr->native_event_phase = MSCONNECTOR_PHASE_REQUEST_BODY;
+    msr->native_event_phase_active = 1;
+    if (len > 0 &&
         !msconnector_native_body_append_can_continue(msc_append_request_body(msr->t,
-            (const unsigned char *)data, plan.append_size))) {
+            (const unsigned char *)data, len))) {
+        msr->native_event_phase_active = 0;
         (void)msc_apache_contract_fail(msr,
             MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE);
         apache_emit_contract_failure_event(msr, r,
@@ -345,10 +330,19 @@ static apr_status_t apache_input_filter_process_bucket(msc_t *msr,
         return apache_input_filter_terminal_error(msr, r,
             HTTP_INTERNAL_SERVER_ERROR);
     }
-    msr->request_body_bytes_seen = plan.bytes_seen;
-    msr->request_body_bytes_inspected += plan.append_size;
-    if (plan.truncated)
-        msr->request_body_truncated = 1;
+    ret = process_intervention(msr->t, r);
+    msr->native_event_phase_active = 0;
+    if (msr->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+        ap_remove_input_filter(f);
+        return apache_input_filter_terminal_error(msr, r,
+            HTTP_INTERNAL_SERVER_ERROR);
+    }
+    if (ret != N_INTERVENTION_STATUS && !msr->request_intervention_pending) {
+        msr->pending_request_intervention = msr->intervention;
+        msr->request_intervention_pending = 1;
+    }
+    msr->request_body_bytes_seen += len;
+    msr->request_body_bytes_inspected += len;
     APR_BUCKET_REMOVE(bucket);
     APR_BRIGADE_INSERT_TAIL(output, bucket);
     return APR_SUCCESS;

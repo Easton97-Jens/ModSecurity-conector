@@ -878,10 +878,14 @@ class StockSidecarSourceContractTest(unittest.TestCase):
         self.assertNotIn("sidecar_receipt_hash", source)
         self.assertIn("msconnector_runtime_transaction_fail", source)
         self.assertIn("sidecar_record_decision_delivery_failure", source)
-        self.assertGreaterEqual(source.count("sidecar_record_decision_delivery_failure(transaction, &decision, &error)"), 4)
+        self.assertIn("sidecar_record_decision_delivery_failure(state->transaction, &state->decision", source)
+        self.assertNotIn("sidecar_exchange_legacy", source)
         self.assertIn("SIDECAR_MAX_PARALLEL 16U", source)
         self.assertIn('"127.0.0.1:"', source)
-        self.assertIn("MSCONNECTOR_ERROR_BODY_TOO_LARGE", source)
+        self.assertNotIn("MSCONNECTOR_ERROR_BODY_TOO_LARGE", source)
+        self.assertIn("sidecar_open_request_spool", source)
+        self.assertIn("unlinkat(directory_fd, \"body\", 0)", source)
+        self.assertIn("O_NOFOLLOW | O_CLOEXEC", source)
         self.assertIn("sidecar_connection_value_allowed", source)
         self.assertIn("sidecar_headers_has_name", source)
         self.assertIn('sidecar_write_error(state->client, 417, &state->deadline)', source)
@@ -1236,7 +1240,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
             )
 
     @contextlib.contextmanager
-    def _fixture(self, rules: str, responder, *, request_limit: int = 64,
+    def _fixture(self, rules: str, responder, *, engine_request_limit: int, engine_request_limit_action: str,
                  engine_response_limit: int, engine_response_limit_action: str, timeout_ms: int = 1000,
                  phase4_mode: str = "strict",
                  environment: dict[str, str] | None = None):
@@ -1250,6 +1254,9 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
                 "\n".join((
                     "SecRuleEngine On",
                     "SecRequestBodyAccess On",
+                    f"SecRequestBodyLimit {engine_request_limit}",
+                    f"SecRequestBodyNoFilesLimit {engine_request_limit}",
+                    f"SecRequestBodyLimitAction {engine_request_limit_action}",
                     "SecResponseBodyAccess On",
                     "SecResponseBodyMimeType text/plain",
                     f"SecResponseBodyLimit {engine_response_limit}",
@@ -1266,8 +1273,6 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
                     "transaction_id_header=x-request-id",
                     "request_body_mode=streaming",
                     "response_body_mode=streaming",
-                    f"request_body_limit={request_limit}",
-                    "body_limit_action=reject",
                     f"phase4_mode={phase4_mode}",
                     "default_block_status=403",
                     "default_error_status=502",
@@ -1291,7 +1296,6 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
             "max_header_count=257",
             "max_total_header_bytes=65537",
             "max_event_json_bytes=16385",
-            "request_body_limit=1048577",
         )
         for override in limit_overrides:
             with self.subTest(override=override), tempfile.TemporaryDirectory(
@@ -1306,8 +1310,6 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
                         "transaction_id_header=x-request-id",
                         "request_body_mode=streaming",
                         "response_body_mode=streaming",
-                        "request_body_limit=64",
-                        "body_limit_action=reject",
                         "phase4_mode=strict",
                         "default_block_status=403",
                         "default_error_status=502",
@@ -1344,7 +1346,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
                 "STOCK_SIDECAR_RECEIPT_PATH": str(receipt),
                 "STOCK_SIDECAR_RECEIPT_BINDING": binding,
             }
-            with self._fixture("", lambda _request: normal, environment=environment, engine_response_limit=1048576, engine_response_limit_action="Reject") as (
+            with self._fixture("", lambda _request: normal, environment=environment, engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (
                 sidecar, upstream, _events, _config,
             ):
                 self.assertEqual(_status(sidecar.exchange(self._request())), 200)
@@ -1377,7 +1379,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
                 '"id:9801006,phase:1,deny,status:451,log"',
                 lambda _request: normal,
                 environment=environment,
-                engine_response_limit=1048576, engine_response_limit_action="Reject") as (sidecar, upstream, _events, _config):
+                engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, _events, _config):
                 self.assertEqual(_status(sidecar.exchange(self._request("/p1-terminal"))), 451)
                 self.assertEqual(upstream.record_count(), 0)
             value = json.loads(receipt.read_text(encoding="utf-8"))
@@ -1426,7 +1428,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
                 engine_response_limit=1048576,
                 phase4_mode="safe",
                 environment=environment,
-                engine_response_limit_action="Reject") as (sidecar, upstream, events, _config):
+                engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, events, _config):
                 client_response = sidecar.exchange(self._request())
                 self.assertEqual(_status(client_response), 200)
                 self.assertTrue(client_response.endswith(response_body))
@@ -1473,7 +1475,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
         def responder(_request: bytes) -> bytes:
             return b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
 
-        with self._fixture("", responder, engine_response_limit=1048576, engine_response_limit_action="Reject") as (_sidecar, _upstream_server, _events, config):
+        with self._fixture("", responder, engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (_sidecar, _upstream_server, _events, config):
             completed = subprocess.run(
                 [str(self.begin_smoke), str(config)], cwd=ROOT, text=True,
                 capture_output=True, check=False,
@@ -1496,7 +1498,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
                 + response_body
             )
 
-        with self._fixture("", responder, request_limit=len(body), engine_response_limit=1048576, engine_response_limit_action="Reject") as (sidecar, upstream, _events, _config):
+        with self._fixture("", responder, engine_request_limit=2097152, engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit_action="Reject") as (sidecar, upstream, _events, _config):
             response = sidecar.exchange(self._request(body=body))
             self.assertEqual(_status(response), 200)
             self.assertTrue(response.endswith(response_body))
@@ -1508,7 +1510,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
             'SecRule REQUEST_URI "@streq /endpoint-metadata" '
             '"id:9801006,phase:1,deny,status:451,log"',
             lambda _request: normal,
-            engine_response_limit=1048576, engine_response_limit_action="Reject") as (sidecar, upstream, events, _config):
+            engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, events, _config):
             self.assertEqual(_status(sidecar.exchange(self._request("/endpoint-metadata"))), 451)
             self.assertEqual(upstream.record_count(), 0)
             event_text = self._wait_for_event(events, "MSCONN_EVENT_REQUEST_BLOCKED")
@@ -1527,14 +1529,14 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
         with self._fixture(
             'SecRule REQUEST_URI "@streq /p1-block" "id:9801001,phase:1,deny,status:451,log"',
             lambda _request: normal,
-            engine_response_limit=1048576, engine_response_limit_action="Reject") as (sidecar, upstream, _events, _config):
+            engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, _events, _config):
             self.assertEqual(_status(sidecar.exchange(self._request("/p1-block"))), 451)
             self.assertEqual(upstream.record_count(), 0)
 
         with self._fixture(
             'SecRule REQUEST_BODY "@contains p2-marker" "id:9801002,phase:2,deny,status:418,log"',
             lambda _request: normal,
-            engine_response_limit=1048576, engine_response_limit_action="Reject") as (sidecar, upstream, events, _config):
+            engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, events, _config):
             request_body = b"p2-marker"
             self.assertEqual(_status(sidecar.exchange(self._request(body=request_body))), 418)
             self.assertEqual(upstream.record_count(), 0)
@@ -1549,7 +1551,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
         with self._fixture(
             'SecRule RESPONSE_HEADERS:X-Block-P3 "@streq yes" "id:9801003,phase:3,deny,status:422,log"',
             lambda _request: p3_response,
-            engine_response_limit=1048576, engine_response_limit_action="Reject") as (sidecar, upstream, _events, _config):
+            engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, _events, _config):
             self.assertEqual(_status(sidecar.exchange(self._request())), 422)
             self.assertEqual(upstream.record_count(), 1)
 
@@ -1566,7 +1568,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
             'SecRule RESPONSE_BODY "@contains p4-marker" "id:9801004,phase:4,deny,status:429,log"',
             lambda _request: p4_response, engine_response_limit=1048576,
             phase4_mode="safe",
-            engine_response_limit_action="Reject") as (sidecar, upstream, events, _config):
+            engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, events, _config):
             response = sidecar.exchange(self._request())
             self.assertEqual(_status(response), 200)
             self.assertTrue(response.endswith(p4_body))
@@ -1582,7 +1584,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
             'SecRule RESPONSE_BODY "@contains p4-marker" "id:9801005,phase:4,deny,status:429,log"',
             lambda _request: p4_response, engine_response_limit=1048576,
             phase4_mode="strict",
-            engine_response_limit_action="Reject") as (sidecar, upstream, events, _config):
+            engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, events, _config):
             response = sidecar.exchange(self._request())
             self.assertEqual(_status(response), 200)
             # A committed HTTP/1.1 response cannot be replaced retroactively.
@@ -1596,23 +1598,49 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
             self.assertNotIn(p4_body.decode("ascii"), event_text)
             self.assertNotIn("body_payload", event_text)
 
+    def test_request_marker_after_former_cap_reaches_native_p2_without_upstream(self) -> None:
+        normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
+        body = b"x" * (1048576 + 2048) + b"marker-after-former-request-cap"
+        with self._fixture(
+            'SecRule REQUEST_BODY "@contains marker-after-former-request-cap" "id:9801194,phase:2,deny,status:451,log,t:none"',
+            lambda _request: normal, engine_request_limit=2097152,
+            engine_request_limit_action="Reject", engine_response_limit=1048576,
+            engine_response_limit_action="Reject", timeout_ms=5000,
+        ) as (sidecar, upstream, events, _config):
+            response = sidecar.exchange(self._request(body=body))
+            self.assertEqual(_status(response), 451)
+            self.assertEqual(upstream.record_count(), 0)
+            text = self._wait_for_event(events, '"rule_id":"9801194"')
+            self.assertNotIn("marker-after-former-request-cap", text)
+
+    def test_spooled_request_larger_than_former_cap_is_replayed_after_native_p2(self) -> None:
+        body = b"x" * (1048576 + 2048)
+        normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
+        with self._fixture("", lambda _request: normal,
+            engine_request_limit=2097152, engine_request_limit_action="Reject",
+            engine_response_limit=1048576, engine_response_limit_action="Reject", timeout_ms=5000,
+        ) as (sidecar, upstream, _events, _config):
+            self.assertEqual(_status(sidecar.exchange(self._request(body=body))), 200)
+            self.assertEqual(upstream.record_count(), 1)
+            self.assertEqual(upstream.records[0].split(b"\r\n\r\n", 1)[1], body)
+
     def test_limits_and_unsafe_framing_fail_closed_without_upstream_release(self) -> None:
         normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
 
-        with self._fixture("", lambda _request: normal, request_limit=4, engine_response_limit=1048576, engine_response_limit_action="Reject") as (sidecar, upstream, events, _config):
+        with self._fixture("", lambda _request: normal, engine_request_limit=4, engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit_action="Reject") as (sidecar, upstream, events, _config):
             request_body = b"12345"
-            self.assertEqual(_status(sidecar.exchange(self._request(body=request_body))), 413)
+            self.assertEqual(_status(sidecar.exchange(self._request(body=request_body))), 403)
             self.assertEqual(upstream.record_count(), 0)
             event_text = self._wait_for_event(events, "MSCONN_EVENT_BODY_LIMIT")
             self.assertNotIn(request_body.decode("ascii"), event_text)
 
         oversized_response = b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 5\r\n\r\n12345"
-        with self._fixture("", lambda _request: oversized_response, engine_response_limit=4, engine_response_limit_action="Reject") as (sidecar, upstream, events, _config):
+        with self._fixture("", lambda _request: oversized_response, engine_response_limit=4, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, events, _config):
             self.assertEqual(_status(sidecar.exchange(self._request())), 200)
             self.assertEqual(upstream.record_count(), 1)
             self._wait_for_event(events, "MSCONN_EVENT_BODY_LIMIT")
 
-        with self._fixture("", lambda _request: normal, engine_response_limit=1048576, engine_response_limit_action="Reject") as (sidecar, upstream, _events, _config):
+        with self._fixture("", lambda _request: normal, engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, _events, _config):
             unsafe = (
                 b"POST / HTTP/1.1\r\nHost: example.test\r\nTransfer-Encoding: chunked\r\n"
                 b"Connection: close\r\n\r\n0\r\n\r\n"
@@ -1633,7 +1661,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
         head_response = b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\n"
         no_content = b"HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n"
 
-        with self._fixture("", lambda _request: head_response, engine_response_limit=4, engine_response_limit_action="Reject") as (
+        with self._fixture("", lambda _request: head_response, engine_response_limit=4, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (
             sidecar, upstream, _events, _config,
         ):
             request = b"HEAD /head HTTP/1.1\r\nHost: example.test\r\nConnection: close\r\n\r\n"
@@ -1642,20 +1670,20 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
             self.assertIn(b"Content-Length: 5", response)
             self.assertEqual(upstream.record_count(), 1)
 
-        with self._fixture("", lambda _request: no_content, engine_response_limit=1048576, engine_response_limit_action="Reject") as (sidecar, upstream, _events, _config):
+        with self._fixture("", lambda _request: no_content, engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, _events, _config):
             response = sidecar.exchange(self._request())
             self.assertEqual(_status(response), 204)
             self.assertEqual(upstream.record_count(), 1)
 
         invalid_no_content = b"HTTP/1.1 204 No Content\r\nContent-Length: 1\r\n\r\nx"
-        with self._fixture("", lambda _request: invalid_no_content, engine_response_limit=1048576, engine_response_limit_action="Reject") as (sidecar, upstream, _events, _config):
+        with self._fixture("", lambda _request: invalid_no_content, engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, _events, _config):
             self.assertEqual(_status(sidecar.exchange(self._request())), 502)
             self.assertEqual(upstream.record_count(), 1)
 
     def test_not_modified_representation_length_is_metadata_only(self) -> None:
         not_modified = b"HTTP/1.1 304 Not Modified\r\nContent-Length: 5\r\n\r\n"
 
-        with self._fixture("", lambda _request: not_modified, engine_response_limit=4, engine_response_limit_action="Reject") as (
+        with self._fixture("", lambda _request: not_modified, engine_response_limit=4, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (
             sidecar, upstream, _events, _config,
         ):
             response = sidecar.exchange(self._request("/cached"))
@@ -1671,7 +1699,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
         )
         normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
 
-        with self._fixture("", lambda _request: normal, engine_response_limit=1048576, engine_response_limit_action="Reject") as (sidecar, upstream, _events, _config):
+        with self._fixture("", lambda _request: normal, engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, _events, _config):
             self.assertEqual(_status(sidecar.exchange(request)), 200)
             self.assertEqual(upstream.record_count(), 1)
             with upstream.records_lock:
@@ -1685,7 +1713,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
             (b"EXPECT: unsupported\r\n", b""),
         )
 
-        with self._fixture("", lambda _request: normal, timeout_ms=250, engine_response_limit=1048576, engine_response_limit_action="Reject") as (
+        with self._fixture("", lambda _request: normal, timeout_ms=250, engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (
             sidecar, upstream, _events, _config,
         ):
             for expectation, body in expectations:
@@ -1701,7 +1729,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
     def test_timeout_and_client_cancel_emit_distinct_terminal_events(self) -> None:
         normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
 
-        with self._fixture("", lambda _request: normal, timeout_ms=120, engine_response_limit=1048576, engine_response_limit_action="Reject") as (sidecar, _upstream, events, _config):
+        with self._fixture("", lambda _request: normal, timeout_ms=120, engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, _upstream, events, _config):
             with sidecar.connect() as client:
                 client.sendall(
                     b"POST /slow HTTP/1.1\r\nHost: example.test\r\nContent-Length: 4\r\n\r\na"
@@ -1715,7 +1743,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
             self.assertEqual(_status(bytes(response)), 504)
             self._wait_for_event(events, "engine_timeout")
 
-        with self._fixture("", lambda _request: normal, engine_response_limit=1048576, engine_response_limit_action="Reject") as (sidecar, _upstream, events, _config):
+        with self._fixture("", lambda _request: normal, engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, _upstream, events, _config):
             client = sidecar.connect()
             try:
                 client.sendall(
@@ -1729,7 +1757,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
         normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
         rule = 'SecRule REQUEST_BODY "@contains block-reset" "id:9801102,phase:2,deny,status:418,log"'
 
-        with self._fixture(rule, lambda _request: normal, engine_response_limit=1048576, engine_response_limit_action="Reject") as (sidecar, upstream, events, _config):
+        with self._fixture(rule, lambda _request: normal, engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, events, _config):
             client = sidecar.connect()
             try:
                 client.sendall(self._request(body=b"block-reset"))
@@ -1748,7 +1776,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
     def test_parallel_capacity_and_connection_reuse_are_bounded(self) -> None:
         normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
 
-        with self._fixture("", lambda _request: normal, timeout_ms=2000, engine_response_limit=1048576, engine_response_limit_action="Reject") as (sidecar, upstream, _events, _config):
+        with self._fixture("", lambda _request: normal, timeout_ms=2000, engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, _events, _config):
             held_clients: list[socket.socket] = []
             try:
                 for _ in range(16):
@@ -1764,7 +1792,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
                 for client in held_clients:
                     client.close()
 
-        with self._fixture("", lambda _request: normal, engine_response_limit=1048576, engine_response_limit_action="Reject") as (sidecar, upstream, _events, _config):
+        with self._fixture("", lambda _request: normal, engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, _events, _config):
             with sidecar.connect() as client:
                 request = self._request()
                 client.sendall(request + request)
@@ -1795,7 +1823,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
                 return released_response
             return large_response
 
-        with self._fixture("", responder, engine_response_limit=1048576, timeout_ms=2500, engine_response_limit_action="Reject") as (
+        with self._fixture("", responder, engine_response_limit=1048576, timeout_ms=2500, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (
             sidecar, upstream, _events, _config,
         ):
             held_clients: list[socket.socket] = []

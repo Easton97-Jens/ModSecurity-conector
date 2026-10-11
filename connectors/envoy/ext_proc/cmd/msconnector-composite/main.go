@@ -78,8 +78,6 @@ func run() error {
 		Capacity:       128,
 		TTL:            30 * time.Second,
 		IdleTTL:        5 * time.Second,
-		MaxRequestBody: 32,
-		MaxBodyChunks:  256,
 		MaxHeaders:     256,
 		MaxHeaderBytes: 64 << 10,
 	}, runtime.engine, observer)
@@ -251,7 +249,7 @@ func serveTraefik(forwardAuthAddress, udsPath string, coordinator *composite.Coo
 		return fmt.Errorf("listen Traefik ForwardAuth: %w", err)
 	}
 	defer httpListener.Close()
-	forwardAuth := &compositetraefik.ForwardAuth{Coordinator: coordinator, Config: compositetraefik.ForwardAuthConfig{MaxBodyBytes: 32}}
+	forwardAuth := &compositetraefik.ForwardAuth{Coordinator: coordinator}
 	httpServer := &http.Server{Handler: forwardAuth, ReadHeaderTimeout: 2 * time.Second, ReadTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second, IdleTimeout: 5 * time.Second}
 	udsServer := &compositetraefik.UDS{Coordinator: coordinator, Timeout: 5 * time.Second}
 	serveErr := make(chan error, 2)

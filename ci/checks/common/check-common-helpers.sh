@@ -514,7 +514,6 @@ int main(void) {
         assert(!msconnector_resource_limits_headers_ok(headers, 2U, &limits));
         limits.max_header_value_size = 8U;
         assert(msconnector_resource_limits_headers_ok(headers, 2U, &limits));
-        assert(!msconnector_resource_limits_body_ok(9U, 8U));
 
         msconnector_request_init(&request);
         request.method = "GET";
@@ -522,11 +521,8 @@ int main(void) {
         request.headers = headers;
         request.header_count = 2U;
         request.body.size = 9U;
-        limits.max_request_body_bytes = 8U;
-        assert(!msconnector_dos_guard_check_request(&request, &limits, &error));
-        assert(error.code == MSCONNECTOR_ERROR_BODY_TOO_LARGE);
+        assert(msconnector_dos_guard_check_request(&request, &limits, &error));
         request.body.size = 0U;
-        limits.max_request_body_bytes = 8U;
         assert(msconnector_dos_guard_check_request(&request, &limits, &error));
 
         msconnector_response_init(&response);
@@ -682,18 +678,12 @@ int main(void) {
         msconnector_config_init(&parent_config);
         msconnector_config_init(&child_config);
         parent_config.enable = MSCONNECTOR_BOOL_OFF;
-        parent_config.request_body_limit = 32U;
-        parent_config.body_limit_action = MSCONNECTOR_BODY_LIMIT_ACTION_PROCESS_PARTIAL;
         parent_config.late_intervention_timeout_ms = 250U;
         child_config.enable = MSCONNECTOR_BOOL_ON;
-        child_config.request_body_limit = 48U;
-        child_config.body_limit_action = MSCONNECTOR_BODY_LIMIT_ACTION_REJECT;
         child_config.late_intervention_timeout_ms = 0U;
         assert(msconnector_config_merge(&merged_config, &parent_config, &child_config));
         assert(merged_config.enable == MSCONNECTOR_BOOL_ON);
         assert(merged_config.default_block_status == MSCONNECTOR_DEFAULT_BLOCK_STATUS);
-        assert(merged_config.request_body_limit == 48U);
-        assert(merged_config.body_limit_action == MSCONNECTOR_BODY_LIMIT_ACTION_REJECT);
         assert(merged_config.late_intervention_timeout_ms == 0U);
         assert(msconnector_config_validate(&merged_config, error, sizeof(error)));
 
@@ -726,9 +716,6 @@ int main(void) {
         merged_config.unsupported_status = 302;
         assert(!msconnector_config_validate(&merged_config, error, sizeof(error)));
         merged_config.unsupported_status = 501;
-        merged_config.body_limit_action = (msconnector_body_limit_action)42;
-        assert(!msconnector_config_validate(&merged_config, error, sizeof(error)));
-        merged_config.body_limit_action = MSCONNECTOR_BODY_LIMIT_ACTION_REJECT;
         merged_config.rules_remote_key = "";
         merged_config.rules_remote_url = "";
         assert(msconnector_config_validate(&merged_config, error, sizeof(error)));
@@ -793,7 +780,8 @@ int main(void) {
         assert(merged_config.transaction_id_expr == 0);
     }
     assert(msconnector_directive_spec_find(MSCONNECTOR_DIRECTIVE_MODSECURITY) != 0);
-    assert(msconnector_directive_spec_find(MSCONNECTOR_DIRECTIVE_BODY_LIMIT_ACTION) != 0);
+    assert(msconnector_directive_adapter_find("modsecurity_request_body_limit") == 0);
+    assert(msconnector_directive_adapter_find("modsecurity_body_limit_action") == 0);
     assert(msconnector_directive_spec_find(MSCONNECTOR_DIRECTIVE_LATE_INTERVENTION_TIMEOUT) != 0);
     assert(msconnector_directive_spec_count() > 0);
     assert(msconnector_directive_adapter_count() > 0);
@@ -851,33 +839,11 @@ int main(void) {
     }
     {
         msconnector_body_policy policy;
-        msconnector_body_limit_plan plan;
-        msconnector_body_limit_action action;
         msconnector_body_policy_init(&policy);
         assert(strcmp(msconnector_body_mode_name(MSCONNECTOR_BODY_MODE_BUFFERED), "buffered") == 0);
         assert(msconnector_body_mode_is_supported(policy.request_body_mode));
-        assert(policy.body_limit_action == MSCONNECTOR_BODY_LIMIT_ACTION_REJECT);
-        assert(msconnector_body_limit_action_parse("Reject", &action));
-        assert(action == MSCONNECTOR_BODY_LIMIT_ACTION_REJECT);
-        assert(msconnector_body_limit_action_parse("ProcessPartial", &action));
-        assert(action == MSCONNECTOR_BODY_LIMIT_ACTION_PROCESS_PARTIAL);
-        assert(!msconnector_body_limit_action_parse("discard", &action));
-        assert(msconnector_body_limit_plan_chunk(0U, 0U, 4U,
-            MSCONNECTOR_BODY_LIMIT_ACTION_REJECT, 4U, &plan));
-        assert(plan.bytes_seen == 4U && plan.append_size == 4U);
-        assert(!plan.truncated);
-        assert(plan.outcome == MSCONNECTOR_BODY_LIMIT_OUTCOME_AT_LIMIT);
-        assert(!msconnector_body_limit_plan_chunk(4U, 4U, 4U,
-            MSCONNECTOR_BODY_LIMIT_ACTION_REJECT, 1U, &plan));
-        assert(plan.bytes_seen == 5U && plan.append_size == 0U);
-        assert(!plan.truncated);
-        assert(plan.outcome == MSCONNECTOR_BODY_LIMIT_OUTCOME_REJECT);
-        assert(msconnector_body_limit_plan_chunk(3U, 3U, 4U,
-            MSCONNECTOR_BODY_LIMIT_ACTION_PROCESS_PARTIAL, 3U, &plan));
-        assert(plan.bytes_seen == 6U && plan.append_size == 1U);
-        assert(plan.truncated);
-        assert(plan.outcome == MSCONNECTOR_BODY_LIMIT_OUTCOME_PROCESS_PARTIAL);
-        assert(strcmp(msconnector_body_limit_outcome_name(plan.outcome),
+        assert(!msconnector_body_mode_is_supported((msconnector_body_mode)42));
+        assert(strcmp(msconnector_body_limit_outcome_name(MSCONNECTOR_BODY_LIMIT_OUTCOME_PROCESS_PARTIAL),
             "process_partial") == 0);
     }
     {

@@ -67,8 +67,8 @@ def test_mapping_rejection_is_terminal_and_not_ignored() -> None:
     assert "common response mapper validation skipped" not in response_mapper
 
 
-def test_body_chunks_use_common_limits_and_contract_phases() -> None:
-    assert "request body exceeds Common limit" in SOURCE
+def test_body_chunks_use_full_chunks_and_contract_phases() -> None:
+    assert "request body exceeds Common limit" not in SOURCE
     assert "response body exceeds Common limit" not in SOURCE
     assert "SIZE_MAX - (size_t)body_len" in SOURCE
     assert "msconnector_transaction_contract_begin_phase" in SOURCE

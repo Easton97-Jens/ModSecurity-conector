@@ -207,7 +207,7 @@ static void test_profiles_and_semantics(void) {
 static void test_valid_sequence_and_metadata(void) {
     msconnector_transaction_contract contract = make_contract("apache", "tx-valid");
     CHECK(msconnector_transaction_contract_record_request_metadata(&contract, "POST", "/x",
-        "application/json", 3U, 120U, 8U) == MSCONNECTOR_TRANSACTION_TRANSITION_OK);
+        "application/json", 3U, 120U) == MSCONNECTOR_TRANSACTION_TRANSITION_OK);
     CHECK(msconnector_transaction_contract_record_response_metadata(&contract, 200,
         "text/plain", 2U, 80U) == MSCONNECTOR_TRANSACTION_TRANSITION_OK);
     complete_all_direct(&contract);
@@ -248,7 +248,7 @@ static void test_content_type_metadata_uses_header_value_bound(void) {
     CHECK(sizeof(contract.response_content_type) ==
         MSCONNECTOR_MAX_HEADER_VALUE_LENGTH + 1U);
     CHECK(msconnector_transaction_contract_record_request_metadata(&contract,
-        "GET", "/content-type", accepted, 1U, 128U, 4U) ==
+        "GET", "/content-type", accepted, 1U, 128U) ==
         MSCONNECTOR_TRANSACTION_TRANSITION_OK);
     CHECK(strcmp(contract.request_content_type, accepted) == 0);
     CHECK(msconnector_transaction_contract_record_response_metadata(&contract,
@@ -258,7 +258,7 @@ static void test_content_type_metadata_uses_header_value_bound(void) {
 
     contract = make_contract("apache", "tx-content-type-too-large");
     CHECK(msconnector_transaction_contract_record_request_metadata(&contract,
-        "GET", "/content-type", rejected, 1U, 128U, 4U) ==
+        "GET", "/content-type", rejected, 1U, 128U) ==
         MSCONNECTOR_TRANSACTION_TRANSITION_INVALID);
     CHECK(contract.request_content_type[0] == '\0');
 }
@@ -560,7 +560,7 @@ static void test_sequence_failures(void) {
 static void test_limits_and_decisions(void) {
     msconnector_transaction_contract contract = make_contract("apache", "tx-limits");
     CHECK(msconnector_transaction_contract_record_request_metadata(&contract, "POST", "/",
-        NULL, 0U, 0U, 4U) == MSCONNECTOR_TRANSACTION_TRANSITION_OK);
+        NULL, 0U, 0U) == MSCONNECTOR_TRANSACTION_TRANSITION_OK);
     complete_direct_phase(&contract, MSCONNECTOR_PHASE_REQUEST_HEADERS, 1U);
     CHECK(msconnector_transaction_contract_record_decision(&contract,
         MSCONNECTOR_TRANSACTION_DECISION_ALLOW, "1101999", 1U) ==
@@ -570,18 +570,18 @@ static void test_limits_and_decisions(void) {
     CHECK(msconnector_transaction_contract_begin_phase(&contract,
         MSCONNECTOR_PHASE_REQUEST_BODY, 2U) == MSCONNECTOR_TRANSACTION_TRANSITION_OK);
     CHECK(msconnector_transaction_contract_record_body(&contract, 0, 5U) ==
+        MSCONNECTOR_TRANSACTION_TRANSITION_OK);
+    contract.request_body_bytes = SIZE_MAX;
+    CHECK(msconnector_transaction_contract_record_body(&contract, 0, 1U) ==
         MSCONNECTOR_TRANSACTION_TRANSITION_INVALID);
-    CHECK(contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT);
-    CHECK(contract.engine_decision == MSCONNECTOR_TRANSACTION_DECISION_BLOCK);
-    CHECK(contract.action == MSCONNECTOR_DECISION_ACTION_DENY);
-    CHECK(contract.rule_id[0] == '\0');
+    CHECK(contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
     CHECK(contract.status == MSCONNECTOR_TRANSACTION_STATUS_TERMINAL);
 
     {
         msconnector_decision decision;
         msconnector_event event;
 
-        msconnector_decision_set_body_limit(&decision, "request body limit");
+        msconnector_decision_set_body_limit(&decision, 403, "native request body limit");
         CHECK(msconnector_decision_is_body_limit(&decision));
         CHECK(decision.rule_id == NULL);
         CHECK(msconnector_decision_to_event(&decision, &event, "apache", "tx-limits") != 0);
@@ -610,7 +610,7 @@ static void test_limits_and_decisions(void) {
 
     contract = make_contract("apache", "tx-header-limit");
     CHECK(msconnector_transaction_contract_record_request_metadata(&contract, "GET", "/",
-        NULL, MSCONNECTOR_MAX_HEADER_COUNT + 1U, 0U, 4U) ==
+        NULL, MSCONNECTOR_MAX_HEADER_COUNT + 1U, 0U) ==
         MSCONNECTOR_TRANSACTION_TRANSITION_INVALID);
     CHECK(contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL);
     CHECK(contract.status == MSCONNECTOR_TRANSACTION_STATUS_TERMINAL);
@@ -1230,7 +1230,7 @@ static void test_invalid_legacy_admission_never_reaches_native_engine(void) {
         "common", "engine", MSCONNECTOR_TRANSACTION_MODE_SAFE, 0U) ==
         MSCONNECTOR_TRANSACTION_TRANSITION_INVALID);
     CHECK(msconnector_transaction_contract_record_request_metadata(&failed_contract,
-        "GET", "/", NULL, 0U, 0U, 1U) ==
+        "GET", "/", NULL, 0U, 0U) ==
         MSCONNECTOR_TRANSACTION_TRANSITION_INVALID);
     CHECK(msconnector_transaction_contract_record_decision(&failed_contract,
         MSCONNECTOR_TRANSACTION_DECISION_ALLOW, NULL, 0U) ==

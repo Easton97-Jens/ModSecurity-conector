@@ -1,5 +1,7 @@
 # HAProxy-Connector
 
+Request- und Response-Body-Inspection-Limits und Aktionen gehören ausschließlich libModSecurity: `SecRequestBodyLimit`, `SecRequestBodyNoFilesLimit`, `SecRequestBodyLimitAction`, `SecResponseBodyLimit` und `SecResponseBodyLimitAction` werden in den Engine-Regeln konfiguriert. Der Connector besitzt keine Body-Größenoption, keinen Default oder Fallback, keine kumulative Ablehnung und keine Kürzung des Inspection-Präfixes. Geprüfte Zähler, Pointer-/Dateiprüfungen und begrenzte Arbeitsbuffer oder Transportframes bleiben technische Sicherheitskontrollen.
+
 **Sprache:** [English](README.md) | Deutsch
 
 
@@ -353,3 +355,5 @@ Host-Kapazität und keine WAF-Inspection-Policy.
 Der [connectorübergreifende Vertrag zur Eigentümerschaft von Response-Limits](../../docs/phase4-mode-budget.de.md)
 beschreibt den genauen Geltungsbereich, die Kompatibilitätsgrenze und die
 Grenzen der Validierung.
+
+Das SPOE/SPOP-Profil transportiert ein Request-Body-Sample in einem Frame mit höchstens 65536 Bytes einschließlich Metadaten. Es implementiert keinen inkrementellen Request-Transport. Weicht die angekündigte Body-Länge vom übertragenen Sample ab, lehnt der Agent die unvollständige Darstellung als nicht unterstützte Transportzulassung ab; dies ist kein BODY_LIMIT-Ergebnis. Native HTX übergibt vollständige geliehene DATA-Abschnitte inkrementell. Der Test-Upstream des Smoke-Helpers behält seine 64-KiB-Kapazität für Request-/Response-Fixtures; diese Harness-Tests beweisen keine größeren Host-Bodys.

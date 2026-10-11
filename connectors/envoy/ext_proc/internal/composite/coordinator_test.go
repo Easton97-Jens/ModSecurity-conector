@@ -634,7 +634,7 @@ func TestSingleClaimAndResponseOrdering(t *testing.T) {
 }
 
 func TestCapacityExpiryAndBoundedBodies(t *testing.T) {
-	c, _ := newTestCoordinator(t, Limits{Capacity: 1, TTL: time.Hour, IdleTTL: time.Hour, MaxRequestBody: 2, MaxBodyChunks: 2})
+	c, _ := newTestCoordinator(t, Limits{Capacity: 1, TTL: time.Hour, IdleTTL: time.Hour})
 	a, _, err := c.BeginRequest(context.Background(), metadata(), nil, false)
 	if err != nil {
 		t.Fatal(err)
@@ -642,7 +642,7 @@ func TestCapacityExpiryAndBoundedBodies(t *testing.T) {
 	if _, _, err = c.BeginRequest(context.Background(), metadata(), nil, true); !errors.Is(err, ErrLimit) {
 		t.Fatalf("capacity = %v", err)
 	}
-	if _, err = a.ProcessBody(context.Background(), []byte("123"), true); !errors.Is(err, ErrLimit) {
+	if _, err = a.ProcessBody(context.Background(), []byte("123"), true); err != nil {
 		t.Fatalf("body limit = %v", err)
 	}
 	a.Finish(context.Background(), "block")
@@ -662,36 +662,19 @@ func TestCapacityExpiryAndBoundedBodies(t *testing.T) {
 	}
 }
 
-func TestRequestBodyLimitEmitsBoundedP2DecisionBeforeHostAction(t *testing.T) {
-	log := &eventLog{}
-	c, err := New("envoy", []byte("01234567890123456789012345678901"), Limits{MaxRequestBody: 2}, &fakeEngine{}, log)
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestRequestChunksHaveNoConnectorAggregateGate(t *testing.T) {
+	c, _ := newTestCoordinator(t, Limits{})
 	a, _, err := c.BeginRequest(context.Background(), metadata(), nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	d, err := a.ProcessBody(context.Background(), []byte("123"), true)
-	if !errors.Is(err, ErrLimit) || d.Action != processor.ActionDeny || d.Status != 413 {
-		t.Fatalf("limit decision=%#v err=%v", d, err)
-	}
-	if err := a.RecordRequestBodyLimitHostAction(); err != nil {
-		t.Fatal(err)
-	}
-	a.Finish(context.Background(), "request_body_limit")
-	c.Close()
-	log.mu.Lock()
-	defer log.mu.Unlock()
-	for _, event := range log.events {
-		if event.Phase == "P2" {
-			if event.RequestedAction != string(processor.ActionDeny) || event.VisibleStatus != 413 || event.Reason != "request_body_limit" {
-				t.Fatalf("unexpected P2 limit event: %#v", event)
-			}
-			return
+	for i := 0; i < 300; i++ {
+		d, err := a.ProcessBody(context.Background(), []byte("full-chunk"), i == 299)
+		if err != nil || d.Action != processor.ActionAllow {
+			t.Fatalf("chunk%d decision=%#v error=%v", i, d, err)
 		}
 	}
-	t.Fatal("missing bounded P2 limit event")
+	a.Finish(context.Background(), "success")
 }
 
 func TestCleanupExactlyOnceOnCancelAndRestart(t *testing.T) {
@@ -732,7 +715,7 @@ func TestEmptyRequestAndResponseBody(t *testing.T) {
 }
 
 func TestResponseChunksHaveNoCumulativeInspectionBudget(t *testing.T) {
-	c, _ := newTestCoordinator(t, Limits{MaxBodyChunks: 1})
+	c, _ := newTestCoordinator(t, Limits{})
 	a, _, err := c.BeginRequest(context.Background(), metadata(), nil, false)
 	if err != nil {
 		t.Fatal(err)

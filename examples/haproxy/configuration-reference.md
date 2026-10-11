@@ -48,7 +48,6 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | [`spoe-agent:port`](#spoe-agent-port) | Compatibility | integer | no | unset unless configured | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
 | [`spoe-agent:port-file`](#spoe-agent-port-file) | Compatibility | string/path | no | unset unless configured | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
 | [`spoe-agent:ready-file`](#spoe-agent-ready-file) | Compatibility | string/path | no | unset unless configured | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
-| [`spoe-agent:request-body-limit`](#spoe-agent-request-body-limit) | Compatibility | integer | no | 65532 | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
 | [`spoe-agent:response-body-timeout`](#spoe-agent-response-body-timeout) | Compatibility | integer | no | 0 | SPOE/SPOP compatibility agent key=value file | Compatibility response control timeout; raw SPOE/SPOP does not carry a response body, so it is not a native P4 stream-idle limit. |
 | [`spoe-agent:response-phases`](#spoe-agent-response-phases) | Compatibility | boolean | no | false | SPOE/SPOP compatibility agent key=value file | Compatibility response control. The selected SPOE messages do not supply a response body, so this is not native P4 support. |
 | [`spoe-agent:rules-dir`](#spoe-agent-rules-dir) | Compatibility | string/path | no | unset unless configured | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
@@ -2115,61 +2114,6 @@ ready-file=<value>
 ### Default
 
 unset unless configured
-
-Source: `config_init() where stated; otherwise zero/empty initialization`.
-
-### Inheritance and merge
-
-No native HTX inheritance; one compatibility-agent config file.
-
-Merge: No merge; config_set applies one parsed value.
-
-### Phases and runtime effect
-
-Compatibility request/response-header path only; no native response-body lifecycle claim.
-
-SPOP compatibility-agent configuration; it is not a native HTX filter option.
-
-### Validation and errors
-
-Unknown keys fail compatibility-agent configuration parsing.
-
-### Example
-
-Selected value: use the syntax above and the source-backed file below.
-
-Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.conf](../../examples/haproxy/compatibility-spoe/modsecurity-agent.conf).
-
-### Safety and operations
-
-Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.
-
-<a id="spoe-agent-request-body-limit"></a>
-## `spoe-agent:request-body-limit`
-
-### Short description
-
-SPOP compatibility-agent configuration; it is not a native HTX filter option.
-
-### Syntax
-
-```text
-request-body-limit=<value>
-```
-
-### Valid contexts
-
-- SPOE/SPOP compatibility agent key=value file
-
-### Values
-
-| Type | Allowed values | Required |
-| --- | --- | --- |
-| integer | decimal integer | no |
-
-### Default
-
-65532
 
 Source: `config_init() where stated; otherwise zero/empty initialization`.
 

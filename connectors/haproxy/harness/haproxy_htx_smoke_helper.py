@@ -666,14 +666,19 @@ def canonical_rules_content(root: Path, canonical_rules: str | None = None) -> s
 
 
 def write_rules(runtime_root: str, path: str, canonical_rules: str | None = None, *,
-                response_body_limit: int, response_body_limit_action: str) -> int:
-    if response_body_limit <= 0 or response_body_limit_action not in {"Reject", "ProcessPartial"}:
+                request_body_limit: int, request_body_no_files_limit: int,
+                request_body_limit_action: str, response_body_limit: int,
+                response_body_limit_action: str) -> int:
+    if (request_body_limit <= 0 or request_body_no_files_limit <= 0 or
+        request_body_limit_action not in {"Reject", "ProcessPartial"} or
+        response_body_limit <= 0 or response_body_limit_action not in {"Reject", "ProcessPartial"}):
         raise ValueError("fixture requires an explicit positive response limit and Reject/ProcessPartial action")
     root = verified_runtime_root(runtime_root)
     write_text_atomic(
         root,
         path,
         canonical_rules_content(root, canonical_rules)
+        + f"\nSecRequestBodyLimit {request_body_limit}\nSecRequestBodyNoFilesLimit {request_body_no_files_limit}\nSecRequestBodyLimitAction {request_body_limit_action}\n"
         + f"\nSecResponseBodyLimit {response_body_limit}\nSecResponseBodyLimitAction {response_body_limit_action}\n",
         "HAProxy rules output",
     )
@@ -1171,6 +1176,9 @@ def parse_args() -> argparse.Namespace:
     rules = subparsers.add_parser("write-rules")
     rules.add_argument("--path", required=True)
     rules.add_argument("--canonical-rules")
+    rules.add_argument("--request-body-limit", required=True, type=int)
+    rules.add_argument("--request-body-no-files-limit", required=True, type=int)
+    rules.add_argument("--request-body-limit-action", required=True, choices=("Reject", "ProcessPartial"))
     rules.add_argument("--response-body-limit", required=True, type=int)
     rules.add_argument("--response-body-limit-action", required=True, choices=("Reject", "ProcessPartial"))
     config = subparsers.add_parser("write-config")
@@ -1268,7 +1276,7 @@ def command_handlers(args: argparse.Namespace) -> dict[str, Callable[[], int]]:
             args.published_path,
         ),
         "probe-status": lambda: print_result(probe_status(args.runtime_root, args.path)),
-        "write-rules": lambda: write_rules(args.runtime_root, args.path, args.canonical_rules, response_body_limit=args.response_body_limit, response_body_limit_action=args.response_body_limit_action),
+        "write-rules": lambda: write_rules(args.runtime_root, args.path, args.canonical_rules, request_body_limit=args.request_body_limit, request_body_no_files_limit=args.request_body_no_files_limit, request_body_limit_action=args.request_body_limit_action, response_body_limit=args.response_body_limit, response_body_limit_action=args.response_body_limit_action),
         "write-config": lambda: write_config(
             args.runtime_root, args.path, args.listen_port, args.upstream_port,
             args.rules_file, args.tls_certificate,

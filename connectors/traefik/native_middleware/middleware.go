@@ -18,9 +18,11 @@ package native_middleware
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -41,12 +43,6 @@ const (
 	defaultMaxResponseChunkBytes  = 32 << 10
 	defaultRequestBodyIdleTimeout = 1 * time.Second
 	maximumRequestBodyIdleTimeout = 60 * time.Second
-	// Keep the native middleware's aggregate request-body ceiling aligned with
-	// the Common Runtime default hard body-buffer bound. A lower deployment
-	// value is supported; a higher one would make the pre-engine guard weaker
-	// than the repository-wide resource contract.
-	defaultMaxRequestBodyBytes int64 = 1 << 20
-	maximumMaxRequestBodyBytes int64 = 1 << 20
 )
 
 var (
@@ -70,15 +66,41 @@ var (
 // accepted value is "uds" so an operator-provided configuration cannot turn a
 // loaded security middleware into an always-allow side path.
 type Config struct {
-	MaxHeaderCount               int    `json:"maxHeaderCount,omitempty"`
-	MaxHeaderBytes               int    `json:"maxHeaderBytes,omitempty"`
-	MaxRequestChunkBytes         int    `json:"maxRequestChunkBytes,omitempty"`
-	MaxRequestBodyBytes          int64  `json:"maxRequestBodyBytes,omitempty"`
+	MaxHeaderCount       int `json:"maxHeaderCount,omitempty"`
+	MaxHeaderBytes       int `json:"maxHeaderBytes,omitempty"`
+	MaxRequestChunkBytes int `json:"maxRequestChunkBytes,omitempty"`
+	// Decoder tombstone: every supplied legacy value is rejected; never a limit.
+	MaxResponseBodyBytes         *int64 `json:"maxResponseBodyBytes,omitempty"`
+	MaxRequestBodyBytes          *int64 `json:"maxRequestBodyBytes,omitempty"`
 	RequestBodyIdleTimeoutMillis int    `json:"requestBodyIdleTimeoutMillis,omitempty"`
 	MaxResponseChunkBytes        int    `json:"maxResponseChunkBytes,omitempty"`
 	TransactionIDHeader          string `json:"transactionIDHeader,omitempty"`
 	EngineMode                   string `json:"engineMode,omitempty"`
 	EngineSocketPath             string `json:"engineSocketPath,omitempty"`
+}
+
+// UnmarshalJSON rejects removed keys even when their value is null. The
+// exported tombstone also covers the host's direct struct decoder.
+func (config *Config) UnmarshalJSON(data []byte) error {
+	var keys map[string]json.RawMessage
+	if err := json.Unmarshal(data, &keys); err != nil {
+		return err
+	}
+	for key := range keys {
+		if strings.EqualFold(key, "maxResponseBodyBytes") {
+			return errors.New("modsecurity native middleware: maxResponseBodyBytes was removed; configure SecResponseBodyLimit and SecResponseBodyLimitAction")
+		}
+		if strings.EqualFold(key, "maxRequestBodyBytes") {
+			return errors.New("modsecurity native middleware: maxRequestBodyBytes was removed; configure SecRequestBodyLimit and SecRequestBodyLimitAction")
+		}
+	}
+	type plainConfig Config
+	var decoded plainConfig
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*config = Config(decoded)
+	return nil
 }
 
 // CreateConfig returns safe bounded defaults. It is the standard Traefik Go
@@ -88,7 +110,6 @@ func CreateConfig() *Config {
 		MaxHeaderCount:               defaultMaxHeaderCount,
 		MaxHeaderBytes:               defaultMaxHeaderBytes,
 		MaxRequestChunkBytes:         defaultMaxRequestChunkBytes,
-		MaxRequestBodyBytes:          defaultMaxRequestBodyBytes,
 		RequestBodyIdleTimeoutMillis: int(defaultRequestBodyIdleTimeout / time.Millisecond),
 		MaxResponseChunkBytes:        defaultMaxResponseChunkBytes,
 		TransactionIDHeader:          "X-Request-Id",
@@ -124,9 +145,7 @@ func applyConfigDefaults(value *Config) {
 	if value.MaxRequestChunkBytes == 0 {
 		value.MaxRequestChunkBytes = defaultMaxRequestChunkBytes
 	}
-	if value.MaxRequestBodyBytes == 0 {
-		value.MaxRequestBodyBytes = defaultMaxRequestBodyBytes
-	}
+
 	if value.RequestBodyIdleTimeoutMillis == 0 {
 		value.RequestBodyIdleTimeoutMillis = int(defaultRequestBodyIdleTimeout / time.Millisecond)
 	}
@@ -144,19 +163,20 @@ func applyConfigDefaults(value *Config) {
 
 func validateConfigLimits(value Config) error {
 	if value.MaxHeaderCount <= 0 || value.MaxHeaderBytes <= 0 ||
-		value.MaxRequestChunkBytes <= 0 || value.MaxRequestBodyBytes <= 0 ||
+		value.MaxRequestChunkBytes <= 0 ||
 		value.MaxResponseChunkBytes <= 0 {
 		return errors.New("modsecurity native middleware: all limits must be positive")
 	}
-	if value.MaxRequestBodyBytes > maximumMaxRequestBodyBytes {
-		return fmt.Errorf("modsecurity native middleware: maxRequestBodyBytes must not exceed %d", maximumMaxRequestBodyBytes)
+	if value.MaxResponseBodyBytes != nil {
+		return errors.New("modsecurity native middleware: maxResponseBodyBytes was removed; configure SecResponseBodyLimit and SecResponseBodyLimitAction")
+	}
+	if value.MaxRequestBodyBytes != nil {
+		return errors.New("modsecurity native middleware: maxRequestBodyBytes was removed; configure SecRequestBodyLimit and SecRequestBodyLimitAction")
 	}
 	if value.RequestBodyIdleTimeoutMillis <= 0 || value.RequestBodyIdleTimeoutMillis > int(maximumRequestBodyIdleTimeout/time.Millisecond) {
 		return fmt.Errorf("modsecurity native middleware: requestBodyIdleTimeoutMillis must be between 1 and %d", int(maximumRequestBodyIdleTimeout/time.Millisecond))
 	}
-	if int64(value.MaxRequestChunkBytes) > value.MaxRequestBodyBytes {
-		return errors.New("modsecurity native middleware: maxRequestChunkBytes must not exceed maxRequestBodyBytes")
-	}
+
 	if strings.TrimSpace(value.TransactionIDHeader) == "" {
 		return errors.New("modsecurity native middleware: transactionIDHeader is required")
 	}
@@ -488,15 +508,11 @@ func (state *streamState) processRequestBody(contextValue context.Context, chunk
 	if end && state.requestEOS {
 		return nil
 	}
+	if state.requestBodyBytes < 0 || int64(len(chunk)) > math.MaxInt64-state.requestBodyBytes || state.requestBodyChunks == math.MaxUint64 {
+		return errors.New("request accounting overflow")
+	}
 	state.requestBodyChunks++
 	state.requestBodyBytes += int64(len(chunk))
-	// The aggregate body guard is intentionally applied before the engine
-	// callback. Passing an over-limit chunk to the engine would let a P2 body
-	// bypass the repository's reject-before-engine resource policy.
-	if state.requestBodyBytes > state.config.MaxRequestBodyBytes {
-		state.pendingRequestDecision = Decision{Action: ActionDeny, Status: http.StatusRequestEntityTooLarge}
-		return ErrRequestRejected
-	}
 	decision, err := state.engine.ProcessBody(contextValue, DirectionRequest, chunk, end)
 	if end {
 		state.requestEOS = true
@@ -520,6 +536,9 @@ func (state *streamState) processResponseBody(contextValue context.Context, chun
 	defer state.mu.Unlock()
 	if end && state.responseEOS {
 		return allowDecision(), nil
+	}
+	if state.responseBodyBytes < 0 || int64(len(chunk)) > math.MaxInt64-state.responseBodyBytes || state.responseBodyChunks == math.MaxUint64 {
+		return Decision{}, errors.New("response accounting overflow")
 	}
 	state.responseBodyChunks++
 	state.responseBodyBytes += int64(len(chunk))
@@ -592,9 +611,8 @@ func (state *streamState) ensureRequestEOS() error {
 }
 
 // pendingRequestBlocker stops all further source reads after a disruptive P2
-// result or request inspection error. In particular, a request that exceeds
-// MaxRequestBodyBytes is not subsequently drained merely because its handler
-// tries to send a response.
+// result or request inspection error. A native disruptive result remains
+// terminal even when the handler subsequently tries to send a response.
 func (state *streamState) pendingRequestBlocker() error {
 	state.mu.Lock()
 	defer state.mu.Unlock()

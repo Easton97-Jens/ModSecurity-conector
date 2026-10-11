@@ -8,9 +8,6 @@
  *     -o /var/tmp/msconnector-resource-limits-hard-caps && \
  *   /var/tmp/msconnector-resource-limits-hard-caps
  *
- * This deliberately exercises the public validation boundaries.  The body
- * configuration contract is 10 MiB even though the smaller internal buffer
- * defaults remain implementation details of individual processing paths.
  */
 #include "msconnector/config.h"
 #include "msconnector/limits.h"
@@ -38,32 +35,21 @@ static void test_resource_limits(void) {
     ASSERT_LIMIT_REJECTED(max_total_header_bytes, MSCONNECTOR_MAX_TOTAL_HEADER_BYTES);
     ASSERT_LIMIT_REJECTED(max_event_json_bytes, MSCONNECTOR_MAX_EVENT_JSON_BYTES);
 
-    /* The configured body policy has a separate, documented 10 MiB cap. */
-    ASSERT_LIMIT_REJECTED(max_request_body_bytes, MSCONNECTOR_MAX_CONFIG_BODY_BYTES);
 
 #undef ASSERT_LIMIT_REJECTED
 }
 
-static void test_config_body_limits(void) {
+static void test_config_without_body_policy(void) {
     msconnector_config config;
 
     msconnector_config_init(&config);
     msconnector_config_apply_defaults(&config);
-    assert(config.request_body_limit == 1048576U);
     assert(msconnector_config_validate(&config, 0, 0));
-
-    config.request_body_limit = MSCONNECTOR_MAX_CONFIG_BODY_BYTES;
-    assert(msconnector_config_validate(&config, 0, 0));
-
-    config.request_body_limit = MSCONNECTOR_MAX_CONFIG_BODY_BYTES + 1U;
-    assert(!msconnector_config_validate(&config, 0, 0));
-    config.request_body_limit = MSCONNECTOR_MAX_CONFIG_BODY_BYTES;
-
 }
 
 int main(void) {
     test_resource_limits();
-    test_config_body_limits();
+    test_config_without_body_policy();
     puts("resource-limit hard-cap smoke: passed");
     return 0;
 }

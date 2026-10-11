@@ -153,7 +153,7 @@
     },
     "request_body_limits": {
       "state": "not_implemented",
-      "reason": "The current request-body path is host-buffered and has no connector-level incremental limit outcome contract."
+      "reason": "libModSecurity exclusively owns request body limits and actions; the connector passes complete chunks and preserves native outcomes. Fresh host evidence is required."
     },
     "response_body_limits": {
       "state": "implemented_not_asserted",

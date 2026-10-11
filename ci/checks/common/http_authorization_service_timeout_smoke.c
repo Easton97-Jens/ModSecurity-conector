@@ -122,10 +122,6 @@ void msconnector_runtime_request_contract(
 
 }
 
-size_t msconnector_runtime_request_body_limit(const msconnector_runtime *runtime) {
-    (void)runtime;
-    return 1024U;
-}
 
 size_t msconnector_runtime_total_header_limit(const msconnector_runtime *runtime) {
     (void)runtime;
@@ -149,10 +145,11 @@ static int smoke_request_is_supported(const char *method, const char *uri) {
             strcmp(uri, "/overlong-redirect") == 0 ||
             strcmp(uri, "/deny") == 0;
     }
-    return strcmp(method, "POST") == 0 && strcmp(uri, "/redirect-p2") == 0;
+    return strcmp(method, "POST") == 0 &&
+        (strcmp(uri, "/redirect-p2") == 0 || strcmp(uri, "/stall") == 0);
 }
 
-int msconnector_runtime_transaction_begin(
+int msconnector_runtime_transaction_begin_request_stream(
     msconnector_runtime *runtime,
     const msconnector_request *request,
     const char *host_request_id,
@@ -1501,4 +1498,21 @@ int main(void) {
     }
     (void)printf("http_authorization_service_timeout_smoke: pass\n");
     return 0;
+}
+
+msconnector_body_mode msconnector_runtime_request_body_mode(const msconnector_runtime *runtime) {
+    (void)runtime; return MSCONNECTOR_BODY_MODE_BUFFERED;
+}
+int msconnector_runtime_transaction_append_request_body_chunk(msconnector_runtime_transaction *transaction,
+    const unsigned char *body, size_t size, msconnector_error *error) {
+    (void)body; (void)size; msconnector_error_init(error); return transaction != NULL;
+}
+int msconnector_runtime_transaction_finish_request_body(msconnector_runtime_transaction *transaction,
+    msconnector_decision *decision, msconnector_error *error) {
+    msconnector_error_init(error); msconnector_decision_set_allow(decision); return transaction != NULL;
+}
+
+int msconnector_runtime_transaction_fail(msconnector_runtime_transaction *transaction,
+    msconnector_transaction_error_class error_class, msconnector_error *error) {
+    (void)error_class; msconnector_error_init(error); return transaction != NULL;
 }

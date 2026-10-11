@@ -1,5 +1,7 @@
 # NGINX-Connector
 
+Request- und Response-Body-Inspection-Limits und Aktionen gehören ausschließlich libModSecurity: `SecRequestBodyLimit`, `SecRequestBodyNoFilesLimit`, `SecRequestBodyLimitAction`, `SecResponseBodyLimit` und `SecResponseBodyLimitAction` werden in den Engine-Regeln konfiguriert. Der Connector besitzt keine Body-Größenoption, keinen Default oder Fallback, keine kumulative Ablehnung und keine Kürzung des Inspection-Präfixes. Geprüfte Zähler, Pointer-/Dateiprüfungen und begrenzte Arbeitsbuffer oder Transportframes bleiben technische Sicherheitskontrollen.
+
 **Sprache:** [English](README.md) | Deutsch
 
 
@@ -654,3 +656,5 @@ Host-Kapazität und keine WAF-Inspection-Policy.
 Der [connectorübergreifende Vertrag zur Eigentümerschaft von Response-Limits](../../docs/phase4-mode-budget.de.md)
 beschreibt den genauen Geltungsbereich, die Kompatibilitätsgrenze und die
 Grenzen der Validierung.
+
+Request-Tempdateien werden aus dem geprüften Host-Descriptor mit einem wiederverwendbaren 32768-Byte-Arbeitsbuffer gelesen. Jeder vollständige Chunk erreicht die Engine; die Buffergröße begrenzt nicht die gesamte Request-Größe. Native Reject-Ergebnisse beim Append bleiben bis EOS erhalten; Append-Rückgabewert null setzt die Verarbeitung für natives ProcessPartial fort.

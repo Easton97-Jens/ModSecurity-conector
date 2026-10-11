@@ -82,6 +82,8 @@ typedef struct {
     int phase4_processed, phase4_headers_checked, phase4_intervention, phase4_strict_abort;
     int phase4_terminal_error_started, phase4_terminal_error_emitting;
     int response_committed, response_body_seen;
+    int request_intervention_pending;
+    ModSecurityIntervention pending_request_intervention;
 } ngx_http_modsecurity_ctx_t;
 typedef struct { ngx_uint_t phase4_mode; msconnector_config common_config; }
     ngx_http_modsecurity_conf_t;

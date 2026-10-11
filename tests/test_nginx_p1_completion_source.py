@@ -40,7 +40,7 @@ typedef struct { int error; void *log; } connection_t;
 typedef struct { connection_t *connection; int header_sent, error_page; ngx_pool_t *pool; ngx_str_t method_name, unparsed_uri, uri; } ngx_http_request_t;
 typedef struct { int fd; } ngx_open_file_t;
 typedef ngx_http_modsecurity_engine_call_budget ngx_http_modsecurity_engine_call_measurement;
-typedef struct { ngx_uint_t engine_call_budget_ms; ngx_open_file_t *phase4_log_file; struct { size_t request_body_limit; } common_config; } ngx_http_modsecurity_conf_t;
+typedef struct { ngx_uint_t engine_call_budget_ms; ngx_open_file_t *phase4_log_file; } ngx_http_modsecurity_conf_t;
 typedef struct {
     msconnector_transaction_contract contract;
     int contract_initialized, native_response_body_eos, native_event_phase_active;
@@ -112,7 +112,7 @@ int main(int argc, char **argv) {
     native_return=atoi(argv[1]); intervention_return=atoi(argv[2]); clock_failure=atoi(argv[3]);
     config.engine_call_budget_ms=strtoul(argv[4],NULL,10); end_ns=strtoull(argv[5],NULL,10); prestate=atoi(argv[6]); sink_failure=atoi(argv[7]);
     callback_failure=prestate == 4;
-    config.phase4_log_file=sink_failure == 2 ? NULL : &file; config.common_config.request_body_limit=1024U;
+    config.phase4_log_file=sink_failure == 2 ? NULL : &file;
     request.connection=&connection;
     request.method_name=(ngx_str_t){3,(u_char *)"GET"}; request.unparsed_uri=(ngx_str_t){18,(u_char *)"/p1-source-control"}; request.uri=request.unparsed_uri;
     context.event_transaction_id=(ngx_str_t){9,(u_char *)"actual-tx"}; context.modsec_transaction=&context;

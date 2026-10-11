@@ -1795,8 +1795,7 @@ static void test_spop_rejects_unenforced_timeout_and_worker_settings(void) {
     assert(config_set(&config, "max-transactions", "4097") == -1);
     assert(config_set(&config, "max-transactions", "0") == -1);
     assert(config_set(&config, "max-transactions", "999999999999999999999") == -1);
-    assert(config_set(&config, "request-body-limit", "10485760") == 0);
-    assert(config.request_body_limit == 10485760U);
+    assert(config_set(&config, "request-body-limit", "10485760") == -1);
     assert(config_set(&config, "request-body-limit", "10485761") == -1);
     assert(config_set(&config, "request-body-limit", "4294967296") == -1);
     assert(config_set(&config, "request-body-limit", "not-a-number") == -1);

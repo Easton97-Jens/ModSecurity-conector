@@ -1230,11 +1230,30 @@ def c_rule_id_delegation_is_bounded():
         'ngx_http_modsecurity_contract_record_intervention',
         'ngx_http_modsecurity_process_redirect_intervention',
         'ngx_http_modsecurity_process_status_intervention',
-        'msc_intervention_cleanup',
     ):
         sinks = list(re.finditer(r'\b' + name + r'\s*\(', caller))
         if len(sinks) != 1 or calls[0].end() >= sinks[0].start():
             return False
+    # EOS may replace the just-collected result with an owned native request
+    # result retained during append. Only this exact ownership transfer may
+    # clean up before extracting the final intervention's bounded rule ID.
+    pending_restore = re.compile(
+        r'if\s*\(\s*ctx->native_event_phase\s*==\s*MSCONNECTOR_PHASE_REQUEST_BODY\s*&&\s*'
+        r'ctx->request_intervention_pending\s*\)\s*\{\s*'
+        r'msc_intervention_cleanup\s*\(\s*&intervention\s*\)\s*;\s*'
+        r'intervention\s*=\s*ctx->pending_request_intervention\s*;\s*'
+        r'ngx_memzero\s*\(\s*&ctx->pending_request_intervention\s*,\s*'
+        r'sizeof\s*\(\s*ctx->pending_request_intervention\s*\)\s*\)\s*;\s*'
+        r'ctx->request_intervention_pending\s*=\s*0\s*;\s*'
+        r'native_result\s*=\s*1\s*;\s*\}'
+    )
+    restores = list(pending_restore.finditer(caller))
+    cleanups = list(re.finditer(r'\bmsc_intervention_cleanup\s*\(', caller))
+    direct_cleanups = c_direct_matches(caller, re.compile(r'\bmsc_intervention_cleanup\s*\('))
+    if (len(restores) != 1 or len(cleanups) != 2 or len(direct_cleanups) != 1
+            or not restores[0].start() < cleanups[0].start() < restores[0].end() < calls[0].start()
+            or calls[0].end() >= direct_cleanups[0].start()):
+        return False
     return True
 
 server_header_resolver, _ = c_checked_function(header_c, server_header_resolver_marker)

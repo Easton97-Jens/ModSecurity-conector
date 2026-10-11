@@ -87,7 +87,6 @@ static void create_runtime_fixture(char config_path[TEST_PATH_SIZE],
         "transaction_id_header=x-request-id\n"
         "request_body_mode=%s\n"
         "response_body_mode=none\n"
-        "request_body_limit=1024\n"
         "phase4_mode=%s\n"
         "default_block_status=403\n"
         "default_error_status=500\n"

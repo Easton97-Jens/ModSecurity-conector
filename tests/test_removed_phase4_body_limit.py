@@ -25,9 +25,9 @@ class RemovedPhase4BodyLimitTests(unittest.TestCase):
             self.assertNotIn("phase4_body_limit", text)
             self.assertNotIn("PHASE4_BODY_LIMIT", text)
 
-    def test_request_default_retained_response_default_removed(self):
+    def test_request_and_response_defaults_removed(self):
         text = (ROOT / "common/include/msconnector/options.h").read_text()
-        self.assertIn("#define MSCONNECTOR_DEFAULT_REQUEST_BODY_LIMIT 1048576", text)
+        self.assertNotIn("MSCONNECTOR_DEFAULT_REQUEST_BODY_LIMIT", text)
         self.assertNotIn("MSCONNECTOR_DEFAULT_RESPONSE_BODY_LIMIT", text)
 
     def test_compiled_common_registry_rejects_removed_api(self):
@@ -45,7 +45,8 @@ int main(void) {
     assert(msconnector_directive_adapter_find("modsecurity_phase4_mode") != 0);
     assert(msconnector_directive_spec_find("modsecurity_response_body_limit") == 0);
     assert(msconnector_directive_adapter_find("modsecurity_response_body_limit") == 0);
-    assert(msconnector_directive_adapter_find("modsecurity_request_body_limit") != 0);
+    assert(msconnector_directive_adapter_find("modsecurity_request_body_limit") == 0);
+    assert(msconnector_directive_adapter_find("modsecurity_body_limit_action") == 0);
     assert(msconnector_directive_adapter_validate_all(0, 0));
     return 0;
 }

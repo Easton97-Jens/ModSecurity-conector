@@ -920,7 +920,7 @@ static int traefik_engine_handle_begin(traefik_engine_session *session,
         *result_code = TRAEFIK_ENGINE_PROTOCOL_RESULT_INTERNAL;
         return -1;
     }
-    success = msconnector_runtime_transaction_begin(service->runtime,
+    success = msconnector_runtime_transaction_begin_request_stream(service->runtime,
         &input.request, input.host_request_id, &session->transaction, decision,
         &error);
     (void)pthread_mutex_unlock(&service->runtime_lock);

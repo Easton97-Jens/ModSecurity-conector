@@ -127,7 +127,6 @@ socket/log paths. All applicable bounded parameters remain visible:
 | Parameter | Checked-in value | Boundary |
 | --- | ---: | --- |
 | `tune.bufsize` / `max-frame-size` | 65536 / 65532 | HAProxy and SPOE request bounds |
-| `request-body-limit` | 65532 | request input bound |
 | `response-body-timeout` / `spoe-timeout` | 2000 / 2000 ms | companion and agent timeout |
 | `max-transactions` / `worker-count` | 64 / 8 | bounded state, deterministic ownership, and peer isolation |
 | `response-companion-uid/gid` | 1000 / 1000 | must equal the agent process identity |

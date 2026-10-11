@@ -1193,7 +1193,6 @@ start_agent() {
         --variant "$MODSECURITY_TEST_VARIANT" \
         --case "$CASE_NAME" \
         --expected-status "$EXPECT_STATUS" \
-        --request-body-limit 65532
     if [ -n "$response_header_arg" ]; then
         set -- "$@" "$response_header_arg"
     fi

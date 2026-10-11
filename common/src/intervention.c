@@ -34,7 +34,7 @@ int msconnector_intervention_is_request_body_limit_rejection(
     return intervention != 0 &&
         intervention->disruptive != 0 &&
         phase == MSCONNECTOR_PHASE_REQUEST_BODY &&
-        intervention->status == 403 &&
+        (intervention->status == 403 || intervention->status == 413) &&
         intervention->redirect_url == 0 &&
         intervention->log_message != 0 &&
         strcmp(intervention->log_message,

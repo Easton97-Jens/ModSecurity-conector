@@ -81,7 +81,7 @@ Runtime-Konfiguration muss außerhalb des Checkouts geschrieben werden.
 | listen_address | Prozessor-Host:Port-String | Pflicht; explizit in JSON; Prozessor-Scope | 127.0.0.1:18083. Muss zum ext_proc-Cluster-Endpunkt passen. |
 | transaction_id_header | HTTP-Headername | Pflicht; explizit in JSON; Transaction-Scope | x-request-id. Korrelationsmetadaten, kein Credential. |
 | max_header_count, max_header_name_bytes, max_header_value_bytes, max_total_header_bytes | Positive Metadatenlimits | Pflicht; explizit in JSON; Prozessor-Scope | 128, 256, 8192, 32768. Kleinere Werte lehnen mehr Traffic ab; Limits nicht entfernen. |
-| max_body_chunk_bytes, max_request_body_bytes, max_grpc_message_bytes | Positive Byte-Limits | Pflicht; explizit in JSON; Prozessor-Scope | 1048576, 10485760, 1114112. Diese Grenzen bedeuten kein vollständiges Response-Buffering. |
+| max_body_chunk_bytes, max_grpc_message_bytes | Grenzen für einzelne Chunks und gRPC-Nachrichten | Explizit in JSON; Prozessor-Scope | 1048576 und 1114112. Diese Kontrollen gelten pro Nachricht, nicht für die Gesamtgröße von Request oder Response. |
 | late_action_policy | Name der Late-P4-Policy | Pflicht; explizit in JSON; Prozessor-Scope | safe. Erlaubt weder synthetischen späten Response-Status noch Reset. |
 
 Die literalen @NAME@-Werte sind Template-Marker, keine Envoy-Felder. Der

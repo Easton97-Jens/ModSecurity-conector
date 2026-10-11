@@ -58,9 +58,8 @@ Live-Host-Nachweis.
 
 Die eingecheckte forwardAuth-Konfiguration aktiviert Request-seitiges P2
 ausdrücklich mit `forwardBody: true` und `maxBodySize: 4096`. Die
-C-Dienstkonfiguration muss `request_body_mode=buffered` mit demselben
-4096-Byte-Common-Limit verwenden; das Start-Harness lehnt Templates ohne eine
-Einstellung oder mit einem anderen Dienstmodus ab. Dies ist begrenzte,
+Der C-Dienst übergibt den Authorization-Body inkrementell an native P2;
+das Start-Harness lehnt Host-Templates ohne die beiden Einstellungen ab. Dies ist begrenzte,
 gepufferte Host-Semantik und kein inkrementelles Request-Body-Streaming; bis
 frische echte Host-Evidence vorliegt, bleibt der Status
 `configured_not_exercised`.
@@ -597,3 +596,16 @@ Host-Kapazität und keine WAF-Inspection-Policy.
 Der [connectorübergreifende Vertrag zur Eigentümerschaft von Response-Limits](../../docs/phase4-mode-budget.de.md)
 beschreibt den genauen Geltungsbereich, die Kompatibilitätsgrenze und die
 Grenzen der Validierung.
+
+## Native Body-Policy und verbleibende Hostgrenzen
+
+Request-Limit/-Aktion gehören ausschließlich zu `SecRequestBodyLimit` und
+`SecRequestBodyLimitAction`, Response-Limit/-Aktion ausschließlich zu
+`SecResponseBodyLimit` und `SecResponseBodyLimitAction`. Der Connector ergänzt
+keine Body-Größenoption, keinen Default und keine kumulierte Durchsetzung.
+Begrenzte IO-Blöcke und geprüfte Zähler wählen kein Engine-Limit und keine Aktion.
+
+Der forwardAuth-Host puffert weiterhin den Authorization-Body: Smoke
+`maxBodySize=4096`, Composite `maxBodySize=33`; Composite `maxResponseBodySize=32768`
+begrenzt außerdem die Authorization-Response. Diese Einschränkungen bleiben;
+native UDS-Middleware ist ein getrenntes Streaming-Profil.

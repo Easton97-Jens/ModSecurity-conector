@@ -18,18 +18,18 @@ class ApacheNativeSecurityContractTests(unittest.TestCase):
         cls.source = FILTERS.read_text(encoding="utf-8")
         cls.event_jsonl = EVENT_JSONL.read_text(encoding="utf-8")
 
-    def test_request_body_append_requires_exact_libmodsecurity_success(self) -> None:
+    def test_request_body_append_preserves_native_partial_continuation(self) -> None:
         self.assertRegex(
             self.source,
             re.compile(
-                r"msc_append_request_body\(msr->t,\s*"
-                r"\(const unsigned char \*\)data, plan\.append_size\) != 1",
+                r"!msconnector_native_body_append_can_continue\(msc_append_request_body\(msr->t,\s*"
+                r"\(const unsigned char \*\)data, len\)\)",
                 re.DOTALL,
             ),
         )
 
     def test_final_request_body_processing_requires_exact_success(self) -> None:
-        self.assertIn("if (msc_process_request_body(msr->t) != 1)", self.source)
+        self.assertIn("if (!msconnector_native_phase_succeeded(msc_process_request_body(msr->t)))", self.source)
 
     def test_response_header_append_failure_enters_precommit_terminal_path(self) -> None:
         helper = self.source[self.source.index("static int apache_add_response_headers"):]

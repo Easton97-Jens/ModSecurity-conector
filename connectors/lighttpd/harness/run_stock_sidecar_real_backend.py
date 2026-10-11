@@ -117,7 +117,8 @@ class RealBackendCase:
     name: str
     request: bytes
     rules: tuple[str, ...]
-    request_limit: int
+    engine_request_limit: int
+    engine_request_limit_action: str
     engine_response_limit: int
     engine_response_limit_action: str
     phase4_mode: str
@@ -141,7 +142,8 @@ REAL_BACKEND_CASES = (
         name="allow_full",
         request=http_request("GET", _HEALTH_PATH),
         rules=(),
-        request_limit=65536,
+        engine_request_limit=65536,
+        engine_request_limit_action="Reject",
         engine_response_limit=65536,
         engine_response_limit_action="Reject",
         phase4_mode="strict",
@@ -163,7 +165,8 @@ REAL_BACKEND_CASES = (
         name="allow_empty",
         request=http_request("GET", "/empty.txt"),
         rules=(),
-        request_limit=65536,
+        engine_request_limit=65536,
+        engine_request_limit_action="Reject",
         engine_response_limit=65536,
         engine_response_limit_action="Reject",
         phase4_mode="strict",
@@ -188,7 +191,8 @@ REAL_BACKEND_CASES = (
             'SecRule REQUEST_URI "@streq /p1-block" '
             '"id:9821001,phase:1,deny,status:451,log"',
         ),
-        request_limit=65536,
+        engine_request_limit=65536,
+        engine_request_limit_action="Reject",
         engine_response_limit=65536,
         engine_response_limit_action="Reject",
         phase4_mode="strict",
@@ -213,7 +217,8 @@ REAL_BACKEND_CASES = (
             'SecRule REQUEST_BODY "@contains stock-p2-marker" '
             '"id:9821002,phase:2,deny,status:418,log"',
         ),
-        request_limit=65536,
+        engine_request_limit=65536,
+        engine_request_limit_action="Reject",
         engine_response_limit=65536,
         engine_response_limit_action="Reject",
         phase4_mode="strict",
@@ -235,7 +240,8 @@ REAL_BACKEND_CASES = (
         name="p2_body_limit",
         request=http_request("POST", _HEALTH_PATH, b"12345"),
         rules=(),
-        request_limit=4,
+        engine_request_limit=4,
+        engine_request_limit_action="Reject",
         engine_response_limit=65536,
         engine_response_limit_action="Reject",
         phase4_mode="strict",
@@ -260,7 +266,8 @@ REAL_BACKEND_CASES = (
             'SecRule RESPONSE_HEADERS:Content-Type "@contains text/plain" '
             '"id:9821003,phase:3,deny,status:422,log"',
         ),
-        request_limit=65536,
+        engine_request_limit=65536,
+        engine_request_limit_action="Reject",
         engine_response_limit=65536,
         engine_response_limit_action="Reject",
         phase4_mode="strict",
@@ -285,7 +292,8 @@ REAL_BACKEND_CASES = (
             'SecRule RESPONSE_BODY "@contains stock-p4-marker" '
             '"id:9821004,phase:4,deny,status:429,log"',
         ),
-        request_limit=65536,
+        engine_request_limit=65536,
+        engine_request_limit_action="Reject",
         engine_response_limit=65536,
         engine_response_limit_action="Reject",
         phase4_mode="safe",
@@ -1205,6 +1213,9 @@ def write_case_runtime_inputs(case_root: Path, case: RealBackendCase) -> tuple[P
         "\n".join((
             "SecRuleEngine On",
             "SecRequestBodyAccess On",
+            f"SecRequestBodyLimit {case.engine_request_limit}",
+            f"SecRequestBodyNoFilesLimit {case.engine_request_limit}",
+            f"SecRequestBodyLimitAction {case.engine_request_limit_action}",
             "SecResponseBodyAccess On",
             "SecResponseBodyMimeType text/plain",
             f"SecResponseBodyLimit {case.engine_response_limit}",
@@ -1222,8 +1233,6 @@ def write_case_runtime_inputs(case_root: Path, case: RealBackendCase) -> tuple[P
             "transaction_id_header=x-request-id",
             "request_body_mode=streaming",
             "response_body_mode=streaming",
-            f"request_body_limit={case.request_limit}",
-            "body_limit_action=reject",
             f"phase4_mode={case.phase4_mode}",
             "default_block_status=403",
             "default_error_status=502",

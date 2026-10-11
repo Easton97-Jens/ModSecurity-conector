@@ -60,8 +60,10 @@ int main(void) {
     }
     msconnector_decision_set_deny(&decision, 429, "123", "rate-limit");
     emit("rate_limit", 0, &decision);
-    msconnector_decision_set_body_limit(&decision, "request_body_limit_exceeded");
-    emit("body_limit", 0, &decision);
+    msconnector_decision_set_body_limit(&decision, 403, "native request body limit");
+    emit("body_limit", 403, &decision);
+    msconnector_decision_set_body_limit(&decision, 413, "native request body limit");
+    emit("body_limit", 413, &decision);
     msconnector_decision_set_error(&decision, 503, "connector_error");
     emit("set_error", 0, &decision);
     return 0;
@@ -101,7 +103,7 @@ class DecisionSafetyTests(unittest.TestCase):
             raise AssertionError("decision fixture compilation failed:\n" + compiled.stderr[-6000:])
         result = subprocess.run([str(binary)], capture_output=True, text=True, timeout=10, check=True)
         cls.records = [json.loads(line) for line in result.stdout.splitlines()]
-        if len(cls.records) != 23:
+        if len(cls.records) != 24:
             raise AssertionError("the compiled decision fixture did not report every case")
 
     def group(self, name: str) -> list[dict]:
@@ -145,12 +147,13 @@ class DecisionSafetyTests(unittest.TestCase):
             with self.subTest(group=record["group"], kind=record["number"]):
                 self.assertEqual(record["actual"], "")
 
-    def test_policy_limit_remains_a_block_not_an_engine_error(self) -> None:
-        record = self.group("body_limit")[0]
-        self.assertEqual(record["action"], "deny")
-        self.assertEqual(record["message_id"], "MSCONN_EVENT_BODY_LIMIT")
-        self.assertEqual(record["status"], "blocked")
-        self.assertEqual(record["http_status"], 413)
+    def test_native_limit_preserves_block_status(self) -> None:
+        for record in self.group("body_limit"):
+            self.assertEqual(record["action"], "deny")
+            self.assertEqual(record["message_id"], "MSCONN_EVENT_BODY_LIMIT")
+            self.assertEqual(record["status"], "blocked")
+            self.assertEqual(record["http_status"], record["number"])
+            self.assertEqual(record["rule_id"], "")
 
     def test_error_constructor_keeps_configured_error_status(self) -> None:
         record = self.group("set_error")[0]

@@ -19,7 +19,7 @@ Capability-Erklärung.
   `Transaction`-Nahtstelle pro Request.
 - Vor dem Response-Commit wird ein ungelesener Body bis zum Request-EOS
   verarbeitet; `requestBodyIdleTimeoutMillis` ist dabei unabhängig von
-  Engine-Timeout und `maxRequestBodyBytes`. Bei Inaktivität oder Cancel wird
+  Engine-Timeout. Bei Inaktivität oder Cancel wird
   fail-closed beendet und die eigene Quelle geschlossen.
 - Sie umschließt den ResponseWriter, wertet Response-Header vor dem Commit aus
   und teilt jedes `Write` vor der Weiterleitung in

@@ -12,191 +12,185 @@
 
 ## Motivation und Problemstellung
 
-Connector-Response-Grenzen konnten Daten ablehnen oder kürzen, bevor libModSecurity
-seine konfigurierte Response-Policy anwendete. Die Stack-Änderung entfernt diese
-zweite Policy aus Common und allen zehn logischen Connectorprofilen.
-Response-Inspektionslimit und Aktion gehören ausschließlich zu
-`SecResponseBodyLimit` und `SecResponseBodyLimitAction`.
+Die aktuelle Nutzeranweisung erweitert bestehenden Draft-PR #407 auf beide
+Bodyrichtungen und hebt den Erhalt der Request-Policy ausdrücklich auf.
+Connector-Policy konnte vor nativer Inspektion ablehnen/kürzen. Request-Policy
+gehört zu `SecRequestBodyLimit`, `SecRequestBodyNoFilesLimit` und
+`SecRequestBodyLimitAction`; Response-Policy gehört zu `SecResponseBodyLimit`
+und `SecResponseBodyLimitAction`. Vollständige Entfernung wird nicht behauptet,
+solange die unten aufgeführten aktiven Autorisierungs-/Sample-Grenzen bestehen.
 
 ## Akzeptanzkriterien
 
-Connector-Response-Konfiguration, Defaults, kumulative Bytegrenzen und Kürzung
-entfernen; Request-Policy, Access-/MIME-Auswahl und `off`/`safe`/`strict`-
-Hostverhalten erhalten. Echte technische Schutzgrenzen erhalten und deren Fehler
-von nativem Response-`BODY_LIMIT` unterscheiden. Native Operationsergebnisse,
-Interventionen und Phasenabschluss erhalten. Jede Response-Inspektionsfixture
-setzt beide nativen Direktiven explizit. Grenzfälle, Modi, mehrere Chunks und
-Dateieingabe, unterschiedliche Limits, Ablehnung entfernter Optionen und Bodies
-über der früheren 1-MiB-Grenze prüfen. EN/DE-Referenzen pflegen und Hostnachweise
-getrennt ausweisen. Eine abgeschlossene Sonar-Analyse des aktuellen Heads ohne
-neue Issues, Hotspots und New-Code-Duplikation bleibt für verifizierte Auslieferung
-erforderlich.
+Connector-Request-/Response-Optionen, Defaults, Merge-/Parserlogik, Fallbacks
+und kumulative Vorentscheidungen vor der Engine entfernen. Keine Engine-Limits
+ableiten, Regeln injizieren, Aktionen wählen, kürzen oder Grenzen durch
+unbegrenzte Vollbody-Allokation ersetzen. Native Operationsergebnisse,
+Interventions-/Phasenabschluss, DetectionOnly, Fehlerweitergabe und Cleanup
+erhalten. Inspektionsfixtures liefern Engine-Limits/-Aktionen ihrer Richtung
+explizit; Helper haben keine Policydefaults. Grenzen, Aktionen, Chunks/Dateien,
+identische Payloads unter verschiedenen Limits und Marker jenseits früherer
+Grenzen nachweisen. Entfernte Optionen ablehnen; EN/DE-Quellen und generierte
+Referenzen pflegen. Technische Schutzmaßnahmen und Sonar-Gates ohne neuen Code-
+Befund erhalten. Aktive Grenzen und fehlende Hosts getrennt melden; bestehenden
+#407 erweitern ohne Force-Push, History-Rewrite oder Merge.
 
 ## Implementierungsentscheidung und Begründung
 
-Entfernte Optionen sind Common `response_body_limit`, HAProxy
-`response-body-limit` und Envoy `max_response_body_bytes`, einschließlich ihrer
-Response-Felder, Defaults und Fallback-Helper. Request-Limits und
-Request-`body_limit_action` bleiben erhalten. Adapter bieten vollständige gültige
-Chunks der Engine an; libModSecurity wählt Reject oder ProcessPartial. Common
-bewahrt eine beim Append erfasste disruptive Response-Intervention über spätere
-Chunks und den Phasenabschluss. Native Response-Limit-Ablehnung behält Phase 4
-und HTTP 403; technische Pointer-, Overflow-, Transport- oder Speicherfehler
-behalten ihre technische Klassifikation. Der Zähler inspizierter Bytes beschreibt
-der Engine angebotene Bytes, nicht deren internen ProcessPartial-Präfix.
+`MSCONNECTOR_DEFAULT_REQUEST_BODY_LIMIT`, `request_body_limit`,
+`body_limit_action`, entsprechende Adapteroptionen, HAProxy `request-body-limit`,
+Envoy `max_request_body_bytes` und Traefik `maxRequestBodyBytes` zusammen mit
+der zuvor entfernten Response-Policy entfernen. Native Ergebnisse bestimmen
+P2/P4 einschließlich Append null bei gültigem nativem ProcessPartial und
+bewahrter disruptiver Ergebnisse bis EOS; tatsächlicher nativer Status bleibt
+erhalten. `bytes_inspected` zählt der Engine angebotene Bytes, nicht ihren
+internen Teilpräfix. Inkrementelle Socket-/Dateiverarbeitung und private
+Sidecar-Dateipufferung ersetzen Vollbody-Fallbacks. Tests ohne Body-Inspektion
+benötigen keine künstliche native Policy.
 
 ## Geänderte Dateien
 
-- Common-Konfiguration, Body-/Resource-/Mapper-/Transaktionsverträge, native Runtime,
-  Decision-/Intervention-Klassifikation und MRC1-Response-Transport.
-- Apache-, NGINX-, HAProxy-, Envoy-, Traefik- und lighttpd-Response-Routen,
-  Connector-Konfiguration, Harnesses, Tests und EN/DE-READMEs.
-- `ci/checks/documentation/connector_config_reference.py`, seine generierten
-  `examples/*/configuration-reference.md`- und `.de.md`-Begleiter,
-  `examples/common/`-Referenzen und
-  `reports/connector-configuration-inventory.json`.
-- Response-Fixtures unter `common/rules/`, Connector-Harnesses und
-  `ci/runtime/lifecycle/cases/apache-phase4-response/`; NGINX-Workflow-Fixture-
-  Argumente; Common-, Adapter-, Transport-, Event- und Optionsentfernungsregressionen.
-- `docs/phase4-mode-budget.md` / `.de.md`,
-  `docs/response-limit-stack-checklist.md` / `.de.md`, Repository-Konzept,
-  Runtime-Fehlerpolicy, Traefik-Compilerleitfaden und Beispiel-README-Paare.
-- Dieses EN/DE-Change-Record-Paar. Framework-/MRTS-Quellen und Dependency-Manifeste
-  werden nicht geändert.
+Common-Konfigurations-/Body-/Resource-/Mapper-/Transaktionsverträge, native
+Runtime und Autorisierungstransport; Apache-/NGINX-/HAProxy-/Envoy-/Traefik-/
+lighttpd-Eingabe, Services, Middleware, Harnesses, Fixtures und Tests;
+Konfigurationsreferenz-/Compilerleitfadengeneratoren mit generierter EN/DE-
+Ausgabe; Beispielkonfiguration, Connector-README-Paare und Body-Zuständigkeits-
+dokumentation. Stack-Checkliste und Change-Record-Paar erfassen aktuellen Umfang.
+Keine Framework-/MRTS-Quellen oder Dependency-Manifeste werden geändert.
 
 ## Ausgeführte Befehle
 
-Die folgenden Koordinatorprüfungen bestanden im Implementierungsworktree vor
-abschließendem Stack-Transfer. Ihre Ergebnisse belegen keine Prüfungen für einen
-künftigen PR-SHA.
+Beobachtete aktuelle Prüfungen und erhaltene Artefakte liegen unter `/var/tmp/codex/ModSecurity-conector/runs/body-policy-removal-20261011/`:
+`common/real-engine.log` (neun Methoden, 193 Szenarien), kombinierter finaler
+Common-Lauf (30 Tests), `root-checks/common-contracts.log` (alle ausgewählten
+Common-Targets) und `root-checks/docs.log` (21 generierte Referenzen, EN/DE-/Pfad-/
+Linkprüfungen und 22 Compilertests). Sechs Konfigurationsreferenz-Unittests
+bestanden. Komponentenbuild-/Testergebnisse stehen unten. Der erneute
+`root-checks/quick-check.log` belegt `make quick-check` mit Exit 0: zehn
+Unittest-Gruppen mit 302 Tests sowie Lint, Verträge, Security, Speicher,
+Dokumentation, generierte Referenzen, Helper, actionlint und Diffprüfungen.
+
+Dokumentationsvalidierung verwendet Repository-Payloads über RTK:
 
 ```sh
-rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_engine_response_limits
-rtk proxy make check-common-helpers check-common-sdk-contract check-common-security-contract check-common-memory-safety check-common-flow-integrity check-adapter-contracts check-directive-parity PYTHON=/root/git/ModSecurity-conector/.venv/bin/python BUILD_ROOT=/var/tmp/codex/ModSecurity-conector/runs/engine-response-limits-20261011/root-checks/build
+rtk proxy /root/git/ModSecurity-conector/.venv/bin/python ci/tools/new-change-record.py check
 rtk proxy make check-bilingual-docs check-doc-links PYTHON=/root/git/ModSecurity-conector/.venv/bin/python
 rtk proxy git diff --check
 ```
 
-Die Engine-Suite bestand 81 echte native Szenarien. Common-Helper-, SDK-,
-Security-, Speicher-, Flow-, Adapter- und Direktivenprüfungen bestanden.
-Dokumentations- und Linkprüfungen bestanden; Generierung/Prüfung der Referenzen
-bestand. Zwei Compilefehler integrierter Fixtures wurden behoben. Der gezielte
-13-Test-Wiederholungslauf und der folgende integrierte 57-Test-Lauf bestanden.
-Der abschließende integrierte 57-Test-Lauf im frischen Worktree bestand in
-22,053 Sekunden, einschließlich aller 81 nativen Common-Szenarien und der
-Regression mit passender Phase-4-Regel.
-
-Weitere Komponentenvalidierung bestand: HAProxy-Binding-/SPOA-Builds und echte
-16-Fall-Response-Suite und abschließende Sechs-Methoden-Suite mit echter Library; Envoy `build_ext_proc.sh` mit
-`ENVOY_EXT_PROC_COMMON_TEST=1` über acht CGo-/libModSecurity-Packages und das
-Binary; Envoy-Authz-/Observer-, Traefik-forwardAuth- und lighttpd-Stock-Sidecar-
-Builds; strikte C17-MRC1- und Observer-Companion-Tests; 31 lighttpd-Gate-/Supervisor-/
-Namespace-Tests. Apache-C17-Syntaxprüfung bestand nach Änderungen zum Interventionserhalt. Der
-nativ zugeordnete pytest-Lauf bestand 136 Tests und 174 Subtests, einschließlich
-19 Tests erforderlicher Fixture-Helper. Externe Laufartefakte bleiben
-unter `/var/tmp/codex/ModSecurity-conector/runs/engine-response-limits-20261011/`.
-
-Nach erster CI-/Sonar-Rückmeldung bestanden: 30 Common-Native-/Event-/Fehlertests
-einschließlich aller 81 echten Engine-Szenarien; 58 HAProxy-Tests und 53 Subtests,
-Binding-/Self-Test-/SPOP-Build und Adoption-/HTX-Prüfungen; 27 Apache-Tests und
-NGINX-Adoption; 33 Traefik-/Private-Socket-Tests (zwei Hosttests übersprungen),
-sieben Engine-Service-Tests und Traefik-Integrationsverträge. Unabhängiger Review
-fand kein konkretes Problem im sieben Dateien umfassenden Reparaturdiff.
-Die abschließende NGINX-Fixture-Metadatenkorrektur bestand 32 vorhandene Tests
-und 138 Subtests; Pflichtargumentprüfungen für Limit/Aktion und Diffprüfung bestanden.
-
 ## Security-Auswirkung
 
-Nicht vertrauenswürdige Response-Daten erreichen die Engine ohne
-Connector-Inspektionsgrenze. Begrenzte Operationen bleiben erhalten: Pointer- und
-Integerprüfungen, Dateilesen und Deskriptoren, fester Scratch-Speicher,
-MRC1-Body-Chunks von 32 KiB und Frames von 64 KiB, Protokoll-/Nachrichtengrenzen,
-Header-/Eventmetadaten und Transporttimeouts. Request-Policy bleibt erhalten.
-Authentifizierung, Isolation, Warnungen, Tests, Scanner-Ausnahmen oder
-Quality-Gate-Anforderungen werden nicht abgeschwächt. Fehlende Engine-Policy
-verwendet native Semantik; Betreiber müssen ihr gewünschtes natives Limit und
-die Aktion konfigurieren.
+Inkrementelle HTTP-Arbeitspuffer haben 16 KiB; Datei-Lesescratch hat 32 KiB.
+MRC1 behält einzelne 64-KiB-Frames und 32-KiB-Body-Chunks. Pointer-/Integerprüfungen,
+Deskriptoren/Dateibereiche, Nachrichtenkontrollen, Header-/Eventmetadaten und
+Timeouts bleiben erhalten. Stock-lighttpd verwendet private entlinkte Dateipufferung
+mit begrenztem RAM und hält Upstream-Replay bis zum nativen P2-Allow zurück;
+Datenträgerfehler bleiben technische Fehler. Der Legacy-Vollbody-Fallback ist
+entfernt. Dies sind Schutzmaßnahmen für einzelne Operationen/Speicherung und
+keine Ersatz-Inspektionslimits.
+
+Authentifizierung, Isolation, Warnungen, Assertions, Scanner-Ausnahmen oder
+Quality Gates werden nicht abgeschwächt. Native Konfiguration behält bei
+Auslassung native Defaults; der Connector setzt keine. Autorisierungshostpuffer
+bleiben konkrete Grenzen mit Migrations-/Nachweisbedarf und werden nicht als
+technische Kapazität umbenannt. Unabhängiger gezielter Quellcode-Sicherheitsreview
+fand keinen konkreten Befund; das belegt keine gehostete Runtime-Sicherheit.
 
 ## Runtime-Evidence
 
-Die Common-Suite mit echter Library verwendet libModSecurity 3.0.14 mit Limits
-128 und 1024, Reject und ProcessPartial, `off`/`safe`/`strict`, Payloads
-unter/exakt/über Limit und Chunkgrößen 17/65536. Zusätzliche Markerfälle
-unterscheiden den nativen Teilpräfix von späteren Daten. Explizite Limits von
-1,5 MiB und 3 MiB mit 2-MiB-Bodies decken die frühere versteckte 1-MiB-Grenze
-auf. HAProxys echte Komponentensuite umfasst Speicher-/Dateieingabe und erhaltene
-native Interventionen. Die NGINX-Body-Buffer-Fixture unterscheidet ihre
-Payloadlänge vom ausdrücklich übergebenen Engine-Limit und der Aktion in
-generierter Evidence; Payloadgrößen konfigurieren keine Inspektionspolicy.
-Envoys native Regression setzt `2097152` und Reject
-explizit und inspiziert einen Tail nach 1 MiB; sein Test mit geliehenen Responses
-akzeptiert 300 Callbacks. MRC1-Komponentenprüfungen senden mehrere gültige Chunks
-über der früheren kumulativen Grenze und lehnen übergroße Frames technisch ab.
-Dies sind Komponenten-/Engine-Ergebnisse; sie beweisen keinen gehosteten
-Lebenszyklus eines der zehn Profile.
+Aktuelle Common-Validierung mit echter Library bestand neun Methoden: 112 native
+Request- und 81 Response-Szenarien (193 insgesamt). Ein späterer kombinierter
+Lauf bestand 30 Tests. Vier echte Autorisierungssocketfälle verwenden einen
+2-MiB-Body: Ein Tail-Marker liefert bei hohem Limit nativ 451, dieselbe Payload
+bei niedrigem ProcessPartial-Limit 200, niedriges Reject nativ 403, und ein Body
+ohne Marker wird erlaubt. Der Callback schließt P2 vor dem Handoff ab, ohne
+einen Präfix doppelt anzubieten.
+
+Common-Helper-/SDK-/Security-/Speicher-/Flow-/Adapter-/Direktivenprüfungen
+bestanden. Sechs Konfigurationsreferenztests bestanden; alle 21 generierten
+Dateien sind aktuell. EN/DE-, Pfad-/Linkprüfungen und 22 Compilerleitfadentests
+bestanden. Apache C17 bestand; HAProxy-Binding-/Selftest-/SPOP-C-Builds und
+104 Tests mit 119 Subtests bestanden; die abschließende echte Request-/Response-
+Suite bestand 13 Methoden in 13,62 Sekunden. Envoy bestand acht Go-Packages und seinen echten
+CGo-Build. Traefik-Go-/C-Builds und Socket-Protokoll-Selftests bestanden.
+lighttpd-C-Build, 15 Gate-Tests und zwei isolierte Envoy-Tests bestanden.
+Stock-Sidecar-Validierung bestand 35/36; ihr unveränderter RST-Basisdefekt mit
+leeren Events bleibt offen. Die ältere Common-Lossy-Event-Assertion und zwei
+alte SPOP-Quellcode-Assertions bleiben ebenfalls unveränderte Basisfehler;
+Assertions sind erhalten.
+
+Der abgeschlossene native `make quick-check` bestand (Exit 0): zehn Unittest-
+Gruppen mit 302 Tests sowie Lint, Verträge, Security, Speicher, Dokumentation,
+generierte Referenzen, Helper, actionlint und Diffprüfungen.
+
+Abschließende Common-Nativvalidierung bestand 13 Methoden und 168 Subtests in
+14,34 Sekunden (`root-checks/final-common-native.log`) einschließlich der vier
+HTTP-Fälle. HAProxys echte Suite bestand 13 Methoden in 13,62 Sekunden; Response-
+DetectionOnly erhielt den tatsächlichen nativen 65536-Byte-Präfix eines 120000-
+Byte-Bodys in vier Chunks: Reject-Append-Ergebnisse `[1,1,1,1]`, ProcessPartial
+`[1,1,0,0]`, EOS `1`. Sieben Konfigurationsreferenztests bestanden einschließlich
+strikter Mutationen entfernter Schlüssel. Alle NGINX-Adoptions-/Mutationsprüfungen
+bestanden. Ein kombinierter Vier-Datei-Lauf bestand 145 Tests und 163 Subtests
+mit zwei veralteten Apache-Planererwartungen; nach deren Korrektur bestanden alle
+sechs Apache-Prüfungen und erhalten native Append-`0`-/`1`-Fortsetzung und exakte
+EOS-`1`-Guards. Unabhängiger Review fand Akzeptanz entfernter Schlüssel bei
+Case-Alias/JSON-null; EqualFold-Abgleich und 24 negative Fälle bestanden nun mit
+der gesamten Traefik-Go-Suite. Sieben zusätzliche Traefik-forwardAuth-Tests
+bestanden. Kein Reviewbefund bleibt offen.
+
+CI/Sonar für den geänderten aktuellen Head
+und Nachweis ohne neue Issues/Hotspots/New-Code-Duplikation sind offen; aktuelle
+Ergebnisse sind in [PR #407](https://github.com/Easton97-Jens/ModSecurity-conector/pull/407) verlinkt.
+
+Die nativen Common-Tests verwenden explizite Grenzen 128/1024, Reject/ProcessPartial,
+Request-On/DetectionOnly mit Buffered-/Streamingmodi und Speicher-/Dateieingabe;
+Response-Fälle `off`/`safe`/`strict` bleiben enthalten. Explizite 1,5-/3-MiB-Policies
+mit 2-MiB-Bodies prüfen Marker jenseits der früheren 1-MiB-Connectorgrenze.
+Gleiche Payloads unter zwei nativen Limits unterscheiden erlaubte Inspektion
+von nativem Teilverhalten; kein Connector wählt Aktion/Präfix. Alle Ergebnisse
+oben sind Engine-/Socket-/Komponentennachweise statt einer aktuellen Zehn-Host-Matrix.
 
 ## Bekannte Einschränkungen
 
-Die Stock-Sidecar-Suite bestand 33 von 34 Tests; ihr RST-Test für Rule-Block-
-Auslieferung erzeugte keine Events. Auch die ältere Lossy-Event-Assertion in
-`transaction_phase_runtime_companion_test.c` schlägt mit echter Library fehl.
-Beide Fehler wurden auf der unveränderten ursprünglichen Basis reproduziert;
-ihre Assertions bleiben erhalten. Eine weitere Auswahl nativer Transaktions-
-Bindingtests bestand 24 Tests; zwei alte Request-ID-/Stop-Erwartungen schlugen
-fehl und wurden ebenfalls auf unveränderter Basis reproduziert. Ein breiter
-zugeordneter Lauf wurde ohne abschließende Zusammenfassung abgebrochen und gilt
-nicht als bestanden. Der auskompilierte gepufferte lighttpd-
-Legacy-Austausch unter `#if 0` ist keine aktive Response-Kapazität; der aktive
-Sidecar streamt feste Scratch-Chunks. Für native NGINX-/HAProxy-C17-/Hostprüfung
-fehlen weiterhin erforderliche Hostquellen/-Header oder Runtime-Artefakte.
-Eine vollständige gehostete Response-Limit-Matrix fehlt für alle zehn Profile;
-einzelne gehostete NGINX-Event-/Buffer-Fixtures decken diese Matrix nicht ab.
+| Aktive Route | Verbleibende Grenze und tatsächlicher Wirkungsbereich |
+| --- | --- |
+| Envoy ext_authz | Host-`max_request_bytes=4096/33` begrenzt das vollständige an die Autorisierung gesendete Request-Sample; sein Response-Observer macht die Request-Eingabe nicht inkrementell. |
+| Traefik forwardAuth | Host-`maxBodySize=4096/33` begrenzt den gepufferten Autorisierungsrequest. |
+| Composite-Traefik-Autorisierungsantwort | Host-`maxResponseBodySize=32768` begrenzt die Autorisierungsantwort, nicht die Response der Upstream-Anwendung. |
+| HAProxy SPOE/SPOP | Ein Request-Sample je begrenzter Protokollnachricht/Frame; ein unvollständiges Sample scheitert vor der Engine mit Admission-Status 503, nicht nativem `BODY_LIMIT`. Natives HTX ist separat. |
+
+Diese aktiven Sample-/Vollbody-Grenzen verhindern die Behauptung vollständiger
+Entfernung über alle Profile. Unabhängige Hostkonfiguration einschließlich
+lighttpd `server.max-request-size` bleibt ebenfalls getrennt. Stock-RST-
+Eventdefekt, Common-Lossy-Eventfehler und zwei alte SPOP-Quellcode-Assertionfehler
+bleiben unveränderte Basisdefekte; ihre Assertions sind nicht abgeschwächt.
 
 ## Verbleibende Risiken
 
-Komponentenerfolg belegt keine native Host-Buffer-Ownership, Commit-Zeitpunkte,
-Auslieferung später Interventionen oder Transportlebenszyklen in eingesetzten
-Hosts. Die vier reproduzierten Basisfehler bleiben offen. Der frische integrierte Lauf und unabhängiger statischer Sicherheitsreview
-bestanden. Aktuelle Head-CI/Sonar und Auslieferungsverifikation müssen vor
-vollständiger Verifikation abgeglichen werden.
+Die aktiven Autorisierungsprofile bieten keine uneingeschränkt inkrementelle
+Request-Eingabe. Gepinnte aktuelle Hostnachweise fehlen für alle zehn Profile,
+einschließlich Buffer-Ownership, Protokolllebenszyklus und später Interventionen.
+Lokaler nativer Testabgleich und vollständiger quick-check bestanden. CI/Sonar
+des geänderten Heads und Verifikation der erweiterten PR-Auslieferung bleiben offen. Gesamtverifikation
+ist teilweise.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-Keine vollständige gehostete Zehn-Profil-Response-Limit-Matrix wurde ausgeführt: Die erforderlichen
-gepinnten Hostumgebungen und Laufnachweise fehlen. Die erste abgeschlossene
-Sonar-Analyse von `77e8085b663b46c9eb22b11864aadd0161dc5060` schlug mit zehn
-Issues, keinen Hotspots und keiner Duplikation fehl. Ressourcen-Cleanup,
-Deklarationen, Helper-Komplexität und Fixture-Parameter wurden repariert;
-die abgeschlossene Analyse von `777d67efcd040b98d7d0c288379ab55012ef51b1`
-meldete keine neuen Issues oder Hotspots, aber zwei neue duplizierte Zeilen/Blöcke
-(0,2 %). Gemeinsame Authz-Fixture-Erstellung ersetzt den doppelten Aufbau, ohne
-Assertions oder explizite Policy-Argumente zu ändern. Der Compilerleitfaden-
-Generator stimmt jetzt mit seinen generierten Dateien überein; 22 Leitfadentests
-und bilinguale/Pfad-/Linkprüfungen bestanden. Die abgeschlossene Analyse des
-Quellcode-Heads `6875be20f0c9c30b4ca8ad9ec62f65ac35d863cd` bestand: keine neuen
-Issues, Hotspots, duplizierten Zeilen oder Blöcke und Dichte null; Quality Gate OK.
-Der vollständige lokale `make quick-check` bestand, einschließlich zehn
-unittest-Zusammenfassungen mit insgesamt 302 Tests. Der abschließende
-CI-/Sonar-Readback des PR-Heads, einschließlich Dokumentationsfolgeänderungen,
-steht in #407. Die Analyse des Basis-PRs
-belegt diese Änderung nicht. Wegen fehlender Hostartefakte blockierte native
-NGINX-/HAProxy-Prüfungen sind keine bestandenen Prüfungen. Der frische integrierte Wiederholungslauf bestand. Der frische native pytest-
-Lauf bestand 136 Tests und 174 Subtests in 44,77 Sekunden. Abschließende
-Common-Helper-/SDK-/Security-/Speicher-/Flow-/Adapter-/Direktivenprüfungen,
-21 generierte Referenzen, bilinguale Dokumentation, Pfade und Links bestanden.
-Die fünf neuen Basisdateien und der Framework-Gitlink blieben unverändert.
+Keine vollständige aktuelle gehostete Request-/Response-Zehn-Profil-Matrix wurde
+ausgeführt; erforderliche gepinnte Hostumgebungen und Laufnachweise fehlen.
+Der erneute vollständige quick-check bestand nach Checkerreparaturen.
+CI/Sonar des aktuellen geänderten Heads ist offen. Historische Response-only-
+Prüfungen und Sonar-Ergebnisse des Startheads gelten nur für ihre Revisionen
+und belegen nicht den aktuellen erweiterten Diff.
 
 ## Finaler Diff- und Review-Status
 
-Die Diff-Whitespace-Prüfung im Implementierungsworktree bestand. Statischer
-Quellcode-Sicherheitsreview fand kein aktuelles Problem; seine Diff-Whitespace-
-Prüfung bestand. Inhaltsreview und Abgleich mit frischer Basis sind abgeschlossen.
-Der Task-Branch wurde committet und gepusht; der gestapelte
-[Draft-PR #407](https://github.com/Easton97-Jens/ModSecurity-conector/pull/407)
-ist gegen den angegebenen Basis-Branch offen. Die erste Head-CI fand den
-geprüften Apache-Checker-Fingerprint und die Traefik-Erwartung an die reine
-Header-API; beide Testverträge wurden ohne Assertion-Entfernung aktualisiert.
-Die Folgeauslieferung benötigt frisches CI-/Sonar-Readback des exakten Heads.
-Es wurde nicht gemergt. Die
-[Stack-Checkliste](../../../docs/response-limit-stack-checklist.de.md) trennt
-Implementierung, ausführbare Tests und fehlende echte Hostnachweise.
+Bestehender [Draft-PR #407](https://github.com/Easton97-Jens/ModSecurity-conector/pull/407)
+bleibt auf `fix/engine-owned-response-limits-stack-20261011`, gestapelt auf #382.
+Die Erweiterung startet bei `6576661724841e26802a93b19d8bbfbdb5c8235a` und behält die exakte Basis oben.
+Ihre erweiterten Änderungen sind zum Stand dieses Snapshots noch nicht gepusht.
+Kein neuer PR, Force-Push, History-Rewrite oder Merge erfolgt. Abschließender
+Scoped-Review/Diffvalidierung und aktueller Head-Readback bleiben Voraussetzungen
+der Auslieferung. Siehe
+[Stack-Checkliste](../../../docs/response-limit-stack-checklist.de.md) und
+[Zuständigkeitsvertrag](../../../docs/phase4-mode-budget.de.md).

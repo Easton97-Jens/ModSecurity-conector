@@ -141,6 +141,8 @@ struct haproxy_modsecurity_transaction {
     haproxy_modsecurity_body_state request_body;
     int response_headers_processed;
     haproxy_modsecurity_body_state response_body;
+    haproxy_modsecurity_decision pending_request_intervention;
+    int request_intervention_pending;
     haproxy_modsecurity_decision pending_response_intervention;
     int response_intervention_pending;
     char request_id[128];
@@ -169,7 +171,6 @@ typedef struct haproxy_modsecurity_body_phase {
     int *body_started;
     size_t *body_bytes_seen;
     size_t *body_bytes_inspected;
-    const size_t *request_body_limit;
     const char *missing_message;
     const char *headers_required_message;
     const char *append_after_eos_message;
@@ -325,9 +326,7 @@ static int capture_intervention(
                 phase == 4 ? MSCONNECTOR_PHASE_RESPONSE_BODY : common_phase,
                 &common_intervention);
         decision->disruptive = intervention.disruptive;
-        if (body_limit) {
-            decision->status = 413;
-        } else if (intervention.status > 0) {
+        if (intervention.status > 0) {
             decision->status = intervention.status;
         } else {
             decision->status = HAPROXY_MODSECURITY_EXPECTED_STATUS;
@@ -427,22 +426,26 @@ static int begin_contract_phase(haproxy_modsecurity_transaction *transaction,
         phase, 0U);
 }
 
-static int capture_pending_response_intervention(
+static int capture_pending_body_intervention(
         haproxy_modsecurity_transaction *transaction,
-        haproxy_modsecurity_decision *decision) {
-    /* Observe native append outcomes without deriving Allow from its rc.
-     * Retain the first intervention through subsequent chunks and EOS. */
-    if (capture_intervention(transaction->transaction, 4, decision) != 0) {
+        haproxy_modsecurity_decision *decision, int phase) {
+    haproxy_modsecurity_decision *pending = phase == 2 ?
+        &transaction->pending_request_intervention : &transaction->pending_response_intervention;
+    int *has_pending = phase == 2 ? &transaction->request_intervention_pending :
+        &transaction->response_intervention_pending;
+    /* Observe every native append and preserve the first disruptive outcome
+     * through later chunks and EOS; an append rc alone never implies Allow. */
+    if (capture_intervention(transaction->transaction, phase, decision) != 0) {
         (void)msconnector_transaction_contract_fail(&transaction->contract,
             MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, 0U);
         return 1;
     }
-    if (decision->disruptive && !transaction->response_intervention_pending) {
-        transaction->pending_response_intervention = *decision;
-        transaction->response_intervention_pending = 1;
+    if (decision->disruptive && !*has_pending) {
+        *pending = *decision;
+        *has_pending = 1;
     }
-    if (transaction->response_intervention_pending) {
-        *decision = transaction->pending_response_intervention;
+    if (*has_pending) {
+        *decision = *pending;
     }
     return 0;
 }
@@ -492,22 +495,6 @@ static int append_body_chunk(
             MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
         return 1;
     }
-    if (phase->phase == 2) {
-        const size_t contract_body_limit = transaction->contract.request_body_limit;
-        const size_t body_limit = *phase->request_body_limit < contract_body_limit ?
-            *phase->request_body_limit : contract_body_limit;
-        if (body_limit == 0U || *phase->body_bytes_seen > body_limit ||
-                (size_t)body_len > body_limit - *phase->body_bytes_seen) {
-            copy_message(decision->log_message, sizeof(decision->log_message),
-                "request body exceeds Common limit");
-            decision->disruptive = 1;
-            decision->status = 413;
-            copy_message(decision->action, sizeof(decision->action), "deny");
-            (void)msconnector_transaction_contract_fail(&transaction->contract,
-                MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, 0U);
-            return 1;
-        }
-    }
     if (transaction->contract.active_phase < 0 &&
             begin_contract_phase(transaction, contract_phase) !=
                 MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
@@ -551,10 +538,7 @@ static int append_body_chunk(
     }
     *phase->body_started = 1;
     *phase->body_bytes_inspected += body_len;
-    if (phase->phase == 4) {
-        return capture_pending_response_intervention(transaction, decision);
-    }
-    return 0;
+    return capture_pending_body_intervention(transaction, decision, phase->phase);
 }
 
 static int finish_body(
@@ -597,13 +581,10 @@ static int finish_body(
             "request/response body phase completion failed");
         return 1;
     }
-    if (capture_intervention(transaction->transaction, phase->phase, decision) != 0) {
+    if (capture_pending_body_intervention(transaction, decision, phase->phase) != 0) {
         (void)msconnector_transaction_contract_fail(&transaction->contract,
             MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, 0U);
         return 1;
-    }
-    if (phase->phase == 4 && transaction->response_intervention_pending) {
-        *decision = transaction->pending_response_intervention;
     }
     if (record_contract_decision(transaction, decision) !=
             MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
@@ -620,7 +601,6 @@ static haproxy_modsecurity_body_phase request_body_phase(
         2, &transaction->request_headers_processed, &transaction->request_body.processed,
         &transaction->request_body.started, &transaction->request_body.bytes_seen,
         &transaction->request_body.bytes_inspected,
-        &transaction->engine->common_config.request_body_limit,
         "missing transaction or request body",
         "request headers must be processed before request body chunks",
         "request body append after end-of-stream",
@@ -636,7 +616,6 @@ static haproxy_modsecurity_body_phase response_body_phase(
         4, &transaction->response_headers_processed, &transaction->response_body.processed,
         &transaction->response_body.started, &transaction->response_body.bytes_seen,
         &transaction->response_body.bytes_inspected,
-        NULL, /* response has no connector inspection policy */
         "missing transaction or response body",
         "response headers must be processed before response body chunks",
         "response body append after end-of-stream",
@@ -925,17 +904,11 @@ static int process_request_body(
         Transaction *transaction,
         const haproxy_modsecurity_request *request,
         haproxy_modsecurity_decision *decision) {
-    msconnector_resource_limits limits;
+    haproxy_modsecurity_decision pending;
+    int has_pending;
 
-    msconnector_resource_limits_init(&limits);
-    if (request == 0 || request->body_len > MSCONNECTOR_DEFAULT_REQUEST_BODY_LIMIT ||
-            !msconnector_resource_limits_body_ok(
-                request->body_len, limits.max_request_body_bytes)) {
-        copy_message(decision->log_message, sizeof(decision->log_message),
-            "request body exceeds configured HAProxy/Common limit");
-        decision->disruptive = 1;
-        decision->status = 413;
-        copy_message(decision->action, sizeof(decision->action), "deny");
+    if (request == 0 || (request->body_len > 0U && request->body == 0)) {
+        native_error_decision(decision, "invalid request body pointer");
         return -1;
     }
     if (request->body != 0 && request->body_len > 0 &&
@@ -945,9 +918,20 @@ static int process_request_body(
         native_error_decision(decision, "msc_append_request_body failed");
         return -1;
     }
+    if (capture_intervention(transaction, 2, decision) != 0) {
+        return -1;
+    }
+    pending = *decision;
+    has_pending = decision->disruptive;
     if (!msconnector_native_phase_succeeded(msc_process_request_body(transaction))) {
         native_error_decision(decision, "msc_process_request_body failed");
         return -1;
+    }
+    if (capture_intervention(transaction, 2, decision) != 0) {
+        return -1;
+    }
+    if (has_pending) {
+        *decision = pending;
     }
     return 0;
 }
@@ -1038,9 +1022,6 @@ static int eval_request_internal(
     }
 
     if (process_request_body(transaction, request, decision) != 0) {
-        goto cleanup;
-    }
-    if (capture_intervention(transaction, 2, decision) != 0) {
         goto cleanup;
     }
     msc_process_logging(transaction);
@@ -1157,9 +1138,6 @@ static int validate_common_mapped_request(
     mapper_error[0] = '\0';
     msconnector_request_mapper_contract_init(&contract);
     contract.max_header_count = MSCONNECTOR_MAX_HEADER_COUNT;
-    contract.max_body_bytes = engine != 0 &&
-            engine->common_config.request_body_limit > 0U ?
-        engine->common_config.request_body_limit : MSCONNECTOR_MAX_BODY_BUFFER_SIZE;
     if ((request->body_len > 0U && request->body == 0) ||
             haproxy_modsecurity_map_owned_request(request, &contract, &mapped_request,
             mapper_error, sizeof(mapper_error)) != 1) {
@@ -1209,8 +1187,7 @@ static int begin_transaction_protocol(
     transaction->request_headers_processed = 1;
     if (msconnector_transaction_contract_record_request_metadata(
             &transaction->contract, safe_method, safe_uri, 0,
-            request->header_count, 0U,
-            transaction->engine->common_config.request_body_limit) !=
+            request->header_count, 0U) !=
             MSCONNECTOR_TRANSACTION_TRANSITION_OK ||
         msconnector_transaction_contract_complete_phase(&transaction->contract,
             MSCONNECTOR_TRANSACTION_PHASE_P1, 0U) !=
@@ -1813,14 +1790,14 @@ static int haproxy_modsecurity_request_body_limit_self_test(
         return rc;
     }
     if (decision != 0 && decision->phase == 2 && decision->disruptive != 0 &&
-            decision->body_limit != 0 && decision->status == 413 &&
+            decision->body_limit != 0 && decision->status == 403 &&
             decision->rule_id == 0 && strcmp(decision->action, "deny") == 0 &&
             decision->redirect_url[0] == '\0') {
         return 0;
     }
     if (decision != 0) {
         snprintf(decision->log_message, sizeof(decision->log_message),
-            "expected native request-body-limit deny status 413 without Rule-ID, got phase=%d disruptive=%d body_limit=%d status=%d rule_id=%d",
+            "expected native request-body-limit deny status 403 without Rule-ID, got phase=%d disruptive=%d body_limit=%d status=%d rule_id=%d",
             decision->phase, decision->disruptive, decision->body_limit,
             decision->status, decision->rule_id);
     }
@@ -1832,6 +1809,9 @@ int haproxy_modsecurity_request_body_self_test(
     static const char rules_text[] =
         "SecRuleEngine On\n"
         "SecRequestBodyAccess On\n"
+        "SecRequestBodyLimit 1048576\n"
+        "SecRequestBodyNoFilesLimit 1048576\n"
+        "SecRequestBodyLimitAction Reject\n"
         "SecRule ARGS:token \"@streq block\" "
         "\"id:1000002,phase:2,deny,status:403,"
         "msg:'HAProxy ModSecurity binding request-body self-test block'\"\n";

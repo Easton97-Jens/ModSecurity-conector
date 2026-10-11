@@ -255,7 +255,19 @@ def main() -> int:
             directory = work / name
             directory.mkdir(mode=0o700)
             os.chown(directory, account.pw_uid, grouping.gr_gid)
-        rules = "SecRuleEngine On\nSecRequestBodyAccess On\nSecResponseBodyAccess Off\nSecAuditEngine Off\n"
+        request_limit = os.environ["NGINX_REQUEST_BODY_LIMIT"]
+        request_no_files_limit = os.environ["NGINX_REQUEST_BODY_NO_FILES_LIMIT"]
+        request_limit_action = os.environ["NGINX_REQUEST_BODY_LIMIT_ACTION"]
+        require(all(re.fullmatch(r"[1-9][0-9]*", value) is not None
+                    for value in (request_limit, request_no_files_limit)),
+                "explicit positive native request limits are required")
+        require(request_limit_action in ("Reject", "ProcessPartial"),
+                "explicit native request limit action is required")
+        rules = ("SecRuleEngine On\nSecRequestBodyAccess On\n"
+                 f"SecRequestBodyLimit {request_limit}\n"
+                 f"SecRequestBodyNoFilesLimit {request_no_files_limit}\n"
+                 f"SecRequestBodyLimitAction {request_limit_action}\n"
+                 "SecResponseBodyAccess Off\nSecAuditEngine Off\n")
         private_file(work / "allow.conf", rules)
         private_file(work / "protected.conf", rules +
                      'SecRule REQUEST_HEADERS:X-B09-Control "@streq block" '

@@ -448,7 +448,6 @@ def write_config(
             "transaction_id_header=x-modsec-transaction-id\n"
             "request_body_mode=none\n"
             "response_body_mode=streaming\n"
-            "request_body_limit=1048576\n"
             "default_block_status=403\n"
             "default_error_status=500\n"
             "max_header_count=256\n"

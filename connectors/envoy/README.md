@@ -134,7 +134,7 @@ make -C connectors/envoy serve-envoy-connector \
 ```
 
 The template config enables request processing, uses `x-request-id` as the host
-transaction ID header, caps request bodies at 4096 bytes, disables response-body
+transaction ID header, disables response-body
 processing, uses 403/500 block/error defaults, applies explicit header/event
 limits, and writes metadata-only JSONL outside the checkout.
 
@@ -233,3 +233,15 @@ WAF inspection policy.
 
 See [the cross-connector response-limit ownership contract](../../docs/phase4-mode-budget.md)
 for the exact scope, compatibility boundary and validation limitations.
+
+## Native body policy and remaining host limits
+
+Request limit/action belong exclusively to `SecRequestBodyLimit` and
+`SecRequestBodyLimitAction`; response limit/action belong exclusively to
+`SecResponseBodyLimit` and `SecResponseBodyLimitAction`. The connector adds no
+body-size option, default or cumulative enforcement. Bounded IO blocks and
+checked counters do not select an engine limit or action.
+
+The ext_authz host still buffers one authorization request: smoke config
+`max_request_bytes=4096`, composite config `max_request_bytes=33`. These are
+remaining total-request host restrictions; native ext_proc is a separate profile.

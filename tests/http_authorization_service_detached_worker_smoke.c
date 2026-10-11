@@ -220,10 +220,6 @@ void msconnector_runtime_request_contract(
 
 }
 
-size_t msconnector_runtime_request_body_limit(const msconnector_runtime *runtime) {
-    (void)runtime;
-    return 1024U;
-}
 
 size_t msconnector_runtime_total_header_limit(const msconnector_runtime *runtime) {
     (void)runtime;
@@ -235,7 +231,7 @@ size_t msconnector_runtime_header_count_limit(const msconnector_runtime *runtime
     return 16U;
 }
 
-int msconnector_runtime_transaction_begin(
+int msconnector_runtime_transaction_begin_request_stream(
     msconnector_runtime *runtime,
     const msconnector_request *request,
     const char *host_request_id,
@@ -619,4 +615,21 @@ done:
         (void)puts("http authorization detached-worker smoke: passed");
     }
     return result;
+}
+
+msconnector_body_mode msconnector_runtime_request_body_mode(const msconnector_runtime *runtime) {
+    (void)runtime; return MSCONNECTOR_BODY_MODE_BUFFERED;
+}
+int msconnector_runtime_transaction_append_request_body_chunk(msconnector_runtime_transaction *transaction,
+    const unsigned char *body, size_t size, msconnector_error *error) {
+    (void)body; (void)size; msconnector_error_init(error); return transaction != NULL;
+}
+int msconnector_runtime_transaction_finish_request_body(msconnector_runtime_transaction *transaction,
+    msconnector_decision *decision, msconnector_error *error) {
+    msconnector_error_init(error); msconnector_decision_set_allow(decision); return transaction != NULL;
+}
+
+int msconnector_runtime_transaction_fail(msconnector_runtime_transaction *transaction,
+    msconnector_transaction_error_class error_class, msconnector_error *error) {
+    (void)error_class; msconnector_error_init(error); return transaction != NULL;
 }

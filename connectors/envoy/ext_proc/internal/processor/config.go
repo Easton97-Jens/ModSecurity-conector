@@ -44,7 +44,6 @@ type Config struct {
 	MaxHeaderValueBytes int    `json:"max_header_value_bytes"`
 	MaxTotalHeaderBytes int    `json:"max_total_header_bytes"`
 	MaxBodyChunkBytes   int    `json:"max_body_chunk_bytes"`
-	MaxRequestBodyBytes int64  `json:"max_request_body_bytes"`
 	MaxGRPCMessageBytes int    `json:"max_grpc_message_bytes"`
 	EngineTimeoutMS     int    `json:"engine_timeout_ms"`
 	// StreamIdleTimeoutMS bounds inactivity between Envoy ProcessingRequest
@@ -145,9 +144,7 @@ func (config Config) Validate() error {
 			return fmt.Errorf("config: %s exceeds maximum of %d milliseconds", name, maxTimeoutMS)
 		}
 	}
-	if config.MaxRequestBodyBytes <= 0 {
-		return fmt.Errorf("config: request body limit must be positive")
-	}
+
 	if config.MaxGRPCMessageBytes <= config.MaxBodyChunkBytes {
 		return fmt.Errorf("config: max_grpc_message_bytes must exceed max_body_chunk_bytes")
 	}

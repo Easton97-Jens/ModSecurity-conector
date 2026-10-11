@@ -37,7 +37,6 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`max_header_count`](#max-header-count) | Connector-Service | Ganzzahl | ja | kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld | ext_proc-Service-JSON-Objekt | Setzt eine begrenzte ext_proc-Service-Steuerung. |
 | [`max_header_name_bytes`](#max-header-name-bytes) | Connector-Service | Ganzzahl | ja | kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld | ext_proc-Service-JSON-Objekt | Setzt eine begrenzte ext_proc-Service-Steuerung. |
 | [`max_header_value_bytes`](#max-header-value-bytes) | Connector-Service | Ganzzahl | ja | kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld | ext_proc-Service-JSON-Objekt | Setzt eine begrenzte ext_proc-Service-Steuerung. |
-| [`max_request_body_bytes`](#max-request-body-bytes) | Connector-Service | 64-Bit-Ganzzahl | ja | kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld | ext_proc-Service-JSON-Objekt | Setzt eine begrenzte ext_proc-Service-Steuerung. |
 | [`max_total_header_bytes`](#max-total-header-bytes) | Connector-Service | Ganzzahl | ja | kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld | ext_proc-Service-JSON-Objekt | Setzt eine begrenzte ext_proc-Service-Steuerung. |
 | [`shutdown_timeout_ms`](#shutdown-timeout-ms) | Connector-Service | Ganzzahl | ja | kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld | ext_proc-Service-JSON-Objekt | Setzt eine begrenzte ext_proc-Service-Steuerung. |
 | [`static_resources`](#static-resources) | Host / Connector | YAML-Konfigurationsfeld | nein | Der Connector definiert für `static_resources` keinen unabhängigen Standardwert; das ausgewählte Template legt den gezeigten Wert ausdrücklich fest. | Der im ausgewählten Beispiel gezeigte YAML-Objektpfad. | Das YAML-Feld `static_resources` konfiguriert die Host-/Connector-YAML-Konfiguration. Sie konfiguriert einen quellenbasierten Teil des ausgewählten Host- und Connectorpfads. |
@@ -172,8 +171,6 @@ Host-/Connector-Schalter binden oder konfigurieren die Hostintegration. Sie sind
 | `transaction_id_header` | Schlüssel des ausgewählten Runtime-Profils | [transaction_id_header](../common/common-connector-configuration.de.md#transaction-id-header) |
 | `request_body_mode` | Schlüssel des ausgewählten Runtime-Profils | [request_body_mode](../common/common-connector-configuration.de.md#request-body-mode) |
 | `response_body_mode` | Schlüssel des ausgewählten Runtime-Profils | [response_body_mode](../common/common-connector-configuration.de.md#response-body-mode) |
-| `request_body_limit` | Schlüssel des ausgewählten Runtime-Profils | [request_body_limit](../common/common-connector-configuration.de.md#request-body-limit) |
-| `body_limit_action` | Schlüssel des ausgewählten Runtime-Profils | [body_limit_action](../common/common-connector-configuration.de.md#body-limit-action) |
 | `phase4_mode` | Schlüssel des ausgewählten Runtime-Profils | [phase4_mode](../common/common-connector-configuration.de.md#phase4-mode) |
 | `default_block_status` | Schlüssel des ausgewählten Runtime-Profils | [default_block_status](../common/common-connector-configuration.de.md#default-block-status) |
 | `default_error_status` | Schlüssel des ausgewählten Runtime-Profils | [default_error_status](../common/common-connector-configuration.de.md#default-error-status) |
@@ -1736,61 +1733,6 @@ Config.Validate weist leere, nichtpositive, ungültige Enum- und host:port-Werte
 ### Beispiel
 
 Ausgewählter Beispielwert: `8192`.
-
-Quellenbasiertes Beispiel: [examples/envoy/safe/envoy-ext-proc-service.json](../../examples/envoy/safe/envoy-ext-proc-service.json).
-
-### Sicherheit und Betrieb
-
-Alle Header-, Body-, gRPC- und Timeout-Werte begrenzen; die Listen-Adresse des Service privat halten.
-
-<a id="max-request-body-bytes"></a>
-## `max_request_body_bytes`
-
-### Kurzbeschreibung
-
-Setzt eine begrenzte ext_proc-Service-Steuerung.
-
-### Syntax
-
-```text
-"max_request_body_bytes": <int64>
-```
-
-### Gültige Kontexte
-
-- ext_proc-Service-JSON-Objekt
-
-### Werte
-
-| Typ | Zulässige Werte | Erforderlich |
-| --- | --- | --- |
-| 64-Bit-Ganzzahl | positiver Wert | ja |
-
-### Standardwert
-
-kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld
-
-Quelle: `processor.Config besitzt keine impliziten Feldstandardwerte`.
-
-### Vererbung und Zusammenführung
-
-Keine Vererbung; ein JSON-Objekt wird dekodiert, unbekannte Felder werden abgewiesen.
-
-Zusammenführung: Kein Merge; ein zweiter JSON-Wert wird nach dem einen Konfigurationsobjekt abgewiesen.
-
-### Phasen und Laufzeitwirkung
-
-P1–P4-Relevanz: Limits und späte Policy beeinflussen das Prozessorverhalten in P1–P4.
-
-Setzt eine begrenzte ext_proc-Service-Steuerung.
-
-### Validierung und Fehler
-
-Config.Validate weist leere, nichtpositive, ungültige Enum- und host:port-Werte sowie widersprüchliche gRPC-/Body-Limits ab.
-
-### Beispiel
-
-Ausgewählter Beispielwert: `10485760`.
 
 Quellenbasiertes Beispiel: [examples/envoy/safe/envoy-ext-proc-service.json](../../examples/envoy/safe/envoy-ext-proc-service.json).
 

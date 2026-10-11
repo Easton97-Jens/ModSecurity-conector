@@ -134,7 +134,6 @@ Socket-/Logpfaden. Alle anwendbaren Begrenzungsparameter sind sichtbar:
 | Parameter | Eingecheckter Wert | Grenze |
 | --- | ---: | --- |
 | `tune.bufsize` / `max-frame-size` | 65536 / 65532 | HAProxy- und SPOE-Request-Grenzen |
-| `request-body-limit` | 65532 | Request-Eingabegrenze |
 | `response-body-timeout` / `spoe-timeout` | 2000 / 2000 ms | Companion- und Agent-Timeout |
 | `max-transactions` / `worker-count` | 64 / 8 | Begrenzter State, deterministische Ownership und Peer-Isolation |
 | `response-companion-uid/gid` | 1000 / 1000 | Muss zur Agent-Identität passen |

@@ -469,7 +469,10 @@ checks.extend([
         and function_call_count(input_filter_eos_handler, "apache_input_filter_terminal_error") >= 2
         and "msc_apache_contract_begin" in input_filter_process_bucket
         and "msc_apache_contract_record_body" in input_filter_process_bucket
-        and "HTTP_REQUEST_ENTITY_TOO_LARGE" in input_filter_process_bucket
+        and "HTTP_INTERNAL_SERVER_ERROR" in input_filter_process_bucket
+        and "msr->request_body_bytes_seen > SIZE_MAX - len" in input_filter_process_bucket
+        and "(len > 0 && data == NULL)" in input_filter_process_bucket
+        and "request_intervention_pending" in input_filter_process_bucket
         and "apache_input_filter_handle_eos" in input_filter_handler
         and "apache_input_filter_process_bucket" in input_filter_handler
         and "if (msr == NULL)" in input_filter_handler

@@ -568,8 +568,6 @@ def write_engine_config(path: Path, rules_file: Path, event_path: Path) -> None:
                 "transaction_id_header=x-request-id",
                 "request_body_mode=streaming",
                 "response_body_mode=streaming",
-                "request_body_limit=4096",
-                "body_limit_action=reject",
                 "phase4_mode=safe",
                 "default_block_status=403",
                 "default_error_status=500",

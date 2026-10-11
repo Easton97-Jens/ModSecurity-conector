@@ -75,9 +75,12 @@ static int process_request_headers(Transaction *value,
         const haproxy_modsecurity_request *request, haproxy_modsecurity_decision *decision) {
     (void)value; (void)request; (void)decision; note('H'); return fail_at == 'H';
 }
+static int capture_intervention(Transaction *value, int phase, haproxy_modsecurity_decision *decision);
 static int process_request_body(Transaction *value,
         const haproxy_modsecurity_request *request, haproxy_modsecurity_decision *decision) {
-    (void)value; (void)request; (void)decision; note('B'); return fail_at == 'B';
+    (void)request; note('B');
+    if (fail_at == 'B') { return 1; }
+    return capture_intervention(value, 2, decision);
 }
 static int capture_intervention(Transaction *value, int phase, haproxy_modsecurity_decision *decision) {
     char operation = phase == 1 ? '1' : '2';

@@ -1,5 +1,7 @@
 # NGINX Connector
 
+Request- and response-body inspection limits and actions belong exclusively to libModSecurity: configure `SecRequestBodyLimit`, `SecRequestBodyNoFilesLimit`, `SecRequestBodyLimitAction`, `SecResponseBodyLimit`, and `SecResponseBodyLimitAction` in the engine rules. The connector has no body-size option, default, fallback, cumulative rejection, or inspection-prefix truncation. Checked counters, pointer/file validation, and bounded scratch or transport frames remain technical safety controls.
+
 **Language:** English | [Deutsch](README.de.md)
 
 Status: adapter-owned source migration
@@ -603,3 +605,5 @@ WAF inspection policy.
 
 See [the cross-connector response-limit ownership contract](../../docs/phase4-mode-budget.md)
 for the exact scope, compatibility boundary and validation limitations.
+
+Request temp files are read from the validated host descriptor with one reusable 32768-byte scratch buffer. Each complete chunk reaches the engine; the scratch size does not limit total request size. Append-time native Reject is retained through EOS, and append zero continues for native ProcessPartial.

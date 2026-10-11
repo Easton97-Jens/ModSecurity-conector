@@ -15,12 +15,24 @@ import connector_config_reference as REFERENCE
 
 
 class ConnectorConfigReferenceTests(unittest.TestCase):
+    def test_retired_common_keys_are_rejections_instead_of_accepted_inventory(self) -> None:
+        source = (ROOT / "common/runtime/msconnector_runtime.c").read_text(encoding="utf-8")
+        self.assertNotIn("request_body_limit", REFERENCE.common_runtime_parser_keys(source))
+        start = source.index('if (strcmp(key, "request_body_limit")')
+        end = source.index("result = assign_boolean_config_value", start)
+        rejection = source[start:end]
+        for replacement in (
+            rejection.replace("return 0;", "return 1;"),
+            rejection.replace("was removed", "configured"),
+        ):
+            with self.subTest(replacement=replacement), self.assertRaisesRegex(ValueError, "explicitly reject"):
+                REFERENCE.common_runtime_parser_keys(source[:start] + replacement + source[end:])
+
     def test_common_runtime_limits_are_extracted_from_enforced_header_caps(self) -> None:
         limits = REFERENCE.common_runtime_limits(ROOT)
         self.assertEqual(
             limits,
             {
-                "request_body_limit": 10485760,
                 "max_header_count": 256,
                 "max_header_name_size": 256,
                 "max_header_value_size": 8192,
@@ -135,8 +147,8 @@ class ConnectorConfigReferenceTests(unittest.TestCase):
         self.assertIn("worker-count akzeptiert 2..64", REFERENCE._german_option(options["worker-count"])["validation"])
 
     def test_generator_preserves_disabled_remote_and_secure_nginx_file_contracts(self) -> None:
-        # The generated 10 MiB body-cap wording is source-backed rather than
-        # a standalone documentation promise.
+        # Header and event bounds remain source-backed independently of body
+        # inspection policy, which belongs to the engine.
         self.assertIsNone(REFERENCE._assert_common_source_defaults(ROOT))
         apache = {item["name"]: item for item in REFERENCE.extract_apache(ROOT)}
         nginx = {item["name"]: item for item in REFERENCE.extract_nginx(ROOT)}
@@ -167,7 +179,8 @@ class ConnectorConfigReferenceTests(unittest.TestCase):
         self.assertNotIn("modsecurity_phase4_content_types_file", nginx)
 
         self.assertEqual(common["max_event_json_bytes"]["allowed_values"], "1 through 16384 bytes")
-        self.assertIn("10 MiB", common["request_body_limit"]["allowed_values"])
+        self.assertNotIn("request_body_limit", common)
+        self.assertNotIn("body_limit_action", common)
         self.assertIn("65536", common["max_total_header_bytes"]["allowed_values"])
 
     def test_german_translation_literal_keys_are_unique(self) -> None:

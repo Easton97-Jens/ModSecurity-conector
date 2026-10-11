@@ -42,8 +42,6 @@ type Limits struct {
 	Capacity       int
 	TTL            time.Duration
 	IdleTTL        time.Duration
-	MaxRequestBody int64
-	MaxBodyChunks  int
 	MaxHeaders     int
 	MaxHeaderBytes int
 }
@@ -77,13 +75,7 @@ func (l Limits) withDefaults() Limits {
 	if l.IdleTTL <= 0 {
 		l.IdleTTL = 5 * time.Second
 	}
-	if l.MaxRequestBody <= 0 {
-		l.MaxRequestBody = 1 << 20
-	}
 
-	if l.MaxBodyChunks <= 0 {
-		l.MaxBodyChunks = 256
-	}
 	if l.MaxHeaders <= 0 {
 		l.MaxHeaders = 256
 	}
@@ -146,7 +138,7 @@ func New(connector string, key []byte, limits Limits, engine processor.Transacti
 	if connector == "" || len(key) < 32 || engine == nil {
 		return nil, errors.New("connector, 256-bit key, and engine are required")
 	}
-	if limits.Capacity < 0 || limits.TTL < 0 || limits.IdleTTL < 0 || limits.MaxRequestBody < 0 || limits.MaxBodyChunks < 0 || limits.MaxHeaders < 0 || limits.MaxHeaderBytes < 0 {
+	if limits.Capacity < 0 || limits.TTL < 0 || limits.IdleTTL < 0 || limits.MaxHeaders < 0 || limits.MaxHeaderBytes < 0 {
 		return nil, ErrLimit
 	}
 	if limits.Capacity > 4096 {
@@ -406,10 +398,7 @@ func (a *Admission) RecordHostAction(ctx context.Context, action processor.HostA
 		e.mu.Unlock()
 		return ErrOutOfOrder
 	}
-	if e.syntheticRequestBodyLimit {
-		e.mu.Unlock()
-		return errors.New("synthetic request body limit has no native Common host action")
-	}
+
 	if e.hostActionRecorded {
 		e.mu.Unlock()
 		return ErrDuplicate
@@ -439,37 +428,6 @@ func (a *Admission) RecordHostAction(ctx context.Context, action processor.HostA
 	return nil
 }
 
-// RecordRequestBodyLimitHostAction records the bounded 413 selected by the
-// coordinator before the overflowing bytes are sent to Common. There is no
-// native Common disruptive decision in this path, so it deliberately never
-// invokes processor.HostActionRecorder or claims native rule evidence.
-func (a *Admission) RecordRequestBodyLimitHostAction() error {
-	if a == nil || a.e == nil {
-		return ErrClosed
-	}
-	e := a.e
-	e.mu.Lock()
-	if err := e.checkLocked(); err != nil {
-		e.mu.Unlock()
-		return err
-	}
-	if !e.blocked || !e.syntheticRequestBodyLimit {
-		e.mu.Unlock()
-		return ErrOutOfOrder
-	}
-	if e.hostActionRecorded {
-		e.mu.Unlock()
-		return ErrDuplicate
-	}
-	e.hostActionRecorded = true
-	err := e.emitLocked(Event{DecisionID: e.id, Connector: e.c.connector, Phase: "request_host_action", Outcome: "recorded", Reason: "request_body_limit", RequestedAction: "block", ActualHostAction: string(processor.AppliedActionDeny), VisibleStatus: 413, EventTime: time.Now()})
-	e.mu.Unlock()
-	if err != nil {
-		e.finish(context.Background(), "companion_failure")
-		return err
-	}
-	return nil
-}
 func (a *Admission) Lease() (string, error) {
 	if a == nil || a.e == nil {
 		return "", ErrClosed
@@ -638,7 +596,7 @@ type entry struct {
 	reserved                                                                   bool
 	binding                                                                    [sha256.Size]byte
 	snapshot                                                                   ReservationSnapshot
-	p4EventEmitted, syntheticRequestBodyLimit, hostActionRecorded              bool
+	p4EventEmitted, hostActionRecorded                                         bool
 	session                                                                    string
 	closeOnce                                                                  sync.Once
 }
@@ -860,8 +818,8 @@ func (e *entry) requestBody(ctx context.Context, b []byte, eos bool) (processor.
 	if e.phase != phaseRequestBody {
 		return processor.Decision{}, ErrOutOfOrder
 	}
-	if e.requestBodyBytes+int64(len(b)) > e.c.limits.MaxRequestBody || e.requestChunks+1 > e.c.limits.MaxBodyChunks {
-		return e.requestBodyLimitLocked()
+	if e.requestBodyBytes < 0 || int64(len(b)) > math.MaxInt64-e.requestBodyBytes || e.requestChunks == math.MaxInt {
+		return processor.Decision{}, errors.New("request accounting overflow")
 	}
 	e.requestBodyBytes += int64(len(b))
 	e.requestChunks++
@@ -890,19 +848,6 @@ func (e *entry) markReservedLeaseLocked() error {
 	return e.emitLocked(Event{DecisionID: e.id, Connector: e.c.connector, Phase: "lease", Outcome: "issued"})
 }
 
-// requestBodyLimitLocked emits one bounded P2 decision without delivering the
-// overflowing bytes to the engine. Adapters can then record the actual 413
-// host action and terminal cleanup against the same decision ID.
-func (e *entry) requestBodyLimitLocked() (processor.Decision, error) {
-	e.blocked = true
-	e.syntheticRequestBodyLimit = true
-	e.last = time.Now()
-	d := processor.Decision{Action: processor.ActionDeny, Status: 413}
-	if err := e.emitLocked(Event{DecisionID: e.id, Connector: e.c.connector, Phase: "P2", Outcome: "observed", Reason: "request_body_limit", RequestedAction: string(d.Action), VisibleStatus: d.Status}); err != nil {
-		return d, err
-	}
-	return d, ErrLimit
-}
 func (e *entry) issueLease() (string, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()

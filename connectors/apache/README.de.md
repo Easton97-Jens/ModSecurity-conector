@@ -1,5 +1,7 @@
 # Apache-Connector
 
+Request- und Response-Body-Inspection-Limits und Aktionen gehören ausschließlich libModSecurity: `SecRequestBodyLimit`, `SecRequestBodyNoFilesLimit`, `SecRequestBodyLimitAction`, `SecResponseBodyLimit` und `SecResponseBodyLimitAction` werden in den Engine-Regeln konfiguriert. Der Connector besitzt keine Body-Größenoption, keinen Default oder Fallback, keine kumulative Ablehnung und keine Kürzung des Inspection-Präfixes. Geprüfte Zähler, Pointer-/Dateiprüfungen und begrenzte Arbeitsbuffer oder Transportframes bleiben technische Sicherheitskontrollen.
+
 **Sprache:** [English](README.md) | Deutsch
 
 

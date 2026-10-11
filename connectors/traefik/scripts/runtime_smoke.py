@@ -465,11 +465,6 @@ def validate_forwardauth_p2_contract(
         raise RuntimeError("forwardAuth P2 requires maxBodySize")
     if int(body_size.group(1)) != FORWARDAUTH_P2_BODY_LIMIT:
         raise RuntimeError("forwardAuth maxBodySize must equal 4096")
-    if "request_body_mode=buffered" not in service_text:
-        raise RuntimeError("forwardAuth P2 requires request_body_mode=buffered")
-    service_size = re.search(r"(?m)^request_body_limit=(\d+)\s*$", service_text)
-    if service_size is None or int(service_size.group(1)) != FORWARDAUTH_P2_BODY_LIMIT:
-        raise RuntimeError("forwardAuth request_body_limit must equal 4096")
 
 
 def http_status(url: str, headers: dict[str, str] | None = None) -> int:

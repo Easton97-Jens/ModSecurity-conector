@@ -240,3 +240,15 @@ Host-Kapazität und keine WAF-Inspection-Policy.
 Der [connectorübergreifende Vertrag zur Eigentümerschaft von Response-Limits](../../docs/phase4-mode-budget.de.md)
 beschreibt den genauen Geltungsbereich, die Kompatibilitätsgrenze und die
 Grenzen der Validierung.
+
+## Native Body-Policy und verbleibende Hostgrenzen
+
+Request-Limit/-Aktion gehören ausschließlich zu `SecRequestBodyLimit` und
+`SecRequestBodyLimitAction`, Response-Limit/-Aktion ausschließlich zu
+`SecResponseBodyLimit` und `SecResponseBodyLimitAction`. Der Connector ergänzt
+keine Body-Größenoption, keinen Default und keine kumulierte Durchsetzung.
+Begrenzte IO-Blöcke und geprüfte Zähler wählen kein Engine-Limit und keine Aktion.
+
+Der ext_authz-Host puffert weiterhin einen Authorization-Request: Smoke-Konfiguration
+`max_request_bytes=4096`, Composite-Konfiguration `max_request_bytes=33`. Diese
+Gesamtrequest-Hostgrenzen bleiben; native ext_proc ist ein getrenntes Profil.

@@ -54,7 +54,8 @@ int msconnector_decision_is_body_limit(const msconnector_decision *decision) {
         decision->body_limit == 1 &&
         decision->kind == MSCONNECTOR_DECISION_KIND_DENY &&
         decision->status == MSCONNECTOR_STATUS_BLOCKED &&
-        ((decision->phase == MSCONNECTOR_PHASE_REQUEST_BODY && decision->http_status == 413) ||
+        ((decision->phase == MSCONNECTOR_PHASE_REQUEST_BODY &&
+          (decision->http_status == 403 || decision->http_status == 413)) ||
          (decision->phase == MSCONNECTOR_PHASE_RESPONSE_BODY && decision->http_status == 403)) &&
         decision->redirect_url == 0 &&
         (decision->rule_id == 0 || decision->rule_id[0] == '\0') &&
@@ -76,8 +77,8 @@ void msconnector_decision_set_deny(msconnector_decision *decision, int http_stat
     decision->http_status = normalized; decision->rule_id = rule_id; decision->reason = reason;
     decision->disruptive = 1; decision->intervention = msconnector_intervention_make(1, normalized, 0, reason);
 }
-void msconnector_decision_set_body_limit(msconnector_decision *decision, const char *reason) {
-    msconnector_decision_set_deny(decision, 413, 0, reason);
+void msconnector_decision_set_body_limit(msconnector_decision *decision, int native_status, const char *reason) {
+    msconnector_decision_set_deny(decision, native_status, 0, reason);
     if (decision == 0) { return; }
     decision->phase = MSCONNECTOR_PHASE_REQUEST_BODY;
     decision->body_limit = 1;

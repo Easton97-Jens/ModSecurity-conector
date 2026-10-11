@@ -36,11 +36,11 @@
     },
     "request_body_buffered": {
       "state": "implemented_not_asserted",
-      "reason": "The HAProxy configuration buffers the request and passes a bounded req.body sample to the agent; canonical Phase-2 evidence is pending."
+      "reason": "The HAProxy configuration buffers the request and passes one frame-representable req.body sample to the agent; canonical Phase-2 evidence is pending."
     },
     "request_body_streaming": {
       "state": "not_implemented",
-      "reason": "The current SPOP message carries one bounded body sample rather than a streaming body protocol."
+      "reason": "The current SPOP message carries one frame-representable body sample rather than a streaming body protocol."
     },
     "response_headers": {
       "state": "implemented_not_asserted",
@@ -60,7 +60,7 @@
     },
     "phase2": {
       "state": "implemented_not_asserted",
-      "reason": "The agent appends the bounded request body and invokes request-body processing; canonical evidence is pending."
+      "reason": "The agent appends the complete advertised request sample and invokes request-body processing; canonical evidence is pending."
     },
     "phase3": {
       "state": "implemented_not_asserted",
@@ -140,7 +140,7 @@
     },
     "request_body_incremental_ingest": {
       "state": "not_implemented",
-      "reason": "The current SPOP request message carries one bounded req.body sample rather than incrementally ingested request chunks."
+      "reason": "The current SPOP request message carries one frame-representable req.body sample rather than incrementally ingested request chunks."
     },
     "response_body_incremental_ingest": {
       "state": "not_implemented",
@@ -160,7 +160,7 @@
     },
     "request_body_limits": {
       "state": "configured_not_exercised",
-      "reason": "The SPOP request-body sample is bounded by configuration, but no canonical host limit case has exercised its behavior."
+      "reason": "libModSecurity exclusively owns request body limits and actions; the connector passes complete chunks and preserves native outcomes. Fresh host evidence is required."
     },
     "response_body_limits": {
       "state": "not_implemented",

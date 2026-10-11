@@ -13,7 +13,10 @@ Only directives actually used in checked-in example rule files are listed. They 
 | [`SecAuditLog`](#secauditlog) | ModSecurity Engine | ModSecurity engine directive | no | No default is inferred from examples. | Loaded ModSecurity configuration/rule file | Sets the engine audit-log path. |
 | [`SecAuditLogParts`](#secauditlogparts) | ModSecurity Engine | ModSecurity engine directive | no | No default is inferred from examples. | Loaded ModSecurity configuration/rule file | Selects audit-log parts. |
 | [`SecAuditLogType`](#secauditlogtype) | ModSecurity Engine | ModSecurity engine directive | no | No default is inferred from examples. | Loaded ModSecurity configuration/rule file | Sets the selected audit-log write mode. |
-| [`SecRequestBodyAccess`](#secrequestbodyaccess) | ModSecurity Engine | ModSecurity engine directive | no | No default is inferred from examples. | Loaded ModSecurity configuration/rule file | On makes request-body input available to engine P2 only when the host supplies it; Off leaves P1 headers available but removes body input from P2. The directive itself sets neither a body-size limit nor a request MIME scope: those remain host/engine mapping choices and, where selected, Common Runtime request_body_limit/body mode controls. Enabling body handling can add buffering, memory, CPU, and logging exposure, so retain bounded host input. |
+| [`SecRequestBodyAccess`](#secrequestbodyaccess) | ModSecurity Engine | ModSecurity engine directive | no | No default is inferred from examples. | Loaded ModSecurity configuration/rule file | On makes request-body input available to engine P2 only when the host supplies it; Off leaves P1 headers available but removes body input from P2. Request inspection limits and actions belong to SecRequestBodyLimit, SecRequestBodyNoFilesLimit, and SecRequestBodyLimitAction. Incremental connector working buffers do not set a total-body limit; separate host authorization-buffer constraints remain documented limitations. |
+| [`SecRequestBodyLimit`](#secrequestbodylimit) | ModSecurity Engine | ModSecurity engine directive | no | No default is inferred from examples. | Loaded ModSecurity configuration/rule file | Exclusively sets the engine request-body inspection limit; the connector has no corresponding option, default, or second enforcement logic. |
+| [`SecRequestBodyLimitAction`](#secrequestbodylimitaction) | ModSecurity Engine | ModSecurity engine directive | no | No default is inferred from examples. | Loaded ModSecurity configuration/rule file | Exclusively selects the native request-limit action. The connector preserves actual engine results, including DetectionOnly behavior, without choosing rejection or a prefix. |
+| [`SecRequestBodyNoFilesLimit`](#secrequestbodynofileslimit) | ModSecurity Engine | ModSecurity engine directive | no | No default is inferred from examples. | Loaded ModSecurity configuration/rule file | Sets the engine limit for request-body data excluding uploaded files; this independent native constraint also applies to non-file request data. |
 | [`SecResponseBodyAccess`](#secresponsebodyaccess) | ModSecurity Engine | ModSecurity engine directive | no | No default is inferred from examples. | Loaded ModSecurity configuration/rule file | On makes P4 possible only when the host supplies response bytes that are in scope; Off removes response-body input from P4. It does not widen SecResponseBodyMimeType, override SecResponseBodyLimit/SecResponseBodyLimitAction, or force a status change after headers commit. With the selected safe late-intervention policy, a post-commit disruptive result is recorded as log_only rather than a promised later 403; response capture can add bounded memory, CPU, and sensitive-data exposure. |
 | [`SecResponseBodyLimit`](#secresponsebodylimit) | ModSecurity Engine | ModSecurity engine directive | no | No default is inferred from examples. | Loaded ModSecurity configuration/rule file | Exclusively sets the response-body inspection limit; the connector has no corresponding option, default, or second enforcement logic. |
 | [`SecResponseBodyLimitAction`](#secresponsebodylimitaction) | ModSecurity Engine | ModSecurity engine directive | no | No default is inferred from examples. | Loaded ModSecurity configuration/rule file | Exclusively selects Reject or ProcessPartial when the engine inspection limit is exceeded; the connector forwards native results and interventions. |
@@ -314,7 +317,7 @@ Engine policy can inspect, log, detect, or disrupt traffic; protect rule and aud
 
 ### Short description
 
-On makes request-body input available to engine P2 only when the host supplies it; Off leaves P1 headers available but removes body input from P2. The directive itself sets neither a body-size limit nor a request MIME scope: those remain host/engine mapping choices and, where selected, Common Runtime request_body_limit/body mode controls. Enabling body handling can add buffering, memory, CPU, and logging exposure, so retain bounded host input.
+On makes request-body input available to engine P2 only when the host supplies it; Off leaves P1 headers available but removes body input from P2. Request inspection limits and actions belong to SecRequestBodyLimit, SecRequestBodyNoFilesLimit, and SecRequestBodyLimitAction. Incremental connector working buffers do not set a total-body limit; separate host authorization-buffer constraints remain documented limitations.
 
 ### Syntax
 
@@ -346,9 +349,9 @@ Merge: Engine-specific; include order and rule configuration determine effective
 
 ### Phases and runtime effect
 
-P2. On permits body inspection only after the connector has supplied request bytes; the selected host/runtime body mode and limit determine how many bytes can reach the engine.
+P2. On permits body inspection only after the connector has supplied request bytes; body mode selects input availability, while native request-limit directives govern engine inspection.
 
-On makes request-body input available to engine P2 only when the host supplies it; Off leaves P1 headers available but removes body input from P2. The directive itself sets neither a body-size limit nor a request MIME scope: those remain host/engine mapping choices and, where selected, Common Runtime request_body_limit/body mode controls. Enabling body handling can add buffering, memory, CPU, and logging exposure, so retain bounded host input.
+On makes request-body input available to engine P2 only when the host supplies it; Off leaves P1 headers available but removes body input from P2. Request inspection limits and actions belong to SecRequestBodyLimit, SecRequestBodyNoFilesLimit, and SecRequestBodyLimitAction. Incremental connector working buffers do not set a total-body limit; separate host authorization-buffer constraints remain documented limitations.
 
 ### Validation and errors
 
@@ -362,7 +365,172 @@ Source-backed example: [examples/apache/rules/detection-only.conf](../../example
 
 ### Safety and operations
 
-Request bodies may contain credentials or personal data. Use bounded body limits, appropriate MIME/parser policy, and protected audit/debug logs; no performance quantity is inferred here.
+Request bodies may contain credentials or personal data. Configure native engine body limits, appropriate MIME/parser policy, and protected audit/debug logs; no performance quantity is inferred here.
+
+<a id="secrequestbodylimit"></a>
+## `SecRequestBodyLimit`
+
+### Short description
+
+Exclusively sets the engine request-body inspection limit; the connector has no corresponding option, default, or second enforcement logic.
+
+### Syntax
+
+```text
+SecRequestBodyLimit <bytes>
+```
+
+### Valid contexts
+
+- Loaded ModSecurity configuration/rule file
+
+### Values
+
+| Type | Allowed values | Required |
+| --- | --- | --- |
+| ModSecurity engine directive | positive byte count | no |
+
+### Default
+
+No default is inferred from examples.
+
+Source: `not inferred; only checked-in example usage is documented`.
+
+### Inheritance and merge
+
+Engine-specific; not a host connector merge setting.
+
+Merge: Engine-specific; include order and rule configuration determine effective behavior.
+
+### Phases and runtime effect
+
+See directive runtime effect.
+
+Exclusively sets the engine request-body inspection limit; the connector has no corresponding option, default, or second enforcement logic.
+
+### Validation and errors
+
+The host/libmodsecurity rejects invalid engine syntax when loading the rule file.
+
+### Example
+
+Selected value: use the syntax above and the source-backed file below.
+
+Source-backed example: [examples/apache/rules/detection-only.conf](../../examples/apache/rules/detection-only.conf).
+
+### Safety and operations
+
+Engine policy can inspect, log, detect, or disrupt traffic; protect rule and audit-log paths.
+
+<a id="secrequestbodylimitaction"></a>
+## `SecRequestBodyLimitAction`
+
+### Short description
+
+Exclusively selects the native request-limit action. The connector preserves actual engine results, including DetectionOnly behavior, without choosing rejection or a prefix.
+
+### Syntax
+
+```text
+SecRequestBodyLimitAction ProcessPartial | Reject
+```
+
+### Valid contexts
+
+- Loaded ModSecurity configuration/rule file
+
+### Values
+
+| Type | Allowed values | Required |
+| --- | --- | --- |
+| ModSecurity engine directive | ProcessPartial \| Reject | no |
+
+### Default
+
+No default is inferred from examples.
+
+Source: `not inferred; only checked-in example usage is documented`.
+
+### Inheritance and merge
+
+Engine-specific; not a host connector merge setting.
+
+Merge: Engine-specific; include order and rule configuration determine effective behavior.
+
+### Phases and runtime effect
+
+See directive runtime effect.
+
+Exclusively selects the native request-limit action. The connector preserves actual engine results, including DetectionOnly behavior, without choosing rejection or a prefix.
+
+### Validation and errors
+
+The host/libmodsecurity rejects invalid engine syntax when loading the rule file.
+
+### Example
+
+Selected value: use the syntax above and the source-backed file below.
+
+Source-backed example: [examples/apache/rules/detection-only.conf](../../examples/apache/rules/detection-only.conf).
+
+### Safety and operations
+
+Engine policy can inspect, log, detect, or disrupt traffic; protect rule and audit-log paths.
+
+<a id="secrequestbodynofileslimit"></a>
+## `SecRequestBodyNoFilesLimit`
+
+### Short description
+
+Sets the engine limit for request-body data excluding uploaded files; this independent native constraint also applies to non-file request data.
+
+### Syntax
+
+```text
+SecRequestBodyNoFilesLimit <bytes>
+```
+
+### Valid contexts
+
+- Loaded ModSecurity configuration/rule file
+
+### Values
+
+| Type | Allowed values | Required |
+| --- | --- | --- |
+| ModSecurity engine directive | positive byte count | no |
+
+### Default
+
+No default is inferred from examples.
+
+Source: `not inferred; only checked-in example usage is documented`.
+
+### Inheritance and merge
+
+Engine-specific; not a host connector merge setting.
+
+Merge: Engine-specific; include order and rule configuration determine effective behavior.
+
+### Phases and runtime effect
+
+See directive runtime effect.
+
+Sets the engine limit for request-body data excluding uploaded files; this independent native constraint also applies to non-file request data.
+
+### Validation and errors
+
+The host/libmodsecurity rejects invalid engine syntax when loading the rule file.
+
+### Example
+
+Selected value: use the syntax above and the source-backed file below.
+
+Source-backed example: [examples/apache/rules/detection-only.conf](../../examples/apache/rules/detection-only.conf).
+
+### Safety and operations
+
+Engine policy can inspect, log, detect, or disrupt traffic; protect rule and audit-log paths.
 
 <a id="secresponsebodyaccess"></a>
 ## `SecResponseBodyAccess`

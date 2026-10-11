@@ -246,6 +246,7 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
             "mcf->phase4_log_file != NULL && intervention.log != NULL",
             intervention,
         )
+        self.assertEqual(intervention.count("ngx_http_modsecurity_extract_intervention_rule_id(ctx, &intervention);"), 1)
         extract = intervention.index("ngx_http_modsecurity_extract_intervention_rule_id(ctx, &intervention);")
         terminal = intervention.index(
             "ngx_http_modsecurity_contract_record_intervention(r, ctx, &intervention)"
@@ -255,7 +256,7 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         self.assertLess(extract, terminal)
         self.assertLess(terminal, redirect)
         self.assertLess(terminal, status)
-        self.assertLess(extract, intervention.index("msc_intervention_cleanup(&intervention)"))
+        self.assertLess(extract, intervention.rindex("msc_intervention_cleanup(&intervention)"))
 
     def test_rule_id_helper_guard_rejects_missing_late_or_unbounded_extraction(self) -> None:
         call = "ngx_http_modsecurity_extract_intervention_rule_id(ctx, &intervention);"
@@ -320,7 +321,7 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
 
     def test_partial_body_append_and_file_paths_remain_nonfatal(self) -> None:
         request_append = function_definition(
-            self.access, "ngx_http_modsecurity_append_request_body"
+            self.access, "ngx_http_modsecurity_append_request_chunk"
         )
         self.assertRegex(
             request_append,
@@ -339,21 +340,14 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         request_file = function_definition(
             self.access, "ngx_http_modsecurity_inspect_request_body_file"
         )
-        self.assertRegex(
-            request_file,
-            re.compile(
-                r"msc_request_body_from_file\s*\(.*?\);\s*"
-                r"ctx->native_event_phase_active\s*=\s*0;",
-                re.DOTALL,
-            ),
-        )
-        file_failure = conditional_block(request_file, "if (ret != 1)")
-        self.assertIn("return NGX_HTTP_INTERNAL_SERVER_ERROR;", file_failure)
-        self.assertNotIn("msconnector_native_body_append_can_continue", request_file)
-        self.assertLess(
-            request_file.index("ctx->request_body_bytes_seen += (size_t)file_size;"),
-            request_file.index("ret = msc_request_body_from_file"),
-        )
+        self.assertIn("ngx_fd_info(file->fd, &file_info)", request_file)
+        self.assertIn("ngx_is_file(&file_info)", request_file)
+        self.assertIn("ngx_file_size(&file_info) != file_size", request_file)
+        self.assertIn("ngx_read_file(file, ctx->request_file_scratch", request_file)
+        self.assertIn("ngx_http_modsecurity_append_request_chunk(r, ctx", request_file)
+        self.assertIn("read_size < 0 || (size_t)read_size != amount", request_file)
+        self.assertNotIn("msc_request_body_from_file", request_file)
+        self.assertNotIn("request_body_limit", request_file)
 
         response_append = function_definition(
             self.body, "ngx_http_modsecurity_append_response_body_chunk"
@@ -429,7 +423,6 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         # above and by the compiled request-phase-completion regressions.
         for name in (
             "ngx_http_modsecurity_process_request_headers",
-            "ngx_http_modsecurity_append_request_body",
             "ngx_http_modsecurity_inspect_request_body",
         ):
             with self.subTest(function=name):

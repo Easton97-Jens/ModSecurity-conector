@@ -18,7 +18,6 @@ int msconnector_dos_guard_check_request(const msconnector_request *request, cons
     if (request == 0 || !msconnector_resource_limits_validate(limits)) { set_error(error, MSCONNECTOR_ERROR_INVALID_CONFIG, "invalid request or resource limits"); return 0; }
     if (!bounded_string_ok(request->hostname, limits->max_log_message_length)) { set_error(error, MSCONNECTOR_ERROR_LOG_MESSAGE_TOO_LARGE, "request metadata exceeds limit"); return 0; }
     if (!msconnector_resource_limits_headers_ok(request->headers, request->header_count, limits)) { set_error(error, MSCONNECTOR_ERROR_HEADER_TOO_LARGE, "request headers exceed resource limits"); return 0; }
-    if (!msconnector_resource_limits_body_ok(request->body.size, limits->max_request_body_bytes)) { set_error(error, MSCONNECTOR_ERROR_BODY_TOO_LARGE, "request body exceeds resource limit"); return 0; }
     return 1;
 }
 

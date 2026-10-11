@@ -30,7 +30,6 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineSocketPath`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-enginesocketpath) | Host / Connector | YAML-Konfigurationsfeld | nein | keiner (im uds-Modus erforderlich und validiert) | http.middlewares.<name>.plugin.modsecurityNative | Benennt den privaten UDS-Pfad, den die native Middleware bei engineMode=uds verwendet. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxHeaderBytes`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxheaderbytes) | Host / Connector | YAML-Limitfeld | nein | 65536 | http.middlewares.<name>.plugin.modsecurityNative | Das YAML-Feld `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxHeaderBytes` konfiguriert die Middleware-Anbindung. Sie bindet die ausgewählte Middleware an den Request- und Response-Verarbeitungsweg. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxHeaderCount`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxheadercount) | Host / Connector | YAML-Limitfeld | nein | 128 | http.middlewares.<name>.plugin.modsecurityNative | Das YAML-Feld `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxHeaderCount` konfiguriert die Middleware-Anbindung. Sie bindet die ausgewählte Middleware an den Request- und Response-Verarbeitungsweg. |
-| [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestBodyBytes`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxrequestbodybytes) | Host / Connector | Ganzzahliges aggregiertes Request-Body-Limit | nein | 1048576 | http.middlewares.<name>.plugin.modsecurityNative | Begrenzt die gesamten Request-Body-Bytes über alle gestreamten Request-Chunks; ein Überlauf wird abgelehnt und die Transaktion bereinigt. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestChunkBytes`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxrequestchunkbytes) | Host / Connector | YAML-Limitfeld | nein | 32768 | http.middlewares.<name>.plugin.modsecurityNative | Das YAML-Feld `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestChunkBytes` konfiguriert die Middleware-Anbindung. Sie bindet die ausgewählte Middleware an den Request- und Response-Verarbeitungsweg. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxResponseChunkBytes`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxresponsechunkbytes) | Host / Connector | YAML-Limitfeld | nein | 32768 | http.middlewares.<name>.plugin.modsecurityNative | Das YAML-Feld `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxResponseChunkBytes` konfiguriert die Middleware-Anbindung. Sie bindet die ausgewählte Middleware an den Request- und Response-Verarbeitungsweg. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.requestBodyIdleTimeoutMillis`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-requestbodyidletimeoutmillis) | Host / Connector | Ganzzahliges Request-Body-Idle-Timeout-Limit | nein | 1000 | http.middlewares.<name>.plugin.modsecurityNative | Begrenzt die Inaktivität zwischen Request-Body-Lesevorgängen unabhängig vom Engine-Timeout und schließt die eigene Quelle bei Ablauf. |
@@ -102,8 +101,6 @@ Host-/Connector-Schalter binden oder konfigurieren die Hostintegration. Sie sind
 | `transaction_id_header` | Schlüssel des ausgewählten Runtime-Profils | [transaction_id_header](../common/common-connector-configuration.de.md#transaction-id-header) |
 | `request_body_mode` | Schlüssel des ausgewählten Runtime-Profils | [request_body_mode](../common/common-connector-configuration.de.md#request-body-mode) |
 | `response_body_mode` | Schlüssel des ausgewählten Runtime-Profils | [response_body_mode](../common/common-connector-configuration.de.md#response-body-mode) |
-| `request_body_limit` | Schlüssel des ausgewählten Runtime-Profils | [request_body_limit](../common/common-connector-configuration.de.md#request-body-limit) |
-| `body_limit_action` | Schlüssel des ausgewählten Runtime-Profils | [body_limit_action](../common/common-connector-configuration.de.md#body-limit-action) |
 | `phase4_mode` | Schlüssel des ausgewählten Runtime-Profils | [phase4_mode](../common/common-connector-configuration.de.md#phase4-mode) |
 | `default_block_status` | Schlüssel des ausgewählten Runtime-Profils | [default_block_status](../common/common-connector-configuration.de.md#default-block-status) |
 | `default_error_status` | Schlüssel des ausgewählten Runtime-Profils | [default_error_status](../common/common-connector-configuration.de.md#default-error-status) |
@@ -1463,61 +1460,6 @@ security_relevance: A finite count limits header-flood work before data reaches 
 runtime_effect: Caps the number of request and response headers passed to native middleware engine callbacks.
 description: Caps the number of request and response headers passed to native middleware engine callbacks.
 ```
-
-<a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxrequestbodybytes"></a>
-## `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestBodyBytes`
-
-### Kurzbeschreibung
-
-Begrenzt die gesamten Request-Body-Bytes über alle gestreamten Request-Chunks; ein Überlauf wird abgelehnt und die Transaktion bereinigt.
-
-### Syntax
-
-```text
-http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestBodyBytes: <maxRequestBodyBytes>
-```
-
-### Gültige Kontexte
-
-- http.middlewares.<name>.plugin.modsecurityNative
-
-### Werte
-
-| Typ | Zulässige Werte | Erforderlich |
-| --- | --- | --- |
-| Ganzzahliges aggregiertes Request-Body-Limit | positiv; maximal 1048576 Bytes | nein |
-
-### Standardwert
-
-1048576
-
-Quelle: `connectors/traefik/native_middleware/middleware.go:CreateConfig`.
-
-### Vererbung und Zusammenführung
-
-Dynamisches Traefik-Konfigurationsobjekt; kein Common-Runtime-Merge.
-
-Zusammenführung: Die Traefik-/Plugin-Konfiguration wird einmalig durch das Plugin normalisiert.
-
-### Phasen und Laufzeitwirkung
-
-P1–P4-Relevanz: P2-Gesamtlimit für den Request-Body; es ist vom Limit maxRequestChunkBytes pro Chunk getrennt.
-
-Begrenzt die gesamten Request-Body-Bytes über alle gestreamten Request-Chunks; ein Überlauf wird abgelehnt und die Transaktion bereinigt.
-
-### Validierung und Fehler
-
-normalizedConfig weist nichtpositive Werte, Werte über 1048576 und Chunks oberhalb des aggregierten Body-Limits ab.
-
-### Beispiel
-
-Ausgewählter Beispielwert: `1048576`.
-
-Quellenbasiertes Beispiel: [examples/traefik/safe/traefik-dynamic.yaml](../../examples/traefik/safe/traefik-dynamic.yaml).
-
-### Sicherheit und Betrieb
-
-Ein endliches Gesamtbudget begrenzt die gesamte Request-Body-Verarbeitung, bevor sie die UDS-Engine erreicht.
 
 <a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxrequestchunkbytes"></a>
 ## `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestChunkBytes`

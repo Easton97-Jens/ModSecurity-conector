@@ -1,77 +1,82 @@
-# Phase-4 mode and response-body limit ownership
+# Body-limit ownership and Phase-4 mode
 
 **Language:** English | [Deutsch](phase4-mode-budget.de.md)
 
-## Scope
+## Ownership
 
-This contract covers Common Runtime and all Apache, NGINX, HAProxy, Envoy,
-Traefik and lighttpd response routes, including middleware, companions and
-sidecars. Phase-4 mode controls host intervention handling.
+Request inspection limit and action belong to `SecRequestBodyLimit` and
+`SecRequestBodyLimitAction`; the independent native `SecRequestBodyNoFilesLimit`
+also applies to non-file request data. Response inspection limit and action
+belong to `SecResponseBodyLimit` and `SecResponseBodyLimitAction`.
+The connector must not supply a body-limit default, infer one from rule text,
+inject directives, choose Reject/ProcessPartial, or truncate a body before the
+engine. Omitted directives retain native libModSecurity semantics.
 
-## Ownership contract
-
-Response-body inspection limit and limit action are determined exclusively by
-`SecResponseBodyLimit` and `SecResponseBodyLimitAction`. The connector has no
-option, default or second enforcement logic for this policy.
-
-| Concern | Owner | Required behavior |
+| Concern | Owner | Behavior |
 | --- | --- | --- |
-| Response inspection enablement and MIME selection | libModSecurity | `SecResponseBodyAccess`, `SecResponseBodyMimeType`, `SecResponseBodyMimeTypesClear` remain engine configuration. |
-| Response inspection limit and Reject/ProcessPartial | libModSecurity | Native directives own the limit, action, results and interventions. |
-| Response data and native results | Connector | Pass complete borrowed chunks safely; capture native operation results and interventions; finish the phase. |
-| Late intervention behavior | Connector/host | Existing `off`, `safe`, `strict` and supported host actions remain. No mode selects a response limit. |
-| Technical safety | Connector/host | Bounded work buffers, protocol frames/messages, actual buffered-storage capacity, file/descriptor/pointer checks, overflow, timeouts and metadata limits remain independent. |
+| P2/P4 inspection and limit actions | libModSecurity | Native directives, results and interventions govern inspection. DetectionOnly retains actual engine semantics. |
+| Access and response MIME scope | libModSecurity | `SecRequestBodyAccess`, `SecResponseBodyAccess` and response MIME directives remain native configuration. |
+| Input and phase completion | Connector | Offer complete valid chunks, capture native results at every append, retain a disruptive result through EOS, and complete each phase once. |
+| Late P4 handling | Connector/host | `off`, `safe`, `strict` select supported host intervention handling, never a body size or limit action. |
+| Safety | Connector/host | Retain checked arithmetic, valid pointers, bounded individual frames/messages, descriptors, file ranges, metadata, timeouts and bounded working memory. |
 
-The connector neither parses engine rules to find a limit nor injects a default
-engine directive. Engine includes, inheritance and omitted configuration retain
-native libModSecurity semantics. `body_limit_action` applies only to the existing
-request policy.
+## Removed configuration
 
-## Compatibility
+Remove `request_body_limit`, `body_limit_action`,
+`modsecurity_request_body_limit`, `modsecurity_body_limit_action`,
+HAProxy `request-body-limit`, Envoy `max_request_body_bytes`, and Traefik
+`maxRequestBodyBytes`. The previously removed response options remain removed:
+`response_body_limit`, `modsecurity_response_body_limit`,
+`modsecurity_phase4_body_limit`, HAProxy `response-body-limit`, and Envoy
+`max_response_body_bytes`. Removed options fail configuration rather than being
+silently ignored. There is no replacement cumulative connector size option.
+Operators use their normal engine rule configuration; no additional connector
+limit is required. The former requirement to preserve request policy is superseded.
 
-Remove `response_body_limit`, `modsecurity_response_body_limit`,
-`modsecurity_phase4_body_limit`, HAProxy `response-body-limit` and Envoy
-`max_response_body_bytes` from the corresponding configuration. Removed options
-are rejected; there is no alias or replacement cumulative response option.
-No new production configuration requirement is introduced. Operators configure
-engine limits through their normal rule configuration.
+## Working memory and transport
 
-## Streaming and memory
+An incremental work buffer is reused until EOS; its capacity does not determine
+the allowed total body size. NGINX file input retains descriptor, regular-file,
+range and checked-read validation. MRC1 uses individual 32-KiB body chunks and
+64-KiB frames; Traefik UDS and Envoy gRPC retain message controls. Header/event
+metadata, correlation registries and inactivity/lifetime timeouts remain bounded.
+Private file spooling allows the stock lighttpd sidecar to inspect incrementally
+while withholding upstream replay until native P2 allows it. Disk errors remain
+technical failures, rather than selecting an inspection prefix or limit action.
 
-Streaming adapters offer every valid chunk to libModSecurity without connector
-truncation or a cumulative inspection ceiling. A work block is not the permitted
-size of an entire response. Checked counters detect overflow without substituting
-`SIZE_MAX` for an engine limit or using it as an allocation size.
+`bytes_inspected` describes bytes offered to the engine, not the native
+ProcessPartial prefix. Append zero is operation-specific and must not be
+misreported as allocation or file failure when native ProcessPartial permits it.
+Native Request Reject may report HTTP 403 during append, whereas another native
+path may report 413; the connector preserves the actual result through EOS.
 
-NGINX retains bounded reusable file scratch and validates file ranges. MRC1
-retains 32-KiB body chunks and 64-KiB frames; these caps apply per message.
-Envoy retains gRPC message limits. Traefik retains UDS frame/chunk checks.
-HAProxy retains SPOP/HTX transport checks. The active lighttpd sidecar streams
-through bounded scratch storage. Its old whole-response buffering implementation
-is compiled out and does not impose a current runtime limit.
-Headers, events, correlation registries, descriptors and timeouts remain bounded.
+## Active total-body limitations
 
-The response `bytes_inspected` counter records bytes offered to the engine. It
-does not claim that the engine inspected every byte after choosing ProcessPartial.
+Full removal is not claimed for authorization profiles with bounded host buffers.
+These constraints remain distinct from native engine policy and are not renamed
+as working-buffer capacity:
 
-## Native errors and intervention modes
+| Active path | Actual scope | Limitation |
+| --- | --- | --- |
+| Envoy ext_authz request authorization | Host `max_request_bytes` in selected templates (4096 or 33 bytes) | A bounded full request sample reaches authorization; a response observer does not make request ingestion incremental. |
+| Traefik forwardAuth request authorization | Host `maxBodySize` in selected templates (4096 or 33 bytes) | The host buffers the forwarded request body; the observer cannot remove this request ceiling. |
+| Composite Traefik authorization response | Host `maxResponseBodySize=32768` | Bounds the authorization response, not the upstream application's response body. |
+| HAProxy SPOE/SPOP request sample | One bounded protocol message containing `req.body` | An incomplete sample cannot establish complete P2 inspection; native HTX is a separate profile. |
 
-Real engine-limit interventions remain native outcomes. `ProcessPartial` is
-selected and performed by the engine, never simulated with a connector byte
-counter. An append result alone is not an allow decision. Native return contracts,
-intervention capture, phase completion and actual host outcome recording remain
-operation-specific. Technical engine, memory, transport and lifecycle failures
-remain failures; `safe` does not turn them into successful log-only outcomes.
+The native streaming profiles do not inherit these authorization limits.
+Changing an authorization profile into native streaming would change its host
+contract and requires separate evidence. Independent host request-size controls,
+such as lighttpd `server.max-request-size`, remain host configuration.
 
-## Verification boundary
+## Verification
 
-Every response-inspection test must choose both directives explicitly in its
-own configuration. Shared fixture helpers require limit and action arguments;
-there are no global defaults or payload-derived values. Tests without response
-inspection need no artificial response-limit configuration.
+Every body-inspection test explicitly supplies the engine limit and action for
+the direction it exercises; request non-file fixtures also choose the native
+no-files limit. Helpers have no implicit size/action defaults. Tests without
+body inspection need no artificial limits.
 
-Real-engine integration verifies the limit behavior separately from stubbed
-adapter contracts. Builds and unit/contract tests are not hosted HTTP/1, HTTP/2,
-HTTP/3 or late-abort evidence. See the separate
-[stack checklist](response-limit-stack-checklist.md) for implementation, tests and
-missing real-host evidence.
+Real-library checks distinguish below/exact/above limits, native actions and
+DetectionOnly, chunks and files, identical payloads under different limits,
+and markers beyond former connector ceilings. Builds and source contracts do
+not establish hosted HTTP/1, HTTP/2, HTTP/3, buffer ownership or late-abort
+behavior. See the [stack checklist](response-limit-stack-checklist.md).

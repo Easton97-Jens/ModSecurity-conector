@@ -375,5 +375,8 @@ done
     "$FUNCTIONAL_ROOT/off/artifact-identity.after.sha256" || \
     fail "on/off cells did not use the same candidate artifact set"
 publish_functional_evidence
+NGINX_REQUEST_BODY_LIMIT=1048576 \
+NGINX_REQUEST_BODY_NO_FILES_LIMIT=1048576 \
+NGINX_REQUEST_BODY_LIMIT_ACTION=Reject \
 /usr/bin/python3 -I "$SCRIPT_DIR/run_error_page_intervention.py"
 echo "nginx_exact_head: functional-A runtime=passed"

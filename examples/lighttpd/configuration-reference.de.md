@@ -58,8 +58,6 @@ Host-/Connector-Schalter binden oder konfigurieren die Hostintegration. Sie sind
 | `phase4_event_log` | Schlüssel des ausgewählten Runtime-Profils | [phase4_event_log](../common/common-connector-configuration.de.md#phase4-event-log) |
 | `request_body_mode` | Schlüssel des ausgewählten Runtime-Profils | [request_body_mode](../common/common-connector-configuration.de.md#request-body-mode) |
 | `response_body_mode` | Schlüssel des ausgewählten Runtime-Profils | [response_body_mode](../common/common-connector-configuration.de.md#response-body-mode) |
-| `request_body_limit` | Schlüssel des ausgewählten Runtime-Profils | [request_body_limit](../common/common-connector-configuration.de.md#request-body-limit) |
-| `body_limit_action` | Schlüssel des ausgewählten Runtime-Profils | [body_limit_action](../common/common-connector-configuration.de.md#body-limit-action) |
 | `late_intervention_timeout` | Schlüssel des ausgewählten Runtime-Profils | [late_intervention_timeout](../common/common-connector-configuration.de.md#late-intervention-timeout) |
 | `default_block_status` | Schlüssel des ausgewählten Runtime-Profils | [default_block_status](../common/common-connector-configuration.de.md#default-block-status) |
 | `default_error_status` | Schlüssel des ausgewählten Runtime-Profils | [default_error_status](../common/common-connector-configuration.de.md#default-error-status) |
