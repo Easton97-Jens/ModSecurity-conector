@@ -29,7 +29,7 @@ FUNCTIONS = (
     "copy_spop_string", "copy_cstring", "runtime_init_decision", "set_response_phase_disabled_failure",
     "set_admission_failure", "ensure_notify_request_id", "notify_request_has_required_endpoints",
     "protocol_failure_requires_enforcement", "mode_enforces", "production_ack_enforces",
-    "process_production_notify", "process_production_response_notify", "fail_mode_closed",
+    "process_production_notify", "finish_production_response_transaction", "process_production_response_notify", "fail_mode_closed",
     "set_processing_failure", "set_response_correlation_failure", "set_body_limit_failure",
     "body_exceeds_limit", "bounded_body_length", "build_response_from_notify",
     "process_production_request_notify", "build_modsecurity_request_from_notify",

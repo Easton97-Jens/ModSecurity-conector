@@ -3813,6 +3813,22 @@ static int spop_owner_queue_submit(
         void *result,
         unsigned int timeout_ms);
 
+static void finish_production_response_transaction(
+        agent_state *state,
+        const notify_request *request,
+        haproxy_modsecurity_transaction *transaction,
+        haproxy_modsecurity_decision *decision,
+        spop_ack_decision_origin *decision_origin,
+        const char **decision_text,
+        int phase) {
+    if (haproxy_modsecurity_transaction_finish_with_decision(transaction, decision) != 0) {
+        *decision_origin = SPOP_ACK_FAILURE_DECISION;
+        *decision_text = set_processing_failure(state, decision, phase,
+            "transaction finish failed");
+        (void)decision_log_write(state, request, decision, 0, *decision_text);
+    }
+}
+
 static void process_production_response_notify(
         agent_state *state,
         const notify_request *request,
@@ -3900,11 +3916,9 @@ static void process_production_response_notify(
     } else {
         if (modsec_rc != 0) {
             haproxy_modsecurity_transaction_abort_with_error(transaction, decision->error_class);
-        } else if (haproxy_modsecurity_transaction_finish_with_decision(transaction, decision) != 0) {
-            *decision_origin = SPOP_ACK_FAILURE_DECISION;
-            *decision_text = set_processing_failure(state, decision, phase,
-                "transaction finish failed");
-            (void)decision_log_write(state, request, decision, 0, *decision_text);
+        } else {
+            finish_production_response_transaction(state, request, transaction,
+                decision, decision_origin, decision_text, phase);
         }
     }
 }
