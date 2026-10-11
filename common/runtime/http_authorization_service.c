@@ -1172,8 +1172,8 @@ static void authorization_process_runtime_request(
         response->status = 400;
         response->decision_name = "mapping_error";
         response->success = 0;
-    } else if (!msconnector_runtime_transaction_begin(service->runtime, &request, NULL,
-            &transaction, &decision, &common_error)) {
+    } else if (msconnector_runtime_transaction_begin(service->runtime, &request, NULL,
+            &transaction, &decision, &common_error) != 1) {
         authorization_response_set_runtime_error(service, &common_error, response);
     } else {
         authorization_response_set_decision(service, &decision, response);
@@ -1182,9 +1182,9 @@ static void authorization_process_runtime_request(
                 MSCONNECTOR_DECISION_ACTION_ALLOW ||
              msconnector_decision_action_from_decision(&decision) ==
                 MSCONNECTOR_DECISION_ACTION_LOG_ONLY)) {
-            if (!service->profile->handoff_response_companion(service->runtime,
+            if (service->profile->handoff_response_companion(service->runtime,
                     transaction, service->profile->response_companion_userdata,
-                    response_handle, &common_error)) {
+                    response_handle, &common_error) != 1) {
                 authorization_response_set_runtime_error(service, &common_error, response);
             } else {
                 /* The companion owns this live Common/native transaction until
@@ -1197,9 +1197,13 @@ static void authorization_process_runtime_request(
             }
         }
     }
-    if (!response_companion_owns_transaction && transaction != NULL &&
-        !msconnector_runtime_transaction_finish(transaction, &common_error)) {
-        authorization_response_set_runtime_error(service, &common_error, response);
+    if (!response_companion_owns_transaction && transaction != NULL) {
+        msconnector_error finish_error;
+        msconnector_error_init(&finish_error);
+        if (msconnector_runtime_transaction_finish(transaction, &finish_error) != 1 &&
+            response->success) {
+            authorization_response_set_runtime_error(service, &finish_error, response);
+        }
     }
     if (!response_companion_owns_transaction) {
         response->terminal_response_marker =

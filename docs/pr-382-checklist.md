@@ -137,12 +137,18 @@ Local raw evidence remains under `/var/tmp/codex/ModSecurity-conector/analysis/n
 - [x] I09d: Envoy ext_proc retains the first Common error, seals failed header/body/EOS callbacks, clears pending rule state and bounds canonical failure reporting (`31200e8c`; V22).
 - [x] I09e: Shared NGINX connection/URI result helper retains strict success, PCRE/phase brackets and host statuses without duplicate implementation (`bced5ce7`; V23).
 - [x] I09f: Apache module now checks exact intervention results, releases buffers on every post-call outcome, checks retained copies, separates native/host error causes, checks initialization and binds engine cleanup to its configuration generation. Present and tested at `3c29004b`; V24.
-- [ ] I10: Complete actual cross-route off/safe/strict error handling and its native integration verification, not merely shared policy tests.
+- [x] I10: Productive technical-error propagation across all ten registry routes and 14 separate legs is implemented and executable/native verified. I10a–I10e remain intact; live-host/client/transport evidence remains I12/V08–V10. See [Change Record](../reports/audits/change-records/CR-20261011-pr382-i10-adapter-errors.md).
 - [x] I10a: NGINX late technical errors precede Safe/Strict rule policy (`52445b18`; V14).
 - [x] I10b: Actual Common policy tests cover five error classes, ten profiles, two contract modes and both commitment states; technical failure never becomes Safe log-only. Not host-I/O proof.
 - [x] I10c: Real NGINX collector/dispatcher/P4 chain tests retain late rules, Off behavior and cleanup (`1ce569e1`; V17).
 - [x] I10d: Envoy commitment failure stops before append; empty EOS does not invent body-started state. Checked C ABI propagates errors through Go while retaining the compatibility ABI (`31200e8c`, `81e53a94`). Native verification passed at `7d05e89f` (V20).
 - [x] I10e: Apache's checked collector cannot mutate committed Location headers or reuse stale rule metadata on a technical failure. Audit claims its attempt before callbacks and never dispatches an actionable logging-phase intervention. Present at `3c29004b`; V24 is compiled APR/native-boundary evidence, not live httpd.
+- [x] I10f: HAProxy HTX: exact Common/nested-result returns, once-only host control, commit/EOS/reentry/cleanup; productive caller/mutation checks and full native HTX build passed.
+- [x] I10g: HAProxy SPOP request and HTX response companion separately: technical ACK503, first error code/diagnostic, EOS/ack/release and terminal host output; executable caller/mutation checks passed.
+- [x] I10h: Envoy ext_authz request and independent response companion plus ext_proc: technical errors, commit/EOS/reentry, checked close ABI, missing EOS and listener cleanup; complete native/CGo/Go race suites passed.
+- [x] I10i: Traefik Native/UDS and forwardAuth request/observer: typed MSE1/MRC1 errors, actual host write before ACK, terminal postcommit error and once cleanup; caller/Go race/vet/mutation checks passed.
+- [x] I10j: lighttpd stock sidecar and native/patched hooks separately: socket result, commit/reentry/reset/upstream errors and first cause despite later deadline; 479 executable cases/9 mutations and complete native builds passed.
+- [x] I10k: Final cross-route reconciliation: no known adapter implementation gap; technical Off/Safe failures never become rule log_only; Strict follows unchanged registry; I11/I12 remain separately open.
 - [ ] I11: Complete producer/physical-sink parity, identifiers/causes, observed actions, duplicate terminal events and open/write/short-write/serialization failures.
 - [x] I11a: Missing transport observations do not prove rule/error enforcement; custom records and actual evidence remain preserved.
 - [x] I11b: Mandatory NGINX Phase-4 log failures remain terminal; invalid sinks and repeated terminal writes are bounded.
@@ -162,7 +168,7 @@ The [nine-column I09–I12 matrix](pr-382-i09-i12-rest-matrix.md) makes the rema
 | Item | Remaining requirement |
 | --- | --- |
 | I09 | Review filter/API exits outside the completed Apache module and the remaining HAProxy, direct, companion and middleware producers. Trace each error through the actual caller and cleanup path; shared predicates or diagnostics alone do not prove completion. The Apache collector/init/audit fixes above are no longer open implementation items. |
-| I10 | Verify each remaining adapter's error-to-host-control path, including failures after commitment. Native Envoy verification is now complete at V20, not an outstanding prerequisite. Do not infer missing behavior solely from a helper lacking a guard when the Common state machine may already prevent it. |
+| I10 | Implementation acceptance complete; no known adapter code gap. Productive caller/native/mutation checks and lint passed. Full live-host evidence remains I12/V08–V10; physical sink parity remains I11. |
 | I11 | Apache's void event writer/callers still need complete physical failure propagation; HAProxy SPOP still needs its Common-event fputs result handled. Original Runtime I/O-error retention is fixed. These are implementation work, not just missing live evidence. |
 | I12 | Run route-specific host, client-byte/reset, neighbor-stream, cleanup and physical-log cases. Request-only routes require their actual response companion. |
 

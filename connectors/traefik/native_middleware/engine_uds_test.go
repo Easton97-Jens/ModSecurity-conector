@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 )
 
 type udsTestResult struct {
+	code   byte
 	action byte
 	status int
 }
@@ -111,7 +113,7 @@ func startUDSTestServer(t *testing.T, results map[byte]udsTestResult) (string, *
 func writeUDSTestResult(writer io.Writer, command byte, result udsTestResult) error {
 	payload := make([]byte, 14)
 	payload[0] = command
-	payload[1] = udsResultOK
+	payload[1] = result.code
 	payload[2] = result.action
 	binary.BigEndian.PutUint16(payload[4:6], uint16(result.status))
 	return writeUDSTestFrame(writer, udsOpcodeResult, payload)
@@ -796,7 +798,9 @@ func TestUDSEngineDoesNotAcknowledgeAnUnconfirmedHostWrite(t *testing.T) {
 	})
 	middleware := newUDSTestMiddleware(t, socketPath, http.NotFoundHandler())
 	response := &failingDecisionResponseWriter{header: make(http.Header)}
-	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/p1", nil))
+	expectHostStop(t, func() {
+		middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/p1", nil))
+	})
 	if got, want := response.status, http.StatusForbidden; got != want {
 		t.Fatalf("status = %d, want %d", got, want)
 	}
@@ -927,4 +931,42 @@ func (writer *failingDecisionResponseWriter) Write(_ []byte) (int, error) {
 		writer.status = http.StatusOK
 	}
 	return 0, errors.New("injected response writer failure")
+}
+
+func TestUDSTechnicalResultReachesProductiveMiddleware(t *testing.T) {
+	for _, opcode := range []byte{udsOpcodeBegin, udsOpcodeRequestChunk, udsOpcodeRequestEOS, udsOpcodeResponseHead, udsOpcodeResponseBody, udsOpcodeResponseEOS, udsOpcodeResponseCommit, udsOpcodeFinish, udsOpcodeDestroy, udsOpcodeOutcome} {
+		t.Run(fmt.Sprint(opcode), func(t *testing.T) {
+			results := map[byte]udsTestResult{opcode: {code: 1}}
+			if opcode == udsOpcodeOutcome {
+				results[udsOpcodeBegin] = udsTestResult{action: udsActionDeny, status: 403}
+			}
+			path, server := startUDSTestServer(t, results)
+			config := CreateConfig()
+			config.EngineSocketPath = path
+			handler, err := New(context.Background(), http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(200); _, _ = w.Write([]byte("original")) }), config, "uds-error")
+			if err != nil {
+				t.Fatal(err)
+			}
+			recorder := httptest.NewRecorder()
+			request := httptest.NewRequest("GET", "http://example.test/", nil)
+			if opcode == udsOpcodeRequestChunk {
+				request = httptest.NewRequest("POST", "http://example.test/", strings.NewReader("body"))
+			}
+			call := func() { handler.ServeHTTP(recorder, request) }
+			if opcode == udsOpcodeBegin || opcode == udsOpcodeRequestChunk || opcode == udsOpcodeRequestEOS || opcode == udsOpcodeResponseHead {
+				call()
+				if recorder.Code != 500 {
+					t.Fatalf("status=%d", recorder.Code)
+				}
+			} else {
+				expectHostStop(t, call)
+			}
+			calls := server.wait(t)
+			for i, call := range calls {
+				if call.opcode == opcode && i != len(calls)-1 {
+					t.Fatalf("operation after terminal failure: %#v", calls)
+				}
+			}
+		})
+	}
 }

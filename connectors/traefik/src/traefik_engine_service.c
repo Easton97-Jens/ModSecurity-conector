@@ -104,6 +104,8 @@ typedef struct traefik_engine_session {
     int finished;
     int destroyed;
     int terminal;
+    int failed;
+    uint8_t failure_result;
     int pending_disruptive;
     uint8_t pending_action;
     uint8_t pending_phase;
@@ -925,7 +927,7 @@ static int traefik_engine_handle_begin(traefik_engine_session *session,
         &error);
     (void)pthread_mutex_unlock(&service->runtime_lock);
     traefik_engine_request_input_free(&input);
-    if (!success) {
+    if (success != 1) {
         *result_code = traefik_engine_result_for_runtime_error(&error);
         return -1;
     }
@@ -960,7 +962,7 @@ static int traefik_engine_handle_request_chunk(traefik_engine_session *session,
         session->transaction, frame->payload, frame->payload_size, &error);
     (void)pthread_mutex_unlock(&session->service->runtime_lock);
     traefik_engine_set_allow_phase(decision, MSCONNECTOR_PHASE_REQUEST_BODY);
-    if (!success) {
+    if (success != 1) {
         *result_code = traefik_engine_result_for_runtime_error(&error);
         return -1;
     }
@@ -996,7 +998,7 @@ static int traefik_engine_handle_request_eos(traefik_engine_session *session,
     success = msconnector_runtime_transaction_finish_request_body(
         session->transaction, decision, &error);
     (void)pthread_mutex_unlock(&session->service->runtime_lock);
-    if (!success) {
+    if (success != 1) {
         *result_code = traefik_engine_result_for_runtime_error(&error);
         return -1;
     }
@@ -1034,7 +1036,7 @@ static int traefik_engine_handle_response_headers(
     response_status = input.response.status;
     (void)pthread_mutex_unlock(&session->service->runtime_lock);
     traefik_engine_response_input_free(&input);
-    if (!success) {
+    if (success != 1) {
         *result_code = traefik_engine_result_for_runtime_error(&error);
         return -1;
     }
@@ -1070,7 +1072,7 @@ static int traefik_engine_handle_response_chunk(traefik_engine_session *session,
         session->transaction, frame->payload, frame->payload_size, &error);
     (void)pthread_mutex_unlock(&session->service->runtime_lock);
     traefik_engine_set_allow_phase(decision, MSCONNECTOR_PHASE_RESPONSE_BODY);
-    if (!success) {
+    if (success != 1) {
         *result_code = traefik_engine_result_for_runtime_error(&error);
         return -1;
     }
@@ -1102,7 +1104,7 @@ static int traefik_engine_handle_response_eos(traefik_engine_session *session,
     success = msconnector_runtime_transaction_finish_response_body(
         session->transaction, decision, &error);
     (void)pthread_mutex_unlock(&session->service->runtime_lock);
-    if (!success) {
+    if (success != 1) {
         *result_code = traefik_engine_result_for_runtime_error(&error);
         return -1;
     }
@@ -1168,7 +1170,7 @@ static int traefik_engine_handle_finish(traefik_engine_session *session,
     success = msconnector_runtime_transaction_finish(session->transaction, &error);
     (void)pthread_mutex_unlock(&session->service->runtime_lock);
     traefik_engine_set_allow_phase(decision, MSCONNECTOR_PHASE_LOGGING);
-    if (!success) {
+    if (success != 1) {
         *result_code = traefik_engine_result_for_runtime_error(&error);
         return -1;
     }
@@ -1218,9 +1220,9 @@ static int traefik_engine_handle_outcome(traefik_engine_session *session,
          * ordinary pre-commit deny. */
         session->pending_decision.late_intervention = 1;
         msconnector_error_init(&error);
-        if (!traefik_engine_record_host_outcome(session,
+        if (traefik_engine_record_host_outcome(session,
                 MSCONNECTOR_DECISION_ACTION_LOG_ONLY, (int)visible_status,
-                "log_only", &error)) {
+                "log_only", &error) != 1) {
             *result_code = traefik_engine_result_for_runtime_error(&error);
             return -1;
         }
@@ -1237,9 +1239,9 @@ static int traefik_engine_handle_outcome(traefik_engine_session *session,
         return 0;
     }
     msconnector_error_init(&error);
-    if (!traefik_engine_record_host_outcome(session,
+    if (traefik_engine_record_host_outcome(session,
             traefik_engine_host_action(action), (int)visible_status,
-            "http_status", &error)) {
+            "http_status", &error) != 1) {
         *result_code = traefik_engine_result_for_runtime_error(&error);
         return -1;
     }
@@ -1277,6 +1279,10 @@ static int traefik_engine_dispatch(traefik_engine_session *session,
     }
     *result_code = TRAEFIK_ENGINE_PROTOCOL_RESULT_STATE;
     msconnector_decision_init(decision);
+    if (session != NULL && session->failed) {
+        *result_code = session->failure_result;
+        return -1;
+    }
     switch (frame->opcode) {
     case TRAEFIK_ENGINE_PROTOCOL_BEGIN:
         handled = traefik_engine_handle_begin(session, frame, decision, result_code);
@@ -1319,8 +1325,20 @@ static int traefik_engine_dispatch(traefik_engine_session *session,
     default:
         return 0;
     }
-    if (handled > 0) {
+    if (handled == 1 && (decision->kind == MSCONNECTOR_DECISION_KIND_ERROR ||
+        decision->kind == MSCONNECTOR_DECISION_KIND_UNSUPPORTED)) {
+        *result_code = TRAEFIK_ENGINE_PROTOCOL_RESULT_RUNTIME;
+        handled = -1;
+    }
+    if (handled == 1) {
         *result_code = TRAEFIK_ENGINE_PROTOCOL_RESULT_OK;
+    } else if (session != NULL && handled < 0 && !session->failed) {
+        session->failed = 1;
+        session->terminal = 1;
+        session->failure_result = *result_code;
+        session->pending_disruptive = 0;
+        msconnector_decision_init(decision);
+        memset(&session->pending_decision, 0, sizeof(session->pending_decision));
     }
     return handled;
 }
@@ -1348,7 +1366,7 @@ static int traefik_engine_process_frame(traefik_engine_session *session,
             session, &decision)) {
         return 0;
     }
-    return frame->opcode != TRAEFIK_ENGINE_PROTOCOL_DESTROY || handled != 1;
+    return handled == 1 && frame->opcode != TRAEFIK_ENGINE_PROTOCOL_DESTROY;
 }
 
 static void traefik_engine_process_connection(traefik_engine_service *service,

@@ -70,7 +70,7 @@ class HaproxySPOPConfigSecurityContractTests(unittest.TestCase):
         reader_end = SOURCE.index("static int load_config_file(", reader_start)
         reader = SOURCE[reader_start:reader_end]
         loader_start = reader_end
-        loader_end = SOURCE.index("static int fail_mode_closed(", loader_start)
+        loader_end = SOURCE.index("static int mode_enforces(", loader_start)
         loader = SOURCE[loader_start:loader_end]
 
         self.assertIn("character == '\\0'", reader)

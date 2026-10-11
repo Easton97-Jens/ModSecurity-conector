@@ -75,8 +75,8 @@ const (
 )
 
 var (
-	errProtocol = errors.New("modsecurity response observer: invalid private UDS protocol")
-	errClosed   = errors.New("modsecurity response observer: session closed")
+	errProtocol                         = errors.New("modsecurity response observer: invalid private UDS protocol")
+	errClosed                           = errors.New("modsecurity response observer: session closed")
 	errUnsupportedResponseCompanionPeer = errors.New(
 		"modsecurity response observer: Linux SO_PEERCRED is required for response companion authentication",
 	)
@@ -432,6 +432,7 @@ type responseState struct {
 	request                                          *http.Request
 	status                                           int
 	headerSent, bodyStarted, finished, precommitFail bool
+	terminalError                                    error
 }
 
 func (s *responseState) Header() http.Header { return s.target.Header() }
@@ -459,7 +460,7 @@ func (s *responseState) WriteHeader(status int) {
 		return
 	}
 	decision, err := s.session.exchange(s.request.Context(), opResponseHeaders, payload)
-	if err != nil || decision.code != resultOK {
+	if err != nil || decision.code != resultOK || decision.decision == decisionError || decision.decision == decisionUnsupported {
 		s.failBeforeCommit()
 		return
 	}
@@ -472,7 +473,7 @@ func (s *responseState) WriteHeader(status int) {
 		s.failBeforeCommit()
 		return
 	}
-	if commit.code != resultOK {
+	if commit.code != resultOK || commit.decision == decisionError || commit.decision == decisionUnsupported {
 		s.failBeforeCommit()
 		return
 	}
@@ -515,17 +516,20 @@ func (s *responseState) Write(payload []byte) (int, error) {
 		if err != nil {
 			_ = s.cancelFailure(err)
 			s.finished = true
+			s.terminalError = err
 			return totalWritten, err
 		}
-		if decision.code != resultOK {
+		if decision.code != resultOK || decision.decision == decisionError || decision.decision == decisionUnsupported {
 			_ = s.cancelWithClass(cancelInvalidEngine)
 			s.finished = true
+			s.terminalError = errProtocol
 			return totalWritten, errProtocol
 		}
 		if disruptive(decision.decision) {
 			if err := s.sendLateOutcome(s.status); err != nil {
 				_ = s.cancelFailure(err)
 				s.finished = true
+				s.terminalError = err
 				return totalWritten, err
 			}
 		}
@@ -535,11 +539,13 @@ func (s *responseState) Write(payload []byte) (int, error) {
 		if writeErr != nil {
 			_ = s.cancel(false)
 			s.finished = true
+			s.terminalError = writeErr
 			return totalWritten, writeErr
 		}
 		if written != len(chunk) {
 			_ = s.cancel(false)
 			s.finished = true
+			s.terminalError = io.ErrShortWrite
 			return totalWritten, io.ErrShortWrite
 		}
 		payload = payload[len(chunk):]
@@ -548,6 +554,12 @@ func (s *responseState) Write(payload []byte) (int, error) {
 }
 
 func (s *responseState) Flush() {
+	if s.finished {
+		if s.terminalError != nil {
+			panic(http.ErrAbortHandler)
+		}
+		return
+	}
 	if !s.headerSent {
 		s.WriteHeader(http.StatusOK)
 	}
@@ -557,6 +569,9 @@ func (s *responseState) Flush() {
 }
 
 func (s *responseState) finish() {
+	if s.terminalError != nil {
+		panic(http.ErrAbortHandler)
+	}
 	if s.finished {
 		return
 	}
@@ -575,18 +590,18 @@ func (s *responseState) finish() {
 	if err != nil {
 		_ = s.cancelFailure(err)
 		s.finished = true
-		return
+		panic(http.ErrAbortHandler)
 	}
-	if eos.code != resultOK {
+	if eos.code != resultOK || eos.decision == decisionError || eos.decision == decisionUnsupported {
 		_ = s.cancelWithClass(cancelInvalidEngine)
 		s.finished = true
-		return
+		panic(http.ErrAbortHandler)
 	}
 	if disruptive(eos.decision) {
 		if err := s.sendLateOutcome(s.status); err != nil {
 			_ = s.cancelFailure(err)
 			s.finished = true
-			return
+			panic(http.ErrAbortHandler)
 		}
 	}
 	release, err := s.session.exchange(s.request.Context(), opRelease, nil)
@@ -596,6 +611,8 @@ func (s *responseState) finish() {
 		} else {
 			_ = s.cancelWithClass(cancelInvalidEngine)
 		}
+		s.finished = true
+		panic(http.ErrAbortHandler)
 	}
 	s.finished = true
 }
@@ -664,19 +681,21 @@ func (s *responseState) applyImmediate(value result) {
 	if value.decision == decisionRedirect && value.redirect != "" {
 		s.target.Header().Set("Location", value.redirect)
 	}
+	s.writeTerminalStatus(status)
+	s.headerSent = true
+	s.status = status
 	if err := s.sendOutcome(actualDecision, false, false, status); err != nil {
 		_ = s.cancelFailure(err)
-		s.writeTerminalStatus(http.StatusServiceUnavailable)
-		return
+		s.finished = true
+		panic(http.ErrAbortHandler)
 	}
 	if err := s.cancel(false); err != nil {
 		// The outcome was already recorded. A failed cleanup acknowledgement
 		// is a connector/engine failure, never a fresh client cancellation.
 		_ = s.cancelFailure(err)
-		s.writeTerminalStatus(http.StatusServiceUnavailable)
-		return
+		s.finished = true
+		panic(http.ErrAbortHandler)
 	}
-	s.writeTerminalStatus(status)
 }
 
 func validRedirect(value string) bool {

@@ -447,6 +447,9 @@ func (service *Service) processStream(stream extprocv3.ExternalProcessor_Process
 		}
 		if done {
 			*closeReason = receivedCloseReason
+			if state.responseHeadersSeen && !state.responseDone && !state.immediateResponse {
+				return status.Error(codes.Unavailable, "ext_proc response stream ended before EOS")
+			}
 			return nil
 		}
 		terminal, requestCloseReason, err := service.processRequest(ctx, stream, state, request)

@@ -57,6 +57,8 @@ typedef struct {
     msconnector_request request;
     msconnector_response response;
     char host_request_id[96];
+    int technical_failed;
+    int host_response_attempted;
     int response_processed;
     int request_body_finished;
     int request_intervened;
@@ -68,6 +70,10 @@ typedef struct {
     off_t response_body_next_offset;
 #endif
 } handler_ctx;
+
+/* Allocation failure still needs a per-request terminal marker.  This
+ * read-only tombstone is never passed to Common or freed. */
+static handler_ctx mod_msconnector_failed_context = { .technical_failed = 1 };
 
 INIT_FUNC(mod_msconnector_init);
 FREE_FUNC(mod_msconnector_free);
@@ -384,6 +390,10 @@ static void handler_ctx_destroy(handler_ctx **ctx_ptr) {
         return;
     }
     ctx = *ctx_ptr;
+    if (ctx == &mod_msconnector_failed_context) {
+        *ctx_ptr = NULL;
+        return;
+    }
     msconnector_runtime_transaction_destroy(&ctx->transaction);
     lighttpd_modsecurity_map_storage_free(&ctx->request_storage);
     lighttpd_modsecurity_map_storage_free(&ctx->response_storage);
@@ -402,6 +412,39 @@ static handler_t mod_msconnector_error_response(
     return http_status_set_err(r, status);
 }
 
+/* Preserve the terminal adapter state until request reset; a retry must not
+ * create a fresh transaction or select a second response after a failure. */
+static handler_t mod_msconnector_fail_request(
+        request_st *r,
+        const msconnector_runtime *runtime,
+        handler_ctx *ctx,
+        msconnector_error_code code) {
+    msconnector_error error;
+    handler_t result;
+    if (ctx != NULL && ctx->technical_failed) return HANDLER_ERROR;
+    if (ctx != NULL) ctx->technical_failed = 1;
+    msconnector_error_init(&error);
+    if (ctx != NULL && ctx->transaction != NULL) {
+        (void)msconnector_runtime_transaction_set_response_commit_state_checked(
+            ctx->transaction, r->write_queue.bytes_out > 0,
+            r->resp_header_len > 0U &&
+                r->write_queue.bytes_out > (off_t)r->resp_header_len, &error);
+        (void)msconnector_runtime_transaction_fail(ctx->transaction,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, &error);
+    }
+    /* Even a partial header owns the output.  HANDLER_ERROR stops the host
+     * path; it does not assert that a transport abort was observed. */
+    if (r->write_queue.bytes_out > 0 ||
+        (ctx != NULL && ctx->host_response_attempted)) return HANDLER_ERROR;
+    result = mod_msconnector_error_response(r, runtime, code);
+    if (result != HANDLER_ERROR && ctx != NULL && ctx->transaction != NULL) {
+        if (msconnector_runtime_transaction_record_failure_host_action(
+                ctx->transaction, r->http_status, 0, &error) != 1)
+            return HANDLER_ERROR;
+    }
+    return result;
+}
+
 static handler_t mod_msconnector_apply_decision(
         request_st * const r,
         plugin_data * const p,
@@ -418,6 +461,11 @@ static handler_t mod_msconnector_apply_decision(
         status = 403;
     }
     result = http_status_set_err(r, status);
+    if (ctx != NULL) ctx->host_response_attempted = 1;
+    if (result == HANDLER_ERROR) {
+        return mod_msconnector_fail_request(r, p->runtime, ctx,
+            MSCONNECTOR_ERROR_HOST_API_FAILURE);
+    }
 
     /*
      * lighttpd applies every currently supported disruptive intervention as
@@ -428,20 +476,21 @@ static handler_t mod_msconnector_apply_decision(
      */
     if (result != HANDLER_ERROR && ctx != NULL && ctx->transaction != NULL) {
         msconnector_error_init(&runtime_error);
-        if (!msconnector_runtime_transaction_record_host_action(
+        if (msconnector_runtime_transaction_record_host_action(
                 ctx->transaction,
                 decision,
                 MSCONNECTOR_DECISION_ACTION_DENY,
                 r->http_status,
                 "http_status",
                 0,
-                &runtime_error)) {
+                &runtime_error) != 1) {
             log_error(
                 r->conf.errh,
                 __FILE__,
                 __LINE__,
                 "msconnector host-action event was not recorded: %s",
                 msconnector_error_code_name(runtime_error.code));
+            return mod_msconnector_fail_request(r, p->runtime, ctx, runtime_error.code);
         }
     }
     (void)p;
@@ -528,11 +577,11 @@ static int mod_msconnector_append_request_body_range(
         size_t error_len) {
     mod_msconnector_body_append_context *append = userdata;
 
-    if (!msconnector_runtime_transaction_append_request_body_chunk(
+    if (msconnector_runtime_transaction_append_request_body_chunk(
             append->ctx->transaction,
             data,
             size,
-            &append->runtime_error)) {
+            &append->runtime_error) != 1) {
         (void)snprintf(
             error,
             error_len,
@@ -550,22 +599,23 @@ static handler_t mod_msconnector_finish_request_body(
     msconnector_decision decision;
     msconnector_error runtime_error;
 
+    if (ctx != NULL && ctx->technical_failed) return HANDLER_ERROR;
     if (ctx->request_body_finished) {
         return HANDLER_GO_ON;
     }
     msconnector_decision_init(&decision);
     msconnector_error_init(&runtime_error);
-    if (!msconnector_runtime_transaction_finish_request_body(
+    if (msconnector_runtime_transaction_finish_request_body(
             ctx->transaction,
             &decision,
-            &runtime_error)) {
+            &runtime_error) != 1) {
         log_error(
             r->conf.errh,
             __FILE__,
             __LINE__,
             "msconnector request-body finalization failed: %s",
             msconnector_error_code_name(runtime_error.code));
-        return mod_msconnector_error_response(r, p->runtime, runtime_error.code);
+        return mod_msconnector_fail_request(r, p->runtime, ctx, runtime_error.code);
     }
     ctx->request_body_finished = 1;
     ctx->request_intervened = msconnector_decision_is_disruptive(&decision);
@@ -592,6 +642,8 @@ static handler_t mod_msconnector_prepare_request_body(
         handler_ctx *ctx) {
     handler_t rc;
 
+    if (ctx != NULL && ctx->technical_failed) return HANDLER_ERROR;
+    if (ctx != NULL && ctx->request_body_gate_rejected) return HANDLER_FINISHED;
     if (!p->request_body_hooks_enabled || ctx->request_body_finished) {
         return HANDLER_GO_ON;
     }
@@ -663,6 +715,8 @@ static handler_t mod_msconnector_handle_request_body(
     mod_msconnector_body_append_context append;
     char mapper_error[256] = "";
 
+    if (ctx != NULL && ctx->technical_failed) return HANDLER_ERROR;
+    if (ctx != NULL && ctx->request_body_gate_rejected) return HANDLER_FINISHED;
     if (!p->request_body_hooks_enabled || ctx == NULL ||
         ctx->transaction == NULL || ctx->request_body_finished) {
         return HANDLER_GO_ON;
@@ -678,8 +732,8 @@ static handler_t mod_msconnector_handle_request_body(
             __FILE__,
             __LINE__,
             "msconnector request-body hook received a non-contiguous range");
-        return mod_msconnector_error_response(
-            r, p->runtime, MSCONNECTOR_ERROR_HOST_API_FAILURE);
+        return mod_msconnector_fail_request(
+            r, p->runtime, ctx, MSCONNECTOR_ERROR_HOST_API_FAILURE);
     }
     if (length < 0 ||
         (uintmax_t)stream_offset > (uintmax_t)p->request_body_limit ||
@@ -717,9 +771,10 @@ static handler_t mod_msconnector_handle_request_body(
             (long long)queue->bytes_out,
             msconnector_error_code_name(append.runtime_error.code),
             mapper_error[0] == '\0' ? "unknown error" : mapper_error);
-        return mod_msconnector_error_response(
+        return mod_msconnector_fail_request(
             r,
             p->runtime,
+            ctx,
             append.runtime_error.code == MSCONNECTOR_ERROR_NONE
               ? MSCONNECTOR_ERROR_HOST_API_FAILURE : append.runtime_error.code);
     }
@@ -746,23 +801,30 @@ static plugin_body_hook_result mod_msconnector_finish_response_body(
     const enum msconnector_phase4_mode phase4_mode =
         msconnector_runtime_phase4_mode(p->runtime);
 
+    if (ctx != NULL && ctx->technical_failed) return PLUGIN_BODY_HOOK_ERROR;
     if (ctx->response_body_finished) {
         return PLUGIN_BODY_HOOK_CONTINUE;
     }
-    msconnector_runtime_transaction_set_response_commit_state(
-        ctx->transaction, headers_committed, body_committed);
+    msconnector_error_init(&runtime_error);
+    if (msconnector_runtime_transaction_set_response_commit_state_checked(
+            ctx->transaction, headers_committed, body_committed,
+            &runtime_error) != 1) {
+        (void)mod_msconnector_fail_request(r, p->runtime, ctx, runtime_error.code);
+        return PLUGIN_BODY_HOOK_ERROR;
+    }
     msconnector_decision_init(&decision);
     msconnector_error_init(&runtime_error);
-    if (!msconnector_runtime_transaction_finish_response_body(
+    if (msconnector_runtime_transaction_finish_response_body(
             ctx->transaction,
             &decision,
-            &runtime_error)) {
+            &runtime_error) != 1) {
         log_error(
             r->conf.errh,
             __FILE__,
             __LINE__,
             "msconnector response-body finalization failed: %s",
             msconnector_error_code_name(runtime_error.code));
+        (void)mod_msconnector_fail_request(r, p->runtime, ctx, runtime_error.code);
         return PLUGIN_BODY_HOOK_ERROR;
     }
     ctx->response_body_finished = 1;
@@ -809,20 +871,21 @@ static plugin_body_hook_result mod_msconnector_finish_response_body(
      * real safe downgrade instead of fabricating a late 403. */
     decision.late_intervention = 1;
     msconnector_error_init(&runtime_error);
-    if (!msconnector_runtime_transaction_record_host_action(
+    if (msconnector_runtime_transaction_record_host_action(
             ctx->transaction,
             &decision,
             MSCONNECTOR_DECISION_ACTION_LOG_ONLY,
             r->http_status >= 100 && r->http_status <= 599 ? r->http_status : 200,
             "log_only",
             0,
-            &runtime_error)) {
+            &runtime_error) != 1) {
         log_error(
             r->conf.errh,
             __FILE__,
             __LINE__,
             "msconnector Phase-4 log-only host action was not recorded: %s",
             msconnector_error_code_name(runtime_error.code));
+        (void)mod_msconnector_fail_request(r, p->runtime, ctx, runtime_error.code);
         return PLUGIN_BODY_HOOK_ERROR;
     }
     return PLUGIN_BODY_HOOK_CONTINUE;
@@ -840,6 +903,7 @@ static plugin_body_hook_result mod_msconnector_handle_response_body(
     msconnector_error runtime_error;
     handler_t response_start_result;
 
+    if (ctx != NULL && ctx->technical_failed) return PLUGIN_BODY_HOOK_ERROR;
     if (!p->response_body_hooks_enabled || ctx == NULL ||
         ctx->transaction == NULL || ctx->request_intervened ||
         ctx->response_body_finished) {
@@ -857,6 +921,8 @@ static plugin_body_hook_result mod_msconnector_handle_response_body(
                 __FILE__,
                 __LINE__,
                 "msconnector response headers were not available before an entity-body range");
+            (void)mod_msconnector_fail_request(r, p->runtime, ctx,
+                MSCONNECTOR_ERROR_HOST_API_FAILURE);
             return PLUGIN_BODY_HOOK_ERROR;
         }
         if (response_start_result != HANDLER_GO_ON) {
@@ -870,24 +936,30 @@ static plugin_body_hook_result mod_msconnector_handle_response_body(
             __FILE__,
             __LINE__,
             "msconnector entity-body hook received an invalid or non-contiguous range");
+        (void)mod_msconnector_fail_request(r, p->runtime, ctx, MSCONNECTOR_ERROR_HOST_API_FAILURE);
         return PLUGIN_BODY_HOOK_ERROR;
     }
-    msconnector_runtime_transaction_set_response_commit_state(
-        ctx->transaction,
-        mod_msconnector_response_headers_committed(r),
-        mod_msconnector_response_body_committed(r));
     msconnector_error_init(&runtime_error);
-    if (length > 0U && !msconnector_runtime_transaction_append_response_body_chunk(
+    if (msconnector_runtime_transaction_set_response_commit_state_checked(
+            ctx->transaction,
+            mod_msconnector_response_headers_committed(r),
+            mod_msconnector_response_body_committed(r), &runtime_error) != 1) {
+        (void)mod_msconnector_fail_request(r, p->runtime, ctx, runtime_error.code);
+        return PLUGIN_BODY_HOOK_ERROR;
+    }
+    msconnector_error_init(&runtime_error);
+    if (length > 0U && msconnector_runtime_transaction_append_response_body_chunk(
             ctx->transaction,
             data,
             length,
-            &runtime_error)) {
+            &runtime_error) != 1) {
         log_error(
             r->conf.errh,
             __FILE__,
             __LINE__,
             "msconnector entity-body append failed: %s",
             msconnector_error_code_name(runtime_error.code));
+        (void)mod_msconnector_fail_request(r, p->runtime, ctx, runtime_error.code);
         return PLUGIN_BODY_HOOK_ERROR;
     }
     ctx->response_body_next_offset += (off_t)length;
@@ -902,6 +974,7 @@ static plugin_body_hook_result mod_msconnector_handle_response_abort(
     plugin_data *p = p_d;
     handler_ctx *ctx = r->plugin_ctx[p->id];
 
+    if (ctx != NULL && ctx->technical_failed) return PLUGIN_BODY_HOOK_ERROR;
     if (reason != PLUGIN_RESPONSE_ABORT_UPSTREAM_EOF ||
         !p->response_body_hooks_enabled || ctx == NULL ||
         ctx->transaction == NULL || ctx->response_body_finished ||
@@ -920,7 +993,15 @@ static plugin_body_hook_result mod_msconnector_handle_response_abort(
         "msconnector event=upstream_eof response-body-abort host-transaction-id=%s offset=%lld",
         ctx->host_request_id,
         (long long)ctx->response_body_next_offset);
-    return PLUGIN_BODY_HOOK_CONTINUE;
+    {
+        msconnector_error error;
+        msconnector_error_init(&error);
+        (void)msconnector_runtime_transaction_fail(ctx->transaction,
+            MSCONNECTOR_TRANSACTION_ERROR_UPSTREAM_DISCONNECT, &error);
+        (void)mod_msconnector_fail_request(r, p->runtime, ctx,
+            MSCONNECTOR_ERROR_HOST_API_FAILURE);
+    }
+    return PLUGIN_BODY_HOOK_ERROR;
 }
 
 #endif
@@ -941,9 +1022,9 @@ static handler_t mod_msconnector_finish_uninspected_response_body(
         return HANDLER_GO_ON;
     }
     msconnector_error_init(&runtime_error);
-    if (!msconnector_runtime_transaction_finish_unobserved_response_body(
+    if (msconnector_runtime_transaction_finish_unobserved_response_body(
             ctx->transaction,
-            &runtime_error)) {
+            &runtime_error) != 1) {
         log_error(
             r->conf.errh,
             __FILE__,
@@ -980,6 +1061,8 @@ REQUEST_FUNC(mod_msconnector_handle_uri_clean) {
 #endif
     ctx_slot = (handler_ctx **)&r->plugin_ctx[p->id];
     if (*ctx_slot != NULL) {
+        if ((*ctx_slot)->technical_failed) return HANDLER_ERROR;
+        if ((*ctx_slot)->request_body_gate_rejected) return HANDLER_FINISHED;
 #ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
         return mod_msconnector_prepare_request_body(r, p, *ctx_slot);
 #else
@@ -988,8 +1071,9 @@ REQUEST_FUNC(mod_msconnector_handle_uri_clean) {
     }
     ctx = handler_ctx_create(p);
     if (ctx == NULL) {
-        return mod_msconnector_error_response(
-            r, p->runtime, MSCONNECTOR_ERROR_INTERNAL);
+        *ctx_slot = &mod_msconnector_failed_context;
+        return r->write_queue.bytes_out > 0 ? HANDLER_ERROR :
+            mod_msconnector_error_response(r, p->runtime, MSCONNECTOR_ERROR_INTERNAL);
     }
     *ctx_slot = ctx;
 
@@ -1017,31 +1101,30 @@ REQUEST_FUNC(mod_msconnector_handle_uri_clean) {
             __LINE__,
             "msconnector request mapping failed: %s",
             mapper_error[0] == '\0' ? "unknown error" : mapper_error);
-        handler_ctx_destroy(ctx_slot);
-        return mod_msconnector_error_response(
+        return mod_msconnector_fail_request(
             r,
             p->runtime,
+            ctx,
             MSCONNECTOR_ERROR_HOST_API_FAILURE);
     }
 
     msconnector_error_init(&runtime_error);
     msconnector_decision_init(&decision);
-    if (!msconnector_runtime_transaction_begin(
+    if (msconnector_runtime_transaction_begin(
             p->runtime,
             &ctx->request,
             ctx->host_request_id,
             &ctx->transaction,
             &decision,
-            &runtime_error)) {
+            &runtime_error) != 1) {
         log_error(
             r->conf.errh,
             __FILE__,
             __LINE__,
             "msconnector transaction begin failed: %s",
             msconnector_error_code_name(runtime_error.code));
-        handler_ctx_destroy(ctx_slot);
-        return mod_msconnector_error_response(
-            r, p->runtime, runtime_error.code);
+        return mod_msconnector_fail_request(
+            r, p->runtime, ctx, runtime_error.code);
     }
     {
         const handler_t rc = mod_msconnector_apply_decision(r, p, ctx, &decision);
@@ -1069,6 +1152,7 @@ REQUEST_FUNC(mod_msconnector_handle_response_start) {
         return HANDLER_GO_ON;
     }
     ctx = r->plugin_ctx[p->id];
+    if (ctx != NULL && ctx->technical_failed) return HANDLER_ERROR;
     if (ctx == NULL || ctx->transaction == NULL || ctx->response_processed) {
         return HANDLER_GO_ON;
     }
@@ -1107,31 +1191,33 @@ REQUEST_FUNC(mod_msconnector_handle_response_start) {
             __LINE__,
             "msconnector response mapping failed: %s",
             mapper_error[0] == '\0' ? "unknown error" : mapper_error);
-        return mod_msconnector_error_response(
+        return mod_msconnector_fail_request(
             r,
             p->runtime,
+            ctx,
             MSCONNECTOR_ERROR_HOST_API_FAILURE);
     }
 
     msconnector_error_init(&runtime_error);
     msconnector_decision_init(&decision);
-    if (!msconnector_runtime_transaction_process_response_headers(
+    if (msconnector_runtime_transaction_process_response_headers(
             ctx->transaction,
             &ctx->response,
             &decision,
-            &runtime_error)) {
+            &runtime_error) != 1) {
         log_error(
             r->conf.errh,
             __FILE__,
             __LINE__,
             "msconnector response processing failed: %s",
             msconnector_error_code_name(runtime_error.code));
-        return mod_msconnector_error_response(
-            r, p->runtime, runtime_error.code);
+        return mod_msconnector_fail_request(
+            r, p->runtime, ctx, runtime_error.code);
     }
     ctx->response_processed = 1;
     if (!mod_msconnector_emit_host_transaction_id(r, p, ctx)) {
-        return HANDLER_ERROR;
+        return mod_msconnector_fail_request(r, p->runtime, ctx,
+            MSCONNECTOR_ERROR_HOST_API_FAILURE);
     }
     return mod_msconnector_apply_decision(r, p, ctx, &decision);
 }
@@ -1142,15 +1228,22 @@ REQUEST_FUNC(mod_msconnector_handle_request_reset) {
     handler_ctx *ctx = *ctx_slot;
     msconnector_error runtime_error;
     int defer_transaction_finish = 0;
+    handler_t result = HANDLER_GO_ON;
 
     if (ctx == NULL) {
         return HANDLER_GO_ON;
+    }
+    if (ctx->technical_failed) {
+        handler_ctx_destroy(ctx_slot);
+        return HANDLER_ERROR;
     }
     if (ctx->transaction != NULL) {
 #ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
         if (!p->response_body_hooks_enabled &&
             ctx->response_processed && !ctx->response_body_finished &&
             mod_msconnector_finish_uninspected_response_body(r, ctx) != HANDLER_GO_ON) {
+            result = HANDLER_ERROR;
+            defer_transaction_finish = 1;
             log_error(
                 r->conf.errh,
                 __FILE__,
@@ -1164,6 +1257,7 @@ REQUEST_FUNC(mod_msconnector_handle_request_reset) {
              * the single bounded finish attempt to handler_ctx_destroy(),
              * which also performs native transaction cleanup exactly once. */
             defer_transaction_finish = 1;
+            result = HANDLER_ERROR;
             if (!ctx->response_body_aborted) {
                 log_error(
                     r->conf.errh,
@@ -1175,6 +1269,8 @@ REQUEST_FUNC(mod_msconnector_handle_request_reset) {
 #else
         if (ctx->response_processed && !ctx->response_body_finished &&
             mod_msconnector_finish_uninspected_response_body(r, ctx) != HANDLER_GO_ON) {
+            result = HANDLER_ERROR;
+            defer_transaction_finish = 1;
             log_error(
                 r->conf.errh,
                 __FILE__,
@@ -1185,9 +1281,10 @@ REQUEST_FUNC(mod_msconnector_handle_request_reset) {
         if (!defer_transaction_finish) {
             msconnector_error_init(&runtime_error);
             if (ctx->request_body_gate_rejected) {
-                if (!msconnector_runtime_transaction_finish_host_rejected_request_body(
+                if (msconnector_runtime_transaction_finish_host_rejected_request_body(
                         ctx->transaction,
-                        &runtime_error)) {
+                        &runtime_error) != 1) {
+                    result = HANDLER_ERROR;
                     log_error(
                         r->conf.errh,
                         __FILE__,
@@ -1195,9 +1292,10 @@ REQUEST_FUNC(mod_msconnector_handle_request_reset) {
                         "msconnector rejected request-body gate logging finalization failed: %s",
                         msconnector_error_code_name(runtime_error.code));
                 }
-            } else if (!msconnector_runtime_transaction_finish(
+            } else if (msconnector_runtime_transaction_finish(
                     ctx->transaction,
-                    &runtime_error)) {
+                    &runtime_error) != 1) {
+                result = HANDLER_ERROR;
                 log_error(
                     r->conf.errh,
                     __FILE__,
@@ -1208,5 +1306,5 @@ REQUEST_FUNC(mod_msconnector_handle_request_reset) {
         }
     }
     handler_ctx_destroy(ctx_slot);
-    return HANDLER_GO_ON;
+    return result;
 }

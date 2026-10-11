@@ -448,7 +448,11 @@ func (transaction *commonRuntimeTransaction) Close(ctx context.Context, _ Summar
 		return
 	}
 	if transaction.native != nil && !transaction.engine.closed {
-		C.msc_envoy_ext_proc_transaction_close(transaction.native)
+		errorBuffer := make([]C.char, commonRuntimeErrorBufferSize)
+		if C.msc_envoy_ext_proc_transaction_close_checked(transaction.native,
+			&errorBuffer[0], C.size_t(len(errorBuffer))) != 1 {
+			transaction.setCleanupFailure(fmt.Errorf("Common transaction finalization: %s", nativeErrorText(errorBuffer)))
+		}
 		transaction.native = nil
 	}
 	transaction.closed = true

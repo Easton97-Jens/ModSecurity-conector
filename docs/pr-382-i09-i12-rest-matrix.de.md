@@ -6,7 +6,34 @@ Stand: 2026-10-10. Dokumentationsbasis und geprüfter Sourcebestand: `b2622a5d6c
 
 Diese manuell gepflegte Matrix enthält 56 Zeilen für 14 getrennte Routenteile, jeweils I09/I10/I11/I12. Sie übernimmt den nur lesenden, revisionsgebundenen Source-/Testpfadbestand; aufgeführte Tests wurden für diese Matrix nicht neu ausgeführt. `OPEN_REST_SCOPE` bleibt offen. `AUDIT_INCOMPLETE_NO_NEW_BUG_PROVEN` bedeutet unvollständigen Audit, nicht einen bewiesenen Bug; `SOURCE_CONFIRMED_PROPAGATION_GAP` bezeichnet die zwei getrennten I11-Sourcebefunde unten. `CURRENT_PR382_ROUTE_MATRIX_NOT_PROVEN` bezeichnet fehlenden Hostnachweis für diesen #382-Stand.
 
-Erledigte I09f/I10e-Apache-Modulkorrekturen und andere abgehakte Teilbereiche bleiben erhalten. Der [R17-Bericht](https://github.com/Easton97-Jens/ModSecurity-conector/pull/396#issuecomment-6101794434) ist ein **Nachgelagerter NGINX-H1-Systemnachweis aus PR #396** für `2f02370b07149265841411894f1a2cf7f1e978ff`, kein Produkttest von #382 oder einem späteren Dokumentationshead. Begrenzte I12b/V08a/V09a/V10a-Referenzen stehen in der [Checkliste](pr-382-checklist.de.md). Breite I09–I12 und V08–V10 bleiben offen.
+Erledigte I09f/I10e-Apache-Modulkorrekturen und andere abgehakte Teilbereiche bleiben erhalten. Der [R17-Bericht](https://github.com/Easton97-Jens/ModSecurity-conector/pull/396#issuecomment-6101794434) ist ein **Nachgelagerter NGINX-H1-Systemnachweis aus PR #396** für `2f02370b07149265841411894f1a2cf7f1e978ff`, kein Produkttest von #382 oder einem späteren Dokumentationshead. Begrenzte I12b/V08a/V09a/V10a-Referenzen stehen in der [Checkliste](pr-382-checklist.de.md). I09, I11, I12 und V08–V10 bleiben offen; die aktuelle I10-Implementierungsakzeptanz ist wie unten dokumentiert abgeschlossen.
+
+## I10: aktueller Implementierungsabgleich vom 11.10.2026
+
+Status: `I10_IMPLEMENTATION_COMPLETE`. Die neue produktive Adapterprüfung startet bei `0df51024008fc84f0a6820f3b011055b69c3a3e2` im separaten Worktree/Branch `fix/pr382-i10-adapter-errors-20261011`. Der [EN/DE Change Record](../reports/audits/change-records/CR-20261011-pr382-i10-adapter-errors.de.md) enthält zehn logische Routen, alle 14 getrennten Legs, echte Defekte/Fixes, ausführbare Caller-/Mutationsbelege und den Befehlsledger. I10a–I10e bleiben erhalten. Off/Safe sind für technische Fehler terminal; nur `lighttpd-stock` besitzt in der aktuellen Registry `strict_post_commit_action=1`. Andere Strict-Fähigkeiten werden nicht ergänzt.
+
+Die folgenden 56 Zeilen dokumentieren **historischen Reststand vom 10.10.2026**, nicht das Ergebnis der neuen I10-Implementierungsprüfung. Historische I10-Hostbeweise sind I12/V08–V10 zugeordnet; sie blockieren den I10-Codeabschluss nicht automatisch. I09 und I11 bleiben separat offen. Technische Host-API-Aufrufe/Stop-Ergebnisse sind keine beobachteten Clientaborts.
+
+### Aktuelle produktive I10-Legs
+
+| Leg | Ausführbarer produktiver Test | Tatsächlich beobachteter Seam | Aktueller Status |
+| --- | --- | --- | --- |
+| `nginx-native` | `tests.test_nginx_late_error_results` | native dispatcher return | `IMPLEMENTATION_PASS` |
+| `apache-native` | `tests.test_apache_terminal_contract_failures` | APR/filter return | `IMPLEMENTATION_PASS` |
+| `haproxy-native-htx` | `tests.test_haproxy_i10_host_callers` | HTX host calls/result | `IMPLEMENTATION_PASS` |
+| `haproxy-spoe-spop-request` | `tests.test_haproxy_i10_binding_callers` | real SPOP ACK bytes503 | `IMPLEMENTATION_PASS` |
+| `haproxy-spop-htx-response-companion` | `tests.test_haproxy_i10_host_callers` | MRC1/HTX terminal result | `IMPLEMENTATION_PASS` |
+| `envoy-ext-proc` | `internal/processor/technical_error_test.go` | non-nil gRPC error | `IMPLEMENTATION_PASS` |
+| `envoy-ext-authz-request` | `tests.test_i10_service_callers; compositeenvoy` | HTTP authorization/gRPC return | `IMPLEMENTATION_PASS` |
+| `envoy-ext-authz-response-companion` | `tests.test_i10_service_callers; compositeenvoy` | MRC1 RESULT/non-nil gRPC error | `IMPLEMENTATION_PASS` |
+| `traefik-native-middleware-uds` | `tests.test_traefik_i10_dispatcher; native_middleware` | MSE1 bytes/ErrAbortHandler | `IMPLEMENTATION_PASS` |
+| `traefik-forwardauth-request` | `tests.test_i10_service_callers` | HTTP authorization error bytes | `IMPLEMENTATION_PASS` |
+| `traefik-forwardauth-response-observer` | `response_observer/observer_test.go` | WriteHeader-before-ACK/ErrAbortHandler | `IMPLEMENTATION_PASS` |
+| `lighttpd-stock-sidecar` | `tests.test_lighttpd_i10_adapter_errors` | exchange result/socket peerEOF | `IMPLEMENTATION_PASS` |
+| `lighttpd-stock-native-control` | `tests.test_lighttpd_i10_adapter_errors` | native control hook return | `IMPLEMENTATION_PASS` |
+| `lighttpd-patched-native` | `tests.test_lighttpd_i10_adapter_errors` | HANDLER_ERROR/once reset | `IMPLEMENTATION_PASS` |
+
+Die hier gemessenen Rückgaben/API-Aufrufe und lokalen Socketbytes sind I10-Adapterevidenz. Live-Clientabort/Reset, Nachbarstreams und physische Logs bleiben eigene I12/I11-Nachweise. Die oben verlinkte Change-Record-Matrix trennt Off/Safe/Strict und Vor-/Nach-Commit; aktuelle Registry wird nicht verändert.
 
 ## Revisionsgebundene Restarbeit
 

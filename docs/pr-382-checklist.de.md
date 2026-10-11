@@ -141,12 +141,18 @@ Lokale Raw-Evidence bleibt unter `/var/tmp/codex/ModSecurity-conector/analysis/n
 - [x] I09d: Envoy ext_proc erhält erste Common-Fehler, sperrt Header-/Body-/EOS-Wiederholungen, leert alte Regelmetadaten und begrenzt Fehlermeldung (`31200e8c`; V22).
 - [x] I09e: Gemeinsamer NGINX-Verbindungs-/URI-Helfer erhält strikten Erfolg, PCRE-/Phasenklammern und Hoststatus ohne doppelte Implementierung (`bced5ce7`; V23).
 - [x] I09f: Apache-Modul prüft exakte Interventionsrückgaben, gibt native Puffer auf jedem Ausgang nach dem Aufruf frei, prüft Kopien, trennt native/Host-Ursachen, prüft Initialisierung und bindet Engine-Cleanup an die Konfigurationsgeneration. Für `3c29004b` vorhanden und getestet; V24.
-- [ ] I10: Tatsächliche Off-/Safe-/Strict-Fehlerbehandlung aller Routen einschließlich nativer Integrationsverifikation abschließen, nicht nur gemeinsame Policy-Tests.
+- [x] I10: Produktive technische Fehlerweitergabe aller zehn Registry-Routen und 14 getrennter Legs ist implementiert und executable/native verifiziert. I10a–I10e bleiben erhalten; Live-Host-/Client-/Transportnachweise bleiben I12/V08–V10. Siehe [Change Record](../reports/audits/change-records/CR-20261011-pr382-i10-adapter-errors.de.md).
 - [x] I10a: Späte technische NGINX-Fehler kommen vor Safe-/Strict-Regelpolicy (`52445b18`; V14).
 - [x] I10b: Echte Common-Policy-Tests prüfen fünf Fehlerklassen, zehn Profile, zwei Vertragsmodi und beide Commit-Zustände; technische Fehler werden kein Safe-Log-only. Kein Host-I/O-Nachweis.
 - [x] I10c: Echte NGINX-Collector-/Dispatcher-/P4-Kettentests erhalten späte Regeln, Off-Verhalten und Bereinigung (`1ce569e1`; V17).
 - [x] I10d: Fehlerhafter Envoy-Antwortbeginn stoppt vor Append; leeres EOS erfindet keinen Bodybeginn. Geprüfte C-ABI reicht Fehler bis Go weiter; Kompatibilitäts-ABI bleibt erhalten (`31200e8c`, `81e53a94`). Native Verifikation bestand für `7d05e89f` (V20).
 - [x] I10e: Apache-Collector ändert keine bereits gesendeten Location-Header und verwendet bei technischen Fehlern keine alten Regelmetadaten. Audit markiert seinen Versuch vor Callbacks und setzt keine ausführbare Intervention aus der Logphase durch. Für `3c29004b` vorhanden; V24 prüft kompilierte APR-/native Grenzen, kein Live-httpd.
+- [x] I10f: HAProxy HTX: genaue Common-/Nested-Result-Rückgaben, einmalige Hoststeuerung, Commit/EOS/Reentry/Cleanup; produktive Caller-/Mutationen und voller nativer HTX-Build bestanden.
+- [x] I10g: HAProxy SPOP-Request und HTX-Response-Companion separat: technische ACK503, erster Fehlercode/Diagnose, EOS/ACK/Release und terminaler Hostausgang; ausführbare Caller-/Mutationen bestanden.
+- [x] I10h: Envoy ext_authz-Request und eigener Response-Companion sowie ext_proc: technische Fehler, Commit/EOS/Reentry, Checked-Close-ABI, fehlendes EOS und Listener-Cleanup; vollständige native/CGo-/Go-Race-Suiten bestanden.
+- [x] I10i: Traefik Native/UDS und forwardAuth-Request/Observer: typisierte MSE1/MRC1-Fehler, tatsächlicher Hostwrite vor ACK, terminaler Fehler nach Commit und einmaliger Cleanup; Caller-/Go-Race-/Vet-/Mutationschecks bestanden.
+- [x] I10j: lighttpd Stock-Sidecar und native/patched Hooks separat: Socket-Ergebnis, Commit/Reentry/Reset/Upstreamfehler und erste Ursache trotz später Deadline; 479 ausführbare Fälle/9 Mutationen und vollständige native Builds bestanden.
+- [x] I10k: Finale Cross-Route-Reconciliation: keine bekannte Adapterimplementierungslücke, technische Off/Safe-Fehler kein Rule-log_only, Strict ausschließlich entsprechend unveränderter Registry; I11/I12 bleiben separat offen.
 - [ ] I11: Erzeuger-/Ausgabeparität, Kennungen/Ursachen, beobachtete Aktionen, doppelte terminale Ereignisse und Öffnungs-/Schreib-/Kurzschreib-/Serialisierungsfehler abschließen.
 - [x] I11a: Fehlende Transportbeobachtungen belegen keine Regel-/Fehlerdurchsetzung; eigene Datensätze und tatsächliche Nachweise bleiben erhalten.
 - [x] I11b: Verpflichtende NGINX-Phase-4-Logfehler bleiben terminal; ungültige Ausgaben und wiederholte Writes sind begrenzt.
@@ -166,7 +172,7 @@ Die [neunspaltige I09–I12-Matrix](pr-382-i09-i12-rest-matrix.de.md) zeigt verb
 | Punkt | Verbleibende Anforderung |
 | --- | --- |
 | I09 | Filter-/API-Ausgänge außerhalb des fertigen Apache-Moduls und übrige HAProxy-, direkte, Companion- und Middleware-Erzeuger prüfen. Jeden Fehler durch tatsächliche Aufrufer und Cleanup verfolgen; gemeinsame Prädikate oder Diagnosen allein reichen nicht. Die obigen Apache-Collector-/Init-/Auditkorrekturen sind nicht mehr offen. |
-| I10 | Fehlerweitergabe jeder verbleibenden Route bis zur Hoststeuerung einschließlich Fehlern nach Antwortbeginn prüfen. Native Envoy-Verifikation ist jetzt unter V20 abgeschlossen, keine offene Voraussetzung mehr. Fehlende Prüfungen in einem Helfer allein beweisen keinen Fehler, wenn Common bereits weitere Aufrufe verhindert. |
+| I10 | Implementierungsakzeptanz abgeschlossen; keine bekannte Adapter-Code-Lücke. Produktive Caller-/native-/Mutationschecks und Lint bestanden. Volle Live-Host-Evidenz bleibt I12/V08–V10; physische Sink-Parität bleibt I11. |
 | I11 | Apaches void-Ereignisschreiber/-Aufrufer brauchen vollständige physische Fehlerweitergabe; HAProxy SPOP muss sein Common-Event-fputs-Ergebnis behandeln. Der ursprüngliche Runtime-I/O-Wiedergabefehler ist behoben. Dies bleibt Implementierungsarbeit, nicht bloß Live-Nachweis. |
 | I12 | Routebezogene Host-, Client-Byte-/Reset-, Nachbarstream-, Cleanup- und physische Logfälle ausführen. Request-only benötigt seinen wirklichen Response-Companion. |
 

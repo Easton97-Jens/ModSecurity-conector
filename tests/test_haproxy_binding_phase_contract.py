@@ -30,10 +30,7 @@ class HaproxyBindingPhaseContractTests(unittest.TestCase):
                 )
 
     def test_direct_response_phase_calls_require_exact_success(self):
-        calls = (
-            "msc_add_response_header",
-            "msc_process_response_headers",
-        )
+        calls = ("msc_add_response_header",)
         for call in calls:
             with self.subTest(call=call):
                 self.assertRegex(
@@ -41,7 +38,12 @@ class HaproxyBindingPhaseContractTests(unittest.TestCase):
                     re.compile(rf"{call}\(.*?\)\s*!=\s*1", re.DOTALL),
                 )
 
-    def test_shared_body_helpers_require_exact_success(self):
+        self.assertRegex(
+            SOURCE,
+            re.compile(r"!msconnector_native_phase_succeeded\(\s*msc_process_response_headers\(", re.DOTALL),
+        )
+
+    def test_shared_body_helpers_keep_native_phase_and_byte_contracts(self):
         append_helper = re.search(
             r"static int append_body_chunk\(.*?^}\n\nstatic int finish_body",
             SOURCE,
@@ -56,11 +58,11 @@ class HaproxyBindingPhaseContractTests(unittest.TestCase):
         self.assertIsNotNone(finish_helper)
         self.assertRegex(
             append_helper.group(0),
-            re.compile(r"append_body\(.*?\)\s*!=\s*1", re.DOTALL),
+            re.compile(r"!msconnector_native_body_append_can_continue\(\s*phase->append_body\(", re.DOTALL),
         )
         self.assertRegex(
             finish_helper.group(0),
-            re.compile(r"finish_body\(.*?\)\s*!=\s*1", re.DOTALL),
+            re.compile(r"!msconnector_native_phase_succeeded\(\s*phase->finish_body\(", re.DOTALL),
         )
 
     def test_rule_loading_keeps_its_distinct_negative_error_contract(self):
@@ -111,7 +113,7 @@ class HaproxyBindingPhaseContractTests(unittest.TestCase):
             "transaction->engine->common_config.request_body_limit", SOURCE
         )
         self.assertIn(
-            "transaction->engine->common_config.response_body_limit", SOURCE
+            "msconnector_phase4_effective_body_limit(\n            transaction->engine->common_config.phase4_mode)", SOURCE
         )
 
 

@@ -651,8 +651,7 @@ static int sidecar_write_decision(int fd, const msconnector_decision *decision,
     int length;
     if (action == MSCONNECTOR_DECISION_ACTION_DROP ||
         action == MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION) {
-        (void)shutdown(fd, SHUT_RDWR);
-        return 1;
+        return shutdown(fd, SHUT_RDWR) == 0;
     }
     if (location != NULL && (strchr(location, '\r') != NULL || strchr(location, '\n') != NULL ||
                              strlen(location) > 700U)) return 0;
@@ -696,21 +695,25 @@ static msconnector_late_intervention_action sidecar_phase4_action(
  * overwrite the rule decision with a second terminal failure: retain its
  * rule correlation and record the observed host action as an abort. */
 static void sidecar_record_decision_delivery_failure(
-    msconnector_runtime_transaction *transaction,
+    int client, msconnector_runtime_transaction *transaction,
     const msconnector_decision *decision,
     msconnector_error *error) {
     if (transaction == NULL || decision == NULL) return;
+    /* Only publish the owned-socket stop after the host syscall succeeds.
+     * Live client reset/connection-abort evidence remains a separate layer. */
+    if (shutdown(client, SHUT_RDWR) != 0) return;
     (void)msconnector_runtime_transaction_record_host_action(
         transaction, decision, MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION,
         0, "connection_aborted", 1, error);
 }
 
 static void sidecar_record_failure_action(
-    msconnector_runtime_transaction *transaction,
+    int client, msconnector_runtime_transaction *transaction,
     int visible_http_status,
     int response_written,
     msconnector_error *error) {
     if (transaction == NULL) return;
+    if (!response_written && shutdown(client, SHUT_RDWR) != 0) return;
     (void)msconnector_runtime_transaction_record_failure_host_action(
         transaction, response_written ? visible_http_status : 0,
         response_written ? 0 : 1, error);
@@ -1001,9 +1004,9 @@ static int sidecar_read_request_body(sidecar_exchange_state *state) {
             state->failure_origin = SIDECAR_FAILURE_CLIENT;
             return 0;
         }
-        if (!msconnector_runtime_transaction_append_request_body_chunk(
+        if (msconnector_runtime_transaction_append_request_body_chunk(
                 state->transaction, state->payload.request_body + state->payload.body_read, received,
-                &state->error)) {
+                &state->error) != 1) {
             state->failure_status = msconnector_runtime_error_http_status(
                 state->dependencies.runtime, state->error.code);
             return 0;
@@ -1015,6 +1018,7 @@ static int sidecar_read_request_body(sidecar_exchange_state *state) {
 
 static int sidecar_read_response_body(sidecar_exchange_state *state) {
     unsigned char chunk[SIDECAR_IO_CHUNK];
+    if (state->handled) return 0;
     while (state->payload.body_read < state->payload.response_headers.content_length) {
         size_t received;
         size_t wanted = state->payload.response_headers.content_length - state->payload.body_read;
@@ -1025,9 +1029,9 @@ static int sidecar_read_response_body(sidecar_exchange_state *state) {
             state->failure_origin = SIDECAR_FAILURE_UPSTREAM;
             return 0;
         }
-        if (!msconnector_runtime_transaction_append_response_body_chunk(
+        if (msconnector_runtime_transaction_append_response_body_chunk(
                 state->transaction, chunk, received,
-                &state->error)) {
+                &state->error) != 1) {
             state->failure_origin = SIDECAR_FAILURE_CONNECTOR;
             return 0;
         }
@@ -1043,8 +1047,8 @@ static int sidecar_read_response_body(sidecar_exchange_state *state) {
                 return 0;
             }
         }
-        if (!msconnector_runtime_transaction_set_response_commit_state_checked(
-                state->transaction, 1, 1, &state->error)) {
+        if (msconnector_runtime_transaction_set_response_commit_state_checked(
+                state->transaction, 1, 1, &state->error) != 1) {
             state->failure_status = msconnector_runtime_error_http_status(
                 state->dependencies.runtime, state->error.code);
             return 0;
@@ -1056,7 +1060,7 @@ static int sidecar_read_response_body(sidecar_exchange_state *state) {
 
 static void sidecar_finish_decision(sidecar_exchange_state *state) {
     if (!sidecar_write_decision(state->client, &state->decision, &state->deadline)) {
-        sidecar_record_decision_delivery_failure(state->transaction, &state->decision,
+        sidecar_record_decision_delivery_failure(state->client, state->transaction, &state->decision,
                                                   &state->error);
     } else {
         sidecar_record_action(state->transaction, &state->decision, &state->error);
@@ -1085,8 +1089,8 @@ static int sidecar_forward_response(sidecar_exchange_state *state) {
         return 0;
     }
     state->client_response_started = 1;
-    if (!msconnector_runtime_transaction_set_response_commit_state_checked(
-            state->transaction, 1, 0, &state->error)) {
+    if (msconnector_runtime_transaction_set_response_commit_state_checked(
+            state->transaction, 1, 0, &state->error) != 1) {
         state->failure_status = msconnector_runtime_error_http_status(
             state->dependencies.runtime, state->error.code);
         return 0;
@@ -1371,9 +1375,9 @@ static int sidecar_exchange_request(sidecar_exchange_state *state) {
     request.server.port = state->endpoints.server_port;
     request.headers = state->payload.request_headers.items;
     request.header_count = state->payload.request_headers.count;
-    if (!msconnector_runtime_transaction_begin(state->dependencies.runtime, &request, NULL,
+    if (msconnector_runtime_transaction_begin(state->dependencies.runtime, &request, NULL,
                                                &state->transaction, &state->decision,
-                                               &state->error)) {
+                                               &state->error) != 1) {
         return 0;
     }
     if (msconnector_decision_is_disruptive(&state->decision)) {
@@ -1387,7 +1391,7 @@ static int sidecar_exchange_request(sidecar_exchange_state *state) {
         (void)msconnector_runtime_transaction_fail(state->transaction,
             MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, &state->error);
         written = sidecar_write_error(state->client, status, &state->deadline);
-        sidecar_record_failure_action(state->transaction, status, written, &state->error);
+        sidecar_record_failure_action(state->client, state->transaction, status, written, &state->error);
         (void)msconnector_runtime_transaction_finish(state->transaction, &state->error);
         state->handled = 1;
         return 0;
@@ -1397,9 +1401,9 @@ static int sidecar_exchange_request(sidecar_exchange_state *state) {
         if (state->payload.request_body == NULL) return 0;
         if (!sidecar_read_request_body(state)) return 0;
     }
-    if (!msconnector_runtime_transaction_finish_request_body(state->transaction,
+    if (msconnector_runtime_transaction_finish_request_body(state->transaction,
                                                               &state->decision,
-                                                              &state->error)) return 0;
+                                                              &state->error) != 1) return 0;
     if (msconnector_decision_is_disruptive(&state->decision)) {
         sidecar_finish_decision(state);
         return 0;
@@ -1443,7 +1447,7 @@ static int sidecar_exchange_response(sidecar_exchange_state *state) {
         (void)msconnector_runtime_transaction_fail(state->transaction,
             MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, &state->error);
         written = sidecar_write_error(state->client, status, &state->deadline);
-        sidecar_record_failure_action(state->transaction, status, written, &state->error);
+        sidecar_record_failure_action(state->client, state->transaction, status, written, &state->error);
         (void)msconnector_runtime_transaction_finish(state->transaction, &state->error);
         state->handled = 1;
         return 0;
@@ -1453,8 +1457,8 @@ static int sidecar_exchange_response(sidecar_exchange_state *state) {
     response.http_version = state->payload.response_headers.version;
     response.headers = state->payload.response_headers.items;
     response.header_count = state->payload.response_headers.count;
-    if (!msconnector_runtime_transaction_process_response_headers(state->transaction,
-            &response, &state->decision, &state->error)) return 0;
+    if (msconnector_runtime_transaction_process_response_headers(state->transaction,
+            &response, &state->decision, &state->error) != 1) return 0;
     state->response_blocked = msconnector_decision_is_disruptive(&state->decision);
     if (state->response_blocked) {
         sidecar_finish_decision(state);
@@ -1463,8 +1467,8 @@ static int sidecar_exchange_response(sidecar_exchange_state *state) {
     if (!sidecar_forward_response(state)) return 0;
     state->payload.body_read = 0U;
     if (!state->payload.response_headers.no_body && !sidecar_read_response_body(state)) return 0;
-    if (!msconnector_runtime_transaction_finish_response_body(state->transaction,
-            &state->decision, &state->error)) return 0;
+    if (msconnector_runtime_transaction_finish_response_body(state->transaction,
+            &state->decision, &state->error) != 1) return 0;
     if (msconnector_decision_is_disruptive(&state->decision)) {
         enum msconnector_phase4_mode phase4_mode =
             msconnector_runtime_phase4_mode(state->dependencies.runtime);
@@ -1478,23 +1482,22 @@ static int sidecar_exchange_response(sidecar_exchange_state *state) {
                 state->transaction, &state->decision,
                 MSCONNECTOR_DECISION_ACTION_LOG_ONLY,
                 state->payload.response_headers.status_code, "log_only", 0,
-                &state->error);
+                &state->error) == 1;
         }
         action = sidecar_phase4_action(state->client_response_started, phase4_mode);
         if (action == MSCONNECTOR_LATE_INTERVENTION_ABORT_CONNECTION) {
-            (void)shutdown(state->client, SHUT_RDWR);
-            sidecar_record_decision_delivery_failure(state->transaction, &state->decision,
+            sidecar_record_decision_delivery_failure(state->client, state->transaction, &state->decision,
                                                       &state->error);
             (void)msconnector_runtime_transaction_finish(state->transaction, &state->error);
             state->handled = 1;
             return 0;
         }
         if (action == MSCONNECTOR_LATE_INTERVENTION_LOG_ONLY) {
-            (void)msconnector_runtime_transaction_record_host_action(
-                state->transaction, &state->decision,
-                MSCONNECTOR_DECISION_ACTION_LOG_ONLY,
-                state->payload.response_headers.status_code, "log_only", 0,
-                &state->error);
+            if (msconnector_runtime_transaction_record_host_action(
+                    state->transaction, &state->decision,
+                    MSCONNECTOR_DECISION_ACTION_LOG_ONLY,
+                    state->payload.response_headers.status_code, "log_only", 0,
+                    &state->error) != 1) return 0;
         } else {
             sidecar_record_action(state->transaction, &state->decision, &state->error);
         }
@@ -1504,24 +1507,38 @@ static int sidecar_exchange_response(sidecar_exchange_state *state) {
 
 static void sidecar_exchange_error(sidecar_exchange_state *state) {
     int status;
+    msconnector_error completion_error;
     int response_written = 0;
+    if (state->handled) return;
+    state->handled = 1;
+    msconnector_error_init(&completion_error);
     if (state->transaction == NULL) {
         (void)sidecar_write_error(state->client,
-            sidecar_remaining(&state->deadline) == 0 ? 504 : 502, &state->deadline);
+            state->error.code != MSCONNECTOR_ERROR_NONE
+                ? msconnector_runtime_error_http_status(state->dependencies.runtime,
+                    state->error.code)
+                : (sidecar_remaining(&state->deadline) == 0 ? 504 : 502),
+            &state->deadline);
         return;
     }
-    status = sidecar_remaining(&state->deadline) == 0 ? 504 : state->failure_status;
-    if (sidecar_remaining(&state->deadline) == 0) {
-        (void)msconnector_runtime_transaction_timeout(state->transaction, &state->error);
+    /* A later deadline must not replace the first typed failure or its status.
+     * Completion APIs use scratch diagnostics to retain that original error. */
+    status = state->error.code != MSCONNECTOR_ERROR_NONE
+        ? msconnector_runtime_error_http_status(state->dependencies.runtime,
+            state->error.code)
+        : (sidecar_remaining(&state->deadline) == 0 ? 504 : state->failure_status);
+    if (state->error.code == MSCONNECTOR_ERROR_NONE &&
+            sidecar_remaining(&state->deadline) == 0) {
+        (void)msconnector_runtime_transaction_timeout(state->transaction, &completion_error);
     } else {
         (void)msconnector_runtime_transaction_fail(state->transaction,
-            sidecar_failure_error_class(state->failure_origin), &state->error);
+            sidecar_failure_error_class(state->failure_origin), &completion_error);
     }
     if (!state->client_response_started) {
         response_written = sidecar_write_error(state->client, status, &state->deadline);
     }
-    sidecar_record_failure_action(state->transaction, status, response_written, &state->error);
-    (void)msconnector_runtime_transaction_finish(state->transaction, &state->error);
+    sidecar_record_failure_action(state->client, state->transaction, status, response_written, &completion_error);
+    (void)msconnector_runtime_transaction_finish(state->transaction, &completion_error);
 }
 
 static int sidecar_exchange(int client, const sidecar_options *options,
@@ -1530,13 +1547,14 @@ static int sidecar_exchange(int client, const sidecar_options *options,
     msconnector_runtime_transaction_snapshot receipt_snapshot;
     int receipt_ready = 0;
     sidecar_exchange_state_init(&state, client, options, runtime);
-    if (!(sidecar_exchange_request(&state) && sidecar_exchange_response(&state)) &&
-        !state.handled) {
+    state.result = sidecar_exchange_request(&state) && sidecar_exchange_response(&state);
+    if (!state.result && !state.handled) {
         sidecar_exchange_error(&state);
     }
     if (state.transaction != NULL) {
         receipt_ready = msconnector_runtime_transaction_finalize_and_snapshot(
-            &state.transaction, &receipt_snapshot, &state.error);
+            &state.transaction, &receipt_snapshot, &state.error) == 1;
+        if (!receipt_ready) state.result = 0;
     }
     if (state.upstream >= 0) close(state.upstream);
     if (receipt_ready) {
@@ -1544,9 +1562,9 @@ static int sidecar_exchange(int client, const sidecar_options *options,
                 MSCONNECTOR_TRANSACTION_DECISION_ALLOW &&
                 receipt_snapshot.contract.action == MSCONNECTOR_DECISION_ACTION_ALLOW &&
                 receipt_snapshot.contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE ?
-            sidecar_write_allow_receipt(&receipt_snapshot,
-                state.payload.response_headers.status_code) :
-            sidecar_write_non_allow_receipt(&receipt_snapshot);
+            state.result && sidecar_write_allow_receipt(&receipt_snapshot,
+                state.payload.response_headers.status_code) : 0;
+        if (!state.result) (void)sidecar_write_non_allow_receipt(&receipt_snapshot);
     }
     msconnector_runtime_transaction_destroy(&state.transaction);
     sidecar_headers_release(&state.payload.request_headers);
@@ -1832,7 +1850,8 @@ static void *sidecar_worker_main(void *argument) {
     sidecar_worker *worker = argument;
     sidecar_runtime_context *context = worker->context;
     (void)sidecar_exchange(worker->client, context->options, context->runtime);
-    (void)shutdown(worker->client, SHUT_RDWR);
+    /* Exchange failure paths already stopped the owned socket; close only
+     * releases ownership and must not apply a second shutdown action. */
     close(worker->client);
     (void)pthread_mutex_lock(&context->lock);
     --context->active;

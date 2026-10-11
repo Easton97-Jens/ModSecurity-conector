@@ -1411,11 +1411,18 @@ int haproxy_modsecurity_transaction_claim_response_companion(
     return 0;
 }
 
+msconnector_transaction_error_class haproxy_modsecurity_transaction_error_class(
+        const haproxy_modsecurity_transaction *transaction) {
+    return transaction != NULL && transaction->contract_initialized ?
+        transaction->contract.error_class : MSCONNECTOR_TRANSACTION_ERROR_NONE;
+}
+
 int haproxy_modsecurity_transaction_set_response_commit_state(
         haproxy_modsecurity_transaction *transaction,
         int headers_sent, int body_started) {
     if (transaction == 0 || !transaction->contract_initialized ||
-            !transaction->response_companion_claimed ||
+            (transaction->response_phases_require_companion &&
+                !transaction->response_companion_claimed) ||
             (headers_sent == 0 && body_started != 0)) {
         return 1;
     }
@@ -1528,6 +1535,8 @@ static int add_response_headers(
                 (const unsigned char *)value) != 1) {
             copy_message(decision->log_message, sizeof(decision->log_message),
                 "msc_add_response_header failed");
+            (void)msconnector_transaction_contract_fail(&transaction->contract,
+                MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
             return 0;
         }
     }

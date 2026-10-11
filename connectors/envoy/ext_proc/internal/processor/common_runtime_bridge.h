@@ -135,6 +135,11 @@ const char *msc_envoy_ext_proc_transaction_id(
 void msc_envoy_ext_proc_transaction_close(
     msc_envoy_ext_proc_transaction *transaction);
 
+/* Consumes the transaction even on failure. New callers check exact one;
+ * the void entry point remains available for ABI compatibility. */
+int msc_envoy_ext_proc_transaction_close_checked(
+    msc_envoy_ext_proc_transaction *transaction, char *error, size_t error_len);
+
 #ifdef __cplusplus
 }
 #endif

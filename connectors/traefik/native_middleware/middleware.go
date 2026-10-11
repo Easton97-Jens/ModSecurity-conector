@@ -456,6 +456,7 @@ type streamState struct {
 	pendingRequestDecision Decision
 	pendingRequestError    error
 	closed                 bool
+	terminalError          error
 }
 
 func (state *streamState) processHeaders(contextValue context.Context, direction Direction, headers []Header, end bool) (Decision, error) {
@@ -466,17 +467,35 @@ func (state *streamState) processHeaders(contextValue context.Context, direction
 	} else {
 		state.responseHeaderCount += uint64(len(headers))
 	}
-	return state.engine.ProcessHeaders(contextValue, direction, headers, end)
+	if state.terminalError != nil {
+		return allowDecision(), state.terminalError
+	}
+	decision, err := state.engine.ProcessHeaders(contextValue, direction, headers, end)
+	if err != nil {
+		state.terminalError = err
+	}
+	return decision, err
 }
 
 func (state *streamState) processResponseHeaders(contextValue context.Context, status int, headers []Header) (Decision, error) {
 	state.mu.Lock()
 	defer state.mu.Unlock()
+	if state.terminalError != nil {
+		return allowDecision(), state.terminalError
+	}
 	state.responseHeaderCount += uint64(len(headers))
 	if processor, ok := state.engine.(responseHeaderProcessor); ok {
-		return processor.ProcessResponseHeaders(contextValue, status, state.metadata.HTTPVersion, headers)
+		decision, err := processor.ProcessResponseHeaders(contextValue, status, state.metadata.HTTPVersion, headers)
+		if err != nil {
+			state.terminalError = err
+		}
+		return decision, err
 	}
-	return state.engine.ProcessHeaders(contextValue, DirectionResponse, headers, false)
+	decision, err := state.engine.ProcessHeaders(contextValue, DirectionResponse, headers, false)
+	if err != nil {
+		state.terminalError = err
+	}
+	return decision, err
 }
 
 // processRequestBody returns an error only for a request-side rejection or an
@@ -485,6 +504,9 @@ func (state *streamState) processResponseHeaders(contextValue context.Context, s
 func (state *streamState) processRequestBody(contextValue context.Context, chunk []byte, end bool) error {
 	state.mu.Lock()
 	defer state.mu.Unlock()
+	if state.terminalError != nil {
+		return state.terminalError
+	}
 	if end && state.requestEOS {
 		return nil
 	}
@@ -498,11 +520,12 @@ func (state *streamState) processRequestBody(contextValue context.Context, chunk
 		return ErrRequestRejected
 	}
 	decision, err := state.engine.ProcessBody(contextValue, DirectionRequest, chunk, end)
-	if end {
+	if end && err == nil {
 		state.requestEOS = true
 	}
 	if err != nil {
 		state.pendingRequestError = err
+		state.terminalError = err
 		return err
 	}
 	if decision.disruptive() {
@@ -518,23 +541,30 @@ func (state *streamState) processRequestBody(contextValue context.Context, chunk
 func (state *streamState) processResponseBody(contextValue context.Context, chunk []byte, end bool, beforeCommit bool) (Decision, error) {
 	state.mu.Lock()
 	defer state.mu.Unlock()
+	if state.terminalError != nil {
+		return allowDecision(), state.terminalError
+	}
 	if end && state.responseEOS {
 		return allowDecision(), nil
 	}
 	state.responseBodyChunks++
 	state.responseBodyBytes += int64(len(chunk))
 	decision, err := state.engine.ProcessBody(contextValue, DirectionResponse, chunk, end)
-	if end {
+	if end && err == nil {
 		state.responseEOS = true
 	}
 	if err != nil {
+		state.terminalError = err
 		return allowDecision(), err
 	}
 	if decision.disruptive() && !beforeCommit {
-		state.lateAction = "log_only"
 		if reporter, ok := state.engine.(outcomeAcknowledger); ok {
-			_ = reporter.AcknowledgeLateLogOnly(contextValue, state.responseStatus)
+			if err := reporter.AcknowledgeLateLogOnly(contextValue, state.responseStatus); err != nil {
+				state.terminalError = err
+				return allowDecision(), err
+			}
 		}
+		state.lateAction = "log_only"
 		return allowDecision(), nil
 	}
 	return decision, nil
@@ -606,7 +636,12 @@ func (state *streamState) pendingRequestBlocker() error {
 
 func (state *streamState) recordRequestError(err error) {
 	state.mu.Lock()
-	state.pendingRequestError = err
+	if state.pendingRequestError == nil {
+		state.pendingRequestError = err
+	}
+	if state.terminalError == nil {
+		state.terminalError = err
+	}
 	state.mu.Unlock()
 }
 
@@ -619,9 +654,16 @@ func (state *streamState) markResponseCommit(contextValue context.Context, statu
 		state.responseStatus = status
 	}
 	transaction := state.engine
+	failed := state.terminalError != nil
 	state.mu.Unlock()
+	if failed {
+		return
+	}
 	if committer, ok := transaction.(responseCommitter); ok {
-		_ = committer.SetResponseCommit(contextValue, headersSent, bodyStarted)
+		if err := committer.SetResponseCommit(contextValue, headersSent, bodyStarted); err != nil {
+			state.recordRequestError(err)
+			panic(http.ErrAbortHandler)
+		}
 	}
 }
 
@@ -630,7 +672,10 @@ func (state *streamState) acknowledgeApplied(contextValue context.Context, decis
 	transaction := state.engine
 	state.mu.Unlock()
 	if reporter, ok := transaction.(outcomeAcknowledger); ok {
-		_ = reporter.AcknowledgeApplied(contextValue, decision)
+		if err := reporter.AcknowledgeApplied(contextValue, decision); err != nil {
+			state.recordRequestError(err)
+			panic(http.ErrAbortHandler)
+		}
 	}
 }
 
@@ -644,10 +689,14 @@ func (state *streamState) acknowledgeApplied(contextValue context.Context, decis
 func (state *streamState) writeDecision(contextValue context.Context, target http.ResponseWriter, decision Decision) {
 	count, writeErr := writeDecision(target, decision)
 	status, _ := normalizeDecision(decision)
+	defer state.markResponseCommit(contextValue, status, true, count > 0)
 	if writeErr == nil {
 		state.acknowledgeApplied(contextValue, decision)
+	} else {
+		state.markResponseCommit(contextValue, status, true, count > 0)
+		state.recordRequestError(writeErr)
+		panic(http.ErrAbortHandler)
 	}
-	state.markResponseCommit(contextValue, status, true, count > 0)
 }
 
 func (state *streamState) markRequestEOS() {
@@ -663,7 +712,7 @@ func (state *streamState) close(contextValue context.Context) {
 		return
 	}
 	state.closed = true
-	state.engine.Close(contextValue, Summary{
+	summary := Summary{
 		TransactionID:       state.metadata.TransactionID,
 		RequestHeaderCount:  state.requestHeaderCount,
 		ResponseHeaderCount: state.responseHeaderCount,
@@ -675,7 +724,16 @@ func (state *streamState) close(contextValue context.Context) {
 		ResponseEOS:         state.responseEOS,
 		ResponseCommitted:   state.responseCommitted,
 		LateAction:          state.lateAction,
-	})
+	}
+	if closer, ok := state.engine.(interface {
+		CloseChecked(context.Context, Summary) error
+	}); ok {
+		if err := closer.CloseChecked(contextValue, summary); err != nil {
+			panic(http.ErrAbortHandler)
+		}
+	} else {
+		state.engine.Close(contextValue, summary)
+	}
 }
 
 type inspectingRequestBody struct {
@@ -782,6 +840,9 @@ func (writer *responseWriter) WriteHeader(status int) {
 }
 
 func (writer *responseWriter) Write(payload []byte) (int, error) {
+	if writer.responseIncomplete {
+		return 0, io.ErrClosedPipe
+	}
 	if writer.rejected {
 		// A pre-commit decision is already visible to the downstream client.
 		// Consume the proxy's attempted response stream without forwarding it so
@@ -831,8 +892,10 @@ func (writer *responseWriter) writeResponseChunk(chunk []byte) (int, bool, error
 	if err != nil {
 		if !writer.committed {
 			writer.writeFailure()
+			return 0, false, err
 		}
-		return 0, false, err
+		writer.responseIncomplete = true
+		panic(http.ErrAbortHandler)
 	}
 	if decision.disruptive() {
 		writer.writeDecision(decision)
@@ -976,6 +1039,9 @@ func writeDecision(target http.ResponseWriter, decision Decision) (int, error) {
 // return ErrNotSupported. Unwrap lets http.ResponseController reach the
 // underlying writer when it needs richer semantics.
 func (writer *responseWriter) Flush() {
+	if writer.responseIncomplete {
+		panic(http.ErrAbortHandler)
+	}
 	if !writer.committed && !writer.rejected {
 		writer.WriteHeader(http.StatusOK)
 	}
@@ -1051,6 +1117,9 @@ func (writer *responseWriter) writeInitialReadFromBytes(first []byte, count int)
 }
 
 func (writer *responseWriter) ReadFrom(source io.Reader) (int64, error) {
+	if writer.responseIncomplete {
+		return 0, io.ErrClosedPipe
+	}
 	if writer.rejected {
 		return io.Copy(io.Discard, source)
 	}
@@ -1135,11 +1204,9 @@ func (writer *responseWriter) finish() {
 	}
 	writer.finished = true
 	if writer.responseIncomplete {
-		// A real host-side read/write failure is not normal completion.  Do not
-		// claim EOS or turn it into a late intervention result; Close will
-		// release the per-request engine session through its normal idempotent
-		// cleanup path.
-		return
+		// An incomplete host stream must escape normal handler completion even
+		// when the downstream handler ignored its Write/ReadFrom error.
+		panic(http.ErrAbortHandler)
 	}
 	if writer.rejected {
 		return
@@ -1163,9 +1230,9 @@ func (writer *responseWriter) finish() {
 
 	_, err := writer.state.processResponseBody(writer.requestContext(), nil, true, false)
 	if err != nil {
-		// Response headers may already be committed. There is no safe replacement
-		// status or claimed abort path here; Close records counters only.
-		return
+		// Stop the host handler without inventing a replacement status or an
+		// observed transport outcome. net/http owns the abort/reset behavior.
+		panic(http.ErrAbortHandler)
 	}
 }
 

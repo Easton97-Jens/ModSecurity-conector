@@ -632,23 +632,40 @@ const char *msc_envoy_ext_proc_transaction_id(
         msconnector_runtime_transaction_id(transaction->transaction);
 }
 
-void msc_envoy_ext_proc_transaction_close(
-    msc_envoy_ext_proc_transaction *transaction)
+int msc_envoy_ext_proc_transaction_close_checked(
+    msc_envoy_ext_proc_transaction *transaction, char *error, size_t error_len)
 {
     msconnector_error runtime_error;
+    int result = 1;
 
     if (transaction == NULL) {
-        return;
+        return 1;
     }
     if (transaction->transaction != NULL &&
         (transaction->terminal || (transaction->request_finished &&
             (!transaction->response_headers_processed ||
                 transaction->response_finished)))) {
         msconnector_error_init(&runtime_error);
-        (void)msconnector_runtime_transaction_finish(transaction->transaction,
-            &runtime_error);
+        if (msconnector_runtime_transaction_finish(transaction->transaction,
+                &runtime_error) != 1) {
+            result = 0;
+            if (transaction->failure_code != MSCONNECTOR_ERROR_NONE) {
+                msc_envoy_ext_proc_set_error(error, error_len,
+                    msconnector_error_default_message(transaction->failure_code));
+            } else {
+                msc_envoy_ext_proc_set_runtime_error(error, error_len,
+                    &runtime_error, "Common transaction finalization failed");
+            }
+        }
     }
     msconnector_runtime_transaction_destroy(&transaction->transaction);
     msconnector_secure_zero(transaction, sizeof(*transaction));
     free(transaction);
+    return result;
+}
+
+void msc_envoy_ext_proc_transaction_close(
+    msc_envoy_ext_proc_transaction *transaction)
+{
+    (void)msc_envoy_ext_proc_transaction_close_checked(transaction, NULL, 0U);
 }

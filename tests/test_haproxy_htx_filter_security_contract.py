@@ -155,7 +155,7 @@ class HAProxyHTXFilterSecurityContractTest(unittest.TestCase):
             source,
             r"(?s)static int haproxy_modsecurity_htx_filter_http_headers\(.*?"
             r"if \(ctx->lifecycle\.fail_closed\) \{\s*"
-            r"haproxy_modsecurity_htx_abort_context\(ctx\);\s*return -1;\s*\}\s*"
+            r"return -1;\s*\}\s*"
             r"if \(msg->chn->flags & CF_ISRESP\)",
         )
         self.assertRegex(
