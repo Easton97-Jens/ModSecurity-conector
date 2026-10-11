@@ -30,7 +30,9 @@ class NativeRequestBodyLimitAdapterContractTests(unittest.TestCase):
         cls.haproxy_spop = HAPROXY_SPOP.read_text(encoding="utf-8")
 
     def test_apache_classifies_before_rule_id_correlation(self) -> None:
-        intervention = function_definition(self.apache, "process_intervention")
+        collector = function_definition(self.apache, "process_intervention")
+        intervention = function_definition(self.apache, "apache_store_native_intervention")
+        self.assertIn("apache_store_native_intervention(msr, r, &intervention)", collector)
         mapper = function_definition(
             self.apache, "msc_apache_contract_record_intervention_decision"
         )
@@ -40,9 +42,9 @@ class NativeRequestBodyLimitAdapterContractTests(unittest.TestCase):
             "msconnector_intervention_is_request_body_limit_rejection"
         )
         normalize = intervention.index("msconnector_intervention_normalize_status")
-        retained = intervention.index("msr->last_intervention_body_limit", classifier)
         self.assertLess(classifier, normalize)
-        self.assertLess(retained, normalize)
+        self.assertIn("status = body_limit ? HTTP_REQUEST_ENTITY_TOO_LARGE", intervention)
+        self.assertIn("msr->last_intervention_body_limit = body_limit;", intervention)
         self.assertIn("HTTP_REQUEST_ENTITY_TOO_LARGE", intervention)
         self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT", mapper)
         self.assertLess(

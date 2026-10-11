@@ -8,7 +8,7 @@
 | --- | --- |
 | Change-ID | CR-20261011-response-limit-policy-removal |
 | Datum (UTC) | 2026-10-11 |
-| Basis-Revision | `498653c2a193d34b7b25b2903b1e4db1c45e7f73` |
+| Basis-Revision | `492663334d89428dce084792145ef94e91579788` |
 
 ## Motivation und Problemstellung
 
@@ -33,7 +33,8 @@ identische Payloads unter verschiedenen Limits und Marker jenseits früherer
 Grenzen nachweisen. Entfernte Optionen ablehnen; EN/DE-Quellen und generierte
 Referenzen pflegen. Technische Schutzmaßnahmen und Sonar-Gates ohne neuen Code-
 Befund erhalten. Aktive Grenzen und fehlende Hosts getrennt melden; bestehenden
-#407 erweitern ohne Force-Push, History-Rewrite oder Merge.
+#407 erweitern ohne Force-Push, History-Rewrite oder PR-/master-Merge. Eine spätere ausdrückliche
+Nutzerfreigabe erlaubt reguläre #382-Basis-Merges in den bestehenden #407-Branch.
 
 ## Implementierungsentscheidung und Begründung
 
@@ -64,7 +65,7 @@ Beobachtete aktuelle Prüfungen und erhaltene Artefakte liegen unter `/var/tmp/c
 `common/real-engine.log` (neun Methoden, 193 Szenarien), kombinierter finaler
 Common-Lauf (30 Tests), `root-checks/common-contracts.log` (alle ausgewählten
 Common-Targets) und `root-checks/docs.log` (21 generierte Referenzen, EN/DE-/Pfad-/
-Linkprüfungen und 22 Compilertests). Sechs Konfigurationsreferenz-Unittests
+Linkprüfungen und 22 Compilertests). Sieben Konfigurationsreferenz-Unittests
 bestanden. Komponentenbuild-/Testergebnisse stehen unten. Der erneute
 `root-checks/quick-check.log` belegt `make quick-check` mit Exit 0: zehn
 Unittest-Gruppen mit 302 Tests sowie Lint, Verträge, Security, Speicher,
@@ -81,7 +82,9 @@ rtk proxy git diff --check
 ## Security-Auswirkung
 
 Inkrementelle HTTP-Arbeitspuffer haben 16 KiB; Datei-Lesescratch hat 32 KiB.
-MRC1 behält einzelne 64-KiB-Frames und 32-KiB-Body-Chunks. Pointer-/Integerprüfungen,
+MRC1 behält einzelne 64-KiB-Frames und 32-KiB-Body-Chunks. Zähler bleiben durch
+ihren Integer-Typ (`SIZE_MAX`, bei signierten Zählern/Dateioffsets `INT64_MAX`)
+darstellbar; Überlauf endet als technischer Fehler ohne Engine-Append/Kürzung. Pointer-/Integerprüfungen,
 Deskriptoren/Dateibereiche, Nachrichtenkontrollen, Header-/Eventmetadaten und
 Timeouts bleiben erhalten. Stock-lighttpd verwendet private entlinkte Dateipufferung
 mit begrenztem RAM und hält Upstream-Replay bis zum nativen P2-Allow zurück;
@@ -107,7 +110,7 @@ ohne Marker wird erlaubt. Der Callback schließt P2 vor dem Handoff ab, ohne
 einen Präfix doppelt anzubieten.
 
 Common-Helper-/SDK-/Security-/Speicher-/Flow-/Adapter-/Direktivenprüfungen
-bestanden. Sechs Konfigurationsreferenztests bestanden; alle 21 generierten
+bestanden. Sieben Konfigurationsreferenztests bestanden; alle 21 generierten
 Dateien sind aktuell. EN/DE-, Pfad-/Linkprüfungen und 22 Compilerleitfadentests
 bestanden. Apache C17 bestand; HAProxy-Binding-/Selftest-/SPOP-C-Builds und
 104 Tests mit 119 Subtests bestanden; die abschließende echte Request-/Response-
@@ -115,8 +118,8 @@ Suite bestand 13 Methoden in 13,62 Sekunden. Envoy bestand acht Go-Packages und 
 CGo-Build. Traefik-Go-/C-Builds und Socket-Protokoll-Selftests bestanden.
 lighttpd-C-Build, 15 Gate-Tests und zwei isolierte Envoy-Tests bestanden.
 Stock-Sidecar-Validierung bestand 35/36; ihr unveränderter RST-Basisdefekt mit
-leeren Events bleibt offen. Die ältere Common-Lossy-Event-Assertion und zwei
-alte SPOP-Quellcode-Assertions bleiben ebenfalls unveränderte Basisfehler;
+leeren Events bleibt offen. Die ältere Common-Lossy-Event-Assertion bleibt ein Basisfehler. Die zwei alten
+SPOP-Quellcode-Assertions bestehen nach Übernahme der I09-Fixes aus der Basis.
 Assertions sind erhalten.
 
 Der abgeschlossene native `make quick-check` bestand (Exit 0): zehn Unittest-
@@ -162,8 +165,9 @@ oben sind Engine-/Socket-/Komponentennachweise statt einer aktuellen Zehn-Host-M
 Diese aktiven Sample-/Vollbody-Grenzen verhindern die Behauptung vollständiger
 Entfernung über alle Profile. Unabhängige Hostkonfiguration einschließlich
 lighttpd `server.max-request-size` bleibt ebenfalls getrennt. Stock-RST-
-Eventdefekt, Common-Lossy-Eventfehler und zwei alte SPOP-Quellcode-Assertionfehler
-bleiben unveränderte Basisdefekte; ihre Assertions sind nicht abgeschwächt.
+Eventdefekt und Common-Lossy-Eventfehler bleiben Basisdefekte. Die zwei historischen
+SPOP-Quellcode-Assertionfehler sind durch die I09-Basis-Fixes gelöst; Assertions
+sind nicht abgeschwächt.
 
 ## Verbleibende Risiken
 
@@ -183,13 +187,28 @@ CI/Sonar des aktuellen geänderten Heads ist offen. Historische Response-only-
 Prüfungen und Sonar-Ergebnisse des Startheads gelten nur für ihre Revisionen
 und belegen nicht den aktuellen erweiterten Diff.
 
+## Aktueller Basisabgleich
+
+Die Basis ist auf `492663334d89428dce084792145ef94e91579788` (I09) vorgerückt. Typisierte native Fehler,
+operationsspezifische Ergebnisse, erhaltene Fehlerphase, einmaliges Cleanup und
+kompilierte Regressionen werden mit der Entfernung eigener Body-Policy verbunden.
+Common-Abgleich bestand 30 gezielte Tests einschließlich 13 echter Engine-Tests.
+Traefik-Native-/Composite-/Observer-Go-Packages, I09-lighttpd-/Traefik-Tests und
+beide C-Builds bestanden. Der Stock-RST-Event-Gap bleibt bei 35/36; der neu
+gebaute ältere Common-Lossy-Eventtest endet weiter mit 134 an Assertion 209.
+Dies sind Beobachtungen der aktuellen Basis. Whole-Tree-quick-check und nativer
+I09-Abgleich müssen nach dem Basis-Merge erneut laufen; frühere quick-check-
+Nachweise gelten für den Stand vor Integration. PR #382 wird während der Arbeit
+wiederholt geprüft.
+
 ## Finaler Diff- und Review-Status
 
 Bestehender [Draft-PR #407](https://github.com/Easton97-Jens/ModSecurity-conector/pull/407)
 bleibt auf `fix/engine-owned-response-limits-stack-20261011`, gestapelt auf #382.
-Die Erweiterung startet bei `6576661724841e26802a93b19d8bbfbdb5c8235a` und behält die exakte Basis oben.
+Die Erweiterung startet bei `6576661724841e26802a93b19d8bbfbdb5c8235a` und integriert die vorgerückte Basis oben.
 Ihre erweiterten Änderungen sind zum Stand dieses Snapshots noch nicht gepusht.
-Kein neuer PR, Force-Push, History-Rewrite oder Merge erfolgt. Abschließender
+Kein neuer PR, Force-Push, History-Rewrite oder PR-/master-Merge erfolgt.
+Reguläre Basisintegration in #407 ist ausdrücklich freigegeben. Abschließender
 Scoped-Review/Diffvalidierung und aktueller Head-Readback bleiben Voraussetzungen
 der Auslieferung. Siehe
 [Stack-Checkliste](../../../docs/response-limit-stack-checklist.de.md) und

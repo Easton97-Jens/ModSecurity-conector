@@ -20,10 +20,13 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "connectors/haproxy/src/haproxy_modsecurity_binding.c"
 PREAMBLE = r'''
 #include "msconnector/rule_id.h"
+#include "msconnector/native_result.h"
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#define MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE 6
+#define MSCONNECTOR_TRANSACTION_ERROR_ENGINE_UNAVAILABLE 5
 typedef struct { int unused; } ModSecurity;
 typedef struct { int unused; } RulesSet;
 typedef struct { int unused; } Transaction;
@@ -32,7 +35,9 @@ typedef struct { int unused; } msconnector_decision;
 typedef struct { const char *method; const char *uri; } haproxy_modsecurity_request;
 typedef struct {
     int status, phase, disruptive, rule_id;
+    int body_limit, error_class;
     char action[32];
+    char redirect_url[1024];
     char log_message[256];
 } haproxy_modsecurity_decision;
 static ModSecurity engine;
@@ -89,7 +94,7 @@ static int capture_intervention(Transaction *value, int phase, haproxy_modsecuri
     decision->disruptive = block_phase == phase || fail_at == operation;
     return fail_at == operation;
 }
-static void msc_process_logging(Transaction *value) { (void)value; note('G'); }
+static int msc_process_logging(Transaction *value) { (void)value; note('G'); return fail_at != 'G'; }
 static void msc_transaction_cleanup(Transaction *value) { (void)value; note('t'); }
 static void msc_rules_cleanup(RulesSet *value) { (void)value; note('r'); }
 static void msc_cleanup(ModSecurity *value) { (void)value; note('m'); }
@@ -139,9 +144,10 @@ class HaproxyBindingRefactorTests(unittest.TestCase):
         directory = Path(temporary.name)
         cls.binary = directory / "evaluation"
         source = SOURCE.read_text(encoding="utf-8")
-        functions = (("copy_message", "void"), ("init_decision", "void"),
+        functions = (("copy_message", "void"), ("init_decision", "void"), ("native_error_decision", "void"),
                      ("capture_log_rule_id", "void"), ("request_text_or_default", "const char *"),
-                     ("cleanup_evaluation_resources", "void"), ("eval_request_internal", "int"))
+                     ("cleanup_evaluation_resources", "void"), ("evaluate_request_phases", "int"),
+                     ("finish_evaluation_logging", "int"), ("eval_request_internal", "int"))
         fixture = PREAMBLE + "\n".join(extract(source, name, result) for name, result in functions) + MAIN
         (directory / "fixture.c").write_text(fixture, encoding="utf-8")
         result = subprocess.run(
@@ -176,7 +182,7 @@ class HaproxyBindingRefactorTests(unittest.TestCase):
     def test_each_api_failure_stops_and_cleans_only_owned_resources(self):
         expected = {"V": "V", "M": "VM", "R": "VMRm", "L": "VMRLrm", "T": "VMRLTrm",
                     "C": "VMRLTCtrm", "U": "VMRLTCUtrm", "H": "VMRLTCUHtrm",
-                    "1": "VMRLTCUH1trm", "B": "VMRLTCUH1Btrm", "2": "VMRLTCUH1B2trm"}
+                    "1": "VMRLTCUH1trm", "B": "VMRLTCUH1Btrm", "2": "VMRLTCUH1B2trm", "G": "VMRLTCUH1B2Gtrm"}
         for failure, trace in expected.items():
             with self.subTest(failure=failure):
                 result = self.run_case("flow", failure)

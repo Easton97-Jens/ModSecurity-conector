@@ -1753,7 +1753,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
                 client.close()
             self._wait_for_event(events, "client_cancel")
 
-    def test_client_reset_during_a_rule_block_records_an_abort_host_action(self) -> None:
+    def test_client_reset_during_a_rule_block_does_not_invent_an_abort_host_action(self) -> None:
         normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
         rule = 'SecRule REQUEST_BODY "@contains block-reset" "id:9801102,phase:2,deny,status:418,log"'
 
@@ -1768,8 +1768,16 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
                 client.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
             finally:
                 client.close()
-            event_text = self._wait_for_event(events, '"actual_action":"abort_connection"')
-            self.assertIn('"connection_aborted":true', event_text)
+            event_text = self._wait_for_event(events, "MSCONN_EVENT_CONNECTOR_ERROR")
+            self.assertNotIn('"actual_action":"abort_connection"', event_text)
+            self.assertNotIn('"connection_aborted":true', event_text)
+            technical = [json.loads(line) for line in event_text.splitlines()
+                         if "MSCONN_EVENT_CONNECTOR_ERROR" in line]
+            self.assertTrue(technical)
+            for event in technical:
+                self.assertEqual(event["decision"]["status"], "error")
+                self.assertEqual(event["decision"].get("actual_action", ""), "")
+                self.assertEqual(event["decision"].get("rule_id", ""), "")
             self.assertIn('"rule_id":"9801102"', event_text)
             self.assertEqual(upstream.record_count(), 0)
 

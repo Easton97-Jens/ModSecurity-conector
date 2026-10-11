@@ -253,6 +253,7 @@ class ApachePhase4ResponseRegressionWiringTest(unittest.TestCase):
         self.assertNotIn("response_body_scope_decided", filters)
         self.assertIn("SecResponseBodyMimeType selection", filters)
         self.assertIn("msc_append_response_body(msr->t,", filters)
+        self.assertIn("!msconnector_native_body_append_can_continue(msc_append_response_body(msr->t,", filters)
         self.assertIn("(const unsigned char *)data, len)))", filters)
         self.assertIn("!msconnector_native_phase_succeeded(msc_process_response_body(msr->t))", filters)
         self.assertIn("r->bytes_sent > 0", filters)

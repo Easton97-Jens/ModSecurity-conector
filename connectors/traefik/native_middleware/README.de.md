@@ -17,6 +17,9 @@ Capability-Erklärung.
 - Sie umschließt den Request-Body, begrenzt Lesevorgänge auf
   `maxRequestChunkBytes` und sendet sie synchron an eine
   `Transaction`-Nahtstelle pro Request.
+- Sie reicht alle Request-Chunks ohne eigene kumulative Body-Grenze weiter.
+  Die frühere Option `maxRequestBodyBytes` wird abgelehnt; Limit und Aktion
+  werden ausschließlich in den nativen Engine-Regeln konfiguriert.
 - Vor dem Response-Commit wird ein ungelesener Body bis zum Request-EOS
   verarbeitet; `requestBodyIdleTimeoutMillis` ist dabei unabhängig von
   Engine-Timeout. Bei Inaktivität oder Cancel wird

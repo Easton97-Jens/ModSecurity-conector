@@ -8,9 +8,11 @@ Der bestehende [Draft-PR #407](https://github.com/Easton97-Jens/ModSecurity-cone
 bleibt auf [#382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382) gestapelt.
 Branch: `fix/engine-owned-response-limits-stack-20261011`.
 Basis-Branch: `fix/unified-native-results-events-20260921`.
-Exakte Basis: `498653c2a193d34b7b25b2903b1e4db1c45e7f73`.
+Exakte Basis: `492663334d89428dce084792145ef94e91579788`.
 Starthead des erweiterten Auftrags: `6576661724841e26802a93b19d8bbfbdb5c8235a`.
-Kein neuer PR oder Merge; die Erweiterung wurde zum Stand dieses Snapshots noch nicht gepusht.
+Kein neuer PR und kein PR-/master-Merge. Der Nutzer erlaubt reguläre Basis-Merges
+von #382 in den bestehenden #407-Branch; veröffentlichte Historie bleibt erhalten.
+Die Auslieferung ist zum Stand dieses Dokumentationssnapshots offen.
 
 ## Implementierung
 
@@ -39,7 +41,7 @@ ohne Marker wird erlaubt. Der Callback schließt P2 vor dem Handoff ab, ohne
 einen Präfix doppelt anzubieten.
 
 Common-Helper-/SDK-/Security-/Speicher-/Flow-/Adapter-/Direktivenprüfungen
-bestanden. Sechs Konfigurationsreferenztests bestanden; alle 21 generierten
+bestanden. Sieben Konfigurationsreferenztests bestanden; alle 21 generierten
 Dateien sind aktuell. EN/DE-, Pfad-/Linkprüfungen und 22 Compilerleitfadentests
 bestanden. Apache C17 bestand; HAProxy-Binding-/Selftest-/SPOP-C-Builds und
 104 Tests mit 119 Subtests bestanden; die abschließende echte Request-/Response-
@@ -47,8 +49,8 @@ Suite bestand 13 Methoden in 13,62 Sekunden. Envoy bestand acht Go-Packages und 
 CGo-Build. Traefik-Go-/C-Builds und Socket-Protokoll-Selftests bestanden.
 lighttpd-C-Build, 15 Gate-Tests und zwei isolierte Envoy-Tests bestanden.
 Stock-Sidecar-Validierung bestand 35/36; ihr unveränderter RST-Basisdefekt mit
-leeren Events bleibt offen. Die ältere Common-Lossy-Event-Assertion und zwei
-alte SPOP-Quellcode-Assertions bleiben ebenfalls unveränderte Basisfehler;
+leeren Events bleibt offen. Die ältere Common-Lossy-Event-Assertion bleibt ein Basisfehler. Die zwei alten
+SPOP-Quellcode-Assertions bestehen nach Übernahme der I09-Fixes aus der Basis.
 Assertions sind erhalten.
 
 Der abgeschlossene native `make quick-check` bestand (Exit 0): zehn Unittest-
@@ -88,7 +90,9 @@ Vollständige Entfernung über alle aktiven Profile wird nicht behauptet.
 ## Technische Sicherheit
 
 Inkrementelle HTTP-Arbeitspuffer haben 16 KiB; Datei-Lesescratch hat 32 KiB.
-MRC1 behält einzelne 64-KiB-Frames und 32-KiB-Body-Chunks. Pointer-/Integerprüfungen,
+MRC1 behält einzelne 64-KiB-Frames und 32-KiB-Body-Chunks. Zähler bleiben durch
+ihren Integer-Typ (`SIZE_MAX`, bei signierten Zählern/Dateioffsets `INT64_MAX`)
+darstellbar; Überlauf endet als technischer Fehler ohne Engine-Append/Kürzung. Pointer-/Integerprüfungen,
 Deskriptoren/Dateibereiche, Nachrichtenkontrollen, Header-/Eventmetadaten und
 Timeouts bleiben erhalten. Stock-lighttpd verwendet private entlinkte Dateipufferung
 mit begrenztem RAM und hält Upstream-Replay bis zum nativen P2-Allow zurück;
@@ -112,6 +116,20 @@ Ownership, HTTP/1/2/3-Lebenszyklen, Commit-Zeitpunkte oder Late-Abort-Verhalten.
 - [ ] Traefik forwardAuth mit Response-Observer.
 - [ ] lighttpd Stock-Sidecar.
 - [ ] lighttpd patched native.
+
+## Aktueller Basisabgleich
+
+Die Basis ist auf `492663334d89428dce084792145ef94e91579788` (I09) vorgerückt. Typisierte native Fehler,
+operationsspezifische Ergebnisse, erhaltene Fehlerphase, einmaliges Cleanup und
+kompilierte Regressionen werden mit der Entfernung eigener Body-Policy verbunden.
+Common-Abgleich bestand 30 gezielte Tests einschließlich 13 echter Engine-Tests.
+Traefik-Native-/Composite-/Observer-Go-Packages, I09-lighttpd-/Traefik-Tests und
+beide C-Builds bestanden. Der Stock-RST-Event-Gap bleibt bei 35/36; der neu
+gebaute ältere Common-Lossy-Eventtest endet weiter mit 134 an Assertion 209.
+Dies sind Beobachtungen der aktuellen Basis. Whole-Tree-quick-check und nativer
+I09-Abgleich müssen nach dem Basis-Merge erneut laufen; frühere quick-check-
+Nachweise gelten für den Stand vor Integration. PR #382 wird während der Arbeit
+wiederholt geprüft.
 
 ## Grenze historischer Nachweise
 

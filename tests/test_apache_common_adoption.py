@@ -62,10 +62,22 @@ class ApacheAdoptionCheckBatchingTests(unittest.TestCase):
             else:
                 normalized.append(node)
         tree.body = normalized
-        # Reviewed engine-owned request/response-limit checker AST, without positions;
-        # expands only the batching seam.
+        # Reviewed full-chunk engine-owned policy and I09 equality-versus-assignment parser AST;
+        # positions are omitted and only the batching seam is expanded.
         digest = hashlib.sha256(ast.dump(tree, include_attributes=False).encode()).hexdigest()
-        self.assertEqual(digest, "b302ffe99565408d6900443310fd449c4013cffb1545b9805a1c7a1186875e78")
+        self.assertEqual(digest, "56e000a937a5d5f8c9268d19598b73475395fa1d67ba1c2cfec488e642875ad3")
+
+    def test_status_comparison_is_not_a_second_assignment(self) -> None:
+        source = """void apache_log_intervention_event(void) {
+            event.decision.status = technical ? MSCONNECTOR_STATUS_ERROR : MSCONNECTOR_STATUS_BLOCKED;
+            if (event.decision.status == MSCONNECTOR_STATUS_ERROR) event.decision.rule_id = "";
+        }"""
+        self.assertTrue(checker_base.typed_event_status_assignment(source))
+        self.assertFalse(checker_base.typed_event_status_assignment(source.replace(
+            "if (event.decision.status ==", "event.decision.status = 0; if (event.decision.status ==")))
+        self.assertFalse(checker_base.typed_event_status_assignment(source.replace(
+            "technical ? MSCONNECTOR_STATUS_ERROR : MSCONNECTOR_STATUS_BLOCKED",
+            "MSCONNECTOR_STATUS_BLOCKED")))
 
 
 class ApacheCommonAdoptionCheckerTests(unittest.TestCase):

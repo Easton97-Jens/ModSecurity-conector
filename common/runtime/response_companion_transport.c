@@ -897,6 +897,8 @@ response_companion_error_class_from_error(const msconnector_error *error)
         error->code;
 
     switch (code) {
+    case MSCONNECTOR_ERROR_MODSECURITY_FAILURE:
+        return MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE;
     case MSCONNECTOR_ERROR_BODY_TOO_LARGE:
         return MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT;
     case MSCONNECTOR_ERROR_EVENT_TOO_LARGE:

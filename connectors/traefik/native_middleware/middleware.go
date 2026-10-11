@@ -476,6 +476,7 @@ type streamState struct {
 	pendingRequestDecision Decision
 	pendingRequestError    error
 	closed                 bool
+	responseError          error
 }
 
 func (state *streamState) processHeaders(contextValue context.Context, direction Direction, headers []Header, end bool) (Decision, error) {
@@ -492,11 +493,21 @@ func (state *streamState) processHeaders(contextValue context.Context, direction
 func (state *streamState) processResponseHeaders(contextValue context.Context, status int, headers []Header) (Decision, error) {
 	state.mu.Lock()
 	defer state.mu.Unlock()
-	state.responseHeaderCount += uint64(len(headers))
-	if processor, ok := state.engine.(responseHeaderProcessor); ok {
-		return processor.ProcessResponseHeaders(contextValue, status, state.metadata.HTTPVersion, headers)
+	if state.responseError != nil {
+		return allowDecision(), state.responseError
 	}
-	return state.engine.ProcessHeaders(contextValue, DirectionResponse, headers, false)
+	state.responseHeaderCount += uint64(len(headers))
+	var decision Decision
+	var err error
+	if processor, ok := state.engine.(responseHeaderProcessor); ok {
+		decision, err = processor.ProcessResponseHeaders(contextValue, status, state.metadata.HTTPVersion, headers)
+	} else {
+		decision, err = state.engine.ProcessHeaders(contextValue, DirectionResponse, headers, false)
+	}
+	if err != nil {
+		state.responseError = err
+	}
+	return decision, err
 }
 
 // processRequestBody returns an error only for a request-side rejection or an
@@ -534,6 +545,9 @@ func (state *streamState) processRequestBody(contextValue context.Context, chunk
 func (state *streamState) processResponseBody(contextValue context.Context, chunk []byte, end bool, beforeCommit bool) (Decision, error) {
 	state.mu.Lock()
 	defer state.mu.Unlock()
+	if state.responseError != nil {
+		return allowDecision(), state.responseError
+	}
 	if end && state.responseEOS {
 		return allowDecision(), nil
 	}
@@ -543,20 +557,44 @@ func (state *streamState) processResponseBody(contextValue context.Context, chun
 	state.responseBodyChunks++
 	state.responseBodyBytes += int64(len(chunk))
 	decision, err := state.engine.ProcessBody(contextValue, DirectionResponse, chunk, end)
-	if end {
-		state.responseEOS = true
-	}
 	if err != nil {
+		state.responseError = err
 		return allowDecision(), err
 	}
 	if decision.disruptive() && !beforeCommit {
-		state.lateAction = "log_only"
 		if reporter, ok := state.engine.(outcomeAcknowledger); ok {
-			_ = reporter.AcknowledgeLateLogOnly(contextValue, state.responseStatus)
+			if err := reporter.AcknowledgeLateLogOnly(contextValue, state.responseStatus); err != nil {
+				state.responseError = err
+				return allowDecision(), err
+			}
+		}
+		state.lateAction = "log_only"
+		if end {
+			state.responseEOS = true
 		}
 		return allowDecision(), nil
 	}
+	if end {
+		state.responseEOS = true
+	}
 	return decision, nil
+}
+
+func (state *streamState) responseFailure() error {
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	return state.responseError
+}
+
+func (state *streamState) recordResponseError(err error) {
+	if err == nil {
+		return
+	}
+	state.mu.Lock()
+	if state.responseError == nil {
+		state.responseError = err
+	}
+	state.mu.Unlock()
 }
 
 func (state *streamState) pendingRequestResult() (Decision, error) {
@@ -637,9 +675,10 @@ func (state *streamState) markResponseCommit(contextValue context.Context, statu
 		state.responseStatus = status
 	}
 	transaction := state.engine
+	failed := state.responseError != nil
 	state.mu.Unlock()
-	if committer, ok := transaction.(responseCommitter); ok {
-		_ = committer.SetResponseCommit(contextValue, headersSent, bodyStarted)
+	if committer, ok := transaction.(responseCommitter); ok && !failed {
+		state.recordResponseError(committer.SetResponseCommit(contextValue, headersSent, bodyStarted))
 	}
 }
 
@@ -648,7 +687,7 @@ func (state *streamState) acknowledgeApplied(contextValue context.Context, decis
 	transaction := state.engine
 	state.mu.Unlock()
 	if reporter, ok := transaction.(outcomeAcknowledger); ok {
-		_ = reporter.AcknowledgeApplied(contextValue, decision)
+		state.recordResponseError(reporter.AcknowledgeApplied(contextValue, decision))
 	}
 }
 
@@ -656,14 +695,20 @@ func (state *streamState) acknowledgeApplied(contextValue context.Context, decis
 // ResponseWriter before reporting it to the engine. WriteHeader has no error
 // result in net/http, so a complete successful body write is the strongest
 // ResponseWriter confirmation available here. The engine receives the outcome
-// while its Common commit state is still pre-action; only then do we publish
-// the actual host commit. A failed or short body write still records only
+// while its Common commit state is still pre-action. That acknowledgement
+// terminates the rule transaction, so the actual commit is then retained only
+// in the local summary. A failed or short body write still records only
 // commit metadata and deliberately emits no host outcome.
 func (state *streamState) writeDecision(contextValue context.Context, target http.ResponseWriter, decision Decision) {
 	count, writeErr := writeDecision(target, decision)
 	status, _ := normalizeDecision(decision)
 	if writeErr == nil {
 		state.acknowledgeApplied(contextValue, decision)
+		state.mu.Lock()
+		state.responseCommitted = true
+		state.responseStatus = status
+		state.mu.Unlock()
+		return
 	}
 	state.markResponseCommit(contextValue, status, true, count > 0)
 }
@@ -800,6 +845,9 @@ func (writer *responseWriter) WriteHeader(status int) {
 }
 
 func (writer *responseWriter) Write(payload []byte) (int, error) {
+	if err := writer.state.responseFailure(); err != nil {
+		return 0, err
+	}
 	if writer.rejected {
 		// A pre-commit decision is already visible to the downstream client.
 		// Consume the proxy's attempted response stream without forwarding it so
@@ -818,6 +866,9 @@ func (writer *responseWriter) Write(payload []byte) (int, error) {
 
 func (writer *responseWriter) writeEmptyResponse() (int, error) {
 	writer.WriteHeader(http.StatusOK)
+	if err := writer.state.responseFailure(); err != nil {
+		return 0, err
+	}
 	if writer.rejected {
 		return 0, ErrResponseRejected
 	}
@@ -859,9 +910,17 @@ func (writer *responseWriter) writeResponseChunk(chunk []byte) (int, bool, error
 	if !writer.committed {
 		writer.commit(http.StatusOK)
 	}
+	if err := writer.state.responseFailure(); err != nil {
+		writer.responseIncomplete = true
+		return 0, false, err
+	}
 	count, writeErr := writer.target.Write(chunk)
 	if count > 0 {
 		writer.state.markResponseCommit(writer.requestContext(), 0, true, true)
+		if err := writer.state.responseFailure(); err != nil {
+			writer.responseIncomplete = true
+			return count, false, err
+		}
 		// Traefik's native forwarding path may otherwise retain a small response
 		// chunk until upstream EOS. Flush only bytes the host accepted so a
 		// committed streaming response remains observable before upstream EOF.
@@ -997,6 +1056,9 @@ func (writer *responseWriter) Flush() {
 	if !writer.committed && !writer.rejected {
 		writer.WriteHeader(http.StatusOK)
 	}
+	if writer.state.responseFailure() != nil {
+		return
+	}
 	if flusher, ok := writer.target.(http.Flusher); ok {
 		flusher.Flush()
 	}
@@ -1069,6 +1131,9 @@ func (writer *responseWriter) writeInitialReadFromBytes(first []byte, count int)
 }
 
 func (writer *responseWriter) ReadFrom(source io.Reader) (int64, error) {
+	if err := writer.state.responseFailure(); err != nil {
+		return 0, err
+	}
 	if writer.rejected {
 		return io.Copy(io.Discard, source)
 	}
@@ -1082,6 +1147,9 @@ func (writer *responseWriter) ReadFrom(source io.Reader) (int64, error) {
 		count, err := readerFrom.ReadFrom(inspected)
 		if count > 0 {
 			writer.state.markResponseCommit(writer.requestContext(), 0, true, true)
+			if err == nil {
+				err = writer.state.responseFailure()
+			}
 		}
 		if err != nil {
 			// ReaderFrom may surface either an upstream read failure or a
@@ -1152,7 +1220,7 @@ func (writer *responseWriter) finish() {
 		return
 	}
 	writer.finished = true
-	if writer.responseIncomplete {
+	if writer.responseIncomplete || writer.state.responseFailure() != nil {
 		// A real host-side read/write failure is not normal completion.  Do not
 		// claim EOS or turn it into a late intervention result; Close will
 		// release the per-request engine session through its normal idempotent

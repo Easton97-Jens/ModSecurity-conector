@@ -197,6 +197,8 @@ typedef struct msconnector_transaction_contract {
     struct {
         int active_phase;
         int last_completed_phase;
+        /* First technical/policy failure phase survives terminal cleanup. */
+        int error_phase;
         unsigned int completed_phase_mask;
     };
     struct {

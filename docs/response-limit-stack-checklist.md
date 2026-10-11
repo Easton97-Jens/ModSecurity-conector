@@ -8,9 +8,11 @@ Existing [Draft PR #407](https://github.com/Easton97-Jens/ModSecurity-conector/p
 remains stacked on [#382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382).
 Branch: `fix/engine-owned-response-limits-stack-20261011`.
 Base branch: `fix/unified-native-results-events-20260921`.
-Exact base: `498653c2a193d34b7b25b2903b1e4db1c45e7f73`.
+Exact base: `492663334d89428dce084792145ef94e91579788`.
 Expanded-task starting head: `6576661724841e26802a93b19d8bbfbdb5c8235a`.
-No new PR or merge; expanded changes have not yet been pushed at this snapshot.
+No new PR or PR/master merge. The user authorized regular base merges from #382
+into the existing #407 branch; published history is retained. Delivery is pending
+at this documentation snapshot.
 
 ## Implementation
 
@@ -37,7 +39,7 @@ native 451 under a high limit, the same payload under a low ProcessPartial limit
 produces 200, low Reject produces native 403, and a marker-free body is allowed.
 The callback completes P2 before handoff without offering a prefix twice.
 
-Common helper/SDK/security/memory/flow/adapter/directive checks passed. Six
+Common helper/SDK/security/memory/flow/adapter/directive checks passed. Seven
 configuration-reference tests passed; all 21 generated files are current.
 EN/DE, path/link checks and 22 compiler-guide tests passed. Apache C17 passed;
 HAProxy binding/self-test/SPOP C builds and 104 tests with 119 subtests passed,
@@ -45,8 +47,9 @@ with the final genuine request/response suite passing 13 methods in 13.62 second
 packages and its real CGo build. Traefik Go/C builds and socket-protocol self-tests
 passed. lighttpd C build, 15 gate tests and two isolated Envoy tests passed.
 Stock-sidecar validation passed 35/36; its unchanged RST empty-event base defect
-remains open. The Common legacy lossy-event assertion and two old SPOP source
-assertions also remain unchanged base failures; assertions are preserved.
+remains open. The Common legacy lossy-event assertion remains a baseline failure. The two old
+SPOP source assertions pass after integrating the upstream I09 fixes. Assertions
+are preserved.
 
 The terminal native `make quick-check` passed (exit 0): ten unittest groups
 with 302 tests plus lint, contracts, security, memory, documentation, generated
@@ -84,7 +87,9 @@ Full removal across all active profiles is not claimed.
 ## Technical safety
 
 Incremental HTTP work buffers are 16 KiB; file-read scratch is 32 KiB.
-MRC1 retains individual 64 KiB frames and 32 KiB body chunks. Pointer/integer
+MRC1 retains individual 64 KiB frames and 32 KiB body chunks. Counters retain
+their integer representation (`SIZE_MAX`, or `INT64_MAX` for signed counters/file
+offsets); overflow ends as a technical failure without engine append/truncation. Pointer/integer
 checks, descriptors/file ranges, message controls, header/event metadata and
 timeouts remain. Stock lighttpd uses private unlinked spooling with bounded RAM
 and withholds upstream replay until native P2 allows it; disk failures remain
@@ -107,6 +112,19 @@ lifecycles, commit timing or late-abort behavior.
 - [ ] Traefik forwardAuth with response observer.
 - [ ] lighttpd Stock sidecar.
 - [ ] lighttpd patched native.
+
+## Current base reconciliation
+
+The base advanced to `492663334d89428dce084792145ef94e91579788` (I09). Its typed native failures,
+operation-specific results, error-phase retention, once-only cleanup and compiled
+regressions are combined with removal of connector body policy. Common
+reconciliation passed 30 focused tests, including 13 genuine engine tests.
+Traefik native/composite/observer Go packages, I09 lighttpd/Traefik tests and both
+C builds passed. The stock RST event gap remains 35/36; the rebuilt Common
+legacy lossy-event test still exits 134 at assertion 209. These are current-base
+observations. Whole-tree quick-check and native I09 reconciliation must be
+renewed after the base merge; earlier quick-check evidence is pre-integration.
+PR #382 is checked repeatedly while work continues.
 
 ## Historical evidence boundary
 

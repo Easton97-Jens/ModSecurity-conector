@@ -194,6 +194,7 @@ class HAProxyHTXFilterSecurityContractTest(unittest.TestCase):
             r"(?s)static int haproxy_modsecurity_htx_finish_request\(.*?"
             r"haproxy_modsecurity_transaction_finish_request_body\(\s*"
             r"ctx->transaction, &decision\) != 0\) \{\s*"
+            r"ctx->lifecycle.error = decision;\s*"
             r"haproxy_modsecurity_htx_fail_closed_request_phase\(s, ctx,\s*"
             r"\"request body eos\"\);",
         )

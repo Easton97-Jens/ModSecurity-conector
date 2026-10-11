@@ -31,7 +31,8 @@ FUNCTIONS = (
     "emit_contract_terminal_event", "msconnector_runtime_transaction_record_host_action",
     "msconnector_runtime_transaction_snapshot_get", "runtime_transaction_cleanup_checked",
     "runtime_transaction_cleanup_best_effort", "msconnector_runtime_transaction_finalize_and_snapshot",
-    "finish_transaction_with_logging", "msconnector_runtime_transaction_finish_host_rejected_request_body",
+    "finish_transaction_with_logging", "prepare_transaction_finish",
+    "msconnector_runtime_transaction_finish_host_rejected_request_body",
     "msconnector_runtime_transaction_finish", "msconnector_runtime_transaction_destroy",
 )
 INCLUDES = r'''

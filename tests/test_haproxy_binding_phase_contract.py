@@ -24,10 +24,12 @@ class HaproxyBindingPhaseContractTests(unittest.TestCase):
         )
         for call in calls:
             with self.subTest(call=call):
-                self.assertRegex(
-                    SOURCE,
-                    re.compile(rf"(?:{call}\(.*?\)\s*!=\s*1|msconnector_native_phase_succeeded\(\s*{call}\()", re.DOTALL),
-                )
+                if call in ("msc_process_request_headers", "msc_process_request_body"):
+                    self.assertRegex(SOURCE, re.compile(rf"msconnector_native_phase_succeeded\({call}\(", re.DOTALL))
+                elif call == "msc_append_request_body":
+                    self.assertRegex(SOURCE, re.compile(r"msconnector_native_body_append_can_continue\(\s*msc_append_request_body\(", re.DOTALL))
+                else:
+                    self.assertRegex(SOURCE, re.compile(rf"{call}\(.*?\)\s*!=\s*1", re.DOTALL))
 
     def test_direct_response_phase_calls_require_exact_success(self):
         calls = (
@@ -36,10 +38,10 @@ class HaproxyBindingPhaseContractTests(unittest.TestCase):
         )
         for call in calls:
             with self.subTest(call=call):
-                self.assertRegex(
-                    SOURCE,
-                    re.compile(rf"(?:{call}\(.*?\)\s*!=\s*1|msconnector_native_phase_succeeded\(\s*{call}\()", re.DOTALL),
-                )
+                if call == "msc_process_response_headers":
+                    self.assertRegex(SOURCE, re.compile(r"msconnector_native_phase_succeeded\(\s*msc_process_response_headers\(", re.DOTALL))
+                else:
+                    self.assertRegex(SOURCE, re.compile(rf"{call}\(.*?\)\s*!=\s*1", re.DOTALL))
 
     def test_shared_body_helpers_require_exact_success(self):
         append_helper = re.search(

@@ -58,6 +58,16 @@ int main(int argc, char **argv) {
             rc, decision.phase, decision.disruptive, decision.body_limit,
             decision.status, decision.rule_id, decision.log_message); return 7;
     }
+    if (reject) {
+        rc = haproxy_modsecurity_transaction_append_request_body_chunk(transaction,
+            (const unsigned char *)"late", 4U, &decision);
+        if (!rc || decision.status != 403 || !decision.body_limit ||
+                decision.error_class != MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT) {
+            fprintf(stderr, "native Reject reentry lost status: rc=%d status=%d cause=%d\n",
+                rc, decision.status, decision.error_class);
+            return 9;
+        }
+    }
     haproxy_modsecurity_transaction_abort(transaction);
     haproxy_modsecurity_engine_destroy(engine); return 0;
 }

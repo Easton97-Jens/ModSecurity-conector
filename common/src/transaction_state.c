@@ -517,6 +517,7 @@ int msconnector_transaction_contract_init(msconnector_transaction_contract *cont
     contract->action = MSCONNECTOR_DECISION_ACTION_ALLOW;
     contract->active_phase = -1;
     contract->last_completed_phase = -1;
+    contract->error_phase = -1;
     contract->created_at_ms = now_ms;
     return MSCONNECTOR_TRANSACTION_TRANSITION_OK;
 }
@@ -853,11 +854,15 @@ int msconnector_transaction_contract_record_decision(
         return MSCONNECTOR_TRANSACTION_TRANSITION_INVALID;
     }
     if (policy.rule_correlation_required && text_is_empty(rule_id)) {
+        contract->error_phase = contract->active_phase >= 0 ?
+            contract->active_phase : contract->last_completed_phase;
         contract->error_class = MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE;
         contract->engine_decision = MSCONNECTOR_TRANSACTION_DECISION_INVALID_ENGINE_RESPONSE;
         (void)msconnector_transaction_contract_decision_policy(contract,
             MSCONNECTOR_TRANSACTION_DECISION_INVALID_ENGINE_RESPONSE, &policy);
         contract->action = policy.host_action;
+        contract->rule_id[0] = '\0';
+        contract->active_phase = -1;
         contract->status = MSCONNECTOR_TRANSACTION_STATUS_TERMINAL;
         contract->completed_at_ms = now_ms;
         return MSCONNECTOR_TRANSACTION_TRANSITION_INVALID;
@@ -869,6 +874,10 @@ int msconnector_transaction_contract_record_decision(
     contract->action = policy.host_action;
     contract->error_class = error_for_decision(kind);
     if (policy.terminal) {
+        if (contract->error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+            contract->error_phase = contract->active_phase >= 0 ?
+                contract->active_phase : contract->last_completed_phase;
+        }
         contract->active_phase = -1;
         contract->status = MSCONNECTOR_TRANSACTION_STATUS_TERMINAL;
         contract->completed_at_ms = now_ms;
@@ -992,7 +1001,10 @@ int msconnector_transaction_contract_fail(msconnector_transaction_contract *cont
         break;
     }
     if (kind == MSCONNECTOR_TRANSACTION_DECISION_BLOCK) {
-        /* Limits are host policy errors, not a forged rule decision. */
+        /* Native body-limit rejections carry no rule correlation. Technical
+         * pointer, accounting, and phase errors use their own error classes. */
+        contract->error_phase = contract->active_phase >= 0 ?
+            contract->active_phase : contract->last_completed_phase;
         contract->error_class = error_class;
         contract->engine_decision = kind;
         contract->action = MSCONNECTOR_DECISION_ACTION_DENY;

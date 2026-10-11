@@ -828,14 +828,23 @@ func (rw *responseWriter) writeDecision(res result) {
 	}
 	rw.status = status
 	rw.writer.WriteHeader(status)
-	if res.decision == decisionRedir {
-		rw.outcomeAction = actualRedirect
-		_, _ = io.WriteString(rw.writer, res.redirect)
-	} else {
-		rw.outcomeAction = actualDeny
-		_, _ = io.WriteString(rw.writer, rejectedBody)
-	}
 	rw.committed = true
+	body := rejectedBody
+	action := actualDeny
+	if res.decision == decisionRedir {
+		body = res.redirect
+		action = actualRedirect
+	}
+	count, err := io.WriteString(rw.writer, body)
+	if err != nil {
+		rw.transportErr = err
+		return
+	}
+	if count != len(body) {
+		rw.transportErr = io.ErrShortWrite
+		return
+	}
+	rw.outcomeAction = action
 }
 
 func stripHeader(headers http.Header, name string) {

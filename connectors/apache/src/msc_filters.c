@@ -74,6 +74,10 @@ int msc_finalize_request_body(msc_t *msr, request_rec *r)
     {
         return HTTP_INTERNAL_SERVER_ERROR;
     }
+    if (msr->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE)
+    {
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
     if (msr->request_body_processed)
     {
         return N_INTERVENTION_STATUS;
@@ -488,6 +492,22 @@ static const char *apache_intervention_message_id(
     {
         return MSCONN_EVENT_CONNECTOR_ERROR;
     }
+    if (strcmp(input->event_name, "engine_timeout") == 0)
+    {
+        return MSCONN_EVENT_ENGINE_TIMEOUT;
+    }
+    if (strcmp(input->event_name, "engine_unavailable") == 0)
+    {
+        return MSCONN_EVENT_ENGINE_UNAVAILABLE;
+    }
+    if (strcmp(input->event_name, "client_cancel") == 0)
+    {
+        return MSCONN_EVENT_CLIENT_CANCEL;
+    }
+    if (strcmp(input->event_name, "upstream_disconnect") == 0)
+    {
+        return MSCONN_EVENT_UPSTREAM_DISCONNECT;
+    }
     if (input->phase == MSCONNECTOR_PHASE_REQUEST_HEADERS ||
         input->phase == MSCONNECTOR_PHASE_REQUEST_BODY)
     {
@@ -553,6 +573,14 @@ static void apache_intervention_set_http(msconnector_event *event,
 {
     event->http.http_status = msr->last_intervention_status;
     event->http.original_http_status = input->original_status;
+    if (input->actual[0] == '\0')
+    {
+        /* A requested terminal status is not evidence that Apache emitted
+         * it. This producer also runs before the host action. */
+        event->http.visible_http_status = 0;
+        event->http.transport_result = NULL;
+        return;
+    }
     if (strcmp(input->actual, "deny") == 0 ||
         strcmp(input->actual, "redirect") == 0 ||
         strcmp(input->actual, "rate_limit") == 0)
@@ -648,12 +676,17 @@ static void apache_log_intervention_event(msc_t *msr, request_rec *r,
     event.decision.status =
         strcmp(input->event_name, "invalid_engine_response") == 0 ||
         strcmp(input->event_name, "protocol_error") == 0 ||
-        strcmp(input->event_name, "connector_error") == 0
+        strcmp(input->event_name, "connector_error") == 0 ||
+        strcmp(input->event_name, "engine_timeout") == 0 ||
+        strcmp(input->event_name, "engine_unavailable") == 0 ||
+        strcmp(input->event_name, "client_cancel") == 0 ||
+        strcmp(input->event_name, "upstream_disconnect") == 0
         ? MSCONNECTOR_STATUS_ERROR : MSCONNECTOR_STATUS_BLOCKED;
     event.decision.action = input->actual;
     event.decision.requested_action = input->wanted;
     event.decision.actual_action = input->actual;
-    event.decision.rule_id = rule_id;
+    event.decision.rule_id = event.decision.status == MSCONNECTOR_STATUS_ERROR
+        ? "" : rule_id;
     event.decision.reason = input->reason;
     apache_intervention_set_http(&event, msr, r, input);
     event.request.method = r->method;
@@ -680,8 +713,7 @@ static void apache_log_intervention_event(msc_t *msr, request_rec *r,
     event.flags.eos_seen =
         (input->phase == MSCONNECTOR_PHASE_REQUEST_BODY && msr->request_body_processed) ||
         (input->phase == MSCONNECTOR_PHASE_RESPONSE_BODY && msr->response_body_processed);
-    event.flags.connection_aborted = input->phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
-        strcmp(input->actual, "abort_connection") == 0;
+    event.flags.connection_aborted = strcmp(input->actual, "abort_connection") == 0;
     event.flags.body_truncated = input->phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
         msr->response_body_truncated;
 
@@ -714,6 +746,14 @@ static const char *apache_contract_failure_event_name(
             return "body_limit";
         case MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE:
             return "invalid_engine_response";
+        case MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT:
+            return "engine_timeout";
+        case MSCONNECTOR_TRANSACTION_ERROR_ENGINE_UNAVAILABLE:
+            return "engine_unavailable";
+        case MSCONNECTOR_TRANSACTION_ERROR_CLIENT_CANCEL:
+            return "client_cancel";
+        case MSCONNECTOR_TRANSACTION_ERROR_UPSTREAM_DISCONNECT:
+            return "upstream_disconnect";
         case MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE:
         case MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL:
             return "protocol_error";
@@ -731,6 +771,14 @@ static const char *apache_contract_failure_reason(
             return "request_body_limit_exceeded";
         case MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE:
             return "invalid_engine_response";
+        case MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT:
+            return "engine_timeout";
+        case MSCONNECTOR_TRANSACTION_ERROR_ENGINE_UNAVAILABLE:
+            return "engine_unavailable";
+        case MSCONNECTOR_TRANSACTION_ERROR_CLIENT_CANCEL:
+            return "client_cancel";
+        case MSCONNECTOR_TRANSACTION_ERROR_UPSTREAM_DISCONNECT:
+            return "upstream_disconnect";
         case MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE:
             return "invalid_phase_sequence";
         case MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL:
@@ -757,6 +805,15 @@ static void apache_emit_contract_failure_event_with_action(msc_t *msr,
      * observability record and never derive a rule ID from a malformed engine
      * message. */
     msr->contract_failure_event_emitted = 1;
+    if (msr->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE)
+    {
+        error_class = msr->contract.error_class;
+        if (msr->contract.error_phase >= MSCONNECTOR_PHASE_REQUEST_HEADERS &&
+            msr->contract.error_phase <= MSCONNECTOR_PHASE_RESPONSE_BODY)
+        {
+            phase = (enum msconnector_phase)msr->contract.error_phase;
+        }
+    }
     msr->last_intervention_status = status;
     msr->last_intervention_log = "";
     input.event_name = apache_contract_failure_event_name(error_class);
@@ -765,8 +822,7 @@ static void apache_emit_contract_failure_event_with_action(msc_t *msr,
         ? "deny" : "error";
     input.actual = actual;
     input.reason = apache_contract_failure_reason(error_class);
-    input.original_status = phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
-        strcmp(actual, "abort_connection") == 0 &&
+    input.original_status = strcmp(actual, "abort_connection") == 0 &&
         msr->response_headers_snapshot_taken
         ? msr->response_status_snapshot : r->status;
     input.response_already_committed = msr->response.committed;
@@ -779,7 +835,7 @@ void apache_emit_contract_failure_event(msc_t *msr, request_rec *r,
     msconnector_transaction_error_class error_class, int status)
 {
     apache_emit_contract_failure_event_with_action(msr, r, phase,
-        error_class, status, "deny");
+        error_class, status, "");
 }
 
 
@@ -1368,11 +1424,13 @@ static apr_status_t apache_phase4_release_response_brigade(msc_t *msr,
         msr->response.committed = 1;
         msr->response_phase4_terminal_output =
             MSC_PHASE4_TERMINAL_OUTPUT_SEALED;
+        rc = apache_phase4_abort_response_connection(f);
         apache_emit_contract_failure_event_with_action(msr, r,
             MSCONNECTOR_PHASE_RESPONSE_BODY,
             MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR,
-            HTTP_INTERNAL_SERVER_ERROR, "abort_connection");
-        rc = apache_phase4_abort_response_connection(f);
+            HTTP_INTERNAL_SERVER_ERROR,
+            r != NULL && r->connection != NULL && r->connection->aborted
+                ? "abort_connection" : "");
     }
     if (terminal)
     {
@@ -1511,15 +1569,12 @@ static apr_status_t apache_phase4_fail_closed(msc_t *msr, ap_filter_t *f,
 {
     request_rec *r = f != NULL ? f->r : NULL;
     msconnector_transaction_error_class error_class;
+    apr_status_t rc;
 
     error_class = MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
     if (msr != NULL && msr->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE)
     {
         error_class = msr->contract.error_class;
-    }
-    if (msr != NULL && msr->response_body_truncated)
-    {
-        error_class = MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT;
     }
 
     if (bb_in != NULL)
@@ -1545,14 +1600,17 @@ static apr_status_t apache_phase4_fail_closed(msc_t *msr, ap_filter_t *f,
             msr->response_phase4_terminal_output =
                 MSC_PHASE4_TERMINAL_OUTPUT_SEALED;
         }
+        rc = apache_phase4_abort_response_connection(f);
         apache_emit_contract_failure_event_with_action(msr, r,
             MSCONNECTOR_PHASE_RESPONSE_BODY,
             error_class,
-            HTTP_INTERNAL_SERVER_ERROR, "abort_connection");
+            HTTP_INTERNAL_SERVER_ERROR,
+            r->connection != NULL && r->connection->aborted
+                ? "abort_connection" : "");
         ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
             "ModSecurity: Phase 4 response gate failed after response commit: %s",
             reason != NULL ? reason : "unspecified failure");
-        return apache_phase4_abort_response_connection(f);
+        return rc;
     }
 
     ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
@@ -1763,6 +1821,10 @@ static apr_status_t apache_output_filter_process_headers(msc_t *msr,
     int error_headers_added;
     int response_headers_added;
 
+    if (msr->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE)
+    {
+        return APR_EGENERAL;
+    }
     if (msr->response_headers_processed)
     {
         return APR_SUCCESS;
@@ -1941,6 +2003,10 @@ static apr_status_t apache_output_filter_prepare_response_brigade(msc_t *msr,
 static apr_status_t apache_phase4_finish_response_body(msc_t *msr,
     ap_filter_t *f, apr_bucket_brigade *bb_in, int *intervention)
 {
+    if (msr->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE)
+    {
+        return APR_EGENERAL;
+    }
     if (msr->contract.active_phase != MSCONNECTOR_PHASE_RESPONSE_BODY &&
         !msc_apache_contract_begin(msr, MSCONNECTOR_PHASE_RESPONSE_BODY))
     {

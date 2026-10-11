@@ -8,7 +8,7 @@
 | --- | --- |
 | Change ID | CR-20261011-response-limit-policy-removal |
 | Date (UTC) | 2026-10-11 |
-| Base revision | `498653c2a193d34b7b25b2903b1e4db1c45e7f73` |
+| Base revision | `492663334d89428dce084792145ef94e91579788` |
 
 ## Motivation and problem statement
 
@@ -32,7 +32,8 @@ boundaries, actions, chunks/files, identical payloads under different limits and
 markers beyond former ceilings. Reject removed options; maintain EN/DE sources
 and generated references. Preserve technical safeguards and zero-new-code Sonar
 gates. Report active caps and missing hosts separately; deliver to existing #407
-without force-push, history rewrite or merge.
+without force-push, history rewrite or PR/master merge. Subsequent user authorization
+permits regular #382 base merges into the existing #407 branch.
 
 ## Implementation decision and rationale
 
@@ -62,7 +63,7 @@ Observed current checks and retained artifacts are under `/var/tmp/codex/ModSecu
 `common/real-engine.log` (nine methods, 193 scenarios), Common combined final
 run (30 tests), `root-checks/common-contracts.log` (all selected Common targets)
 and `root-checks/docs.log` (21 generated references, EN/DE/path/link checks and
-22 compiler tests). Six configuration-reference unit tests passed. Component
+22 compiler tests). Seven configuration-reference unit tests passed. Component
 build/test results are described below. The terminal `root-checks/quick-check.log` records `make quick-check` exit 0:
 ten unittest groups with 302 tests plus lint, contracts, security, memory,
 documentation, generated references, helpers, actionlint and diff checks.
@@ -78,7 +79,9 @@ rtk proxy git diff --check
 ## Security impact
 
 Incremental HTTP work buffers are 16 KiB; file-read scratch is 32 KiB.
-MRC1 retains individual 64 KiB frames and 32 KiB body chunks. Pointer/integer
+MRC1 retains individual 64 KiB frames and 32 KiB body chunks. Counters retain
+their integer representation (`SIZE_MAX`, or `INT64_MAX` for signed counters/file
+offsets); overflow ends as a technical failure without engine append/truncation. Pointer/integer
 checks, descriptors/file ranges, message controls, header/event metadata and
 timeouts remain. Stock lighttpd uses private unlinked spooling with bounded RAM
 and withholds upstream replay until native P2 allows it; disk failures remain
@@ -101,7 +104,7 @@ native 451 under a high limit, the same payload under a low ProcessPartial limit
 produces 200, low Reject produces native 403, and a marker-free body is allowed.
 The callback completes P2 before handoff without offering a prefix twice.
 
-Common helper/SDK/security/memory/flow/adapter/directive checks passed. Six
+Common helper/SDK/security/memory/flow/adapter/directive checks passed. Seven
 configuration-reference tests passed; all 21 generated files are current.
 EN/DE, path/link checks and 22 compiler-guide tests passed. Apache C17 passed;
 HAProxy binding/self-test/SPOP C builds and 104 tests with 119 subtests passed,
@@ -109,8 +112,9 @@ with the final genuine request/response suite passing 13 methods in 13.62 second
 packages and its real CGo build. Traefik Go/C builds and socket-protocol self-tests
 passed. lighttpd C build, 15 gate tests and two isolated Envoy tests passed.
 Stock-sidecar validation passed 35/36; its unchanged RST empty-event base defect
-remains open. The Common legacy lossy-event assertion and two old SPOP source
-assertions also remain unchanged base failures; assertions are preserved.
+remains open. The Common legacy lossy-event assertion remains a baseline failure. The two old
+SPOP source assertions pass after integrating the upstream I09 fixes. Assertions
+are preserved.
 
 The terminal native `make quick-check` passed (exit 0): ten unittest groups
 with 302 tests plus lint, contracts, security, memory, documentation, generated
@@ -154,8 +158,9 @@ engine/socket/component evidence rather than a current ten-host matrix.
 These active sample/full-body constraints prevent claiming complete removal
 across all profiles. Independent host configuration, including lighttpd
 `server.max-request-size`, also remains distinct. The stock RST event defect,
-Common lossy-event failure and two old SPOP source-assertion failures remain
-unchanged baseline defects; their assertions are not weakened.
+Common lossy-event failure remain baseline defects. The two historical SPOP
+source-assertion failures are resolved by the upstream I09 fixes; assertions are
+not weakened.
 
 ## Remaining risks
 
@@ -173,13 +178,27 @@ quick-check passed after checker repairs. Current changed-head CI/Sonar is
 pending. Historical response-only checks and starting-head Sonar results apply
 only to their revisions and are not evidence for the current expanded diff.
 
+## Current base reconciliation
+
+The base advanced to `492663334d89428dce084792145ef94e91579788` (I09). Its typed native failures,
+operation-specific results, error-phase retention, once-only cleanup and compiled
+regressions are combined with removal of connector body policy. Common
+reconciliation passed 30 focused tests, including 13 genuine engine tests.
+Traefik native/composite/observer Go packages, I09 lighttpd/Traefik tests and both
+C builds passed. The stock RST event gap remains 35/36; the rebuilt Common
+legacy lossy-event test still exits 134 at assertion 209. These are current-base
+observations. Whole-tree quick-check and native I09 reconciliation must be
+renewed after the base merge; earlier quick-check evidence is pre-integration.
+PR #382 is checked repeatedly while work continues.
+
 ## Final diff and review status
 
 Existing [Draft PR #407](https://github.com/Easton97-Jens/ModSecurity-conector/pull/407)
 remains on `fix/engine-owned-response-limits-stack-20261011`, stacked on #382.
-The expanded task starts at `6576661724841e26802a93b19d8bbfbdb5c8235a` and retains the exact base above.
+The expanded task starts at `6576661724841e26802a93b19d8bbfbdb5c8235a` and integrates the advanced base above.
 Its expanded changes are not yet pushed at this snapshot. No new PR, force-push,
-history rewrite or merge is performed. Final scoped review/diff validation and
+history rewrite or PR/master merge is performed. Regular base integration into
+#407 is explicitly authorized. Final scoped review/diff validation and
 current-head readback remain delivery prerequisites. See the
 [stack checklist](../../../docs/response-limit-stack-checklist.md) and
 [ownership contract](../../../docs/phase4-mode-budget.md).

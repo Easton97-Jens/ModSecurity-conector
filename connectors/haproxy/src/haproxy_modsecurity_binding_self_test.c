@@ -28,7 +28,12 @@ static int expect_failure(
         haproxy_modsecurity_decision *decision) {
     if (rc != 1 || observed == 0 || observed->phase != expected_phase ||
             strcmp(observed->log_message, expected_message) != 0) {
-        return lifecycle_failure(decision, label);
+        if (decision != NULL && observed != NULL) {
+            snprintf(decision->log_message, sizeof(decision->log_message),
+                "body wrapper lifecycle self-test failed: %s phase=%d/%d rc=%d message=%.96s",
+                label, observed->phase, expected_phase, rc, observed->log_message);
+        }
+        return 1;
     }
     return 0;
 }
@@ -164,43 +169,14 @@ static int run_body_lifecycle(
         haproxy_modsecurity_transaction *transaction,
         haproxy_modsecurity_decision *observed,
         haproxy_modsecurity_decision *decision) {
-    int rc = phase->append(transaction, 0, 1U, observed);
+    int rc = phase->append(transaction, phase->body, phase->body_len, observed);
 
-    if (expect_failure(rc, observed, phase->phase, phase->missing_body_message,
-            "null nonzero body chunk", decision) != 0) {
-        return 1;
-    }
-    rc = phase->append(transaction, phase->body, phase->body_len, observed);
     if (expect_non_disruptive(rc, observed, phase->phase, "body append",
             decision) != 0) {
         return 1;
     }
     rc = phase->finish(transaction, observed);
-    if (expect_non_disruptive(rc, observed, phase->phase, "body finish",
-            decision) != 0) {
-        return 1;
-    }
-    rc = phase->append(transaction, phase->body, phase->body_len, observed);
-    if (expect_failure(rc, observed, phase->phase, phase->append_after_eos_message,
-            "body append after eos", decision) != 0) {
-        return 1;
-    }
-    rc = phase->finish(transaction, observed);
-    return expect_failure(rc, observed, phase->phase, phase->finish_twice_message,
-        "body finish twice", decision);
-}
-
-static int check_response_body_requires_headers(
-        haproxy_modsecurity_transaction *transaction,
-        const struct body_wrapper_lifecycle *response_phase,
-        haproxy_modsecurity_decision *observed,
-        haproxy_modsecurity_decision *decision) {
-    int rc = response_phase->append(transaction, response_phase->body,
-        response_phase->body_len, observed);
-
-    return expect_failure(rc, observed, response_phase->phase,
-        "response headers must be processed before response body chunks",
-        "response append before headers", decision);
+    return expect_non_disruptive(rc, observed, phase->phase, "body finish", decision);
 }
 
 struct body_wrapper_lifecycle_test_context {
@@ -214,9 +190,99 @@ struct body_wrapper_lifecycle_test_context {
     haproxy_modsecurity_decision *decision;
 };
 
+static int prepare_terminal_body_case(struct body_wrapper_lifecycle_test_context *test,
+        const char *profile, int failure_kind)
+{
+    int rc;
+    if (failure_kind == 0) {
+        return 0;
+    }
+    rc = test->request_phase->finish(*test->transaction, test->observed);
+    if (rc != 0 || failure_kind < 3) {
+        return rc;
+    }
+    if (strcmp(profile, "haproxy-spoe-spop") == 0) {
+        rc = haproxy_modsecurity_transaction_handoff_response_companion(*test->transaction);
+        if (rc != 0) {
+            return rc;
+        }
+        rc = haproxy_modsecurity_transaction_claim_response_companion(*test->transaction);
+        if (rc != 0) {
+            return rc;
+        }
+    }
+    if (failure_kind == 3) {
+        return 0;
+    }
+    rc = haproxy_modsecurity_transaction_process_response_headers(*test->transaction,
+        test->response, test->observed);
+    if (rc != 0 || failure_kind == 4) {
+        return rc;
+    }
+    return test->response_phase->finish(*test->transaction, test->observed);
+}
+
+static int run_terminal_body_case(struct body_wrapper_lifecycle_test_context *test,
+        const char *profile, int failure_kind)
+{
+    const struct body_wrapper_lifecycle *phase = failure_kind < 3 ?
+        test->request_phase : test->response_phase;
+    const char *message;
+    const char *label;
+    int rc;
+
+    rc = haproxy_modsecurity_transaction_begin_request_with_profile(test->engine,
+        test->request, profile, test->observed, test->transaction);
+    if (expect_non_disruptive(rc, test->observed, 1, "negative request begin",
+            test->decision) != 0 || *test->transaction == NULL) {
+        return 1;
+    }
+    rc = prepare_terminal_body_case(test, profile, failure_kind);
+    if (rc != 0) {
+        return lifecycle_failure(test->decision, "negative lifecycle preparation");
+    }
+    if (failure_kind == 0 || failure_kind == 4) {
+        rc = phase->append(*test->transaction, NULL, 1U, test->observed);
+        message = phase->missing_body_message;
+        label = "null nonzero body chunk";
+    } else if (failure_kind == 2 || failure_kind == 6) {
+        rc = phase->finish(*test->transaction, test->observed);
+        message = phase->phase == 4 ? "transaction is terminal" : phase->finish_twice_message;
+        label = "body finish twice";
+    } else {
+        rc = phase->append(*test->transaction, phase->body, phase->body_len, test->observed);
+        message = failure_kind == 3 ? "response headers must be processed before response body chunks" :
+            (phase->phase == 4 ? "transaction is terminal" : phase->append_after_eos_message);
+        label = failure_kind == 3 ? "response append before headers" : "body append after eos";
+    }
+    if (expect_failure(rc, test->observed, phase->phase, message, label, test->decision) != 0) {
+        return 1;
+    }
+    {
+        const msconnector_transaction_error_class cause = failure_kind == 0 || failure_kind == 4 ?
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR : MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE;
+        if (test->observed->error_class != cause || test->observed->body_limit ||
+                test->observed->status != 500 || strcmp(test->observed->action, "error") != 0 ||
+                haproxy_modsecurity_transaction_error(*test->transaction) != cause ||
+                phase->append(*test->transaction, phase->body, phase->body_len, test->observed) == 0 ||
+                test->observed->error_class != cause || test->observed->phase != phase->phase) {
+            return lifecycle_failure(test->decision, "terminal error survives reentry");
+        }
+    }
+    haproxy_modsecurity_transaction_abort(*test->transaction);
+    *test->transaction = NULL;
+    return 0;
+}
+
 static int run_direct_body_lifecycle(
         struct body_wrapper_lifecycle_test_context *test) {
-    int rc = haproxy_modsecurity_transaction_begin_request_with_profile(
+    int rc;
+    for (int kind = 0; kind < 7; ++kind) {
+        if (run_terminal_body_case(test, "haproxy-htx", kind) != 0) {
+            return 1;
+        }
+    }
+    rc = haproxy_modsecurity_transaction_begin_request_with_profile(
         test->engine, test->request, "haproxy-htx", test->observed,
         test->transaction);
     if (expect_non_disruptive(rc, test->observed, 1, "request begin",
@@ -225,9 +291,7 @@ static int run_direct_body_lifecycle(
         return 1;
     }
     if (run_body_lifecycle(test->request_phase, *test->transaction,
-            test->observed, test->decision) != 0 ||
-        check_response_body_requires_headers(*test->transaction,
-            test->response_phase, test->observed, test->decision) != 0) {
+            test->observed, test->decision) != 0) {
         return 1;
     }
     rc = haproxy_modsecurity_transaction_process_response_headers(
@@ -249,7 +313,13 @@ static int run_direct_body_lifecycle(
 
 static int run_spop_body_lifecycle(
         struct body_wrapper_lifecycle_test_context *test) {
-    int rc = haproxy_modsecurity_transaction_begin_request_with_profile(
+    int rc;
+    for (int kind = 0; kind < 7; ++kind) {
+        if (run_terminal_body_case(test, "haproxy-spoe-spop", kind) != 0) {
+            return 1;
+        }
+    }
+    rc = haproxy_modsecurity_transaction_begin_request_with_profile(
         test->engine, test->request, "haproxy-spoe-spop", test->observed,
         test->transaction);
     if (expect_non_disruptive(rc, test->observed, 1, "SPOP request begin",
