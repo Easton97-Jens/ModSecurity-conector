@@ -75,8 +75,8 @@ const (
 )
 
 var (
-	errProtocol = errors.New("modsecurity response observer: invalid private UDS protocol")
-	errClosed   = errors.New("modsecurity response observer: session closed")
+	errProtocol                         = errors.New("modsecurity response observer: invalid private UDS protocol")
+	errClosed                           = errors.New("modsecurity response observer: session closed")
 	errUnsupportedResponseCompanionPeer = errors.New(
 		"modsecurity response observer: Linux SO_PEERCRED is required for response companion authentication",
 	)
@@ -660,23 +660,24 @@ func (s *responseState) applyImmediate(value result) {
 		s.failBeforeCommit()
 		return
 	}
-	s.precommitFail = true
 	if value.decision == decisionRedirect && value.redirect != "" {
 		s.target.Header().Set("Location", value.redirect)
 	}
+	// The host must accept the selected status before it can be reported as
+	// an actual outcome. A panic here remains a connector failure handled by
+	// ServeHTTP's cancellation path, with no fabricated action acknowledgement.
+	s.writeTerminalStatus(status)
+	s.precommitFail = true
 	if err := s.sendOutcome(actualDecision, false, false, status); err != nil {
 		_ = s.cancelFailure(err)
-		s.writeTerminalStatus(http.StatusServiceUnavailable)
 		return
 	}
 	if err := s.cancel(false); err != nil {
 		// The outcome was already recorded. A failed cleanup acknowledgement
 		// is a connector/engine failure, never a fresh client cancellation.
 		_ = s.cancelFailure(err)
-		s.writeTerminalStatus(http.StatusServiceUnavailable)
 		return
 	}
-	s.writeTerminalStatus(status)
 }
 
 func validRedirect(value string) bool {
