@@ -3067,6 +3067,7 @@ static void decision_log_render_metadata(
     decision_name = safe_decision_name(decision_text, decision);
     reason_code = safe_decision_reason_code(
         decision, modsecurity_processed, decision_text);
+
     original_status = request->has_response_status ?
         (int)request->response_status : 200;
     if (phase4_disruptive) {
@@ -3132,6 +3133,7 @@ static void decision_log_render_metadata(
     fputs("\"reason\":", file);
     json_write_string(file, reason_code);
     fputs("}\n", file);
+
 #undef JSON_FIELD_STRING
 #undef JSON_FIELD_UINT
 #undef JSON_FIELD_INT
@@ -3166,6 +3168,23 @@ static void decision_log_finish_staging(
         msconnector_error_set(error, MSCONNECTOR_ERROR_EVENT_TOO_LARGE,
             "SPOP decision record exceeds the bounded sink size", "haproxy-spoe-spop");
     }
+}
+
+static int decision_log_stage_error_event(FILE *file,
+        const notify_request *request,
+        const haproxy_modsecurity_decision *decision, msconnector_error *error) {
+    char line[4096];
+    if (!haproxy_modsecurity_error_event_write_checked(decision, request->request_id,
+            line, sizeof(line), error)) {
+        return 0;
+    }
+    if (fputs(line, file) == EOF || ferror(file)) {
+        /* This is the bounded serialization stream, not the physical sink. */
+        msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
+            "SPOP technical event serialization failed", "haproxy-spoe-spop");
+        return 0;
+    }
+    return 1;
 }
 
 static int decision_log_write(
@@ -3214,7 +3233,8 @@ static int decision_log_write(
         goto unlock;
     }
     phase4_disruptive = modsecurity_processed && request->is_response_body &&
-        decision->phase == 4 && decision->disruptive != 0;
+        decision->phase == 4 && decision->disruptive != 0 &&
+        decision->error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE;
     decision_log_render_metadata(file, state, request, decision,
         modsecurity_processed, decision_text, phase4_disruptive);
     if (phase4_disruptive) {
@@ -3222,6 +3242,8 @@ static int decision_log_write(
             phase4_requested_action(decision, decision_text), "",
             safe_decision_reason_code(decision, modsecurity_processed, decision_text),
             &error);
+    } else if (decision->error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+        event_serialized = decision_log_stage_error_event(file, request, decision, &error);
     }
     decision_log_finish_staging(file, event_serialized, &serialized_size, &error);
     if (error.code == MSCONNECTOR_ERROR_NONE &&
@@ -3444,12 +3466,21 @@ static const char *set_processing_failure(
         haproxy_modsecurity_decision *decision,
         int phase,
         const char *reason) {
+    char retained_reason[sizeof(decision->log_message)];
+    const msconnector_transaction_error_class retained_class =
+        decision->error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE ?
+        decision->error_class : MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
+    const int retained_phase = decision->error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE ?
+        decision->phase : phase;
+    copy_cstring(retained_reason, sizeof(retained_reason), reason != NULL ? reason : "");
     if (fail_mode_closed(&state->config)) {
-        runtime_init_decision(decision, phase, "deny", 503, reason);
+        runtime_init_decision(decision, retained_phase, "deny", 503, retained_reason);
+        decision->error_class = retained_class;
         decision->disruptive = 1;
         return "fail-closed";
     }
-    runtime_init_decision(decision, phase, "pass", 200, reason);
+    runtime_init_decision(decision, retained_phase, "pass", 200, retained_reason);
+    decision->error_class = retained_class;
     return "fail-open";
 }
 
@@ -3458,6 +3489,7 @@ static const char *set_admission_failure(
         int phase,
         const char *reason) {
     runtime_init_decision(decision, phase, "deny", 503, reason);
+    decision->error_class = MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
     decision->disruptive = 1;
     return "admission-failure";
 }
@@ -3472,6 +3504,7 @@ static const char *set_response_correlation_failure(
         int phase) {
     runtime_init_decision(decision, phase, "error", 502,
         "canonical response transaction correlation is missing or expired");
+    decision->error_class = MSCONNECTOR_TRANSACTION_ERROR_CORRELATION_MISSING;
     decision->disruptive = 1;
     return "correlation-failure";
 }
@@ -3481,6 +3514,7 @@ static const char *set_response_phase_disabled_failure(
         int phase) {
     runtime_init_decision(decision, phase, "deny", 503,
         "response phase is disabled for this SPOP agent");
+    decision->error_class = MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL;
     decision->disruptive = 1;
     return "response-phase-disabled";
 }
@@ -3497,7 +3531,7 @@ static int protocol_failure_requires_enforcement(const char *decision_text) {
 static int send_malformed_notify_outcome(
         int fd,
         const spop_frame *frame,
-        const agent_state *state,
+        agent_state *state,
         FILE *log) {
     haproxy_modsecurity_decision decision;
     spop_buffer ack_payload;
@@ -3513,6 +3547,14 @@ static int send_malformed_notify_outcome(
     runtime_init_decision(&decision, 2, "deny", 400,
         "invalid SPOP NOTIFY payload");
     decision.disruptive = 1;
+    decision.error_class = MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL;
+    {
+        notify_request request = {0};
+        ensure_notify_request_id(&request, frame);
+        if (!decision_log_write(state, &request, &decision, 0, decision_text)) {
+            return -1;
+        }
+    }
     if (build_decision_ack_payload(&ack_payload, &decision,
             safe_decision_reason_code(&decision, 0, decision_text),
             1, 0) != 0) {
@@ -3552,6 +3594,8 @@ static const char *set_body_limit_failure(
         response ? "response body exceeds the configured limit" :
         "request body exceeds the configured limit");
     decision->disruptive = 1;
+    decision->body_limit = 1;
+    decision->error_class = MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT;
     return "body-limit";
 }
 
@@ -3844,7 +3888,7 @@ static void process_production_response_notify(
                 "transaction cache store failed while awaiting response EOS");
             (void)decision_log_write(state, request, decision, 0, *decision_text);
         }
-    } else if (!request->is_response_body && state->config.response_body_limit > 0U &&
+    } else if (!request->is_response_body && modsec_rc == 0 && state->config.response_body_limit > 0U &&
             decision->disruptive == 0) {
         if (transaction_cache_store(state, request->request_id, transaction) != 0) {
             haproxy_modsecurity_transaction_abort(transaction);
@@ -3854,7 +3898,14 @@ static void process_production_response_notify(
             (void)decision_log_write(state, request, decision, 0, *decision_text);
         }
     } else {
-        haproxy_modsecurity_transaction_finish(transaction);
+        if (modsec_rc != 0) {
+            haproxy_modsecurity_transaction_abort_with_error(transaction, decision->error_class);
+        } else if (haproxy_modsecurity_transaction_finish_with_decision(transaction, decision) != 0) {
+            *decision_origin = SPOP_ACK_FAILURE_DECISION;
+            *decision_text = set_processing_failure(state, decision, phase,
+                "transaction finish failed");
+            (void)decision_log_write(state, request, decision, 0, *decision_text);
+        }
     }
 }
 
@@ -3891,13 +3942,19 @@ static void finish_or_store_request_transaction(
         return;
     }
     if (decision->disruptive != 0 || !state->config.response_phases_enabled) {
-        haproxy_modsecurity_transaction_finish(transaction);
+        if (haproxy_modsecurity_transaction_finish_with_decision(transaction, decision) != 0) {
+            *decision_origin = SPOP_ACK_FAILURE_DECISION;
+            *decision_text = set_processing_failure(state, decision, decision->phase,
+                "transaction finish failed");
+            (void)decision_log_write(state, request, decision, 0, *decision_text);
+        }
         return;
     }
     if (transaction_cache_store(state, request->request_id, transaction) == 0) {
         return;
     }
-    haproxy_modsecurity_transaction_finish(transaction);
+    haproxy_modsecurity_transaction_abort_with_error(transaction,
+        MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
     *decision_origin = SPOP_ACK_FAILURE_DECISION;
     *decision_text = set_processing_failure(state, decision, 2,
         "transaction cache store failed");
@@ -4560,6 +4617,8 @@ typedef struct spop_bridge_task_context {
     msconnector_error error;
     int success;
     int transaction_consumed;
+    int error_event_attempted;
+    char transaction_id[128];
 } spop_bridge_task_context;
 
 typedef struct spop_bridge_task_result {
@@ -4719,6 +4778,85 @@ static int set_bridge_native_decision(spop_bridge_task_context *context,
     return 1;
 }
 
+static int spop_bridge_error_event_flush(spop_bridge_task_context *context,
+        haproxy_modsecurity_decision *native_decision, msconnector_error *error) {
+    char line[4096];
+    const int rendered = context->transaction_consumed ?
+        haproxy_modsecurity_error_event_write_checked(native_decision,
+            context->transaction_id, line, sizeof(line), error) :
+        haproxy_modsecurity_transaction_error_event_write_checked(context->transaction,
+            native_decision, line, sizeof(line), error);
+    if (!rendered) {
+        return 0;
+    }
+    if (line[0] == '\0') {
+        return 1;
+    }
+    if (fputs(line, context->state->decision_log) == EOF ||
+            ferror(context->state->decision_log) ||
+            fflush(context->state->decision_log) != 0) {
+        msconnector_error_set(error, MSCONNECTOR_ERROR_IO,
+            "SPOP response event sink write or flush failed", "haproxy-spoe-spop");
+        return 0;
+    }
+    return 1;
+}
+
+static int spop_bridge_error_event_write(spop_bridge_task_context *context,
+        haproxy_modsecurity_decision *native_decision)
+{
+    agent_state *state = context->state;
+    msconnector_error error;
+    int success = 0;
+    if (state == NULL || !state->decision_log_lock_initialized ||
+            pthread_mutex_lock(&state->decision_log_lock) != 0) {
+        if (context->error.code == MSCONNECTOR_ERROR_NONE) {
+            msconnector_error_set(&context->error, MSCONNECTOR_ERROR_INTERNAL,
+                "SPOP response event sink is unavailable", "haproxy-spoe-spop");
+        }
+        return 0;
+    }
+    error = state->decision_log_error;
+    if (error.code != MSCONNECTOR_ERROR_NONE) {
+        goto finish;
+    }
+    if (context->error_event_attempted) {
+        success = 1;
+        goto finish;
+    }
+    context->error_event_attempted = 1;
+    if (state->decision_log == NULL) {
+        success = state->config.decision_log[0] == '\0';
+        if (!success) {
+            msconnector_error_set(&error, MSCONNECTOR_ERROR_IO,
+                "SPOP response event sink is unavailable", "haproxy-spoe-spop");
+        }
+        goto finish;
+    }
+    success = spop_bridge_error_event_flush(context, native_decision, &error);
+finish:
+    if (error.code != MSCONNECTOR_ERROR_NONE) {
+        state->decision_log_error = error;
+        if (context->error.code == MSCONNECTOR_ERROR_NONE) {
+            context->error = error;
+        }
+    }
+    (void)pthread_mutex_unlock(&state->decision_log_lock);
+    return success;
+}
+
+static msconnector_transaction_error_class spop_bridge_terminal_error(
+        const haproxy_spop_response_companion_owner_command *command)
+{
+    if (command->operation != HAPROXY_SPOP_RESPONSE_COMPANION_CANCEL) {
+        return command->error_class;
+    }
+    if (command->connection_aborted) {
+        return MSCONNECTOR_TRANSACTION_ERROR_UPSTREAM_DISCONNECT;
+    }
+    return MSCONNECTOR_TRANSACTION_ERROR_CLIENT_CANCEL;
+}
+
 static void run_spop_bridge_native_operation(spop_bridge_task_context *context,
         haproxy_modsecurity_decision *native_decision)
 {
@@ -4763,20 +4901,84 @@ static void run_spop_bridge_native_operation(spop_bridge_task_context *context,
             command->visible_http_status, command->connection_aborted) == 0;
         break;
     case HAPROXY_SPOP_RESPONSE_COMPANION_RELEASE:
-        context->success = haproxy_modsecurity_transaction_finish(
-            context->transaction) == 0;
+        context->success = haproxy_modsecurity_transaction_finish_with_decision(
+            context->transaction, native_decision) == 0;
         context->transaction_consumed = 1;
         break;
     case HAPROXY_SPOP_RESPONSE_COMPANION_CANCEL:
     case HAPROXY_SPOP_RESPONSE_COMPANION_EXPIRE:
     case HAPROXY_SPOP_RESPONSE_COMPANION_FAIL:
-        haproxy_modsecurity_transaction_abort(context->transaction);
+        native_decision->error_class = spop_bridge_terminal_error(command);
+        native_decision->phase = 4;
+        context->success = spop_bridge_error_event_write(context, native_decision);
+        haproxy_modsecurity_transaction_abort_with_error(context->transaction,
+            native_decision->error_class);
         context->transaction_consumed = 1;
-        context->success = 1;
         break;
     default:
         break;
     }
+}
+
+static msconnector_transaction_error_class spop_bridge_operation_error(
+        const spop_bridge_task_context *context,
+        const haproxy_modsecurity_decision *native_decision)
+{
+    if (native_decision->error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+        return native_decision->error_class;
+    }
+    if (context->transaction_consumed) {
+        return MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
+    }
+    const msconnector_transaction_error_class retained_error =
+        haproxy_modsecurity_transaction_error(context->transaction);
+    if (retained_error == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+        return MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE;
+    }
+    return retained_error;
+}
+
+static msconnector_error_code spop_bridge_error_code(
+        msconnector_transaction_error_class error_class)
+{
+    switch (error_class) {
+    case MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT: return MSCONNECTOR_ERROR_BODY_TOO_LARGE;
+    case MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE: return MSCONNECTOR_ERROR_MODSECURITY_FAILURE;
+    case MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT: return MSCONNECTOR_ERROR_TIMEOUT;
+    case MSCONNECTOR_TRANSACTION_ERROR_ENGINE_UNAVAILABLE: return MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE;
+    case MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR: return MSCONNECTOR_ERROR_INTERNAL;
+    default: return MSCONNECTOR_ERROR_PHASE_SEQUENCE;
+    }
+}
+
+static void record_spop_bridge_operation_failure(spop_bridge_task_context *context,
+        haproxy_modsecurity_decision *native_decision)
+{
+    const msconnector_transaction_error_class error_class =
+        spop_bridge_operation_error(context, native_decision);
+    if (context->error.code == MSCONNECTOR_ERROR_NONE) {
+        msconnector_error_set(&context->error, spop_bridge_error_code(error_class),
+            "SPOP response companion owner operation failed", "haproxy-spoe-spop");
+    }
+    if (native_decision->error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+        native_decision->error_class = error_class;
+        native_decision->phase = context->command.operation ==
+            HAPROXY_SPOP_RESPONSE_COMPANION_RESPONSE_HEADERS ? 3 : 4;
+    }
+    spop_bridge_error_event_write(context, native_decision);
+}
+
+static int spop_bridge_sink_ready(spop_bridge_task_context *context) {
+    agent_state *state = context->state;
+    if (state == NULL || !state->decision_log_lock_initialized ||
+            pthread_mutex_lock(&state->decision_log_lock) != 0) {
+        msconnector_error_set(&context->error, MSCONNECTOR_ERROR_INTERNAL,
+            "SPOP response event sink is unavailable", "haproxy-spoe-spop");
+        return 0;
+    }
+    context->error = state->decision_log_error;
+    (void)pthread_mutex_unlock(&state->decision_log_lock);
+    return context->error.code == MSCONNECTOR_ERROR_NONE;
 }
 
 static void run_spop_bridge_task(void *opaque) {
@@ -4789,11 +4991,25 @@ static void run_spop_bridge_task(void *opaque) {
     msconnector_error_init(&context->error);
     msconnector_decision_init(&context->decision);
     memset(&native_decision, 0, sizeof(native_decision));
+    (void)snprintf(context->transaction_id, sizeof(context->transaction_id), "%s",
+        haproxy_modsecurity_transaction_id(context->transaction));
     context->success = 0;
+    if (!spop_bridge_sink_ready(context)) {
+        const int operation = context->command.operation;
+        if (operation == HAPROXY_SPOP_RESPONSE_COMPANION_RELEASE ||
+                operation == HAPROXY_SPOP_RESPONSE_COMPANION_CANCEL ||
+                operation == HAPROXY_SPOP_RESPONSE_COMPANION_EXPIRE ||
+                operation == HAPROXY_SPOP_RESPONSE_COMPANION_FAIL) {
+            haproxy_modsecurity_transaction_abort_with_error(context->transaction,
+                MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
+            context->transaction_consumed = 1;
+        }
+        return;
+    }
     run_spop_bridge_native_operation(context, &native_decision);
     if (!context->success) {
-        msconnector_error_set(&context->error, MSCONNECTOR_ERROR_PHASE_SEQUENCE,
-            "SPOP response companion owner operation failed", "haproxy-spoe-spop");
+        record_spop_bridge_operation_failure(context, &native_decision);
+        return;
     }
     if (!set_bridge_native_decision(context, &native_decision)) {
         context->success = 0;

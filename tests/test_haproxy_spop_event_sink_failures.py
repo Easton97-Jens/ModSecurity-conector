@@ -25,7 +25,7 @@ FUNCTIONS = (
     "open_agent_logs", "close_agent_owned_streams", "json_write_string",
     "safe_decision_name", "phase4_requested_action", "phase4_common_event_write",
     "safe_decision_reason_code", "decision_log_render_metadata", "decision_log_finish_staging",
-    "decision_log_write", "decision_log_failed",
+    "decision_log_stage_error_event", "decision_log_write", "decision_log_failed",
     "copy_spop_string", "copy_cstring", "runtime_init_decision", "set_response_phase_disabled_failure",
     "set_admission_failure", "ensure_notify_request_id", "notify_request_has_required_endpoints",
     "protocol_failure_requires_enforcement", "mode_enforces", "production_ack_enforces",
@@ -37,7 +37,8 @@ FUNCTIONS = (
 )
 STUBS = r'''
 static int ack_calls, abort_calls, finish_calls, store_calls, handoff_calls;
-static int fail_staging;
+static int fail_staging, fail_finish, finish_fault;
+static FILE *finish_sink;
 static ssize_t staging_allocation_failure(void *cookie, const char *data, size_t size) {
     (void)cookie; (void)data; (void)size;
     errno = ENOMEM;
@@ -96,6 +97,19 @@ static int transaction_cache_store(agent_state *state, const char *request_id,
 }
 void haproxy_modsecurity_transaction_abort(haproxy_modsecurity_transaction *transaction) {
     (void)transaction; ++abort_calls;
+}
+void haproxy_modsecurity_transaction_abort_with_error(haproxy_modsecurity_transaction *transaction, msconnector_transaction_error_class error) {
+    (void)error; haproxy_modsecurity_transaction_abort(transaction);
+}
+int haproxy_modsecurity_transaction_finish_with_decision(haproxy_modsecurity_transaction *transaction, haproxy_modsecurity_decision *decision) {
+    (void)transaction; ++finish_calls;
+    if (fail_finish) {
+        decision->error_class = MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE;
+        decision->phase = 5;
+        if (finish_fault && close(fileno(finish_sink)) != 0) { abort(); }
+        return 1;
+    }
+    return 0;
 }
 int haproxy_modsecurity_transaction_finish(haproxy_modsecurity_transaction *transaction) {
     (void)transaction; ++finish_calls; return 0;
@@ -161,6 +175,10 @@ int main(int argc, char **argv) {
     request.has_response_status = 1;
     runtime_init_decision(&decision, 4, "deny", 403, "original engine failure");
     decision.disruptive = 1;
+    if (strncmp(argv[1], "technical-", 10U) == 0) {
+        decision.error_class = MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE;
+        argv[1] += 10;
+    }
     msconnector_error_init(&error);
     fail_staging = strcmp(argv[1], "stage-allocation") == 0;
     if (strncmp(argv[1], "open-", 5U) == 0) {
@@ -176,6 +194,11 @@ int main(int argc, char **argv) {
         file = fopen(argv[2], "w+");
         if (file == NULL) { return 4; }
         state.decision_log = file;
+        if (strncmp(argv[1], "finish-", 7U) == 0) {
+            fail_finish = 1;finish_sink = file;
+            finish_fault = strcmp(argv[1], "finish-success") != 0;
+            if (setvbuf(file,NULL,strcmp(argv[1], "finish-write")==0 ? _IONBF : _IOFBF,8192U)!=0) { return 5; }
+        }
         if (strcmp(argv[1], "close") == 0) {
             if (close(fileno(file)) != 0) { return 5; }
         } else if (strcmp(argv[1], "write") == 0 || strcmp(argv[1], "ownership") == 0 || strcmp(argv[1], "request-ownership") == 0 || strcmp(argv[1], "direct-write") == 0) {
@@ -207,13 +230,14 @@ int main(int argc, char **argv) {
             again = first;
             size = ftell(file);
         } else {
-            if (strcmp(argv[1], "request-ownership") == 0) {
+            if (strcmp(argv[1], "request-ownership") == 0 || fail_finish) {
                 int processed = 0;
                 spop_ack_decision_origin origin = SPOP_ACK_FAILURE_DECISION;
                 const char *text = "pass";
                 char handle[HAPROXY_SPOP_RESPONSE_COMPANION_HANDLE_STORAGE] = {0};
                 state.config.response_phases_enabled = 1;
-                strcpy(state.config.response_companion, "native-htx");
+                if (fail_finish) { state.config.response_phases_enabled=0; }
+                else { strcpy(state.config.response_companion, "native-htx"); }
                 state.config.request_body_limit = 1024U;
                 request.is_response = request.is_response_body = 0;
                 request.has_client_ip = request.has_server_ip = 1;
@@ -245,17 +269,21 @@ int main(int argc, char **argv) {
                 }
                 clearerr(file);
             }
-            again = decision_log_write(&state, &request, &decision, 1, "deny");
-            caller = process_production_notify(-1, &frame, &state, NULL, &request);
+            if (fail_finish && code == MSCONNECTOR_ERROR_NONE) {
+                again = first;
+            } else {
+                again = decision_log_write(&state, &request, &decision, 1, "deny");
+                caller = process_production_notify(-1, &frame, &state, NULL, &request);
+            }
             size = ftell(file);
         }
         cleanup = close_agent_owned_streams(&log, 0, &state.decision_log, 1);
     }
     printf("{\"first\":%d,\"again\":%d,\"code\":%d,\"io\":%d,"
         "\"too_large\":%d,\"internal\":%d,\"caller\":%d,\"ack_calls\":%d,"
-        "\"size\":%ld,\"cleanup\":%d,\"abort\":%d,\"finish\":%d,\"store\":%d,\"handoff\":%d,\"retained_code\":%d,\"original\":%d}\n",
+        "\"invalid_native\":%d,\"native_class\":%d,\"native_phase\":%d,\"size\":%ld,\"cleanup\":%d,\"abort\":%d,\"finish\":%d,\"store\":%d,\"handoff\":%d,\"retained_code\":%d,\"original\":%d}\n",
         first, again, code, MSCONNECTOR_ERROR_IO, MSCONNECTOR_ERROR_EVENT_TOO_LARGE,
-        MSCONNECTOR_ERROR_INTERNAL, caller, ack_calls, size, cleanup,
+        MSCONNECTOR_ERROR_INTERNAL, caller, ack_calls, MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, decision.error_class, decision.phase, size, cleanup,
         abort_calls, finish_calls, store_calls, handoff_calls, state.decision_log_error.code,
         strcmp(decision.log_message, "original engine failure") == 0);
     pthread_mutex_destroy(&state.decision_log_lock);
@@ -282,7 +310,10 @@ class HaproxySpopEventSinkFailureTests(unittest.TestCase):
         types = types.replace(definition, "")
         definitions = [function_definition(source, name) for name in FUNCTIONS]
         declarations = "\n".join(value[:value.index("{")] + ";" for value in definitions)
-        text = preamble + types + declarations + STUBS + "\n".join(definitions) + MAIN
+        binding = (ROOT / "connectors/haproxy/src/haproxy_modsecurity_binding.c").read_text()
+        serializers = "\n".join(function_definition(binding, name) for name in
+            ("contract_phase_from_decision", "haproxy_modsecurity_error_event_write_checked"))
+        text = preamble + types + declarations + serializers + STUBS + "\n".join(definitions) + MAIN
         cls.binaries = {}
         cls.compile_fixture(compiler, text, "current")
         anchor = """    if (error.code == MSCONNECTOR_ERROR_NONE &&
@@ -363,6 +394,51 @@ class HaproxySpopEventSinkFailureTests(unittest.TestCase):
 
     def test_buffered_flush_failure_propagates_without_successful_fallback(self) -> None:
         self.assert_failure("flush")
+
+    def test_request_finish_failure_emits_one_typed_terminal_event(self) -> None:
+        result, path = self.case("finish-success")
+        self.assertEqual(result["first"], 1)
+        self.assertEqual(result["code"], 0)
+        self.assertEqual(result["finish"], 1)
+        self.assertEqual(result["abort"], 0)
+        self.assertEqual(result["native_phase"], 5)
+        self.assertEqual(result["native_class"], result["invalid_native"])
+        events = [json.loads(line) for line in path.read_text().splitlines()]
+        terminal = [event for event in events if event.get("event") == "invalid_engine_response"]
+        self.assertEqual(len(terminal), 1)
+        self.assertEqual(terminal[0]["actual_action"], "")
+
+    def test_request_finish_write_and_flush_failures_preserve_native_cause_without_ack(self) -> None:
+        for scenario in ("finish-write", "finish-flush"):
+            with self.subTest(scenario=scenario):
+                result, path = self.case(scenario)
+                self.assertEqual(result["first"], 0)
+                self.assertEqual(result["again"], 0)
+                self.assertEqual(result["code"], result["io"])
+                self.assertEqual(result["retained_code"], result["io"])
+                self.assertEqual(result["native_phase"], 5)
+                self.assertEqual(result["native_class"], result["invalid_native"])
+                self.assertEqual(result["finish"], 1)
+                self.assertEqual(result["abort"], 0)
+                self.assertEqual(result["caller"], -1)
+                self.assertEqual(result["ack_calls"], 0)
+                events = [json.loads(line) for line in path.read_text().splitlines()]
+                self.assertFalse(any(event.get("event") == "invalid_engine_response" for event in events))
+
+    def test_technical_event_write_failure_is_sticky_and_has_no_ack(self) -> None:
+        self.assert_failure("technical-write")
+
+    def test_technical_event_flush_failure_is_sticky_and_has_no_ack(self) -> None:
+        self.assert_failure("technical-flush")
+
+    def test_technical_serialization_failure_is_internal_without_physical_write(self) -> None:
+        result, path = self.case("technical-stage-allocation")
+        self.assertEqual(result["first"], 0)
+        self.assertEqual(result["again"], 0)
+        self.assertEqual(result["code"], result["internal"])
+        self.assertEqual(result["caller"], -1)
+        self.assertEqual(result["ack_calls"], 0)
+        self.assertEqual(path.stat().st_size, 0)
 
     def test_oversized_serialization_never_touches_sink(self) -> None:
         result, path = self.case("serialize")

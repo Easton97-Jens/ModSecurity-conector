@@ -221,6 +221,7 @@ def tokens_in_order(text: str, *tokens: str) -> bool:
 def typed_event_status_assignment(text: str) -> bool:
     """Check one executable status assignment with bounded linear string scans."""
     compact = "".join(function_section(text, "apache_log_intervention_event").split())
+    compact = compact.replace("event.decision.status==", "event.decision.status_EQ_")
     marker = "event.decision.status="
     if compact.count(marker) != 1:
         return False

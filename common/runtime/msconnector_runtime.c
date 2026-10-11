@@ -201,6 +201,7 @@ struct msconnector_runtime_transaction {
     msconnector_error_code event_write_failed;
     int response_companion_handed_off;
     int finish_attempted;
+    msconnector_error_code finish_error;
     int finished;
 };
 
@@ -1116,6 +1117,15 @@ static int native_intervention_status(
     return intervention == NULL ? 0 : intervention->status;
 }
 
+static void native_capture_rule_id(
+    msconnector_native_transaction *native,
+    const ModSecurityIntervention *intervention) {
+    if (intervention->log != NULL) {
+        (void)msconnector_rule_id_extract_from_message(
+            intervention->log, native->rule_id, sizeof(native->rule_id));
+    }
+}
+
 static int native_decision(
     const msconnector_runtime *runtime,
     msconnector_native_transaction *native,
@@ -1131,22 +1141,19 @@ static int native_decision(
 
     memset(&intervention, 0, sizeof(intervention));
     intervention.status = 200;
+    native->rule_id[0] = '\0';
+    native->reason[0] = '\0';
+    native->redirect_url[0] = '\0';
     intervention_result = msc_intervention(native->transaction, &intervention);
     if (intervention_result != 0 && intervention_result != 1) {
         msc_intervention_cleanup(&intervention);
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
             "invalid native intervention result", "msc_intervention");
     }
-    disruptive = intervention_result != 0 || intervention.disruptive != 0;
+    disruptive = intervention_result == 1 && intervention.disruptive != 0;
     body_limit = native_is_request_body_limit_rejection(phase, &intervention);
-    native->rule_id[0] = '\0';
-    native->reason[0] = '\0';
-    native->redirect_url[0] = '\0';
-    if (intervention.log != NULL) {
-        (void)msconnector_rule_id_extract_from_message(
-            intervention.log, native->rule_id, sizeof(native->rule_id));
-    }
     if (disruptive) {
+        native_capture_rule_id(native, &intervention);
         int intervention_status = msconnector_intervention_normalize_status(
             intervention.url, native_intervention_status(phase, &intervention),
             runtime->config.default_block_status);
@@ -2018,6 +2025,10 @@ static const char *contract_terminal_message_id(
 
 static enum msconnector_phase contract_terminal_phase(
     const msconnector_transaction_contract *contract) {
+    if (contract != NULL && contract->error_phase >= MSCONNECTOR_PHASE_CONNECTION &&
+        contract->error_phase <= MSCONNECTOR_PHASE_LOGGING) {
+        return (enum msconnector_phase)contract->error_phase;
+    }
     if (contract != NULL && contract->active_phase >= MSCONNECTOR_PHASE_REQUEST_HEADERS &&
         contract->active_phase <= MSCONNECTOR_PHASE_RESPONSE_BODY) {
         return (enum msconnector_phase)contract->active_phase;
@@ -2109,7 +2120,7 @@ static int emit_contract_terminal_event(
         MSCONNECTOR_STATUS_BLOCKED : MSCONNECTOR_STATUS_ERROR;
     event.decision.action = msconnector_decision_action_name(policy.host_action);
     event.decision.requested_action = event.decision.action;
-    event.decision.actual_action = event.decision.action;
+    event.decision.actual_action = "";
     event.decision.rule_id = transaction->contract.rule_id;
     event.decision.reason = message;
     event.http.http_status = contract_terminal_http_status(&transaction->contract);
@@ -2560,8 +2571,11 @@ int msconnector_runtime_transaction_append_request_body_chunk(
     if (!apply_body_limit_plan(&transaction->request_body, &runtime->body_policy,
             runtime->body_policy.request_body_limit, size, &append_size, error,
             "request body exceeds configured limit")) {
-        (void)msconnector_transaction_contract_fail(&transaction->contract,
-            MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, transaction_now_ms());
+        if (msconnector_transaction_contract_fail(&transaction->contract,
+                MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, transaction_now_ms()) ==
+            MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
+            transaction->contract.error_phase = MSCONNECTOR_PHASE_REQUEST_BODY;
+        }
         transaction->request_blocked = 1;
         return 0;
     }
@@ -2857,8 +2871,11 @@ static int append_response_body_chunk_internal(
             msconnector_phase4_effective_body_limit(
                 runtime->config.phase4_mode), size, &append_size, error,
             "response body exceeds configured limit")) {
-        (void)msconnector_transaction_contract_fail(&transaction->contract,
-            MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, transaction_now_ms());
+        if (msconnector_transaction_contract_fail(&transaction->contract,
+                MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, transaction_now_ms()) ==
+            MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
+            transaction->contract.error_phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
+        }
         transaction->request_blocked = 1;
         return 0;
     }
@@ -3272,7 +3289,8 @@ int msconnector_runtime_transaction_fail(
     }
     result = msconnector_transaction_contract_fail(&transaction->contract,
         error_class, transaction_now_ms());
-    if (result != MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
+    if (result != MSCONNECTOR_TRANSACTION_TRANSITION_OK &&
+        transaction->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
         return contract_error(error, result,
             "transaction failure violates the shared contract");
     }
@@ -3872,6 +3890,11 @@ int msconnector_runtime_response_companion_session_fail(
     memset(&detached, 0, sizeof(detached));
     result = msconnector_transaction_contract_fail(&entry->transaction->contract,
         error_class, transaction_now_ms()) == MSCONNECTOR_TRANSACTION_TRANSITION_OK;
+    if (!result && entry->transaction->contract.error_class !=
+            MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+        /* A failed native callback already sealed the original cause. */
+        result = 1;
+    }
     if (result) {
         entry->transaction->request_blocked = 1;
         if (!emit_contract_terminal_event(entry->transaction, error)) {
@@ -4383,11 +4406,6 @@ static int finish_transaction_with_logging(
     msconnector_runtime_transaction *transaction,
     msconnector_error *error) {
     transaction->finish_attempted = 1;
-    if (msconnector_flow_guard_mark_immutable(&transaction->flow) !=
-        MSCONNECTOR_FLOW_GUARD_OK) {
-        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
-            "transaction could not be made immutable", "flow_guard");
-    }
     if (transaction->native_started) {
         int logged;
 
@@ -4395,16 +4413,40 @@ static int finish_transaction_with_logging(
         logged = msconnector_modsecurity_process_logging(&transaction->modsecurity, error);
         runtime_operation_unlock(transaction->runtime);
         if (!logged) {
+            msconnector_error terminal_error;
+            transaction->finish_error = error == NULL || error->code == MSCONNECTOR_ERROR_NONE ?
+                MSCONNECTOR_ERROR_MODSECURITY_FAILURE : error->code;
+            if (transaction->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+                msconnector_transaction_error_class cause = transaction->finish_error ==
+                    MSCONNECTOR_ERROR_MODSECURITY_FAILURE ?
+                    MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE :
+                    MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
+                (void)msconnector_transaction_contract_fail(&transaction->contract,
+                    cause, transaction_now_ms());
+                transaction->contract.error_phase = MSCONNECTOR_PHASE_LOGGING;
+            }
+            msconnector_error_init(&terminal_error);
+            (void)emit_contract_terminal_event(transaction, &terminal_error);
+            /* finish_attempted already seals host callbacks. Freeze event
+             * metadata after the audit failure's terminal event attempt. */
+            (void)msconnector_flow_guard_mark_immutable(&transaction->flow);
             return 0;
         }
+    }
+    if (msconnector_flow_guard_mark_immutable(&transaction->flow) !=
+        MSCONNECTOR_FLOW_GUARD_OK) {
+        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+            "transaction could not be made immutable", "flow_guard");
     }
     transaction->finished = 1;
     return 1;
 }
 
-int msconnector_runtime_transaction_finish_host_rejected_request_body(
+static int prepare_transaction_finish(
     msconnector_runtime_transaction *transaction,
-    msconnector_error *error) {
+    msconnector_error *error,
+    int *already_finished) {
+    *already_finished = 0;
     if (error != NULL) {
         msconnector_error_init(error);
     }
@@ -4416,11 +4458,27 @@ int msconnector_runtime_transaction_finish_host_rejected_request_body(
         return replay_event_write_failure(transaction, error);
     }
     if (transaction->finished) {
+        *already_finished = 1;
         return 1;
     }
     if (transaction->finish_attempted) {
-        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+        return runtime_error(error, transaction->finish_error == MSCONNECTOR_ERROR_NONE ?
+            MSCONNECTOR_ERROR_INTERNAL : transaction->finish_error,
             "transaction finish previously failed", "runtime");
+    }
+    return 1;
+}
+
+int msconnector_runtime_transaction_finish_host_rejected_request_body(
+    msconnector_runtime_transaction *transaction,
+    msconnector_error *error) {
+    int already_finished;
+
+    if (!prepare_transaction_finish(transaction, error, &already_finished)) {
+        return 0;
+    }
+    if (already_finished) {
+        return 1;
     }
     if (!transaction->native_started) {
         return finish_transaction_with_logging(transaction, error);
@@ -4438,22 +4496,13 @@ int msconnector_runtime_transaction_finish_host_rejected_request_body(
 int msconnector_runtime_transaction_finish(
     msconnector_runtime_transaction *transaction,
     msconnector_error *error) {
-    if (error != NULL) {
-        msconnector_error_init(error);
+    int already_finished;
+
+    if (!prepare_transaction_finish(transaction, error, &already_finished)) {
+        return 0;
     }
-    if (transaction == NULL) {
-        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
-            "transaction is required", "runtime");
-    }
-    if (transaction->event_write_failed != MSCONNECTOR_ERROR_NONE) {
-        return replay_event_write_failure(transaction, error);
-    }
-    if (transaction->finished) {
+    if (already_finished) {
         return 1;
-    }
-    if (transaction->finish_attempted) {
-        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
-            "transaction finish previously failed", "runtime");
     }
     if (transaction->native_started && !transaction->request_blocked &&
         transaction->runtime->body_policy.request_body_mode == MSCONNECTOR_BODY_MODE_STREAMING &&

@@ -188,7 +188,8 @@ review_guards: list[tuple[bool, str]] = [
     (
         base.tokens_in_order(
             request_body_finalizer,
-            "if (msr->intervention.mandatory_event_failed)",
+            "if (msr->intervention.mandatory_event_failed ||",
+            "msr->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE)",
             "return HTTP_INTERNAL_SERVER_ERROR;",
             "if (msr->request_body_processed)",
             f"return {INTERVENTION_SENTINEL};",
@@ -539,7 +540,9 @@ review_guards: list[tuple[bool, str]] = [
         base.tokens_in_order(
             phase4_fail_closed_helper,
             "if (apache_phase4_response_committed(msr, r))",
-            "return apache_phase4_abort_response_connection(f);",
+            "rc = apache_phase4_abort_response_connection(f);",
+            "apache_emit_contract_failure_event_with_action(msr, r,",
+            "return rc;",
             '"ModSecurity: Phase 4 response gate failed before response commit: %s"',
             REMOVE_OUTPUT_FILTER,
             "return apache_send_precommit_terminal_error(msr, f, NULL,",

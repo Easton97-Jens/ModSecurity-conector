@@ -1,9 +1,11 @@
 #ifndef HAPROXY_MODSECURITY_BINDING_H
 #define HAPROXY_MODSECURITY_BINDING_H
 
+#include "msconnector/error.h"
 #include "msconnector/config.h"
 #include "msconnector/crs.h"
 #include "msconnector/decision_action.h"
+#include "msconnector/transaction_contract.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -16,6 +18,7 @@ typedef struct haproxy_modsecurity_decision {
     int phase;
     int rule_id;
     int anomaly_score;
+    msconnector_transaction_error_class error_class;
     char action[32];
     char redirect_url[1024];
     char log_message[512];
@@ -144,6 +147,32 @@ int haproxy_modsecurity_transaction_finish_response_body(
  * action. */
 int haproxy_modsecurity_transaction_finish(
     haproxy_modsecurity_transaction *transaction);
+int haproxy_modsecurity_transaction_finish_with_decision(
+    haproxy_modsecurity_transaction *transaction,
+    haproxy_modsecurity_decision *decision);
+msconnector_transaction_error_class haproxy_modsecurity_transaction_error(
+    const haproxy_modsecurity_transaction *transaction);
+void haproxy_modsecurity_transaction_abort_with_error(
+    haproxy_modsecurity_transaction *transaction,
+    msconnector_transaction_error_class error_class);
+/* Render metadata only; actual host action is absent until observed. */
+int haproxy_modsecurity_error_event_write(
+    const haproxy_modsecurity_decision *decision, const char *transaction_id,
+    char *line, size_t line_size);
+/* Checked serialization returns 1 for rendered output or an omitted duplicate/no-error
+ * (empty line), and 0 with INTERNAL or EVENT_TOO_LARGE on failure. No sink I/O. */
+int haproxy_modsecurity_error_event_write_checked(
+    const haproxy_modsecurity_decision *decision, const char *transaction_id,
+    char *line, size_t line_size, msconnector_error *error);
+int haproxy_modsecurity_transaction_error_event_write_checked(
+    haproxy_modsecurity_transaction *transaction,
+    haproxy_modsecurity_decision *decision, char *line, size_t line_size,
+    msconnector_error *error);
+const char *haproxy_modsecurity_transaction_id(
+    const haproxy_modsecurity_transaction *transaction);
+int haproxy_modsecurity_transaction_error_event_write(
+    haproxy_modsecurity_transaction *transaction,
+    haproxy_modsecurity_decision *decision, char *line, size_t line_size);
 void haproxy_modsecurity_transaction_abort(
     haproxy_modsecurity_transaction *transaction);
 int haproxy_modsecurity_eval_request(

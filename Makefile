@@ -1314,6 +1314,10 @@ check-common-helpers:
 check-common-helpers-c17:
 	$(MAKE) check-common-helpers MSCONNECTOR_C_STD=c17
 
+.PHONY: check-i09-native-routes
+check-i09-native-routes:
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_i09_common_routes tests.test_i09_native_decision tests.test_i09_body_phase tests.test_apache_i09_filter_events tests.test_haproxy_native_results tests.test_haproxy_host_native_results connectors.traefik.tests.test_i09_api_returns connectors.lighttpd.tests.test_i09_api_returns
+
 check-common-http-header-fuzz:
 	sh ci/checks/common/check-common-http-header-fuzz.sh
 

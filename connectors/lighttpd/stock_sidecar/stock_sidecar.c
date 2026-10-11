@@ -691,18 +691,15 @@ static msconnector_late_intervention_action sidecar_phase4_action(
         response_committed, phase4_mode == MSCONNECTOR_PHASE4_MODE_STRICT);
 }
 
-/* A disruptive engine decision is already terminal before the host attempts
- * its response.  If the peer disconnects during that response, do not try to
- * overwrite the rule decision with a second terminal failure: retain its
- * rule correlation and record the observed host action as an abort. */
+/* Failed delivery is a technical failure, not proof of a connection abort.
+ * The connection owner has not executed shutdown/close at this point. */
 static void sidecar_record_decision_delivery_failure(
     msconnector_runtime_transaction *transaction,
     const msconnector_decision *decision,
     msconnector_error *error) {
     if (transaction == NULL || decision == NULL) return;
-    (void)msconnector_runtime_transaction_record_host_action(
-        transaction, decision, MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION,
-        0, "connection_aborted", 1, error);
+    (void)msconnector_runtime_transaction_fail(transaction,
+        MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, error);
 }
 
 static void sidecar_record_failure_action(
@@ -710,10 +707,9 @@ static void sidecar_record_failure_action(
     int visible_http_status,
     int response_written,
     msconnector_error *error) {
-    if (transaction == NULL) return;
+    if (transaction == NULL || !response_written) return;
     (void)msconnector_runtime_transaction_record_failure_host_action(
-        transaction, response_written ? visible_http_status : 0,
-        response_written ? 0 : 1, error);
+        transaction, visible_http_status, 0, error);
 }
 
 static msconnector_transaction_error_class sidecar_failure_error_class(
@@ -1482,15 +1478,21 @@ static int sidecar_exchange_response(sidecar_exchange_state *state) {
         }
         action = sidecar_phase4_action(state->client_response_started, phase4_mode);
         if (action == MSCONNECTOR_LATE_INTERVENTION_ABORT_CONNECTION) {
-            (void)shutdown(state->client, SHUT_RDWR);
-            sidecar_record_decision_delivery_failure(state->transaction, &state->decision,
-                                                      &state->error);
+            if (shutdown(state->client, SHUT_RDWR) == 0) {
+                (void)msconnector_runtime_transaction_record_host_action(
+                    state->transaction, &state->decision,
+                    MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION,
+                    0, "connection_aborted", 1, &state->error);
+            } else {
+                sidecar_record_decision_delivery_failure(state->transaction,
+                    &state->decision, &state->error);
+            }
             (void)msconnector_runtime_transaction_finish(state->transaction, &state->error);
             state->handled = 1;
             return 0;
         }
         if (action == MSCONNECTOR_LATE_INTERVENTION_LOG_ONLY) {
-            (void)msconnector_runtime_transaction_record_host_action(
+            return msconnector_runtime_transaction_record_host_action(
                 state->transaction, &state->decision,
                 MSCONNECTOR_DECISION_ACTION_LOG_ONLY,
                 state->payload.response_headers.status_code, "log_only", 0,
