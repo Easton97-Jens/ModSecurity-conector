@@ -329,7 +329,12 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
             ("short circuit inverted", anchor, anchor.replace("||", "&&")),
             ("raw event serialized", "msconnector_event_write_jsonl_line(&projected,", "msconnector_event_write_jsonl_line(event,"),
             ("write before projection", "    if (" + anchor, "    ngx_write_fd(mcf->phase4_log_file->fd, line, 1);\n    if (" + anchor),
-            ("serialization failure ignored", "        return 0;", "        return 1;"),
+            ("serialization failure ignored",
+             'json_truncated ? " (truncated)" : "");\n        return 0;',
+             'json_truncated ? " (truncated)" : "");\n        return 1;'),
+            ("physical write failure ignored",
+             '%s", write_failure_message);\n        return 0;',
+             '%s", write_failure_message);\n        return 1;'),
         )
         for name, old, new in cases:
             for decoy in (False, True):
