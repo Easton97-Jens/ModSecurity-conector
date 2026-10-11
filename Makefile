@@ -1209,6 +1209,13 @@ check-apache-c17:
 check-apache-intervention-cleanup:
 	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_intervention_cleanup
 
+.PHONY: check-apache-event-sink check-haproxy-spop-event-sink
+check-apache-event-sink:
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_event_sink_failures
+
+check-haproxy-spop-event-sink:
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_haproxy_spop_event_sink_failures
+
 check-apache-c17-lint:
 	@APACHE_C_STD_PROFILE=c17 sh ci/checks/connectors/apache/check-apache-c-standards.sh || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "SKIPPED: apache C17 compile check blocked in lint environment"; exit 0; fi; exit "$$rc"; }
 

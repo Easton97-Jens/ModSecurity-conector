@@ -31,6 +31,12 @@ Referenzen: [Vertrag/Migration](pr-382-event-contract.de.md),
 [native Envoy-Testreparatur](../reports/audits/change-records/CR-20260923-pr382-envoy-test-boundaries.de.md).
 
 
+## Aktueller I11-Sink-Abgleich vom 2026-10-11
+
+Der isolierte Branch `fix/i11-event-sink-parity-20261011` basiert auf `0df51024008fc84f0a6820f3b011055b69c3a3e2` von PR #382. Codearbeit und aktuelle kompilierte Tests erfüllen die I11-Implementierungsakzeptanz; I11 ist `[x]`, Live-Host-Nachweise I12/V10 bleiben offen. [Change Record](../reports/audits/change-records/CR-20261011-pr382-i11-physical-sink-parity.de.md) und [Restmatrix](pr-382-i09-i12-rest-matrix.de.md) trennen aktuelle Patchnachweise von historischen R16/R17- und offenen I12/V10-Nachweisen. Die folgende historische Beschreibung ungeprüfter Apache-/SPOP-Sinks gilt für ihren damaligen Stand, nicht für den aktuellen Patch.
+
+Aktuelle integrierte Nachweise: physische Sinktests 50, Common/Event-Regressionen 60, vollständig instrumentierte C-ASan/UBSan-Tests 46, Apache-native/C17 45 und Adoption 28, Envoy-native/tagged 218 Tests/324 Cases/8 Pakete sowie Race 105/164/3 bestehen. Alle 110 NGINX-Adoptionsmethoden bestehen in vier disjunkten Shards mit 28+28+27+27 Tests. Bilingual-/Pfad-/Link-, Workflow-, Format- und Change-Record-Checks bestehen. Breite Apache-Suite: aktueller Patch 215 Tests, 7 Failures/7 Errors; unveränderte Basis 195 Tests, 8 Failures/7 Errors. Keine neuen Fail-/Errorsets; der frühere precommit_rate_limit-Fixturefehler besteht jetzt. Drei UID/chown-Environmentfehler treten auf beiden Ständen auf. HAProxy-Suite: 203 Tests, fünf auf der Basis reproduzierte Fehler, zwölf Skips. Keine dieser breiten Suites wird als vollständig grün behauptet.
+
 ## Historisches R16: 2026-10-10 nachgelagerter NGINX-H1-Systemnachweis aus PR #396
 
 Dies ist ein nachgelagerter NGINX-H1-Systemnachweis aus PR #396, kein Runtime-Test
@@ -147,11 +153,15 @@ Lokale Raw-Evidence bleibt unter `/var/tmp/codex/ModSecurity-conector/analysis/n
 - [x] I10c: Echte NGINX-Collector-/Dispatcher-/P4-Kettentests erhalten späte Regeln, Off-Verhalten und Bereinigung (`1ce569e1`; V17).
 - [x] I10d: Fehlerhafter Envoy-Antwortbeginn stoppt vor Append; leeres EOS erfindet keinen Bodybeginn. Geprüfte C-ABI reicht Fehler bis Go weiter; Kompatibilitäts-ABI bleibt erhalten (`31200e8c`, `81e53a94`). Native Verifikation bestand für `7d05e89f` (V20).
 - [x] I10e: Apache-Collector ändert keine bereits gesendeten Location-Header und verwendet bei technischen Fehlern keine alten Regelmetadaten. Audit markiert seinen Versuch vor Callbacks und setzt keine ausführbare Intervention aus der Logphase durch. Für `3c29004b` vorhanden; V24 prüft kompilierte APR-/native Grenzen, kein Live-httpd.
-- [ ] I11: Erzeuger-/Ausgabeparität, Kennungen/Ursachen, beobachtete Aktionen, doppelte terminale Ereignisse und Öffnungs-/Schreib-/Kurzschreib-/Serialisierungsfehler abschließen.
+- [x] I11: Erzeuger-/Ausgabeparität, Kennungen/Ursachen, beobachtete Aktionen, doppelte terminale Ereignisse und Öffnungs-/Schreib-/Kurzschreib-/Serialisierungsfehler abschließen.
 - [x] I11a: Fehlende Transportbeobachtungen belegen keine Regel-/Fehlerdurchsetzung; eigene Datensätze und tatsächliche Nachweise bleiben erhalten.
 - [x] I11b: Verpflichtende NGINX-Phase-4-Logfehler bleiben terminal; ungültige Ausgaben und wiederholte Writes sind begrenzt.
 - [x] I11c: Fehlende-Beobachtung-Behandlung umfasst Body-Limits, nicht unterstützte Fähigkeiten, Abbruch und Upstream-Disconnect (`3730eaa0`; V18).
 - [x] I11d: Runtime erhält erste Ereignisfehler ohne Ausgabepointer, verhindert Write-Wiederholung und Abschluss-/Snapshot-Verdeckung und erhält Hash-Regeln (`68f78e07`; V21).
+- [x] I11e: Apache propagiert typisierte physische Sink-Ergebnisse bis Request-/Filter-Pfaden; verpflichtende und diagnostische Events bleiben getrennt.
+- [x] I11f: HAProxy SPOP prüft Serialisierung, fputs/ferror/fflush und eigenes fclose; erster Sinkfehler sperrt Retry und erfolgreichen ACK-Fallback.
+- [x] I11g: Common-Wiederholungsschutz bleibt erhalten; Apache/SPOP und Envoy-Writer erhalten erste Ursache und verhindern weitere physische Writes nach Sinkfehler.
+- [x] I11h: Alle 14 Producer-/Sink-Routenteile sind abgeglichen und aktuelle kompilierte Tests bestehen; keine bekannte I11-Implementierungslücke bleibt. Baseline-/Environment- und I12/V10-Grenzen bleiben getrennt.
 - [ ] I12: Jede direkte, Companion-, Middleware- und Sidecar-Route getrennt samt echten Host-/Transport-/Logergebnissen prüfen.
 - [x] I12a: Zehn separate ext_proc-C-Brückenfälle für Fehler, Wiedereintritt und Leerantwort bestehen (V22); kein Abschluss von ext_authz/Companion oder Live-gRPC.
 - [x] I12b: Nachgelagertes R17 aus PR #396 führte die NGINX-H1-Standardroute mit echtem Root/nobody und frischen Projektionen aus, lokaler begrenzter funktionaler PASS. Dies schließt nur den Ausführungsreferenz-Teilbereich, keinen PR-#382-Produkttest oder breiten I12; R16 bleibt historisch.
@@ -167,7 +177,7 @@ Die [neunspaltige I09–I12-Matrix](pr-382-i09-i12-rest-matrix.de.md) zeigt verb
 | --- | --- |
 | I09 | Filter-/API-Ausgänge außerhalb des fertigen Apache-Moduls und übrige HAProxy-, direkte, Companion- und Middleware-Erzeuger prüfen. Jeden Fehler durch tatsächliche Aufrufer und Cleanup verfolgen; gemeinsame Prädikate oder Diagnosen allein reichen nicht. Die obigen Apache-Collector-/Init-/Auditkorrekturen sind nicht mehr offen. |
 | I10 | Fehlerweitergabe jeder verbleibenden Route bis zur Hoststeuerung einschließlich Fehlern nach Antwortbeginn prüfen. Native Envoy-Verifikation ist jetzt unter V20 abgeschlossen, keine offene Voraussetzung mehr. Fehlende Prüfungen in einem Helfer allein beweisen keinen Fehler, wenn Common bereits weitere Aufrufe verhindert. |
-| I11 | Apaches void-Ereignisschreiber/-Aufrufer brauchen vollständige physische Fehlerweitergabe; HAProxy SPOP muss sein Common-Event-fputs-Ergebnis behandeln. Der ursprüngliche Runtime-I/O-Wiedergabefehler ist behoben. Dies bleibt Implementierungsarbeit, nicht bloß Live-Nachweis. |
+| I11 | Implementierung vollständig und kompiliert verifiziert; keine bekannte Producer-/Physical-Sink-Lücke bleibt. Breite Baseline-/Environmentfehler, fehlende HAProxy-C17-Header und I12/V10-Live-Host-Nachweise sind getrennt ausgewiesen. |
 | I12 | Routebezogene Host-, Client-Byte-/Reset-, Nachbarstream-, Cleanup- und physische Logfälle ausführen. Request-only benötigt seinen wirklichen Response-Companion. |
 
 ## 2. Verifikation

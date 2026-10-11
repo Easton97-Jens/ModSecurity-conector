@@ -30,6 +30,12 @@ References: [contract/migration](pr-382-event-contract.md),
 [Envoy native test repair](../reports/audits/change-records/CR-20260923-pr382-envoy-test-boundaries.md).
 
 
+## Current 2026-10-11 I11 sink reconciliation
+
+The isolated branch `fix/i11-event-sink-parity-20261011` starts at `0df51024008fc84f0a6820f3b011055b69c3a3e2` from PR #382. Code changes and current compiled tests satisfy I11 implementation acceptance; I11 is `[x]`, with live-host I12/V10 evidence still open. The [Change Record](../reports/audits/change-records/CR-20261011-pr382-i11-physical-sink-parity.md) and [remaining-work matrix](pr-382-i09-i12-rest-matrix.md) separate current patch evidence from historical R16/R17 and open I12/V10 evidence. The historical description of unchecked Apache/SPOP sinks below applies to its original checkpoint, not the current patch.
+
+Current integrated evidence: physical sink tests 50, Common/event regressions 60, fully instrumented C ASan/UBSan tests 46, Apache native/C17 45 and adoption 28, Envoy native/tagged 218 tests/324 cases/8 packages and race 105/164/3 pass. All 110 NGINX adoption methods pass in four disjoint shards of 28+28+27+27 tests. Bilingual/path/link, workflow, format and Change Record checks pass. Broad Apache suite: current patch 215 tests, 7 failures/7 errors; unchanged base 195 tests, 8 failures/7 errors. No new failure/error sets; the earlier precommit_rate_limit fixture failure now passes. Three UID/chown environment errors occur on both revisions. HAProxy suite: 203 tests, five failures reproduced on base, twelve skips. Neither broad suite is claimed fully green.
+
 ## Historical R16: 2026-10-10 downstream NGINX-H1 system evidence from PR #396
 
 This is a downstream NGINX-H1 system evidence reference from PR #396, not a
@@ -143,11 +149,15 @@ Local raw evidence remains under `/var/tmp/codex/ModSecurity-conector/analysis/n
 - [x] I10c: Real NGINX collector/dispatcher/P4 chain tests retain late rules, Off behavior and cleanup (`1ce569e1`; V17).
 - [x] I10d: Envoy commitment failure stops before append; empty EOS does not invent body-started state. Checked C ABI propagates errors through Go while retaining the compatibility ABI (`31200e8c`, `81e53a94`). Native verification passed at `7d05e89f` (V20).
 - [x] I10e: Apache's checked collector cannot mutate committed Location headers or reuse stale rule metadata on a technical failure. Audit claims its attempt before callbacks and never dispatches an actionable logging-phase intervention. Present at `3c29004b`; V24 is compiled APR/native-boundary evidence, not live httpd.
-- [ ] I11: Complete producer/physical-sink parity, identifiers/causes, observed actions, duplicate terminal events and open/write/short-write/serialization failures.
+- [x] I11: Complete producer/physical-sink parity, identifiers/causes, observed actions, duplicate terminal events and open/write/short-write/serialization failures.
 - [x] I11a: Missing transport observations do not prove rule/error enforcement; custom records and actual evidence remain preserved.
 - [x] I11b: Mandatory NGINX Phase-4 log failures remain terminal; invalid sinks and repeated terminal writes are bounded.
 - [x] I11c: Missing-observation handling covers body limits, unsupported capabilities, cancellation and upstream disconnect (`3730eaa0`; V18).
 - [x] I11d: Runtime retains original event errors with NULL output, prevents failed-write retry and completion/snapshot masking, and preserves hash advancement rules (`68f78e07`; V21).
+- [x] I11e: Apache propagates typed physical sink results through request/filter callers; mandatory and diagnostic events remain distinct.
+- [x] I11f: HAProxy SPOP checks serialization, fputs/ferror/fflush and owned fclose; first sink failure prevents retry and successful ACK fallback.
+- [x] I11g: Common replay protection remains intact; Apache/SPOP and Envoy writers retain first cause and prevent further physical writes after sink failure.
+- [x] I11h: All 14 producer/sink route legs are reconciled and compiled current tests pass; no known I11 implementation gap remains. Baseline/environment and I12/V10 limitations are separate.
 - [ ] I12: Verify each direct, companion, middleware and sidecar route separately, including actual host/transport/log results.
 - [x] I12a: Ten separate ext_proc C-bridge failure/re-entry/empty-response scenarios pass (V22); not ext_authz/companion or live gRPC completion.
 - [x] I12b: Downstream R17 from PR #396 executed the standard NGINX-H1 route with actual Root/nobody and fresh projections, locally scoped functional PASS. This closes only the execution-reference subset, not PR #382 product testing or broad I12; R16 remains historical.
@@ -163,7 +173,7 @@ The [nine-column I09–I12 matrix](pr-382-i09-i12-rest-matrix.md) makes the rema
 | --- | --- |
 | I09 | Review filter/API exits outside the completed Apache module and the remaining HAProxy, direct, companion and middleware producers. Trace each error through the actual caller and cleanup path; shared predicates or diagnostics alone do not prove completion. The Apache collector/init/audit fixes above are no longer open implementation items. |
 | I10 | Verify each remaining adapter's error-to-host-control path, including failures after commitment. Native Envoy verification is now complete at V20, not an outstanding prerequisite. Do not infer missing behavior solely from a helper lacking a guard when the Common state machine may already prevent it. |
-| I11 | Apache's void event writer/callers still need complete physical failure propagation; HAProxy SPOP still needs its Common-event fputs result handled. Original Runtime I/O-error retention is fixed. These are implementation work, not just missing live evidence. |
+| I11 | Implementation complete and compiled verified; no known producer/physical-sink gap remains. Broad baseline/environment failures, unavailable HAProxy C17 headers and I12/V10 live-host evidence are recorded separately. |
 | I12 | Run route-specific host, client-byte/reset, neighbor-stream, cleanup and physical-log cases. Request-only routes require their actual response companion. |
 
 ## 2. Verification
