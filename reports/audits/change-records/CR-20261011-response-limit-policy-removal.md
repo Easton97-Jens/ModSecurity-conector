@@ -157,8 +157,12 @@ fixture parameters were repaired. The completed analysis of
 but two new duplicated lines/blocks (0.2%). Shared Authz fixture construction
 replaces the duplicate setup without changing assertions or explicit policy
 arguments. The compiler-guide generator now matches its generated files;
-22 guide tests and bilingual/path/link checks passed. A completed analysis of
-the follow-up head is still required. Base-PR analysis is not evidence for this change. NGINX/
+22 guide tests and bilingual/path/link checks passed. The completed source-head
+analysis of `6875be20f0c9c30b4ca8ad9ec62f65ac35d863cd` passed: zero new issues,
+hotspots, duplicated lines, blocks and density; Quality Gate OK. The full local
+`make quick-check` passed, including ten unittest summaries totaling 302 tests.
+Final PR-head CI/Sonar readback, including documentation follow-ups, is recorded
+in #407. Base-PR analysis is not evidence for this change. NGINX/
 HAProxy native checks blocked by missing host artifacts are not passes. The fresh integrated rerun passed. The fresh native pytest run passed 136 tests
 and 174 subtests in 44.77 seconds. Final Common helper/SDK/security/memory/flow/
 adapter/directive checks, 21 generated references, bilingual documentation, paths

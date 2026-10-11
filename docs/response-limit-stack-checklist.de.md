@@ -28,7 +28,7 @@ gegen den Basis-Branch; kein Merge ist autorisiert.
   unterschiedliche explizite Limits, unterstützte Modi und Payloads über früherem 1 MiB.
 - [x] Dateibasierte HAProxy-Binding-Komponententests; gehosteter Adapternachweis bleibt offen.
 - [x] Ausgewählte integrierte Common-/Connector-/Sicherheits-/Regressionstests und Dokumentationsprüfungen; Basisfehler unten separat ausgewiesen.
-- [ ] Abgeschlossene Sonar-Analyse des neuen PR-Heads: keine neuen Issues/Hotspots und
+- [x] Abgeschlossene Sonar-Analyse des neuen PR-Quellcode-Heads: keine neuen Issues/Hotspots und
   keine New-Code-Duplikation; keine Scanner-Ausnahmen oder abgeschwächten Prüfungen.
 
 Die erste abgeschlossene Analyse von `77e8085b663b46c9eb22b11864aadd0161dc5060`
@@ -39,8 +39,11 @@ Die abgeschlossene Analyse von `777d67efcd040b98d7d0c288379ab55012ef51b1`
 meldete keine neuen Issues oder Hotspots, aber zwei neue duplizierte Zeilen/Blöcke
 (0,2 %). Gemeinsamer Authz-Fixture-Aufbau ersetzt jetzt diese Duplikation; auch
 der Compilerleitfaden-Generator entfernt seine veraltete Response-Option.
-Der neue Head benötigt seine eigene abgeschlossene Analyse; der laufende
-Auslieferungsstand steht in #407.
+Der Quellcode-Head `6875be20f0c9c30b4ca8ad9ec62f65ac35d863cd` bestand seine
+abgeschlossene Analyse: keine neuen Issues, Hotspots, duplizierten Zeilen oder
+Blöcke und Dichte null; Quality Gate OK. Auch der vollständige lokale
+`make quick-check` bestand. Der abschließende Readback des PR-Heads,
+einschließlich Dokumentationsfolgeänderungen, steht in #407.
 
 Common-Validierung mit echter Library bestand 81 Szenarien; HAProxy-Binding-
 Validierung bestand 16 Fälle. Envoy bestand acht echte CGo-/libModSecurity-

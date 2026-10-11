@@ -166,8 +166,13 @@ meldete keine neuen Issues oder Hotspots, aber zwei neue duplizierte Zeilen/Blö
 (0,2 %). Gemeinsame Authz-Fixture-Erstellung ersetzt den doppelten Aufbau, ohne
 Assertions oder explizite Policy-Argumente zu ändern. Der Compilerleitfaden-
 Generator stimmt jetzt mit seinen generierten Dateien überein; 22 Leitfadentests
-und bilinguale/Pfad-/Linkprüfungen bestanden. Eine abgeschlossene Analyse des
-Folge-Heads ist weiter erforderlich. Die Analyse des Basis-PRs
+und bilinguale/Pfad-/Linkprüfungen bestanden. Die abgeschlossene Analyse des
+Quellcode-Heads `6875be20f0c9c30b4ca8ad9ec62f65ac35d863cd` bestand: keine neuen
+Issues, Hotspots, duplizierten Zeilen oder Blöcke und Dichte null; Quality Gate OK.
+Der vollständige lokale `make quick-check` bestand, einschließlich zehn
+unittest-Zusammenfassungen mit insgesamt 302 Tests. Der abschließende
+CI-/Sonar-Readback des PR-Heads, einschließlich Dokumentationsfolgeänderungen,
+steht in #407. Die Analyse des Basis-PRs
 belegt diese Änderung nicht. Wegen fehlender Hostartefakte blockierte native
 NGINX-/HAProxy-Prüfungen sind keine bestandenen Prüfungen. Der frische integrierte Wiederholungslauf bestand. Der frische native pytest-
 Lauf bestand 136 Tests und 174 Subtests in 44,77 Sekunden. Abschließende

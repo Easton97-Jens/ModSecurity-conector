@@ -28,7 +28,7 @@ targeting the base branch; no merge is authorized.
   different explicit limits, supported modes and payloads above old 1 MiB.
 - [x] File-backed HAProxy binding component tests; hosted adapter proof remains open.
 - [x] Selected integrated Common/connector/safety/regression tests and documentation checks; base failures are listed separately below.
-- [ ] Completed Sonar analysis for the new PR head: zero new issues/hotspots and
+- [x] Completed Sonar analysis for the new PR source head: zero new issues/hotspots and
   zero new-code duplication; no scanner exceptions or relaxed checks.
 
 The first completed analysis of `77e8085b663b46c9eb22b11864aadd0161dc5060`
@@ -39,7 +39,10 @@ The completed analysis of `777d67efcd040b98d7d0c288379ab55012ef51b1`
 reported zero new issues and hotspots, but two new duplicated lines/blocks
 (0.2%). The shared Authz fixture setup now replaces that duplication; the
 compiler-guide generator also removes its obsolete response option. The new
-head requires its own completed analysis; live delivery status is in #407.
+source head `6875be20f0c9c30b4ca8ad9ec62f65ac35d863cd` passed its completed
+analysis: zero new issues, hotspots, duplicated lines, blocks and density;
+Quality Gate OK. The full local `make quick-check` passed too. Final PR-head
+readback, including documentation follow-ups, is recorded in #407.
 
 Common real-library validation passed 81 scenarios; HAProxy binding validation
 passed 16 cases. Envoy passed eight real CGo/libModSecurity packages and its
