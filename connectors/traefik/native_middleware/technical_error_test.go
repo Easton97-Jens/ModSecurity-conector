@@ -67,59 +67,74 @@ func expectHostStop(t *testing.T, call func()) {
 func TestTechnicalFailureReachesMiddlewareHost(t *testing.T) {
 	for _, boundary := range []string{"request-headers", "response-headers", "response-body", "response-eos", "commit", "outcome", "late-outcome"} {
 		t.Run(boundary, func(t *testing.T) {
-			tx := &errorTransaction{boundary: boundary}
-			if boundary == "outcome" {
-				tx.headerDecision = func(Direction, []Header, bool) Decision { return Decision{Action: ActionDeny, Status: 403} }
-			}
-			if boundary == "late-outcome" {
-				tx.bodyDecision = func(dir Direction, _ []byte, end bool) Decision {
-					if dir == DirectionResponse && end {
-						return Decision{Action: ActionDeny, Status: 403}
-					}
-					return allowDecision()
-				}
-			}
-			config := CreateConfig()
-			config.EngineSocketPath = "/run/private/engine.sock"
-			nextCalls := 0
-			afterHeader := false
-			handler, err := newWithEngine(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				nextCalls++
-				w.WriteHeader(200)
-				afterHeader = true
-				_, _ = w.Write([]byte("original"))
-			}), config, "technical", errorOpener{tx})
-			if err != nil {
-				t.Fatal(err)
-			}
-			recorder := httptest.NewRecorder()
-			request := httptest.NewRequest("GET", "http://example.test/", nil)
-			call := func() { handler.ServeHTTP(recorder, request) }
-			pre := boundary == "request-headers" || boundary == "response-headers"
-			if pre {
-				call()
-				if recorder.Code != 500 {
-					t.Fatalf("status=%d", recorder.Code)
-				}
-			} else {
-				expectHostStop(t, call)
-			}
-			if recorder.Header().Get("Location") != "" {
-				t.Fatal("stale rule redirect escaped")
-			}
-			if boundary == "commit" && afterHeader {
-				t.Fatal("continued handler after failed commit acknowledgement")
-			}
-			if tx.calls != 1 || len(tx.closed) != 1 {
-				t.Fatalf("failure calls=%d closes=%d", tx.calls, len(tx.closed))
-			}
-			if boundary == "request-headers" && nextCalls != 0 {
-				t.Fatal("next handler invoked")
-			}
-			if !pre && boundary != "outcome" && recorder.Code != 200 {
-				t.Fatalf("committed status changed: %d", recorder.Code)
-			}
+			runTechnicalMiddlewareFailure(t, boundary)
 		})
+	}
+}
+
+func technicalFailureTransaction(boundary string) *errorTransaction {
+	tx := &errorTransaction{boundary: boundary}
+	if boundary == "outcome" {
+		tx.headerDecision = func(Direction, []Header, bool) Decision { return Decision{Action: ActionDeny, Status: 403} }
+	}
+	if boundary == "late-outcome" {
+		tx.bodyDecision = func(dir Direction, _ []byte, end bool) Decision {
+			if dir == DirectionResponse && end {
+				return Decision{Action: ActionDeny, Status: 403}
+			}
+			return allowDecision()
+		}
+	}
+	return tx
+}
+
+func runTechnicalMiddlewareFailure(t *testing.T, boundary string) {
+	t.Helper()
+	tx := technicalFailureTransaction(boundary)
+	config := CreateConfig()
+	config.EngineSocketPath = "/run/private/engine.sock"
+	nextCalls := 0
+	afterHeader := false
+	handler, err := newWithEngine(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		nextCalls++
+		w.WriteHeader(200)
+		afterHeader = true
+		_, _ = w.Write([]byte("original"))
+	}), config, "technical", errorOpener{tx})
+	if err != nil {
+		t.Fatal(err)
+	}
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest("GET", "http://example.test/", nil)
+	call := func() { handler.ServeHTTP(recorder, request) }
+	pre := boundary == "request-headers" || boundary == "response-headers"
+	if pre {
+		call()
+		if recorder.Code != 500 {
+			t.Fatalf("status=%d", recorder.Code)
+		}
+	} else {
+		expectHostStop(t, call)
+	}
+	assertTechnicalMiddlewareFailure(t, boundary, tx, recorder, pre, afterHeader, nextCalls)
+}
+
+func assertTechnicalMiddlewareFailure(t *testing.T, boundary string, tx *errorTransaction, recorder *httptest.ResponseRecorder, pre, afterHeader bool, nextCalls int) {
+	t.Helper()
+	if recorder.Header().Get("Location") != "" {
+		t.Fatal("stale rule redirect escaped")
+	}
+	if boundary == "commit" && afterHeader {
+		t.Fatal("continued handler after failed commit acknowledgement")
+	}
+	if tx.calls != 1 || len(tx.closed) != 1 {
+		t.Fatalf("failure calls=%d closes=%d", tx.calls, len(tx.closed))
+	}
+	if boundary == "request-headers" && nextCalls != 0 {
+		t.Fatal("next handler invoked")
+	}
+	if !pre && boundary != "outcome" && recorder.Code != 200 {
+		t.Fatalf("committed status changed: %d", recorder.Code)
 	}
 }
 func TestTechnicalFailureIsTerminalAndKeepsFirstCause(t *testing.T) {

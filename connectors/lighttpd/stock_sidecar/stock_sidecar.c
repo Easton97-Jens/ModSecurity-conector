@@ -1512,21 +1512,20 @@ static void sidecar_exchange_error(sidecar_exchange_state *state) {
     if (state->handled) return;
     state->handled = 1;
     msconnector_error_init(&completion_error);
-    if (state->transaction == NULL) {
-        (void)sidecar_write_error(state->client,
-            state->error.code != MSCONNECTOR_ERROR_NONE
-                ? msconnector_runtime_error_http_status(state->dependencies.runtime,
-                    state->error.code)
-                : (sidecar_remaining(&state->deadline) == 0 ? 504 : 502),
-            &state->deadline);
-        return;
-    }
     /* A later deadline must not replace the first typed failure or its status.
      * Completion APIs use scratch diagnostics to retain that original error. */
-    status = state->error.code != MSCONNECTOR_ERROR_NONE
-        ? msconnector_runtime_error_http_status(state->dependencies.runtime,
-            state->error.code)
-        : (sidecar_remaining(&state->deadline) == 0 ? 504 : state->failure_status);
+    if (state->error.code != MSCONNECTOR_ERROR_NONE) {
+        status = msconnector_runtime_error_http_status(state->dependencies.runtime,
+            state->error.code);
+    } else if (sidecar_remaining(&state->deadline) == 0) {
+        status = 504;
+    } else {
+        status = state->transaction == NULL ? 502 : state->failure_status;
+    }
+    if (state->transaction == NULL) {
+        (void)sidecar_write_error(state->client, status, &state->deadline);
+        return;
+    }
     if (state->error.code == MSCONNECTOR_ERROR_NONE &&
             sidecar_remaining(&state->deadline) == 0) {
         (void)msconnector_runtime_transaction_timeout(state->transaction, &completion_error);

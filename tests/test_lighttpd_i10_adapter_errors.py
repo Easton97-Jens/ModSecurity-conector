@@ -45,7 +45,7 @@ class LighttpdI10AdapterErrors(unittest.TestCase):
             path = cls.directory / (variant + ".c")
             path.write_text(text)
             binary = cls.directory / variant
-            command = ["rtk", "proxy"] + shlex.split(os.environ.get("CC", "cc")) + ["-std=c17", "-Wall", "-Wextra", "-Werror", "-I", str(ROOT), "-I", str(ROOT / "common/include"), str(path)]
+            command = shlex.split(os.environ.get("CC", "cc")) + ["-std=c17", "-Wall", "-Wextra", "-Werror", "-I", str(ROOT), "-I", str(ROOT / "common/include"), str(path)]
             command += [str(ROOT / "common/src" / name) for name in ("decision.c", "decision_action.c", "intervention.c", "block_statuses.c", "error.c", "status.c", "late_intervention.c", "http_status.c", "event.c", "json_escape.c", "transaction_state.c")]
             command += [str(ROOT / "connectors/profile_registry.c"), "-o", str(binary)]
             result = subprocess.run(command, capture_output=True, text=True, timeout=60)
@@ -66,8 +66,8 @@ class LighttpdI10AdapterErrors(unittest.TestCase):
                     "sidecar-ignore-return": text.replace("&state->error) != 1)", "&state->error) == 0)"),
                     "sidecar-second-response": text.replace("if (!state->client_response_started)", "if (state->client_response_started >= 0)")}
         variants["sidecar-late-status"] = text.replace(
-            "status = state->error.code != MSCONNECTOR_ERROR_NONE",
-            "status = sidecar_remaining(&state->deadline) == 0 ? 504 : state->error.code != MSCONNECTOR_ERROR_NONE")
+            "if (state->error.code != MSCONNECTOR_ERROR_NONE) {\n        status =",
+            "if (sidecar_remaining(&state->deadline) == 0) { status = 504; } else if (state->error.code != MSCONNECTOR_ERROR_NONE) {\n        status =")
         variants["sidecar-late-timeout"] = text.replace(
             "if (state->error.code == MSCONNECTOR_ERROR_NONE &&",
             "if (state->error.code >= MSCONNECTOR_ERROR_NONE &&")
@@ -75,7 +75,7 @@ class LighttpdI10AdapterErrors(unittest.TestCase):
             path = cls.directory / (variant + ".c")
             path.write_text(value)
             binary = cls.directory / variant
-            command = ["rtk", "proxy"] + shlex.split(os.environ.get("CC", "cc")) + ["-std=c17", "-Wall", "-Wextra", "-Werror", "-I", str(ROOT), "-I", str(ROOT / "common/include"), str(path)]
+            command = shlex.split(os.environ.get("CC", "cc")) + ["-std=c17", "-Wall", "-Wextra", "-Werror", "-I", str(ROOT), "-I", str(ROOT / "common/include"), str(path)]
             command += [str(ROOT / "common/src" / name) for name in ("error.c", "event.c", "http_status.c", "json_escape.c", "transaction_state.c", "decision.c", "decision_action.c", "intervention.c", "block_statuses.c", "status.c", "late_intervention.c")]
             command += [str(ROOT / "connectors/profile_registry.c"), "-o", str(binary)]
             result = subprocess.run(command, capture_output=True, text=True, timeout=60)
@@ -108,7 +108,7 @@ class LighttpdI10AdapterErrors(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0, "socket mutation escaped executable assertions")
 
     def call(self, mode, commitment, operation, fault, variant="current"):
-        return subprocess.run(["rtk", "proxy", str(self.binaries[variant]), str(mode), str(commitment), str(operation), str(fault)], capture_output=True, text=True, timeout=10)
+        return subprocess.run([str(self.binaries[variant]), str(mode), str(commitment), str(operation), str(fault)], capture_output=True, text=True, timeout=10)
 
     def test_native_off_safe_errors_and_reentry(self):
         for mode in (0, 1):

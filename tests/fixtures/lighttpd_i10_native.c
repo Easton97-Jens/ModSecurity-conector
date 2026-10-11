@@ -8,6 +8,36 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
+/* Controlled fixture seams preserve real headers above. Read-only mocks
+ * accept const arguments; separate native builds verify the actual ABI. */
+#define lighttpd_modsecurity_map_request                                       \
+  fixture_lighttpd_modsecurity_map_request
+#define lighttpd_modsecurity_map_response                                      \
+  fixture_lighttpd_modsecurity_map_response
+#define msconnector_runtime_transaction_append_request_body_chunk              \
+  fixture_msconnector_runtime_transaction_append_request_body_chunk
+#define msconnector_runtime_transaction_append_response_body_chunk             \
+  fixture_msconnector_runtime_transaction_append_response_body_chunk
+#define msconnector_runtime_transaction_begin                                  \
+  fixture_msconnector_runtime_transaction_begin
+#define msconnector_runtime_transaction_fail                                   \
+  fixture_msconnector_runtime_transaction_fail
+#define msconnector_runtime_transaction_finish                                 \
+  fixture_msconnector_runtime_transaction_finish
+#define msconnector_runtime_transaction_finish_host_rejected_request_body      \
+  fixture_msconnector_runtime_transaction_finish_host_rejected_request_body
+#define msconnector_runtime_transaction_finish_request_body                    \
+  fixture_msconnector_runtime_transaction_finish_request_body
+#define msconnector_runtime_transaction_finish_response_body                   \
+  fixture_msconnector_runtime_transaction_finish_response_body
+#define msconnector_runtime_transaction_process_response_headers               \
+  fixture_msconnector_runtime_transaction_process_response_headers
+#define msconnector_runtime_transaction_record_failure_host_action             \
+  fixture_msconnector_runtime_transaction_record_failure_host_action
+#define msconnector_runtime_transaction_record_host_action                     \
+  fixture_msconnector_runtime_transaction_record_host_action
+#define msconnector_runtime_transaction_set_response_commit_state_checked      \
+  fixture_msconnector_runtime_transaction_set_response_commit_state_checked
 #define LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION 2
 #define HTTP_VERSION_1_1 1
 #define FDEVENT_STREAM_REQUEST 1
@@ -23,7 +53,8 @@ typedef enum {
   PLUGIN_RESPONSE_ABORT_UPSTREAM_EOF = 1
 } plugin_response_abort_reason;
 struct chunkqueue {
-  off_t bytes_in, bytes_out;
+  off_t bytes_in;
+  off_t bytes_out;
 };
 struct request_st {
   void *plugin_ctx[1];
@@ -33,16 +64,21 @@ struct request_st {
   } conf;
   chunkqueue write_queue;
   size_t resp_header_len;
-  int http_status, http_version;
+  int http_status;
+  int http_version;
 };
 typedef struct {
   unsigned id;
   struct {
-    int enabled, expose_host_transaction_id;
+    int enabled;
+    int expose_host_transaction_id;
   } defaults;
   msconnector_runtime *runtime;
-  size_t header_count_limit, total_header_limit, request_body_limit;
-  int request_body_hooks_enabled, response_body_hooks_enabled;
+  size_t header_count_limit;
+  size_t total_header_limit;
+  size_t request_body_limit;
+  int request_body_hooks_enabled;
+  int response_body_hooks_enabled;
 } plugin_data;
 struct msconnector_runtime {
   enum msconnector_phase4_mode mode;
@@ -52,33 +88,61 @@ struct msconnector_runtime_transaction {
 };
 typedef struct {
   msconnector_runtime_transaction *transaction;
-  lighttpd_modsecurity_map_storage request_storage, response_storage;
+  lighttpd_modsecurity_map_storage request_storage;
+  lighttpd_modsecurity_map_storage response_storage;
   msconnector_request request;
   msconnector_response response;
   char host_request_id[96];
-  int technical_failed, host_response_attempted, response_processed,
-      request_body_finished, request_intervened, request_body_gate_rejected,
-      response_body_finished, response_body_aborted;
-  off_t request_body_next_offset, response_body_next_offset;
+  int technical_failed;
+  int host_response_attempted;
+  int response_processed;
+  int request_body_finished;
+  int request_intervened;
+  int request_body_gate_rejected;
+  int response_body_finished;
+  int response_body_aborted;
+  off_t request_body_next_offset;
+  off_t response_body_next_offset;
 } handler_ctx;
-static int fault, invalid_return, native_calls, status_calls, ack_calls;
+static int fault;
+static int invalid_return;
+static int native_calls;
+static int status_calls;
+static int ack_calls;
 static msconnector_runtime_transaction *active_tx;
+static msconnector_error_code fixture_error_code(void) {
+  switch (fault) {
+  case 5:
+    return MSCONNECTOR_ERROR_TIMEOUT;
+  case 6:
+    return MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE;
+  case 7:
+    return MSCONNECTOR_ERROR_PROTOCOL;
+  case 8:
+    return MSCONNECTOR_ERROR_MODSECURITY_FAILURE;
+  default:
+    return MSCONNECTOR_ERROR_HOST_API_FAILURE;
+  }
+}
+static msconnector_transaction_error_class fixture_error_cause(void) {
+  switch (fault) {
+  case 5:
+    return MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT;
+  case 6:
+    return MSCONNECTOR_TRANSACTION_ERROR_ENGINE_UNAVAILABLE;
+  case 7:
+    return MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL;
+  default:
+    return MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE;
+  }
+}
 static int native_result(msconnector_error *error) {
   ++native_calls;
   if (fault) {
-    msconnector_error_code code =
-        fault == 5   ? MSCONNECTOR_ERROR_TIMEOUT
-        : fault == 6 ? MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE
-        : fault == 7 ? MSCONNECTOR_ERROR_PROTOCOL
-        : fault == 8 ? MSCONNECTOR_ERROR_MODSECURITY_FAILURE
-                     : MSCONNECTOR_ERROR_HOST_API_FAILURE;
+    msconnector_error_code code = fixture_error_code();
     msconnector_error_set(error, code, "controlled native failure", "fixture");
     if (active_tx->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
-      msconnector_transaction_error_class cause =
-          fault == 5   ? MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT
-          : fault == 6 ? MSCONNECTOR_TRANSACTION_ERROR_ENGINE_UNAVAILABLE
-          : fault == 7 ? MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL
-                       : MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE;
+      msconnector_transaction_error_class cause = fixture_error_cause();
       assert(msconnector_transaction_contract_fail(&active_tx->contract, cause,
                                                    101U) == 0);
     }
@@ -91,24 +155,25 @@ int msconnector_runtime_error_http_status(const msconnector_runtime *r,
   (void)r;
   return msconnector_error_http_status(c);
 }
-int msconnector_runtime_transaction_fail(msconnector_runtime_transaction *tx,
-                                         msconnector_transaction_error_class c,
-                                         msconnector_error *e) {
+int fixture_msconnector_runtime_transaction_fail(
+    msconnector_runtime_transaction *tx, msconnector_transaction_error_class c,
+    const msconnector_error *e) {
   (void)e;
   if (tx->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE)
     assert(msconnector_transaction_contract_fail(&tx->contract, c, 102U) == 0);
   return 1;
 }
-int msconnector_runtime_transaction_set_response_commit_state_checked(
-    msconnector_runtime_transaction *tx, int h, int b, msconnector_error *e) {
+int fixture_msconnector_runtime_transaction_set_response_commit_state_checked(
+    msconnector_runtime_transaction *tx, int h, int b,
+    const msconnector_error *e) {
   (void)e;
   tx->contract.response_committed = h;
   (void)b;
   return fault == 4 ? 0 : 1;
 }
-int msconnector_runtime_transaction_record_failure_host_action(
-    msconnector_runtime_transaction *tx, int status, int aborted,
-    msconnector_error *e) {
+int fixture_msconnector_runtime_transaction_record_failure_host_action(
+    const msconnector_runtime_transaction *tx, int status, int aborted,
+    const msconnector_error *e) {
   (void)tx;
   (void)status;
   (void)aborted;
@@ -116,10 +181,10 @@ int msconnector_runtime_transaction_record_failure_host_action(
   ++ack_calls;
   return 1;
 }
-int msconnector_runtime_transaction_record_host_action(
-    msconnector_runtime_transaction *tx, const msconnector_decision *d,
+int fixture_msconnector_runtime_transaction_record_host_action(
+    const msconnector_runtime_transaction *tx, const msconnector_decision *d,
     msconnector_decision_action a, int status, const char *t, int abort,
-    msconnector_error *e) {
+    const msconnector_error *e) {
   (void)tx;
   (void)d;
   (void)a;
@@ -130,23 +195,23 @@ int msconnector_runtime_transaction_record_host_action(
   ++ack_calls;
   return fault == 11 ? 0 : 1;
 }
-int msconnector_runtime_transaction_append_response_body_chunk(
-    msconnector_runtime_transaction *t, const unsigned char *d, size_t n,
+int fixture_msconnector_runtime_transaction_append_response_body_chunk(
+    const msconnector_runtime_transaction *t, const unsigned char *d, size_t n,
     msconnector_error *e) {
   (void)t;
   (void)d;
   (void)n;
   return native_result(e);
 }
-int msconnector_runtime_transaction_finish_response_body(
-    msconnector_runtime_transaction *t, msconnector_decision *d,
+int fixture_msconnector_runtime_transaction_finish_response_body(
+    const msconnector_runtime_transaction *t, msconnector_decision *d,
     msconnector_error *e) {
   (void)t;
   msconnector_decision_init(d);
   return native_result(e);
 }
-int msconnector_runtime_transaction_finish_request_body(
-    msconnector_runtime_transaction *t, msconnector_decision *d,
+int fixture_msconnector_runtime_transaction_finish_request_body(
+    const msconnector_runtime_transaction *t, msconnector_decision *d,
     msconnector_error *e) {
   (void)t;
   msconnector_decision_init(d);
@@ -163,17 +228,17 @@ static handler_t http_status_set_err(request_st *r, int status) {
   r->http_status = status;
   return HANDLER_FINISHED;
 }
-static void log_error(void *h, const char *f, int l, const char *fmt, ...) {
-  (void)h;
-  (void)f;
-  (void)l;
-  (void)fmt;
-}
+/* Logging is intentionally outside the controlled host-action observations. */
+static char fixture_log_buffer[4096];
+#define log_error(h, f, l, ...)                                                \
+  ((void)(h), (void)(f), (void)(l),                                            \
+   (void)snprintf(fixture_log_buffer, sizeof(fixture_log_buffer),              \
+                  __VA_ARGS__))
 
 static handler_ctx mod_msconnector_failed_context = {.technical_failed = 1};
 static handler_ctx *allocated_ctx;
 static int cleanup_calls;
-static handler_ctx *handler_ctx_create(plugin_data *p) {
+static handler_ctx *handler_ctx_create(const plugin_data *p) {
   (void)p;
   return fault == 9 ? NULL : allocated_ctx;
 }
@@ -183,15 +248,15 @@ static void handler_ctx_destroy(handler_ctx **c) {
     *c = NULL;
   }
 }
-static handler_t mod_msconnector_prepare_request_body(request_st *r,
-                                                      plugin_data *p,
-                                                      handler_ctx *c) {
+static handler_t mod_msconnector_prepare_request_body(const request_st *r,
+                                                      const plugin_data *p,
+                                                      const handler_ctx *c) {
   (void)r;
   (void)p;
   (void)c;
   return HANDLER_GO_ON;
 }
-static int mod_msconnector_emit_host_transaction_id(request_st *r,
+static int mod_msconnector_emit_host_transaction_id(const request_st *r,
                                                     const plugin_data *p,
                                                     const handler_ctx *c) {
   (void)r;
@@ -209,10 +274,10 @@ void msconnector_runtime_response_contract(
   (void)r;
   memset(c, 0, sizeof(*c));
 }
-int lighttpd_modsecurity_map_request(
+int fixture_lighttpd_modsecurity_map_request(
     const request_st *r, const msconnector_request_mapper_contract *c, size_t l,
-    lighttpd_modsecurity_map_storage *s, msconnector_request *out, char *e,
-    size_t n) {
+    const lighttpd_modsecurity_map_storage *s, const msconnector_request *out,
+    const char *e, size_t n) {
   (void)r;
   (void)c;
   (void)l;
@@ -222,10 +287,10 @@ int lighttpd_modsecurity_map_request(
   (void)n;
   return 1;
 }
-int lighttpd_modsecurity_map_response(
+int fixture_lighttpd_modsecurity_map_response(
     const request_st *r, const msconnector_response_mapper_contract *c,
-    size_t l, lighttpd_modsecurity_map_storage *s, msconnector_response *out,
-    char *e, size_t n) {
+    size_t l, const lighttpd_modsecurity_map_storage *s,
+    const msconnector_response *out, const char *e, size_t n) {
   (void)r;
   (void)c;
   (void)l;
@@ -235,12 +300,10 @@ int lighttpd_modsecurity_map_response(
   (void)n;
   return 1;
 }
-int msconnector_runtime_transaction_begin(msconnector_runtime *r,
-                                          const msconnector_request *q,
-                                          const char *h,
-                                          msconnector_runtime_transaction **t,
-                                          msconnector_decision *d,
-                                          msconnector_error *e) {
+int fixture_msconnector_runtime_transaction_begin(
+    const msconnector_runtime *r, const msconnector_request *q, const char *h,
+    msconnector_runtime_transaction **t, msconnector_decision *d,
+    msconnector_error *e) {
   (void)r;
   (void)q;
   (void)h;
@@ -248,30 +311,30 @@ int msconnector_runtime_transaction_begin(msconnector_runtime *r,
   msconnector_decision_init(d);
   return native_result(e);
 }
-int msconnector_runtime_transaction_process_response_headers(
-    msconnector_runtime_transaction *t, const msconnector_response *r,
+int fixture_msconnector_runtime_transaction_process_response_headers(
+    const msconnector_runtime_transaction *t, const msconnector_response *r,
     msconnector_decision *d, msconnector_error *e) {
   (void)t;
   (void)r;
   msconnector_decision_init(d);
   return native_result(e);
 }
-int msconnector_runtime_transaction_finish(msconnector_runtime_transaction *t,
-                                           msconnector_error *e) {
+int fixture_msconnector_runtime_transaction_finish(
+    const msconnector_runtime_transaction *t, const msconnector_error *e) {
   (void)t;
   (void)e;
   ++native_calls;
   return fault == 12 ? 0 : 1;
 }
-int msconnector_runtime_transaction_finish_host_rejected_request_body(
-    msconnector_runtime_transaction *t, msconnector_error *e) {
+int fixture_msconnector_runtime_transaction_finish_host_rejected_request_body(
+    const msconnector_runtime_transaction *t, const msconnector_error *e) {
   (void)t;
   (void)e;
   return 1;
 }
 static handler_t
-mod_msconnector_finish_uninspected_response_body(request_st *r,
-                                                 handler_ctx *c) {
+mod_msconnector_finish_uninspected_response_body(const request_st *r,
+                                                 const handler_ctx *c) {
   (void)r;
   (void)c;
   return fault == 13 ? HANDLER_ERROR : HANDLER_GO_ON;
@@ -282,8 +345,8 @@ typedef struct {
   handler_ctx *ctx;
   msconnector_error runtime_error;
 } mod_msconnector_body_append_context;
-int msconnector_runtime_transaction_append_request_body_chunk(
-    msconnector_runtime_transaction *t, const unsigned char *d, size_t n,
+int fixture_msconnector_runtime_transaction_append_request_body_chunk(
+    const msconnector_runtime_transaction *t, const unsigned char *d, size_t n,
     msconnector_error *e) {
   (void)t;
   (void)d;
@@ -299,9 +362,121 @@ int lighttpd_modsecurity_visit_body_range(
   return c(u, (const unsigned char *)"x", 1, e, l);
 }
 /* DEFINITIONS */
+static int fixture_dispatch(int operation, request_st *r, plugin_data *p,
+                            handler_ctx *ctx, msconnector_runtime *runtime) {
+  int result;
+  if (operation == 0)
+    result = mod_msconnector_finish_request_body(r, p, ctx);
+  else if (operation == 1)
+    result = mod_msconnector_handle_response_body(r, (const unsigned char *)"x",
+                                                  1, 0, 0, p);
+  else if (operation == 2)
+    result = mod_msconnector_handle_response_body(r, NULL, 0, 0, 1, p);
+  else if (operation == 3)
+    result = mod_msconnector_handle_response_abort(
+        r, PLUGIN_RESPONSE_ABORT_UPSTREAM_EOF, p);
+  else if (operation == 10 || operation == 11) {
+    ctx->request_body_finished = 1;
+    ctx->response_body_finished = operation == 10;
+    if (operation == 11)
+      p->response_body_hooks_enabled = 0;
+    result = mod_msconnector_handle_request_reset(r, p);
+    assert(result == HANDLER_ERROR && cleanup_calls == 1 && status_calls == 0);
+    assert(mod_msconnector_handle_request_reset(r, p) == HANDLER_GO_ON);
+    assert(cleanup_calls == 1 && native_calls == (operation == 10 ? 1 : 0));
+    return 0;
+  } else if (operation == 8 || operation == 9) {
+    msconnector_decision decision;
+    msconnector_decision_set_deny(&decision, 403, "fixture-rule",
+                                  "fixture deny");
+    result = mod_msconnector_apply_decision(r, p, ctx, &decision);
+  } else if (operation == 7) {
+    chunkqueue q = {0};
+    result = mod_msconnector_handle_request_body(r, &q, 0, 1, 0, 1, p);
+  } else if (operation == 5) {
+    r->plugin_ctx[0] = NULL;
+    result = mod_msconnector_handle_uri_clean(r, p);
+  } else if (operation == 6) {
+    ctx->response_processed = 0;
+    result = mod_msconnector_handle_response_start(r, p);
+  } else
+    result = mod_msconnector_fail_request(r, runtime, ctx,
+                                          MSCONNECTOR_ERROR_HOST_API_FAILURE);
+  return result;
+}
+static void fixture_reenter(int operation, request_st *r, plugin_data *p,
+                            handler_ctx *ctx) {
+  if (operation == 5)
+    assert(mod_msconnector_handle_uri_clean(r, p) == HANDLER_ERROR);
+  else if (operation == 6)
+    assert(mod_msconnector_handle_response_start(r, p) == HANDLER_ERROR);
+  else if (operation == 7) {
+    chunkqueue q = {0};
+    assert(mod_msconnector_handle_request_body(r, &q, 0, 1, 0, 1, p) ==
+           HANDLER_ERROR);
+  } else if (operation == 0)
+    assert(mod_msconnector_finish_request_body(r, p, ctx) == HANDLER_ERROR);
+  else
+    assert(mod_msconnector_handle_response_body(
+               r, NULL, 0, ctx->response_body_next_offset, 1, p) ==
+           PLUGIN_BODY_HOOK_ERROR);
+}
+/* Independent HTTP oracle: do not derive expected values from Common mapping.
+ */
+static int fixture_expected_status(int operation) {
+  if (operation == 3 || operation == 4)
+    return 500;
+  switch (fault) {
+  case 5:
+    return 504;
+  case 6:
+    return 503;
+  case 7:
+    return 502;
+  default:
+    return 500;
+  }
+}
+static void fixture_verify(int operation, int commit, int result, request_st *r,
+                           plugin_data *p, handler_ctx *ctx,
+                           const msconnector_runtime_transaction *tx, int calls,
+                           int statuses, int acks) {
+  if (fault || operation == 3 || operation == 4) {
+    assert(ctx->technical_failed || fault == 9);
+    assert(operation == 0 || result == HANDLER_ERROR ||
+           result == PLUGIN_BODY_HOOK_ERROR ||
+           (operation == 4 && result == HANDLER_FINISHED));
+    assert(commit ? statuses == 0 : statuses == 1);
+    int expected = fixture_expected_status(operation);
+    if (operation == 8)
+      assert(r->http_status == 200);
+    else if (operation == 9)
+      assert(r->http_status == 403);
+    else
+      assert(r->http_status == (commit ? 200 : expected));
+    assert(fault == 9 ||
+           tx->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE);
+    msconnector_transaction_error_class first_cause = tx->contract.error_class;
+    fixture_reenter(operation, r, p, ctx);
+    assert(tx->contract.error_class == first_cause);
+    assert(native_calls == calls);
+    assert(status_calls == statuses);
+    assert(ack_calls == acks);
+    assert(mod_msconnector_handle_request_reset(r, p) == HANDLER_ERROR);
+    assert(mod_msconnector_handle_request_reset(r, p) == HANDLER_GO_ON);
+    assert(cleanup_calls == 1);
+    assert(native_calls == calls);
+  } else {
+    assert(!ctx->technical_failed);
+    assert(result == 0);
+    assert(statuses == 0);
+  }
+}
 int main(int argc, char **argv) {
   assert(argc == 5);
-  int mode = atoi(argv[1]), commit = atoi(argv[2]), operation = atoi(argv[3]);
+  int mode = atoi(argv[1]);
+  int commit = atoi(argv[2]);
+  int operation = atoi(argv[3]);
   fault = atoi(argv[4]);
   msconnector_runtime runtime = {.mode = (enum msconnector_phase4_mode)mode};
   msconnector_runtime_transaction tx = {0};
@@ -326,93 +501,14 @@ int main(int argc, char **argv) {
   if (commit)
     r.write_queue.bytes_out = commit == 1 ? 20 : 21;
   invalid_return = fault == 2;
-  int result;
-  if (operation == 0)
-    result = mod_msconnector_finish_request_body(&r, &p, &ctx);
-  else if (operation == 1)
-    result = mod_msconnector_handle_response_body(
-        &r, (const unsigned char *)"x", 1, 0, 0, &p);
-  else if (operation == 2)
-    result = mod_msconnector_handle_response_body(&r, NULL, 0, 0, 1, &p);
-  else if (operation == 3)
-    result = mod_msconnector_handle_response_abort(
-        &r, PLUGIN_RESPONSE_ABORT_UPSTREAM_EOF, &p);
-  else if (operation == 10 || operation == 11) {
-    ctx.request_body_finished = 1;
-    ctx.response_body_finished = operation == 10;
-    if (operation == 11)
-      p.response_body_hooks_enabled = 0;
-    result = mod_msconnector_handle_request_reset(&r, &p);
-    assert(result == HANDLER_ERROR && cleanup_calls == 1 && status_calls == 0);
-    assert(mod_msconnector_handle_request_reset(&r, &p) == HANDLER_GO_ON);
-    assert(cleanup_calls == 1 && native_calls == (operation == 10 ? 1 : 0));
+  int result = fixture_dispatch(operation, &r, &p, &ctx, &runtime);
+  if (operation == 10 || operation == 11)
     return 0;
-  } else if (operation == 8 || operation == 9) {
-    msconnector_decision decision;
-    msconnector_decision_set_deny(&decision, 403, "fixture-rule",
-                                  "fixture deny");
-    result = mod_msconnector_apply_decision(&r, &p, &ctx, &decision);
-  } else if (operation == 7) {
-    chunkqueue q = {0};
-    result = mod_msconnector_handle_request_body(&r, &q, 0, 1, 0, 1, &p);
-  } else if (operation == 5) {
-    r.plugin_ctx[0] = NULL;
-    result = mod_msconnector_handle_uri_clean(&r, &p);
-  } else if (operation == 6) {
-    ctx.response_processed = 0;
-    result = mod_msconnector_handle_response_start(&r, &p);
-  } else
-    result = mod_msconnector_fail_request(&r, &runtime, &ctx,
-                                          MSCONNECTOR_ERROR_HOST_API_FAILURE);
-  int calls = native_calls, statuses = status_calls, acks = ack_calls;
-  if (fault || operation == 3 || operation == 4) {
-    assert(ctx.technical_failed || fault == 9);
-    assert(operation == 0 || result == HANDLER_ERROR ||
-           result == PLUGIN_BODY_HOOK_ERROR ||
-           (operation == 4 && result == HANDLER_FINISHED));
-    assert(commit ? statuses == 0 : statuses == 1);
-    int expected = (operation == 3 || operation == 4) ? 500
-                   : fault == 5                       ? 504
-                   : fault == 6                       ? 503
-                   : fault == 7                       ? 502
-                                                      : 500;
-    if (operation == 8)
-      assert(r.http_status == 200);
-    else if (operation == 9)
-      assert(r.http_status == 403);
-    else
-      assert(r.http_status == (commit ? 200 : expected));
-    assert(fault == 9 ||
-           tx.contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE);
-    msconnector_transaction_error_class first_cause = tx.contract.error_class;
-    if (operation == 5)
-      assert(mod_msconnector_handle_uri_clean(&r, &p) == HANDLER_ERROR);
-    else if (operation == 6)
-      assert(mod_msconnector_handle_response_start(&r, &p) == HANDLER_ERROR);
-    else if (operation == 7) {
-      chunkqueue q = {0};
-      assert(mod_msconnector_handle_request_body(&r, &q, 0, 1, 0, 1, &p) ==
-             HANDLER_ERROR);
-    } else if (operation == 0)
-      assert(mod_msconnector_finish_request_body(&r, &p, &ctx) ==
-             HANDLER_ERROR);
-    else
-      assert(mod_msconnector_handle_response_body(
-                 &r, NULL, 0, ctx.response_body_next_offset, 1, &p) ==
-             PLUGIN_BODY_HOOK_ERROR);
-    assert(tx.contract.error_class == first_cause);
-    assert(native_calls == calls);
-    assert(status_calls == statuses);
-    assert(ack_calls == acks);
-    assert(mod_msconnector_handle_request_reset(&r, &p) == HANDLER_ERROR);
-    assert(mod_msconnector_handle_request_reset(&r, &p) == HANDLER_GO_ON);
-    assert(cleanup_calls == 1);
-    assert(native_calls == calls);
-  } else {
-    assert(!ctx.technical_failed);
-    assert(result == 0);
-    assert(statuses == 0);
-  }
+  int calls = native_calls;
+  int statuses = status_calls;
+  int acks = ack_calls;
+  fixture_verify(operation, commit, result, &r, &p, &ctx, &tx, calls, statuses,
+                 acks);
   printf("native caller mode=%d commit=%d operation=%d fault=%d calls=%d "
          "status=%d ack=%d\n",
          mode, commit, operation, fault, native_calls, status_calls, ack_calls);

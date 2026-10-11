@@ -893,28 +893,33 @@ func expectTechnicalHostStop(t *testing.T, call func()) {
 func TestTechnicalEOSFailureStopsCommittedObserver(t *testing.T) {
 	for _, action := range []byte{decisionAllow, decisionError, decisionUnsupported} {
 		t.Run(fmt.Sprint(action), func(t *testing.T) {
-			path, stop, operations := startFakeObserver(t, func(op byte) (byte, byte) {
-				if op == opResponseEOS {
-					if action == decisionAllow {
-						return action, resultError
-					}
-					return action, resultOK
-				}
-				return decisionAllow, resultOK
-			})
-			defer stop()
-			handler := newObserverHandler(t, path, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("committed")) }))
-			recorder := httptest.NewRecorder()
-			expectTechnicalHostStop(t, func() { handler.ServeHTTP(recorder, newObserverRequest()) })
-			if recorder.Code != 200 || recorder.Body.String() != "committed" {
-				t.Fatalf("replacement response: %d %q", recorder.Code, recorder.Body.String())
-			}
-			for _, op := range operations.snapshot() {
-				if op == opOutcome || op == opRelease {
-					t.Fatalf("technical failure ran success/log-only opcode %d", op)
-				}
-			}
+			runTechnicalEOSFailure(t, action)
 		})
+	}
+}
+
+func runTechnicalEOSFailure(t *testing.T, action byte) {
+	t.Helper()
+	path, stop, operations := startFakeObserver(t, func(op byte) (byte, byte) {
+		if op == opResponseEOS {
+			if action == decisionAllow {
+				return action, resultError
+			}
+			return action, resultOK
+		}
+		return decisionAllow, resultOK
+	})
+	defer stop()
+	handler := newObserverHandler(t, path, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("committed")) }))
+	recorder := httptest.NewRecorder()
+	expectTechnicalHostStop(t, func() { handler.ServeHTTP(recorder, newObserverRequest()) })
+	if recorder.Code != 200 || recorder.Body.String() != "committed" {
+		t.Fatalf("replacement response: %d %q", recorder.Code, recorder.Body.String())
+	}
+	for _, op := range operations.snapshot() {
+		if op == opOutcome || op == opRelease {
+			t.Fatalf("technical failure ran success/log-only opcode %d", op)
+		}
 	}
 }
 
@@ -930,37 +935,47 @@ func (w observedStatusWriter) WriteHeader(status int) {
 func TestImmediateOutcomeAcknowledgementFollowsHostAction(t *testing.T) {
 	for _, failOp := range []byte{opOutcome, opCancel} {
 		t.Run(fmt.Sprint(failOp), func(t *testing.T) {
-			applied := make(chan int, 2)
-			path, stop, _ := startFakeObserver(t, func(op byte) (byte, byte) {
-				if op == opResponseHeaders {
-					return decisionDeny, resultOK
-				}
-				if op == opOutcome {
-					select {
-					case status := <-applied:
-						if status != 403 {
-							t.Errorf("host status=%d", status)
-						}
-					default:
-						t.Error("outcome preceded host action")
-					}
-				}
-				if op == failOp {
-					return decisionError, resultError
-				}
-				return decisionAllow, resultOK
-			})
-			defer stop()
-			handler := newObserverHandler(t, path, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(200) }))
-			recorder := httptest.NewRecorder()
-			expectTechnicalHostStop(t, func() { handler.ServeHTTP(observedStatusWriter{recorder, applied}, newObserverRequest()) })
-			if recorder.Code != 403 {
-				t.Fatalf("committed status relabelled: %d", recorder.Code)
-			}
-			if len(applied) != 0 {
-				t.Fatal("second response after committed acknowledgement failure")
-			}
+			runImmediateOutcomeFailure(t, failOp)
 		})
+	}
+}
+
+func assertOutcomeAfterHostAction(t *testing.T, applied <-chan int) {
+	t.Helper()
+	select {
+	case status := <-applied:
+		if status != 403 {
+			t.Errorf("host status=%d", status)
+		}
+	default:
+		t.Error("outcome preceded host action")
+	}
+}
+
+func runImmediateOutcomeFailure(t *testing.T, failOp byte) {
+	t.Helper()
+	applied := make(chan int, 2)
+	path, stop, _ := startFakeObserver(t, func(op byte) (byte, byte) {
+		if op == opResponseHeaders {
+			return decisionDeny, resultOK
+		}
+		if op == opOutcome {
+			assertOutcomeAfterHostAction(t, applied)
+		}
+		if op == failOp {
+			return decisionError, resultError
+		}
+		return decisionAllow, resultOK
+	})
+	defer stop()
+	handler := newObserverHandler(t, path, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(200) }))
+	recorder := httptest.NewRecorder()
+	expectTechnicalHostStop(t, func() { handler.ServeHTTP(observedStatusWriter{recorder, applied}, newObserverRequest()) })
+	if recorder.Code != 403 {
+		t.Fatalf("committed status relabelled: %d", recorder.Code)
+	}
+	if len(applied) != 0 {
+		t.Fatal("second response after committed acknowledgement failure")
 	}
 }
 
@@ -986,36 +1001,46 @@ func TestObserverIgnoredHostWriteFailureStillStopsWithoutEOS(t *testing.T) {
 	for _, short := range []bool{false, true} {
 		for _, cancelFail := range []bool{false, true} {
 			t.Run(fmt.Sprintf("short=%v/cancelFail=%v", short, cancelFail), func(t *testing.T) {
-				path, stop, operations := startFakeObserver(t, func(op byte) (byte, byte) {
-					if op == opCancel && cancelFail {
-						return decisionError, resultError
-					}
-					return decisionAllow, resultOK
-				})
-				defer stop()
-				handler := newObserverHandler(t, path, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					_, first := w.Write([]byte("downstream"))
-					want := io.ErrClosedPipe
-					if short {
-						want = io.ErrShortWrite
-					}
-					if !errors.Is(first, want) {
-						t.Errorf("first error=%v, want %v", first, want)
-					}
-					_, again := w.Write([]byte("must-not-reenter"))
-					if !errors.Is(again, errClosed) {
-						t.Errorf("reentry error=%v", again)
-					}
-				}))
-				writer := &terminalWriteObserver{ResponseRecorder: httptest.NewRecorder(), short: short}
-				expectTechnicalHostStop(t, func() { handler.ServeHTTP(writer, newObserverRequest()) })
-				if writer.Code != 200 || writer.headers != 1 || writer.writes != 1 {
-					t.Fatalf("host status=%d headers=%d writes=%d", writer.Code, writer.headers, writer.writes)
-				}
-				if got, want := operations.snapshot(), []byte{opClaim, opResponseHeaders, opCommit, opResponseBody, opCancel}; !sameBytes(got, want) {
-					t.Fatalf("operations=%v, want no repeated body/EOS/cleanup %v", got, want)
-				}
+				runIgnoredHostWriteFailure(t, short, cancelFail)
 			})
 		}
+	}
+}
+
+func assertRepeatedHostWriteFails(t *testing.T, w http.ResponseWriter, short bool) {
+	t.Helper()
+	_, first := w.Write([]byte("downstream"))
+	want := io.ErrClosedPipe
+	if short {
+		want = io.ErrShortWrite
+	}
+	if !errors.Is(first, want) {
+		t.Errorf("first error=%v, want %v", first, want)
+	}
+	_, again := w.Write([]byte("must-not-reenter"))
+	if !errors.Is(again, errClosed) {
+		t.Errorf("reentry error=%v", again)
+	}
+}
+
+func runIgnoredHostWriteFailure(t *testing.T, short, cancelFail bool) {
+	t.Helper()
+	path, stop, operations := startFakeObserver(t, func(op byte) (byte, byte) {
+		if op == opCancel && cancelFail {
+			return decisionError, resultError
+		}
+		return decisionAllow, resultOK
+	})
+	defer stop()
+	handler := newObserverHandler(t, path, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		assertRepeatedHostWriteFails(t, w, short)
+	}))
+	writer := &terminalWriteObserver{ResponseRecorder: httptest.NewRecorder(), short: short}
+	expectTechnicalHostStop(t, func() { handler.ServeHTTP(writer, newObserverRequest()) })
+	if writer.Code != 200 || writer.headers != 1 || writer.writes != 1 {
+		t.Fatalf("host status=%d headers=%d writes=%d", writer.Code, writer.headers, writer.writes)
+	}
+	if got, want := operations.snapshot(), []byte{opClaim, opResponseHeaders, opCommit, opResponseBody, opCancel}; !sameBytes(got, want) {
+		t.Fatalf("operations=%v, want no repeated body/EOS/cleanup %v", got, want)
 	}
 }

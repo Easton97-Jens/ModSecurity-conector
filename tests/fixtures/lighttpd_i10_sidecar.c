@@ -15,6 +15,24 @@
 #include <sys/socket.h>
 #include <time.h>
 #include <unistd.h>
+/* Controlled fixture seams preserve real headers above. Read-only mocks
+ * accept const arguments; separate native builds verify the actual ABI. */
+#define msconnector_runtime_transaction_append_response_body_chunk             \
+  fixture_msconnector_runtime_transaction_append_response_body_chunk
+#define msconnector_runtime_transaction_finalize_and_snapshot                  \
+  fixture_msconnector_runtime_transaction_finalize_and_snapshot
+#define msconnector_runtime_transaction_finish                                 \
+  fixture_msconnector_runtime_transaction_finish
+#define msconnector_runtime_transaction_finish_response_body                   \
+  fixture_msconnector_runtime_transaction_finish_response_body
+#define msconnector_runtime_transaction_process_response_headers               \
+  fixture_msconnector_runtime_transaction_process_response_headers
+#define msconnector_runtime_transaction_record_failure_host_action             \
+  fixture_msconnector_runtime_transaction_record_failure_host_action
+#define msconnector_runtime_transaction_record_host_action                     \
+  fixture_msconnector_runtime_transaction_record_host_action
+#define msconnector_runtime_transaction_set_response_commit_state_checked      \
+  fixture_msconnector_runtime_transaction_set_response_commit_state_checked
 #define SIDECAR_IO_CHUNK 2048U
 /* TYPES */
 struct msconnector_runtime {
@@ -25,8 +43,14 @@ struct msconnector_runtime_transaction {
   msconnector_transaction_contract contract;
 };
 static msconnector_runtime_transaction tx;
-static int fault, native_calls, cleanup_calls, receipt_calls, host_calls;
-static int exchange_allowed, timeout_calls, visible_status;
+static int fault;
+static int native_calls;
+static int cleanup_calls;
+static int receipt_calls;
+static int host_calls;
+static int exchange_allowed;
+static int timeout_calls;
+static int visible_status;
 size_t msconnector_runtime_total_header_limit(const msconnector_runtime *r) {
   (void)r;
   return 8192;
@@ -65,15 +89,15 @@ int msconnector_runtime_transaction_timeout(msconnector_runtime_transaction *t,
   t->failed = 1;
   return 1;
 }
-int msconnector_runtime_transaction_finish(msconnector_runtime_transaction *t,
-                                           msconnector_error *e) {
+int fixture_msconnector_runtime_transaction_finish(
+    const msconnector_runtime_transaction *t, const msconnector_error *e) {
   (void)t;
   (void)e;
   return 1;
 }
-int msconnector_runtime_transaction_record_failure_host_action(
-    msconnector_runtime_transaction *t, int status, int aborted,
-    msconnector_error *e) {
+int fixture_msconnector_runtime_transaction_record_failure_host_action(
+    const msconnector_runtime_transaction *t, int status, int aborted,
+    const msconnector_error *e) {
   (void)t;
   visible_status = status;
   (void)aborted;
@@ -81,16 +105,17 @@ int msconnector_runtime_transaction_record_failure_host_action(
   ++host_calls;
   return 1;
 }
-int msconnector_runtime_transaction_set_response_commit_state_checked(
-    msconnector_runtime_transaction *t, int h, int b, msconnector_error *e) {
+int fixture_msconnector_runtime_transaction_set_response_commit_state_checked(
+    const msconnector_runtime_transaction *t, int h, int b,
+    const msconnector_error *e) {
   (void)t;
   (void)h;
   (void)b;
   (void)e;
   return fault == 4 ? 0 : 1;
 }
-int msconnector_runtime_transaction_append_response_body_chunk(
-    msconnector_runtime_transaction *t, const unsigned char *d, size_t n,
+int fixture_msconnector_runtime_transaction_append_response_body_chunk(
+    const msconnector_runtime_transaction *t, const unsigned char *d, size_t n,
     msconnector_error *e) {
   (void)t;
   (void)d;
@@ -103,9 +128,9 @@ int msconnector_runtime_transaction_append_response_body_chunk(
   }
   return 1;
 }
-int msconnector_runtime_transaction_finalize_and_snapshot(
+int fixture_msconnector_runtime_transaction_finalize_and_snapshot(
     msconnector_runtime_transaction **t,
-    msconnector_runtime_transaction_snapshot *s, msconnector_error *e) {
+    msconnector_runtime_transaction_snapshot *s, const msconnector_error *e) {
   (void)e;
   memset(s, 0, sizeof(*s));
   s->contract.engine_decision = exchange_allowed
@@ -176,25 +201,25 @@ static int sidecar_forward_response(sidecar_exchange_state *s) {
 static void sidecar_finish_decision(sidecar_exchange_state *s) {
   s->handled = 1;
 }
-static void sidecar_record_action(msconnector_runtime_transaction *t,
+static void sidecar_record_action(const msconnector_runtime_transaction *t,
                                   const msconnector_decision *d,
-                                  msconnector_error *e) {
+                                  const msconnector_error *e) {
   (void)t;
   (void)d;
   (void)e;
 }
 static void sidecar_record_decision_delivery_failure(
-    int fd, msconnector_runtime_transaction *t, const msconnector_decision *d,
-    msconnector_error *e) {
+    int fd, const msconnector_runtime_transaction *t,
+    const msconnector_decision *d, const msconnector_error *e) {
   (void)fd;
   (void)t;
   (void)d;
   (void)e;
 }
-int msconnector_runtime_transaction_record_host_action(
-    msconnector_runtime_transaction *t, const msconnector_decision *d,
+int fixture_msconnector_runtime_transaction_record_host_action(
+    const msconnector_runtime_transaction *t, const msconnector_decision *d,
     msconnector_decision_action a, int status, const char *x, int aborted,
-    msconnector_error *e) {
+    const msconnector_error *e) {
   (void)t;
   (void)d;
   (void)a;
@@ -208,8 +233,8 @@ enum msconnector_phase4_mode
 msconnector_runtime_phase4_mode(const msconnector_runtime *r) {
   return (enum msconnector_phase4_mode)r->mode;
 }
-int msconnector_runtime_transaction_process_response_headers(
-    msconnector_runtime_transaction *t, const msconnector_response *r,
+int fixture_msconnector_runtime_transaction_process_response_headers(
+    const msconnector_runtime_transaction *t, const msconnector_response *r,
     msconnector_decision *d, msconnector_error *e) {
   (void)t;
   (void)r;
@@ -222,8 +247,8 @@ int msconnector_runtime_transaction_process_response_headers(
   }
   return 1;
 }
-int msconnector_runtime_transaction_finish_response_body(
-    msconnector_runtime_transaction *t, msconnector_decision *d,
+int fixture_msconnector_runtime_transaction_finish_response_body(
+    const msconnector_runtime_transaction *t, msconnector_decision *d,
     msconnector_error *e) {
   (void)t;
   ++native_calls;
@@ -237,13 +262,130 @@ int msconnector_runtime_transaction_finish_response_body(
 }
 /* DEFINITIONS */
 
+static void fixture_body(sidecar_exchange_state *state, const int *client,
+                         const int *upstream, int committed) {
+
+  assert(send(upstream[1], "x", 1, 0) == 1);
+  int result = sidecar_read_response_body(state);
+  if (fault) {
+    assert(result == 0);
+    sidecar_exchange_error(state);
+    int calls = native_calls;
+    int actions = host_calls;
+    assert(sidecar_read_response_body(state) == 0);
+    sidecar_exchange_error(state);
+    assert(native_calls == calls && host_calls == actions);
+    char output[256];
+    ssize_t n = recv(client[1], output, sizeof(output) - 1, MSG_DONTWAIT);
+    if (committed)
+      assert(n == 0);
+    else {
+      assert(n > 0);
+      output[n] = '\0';
+      assert(strstr(output, "HTTP/1.1 500 Error"));
+      assert(!strstr(output, "HTTP/1.1 200"));
+    }
+  } else {
+    assert(result == 1);
+    char byte = 0;
+    assert(recv(client[1], &byte, 1, 0) == 1 && byte == 'x');
+  }
+}
+
+static void fixture_protocol(sidecar_exchange_state *state, const int *client,
+                             const int *upstream, int committed) {
+  (void)upstream;
+
+  state->failure_origin = SIDECAR_FAILURE_PROTOCOL;
+  sidecar_exchange_error(state);
+  char output[256];
+  ssize_t n = recv(client[1], output, sizeof(output) - 1, MSG_DONTWAIT);
+  assert(committed ? n == 0 : n > 0);
+  assert(tx.failed);
+}
+
+static void fixture_deadline(sidecar_exchange_state *state, const int *client,
+                             const int *upstream, int committed) {
+  (void)client;
+  (void)upstream;
+
+  state->deadline.at_ms = 0;
+  msconnector_error_code initial = MSCONNECTOR_ERROR_NONE;
+  if (fault == 1)
+    initial = MSCONNECTOR_ERROR_HOST_API_FAILURE;
+  else if (fault != 0)
+    initial = MSCONNECTOR_ERROR_MODSECURITY_FAILURE;
+  msconnector_error_set(&state->error, initial, "first typed cause", "fixture");
+  assert(msconnector_transaction_contract_init(
+             &tx.contract, msconnector_profile_registry_find("lighttpd-stock"),
+             "first-cause", "lighttpd", "fixture",
+             MSCONNECTOR_TRANSACTION_MODE_SAFE,
+             0U) == MSCONNECTOR_TRANSACTION_TRANSITION_OK);
+  msconnector_transaction_error_class cause =
+      fault == 1 ? MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR
+                 : MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE;
+  if (fault)
+    assert(msconnector_transaction_contract_fail(&tx.contract, cause, 0U) ==
+           MSCONNECTOR_TRANSACTION_TRANSITION_OK);
+  sidecar_exchange_error(state);
+  int expected_status = fault ? 500 : 504;
+  if (committed)
+    expected_status = 0;
+  assert(visible_status == expected_status);
+  assert(timeout_calls == (fault ? 0 : 1));
+  assert(state->error.code == initial);
+  if (fault)
+    assert(tx.contract.error_class == cause);
+  int actions = host_calls;
+  sidecar_exchange_error(state);
+  assert(host_calls == actions);
+}
+
+static void fixture_phases(sidecar_exchange_state *state, const int *client,
+                           const int *upstream, int committed) {
+  (void)committed;
+
+  phase_upstream = upstream[0];
+  assert(send(upstream[1], "x", 1, 0) == 1);
+  int result = sidecar_exchange_response(state);
+  assert(result == 0);
+  sidecar_exchange_error(state);
+  char output[256];
+  ssize_t n = recv(client[1], output, sizeof(output) - 1, 0);
+  assert(n > 0);
+  output[n] = '\0';
+  if (fault == 5) {
+    assert(strstr(output, "HTTP/1.1 500 Error"));
+    assert(native_calls == 1);
+  } else {
+    assert(fault == 6);
+    assert(n == 1 && output[0] == 'x');
+    assert(native_calls == 3);
+    assert(recv(client[1], output, sizeof(output), 0) == 0);
+  }
+  close(state->upstream);
+}
+
+static void fixture_exchange(const int *client, const int *upstream,
+                             const sidecar_options *options,
+                             msconnector_runtime *runtime) {
+  exchange_allowed = fault == 0;
+  phase_upstream = upstream[0];
+  if (exchange_allowed)
+    assert(send(upstream[1], "x", 1, 0) == 1);
+  int result = sidecar_exchange(client[0], options, runtime);
+  assert(result == exchange_allowed);
+  assert(cleanup_calls == 1);
+  assert(receipt_calls == 1);
+}
 int main(int argc, char **argv) {
   assert(argc == 5);
   msconnector_runtime runtime = {.mode = atoi(argv[1])};
   int committed = atoi(argv[2]);
   fault = atoi(argv[3]);
   int operation = atoi(argv[4]);
-  int client[2], upstream[2];
+  int client[2];
+  int upstream[2];
   assert(socketpair(AF_UNIX, SOCK_STREAM, 0, client) == 0);
   assert(socketpair(AF_UNIX, SOCK_STREAM, 0, upstream) == 0);
   sidecar_options options = {.timeout_ms = 1000};
@@ -253,96 +395,22 @@ int main(int argc, char **argv) {
   state.upstream = upstream[0];
   state.client_response_started = committed;
   state.payload.response_headers.content_length = 1;
-  if (operation == 0) {
-    assert(send(upstream[1], "x", 1, 0) == 1);
-    int result = sidecar_read_response_body(&state);
-    if (fault) {
-      assert(result == 0);
-      sidecar_exchange_error(&state);
-      int calls = native_calls, actions = host_calls;
-      assert(sidecar_read_response_body(&state) == 0);
-      sidecar_exchange_error(&state);
-      assert(native_calls == calls && host_calls == actions);
-      char output[256];
-      ssize_t n = recv(client[1], output, sizeof(output) - 1, MSG_DONTWAIT);
-      if (committed)
-        assert(n == 0);
-      else {
-        assert(n > 0);
-        output[n] = '\0';
-        assert(strstr(output, "HTTP/1.1 500 Error"));
-        assert(!strstr(output, "HTTP/1.1 200"));
-      }
-    } else {
-      assert(result == 1);
-      char byte = 0;
-      assert(recv(client[1], &byte, 1, 0) == 1 && byte == 'x');
-    }
-  } else if (operation == 1) {
-    state.failure_origin = SIDECAR_FAILURE_PROTOCOL;
-    sidecar_exchange_error(&state);
-    char output[256];
-    ssize_t n = recv(client[1], output, sizeof(output) - 1, MSG_DONTWAIT);
-    assert(committed ? n == 0 : n > 0);
-    assert(tx.failed);
-  } else if (operation == 4) {
-    state.deadline.at_ms = 0;
-    msconnector_error_code initial =
-        fault == 0 ? MSCONNECTOR_ERROR_NONE
-                   : (fault == 1 ? MSCONNECTOR_ERROR_HOST_API_FAILURE
-                                 : MSCONNECTOR_ERROR_MODSECURITY_FAILURE);
-    msconnector_error_set(&state.error, initial, "first typed cause",
-                          "fixture");
-    assert(msconnector_transaction_contract_init(
-               &tx.contract,
-               msconnector_profile_registry_find("lighttpd-stock"),
-               "first-cause", "lighttpd", "fixture",
-               MSCONNECTOR_TRANSACTION_MODE_SAFE,
-               0U) == MSCONNECTOR_TRANSACTION_TRANSITION_OK);
-    msconnector_transaction_error_class cause =
-        fault == 1 ? MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR
-                   : MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE;
-    if (fault)
-      assert(msconnector_transaction_contract_fail(&tx.contract, cause, 0U) ==
-             MSCONNECTOR_TRANSACTION_TRANSITION_OK);
-    sidecar_exchange_error(&state);
-    assert(visible_status == (committed ? 0 : (fault ? 500 : 504)));
-    assert(timeout_calls == (fault ? 0 : 1));
-    assert(state.error.code == initial);
-    if (fault)
-      assert(tx.contract.error_class == cause);
-    int actions = host_calls;
-    sidecar_exchange_error(&state);
-    assert(host_calls == actions);
-  } else if (operation == 3) {
-    phase_upstream = upstream[0];
-    assert(send(upstream[1], "x", 1, 0) == 1);
-    int result = sidecar_exchange_response(&state);
-    assert(result == 0);
-    sidecar_exchange_error(&state);
-    char output[256];
-    ssize_t n = recv(client[1], output, sizeof(output) - 1, 0);
-    assert(n > 0);
-    output[n] = '\0';
-    if (fault == 5) {
-      assert(strstr(output, "HTTP/1.1 500 Error"));
-      assert(native_calls == 1);
-    } else {
-      assert(fault == 6);
-      assert(n == 1 && output[0] == 'x');
-      assert(native_calls == 3);
-      assert(recv(client[1], output, sizeof(output), 0) == 0);
-    }
-    close(state.upstream);
-  } else {
-    exchange_allowed = fault == 0;
-    phase_upstream = upstream[0];
-    if (exchange_allowed)
-      assert(send(upstream[1], "x", 1, 0) == 1);
-    int result = sidecar_exchange(client[0], &options, &runtime);
-    assert(result == exchange_allowed);
-    assert(cleanup_calls == 1);
-    assert(receipt_calls == 1);
+  switch (operation) {
+  case 0:
+    fixture_body(&state, client, upstream, committed);
+    break;
+  case 1:
+    fixture_protocol(&state, client, upstream, committed);
+    break;
+  case 4:
+    fixture_deadline(&state, client, upstream, committed);
+    break;
+  case 3:
+    fixture_phases(&state, client, upstream, committed);
+    break;
+  default:
+    fixture_exchange(client, upstream, &options, &runtime);
+    break;
   }
   close(client[0]);
   close(client[1]);

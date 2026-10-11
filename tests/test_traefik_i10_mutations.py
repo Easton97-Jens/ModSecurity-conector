@@ -1,6 +1,7 @@
 """Executable Traefik I10 negative controls in external source/module copies."""
 from __future__ import annotations
 
+import ctypes.util
 import os
 from pathlib import Path
 import shutil
@@ -63,6 +64,11 @@ class TraefikI10MutationTests(unittest.TestCase):
                 self.assertNotIn("[build failed]", output, output)
 
     def test_c_dispatcher_and_wire_boundaries_detect_mutations(self) -> None:
+        if shutil.which("cc") is None:
+            self.skipTest("requires a C compiler")
+        if ctypes.util.find_library("modsecurity") is None:
+            self.skipTest("requires installed libmodsecurity to link retained Common runtime")
+
         cases = (
             ("exact-return", "if (success != 1) {", "if (!success) {"),
             ("typed-error", "if (handled == 1 && (decision->kind", "if (0 && handled == 1 && (decision->kind"),

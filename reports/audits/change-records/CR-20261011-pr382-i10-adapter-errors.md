@@ -207,10 +207,35 @@ Stacked delivery: base branch remains fix/unified-native-results-events-20260921
 
 ## Final diff and review status
 
-Final diff was reviewed against original requirements and productive seams; independent review and final first-cause/reentry/negative controls leave no known adapter implementation gap. I10a–I10e remain intact. I09/I11/I12 and V08–V10 retain their separate open remainder. Commit/push/stacked Draft PR are authorized and will be performed next by Root; delivery head, CI, reviews and Sonar remain checks_pending until actually observed. No merge/deployment is claimed.
+Final diff was reviewed against original requirements and productive seams; independent review and final first-cause/reentry/negative controls leave no known adapter implementation gap. I10a–I10e remain intact. I09/I11/I12 and V08–V10 retain their separate open remainder. Stacked Draft [PR #409](https://github.com/Easton97-Jens/ModSecurity-conector/pull/409) is open on the selected base branch. Initial commit `4d451b8515e0f7bea888050dc1e898d645dfd30a` was pushed and verified against local, remote and PR head. Current CI follow-up work remains `checks_pending`; no merge/deployment is claimed.
 
-Delivery is prepared in an additional own worktree on the currently observed PR #382 base `498653c2a193d34b7b25b2903b1e4db1c45e7f73`. Only the complete task patch is transferred; original worktree/branch/start HEAD and test identities remain intact. This is no merge/rebase/history rewrite. Fresh delivery checks must confirm unchanged I10 source hashes and retained B09 fix; CI/Sonar head binding remains checks_pending.
+Delivery was prepared in an additional own worktree on the observed PR #382 base `498653c2a193d34b7b25b2903b1e4db1c45e7f73`. The complete task patch was transferred; original worktree/branch/start HEAD and test identities remain intact. Fresh delivery checks confirmed the transferred I10 source hashes and retained B09 fix. No merge/rebase/history rewrite occurred; follow-up CI/Sonar head binding remains checks_pending at commit preparation.
 
 Delivery verification passed: all 58 task files were byte-identical after transfer (delivery-source-binding.json); the retained B09 fixture passed 4 tests (delivery-b09, exit 0), and fresh bilingual/path/link checks passed (delivery-checks, exit 0).
+
+## Hosted CI follow-up
+
+Stacked Draft PR409 was created and initial head `4d451b8515e0f7bea888050dc1e898d645dfd30a` pushed. Its first hosted checks exposed two test-driver prerequisite defects: lighttpd embedded RTK in child argv although RTK is only the local outer execution proxy; Traefik's C mutation driver treated a successfully skipped child without libmodsecurity as a surviving mutation. Both are corrected without weakening assertions. A PATH=/usr/bin:/bin run executes all7 lighttpd methods without child RTK. Actual installedSDK executes all15 Traefik mutations without skips; controlled missing compiler/library branches each produce an explicit Skip without launching a child. The latter are prerequisite checks, not executed C acceptance.
+
+Full wrapper-authenticated Sonar readback for that exact initial head returned170 OPEN CODE_SMELL issues (HAProxy76, lighttpd75, Traefik17, Envoy2), zero accepted issues/security hotspots and0.0% duplication. The standard Quality Gate passed, while the repository's stricter zero-findings check failed; neither that gate nor earlier successful checks establish the follow-up head's pass. Readback pagination total170 matched all170 records. Authentication used the verified canonical `/usr/local/bin/sonar-with-env` under RTK, without credentials in evidence.
+
+Follow-up changes split declarations/assignments/ternaries and extract bounded scenario helpers. Real native headers and production ABI remain unchanged. Read-only controlled test stubs are explicitly named fixture seams mapped after the headers; their const qualifiers describe the test seam only. All case combinations, typed first-cause, terminal reentry, once-only cleanup and effective mutations remain. lighttpd's two nested status expressions become equivalent ordered conditions, preserving an earlier typed cause over a later deadline. Independent review additionally retained the native lighttpd expected-status oracle as literal504/503/502/500 values instead of sharing production status mapping. No rule, gate, exclusion, suppression or assertion was relaxed.
+
+Fresh focused follow-up checks (own delivery worktree; external environment and command.json/result.json/output.log retained):
+
+| Exact command | Exit | Python methods | Seconds | Run ID |
+| --- | --- | --- | --- | --- |
+| `rtk proxy env PATH=/usr/bin:/bin /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_lighttpd_i10_adapter_errors` | 0 | 7 | 17.498 | `ci-lighttpd-no-rtk-path` |
+| `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_traefik_i10_mutations` | 0 | 2 | 49.729 | `ci-traefik-mutation-prerequisites` |
+| `rtk proxy make check-i10-envoy-callers` | 0 | 5 | 30.007 | `envoy-sonar-test-refactor` |
+| `rtk proxy go vet -mod=readonly ./...` | 0 | 0 | 2.095 | `envoy-sonar-vet` |
+| `rtk proxy make check-i10-traefik-callers` | 0 | 3 | 56.693 | `sonar-traefik-refactor` |
+| `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -m unittest discover -s tests -p 'test_lighttpd*.py' -v` | 0 | 22 | 15.227 | `sonar-lighttpd-oracle` |
+| `rtk proxy env MODSECURITY_INCLUDE_DIR=/usr/include MODSECURITY_LIB_DIR=/usr/lib/x86_64-linux-gnu make -C connectors/lighttpd build-lighttpd-stock-sidecar` | 0 | 0 | 9.906 | `sonar-lighttpd-native` |
+| `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -m unittest tests.test_haproxy_i10_host_callers tests.test_haproxy_i10_binding_callers -v` | 0 | 7 | 68.521 | `sonar-haproxy-refactor` |
+
+Traefik target also executes both Go race/vet packages and the native dispatcher; Envoy target executes8 Go race packages and all5 Go mutations plus checked-C-finish controls. HAProxy retains7 methods/22 effective mutants. The latest lighttpd22 suite retains479 executable cases/9 mutants; genuine native sidecar compile/link uses installed libmodsecurity3.0.14 with C17 warning controls. The controlled Traefik prerequisite proof is separately recorded in `evidence/ci-traefik-prerequisite-skips/` (exit0, two explicit skips). Initial portable-source tests and initial refactor runs remain historical evidence; final oracle-preserving lighttpd result supersedes the earlier fixture refactor.
+
+The initial58-file byte-identical transfer remains historical and valid. These scoped follow-up edits intentionally change selected transferred test files and two sidecar status expressions; no claim of unchanged current58 hashes is made. Complete base-to-final-head patch is refreshed at delivery. At follow-up commit preparation, fresh hosted CI and Sonar for the new head are `checks_pending`; final observed head/status are recorded in the PR body and external delivery evidence.
 
 I10 IMPLEMENTATION COMPLETE – remaining live-host/transport evidence belongs to I12/V08-V10

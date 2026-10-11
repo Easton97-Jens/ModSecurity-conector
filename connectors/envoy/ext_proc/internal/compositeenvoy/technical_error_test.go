@@ -136,23 +136,28 @@ func TestI10CompanionMissingEOSAndCancelAreTerminalErrors(t *testing.T) {
 	for _, recvErr := range []error{io.EOF, context.Canceled} {
 		for _, bodyStarted := range []bool{false, true} {
 			t.Run(recvErr.Error()+"/body="+fmt.Sprint(bodyStarted), func(t *testing.T) {
-				server, opener, _, lease := newProcessFixture(t, processor.ActionAllow, 200)
-				stream := &interruptedProcessStream{err: recvErr}
-				stream.requests = []*extprocv3.ProcessingRequest{initialResponseHeaders(lease, "200", false)}
-				if bodyStarted {
-					stream.requests = append(stream.requests, &extprocv3.ProcessingRequest{Request: &extprocv3.ProcessingRequest_ResponseBody{ResponseBody: &extprocv3.HttpBody{Body: []byte("partial")}}})
-				}
-				if err := server.Process(stream); err == nil {
-					t.Fatal("incomplete response stream returned success")
-				}
-				wantResponses := 1
-				if bodyStarted {
-					wantResponses++
-				}
-				if len(stream.responses) != wantResponses || opener.tx.commits != 1 || len(opener.tx.actions) != 0 {
-					t.Fatal("interruption fabricated a second response or an observed action")
-				}
+				assertCompanionInterruptionIsTerminal(t, recvErr, bodyStarted)
 			})
 		}
+	}
+}
+
+func assertCompanionInterruptionIsTerminal(t *testing.T, recvErr error, bodyStarted bool) {
+	t.Helper()
+	server, opener, _, lease := newProcessFixture(t, processor.ActionAllow, 200)
+	stream := &interruptedProcessStream{err: recvErr}
+	stream.requests = []*extprocv3.ProcessingRequest{initialResponseHeaders(lease, "200", false)}
+	if bodyStarted {
+		stream.requests = append(stream.requests, &extprocv3.ProcessingRequest{Request: &extprocv3.ProcessingRequest_ResponseBody{ResponseBody: &extprocv3.HttpBody{Body: []byte("partial")}}})
+	}
+	if err := server.Process(stream); err == nil {
+		t.Fatal("incomplete response stream returned success")
+	}
+	wantResponses := 1
+	if bodyStarted {
+		wantResponses++
+	}
+	if len(stream.responses) != wantResponses || opener.tx.commits != 1 || len(opener.tx.actions) != 0 {
+		t.Fatal("interruption fabricated a second response or an observed action")
 	}
 }
