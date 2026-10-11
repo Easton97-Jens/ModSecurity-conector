@@ -1787,29 +1787,34 @@ func (tx *reportedCleanupTransaction) CleanupFailure() error { return tx.err }
 func TestStreamCloseKeepsIncompleteFinishLocalAndSinkFailureFatal(t *testing.T) {
 	for _, mode := range []string{"sink", "incomplete"} {
 		t.Run(mode, func(t *testing.T) {
-			first := errors.New("mandatory event sink failure")
-			if mode == "incomplete" {
-				first = fmt.Errorf("%w: incomplete body", ErrTransactionFinishPhaseSequence)
-			}
-			tx := &reportedCleanupTransaction{recordingTransaction: &recordingTransaction{}, err: first}
-			state := newStreamState(testConfig(LateActionSafe), nil, discardObserver{})
-			state.transaction = tx
-			if got := state.closeOwned(CloseContextCanceled); !errors.Is(got, first) {
-				t.Fatalf("closeOwned(cancel) = %v, want %v", got, first)
-			}
-			if mode == "sink" && !errors.Is(state.cleanupFailure, first) {
-				t.Fatalf("cleanupFailure = %v, want fatal sink cause %v", state.cleanupFailure, first)
-			}
-			if mode == "incomplete" && state.cleanupFailure != nil {
-				t.Fatalf("cleanupFailure = %v, want no process failure for incomplete lifecycle", state.cleanupFailure)
-			}
-			if got := state.closeOwned(CloseContextCanceled); got != nil {
-				t.Fatalf("closeOwned(retry) = %v, want no duplicate work", got)
-			}
-			if len(tx.closed) != 1 {
-				t.Fatalf("closeOwned(retry) close calls = %d, want 1", len(tx.closed))
-			}
+			testStreamCloseFailureClassification(t, mode)
 		})
+	}
+}
+
+func testStreamCloseFailureClassification(t *testing.T, mode string) {
+	t.Helper()
+	first := errors.New("mandatory event sink failure")
+	if mode == "incomplete" {
+		first = fmt.Errorf("%w: incomplete body", ErrTransactionFinishPhaseSequence)
+	}
+	tx := &reportedCleanupTransaction{recordingTransaction: &recordingTransaction{}, err: first}
+	state := newStreamState(testConfig(LateActionSafe), nil, discardObserver{})
+	state.transaction = tx
+	if got := state.closeOwned(CloseContextCanceled); !errors.Is(got, first) {
+		t.Fatalf("closeOwned(cancel) = %v, want %v", got, first)
+	}
+	if mode == "sink" && !errors.Is(state.cleanupFailure, first) {
+		t.Fatalf("cleanupFailure = %v, want fatal sink cause %v", state.cleanupFailure, first)
+	}
+	if mode == "incomplete" && state.cleanupFailure != nil {
+		t.Fatalf("cleanupFailure = %v, want no process failure for incomplete lifecycle", state.cleanupFailure)
+	}
+	if got := state.closeOwned(CloseContextCanceled); got != nil {
+		t.Fatalf("closeOwned(retry) = %v, want no duplicate work", got)
+	}
+	if len(tx.closed) != 1 {
+		t.Fatalf("closeOwned(retry) close calls = %d, want 1", len(tx.closed))
 	}
 }
 

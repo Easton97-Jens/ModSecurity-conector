@@ -948,64 +948,80 @@ func (e *cleanupReportingEngine) Open(context.Context, processor.StreamMetadata)
 func TestCoordinatorReportsCleanupFailureWithoutDuplicateTerminal(t *testing.T) {
 	for _, mode := range []string{"sink", "incomplete"} {
 		t.Run(mode, func(t *testing.T) {
-			first := errors.New("physical sink failure")
-			if mode == "incomplete" {
-				first = fmt.Errorf("%w: request incomplete", processor.ErrTransactionFinishPhaseSequence)
-			}
-			engine := &cleanupReportingEngine{err: first}
-			log := &eventLog{}
-			c, err := New("envoy", []byte("01234567890123456789012345678901"), Limits{}, engine, log)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer c.Close()
-			admission, _, err := c.BeginRequest(context.Background(), metadata(), nil, false)
-			if err != nil {
-				t.Fatal(err)
-			}
-			tx := engine.latest
-			id := admission.e.id
-			admission.e.finish(context.Background(), "disconnect")
-			admission.e.finish(context.Background(), "disconnect")
-			if mode == "sink" {
-				if got := c.Err(); !errors.Is(got, first) {
-					t.Fatalf("Err(after sink cleanup) = %v, want first cause %v", got, first)
-				}
-				if _, _, got := c.BeginRequest(context.Background(), metadata(), nil, true); !errors.Is(got, first) {
-					t.Fatalf("BeginRequest(after sink cleanup) = %v, want %v", got, first)
-				}
-			} else {
-				if got := c.Err(); got != nil {
-					t.Fatalf("Err(after local incomplete finish) = %v, want nil", got)
-				}
-				if _, _, got := c.BeginRequest(context.Background(), metadata(), nil, true); got != nil {
-					t.Fatalf("BeginRequest(after local incomplete finish) = %v, want admitted", got)
-				}
-			}
-			c.Close()
-			tx.mu.Lock()
-			closes := tx.closeCount
-			tx.mu.Unlock()
-			if closes != 1 {
-				t.Fatalf("finish(retry) cleanup calls = %d, want 1", closes)
-			}
-			log.mu.Lock()
-			defer log.mu.Unlock()
-			terminal := 0
-			for _, event := range log.events {
-				if event.DecisionID == id && event.Phase == "terminal" {
-					terminal++
-					if event.Outcome != "failed" || event.CleanupOutcome != "failed" {
-						t.Fatalf("cleanup terminal = %#v, want failed outcome and cleanup", event)
-					}
-				}
-			}
-			if terminal != 1 {
-				t.Fatalf("finish(retry) terminal events = %d, want 1", terminal)
-			}
+			testCoordinatorCleanupFailure(t, mode)
 		})
 	}
 }
+
+func testCoordinatorCleanupFailure(t *testing.T, mode string) {
+	t.Helper()
+	first := errors.New("physical sink failure")
+	if mode == "incomplete" {
+		first = fmt.Errorf("%w: request incomplete", processor.ErrTransactionFinishPhaseSequence)
+	}
+	engine := &cleanupReportingEngine{err: first}
+	log := &eventLog{}
+	c, err := New("envoy", []byte("01234567890123456789012345678901"), Limits{}, engine, log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	admission, _, err := c.BeginRequest(context.Background(), metadata(), nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx := engine.latest
+	id := admission.e.id
+	admission.e.finish(context.Background(), "disconnect")
+	admission.e.finish(context.Background(), "disconnect")
+	assertCoordinatorCleanupAdmission(t, c, mode, first)
+	c.Close()
+	tx.mu.Lock()
+	closes := tx.closeCount
+	tx.mu.Unlock()
+	if closes != 1 {
+		t.Fatalf("finish(retry) cleanup calls = %d, want 1", closes)
+	}
+	assertSingleFailedCleanupTerminal(t, log, id)
+}
+
+func assertCoordinatorCleanupAdmission(t *testing.T, c *Coordinator, mode string, first error) {
+	t.Helper()
+	if mode == "sink" {
+		if got := c.Err(); !errors.Is(got, first) {
+			t.Fatalf("Err(after sink cleanup) = %v, want first cause %v", got, first)
+		}
+		if _, _, got := c.BeginRequest(context.Background(), metadata(), nil, true); !errors.Is(got, first) {
+			t.Fatalf("BeginRequest(after sink cleanup) = %v, want %v", got, first)
+		}
+	} else {
+		if got := c.Err(); got != nil {
+			t.Fatalf("Err(after local incomplete finish) = %v, want nil", got)
+		}
+		if _, _, got := c.BeginRequest(context.Background(), metadata(), nil, true); got != nil {
+			t.Fatalf("BeginRequest(after local incomplete finish) = %v, want admitted", got)
+		}
+	}
+}
+
+func assertSingleFailedCleanupTerminal(t *testing.T, log *eventLog, id string) {
+	t.Helper()
+	log.mu.Lock()
+	defer log.mu.Unlock()
+	terminal := 0
+	for _, event := range log.events {
+		if event.DecisionID == id && event.Phase == "terminal" {
+			terminal++
+			if event.Outcome != "failed" || event.CleanupOutcome != "failed" {
+				t.Fatalf("cleanup terminal = %#v, want failed outcome and cleanup", event)
+			}
+		}
+	}
+	if terminal != 1 {
+		t.Fatalf("finish(retry) terminal events = %d, want 1", terminal)
+	}
+}
+
 func TestCoordinatorReportsCleanupFailureAfterAdmissionClosesDuringOpen(t *testing.T) {
 	first := errors.New("sink cleanup failure after shutdown")
 	engine := &cleanupReportingEngine{err: first}

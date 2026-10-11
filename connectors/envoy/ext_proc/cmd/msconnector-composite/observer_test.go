@@ -387,63 +387,74 @@ func sinkTestEvent() composite.Event {
 func TestCompositeObserverRetainsSinkFailureWithoutRetry(t *testing.T) {
 	for _, mode := range []string{"closed", "read-only", "no-progress"} {
 		t.Run(mode, func(t *testing.T) {
-			t.Parallel()
-			path := filepath.Join(t.TempDir(), "events.jsonl")
-			observer, _, err := newCompositeObserver(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			original := observer.file
-			switch mode {
-			case "closed":
-				if err := original.Close(); err != nil {
-					t.Fatal(err)
-				}
-			case "read-only":
-				if err := original.Close(); err != nil {
-					t.Fatal(err)
-				}
-				observer.file, err = os.Open(path)
-				if err != nil {
-					t.Fatal(err)
-				}
-			case "no-progress":
-				observer.file = &noProgressEventLogFile{File: original.(*os.File)}
-			}
-			event := sinkTestEvent()
-			first := observer.Observe(event)
-			if first == nil {
-				t.Fatal("Observe(failing sink) = nil, want failure")
-			}
-			_ = observer.file.Close()
-			healthy, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0)
-			if err != nil {
-				t.Fatal(err)
-			}
-			observer.file = healthy
-			if got := observer.Observe(event); got != first {
-				t.Fatalf("Observe(retry) = %v, want %v", got, first)
-			}
-			if got := observer.Observe(composite.Event{}); got != first {
-				t.Fatalf("Observe(invalid retry) = %v, want %v", got, first)
-			}
-			if got := observer.Err(); got != first {
-				t.Fatalf("Err() = %v, want %v", got, first)
-			}
-			if got := observer.Close(); got != first {
-				t.Fatalf("Close() = %v, want %v", got, first)
-			}
-			if got := observer.Close(); got != first {
-				t.Fatalf("Close(retry) = %v, want %v", got, first)
-			}
-			content, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if len(content) != 0 {
-				t.Fatalf("Observe(retry) left %d bytes, want 0", len(content))
-			}
+			testCompositeObserverSinkFailure(t, mode)
 		})
+	}
+}
+
+func testCompositeObserverSinkFailure(t *testing.T, mode string) {
+	t.Helper()
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "events.jsonl")
+	observer, _, err := newCompositeObserver(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	configureCompositeFailingSink(t, observer, path, mode)
+	event := sinkTestEvent()
+	first := observer.Observe(event)
+	if first == nil {
+		t.Fatal("Observe(failing sink) = nil, want failure")
+	}
+	_ = observer.file.Close()
+	healthy, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	observer.file = healthy
+	if got := observer.Observe(event); got != first {
+		t.Fatalf("Observe(retry) = %v, want %v", got, first)
+	}
+	if got := observer.Observe(composite.Event{}); got != first {
+		t.Fatalf("Observe(invalid retry) = %v, want %v", got, first)
+	}
+	if got := observer.Err(); got != first {
+		t.Fatalf("Err() = %v, want %v", got, first)
+	}
+	if got := observer.Close(); got != first {
+		t.Fatalf("Close() = %v, want %v", got, first)
+	}
+	if got := observer.Close(); got != first {
+		t.Fatalf("Close(retry) = %v, want %v", got, first)
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(content) != 0 {
+		t.Fatalf("Observe(retry) left %d bytes, want 0", len(content))
+	}
+}
+
+func configureCompositeFailingSink(t *testing.T, observer *compositeObserver, path, mode string) {
+	t.Helper()
+	original := observer.file
+	switch mode {
+	case "closed":
+		if err := original.Close(); err != nil {
+			t.Fatal(err)
+		}
+	case "read-only":
+		if err := original.Close(); err != nil {
+			t.Fatal(err)
+		}
+		file, err := os.Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		observer.file = file
+	case "no-progress":
+		observer.file = &noProgressEventLogFile{File: original.(*os.File)}
 	}
 }
 
