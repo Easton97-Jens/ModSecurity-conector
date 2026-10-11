@@ -12,6 +12,7 @@ import (
 
 	"github.com/Easton97-Jens/ModSecurity-conector/connectors/envoy/ext_proc/internal/composite"
 	"github.com/Easton97-Jens/ModSecurity-conector/connectors/envoy/ext_proc/internal/processor"
+	authv3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -110,43 +111,58 @@ func TestCheckCompletenessBoundaryWithRealCommonEngine(t *testing.T) {
 			for _, partial := range []bool{true, false} {
 				for _, size := range []int{1, 256} {
 					t.Run(fmt.Sprintf("partial=%t/size=%d", partial, size), func(t *testing.T) {
-						opener := &completenessOpener{engine: engine}
-						observer := &recordedLifecycleEvents{}
-						coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 1}, opener, observer)
-						if err != nil {
-							t.Fatal(err)
-						}
-						defer coordinator.Close()
-						server, err := NewAuthzServer(coordinator)
-						if err != nil {
-							t.Fatal(err)
-						}
-						body := []byte(strings.Repeat("a", size) + "completeness-tail-marker")
-						request := authCheckRequest(body)
-						marker := "false"
-						if partial {
-							marker = "true"
-						}
-						request.GetAttributes().GetRequest().GetHttp().Headers = map[string]string{authPartialBodyHeader: marker, "content-type": "text/plain"}
-						response, err := server.Check(context.Background(), request)
-						if partial {
-							if status.Code(err) != codes.InvalidArgument || response != nil || opener.opens != 0 || opener.bytes != 0 || opener.eos != 0 || len(observer.snapshot()) != 0 {
-								t.Fatalf("Check(partial,%s) response=%v err=%v native=%+v events=%v, want technical rejection before open/body/EOS/lease", mode, response, err, opener, observer.snapshot())
-							}
-							return
-						}
-						if err != nil || opener.opens != 1 || opener.bytes != len(body) || opener.eos != 1 {
-							t.Fatalf("Check(complete,%s) response=%v err=%v native=%+v, want one native open/full body/EOS", mode, response, err, opener)
-						}
-						if mode == "On" && (response.GetDeniedResponse().GetStatus().GetCode() != 403 || opener.decision.RuleID != "1200997") {
-							t.Fatalf("Check(complete,%s) response=%v, want native tail-rule denial", mode, response)
-						}
-						if mode == "DetectionOnly" && (response.GetOkResponse() == nil || response.GetDynamicMetadata().GetFields()[metadataLease].GetStringValue() == "") {
-							t.Fatalf("Check(complete,%s) response=%v, want native allow and lease", mode, response)
-						}
+						runCompletenessBoundaryCase(t, engine, mode, partial, size)
 					})
 				}
 			}
 		})
+	}
+}
+
+func runCompletenessBoundaryCase(t *testing.T, engine *processor.CommonRuntimeEngine, mode string, partial bool, size int) {
+	t.Helper()
+	opener := &completenessOpener{engine: engine}
+	observer := &recordedLifecycleEvents{}
+	coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 1}, opener, observer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer coordinator.Close()
+	server, err := NewAuthzServer(coordinator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := []byte(strings.Repeat("a", size) + "completeness-tail-marker")
+	request := authCheckRequest(body)
+	marker := "false"
+	if partial {
+		marker = "true"
+	}
+	request.GetAttributes().GetRequest().GetHttp().Headers = map[string]string{authPartialBodyHeader: marker, "content-type": "text/plain"}
+	response, err := server.Check(context.Background(), request)
+	if partial {
+		assertPartialBodyRejectedBeforeNativeOpen(t, mode, response, err, opener, observer)
+		return
+	}
+	assertCompleteBodyNativeResult(t, mode, response, err, opener, len(body))
+}
+
+func assertPartialBodyRejectedBeforeNativeOpen(t *testing.T, mode string, response *authv3.CheckResponse, err error, opener *completenessOpener, observer *recordedLifecycleEvents) {
+	t.Helper()
+	if status.Code(err) != codes.InvalidArgument || response != nil || opener.opens != 0 || opener.bytes != 0 || opener.eos != 0 || len(observer.snapshot()) != 0 {
+		t.Fatalf("Check(partial,%s) response=%v err=%v native=%+v events=%v, want technical rejection before open/body/EOS/lease", mode, response, err, opener, observer.snapshot())
+	}
+}
+
+func assertCompleteBodyNativeResult(t *testing.T, mode string, response *authv3.CheckResponse, err error, opener *completenessOpener, bodyLength int) {
+	t.Helper()
+	if err != nil || opener.opens != 1 || opener.bytes != bodyLength || opener.eos != 1 {
+		t.Fatalf("Check(complete,%s) response=%v err=%v native=%+v, want one native open/full body/EOS", mode, response, err, opener)
+	}
+	if mode == "On" && (response.GetDeniedResponse().GetStatus().GetCode() != 403 || opener.decision.RuleID != "1200997") {
+		t.Fatalf("Check(complete,%s) response=%v, want native tail-rule denial", mode, response)
+	}
+	if mode == "DetectionOnly" && (response.GetOkResponse() == nil || response.GetDynamicMetadata().GetFields()[metadataLease].GetStringValue() == "") {
+		t.Fatalf("Check(complete,%s) response=%v, want native allow and lease", mode, response)
 	}
 }
