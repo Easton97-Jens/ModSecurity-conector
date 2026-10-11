@@ -31,7 +31,7 @@ static int boundary_result(const char *stage, msconnector_error *error) {
     if (raw_result != 1) {
         msconnector_error_set(error,
             strcmp(stage, "commit") == 0 ? MSCONNECTOR_ERROR_PHASE_SEQUENCE :
-            strcmp(stage, "host") == 0 ? MSCONNECTOR_ERROR_IO :
+            (strcmp(stage, "host") == 0 || strcmp(stage, "finish") == 0) ? MSCONNECTOR_ERROR_IO :
             MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
             "controlled boundary failure", "fixture");
     }
@@ -97,7 +97,7 @@ const char *msconnector_runtime_transaction_id(const msconnector_runtime_transac
 }
 int msconnector_runtime_transaction_finish(msconnector_runtime_transaction *t,
     msconnector_error *error) {
-    (void)t; (void)error; ++calls_finish; return 1;
+    (void)t; ++calls_finish; return boundary_result("finish", error);
 }
 void msconnector_runtime_transaction_destroy(msconnector_runtime_transaction **t) {
     ++calls_destroy; *t = NULL;
@@ -109,7 +109,7 @@ int main(int argc, char **argv) {
     msc_envoy_ext_proc_body body = {0};
     msc_envoy_ext_proc_decision decision = {0};
     char error[128] = {0};
-    int first, second, finished, cause, terminal, pending, mode;
+    int first, second, finished, cause, terminal, pending, mode, close_result, close_code = 0;
     if (argc != 5) { return 2; }
     scenario = argv[1];
     raw_result = (int)strtol(argv[2], NULL, 10);
@@ -127,7 +127,7 @@ int main(int argc, char **argv) {
     body.end_of_stream = 1;
     send_rule = strcmp(scenario, "rule") == 0 || strcmp(scenario, "host") == 0;
     recursive_failure = strcmp(scenario, "recursive") == 0;
-    if (strcmp(scenario, "recursive") == 0 || strcmp(scenario, "null-output") == 0) {
+    if (strcmp(scenario, "recursive") == 0 || strcmp(scenario, "null-output") == 0 || strcmp(scenario, "first-before-finish") == 0) {
         scenario = "append";
     }
     if (strcmp(scenario, "void-commit") == 0) {
@@ -160,14 +160,32 @@ int main(int argc, char **argv) {
     cause = transaction->failure_code;
     terminal = transaction->terminal;
     pending = transaction->has_disruptive_decision;
-    msc_envoy_ext_proc_transaction_close(transaction);
+    if (strcmp(argv[1], "incomplete-request") == 0) {
+        transaction->request_finished = 0;
+        scenario = "finish";
+    } else if (strcmp(argv[1], "incomplete-response") == 0) {
+        transaction->response_headers_processed = 1;
+        transaction->response_finished = 0;
+        scenario = "finish";
+    }
+    if (strcmp(argv[1], "first-before-finish") == 0) {
+        scenario = "finish";
+        raw_result = 0;
+    }
+    if (strcmp(argv[1], "void-close") == 0) {
+        msc_envoy_ext_proc_transaction_close(transaction);
+        close_result = 1;
+    } else {
+        close_result = msc_envoy_ext_proc_transaction_close_checked(transaction, error, sizeof(error), &close_code);
+    }
     printf("{\"first\":%d,\"second\":%d,\"append\":%d,\"eos\":%d,\"commit\":%d,"
         "\"failure\":%d,\"host\":%d,\"started\":%d,\"finished\":%d,\"cause\":%d,"
         "\"terminal\":%d,\"pending\":%d,\"destroy\":%d,\"engine_error\":%d,"
-        "\"phase_error\":%d,\"io_error\":%d}\n",
+        "\"phase_error\":%d,\"io_error\":%d,\"close_result\":%d,\"finish\":%d,\"close_code\":%d,\"close_cause_retained\":%d}\n",
         first, second, calls_append, calls_eos, calls_commit, calls_failure, calls_host,
         last_started, finished, cause, terminal, pending, calls_destroy,
-        MSCONNECTOR_ERROR_MODSECURITY_FAILURE, MSCONNECTOR_ERROR_PHASE_SEQUENCE, MSCONNECTOR_ERROR_IO);
+        MSCONNECTOR_ERROR_MODSECURITY_FAILURE, MSCONNECTOR_ERROR_PHASE_SEQUENCE, MSCONNECTOR_ERROR_IO,
+        close_result, calls_finish, close_code, strcmp(error, msconnector_error_default_message(MSCONNECTOR_ERROR_MODSECURITY_FAILURE)) == 0);
     return 0;
 }
 '''
@@ -211,6 +229,29 @@ class EnvoyBridgeFailureTests(unittest.TestCase):
         self.assertEqual(result["pending"], 0)
         self.assertEqual(result["failure"], 1)
         self.assertEqual(result["destroy"], 1)
+
+    def test_checked_close_propagates_finish_failure_and_destroys_once(self):
+        for raw in (0, -1, 2):
+            with self.subTest(raw=raw):
+                result = self.case("finish", raw)
+                self.assertEqual((result["first"], result["close_result"], result["finish"], result["destroy"]), (1, 0, 1, 1))
+
+    def test_checked_close_checks_incomplete_request_and_response(self):
+        for scenario in ("incomplete-request", "incomplete-response"):
+            for raw in (0, -1, 2):
+                with self.subTest(scenario=scenario, raw=raw):
+                    result = self.case(scenario, raw)
+                    self.assertEqual((result["first"], result["close_result"], result["finish"], result["destroy"]), (1, 0, 1, 1))
+
+    def test_void_close_compatibility_finishes_and_destroys_once(self):
+        result = self.case("void-close")
+        self.assertEqual((result["first"], result["finish"], result["destroy"]), (1, 1, 1))
+
+    def test_checked_close_retains_earlier_cause(self):
+        result = self.case("first-before-finish", 0)
+        self.assert_terminal(result, "engine_error")
+        self.assertEqual((result["close_result"], result["finish"], result["close_cause_retained"]), (0, 1, 1))
+        self.assertEqual(result["close_code"], result["io_error"])
 
     def test_failed_commit_never_reaches_append_or_eos(self):
         for raw in (0, -1, 2):

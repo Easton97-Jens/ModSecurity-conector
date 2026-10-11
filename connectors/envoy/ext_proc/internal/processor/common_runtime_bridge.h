@@ -2,6 +2,7 @@
 #define MSCONNECTOR_ENVOY_EXT_PROC_COMMON_RUNTIME_BRIDGE_H
 
 #include <stddef.h>
+#include "msconnector/error.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -131,6 +132,15 @@ int msc_envoy_ext_proc_transaction_record_host_action(
 
 const char *msc_envoy_ext_proc_transaction_id(
     const msc_envoy_ext_proc_transaction *transaction);
+
+/* Finishes and destroys exactly once; returns 0 on an earlier or finish error.
+ * finish_error_code receives the canonical finish error separately from any
+ * earlier retained adapter cause. Successful destruction after an incomplete
+ * lifecycle does not imply an unsafe cleanup or a successful rule decision.
+ * The compatibility void entry point below retains the same ownership rule. */
+int msc_envoy_ext_proc_transaction_close_checked(
+    msc_envoy_ext_proc_transaction *transaction, char *error, size_t error_len,
+    int *finish_error_code);
 
 void msc_envoy_ext_proc_transaction_close(
     msc_envoy_ext_proc_transaction *transaction);
