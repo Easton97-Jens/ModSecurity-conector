@@ -238,4 +238,6 @@ Traefik target also executes both Go race/vet packages and the native dispatcher
 
 The initial58-file byte-identical transfer remains historical and valid. These scoped follow-up edits intentionally change selected transferred test files and two sidecar status expressions; no claim of unchanged current58 hashes is made. Complete base-to-final-head patch is refreshed at delivery. At follow-up commit preparation, fresh hosted CI and Sonar for the new head are `checks_pending`; final observed head/status are recorded in the PR body and external delivery evidence.
 
+The Cloud analysis of follow-up head `7db88256d3d4a74a645e0f27450d35cd382cc8fe` confirmed all original170 issues absent, but raised one new fixture parameter-count issue. `fixture_verify` now accepts five parameters, grouping case values and captured counters in a const snapshot. The independent literal status oracle, all assertions,479 cases and9 effective mutants are retained. Fresh `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -m unittest discover -s tests -p 'test_lighttpd*.py' -v` passed (exit0,22 methods,15.477 s; `evidence/sonar-lighttpd-parameters/`). Fresh Cloud/CI must bind to the subsequent head.
+
 I10 IMPLEMENTATION COMPLETE – remaining live-host/transport evidence belongs to I12/V08-V10

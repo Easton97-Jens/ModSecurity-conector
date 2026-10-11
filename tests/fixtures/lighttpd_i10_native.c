@@ -437,39 +437,48 @@ static int fixture_expected_status(int operation) {
     return 500;
   }
 }
-static void fixture_verify(int operation, int commit, int result, request_st *r,
-                           plugin_data *p, handler_ctx *ctx,
-                           const msconnector_runtime_transaction *tx, int calls,
-                           int statuses, int acks) {
-  if (fault || operation == 3 || operation == 4) {
+typedef struct {
+  int operation;
+  int commit;
+  int result;
+  int calls;
+  int statuses;
+  int acks;
+} fixture_verification_snapshot;
+
+static void fixture_verify(const fixture_verification_snapshot *snapshot,
+                           request_st *r, plugin_data *p, handler_ctx *ctx,
+                           const msconnector_runtime_transaction *tx) {
+  if (fault || snapshot->operation == 3 || snapshot->operation == 4) {
     assert(ctx->technical_failed || fault == 9);
-    assert(operation == 0 || result == HANDLER_ERROR ||
-           result == PLUGIN_BODY_HOOK_ERROR ||
-           (operation == 4 && result == HANDLER_FINISHED));
-    assert(commit ? statuses == 0 : statuses == 1);
-    int expected = fixture_expected_status(operation);
-    if (operation == 8)
+    assert(snapshot->operation == 0 || snapshot->result == HANDLER_ERROR ||
+           snapshot->result == PLUGIN_BODY_HOOK_ERROR ||
+           (snapshot->operation == 4 && snapshot->result == HANDLER_FINISHED));
+    assert(snapshot->commit ? snapshot->statuses == 0
+                            : snapshot->statuses == 1);
+    int expected = fixture_expected_status(snapshot->operation);
+    if (snapshot->operation == 8)
       assert(r->http_status == 200);
-    else if (operation == 9)
+    else if (snapshot->operation == 9)
       assert(r->http_status == 403);
     else
-      assert(r->http_status == (commit ? 200 : expected));
+      assert(r->http_status == (snapshot->commit ? 200 : expected));
     assert(fault == 9 ||
            tx->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE);
     msconnector_transaction_error_class first_cause = tx->contract.error_class;
-    fixture_reenter(operation, r, p, ctx);
+    fixture_reenter(snapshot->operation, r, p, ctx);
     assert(tx->contract.error_class == first_cause);
-    assert(native_calls == calls);
-    assert(status_calls == statuses);
-    assert(ack_calls == acks);
+    assert(native_calls == snapshot->calls);
+    assert(status_calls == snapshot->statuses);
+    assert(ack_calls == snapshot->acks);
     assert(mod_msconnector_handle_request_reset(r, p) == HANDLER_ERROR);
     assert(mod_msconnector_handle_request_reset(r, p) == HANDLER_GO_ON);
     assert(cleanup_calls == 1);
-    assert(native_calls == calls);
+    assert(native_calls == snapshot->calls);
   } else {
     assert(!ctx->technical_failed);
-    assert(result == 0);
-    assert(statuses == 0);
+    assert(snapshot->result == 0);
+    assert(snapshot->statuses == 0);
   }
 }
 int main(int argc, char **argv) {
@@ -504,11 +513,13 @@ int main(int argc, char **argv) {
   int result = fixture_dispatch(operation, &r, &p, &ctx, &runtime);
   if (operation == 10 || operation == 11)
     return 0;
-  int calls = native_calls;
-  int statuses = status_calls;
-  int acks = ack_calls;
-  fixture_verify(operation, commit, result, &r, &p, &ctx, &tx, calls, statuses,
-                 acks);
+  const fixture_verification_snapshot snapshot = {.operation = operation,
+                                                  .commit = commit,
+                                                  .result = result,
+                                                  .calls = native_calls,
+                                                  .statuses = status_calls,
+                                                  .acks = ack_calls};
+  fixture_verify(&snapshot, &r, &p, &ctx, &tx);
   printf("native caller mode=%d commit=%d operation=%d fault=%d calls=%d "
          "status=%d ack=%d\n",
          mode, commit, operation, fault, native_calls, status_calls, ack_calls);

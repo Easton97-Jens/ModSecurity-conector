@@ -238,4 +238,6 @@ Traefiks Target führt zusätzlich beide Go-Race-/Vet-Pakete und den nativen Dis
 
 Der initiale byteidentische58-Datei-Transfer bleibt historisch korrekt. Diese begrenzte Nacharbeit ändert ausgewählte übertragene Tests und zwei Sidecar-Statusausdrücke; aktuelle unveränderte58 Hashes werden nicht behauptet. Vollständiger Basis-bis-Final-Head-Patch wird bei Lieferung aktualisiert. Bei Vorbereitung des Nacharbeitscommits sind neue Hosted-CI und Sonar des neuen Heads `checks_pending`; final beobachteter Head/Status stehen im PR-Body und externer Delivery-Evidence.
 
+Die Cloud-Analyse des Nacharbeits-Heads `7db88256d3d4a74a645e0f27450d35cd382cc8fe` bestätigte alle ursprünglichen170 Issues als nicht mehr offen, meldete jedoch ein neues Parameteranzahl-Issue im Fixture. `fixture_verify` nimmt jetzt fünf Parameter an und bündelt Fallwerte/erfasste Zähler in einem const Snapshot. Unabhängiges Literal-Statusorakel, alle Assertions,479 Fälle und9 wirksame Mutanten bleiben erhalten. Neuer Lauf `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -m unittest discover -s tests -p 'test_lighttpd*.py' -v` bestand (Exit0,22 Methoden,15.477 s; `evidence/sonar-lighttpd-parameters/`). Neue Cloud/CI müssen an den folgenden Head gebunden werden.
+
 I10 IMPLEMENTATION COMPLETE – remaining live-host/transport evidence belongs to I12/V08-V10
