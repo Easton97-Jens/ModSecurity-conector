@@ -45,10 +45,10 @@ Existing Common error taxonomy is reused, without another error model. Common so
 | open | caller-specific failure | checked caller open | IO | mandatory response path fails | private temporary target |
 | write | unchecked fputs | fputs == EOF / ferror checked | IO | failed SPOP result; no success fallback | real stdio write failure |
 | flush | unchecked buffered result | fflush checked | IO | first error retained; no retry | buffered flush-only failure |
-| close | unchecked completion | owned fclose checked | IO | no successful completion | checked close seam |
+| close | owned fclose already checked | existing checked close preserved and revalidated | IO | existing cleanup failure result retained; no sink replay | checked close seam with real cleanup |
 | replay / terminal | sink success could be assumed | per-request sticky sink error | original retained | no second physical write/ACK success | caller/replay/positive control |
 
-Caller chains: Apache producer → msconnector_event_write_jsonl_line → apache_open_event_file → apr_file_write_full → apr_file_close → typed phase/intervention callers → request/filter error path. SPOP producer → phase4_common_event_write → fputs/ferror → fflush → checked fclose → SPOP processing/response error path. Already committed Apache responses are not replaced with another HTTP response. Diagnostic rule-match output alone does not force HTTP 500.
+Caller chains: Apache producer → msconnector_event_write_jsonl_line → apache_open_event_file → apr_file_write_full → apr_file_close → typed phase/intervention callers → request/filter error path. SPOP producer → decision_log_write → bounded memory staging including phase4_common_event_write → physical fputs/ferror → fflush → SPOP processing/response error path before ACK. Existing checked owned-stream fclose runs during resource cleanup; it is not a new per-notification receipt. Already committed Apache responses are not replaced with another HTTP response. Diagnostic rule-match output alone does not force HTTP 500.
 
 Envoy: C close invokes finish even after an earlier failure and returns its preserved class. Go cleanup reporting distinguishes transaction-local `ErrTransactionFinishPhaseSequence` from physical sink errors/unsafe cleanup requiring controlled restart. Both coordinator close paths inspect cleanup reporters; first causes remain sticky. Actual descriptor fault injection replaces an ineffective earlier fixture fault.
 
@@ -105,6 +105,7 @@ Recorded exact commands and results from `/var/tmp/codex/ModSecurity-conector/an
 
 | Command | Exit | Tests | Result |
 | --- | --- | --- | --- |
+| `rtk proxy env PYTHONDONTWRITEBYTECODE=1 TMPDIR=/var/tmp/codex/ModSecurity-conector/tmp make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python check-bilingual-docs check-doc-links` | 0 | not enumerated | PASS; repeated full documentation acceptance; `docs-acceptance-final.json` |
 | `rtk proxy env PYTHONDONTWRITEBYTECODE=1 TMPDIR=/var/tmp/codex/ModSecurity-conector/tmp RUNNER_TEMP=/var/tmp/codex/ModSecurity-conector/tmp 'CC=clang -fsanitize=address,undefined -fno-omit-frame-pointer -g' /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_apache_event_sink_failures tests.test_haproxy_spop_event_sink_failures tests.test_envoy_bridge_failures` | 0 | 46 | PASS; all three C fixture compilers use ASan + UBSan; `all-physical-sinks-asan-final.json` |
 | `rtk proxy env PYTHONDONTWRITEBYTECODE=1 TMPDIR=/var/tmp/codex/ModSecurity-conector/tmp RUNNER_TEMP=/var/tmp/codex/ModSecurity-conector/tmp /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_apache_common_adoption tests.test_apache_native_adoption` | 0 | 28 | PASS; `apache-adoption-final.json` |
 | `rtk proxy env PYTHONDONTWRITEBYTECODE=1 TMPDIR=/var/tmp/codex/ModSecurity-conector/tmp RUNNER_TEMP=/var/tmp/codex/ModSecurity-conector/tmp /root/git/ModSecurity-conector/.venv/bin/python -m unittest discover -v -s tests -p 'test_apache*.py'` | 1 | 195 | FAIL; 195 tests / 8 failures / 7 errors on unchanged base; `apache-baseline-suite.json` |
