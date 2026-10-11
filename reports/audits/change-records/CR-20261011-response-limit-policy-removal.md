@@ -152,8 +152,13 @@ No fresh ten-profile hosted matrix was run: the required pinned host environment
 and run evidence are unavailable. The first completed Sonar analysis of
 `77e8085b663b46c9eb22b11864aadd0161dc5060` failed with ten issues, zero hotspots
 and zero duplication. Resource cleanup, declarations, helper complexity and
-fixture parameters were repaired; a completed analysis of the follow-up head
-is still required. Base-PR analysis is not evidence for this change. NGINX/
+fixture parameters were repaired. The completed analysis of
+`777d67efcd040b98d7d0c288379ab55012ef51b1` reported zero new issues and hotspots,
+but two new duplicated lines/blocks (0.2%). Shared Authz fixture construction
+replaces the duplicate setup without changing assertions or explicit policy
+arguments. The compiler-guide generator now matches its generated files;
+22 guide tests and bilingual/path/link checks passed. A completed analysis of
+the follow-up head is still required. Base-PR analysis is not evidence for this change. NGINX/
 HAProxy native checks blocked by missing host artifacts are not passes. The fresh integrated rerun passed. The fresh native pytest run passed 136 tests
 and 174 subtests in 44.77 seconds. Final Common helper/SDK/security/memory/flow/
 adapter/directive checks, 21 generated references, bilingual documentation, paths

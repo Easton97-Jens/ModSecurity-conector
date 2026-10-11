@@ -35,7 +35,11 @@ The first completed analysis of `77e8085b663b46c9eb22b11864aadd0161dc5060`
 reported ten issues, zero hotspots and zero duplication. Follow-up source changes
 address resource cleanup, declarations, helper complexity and fixture parameters;
 the reviewed Apache fingerprint and Traefik API expectation were updated too.
-The new head requires its own completed analysis; live delivery status is in #407.
+The completed analysis of `777d67efcd040b98d7d0c288379ab55012ef51b1`
+reported zero new issues and hotspots, but two new duplicated lines/blocks
+(0.2%). The shared Authz fixture setup now replaces that duplication; the
+compiler-guide generator also removes its obsolete response option. The new
+head requires its own completed analysis; live delivery status is in #407.
 
 Common real-library validation passed 81 scenarios; HAProxy binding validation
 passed 16 cases. Envoy passed eight real CGo/libModSecurity packages and its

@@ -35,6 +35,10 @@ Die erste abgeschlossene Analyse von `77e8085b663b46c9eb22b11864aadd0161dc5060`
 meldete zehn Issues, keine Hotspots und keine Duplikation. Folgeänderungen beheben
 Ressourcen-Cleanup, Deklarationen, Helper-Komplexität und Fixture-Parameter;
 auch geprüfter Apache-Fingerprint und Traefik-API-Erwartung wurden aktualisiert.
+Die abgeschlossene Analyse von `777d67efcd040b98d7d0c288379ab55012ef51b1`
+meldete keine neuen Issues oder Hotspots, aber zwei neue duplizierte Zeilen/Blöcke
+(0,2 %). Gemeinsamer Authz-Fixture-Aufbau ersetzt jetzt diese Duplikation; auch
+der Compilerleitfaden-Generator entfernt seine veraltete Response-Option.
 Der neue Head benötigt seine eigene abgeschlossene Analyse; der laufende
 Auslieferungsstand steht in #407.
 

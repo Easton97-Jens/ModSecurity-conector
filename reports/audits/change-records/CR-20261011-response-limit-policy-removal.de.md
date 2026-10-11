@@ -161,7 +161,13 @@ gepinnten Hostumgebungen und Laufnachweise fehlen. Die erste abgeschlossene
 Sonar-Analyse von `77e8085b663b46c9eb22b11864aadd0161dc5060` schlug mit zehn
 Issues, keinen Hotspots und keiner Duplikation fehl. Ressourcen-Cleanup,
 Deklarationen, Helper-Komplexität und Fixture-Parameter wurden repariert;
-eine abgeschlossene Analyse des Folge-Heads ist weiter erforderlich. Die Analyse des Basis-PRs
+die abgeschlossene Analyse von `777d67efcd040b98d7d0c288379ab55012ef51b1`
+meldete keine neuen Issues oder Hotspots, aber zwei neue duplizierte Zeilen/Blöcke
+(0,2 %). Gemeinsame Authz-Fixture-Erstellung ersetzt den doppelten Aufbau, ohne
+Assertions oder explizite Policy-Argumente zu ändern. Der Compilerleitfaden-
+Generator stimmt jetzt mit seinen generierten Dateien überein; 22 Leitfadentests
+und bilinguale/Pfad-/Linkprüfungen bestanden. Eine abgeschlossene Analyse des
+Folge-Heads ist weiter erforderlich. Die Analyse des Basis-PRs
 belegt diese Änderung nicht. Wegen fehlender Hostartefakte blockierte native
 NGINX-/HAProxy-Prüfungen sind keine bestandenen Prüfungen. Der frische integrierte Wiederholungslauf bestand. Der frische native pytest-
 Lauf bestand 136 Tests und 174 Subtests in 44,77 Sekunden. Abschließende

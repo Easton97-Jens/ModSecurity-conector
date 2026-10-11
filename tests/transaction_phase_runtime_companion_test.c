@@ -118,29 +118,40 @@ static void assert_terminal_events(const char *event_path) {
     assert(strstr(contents, "\"body_payload\"") == NULL);
 }
 
+typedef struct authz_runtime_fixture {
+    msconnector_runtime *runtime;
+    char config_path[TEST_PATH_SIZE];
+    char event_path[TEST_PATH_SIZE];
+    char rules_path[TEST_PATH_SIZE];
+} authz_runtime_fixture;
+
+static void create_authz_runtime_fixture(authz_runtime_fixture *fixture,
+    const char *rules_text, response_fixture_policy response_policy) {
+    create_runtime_fixture(fixture->config_path, fixture->event_path,
+        fixture->rules_path, rules_text, "none", "safe", response_policy);
+    assert(msconnector_runtime_create("envoy", fixture->config_path,
+        &fixture->runtime, NULL, 0U));
+    assert(msconnector_runtime_set_event_integration_mode(fixture->runtime, "ext_authz"));
+    assert(msconnector_runtime_set_transaction_profile(fixture->runtime,
+        msconnector_profile_registry_find("envoy-ext-authz")));
+}
+
 static void test_regular_block_emits_one_terminal_event(void) {
     static const char blocking_rules[] =
         "SecRuleEngine On\n"
         "SecRule REQUEST_URI \"@streq /blocked\" \"id:1001,phase:1,deny,status:403,log\"\n";
-    msconnector_runtime *runtime = NULL;
+    authz_runtime_fixture fixture = {0};
     msconnector_runtime_transaction *transaction = NULL;
     msconnector_runtime_transaction_snapshot snapshot;
     msconnector_decision decision;
     msconnector_error error;
-    char config_path[TEST_PATH_SIZE];
-    char event_path[TEST_PATH_SIZE];
-    char rules_path[TEST_PATH_SIZE];
     char contents[16384];
     FILE *event_file;
     size_t size;
 
-    create_runtime_fixture(config_path, event_path, rules_path, blocking_rules,
-        "none", "safe", (response_fixture_policy){1024U, "Reject"});
-    assert(msconnector_runtime_create("envoy", config_path, &runtime, NULL, 0U));
-    assert(msconnector_runtime_set_event_integration_mode(runtime, "ext_authz"));
-    assert(msconnector_runtime_set_transaction_profile(runtime,
-        msconnector_profile_registry_find("envoy-ext-authz")));
-    assert(msconnector_test_begin_transaction(runtime, "/blocked", "rule-block",
+    create_authz_runtime_fixture(&fixture, blocking_rules,
+        (response_fixture_policy){1024U, "Reject"});
+    assert(msconnector_test_begin_transaction(fixture.runtime, "/blocked", "rule-block",
         &transaction, &decision, &error));
     assert(transaction != NULL);
     assert(msconnector_decision_action_from_decision(&decision) ==
@@ -150,9 +161,9 @@ static void test_regular_block_emits_one_terminal_event(void) {
     assert(snapshot.contract.completed_at_ms >= snapshot.contract.created_at_ms);
     assert(msconnector_runtime_transaction_finish(transaction, &error));
     msconnector_runtime_transaction_destroy(&transaction);
-    msconnector_runtime_destroy(&runtime);
+    msconnector_runtime_destroy(&fixture.runtime);
 
-    event_file = fopen(event_path, "r");
+    event_file = fopen(fixture.event_path, "r");
     assert(event_file != NULL);
     size = fread(contents, 1U, sizeof(contents) - 1U, event_file);
     assert(ferror(event_file) == 0);
@@ -162,9 +173,9 @@ static void test_regular_block_emits_one_terminal_event(void) {
     assert(strstr(contents, "MSCONN_EVENT_CONNECTOR_ERROR") == NULL);
     assert(strstr(contents, "\"transaction_id\":\"rule-block\"") != NULL);
     assert(strchr(contents, '\n') == strrchr(contents, '\n'));
-    assert(unlink(config_path) == 0);
-    assert(unlink(event_path) == 0);
-    assert(unlink(rules_path) == 0);
+    assert(unlink(fixture.config_path) == 0);
+    assert(unlink(fixture.event_path) == 0);
+    assert(unlink(fixture.rules_path) == 0);
 }
 
 static void test_lossy_event_is_not_written_or_chained(void) {
@@ -174,24 +185,17 @@ static void test_lossy_event_is_not_written_or_chained(void) {
     static const char invalid_client_address[] = {
         '1', '2', '7', '.', '0', '.', '0', '.', (char)0x80, '\0'
     };
-    msconnector_runtime *runtime = NULL;
+    authz_runtime_fixture fixture = {0};
     msconnector_runtime_transaction *transaction = NULL;
     msconnector_request request;
     msconnector_decision decision;
     msconnector_error error;
-    char config_path[TEST_PATH_SIZE];
-    char event_path[TEST_PATH_SIZE];
-    char rules_path[TEST_PATH_SIZE];
     char contents[16384];
     FILE *event_file;
     size_t size;
 
-    create_runtime_fixture(config_path, event_path, rules_path, blocking_rules,
-        "none", "safe", (response_fixture_policy){1024U, "Reject"});
-    assert(msconnector_runtime_create("envoy", config_path, &runtime, NULL, 0U));
-    assert(msconnector_runtime_set_event_integration_mode(runtime, "ext_authz"));
-    assert(msconnector_runtime_set_transaction_profile(runtime,
-        msconnector_profile_registry_find("envoy-ext-authz")));
+    create_authz_runtime_fixture(&fixture, blocking_rules,
+        (response_fixture_policy){1024U, "Reject"});
 
     memset(&request, 0, sizeof(request));
     request.method = "GET";
@@ -203,19 +207,19 @@ static void test_lossy_event_is_not_written_or_chained(void) {
     request.server.port = 9191;
     msconnector_error_init(&error);
     msconnector_decision_init(&decision);
-    assert(!msconnector_runtime_transaction_begin(runtime, &request, "lossy-event",
+    assert(!msconnector_runtime_transaction_begin(fixture.runtime, &request, "lossy-event",
         &transaction, &decision, &error));
     assert(transaction == NULL);
     assert(error.code == MSCONNECTOR_ERROR_EVENT_TOO_LARGE);
 
-    event_file = fopen(event_path, "r");
+    event_file = fopen(fixture.event_path, "r");
     assert(event_file != NULL);
     size = fread(contents, 1U, sizeof(contents), event_file);
     assert(ferror(event_file) == 0);
     assert(fclose(event_file) == 0);
     assert(size == 0U);
 
-    assert(msconnector_test_begin_transaction(runtime, "/blocked", "post-lossy",
+    assert(msconnector_test_begin_transaction(fixture.runtime, "/blocked", "post-lossy",
         &transaction, &decision, &error));
     assert(transaction != NULL);
     assert(msconnector_decision_action_from_decision(&decision) ==
@@ -223,7 +227,7 @@ static void test_lossy_event_is_not_written_or_chained(void) {
     assert(msconnector_runtime_transaction_finish(transaction, &error));
     msconnector_runtime_transaction_destroy(&transaction);
 
-    event_file = fopen(event_path, "r");
+    event_file = fopen(fixture.event_path, "r");
     assert(event_file != NULL);
     size = fread(contents, 1U, sizeof(contents) - 1U, event_file);
     assert(ferror(event_file) == 0);
@@ -234,10 +238,10 @@ static void test_lossy_event_is_not_written_or_chained(void) {
     assert(strstr(contents, "\"previous_event_hash\":0") != NULL);
     assert(strchr(contents, '\n') == strrchr(contents, '\n'));
 
-    msconnector_runtime_destroy(&runtime);
-    assert(unlink(config_path) == 0);
-    assert(unlink(event_path) == 0);
-    assert(unlink(rules_path) == 0);
+    msconnector_runtime_destroy(&fixture.runtime);
+    assert(unlink(fixture.config_path) == 0);
+    assert(unlink(fixture.event_path) == 0);
+    assert(unlink(fixture.rules_path) == 0);
 }
 
 static void begin_handed_off(
