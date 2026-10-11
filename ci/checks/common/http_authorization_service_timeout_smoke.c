@@ -7,6 +7,7 @@
 #include "msconnector/error.h"
 #include "msconnector/request.h"
 #include "msconnector/request_mapper_contract.h"
+#include "../../../tests/fixtures/http_authorization_request_stream_stubs.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -32,24 +33,12 @@
 #define TEST_DEFAULT_CONNECTION_COUNT 8U
 #define TEST_SEQUENTIAL_REQUEST_COUNT 64U
 #define TEST_PARALLEL_REQUEST_COUNT 4U
-#define TEST_REDIRECT_URL_SIZE 1152U
 
 struct msconnector_runtime {
     unsigned int active_transactions;
     int event_integration_configured;
     int transaction_profile_configured;
 };
-
-struct msconnector_runtime_transaction {
-    msconnector_runtime *runtime;
-    int finished;
-    char redirect_url[TEST_REDIRECT_URL_SIZE];
-    size_t request_body_bytes;
-    int request_body_finished;
-    msconnector_transaction_error_class request_body_failure;
-};
-
-#include "../../../tests/fixtures/http_authorization_request_stream_stubs.h"
 
 static msconnector_runtime fake_runtime = {0U};
 

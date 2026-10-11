@@ -569,10 +569,19 @@ ngx_http_modsecurity_capture_request_body_intervention(ngx_http_request_t *r)
     return result == NGX_ERROR ? NGX_ERROR : NGX_OK;
 }
 
+static void
+ngx_http_modsecurity_log_native_intervention(ngx_http_request_t *r,
+    const ModSecurityIntervention *intervention)
+{
+    const char *log = intervention->log != NULL ? intervention->log :
+        "(no log message was specified)";
+
+    ngx_log_error(NGX_LOG_ERR, (ngx_log_t *)r->connection->log, 0, "%s", log);
+}
+
 int
 ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_request_t *r, ngx_int_t early_log)
 {
-    const char *log = NULL;
     ModSecurityIntervention intervention;
     msconnector_intervention common_intervention;
     ngx_int_t result = 0;
@@ -658,9 +667,7 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
 
     // logging to nginx error log can be disable by setting `modsecurity_use_error_log` to off
     if (mcf->common_config.use_error_log == MSCONNECTOR_BOOL_ON) {
-        log = intervention.log != NULL ? intervention.log :
-            "(no log message was specified)";
-        ngx_log_error(NGX_LOG_ERR, (ngx_log_t *)r->connection->log, 0, "%s", log);
+        ngx_http_modsecurity_log_native_intervention(r, &intervention);
     }
 
     /* Native response-body Reject is a technical limit failure, not a rule

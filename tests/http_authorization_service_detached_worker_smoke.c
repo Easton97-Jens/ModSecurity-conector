@@ -15,6 +15,7 @@
 #include "msconnector/error.h"
 #include "msconnector/request.h"
 #include "msconnector/request_mapper_contract.h"
+#include "fixtures/http_authorization_request_stream_stubs.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -37,15 +38,6 @@ struct msconnector_runtime {
     const msconnector_transaction_profile *transaction_profile;
     int placeholder;
 };
-
-struct msconnector_runtime_transaction {
-    int finished;
-    size_t request_body_bytes;
-    int request_body_finished;
-    msconnector_transaction_error_class request_body_failure;
-};
-
-#include "fixtures/http_authorization_request_stream_stubs.h"
 
 static msconnector_runtime fake_runtime = {0};
 static pthread_mutex_t test_lock = PTHREAD_MUTEX_INITIALIZER;

@@ -13,6 +13,7 @@
 #include "msconnector/decision.h"
 #include "msconnector/error.h"
 #include "msconnector/request_mapper_contract.h"
+#include "fixtures/http_authorization_request_stream_stubs.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -28,15 +29,6 @@
 #include <unistd.h>
 
 struct msconnector_runtime { int unused; };
-struct msconnector_runtime_transaction {
-    int unused;
-    size_t request_body_bytes;
-    int request_body_finished;
-    msconnector_transaction_error_class request_body_failure;
-};
-
-#include "fixtures/http_authorization_request_stream_stubs.h"
-
 static struct msconnector_runtime fake_runtime;
 static int ready_fd = -1;
 static int release_fd = -1;
@@ -281,8 +273,8 @@ int msconnector_runtime_transaction_finish(msconnector_runtime_transaction *t,
     msconnector_error *error) {
     char release;
 
-    if (t == NULL) return 0;
-    t->unused = 0;
+    if (t == NULL || t->finished) return 0;
+    t->finished = 1;
     /* This is the last fake-runtime callback before response serialization.
      * It lets the parent send the RST before the service reaches send_all(). */
     if (transaction_count == 1U &&

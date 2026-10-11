@@ -258,6 +258,16 @@ fallback, total-body cap or unlimited full-body RAM allocation is introduced.
 Operators whose configuration parent is not private must supply this storage
 argument.
 
+The subsequent completed analysis on `dc33ffef` reached zero bugs,
+vulnerabilities, hotspots and duplicated lines/blocks, but retained six code
+smells; the green Quality Gate therefore did not satisfy the zero-issue
+requirement. The next repair moves the shared HTTP transaction model into its
+header so all three fixtures can include it normally, separates spool
+declarations and extracts native NGINX error logging without moving its guard
+or changing intervention ownership. Focused NGINX validation passed 82 tests
+and 154 subtests plus actual C17 compilation. Strict HTTP fixture and sanitizer
+checks validate the shared model. A fresh exact-head scan is still required.
+
 The disclosed active authorization/sample caps and ten missing host-profile
 proofs remain; complete removal or fully verified delivery is not claimed.
 

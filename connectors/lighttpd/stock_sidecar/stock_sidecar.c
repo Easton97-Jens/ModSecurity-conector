@@ -1014,7 +1014,8 @@ static int sidecar_open_request_spool(int directory_fd) {
 }
 
 static int sidecar_spool_ancestor_pair_safe(int parent_fd, int child_fd) {
-    struct stat parent, child;
+    struct stat parent;
+    struct stat child;
     if (fstat(parent_fd, &parent) != 0 || fstat(child_fd, &child) != 0 ||
         (parent.st_uid != geteuid() && parent.st_uid != 0) ||
         (child.st_uid != geteuid() && child.st_uid != 0)) return 0;
@@ -1032,7 +1033,7 @@ static int sidecar_spool_directory_is_private(int directory_fd) {
  * redirect later request file creation into another directory. */
 static int sidecar_open_spool_directory(const char *path) {
     char copy[4096];
-    char *component;
+    const char *component;
     int directory_fd;
     if (path == NULL || strlen(path) >= sizeof(copy) ||
         !msconnector_runtime_private_directory_ancestors_are_safe(path)) return -1;

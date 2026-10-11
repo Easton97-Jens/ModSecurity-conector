@@ -1,12 +1,25 @@
 #ifndef MSCONNECTOR_TEST_HTTP_AUTHORIZATION_REQUEST_STREAM_STUBS_H
 #define MSCONNECTOR_TEST_HTTP_AUTHORIZATION_REQUEST_STREAM_STUBS_H
 
+#include "common/runtime/msconnector_runtime.h"
+#include "msconnector/decision.h"
+#include "msconnector/error.h"
+
 #include <assert.h>
 #include <stdint.h>
 
-/* These three HTTP service fixtures share request-stream bookkeeping.
- * Their existing transaction structs supply these fields so the stubs model
- * complete offered-byte accounting and preserve EOS/terminal ordering. */
+/* The three HTTP fixtures use one transaction model.  The timeout fixture
+ * also exercises runtime accounting and transaction-owned redirect cleanup. */
+struct msconnector_runtime_transaction {
+    msconnector_runtime *runtime;
+    int finished;
+    char redirect_url[1152U];
+    size_t request_body_bytes;
+    int request_body_finished;
+    msconnector_transaction_error_class request_body_failure;
+};
+
+/* Model complete offered-byte accounting and preserve EOS/terminal ordering. */
 msconnector_body_mode msconnector_runtime_request_body_mode(const msconnector_runtime *runtime) {
     (void)runtime;
     return MSCONNECTOR_BODY_MODE_BUFFERED;
