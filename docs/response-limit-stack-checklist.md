@@ -58,8 +58,10 @@ failed unchanged on the base. A broader interrupted sweep is not a pass. Apache 
 
 ## Missing real-host evidence
 
-Fresh hosted lifecycle evidence remains separate for each profile below.
-Builds, source wiring, stubs and Common engine tests do not check these boxes.
+Complete hosted response-limit evidence remains separate for each profile below:
+limit boundaries, both actions, supported modes and the full response lifecycle.
+Individual NGINX event/buffer fixtures, builds, source wiring, stubs and Common
+engine tests do not establish this full matrix. Current-head CI results are in #407.
 
 - [ ] Apache native hosted lifecycle.
 - [ ] NGINX native hosted lifecycle and memory/file buffer delivery.

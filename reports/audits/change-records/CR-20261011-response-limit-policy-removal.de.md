@@ -102,6 +102,8 @@ Binding-/Self-Test-/SPOP-Build und Adoption-/HTX-Prüfungen; 27 Apache-Tests und
 NGINX-Adoption; 33 Traefik-/Private-Socket-Tests (zwei Hosttests übersprungen),
 sieben Engine-Service-Tests und Traefik-Integrationsverträge. Unabhängiger Review
 fand kein konkretes Problem im sieben Dateien umfassenden Reparaturdiff.
+Die abschließende NGINX-Fixture-Metadatenkorrektur bestand 32 vorhandene Tests
+und 138 Subtests; Pflichtargumentprüfungen für Limit/Aktion und Diffprüfung bestanden.
 
 ## Security-Auswirkung
 
@@ -123,7 +125,10 @@ unter/exakt/über Limit und Chunkgrößen 17/65536. Zusätzliche Markerfälle
 unterscheiden den nativen Teilpräfix von späteren Daten. Explizite Limits von
 1,5 MiB und 3 MiB mit 2-MiB-Bodies decken die frühere versteckte 1-MiB-Grenze
 auf. HAProxys echte Komponentensuite umfasst Speicher-/Dateieingabe und erhaltene
-native Interventionen. Envoys native Regression setzt `2097152` und Reject
+native Interventionen. Die NGINX-Body-Buffer-Fixture unterscheidet ihre
+Payloadlänge vom ausdrücklich übergebenen Engine-Limit und der Aktion in
+generierter Evidence; Payloadgrößen konfigurieren keine Inspektionspolicy.
+Envoys native Regression setzt `2097152` und Reject
 explizit und inspiziert einen Tail nach 1 MiB; sein Test mit geliehenen Responses
 akzeptiert 300 Callbacks. MRC1-Komponentenprüfungen senden mehrere gültige Chunks
 über der früheren kumulativen Grenze und lehnen übergroße Frames technisch ab.
@@ -144,7 +149,8 @@ nicht als bestanden. Der auskompilierte gepufferte lighttpd-
 Legacy-Austausch unter `#if 0` ist keine aktive Response-Kapazität; der aktive
 Sidecar streamt feste Scratch-Chunks. Für native NGINX-/HAProxy-C17-/Hostprüfung
 fehlen weiterhin erforderliche Hostquellen/-Header oder Runtime-Artefakte.
-Frische gehostete Lifecycle-Evidence fehlt für alle zehn Profile.
+Eine vollständige gehostete Response-Limit-Matrix fehlt für alle zehn Profile;
+einzelne gehostete NGINX-Event-/Buffer-Fixtures decken diese Matrix nicht ab.
 
 ## Verbleibende Risiken
 
@@ -156,7 +162,7 @@ vollständiger Verifikation abgeglichen werden.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-Keine frische gehostete Zehn-Profil-Matrix wurde ausgeführt: Die erforderlichen
+Keine vollständige gehostete Zehn-Profil-Response-Limit-Matrix wurde ausgeführt: Die erforderlichen
 gepinnten Hostumgebungen und Laufnachweise fehlen. Die erste abgeschlossene
 Sonar-Analyse von `77e8085b663b46c9eb22b11864aadd0161dc5060` schlug mit zehn
 Issues, keinen Hotspots und keiner Duplikation fehl. Ressourcen-Cleanup,

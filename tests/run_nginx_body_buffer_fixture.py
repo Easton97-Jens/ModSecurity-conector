@@ -29,7 +29,7 @@ from typing import Any
 
 
 FIXTURE_PAYLOAD = b"P4-FIXTURE-BODY!"
-FIXTURE_LIMIT = len(FIXTURE_PAYLOAD)
+FIXTURE_PAYLOAD_BYTES = len(FIXTURE_PAYLOAD)
 FIXTURE_FILE_PAYLOAD = FIXTURE_PAYLOAD + b"X"
 FIXTURE_SHORT_FILE_PAYLOAD = FIXTURE_PAYLOAD[:-1]
 FIXTURE_MIXED_FILE_PAYLOAD = b"FILE-BACKING-XXXX"
@@ -400,12 +400,12 @@ def parse_events(path: Path) -> list[dict[str, Any]]:
 
 def validate_positive_events(events: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     expected_bytes = {
-        "/memory-within": FIXTURE_LIMIT,
-        "/memory-over-limit": FIXTURE_LIMIT + 1,
-        "/file-within": FIXTURE_LIMIT,
-        "/file-over-limit": FIXTURE_LIMIT + 1,
-        "/mixed-within": FIXTURE_LIMIT,
-        "/mixed-over-limit": FIXTURE_LIMIT + 1,
+        "/memory-within": FIXTURE_PAYLOAD_BYTES,
+        "/memory-over-limit": FIXTURE_PAYLOAD_BYTES + 1,
+        "/file-within": FIXTURE_PAYLOAD_BYTES,
+        "/file-over-limit": FIXTURE_PAYLOAD_BYTES + 1,
+        "/mixed-within": FIXTURE_PAYLOAD_BYTES,
+        "/mixed-over-limit": FIXTURE_PAYLOAD_BYTES + 1,
     }
     observed: dict[str, list[dict[str, Any]]] = {
         path: [] for path in expected_bytes
@@ -788,9 +788,11 @@ def main(argv: list[str]) -> int:
         "modsecurity": {
             "library_target": library_target.name,
             "library_sha256": sha256_file(library_target),
+            "response_body_limit": arguments.response_body_limit,
+            "response_body_limit_action": arguments.response_body_limit_action,
         },
         "fixture": {
-            "body_limit": FIXTURE_LIMIT,
+            "payload_bytes": FIXTURE_PAYLOAD_BYTES,
             "payload_sha256": hashlib.sha256(FIXTURE_PAYLOAD).hexdigest(),
             "file_payload_sha256": hashlib.sha256(FIXTURE_FILE_PAYLOAD).hexdigest(),
             "short_file_payload_sha256": hashlib.sha256(FIXTURE_SHORT_FILE_PAYLOAD).hexdigest(),

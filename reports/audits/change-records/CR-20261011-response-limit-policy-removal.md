@@ -98,6 +98,8 @@ and 53 subtests, binding/self-test/SPOP build and adoption/HTX checks; 27 Apache
 tests and the NGINX adoption check; 33 Traefik/private-socket tests (two hosted
 tests skipped), seven engine-service tests and Traefik integration contracts.
 Independent review found no concrete issue in the seven-file repair diff.
+The final NGINX fixture metadata correction passed 32 existing tests and
+138 subtests; required limit/action helper checks and diff validation passed.
 
 ## Security impact
 
@@ -117,7 +119,10 @@ The real-library Common suite uses libModSecurity 3.0.14 with limits 128 and
 payloads and chunk sizes 17/65536. Additional marker cases distinguish the
 native partial prefix from later data. Explicit 1.5 MiB and 3 MiB limits with
 2 MiB bodies expose the former hidden 1 MiB ceiling. HAProxy's genuine component
-suite includes memory/file input and native intervention retention. Envoy's
+suite includes memory/file input and native intervention retention. The NGINX
+body-buffer fixture distinguishes its payload length from the explicitly supplied
+engine limit/action in generated evidence; payload sizing does not configure
+inspection policy. Envoy's
 native regression supplies `2097152` and Reject explicitly and inspects a tail
 past 1 MiB; its borrowed-response test accepts 300 callbacks. MRC1 component
 checks send multiple valid chunks beyond the former cumulative cap and reject
@@ -136,7 +141,8 @@ owned sweep was interrupted without a terminal summary and is not a pass. The
 compiled-out lighttpd `#if 0` legacy buffered exchange is not an active response
 capacity; the active sidecar streams fixed scratch chunks. NGINX and HAProxy
 native C17/host verification still lack required host sources/headers or runtime
-artifacts. Fresh hosted lifecycle evidence is missing for all ten profiles.
+artifacts. A complete hosted response-limit matrix remains missing for all ten
+profiles; individual hosted NGINX event/buffer fixtures do not cover that matrix.
 
 ## Remaining risks
 
@@ -148,7 +154,7 @@ claiming complete verification.
 
 ## Checks not run and rationale
 
-No fresh ten-profile hosted matrix was run: the required pinned host environments
+No complete ten-profile hosted response-limit matrix was run: the required pinned host environments
 and run evidence are unavailable. The first completed Sonar analysis of
 `77e8085b663b46c9eb22b11864aadd0161dc5060` failed with ten issues, zero hotspots
 and zero duplication. Resource cleanup, declarations, helper complexity and

@@ -61,8 +61,11 @@ Syntaxprüfung bestand; nativen NGINX-/HAProxy-Prüfungen fehlen Hostartefakte.
 
 ## Fehlende echte Hostnachweise
 
-Frische gehostete Lifecycle-Evidence bleibt für jedes folgende Profil getrennt.
-Builds, Quellverdrahtung, Stubs und Common-Engine-Tests erfüllen diese Punkte nicht.
+Vollständige gehostete Response-Limit-Nachweise bleiben für jedes folgende Profil
+getrennt: Limitgrenzen, beide Aktionen, unterstützte Modi und vollständiger
+Response-Lebenszyklus. Einzelne NGINX-Event-/Buffer-Fixtures, Builds,
+Quellverdrahtung, Stubs und Common-Engine-Tests belegen diese vollständige Matrix
+nicht. CI-Ergebnisse des aktuellen Heads stehen in #407.
 
 - [ ] Apache native gehosteter Lebenszyklus.
 - [ ] NGINX native gehosteter Lebenszyklus und Speicher-/Dateibuffer-Auslieferung.
