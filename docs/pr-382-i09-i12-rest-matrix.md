@@ -4,9 +4,15 @@
 
 Date: 2026-10-10. Documentation base and inspected source inventory: `b2622a5d6ca746485c08f4789208299a111f47c7`.
 
-This manually maintained matrix contains 56 rows for 14 distinct route legs, one each for I09/I10/I11/I12. It carries forward the read-only revision-bound source/test-path inventory; listed tests were not freshly executed for this matrix. `OPEN_REST_SCOPE` stays open. `AUDIT_INCOMPLETE_NO_NEW_BUG_PROVEN` means incomplete audit, not a proved bug; `SOURCE_CONFIRMED_PROPAGATION_GAP` identifies the two separate I11 source findings below. `CURRENT_PR382_ROUTE_MATRIX_NOT_PROVEN` denotes missing host proof for this #382 revision.
+This manually maintained matrix contains 56 rows for 14 distinct route legs, one each for I09/I10/I11/I12. It carries forward the read-only revision-bound source/test-path inventory; listed tests were not freshly executed for this matrix. Historical `OPEN_REST_SCOPE` entries remain open for host/rest evidence; the addendum below supersedes the I09 code column only. `AUDIT_INCOMPLETE_NO_NEW_BUG_PROVEN` means incomplete audit, not a proved bug; `SOURCE_CONFIRMED_PROPAGATION_GAP` identifies the two separate I11 source findings below. `CURRENT_PR382_ROUTE_MATRIX_NOT_PROVEN` denotes missing host proof for this #382 revision.
 
-Completed I09f/I10e Apache module repairs and other checked subsets remain preserved. The [R17 report](https://github.com/Easton97-Jens/ModSecurity-conector/pull/396#issuecomment-6101794434) is downstream NGINX-H1 system evidence from PR #396 for `2f02370b07149265841411894f1a2cf7f1e978ff`, not product testing of #382 or a later documentation head. Narrow I12b/V08a/V09a/V10a references are in the [checklist](pr-382-checklist.md). Broad I09–I12 and V08–V10 stay open.
+Completed I09f/I10e Apache module repairs and other checked subsets remain preserved. The [R17 report](https://github.com/Easton97-Jens/ModSecurity-conector/pull/396#issuecomment-6101794434) is downstream NGINX-H1 system evidence from PR #396 for `2f02370b07149265841411894f1a2cf7f1e978ff`, not product testing of #382 or a later documentation head. Narrow I12b/V08a/V09a/V10a references are in the [checklist](pr-382-checklist.md). Broad I10–I12 and V08–V10 stay open; the 2026-10-11 addendum closes I09 code/API.
+
+## 2026-10-11 addendum: I09 code/API only
+
+The [current route audit](pr-382-i09-route-audit.md) closes I09 code/API for all 14 route legs and ten profiles. Confirmed gaps are repaired; integrated33 compiled methods and Common C17 smoke passed. Contracts 74/adoption 19, HAProxy 194, Traefik 86, lighttpd 178 and Go 56/30/21 supplement code evidence; all 219 NGINX methods are accounted for by 180 completed before the 1800s timeout plus 39 resumed successfully; the original aggregate remains a timeout.
+
+This addendum supersedes open implementation and next-code-audit actions in all 14 historical I09 rows with `I09_CODE_API_CLOSED`; it changes no historical SHA/test provenance or open host proof. The 56 rows below remain the historical 2026-10-10 inventory. I10/I11/I12, V06/V07 release/current CI and V08–V10 live proof remain open. Full HTX host-header build is unavailable; Sonar 403 and a baseline-confirmed validator/documentation wording failure remain external validation limits. No release/runtime closure; R16/R17 are not rebound.
 
 ## Revision-scoped remaining work
 
