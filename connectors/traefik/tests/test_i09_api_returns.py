@@ -18,10 +18,12 @@ class NativeAPIResults(unittest.TestCase):
         frame = function_definition(source, "traefik_engine_process_frame")
         failure = function_definition(source, "traefik_engine_record_transport_failure")
         cleanup = function_definition(source, "traefik_engine_session_destroy")
+        poll_error = function_definition(source, "traefik_engine_poll_error")
         harness = r'''
 #include <assert.h>
 #include <errno.h>
 #include <pthread.h>
+#include <poll.h>
 #include <stdint.h>
 #include <string.h>
 #include "common/runtime/msconnector_runtime.h"
@@ -60,7 +62,13 @@ __COMMIT__
 __FAILURE__
 __FRAME__
 __CLEANUP__
+__POLL_ERROR__
 int main(void) {
+ assert(traefik_engine_poll_error(POLLERR)==EIO);
+ assert(traefik_engine_poll_error(POLLHUP)==ECONNRESET);
+ assert(traefik_engine_poll_error(POLLNVAL)==EBADF);
+ assert(traefik_engine_poll_error(POLLHUP|POLLERR)==ECONNRESET);
+ assert(traefik_engine_poll_error(POLLNVAL|POLLHUP|POLLERR)==EBADF);
  (void)&traefik_engine_result_for_runtime_error;
  traefik_engine_service service; pthread_mutex_init(&service.runtime_lock,0);
  traefik_engine_session s={.service=&service,.transaction=(void*)1,.begun=1,.response_headers=1};
@@ -82,7 +90,7 @@ int main(void) {
  traefik_engine_session_destroy(&s);traefik_engine_session_destroy(&s);assert(cleanups==1);assert(s.destroyed);
  pthread_mutex_destroy(&service.runtime_lock);return 0;
 }
-'''.replace("__COMMIT__", commit).replace("__FAILURE__", failure).replace("__FRAME__", frame).replace("__CLEANUP__", cleanup)
+'''.replace("__COMMIT__", commit).replace("__FAILURE__", failure).replace("__FRAME__", frame).replace("__CLEANUP__", cleanup).replace("__POLL_ERROR__", poll_error)
         with tempfile.TemporaryDirectory(prefix="i09-traefik-") as tmp:
             path = Path(tmp)
             (path / "test.c").write_text(harness)

@@ -73,7 +73,7 @@ jobs:
         run: |
           set -eu
           sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes apache2-dev build-essential
+          sudo apt-get install --no-install-recommends --yes apache2-dev build-essential libmodsecurity-dev
       - name: Verify I09 route API and terminal error regressions
         if: ${{ !cancelled() }}
         run: make check-i09-native-routes

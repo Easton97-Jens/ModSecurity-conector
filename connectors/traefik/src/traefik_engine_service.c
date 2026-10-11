@@ -230,6 +230,17 @@ static int traefik_engine_deadline_remaining_milliseconds(
     return *timeout > 0;
 }
 
+static int traefik_engine_poll_error(short revents)
+{
+    if ((revents & POLLNVAL) != 0) {
+        return EBADF;
+    }
+    if ((revents & POLLHUP) != 0) {
+        return ECONNRESET;
+    }
+    return EIO;
+}
+
 static int traefik_engine_wait_for_socket_event(int socket_fd, short events,
     const struct timespec *deadline)
 {
@@ -252,12 +263,7 @@ static int traefik_engine_wait_for_socket_event(int socket_fd, short events,
         polled = poll(&descriptor, 1U, timeout);
         if (polled > 0) {
             if ((descriptor.revents & (POLLERR | POLLHUP | POLLNVAL)) != 0) {
-                errno = EIO;
-                if ((descriptor.revents & POLLNVAL) != 0) {
-                    errno = EBADF;
-                } else if ((descriptor.revents & POLLHUP) != 0) {
-                    errno = ECONNRESET;
-                }
+                errno = traefik_engine_poll_error(descriptor.revents);
                 return 0;
             }
             return (descriptor.revents & events) != 0;

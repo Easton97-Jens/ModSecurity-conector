@@ -109,3 +109,18 @@ Draft-PR [#408](https://github.com/Easton97-Jens/ModSecurity-conector/pull/408) 
 | `traefik-native-sonar-race` | `rtk proxy env GOPROXY=off GOSUMDB=off GOCACHE=/var/tmp/codex/ModSecurity-conector/cache/i09-go GOTMPDIR=/var/tmp/codex/ModSecurity-conector/tmp go test -race -json ./... -count=1` | 0 | 56; passed |
 | `traefik-native-sonar-vet` | `rtk proxy env GOPROXY=off GOSUMDB=off GOCACHE=/var/tmp/codex/ModSecurity-conector/cache/i09-go GOTMPDIR=/var/tmp/codex/ModSecurity-conector/tmp go vet ./...` | 0 | n/a; passed |
 | `traefik-sonar-c` | `rtk proxy python3 connectors/traefik/tests/test_i09_api_returns.py` | 0 | 1; passed |
+
+## Finaler Abgleich der CI-Voraussetzungen
+
+CI für `27b32df9e4b207906700f5c98bd3399941a8ca11`, Lint-Run `38122479270`/Job `114419887846`, bestätigte einen verbleibenden Setupfehler: `msc_filters.h:2:10: fatal error: modsecurity/modsecurity.h: No such file or directory`. Das I09-Target führte 23 Methoden mit einem Apache-Fixture-Setupfehler aus; alle HAProxy-Fixtures bestanden. Die bereits in Apache-CI genutzte Voraussetzung `libmodsecurity-dev` wird ergänzt; Kompilierung bleibt verpflichtend. Der exakte Sonar-Head-Check `114420352962` meldete einen Verschachtelungsbefund im Traefik-Poll-Fehlermapper und 0.0% neue Codeduplikation. Extraktion des Poll-Fehlermappers erhält POLLNVAL/EBADF vor POLLHUP/ECONNRESET und Fallback EIO; fünf kompilierte Kontrollen und die tatsächliche C17-Translation-Unit bestehen. Ein serverseitig bestandenes Quality Gate genügt der strikten Null-Befund-Abnahme nicht; Prüfungen am aktualisierten Head bleiben erforderlich.
+
+| Run | Exakter Befehl | Exit | Tests / Ergebnis |
+| --- | --- | --- | --- |
+| `final-followup-contracts` | `rtk proxy make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python check-variable-documentation check-bilingual-docs LOCAL_CHECK_ONLY=1` | 2 | n/a; failed |
+| `final-followup-docs` | `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python /var/tmp/codex/ModSecurity-conector/analysis/i09-20261011/docs_validate.py focus` | 0 | n/a; passed |
+| `final-poll-guard-integrated` | `rtk proxy make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python check-i09-native-routes check-common-helpers-c17` | 0 | 33; passed |
+| `remediation-change-record` | `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python ci/tools/new-change-record.py check` | 0 | n/a; passed |
+| `remediation-docs-final` | `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python /var/tmp/codex/ModSecurity-conector/analysis/i09-20261011/docs_validate.py focus` | 0 | n/a; passed |
+| `remediation-native-envoy` | `rtk proxy env MODSECURITY_INCLUDE_DIR=/usr/include MODSECURITY_LIB_DIR=/usr/lib/x86_64-linux-gnu ENVOY_EXT_PROC_COMMON_TEST=1 make -C connectors/envoy build-envoy-ext-proc` | 0 | n/a; passed |
+| `traefik-sonar-nesting-c` | `rtk proxy python3 connectors/traefik/tests/test_i09_api_returns.py` | 0 | 1; passed |
+| `traefik-sonar-nesting-c17` | `rtk proxy cc -std=c17 -Wall -Wextra -Werror -fsyntax-only -I. -Icommon/include -Icommon/runtime -Iconnectors/traefik/src connectors/traefik/src/traefik_engine_service.c` | 0 | n/a; passed |
