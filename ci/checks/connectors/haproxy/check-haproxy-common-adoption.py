@@ -67,9 +67,9 @@ rule_id_decoder_is_bounded = (
     == re.sub(r'\s+', ' ', expected_rule_id_decoder).strip()
     and 'capture_log_rule_id(decision, intervention.log);' in intervention_capture
 )
-decision_log_start = spop_runtime.index('static void decision_log_write(')
-decision_log_end = spop_runtime.index('static int transaction_cache_init(', decision_log_start)
-decision_log_writer = spop_runtime[decision_log_start:decision_log_end]
+spop_checked = mask_c_comments(spop_runtime)
+decision_log_writer = c_function(spop_checked, 'static int decision_log_write(')
+phase4_event_writer = c_function(spop_checked, 'static int phase4_common_event_write(')
 ok = True
 def check(cond,msg):
     global ok
@@ -171,10 +171,12 @@ for field in [
 check('safe_decision_reason_code' in decision_log_writer and
       'json_write_string(file, reason_code)' in decision_log_writer,
       'HAProxy decision JSONL emits a bounded safe reason code')
-check('msconnector_late_intervention_policy_init' in spop_runtime and
-      'msconnector_late_intervention_resolve' in spop_runtime and
-      'msconnector_late_intervention_action_name' in spop_runtime,
-      'HAProxy response decision metadata uses the Common late-intervention policy')
+check('actual_action = "";' in decision_log_writer and
+      'actual_action = phase4_actual_action' not in decision_log_writer and
+      'JSON_FIELD_STRING("transport_result", "not_observable")' in decision_log_writer and
+      'event.decision.actual_action = actual_action;' in phase4_event_writer and
+      'event.http.transport_result = "not_observable";' in phase4_event_writer,
+      'HAProxy pre-ACK response metadata leaves actual host action and transport unobserved')
 check('phase4_common_event_write' in spop_runtime and
       'msconnector_event_write_jsonl_line' in spop_runtime and
       'event.meta.event = "phase4_intervention"' in spop_runtime and

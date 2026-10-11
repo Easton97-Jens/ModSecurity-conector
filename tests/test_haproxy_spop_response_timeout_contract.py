@@ -228,6 +228,8 @@ int main(void) {
     assert(log != NULL);
     assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
     memset(&state, 0, sizeof(state));
+    assert(pthread_mutex_init(&state.decision_log_lock, NULL) == 0);
+    state.decision_log_lock_initialized = 1;
     config_init(&state.config);
     state.config.response_phases_enabled = 0;
     assert(config_set(&state.config, "mode", "detect-only") == 0);
@@ -255,6 +257,8 @@ int main(void) {
         "response_phase_disabled_closed"));
     assert(state.transactions == NULL);
 
+    assert(pthread_mutex_destroy(&state.decision_log_lock) == 0);
+    state.decision_log_lock_initialized = 0;
     fclose(log);
     close(sockets[0]);
     close(sockets[1]);

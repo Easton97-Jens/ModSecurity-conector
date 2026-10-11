@@ -246,6 +246,8 @@ typedef struct agent_state {
     FILE *decision_log;
     pthread_mutex_t decision_log_lock;
     int decision_log_lock_initialized;
+    /* Protected by decision_log_lock; one failed physical sink stays terminal. */
+    msconnector_error decision_log_error;
     spop_owner_queue owner_queue;
     haproxy_spop_response_companion_backend response_backend;
     haproxy_spop_response_companion_slot *response_slots;
@@ -2930,27 +2932,15 @@ static const char *phase4_requested_action(
     return strcmp(name, "redirect") == 0 ? "redirect" : "deny";
 }
 
-static const char *phase4_actual_action(void) {
-    msconnector_late_intervention_policy policy;
-    msconnector_late_intervention_action action;
-    const char *name;
-
-    /* SPOE response rules run before HAProxy commits the response.  This is a
-     * host-model property, not a runtime-verification claim. */
-    msconnector_late_intervention_policy_init(&policy);
-    action = msconnector_late_intervention_resolve(&policy, 0, 0, 0);
-    name = msconnector_late_intervention_action_name(action);
-    return strcmp(name, "deny_if_possible") == 0 ? "deny" : name;
-}
-
-static void phase4_common_event_write(
+static int phase4_common_event_write(
         FILE *file,
         const notify_request *request,
         const haproxy_modsecurity_decision *decision,
         const char *requested_action,
         const char *actual_action,
         int original_status,
-        const char *reason_code) {
+        const char *reason_code,
+        msconnector_error *error) {
     msconnector_event event;
     char line[4096];
     char rule_id[32];
@@ -2958,7 +2948,9 @@ static void phase4_common_event_write(
 
     if (file == 0 || request == 0 || decision == 0 ||
             requested_action == 0 || actual_action == 0) {
-        return;
+        msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
+            "SPOP event inputs are unavailable", "haproxy-spoe-spop");
+        return 0;
     }
 
     (void)snprintf(rule_id, sizeof(rule_id), "%u", decision->rule_id);
@@ -2987,7 +2979,7 @@ static void phase4_common_event_write(
     if (strcmp(actual_action, "deny") == 0) {
         event.http.visible_http_status = decision->status;
     }
-    event.http.transport_result = "http_status";
+    event.http.transport_result = "not_observable";
     if (strcmp(actual_action, "abort_connection") == 0) {
         event.http.transport_result = "connection_aborted";
     } else if (strcmp(actual_action, "log_only") == 0) {
@@ -3003,10 +2995,19 @@ static void phase4_common_event_write(
     event.flags.body_started = 0;
     event.flags.connection_aborted = 0;
 
-    if (msconnector_event_write_jsonl_line(&event, line, sizeof(line),
-            &json_truncated)) {
-        fputs(line, file);
+    if (!msconnector_event_write_jsonl_line(&event, line, sizeof(line),
+            &json_truncated) || json_truncated) {
+        msconnector_error_set(error, json_truncated ? MSCONNECTOR_ERROR_EVENT_TOO_LARGE :
+            MSCONNECTOR_ERROR_INTERNAL,
+            "SPOP event serialization failed", "haproxy-spoe-spop");
+        return 0;
     }
+    if (fputs(line, file) == EOF || ferror(file) || fflush(file) != 0) {
+        msconnector_error_set(error, MSCONNECTOR_ERROR_IO,
+            "SPOP event write or flush failed", "haproxy-spoe-spop");
+        return 0;
+    }
+    return 1;
 }
 
 static const char *safe_decision_reason_code(
@@ -3046,7 +3047,7 @@ static const char *safe_decision_reason_code(
     return "modsecurity_allow";
 }
 
-static void decision_log_write(
+static int decision_log_write(
         agent_state *state,
         const notify_request *request,
         const haproxy_modsecurity_decision *decision,
@@ -3065,23 +3066,51 @@ static void decision_log_write(
     int phase4_disruptive;
     int original_status;
     time_t now;
+    char *serialized = NULL;
+    size_t serialized_size = 0U;
+    msconnector_error error;
+    int success = 0;
+    int event_serialized = 1;
 
-    if (state == 0 || state->decision_log == 0 || request == 0 || decision == 0 ||
+    if (state == 0 || request == 0 || decision == 0 ||
             !state->decision_log_lock_initialized ||
             pthread_mutex_lock(&state->decision_log_lock) != 0) {
-        return;
+        return 0;
     }
-    file = state->decision_log;
+    /* An omitted decision log is optional. A configured failed sink is not. */
+    if (state->decision_log_error.code != MSCONNECTOR_ERROR_NONE) {
+        goto unlock;
+    }
+    if (state->decision_log == NULL) {
+        success = state->config.decision_log[0] == '\0';
+        if (!success) {
+            msconnector_error_set(&state->decision_log_error, MSCONNECTOR_ERROR_IO,
+                "SPOP decision sink is unavailable", "haproxy-spoe-spop");
+        }
+        goto unlock;
+    }
+    msconnector_error_init(&error);
+    /* Stage both records so serialization failure never touches the sink. All
+     * inputs are bounded fields; the combined record also has a hard size cap. */
+    file = open_memstream(&serialized, &serialized_size);
+    if (file == NULL) {
+        msconnector_error_set(&state->decision_log_error, MSCONNECTOR_ERROR_INTERNAL,
+            "SPOP decision serialization allocation failed", "haproxy-spoe-spop");
+        goto unlock;
+    }
     decision_name = safe_decision_name(decision_text, decision);
     reason_code = safe_decision_reason_code(
         decision, modsecurity_processed, decision_text);
-    phase4_disruptive = request->is_response_body && decision->phase == 4 &&
+    phase4_disruptive = modsecurity_processed && request->is_response_body &&
+        decision->phase == 4 &&
         decision->disruptive != 0;
     original_status = request->has_response_status ?
         (int)request->response_status : 200;
     if (phase4_disruptive) {
         requested_action = phase4_requested_action(decision, decision_text);
-        actual_action = phase4_actual_action();
+        /* ACK construction requests host control; no host outcome has yet
+         * been observed. The native companion records its actual outcome later. */
+        actual_action = "";
     }
     now = time(0);
     fputc('{', file);
@@ -3128,7 +3157,7 @@ static void decision_log_write(
         JSON_FIELD_BOOL("body_started", 0);
         JSON_FIELD_BOOL("response_committed", 0);
         JSON_FIELD_BOOL("connection_aborted", 0);
-        JSON_FIELD_STRING("transport_result", "http_status");
+        JSON_FIELD_STRING("transport_result", "not_observable");
     }
     JSON_FIELD_BOOL("redirect_present", decision->redirect_url[0] != '\0');
     JSON_FIELD_INT("rule_id", decision->rule_id);
@@ -3141,15 +3170,63 @@ static void decision_log_write(
     json_write_string(file, reason_code);
     fputs("}\n", file);
     if (phase4_disruptive) {
-        phase4_common_event_write(file, request, decision, requested_action,
-            actual_action, original_status, reason_code);
+        event_serialized = phase4_common_event_write(file, request, decision, requested_action,
+            actual_action, original_status, reason_code, &error);
     }
 #undef JSON_FIELD_STRING
 #undef JSON_FIELD_UINT
 #undef JSON_FIELD_INT
 #undef JSON_FIELD_BOOL
-    fflush(file);
+    /* This FILE is the serialization memory stream, not the physical sink.
+     * Its stdio failure is an allocation/serialization error at this boundary. */
+    if (!event_serialized && error.code == MSCONNECTOR_ERROR_IO) {
+        msconnector_error_set(&error, MSCONNECTOR_ERROR_INTERNAL,
+            "SPOP event staging failed", "haproxy-spoe-spop");
+    }
+    if (ferror(file) || fflush(file) != 0) {
+        if (error.code == MSCONNECTOR_ERROR_NONE) {
+            msconnector_error_set(&error, MSCONNECTOR_ERROR_INTERNAL,
+                "SPOP decision serialization failed", "haproxy-spoe-spop");
+        }
+    }
+    if (fclose(file) != 0 && error.code == MSCONNECTOR_ERROR_NONE) {
+        msconnector_error_set(&error, MSCONNECTOR_ERROR_INTERNAL,
+            "SPOP decision serialization close failed", "haproxy-spoe-spop");
+    }
+    if (!event_serialized && error.code == MSCONNECTOR_ERROR_NONE) {
+        msconnector_error_set(&error, MSCONNECTOR_ERROR_INTERNAL,
+            "SPOP event serialization result is unavailable", "haproxy-spoe-spop");
+    }
+    if (error.code == MSCONNECTOR_ERROR_NONE && serialized_size > RUNTIME_TEXT_LIMIT) {
+        msconnector_error_set(&error, MSCONNECTOR_ERROR_EVENT_TOO_LARGE,
+            "SPOP decision record exceeds the bounded sink size", "haproxy-spoe-spop");
+    }
+    if (error.code == MSCONNECTOR_ERROR_NONE &&
+            (fputs(serialized, state->decision_log) == EOF ||
+             ferror(state->decision_log) || fflush(state->decision_log) != 0)) {
+        msconnector_error_set(&error, MSCONNECTOR_ERROR_IO,
+            "SPOP decision sink write or flush failed", "haproxy-spoe-spop");
+    }
+    free(serialized);
+    if (error.code != MSCONNECTOR_ERROR_NONE) {
+        state->decision_log_error = error;
+    } else {
+        success = 1;
+    }
+unlock:
     (void)pthread_mutex_unlock(&state->decision_log_lock);
+    return success;
+}
+
+static int decision_log_failed(agent_state *state) {
+    int failed;
+    if (state == NULL || !state->decision_log_lock_initialized ||
+            pthread_mutex_lock(&state->decision_log_lock) != 0) {
+        return 1;
+    }
+    failed = state->decision_log_error.code != MSCONNECTOR_ERROR_NONE;
+    (void)pthread_mutex_unlock(&state->decision_log_lock);
+    return failed;
 }
 
 static int production_config_has_safe_peer_limits(const agent_config *config) {
@@ -3731,6 +3808,10 @@ static void process_production_response_notify(
             *decision_text = decision->action;
         }
     }
+    if (!decision_log_write(state, request, decision, *modsec_processed, *decision_text)) {
+        haproxy_modsecurity_transaction_abort(transaction);
+        return;
+    }
     if (request->is_response_body && modsec_rc == 0 &&
             decision->disruptive == 0) {
         if (transaction_cache_store(state, request->request_id, transaction) != 0) {
@@ -3738,6 +3819,7 @@ static void process_production_response_notify(
             *decision_origin = SPOP_ACK_FAILURE_DECISION;
             *decision_text = set_processing_failure(state, decision, phase,
                 "transaction cache store failed while awaiting response EOS");
+            (void)decision_log_write(state, request, decision, 0, *decision_text);
         }
     } else if (!request->is_response_body && state->config.response_body_limit > 0U &&
             decision->disruptive == 0) {
@@ -3746,11 +3828,11 @@ static void process_production_response_notify(
             *decision_origin = SPOP_ACK_FAILURE_DECISION;
             *decision_text = set_processing_failure(state, decision, phase,
                 "transaction cache store failed after response headers");
+            (void)decision_log_write(state, request, decision, 0, *decision_text);
         }
     } else {
         haproxy_modsecurity_transaction_finish(transaction);
     }
-    decision_log_write(state, request, decision, *modsec_processed, *decision_text);
 }
 
 static void build_modsecurity_request_from_notify(
@@ -3796,6 +3878,7 @@ static void finish_or_store_request_transaction(
     *decision_origin = SPOP_ACK_FAILURE_DECISION;
     *decision_text = set_processing_failure(state, decision, 2,
         "transaction cache store failed");
+    (void)decision_log_write(state, request, decision, 0, *decision_text);
 }
 
 static void process_production_request_notify(
@@ -3841,6 +3924,12 @@ static void process_production_request_notify(
             *decision_text = decision->action;
         }
     }
+    if (!decision_log_write(state, request, decision, *modsec_processed, *decision_text)) {
+        if (transaction != NULL) {
+            haproxy_modsecurity_transaction_abort(transaction);
+        }
+        return;
+    }
     if (modsec_rc == 0 && decision->disruptive == 0 &&
             strcmp(state->config.response_companion, "native-htx") == 0) {
         struct timespec now;
@@ -3854,6 +3943,7 @@ static void process_production_request_notify(
             *decision_origin = SPOP_ACK_FAILURE_DECISION;
             *decision_text = set_processing_failure(state, decision, 2,
                 "response companion clock unavailable");
+            (void)decision_log_write(state, request, decision, 0, *decision_text);
         } else {
             now_ms = (uint64_t)now.tv_sec * UINT64_C(1000) +
                 (uint64_t)now.tv_nsec / UINT64_C(1000000);
@@ -3869,6 +3959,7 @@ static void process_production_request_notify(
                 *decision_origin = SPOP_ACK_FAILURE_DECISION;
                 *decision_text = set_processing_failure(state, decision, 2,
                     "response companion handoff failed closed");
+                (void)decision_log_write(state, request, decision, 0, *decision_text);
             } else {
                 transaction = 0;
             }
@@ -3876,7 +3967,6 @@ static void process_production_request_notify(
     }
     finish_or_store_request_transaction(state, request, transaction, decision,
         decision_origin, decision_text);
-    decision_log_write(state, request, decision, *modsec_processed, *decision_text);
 }
 
 static void submit_production_notify_task(
@@ -3951,6 +4041,12 @@ static int process_production_notify(
     } else {
         submit_production_notify_task(state, request, phase, &result);
     }
+    /* No successful ACK, rule block, fail-open fallback, or companion handle
+     * publication can hide a mandatory physical event-sink failure. Preserve
+     * the existing technical decision; the peer closes this failed operation. */
+    if (decision_log_failed(state)) {
+        return -1;
+    }
     enforce = protocol_failure_requires_enforcement(decision_text) ||
         production_ack_enforces(&state->config, decision_origin);
     if (build_decision_ack_payload(&ack_payload, &decision,
@@ -3974,6 +4070,9 @@ static void run_spop_production_task(void *opaque)
 {
     spop_production_task_context *context = (spop_production_task_context *)opaque;
 
+    if (decision_log_failed(context->state)) {
+        return;
+    }
     if (context->request.is_response) {
         process_production_response_notify(context->state, &context->request,
             &context->decision, &context->modsec_processed,

@@ -79,6 +79,32 @@ class HaproxyCommonAdoptionCheckerTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_predicted_pre_ack_action_is_rejected_despite_comment(self) -> None:
+        def mutate(mapper: Path) -> None:
+            runtime = mapper.with_name("haproxy_spop_diagnostic_runtime.c")
+            replace_once(runtime, 'actual_action = "";', 'actual_action = "deny";')
+            with runtime.open("a", encoding="utf-8") as source:
+                source.write('\n/* actual_action = ""; */\n')
+
+        self._assert_rejected(
+            mutate,
+            "HAProxy pre-ACK response metadata leaves actual host action and transport unobserved",
+        )
+
+    def test_predicted_pre_ack_transport_is_rejected_despite_comment(self) -> None:
+        def mutate(mapper: Path) -> None:
+            runtime = mapper.with_name("haproxy_spop_diagnostic_runtime.c")
+            guard = 'JSON_FIELD_STRING("transport_result", "not_observable");'
+            replace_once(runtime, guard,
+                         'JSON_FIELD_STRING("transport_result", "status_returned");')
+            with runtime.open("a", encoding="utf-8") as source:
+                source.write(f'\n/* {guard} */\n')
+
+        self._assert_rejected(
+            mutate,
+            "HAProxy pre-ACK response metadata leaves actual host action and transport unobserved",
+        )
+
     def test_removed_preallocation_host_rejection_is_rejected_despite_decoys(self) -> None:
         def mutate(mapper: Path) -> None:
             replace_once(
