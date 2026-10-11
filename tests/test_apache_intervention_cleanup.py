@@ -18,7 +18,7 @@ C17_CHECK = (
 
 def c_function(source: str, signature: str) -> str:
     """Return a complete definition, accounting for braces in comments/text."""
-    name = signature.split("(", 1)[0].split()[-1]
+    name = signature.split("(", 1)[0].split()[-1].lstrip("*")
     return function_definition(source, name)
 
 

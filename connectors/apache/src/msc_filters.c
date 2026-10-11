@@ -57,7 +57,7 @@ static apr_status_t apache_open_event_file(apr_file_t **file,
 /* Kept private to this translation unit; Phase 2 reaches it before the
  * implementation below because input-filter EOS is handled near the start
  * of this file. */
-static void apache_log_intervention_event(msc_t *msr, request_rec *r,
+static msconnector_error_code apache_log_intervention_event(msc_t *msr, request_rec *r,
     const apache_intervention_event_input *input);
 
 
@@ -72,6 +72,10 @@ int msc_finalize_request_body(msc_t *msr, request_rec *r)
     int intervention;
 
     if (msr == NULL || r == NULL || msr->t == NULL)
+    {
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    if (msr->intervention.mandatory_event_failed)
     {
         return HTTP_INTERNAL_SERVER_ERROR;
     }
@@ -164,10 +168,15 @@ int msc_finalize_request_body(msc_t *msr, request_rec *r)
             event_input.reason = "request_body_before_handler";
             event_input.original_status = r->status;
             event_input.response_already_committed = 0;
-            apache_log_intervention_event(msr, r, &event_input);
+            if (apache_log_intervention_event(msr, r, &event_input) !=
+                MSCONNECTOR_ERROR_NONE)
+            {
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
         }
     }
-    return intervention;
+    return msr->intervention.mandatory_event_failed
+        ? HTTP_INTERNAL_SERVER_ERROR : intervention;
 }
 
 
@@ -579,65 +588,134 @@ static void apache_intervention_set_http(msconnector_event *event,
     }
 }
 
-static void apache_intervention_write_event(apr_file_t *file,
-    request_rec *r, const char *log_path,
-    const msconnector_event *event)
+/* Sink failure is sticky even when a diagnostic callback has no error output.
+ * Only mandatory events fail the canonical transaction. Existing technical
+ * causes remain authoritative; the sink has its own original Common code. */
+static msconnector_error_code apache_event_sink_result(msc_t *msr,
+    request_rec *r, msconnector_error_code code, int mandatory)
 {
+    if (msr == NULL)
+    {
+        return code;
+    }
+    if (msr->intervention.event_sink_error == MSCONNECTOR_ERROR_NONE)
+    {
+        msr->intervention.event_sink_error = code;
+    }
+    code = msr->intervention.event_sink_error;
+    if (mandatory && code != MSCONNECTOR_ERROR_NONE)
+    {
+        msr->intervention.mandatory_event_failed = 1;
+        /* Native intervention collection may have prepared a Location header.
+         * A failed mandatory sink replaces that pending rule action with a
+         * technical error; committed response headers remain immutable. */
+        msr->last_intervention_log = "";
+        msr->last_intervention_status = HTTP_INTERNAL_SERVER_ERROR;
+        if (r != NULL && !msr->response.committed && r->bytes_sent == 0 &&
+            r->headers_out != NULL)
+        {
+            apr_table_unset(r->headers_out, "Location");
+        }
+
+        if (msr->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE)
+        {
+            (void)msc_apache_contract_fail(msr,
+                code == MSCONNECTOR_ERROR_EVENT_TOO_LARGE
+                    ? MSCONNECTOR_TRANSACTION_ERROR_EVENT_LIMIT
+                    : MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
+        }
+    }
+    return code;
+}
+
+static msconnector_error_code apache_intervention_write_event(msc_t *msr,
+    request_rec *r, const char *log_path, const msconnector_event *event,
+    int mandatory)
+{
+    apr_file_t *file = NULL;
     apr_status_t rc;
+    apr_status_t close_rc;
+    apr_size_t written = 0;
+    apr_size_t length;
     char line[4096];
     int json_truncated = 0;
+    msconnector_error_code code = MSCONNECTOR_ERROR_NONE;
 
-    /* A lossy event is not replaced with an unrelated, noncanonical JSON
-     * record. Keep the Common schema authoritative and report sink failures
-     * through Apache's native diagnostic channel without recursive logging. */
+    if (msr->intervention.event_sink_error != MSCONNECTOR_ERROR_NONE)
+    {
+        return apache_event_sink_result(msr, r,
+            msr->intervention.event_sink_error, mandatory);
+    }
+    /* Serialize before open: invalid or oversized metadata cannot create or
+     * modify the physical sink. Never substitute a noncanonical fallback. */
     if (!msconnector_event_write_jsonl_line(event, line, sizeof(line),
             &json_truncated))
     {
         ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
             "ModSecurity: common intervention event serialization %s",
             json_truncated ? "truncated" : "failed");
-        return;
+        return apache_event_sink_result(msr, r,
+            json_truncated ? MSCONNECTOR_ERROR_EVENT_TOO_LARGE
+                : MSCONNECTOR_ERROR_INTERNAL, mandatory);
     }
-    rc = apr_file_puts(line, file);
+    rc = apache_open_event_file(&file, log_path, r->pool);
     if (rc != APR_SUCCESS)
     {
         ap_log_rerror(APLOG_MARK, APLOG_WARNING, rc, r,
+            "ModSecurity: failed to open intervention log %s", log_path);
+        return apache_event_sink_result(msr, r, MSCONNECTOR_ERROR_IO, mandatory);
+    }
+    length = strlen(line);
+    /* The adopted descriptor is unbuffered. APR retries partial writes until
+     * the complete line or an error; there is no stdio flush stage. */
+    rc = apr_file_write_full(file, line, length, &written);
+    if (rc != APR_SUCCESS || written != length)
+    {
+        code = MSCONNECTOR_ERROR_IO;
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, rc, r,
             "ModSecurity: failed to write intervention log %s", log_path);
     }
+    close_rc = apr_file_close(file);
+    if (close_rc != APR_SUCCESS)
+    {
+        code = MSCONNECTOR_ERROR_IO;
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, close_rc, r,
+            "ModSecurity: failed to close intervention log %s", log_path);
+    }
+    return apache_event_sink_result(msr, r, code, mandatory);
 }
 
 
-static void apache_log_intervention_event(msc_t *msr, request_rec *r,
+static msconnector_error_code apache_log_intervention_event(msc_t *msr, request_rec *r,
     const apache_intervention_event_input *input)
 {
     msc_conf_t *conf;
-    apr_file_t *file = NULL;
-    apr_status_t rc;
     msconnector_event event;
     char rule_id[MSCONNECTOR_MAX_RULE_ID_LENGTH];
 
     if (msr == NULL || r == NULL || input == NULL ||
         r->per_dir_config == NULL)
     {
-        return;
+        return MSCONNECTOR_ERROR_NONE;
     }
 
     conf = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
         &security3_module);
     if (conf == NULL || conf->common_config.phase4_log_path == NULL)
     {
-        return;
+        return MSCONNECTOR_ERROR_NONE;
     }
 
-    rc = apache_open_event_file(&file, conf->common_config.phase4_log_path,
-        r->pool);
-    if (rc != APR_SUCCESS)
+    if (msr->intervention.event_sink_error != MSCONNECTOR_ERROR_NONE)
     {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, rc, r,
-            "ModSecurity: failed to open intervention log %s",
-            conf->common_config.phase4_log_path);
-        return;
+        return apache_event_sink_result(msr, r,
+            msr->intervention.event_sink_error, 1);
     }
+    if (msr->intervention.terminal_event_attempted)
+    {
+        return MSCONNECTOR_ERROR_NONE;
+    }
+    msr->intervention.terminal_event_attempted = 1;
 
     rule_id[0] = '\0';
     (void)msconnector_rule_id_extract_from_message(msr->last_intervention_log,
@@ -692,23 +770,15 @@ static void apache_log_intervention_event(msc_t *msr, request_rec *r,
     event.flags.body_truncated = input->phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
         msr->response_body_truncated;
 
-    apache_intervention_write_event(file, r,
-        conf->common_config.phase4_log_path, &event);
-
-    rc = apr_file_close(file);
-    if (rc != APR_SUCCESS)
-    {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, rc, r,
-            "ModSecurity: failed to close intervention log %s",
-            conf->common_config.phase4_log_path);
-    }
+    return apache_intervention_write_event(msr, r,
+        conf->common_config.phase4_log_path, &event, 1);
 }
 
 
-void apache_emit_intervention_event(msc_t *msr, request_rec *r,
+msconnector_error_code apache_emit_intervention_event(msc_t *msr, request_rec *r,
     const apache_intervention_event_input *input)
 {
-    apache_log_intervention_event(msr, r, input);
+    return apache_log_intervention_event(msr, r, input);
 }
 
 
@@ -747,7 +817,7 @@ static const char *apache_contract_failure_reason(
     }
 }
 
-static void apache_emit_contract_failure_event_with_action(msc_t *msr,
+static msconnector_error_code apache_emit_contract_failure_event_with_action(msc_t *msr,
     request_rec *r, enum msconnector_phase phase,
     msconnector_transaction_error_class error_class, int status,
     const char *actual)
@@ -758,7 +828,8 @@ static void apache_emit_contract_failure_event_with_action(msc_t *msr,
         status > 599 || actual == NULL ||
         msr->contract_failure_event_emitted)
     {
-        return;
+        return msr != NULL ? msr->intervention.event_sink_error
+            : MSCONNECTOR_ERROR_NONE;
     }
     /* A contract failure is terminal. Preserve exactly one payload-free
      * observability record and never derive a rule ID from a malformed engine
@@ -777,50 +848,36 @@ static void apache_emit_contract_failure_event_with_action(msc_t *msr,
         msr->response_headers_snapshot_taken
         ? msr->response_status_snapshot : r->status;
     input.response_already_committed = msr->response.committed;
-    apache_log_intervention_event(msr, r, &input);
+    return apache_log_intervention_event(msr, r, &input);
 }
 
 
-void apache_emit_contract_failure_event(msc_t *msr, request_rec *r,
+msconnector_error_code apache_emit_contract_failure_event(msc_t *msr, request_rec *r,
     enum msconnector_phase phase,
     msconnector_transaction_error_class error_class, int status)
 {
-    apache_emit_contract_failure_event_with_action(msr, r, phase,
+    return apache_emit_contract_failure_event_with_action(msr, r, phase,
         error_class, status, "deny");
 }
 
 
-void apache_log_rule_match_event(msc_t *msr, request_rec *r,
+msconnector_error_code apache_log_rule_match_event(msc_t *msr, request_rec *r,
     enum msconnector_phase phase, const char *rule_id)
 {
     msc_conf_t *conf;
-    apr_file_t *file = NULL;
-    apr_status_t rc;
     msconnector_event event;
-    char line[4096];
-    int json_truncated = 0;
 
     if (msr == NULL || r == NULL || r->per_dir_config == NULL ||
         !msconnector_rule_id_validate(rule_id))
     {
-        return;
+        return MSCONNECTOR_ERROR_NONE;
     }
 
     conf = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
         &security3_module);
     if (conf == NULL || conf->common_config.phase4_log_path == NULL)
     {
-        return;
-    }
-
-    rc = apache_open_event_file(&file, conf->common_config.phase4_log_path,
-        r->pool);
-    if (rc != APR_SUCCESS)
-    {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, rc, r,
-            "ModSecurity: failed to open native rule-match log %s",
-            conf->common_config.phase4_log_path);
-        return;
+        return MSCONNECTOR_ERROR_NONE;
     }
 
     /* This record is emitted synchronously by the real libmodsecurity log
@@ -853,42 +910,19 @@ void apache_log_rule_match_event(msc_t *msr, request_rec *r,
     event.body.bytes_inspected = phase == MSCONNECTOR_PHASE_REQUEST_BODY
         ? msr->request_body_bytes_inspected : 0U;
 
-    if (msconnector_event_write_jsonl_line(&event, line, sizeof(line),
-        &json_truncated))
-    {
-        rc = apr_file_puts(line, file);
-        if (rc != APR_SUCCESS)
-        {
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, rc, r,
-                "ModSecurity: failed to write native rule-match log %s",
-                conf->common_config.phase4_log_path);
-        }
-    }
-    else
-    {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-            "ModSecurity: common rule-match event serialization %s",
-            json_truncated ? "truncated" : "failed");
-    }
-
-    rc = apr_file_close(file);
-    if (rc != APR_SUCCESS)
-    {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, rc, r,
-            "ModSecurity: failed to close native rule-match log %s",
-            conf->common_config.phase4_log_path);
-    }
+    return apache_intervention_write_event(msr, r,
+        conf->common_config.phase4_log_path, &event, 0);
 }
 
 
-static void apache_phase4_log_event(msc_t *msr, request_rec *r,
+static msconnector_error_code apache_phase4_log_event(msc_t *msr, request_rec *r,
     const char *wanted, const char *actual, const char *reason)
 {
     apache_intervention_event_input input;
 
     if (msr == NULL || r == NULL)
     {
-        return;
+        return MSCONNECTOR_ERROR_NONE;
     }
     input.event_name = "phase4_intervention";
     input.phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
@@ -897,11 +931,11 @@ static void apache_phase4_log_event(msc_t *msr, request_rec *r,
     input.reason = reason;
     input.original_status = r->status;
     input.response_already_committed = msr != NULL ? msr->response.committed : 0;
-    apache_log_intervention_event(msr, r, &input);
+    return apache_log_intervention_event(msr, r, &input);
 }
 
 
-static void apache_phase3_log_event(msc_t *msr, request_rec *r,
+static msconnector_error_code apache_phase3_log_event(msc_t *msr, request_rec *r,
     const char *wanted, const char *actual, int original_status)
 {
     apache_intervention_event_input input;
@@ -913,7 +947,7 @@ static void apache_phase3_log_event(msc_t *msr, request_rec *r,
     input.reason = "response_headers_before_commit";
     input.original_status = original_status;
     input.response_already_committed = 0;
-    apache_log_intervention_event(msr, r, &input);
+    return apache_log_intervention_event(msr, r, &input);
 }
 
 
@@ -1763,6 +1797,10 @@ static apr_status_t apache_output_filter_process_headers(msc_t *msr,
     int error_headers_added;
     int response_headers_added;
 
+    if (msr->intervention.mandatory_event_failed)
+    {
+        return APR_EGENERAL;
+    }
     if (msr->response_headers_processed)
     {
         return APR_SUCCESS;
@@ -1892,7 +1930,11 @@ static apr_status_t apache_output_filter_process_headers(msc_t *msr,
             HTTP_INTERNAL_SERVER_ERROR);
     }
     wanted = msc_apache_contract_intervention_action(msr);
-    apache_phase3_log_event(msr, r, wanted, wanted, original_status);
+    if (apache_phase3_log_event(msr, r, wanted, wanted, original_status) !=
+        MSCONNECTOR_ERROR_NONE)
+    {
+        intervention = HTTP_INTERNAL_SERVER_ERROR;
+    }
     ap_remove_output_filter(filter);
     return apache_send_precommit_terminal_error(msr, filter, brigade,
         intervention);
@@ -1998,13 +2040,22 @@ static apr_status_t apache_phase4_handle_intervention(msc_t *msr,
     {
         return APR_EGENERAL;
     }
+    if (msr->intervention.mandatory_event_failed)
+    {
+        apr_brigade_cleanup(bb_in);
+        return APR_EGENERAL;
+    }
     r = f->r;
     msr->phase4_intervention = 1;
     msr->response.committed = apache_phase4_response_committed(msr, r);
     wanted = msc_apache_contract_intervention_action(msr);
     if (conf->common_config.phase4_mode == MSCONNECTOR_PHASE4_MODE_OFF)
     {
-        apache_phase4_log_event(msr, r, wanted, wanted, "native_phase4_mode_off");
+        if (apache_phase4_log_event(msr, r, wanted, wanted, "native_phase4_mode_off") !=
+            MSCONNECTOR_ERROR_NONE)
+        {
+            return apache_phase4_fail_closed(msr, f, bb_in, "event sink failure");
+        }
         apr_brigade_cleanup(bb_in);
         msc_discard_response_brigade(msr);
         msr->response_phase4_gate_failed = 1;
@@ -2018,8 +2069,11 @@ static apr_status_t apache_phase4_handle_intervention(msc_t *msr,
     actual = apache_phase4_actual_action(action, wanted);
     if (action == MSCONNECTOR_LATE_INTERVENTION_LOG_ONLY)
     {
-        apache_phase4_log_event(msr, r, wanted, actual,
-            "response_committed_safe");
+        if (apache_phase4_log_event(msr, r, wanted, actual,
+                "response_committed_safe") != MSCONNECTOR_ERROR_NONE)
+        {
+            return apache_phase4_fail_closed(msr, f, bb_in, "event sink failure");
+        }
         return APR_SUCCESS;
     }
     if (action == MSCONNECTOR_LATE_INTERVENTION_ABORT_CONNECTION)
@@ -2029,16 +2083,22 @@ static apr_status_t apache_phase4_handle_intervention(msc_t *msr,
         msr->response_phase4_gate_failed = 1;
         msr->response_phase4_terminal_output =
             MSC_PHASE4_TERMINAL_OUTPUT_SEALED;
-        apache_phase4_log_event(msr, r, wanted, actual,
-            "response_committed_strict");
+        if (apache_phase4_log_event(msr, r, wanted, actual,
+                "response_committed_strict") != MSCONNECTOR_ERROR_NONE)
+        {
+            return apache_phase4_fail_closed(msr, f, bb_in, "event sink failure");
+        }
         ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
             "ModSecurity: phase4 intervention after response commit, action=connection_abort");
         apr_brigade_cleanup(bb_in);
         msc_discard_response_brigade(msr);
         return apache_phase4_abort_response_connection(f);
     }
-    apache_phase4_log_event(msr, r, wanted, actual,
-        "response_not_committed");
+    if (apache_phase4_log_event(msr, r, wanted, actual,
+            "response_not_committed") != MSCONNECTOR_ERROR_NONE)
+    {
+        return apache_phase4_fail_closed(msr, f, bb_in, "event sink failure");
+    }
     apr_brigade_cleanup(bb_in);
     msc_discard_response_brigade(msr);
     msr->response_phase4_gate_failed = 1;
