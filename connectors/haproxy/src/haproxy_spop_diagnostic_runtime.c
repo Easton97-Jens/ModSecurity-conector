@@ -3820,8 +3820,11 @@ static void finish_production_response_transaction(
         haproxy_modsecurity_decision *decision,
         spop_ack_decision_origin *decision_origin,
         const char **decision_text,
-        int phase) {
-    if (haproxy_modsecurity_transaction_finish_with_decision(transaction, decision) != 0) {
+        int modsec_rc) {
+    const int phase = request->is_response_body ? 4 : 3;
+    if (modsec_rc != 0) {
+        haproxy_modsecurity_transaction_abort_with_error(transaction, decision->error_class);
+    } else if (haproxy_modsecurity_transaction_finish_with_decision(transaction, decision) != 0) {
         *decision_origin = SPOP_ACK_FAILURE_DECISION;
         *decision_text = set_processing_failure(state, decision, phase,
             "transaction finish failed");
@@ -3914,12 +3917,8 @@ static void process_production_response_notify(
             (void)decision_log_write(state, request, decision, 0, *decision_text);
         }
     } else {
-        if (modsec_rc != 0) {
-            haproxy_modsecurity_transaction_abort_with_error(transaction, decision->error_class);
-        } else {
-            finish_production_response_transaction(state, request, transaction,
-                decision, decision_origin, decision_text, phase);
-        }
+        finish_production_response_transaction(state, request, transaction,
+            decision, decision_origin, decision_text, modsec_rc);
     }
 }
 

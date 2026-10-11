@@ -54,7 +54,10 @@ class HAProxySPOPTransactionCacheContractTests(unittest.TestCase):
         self.assertIn("haproxy_modsecurity_transaction_finish_with_decision(transaction, decision) != 0", finish)
         self.assertIn("set_processing_failure(state, decision, phase,", finish)
         self.assertIn("decision_log_write(state, request, decision, 0, *decision_text)", finish)
-        self.assertIn("haproxy_modsecurity_transaction_abort_with_error(transaction, decision->error_class)", response)
+        self.assertIn("decision, decision_origin, decision_text, modsec_rc)", response)
+        self.assertIn("const int phase = request->is_response_body ? 4 : 3;", finish)
+        self.assertIn("if (modsec_rc != 0)", finish)
+        self.assertIn("haproxy_modsecurity_transaction_abort_with_error(transaction, decision->error_class)", finish)
 
     def test_request_only_harness_exercises_peer_local_response_guard(self) -> None:
         self.assertIn("set_response_phase_disabled_failure(decision, phase)", SOURCE)
