@@ -4,7 +4,7 @@
 
 [Draft PR #382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382),
 branch `fix/unified-native-results-events-20260921`, base
-`5170d24801243cdcd7bf1bca6123bf8cb2c72386`. Updated: 2026-10-10.
+`5170d24801243cdcd7bf1bca6123bf8cb2c72386`. Updated: 2026-10-11.
 Current 2026-10-10 stack readback: the branch is synchronized through `master` `3019722fbda40dc281b861c1cc38085be2f430a0` via merge commit `b3dc0139`; `behind=0` and GitHub reports the PR mergeable. Framework PR #137 is merged and the Parent now pins its merge commit `99a7985c1be92a2297b1b59208f64df6768f2cbf`. Stacked PR #396 is merged into #382 at `da50b67c`; its later historical source-head SHA remains evidence provenance only.
 
 **I09 and I10 are not yet reduced to live-host proof alone.** Completed code,
@@ -29,6 +29,23 @@ References: [contract/migration](pr-382-event-contract.md),
 [Apache adoption](../reports/audits/change-records/CR-20260923-pr382-apache-adoption.md),
 [Envoy native test repair](../reports/audits/change-records/CR-20260923-pr382-envoy-test-boundaries.md).
 
+
+## 2026-10-11: current PR #382 host-evidence run
+
+The [current host-evidence report](pr-382-i12-host-evidence-20261011.md) keeps
+route-specific observations and remaining cases separate from historical R17.
+Run `20261011T063350Z-0df51024008f-i12` binds tested Parent
+`0df51024008fc84f0a6820f3b011055b69c3a3e2`, Framework
+`99a7985c1be92a2297b1b59208f64df6768f2cbf` and MRTS
+`8a6bb546c4c81d8ffc7be801dceac60c6925685f`. This product tuple does not identify
+the later documentation or delivery commit.
+
+Build/version checks and isolated admission probes prove prerequisites only.
+An Apache allow observation alone does not close its required host, transport,
+physical-sink and cleanup matrix. Request and response companion legs require
+separate evidence. I12c–l and broad I12 remain unchecked; the report records
+actual case outcomes without transferring R17 PASS to this tuple. Local raw
+bundles are retained evidence, not downloadable GitHub artifacts.
 
 ## Historical R16: 2026-10-10 downstream NGINX-H1 system evidence from PR #396
 
@@ -151,6 +168,16 @@ Local raw evidence remains under `/var/tmp/codex/ModSecurity-conector/analysis/n
 - [ ] I12: Verify each direct, companion, middleware and sidecar route separately, including actual host/transport/log results.
 - [x] I12a: Ten separate ext_proc C-bridge failure/re-entry/empty-response scenarios pass (V22); not ext_authz/companion or live gRPC completion.
 - [x] I12b: Downstream R17 from PR #396 executed the standard NGINX-H1 route with actual Root/nobody and fresh projections, locally scoped functional PASS. This closes only the execution-reference subset, not PR #382 product testing or broad I12; R16 remains historical.
+- [ ] I12c: Apache native/direct: complete current-run host, client/backend, physical-sink and cleanup evidence.
+- [ ] I12d: HAProxy HTX direct: complete current-run native host/transport/log evidence.
+- [ ] I12e: HAProxy SPOE/SPOP: prove request and required response-companion legs separately.
+- [ ] I12f: Envoy ext_proc direct: prove actual Envoy/gRPC host, downstream action and physical logs.
+- [ ] I12g: Envoy ext_authz: prove request authorization and required response companion separately.
+- [ ] I12h: Traefik Native/UDS middleware: prove actual middleware/UDS host and downstream results.
+- [ ] I12i: Traefik forwardAuth: prove request authorization and required response companion separately.
+- [ ] I12j: lighttpd stock/sidecar: prove the traffic-owning sidecar route; keep the native diagnostic control separate.
+- [ ] I12k: lighttpd patched/native: prove supported native host actions without inventing Strict abort capability.
+- [ ] I12l: Reconcile all ten logical routes, required companion legs, current NGINX evidence, case outcomes, provenance and remaining work.
 - [x] I13: Bounded HAProxy Rule-ID decoder and ordered cleanup extracted without changing phase/ownership semantics.
 - [x] I14: All 96 original NGINX adoption cases plus four regressions retained.
 - [x] I15: HAProxy helper/callsite adoption checks and eight isolated regressions retained.

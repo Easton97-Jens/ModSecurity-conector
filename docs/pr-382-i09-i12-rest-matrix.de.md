@@ -8,6 +8,23 @@ Diese manuell gepflegte Matrix enthält 56 Zeilen für 14 getrennte Routenteile,
 
 Erledigte I09f/I10e-Apache-Modulkorrekturen und andere abgehakte Teilbereiche bleiben erhalten. Der [R17-Bericht](https://github.com/Easton97-Jens/ModSecurity-conector/pull/396#issuecomment-6101794434) ist ein **Nachgelagerter NGINX-H1-Systemnachweis aus PR #396** für `2f02370b07149265841411894f1a2cf7f1e978ff`, kein Produkttest von #382 oder einem späteren Dokumentationshead. Begrenzte I12b/V08a/V09a/V10a-Referenzen stehen in der [Checkliste](pr-382-checklist.de.md). Breite I09–I12 und V08–V10 bleiben offen.
 
+## Aktueller Laufnachweis vom 2026-10-11
+
+Der [aktuelle Hostnachweisbericht](pr-382-i12-host-evidence-20261011.de.md) ist der
+getrennte Fall-/Routenabgleich für Run `20261011T063350Z-0df51024008f-i12`, getesteten
+Parent `0df51024008fc84f0a6820f3b011055b69c3a3e2`, Framework
+`99a7985c1be92a2297b1b59208f64df6768f2cbf` und MRTS
+`8a6bb546c4c81d8ffc7be801dceac60c6925685f`. Der historische 56-Zeilen-Sourcebestand
+unten behält seine ursprüngliche Revision, Links und den nur prüfenden Teststatus.
+Seine Sourcebefunde und das historische R17 bleiben von aktuellen Live-Ergebnissen getrennt.
+
+I12c–l bleiben offen. Build-/Versions- oder isolierter Zulassungserfolg ist
+Voraussetzungsnachweis; eine isolierte Apache-Allow-Beobachtung genügt nicht für
+Routen-PASS. Companion-Request- und Response-Teile, physische Sinkfehler,
+Host-/Transportaktionen und Cleanup benötigen eigene Receipts. Aktuelle NGINX-Ergebnisse
+müssen unabhängig von R17 an dieses Tupel gebunden sein. Zählungen und echte Fallstatus
+stehen im aktuellen Bericht; aufbewahrte lokale Rohdateien sind keine herunterladbaren GitHub-Artefakte.
+
 ## Revisionsgebundene Restarbeit
 
 | ID | Route | Exakter Vertrag | Quelle | Vorhandene Tests / Evidence-SHA | Offene Implementierung | Offener Hostnachweis | Nächste Aktion | Status |
@@ -75,4 +92,4 @@ Apaches void-Writer meldet Serialisierungs-/Schreib-/Close-Fehler diagnostisch, 
 
 Transport-Short-Write/EAGAIN/UDS/gRPC-Abbrüche sind kein physischer Event-Log-Sink-Nachweis. Composite-Coordinator/Response-Observer sind Hilfsinfrastruktur, keine zusätzliche unabhängige verkehrsführende Route; sie ersetzen weder Companion-Endpunkt noch Hostadapter. Unverändertes lighttpd Stock nativ bleibt Diagnose/Kontrolle; gepatchtes lighttpd Strict wird nicht aus Callback-Rückgaben zum Client-Abort hochgestuft. Request-only braucht seinen tatsächlichen Response-Companion.
 
-Diese Dokumentation führt keinen Cross-Connector-Fix oder neuen Hostlauf aus. #382 bleibt Draft; Protected, H2/H3, CRS, Off und Produktion werden nicht aus R17 abgeleitet.
+Dieser Sourcebestand führt keinen Cross-Connector-Fix aus; neue Hostbeobachtungen stehen getrennt im aktuellen Laufbericht. #382 bleibt Draft; Protected, H2/H3, CRS, Off und Produktion werden nicht aus R17 abgeleitet.

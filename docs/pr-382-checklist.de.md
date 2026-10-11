@@ -4,7 +4,7 @@
 
 [Draft-PR #382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382),
 Branch `fix/unified-native-results-events-20260921`, Basis
-`5170d24801243cdcd7bf1bca6123bf8cb2c72386`. Aktualisiert: 2026-10-10.
+`5170d24801243cdcd7bf1bca6123bf8cb2c72386`. Aktualisiert: 2026-10-11.
 Aktueller Stack-Abruf vom 10.10.2026: Der Branch ist über Merge-Commit `b3dc0139` mit `master` `3019722fbda40dc281b861c1cc38085be2f430a0` synchronisiert; `behind=0` und GitHub meldet den PR als mergebar. Framework-PR #137 ist gemergt und der Parent pinnt jetzt dessen Merge-Commit `99a7985c1be92a2297b1b59208f64df6768f2cbf`. Der gestapelte PR #396 ist in #382 bei `da50b67c` gemergt; sein späterer historischer Source-Head bleibt nur Evidence-Provenienz.
 
 **Bei I09 und I10 fehlt noch mehr als der Live-Host-Nachweis.** Fertiger Code,
@@ -30,6 +30,23 @@ Referenzen: [Vertrag/Migration](pr-382-event-contract.de.md),
 [Apache-Adoption](../reports/audits/change-records/CR-20260923-pr382-apache-adoption.de.md),
 [native Envoy-Testreparatur](../reports/audits/change-records/CR-20260923-pr382-envoy-test-boundaries.de.md).
 
+
+## 2026-10-11: aktueller PR-#382-Hostnachweislauf
+
+Der [aktuelle Hostnachweisbericht](pr-382-i12-host-evidence-20261011.de.md) hält
+routebezogene Beobachtungen und verbleibende Fälle vom historischen R17 getrennt.
+Run `20261011T063350Z-0df51024008f-i12` bindet getesteten Parent
+`0df51024008fc84f0a6820f3b011055b69c3a3e2`, Framework
+`99a7985c1be92a2297b1b59208f64df6768f2cbf` und MRTS
+`8a6bb546c4c81d8ffc7be801dceac60c6925685f`. Dieses Produkttupel bezeichnet
+nicht den späteren Dokumentations- oder Liefercommit.
+
+Build-/Versionsprüfungen und isolierte Zulassungsproben belegen nur Voraussetzungen.
+Eine Apache-Allow-Beobachtung allein schließt dessen erforderliche Host-, Transport-,
+physische Sink- und Cleanup-Matrix nicht. Request- und Response-Companion-Teile
+benötigen getrennte Nachweise. I12c–l und der breite I12 bleiben unabgehakt; der
+Bericht erfasst echte Fallergebnisse ohne R17-PASS auf dieses Tupel zu übertragen.
+Lokale Rohbundles sind aufbewahrte Nachweise, keine herunterladbaren GitHub-Artefakte.
 
 ## Historisches R16: 2026-10-10 nachgelagerter NGINX-H1-Systemnachweis aus PR #396
 
@@ -155,6 +172,16 @@ Lokale Raw-Evidence bleibt unter `/var/tmp/codex/ModSecurity-conector/analysis/n
 - [ ] I12: Jede direkte, Companion-, Middleware- und Sidecar-Route getrennt samt echten Host-/Transport-/Logergebnissen prüfen.
 - [x] I12a: Zehn separate ext_proc-C-Brückenfälle für Fehler, Wiedereintritt und Leerantwort bestehen (V22); kein Abschluss von ext_authz/Companion oder Live-gRPC.
 - [x] I12b: Nachgelagertes R17 aus PR #396 führte die NGINX-H1-Standardroute mit echtem Root/nobody und frischen Projektionen aus, lokaler begrenzter funktionaler PASS. Dies schließt nur den Ausführungsreferenz-Teilbereich, keinen PR-#382-Produkttest oder breiten I12; R16 bleibt historisch.
+- [ ] I12c: Apache native/direct: aktuellen Host-, Client-/Backend-, physischen Sink- und Cleanup-Nachweis vervollständigen.
+- [ ] I12d: HAProxy HTX direct: aktuellen nativen Host-/Transport-/Lognachweis vervollständigen.
+- [ ] I12e: HAProxy SPOE/SPOP: Request- und erforderlichen Response-Companion-Teil getrennt nachweisen.
+- [ ] I12f: Envoy ext_proc direct: echten Envoy-/gRPC-Host, Downstream-Aktion und physische Logs nachweisen.
+- [ ] I12g: Envoy ext_authz: Request-Autorisierung und erforderlichen Response-Companion getrennt nachweisen.
+- [ ] I12h: Traefik Native/UDS Middleware: echte Middleware-/UDS-Host- und Downstream-Ergebnisse nachweisen.
+- [ ] I12i: Traefik forwardAuth: Request-Autorisierung und erforderlichen Response-Companion getrennt nachweisen.
+- [ ] I12j: lighttpd stock/sidecar: verkehrsführende Sidecar-Route nachweisen; native Diagnosekontrolle getrennt halten.
+- [ ] I12k: lighttpd patched/native: unterstützte native Hostaktionen ohne erfundene Strict-Abort-Fähigkeit nachweisen.
+- [ ] I12l: Alle zehn logischen Routen, erforderlichen Companion-Teile, aktuellen NGINX-Nachweis, Fallergebnisse, Provenienz und Restarbeit abgleichen.
 - [x] I13: Begrenzter HAProxy-Rule-ID-Dekodierer und geordnete Bereinigung ohne geänderte Phasen-/Besitzsemantik ausgelagert.
 - [x] I14: Alle 96 ursprünglichen NGINX-Adoption-Fälle plus vier Regressionen erhalten.
 - [x] I15: HAProxy-Helfer-/Aufrufstellenprüfung und acht isolierte Regressionen erhalten.

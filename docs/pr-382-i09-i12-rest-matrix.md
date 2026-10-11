@@ -8,6 +8,23 @@ This manually maintained matrix contains 56 rows for 14 distinct route legs, one
 
 Completed I09f/I10e Apache module repairs and other checked subsets remain preserved. The [R17 report](https://github.com/Easton97-Jens/ModSecurity-conector/pull/396#issuecomment-6101794434) is downstream NGINX-H1 system evidence from PR #396 for `2f02370b07149265841411894f1a2cf7f1e978ff`, not product testing of #382 or a later documentation head. Narrow I12b/V08a/V09a/V10a references are in the [checklist](pr-382-checklist.md). Broad I09–I12 and V08–V10 stay open.
 
+## 2026-10-11 current-run evidence
+
+The [current host-evidence report](pr-382-i12-host-evidence-20261011.md) is the
+separate case/route readback for run `20261011T063350Z-0df51024008f-i12`, tested
+Parent `0df51024008fc84f0a6820f3b011055b69c3a3e2`, Framework
+`99a7985c1be92a2297b1b59208f64df6768f2cbf` and MRTS
+`8a6bb546c4c81d8ffc7be801dceac60c6925685f`. The historical 56-row source inventory
+below retains its original revision, links and inspection-only test status.
+Its source findings and historical R17 remain distinct from current live outcomes.
+
+I12c–l stay open. Build/version or isolation admission success is prerequisite
+evidence; an isolated Apache allow observation is insufficient for route PASS.
+Companion request and response legs, physical-sink faults, host/transport actions
+and cleanup require their own receipts. Current NGINX results must bind this
+tuple independently of R17. Counts and actual case statuses belong to the current
+report; retained local raw files are not downloadable GitHub artifacts.
+
 ## Revision-scoped remaining work
 
 | ID | Route | Exact contract | Source | Existing tests / evidence SHA | Open implementation | Open host proof | Next action | Status |
@@ -75,4 +92,4 @@ Apache's void writer diagnoses serialization/write/close failures but does not r
 
 Transport short-write/EAGAIN/UDS/gRPC aborts are not physical event-log sink proof. Composite coordinator/response-observer transport is supporting infrastructure, not an additional independent traffic-owning route; it replaces neither companion endpoint nor host adapter. Unmodified lighttpd Stock native stays diagnostic/control; patched lighttpd Strict is not promoted from callback returns to client abort. Request-only needs its actual response companion.
 
-This documentation performs no cross-connector fix or new host run. #382 remains Draft; Protected, H2/H3, CRS, Off and production are not inferred from R17.
+This source inventory performs no cross-connector fix; new host observations are recorded separately in the current-run report. #382 remains Draft; Protected, H2/H3, CRS, Off and production are not inferred from R17.
