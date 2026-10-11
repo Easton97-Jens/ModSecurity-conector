@@ -11,8 +11,10 @@ Base branch: `fix/unified-native-results-events-20260921`.
 Exact base: `2619b20b9d2e70fa07cbe71f664b48ff3c105380`.
 Expanded-task starting head: `6576661724841e26802a93b19d8bbfbdb5c8235a`.
 No new PR or PR/master merge. The user authorized regular base merges from #382
-into the existing #407 branch; published history is retained. Head `cec340f3` has been analyzed; repair follow-up delivery is pending
-at this documentation snapshot.
+into the existing #407 branch; published history is retained. Delivered head
+`ae865899` passed its terminal CI and zero-issue/hotspot/duplication Sonar checks.
+The Envoy completeness/host-reply follow-up requires fresh checks after delivery;
+earlier results retain their exact revision scope.
 
 ## Implementation
 
@@ -87,6 +89,17 @@ Full removal across all active profiles is not claimed.
 | Traefik forwardAuth | Host `maxBodySize=4096/33` bounds the buffered authorization request. |
 | Composite Traefik authorization response | Host `maxResponseBodySize=32768` bounds the authorization response, not the upstream application response. |
 | HAProxy SPOE/SPOP | One request sample per bounded protocol message/frame; incomplete-sample admission fails with 503 before the engine, not native `BODY_LIMIT`. Native HTX is separate. |
+
+Envoy's composite template previously enabled partial samples while the adapter
+unconditionally finalized native P2. The follow-up requires
+`allow_partial_message: false` and rejects partial or ambiguous
+`x-envoy-auth-partial-body` metadata before opening Common. It introduces no
+connector size threshold or limit action. The host's full-sample restriction
+remains. Real Envoy 1.39.1 tests distinguish the full 33-byte sample at native
+limit 32 (native 403) from the host's pre-authorization 44-byte rejection (413).
+The latter opens no native transaction in either On or DetectionOnly. Internal
+host attributes authenticate that local reply; HTTP headers cannot select it.
+These selected cases do not establish the complete host matrix below.
 
 ## Technical safety
 
@@ -213,3 +226,65 @@ Earlier response-only checks and completed Sonar results, including the starting
 head, establish only those revisions. They do not verify the expanded current
 diff. See the [ownership contract](phase4-mode-budget.md) and
 [Change Record](../reports/audits/change-records/CR-20261011-response-limit-policy-removal.md).
+
+
+## Envoy completeness and actual-host follow-up
+
+The composite authorization template now accepts only complete samples. The
+adapter rejects partial, malformed or ambiguous completeness metadata before
+Common open/body/EOS/lease creation; complete input receives no connector byte
+threshold. Genuine Common/libModSecurity tests supply explicit request and
+response policies, inspect the tail marker beyond the former callback bound,
+and distinguish On from DetectionOnly.
+
+The native oversize host fixture now contains exactly 33 bytes, within the
+selected host's capacity and above its explicit native limit 32. Real native
+Reject yields 403. The shared verifier requires identical native P2, deny-host
+and client status (403 or 413), the ordered lifecycle and no upstream response;
+a host-only rejection cannot satisfy its native P2 proof.
+
+A second actual-host reproduction found that a pre-authorization host 413 was
+overwritten by the lease-less response companion. The narrow continuation now
+requires typed internal host attributes, their exact namespace/detail/status,
+no ext_authz metadata and canonical response headers. Arbitrary unmarked 413s,
+client headers and wrong/malformed attributes still fail closed. Real pinned
+Envoy 1.39.1 On and DetectionOnly controls observe 44 bytes rejected by the
+33-byte host buffer with 413, zero authorization/native events/EOS, no upstream,
+and a successful same-process small-request P1–P4 control.
+
+The renewed host matrix exposed orphaned-lease timeout cleanup passing no
+terminal transition to Common. Observed lease expiry now records Common's
+existing typed timeout before checked finish/destruction. No P3/P4/EOS or host
+status is invented. The controlled coordinator restart similarly records the
+existing typed connector-error transition. Its harness now requires the pinned
+host's actual client 500 and exactly one successful restart cleanup; failed,
+mismatched and duplicate
+terminals are rejected. Genuine tests retain ordinary incomplete-close phase
+errors, physical event-sink failures, the first cleanup cause and one-time
+destruction. The independent receipt/projection suite passes 19 tests. The
+[Envoy 1.39.1 contract](https://raw.githubusercontent.com/envoyproxy/envoy/v1.39.1/api/envoy/extensions/filters/http/ext_proc/v3/ext_proc.proto)
+defines that host transport-error status; a proposed 503 assertion was corrected
+to exact 500, with no product failure mapping changed.
+Current offline native builds, all eight Go packages, 46 Parent contracts and
+34 shared-verifier tests pass. Repository-native `quick-check` passes with 233
+reported unittest tests; separate I09/Apache/SPOP error checks pass 33/20/19
+(305 combined). Generated reference checks retain all 21 current outputs.
+
+These are selected current host/component proofs, not a complete ten-profile
+request/response limit matrix. Authorization/sample ceilings above remain active.
+Fresh exact-head CI/Sonar is required after the follow-up push; the complete
+`ae865899` checks apply only to that preceding head. External run evidence:
+`root-checks/envoy-completeness/` in the retained task run. Live delivery status:
+[PR #407](https://github.com/Easton97-Jens/ModSecurity-conector/pull/407).
+
+
+The final frozen-source Envoy 1.39.1 HTTP/1 composite matrix passes all 14
+executed cases with 14 distinct successful native terminal cleanups. Nine shared
+verifier cases report `LIFECYCLE_ONLY`; the controlled unavailable companion
+returns its native host 500 and closes once with reason `restart`. Missing
+response metadata and expired leases retain 503 and checked timeout cleanup.
+The two On/DetectionOnly host-buffer controls pass against the same current
+binaries. P4 Strict reset is explicitly `NOT_RUN`; this does not promote a
+complete ten-profile limit matrix. Source hashes, commands, receipts, terminal
+readbacks and stopped-process proof are retained in
+`root-checks/envoy-completeness/host/restart-final-validation-status.json`.

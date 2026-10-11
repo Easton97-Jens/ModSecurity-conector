@@ -66,6 +66,13 @@ und werden nicht als Arbeitspufferkapazität umbenannt:
 | HAProxy-SPOE-/SPOP-Request-Sample | Eine begrenzte Protokollnachricht mit `req.body` | Ein unvollständiges Sample belegt keine vollständige P2-Inspektion; natives HTX ist ein separates Profil. |
 
 Die nativen Streamingprofile übernehmen diese Autorisierungsgrenzen nicht.
+Envoy-ext_authz-Templates verwenden `allow_partial_message: false`; ausdrücklich
+partielle oder mehrdeutige `x-envoy-auth-partial-body`-Metadaten werden vor dem
+Öffnen der nativen Transaktion abgelehnt. Das prüft Transportvollständigkeit,
+keine Connector-Inspektionsgröße oder -Aktion. Die Host-Sample-Grenze bleibt eine
+offene Einschränkung.
+Im Composite-Profil bleibt eine Buffer-Ablehnung vor der Autorisierung nur mit
+interner Host-Provenienz 413; sie erzeugt keine native Entscheidung und kein EOS.
 Ein Wechsel von Autorisierung zu nativem Streaming würde den Hostvertrag ändern
 und benötigt eigene Nachweise. Unabhängige Host-Requestgrößenkontrollen wie
 lighttpd `server.max-request-size` bleiben Hostkonfiguration.

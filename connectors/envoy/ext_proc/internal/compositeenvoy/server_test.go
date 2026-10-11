@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -14,23 +16,34 @@ import (
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	authv3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	extprocv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-type recordingOpener struct{ opened processor.StreamMetadata }
+type recordingOpener struct {
+	opened processor.StreamMetadata
+	opens  int
+	body   []byte
+	eos    bool
+}
 
 func (o *recordingOpener) Open(_ context.Context, meta processor.StreamMetadata) (processor.Transaction, error) {
 	o.opened = meta
-	return recordingTransaction{}, nil
+	o.opens++
+	return recordingTransaction{opener: o}, nil
 }
 
-type recordingTransaction struct{}
+type recordingTransaction struct{ opener *recordingOpener }
 
 func (recordingTransaction) ProcessHeaders(context.Context, processor.Direction, []processor.Header, bool) (processor.Decision, error) {
 	return processor.Decision{Action: processor.ActionAllow}, nil
 }
-func (recordingTransaction) ProcessBody(context.Context, processor.Direction, []byte, bool) (processor.Decision, error) {
+func (tx recordingTransaction) ProcessBody(_ context.Context, _ processor.Direction, body []byte, eos bool) (processor.Decision, error) {
+	tx.opener.body = append(tx.opener.body, body...)
+	tx.opener.eos = eos
 	return processor.Decision{Action: processor.ActionAllow}, nil
 }
 func (recordingTransaction) Close(context.Context, processor.Summary) {}
@@ -129,6 +142,270 @@ func TestCheckForwards33ByteBodyWithoutConnectorPolicy(t *testing.T) {
 	}
 	if response.GetOkResponse() == nil {
 		t.Fatalf("33-byte body response=%v, want engine allow", response)
+	}
+}
+
+func TestCheckRejectsIncompleteOrAmbiguousBodyBeforeAdmission(t *testing.T) {
+	cases := []struct {
+		name    string
+		headers map[string]string
+		raw     []*corev3.HeaderValue
+	}{
+		{name: "partial", headers: map[string]string{authPartialBodyHeader: "true"}},
+		{name: "mixed case partial", headers: map[string]string{"X-Envoy-Auth-Partial-Body": "true"}},
+		{name: "malformed", headers: map[string]string{authPartialBodyHeader: "0"}},
+		{name: "empty", headers: map[string]string{authPartialBodyHeader: ""}},
+		{name: "whitespace", headers: map[string]string{authPartialBodyHeader: " false "}},
+		{name: "combined values", headers: map[string]string{authPartialBodyHeader: "false,true"}},
+		{name: "case duplicate", headers: map[string]string{authPartialBodyHeader: "false", "X-Envoy-Auth-Partial-Body": "false"}},
+		{name: "raw partial", raw: []*corev3.HeaderValue{{Key: authPartialBodyHeader, RawValue: []byte("true")}}},
+		{name: "raw duplicate", raw: []*corev3.HeaderValue{{Key: authPartialBodyHeader, Value: "false"}, {Key: "X-Envoy-Auth-Partial-Body", Value: "false"}}},
+		{name: "encoding conflict", raw: []*corev3.HeaderValue{{Key: authPartialBodyHeader, Value: "false", RawValue: []byte("false")}}},
+		{name: "cross map duplicate", headers: map[string]string{authPartialBodyHeader: "false"}, raw: []*corev3.HeaderValue{{Key: authPartialBodyHeader, Value: "false"}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, size := range []int{1, 64} {
+				opener := &recordingOpener{}
+				coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 1}, opener, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				server, err := NewAuthzServer(coordinator)
+				if err != nil {
+					coordinator.Close()
+					t.Fatal(err)
+				}
+				req := authCheckRequest(make([]byte, size))
+				h := req.GetAttributes().GetRequest().GetHttp()
+				h.Headers = tc.headers
+				h.HeaderMap = &corev3.HeaderMap{Headers: tc.raw}
+				response, err := server.Check(context.Background(), req)
+				coordinator.Close()
+				if status.Code(err) != codes.InvalidArgument || response != nil || opener.opens != 0 || opener.eos {
+					t.Fatalf("Check(%s,size=%d) response=%v err=%v opens=%d eos=%v, want InvalidArgument before native open/EOS/lease", tc.name, size, response, err, opener.opens, opener.eos)
+				}
+			}
+		})
+	}
+}
+
+func TestCheckForwardsCompleteBodyBeyondHostFixtureBuffer(t *testing.T) {
+	for _, marker := range []string{"absent", "false", "raw false"} {
+		t.Run(marker, func(t *testing.T) {
+			opener := &recordingOpener{}
+			coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 1}, opener, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer coordinator.Close()
+			server, err := NewAuthzServer(coordinator)
+			if err != nil {
+				t.Fatal(err)
+			}
+			body := []byte(strings.Repeat("a", 256) + "tail-marker")
+			req := authCheckRequest(body)
+			h := req.GetAttributes().GetRequest().GetHttp()
+			if marker == "false" {
+				h.Headers = map[string]string{"X-Envoy-Auth-Partial-Body": "false"}
+			}
+			if marker == "raw false" {
+				h.HeaderMap = &corev3.HeaderMap{Headers: []*corev3.HeaderValue{{Key: "X-Envoy-Auth-Partial-Body", RawValue: []byte("false")}}}
+			}
+			response, err := server.Check(context.Background(), req)
+			if err != nil || response.GetOkResponse() == nil || !opener.eos || string(opener.body) != string(body) {
+				t.Fatalf("Check(complete,%s) response=%v err=%v body=%q eos=%v, want full body/allow/lease", marker, response, err, opener.body, opener.eos)
+			}
+		})
+	}
+}
+
+func TestCompositeHostTemplateRequiresCompleteAuthorizationBody(t *testing.T) {
+	path := filepath.Join("..", "..", "..", "config", "envoy-ext-authz-composite.yaml.in")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	template := string(data)
+	if strings.Count(template, "allow_partial_message: false") != 1 || strings.Contains(template, "allow_partial_message: true") {
+		t.Fatal("composite template must require complete host authorization samples")
+	}
+	if !strings.Contains(template, "max_request_bytes: 33") || strings.Contains(template, "service enforces the 32-byte") {
+		t.Fatal("composite template must retain its explicit host admission buffer without claiming an Engine policy")
+	}
+	for _, attribute := range []string{"response_attributes:", "- response.code_details", "- response.code"} {
+		if !strings.Contains(template, attribute) {
+			t.Fatalf("composite template omitted protected host attribute %q", attribute)
+		}
+	}
+}
+
+func hostRequestBufferReply(endOfStream bool) *extprocv3.ProcessingRequest {
+	return &extprocv3.ProcessingRequest{
+		Attributes: map[string]*structpb.Struct{extProcAttributeNamespace: {Fields: map[string]*structpb.Value{
+			responseCodeAttribute:   structpb.NewNumberValue(413),
+			responseDetailAttribute: structpb.NewStringValue(hostRequestBufferDetail),
+		}}},
+		Request: &extprocv3.ProcessingRequest_ResponseHeaders{ResponseHeaders: &extprocv3.HttpHeaders{
+			EndOfStream: endOfStream,
+			Headers:     &corev3.HeaderMap{Headers: []*corev3.HeaderValue{{Key: envoyStatusHeader, Value: "413"}}},
+		}},
+	}
+}
+
+func hostReplyServer(t *testing.T) (*ExtProcServer, *recordingOpener, *eventObserver) {
+	t.Helper()
+	opener := &recordingOpener{}
+	observer := &eventObserver{}
+	coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 1}, opener, observer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(coordinator.Close)
+	server, err := NewExtProcServer(coordinator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return server, opener, observer
+}
+
+func TestHostRequestBufferReplyContinuesWithoutCommonTransaction(t *testing.T) {
+	cases := []struct {
+		name     string
+		requests []*extprocv3.ProcessingRequest
+	}{
+		{name: "headers EOS", requests: []*extprocv3.ProcessingRequest{hostRequestBufferReply(true)}},
+		{name: "body EOS", requests: []*extprocv3.ProcessingRequest{hostRequestBufferReply(false), {Request: &extprocv3.ProcessingRequest_ResponseBody{ResponseBody: &extprocv3.HttpBody{Body: []byte("Payload Too Large"), EndOfStream: true}}}}},
+		{name: "trailers EOS", requests: []*extprocv3.ProcessingRequest{hostRequestBufferReply(false), {Request: &extprocv3.ProcessingRequest_ResponseBody{ResponseBody: &extprocv3.HttpBody{Body: []byte("Payload Too Large")}}}, {Request: &extprocv3.ProcessingRequest_ResponseTrailers{ResponseTrailers: &extprocv3.HttpTrailers{}}}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			server, opener, observer := hostReplyServer(t)
+			stream := &processStream{requests: tc.requests}
+			if err := server.Process(stream); err != nil {
+				t.Fatal(err)
+			}
+			if len(stream.responses) != len(tc.requests) || opener.opens != 0 || opener.eos || len(observer.events) != 0 {
+				t.Fatalf("Process(%s) responses=%v opens=%d eos=%v events=%v, want ordered continuation without Common", tc.name, stream.responses, opener.opens, opener.eos, observer.events)
+			}
+			for _, response := range stream.responses {
+				if response.GetImmediateResponse() != nil {
+					t.Fatalf("Process(%s) replaced host413: %v", tc.name, response)
+				}
+			}
+		})
+	}
+}
+
+func TestHostRequestBufferReplyRequiresProtectedExactProvenance(t *testing.T) {
+	cases := []struct {
+		name   string
+		mutate func(*extprocv3.ProcessingRequest)
+	}{
+		{name: "missing attributes", mutate: func(r *extprocv3.ProcessingRequest) { r.Attributes = nil }},
+		{name: "wrong namespace", mutate: func(r *extprocv3.ProcessingRequest) {
+			r.Attributes["client"] = r.Attributes[extProcAttributeNamespace]
+			delete(r.Attributes, extProcAttributeNamespace)
+		}},
+		{name: "nil attributes", mutate: func(r *extprocv3.ProcessingRequest) { r.Attributes[extProcAttributeNamespace] = nil }},
+		{name: "missing code", mutate: func(r *extprocv3.ProcessingRequest) {
+			delete(r.Attributes[extProcAttributeNamespace].Fields, responseCodeAttribute)
+		}},
+		{name: "string code", mutate: func(r *extprocv3.ProcessingRequest) {
+			r.Attributes[extProcAttributeNamespace].Fields[responseCodeAttribute] = structpb.NewStringValue("413")
+		}},
+		{name: "fractional code", mutate: func(r *extprocv3.ProcessingRequest) {
+			r.Attributes[extProcAttributeNamespace].Fields[responseCodeAttribute] = structpb.NewNumberValue(413.5)
+		}},
+		{name: "missing detail", mutate: func(r *extprocv3.ProcessingRequest) {
+			delete(r.Attributes[extProcAttributeNamespace].Fields, responseDetailAttribute)
+		}},
+		{name: "upstream detail", mutate: func(r *extprocv3.ProcessingRequest) {
+			r.Attributes[extProcAttributeNamespace].Fields[responseDetailAttribute] = structpb.NewStringValue("via_upstream")
+		}},
+		{name: "wrong detail type", mutate: func(r *extprocv3.ProcessingRequest) {
+			r.Attributes[extProcAttributeNamespace].Fields[responseDetailAttribute] = structpb.NewBoolValue(true)
+		}},
+		{name: "wrong status", mutate: func(r *extprocv3.ProcessingRequest) { r.GetResponseHeaders().Headers.Headers[0].Value = "403" }},
+		{name: "noncanonical status", mutate: func(r *extprocv3.ProcessingRequest) { r.GetResponseHeaders().Headers.Headers[0].Value = "0413" }},
+		{name: "duplicate status", mutate: func(r *extprocv3.ProcessingRequest) {
+			r.GetResponseHeaders().Headers.Headers = append(r.GetResponseHeaders().Headers.Headers, &corev3.HeaderValue{Key: ":STATUS", Value: "413"})
+		}},
+		{name: "conflicting status encoding", mutate: func(r *extprocv3.ProcessingRequest) {
+			r.GetResponseHeaders().Headers.Headers[0].RawValue = []byte("413")
+		}},
+		{name: "malformed header", mutate: func(r *extprocv3.ProcessingRequest) {
+			r.GetResponseHeaders().Headers.Headers = append(r.GetResponseHeaders().Headers.Headers, nil)
+		}},
+		{name: "location", mutate: func(r *extprocv3.ProcessingRequest) {
+			r.GetResponseHeaders().Headers.Headers = append(r.GetResponseHeaders().Headers.Headers, &corev3.HeaderValue{Key: "location", Value: "https://example.test"})
+		}},
+		{name: "empty authz namespace", mutate: func(r *extprocv3.ProcessingRequest) {
+			r.MetadataContext = &corev3.Metadata{FilterMetadata: map[string]*structpb.Struct{metadataNamespace: nil}}
+		}},
+		{name: "typed authz namespace", mutate: func(r *extprocv3.ProcessingRequest) {
+			r.MetadataContext = &corev3.Metadata{TypedFilterMetadata: map[string]*anypb.Any{metadataNamespace: {}}}
+		}},
+		{name: "invalid authz lease", mutate: func(r *extprocv3.ProcessingRequest) {
+			r.MetadataContext = &corev3.Metadata{FilterMetadata: map[string]*structpb.Struct{metadataNamespace: {Fields: map[string]*structpb.Value{metadataLease: structpb.NewStringValue("fake"), metadataVersion: structpb.NewNumberValue(1)}}}}
+		}},
+		{name: "HTTP header spoof", mutate: func(r *extprocv3.ProcessingRequest) {
+			r.Attributes = nil
+			r.GetResponseHeaders().Headers.Headers = append(r.GetResponseHeaders().Headers.Headers, &corev3.HeaderValue{Key: responseDetailAttribute, Value: hostRequestBufferDetail}, &corev3.HeaderValue{Key: responseCodeAttribute, Value: "413"})
+		}},
+		{name: "deprecated attributes spoof", mutate: func(r *extprocv3.ProcessingRequest) {
+			r.GetResponseHeaders().Attributes = r.Attributes
+			r.Attributes = nil
+		}},
+		{name: "request header phase", mutate: func(r *extprocv3.ProcessingRequest) {
+			r.Request = &extprocv3.ProcessingRequest_RequestHeaders{RequestHeaders: &extprocv3.HttpHeaders{Headers: &corev3.HeaderMap{}}}
+		}},
+		{name: "body before header", mutate: func(r *extprocv3.ProcessingRequest) {
+			r.Request = &extprocv3.ProcessingRequest_ResponseBody{ResponseBody: &extprocv3.HttpBody{EndOfStream: true}}
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			server, opener, observer := hostReplyServer(t)
+			r := hostRequestBufferReply(true)
+			tc.mutate(r)
+			stream := &processStream{requests: []*extprocv3.ProcessingRequest{r}}
+			if err := server.Process(stream); err != nil {
+				t.Fatal(err)
+			}
+			if len(stream.responses) != 1 || stream.responses[0].GetImmediateResponse().GetStatus().GetCode() != 503 || opener.opens != 0 || opener.eos || len(observer.events) != 0 {
+				t.Fatalf("Process(%s) responses=%v opens=%d eos=%v events=%v, want503 with no Common admission", tc.name, stream.responses, opener.opens, opener.eos, observer.events)
+			}
+		})
+	}
+}
+
+func TestHostRequestBufferReplyKeepsStreamOrderAndIOErrors(t *testing.T) {
+	server, opener, observer := hostReplyServer(t)
+	for _, next := range []*extprocv3.ProcessingRequest{hostRequestBufferReply(false), {Request: &extprocv3.ProcessingRequest_RequestBody{RequestBody: &extprocv3.HttpBody{}}}} {
+		stream := &processStream{requests: []*extprocv3.ProcessingRequest{hostRequestBufferReply(false), next}}
+		if err := server.Process(stream); err != nil {
+			t.Fatal(err)
+		}
+		if len(stream.responses) != 2 || stream.responses[1].GetImmediateResponse().GetStatus().GetCode() != 503 {
+			t.Fatalf("Process(out-of-order)=%v, want503", stream.responses)
+		}
+	}
+	writeErr := errors.New("host continuation write failed")
+	stream := &processStream{requests: []*extprocv3.ProcessingRequest{hostRequestBufferReply(true)}, sendErr: writeErr}
+	if err := server.Process(stream); !errors.Is(err, writeErr) {
+		t.Fatalf("Process(write failure)=%v, want%v", err, writeErr)
+	}
+	stream = &processStream{requests: []*extprocv3.ProcessingRequest{hostRequestBufferReply(false)}, recvErr: context.Canceled}
+	if err := server.Process(stream); err != nil {
+		t.Fatalf("Process(read canceled)=%v, want clean cancellation", err)
+	}
+	stream = &processStream{requests: []*extprocv3.ProcessingRequest{hostRequestBufferReply(false)}, recvErr: errors.New("host continuation read failed")}
+	if err := server.Process(stream); status.Code(err) != codes.Unavailable {
+		t.Fatalf("Process(read failure)=%v, wantUnavailable", err)
+	}
+	if opener.opens != 0 || opener.eos || len(observer.events) != 0 {
+		t.Fatalf("Common touched after host IO/order errors: %+v events=%v", opener, observer.events)
 	}
 }
 
@@ -344,6 +621,8 @@ func testAddress(host string, port uint32) *corev3.Address {
 type processStream struct {
 	requests  []*extprocv3.ProcessingRequest
 	responses []*extprocv3.ProcessingResponse
+	sendErr   error
+	recvErr   error
 }
 
 func (s *processStream) SetHeader(metadata.MD) error  { return nil }
@@ -353,11 +632,17 @@ func (s *processStream) Context() context.Context     { return context.Backgroun
 func (s *processStream) SendMsg(interface{}) error    { return nil }
 func (s *processStream) RecvMsg(interface{}) error    { return nil }
 func (s *processStream) Send(response *extprocv3.ProcessingResponse) error {
+	if s.sendErr != nil {
+		return s.sendErr
+	}
 	s.responses = append(s.responses, response)
 	return nil
 }
 func (s *processStream) Recv() (*extprocv3.ProcessingRequest, error) {
 	if len(s.requests) == 0 {
+		if s.recvErr != nil {
+			return nil, s.recvErr
+		}
 		return nil, io.EOF
 	}
 	request := s.requests[0]

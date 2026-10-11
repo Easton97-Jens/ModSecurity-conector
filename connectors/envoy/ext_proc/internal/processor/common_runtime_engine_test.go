@@ -645,7 +645,7 @@ func TestCommonRuntimeCleanupFailureRetainsFirstCause(t *testing.T) {
 }
 
 func TestCommonRuntimeCloseReportsTerminalEventSinkFailure(t *testing.T) {
-	for _, mode := range []string{"incomplete-request", "incomplete-response"} {
+	for _, mode := range []string{"incomplete-request", "incomplete-response", "expired-composite-lease", "restarted-composite-service"} {
 		t.Run(mode, func(t *testing.T) {
 			testCommonRuntimeTerminalSinkFailure(t, mode)
 		})
@@ -674,7 +674,13 @@ func testCommonRuntimeTerminalSinkFailure(t *testing.T, mode string) {
 	if err := unix.Dup2(int(readOnly.Fd()), sinkFD); err != nil {
 		t.Fatal(err)
 	}
-	tx.Close(ctx, Summary{CloseReason: ClosePeerEOF})
+	reason := ClosePeerEOF
+	if mode == "expired-composite-lease" {
+		reason = CloseReason("timeout")
+	} else if mode == "restarted-composite-service" {
+		reason = CloseReason("restart")
+	}
+	tx.Close(ctx, Summary{CloseReason: reason})
 	first := native.CleanupFailure()
 	if first == nil || !strings.Contains(first.Error(), "I/O error") {
 		t.Fatalf("CleanupFailure(after physical sink failure) = %v, want Common I/O event output failure", first)
@@ -687,7 +693,7 @@ func testCommonRuntimeTerminalSinkFailure(t *testing.T, mode string) {
 	if err := unix.Dup2(int(healthy.Fd()), sinkFD); err != nil {
 		t.Fatal(err)
 	}
-	tx.Close(ctx, Summary{CloseReason: ClosePeerEOF})
+	tx.Close(ctx, Summary{CloseReason: reason})
 	if got := native.CleanupFailure(); got != first {
 		t.Fatalf("CleanupFailure(after repeated close) = %v, want %v", got, first)
 	}
@@ -700,6 +706,55 @@ func testCommonRuntimeTerminalSinkFailure(t *testing.T, mode string) {
 	}
 	if len(content) != 0 {
 		t.Fatalf("Close(retry) wrote %d bytes, want 0", len(content))
+	}
+}
+
+func TestCommonRuntimeCloseObservedCompositeTimeoutKeepsNativeTerminal(t *testing.T) {
+	testCommonRuntimeObservedCompositeClose(t, "timeout", "engine_timeout", "MSCONN_EVENT_ENGINE_TIMEOUT", "transaction")
+}
+
+func TestCommonRuntimeCloseObservedCompositeRestartKeepsNativeTerminal(t *testing.T) {
+	testCommonRuntimeObservedCompositeClose(t, "restart", "connector_error", "MSCONN_EVENT_CONNECTOR_ERROR", nil)
+}
+
+func testCommonRuntimeObservedCompositeClose(t *testing.T, reason, eventType, messageID string, timeoutStage any) {
+	t.Helper()
+	engine, eventPath := newCommonRuntimeEngineForTest(t, 4096, "Reject", 8192, "Reject")
+	ctx := context.Background()
+	tx, err := engine.Open(ctx, commonTestStreamMetadata("observed-composite-"+reason))
+	if err != nil {
+		t.Fatal(err)
+	}
+	decision, err := tx.ProcessHeaders(ctx, DirectionRequest, []Header{{Name: "x-safe", Value: []byte("allow")}}, true)
+	assertCommonDecision(t, "request", decision, err, ActionAllow, 0)
+	tx.Close(ctx, Summary{CloseReason: CloseReason(reason)})
+	tx.Close(ctx, Summary{CloseReason: CloseReason(reason)})
+	if err := tx.(*commonRuntimeTransaction).CleanupFailure(); err != nil {
+		t.Fatalf("CleanupFailure(observed %s)=%v, want successful checked native cleanup", reason, err)
+	}
+	if tx.(*commonRuntimeTransaction).native != nil || len(engine.transactions) != 0 {
+		t.Fatal("observed close retained native transaction")
+	}
+	raw, err := os.ReadFile(eventPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	if len(lines) != 1 {
+		t.Fatalf("%s emitted %d native events, want one terminal without invented P3/P4", reason, len(lines))
+	}
+	var event map[string]any
+	if err := json.Unmarshal([]byte(lines[0]), &event); err != nil {
+		t.Fatal(err)
+	}
+	if event["event"] != eventType || event["message_id"] != messageID || event["status"] != "error" || event["timeout_stage"] != timeoutStage {
+		t.Fatalf("native %s event=%v, want typed %s terminal", reason, event, eventType)
+	}
+	if event["phase"] != "request_body" || event["eos_seen"] != false || event["response_started"] != false || event["visible_http_status"] != float64(0) {
+		t.Fatalf("native %s event fabricated response phases/EOS/host action: %v", reason, event)
+	}
+	if event["cancelled"] != false || event["client_disconnected"] != false || event["upstream_disconnected"] != false || event["connection_aborted"] != false {
+		t.Fatalf("native %s event invented client/upstream abort: %v", reason, event)
 	}
 }
 

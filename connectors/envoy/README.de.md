@@ -252,3 +252,24 @@ Begrenzte IO-Blöcke und geprüfte Zähler wählen kein Engine-Limit und keine A
 Der ext_authz-Host puffert weiterhin einen Authorization-Request: Smoke-Konfiguration
 `max_request_bytes=4096`, Composite-Konfiguration `max_request_bytes=33`. Diese
 Gesamtrequest-Hostgrenzen bleiben; native ext_proc ist ein getrenntes Profil.
+Beide Templates verlangen vollständige Samples mit `allow_partial_message: false`.
+Der Adapter lehnt einen ausdrücklich partiellen oder mehrdeutigen
+`x-envoy-auth-partial-body`-Marker vor dem Öffnen einer Common-Transaktion ab.
+Er wandelt ein erfasstes Präfix nicht in natives EOS um und wählt kein
+ProcessPartial. Für ein vom Transport akzeptiertes vollständiges Sample gilt
+keine zusätzliche Connector-Größenschwelle.
+
+Der Composite-Response-Companion erhält Envoys Buffer-Ablehnung vor der
+Autorisierung mit Status 413 nur, wenn interne Hostattribute
+`response.code=413` und `response.code_details=request_payload_too_large`
+belegen, keine ext_authz-Metadaten vorliegen und der Response-Status eindeutig
+ist. Dieser Pfad öffnet keine Common-Transaktion und zeichnet keine native
+P2-/P4-Entscheidung auf. Client-/Upstream-Header können ihn nicht auswählen;
+andere Antworten ohne Lease behalten den bestehenden Fehlerpfad.
+
+Ein beobachteter Composite-Lease-Timeout zeichnet Commons vorhandenen typisierten
+Timeout auf; ein kontrollierter Coordinator-Neustart zeichnet seinen typisierten
+Connector-Fehler vor geprüftem Abschluss und Freigabe auf. Beide erfinden keine
+Response-Phasen und kein EOS. Ein gewöhnlicher unvollständiger Stream-Abschluss,
+Ausgabefehler des Timeout-Events und gespeicherte Adapterfehler bleiben
+Cleanup-Fehler.

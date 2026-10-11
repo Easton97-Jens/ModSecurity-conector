@@ -27,7 +27,12 @@ import (
 
 const (
 	metadataNamespace         = "envoy.filters.http.ext_authz"
+	extProcAttributeNamespace = "envoy.filters.http.ext_proc"
+	responseCodeAttribute     = "response.code"
+	responseDetailAttribute   = "response.code_details"
+	hostRequestBufferDetail   = "request_payload_too_large"
 	compositeLeaseHeader      = "x-msconnector-composite-lease"
+	authPartialBodyHeader     = "x-envoy-auth-partial-body"
 	metadataLease             = "lease"
 	metadataVersion           = "version"
 	metadataTerminal          = "terminal"
@@ -165,6 +170,9 @@ func (s *ExtProcServer) Process(stream extprocv3.ExternalProcessor_ProcessServer
 		if !firstIsResponseHeaders {
 			return sendImmediate(stream, processor.Decision{Action: processor.ActionDeny, Status: statusUnavailable})
 		}
+		return continueMarkedTerminalReply(stream, first)
+	}
+	if isHostRequestBufferReply(first) {
 		return continueMarkedTerminalReply(stream, first)
 	}
 	lease, ok := leaseFromMetadata(first.GetMetadataContext())
@@ -398,27 +406,12 @@ func authRequest(req *authv3.CheckRequest) (processor.StreamMetadata, []processo
 	if h.GetMethod() == "" {
 		return processor.StreamMetadata{}, nil, nil, errors.New("missing HTTP method")
 	}
-	values := make(map[string]string, len(h.GetHeaders()))
-	keys := make([]string, 0, len(h.GetHeaders()))
-	for k, v := range h.GetHeaders() {
-		k = strings.ToLower(k)
-		// The lease is host-generated metadata, never request input. Envoy's
-		// header_mutation filter removes it before this callback, but keep the
-		// boundary defensive if a direct caller or alternate filter chain sends
-		// the protected name anyway.
-		if k == compositeLeaseHeader {
-			continue
-		}
-		if _, exists := values[k]; exists {
-			return processor.StreamMetadata{}, nil, nil, errors.New("duplicate HTTP header names")
-		}
-		values[k] = v
-		keys = append(keys, k)
+	if err := validateRequestBodyCompleteness(h); err != nil {
+		return processor.StreamMetadata{}, nil, nil, err
 	}
-	sort.Strings(keys)
-	headers := make([]processor.Header, 0, len(keys))
-	for _, k := range keys {
-		headers = append(headers, processor.Header{Name: k, Value: []byte(values[k])})
+	headers, err := normalizeAuthHeaders(h.GetHeaders())
+	if err != nil {
+		return processor.StreamMetadata{}, nil, nil, err
 	}
 	body := h.GetRawBody()
 	if len(body) == 0 && h.GetBody() != "" {
@@ -436,6 +429,132 @@ func authRequest(req *authv3.CheckRequest) (processor.StreamMetadata, []processo
 		return processor.StreamMetadata{}, nil, nil, errors.New("missing required HTTP metadata")
 	}
 	return processor.StreamMetadata{Request: processor.RequestMetadata{Method: h.GetMethod(), URI: h.GetPath(), Protocol: h.GetProtocol(), Hostname: h.GetHost(), ClientAddress: clientAddress, ClientPort: clientPort, ServerAddress: serverAddress, ServerPort: serverPort}}, headers, body, nil
+}
+
+func normalizeAuthHeaders(input map[string]string) ([]processor.Header, error) {
+	values := make(map[string]string, len(input))
+	keys := make([]string, 0, len(input))
+	for k, v := range input {
+		k = strings.ToLower(k)
+		// The lease is host-generated metadata, never request input. Envoy's
+		// header_mutation filter removes it before this callback, but keep the
+		// boundary defensive if a direct caller or alternate filter chain sends
+		// the protected name anyway.
+		if k == compositeLeaseHeader {
+			continue
+		}
+		if _, exists := values[k]; exists {
+			return nil, errors.New("duplicate HTTP header names")
+		}
+		values[k] = v
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	headers := make([]processor.Header, 0, len(keys))
+	for _, k := range keys {
+		headers = append(headers, processor.Header{Name: k, Value: []byte(values[k])})
+	}
+	return headers, nil
+}
+
+// ext_authz supplies this transport metadata when it buffers request bodies.
+// A partial sample cannot be submitted to Common as a complete request/EOS.
+// Check both protobuf header encodings before opening a transaction; neither
+// missing metadata nor a complete body implies a connector byte budget.
+func validateRequestBodyCompleteness(h *authv3.AttributeContext_HttpRequest) error {
+	check := partialMarkerCheck{}
+	for name, value := range h.GetHeaders() {
+		if err := check.accept(name, value); err != nil {
+			return err
+		}
+	}
+	for _, header := range h.GetHeaderMap().GetHeaders() {
+		value, err := partialMarkerValue(header)
+		if err != nil {
+			return err
+		}
+		if err := check.accept(header.GetKey(), value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type partialMarkerCheck struct{ seen bool }
+
+func (check *partialMarkerCheck) accept(name, value string) error {
+	if !strings.EqualFold(name, authPartialBodyHeader) {
+		return nil
+	}
+	if check.seen || value != "false" {
+		return errors.New("partial or ambiguous Envoy request body metadata")
+	}
+	check.seen = true
+	return nil
+}
+
+func partialMarkerValue(header *corev3.HeaderValue) (string, error) {
+	if len(header.GetRawValue()) == 0 {
+		return header.GetValue(), nil
+	}
+	if strings.EqualFold(header.GetKey(), authPartialBodyHeader) && header.GetValue() != "" {
+		return "", errors.New("ambiguous Envoy request body header encoding")
+	}
+	return string(header.GetRawValue()), nil
+}
+
+// These CEL attributes come from the pinned host's StreamInfo, not HTTP
+// headers. Only its pre-authorization request-buffer local reply may bypass
+// lease claiming; an arbitrary upstream 413 or unmarked reply stays closed.
+func isHostRequestBufferReply(request *extprocv3.ProcessingRequest) bool {
+	if request.GetResponseHeaders() == nil || !authzMetadataAbsent(request.GetMetadataContext()) {
+		return false
+	}
+	attributes := request.GetAttributes()[extProcAttributeNamespace]
+	if !hostRequestBufferAttributes(attributes) {
+		return false
+	}
+	return hostRequestBufferHeaders(request.GetResponseHeaders().GetHeaders())
+}
+
+func authzMetadataAbsent(metadata *corev3.Metadata) bool {
+	_, untyped := metadata.GetFilterMetadata()[metadataNamespace]
+	_, typed := metadata.GetTypedFilterMetadata()[metadataNamespace]
+	return !untyped && !typed
+}
+
+func hostRequestBufferAttributes(attributes *structpb.Struct) bool {
+	code, numeric := attributes.GetFields()[responseCodeAttribute].GetKind().(*structpb.Value_NumberValue)
+	detail, textual := attributes.GetFields()[responseDetailAttribute].GetKind().(*structpb.Value_StringValue)
+	return numeric && textual && code.NumberValue == 413 && detail.StringValue == hostRequestBufferDetail
+}
+
+func hostRequestBufferHeaders(headerMap *corev3.HeaderMap) bool {
+	headers, err := decodeHeaders(headerMap)
+	if err != nil {
+		return false
+	}
+	status, seen, location, valid := scanMarkedTerminalReply(headers)
+	if !valid || !seen || location || status != 413 {
+		return false
+	}
+	for _, header := range headerMap.GetHeaders() {
+		if strings.EqualFold(header.GetKey(), envoyStatusHeader) {
+			value, err := unambiguousStatusValue(header)
+			return err == nil && value == "413"
+		}
+	}
+	return false
+}
+
+func unambiguousStatusValue(header *corev3.HeaderValue) (string, error) {
+	if len(header.GetRawValue()) == 0 {
+		return header.GetValue(), nil
+	}
+	if header.GetValue() != "" {
+		return "", errors.New("ambiguous host status encoding")
+	}
+	return string(header.GetRawValue()), nil
 }
 
 func peerMetadata(peer *authv3.AttributeContext_Peer) (string, int, error) {
@@ -492,8 +611,8 @@ func terminalBlockFromMetadata(metadata *corev3.Metadata) bool {
 	return terminal != nil && terminal.GetStringValue() == metadataTerminalBlock && version != nil && version.GetNumberValue() == 1
 }
 
-// continueMarkedTerminalReply forwards an ext_authz-created P1/P2 local reply
-// after validating its protected marker. It retains no payload and never
+// continueMarkedTerminalReply forwards a validated ext_authz P1/P2 denial or
+// host request-buffer local reply. It retains no payload and never
 // opens, claims, or records a Common transaction; any unmarked lease-less
 // response remains fail-closed in Process.
 func continueMarkedTerminalReply(stream extprocv3.ExternalProcessor_ProcessServer, first *extprocv3.ProcessingRequest) error {

@@ -12,8 +12,10 @@ Exakte Basis: `2619b20b9d2e70fa07cbe71f664b48ff3c105380`.
 Starthead des erweiterten Auftrags: `6576661724841e26802a93b19d8bbfbdb5c8235a`.
 Kein neuer PR und kein PR-/master-Merge. Der Nutzer erlaubt reguläre Basis-Merges
 von #382 in den bestehenden #407-Branch; veröffentlichte Historie bleibt erhalten.
-Der Head `cec340f3` wurde analysiert; die Auslieferung des Reparatur-Follow-ups
-ist zum Stand dieses Dokumentationssnapshots offen.
+Der ausgelieferte Head `ae865899` bestand seine abgeschlossenen CI-Prüfungen
+und Sonar ohne neue Issues, Hotspots oder Duplikate. Der Envoy-Folgefix für
+Vollständigkeit und Host-Antworten benötigt nach Auslieferung frische Prüfungen;
+frühere Ergebnisse behalten ihren exakten Revisionsbezug.
 
 ## Implementierung
 
@@ -91,6 +93,17 @@ Vollständige Entfernung über alle aktiven Profile wird nicht behauptet.
 | Traefik forwardAuth | Host-`maxBodySize=4096/33` begrenzt den gepufferten Autorisierungsrequest. |
 | Composite-Traefik-Autorisierungsantwort | Host-`maxResponseBodySize=32768` begrenzt die Autorisierungsantwort, nicht die Response der Upstream-Anwendung. |
 | HAProxy SPOE/SPOP | Ein Request-Sample je begrenzter Protokollnachricht/Frame; ein unvollständiges Sample scheitert vor der Engine mit Admission-Status 503, nicht nativem `BODY_LIMIT`. Natives HTX ist separat. |
+
+Envoys Composite-Template erlaubte zuvor partielle Samples, während der Adapter
+natives P2 bedingungslos abschloss. Der Folgefix verlangt
+`allow_partial_message: false` und lehnt partielle oder mehrdeutige
+`x-envoy-auth-partial-body`-Metadaten vor dem Öffnen von Common ab. Er führt keine
+Connector-Größenschwelle oder Limitaktion ein. Die Vollsample-Hostgrenze bleibt.
+Echte Envoy-1.39.1-Tests unterscheiden das vollständige 33-Byte-Sample bei nativem
+Limit 32 (native 403) von der Host-Ablehnung für 44 Bytes vor Autorisierung (413).
+Letztere öffnet weder in On noch DetectionOnly eine native Transaktion. Interne
+Hostattribute belegen diese lokale Antwort; HTTP-Header können sie nicht
+auswählen. Diese ausgewählten Fälle belegen nicht die vollständige Hostmatrix.
 
 ## Technische Sicherheit
 
@@ -224,3 +237,70 @@ Frühere Response-only-Prüfungen und abgeschlossene Sonar-Ergebnisse einschlie�
 des Startheads belegen nur jene Revisionen. Sie verifizieren nicht den erweiterten
 aktuellen Diff. Siehe [Zuständigkeitsvertrag](phase4-mode-budget.de.md) und
 [Change Record](../reports/audits/change-records/CR-20261011-response-limit-policy-removal.de.md).
+
+
+## Envoy-Vollständigkeit und Folgeprüfung am echten Host
+
+Das Composite-Autorisierungstemplate akzeptiert jetzt nur vollständige Samples.
+Der Adapter lehnt partielle, fehlerhafte oder mehrdeutige Vollständigkeitsmetadaten
+vor Common-Open/Body/EOS/Lease-Erzeugung ab; vollständige Eingabe erhält keine
+Connector-Byteschwelle. Echte Common-/libModSecurity-Tests geben Request- und
+Response-Policies ausdrücklich an, inspizieren den Tail-Marker jenseits der
+früheren Callback-Grenze und unterscheiden On von DetectionOnly.
+
+Die native Oversize-Hostfixture enthält jetzt exakt 33 Bytes, innerhalb der
+Kapazität des ausgewählten Hosts und oberhalb seines expliziten nativen Limits
+32. Echtes natives Reject liefert 403. Der gemeinsame Verifier verlangt gleichen
+nativen P2-, Deny-Host- und Clientstatus (403 oder 413), den geordneten Lebenszyklus
+und keine Upstream-Antwort; eine reine Host-Ablehnung erfüllt seinen nativen
+P2-Nachweis nicht.
+
+Eine zweite Reproduktion am echten Host fand, dass der Response-Companion ohne
+Lease eine Host-413 vor Autorisierung überschrieb. Die eng begrenzte Fortsetzung
+verlangt jetzt typisierte interne Hostattribute, deren exakten Namespace/Detail/
+Status, keine ext_authz-Metadaten und kanonische Response-Header. Beliebige
+unmarkierte 413, Client-Header und falsche/fehlerhafte Attribute scheitern weiter.
+Echte Kontrollen mit gepinntem Envoy 1.39.1 in On und DetectionOnly beobachten
+44 Bytes am 33-Byte-Hostbuffer mit 413, null Autorisierungs-/native Events/EOS,
+keinen Upstream und einen erfolgreichen kleinen P1–P4-Kontrollrequest im selben
+Prozess.
+
+Die erneute Hostmatrix fand außerdem Timeout-Cleanup verwaister Leases ohne
+terminalen Übergang an Common. Beobachteter Lease-Ablauf zeichnet jetzt Commons
+vorhandenen typisierten Timeout vor geprüftem Abschluss und Freigabe auf.
+P3/P4/EOS und Hoststatus werden nicht erfunden. Der kontrollierte Coordinator-
+Neustart zeichnet entsprechend den vorhandenen typisierten Connector-Fehler-
+Übergang auf. Sein Harness verlangt jetzt die tatsächliche Client-500 des
+gepinnten Hosts und genau ein erfolgreiches Neustart-Cleanup; fehlgeschlagene,
+abweichende und doppelte Terminalevents werden
+abgelehnt. Echte Tests erhalten Phasenfehler gewöhnlicher unvollständiger
+Abschlüsse, physische Event-Sink-Fehler, die erste Cleanup-Ursache und einmalige
+Freigabe. Die unabhängige Receipt-/Projection-Suite besteht 19 Tests. Der
+[Envoy-1.39.1-Vertrag](https://raw.githubusercontent.com/envoyproxy/envoy/v1.39.1/api/envoy/extensions/filters/http/ext_proc/v3/ext_proc.proto)
+definiert diesen Host-Transportfehlerstatus; eine vorgeschlagene 503-Assertion
+wurde auf exakt 500 korrigiert, ohne Produkt-Fehlermapping zu ändern. Aktuelle native Offline-Builds, alle acht
+Go-Pakete, 46 Parent-Vertragsprüfungen und 34 gemeinsame Verifier-Tests bestehen.
+Der repository-native `quick-check` besteht mit 233 gemeldeten Unittest-Tests;
+separate I09-/Apache-/SPOP-Fehlerprüfungen bestehen mit 33/20/19 (305 kombiniert).
+Die Referenzprüfung erhält alle 21 aktuellen generierten Ausgaben.
+
+Dies sind ausgewählte aktuelle Host-/Komponentennachweise statt einer
+vollständigen Request-/Response-Limitmatrix für zehn Profile. Die oben genannten
+Autorisierungs-/Sample-Grenzen bleiben aktiv. Nach dem Folgepush sind frische
+CI-/Sonar-Nachweise für den exakten Head erforderlich; die vollständigen Prüfungen
+von `ae865899` gelten nur für diesen vorigen Head. Externe Laufevidenz:
+`root-checks/envoy-completeness/` im erhaltenen Tasklauf. Aktueller Lieferstatus:
+[PR #407](https://github.com/Easton97-Jens/ModSecurity-conector/pull/407).
+
+
+Die finale Envoy-1.39.1-HTTP/1-Composite-Matrix auf eingefrorenem Quellstand
+besteht alle 14 ausgeführten Fälle mit 14 verschiedenen erfolgreichen nativen
+Terminal-Cleanups. Neun gemeinsame Verifier-Fälle melden `LIFECYCLE_ONLY`; der
+kontrolliert unerreichbare Companion liefert seine native Host-500 und schließt
+einmal mit Grund `restart`. Fehlende Response-Metadaten und abgelaufene Leases
+behalten 503 und geprüftes Timeout-Cleanup. Die beiden On-/DetectionOnly-
+Hostbuffer-Kontrollen bestehen mit denselben aktuellen Binaries. P4-Strict-Reset
+bleibt ausdrücklich `NOT_RUN`; eine vollständige Zehn-Profil-Limitmatrix wird
+dadurch nicht belegt. Quellhashes, Befehle, Receipts, Terminal-Readbacks und der
+Nachweis gestoppter Prozesse bleiben erhalten in
+`root-checks/envoy-completeness/host/restart-final-validation-status.json`.

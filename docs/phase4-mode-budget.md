@@ -64,6 +64,12 @@ as working-buffer capacity:
 | HAProxy SPOE/SPOP request sample | One bounded protocol message containing `req.body` | An incomplete sample cannot establish complete P2 inspection; native HTX is a separate profile. |
 
 The native streaming profiles do not inherit these authorization limits.
+Envoy ext_authz templates use `allow_partial_message: false`; explicit partial
+or ambiguous `x-envoy-auth-partial-body` metadata is rejected before native
+transaction creation. This checks transport completeness, not a connector
+inspection size or action. The host sample ceiling remains an open limitation.
+For the composite profile, a pre-authorization host buffer rejection remains
+413 only with internal host provenance; it creates no native decision or EOS.
 Changing an authorization profile into native streaming would change its host
 contract and requires separate evidence. Independent host request-size controls,
 such as lighttpd `server.max-request-size`, remain host configuration.
