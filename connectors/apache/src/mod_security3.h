@@ -164,6 +164,8 @@ typedef struct
     /* A log callback is synchronous with host processing; retain only the
      * decision needed to emit bounded native metadata. */
     msc_intervention_state intervention;
+    msc_intervention_state pending_response_intervention;
+    int response_intervention_pending;
 } msc_t;
 
 /* Keep the established field vocabulary at call sites while grouping the

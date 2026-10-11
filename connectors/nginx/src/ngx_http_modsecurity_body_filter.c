@@ -33,7 +33,6 @@
 #include "msconnector/native_result.h"
 #include "ngx_http_modsecurity_phase4_error.h"
 #include "ngx_http_modsecurity_phase4_observation.h"
-#include "msconnector/phase4_budget.h"
 
 static ngx_http_output_body_filter_pt ngx_http_next_body_filter;
 
@@ -59,7 +58,7 @@ static ngx_int_t ngx_http_modsecurity_phase4_fail_control(
     ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf,
     ngx_http_modsecurity_ctx_t *ctx, msconnector_transaction_error_class cause);
 static ngx_int_t ngx_http_modsecurity_validate_response_mapper_once(ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx);
-static ngx_int_t ngx_http_modsecurity_plan_limited_response_body(
+static ngx_int_t ngx_http_modsecurity_account_response_body(
     ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf,
     size_t len, size_t *allowed);
 static ngx_int_t ngx_http_modsecurity_append_response_body_chunk(
@@ -67,7 +66,7 @@ static ngx_int_t ngx_http_modsecurity_append_response_body_chunk(
 static ngx_int_t ngx_http_modsecurity_phase4_log_native_completion(
     ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf,
     ngx_http_modsecurity_ctx_t *ctx, int native_result);
-static ngx_int_t ngx_http_modsecurity_append_limited_response_body(ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf, u_char *data, size_t len);
+static ngx_int_t ngx_http_modsecurity_append_accounted_response_body(ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf, u_char *data, size_t len);
 static ngx_int_t ngx_http_modsecurity_append_file_response_body(
     ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
     ngx_http_modsecurity_conf_t *mcf, ngx_buf_t *buffer);
@@ -143,13 +142,10 @@ ngx_http_modsecurity_validate_response_mapper_once(ngx_http_request_t *r, ngx_ht
 }
 
 static ngx_int_t
-ngx_http_modsecurity_plan_limited_response_body(
+ngx_http_modsecurity_account_response_body(
     ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf,
     size_t len, size_t *allowed)
 {
-    msconnector_body_limit_plan plan;
-    size_t limit;
-
     if (allowed == NULL) {
         return NGX_ERROR;
     }
@@ -157,36 +153,18 @@ ngx_http_modsecurity_plan_limited_response_body(
     if (ctx == NULL || mcf == NULL) {
         return NGX_ERROR;
     }
-    if (len == 0U) {
-        return NGX_OK;
-    }
-
-    ctx->response_body_seen = 1;
-    limit = msconnector_phase4_effective_body_limit(
-        mcf->phase4_mode);
-    if (limit == 0U) {
+    if (ctx->response_body_bytes_inspected > ctx->response_body_bytes_seen ||
+            len > SIZE_MAX - ctx->response_body_bytes_seen ||
+            len > SIZE_MAX - ctx->response_body_bytes_inspected) {
         (void)msconnector_transaction_contract_fail(&ctx->contract,
             MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
         return NGX_ERROR;
     }
-
-    /* Every valid P4 mode has no connector-owned cumulative inspection limit.
-     * Keep the Common planner only for consistent accounting and integer
-     * overflow rejection; libModSecurity owns response inspection policy. */
-    if (!msconnector_body_limit_plan_chunk(ctx->response_body_bytes_seen,
-            ctx->response_body_bytes_inspected, limit,
-            MSCONNECTOR_BODY_LIMIT_ACTION_REJECT, len, &plan)) {
-        ctx->response_body_bytes_seen = plan.bytes_seen;
-        ctx->response_body_truncated = 1;
-        (void)msconnector_transaction_contract_fail(&ctx->contract,
-            MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, 0U);
-        return NGX_ERROR;
+    if (len > 0U) {
+        ctx->response_body_seen = 1;
     }
-    ctx->response_body_bytes_seen = plan.bytes_seen;
-    if (plan.truncated) {
-        ctx->response_body_truncated = 1;
-    }
-    *allowed = plan.append_size;
+    ctx->response_body_bytes_seen += len;
+    *allowed = len;
     return NGX_OK;
 }
 
@@ -301,7 +279,7 @@ ngx_http_modsecurity_append_response_body_chunk(
     if (data == NULL || ctx->response_body_bytes_inspected > SIZE_MAX - bytes ||
         ctx->response_body_append_calls == SIZE_MAX) {
         (void)msconnector_transaction_contract_fail(&ctx->contract,
-            MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, 0U);
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
         return NGX_ERROR;
     }
     if (ctx->contract.active_phase != MSCONNECTOR_PHASE_RESPONSE_BODY &&
@@ -343,12 +321,12 @@ ngx_http_modsecurity_append_response_body_chunk(
 }
 
 static ngx_int_t
-ngx_http_modsecurity_append_limited_response_body(ngx_http_modsecurity_ctx_t *ctx,
+ngx_http_modsecurity_append_accounted_response_body(ngx_http_modsecurity_ctx_t *ctx,
     ngx_http_modsecurity_conf_t *mcf, u_char *data, size_t len)
 {
     size_t allowed;
 
-    if (ngx_http_modsecurity_plan_limited_response_body(ctx, mcf, len,
+    if (ngx_http_modsecurity_account_response_body(ctx, mcf, len,
             &allowed) != NGX_OK) {
         return NGX_ERROR;
     }
@@ -379,12 +357,12 @@ ngx_http_modsecurity_append_file_response_body(
         (uintmax_t)buffer->file_pos;
     if (file_length > (uintmax_t)SIZE_MAX) {
         (void)msconnector_transaction_contract_fail(&ctx->contract,
-            MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, 0U);
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-            "ModSecurity: file-backed response body exceeds local limits");
+            "ModSecurity: file-backed response body length cannot be represented");
         return NGX_ERROR;
     }
-    if (ngx_http_modsecurity_plan_limited_response_body(ctx, mcf,
+    if (ngx_http_modsecurity_account_response_body(ctx, mcf,
             (size_t)file_length, &allowed) != NGX_OK) {
         return NGX_ERROR;
     }
@@ -446,7 +424,7 @@ ngx_http_modsecurity_append_response_body_buffer(
             ? (size_t) (buffer->last - buffer->pos)
             : 0;
 
-        return ngx_http_modsecurity_append_limited_response_body(ctx, mcf,
+        return ngx_http_modsecurity_append_accounted_response_body(ctx, mcf,
             data, len);
     }
     if (buffer->in_file) {

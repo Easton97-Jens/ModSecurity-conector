@@ -172,7 +172,6 @@ void msconnector_config_init(msconnector_config *config) {
     config->phase4_mode = MSCONNECTOR_PHASE4_MODE_UNSET;
     config->phase4_log_path = 0;
     config->request_body_limit = 0;
-    config->response_body_limit = 0;
     config->body_limit_action = MSCONNECTOR_BODY_LIMIT_ACTION_UNSET;
     config->late_intervention_timeout_ms =
         MSCONNECTOR_LATE_INTERVENTION_TIMEOUT_UNSET;
@@ -202,9 +201,6 @@ void msconnector_config_apply_defaults(msconnector_config *config) {
         config->request_body_limit = MSCONNECTOR_DEFAULT_REQUEST_BODY_LIMIT;
     }
 
-    if (config->response_body_limit == 0U) {
-        config->response_body_limit = MSCONNECTOR_DEFAULT_RESPONSE_BODY_LIMIT;
-    }
 
     if (config->body_limit_action == MSCONNECTOR_BODY_LIMIT_ACTION_UNSET) {
         config->body_limit_action = MSCONNECTOR_BODY_LIMIT_ACTION_REJECT;
@@ -259,8 +255,6 @@ int msconnector_config_merge(
     out->phase4_log_path = merge_string(parent->phase4_log_path, child->phase4_log_path);
     out->request_body_limit = merge_size_value(
         parent->request_body_limit, child->request_body_limit);
-    out->response_body_limit = merge_size_value(
-        parent->response_body_limit, child->response_body_limit);
     out->body_limit_action = merge_body_limit_action(
         parent->body_limit_action, child->body_limit_action);
     out->late_intervention_timeout_ms = merge_late_intervention_timeout(
@@ -300,8 +294,7 @@ int msconnector_config_validate(const msconnector_config *config, char *error, s
         return 0;
     }
 
-    if (config->request_body_limit > MSCONNECTOR_MAX_CONFIG_BODY_BYTES ||
-        config->response_body_limit > MSCONNECTOR_MAX_CONFIG_BODY_BYTES) {
+    if (config->request_body_limit > MSCONNECTOR_MAX_CONFIG_BODY_BYTES) {
         set_error(error, error_len,
             "configured body limit exceeds the hard security cap");
         return 0;

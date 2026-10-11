@@ -60,5 +60,27 @@ int main(void)
         MSCONNECTOR_PHASE_REQUEST_BODY,
         &native_request_body_limit_with_log) == 0);
 
+    msconnector_intervention response_limit = msconnector_intervention_make(1, 403, NULL,
+        MSCONNECTOR_RESPONSE_BODY_LIMIT_REJECTION_LOG);
+    CHECK(msconnector_intervention_is_response_body_limit_rejection(
+        MSCONNECTOR_PHASE_RESPONSE_BODY, &response_limit) == 1);
+    CHECK(msconnector_intervention_is_response_body_limit_rejection(
+        MSCONNECTOR_PHASE_REQUEST_BODY, &response_limit) == 0);
+    response_limit.redirect_url = "/redirect";
+    CHECK(msconnector_intervention_is_response_body_limit_rejection(
+        MSCONNECTOR_PHASE_RESPONSE_BODY, &response_limit) == 0);
+    response_limit.redirect_url = NULL;
+    response_limit.status = 413;
+    CHECK(msconnector_intervention_is_response_body_limit_rejection(
+        MSCONNECTOR_PHASE_RESPONSE_BODY, &response_limit) == 0);
+    response_limit.status = 403;
+    response_limit.log_message = "ordinary rule intervention";
+    CHECK(msconnector_intervention_is_response_body_limit_rejection(
+        MSCONNECTOR_PHASE_RESPONSE_BODY, &response_limit) == 0);
+    response_limit.log_message = MSCONNECTOR_RESPONSE_BODY_LIMIT_REJECTION_LOG;
+    response_limit.disruptive = 0;
+    CHECK(msconnector_intervention_is_response_body_limit_rejection(
+        MSCONNECTOR_PHASE_RESPONSE_BODY, &response_limit) == 0);
+
     return failures == 0 ? 0 : 1;
 }

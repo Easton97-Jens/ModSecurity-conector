@@ -75,14 +75,13 @@ func run() error {
 		defer closeObserver.Close()
 	}
 	coordinator, err := composite.New(opts.mode, key, composite.Limits{
-		Capacity:        128,
-		TTL:             30 * time.Second,
-		IdleTTL:         5 * time.Second,
-		MaxRequestBody:  32,
-		MaxResponseBody: 1 << 20,
-		MaxBodyChunks:   256,
-		MaxHeaders:      256,
-		MaxHeaderBytes:  64 << 10,
+		Capacity:       128,
+		TTL:            30 * time.Second,
+		IdleTTL:        5 * time.Second,
+		MaxRequestBody: 32,
+		MaxBodyChunks:  256,
+		MaxHeaders:     256,
+		MaxHeaderBytes: 64 << 10,
 	}, runtime.engine, observer)
 	if err != nil {
 		return fmt.Errorf("coordinator setup: %w", err)

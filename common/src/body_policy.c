@@ -26,7 +26,6 @@ void msconnector_body_policy_init(msconnector_body_policy *policy) {
     policy->request_body_mode = MSCONNECTOR_BODY_MODE_NONE;
     policy->response_body_mode = MSCONNECTOR_BODY_MODE_NONE;
     policy->request_body_limit = 0U;
-    policy->response_body_limit = 0U;
     policy->body_limit_action = MSCONNECTOR_BODY_LIMIT_ACTION_REJECT;
 }
 

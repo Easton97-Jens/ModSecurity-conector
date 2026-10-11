@@ -8,7 +8,7 @@ This is the complete current `key=value` parser surface of `common/runtime/mscon
 
 | Option | Layer | Type | Required | Default | Context | Short description |
 | --- | --- | --- | --- | --- | --- | --- |
-| [`body_limit_action`](#body-limit-action) | Common Runtime | enum | no | reject | Common Runtime key=value file | Controls whether an over-limit chunk is rejected or truncated before engine input. |
+| [`body_limit_action`](#body-limit-action) | Common Runtime | enum | no | reject | Common Runtime key=value file | Controls whether an over-limit request chunk is rejected or truncated before engine input; response limits and actions belong exclusively to libModSecurity. |
 | [`default_block_status`](#default-block-status) | Common Runtime | HTTP status | no | 403 | Common Runtime key=value file | Fallback status for supported pre-commit block actions. |
 | [`default_error_status`](#default-error-status) | Common Runtime | HTTP error status | no | 500 | Common Runtime key=value file | Fallback status for runtime errors. |
 | [`enabled`](#enabled) | Common Runtime | boolean | no | off | Common Runtime key=value file | Enables the Common Runtime; enabled runtime requires an inline or local-file rule source. |
@@ -23,7 +23,6 @@ This is the complete current `key=value` parser surface of `common/runtime/mscon
 | [`phase4_mode`](#phase4-mode) | Common Runtime | enum | no | off | Common Runtime key=value file | Stores the late P4 policy. Common alone owns no host abort primitive. |
 | [`request_body_limit`](#request-body-limit) | Common Runtime | positive decimal bytes | no | 1048576 | Common Runtime key=value file | Bounds request bytes offered to the engine. |
 | [`request_body_mode`](#request-body-mode) | Common Runtime | enum | no | buffered | Common Runtime key=value file | Selects the Common request-body handling mode; a particular host may support only a subset. |
-| [`response_body_limit`](#response-body-limit) | Common Runtime | positive decimal bytes | no | 1048576 | Common Runtime key=value file | Bounds host/runtime response capacity where that integration requires bounded storage; it is not libModSecurity inspection policy. |
 | [`response_body_mode`](#response-body-mode) | Common Runtime | enum | no | none | Common Runtime key=value file | Selects the Common response-body handling mode; a particular host may support only a subset. |
 | [`rules_file`](#rules-file) | Common Runtime | path | no | none | Common Runtime key=value file | Loads rules from a local file. |
 | [`rules_inline`](#rules-inline) | Common Runtime | string | no | none | Common Runtime key=value file | Adds inline rule configuration. |
@@ -40,7 +39,7 @@ This is the complete current `key=value` parser surface of `common/runtime/mscon
 
 ### Short description
 
-Controls whether an over-limit chunk is rejected or truncated before engine input.
+Controls whether an over-limit request chunk is rejected or truncated before engine input; response limits and actions belong exclusively to libModSecurity.
 
 ### Syntax
 
@@ -74,7 +73,7 @@ Merge: When a host uses msconnector_config, scalar child values override parent 
 
 See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
 
-Controls whether an over-limit chunk is rejected or truncated before engine input.
+Controls whether an over-limit request chunk is rejected or truncated before engine input; response limits and actions belong exclusively to libModSecurity.
 
 ### Validation and errors
 
@@ -88,7 +87,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 ### Safety and operations
 
-Limits bound resource use. Controls whether an over-limit chunk is rejected or truncated before engine input.
+Limits bound resource use. Controls whether an over-limit request chunk is rejected or truncated before engine input; response limits and actions belong exclusively to libModSecurity.
 
 <a id="default-block-status"></a>
 ## `default_block_status`
@@ -859,61 +858,6 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 ### Safety and operations
 
 Limits bound resource use. Selects the Common request-body handling mode; a particular host may support only a subset.
-
-<a id="response-body-limit"></a>
-## `response_body_limit`
-
-### Short description
-
-Bounds host/runtime response capacity where that integration requires bounded storage; it is not libModSecurity inspection policy.
-
-### Syntax
-
-```text
-response_body_limit=<value>
-```
-
-### Valid contexts
-
-- Common Runtime key=value file
-
-### Values
-
-| Type | Allowed values | Required |
-| --- | --- | --- |
-| positive decimal bytes | 1 through 10485760 bytes (10 MiB hard cap) | no |
-
-### Default
-
-1048576
-
-Source: `common/include/msconnector/limits.h:MSCONNECTOR_MAX_RESPONSE_BODY_BUFFER_SIZE`.
-
-### Inheritance and merge
-
-No file-level inheritance; host integrations may merge their own configuration before starting Common Runtime.
-
-Merge: When a host uses msconnector_config, scalar child values override parent values; runtime files are parsed as one concrete configuration.
-
-### Phases and runtime effect
-
-See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
-
-Bounds host/runtime response capacity where that integration requires bounded storage; it is not libModSecurity inspection policy.
-
-### Validation and errors
-
-Unknown keys, empty values, malformed assignments, zero, non-decimal values, and values above the hard cap of 10485760 bytes (10 MiB hard security cap) fail the runtime configuration check.
-
-### Example
-
-Selected value: use the syntax above and the source-backed file below.
-
-Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../examples/lighttpd/safe/msconnector-runtime.conf).
-
-### Safety and operations
-
-The 10 MiB configuration cap bounds host/runtime capacity settings where an integration allocates or buffers responses; it is not a libModSecurity WAF inspection limit.
 
 <a id="response-body-mode"></a>
 ## `response_body_mode`

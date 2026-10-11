@@ -20,9 +20,9 @@ import (
 type LateActionPolicy string
 
 const (
-	LateActionOff LateActionPolicy = "off"
-	LateActionSafe    LateActionPolicy = "safe"
-	LateActionStrict  LateActionPolicy = "strict"
+	LateActionOff    LateActionPolicy = "off"
+	LateActionSafe   LateActionPolicy = "safe"
+	LateActionStrict LateActionPolicy = "strict"
 )
 
 // LateActionPolicyAdmissionValidator is implemented by a rule-evaluating
@@ -37,17 +37,16 @@ type LateActionPolicyAdmissionValidator interface {
 // importing Envoy or Common configuration types. Duration values are expressed
 // in milliseconds in the JSON file to avoid ambiguous Go duration encodings.
 type Config struct {
-	ListenAddress        string `json:"listen_address"`
-	TransactionIDHeader  string `json:"transaction_id_header"`
-	MaxHeaderCount       int    `json:"max_header_count"`
-	MaxHeaderNameBytes   int    `json:"max_header_name_bytes"`
-	MaxHeaderValueBytes  int    `json:"max_header_value_bytes"`
-	MaxTotalHeaderBytes  int    `json:"max_total_header_bytes"`
-	MaxBodyChunkBytes    int    `json:"max_body_chunk_bytes"`
-	MaxRequestBodyBytes  int64  `json:"max_request_body_bytes"`
-	MaxResponseBodyBytes int64  `json:"max_response_body_bytes"`
-	MaxGRPCMessageBytes  int    `json:"max_grpc_message_bytes"`
-	EngineTimeoutMS      int    `json:"engine_timeout_ms"`
+	ListenAddress       string `json:"listen_address"`
+	TransactionIDHeader string `json:"transaction_id_header"`
+	MaxHeaderCount      int    `json:"max_header_count"`
+	MaxHeaderNameBytes  int    `json:"max_header_name_bytes"`
+	MaxHeaderValueBytes int    `json:"max_header_value_bytes"`
+	MaxTotalHeaderBytes int    `json:"max_total_header_bytes"`
+	MaxBodyChunkBytes   int    `json:"max_body_chunk_bytes"`
+	MaxRequestBodyBytes int64  `json:"max_request_body_bytes"`
+	MaxGRPCMessageBytes int    `json:"max_grpc_message_bytes"`
+	EngineTimeoutMS     int    `json:"engine_timeout_ms"`
 	// StreamIdleTimeoutMS bounds inactivity between Envoy ProcessingRequest
 	// messages for one gRPC stream. It is deliberately distinct from the
 	// engine callback budget: normal streamed bodies may remain open longer
@@ -146,8 +145,8 @@ func (config Config) Validate() error {
 			return fmt.Errorf("config: %s exceeds maximum of %d milliseconds", name, maxTimeoutMS)
 		}
 	}
-	if config.MaxRequestBodyBytes <= 0 || config.MaxResponseBodyBytes <= 0 {
-		return fmt.Errorf("config: request and response body limits must be positive")
+	if config.MaxRequestBodyBytes <= 0 {
+		return fmt.Errorf("config: request body limit must be positive")
 	}
 	if config.MaxGRPCMessageBytes <= config.MaxBodyChunkBytes {
 		return fmt.Errorf("config: max_grpc_message_bytes must exceed max_body_chunk_bytes")

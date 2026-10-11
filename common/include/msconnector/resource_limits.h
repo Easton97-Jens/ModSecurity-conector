@@ -14,7 +14,6 @@ typedef struct msconnector_resource_limits {
     size_t max_header_value_size;
     size_t max_total_header_bytes;
     size_t max_request_body_bytes;
-    size_t max_response_body_bytes;
     size_t max_event_json_bytes;
     size_t max_transaction_id_length;
     size_t max_rule_id_length;

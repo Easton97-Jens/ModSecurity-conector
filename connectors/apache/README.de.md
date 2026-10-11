@@ -242,6 +242,11 @@ bezeichnet weder H1 noch H2 als bestanden.
 
 ## Phase-4-Modus und Eigentümerschaft von Response-Body-Limits
 
+Response-Body-Inspection-Limit und Limit-Aktion werden ausschließlich durch
+`SecResponseBodyLimit` und `SecResponseBodyLimitAction` festgelegt. Der Connector
+besitzt dafür keine eigene Option, keinen Default, keinen Fallback und keine
+zweite Durchsetzungslogik.
+
 Der Standardmodus ist `off`; erlaubt sind `off`, `safe` und `strict`. Kein
 gültiger Phase-4-Modus fügt ein Connector-eigenes kumuliertes
 Response-Inspection-Budget hinzu. libModSecurity besitzt die WAF-Auswahl und

@@ -17,7 +17,7 @@ import (
 )
 
 func TestCommonRuntimeEngineEvaluatesIncrementalLifecycle(t *testing.T) {
-	engine, _ := newCommonRuntimeEngineForTest(t)
+	engine, _ := newCommonRuntimeEngineForTest(t, 1048576, "Reject")
 	contextValue := context.Background()
 	testCases := []commonRuntimeLifecycleTestCase{
 		{name: "phase1_request_headers", run: testCommonRuntimePhase1},
@@ -39,7 +39,7 @@ func TestCommonRuntimeEngineEvaluatesIncrementalLifecycle(t *testing.T) {
 }
 
 func TestCommonRuntimeEngineRejectsStrictPolicyBeforeStreamAdmission(t *testing.T) {
-	engine, _ := newCommonRuntimeEngineForTest(t)
+	engine, _ := newCommonRuntimeEngineForTest(t, 1048576, "Reject")
 	_, err := NewService(testConfig(LateActionStrict), engine)
 	if err == nil || !strings.Contains(err.Error(), "phase4_mode=safe") {
 		t.Fatalf("NewService() error = %v, want strict/safe admission rejection", err)
@@ -184,7 +184,7 @@ func assertCommonDecision(t *testing.T, phase string, decision Decision, err err
 }
 
 func TestCommonRuntimeEngineSerializesParallelStreams(t *testing.T) {
-	engine, _ := newCommonRuntimeEngineForTest(t)
+	engine, _ := newCommonRuntimeEngineForTest(t, 1048576, "Reject")
 	const streamCount = 12
 	errors := make(chan error, streamCount)
 	var workers sync.WaitGroup
@@ -413,7 +413,7 @@ func TestCommonRuntimeEngineOperationsHonorMutexContext(t *testing.T) {
 }
 
 func TestCommonRuntimeEngineUsesCanonicalEnvoyEventIdentity(t *testing.T) {
-	engine, eventPath := newCommonRuntimeEngineForTest(t)
+	engine, eventPath := newCommonRuntimeEngineForTest(t, 1048576, "Reject")
 	contextValue := context.Background()
 	transaction, err := engine.Open(contextValue, commonTestStreamMetadata("canonical-event-identity"))
 	if err != nil {
@@ -503,7 +503,7 @@ func TestCommonRuntimeEngineMapsP3RedirectLocation(t *testing.T) {
 SecRequestBodyAccess On
 SecResponseBodyAccess On
 SecRule RESPONSE_HEADERS:X-Msconnector-Vector "@streq msconnector-p3-redirect" "id:1203002,phase:3,redirect:/msconnector-p3-redirect-target,status:302,log,t:none"
-`)
+`, 1048576, "Reject")
 	contextValue := context.Background()
 	transaction, err := engine.Open(contextValue, commonTestStreamMetadata("p3-redirect-location"))
 	if err != nil {
@@ -531,7 +531,7 @@ SecRule RESPONSE_HEADERS:X-Msconnector-Vector "@streq msconnector-p3-redirect" "
 	}
 }
 
-func newCommonRuntimeEngineForTest(t *testing.T) (*CommonRuntimeEngine, string) {
+func newCommonRuntimeEngineForTest(t *testing.T, responseLimit int, responseLimitAction string) (*CommonRuntimeEngine, string) {
 	return newCommonRuntimeEngineForRulesTest(t, `SecRuleEngine On
 SecRequestBodyAccess On
 SecResponseBodyAccess On
@@ -540,11 +540,12 @@ SecRule REQUEST_HEADERS:X-Ms-P1 "@streq block" "id:1200001,phase:1,deny,status:4
 SecRule REQUEST_BODY "@contains envoy-phase2-marker" "id:1200002,phase:2,deny,status:403,log,t:none"
 SecRule RESPONSE_HEADERS:X-Ms-P3 "@streq block" "id:1200003,phase:3,deny,status:403,log,t:none"
 SecRule RESPONSE_BODY "@contains envoy-phase4-marker" "id:1200004,phase:4,deny,status:403,log,t:none"
-`)
+`, responseLimit, responseLimitAction)
 }
 
-func newCommonRuntimeEngineForRulesTest(t *testing.T, rules string) (*CommonRuntimeEngine, string) {
+func newCommonRuntimeEngineForRulesTest(t *testing.T, rules string, responseLimit int, responseLimitAction string) (*CommonRuntimeEngine, string) {
 	t.Helper()
+	rules = fmt.Sprintf("SecResponseBodyLimit %d\nSecResponseBodyLimitAction %s\n", responseLimit, responseLimitAction) + rules
 	directory := t.TempDir()
 	rulesPath := filepath.Join(directory, "rules.conf")
 	configPath := filepath.Join(directory, "runtime.conf")
@@ -558,7 +559,6 @@ transaction_id_header=x-request-id
 request_body_mode=streaming
 response_body_mode=streaming
 request_body_limit=1048576
-response_body_limit=1048576
 body_limit_action=reject
 phase4_mode=safe
 default_block_status=403
@@ -599,5 +599,37 @@ func commonTestStreamMetadata(transactionID string) StreamMetadata {
 			ServerAddress: "127.0.0.1",
 			ServerPort:    18080,
 		},
+	}
+}
+
+func TestCommonRuntimeResponseReachesEnginePastFormerConnectorBudget(t *testing.T) {
+	engine, _ := newCommonRuntimeEngineForRulesTest(t, `SecRuleEngine On
+SecRequestBodyAccess On
+SecResponseBodyAccess On
+SecResponseBodyMimeType text/plain
+SecRule RESPONSE_BODY "@contains marker-past-former-budget" "id:1200994,phase:4,deny,status:451,log,t:none"
+`, 2097152, "Reject")
+	ctx := context.Background()
+	tx, err := engine.Open(ctx, commonTestStreamMetadata("response-past-former-budget"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Close(ctx, Summary{CloseReason: CloseResponseEOS})
+	d, err := tx.ProcessHeaders(ctx, DirectionRequest, nil, true)
+	assertCommonDecision(t, "request", d, err, ActionAllow, 0)
+	d, err = tx.ProcessHeaders(ctx, DirectionResponse, []Header{{Name: ":status", Value: []byte("200")}, {Name: "content-type", Value: []byte("text/plain")}}, false)
+	assertCommonDecision(t, "response headers", d, err, ActionAllow, 0)
+	chunk := make([]byte, 16384)
+	for i := range chunk {
+		chunk[i] = 'x'
+	}
+	for i := 0; i < 65; i++ {
+		d, err = tx.ProcessBody(ctx, DirectionResponse, chunk, false)
+		assertCommonDecision(t, "streamed response", d, err, ActionAllow, 0)
+	}
+	d, err = tx.ProcessBody(ctx, DirectionResponse, []byte("marker-past-former-budget"), true)
+	assertCommonDecision(t, "engine tail rule", d, err, ActionDeny, 451)
+	if d.RuleID != "1200994" {
+		t.Fatalf("rule ID=%q", d.RuleID)
 	}
 }

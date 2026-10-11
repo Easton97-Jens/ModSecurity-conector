@@ -8,7 +8,6 @@ void msconnector_resource_limits_init(msconnector_resource_limits *limits) {
     limits->max_header_value_size = MSCONNECTOR_MAX_HEADER_VALUE_LENGTH;
     limits->max_total_header_bytes = MSCONNECTOR_MAX_TOTAL_HEADER_BYTES;
     limits->max_request_body_bytes = MSCONNECTOR_MAX_BODY_BUFFER_SIZE;
-    limits->max_response_body_bytes = MSCONNECTOR_MAX_RESPONSE_BODY_BUFFER_SIZE;
     limits->max_event_json_bytes = MSCONNECTOR_MAX_EVENT_JSON_BYTES;
     limits->max_transaction_id_length = MSCONNECTOR_MAX_TRANSACTION_ID_LENGTH;
     limits->max_rule_id_length = MSCONNECTOR_MAX_RULE_ID_LENGTH;
@@ -18,7 +17,7 @@ void msconnector_resource_limits_init(msconnector_resource_limits *limits) {
 int msconnector_resource_limits_validate(const msconnector_resource_limits *limits) {
     return limits != 0 && limits->max_header_count > 0U && limits->max_header_name_size > 0U &&
         limits->max_header_value_size > 0U && limits->max_total_header_bytes > 0U &&
-        limits->max_request_body_bytes > 0U && limits->max_response_body_bytes > 0U &&
+        limits->max_request_body_bytes > 0U &&
         limits->max_event_json_bytes > 0U && limits->max_transaction_id_length > 0U &&
         limits->max_rule_id_length > 0U && limits->max_log_message_length > 0U &&
         limits->max_header_count <= MSCONNECTOR_MAX_HEADER_COUNT &&
@@ -26,7 +25,6 @@ int msconnector_resource_limits_validate(const msconnector_resource_limits *limi
         limits->max_header_value_size <= MSCONNECTOR_MAX_HEADER_VALUE_LENGTH &&
         limits->max_total_header_bytes <= MSCONNECTOR_MAX_TOTAL_HEADER_BYTES &&
         limits->max_request_body_bytes <= MSCONNECTOR_MAX_CONFIG_BODY_BYTES &&
-        limits->max_response_body_bytes <= MSCONNECTOR_MAX_CONFIG_BODY_BYTES &&
         limits->max_event_json_bytes <= MSCONNECTOR_MAX_EVENT_JSON_BYTES &&
         limits->max_transaction_id_length <= MSCONNECTOR_MAX_TRANSACTION_ID_LENGTH &&
         limits->max_rule_id_length <= MSCONNECTOR_MAX_RULE_ID_LENGTH &&

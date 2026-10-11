@@ -29,7 +29,6 @@
 #include "msconnector/intervention.h"
 #include "msconnector/json_escape.h"
 #include "msconnector/late_intervention.h"
-#include "msconnector/phase4_budget.h"
 #include "msconnector/native_result.h"
 #include "msconnector/log_sanitize.h"
 #include "msconnector/redaction.h"
@@ -142,6 +141,8 @@ struct haproxy_modsecurity_transaction {
     haproxy_modsecurity_body_state request_body;
     int response_headers_processed;
     haproxy_modsecurity_body_state response_body;
+    haproxy_modsecurity_decision pending_response_intervention;
+    int response_intervention_pending;
     char request_id[128];
     msconnector_transaction_contract contract;
     int contract_initialized;
@@ -168,7 +169,7 @@ typedef struct haproxy_modsecurity_body_phase {
     int *body_started;
     size_t *body_bytes_seen;
     size_t *body_bytes_inspected;
-    size_t body_limit;
+    const size_t *request_body_limit;
     const char *missing_message;
     const char *headers_required_message;
     const char *append_after_eos_message;
@@ -319,7 +320,10 @@ static int capture_intervention(
         }
         body_limit = msconnector_intervention_is_request_body_limit_rejection(
             common_phase, &common_intervention);
-        decision->body_limit = body_limit;
+        decision->body_limit = body_limit ||
+            msconnector_intervention_is_response_body_limit_rejection(
+                phase == 4 ? MSCONNECTOR_PHASE_RESPONSE_BODY : common_phase,
+                &common_intervention);
         decision->disruptive = intervention.disruptive;
         if (body_limit) {
             decision->status = 413;
@@ -461,25 +465,21 @@ static int append_body_chunk(
         copy_message(decision->log_message, sizeof(decision->log_message), phase->pointer_required_message);
         return 1;
     }
-    /* The host delivers borrowed chunks, so the cumulative budget must be
-     * checked before any libmodsecurity sink is called.  The subtraction
-     * form also makes the size_t boundary explicit and prevents wrapping
-     * body_bytes_seen on a hostile or malformed host length. */
-    {
-        const size_t contract_body_limit = phase->phase == 2 ?
-            transaction->contract.request_body_limit :
-            transaction->contract.response_body_limit;
-        const size_t body_limit = phase->body_limit < contract_body_limit ?
-            phase->body_limit : contract_body_limit;
-        const int over_limit =
-            *phase->body_bytes_seen > SIZE_MAX - (size_t)body_len ||
-            body_limit == 0U ||
-            *phase->body_bytes_seen > body_limit ||
-            (size_t)body_len > body_limit - *phase->body_bytes_seen;
-        if (over_limit) {
+    /* Response sizes are engine policy. Overflow remains a technical failure. */
+    if (*phase->body_bytes_seen > SIZE_MAX - (size_t)body_len) {
+        native_error_decision(decision, "body accounting overflow");
+        (void)msconnector_transaction_contract_fail(&transaction->contract,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
+        return 1;
+    }
+    if (phase->phase == 2) {
+        const size_t contract_body_limit = transaction->contract.request_body_limit;
+        const size_t body_limit = *phase->request_body_limit < contract_body_limit ?
+            *phase->request_body_limit : contract_body_limit;
+        if (body_limit == 0U || *phase->body_bytes_seen > body_limit ||
+                (size_t)body_len > body_limit - *phase->body_bytes_seen) {
             copy_message(decision->log_message, sizeof(decision->log_message),
-                phase->phase == 2 ? "request body exceeds Common limit" :
-                    "response body exceeds Common limit");
+                "request body exceeds Common limit");
             decision->disruptive = 1;
             decision->status = 413;
             copy_message(decision->action, sizeof(decision->action), "deny");
@@ -518,7 +518,7 @@ static int append_body_chunk(
         copy_message(decision->log_message, sizeof(decision->log_message),
             "body accounting overflow");
         (void)msconnector_transaction_contract_fail(&transaction->contract,
-            MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, 0U);
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
         return 1;
     }
     *phase->body_bytes_seen += (size_t)body_len;
@@ -531,6 +531,22 @@ static int append_body_chunk(
     }
     *phase->body_started = 1;
     *phase->body_bytes_inspected += body_len;
+    if (phase->phase == 4) {
+        /* Observe native append outcomes without deriving Allow from its rc.
+         * Retain the first intervention through subsequent chunks and EOS. */
+        if (capture_intervention(transaction->transaction, 4, decision) != 0) {
+            (void)msconnector_transaction_contract_fail(&transaction->contract,
+                MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, 0U);
+            return 1;
+        }
+        if (decision->disruptive && !transaction->response_intervention_pending) {
+            transaction->pending_response_intervention = *decision;
+            transaction->response_intervention_pending = 1;
+        }
+        if (transaction->response_intervention_pending) {
+            *decision = transaction->pending_response_intervention;
+        }
+    }
     return 0;
 }
 
@@ -579,6 +595,9 @@ static int finish_body(
             MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, 0U);
         return 1;
     }
+    if (phase->phase == 4 && transaction->response_intervention_pending) {
+        *decision = transaction->pending_response_intervention;
+    }
     if (record_contract_decision(transaction, decision) !=
             MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
         copy_message(decision->log_message, sizeof(decision->log_message),
@@ -594,7 +613,7 @@ static haproxy_modsecurity_body_phase request_body_phase(
         2, &transaction->request_headers_processed, &transaction->request_body.processed,
         &transaction->request_body.started, &transaction->request_body.bytes_seen,
         &transaction->request_body.bytes_inspected,
-        transaction->engine->common_config.request_body_limit,
+        &transaction->engine->common_config.request_body_limit,
         "missing transaction or request body",
         "request headers must be processed before request body chunks",
         "request body append after end-of-stream",
@@ -610,8 +629,7 @@ static haproxy_modsecurity_body_phase response_body_phase(
         4, &transaction->response_headers_processed, &transaction->response_body.processed,
         &transaction->response_body.started, &transaction->response_body.bytes_seen,
         &transaction->response_body.bytes_inspected,
-        msconnector_phase4_effective_body_limit(
-            transaction->engine->common_config.phase4_mode),
+        NULL, /* response has no connector inspection policy */
         "missing transaction or response body",
         "response headers must be processed before response body chunks",
         "response body append after end-of-stream",
@@ -1485,7 +1503,6 @@ static int map_response_for_transaction(
     mapper_error[0] = '\0';
     msconnector_response_mapper_contract_init(&contract);
     contract.max_header_count = MSCONNECTOR_MAX_HEADER_COUNT;
-    contract.max_body_bytes = 0U;
     if ((response->body_len > 0U && response->body == 0) ||
             haproxy_modsecurity_map_owned_response(&normalized_response, &contract,
                 &mapped_response, mapper_error, sizeof(mapper_error)) != 1) {
@@ -1570,9 +1587,7 @@ int haproxy_modsecurity_transaction_process_response_headers(
         return 1;
     }
     if (msconnector_transaction_contract_record_response_metadata(
-            &transaction->contract, status, 0, response->header_count, 0U,
-            msconnector_phase4_effective_body_limit(
-                transaction->engine->common_config.phase4_mode)) !=
+            &transaction->contract, status, 0, response->header_count, 0U) !=
             MSCONNECTOR_TRANSACTION_TRANSITION_OK ||
         msconnector_transaction_contract_complete_phase(&transaction->contract,
             MSCONNECTOR_TRANSACTION_PHASE_P3, 0U) !=

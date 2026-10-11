@@ -569,7 +569,6 @@ def write_engine_config(path: Path, rules_file: Path, event_path: Path) -> None:
                 "request_body_mode=streaming",
                 "response_body_mode=streaming",
                 "request_body_limit=4096",
-                "response_body_limit=4096",
                 "body_limit_action=reject",
                 "phase4_mode=safe",
                 "default_block_status=403",

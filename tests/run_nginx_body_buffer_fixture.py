@@ -208,7 +208,11 @@ def write_config(
     short_body_file: Path,
     mixed_body_file: Path,
     phase4_log: Path,
+    response_body_limit: int,
+    response_body_limit_action: str,
 ) -> None:
+    if response_body_limit <= 0 or response_body_limit_action not in {"Reject", "ProcessPartial"}:
+        fail("fixture requires explicit positive response limit and Reject/ProcessPartial action")
     try:
         nginx_user = pwd.getpwuid(os.geteuid()).pw_name
         nginx_group = grp.getgrgid(os.getegid()).gr_name
@@ -250,6 +254,8 @@ def write_config(
         b"SecRuleEngine On\n"
         b"SecRequestBodyAccess Off\n"
         b"SecResponseBodyAccess On\n"
+        + f"SecResponseBodyLimit {response_body_limit}\nSecResponseBodyLimitAction {response_body_limit_action}\n".encode("ascii")
+        +
         b"SecRule RESPONSE_BODY \"@contains P4-FIXTURE-BODY!\" \"id:1250001,phase:4,deny,status:403,log\"\n",
     )
     config = "\n".join(
@@ -550,6 +556,8 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--modsecurity-include", required=True, type=Path)
     parser.add_argument("--modsecurity-lib", required=True, type=Path)
     parser.add_argument("--output-root", required=True, type=Path)
+    parser.add_argument("--response-body-limit", required=True, type=int)
+    parser.add_argument("--response-body-limit-action", required=True, choices=("Reject", "ProcessPartial"))
     arguments = parser.parse_args(argv)
 
     connector_root = require_absolute_directory(arguments.connector_root, "connector root")
@@ -637,6 +645,8 @@ def main(argv: list[str]) -> int:
         short_body_file=short_body_file,
         mixed_body_file=mixed_body_file,
         phase4_log=phase4_log,
+        response_body_limit=arguments.response_body_limit,
+        response_body_limit_action=arguments.response_body_limit_action,
     )
     normal_environment = {**environment, "LD_LIBRARY_PATH": str(lib_dir)}
     run(
@@ -706,6 +716,8 @@ def main(argv: list[str]) -> int:
         short_body_file=short_body_file,
         mixed_body_file=mixed_body_file,
         phase4_log=phase4_log,
+        response_body_limit=arguments.response_body_limit,
+        response_body_limit_action=arguments.response_body_limit_action,
     )
     allocation_environment = normal_environment
     run(

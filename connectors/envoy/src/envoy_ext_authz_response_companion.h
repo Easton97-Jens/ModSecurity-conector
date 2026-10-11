@@ -26,7 +26,6 @@ typedef struct msconnector_envoy_ext_authz_response_companion {
     uint64_t ttl_ms;
     size_t max_header_count;
     size_t max_header_bytes;
-    size_t max_response_body_bytes;
     char socket_path[MSCONNECTOR_ENVOY_EXT_AUTHZ_COMPANION_SOCKET_SIZE];
 } msconnector_envoy_ext_authz_response_companion;
 
@@ -37,8 +36,7 @@ int msconnector_envoy_ext_authz_response_companion_init(
 int msconnector_envoy_ext_authz_response_companion_set_limits(
     msconnector_envoy_ext_authz_response_companion *companion,
     size_t max_header_count,
-    size_t max_header_bytes,
-    size_t max_response_body_bytes);
+    size_t max_header_bytes);
 
 #ifdef __cplusplus
 }

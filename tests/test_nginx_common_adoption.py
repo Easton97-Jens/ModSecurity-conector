@@ -22,7 +22,7 @@ RULE_ID_SIGNATURE = "static void\nngx_http_modsecurity_extract_intervention_rule
 RULE_ID_CALL = "ngx_http_modsecurity_extract_intervention_rule_id(ctx, &intervention);"
 INTERVENTION_SIGNATURE = "int\nngx_http_modsecurity_process_intervention"
 BODY_LIMIT_CONTRACT_MESSAGE = (
-    "NGINX records response-body bytes through the Common bounded plan before append"
+    "NGINX records response-body bytes with checked full-chunk accounting before append"
 )
 CHAIN_CALL_CONTRACT_MESSAGE = (
     "NGINX response-body chain loop directly calls the reviewed bounded wrapper"
@@ -922,7 +922,7 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
             ),
             (
                 "limited body wrapper",
-                "    return ngx_http_modsecurity_append_limited_response_body(ctx, mcf,\n"
+                "    return ngx_http_modsecurity_append_accounted_response_body(ctx, mcf,\n"
                 "        chain->buf->pos,\n"
                 "        (size_t)(chain->buf->last - chain->buf->pos));\n\n",
             ),
@@ -1120,7 +1120,7 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
             ),
             (
                 "limited body wrapper",
-                "ngx_http_modsecurity_append_limited_response_body",
+                "ngx_http_modsecurity_append_accounted_response_body",
                 "    MSCONNECTOR_FORBIDDEN_BODY_ALIAS(ctx, mcf, chain->buf->pos,\n"
                 "        (size_t)(chain->buf->last - chain->buf->pos));\n\n",
             ),
@@ -1665,22 +1665,22 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
             )
             signature = (
                 "static ngx_int_t\n"
-                "ngx_http_modsecurity_plan_limited_response_body"
+                "ngx_http_modsecurity_account_response_body"
             )
             replace_all_in_function(
                 path,
                 signature,
-                "ctx->response_body_bytes_seen = plan.bytes_seen;",
+                "ctx->response_body_bytes_seen += len;",
                 "ctx->response_body_bytes_seen = 0U;",
-                2,
+                1,
             )
             replace_in_function(
                 path,
                 signature,
-                "    *allowed = plan.append_size;\n",
+                "    *allowed = len;\n",
                 "    (void) \"ctx->response_body_bytes_seen = "
-                "plan.bytes_seen;\";\n"
-                "    *allowed = plan.append_size;\n",
+                "len;\";\n"
+                "    *allowed = len;\n",
             )
 
         self._assert_rejected(
@@ -2816,7 +2816,7 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
 
     def test_response_body_buffer_requires_limited_memory_path(self) -> None:
         limited_memory_path = (
-            "        return ngx_http_modsecurity_append_limited_response_body(ctx, mcf,\n"
+            "        return ngx_http_modsecurity_append_accounted_response_body(ctx, mcf,\n"
             "            data, len);\n"
         )
         direct_chunk = (
@@ -2857,14 +2857,14 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
                 / "src"
                 / "ngx_http_modsecurity_body_filter.c",
                 "static ngx_int_t\n"
-                "ngx_http_modsecurity_append_limited_response_body",
+                "ngx_http_modsecurity_append_accounted_response_body",
                 planned_allowance,
                 unbounded_length,
             )
 
         self._assert_rejected(
             mutate,
-            "NGINX limited response-body helper passes the Common-planned allowance to the raw chunk route",
+            "NGINX response-body helper passes each accounted complete chunk to the raw route",
         )
 
     def test_connector_mime_bypass_cannot_be_reintroduced(self) -> None:

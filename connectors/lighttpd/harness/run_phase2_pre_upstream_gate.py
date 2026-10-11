@@ -670,7 +670,6 @@ def write_runtime_inputs(
                 "request_body_mode=streaming",
                 "response_body_mode=none",
                 "request_body_limit=1048576",
-                "response_body_limit=1048576",
                 f"body_limit_action={body_limit_action}",
                 "default_block_status=403",
                 "default_error_status=500",

@@ -232,6 +232,10 @@ either H1 or H2 as passed.
 
 ## Phase-4 mode and response-body limit ownership
 
+Response-body inspection limit and action are configured exclusively through
+`SecResponseBodyLimit` and `SecResponseBodyLimitAction`. The connector has no
+option, default, fallback, or second enforcement logic for this policy.
+
 The default mode is `off`; supported values are `off`, `safe`, and `strict`.
 No valid Phase-4 mode adds a connector-owned cumulative response-inspection
 budget. libModSecurity owns WAF inspection selection and limits through

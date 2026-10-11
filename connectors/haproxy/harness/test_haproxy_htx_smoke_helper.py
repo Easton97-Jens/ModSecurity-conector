@@ -49,6 +49,15 @@ SYNCHRONIZED_UPSTREAM_SPEC.loader.exec_module(SYNCHRONIZED_UPSTREAM)
 
 
 class HAProxyHTXSmokeHelperTest(unittest.TestCase):
+    def test_fixture_creation_requires_explicit_engine_limit_and_action(self) -> None:
+        with self.assertRaisesRegex(TypeError, "response_body_limit"):
+            HELPER.write_rules("unused", "unused", response_body_limit_action="Reject")
+        with self.assertRaisesRegex(TypeError, "response_body_limit_action"):
+            HELPER.write_rules("unused", "unused", response_body_limit=8)
+        with self.assertRaisesRegex(ValueError, "explicit positive response limit"):
+            HELPER.write_rules("unused", "unused", response_body_limit=0,
+                               response_body_limit_action="Reject")
+
     def test_runtime_uses_explicit_framework_root_and_preserves_default(self) -> None:
         runtime = RUNTIME_PATH.read_text(encoding="utf-8")
         self.assertIn(
@@ -69,7 +78,7 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
             runtime,
         )
         self.assertIn(
-            'helper write-rules --path "$rules_file" --canonical-rules "$CANONICAL_RULES_FOR_HELPER"',
+            'helper write-rules --path "$rules_file" --canonical-rules "$CANONICAL_RULES_FOR_HELPER" --response-body-limit 1048576 --response-body-limit-action Reject',
             runtime,
         )
 
@@ -198,7 +207,7 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
             canonical_rules = root / "canonical-rules.conf"
             canonical_rules.write_text(CANONICAL_RULES_PATH.read_text(encoding="utf-8"), encoding="utf-8")
             certificate.write_text("private test certificate", encoding="utf-8")
-            self.assertEqual(HELPER.write_rules(str(root), str(rules), str(canonical_rules)), 0)
+            self.assertEqual(HELPER.write_rules(str(root), str(rules), str(canonical_rules), response_body_limit=1048576, response_body_limit_action="Reject"), 0)
             self.assertEqual(
                 HELPER.write_config(
                     str(root), str(config), 18080, 18081, str(rules), str(certificate),
@@ -213,7 +222,8 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
             generated_rules = rules.read_text(encoding="utf-8")
             self.assertEqual(
                 generated_rules,
-                HELPER.canonical_rules_content(root, str(canonical_rules)),
+                HELPER.canonical_rules_content(root, str(canonical_rules))
+                + "\nSecResponseBodyLimit 1048576\nSecResponseBodyLimitAction Reject\n",
             )
             for rule_id in (1100001, 1100002, 1100101, 1100201, 1100301):
                 self.assertIn(f"id:{rule_id}", generated_rules)

@@ -85,11 +85,12 @@ class HAProxyHTXFilterSecurityContractTest(unittest.TestCase):
             r"(?s)if \(!ctx->transaction \|\| !ctx->response\.headers_seen \|\|.*?return -1;",
         )
 
-    def test_htx_request_and_response_payloads_have_cumulative_finite_budgets(self) -> None:
+    def test_htx_only_request_has_policy_budget_response_preserves_overflow_checks(self) -> None:
         source = FILTER.read_text(encoding="utf-8")
         self.assertIn("request.body_limit", source)
-        self.assertIn("response.body_limit", source)
-        self.assertIn("*body_bytes_seen > body_limit - value.len", source)
+        self.assertNotIn("response.body_limit", source)
+        self.assertIn("SIZE_MAX - value.len", source)
+        self.assertIn("*body_bytes_seen > *request_body_limit - value.len", source)
         self.assertIn("*body_bytes_seen += value.len", source)
         self.assertIn("body_limit == 0U", source)
 

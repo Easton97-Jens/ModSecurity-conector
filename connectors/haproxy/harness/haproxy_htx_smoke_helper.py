@@ -665,12 +665,16 @@ def canonical_rules_content(root: Path, canonical_rules: str | None = None) -> s
     return content
 
 
-def write_rules(runtime_root: str, path: str, canonical_rules: str | None = None) -> int:
+def write_rules(runtime_root: str, path: str, canonical_rules: str | None = None, *,
+                response_body_limit: int, response_body_limit_action: str) -> int:
+    if response_body_limit <= 0 or response_body_limit_action not in {"Reject", "ProcessPartial"}:
+        raise ValueError("fixture requires an explicit positive response limit and Reject/ProcessPartial action")
     root = verified_runtime_root(runtime_root)
     write_text_atomic(
         root,
         path,
-        canonical_rules_content(root, canonical_rules),
+        canonical_rules_content(root, canonical_rules)
+        + f"\nSecResponseBodyLimit {response_body_limit}\nSecResponseBodyLimitAction {response_body_limit_action}\n",
         "HAProxy rules output",
     )
     return 0
@@ -1167,6 +1171,8 @@ def parse_args() -> argparse.Namespace:
     rules = subparsers.add_parser("write-rules")
     rules.add_argument("--path", required=True)
     rules.add_argument("--canonical-rules")
+    rules.add_argument("--response-body-limit", required=True, type=int)
+    rules.add_argument("--response-body-limit-action", required=True, choices=("Reject", "ProcessPartial"))
     config = subparsers.add_parser("write-config")
     config.add_argument("--path", required=True)
     config.add_argument("--listen-port", required=True, type=int)
@@ -1262,7 +1268,7 @@ def command_handlers(args: argparse.Namespace) -> dict[str, Callable[[], int]]:
             args.published_path,
         ),
         "probe-status": lambda: print_result(probe_status(args.runtime_root, args.path)),
-        "write-rules": lambda: write_rules(args.runtime_root, args.path, args.canonical_rules),
+        "write-rules": lambda: write_rules(args.runtime_root, args.path, args.canonical_rules, response_body_limit=args.response_body_limit, response_body_limit_action=args.response_body_limit_action),
         "write-config": lambda: write_config(
             args.runtime_root, args.path, args.listen_port, args.upstream_port,
             args.rules_file, args.tls_certificate,

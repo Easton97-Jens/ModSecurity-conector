@@ -163,7 +163,6 @@ int main(int argc, char **argv) {
     strcpy(ctx.contract.canonical_transaction_id, "unit-canonical");
     strcpy(ctx.contract.connector_id, "nginx");
     strcpy(ctx.contract.host_id, "unit-host");
-    ctx.contract.response_body_limit = SIZE_MAX;
     ctx.event_transaction_id = (ngx_str_t){11, (u_char *)"unit-tx-2-1"};
     active_ctx = &ctx; conf.phase4_log_file = &file; conf.phase4_mode = MSCONNECTOR_PHASE4_MODE_SAFE;
     if (strcmp(argv[1], "split") == 0) {

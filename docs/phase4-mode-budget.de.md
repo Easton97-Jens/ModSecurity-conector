@@ -1,77 +1,83 @@
-# Phase-4-Modus und Eigentümerschaft von Response-Body-Limits
+# Phase-4-Modus und Zuständigkeit für Response-Body-Limits
 
 **Sprache:** [English](phase4-mode-budget.md) | Deutsch
 
 ## Geltungsbereich
 
-Dieser Vertrag umfasst Apache, NGINX, HAProxy, Envoy, Traefik und lighttpd in
-diesem Repository. Der Phase-4-Modus steuert das Verhalten bei späten
-Interventionen; er erzeugt keine zweite Response-Inspection-Policy im Connector.
+Dieser Vertrag umfasst Common Runtime und sämtliche Response-Routen von Apache,
+NGINX, HAProxy, Envoy, Traefik und lighttpd einschließlich Middleware,
+Companions und Sidecars. Der Phase-4-Modus steuert die Host-Interventionsbehandlung.
 
-## Eigentümerschaft
+## Zuständigkeitsvertrag
 
-| Thema | Eigentümer | Erforderliches Verhalten |
+Response-Body-Inspection-Limit und Limit-Aktion werden ausschließlich durch
+`SecResponseBodyLimit` und `SecResponseBodyLimitAction` festgelegt.
+Der Connector besitzt dafür keine eigene Option, keinen Default und
+keine zweite Durchsetzungslogik.
+
+| Gegenstand | Eigentümer | Erforderliches Verhalten |
 | --- | --- | --- |
-| Aktivierung der Response-Inspection und MIME-Auswahl | libModSecurity | `SecResponseBodyAccess`, `SecResponseBodyMimeType` und `SecResponseBodyMimeTypesClear` verwenden. |
-| Byte-Limit der WAF-Response-Inspection | libModSecurity | `SecResponseBodyLimit` und `SecResponseBodyLimitAction` verwenden. |
-| Verhalten bei späten Interventionen | Connector/Host | `off`, `safe` und `strict` behalten ihre hostspezifische Interventionssemantik. |
-| Host-/Transportkapazität | Connector/Host | Chunk-/Frame-Limits, begrenzter Speicher, Allokationsgrenzen, Timeouts, Datei-Read-Validierung und Überlaufprüfungen bleiben unabhängige Controls. |
+| Aktivierung und MIME-Auswahl der Response-Inspection | libModSecurity | `SecResponseBodyAccess`, `SecResponseBodyMimeType`, `SecResponseBodyMimeTypesClear` bleiben Engine-Konfiguration. |
+| Response-Inspection-Limit und Reject/ProcessPartial | libModSecurity | Native Direktiven besitzen Limit, Aktion, Ergebnisse und Interventionen. |
+| Response-Daten und native Ergebnisse | Connector | Vollständige geliehene Chunks sicher übergeben; native Operationsergebnisse und Interventionen erfassen; Phase abschließen. |
+| Späte Interventionen | Connector/Host | Bestehende `off`, `safe`, `strict` und unterstützte Hostaktionen bleiben erhalten. Kein Modus wählt ein Response-Limit. |
+| Technische Sicherheit | Connector/Host | Begrenzte Arbeitsbuffer, Protokollframes/-nachrichten, echte Pufferspeicherkapazität, Datei-/Descriptor-/Pointerprüfungen, Overflow, Timeouts und Metadatenlimits bleiben unabhängig. |
 
-Kein gültiger Phase-4-Modus erzwingt ein zusätzliches Connector-eigenes
-kumuliertes Response-Inspection-Budget. Insbesondere dürfen `safe` und
-`strict` eine Response nicht allein deshalb abweisen oder abbrechen, weil ein
-altes Connector-Inspection-Byte-Limit überschritten wurde.
+Der Connector parst keine Engine-Regeln zur Limitermittlung und schleust keine
+Engine-Defaultdirektive ein. Includes, Vererbung und ausgelassene Konfiguration
+behalten die native libModSecurity-Semantik. `body_limit_action` gilt nur für die
+bestehende Request-Policy.
 
 ## Kompatibilität
 
-`modsecurity_phase4_body_limit` ist repositoryweit entfernt, einschließlich
-Apache, NGINX und der gemeinsamen Common-Konfigurations-API. Aus der
-Host-Konfiguration entfernen; auch ein früher gültiger Wert ist jetzt eine
-unbekannte Direktive. Es gibt keinen Ersatz als konfigurierbares kumuliertes
-Phase-4-Inspection-Limit des Connectors. Dies ist eine beabsichtigte Breaking
-Change der Konfiguration. Für die WAF-Inspection-Policy `SecResponseBodyLimit`
-und `SecResponseBodyLimitAction` in Engine-Regeln verwenden.
-
-Common-Runtime-Werte wie `response_body_limit` dürfen weiterhin eine
-begrenzte Host-/Transport- oder Speicherkapazität beschreiben, wenn der Host
-diese Kapazität tatsächlich benötigt. Sie dürfen nicht als Ersatz für
-`SecResponseBodyLimit` dargestellt werden.
+`response_body_limit`, `modsecurity_response_body_limit`,
+`modsecurity_phase4_body_limit`, HAProxy `response-body-limit` und Envoy
+`max_response_body_bytes` aus der jeweiligen Konfiguration entfernen. Entfernte
+Optionen werden abgelehnt; es gibt keinen Alias oder Ersatz für ein kumulatives
+Response-Limit. Es entsteht keine neue Produktiv-Konfigurationspflicht.
+Betreiber konfigurieren Engine-Limits über ihre normale Regelkonfiguration.
 
 ## Streaming und Speicher
 
-Das Entfernen des Connector-Inspection-Budgets erlaubt keine unbegrenzten
-Allokationen. Native/streamende Connectoren sollen Body-Ranges inkrementell an
-libModSecurity übergeben. File-backed NGINX-Buffer verwenden einen festen,
-wiederverwendeten Scratch-Buffer, statt die gesamte Response zu allozieren.
+Streaming-Adapter übergeben jeden gültigen Chunk an libModSecurity ohne
+Connector-Kürzung oder kumulative Inspection-Grenze. Eine Arbeitsblockgröße ist
+keine erlaubte Gesamtgröße einer Response. Geprüfte Zähler erkennen Overflow,
+ohne `SIZE_MAX` als Engine-Limit oder Allokationsgröße einzusetzen.
 
-Puffernde Kompatibilitätsrouten dürfen weiterhin eine Response ablehnen, die
-nicht in ihren begrenzten Host-Speicher passt. Envoy-/gRPC-Chunk- oder
-Message-Limits, HAProxy-Transportlimits, lighttpd-Sidecar-Kapazität,
-Header-/Event-Limits, Korrelationskapazitäten, Timeouts, Pointer-Validierung,
-Datei-Read-Prüfungen und Integer-Überlaufprüfungen bleiben aktiv.
+NGINX behält begrenzten wiederverwendbaren Datei-Scratch und prüft Dateibereiche.
+MRC1 behält 32-KiB-Body-Chunks und 64-KiB-Frames; diese Grenzen gelten pro
+Nachricht. Envoy behält gRPC-Nachrichtenlimits. Traefik behält UDS-Frame- und
+Chunkprüfungen. HAProxy behält SPOP-/HTX-Transportprüfungen. Der aktive
+lighttpd-Sidecar streamt durch begrenzten Scratch-Speicher. Seine alte
+Gesamtresponse-Pufferung ist auskompiliert und setzt kein aktuelles Laufzeitlimit.
+Header, Events, Korrelationsregister,
+Descriptoren und Timeouts bleiben begrenzt.
+
+Der Response-Zähler `bytes_inspected` erfasst die der Engine angebotenen Bytes.
+Er behauptet nicht, dass die Engine nach ihrer Wahl von ProcessPartial jedes Byte
+inspiziert hat.
 
 ## Native Fehler und Interventionsmodi
 
-Echte Engine-, Speicher-, Transport-, Lifecycle- und Processing-Fehler bleiben
-Fehler. Diese Änderung wandelt sie nicht in `log_only` um.
+Echte Engine-Limitinterventionen bleiben native Ergebnisse. `ProcessPartial`
+wird durch die Engine gewählt und ausgeführt und niemals mit einem
+Connector-Bytezähler simuliert. Ein Append-Ergebnis allein ist keine
+Allow-Entscheidung. Native Rückgabeverträge, Interventionserfassung,
+Phasenabschluss und Protokollierung tatsächlicher Hostaktionen bleiben
+operationsspezifisch. Technische Engine-, Speicher-, Transport- und
+Lebenszyklusfehler bleiben Fehler; `safe` wandelt sie nicht in erfolgreiche
+Log-only-Ergebnisse um.
 
-In NGINX `off` behält ein negatives natives Interventionsergebnis den
-historischen Pfad
-`ngx_http_filter_finalize_request(..., NGX_HTTP_INTERNAL_SERVER_ERROR)`.
-Positive Statuswerte werden unverändert zurückgegeben; bei null läuft die
-Verarbeitung weiter. Das Safe-/Strict-Verhalten bei späten Interventionen
-bleibt von der Eigentümerschaft der Response-Limits getrennt.
+## Nachweisgrenze
 
-Andere Integrationen behalten ihre eigenen Rückgabekonventionen und
-unterstützten Late-Action-Mechanismen.
+Jeder Response-Inspection-Test muss beide Direktiven ausdrücklich in seiner
+eigenen Konfiguration wählen. Gemeinsame Fixture-Helper verlangen Limit und
+Aktion als Argumente; globale Defaults oder payloadabhängige Werte gibt es
+nicht. Tests ohne Response-Inspection benötigen keine künstliche
+Response-Limitkonfiguration.
 
-## Grenzen der Validierung
-
-Source-Wiring und Unit-Tests können prüfen, dass alle gültigen Modi die alte
-Connector-Inspection-Grenze nur noch auf ein Accounting-Maximum auflösen und
-dass unabhängige Host-Limits weiter verdrahtet sind. Sie beweisen kein
-Live-Verhalten für HTTP/1, HTTP/2, HTTP/3 oder hostspezifische Late-Aborts.
-
-Der Change Record
-[CR-20261004-engine-owned-response-limits](../reports/audits/change-records/CR-20261004-engine-owned-response-limits.de.md)
-beschreibt Implementierungsumfang und Validierungsstatus dieser Migration.
+Echte Engine-Integration prüft die Limitwirkung getrennt von Adapterverträgen
+mit Stubs. Builds und Unit-/Vertragstests sind keine gehosteten HTTP/1-, HTTP/2-,
+HTTP/3- oder Late-Abort-Nachweise. Die getrennte
+[Stack-Checkliste](response-limit-stack-checklist.de.md) führt Implementierung,
+Tests und fehlende echte Hostnachweise auf.

@@ -40,7 +40,6 @@ typedef struct {
     plugin_config defaults;
     msconnector_runtime *runtime;
     size_t request_body_limit;
-    size_t response_body_limit;
     size_t total_header_limit;
     size_t header_count_limit;
     unsigned long host_transaction_counter;
@@ -348,8 +347,6 @@ SETDEFAULTS_FUNC(mod_msconnector_set_defaults) {
 
     p->request_body_limit =
         msconnector_runtime_request_body_limit(p->runtime);
-    p->response_body_limit =
-        msconnector_runtime_response_body_limit(p->runtime);
     p->total_header_limit =
         msconnector_runtime_total_header_limit(p->runtime);
     p->header_count_limit =
@@ -996,7 +993,6 @@ REQUEST_FUNC(mod_msconnector_handle_uri_clean) {
     msconnector_runtime_request_contract(p->runtime, &contract);
 #ifndef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
     contract.request_body = MSCONNECTOR_MAPPER_UNSUPPORTED;
-    contract.max_body_bytes = 0U;
 #endif
     if (p->header_count_limit > 0U &&
         (contract.max_header_count == 0U ||
@@ -1086,7 +1082,6 @@ REQUEST_FUNC(mod_msconnector_handle_response_start) {
     msconnector_runtime_response_contract(p->runtime, &contract);
 #ifndef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
     contract.response_body = MSCONNECTOR_MAPPER_UNSUPPORTED;
-    contract.max_body_bytes = 0U;
 #endif
     if (p->header_count_limit > 0U &&
         (contract.max_header_count == 0U ||

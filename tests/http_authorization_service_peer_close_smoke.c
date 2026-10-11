@@ -238,7 +238,7 @@ void msconnector_runtime_destroy(msconnector_runtime **runtime) {
 void msconnector_runtime_request_contract(const msconnector_runtime *runtime,
     msconnector_request_mapper_contract *contract) {
     (void)runtime; msconnector_request_mapper_contract_init(contract);
-    contract->max_header_count = 16U; contract->max_body_bytes = 1024U;
+    contract->max_header_count = 16U;
 }
 size_t msconnector_runtime_request_body_limit(const msconnector_runtime *r)
     { (void)r; return 1024U; }

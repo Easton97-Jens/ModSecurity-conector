@@ -16,7 +16,6 @@ typedef struct msconnector_response_mapper_contract {
     msconnector_mapper_requirement headers;
     msconnector_mapper_requirement response_body;
     size_t max_header_count;
-    size_t max_body_bytes;
 } msconnector_response_mapper_contract;
 
 void msconnector_response_mapper_contract_init(msconnector_response_mapper_contract *contract);

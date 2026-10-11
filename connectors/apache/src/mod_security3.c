@@ -464,7 +464,9 @@ static int apache_store_native_intervention(msc_t *msr, request_rec *r,
     }
     msr->last_intervention_status = status;
     msr->last_intervention_log = log;
-    msr->last_intervention_body_limit = body_limit;
+    msr->last_intervention_body_limit = body_limit ||
+        msconnector_intervention_is_response_body_limit_rejection(
+            msr->native_event_phase, &common_intervention);
     if (intervention->disruptive) {
         msr->phase4_intervention = 1;
     }

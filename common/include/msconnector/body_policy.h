@@ -15,8 +15,8 @@ typedef enum msconnector_body_mode {
     MSCONNECTOR_BODY_MODE_STREAMING = 2
 } msconnector_body_mode;
 
-/* A body-limit action is applied when observed bytes exceed the configured
- * inspection limit. `process_partial` passes only the remaining bounded bytes
+/* Request-only connector policy applied when observed request bytes exceed
+ * the configured request inspection limit. `process_partial` passes only the remaining bounded bytes
  * to the engine; `reject` passes no bytes from the offending chunk. */
 typedef enum msconnector_body_limit_action {
     MSCONNECTOR_BODY_LIMIT_ACTION_UNSET = -1,
@@ -45,7 +45,6 @@ typedef struct msconnector_body_policy {
     msconnector_body_mode request_body_mode;
     msconnector_body_mode response_body_mode;
     size_t request_body_limit;
-    size_t response_body_limit;
     msconnector_body_limit_action body_limit_action;
 } msconnector_body_policy;
 

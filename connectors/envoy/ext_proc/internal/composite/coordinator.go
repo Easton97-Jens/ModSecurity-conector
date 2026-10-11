@@ -16,6 +16,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"strings"
 	"sync"
@@ -38,14 +39,13 @@ var (
 )
 
 type Limits struct {
-	Capacity        int
-	TTL             time.Duration
-	IdleTTL         time.Duration
-	MaxRequestBody  int64
-	MaxResponseBody int64
-	MaxBodyChunks   int
-	MaxHeaders      int
-	MaxHeaderBytes  int
+	Capacity       int
+	TTL            time.Duration
+	IdleTTL        time.Duration
+	MaxRequestBody int64
+	MaxBodyChunks  int
+	MaxHeaders     int
+	MaxHeaderBytes int
 }
 
 // ReservationSnapshot is the immutable request-header input accepted only
@@ -80,9 +80,7 @@ func (l Limits) withDefaults() Limits {
 	if l.MaxRequestBody <= 0 {
 		l.MaxRequestBody = 1 << 20
 	}
-	if l.MaxResponseBody <= 0 {
-		l.MaxResponseBody = 1 << 20
-	}
+
 	if l.MaxBodyChunks <= 0 {
 		l.MaxBodyChunks = 256
 	}
@@ -148,7 +146,7 @@ func New(connector string, key []byte, limits Limits, engine processor.Transacti
 	if connector == "" || len(key) < 32 || engine == nil {
 		return nil, errors.New("connector, 256-bit key, and engine are required")
 	}
-	if limits.Capacity < 0 || limits.TTL < 0 || limits.IdleTTL < 0 || limits.MaxRequestBody < 0 || limits.MaxResponseBody < 0 || limits.MaxBodyChunks < 0 || limits.MaxHeaders < 0 || limits.MaxHeaderBytes < 0 {
+	if limits.Capacity < 0 || limits.TTL < 0 || limits.IdleTTL < 0 || limits.MaxRequestBody < 0 || limits.MaxBodyChunks < 0 || limits.MaxHeaders < 0 || limits.MaxHeaderBytes < 0 {
 		return nil, ErrLimit
 	}
 	if limits.Capacity > 4096 {
@@ -976,14 +974,11 @@ func (e *entry) responseBody(ctx context.Context, s string, b []byte, eos bool) 
 	if e.phase != phaseResponseBody {
 		return processor.Decision{}, ErrOutOfOrder
 	}
-	if e.responseBodyBytes+int64(len(b)) > e.c.limits.MaxResponseBody {
-		return processor.Decision{}, ErrLimit
+	if e.responseBodyBytes < 0 || int64(len(b)) > math.MaxInt64-e.responseBodyBytes || e.responseChunks == math.MaxInt {
+		return processor.Decision{}, fmt.Errorf("response accounting overflow")
 	}
 	e.responseBodyBytes += int64(len(b))
 	e.responseChunks++
-	if e.responseChunks > e.c.limits.MaxBodyChunks {
-		return processor.Decision{}, ErrLimit
-	}
 	d, err := e.tx.ProcessBody(ctx, processor.DirectionResponse, b, eos)
 	e.summary.ResponseBodyBytes = e.responseBodyBytes
 	e.summary.ResponseBodyChunks++

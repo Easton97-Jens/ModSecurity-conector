@@ -26,7 +26,7 @@ class HaproxyBindingPhaseContractTests(unittest.TestCase):
             with self.subTest(call=call):
                 self.assertRegex(
                     SOURCE,
-                    re.compile(rf"{call}\(.*?\)\s*!=\s*1", re.DOTALL),
+                    re.compile(rf"(?:{call}\(.*?\)\s*!=\s*1|msconnector_native_phase_succeeded\(\s*{call}\()", re.DOTALL),
                 )
 
     def test_direct_response_phase_calls_require_exact_success(self):
@@ -38,7 +38,7 @@ class HaproxyBindingPhaseContractTests(unittest.TestCase):
             with self.subTest(call=call):
                 self.assertRegex(
                     SOURCE,
-                    re.compile(rf"{call}\(.*?\)\s*!=\s*1", re.DOTALL),
+                    re.compile(rf"(?:{call}\(.*?\)\s*!=\s*1|msconnector_native_phase_succeeded\(\s*{call}\()", re.DOTALL),
                 )
 
     def test_shared_body_helpers_require_exact_success(self):
@@ -56,11 +56,11 @@ class HaproxyBindingPhaseContractTests(unittest.TestCase):
         self.assertIsNotNone(finish_helper)
         self.assertRegex(
             append_helper.group(0),
-            re.compile(r"append_body\(.*?\)\s*!=\s*1", re.DOTALL),
+            re.compile(r"msconnector_native_body_append_can_continue\(\s*phase->append_body\(", re.DOTALL),
         )
         self.assertRegex(
             finish_helper.group(0),
-            re.compile(r"finish_body\(.*?\)\s*!=\s*1", re.DOTALL),
+            re.compile(r"msconnector_native_phase_succeeded\(\s*phase->finish_body\(", re.DOTALL),
         )
 
     def test_rule_loading_keeps_its_distinct_negative_error_contract(self):
@@ -106,13 +106,14 @@ class HaproxyBindingPhaseContractTests(unittest.TestCase):
             body.index("phase->append_body("),
         )
 
-    def test_request_and_response_copy_effective_common_body_limits(self):
+    def test_only_request_uses_common_body_limit_policy(self):
         self.assertIn(
             "transaction->engine->common_config.request_body_limit", SOURCE
         )
-        self.assertIn(
-            "transaction->engine->common_config.response_body_limit", SOURCE
-        )
+        self.assertNotIn("contract.response_body_limit", SOURCE)
+        self.assertNotIn("common_config.response_body_limit", SOURCE)
+        self.assertIn("if (phase->phase == 2)", SOURCE)
+        self.assertIn("SIZE_MAX - (size_t)body_len", SOURCE)
 
 
 if __name__ == "__main__":

@@ -25,7 +25,6 @@ PREAMBLE = r'''
 #include <inttypes.h>
 #include <sys/types.h>
 #include "msconnector/event_jsonl.h"
-#include "msconnector/phase4_budget.h"
 #include "msconnector/transaction_contract.h"
 #include "msconnector/transaction_state.h"
 #include "connectors/profile_registry.h"
@@ -162,7 +161,6 @@ class P3TechnicalSourceTests(unittest.TestCase):
             (module, "ngx_int_t", "ngx_http_modsecurity_log_technical_failure"),
             (header, "static ngx_int_t", "ngx_http_modsecurity_phase3_log_event"),
             (header, "static ngx_int_t", "ngx_http_modsecurity_handle_response_header_intervention"),
-            (header, "static size_t", "ngx_http_modsecurity_response_body_limit"),
             (header, "ngx_int_t", "ngx_http_modsecurity_header_filter"),
         )
         functions = "\n".join(kind + "\n" + function_definition(source, name)

@@ -164,7 +164,7 @@
     },
     "response_body_limits": {
       "state": "not_implemented",
-      "reason": "No selected HAProxy response-body path exists on which to enforce a response-body limit."
+      "reason": "libModSecurity exclusively owns response inspection limits and Reject/ProcessPartial through SecResponseBodyLimit and SecResponseBodyLimitAction; the connector forwards full chunks with checked counters. Fresh native-host limit evidence remains required."
     },
     "no_full_response_buffering": {
       "state": "not_implemented",

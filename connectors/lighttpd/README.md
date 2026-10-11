@@ -252,9 +252,8 @@ paths. A request-only route still requires its supported response
 observer/companion to inspect Phase 4; selecting a mode does not create a
 missing response path.
 
-Legacy connector/runtime budget settings may remain parseable for
-compatibility, but they must not reject or abort a response solely because a
-legacy inspection-byte count is exceeded. Independent allocation,
+Connector/runtime cumulative response-size settings have been removed;
+unknown legacy keys are rejected during configuration loading. Independent allocation,
 buffered-storage, chunk/message/frame, timeout, overflow and transport limits
 remain active in every mode. A buffered sidecar may therefore still reject a
 response that cannot fit its bounded host storage; that is host capacity, not

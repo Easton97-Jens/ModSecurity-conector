@@ -209,7 +209,7 @@ static void test_valid_sequence_and_metadata(void) {
     CHECK(msconnector_transaction_contract_record_request_metadata(&contract, "POST", "/x",
         "application/json", 3U, 120U, 8U) == MSCONNECTOR_TRANSACTION_TRANSITION_OK);
     CHECK(msconnector_transaction_contract_record_response_metadata(&contract, 200,
-        "text/plain", 2U, 80U, 8U) == MSCONNECTOR_TRANSACTION_TRANSITION_OK);
+        "text/plain", 2U, 80U) == MSCONNECTOR_TRANSACTION_TRANSITION_OK);
     complete_all_direct(&contract);
     CHECK(contract.status == MSCONNECTOR_TRANSACTION_STATUS_COMPLETED);
     CHECK(msconnector_transaction_contract_begin_phase(&contract,
@@ -252,7 +252,7 @@ static void test_content_type_metadata_uses_header_value_bound(void) {
         MSCONNECTOR_TRANSACTION_TRANSITION_OK);
     CHECK(strcmp(contract.request_content_type, accepted) == 0);
     CHECK(msconnector_transaction_contract_record_response_metadata(&contract,
-        200, accepted, 1U, 128U, 4U) ==
+        200, accepted, 1U, 128U) ==
         MSCONNECTOR_TRANSACTION_TRANSITION_OK);
     CHECK(strcmp(contract.response_content_type, accepted) == 0);
 
@@ -595,15 +595,18 @@ static void test_limits_and_decisions(void) {
 
     contract = make_contract("apache", "tx-response-limit");
     CHECK(msconnector_transaction_contract_record_response_metadata(&contract, 200, NULL,
-        0U, 0U, 4U) == MSCONNECTOR_TRANSACTION_TRANSITION_OK);
+        0U, 0U) == MSCONNECTOR_TRANSACTION_TRANSITION_OK);
     complete_direct_phase(&contract, MSCONNECTOR_PHASE_REQUEST_HEADERS, 1U);
     complete_direct_phase(&contract, MSCONNECTOR_PHASE_REQUEST_BODY, 2U);
     complete_direct_phase(&contract, MSCONNECTOR_PHASE_RESPONSE_HEADERS, 3U);
     CHECK(msconnector_transaction_contract_begin_phase(&contract,
         MSCONNECTOR_PHASE_RESPONSE_BODY, 4U) == MSCONNECTOR_TRANSACTION_TRANSITION_OK);
     CHECK(msconnector_transaction_contract_record_body(&contract, 1, 5U) ==
+        MSCONNECTOR_TRANSACTION_TRANSITION_OK);
+    contract.response_body_bytes = SIZE_MAX;
+    CHECK(msconnector_transaction_contract_record_body(&contract, 1, 1U) ==
         MSCONNECTOR_TRANSACTION_TRANSITION_INVALID);
-    CHECK(contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT);
+    CHECK(contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
 
     contract = make_contract("apache", "tx-header-limit");
     CHECK(msconnector_transaction_contract_record_request_metadata(&contract, "GET", "/",

@@ -40,7 +40,6 @@ static void test_resource_limits(void) {
 
     /* The configured body policy has a separate, documented 10 MiB cap. */
     ASSERT_LIMIT_REJECTED(max_request_body_bytes, MSCONNECTOR_MAX_CONFIG_BODY_BYTES);
-    ASSERT_LIMIT_REJECTED(max_response_body_bytes, MSCONNECTOR_MAX_CONFIG_BODY_BYTES);
 
 #undef ASSERT_LIMIT_REJECTED
 }
@@ -51,19 +50,15 @@ static void test_config_body_limits(void) {
     msconnector_config_init(&config);
     msconnector_config_apply_defaults(&config);
     assert(config.request_body_limit == 1048576U);
-    assert(config.response_body_limit == 1048576U);
     assert(msconnector_config_validate(&config, 0, 0));
 
     config.request_body_limit = MSCONNECTOR_MAX_CONFIG_BODY_BYTES;
-    config.response_body_limit = MSCONNECTOR_MAX_CONFIG_BODY_BYTES;
     assert(msconnector_config_validate(&config, 0, 0));
 
     config.request_body_limit = MSCONNECTOR_MAX_CONFIG_BODY_BYTES + 1U;
     assert(!msconnector_config_validate(&config, 0, 0));
     config.request_body_limit = MSCONNECTOR_MAX_CONFIG_BODY_BYTES;
 
-    config.response_body_limit = MSCONNECTOR_MAX_CONFIG_BODY_BYTES + 1U;
-    assert(!msconnector_config_validate(&config, 0, 0));
 }
 
 int main(void) {

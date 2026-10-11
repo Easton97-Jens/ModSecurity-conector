@@ -19,7 +19,7 @@ func newCommonBodyLimitTransaction(t *testing.T) (Transaction, string) {
 SecRequestBodyAccess On
 SecRequestBodyLimit 32
 SecRequestBodyLimitAction Reject
-`)
+`, 1048576, "Reject")
 	ctx := context.Background()
 	transaction, err := engine.Open(ctx, commonTestStreamMetadata("body-limit-without-rule-id"))
 	if err != nil {

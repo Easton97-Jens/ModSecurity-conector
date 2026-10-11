@@ -29,7 +29,6 @@ typedef struct msconnector_config {
     enum msconnector_phase4_mode phase4_mode;
     const char *phase4_log_path;
     size_t request_body_limit;
-    size_t response_body_limit;
     msconnector_body_limit_action body_limit_action;
     /* Zero disables the optional host-side budget. Common stores this value
      * but has no host timer or cancellation primitive with which to enforce

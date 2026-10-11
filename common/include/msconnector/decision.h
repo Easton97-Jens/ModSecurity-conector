@@ -54,6 +54,7 @@ void msconnector_decision_set_allow(msconnector_decision *decision);
 void msconnector_decision_set_log_only(msconnector_decision *decision, const char *reason);
 void msconnector_decision_set_deny(msconnector_decision *decision, int http_status, const char *rule_id, const char *reason);
 void msconnector_decision_set_body_limit(msconnector_decision *decision, const char *reason);
+void msconnector_decision_set_response_body_limit(msconnector_decision *decision, const char *reason);
 void msconnector_decision_set_redirect(msconnector_decision *decision, int http_status, const char *url, const char *rule_id, const char *reason);
 void msconnector_decision_set_drop(msconnector_decision *decision, const char *rule_id, const char *reason);
 void msconnector_decision_set_connection_abort(msconnector_decision *decision, const char *rule_id, const char *reason);

@@ -118,7 +118,8 @@ class RealBackendCase:
     request: bytes
     rules: tuple[str, ...]
     request_limit: int
-    response_limit: int
+    engine_response_limit: int
+    engine_response_limit_action: str
     phase4_mode: str
     expected_status: int
     expected_body: bytes
@@ -141,7 +142,8 @@ REAL_BACKEND_CASES = (
         request=http_request("GET", _HEALTH_PATH),
         rules=(),
         request_limit=65536,
-        response_limit=65536,
+        engine_response_limit=65536,
+        engine_response_limit_action="Reject",
         phase4_mode="strict",
         expected_status=200,
         expected_body=b"stock-backend-health",
@@ -162,7 +164,8 @@ REAL_BACKEND_CASES = (
         request=http_request("GET", "/empty.txt"),
         rules=(),
         request_limit=65536,
-        response_limit=65536,
+        engine_response_limit=65536,
+        engine_response_limit_action="Reject",
         phase4_mode="strict",
         expected_status=200,
         expected_body=b"",
@@ -186,7 +189,8 @@ REAL_BACKEND_CASES = (
             '"id:9821001,phase:1,deny,status:451,log"',
         ),
         request_limit=65536,
-        response_limit=65536,
+        engine_response_limit=65536,
+        engine_response_limit_action="Reject",
         phase4_mode="strict",
         expected_status=451,
         expected_body=b"",
@@ -210,7 +214,8 @@ REAL_BACKEND_CASES = (
             '"id:9821002,phase:2,deny,status:418,log"',
         ),
         request_limit=65536,
-        response_limit=65536,
+        engine_response_limit=65536,
+        engine_response_limit_action="Reject",
         phase4_mode="strict",
         expected_status=418,
         expected_body=b"",
@@ -231,7 +236,8 @@ REAL_BACKEND_CASES = (
         request=http_request("POST", _HEALTH_PATH, b"12345"),
         rules=(),
         request_limit=4,
-        response_limit=65536,
+        engine_response_limit=65536,
+        engine_response_limit_action="Reject",
         phase4_mode="strict",
         expected_status=413,
         expected_body=b"",
@@ -255,7 +261,8 @@ REAL_BACKEND_CASES = (
             '"id:9821003,phase:3,deny,status:422,log"',
         ),
         request_limit=65536,
-        response_limit=65536,
+        engine_response_limit=65536,
+        engine_response_limit_action="Reject",
         phase4_mode="strict",
         expected_status=422,
         expected_body=b"",
@@ -279,7 +286,8 @@ REAL_BACKEND_CASES = (
             '"id:9821004,phase:4,deny,status:429,log"',
         ),
         request_limit=65536,
-        response_limit=65536,
+        engine_response_limit=65536,
+        engine_response_limit_action="Reject",
         phase4_mode="safe",
         expected_status=200,
         expected_body=b"stock-p4-marker",
@@ -1199,6 +1207,8 @@ def write_case_runtime_inputs(case_root: Path, case: RealBackendCase) -> tuple[P
             "SecRequestBodyAccess On",
             "SecResponseBodyAccess On",
             "SecResponseBodyMimeType text/plain",
+            f"SecResponseBodyLimit {case.engine_response_limit}",
+            f"SecResponseBodyLimitAction {case.engine_response_limit_action}",
             *case.rules,
             "",
         )),
@@ -1213,7 +1223,6 @@ def write_case_runtime_inputs(case_root: Path, case: RealBackendCase) -> tuple[P
             "request_body_mode=streaming",
             "response_body_mode=streaming",
             f"request_body_limit={case.request_limit}",
-            f"response_body_limit={case.response_limit}",
             "body_limit_action=reject",
             f"phase4_mode={case.phase4_mode}",
             "default_block_status=403",

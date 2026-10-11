@@ -533,8 +533,7 @@ int main(void) {
         response.headers = headers;
         response.header_count = 2U;
         response.body.size = 9U;
-        limits.max_response_body_bytes = 8U;
-        assert(!msconnector_dos_guard_check_response(&response, &limits, &error));
+        assert(msconnector_dos_guard_check_response(&response, &limits, &error));
 
         msconnector_allocator_init(&allocator, 8U);
         assert(!msconnector_alloc_checked(&allocator, 9U, &allocation));
@@ -684,7 +683,6 @@ int main(void) {
         msconnector_config_init(&child_config);
         parent_config.enable = MSCONNECTOR_BOOL_OFF;
         parent_config.request_body_limit = 32U;
-        parent_config.response_body_limit = 64U;
         parent_config.body_limit_action = MSCONNECTOR_BODY_LIMIT_ACTION_PROCESS_PARTIAL;
         parent_config.late_intervention_timeout_ms = 250U;
         child_config.enable = MSCONNECTOR_BOOL_ON;
@@ -695,7 +693,6 @@ int main(void) {
         assert(merged_config.enable == MSCONNECTOR_BOOL_ON);
         assert(merged_config.default_block_status == MSCONNECTOR_DEFAULT_BLOCK_STATUS);
         assert(merged_config.request_body_limit == 48U);
-        assert(merged_config.response_body_limit == 64U);
         assert(merged_config.body_limit_action == MSCONNECTOR_BODY_LIMIT_ACTION_REJECT);
         assert(merged_config.late_intervention_timeout_ms == 0U);
         assert(msconnector_config_validate(&merged_config, error, sizeof(error)));

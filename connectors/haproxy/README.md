@@ -236,8 +236,9 @@ cancel, timeout, and cleanup abort the transaction; an SPOP notification or
 `wait-for-body` sample is never an EOS signal.
 
 The production SPOP agent accepts `response-companion=native-htx` only with an
-explicit private companion socket, matching uid/gid, and a non-zero bounded
-response-body limit. The implemented combined profile registers the HTX request
+explicit private companion socket and matching uid/gid.
+The removed `response-body-limit` option is rejected; engine directives alone
+configure response inspection limits. The implemented combined profile registers the HTX request
 data filter after P1, binds the SPOP-published opaque handle to
 `stream->uniq_id`, and invokes the common response-header/DATA/EOS callbacks
 from HAProxy's `http_payload`/`http_end` hooks. A missing, malformed, expired,
@@ -305,6 +306,10 @@ the SPOE/SPOP Phase-4, late-intervention, no-buffer, or first-byte
 capabilities.
 
 ## Phase-4 mode and response-body limit ownership
+
+Response-body inspection limit and action are configured exclusively through
+`SecResponseBodyLimit` and `SecResponseBodyLimitAction`. The connector has no
+option, default, fallback, or second enforcement logic for this policy.
 
 The default mode is `off`; supported values are `off`, `safe`, and `strict`.
 No valid Phase-4 mode adds a connector-owned cumulative response-inspection

@@ -119,7 +119,7 @@ void msconnector_runtime_request_contract(
     (void)runtime;
     msconnector_request_mapper_contract_init(contract);
     contract->max_header_count = 64U;
-    contract->max_body_bytes = 1024U;
+
 }
 
 size_t msconnector_runtime_request_body_limit(const msconnector_runtime *runtime) {

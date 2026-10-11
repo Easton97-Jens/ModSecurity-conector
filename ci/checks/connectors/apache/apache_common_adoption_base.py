@@ -406,11 +406,12 @@ checks.extend([
         and "ap_save_brigade(" not in filters_c
         and DISCARD_RESPONSE_BRIGADE_CALL in filters_c
         and DISCARD_RESPONSE_BRIGADE_CALL in utils_c
-        and "MSCONNECTOR_BODY_LIMIT_ACTION_REJECT" in filters_c
+        and "msconnector_body_limit_plan_chunk" not in phase4_append_helper
+        and "SIZE_MAX - msr->response_body_bytes_seen" in phase4_append_helper
         and "apache_phase4_in_scope" not in filters_c
         and "SecResponseBodyMimeType selection" in filters_c
         and re.search(r"!msconnector_native_body_append_can_continue\(msc_append_response_body\(msr->t,\s*"
-                      r"\(const unsigned char \*\)data, plan\.append_size\)\)", phase4_append_helper) is not None
+                      r"\(const unsigned char \*\)data, len\)\)", phase4_append_helper) is not None
         and "!msconnector_native_phase_succeeded(msc_process_response_body(msr->t))" in phase4_finish_code
         and "r->bytes_sent > 0" in filters_c
         and "response_phase4_eos_released" in filters_c

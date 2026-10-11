@@ -220,7 +220,7 @@ run_case() {
     before_upstream=$(helper upstream-count --path "$UPSTREAM_LOG" --profile "$upstream_profile")
 
     mkdir -p "$case_root"
-    helper write-rules --path "$rules_file" --canonical-rules "$CANONICAL_RULES_FOR_HELPER"
+    helper write-rules --path "$rules_file" --canonical-rules "$CANONICAL_RULES_FOR_HELPER" --response-body-limit 1048576 --response-body-limit-action Reject
     helper write-config --path "$config_file" \
         --listen-port "$listener_port" --upstream-port "$upstream_port" --rules-file "$rules_file" \
         --tls-certificate "$TLS_CERTIFICATE_PATH"
@@ -441,7 +441,7 @@ run_phase4_safe_barrier() {
     fi
     synchronized_upstream_port=$(helper synchronized-upstream-port --path "$ready_file")
 
-    helper write-rules --path "$rules_file" --canonical-rules "$CANONICAL_RULES_FOR_HELPER"
+    helper write-rules --path "$rules_file" --canonical-rules "$CANONICAL_RULES_FOR_HELPER" --response-body-limit 1048576 --response-body-limit-action Reject
     helper write-config --path "$config_file" \
         --listen-port "$listener_port" --upstream-port "$synchronized_upstream_port" --rules-file "$rules_file" \
         --tls-certificate "$TLS_CERTIFICATE_PATH"

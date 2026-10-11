@@ -29,9 +29,9 @@
 #ifndef MSCONNECTOR_TEST_TEMPORARY_DIRECTORY
 #define MSCONNECTOR_TEST_TEMPORARY_DIRECTORY "/tmp"
 #endif
-#define TEST_TRANSPORT_OPTIONS(connector, socket, headers, bytes, body, timeout) \
+#define TEST_TRANSPORT_OPTIONS(connector, socket, headers, bytes, timeout) \
     (&(msconnector_response_companion_transport_options){ \
-        (connector), (socket), (headers), (bytes), (body), (timeout) })
+        (connector), (socket), (headers), (bytes), (timeout) })
 
 static char test_private_root[TEST_PATH_SIZE];
 
@@ -123,7 +123,6 @@ typedef struct mock_transport_setup {
     const char *label;
     size_t max_header_count;
     size_t max_header_bytes;
-    size_t max_response_body_bytes;
     unsigned timeout_ms;
     void (*expire)(void *, uint64_t);
 } mock_transport_setup;
@@ -134,7 +133,7 @@ typedef struct mock_transport_setup {
         .handle = (handle_value), .directory_template = (directory_value), \
         .label = (label_value), \
         .max_header_count = 32U, .max_header_bytes = 64U, \
-        .max_response_body_bytes = 8U, .timeout_ms = (timeout_value), \
+        .timeout_ms = (timeout_value), \
         .expire = (expire_value) })
 
 typedef struct transport_stop_call {
@@ -445,7 +444,8 @@ static int finish_normal(int socket_fd)
 }
 
 static void create_runtime_fixture(char config_path[TEST_PATH_SIZE],
-    char event_path[TEST_PATH_SIZE], char rules_path[TEST_PATH_SIZE])
+    char event_path[TEST_PATH_SIZE], char rules_path[TEST_PATH_SIZE],
+    size_t engine_response_limit, const char *engine_response_limit_action)
 {
     const char *directory = test_private_directory();
     FILE *config;
@@ -467,7 +467,11 @@ static void create_runtime_fixture(char config_path[TEST_PATH_SIZE],
     assert(close(event_fd) == 0);
     rules = fdopen(rules_fd, "w");
     assert(rules != NULL);
+    assert(fprintf(rules, "SecResponseBodyLimit %zu\nSecResponseBodyLimitAction %s\n",
+        engine_response_limit, engine_response_limit_action) > 0);
     assert(fputs("SecRuleEngine On\n"
+        "SecResponseBodyAccess On\n"
+        "SecResponseBodyMimeType text/plain\n"
         "SecRule RESPONSE_HEADERS:X-Mrc-Block \"@streq yes\" "
         "\"id:1200901,phase:3,deny,status:451,log,t:none\"\n", rules) != EOF);
     assert(fclose(rules) == 0);
@@ -480,7 +484,6 @@ static void create_runtime_fixture(char config_path[TEST_PATH_SIZE],
         "request_body_mode=none\n"
         "response_body_mode=streaming\n"
         "request_body_limit=1024\n"
-        "response_body_limit=8\n"
         "phase4_mode=safe\n"
         "default_block_status=403\n"
         "default_error_status=500\n"
@@ -958,7 +961,7 @@ static void setup_mock_transport(msconnector_response_companion_transport *trans
     assert(msconnector_response_companion_transport_init_with_backend(transport,
         vtable, TEST_TRANSPORT_OPTIONS(setup->label, socket_path,
             setup->max_header_count, setup->max_header_bytes,
-            setup->max_response_body_bytes, setup->timeout_ms), &error));
+            setup->timeout_ms), &error));
     assert(msconnector_response_companion_transport_start(transport, &error));
 }
 
@@ -972,7 +975,6 @@ static void run_response_header_wire_capacity_test(void)
         .label = "header-capacity-test",
         .max_header_count = MSCONNECTOR_MAX_HEADER_COUNT,
         .max_header_bytes = MSCONNECTOR_MAX_TOTAL_HEADER_BYTES,
-        .max_response_body_bytes = 8U,
         .timeout_ms = 100U,
         .expire = NULL
     };
@@ -1061,7 +1063,6 @@ static void run_response_header_count_contract_test(void)
         .label = "header-count-test",
         .max_header_count = MSCONNECTOR_MAX_HEADER_COUNT,
         .max_header_bytes = MSCONNECTOR_MAX_TOTAL_HEADER_BYTES,
-        .max_response_body_bytes = 8U,
         .timeout_ms = 100U,
         .expire = NULL
     };
@@ -1102,7 +1103,7 @@ static void run_response_header_count_contract_test(void)
         &invalid_transport, &backend_vtable,
         TEST_TRANSPORT_OPTIONS("invalid-header-count", socket_path,
             MSCONNECTOR_MAX_HEADER_COUNT + 1U,
-            MSCONNECTOR_MAX_TOTAL_HEADER_BYTES, 8U, 100U), &error));
+            MSCONNECTOR_MAX_TOTAL_HEADER_BYTES, 100U), &error));
     assert(error.code == MSCONNECTOR_ERROR_INVALID_CONFIG);
 
     memset(&invalid_transport, 0, sizeof(invalid_transport));
@@ -1111,7 +1112,7 @@ static void run_response_header_count_contract_test(void)
         &invalid_transport, &backend_vtable,
         TEST_TRANSPORT_OPTIONS("invalid-header-bytes", socket_path,
             MSCONNECTOR_MAX_HEADER_COUNT,
-            MSCONNECTOR_MAX_TOTAL_HEADER_BYTES + 1U, 8U, 100U), &error));
+            MSCONNECTOR_MAX_TOTAL_HEADER_BYTES + 1U, 100U), &error));
     assert(error.code == MSCONNECTOR_ERROR_INVALID_CONFIG);
 
     memset(&invalid_transport, 0, sizeof(invalid_transport));
@@ -1120,7 +1121,7 @@ static void run_response_header_count_contract_test(void)
         &invalid_transport, &backend_vtable,
         TEST_TRANSPORT_OPTIONS("start-header-bytes", socket_path,
             MSCONNECTOR_MAX_HEADER_COUNT,
-            MSCONNECTOR_MAX_TOTAL_HEADER_BYTES, 8U, 100U), &error));
+            MSCONNECTOR_MAX_TOTAL_HEADER_BYTES, 100U), &error));
     invalid_transport.config.max_header_bytes = MSCONNECTOR_MAX_TOTAL_HEADER_BYTES + 1U;
     msconnector_error_init(&error);
     assert(!msconnector_response_companion_transport_start(&invalid_transport, &error));
@@ -1198,7 +1199,7 @@ static void run_explicit_backend_contract_test(void)
     char socket_directory[TEST_PATH_SIZE];
     char socket_path[MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_SOCKET_SIZE];
     unsigned char headers[128];
-    unsigned char too_large_body[9] = {0};
+    unsigned char too_large_body[MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_BODY_CHUNK + 1U] = {0};
     test_result result;
     int socket_fd;
 
@@ -1299,7 +1300,7 @@ static void run_explicit_backend_contract_test(void)
     assert(observation.cancels == 1U);
     assert(observation.releases == 2U);
     assert(observation.failures == 4U);
-    assert(observation.last_failure == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT);
+    assert(observation.last_failure == MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL);
     assert(!observation.active);
     assert(pthread_mutex_destroy(&backend.lock) == 0);
     assert(rmdir(socket_directory) == 0);
@@ -1681,30 +1682,30 @@ static void run_transport_startup_helper_contract_test(void)
     msconnector_error_init(&error);
     assert(!msconnector_response_companion_transport_ensure_started(NULL, &registry,
         &initialized, &ready, TEST_TRANSPORT_OPTIONS("startup-test", socket_path,
-            32U, 64U, 8U, 100U), &error));
+            32U, 64U, 100U), &error));
     assert(error.code == MSCONNECTOR_ERROR_INVALID_CONFIG);
     assert(!initialized && !ready);
     assert(!msconnector_response_companion_transport_ensure_started(&transport, &registry,
         &inconsistent_initialized, &inconsistent_ready,
-        TEST_TRANSPORT_OPTIONS("startup-test", socket_path, 32U, 64U, 8U, 100U),
+        TEST_TRANSPORT_OPTIONS("startup-test", socket_path, 32U, 64U, 100U),
         &error));
     assert(error.code == MSCONNECTOR_ERROR_INVALID_CONFIG);
     assert(!inconsistent_initialized && inconsistent_ready);
     assert(!msconnector_response_companion_transport_ensure_started(&transport, &registry,
         &initialized, &ready, TEST_TRANSPORT_OPTIONS("startup-test", "",
-            32U, 64U, 8U, 100U), &error));
+            32U, 64U, 100U), &error));
     assert(error.code == MSCONNECTOR_ERROR_INVALID_CONFIG);
     assert(!initialized && !ready);
 
     assert(msconnector_response_companion_transport_ensure_started(&transport, &registry,
         &initialized, &ready, TEST_TRANSPORT_OPTIONS("startup-test", socket_path,
-            32U, 64U, 8U, 100U), &error));
+            32U, 64U, 100U), &error));
     assert(initialized && ready);
     listener_fd = transport.listener.listener_fd;
     assert(listener_fd >= 0);
     assert(msconnector_response_companion_transport_ensure_started(&transport, &registry,
         &initialized, &ready, TEST_TRANSPORT_OPTIONS("startup-test", socket_path,
-            32U, 64U, 8U, 100U), &error));
+            32U, 64U, 100U), &error));
     assert(transport.listener.listener_fd == listener_fd);
 
     /* A terminal poll path leaves the old descriptor invalid and ends the
@@ -1714,7 +1715,7 @@ static void run_transport_startup_helper_contract_test(void)
     wait_for_listener_stop(&transport);
     assert(msconnector_response_companion_transport_ensure_started(&transport, &registry,
         &initialized, &ready, TEST_TRANSPORT_OPTIONS("startup-test", socket_path,
-            32U, 64U, 8U, 100U), &error));
+            32U, 64U, 100U), &error));
     assert(atomic_load_explicit(&transport.listener.running, memory_order_acquire));
     recovery_fd = connect_client(socket_path);
     assert(close(recovery_fd) == 0);
@@ -1728,7 +1729,7 @@ static void run_transport_startup_helper_contract_test(void)
     assert(!msconnector_response_companion_transport_ensure_started(&failed_transport,
         &registry, &failed_initialized, &failed_ready,
         TEST_TRANSPORT_OPTIONS("startup-failed", blocked_socket_path,
-            32U, 64U, 8U, 100U), &error));
+            32U, 64U, 100U), &error));
     assert(error.code == MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE);
     assert(failed_initialized && !failed_ready);
     assert(msconnector_response_companion_transport_stop(&failed_transport, &error));
@@ -1747,7 +1748,7 @@ static void run_transport_startup_helper_contract_test(void)
     assert(!msconnector_response_companion_transport_ensure_started(
         &unsafe_ancestor_transport, &registry, &unsafe_initialized, &unsafe_ready,
         TEST_TRANSPORT_OPTIONS("startup-unsafe-ancestor", unsafe_socket_path,
-            32U, 64U, 8U, 100U), &error));
+            32U, 64U, 100U), &error));
     assert(error.code == MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE);
     assert(unsafe_initialized && !unsafe_ready);
     assert(msconnector_response_companion_transport_stop(
@@ -1791,7 +1792,7 @@ int main(void)
     unsigned char body[9] = {0};
 
     run_transport_startup_helper_contract_test();
-    create_runtime_fixture(config_path, event_path, rules_path);
+    create_runtime_fixture(config_path, event_path, rules_path, 1048576U, "Reject");
     assert(msconnector_runtime_create("envoy", config_path, &runtime, NULL, 0U));
     assert(msconnector_runtime_set_event_integration_mode(runtime, "ext_authz"));
     assert(msconnector_runtime_set_transaction_profile(runtime,
@@ -1810,7 +1811,7 @@ int main(void)
     }
     msconnector_error_init(&error);
     assert(msconnector_response_companion_transport_init(&transport, &registry,
-        TEST_TRANSPORT_OPTIONS("envoy", socket_path, 32U, 64U, 8U, 50U), &error));
+        TEST_TRANSPORT_OPTIONS("envoy", socket_path, 32U, 64U, 50U), &error));
     assert(msconnector_response_companion_transport_start(&transport, &error));
 
     handoff(runtime, &registry, "opaque-a", first_handle);
@@ -1893,7 +1894,7 @@ int main(void)
     assert(exchange(socket_fd, TEST_RESPONSE_BODY, body, 5U, &result));
     assert(result.success);
     assert(exchange(socket_fd, TEST_RESPONSE_BODY, body + 5U, 4U, &result));
-    assert(!result.success);
+    assert(result.success);
     assert(close(socket_fd) == 0);
 
     handoff(runtime, &registry, "timeout", sixth_handle);

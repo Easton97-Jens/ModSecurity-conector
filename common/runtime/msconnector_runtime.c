@@ -12,7 +12,6 @@
 #include "modsecurity/transaction.h"
 
 #include "msconnector/body_policy.h"
-#include "msconnector/phase4_budget.h"
 #include "msconnector/block_statuses.h"
 #include "msconnector/config.h"
 #include "msconnector/config_parser.h"
@@ -149,6 +148,8 @@ typedef struct msconnector_native_transaction {
     char rule_id[MSCONNECTOR_MAX_RULE_ID_LENGTH];
     char reason[RUNTIME_REASON_SIZE];
     char redirect_url[RUNTIME_REDIRECT_SIZE];
+    msconnector_decision pending_response_decision;
+    int response_decision_pending;
 } msconnector_native_transaction;
 
 typedef struct msconnector_runtime_event_metadata {
@@ -676,9 +677,6 @@ static int assign_limit_config_value(
     if (strcmp(key, "request_body_limit") == 0) {
         target = &runtime->body_policy.request_body_limit;
         message = "invalid request_body_limit value";
-    } else if (strcmp(key, "response_body_limit") == 0) {
-        target = &runtime->body_policy.response_body_limit;
-        message = "invalid response_body_limit value";
     } else if (strcmp(key, "max_header_count") == 0) {
         target = &runtime->limits.max_header_count;
         message = "invalid max_header_count value";
@@ -705,9 +703,6 @@ static int assign_limit_config_value(
     if (target == &runtime->body_policy.request_body_limit) {
         runtime->config.request_body_limit = parsed;
         runtime->limits.max_request_body_bytes = parsed;
-    } else if (target == &runtime->body_policy.response_body_limit) {
-        runtime->config.response_body_limit = parsed;
-        runtime->limits.max_response_body_bytes = parsed;
     }
     return 1;
 }
@@ -808,9 +803,7 @@ static void runtime_defaults(msconnector_runtime *runtime) {
     runtime->body_policy.request_body_mode = MSCONNECTOR_BODY_MODE_BUFFERED;
     runtime->body_policy.response_body_mode = MSCONNECTOR_BODY_MODE_NONE;
     runtime->body_policy.request_body_limit = runtime->limits.max_request_body_bytes;
-    runtime->body_policy.response_body_limit = runtime->limits.max_response_body_bytes;
     runtime->config.request_body_limit = runtime->body_policy.request_body_limit;
-    runtime->config.response_body_limit = runtime->body_policy.response_body_limit;
     runtime->config.body_limit_action = runtime->body_policy.body_limit_action;
     (void)snprintf(runtime->owned.transaction_id_header,
         sizeof(runtime->owned.transaction_id_header), "%s", "x-request-id");
@@ -842,8 +835,7 @@ static int validate_runtime_body_policy(
         set_text_error(error, error_len, "invalid body policy");
         return 0;
     }
-    if (runtime->body_policy.request_body_limit == 0U ||
-        runtime->body_policy.response_body_limit == 0U) {
+    if (runtime->body_policy.request_body_limit == 0U) {
         set_text_error(error, error_len, "body limits must be nonzero");
         return 0;
     }
@@ -995,10 +987,8 @@ static int load_runtime_config(
     (void)fclose(file);
     msconnector_config_apply_defaults(&runtime->config);
     runtime->body_policy.request_body_limit = runtime->config.request_body_limit;
-    runtime->body_policy.response_body_limit = runtime->config.response_body_limit;
     runtime->body_policy.body_limit_action = runtime->config.body_limit_action;
     runtime->limits.max_request_body_bytes = runtime->config.request_body_limit;
-    runtime->limits.max_response_body_bytes = runtime->config.response_body_limit;
     return validate_runtime_config(runtime, error, error_len);
 }
 
@@ -1128,6 +1118,7 @@ static int native_decision(
     int disruptive;
     int body_limit;
     int redirect_length;
+    int response_limit;
 
     memset(&intervention, 0, sizeof(intervention));
     intervention.status = 200;
@@ -1139,6 +1130,10 @@ static int native_decision(
     }
     disruptive = intervention_result != 0 || intervention.disruptive != 0;
     body_limit = native_is_request_body_limit_rejection(phase, &intervention);
+    common_intervention = msconnector_intervention_make(intervention.disruptive,
+        intervention.status, intervention.url, intervention.log);
+    response_limit = msconnector_intervention_is_response_body_limit_rejection(phase,
+        &common_intervention);
     native->rule_id[0] = '\0';
     native->reason[0] = '\0';
     native->redirect_url[0] = '\0';
@@ -1164,6 +1159,8 @@ static int native_decision(
         }
         if (body_limit) {
             msconnector_decision_set_body_limit(decision, native->reason);
+        } else if (response_limit) {
+            msconnector_decision_set_response_body_limit(decision, native->reason);
         } else {
             common_intervention = msconnector_intervention_make(
                 1,
@@ -1324,12 +1321,22 @@ static int native_append_response_body(
     size_t size,
     msconnector_error *error) {
     msconnector_native_transaction *native = native_transaction;
-    (void)userdata;
+    msconnector_runtime *runtime = userdata;
     if (size > 0U &&
         !msconnector_native_body_append_can_continue(
             msc_append_response_body(native->transaction, data, size))) {
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
             "response body append failed", "libmodsecurity");
+    }
+    /* Reject can return append success and publish an intervention immediately.
+     * Preserve that native result before subsequent chunks/phase processing
+     * alter the engine intervention; continue offering every borrowed chunk. */
+    if (!native->response_decision_pending) {
+        if (!native_decision(runtime, native, MSCONNECTOR_PHASE_RESPONSE_BODY,
+                &native->pending_response_decision, error)) {
+            return 0;
+        }
+        native->response_decision_pending = native->pending_response_decision.disruptive != 0;
     }
     return 1;
 }
@@ -1345,6 +1352,10 @@ static int native_finish_response_body(
             msc_process_response_body(native->transaction))) {
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
             "response body processing failed", "libmodsecurity");
+    }
+    if (native->response_decision_pending) {
+        *decision = native->pending_response_decision;
+        return 1;
     }
     return native_decision(runtime, native, MSCONNECTOR_PHASE_RESPONSE_BODY,
         decision, error);
@@ -1587,7 +1598,6 @@ void msconnector_runtime_response_contract(
     msconnector_response_mapper_contract_init(contract);
     if (runtime != NULL) {
         contract->max_header_count = runtime->limits.max_header_count;
-        contract->max_body_bytes = runtime->limits.max_response_body_bytes;
         contract->response_body = runtime->body_policy.response_body_mode == MSCONNECTOR_BODY_MODE_NONE
             ? MSCONNECTOR_MAPPER_UNSUPPORTED : MSCONNECTOR_MAPPER_OPTIONAL;
     }
@@ -1595,10 +1605,6 @@ void msconnector_runtime_response_contract(
 
 size_t msconnector_runtime_request_body_limit(const msconnector_runtime *runtime) {
     return runtime == NULL ? 0U : runtime->limits.max_request_body_bytes;
-}
-
-size_t msconnector_runtime_response_body_limit(const msconnector_runtime *runtime) {
-    return runtime == NULL ? 0U : runtime->limits.max_response_body_bytes;
 }
 
 msconnector_body_limit_action msconnector_runtime_body_limit_action(
@@ -1807,8 +1813,8 @@ static void populate_event_body(
     event->body.content_type = transaction->metadata.response_content_type;
     event->body.bytes_seen = transaction->response_body.bytes_seen;
     event->body.bytes_inspected = transaction->response_body.bytes_inspected;
-    event->body.limit_outcome = msconnector_body_limit_outcome_name(
-        transaction->response_body.limit_outcome);
+    event->body.limit_outcome = msconnector_decision_is_body_limit(decision)
+        ? "reject" : "";
     event->flags.body_truncated = transaction->response_body.truncated;
 }
 
@@ -2037,7 +2043,8 @@ static int contract_terminal_http_status(
 
     if (contract != NULL &&
         contract->error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT) {
-        return 413;
+        return contract_terminal_phase(contract) == MSCONNECTOR_PHASE_RESPONSE_BODY
+            ? 403 : 413;
     }
     switch (kind) {
     case MSCONNECTOR_TRANSACTION_DECISION_ENGINE_TIMEOUT:
@@ -2676,9 +2683,7 @@ static int validate_and_record_response_headers(
     if (msconnector_transaction_contract_record_response_metadata(
             &transaction->contract, response->status, NULL,
             response->header_count,
-            header_bytes(response->headers, response->header_count),
-            msconnector_phase4_effective_body_limit(
-                runtime->config.phase4_mode)) !=
+            header_bytes(response->headers, response->header_count)) !=
             MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
         return contract_error(error, MSCONNECTOR_TRANSACTION_TRANSITION_INVALID,
             "response metadata violates the shared transaction contract");
@@ -2829,8 +2834,7 @@ static int append_response_body_chunk_internal(
     msconnector_error *error,
     int companion) {
     const msconnector_runtime *runtime;
-    size_t append_size;
-    msconnector_body_policy response_policy;
+    const size_t append_size = size;
     if (error != NULL) {
         msconnector_error_init(error);
     }
@@ -2847,21 +2851,17 @@ static int append_response_body_chunk_internal(
     if (!validate_response_body_append(transaction, data, size, error, companion)) {
         return 0;
     }
-    response_policy = runtime->body_policy;
-    /* libModSecurity owns response-inspection limits. The connector-side
-     * planner remains only for checked accounting, so impossible counter
-     * overflow always uses reject semantics instead of ProcessPartial
-     * truncation. Independent host/allocation limits are enforced elsewhere. */
-    response_policy.body_limit_action = MSCONNECTOR_BODY_LIMIT_ACTION_REJECT;
-    if (!apply_body_limit_plan(&transaction->response_body, &response_policy,
-            msconnector_phase4_effective_body_limit(
-                runtime->config.phase4_mode), size, &append_size, error,
-            "response body exceeds configured limit")) {
+    /* Borrowed response chunks reach the engine in full. These counters
+     * describe delivery, not the engine's inspected prefix. */
+    if (size > SIZE_MAX - transaction->response_body.bytes_seen ||
+        size > SIZE_MAX - transaction->response_body.bytes_inspected) {
         (void)msconnector_transaction_contract_fail(&transaction->contract,
-            MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, transaction_now_ms());
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, transaction_now_ms());
         transaction->request_blocked = 1;
-        return 0;
+        return runtime_error(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
+            "response body accounting overflow", "runtime");
     }
+    transaction->response_body.bytes_seen += size;
     if (append_size > 0U &&
         !begin_or_resume_streaming_body_phase(transaction,
             MSCONNECTOR_PHASE_RESPONSE_BODY, companion, error)) {
@@ -3159,6 +3159,7 @@ int msconnector_runtime_transaction_record_host_action(
             "transport_result=stream_reset requires a stream-reset action", "runtime");
     }
     if (msconnector_decision_is_body_limit(decision) &&
+        decision->phase == MSCONNECTOR_PHASE_REQUEST_BODY &&
         (actual_action != MSCONNECTOR_DECISION_ACTION_DENY ||
          visible_http_status != 413 || connection_aborted ||
          strcmp(transport_result, "http_status") != 0)) {

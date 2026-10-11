@@ -586,10 +586,9 @@ Runtime. Eine reine Request-Route benötigt für Phase 4 weiterhin den
 unterstützten Response-Observer beziehungsweise Companion; die Wahl eines
 Modus erzeugt keinen fehlenden Response-Pfad.
 
-Alte Connector-/Runtime-Budget-Einstellungen dürfen aus
-Kompatibilitätsgründen weiter parsebar bleiben, dürfen eine Response aber nicht
-allein deshalb abweisen oder abbrechen, weil eine alte Inspection-Bytezahl
-überschritten wurde. Unabhängige Allokations-, Pufferspeicher-,
+Kumulierte Connector-/Runtime-Response-Größeneinstellungen wurden entfernt;
+unbekannte alte Schlüssel werden beim Konfigurationsladen abgewiesen.
+Unabhängige Allokations-, Pufferspeicher-,
 Chunk-/Message-/Frame-, Timeout-, Überlauf- und Transportlimits bleiben in
 jedem Modus aktiv. Ein puffernder Sidecar darf deshalb weiterhin eine Response
 ablehnen, die nicht in seinen begrenzten Host-Speicher passt; das ist

@@ -78,7 +78,7 @@ runtime configuration must be written outside the checkout.
 | listen_address | Processor host:port string | Required; explicit in JSON; processor scope | 127.0.0.1:18083. It must agree with the ext_proc cluster endpoint. |
 | transaction_id_header | HTTP header name | Required; explicit in JSON; transaction scope | x-request-id. It is correlation metadata, not a credential. |
 | max_header_count, max_header_name_bytes, max_header_value_bytes, max_total_header_bytes | Positive metadata limits | Required; explicit in JSON; processor scope | 128, 256, 8192, 32768. Lower values reject more traffic; do not remove limits. |
-| max_body_chunk_bytes, max_request_body_bytes, max_response_body_bytes, max_grpc_message_bytes | Positive byte limits | Required; explicit in JSON; processor scope | 1048576, 10485760, 10485760, 1114112. These bounds do not imply full response buffering. |
+| max_body_chunk_bytes, max_request_body_bytes, max_grpc_message_bytes | Positive byte limits | Required; explicit in JSON; processor scope | 1048576, 10485760, 1114112. These bounds do not imply full response buffering. |
 | late_action_policy | Late P4 policy name | Required; explicit in JSON; processor scope | safe. It does not authorize a synthetic late response status or reset. |
 
 The literal @NAME@ values are template markers, not Envoy fields. The

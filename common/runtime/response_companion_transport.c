@@ -1707,18 +1707,14 @@ static int response_companion_handle_body(
     msconnector_error_init(&error);
     result = state->response_headers && state->committed && !state->response_eos &&
         frame->payload_size <= MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_BODY_CHUNK &&
-        state->response_body_bytes <= worker->transport->config.max_response_body_bytes &&
-        frame->payload_size <= worker->transport->config.max_response_body_bytes -
-            state->response_body_bytes &&
+        frame->payload_size <= SIZE_MAX - state->response_body_bytes &&
         response_companion_backend_append_response_body_chunk(worker->transport,
             &state->session, frame->payload, frame->payload_size, &error);
     if (!result && error.code == MSCONNECTOR_ERROR_NONE) {
         msconnector_error_set(&error, frame->payload_size >
             MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_BODY_CHUNK ||
-            state->response_body_bytes > worker->transport->config.max_response_body_bytes ||
-            frame->payload_size > worker->transport->config.max_response_body_bytes -
-                state->response_body_bytes ?
-                MSCONNECTOR_ERROR_BODY_TOO_LARGE : MSCONNECTOR_ERROR_PHASE_SEQUENCE,
+            frame->payload_size > SIZE_MAX - state->response_body_bytes ?
+                MSCONNECTOR_ERROR_PROTOCOL : MSCONNECTOR_ERROR_PHASE_SEQUENCE,
             "response companion response body operation is invalid",
             "response_companion_transport");
     }
@@ -2200,7 +2196,7 @@ int msconnector_response_companion_transport_init_with_backend(
         path_size >= sizeof(transport->config.socket_path) || !response_companion_path_is_safe(
         options->socket_path) || !response_companion_header_limits_are_valid(
             options->max_header_count, options->max_header_bytes) ||
-        options->max_response_body_bytes == 0U || options->operation_timeout_ms == 0U ||
+        options->operation_timeout_ms == 0U ||
         options->operation_timeout_ms > UINT64_C(600000)) {
         return response_companion_error(error, MSCONNECTOR_ERROR_INVALID_CONFIG,
             "response companion transport configuration is invalid");
@@ -2211,7 +2207,6 @@ int msconnector_response_companion_transport_init_with_backend(
     memcpy(transport->config.socket_path, options->socket_path, path_size + 1U);
     transport->config.max_header_count = options->max_header_count;
     transport->config.max_header_bytes = options->max_header_bytes;
-    transport->config.max_response_body_bytes = options->max_response_body_bytes;
     transport->config.operation_timeout_ms = options->operation_timeout_ms;
     transport->config.expected_uid = geteuid();
     transport->config.expected_gid = getegid();

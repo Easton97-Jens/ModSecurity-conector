@@ -49,7 +49,6 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | [`spoe-agent:port-file`](#spoe-agent-port-file) | Compatibility | string/path | no | unset unless configured | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
 | [`spoe-agent:ready-file`](#spoe-agent-ready-file) | Compatibility | string/path | no | unset unless configured | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
 | [`spoe-agent:request-body-limit`](#spoe-agent-request-body-limit) | Compatibility | integer | no | 65532 | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
-| [`spoe-agent:response-body-limit`](#spoe-agent-response-body-limit) | Compatibility | integer | no | 0 | SPOE/SPOP compatibility agent key=value file | Compatibility response control. The selected SPOE messages do not supply a response body, so this is not native P4 support. |
 | [`spoe-agent:response-body-timeout`](#spoe-agent-response-body-timeout) | Compatibility | integer | no | 0 | SPOE/SPOP compatibility agent key=value file | Compatibility response control timeout; raw SPOE/SPOP does not carry a response body, so it is not a native P4 stream-idle limit. |
 | [`spoe-agent:response-phases`](#spoe-agent-response-phases) | Compatibility | boolean | no | false | SPOE/SPOP compatibility agent key=value file | Compatibility response control. The selected SPOE messages do not supply a response body, so this is not native P4 support. |
 | [`spoe-agent:rules-dir`](#spoe-agent-rules-dir) | Compatibility | string/path | no | unset unless configured | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
@@ -658,7 +657,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 ### Safety and operations
 
-The companion must use an explicit private UDS socket, matching service UID/GID, bounded response-body limit, and fail-closed opaque-handle correlation.
+The companion must use an explicit private UDS socket, matching service UID/GID, bounded protocol frames, and fail-closed opaque-handle correlation.
 
 <a id="spoe-agent-response-companion-gid"></a>
 ## `spoe-agent:response-companion-gid`
@@ -713,7 +712,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 ### Safety and operations
 
-The companion must use an explicit private UDS socket, matching service UID/GID, bounded response-body limit, and fail-closed opaque-handle correlation.
+The companion must use an explicit private UDS socket, matching service UID/GID, bounded protocol frames, and fail-closed opaque-handle correlation.
 
 <a id="spoe-agent-response-companion-socket"></a>
 ## `spoe-agent:response-companion-socket`
@@ -768,7 +767,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 ### Safety and operations
 
-The companion must use an explicit private UDS socket, matching service UID/GID, bounded response-body limit, and fail-closed opaque-handle correlation.
+The companion must use an explicit private UDS socket, matching service UID/GID, bounded protocol frames, and fail-closed opaque-handle correlation.
 
 <a id="spoe-agent-response-companion-uid"></a>
 ## `spoe-agent:response-companion-uid`
@@ -823,7 +822,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 ### Safety and operations
 
-The companion must use an explicit private UDS socket, matching service UID/GID, bounded response-body limit, and fail-closed opaque-handle correlation.
+The companion must use an explicit private UDS socket, matching service UID/GID, bounded protocol frames, and fail-closed opaque-handle correlation.
 
 <a id="timeout-client"></a>
 ## `timeout client`
@@ -2185,61 +2184,6 @@ Merge: No merge; config_set applies one parsed value.
 Compatibility request/response-header path only; no native response-body lifecycle claim.
 
 SPOP compatibility-agent configuration; it is not a native HTX filter option.
-
-### Validation and errors
-
-Unknown keys fail compatibility-agent configuration parsing.
-
-### Example
-
-Selected value: use the syntax above and the source-backed file below.
-
-Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.conf](../../examples/haproxy/compatibility-spoe/modsecurity-agent.conf).
-
-### Safety and operations
-
-Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.
-
-<a id="spoe-agent-response-body-limit"></a>
-## `spoe-agent:response-body-limit`
-
-### Short description
-
-Compatibility response control. The selected SPOE messages do not supply a response body, so this is not native P4 support.
-
-### Syntax
-
-```text
-response-body-limit=<value>
-```
-
-### Valid contexts
-
-- SPOE/SPOP compatibility agent key=value file
-
-### Values
-
-| Type | Allowed values | Required |
-| --- | --- | --- |
-| integer | decimal integer | no |
-
-### Default
-
-0
-
-Source: `config_init() where stated; otherwise zero/empty initialization`.
-
-### Inheritance and merge
-
-No native HTX inheritance; one compatibility-agent config file.
-
-Merge: No merge; config_set applies one parsed value.
-
-### Phases and runtime effect
-
-Compatibility request/response-header path only; no native response-body lifecycle claim.
-
-Compatibility response control. The selected SPOE messages do not supply a response body, so this is not native P4 support.
 
 ### Validation and errors
 

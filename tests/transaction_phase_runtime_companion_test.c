@@ -28,7 +28,8 @@ static const char *test_private_directory(void)
     struct stat directory_stat;
 
     if (test_private_root[0] == '\0') {
-        const char *tmpdir = ".";
+        char tmpdir[TEST_PATH_SIZE];
+        assert(getcwd(tmpdir, sizeof(tmpdir)) != NULL);
         assert(snprintf(test_private_root, sizeof(test_private_root),
             "%s/msconnector-transaction-companion-XXXXXX", tmpdir) > 0);
         assert(mkdtemp(test_private_root) != NULL);
@@ -42,7 +43,8 @@ static const char *test_private_directory(void)
 static void create_runtime_fixture(char config_path[TEST_PATH_SIZE],
     char event_path[TEST_PATH_SIZE], char rules_path[TEST_PATH_SIZE],
     const char *rules_text, const char *request_body_mode,
-    const char *phase4_mode) {
+    const char *phase4_mode, size_t response_limit,
+    const char *response_action) {
     const char *directory = test_private_directory();
     FILE *config;
     FILE *rules;
@@ -68,6 +70,9 @@ static void create_runtime_fixture(char config_path[TEST_PATH_SIZE],
     assert(rules_text != NULL);
     assert(request_body_mode != NULL);
     assert(phase4_mode != NULL);
+    assert(response_limit > 0U && response_action != NULL);
+    assert(fprintf(rules, "SecResponseBodyLimit %zu\nSecResponseBodyLimitAction %s\n",
+        response_limit, response_action) > 0);
     assert(fputs(rules_text, rules) != EOF);
     assert(fclose(rules) == 0);
     config = fdopen(config_fd, "w");
@@ -79,7 +84,6 @@ static void create_runtime_fixture(char config_path[TEST_PATH_SIZE],
         "request_body_mode=%s\n"
         "response_body_mode=none\n"
         "request_body_limit=1024\n"
-        "response_body_limit=1024\n"
         "phase4_mode=%s\n"
         "default_block_status=403\n"
         "default_error_status=500\n"
@@ -127,7 +131,7 @@ static void test_regular_block_emits_one_terminal_event(void) {
     size_t size;
 
     create_runtime_fixture(config_path, event_path, rules_path, blocking_rules,
-        "none", "safe");
+        "none", "safe", 1024U, "Reject");
     assert(msconnector_runtime_create("envoy", config_path, &runtime, NULL, 0U));
     assert(msconnector_runtime_set_event_integration_mode(runtime, "ext_authz"));
     assert(msconnector_runtime_set_transaction_profile(runtime,
@@ -150,7 +154,7 @@ static void test_regular_block_emits_one_terminal_event(void) {
     assert(ferror(event_file) == 0);
     assert(fclose(event_file) == 0);
     contents[size] = '\0';
-    assert(strstr(contents, "MSCONN_EVENT_REQUEST_BLOCKED") != NULL);
+    assert(strstr(contents, "MSCONN_EVENT_ENGINE_DECISION") != NULL);
     assert(strstr(contents, "MSCONN_EVENT_CONNECTOR_ERROR") == NULL);
     assert(strstr(contents, "\"transaction_id\":\"rule-block\"") != NULL);
     assert(strchr(contents, '\n') == strrchr(contents, '\n'));
@@ -179,7 +183,7 @@ static void test_lossy_event_is_not_written_or_chained(void) {
     size_t size;
 
     create_runtime_fixture(config_path, event_path, rules_path, blocking_rules,
-        "none", "safe");
+        "none", "safe", 1024U, "Reject");
     assert(msconnector_runtime_create("envoy", config_path, &runtime, NULL, 0U));
     assert(msconnector_runtime_set_event_integration_mode(runtime, "ext_authz"));
     assert(msconnector_runtime_set_transaction_profile(runtime,
@@ -221,7 +225,7 @@ static void test_lossy_event_is_not_written_or_chained(void) {
     assert(ferror(event_file) == 0);
     assert(fclose(event_file) == 0);
     contents[size] = '\0';
-    assert(strstr(contents, "MSCONN_EVENT_REQUEST_BLOCKED") != NULL);
+    assert(strstr(contents, "MSCONN_EVENT_ENGINE_DECISION") != NULL);
     assert(strstr(contents, "\"transaction_id\":\"post-lossy\"") != NULL);
     assert(strstr(contents, "\"previous_event_hash\":0") != NULL);
     assert(strchr(contents, '\n') == strrchr(contents, '\n'));
@@ -263,7 +267,7 @@ static void test_buffered_request_body_handoff(void) {
     msconnector_error error;
 
     create_runtime_fixture(config_path, event_path, rules_path,
-        "SecRuleEngine DetectionOnly\n", "buffered", "safe");
+        "SecRuleEngine DetectionOnly\n", "buffered", "safe", 1024U, "Reject");
     assert(msconnector_runtime_create("envoy", config_path, &runtime, NULL, 0U));
     assert(msconnector_runtime_set_event_integration_mode(runtime, "ext_authz"));
     assert(msconnector_runtime_set_transaction_profile(runtime,
@@ -285,7 +289,7 @@ static void test_strict_profile_admission_is_fail_closed(void) {
     msconnector_runtime *runtime = NULL;
 
     create_runtime_fixture(config_path, event_path, rules_path,
-        "SecRuleEngine DetectionOnly\n", "none", "strict");
+        "SecRuleEngine DetectionOnly\n", "none", "strict", 1024U, "Reject");
     assert(msconnector_runtime_create("envoy", config_path, &runtime, NULL, 0U));
     assert(!msconnector_runtime_set_transaction_profile(runtime,
         msconnector_profile_registry_find("envoy-ext-authz")));
@@ -362,7 +366,7 @@ int main(void) {
     char rules_path[TEST_PATH_SIZE];
 
     create_runtime_fixture(config_path, event_path, rules_path,
-        "SecRuleEngine DetectionOnly\n", "none", "safe");
+        "SecRuleEngine DetectionOnly\n", "none", "safe", 1024U, "Reject");
     assert(msconnector_runtime_create("envoy", config_path,
         &runtime, NULL, 0U));
     assert(runtime != NULL);

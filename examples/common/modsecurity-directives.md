@@ -15,8 +15,8 @@ Only directives actually used in checked-in example rule files are listed. They 
 | [`SecAuditLogType`](#secauditlogtype) | ModSecurity Engine | ModSecurity engine directive | no | No default is inferred from examples. | Loaded ModSecurity configuration/rule file | Sets the selected audit-log write mode. |
 | [`SecRequestBodyAccess`](#secrequestbodyaccess) | ModSecurity Engine | ModSecurity engine directive | no | No default is inferred from examples. | Loaded ModSecurity configuration/rule file | On makes request-body input available to engine P2 only when the host supplies it; Off leaves P1 headers available but removes body input from P2. The directive itself sets neither a body-size limit nor a request MIME scope: those remain host/engine mapping choices and, where selected, Common Runtime request_body_limit/body mode controls. Enabling body handling can add buffering, memory, CPU, and logging exposure, so retain bounded host input. |
 | [`SecResponseBodyAccess`](#secresponsebodyaccess) | ModSecurity Engine | ModSecurity engine directive | no | No default is inferred from examples. | Loaded ModSecurity configuration/rule file | On makes P4 possible only when the host supplies response bytes that are in scope; Off removes response-body input from P4. It does not widen SecResponseBodyMimeType, override SecResponseBodyLimit/SecResponseBodyLimitAction, or force a status change after headers commit. With the selected safe late-intervention policy, a post-commit disruptive result is recorded as log_only rather than a promised later 403; response capture can add bounded memory, CPU, and sensitive-data exposure. |
-| [`SecResponseBodyLimit`](#secresponsebodylimit) | ModSecurity Engine | ModSecurity engine directive | no | No default is inferred from examples. | Loaded ModSecurity configuration/rule file | Caps engine response-body input. |
-| [`SecResponseBodyLimitAction`](#secresponsebodylimitaction) | ModSecurity Engine | ModSecurity engine directive | no | No default is inferred from examples. | Loaded ModSecurity configuration/rule file | Defines engine behavior when the response body exceeds the engine limit. |
+| [`SecResponseBodyLimit`](#secresponsebodylimit) | ModSecurity Engine | ModSecurity engine directive | no | No default is inferred from examples. | Loaded ModSecurity configuration/rule file | Exclusively sets the response-body inspection limit; the connector has no corresponding option, default, or second enforcement logic. |
+| [`SecResponseBodyLimitAction`](#secresponsebodylimitaction) | ModSecurity Engine | ModSecurity engine directive | no | No default is inferred from examples. | Loaded ModSecurity configuration/rule file | Exclusively selects Reject or ProcessPartial when the engine inspection limit is exceeded; the connector forwards native results and interventions. |
 | [`SecResponseBodyMimeType`](#secresponsebodymimetype) | ModSecurity Engine | ModSecurity engine directive | no | No default is inferred from examples. | Loaded ModSecurity configuration/rule file | Scopes engine response-body inspection by MIME type. |
 | [`SecRule`](#secrule) | ModSecurity Engine | ModSecurity engine directive | no | No default is inferred from examples. | Loaded ModSecurity configuration/rule file | Defines a rule from a variable, operator, and comma-separated actions. The local illustration uses RESPONSE_BODY, @contains, id, phase, deny, log, and status; redirect and transformations are separate action forms whose validity and observable effect remain engine/host- and commit-boundary dependent. |
 | [`SecRuleEngine`](#secruleengine) | ModSecurity Engine | ModSecurity engine directive | no | The used examples select On; no repository source establishes a global engine default. | Loaded ModSecurity configuration/rule file | Controls rule execution/disruptive action inside libmodsecurity, independently of the host connector switch. |
@@ -401,7 +401,7 @@ Merge: Engine-specific; include order and rule configuration determine effective
 
 ### Phases and runtime effect
 
-P4. On is necessary but not sufficient: the connector must expose response bytes, the MIME type must be in SecResponseBodyMimeType scope, and host/engine response limits apply.
+P4. On is necessary but not sufficient: the connector must expose response bytes, the MIME type must be in SecResponseBodyMimeType scope, and SecResponseBodyLimit/SecResponseBodyLimitAction apply. Technical frame and storage controls remain independent.
 
 On makes P4 possible only when the host supplies response bytes that are in scope; Off removes response-body input from P4. It does not widen SecResponseBodyMimeType, override SecResponseBodyLimit/SecResponseBodyLimitAction, or force a status change after headers commit. With the selected safe late-intervention policy, a post-commit disruptive result is recorded as log_only rather than a promised later 403; response capture can add bounded memory, CPU, and sensitive-data exposure.
 
@@ -424,7 +424,7 @@ Response bodies can be large and sensitive. Keep MIME scope and response limits 
 
 ### Short description
 
-Caps engine response-body input.
+Exclusively sets the response-body inspection limit; the connector has no corresponding option, default, or second enforcement logic.
 
 ### Syntax
 
@@ -458,7 +458,7 @@ Merge: Engine-specific; include order and rule configuration determine effective
 
 See directive runtime effect.
 
-Caps engine response-body input.
+Exclusively sets the response-body inspection limit; the connector has no corresponding option, default, or second enforcement logic.
 
 ### Validation and errors
 
@@ -479,7 +479,7 @@ Engine policy can inspect, log, detect, or disrupt traffic; protect rule and aud
 
 ### Short description
 
-Defines engine behavior when the response body exceeds the engine limit.
+Exclusively selects Reject or ProcessPartial when the engine inspection limit is exceeded; the connector forwards native results and interventions.
 
 ### Syntax
 
@@ -513,7 +513,7 @@ Merge: Engine-specific; include order and rule configuration determine effective
 
 See directive runtime effect.
 
-Defines engine behavior when the response body exceeds the engine limit.
+Exclusively selects Reject or ProcessPartial when the engine inspection limit is exceeded; the connector forwards native results and interventions.
 
 ### Validation and errors
 

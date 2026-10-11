@@ -93,7 +93,6 @@ printf '%s\n' 'lighttpd phase-3 redirect header probe' > "$SMOKE_DIR/document-ro
     printf 'request_body_mode=%s\n' "$REQUEST_BODY_MODE"
     printf 'response_body_mode=%s\n' "$RESPONSE_BODY_MODE"
     printf 'request_body_limit=1048576\n'
-    printf 'response_body_limit=1048576\n'
     printf 'default_block_status=403\n'
     printf 'default_error_status=500\n'
     printf 'max_header_count=256\n'

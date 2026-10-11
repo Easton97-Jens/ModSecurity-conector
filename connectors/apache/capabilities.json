@@ -159,7 +159,7 @@
     },
     "response_body_limits": {
       "state": "implemented_not_asserted",
-      "reason": "The configurable default 1048576-byte Phase-4 limit is checked before each later append and does not require a retained full response; canonical limit evidence is pending."
+      "reason": "libModSecurity exclusively owns response inspection limits and Reject/ProcessPartial through SecResponseBodyLimit and SecResponseBodyLimitAction; the connector forwards full chunks with checked counters. Fresh native-host limit evidence remains required."
     },
     "no_full_response_buffering": {
       "state": "implemented_not_asserted",

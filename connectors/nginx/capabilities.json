@@ -45,7 +45,7 @@
     },
     "response_body_streaming": {
       "state": "implemented_not_asserted",
-    "reason": "The response body filter appends NGINX's memory-authoritative current range or file-only ranges through a reusable bounded scratch buffer to the active P4 phase and forwards the current chain without retaining a connector-owned full response; current native-host evidence is pending."
+      "reason": "The response body filter appends NGINX's memory-authoritative current range or file-only ranges through a reusable bounded scratch buffer to the active P4 phase and forwards the current chain without retaining a connector-owned full response; current native-host evidence is pending."
     },
     "phase1": {
       "state": "implemented_not_asserted",
@@ -157,11 +157,11 @@
     },
     "response_body_limits": {
       "state": "implemented_not_asserted",
-      "reason": "The response filter applies the Common reject body-limit plan before forwarding each memory or file buffer, independently of MIME type and Phase-4 policy mode; native-host limit-mode evidence is pending."
+      "reason": "libModSecurity exclusively owns response inspection limits and Reject/ProcessPartial through SecResponseBodyLimit and SecResponseBodyLimitAction; the connector forwards full chunks with checked counters. Fresh native-host limit evidence remains required."
     },
     "no_full_response_buffering": {
       "state": "implemented_not_asserted",
-    "reason": "The response filter processes and forwards current chain buffers rather than accumulating a connector-owned full response; file-only ranges use one reusable bounded scratch buffer and synchronized proof is pending."
+      "reason": "The response filter processes and forwards current chain buffers rather than accumulating a connector-owned full response; file-only ranges use one reusable bounded scratch buffer and synchronized proof is pending."
     },
     "first_byte_before_response_end": {
       "state": "implemented_not_asserted",

@@ -15,8 +15,8 @@ Aufgeführt werden nur Direktiven, die tatsächlich in eingecheckten Beispielreg
 | [`SecAuditLogType`](#secauditlogtype) | ModSecurity Engine | ModSecurity-Engine-Direktive | nein | Aus den Beispielen wird kein Standardwert abgeleitet. | geladene ModSecurity-Konfigurations-/Regeldatei | Setzt den ausgewählten Schreibmodus für das Audit-Log. |
 | [`SecRequestBodyAccess`](#secrequestbodyaccess) | ModSecurity Engine | ModSecurity-Engine-Direktive | nein | Aus den Beispielen wird kein Standardwert abgeleitet. | geladene ModSecurity-Konfigurations-/Regeldatei | On stellt der Engine P2 eine Request-Body-Eingabe nur bereit, wenn der Host sie liefert; Off lässt P1-Header verfügbar, entfernt aber die Body-Eingabe aus P2. Die Direktive setzt weder ein Body-Größenlimit noch einen Request-MIME-Geltungsbereich: Diese bleiben Zuordnungsentscheidungen von Host/Engine und, sofern ausgewählt, Steuerungen über Common-Runtime-request_body_limit/Body-Modus. Das Aktivieren der Body-Verarbeitung kann Buffering-, Speicher-, CPU- und Logging-Exposition hinzufügen; daher Hosteingaben begrenzen. |
 | [`SecResponseBodyAccess`](#secresponsebodyaccess) | ModSecurity Engine | ModSecurity-Engine-Direktive | nein | Aus den Beispielen wird kein Standardwert abgeleitet. | geladene ModSecurity-Konfigurations-/Regeldatei | On ermöglicht P4 nur, wenn der Host Response-Bytes im Geltungsbereich bereitstellt; Off entfernt die Response-Body-Eingabe aus P4. Es erweitert SecResponseBodyMimeType nicht, überschreibt SecResponseBodyLimit/SecResponseBodyLimitAction nicht und erzwingt keine Statusänderung nach dem Header-Commit. Mit der ausgewählten sicheren Late-Intervention-Policy wird ein disruptives Ergebnis nach dem Commit als log_only statt als versprochene spätere 403 protokolliert; das Erfassen der Response kann begrenzte Speicher-, CPU- und Sensitivdaten-Exposition hinzufügen. |
-| [`SecResponseBodyLimit`](#secresponsebodylimit) | ModSecurity Engine | ModSecurity-Engine-Direktive | nein | Aus den Beispielen wird kein Standardwert abgeleitet. | geladene ModSecurity-Konfigurations-/Regeldatei | Begrenzt die Response-Body-Eingabe der Engine. |
-| [`SecResponseBodyLimitAction`](#secresponsebodylimitaction) | ModSecurity Engine | ModSecurity-Engine-Direktive | nein | Aus den Beispielen wird kein Standardwert abgeleitet. | geladene ModSecurity-Konfigurations-/Regeldatei | Definiert das Engine-Verhalten, wenn der Response-Body das Engine-Limit überschreitet. |
+| [`SecResponseBodyLimit`](#secresponsebodylimit) | ModSecurity Engine | ModSecurity-Engine-Direktive | nein | Aus den Beispielen wird kein Standardwert abgeleitet. | geladene ModSecurity-Konfigurations-/Regeldatei | Legt ausschließlich das Response-Body-Inspection-Limit fest; der Connector besitzt dafür keine Option, keinen Default und keine zweite Durchsetzungslogik. |
+| [`SecResponseBodyLimitAction`](#secresponsebodylimitaction) | ModSecurity Engine | ModSecurity-Engine-Direktive | nein | Aus den Beispielen wird kein Standardwert abgeleitet. | geladene ModSecurity-Konfigurations-/Regeldatei | Wählt ausschließlich Reject oder ProcessPartial beim Überschreiten des Engine-Inspection-Limits; der Connector verarbeitet native Ergebnisse und Interventionen weiter. |
 | [`SecResponseBodyMimeType`](#secresponsebodymimetype) | ModSecurity Engine | ModSecurity-Engine-Direktive | nein | Aus den Beispielen wird kein Standardwert abgeleitet. | geladene ModSecurity-Konfigurations-/Regeldatei | Beschränkt die Engine-Response-Body-Inspektion nach MIME-Typ. |
 | [`SecRule`](#secrule) | ModSecurity Engine | ModSecurity-Engine-Direktive | nein | Aus den Beispielen wird kein Standardwert abgeleitet. | geladene ModSecurity-Konfigurations-/Regeldatei | Definiert eine Regel aus Variable, Operator und durch Komma getrennten Actions. Die lokale Illustration verwendet RESPONSE_BODY, @contains, id, phase, deny, log und status; redirect und Transformationen sind separate Action-Formen, deren Gültigkeit und beobachtbare Wirkung von Engine/Host und Commit-Grenze abhängen. |
 | [`SecRuleEngine`](#secruleengine) | ModSecurity Engine | ModSecurity-Engine-Direktive | nein | Die verwendeten Beispiele wählen On; keine Repository-Quelle legt einen globalen Engine-Standardwert fest. | geladene ModSecurity-Konfigurations-/Regeldatei | Steuert Regelausführung/disruptive Aktion innerhalb von libmodsecurity, unabhängig vom Hostconnector-Schalter. |
@@ -401,7 +401,7 @@ Zusammenführung: Engine-spezifisch; Include-Reihenfolge und Regelkonfiguration 
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: P4. On ist notwendig, aber nicht hinreichend: Der Connector muss Response-Bytes bereitstellen, der MIME-Typ muss im Geltungsbereich von SecResponseBodyMimeType liegen, und Host-/Engine-Response-Limits gelten.
+P1–P4-Relevanz: P4. On ist notwendig, aber nicht hinreichend: Der Connector muss Response-Bytes bereitstellen, der MIME-Typ muss im Geltungsbereich von SecResponseBodyMimeType liegen, und SecResponseBodyLimit/SecResponseBodyLimitAction gelten. Technische Frame- und Speicherkontrollen bleiben unabhängig.
 
 On ermöglicht P4 nur, wenn der Host Response-Bytes im Geltungsbereich bereitstellt; Off entfernt die Response-Body-Eingabe aus P4. Es erweitert SecResponseBodyMimeType nicht, überschreibt SecResponseBodyLimit/SecResponseBodyLimitAction nicht und erzwingt keine Statusänderung nach dem Header-Commit. Mit der ausgewählten sicheren Late-Intervention-Policy wird ein disruptives Ergebnis nach dem Commit als log_only statt als versprochene spätere 403 protokolliert; das Erfassen der Response kann begrenzte Speicher-, CPU- und Sensitivdaten-Exposition hinzufügen.
 
@@ -424,7 +424,7 @@ Response-Bodys können groß und sensibel sein. MIME-Geltungsbereich und Respons
 
 ### Kurzbeschreibung
 
-Begrenzt die Response-Body-Eingabe der Engine.
+Legt ausschließlich das Response-Body-Inspection-Limit fest; der Connector besitzt dafür keine Option, keinen Default und keine zweite Durchsetzungslogik.
 
 ### Syntax
 
@@ -458,7 +458,7 @@ Zusammenführung: Engine-spezifisch; Include-Reihenfolge und Regelkonfiguration 
 
 P1–P4-Relevanz: Siehe Laufzeitwirkung der Direktive.
 
-Begrenzt die Response-Body-Eingabe der Engine.
+Legt ausschließlich das Response-Body-Inspection-Limit fest; der Connector besitzt dafür keine Option, keinen Default und keine zweite Durchsetzungslogik.
 
 ### Validierung und Fehler
 
@@ -479,7 +479,7 @@ Die Engine-Policy kann Traffic inspizieren, protokollieren, erkennen oder unterb
 
 ### Kurzbeschreibung
 
-Definiert das Engine-Verhalten, wenn der Response-Body das Engine-Limit überschreitet.
+Wählt ausschließlich Reject oder ProcessPartial beim Überschreiten des Engine-Inspection-Limits; der Connector verarbeitet native Ergebnisse und Interventionen weiter.
 
 ### Syntax
 
@@ -513,7 +513,7 @@ Zusammenführung: Engine-spezifisch; Include-Reihenfolge und Regelkonfiguration 
 
 P1–P4-Relevanz: Siehe Laufzeitwirkung der Direktive.
 
-Definiert das Engine-Verhalten, wenn der Response-Body das Engine-Limit überschreitet.
+Wählt ausschließlich Reject oder ProcessPartial beim Überschreiten des Engine-Inspection-Limits; der Connector verarbeitet native Ergebnisse und Interventionen weiter.
 
 ### Validierung und Fehler
 

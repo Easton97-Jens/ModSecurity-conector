@@ -73,7 +73,9 @@ typedef struct msconnector_runtime_response_companion_session {
 /*
  * Body chunks are borrowed from the host.  The runtime never retains a chunk
  * pointer after append_*_body_chunk() returns.  Counters describe metadata
- * only and are safe to place in events or result records.
+ * only and are safe to place in events or result records. For responses,
+ * bytes_inspected means bytes offered to the native engine; it does not expose
+ * the engine-owned ProcessPartial inspection prefix.
  */
 typedef struct msconnector_runtime_body_progress {
     size_t bytes_seen;
@@ -148,7 +150,6 @@ void msconnector_runtime_response_contract(
     msconnector_response_mapper_contract *contract);
 
 size_t msconnector_runtime_request_body_limit(const msconnector_runtime *runtime);
-size_t msconnector_runtime_response_body_limit(const msconnector_runtime *runtime);
 msconnector_body_limit_action msconnector_runtime_body_limit_action(
     const msconnector_runtime *runtime);
 msconnector_body_mode msconnector_runtime_request_body_mode(

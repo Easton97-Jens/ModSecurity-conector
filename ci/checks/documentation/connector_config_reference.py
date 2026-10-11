@@ -64,7 +64,6 @@ ALLOWED_VALUES_BODY_MODE = "none | buffered | streaming"
 ALLOWED_VALUES_RESPONSE_COMPANION = "none | native-htx"
 VALUE_TYPE_POSITIVE_DECIMAL_BYTES = "positive decimal bytes"
 DEFAULT_SOURCE_MAX_BODY_BUFFER = "common/include/msconnector/limits.h:MSCONNECTOR_MAX_BODY_BUFFER_SIZE"
-DEFAULT_SOURCE_MAX_RESPONSE_BODY_BUFFER = "common/include/msconnector/limits.h:MSCONNECTOR_MAX_RESPONSE_BODY_BUFFER_SIZE"
 DEFAULT_SOURCE_DEFAULT_BLOCK_STATUS = "common/include/msconnector/block_statuses.h:MSCONNECTOR_DEFAULT_BLOCK_STATUS"
 DEFAULT_SOURCE_DEFAULT_ERROR_STATUS = "common/include/msconnector/block_statuses.h:MSCONNECTOR_DEFAULT_ERROR_STATUS"
 DEFAULT_SOURCE_MAX_HEADER_COUNT = "common/include/msconnector/limits.h:MSCONNECTOR_MAX_HEADER_COUNT"
@@ -323,7 +322,8 @@ APACHE_DIRECTIVE_DETAILS: dict[str, dict[str, str]] = {
     "modsecurity_phase4_mode": {
         "effect": (
             "Apache appends each normalized response bucket exactly once and forwards non-terminal "
-            "output to the next filter without waiting for EOS. It finishes P4 exactly once at actual "
+            "output to the next filter without waiting for EOS. It retains only the terminal EOS fragment "
+            "for phase completion. It finishes P4 exactly once at actual "
             "EOS. With policy off the connector keeps its native intervention path. After the next-filter "
             "commitment boundary, safe records log_only and strict "
             "requests abort_connection instead of a late status rewrite."
@@ -514,7 +514,7 @@ def extract_nginx(root: Path) -> list[dict[str, Any]]:
                 allowed_values="off | safe | strict",
                 phase_relevance=(
                     "P4 only. Response bytes continue to be offered to ModSecurity subject to engine "
-                    "configuration and connector body limits; the mode controls intervention handling, "
+                    "configuration; independent technical safeguards remain. The mode controls intervention handling, "
                     "not MIME inspection scope."
                 ),
                 runtime_effect=effect,
@@ -578,7 +578,7 @@ def _haproxy_spop_option_details(
 ) -> tuple[str, str, str, str, str]:
     value_type = "string/path"
     allowed = "parser-supported compatibility value"
-    if key in {"port", "expected-status", "request-body-limit", "response-body-limit", "response-body-timeout", "spoe-timeout", "worker-count", "max-transactions", "response-companion-uid", "response-companion-gid"}:
+    if key in {"port", "expected-status", "request-body-limit", "response-body-timeout", "spoe-timeout", "worker-count", "max-transactions", "response-companion-uid", "response-companion-gid"}:
         value_type, allowed = "integer", "decimal integer"
     elif key in {"debug", "enable-response-headers", "response-phases"}:
         value_type, allowed = VALUE_TYPE_BOOLEAN, "on/off-style compatibility boolean"
@@ -589,7 +589,7 @@ def _haproxy_spop_option_details(
     elif key == "response-companion-socket":
         value_type, allowed = VALUE_TYPE_PATH, "private UNIX-domain socket path"
     effect = "SPOP compatibility-agent configuration; it is not a native HTX filter option."
-    if key in {"response-body-limit", "response-body-timeout", "response-phases", "enable-response-headers"}:
+    if key in {"response-body-timeout", "response-phases", "enable-response-headers"}:
         effect = "Compatibility response control. The selected SPOE messages do not supply a response body, so this is not native P4 support."
     if key in companion_keys:
         effect = "SPOP owner configuration for the required native-HTX MRC1 response companion. native-htx publishes one bounded opaque handle for HTX P3/P4 processing."
@@ -597,7 +597,7 @@ def _haproxy_spop_option_details(
     security_relevance = "Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core."
     if key in companion_keys:
         phase_relevance = "native-htx is the required P3/P4 companion for the logical HAProxy SPOE/SPOP profile; none rejects response-phase activation because raw SPOE/SPOP has no response EOS."
-        security_relevance = "The companion must use an explicit private UDS socket, matching service UID/GID, bounded response-body limit, and fail-closed opaque-handle correlation."
+        security_relevance = "The companion must use an explicit private UDS socket, matching service UID/GID, bounded protocol frames, and fail-closed opaque-handle correlation."
     if key == "spoe-timeout":
         allowed = "positive decimal milliseconds, 1..60000"
         effect = "Bounds each SPOE/SPOP engine transaction; zero, negative, malformed, and over-limit values fail configuration parsing."
@@ -667,7 +667,7 @@ def extract_haproxy(root: Path) -> list[dict[str, Any]]:
     parser_body = compatibility_text[compatibility_text.index("static int config_set"):compatibility_text.index("static char *trim_in_place")]
     raw_compatibility_keys = list(dict.fromkeys(re.findall(r'"([a-z][a-z-]+)"', parser_body)))
     expected_compatibility_keys = {
-        "listen", "host", "port", "ready-file", "pid-file", "port-file", "log-file", "decision-log", "audit-log", "modsecurity-conf", "crs-root", "rules-file", "rules-dir", "mode", "fail-mode", "runtime-mode", "variant", "case", "response-companion", "response-companion-socket", "response-companion-uid", "response-companion-gid", "expected-status", "request-body-limit", "response-body-limit", "response-body-timeout", "spoe-timeout", "worker-count", "max-transactions", "debug", "enable-response-headers", "response-phases",
+        "listen", "host", "port", "ready-file", "pid-file", "port-file", "log-file", "decision-log", "audit-log", "modsecurity-conf", "crs-root", "rules-file", "rules-dir", "mode", "fail-mode", "runtime-mode", "variant", "case", "response-companion", "response-companion-socket", "response-companion-uid", "response-companion-gid", "expected-status", "request-body-limit", "response-body-timeout", "spoe-timeout", "worker-count", "max-transactions", "debug", "enable-response-headers", "response-phases",
     }
     parser_literals = {"true", "yes", "on", "false", VALUE_OFF, "no"}
     unexpected = set(raw_compatibility_keys) - expected_compatibility_keys - parser_literals
@@ -676,7 +676,7 @@ def extract_haproxy(root: Path) -> list[dict[str, Any]]:
         raise ValueError(f"HAProxy SPOP parser/schema drift: missing={sorted(expected_compatibility_keys - set(compatibility_keys))}, unexpected={sorted(unexpected)}")
     defaults = {
         "host": "127.0.0.1", "mode": "block", "fail-mode": "closed", "runtime-mode": "production", "variant": "-", "log-file": "-",
-        "request-body-limit": "65532", "response-companion": "none", "response-body-limit": "0", "response-body-timeout": "0", "spoe-timeout": "2000", "worker-count": "8", "max-transactions": "4096", "response-phases": "false",
+        "request-body-limit": "65532", "response-companion": "none", "response-body-timeout": "0", "spoe-timeout": "2000", "worker-count": "8", "max-transactions": "4096", "response-phases": "false",
     }
     for key in compatibility_keys:
         companion_keys = {
@@ -831,8 +831,7 @@ COMMON_DETAILS: dict[str, dict[str, str]] = {
     "request_body_mode": ("enum", ALLOWED_VALUES_BODY_MODE, "buffered", DEFAULT_SOURCE_RUNTIME_DEFAULTS, "Selects the Common request-body handling mode; a particular host may support only a subset."),
     "response_body_mode": ("enum", ALLOWED_VALUES_BODY_MODE, "none", DEFAULT_SOURCE_RUNTIME_DEFAULTS, "Selects the Common response-body handling mode; a particular host may support only a subset."),
     "request_body_limit": (VALUE_TYPE_POSITIVE_DECIMAL_BYTES, ALLOWED_VALUES_POSITIVE_INTEGER, "1048576", DEFAULT_SOURCE_MAX_BODY_BUFFER, "Bounds request bytes offered to the engine."),
-    "response_body_limit": (VALUE_TYPE_POSITIVE_DECIMAL_BYTES, ALLOWED_VALUES_POSITIVE_INTEGER, "1048576", DEFAULT_SOURCE_MAX_RESPONSE_BODY_BUFFER, "Bounds host/runtime response capacity where that integration requires bounded storage; it is not libModSecurity inspection policy."),
-    "body_limit_action": ("enum", "reject | process_partial (accepted spelling variants are parser-specific)", "reject", DEFAULT_SOURCE_COMMON_APPLY_DEFAULTS, "Controls whether an over-limit chunk is rejected or truncated before engine input."),
+    "body_limit_action": ("enum", "reject | process_partial (accepted spelling variants are parser-specific)", "reject", DEFAULT_SOURCE_COMMON_APPLY_DEFAULTS, "Controls whether an over-limit request chunk is rejected or truncated before engine input; response limits and actions belong exclusively to libModSecurity."),
     "late_intervention_timeout": ("non-negative decimal milliseconds", "0 or positive integer", "0", DEFAULT_SOURCE_COMMON_APPLY_DEFAULTS, "Stores an optional late-intervention budget; Common owns no timer/cancellation primitive."),
     "default_block_status": ("HTTP status", "allowed blocking status", "403", DEFAULT_SOURCE_DEFAULT_BLOCK_STATUS, "Fallback status for supported pre-commit block actions."),
     "default_error_status": ("HTTP error status", "valid HTTP error status", "500", DEFAULT_SOURCE_DEFAULT_ERROR_STATUS, "Fallback status for runtime errors."),
@@ -849,7 +848,6 @@ COMMON_LIMIT_MACROS = {
     # buffers. The Common Runtime validates both fields against this shared
     # hard security limit in msconnector_config_validate().
     "request_body_limit": "MSCONNECTOR_MAX_CONFIG_BODY_BYTES",
-    "response_body_limit": "MSCONNECTOR_MAX_CONFIG_BODY_BYTES",
     "max_header_count": "MSCONNECTOR_MAX_HEADER_COUNT",
     "max_header_name_size": "MSCONNECTOR_MAX_HEADER_NAME_LENGTH",
     "max_header_value_size": "MSCONNECTOR_MAX_HEADER_VALUE_LENGTH",
@@ -904,17 +902,6 @@ COMMON_OPTION_OVERRIDES: dict[str, dict[str, Any]] = {
         "security_relevance": (
             "The 10 MiB hard cap bounds request-body allocation and engine input even when a deployment "
             "raises the 1048576-byte default."
-        ),
-    },
-    "response_body_limit": {
-        "allowed_values": COMMON_BODY_LIMIT_ALLOWED_VALUES,
-        "validation": (
-            "Runtime configuration rejects zero, non-decimal values, and values above the 10485760-byte "
-            "(10 MiB) hard security cap."
-        ),
-        "security_relevance": (
-            "The 10 MiB configuration cap bounds host/runtime capacity settings where an integration "
-            "allocates or buffers responses; it is not a libModSecurity WAF inspection limit."
         ),
     },
     "max_header_count": {
@@ -1021,8 +1008,8 @@ ENGINE_DETAILS: dict[str, tuple[str, str, str, str]] = {
     "SecRequestBodyAccess": ("SecRequestBodyAccess On | Off", ALLOWED_VALUES_TITLE_CASE_ON_OFF, DEFAULT_NO_EXAMPLE, "On makes request-body input available to engine P2 only when the host supplies it; Off leaves P1 headers available but removes body input from P2. The directive itself sets neither a body-size limit nor a request MIME scope: those remain host/engine mapping choices and, where selected, Common Runtime request_body_limit/body mode controls. Enabling body handling can add buffering, memory, CPU, and logging exposure, so retain bounded host input."),
     "SecResponseBodyAccess": ("SecResponseBodyAccess On | Off", ALLOWED_VALUES_TITLE_CASE_ON_OFF, DEFAULT_NO_EXAMPLE, "On makes P4 possible only when the host supplies response bytes that are in scope; Off removes response-body input from P4. It does not widen SecResponseBodyMimeType, override SecResponseBodyLimit/SecResponseBodyLimitAction, or force a status change after headers commit. With the selected safe late-intervention policy, a post-commit disruptive result is recorded as log_only rather than a promised later 403; response capture can add bounded memory, CPU, and sensitive-data exposure."),
     "SecResponseBodyMimeType": ("SecResponseBodyMimeType <type/subtype> [...]", "one or more MIME types", DEFAULT_NO_EXAMPLE, "Scopes engine response-body inspection by MIME type."),
-    "SecResponseBodyLimit": ("SecResponseBodyLimit <bytes>", "positive byte count", DEFAULT_NO_EXAMPLE, "Caps engine response-body input."),
-    "SecResponseBodyLimitAction": ("SecResponseBodyLimitAction ProcessPartial | Reject", ALLOWED_VALUES_LIMIT_ACTION, DEFAULT_NO_EXAMPLE, "Defines engine behavior when the response body exceeds the engine limit."),
+    "SecResponseBodyLimit": ("SecResponseBodyLimit <bytes>", "positive byte count", DEFAULT_NO_EXAMPLE, "Exclusively sets the response-body inspection limit; the connector has no corresponding option, default, or second enforcement logic."),
+    "SecResponseBodyLimitAction": ("SecResponseBodyLimitAction ProcessPartial | Reject", ALLOWED_VALUES_LIMIT_ACTION, DEFAULT_NO_EXAMPLE, "Exclusively selects Reject or ProcessPartial when the engine inspection limit is exceeded; the connector forwards native results and interventions."),
     "SecAuditEngine": ("SecAuditEngine RelevantOnly", "engine audit mode", DEFAULT_NO_EXAMPLE, "Enables the selected audit-log policy."),
     "SecAuditLogType": ("SecAuditLogType Serial", "audit log type", DEFAULT_NO_EXAMPLE, "Sets the selected audit-log write mode."),
     "SecAuditLogParts": ("SecAuditLogParts <parts>", "audit part letters", DEFAULT_NO_EXAMPLE, "Selects audit-log parts."),
@@ -1056,7 +1043,7 @@ ENGINE_RUNTIME_OVERRIDES: dict[str, dict[str, str]] = {
     "SecResponseBodyAccess": {
         "phase_relevance": (
             "P4. On is necessary but not sufficient: the connector must expose response bytes, "
-            "the MIME type must be in SecResponseBodyMimeType scope, and host/engine response limits apply."
+            "the MIME type must be in SecResponseBodyMimeType scope, and SecResponseBodyLimit/SecResponseBodyLimitAction apply. Technical frame and storage controls remain independent."
         ),
         "validation": (
             "The host/libmodsecurity rejects invalid engine syntax when loading the rule file. "
@@ -2679,7 +2666,6 @@ def envoy_processor_options(root: Path) -> list[dict[str, Any]]:
         "max_total_header_bytes",
         "max_body_chunk_bytes",
         "max_request_body_bytes",
-        "max_response_body_bytes",
         "max_grpc_message_bytes",
         "engine_timeout_ms",
         "stream_idle_timeout_ms",
@@ -2934,7 +2920,6 @@ def _assert_common_source_defaults(root: Path) -> None:
         "MSCONNECTOR_DEFAULT_USE_ERROR_LOG MSCONNECTOR_BOOL_ON": "common error-log default",
         "MSCONNECTOR_DEFAULT_PHASE4_MODE MSCONNECTOR_PHASE4_MODE_OFF": "common phase4 default",
         "MSCONNECTOR_DEFAULT_REQUEST_BODY_LIMIT 1048576": "common request storage default",
-        "MSCONNECTOR_DEFAULT_RESPONSE_BODY_LIMIT 1048576": "common response storage default",
     }
     for token, label in expected_tokens.items():
         if token not in options_header:
@@ -2957,7 +2942,7 @@ def _assert_documented_defaults(by_key: dict[tuple[str, str], str]) -> None:
     """Reject source-backed inventory defaults that no longer render exactly."""
     expected_defaults = {
         ("common", "enabled"): VALUE_OFF, ("common", "use_error_log"): "on", ("common", "phase4_mode"): VALUE_OFF,
-        ("common", "request_body_limit"): "1048576", ("common", "response_body_limit"): "1048576",
+        ("common", "request_body_limit"): "1048576",
         ("common", "body_limit_action"): "reject", ("common", "late_intervention_timeout"): "0",
         ("common", "default_block_status"): "403", ("common", "default_error_status"): "500",
         ("common", "max_header_count"): "256", ("common", "max_header_name_size"): "256",
@@ -3351,7 +3336,6 @@ GERMAN_TEXT: dict[str, str] = {
     DEFAULT_SOURCE_MAX_HEADER_COUNT: DEFAULT_SOURCE_MAX_HEADER_COUNT,
     DEFAULT_SOURCE_MAX_HEADER_NAME_LENGTH: DEFAULT_SOURCE_MAX_HEADER_NAME_LENGTH,
     DEFAULT_SOURCE_MAX_HEADER_VALUE_LENGTH: DEFAULT_SOURCE_MAX_HEADER_VALUE_LENGTH,
-    DEFAULT_SOURCE_MAX_RESPONSE_BODY_BUFFER: DEFAULT_SOURCE_MAX_RESPONSE_BODY_BUFFER,
     DEFAULT_SOURCE_MAX_TOTAL_HEADER_BYTES: DEFAULT_SOURCE_MAX_TOTAL_HEADER_BYTES,
     DEFAULT_SOURCE_ENABLE: DEFAULT_SOURCE_ENABLE,
     DEFAULT_SOURCE_PHASE4_MODE: DEFAULT_SOURCE_PHASE4_MODE,
@@ -3455,7 +3439,7 @@ GERMAN_TEXT: dict[str, str] = {
     "Bounds serialized metadata event size.": "Begrenzt die Größe serialisierter Metadatenereignisse.",
     "Bounds the native middleware's streaming callbacks.": "Begrenzt die Streaming-Callbacks der nativen Middleware.",
     "Bounds total header bytes.": "Begrenzt die gesamte Header-Byteanzahl.",
-    "Caps engine response-body input.": "Begrenzt die Response-Body-Eingabe der Engine.",
+    "Exclusively sets the response-body inspection limit; the connector has no corresponding option, default, or second enforcement logic.": "Legt ausschließlich das Response-Body-Inspection-Limit fest; der Connector besitzt dafür keine Option, keinen Default und keine zweite Durchsetzungslogik.",
     "Compatibility host/service setup outside the selected native core path.": "Kompatibilitäts-Host-/Serviceeinrichtung außerhalb des ausgewählten nativen Kernpfads.",
     "Compatibility response control. The selected SPOE messages do not supply a response body, so this is not native P4 support.": "Kompatibilitäts-Response-Steuerung. Die ausgewählten SPOE-Nachrichten liefern keinen Response-Body; dies ist daher keine native P4-Unterstützung.",
     "Compatibility-only proxy routing.": "Proxy-Routing nur für die Kompatibilität.",
@@ -3465,9 +3449,9 @@ GERMAN_TEXT: dict[str, str] = {
     "Controls forwarding of libmodsecurity messages to the host error log; it does not switch rule evaluation.": "Steuert die Weiterleitung von libmodsecurity-Meldungen an das Host-Fehlerlog; die Regelauswertung wird dadurch nicht umgeschaltet.",
     "Opt-in harness evidence plumbing emits the server-generated host transaction ID as X-Msconnector-Host-Transaction-Id after response-header processing.": "Opt-in-Nachweisverdrahtung des Harnesses gibt die servergenerierte Host-Transaktions-ID nach der Verarbeitung der Response-Header als X-Msconnector-Host-Transaction-Id aus.",
     "Controls rule execution/disruptive action inside libmodsecurity, independently of the host connector switch.": "Steuert Regelausführung/disruptive Aktion innerhalb von libmodsecurity, unabhängig vom Hostconnector-Schalter.",
-    "Controls whether an over-limit chunk is rejected or truncated before engine input.": "Steuert, ob ein Chunk über dem Limit vor der Engine-Eingabe abgewiesen oder gekürzt wird.",
+    "Controls whether an over-limit request chunk is rejected or truncated before engine input; response limits and actions belong exclusively to libModSecurity.": "Steuert, ob ein Request-Chunk über dem Limit vor der Engine-Eingabe abgewiesen oder gekürzt wird; Response-Limits und -Aktionen gehören ausschließlich libModSecurity.",
     "Defines a ModSecurity rule such as the local RESPONSE_BODY P4 illustration.": "Definiert eine ModSecurity-Regel wie die lokale RESPONSE_BODY-P4-Illustration.",
-    "Defines engine behavior when the response body exceeds the engine limit.": "Definiert das Engine-Verhalten, wenn der Response-Body das Engine-Limit überschreitet.",
+    "Exclusively selects Reject or ProcessPartial when the engine inspection limit is exceeded; the connector forwards native results and interventions.": "Wählt ausschließlich Reject oder ProcessPartial beim Überschreiten des Engine-Inspection-Limits; der Connector verarbeitet native Ergebnisse und Interventionen weiter.",
     "During NGINX configuration loading, ngx_conf_set_rules_file passes the supplied path to libmodsecurity's msc_rules_add_file. The NGINX setter neither canonicalizes nor requires an absolute path; use an absolute path to avoid a process-working-directory dependency. A missing, unreadable, or invalid top-level rule file returns the libmodsecurity loader error and fails the configuration check/reload. Include and IncludeOptional inside that file are then interpreted by libmodsecurity, not expanded by the NGINX parser. Unlike modsecurity_rules, which sends one inline configuration string to msc_rules_add, this directive sends a file path to msc_rules_add_file; both contribute to the configured rule set and its normal parent/child merge.": "Beim Laden der NGINX-Konfiguration übergibt ngx_conf_set_rules_file den bereitgestellten Pfad an msc_rules_add_file von libmodsecurity. Der NGINX-Setter kanonisiert den Pfad nicht und verlangt keinen absoluten Pfad; ein absoluter Pfad vermeidet eine Abhängigkeit vom Arbeitsverzeichnis des Prozesses. Eine fehlende, unlesbare oder ungültige Regeldatei der obersten Ebene liefert den Loader-Fehler von libmodsecurity und lässt Konfigurationsprüfung/Reload fehlschlagen. Include und IncludeOptional in dieser Datei werden anschließend von libmodsecurity interpretiert, nicht durch den NGINX-Parser expandiert. Anders als modsecurity_rules, das eine Inline-Konfigurationszeichenkette an msc_rules_add sendet, übergibt diese Direktive einen Dateipfad an msc_rules_add_file; beide tragen zum konfigurierten Regelsatz und seinem normalen Eltern-/Kind-Merge bei.",
     "Enables engine request-body access for P2 when the host supplies the body.": "Aktiviert den Engine-Zugriff auf den Request-Body für P2, wenn der Host den Body bereitstellt.",
     "Enables engine response-body access for P4 when the host supplies in-scope bytes.": "Aktiviert den Engine-Zugriff auf den Response-Body für P4, wenn der Host Bytes im Geltungsbereich bereitstellt.",
@@ -3582,7 +3566,7 @@ GERMAN_TEXT: dict[str, str] = {
     "Limits bound resource use. Bounds response bytes offered to the engine.": "Limits begrenzen den Ressourcenverbrauch. Begrenzt die der Engine angebotenen Response-Bytes.",
     "Limits bound resource use. Bounds serialized metadata event size.": "Limits begrenzen den Ressourcenverbrauch. Begrenzt die Größe serialisierter Metadatenereignisse.",
     "Limits bound resource use. Bounds total header bytes.": "Limits begrenzen den Ressourcenverbrauch. Begrenzt die gesamte Header-Byteanzahl.",
-    "Limits bound resource use. Controls whether an over-limit chunk is rejected or truncated before engine input.": "Limits begrenzen den Ressourcenverbrauch. Steuert, ob ein Chunk über dem Limit vor der Engine-Eingabe abgewiesen oder gekürzt wird.",
+    "Limits bound resource use. Controls whether an over-limit request chunk is rejected or truncated before engine input; response limits and actions belong exclusively to libModSecurity.": "Limits begrenzen den Ressourcenverbrauch. Steuert, ob ein Request-Chunk über dem Limit vor der Engine-Eingabe abgewiesen oder gekürzt wird; Response-Limits und -Aktionen gehören ausschließlich libModSecurity.",
     "Limits bound resource use. Enables the Common Runtime; enabled runtime requires an inline, file, or remote rule source.": "Limits begrenzen den Ressourcenverbrauch. Aktiviert die Common Runtime; eine aktivierte Runtime benötigt eine Inline-, Datei- oder Remote-Regelquelle.",
     "Limits bound resource use. Fallback status for runtime errors.": "Limits begrenzen den Ressourcenverbrauch. Fallback-Status für Runtime-Fehler.",
     "Limits bound resource use. Fallback status for supported pre-commit block actions.": "Limits begrenzen den Ressourcenverbrauch. Fallback-Status für unterstützte Sperraktionen vor dem Commit.",
@@ -3626,7 +3610,7 @@ GERMAN_TEXT: dict[str, str] = {
     "The host/libmodsecurity rejects invalid engine syntax when loading the rule file. At runtime, an out-of-scope MIME type, disabled host body path, or exceeded limit can leave P4 without the expected complete body input.": "Der Host/libmodsecurity weist beim Laden der Regeldatei ungültige Engine-Syntax ab. Zur Laufzeit können ein von der Engine ausgeschlossener Response-MIME-Typ, ein deaktivierter Host-Body-Pfad oder ein überschrittenes Limit P4 ohne die erwartete vollständige Body-Eingabe lassen.",
     "The host/libmodsecurity rejects malformed variable/operator/action syntax, duplicate or invalid identifiers, and invalid action combinations when loading the rule file.": "Der Host/libmodsecurity weist beim Laden der Regeldatei fehlerhafte Variablen-/Operator-/Action-Syntax, doppelte oder ungültige Kennungen und ungültige Action-Kombinationen ab.",
     "P2. On permits body inspection only after the connector has supplied request bytes; the selected host/runtime body mode and limit determine how many bytes can reach the engine.": "P2. On erlaubt Body-Inspektion erst, nachdem der Connector Request-Bytes bereitgestellt hat; ausgewählter Host-/Runtime-Body-Modus und Limit bestimmen, wie viele Bytes die Engine erreichen können.",
-    "P4. On is necessary but not sufficient: the connector must expose response bytes, the MIME type must be in SecResponseBodyMimeType scope, and host/engine response limits apply.": "P4. On ist notwendig, aber nicht hinreichend: Der Connector muss Response-Bytes bereitstellen, der MIME-Typ muss im Geltungsbereich von SecResponseBodyMimeType liegen, und Host-/Engine-Response-Limits gelten.",
+    "P4. On is necessary but not sufficient: the connector must expose response bytes, the MIME type must be in SecResponseBodyMimeType scope, and SecResponseBodyLimit/SecResponseBodyLimitAction apply. Technical frame and storage controls remain independent.": "P4. On ist notwendig, aber nicht hinreichend: Der Connector muss Response-Bytes bereitstellen, der MIME-Typ muss im Geltungsbereich von SecResponseBodyMimeType liegen, und SecResponseBodyLimit/SecResponseBodyLimitAction gelten. Technische Frame- und Speicherkontrollen bleiben unabhängig.",
     "The phase action selects the evaluation point; the local RESPONSE_BODY example uses P4. A disruptive action can affect the visible HTTP result only while the host can still intervene.": "Die Phasen-Action wählt den Auswertungspunkt; das lokale RESPONSE_BODY-Beispiel verwendet P4. Eine disruptive Action kann das sichtbare HTTP-Ergebnis nur beeinflussen, solange der Host noch eingreifen kann.",
     "Request bodies may contain credentials or personal data. Use bounded body limits, appropriate MIME/parser policy, and protected audit/debug logs; no performance quantity is inferred here.": "Request-Bodys können Zugangsdaten oder personenbezogene Daten enthalten. Begrenzte Body-Limits, passende MIME-/Parser-Policy und geschützte Audit-/Debug-Logs verwenden; hier wird keine Leistungskennzahl abgeleitet.",
     "Response bodies can be large and sensitive. Keep MIME scope and response limits narrow, protect logs, and do not equate safe post-commit evidence with a client-visible later 403.": "Response-Bodys können groß und sensibel sein. MIME-Geltungsbereich und Response-Limits eng halten, Logs schützen und sichere Nachweise nach dem Commit nicht mit einer für Clients sichtbaren späteren 403 gleichsetzen.",
@@ -3652,7 +3636,7 @@ GERMAN_TEXT: dict[str, str] = {
     "one readable legacy file with MIME tokens": "eine lesbare Legacy-Datei mit MIME-Token",
     "none; deprecated Apache compatibility input": "kein Wert; veraltete Apache-Kompatibilitätseingabe",
     "Apache compatibility parser; deprecated": "Apache-Kompatibilitätsparser; veraltet",
-    "Apache appends each normalized response bucket exactly once and forwards non-terminal output to the next filter without waiting for EOS. It finishes P4 exactly once at actual EOS. With policy off the connector keeps its native intervention path. After the next-filter commitment boundary, safe records log_only and strict requests abort_connection instead of a late status rewrite.": "Apache hängt jeden normalisierten Response-Bucket genau einmal an und leitet nichtterminale Ausgabe ohne Warten auf EOS an den nächsten Filter weiter. Es beendet P4 genau einmal am tatsächlichen EOS. Mit Policy off bewahrt der Connector seinen nativen Interventionspfad. Nach der Commit-Grenze des nächsten Filters zeichnet safe log_only auf und strict fordert abort_connection statt einer späten Statusumschreibung an.",
+    "Apache appends each normalized response bucket exactly once and forwards non-terminal output to the next filter without waiting for EOS. It retains only the terminal EOS fragment for phase completion. It finishes P4 exactly once at actual EOS. With policy off the connector keeps its native intervention path. After the next-filter commitment boundary, safe records log_only and strict requests abort_connection instead of a late status rewrite.": "Apache hängt jeden normalisierten Response-Bucket genau einmal an und leitet nichtterminale Ausgabe ohne Warten auf EOS an den nächsten Filter weiter. Es hält nur das terminale EOS-Fragment für den Phasenabschluss zurück. Es beendet P4 genau einmal am tatsächlichen EOS. Mit Policy off bewahrt der Connector seinen nativen Interventionspfad. Nach der Commit-Grenze des nächsten Filters zeichnet safe log_only auf und strict fordert abort_connection statt einer späten Statusumschreibung an.",
     "Already forwarded response bytes cannot be rewritten. Safe records a post-commit disruptive decision as log_only; strict requests the configured host abort action rather than synthesizing a later 403.": "Bereits weitergeleitete Response-Bytes können nicht umgeschrieben werden. Safe zeichnet eine disruptive Entscheidung nach Commit als log_only auf; strict fordert die konfigurierte Host-Abort-Action an, statt eine spätere 403 zu synthetisieren.",
     "P4 only. Apache commits at the next-filter boundary before it forwards a current non-terminal brigade; this setting controls the canonical pre- and post-commit decision mapping.": "Nur P4. Apache committet an der Grenze zum nächsten Filter, bevor es eine aktuelle nichtterminale Brigade weiterleitet; diese Einstellung steuert die kanonische Decision-Zuordnung vor und nach Commit.",
     "Deprecated Apache compatibility parser for a legacy MIME list. It does not narrow the universal P4 inspection path; use SecResponseBodyMimeType to select libModSecurity inspection.": "Veralteter Apache-Kompatibilitätsparser für eine Legacy-MIME-Liste. Er schränkt den universellen P4-Inspektionspfad nicht ein; SecResponseBodyMimeType wählt die libModSecurity-Inspektion.",
@@ -3679,14 +3663,14 @@ GERMAN_TEXT: dict[str, str] = {
     "The patched module rejects a missing/other gate value when request_body_mode=streaming and rejects a configured gate for non-streaming request bodies.": "Das gepatchte Modul weist bei request_body_mode=streaming einen fehlenden oder anderen Gate-Wert zurück und weist ein konfiguriertes Gate bei nicht-streamenden Request-Bodys zurück.",
     "native-htx is the required P3/P4 companion for the logical HAProxy SPOE/SPOP profile; none rejects response-phase activation because raw SPOE/SPOP has no response EOS.": "native-htx ist der erforderliche P3/P4-Begleiter für das logische HAProxy-SPOE/SPOP-Profil; none weist die Aktivierung von Response-Phasen zurück, weil reines SPOE/SPOP kein Response-EOS besitzt.",
     "P2 only. The gate keeps the bounded request body from reaching an upstream before the Phase-2 decision completes.": "Nur P2. Das Gate verhindert, dass der begrenzte Request-Body einen Upstream erreicht, bevor die Phase-2-Entscheidung abgeschlossen ist.",
-    "The companion must use an explicit private UDS socket, matching service UID/GID, bounded response-body limit, and fail-closed opaque-handle correlation.": "Der Begleiter muss einen expliziten privaten UDS-Socket, passende Service-UID/GID, ein begrenztes Response-Body-Limit und eine fail-closed-Korrelation über einen opaken Handle verwenden.",
+    "The companion must use an explicit private UDS socket, matching service UID/GID, bounded protocol frames, and fail-closed opaque-handle correlation.": "Der Begleiter muss einen expliziten privaten UDS-Socket, passende Service-UID/GID, begrenzte Protokollframes und eine fail-closed-Korrelation über einen opaken Handle verwenden.",
     "pre-upstream is required for patched streaming P2 so body-bearing requests cannot bypass Common Runtime enforcement before the bounded EOS decision.": "pre-upstream ist für gepatchtes streamendes P2 erforderlich, damit Request-Bodys die Durchsetzung der Common Runtime nicht vor der begrenzten EOS-Entscheidung umgehen können.",
     "SPOP owner configuration for the required native-HTX MRC1 response companion. native-htx publishes one bounded opaque handle for HTX P3/P4 processing.": "SPOP-Owner-Konfiguration für den erforderlichen nativen-HTX-MRC1-Response-Begleiter. native-htx veröffentlicht einen begrenzten opaken Handle für die HTX-P3/P4-Verarbeitung.",
     "Enables the patched-host pre-upstream request-body gate; stock lighttpd does not select it.": "Aktiviert das Pre-upstream-Request-Body-Gate des gepatchten Hosts; ungepatchtes lighttpd wählt es nicht.",
     "Patched-host P2 gate that retains a bounded request body before upstream release.": "P2-Gate des gepatchten Hosts, das einen begrenzten Request-Body vor der Upstream-Freigabe zurückhält.",
     "The host/libmodsecurity rejects invalid engine syntax when loading the rule file. At runtime, an engine-excluded response MIME type, disabled host body path, or exceeded limit can leave P4 without the expected complete body input.": "Der Host beziehungsweise libmodsecurity weist ungültige Engine-Syntax beim Laden der Regeldatei ab. Zur Laufzeit können ein durch die Engine ausgeschlossener Response-MIME-Typ, ein deaktivierter Host-Body-Pfad oder ein überschrittenes Limit dazu führen, dass P4 nicht die erwartete vollständige Body-Eingabe erhält.",
     "P4 only. off preserves native HTX intervention handling; safe uses the non-disruptive late path; strict requests the supported host abort path.": "Nur P4. off bewahrt die native HTX-Interventionsbehandlung; safe verwendet den nicht disruptiven späten Pfad; strict fordert den unterstützten Host-Abbruchpfad an.",
-    "P4 only. Response bytes continue to be offered to ModSecurity subject to engine configuration and connector body limits; the mode controls intervention handling, not MIME inspection scope.": "Nur P4. Response-Bytes werden ModSecurity unter Beachtung der Engine-Konfiguration und der Connector-Body-Limits weiterhin angeboten; der Modus steuert die Interventionsbehandlung, nicht den MIME-Inspektionsbereich.",
+    "P4 only. Response bytes continue to be offered to ModSecurity subject to engine configuration; independent technical safeguards remain. The mode controls intervention handling, not MIME inspection scope.": "Nur P4. Response-Bytes werden ModSecurity unter Beachtung der Engine-Konfiguration weiterhin angeboten; unabhängige technische Schutzmechanismen bleiben erhalten. Der Modus steuert die Interventionsbehandlung, nicht den MIME-Inspektionsbereich.",
     "off is the compatibility default, safe avoids a fabricated late status rewrite, and strict may terminate an already-started response through the native abort path.": "off ist der Kompatibilitätsstandard, safe vermeidet eine vorgetäuschte nachträgliche Statusumschreibung und strict kann eine bereits gestartete Antwort über den nativen Abbruchpfad beenden.",
     "off preserves NGINX's native intervention handling without disabling ModSecurity response-body inspection. safe applies an intervention while the response is still changeable and records a late disruptive decision without inventing a new status. strict uses the native abort_connection path after commit. Response MIME selection belongs to ModSecurity through SecResponseBodyMimeType.": "off bewahrt die native Interventionsbehandlung von NGINX, ohne die ModSecurity-Response-Body-Inspektion zu deaktivieren. safe wendet eine Intervention an, solange die Antwort noch geändert werden kann, und protokolliert eine späte disruptive Entscheidung, ohne einen neuen Status zu erfinden. strict verwendet nach dem Commit den nativen abort_connection-Pfad. Die Response-MIME-Auswahl gehört über SecResponseBodyMimeType zu ModSecurity.",
 }
@@ -4197,7 +4181,7 @@ def layer_separation_section(german: bool) -> list[str]:
 def connector_runtime_keys(connector: str) -> tuple[str, ...]:
     standard = (
         "enabled", "rules_file", "transaction_id_header", "request_body_mode", "response_body_mode",
-        "request_body_limit", "response_body_limit", "body_limit_action", "phase4_mode",
+        "request_body_limit", "body_limit_action", "phase4_mode",
         "default_block_status", "default_error_status", "use_error_log", "max_header_count",
         "max_header_name_size", "max_header_value_size", "max_total_header_bytes", "max_event_json_bytes",
     )

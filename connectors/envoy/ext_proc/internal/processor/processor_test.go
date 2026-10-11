@@ -455,7 +455,6 @@ func TestCumulativeBodyAccountingRejectsSignedOverflow(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			config := testConfig(LateActionSafe)
 			config.MaxRequestBodyBytes = math.MaxInt64
-			config.MaxResponseBodyBytes = math.MaxInt64
 			state := newStreamState(config, recordingEngine{transaction: &recordingTransaction{}}, discardObserver{})
 
 			// The last representable byte is a legitimate boundary and must be
@@ -1341,7 +1340,6 @@ func testConfig(policy LateActionPolicy) Config {
 		MaxTotalHeaderBytes:  32768,
 		MaxBodyChunkBytes:    1024,
 		MaxRequestBodyBytes:  4096,
-		MaxResponseBodyBytes: 4096,
 		MaxGRPCMessageBytes:  2048,
 		EngineTimeoutMS:      100,
 		StreamIdleTimeoutMS:  100,

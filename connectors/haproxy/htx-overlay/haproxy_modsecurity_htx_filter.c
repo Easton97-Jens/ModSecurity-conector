@@ -50,7 +50,6 @@
 #include "msconnector/config_parser.h"
 #include "msconnector/decision_action.h"
 #include "msconnector/late_intervention.h"
-#include "msconnector/phase4_budget.h"
 #include "msconnector/limits.h"
 
 #define HAPROXY_MODSECURITY_HTX_MAX_HEADERS MSCONNECTOR_MAX_HEADER_COUNT
@@ -108,7 +107,6 @@ struct haproxy_modsecurity_htx_filter_context {
         int body_started;
         int finished;
         size_t payload_bytes_seen;
-        size_t body_limit;
         char handle[HAPROXY_MODSECURITY_HTX_RESPONSE_HANDLE_LENGTH + 1U];
         int handle_present;
     } response;
@@ -760,7 +758,7 @@ static int haproxy_modsecurity_htx_begin_request(
 static int haproxy_modsecurity_htx_append_payload(
     struct filter *filter, struct http_msg *msg, unsigned int offset, unsigned int len,
     haproxy_modsecurity_htx_append_body_chunk append_body_chunk,
-    size_t *body_bytes_seen, size_t body_limit)
+    size_t *body_bytes_seen, const size_t *request_body_limit)
 {
     struct haproxy_modsecurity_htx_filter_context *ctx = filter->ctx;
     struct htx *htx;
@@ -769,7 +767,7 @@ static int haproxy_modsecurity_htx_append_payload(
     unsigned int remaining = len;
 
     if (!ctx || !ctx->transaction || !msg || !msg->chn || !append_body_chunk ||
-            !body_bytes_seen || body_limit == 0U) {
+            !body_bytes_seen || (request_body_limit && *request_body_limit == 0U)) {
         return -1;
     }
     htx = htxbuf(&msg->chn->buf);
@@ -796,7 +794,9 @@ static int haproxy_modsecurity_htx_append_payload(
             }
             /* `value.ptr` is borrowed from HAProxy's current HTX buffer. */
             if (value.len > UINT_MAX ||
-                value.len > body_limit || *body_bytes_seen > body_limit - value.len ||
+                *body_bytes_seen > SIZE_MAX - value.len ||
+                (request_body_limit && (value.len > *request_body_limit ||
+                 *body_bytes_seen > *request_body_limit - value.len)) ||
                 append_body_chunk(
                     ctx->transaction, (const unsigned char *)value.ptr,
                     (unsigned int)value.len, &decision) != 0) {
@@ -822,7 +822,7 @@ static int haproxy_modsecurity_htx_append_request_payload(
         filter, msg, offset, len,
         haproxy_modsecurity_transaction_append_request_body_chunk,
         &((struct haproxy_modsecurity_htx_filter_context *)filter->ctx)->request.payload_bytes_seen,
-        ((struct haproxy_modsecurity_htx_filter_context *)filter->ctx)->request.body_limit);
+        &((struct haproxy_modsecurity_htx_filter_context *)filter->ctx)->request.body_limit);
 }
 
 static int haproxy_modsecurity_htx_process_response_headers(
@@ -1195,7 +1195,7 @@ static int haproxy_modsecurity_htx_append_response_payload(
         filter, msg, offset, len,
         haproxy_modsecurity_transaction_append_response_body_chunk,
         &((struct haproxy_modsecurity_htx_filter_context *)filter->ctx)->response.payload_bytes_seen,
-        ((struct haproxy_modsecurity_htx_filter_context *)filter->ctx)->response.body_limit);
+        NULL);
 }
 
 static int haproxy_modsecurity_htx_finish_companion_response(
@@ -1355,8 +1355,6 @@ static int haproxy_modsecurity_htx_filter_attach(struct stream *s, struct filter
         return -1;
     }
     ctx->request.body_limit = config->common_config.request_body_limit;
-    ctx->response.body_limit = msconnector_phase4_effective_body_limit(
-        config->common_config.phase4_mode);
     ctx->companion.mode =
         haproxy_modsecurity_htx_companion_enabled(config);
     filter->ctx = ctx;

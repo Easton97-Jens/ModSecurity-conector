@@ -731,7 +731,7 @@ func TestEmptyRequestAndResponseBody(t *testing.T) {
 	r.Finish(context.Background(), "success")
 }
 
-func TestRequestAndResponseBodyChunkLimitsAreIndependent(t *testing.T) {
+func TestResponseChunksHaveNoCumulativeInspectionBudget(t *testing.T) {
 	c, _ := newTestCoordinator(t, Limits{MaxBodyChunks: 1})
 	a, _, err := c.BeginRequest(context.Background(), metadata(), nil, false)
 	if err != nil {
@@ -751,8 +751,10 @@ func TestRequestAndResponseBodyChunkLimitsAreIndependent(t *testing.T) {
 	if _, err = r.Headers(context.Background(), nil, false); err != nil {
 		t.Fatalf("response headers = %v", err)
 	}
-	if _, err = r.Body(context.Background(), []byte("response"), true); err != nil {
-		t.Fatalf("first response body must have its own budget: %v", err)
+	for i := 0; i < 300; i++ {
+		if _, err = r.Body(context.Background(), []byte("response"), i == 299); err != nil {
+			t.Fatalf("response chunk %d: %v", i, err)
+		}
 	}
 	r.Finish(context.Background(), "success")
 }

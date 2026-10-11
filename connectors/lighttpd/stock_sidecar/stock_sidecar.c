@@ -3,7 +3,6 @@
 #include "stock_sidecar.h"
 
 #include "msconnector_runtime.h"
-#include "msconnector/phase4_budget.h"
 #include "msconnector/decision_action.h"
 #include "msconnector/generic_mapper.h"
 #include "msconnector/late_intervention.h"
@@ -882,7 +881,6 @@ typedef struct sidecar_exchange_state {
     size_t header_limit;
     size_t count_limit;
     size_t request_limit;
-    size_t response_limit;
     sidecar_exchange_payload payload;
     msconnector_runtime_transaction *transaction;
     msconnector_decision decision;
@@ -932,7 +930,6 @@ static void sidecar_exchange_state_init(sidecar_exchange_state *state, int clien
     state->header_limit = msconnector_runtime_total_header_limit(runtime);
     state->count_limit = msconnector_runtime_header_count_limit(runtime);
     state->request_limit = msconnector_runtime_request_body_limit(runtime);
-    state->response_limit = msconnector_runtime_response_body_limit(runtime);
     state->upstream = -1;
     state->failure_status = 502;
     state->failure_origin = SIDECAR_FAILURE_CONNECTOR;
@@ -984,9 +981,7 @@ static int sidecar_runtime_limits_supported(const msconnector_runtime *runtime) 
     return runtime != NULL &&
         msconnector_runtime_header_count_limit(runtime) <= MSCONNECTOR_MAX_HEADER_COUNT &&
         msconnector_runtime_total_header_limit(runtime) <= MSCONNECTOR_MAX_TOTAL_HEADER_BYTES &&
-        msconnector_runtime_request_body_limit(runtime) <= MSCONNECTOR_MAX_BODY_BUFFER_SIZE &&
-        msconnector_runtime_response_body_limit(runtime) <=
-            MSCONNECTOR_MAX_RESPONSE_BODY_BUFFER_SIZE;
+        msconnector_runtime_request_body_limit(runtime) <= MSCONNECTOR_MAX_BODY_BUFFER_SIZE;
 }
 
 static int sidecar_read_request_body(sidecar_exchange_state *state) {
@@ -1433,21 +1428,6 @@ static int sidecar_exchange_response(sidecar_exchange_state *state) {
         }
     }
     if (!sidecar_read_final_response_headers(state)) return 0;
-    if (!state->payload.response_headers.no_body &&
-        state->payload.response_headers.content_length >
-            msconnector_phase4_effective_body_limit(
-                msconnector_runtime_phase4_mode(state->dependencies.runtime))) {
-        int status = msconnector_runtime_error_http_status(state->dependencies.runtime,
-            MSCONNECTOR_ERROR_BODY_TOO_LARGE);
-        int written;
-        (void)msconnector_runtime_transaction_fail(state->transaction,
-            MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, &state->error);
-        written = sidecar_write_error(state->client, status, &state->deadline);
-        sidecar_record_failure_action(state->transaction, status, written, &state->error);
-        (void)msconnector_runtime_transaction_finish(state->transaction, &state->error);
-        state->handled = 1;
-        return 0;
-    }
     memset(&response, 0, sizeof(response));
     response.status = state->payload.response_headers.status_code;
     response.http_version = state->payload.response_headers.version;
@@ -1568,7 +1548,7 @@ static int sidecar_exchange_legacy(int client, const sidecar_options *options,
     size_t header_limit = msconnector_runtime_total_header_limit(runtime);
     size_t count_limit = msconnector_runtime_header_count_limit(runtime);
     size_t request_limit = msconnector_runtime_request_body_limit(runtime);
-    size_t response_limit = msconnector_runtime_response_body_limit(runtime);
+    size_t response_buffer_capacity = MSCONNECTOR_MAX_RESPONSE_BODY_BUFFER_SIZE;
     char *request_block = NULL;
     char *response_block = NULL;
     size_t request_size = 0U;
@@ -1691,11 +1671,11 @@ static int sidecar_exchange_legacy(int client, const sidecar_options *options,
         failure_origin = SIDECAR_FAILURE_PROTOCOL;
         goto transaction_error;
     }
-    if (response_headers.content_length > response_limit) {
+    if (response_headers.content_length > response_buffer_capacity) {
         int response_written;
-        failure_status = msconnector_runtime_error_http_status(runtime, MSCONNECTOR_ERROR_BODY_TOO_LARGE);
+        failure_status = msconnector_runtime_error_http_status(runtime, MSCONNECTOR_ERROR_INTERNAL);
         (void)msconnector_runtime_transaction_fail(transaction,
-            MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, &error);
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, &error);
         response_written = sidecar_write_error(client, failure_status, &deadline);
         sidecar_record_failure_action(transaction, failure_status, response_written, &error);
         (void)msconnector_runtime_transaction_finish(transaction, &error);

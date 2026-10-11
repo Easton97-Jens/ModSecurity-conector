@@ -58,7 +58,6 @@ transaction_id_header=x-request-id
 request_body_mode=streaming
 response_body_mode=streaming
 request_body_limit=10485760
-response_body_limit=10485760
 body_limit_action=reject
 phase4_mode=safe
 default_block_status=403
@@ -80,14 +79,13 @@ event_path=%s
 	}
 	observer := &recordedLifecycleEvents{}
 	coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{
-		Capacity:        1,
-		TTL:             time.Second,
-		IdleTTL:         time.Second,
-		MaxRequestBody:  32,
-		MaxResponseBody: 1 << 20,
-		MaxBodyChunks:   256,
-		MaxHeaders:      256,
-		MaxHeaderBytes:  64 << 10,
+		Capacity:       1,
+		TTL:            time.Second,
+		IdleTTL:        time.Second,
+		MaxRequestBody: 32,
+		MaxBodyChunks:  256,
+		MaxHeaders:     256,
+		MaxHeaderBytes: 64 << 10,
 	}, engine, observer)
 	if err != nil {
 		_ = closeCommonRuntimeForTest(t, engine)

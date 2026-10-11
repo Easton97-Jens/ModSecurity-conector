@@ -21,7 +21,6 @@ class ConnectorConfigReferenceTests(unittest.TestCase):
             limits,
             {
                 "request_body_limit": 10485760,
-                "response_body_limit": 10485760,
                 "max_header_count": 256,
                 "max_header_name_size": 256,
                 "max_header_value_size": 8192,

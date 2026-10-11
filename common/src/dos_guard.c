@@ -26,7 +26,6 @@ int msconnector_dos_guard_check_response(const msconnector_response *response, c
     if (error != 0) { msconnector_error_init(error); }
     if (response == 0 || !msconnector_resource_limits_validate(limits)) { set_error(error, MSCONNECTOR_ERROR_INVALID_CONFIG, "invalid response or resource limits"); return 0; }
     if (!msconnector_resource_limits_headers_ok(response->headers, response->header_count, limits)) { set_error(error, MSCONNECTOR_ERROR_HEADER_TOO_LARGE, "response headers exceed resource limits"); return 0; }
-    if (!msconnector_resource_limits_body_ok(response->body.size, limits->max_response_body_bytes)) { set_error(error, MSCONNECTOR_ERROR_BODY_TOO_LARGE, "response body exceeds resource limit"); return 0; }
     return 1;
 }
 

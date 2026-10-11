@@ -290,8 +290,7 @@ jeder Worker seine Engine initialisiert; Live-Load-Charakterisierung und ein
 früheres Protokoll-Admission-Budget bleiben dokumentierte Restrisiken.
 
 Das Default-Profil `response-companion=none` weist jede
-Response-Phasen-Aktivierung (`response-body-limit > 0`,
-`enable-response-headers` oder `response-phases`) mit Exit `2` ab, bevor es
+Response-Phasen-Aktivierung (`enable-response-headers` oder `response-phases`) mit Exit `2` ab, bevor es
 einen Produktions-Listener oder Worker erzeugt. Das ist fail-closed-
 Konfigurationsablehnung, kein partielles Response-Enforcement; ein gültiger
 request-side-only-Start ist die legitime Folgekontrolle. Das Profil

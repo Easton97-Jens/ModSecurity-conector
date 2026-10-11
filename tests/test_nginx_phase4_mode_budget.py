@@ -32,7 +32,6 @@ PREAMBLE = r"""
 #include "msconnector/body_policy.h"
 #include "msconnector/options.h"
 #include "msconnector/limits.h"
-#include "msconnector/phase4_budget.h"
 
 typedef int ngx_int_t;
 #define NGX_OK 0
@@ -79,36 +78,32 @@ int main(int argc, char **argv)
 
     if (strcmp(argv[1], "off-large") == 0) {
         conf.phase4_mode = MSCONNECTOR_PHASE4_MODE_OFF;
-        CHECK(effective_response_limit(&conf) == SIZE_MAX);
-        CHECK(ngx_http_modsecurity_plan_limited_response_body(
+        CHECK(ngx_http_modsecurity_account_response_body(
             &ctx, &conf, limit + 1U, &allowed) == NGX_OK);
         CHECK(allowed == limit + 1U);
         CHECK(ctx.response_body_bytes_seen == limit + 1U);
-        CHECK(ctx.response_body_bytes_seen <= effective_response_limit(&conf));
         CHECK(ctx.response_body_seen && !ctx.response_body_truncated);
         CHECK(ctx.contract.error == 0);
         CHECK(ctx.response_body_bytes_inspected == 0U);
     } else if (strcmp(argv[1], "off-multiple") == 0) {
         conf.phase4_mode = MSCONNECTOR_PHASE4_MODE_OFF;
         for (i = 0U; i < 3U; ++i) {
-            CHECK(ngx_http_modsecurity_plan_limited_response_body(
+            CHECK(ngx_http_modsecurity_account_response_body(
                 &ctx, &conf, limit, &allowed) == NGX_OK);
             CHECK(allowed == limit);
             ctx.response_body_bytes_inspected += allowed;
         }
         CHECK(ctx.response_body_bytes_seen == 3U * limit);
-        CHECK(ctx.response_body_bytes_seen <= effective_response_limit(&conf));
         CHECK(!ctx.response_body_truncated);
     } else if (strcmp(argv[1], "safe-strict-boundary") == 0) {
         for (i = 0U; i < sizeof(modes) / sizeof(modes[0]); ++i) {
             memset(&ctx, 0, sizeof(ctx));
             conf.phase4_mode = modes[i];
-            CHECK(effective_response_limit(&conf) == SIZE_MAX);
-            CHECK(ngx_http_modsecurity_plan_limited_response_body(
+                CHECK(ngx_http_modsecurity_account_response_body(
                 &ctx, &conf, limit, &allowed) == NGX_OK);
             CHECK(allowed == limit);
             ctx.response_body_bytes_inspected += allowed;
-            CHECK(ngx_http_modsecurity_plan_limited_response_body(
+            CHECK(ngx_http_modsecurity_account_response_body(
                 &ctx, &conf, 1U, &allowed) == NGX_OK);
             CHECK(allowed == 1U);
             CHECK(ctx.response_body_bytes_seen == limit + 1U);
@@ -119,7 +114,7 @@ int main(int argc, char **argv)
         for (i = 0U; i < sizeof(modes) / sizeof(modes[0]); ++i) {
             memset(&ctx, 0, sizeof(ctx));
             conf.phase4_mode = modes[i];
-            CHECK(ngx_http_modsecurity_plan_limited_response_body(
+            CHECK(ngx_http_modsecurity_account_response_body(
                 &ctx, &conf, limit + 1U, &allowed) == NGX_OK);
             CHECK(allowed == limit + 1U);
             CHECK(ctx.response_body_bytes_seen == limit + 1U);
@@ -131,56 +126,42 @@ int main(int argc, char **argv)
         conf.phase4_mode = MSCONNECTOR_PHASE4_MODE_OFF;
         ctx.response_body_bytes_seen = SIZE_MAX - 1U;
         ctx.response_body_bytes_inspected = SIZE_MAX - 1U;
-        CHECK(ngx_http_modsecurity_plan_limited_response_body(
+        CHECK(ngx_http_modsecurity_account_response_body(
             &ctx, &conf, 2U, &allowed) == NGX_ERROR);
         CHECK(allowed == 0U);
-        CHECK(ctx.response_body_bytes_seen == SIZE_MAX);
+        CHECK(ctx.response_body_bytes_seen == SIZE_MAX - 1U);
         CHECK(ctx.response_body_bytes_inspected == SIZE_MAX - 1U);
-        CHECK(ctx.response_body_truncated);
-        CHECK(ctx.contract.error == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT);
+        CHECK(!ctx.response_body_truncated);
+        CHECK(ctx.contract.error == MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
     } else if (strcmp(argv[1], "off-invalid-accounting") == 0) {
         conf.phase4_mode = MSCONNECTOR_PHASE4_MODE_OFF;
         ctx.response_body_bytes_inspected = 1U;
-        CHECK(ngx_http_modsecurity_plan_limited_response_body(
+        CHECK(ngx_http_modsecurity_account_response_body(
             &ctx, &conf, 1U, &allowed) == NGX_ERROR);
         CHECK(allowed == 0U);
         CHECK(ctx.response_body_bytes_seen == 0U);
-        CHECK(ctx.response_body_truncated);
+        CHECK(!ctx.response_body_truncated);
     } else if (strcmp(argv[1], "null-inputs") == 0) {
         conf.phase4_mode = MSCONNECTOR_PHASE4_MODE_OFF;
-        CHECK(ngx_http_modsecurity_plan_limited_response_body(
+        CHECK(ngx_http_modsecurity_account_response_body(
             NULL, &conf, 1U, &allowed) == NGX_ERROR);
         CHECK(allowed == 0U);
         allowed = 999U;
-        CHECK(ngx_http_modsecurity_plan_limited_response_body(
+        CHECK(ngx_http_modsecurity_account_response_body(
             &ctx, NULL, 1U, &allowed) == NGX_ERROR);
         CHECK(allowed == 0U);
-        CHECK(ngx_http_modsecurity_plan_limited_response_body(
+        CHECK(ngx_http_modsecurity_account_response_body(
             &ctx, &conf, 1U, NULL) == NGX_ERROR);
         CHECK(!ctx.response_body_seen);
     } else if (strcmp(argv[1], "empty") == 0) {
         for (i = 0U; i < 3U; ++i) {
             memset(&ctx, 0, sizeof(ctx));
             conf.phase4_mode = i;
-            CHECK(ngx_http_modsecurity_plan_limited_response_body(
+            CHECK(ngx_http_modsecurity_account_response_body(
                 &ctx, &conf, 0U, &allowed) == NGX_OK);
             CHECK(allowed == 0U);
             CHECK(!ctx.response_body_seen && !ctx.response_body_truncated);
         }
-    } else if (strcmp(argv[1], "metadata-defaults") == 0) {
-        CHECK(effective_response_limit(NULL) == 0U);
-        conf.phase4_mode = MSCONNECTOR_PHASE4_MODE_OFF;
-        CHECK(effective_response_limit(&conf) == SIZE_MAX);
-        for (i = 0U; i < sizeof(modes) / sizeof(modes[0]); ++i) {
-            conf.phase4_mode = modes[i];
-            CHECK(effective_response_limit(&conf) == SIZE_MAX);
-        }
-    } else if (strcmp(argv[1], "invalid-mode") == 0) {
-        conf.phase4_mode = 99U;
-        CHECK(ngx_http_modsecurity_plan_limited_response_body(
-            &ctx, &conf, 1U, &allowed) == NGX_ERROR);
-        CHECK(allowed == 0U);
-        CHECK(ctx.contract.error == MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
     } else {
         return 2;
     }
@@ -189,34 +170,9 @@ int main(int argc, char **argv)
 """
 
 
-def response_limit_expression(header: str) -> str:
-    """Read the real final metadata argument, including nested parentheses."""
-    match = re.search(
-        r"msconnector_transaction_contract_record_response_metadata\(\s*"
-        r"&ctx->contract,\s*\(int\)status,\s*response_content_type,\s*"
-        r"response_header_count,\s*response_header_bytes,\s*"
-        r"(.*?)\)\s*!=\s*MSCONNECTOR_TRANSACTION_TRANSITION_OK",
-        header,
-        re.DOTALL,
-    )
-    if match is None:
-        raise AssertionError("response metadata body-budget argument not found")
-    return match.group(1)
-
-
 def unit_program(body: str, header: str) -> str:
-    planner = function_definition(body, "ngx_http_modsecurity_plan_limited_response_body")
-    expression = response_limit_expression(header)
-    metadata_limit = function_definition(header, "ngx_http_modsecurity_response_body_limit")
-    return (
-        PREAMBLE
-        + "\nstatic ngx_int_t\n" + planner
-        + "\nstatic size_t\n" + metadata_limit
-        + "\nstatic size_t effective_response_limit("
-          "const ngx_http_modsecurity_conf_t *mcf) { return "
-        + expression + "; }\n"
-        + CASES
-    )
+    planner = function_definition(body, "ngx_http_modsecurity_account_response_body")
+    return PREAMBLE + "\nstatic ngx_int_t\n" + planner + CASES
 
 
 class NginxPhase4BudgetUnitTests(unittest.TestCase):
@@ -276,11 +232,6 @@ class NginxPhase4BudgetUnitTests(unittest.TestCase):
     def test_empty_buffers_do_not_mark_body_started(self) -> None:
         self.run_case("empty")
 
-    def test_metadata_helper_preserves_null_and_default_limits(self) -> None:
-        self.run_case("metadata-defaults")
-
-    def test_unknown_modes_are_not_an_unlimited_fallback(self) -> None:
-        self.run_case("invalid-mode")
 
 
 class NginxPhase4BudgetWiringTests(unittest.TestCase):
@@ -290,14 +241,14 @@ class NginxPhase4BudgetWiringTests(unittest.TestCase):
 
     def test_memory_and_file_buffers_share_mode_aware_planner(self) -> None:
         for name, append_call in (
-            ("ngx_http_modsecurity_append_limited_response_body",
+            ("ngx_http_modsecurity_append_accounted_response_body",
              "return ngx_http_modsecurity_append_response_body_chunk"),
             ("ngx_http_modsecurity_append_file_response_body", "ngx_read_file("),
         ):
             with self.subTest(function=name):
                 source = function_definition(self.body, name)
                 self.assertLess(
-                    source.index("ngx_http_modsecurity_plan_limited_response_body("),
+                    source.index("ngx_http_modsecurity_account_response_body("),
                     source.index(append_call),
                 )
                 self.assertIn("return NGX_ERROR;", source)
@@ -309,13 +260,14 @@ class NginxPhase4BudgetWiringTests(unittest.TestCase):
 
     def test_all_modes_share_common_accounting_without_manual_increment(self) -> None:
         planner = function_definition(
-            self.body, "ngx_http_modsecurity_plan_limited_response_body"
+            self.body, "ngx_http_modsecurity_account_response_body"
         )
-        self.assertEqual(planner.count("msconnector_body_limit_plan_chunk("), 1)
-        self.assertNotRegex(planner, r"response_body_bytes_seen\s*\+=")
-        self.assertIn("msconnector_phase4_effective_body_limit(", planner)
-        self.assertIn("ctx->response_body_bytes_seen = plan.bytes_seen;", planner)
-        self.assertIn("*allowed = plan.append_size;", planner)
+        self.assertNotIn("msconnector_body_limit_plan_chunk(", planner)
+        self.assertNotIn("msconnector_phase4_effective_body_limit(", planner)
+        self.assertIn("SIZE_MAX - ctx->response_body_bytes_seen", planner)
+        self.assertIn("ctx->response_body_bytes_seen += len;", planner)
+        self.assertIn("*allowed = len;", planner)
+        self.assertNotIn("mcf->phase4_mode", planner)
 
     def test_off_does_not_remove_engine_ingestion_or_finalization(self) -> None:
         append = function_definition(

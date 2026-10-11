@@ -13,7 +13,6 @@
 #include "msconnector/options.h"
 #include "msconnector/rule_id.h"
 #include "msconnector/body_policy.h"
-#include "msconnector/phase4_budget.h"
 #include "msconnector/native_result.h"
 
 #include <apr_file_io.h>
@@ -890,7 +889,8 @@ static void apache_phase4_log_event(msc_t *msr, request_rec *r,
     {
         return;
     }
-    input.event_name = "phase4_intervention";
+    input.event_name = msr->last_intervention_body_limit
+        ? "body_limit" : "phase4_intervention";
     input.phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
     input.wanted = wanted;
     input.actual = actual;
@@ -923,7 +923,6 @@ static apr_status_t apache_phase4_append_bucket(msc_t *msr,
     const char *data = NULL;
     apr_size_t len = 0;
     apr_status_t rc;
-    msconnector_body_limit_plan plan;
 
     if (msr == NULL || conf == NULL || bucket == NULL || msr->t == NULL)
     {
@@ -948,40 +947,47 @@ static apr_status_t apache_phase4_append_bucket(msc_t *msr,
             return APR_EGENERAL;
         }
         msr->response_body_seen = 1;
-        /* Phase 4 has an EOS-only final decision. libModSecurity owns MIME
-         * selection and response-inspection limits, so every response bucket
-         * is appended exactly once and no P4 mode adds a connector byte
-         * policy. The shared planner is retained only for checked accounting
-         * and integer-overflow rejection. Output committed by an earlier
-         * brigade is never rewritten.
-         */
-        if (!msconnector_body_limit_plan_chunk(msr->response_body_bytes_seen,
-                msr->response_body_bytes_inspected,
-                msconnector_phase4_effective_body_limit(
-                    conf->common_config.phase4_mode),
-                MSCONNECTOR_BODY_LIMIT_ACTION_REJECT, len, &plan))
+        /* Borrow every complete bucket; engine configuration owns inspection
+         * policy. These counters only protect arithmetic and lifecycle state. */
+        if (data == NULL ||
+            msr->response_body_bytes_inspected > msr->response_body_bytes_seen ||
+            len > SIZE_MAX - msr->response_body_bytes_seen ||
+            len > SIZE_MAX - msr->response_body_bytes_inspected)
         {
-            msr->response_body_bytes_seen = plan.bytes_seen;
-            msr->response_body_truncated = 1;
+            (void)msc_apache_contract_fail(msr,
+                MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
             return APR_EGENERAL;
         }
-        msr->response_body_bytes_seen = plan.bytes_seen;
-        if (!msc_apache_contract_record_body(msr, 1, plan.append_size))
+        msr->response_body_bytes_seen += len;
+        if (!msc_apache_contract_record_body(msr, 1, len))
         {
             return APR_EGENERAL;
         }
-        if (plan.append_size > 0 &&
+        if (len > 0 &&
             !msconnector_native_body_append_can_continue(msc_append_response_body(msr->t,
-                (const unsigned char *)data, plan.append_size)))
+                (const unsigned char *)data, len)))
         {
             (void)msc_apache_contract_fail(msr,
                 MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE);
             return APR_EGENERAL;
         }
-        msr->response_body_bytes_inspected += plan.append_size;
-        if (plan.truncated)
+        msr->response_body_bytes_inspected += len;
+        if (!msr->response_intervention_pending)
         {
-            msr->response_body_truncated = 1;
+            int intervention;
+            msr->native_event_phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
+            msr->native_event_phase_active = 1;
+            intervention = process_intervention(msr->t, msr->r);
+            msr->native_event_phase_active = 0;
+            if (msr->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE)
+            {
+                return APR_EGENERAL;
+            }
+            if (intervention != N_INTERVENTION_STATUS)
+            {
+                msr->pending_response_intervention = msr->intervention;
+                msr->response_intervention_pending = 1;
+            }
         }
     }
 
@@ -1734,7 +1740,7 @@ static int apache_response_header_metrics(const apr_table_t *headers,
 }
 
 static int apache_contract_record_response_metadata(msc_t *msr,
-    request_rec *r, const char *content_type, size_t body_limit)
+    request_rec *r, const char *content_type)
 {
     size_t header_count = 0U;
     size_t header_bytes = 0U;
@@ -1748,7 +1754,7 @@ static int apache_contract_record_response_metadata(msc_t *msr,
         return 0;
     }
     return msconnector_transaction_contract_record_response_metadata(&msr->contract,
-        r->status, content_type, header_count, header_bytes, body_limit) ==
+        r->status, content_type, header_count, header_bytes) ==
         MSCONNECTOR_TRANSACTION_TRANSITION_OK;
 }
 
@@ -1781,9 +1787,7 @@ static apr_status_t apache_output_filter_process_headers(msc_t *msr,
             HTTP_INTERNAL_SERVER_ERROR);
     }
     content_type = apache_response_content_type(r);
-    if (!apache_contract_record_response_metadata(msr, r, content_type,
-            msconnector_phase4_effective_body_limit(
-                conf->common_config.phase4_mode)))
+    if (!apache_contract_record_response_metadata(msr, r, content_type))
     {
         (void)msc_apache_contract_fail(msr,
             MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
@@ -1968,6 +1972,12 @@ static apr_status_t apache_phase4_finish_response_body(msc_t *msr,
     msr->native_event_phase_active = 1;
     *intervention = process_intervention(msr->t, f->r);
     msr->native_event_phase_active = 0;
+    if (msr->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE &&
+        msr->response_intervention_pending)
+    {
+        msr->intervention = msr->pending_response_intervention;
+        *intervention = msr->last_intervention_status;
+    }
     if (*intervention != N_INTERVENTION_STATUS &&
         !msc_apache_contract_record_intervention_decision(msr))
     {

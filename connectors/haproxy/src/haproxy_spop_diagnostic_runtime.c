@@ -168,7 +168,6 @@ typedef struct agent_config {
     };
     struct {
     unsigned int request_body_limit;
-    unsigned int response_body_limit;
     unsigned int response_body_timeout_ms;
     unsigned int spoe_timeout_ms;
     unsigned int worker_count;
@@ -2523,7 +2522,6 @@ static void config_init(agent_config *config) {
     copy_spop_string(config->log_file, sizeof(config->log_file),
         (const unsigned char *)"-", sizeof("-") - 1U);
     config->request_body_limit = 65532U;
-    config->response_body_limit = 0U;
     config->response_body_timeout_ms = 0U;
     config->spoe_timeout_ms = 2000U;
     /* A slow or incomplete HELLO consumes one bounded peer worker only. */
@@ -2651,16 +2649,6 @@ static int config_set_scalar_limits(agent_config *config, const char *key,
     if (strcmp(key, "request-body-limit") == 0) {
         return parse_bounded_uint(value, MSCONNECTOR_MAX_CONFIG_BODY_BYTES,
             &config->request_body_limit) == 0 ? 1 : -1;
-    }
-    if (strcmp(key, "response-body-limit") == 0) {
-        if (parse_bounded_uint_range(value, 0UL, MSCONNECTOR_MAX_CONFIG_BODY_BYTES,
-                &config->response_body_limit) != 0) {
-            return -1;
-        }
-        if (config->response_body_limit > 0U) {
-            config->response_phases_enabled = 1;
-        }
-        return 1;
     }
     if (strcmp(key, "response-body-timeout") == 0) {
         return parse_bounded_uint_range(value, 0UL, 60000UL,
@@ -3493,7 +3481,6 @@ static const char *notify_test_header(const notify_request *request) {
 
 static void build_response_from_notify(
         const notify_request *request,
-        const agent_state *state,
         haproxy_modsecurity_response *response) {
     memset(response, 0, sizeof(*response));
     response->status = request->has_response_status ? (int)request->response_status : 200;
@@ -3501,9 +3488,7 @@ static void build_response_from_notify(
     response->headers = (const haproxy_modsecurity_header *)request->headers;
     response->header_count = request->header_count;
     response->body = request->body;
-    response->body_len = bounded_body_length(request->body_len,
-        state->config.response_body_limit,
-        state->config.response_body_limit > 0U);
+    response->body_len = (unsigned int)request->body_len;
 }
 
 typedef enum spop_ack_decision_origin {
@@ -3698,15 +3683,7 @@ static void process_production_response_notify(
         decision_log_write(state, request, decision, 0, *decision_text);
         return;
     }
-    if (body_exceeds_limit(request->body_len,
-            state->config.response_body_limit,
-            state->config.response_body_limit > 0U)) {
-        haproxy_modsecurity_transaction_abort(transaction);
-        *decision_text = set_body_limit_failure(decision, phase, 1);
-        decision_log_write(state, request, decision, 0, *decision_text);
-        return;
-    }
-    build_response_from_notify(request, state, &response);
+    build_response_from_notify(request, &response);
     if (request->is_response_body) {
         /* SPOE/SPOP has no HTTP response-EOS field in this NOTIFY contract.
          * Append only; calling process_response_body() here would finalize P4
@@ -3739,7 +3716,7 @@ static void process_production_response_notify(
             *decision_text = set_processing_failure(state, decision, phase,
                 "transaction cache store failed while awaiting response EOS");
         }
-    } else if (!request->is_response_body && state->config.response_body_limit > 0U &&
+    } else if (!request->is_response_body &&
             decision->disruptive == 0) {
         if (transaction_cache_store(state, request->request_id, transaction) != 0) {
             haproxy_modsecurity_transaction_abort(transaction);
@@ -6642,9 +6619,8 @@ static int initialize_native_response_companion(
 
     if (config->response_companion_uid != (unsigned int)geteuid() ||
             config->response_companion_gid != (unsigned int)getegid() ||
-            config->response_companion_socket[0] == '\0' ||
-            config->response_body_limit == 0U) {
-        fprintf(stderr, "native-htx companion requires explicit private socket, matching uid/gid and response-body-limit\n");
+            config->response_companion_socket[0] == '\0') {
+        fprintf(stderr, "native-htx companion requires explicit private socket, matching uid/gid\n");
         return -1;
     }
     state->response_slots = calloc(capacity, sizeof(*state->response_slots));
@@ -6670,7 +6646,7 @@ static int initialize_native_response_companion(
             &state->response_transport, &backend_vtable,
             &(msconnector_response_companion_transport_options){
                 "haproxy-spoe-spop", config->response_companion_socket,
-                SPOP_BRIDGE_MAX_HEADERS, 65536U, config->response_body_limit,
+                SPOP_BRIDGE_MAX_HEADERS, 65536U,
                 config->spoe_timeout_ms},
             &companion_error) ||
             !msconnector_response_companion_transport_start(
@@ -6735,11 +6711,10 @@ static int run_agent_server(const agent_config *config) {
         goto cleanup;
     }
     log_line(log,
-        "HAProxy ModSecurity SPOA production agent listening on %s:%u rules_file=%s rules_dir=%s modsecurity_conf=%s crs_root=%s mode=%s fail_mode=%s response_phases=%d response_body_limit=%u",
+        "HAProxy ModSecurity SPOA production agent listening on %s:%u rules_file=%s rules_dir=%s modsecurity_conf=%s crs_root=%s mode=%s fail_mode=%s response_phases=%d",
         config->host, bound_port, config->rules_file, config->rules_dir,
         config->modsecurity_conf, config->crs_root, config->mode,
-        config->fail_mode, config->response_phases_enabled,
-        config->response_body_limit);
+        config->fail_mode, config->response_phases_enabled);
     {
         const spop_accept_loop_config accept_config = {
             listen_fd, &state, log, 0, 0, 0,
@@ -6888,30 +6863,23 @@ static int validate_production_config(const agent_config *config) {
     /* Raw SPOE/SPOP has no HTTP response-EOS transport.  native-htx is the
      * explicit owner-preserving deployment: SPOP publishes one bounded opaque
      * handle, while the HTX filter claims it for P3/P4.  Bind its private UDS
-     * endpoint, peer identity, and response-body limit before the agent can
+     * endpoint and peer identity before the agent can
      * start; the SPOP process must never fabricate an HTX callback or expose
      * a native transaction pointer. */
     if (strcmp(config->response_companion, "native-htx") == 0 &&
             (config->response_companion_socket[0] == '\0' ||
              config->response_companion_uid == UINT_MAX ||
-             config->response_companion_gid == UINT_MAX ||
-             config->response_body_limit == 0U)) {
+             config->response_companion_gid == UINT_MAX)) {
         fprintf(stderr,
-            "native-htx requires response-companion-socket, response-companion-uid/gid and response-body-limit\n");
+            "native-htx requires response-companion-socket, response-companion-uid/gid\n");
         return -1;
     }
     /* native-htx is a complete response companion: the SPOP owner publishes
      * one bounded handle and the native HTX filter claims it before P3, sends
      * borrowed P4 chunks, and closes at exactly one response EOS.  The
-     * deployment-specific private socket/UID/GID/body-limit checks above are
+     * deployment-specific private socket/UID/GID checks above are
      * mandatory; the combined host lifecycle is covered by the connector
      * harness and component tests. */
-    if (strcmp(config->response_companion, "none") == 0 &&
-            config->response_body_limit > 0U) {
-        fprintf(stderr,
-            "response-body-limit is unsupported with response-companion=none: selected SPOE/SPOP has no response EOS\n");
-        return -1;
-    }
     if (strcmp(config->response_companion, "none") == 0 &&
             config->response_body_timeout_ms > 0U) {
         fprintf(stderr,

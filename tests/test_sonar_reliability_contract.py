@@ -1800,8 +1800,8 @@ static void test_spop_rejects_unenforced_timeout_and_worker_settings(void) {
     assert(config_set(&config, "request-body-limit", "10485761") == -1);
     assert(config_set(&config, "request-body-limit", "4294967296") == -1);
     assert(config_set(&config, "request-body-limit", "not-a-number") == -1);
-    assert(config_set(&config, "response-body-limit", "0") == 0);
-    assert(config_set(&config, "response-body-limit", "10485760") == 0);
+    assert(config_set(&config, "response-body-limit", "0") == -1);
+    assert(config_set(&config, "response-body-limit", "10485760") == -1);
     assert(config_set(&config, "response-body-limit", "10485761") == -1);
     assert(config_set(&config, "port", "65535") == 0);
     assert(config.port == 65535U);
