@@ -89,3 +89,18 @@ und DetectionOnly, Chunks und Dateien, dieselbe Payload unter verschiedenen
 Limits und Marker jenseits früherer Connectorgrenzen. Builds und Quellverträge
 belegen kein gehostetes HTTP/1, HTTP/2, HTTP/3, Buffer-Ownership oder
 Late-Abort-Verhalten. Siehe [Stack-Checkliste](response-limit-stack-checklist.de.md).
+
+## Erneut geprüfte Sample- und Native-Reject-Pfade
+
+Die [Request-/Response-Matrix der zehn Profile](body-inspection-review-matrix.de.md)
+trennt Quellnachweis, ausführbare Contracts, ausgewählte Hostproben und fehlende
+vollständige I12-/V08–V10-Evidenz. HAProxy-Sample-Producer nutzen `req.body_size`
+plus `http_version=req.ver`, statt eine gepufferte Präfixlänge als vollständigen
+Body zu interpretieren. Unvollständige/widersprüchliche Samples scheitern vor
+Enginezulassung; unbekanntes/chunked Framing und ungerahmtes HTTP/2 bleiben auf
+dieser Sampleroute nicht unterstützt. Natives HTX ist die Streaming-Alternative.
+Apache erhält natives Response-Reject bei Append einschließlich vorherigem
+FLUSH-/Body-Commit und gibt die zurückgewiesene Brigade nicht unter Safe-log_only
+frei. Dies setzt native Ergebnisse durch und wählt niemals Connectorgröße oder
+-aktion. Die Matrix belegt auch, weshalb der 32768-Byte-Speicherschutz der
+Authorization-Antwort erhalten bleiben muss.

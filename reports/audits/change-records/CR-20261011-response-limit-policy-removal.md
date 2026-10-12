@@ -27,7 +27,16 @@ Common `request_body_limit`, `response_body_limit`, `body_limit_action`, request
 
 Common contracts/runtime/authorization transport; Apache, NGINX, HAProxy, Envoy, Traefik and lighttpd ingestion/services/harnesses/tests; configuration/compiler generators and generated EN/DE references; examples, connector README pairs and ownership/stack documentation. No Framework/MRTS source or dependency manifests are changed.
 
+The acceptance repair additionally changes Apache `msc_filters.c` and its genuine
+native regression, SPOP runtime/metadata fixtures, five SPOE producer examples and
+two harness configurations. EN/DE `docs/phase4-mode-budget`,
+`docs/response-limit-stack-checklist` and new `docs/body-inspection-review-matrix`
+pairs record the current contract and limitations. Both versions of this record
+are updated; capability evidence is not promoted from selected probes.
+
 ## Commands executed
+
+The new review run also reproduces the Apache EOS-provenance defect (three red cases) and passes all nine genuine APR/native regressions plus strict C17 after correction. The former-1-MiB external mutation fails the unchanged real marker fixture at assertion 407, exit 1; the unmutated Common suite passes 13 methods/207 scenarios, exit 0. SPOP64, Envoy eight-package, Traefik protocol/API and Stock safety results are classified separately in the matrix.
 
 Repository-native `make quick-check`, `check-i09-native-routes`, `check-apache-event-sink` and `check-haproxy-spop-event-sink` passed with the counts below. Genuine engine, Go/C build, host harness and fixture checks retain external run logs. Documentation validation uses RTK-wrapped `make check-bilingual-docs check-doc-links check-connector-config-reference`, `ci/tools/new-change-record.py check` and `git diff --check`. Repeated historical runs are not summed.
 
@@ -46,6 +55,10 @@ file creation before readiness; no `TMPDIR`/public fallback exists. UID/mount
 adversarial deployment coverage remains missing.
 
 ## Runtime evidence
+
+The following retained results belong to the earlier policy-removal run. Fresh
+acceptance-repair results and their narrower evidence scope are in the ten-profile
+matrix; historical results do not certify the final repaired head.
 
 Common genuine tests passed 207 native scenarios across 13 methods, covering
 request/response boundaries, actions, DetectionOnly, chunks/files, varied native
@@ -110,20 +123,24 @@ source document as a live status feed.
 
 ## Final diff and review status
 
-[Draft PR #407](https://github.com/Easton97-Jens/ModSecurity-conector/pull/407)
-remains on `fix/engine-owned-response-limits-stack-20261011`, stacked on #382
-branch `fix/unified-native-results-events-20260921`, exact base `2619b20b9d2e70fa07cbe71f664b48ff3c105380`.
-Normal commits/base merges retain published history; no force-push, rewrite or
-PR/master merge occurred. Delivered repair head `455944cfff472d6cf47b8ff0bb252d262adaf804`
-follows `ef4e90dc`; it changes only test complexity through equivalent eight-case
-helper extraction, retaining all assertions and passing genuine focused tests.
-The [live PR checks](https://github.com/Easton97-Jens/ModSecurity-conector/pull/407/checks)
-provide the latest exact-head delivery readback. The exact source/test analysis of this head at 2026-10-11T19:13:56Z
-passed: check `114552418608` succeeded with zero annotations, zero open/accepted
-issues and hotspots, all eight root metrics and all 269 measured component
-duplication values zero; Quality Gate OK with no ignored conditions. Four CI
-checks were still pending at preparation. This proves that head; later
-documentation-only commits use live readback instead of self-referential status
-updates.
+PR #407 retains its existing branch and #382 stack. I09/#408 and I11/#406 are in
+the reviewed base; I10/#409 and I12/#410 remain separate. No merge into #382/master,
+force-push or history rewrite is authorized. Read the actual Draft/head/base and
+final exact-head CI/Sonar state from GitHub rather than an obsolete embedded SHA.
 
-Independent source/P2/P4/EOS/sticky-IO reviews found no concrete open finding. Final local validation is retained separately from exact-head remote checks. See the [stack checklist](../../../docs/response-limit-stack-checklist.md).
+The independent review reproduced two PR-owned errors: Apache native response
+Reject could release a rejected brigade before EOS or downgrade after commit;
+SPOP req.body_len could declare a buffered prefix complete. Corrections preserve
+native decisions and technical guards. The latest acceptance layers and the two
+independent baseline follow-ups are recorded in the
+[ten-profile matrix](../../../docs/body-inspection-review-matrix.md).
+Ready for review is conditional on all seven criteria, final executable checks,
+independent secret scan and exact-head remote readback; it is not merge readiness.
+Historical results above belong to the previous removal run, not the new repair
+head. Current local/host evidence and remaining not_run/blocked checks are in the
+matrix and [stack checklist](../../../docs/response-limit-stack-checklist.md).
+
+## Acceptance repair files and final local scope
+Apache response state now distinguishes observed host EOS from native P4 failure finalization. The repair changes mod_security3.h/msc_filters.c, the genuine regression, its Make target and Apache CI wiring. SPOP fixtures and producer arguments track actual complete framing. Traefik protocol checks preserve terminal closure and all legitimate controls on fresh peers. Obsolete Apache/native adapter source checks now enforce the actual typed failure helpers and preserved native status, rather than the removed connector-selected 413 remap. HAProxy capability reasons describe bounded samples without promoting states.
+
+Pinned CPython 3.14.7 quick-check: 304 reported tests, exit 0; combined native/adapter suite: 69 methods, exit 0. Broad Apache discovery: 237 tests, 234 passes, three foreign-UID setup errors, aggregate exit 1. These errors are blocked deployment probes, not weakened assertions. The separate 47-candidate tree secret scan remains exit 1; all candidates were independently classified as unchanged technical metadata/prose, without scanner exceptions. Final commit-range and remote readback remain revision-specific independent evidence.

@@ -1097,7 +1097,7 @@ write_haproxy_config() {
         echo "    messages check-request"
         echo
         echo "spoe-message check-request"
-        echo "    args request_id=unique-id client_ip=src client_port=src_port server_ip=dst server_port=dst_port method=method path=path uri=url host=req.hdr(host) headers_bin=req.hdrs_bin headers=req.hdrs body=req.body body_len=req.body_len"
+        echo "    args request_id=unique-id client_ip=src client_port=src_port server_ip=dst server_port=dst_port method=method path=path uri=url host=req.hdr(host) headers_bin=req.hdrs_bin headers=req.hdrs body=req.body body_len=req.body_size http_version=req.ver"
         if [ "${HAPROXY_ENABLE_RESPONSE_HEADERS:-0}" = "1" ]; then
             echo
             echo "spoe-group response-check"
@@ -1192,7 +1192,7 @@ start_agent() {
         --runtime-mode test \
         --variant "$MODSECURITY_TEST_VARIANT" \
         --case "$CASE_NAME" \
-        --expected-status "$EXPECT_STATUS" \
+        --expected-status "$EXPECT_STATUS"
     if [ -n "$response_header_arg" ]; then
         set -- "$@" "$response_header_arg"
     fi

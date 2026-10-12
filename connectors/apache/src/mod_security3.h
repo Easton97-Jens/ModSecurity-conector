@@ -122,6 +122,8 @@ typedef struct
     int committed;
     int headers_processed;
     int body_processed;
+    /* Native failure finalization can finish P4 before a host EOS bucket. */
+    int body_eos_seen;
     int phase4_intervention;
     int phase4_strict_abort;
 } msc_response_state;

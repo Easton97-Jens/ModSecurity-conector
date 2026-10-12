@@ -86,3 +86,17 @@ DetectionOnly, chunks and files, identical payloads under different limits,
 and markers beyond former connector ceilings. Builds and source contracts do
 not establish hosted HTTP/1, HTTP/2, HTTP/3, buffer ownership or late-abort
 behavior. See the [stack checklist](response-limit-stack-checklist.md).
+
+## Rechecked sample and native-Reject paths
+
+The [ten-profile request/response matrix](body-inspection-review-matrix.md)
+separates source, executable contracts, selected host probes and missing full
+I12/V08–V10 evidence. HAProxy sample producers use `req.body_size` plus
+`http_version=req.ver`, rather than interpreting a buffered prefix length as a
+complete body. Incomplete/contradictory samples fail before engine admission;
+unknown/chunked framing and unframed HTTP/2 remain unsupported on this sample
+route. Native HTX is the streaming alternative. Apache preserves native response
+Reject at append, including prior FLUSH/body commitment, and does not release the
+rejected brigade under Safe log_only. This is native-result enforcement, never
+a connector-chosen size or action. The matrix also records why the 32768-byte
+authorization-response memory safeguard must remain.

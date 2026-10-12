@@ -45,6 +45,8 @@ jobs:
         run: python3 -m unittest -v tests.test_apache_intervention_cleanup
       - name: Verify Apache native and APR lifecycle failures
         run: python3 -m unittest -v tests.test_apache_native_lifecycle
+      - name: Verify native response limits before EOS and after commit
+        run: make check-apache-native-response-limit
       - name: Verify Apache physical event sink and caller failures
         run: make check-apache-event-sink
       - name: Verify Apache Autotools bootstrap from tracked source only

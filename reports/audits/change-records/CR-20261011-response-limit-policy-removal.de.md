@@ -27,7 +27,16 @@ Common-`request_body_limit`, `response_body_limit`, `body_limit_action`, Request
 
 Common-Verträge/Runtime/Autorisierungstransport; Apache-, NGINX-, HAProxy-, Envoy-, Traefik- und lighttpd-Eingabe/Services/Harnesses/Tests; Konfigurations-/Compilergeneratoren und generierte EN/DE-Referenzen; Beispiele, Connector-README-Paare und Zuständigkeits-/Stackdokumentation. Keine Framework-/MRTS-Quellen oder Dependency-Manifeste werden geändert.
 
+Die Abnahmereparatur ändert zusätzlich Apache-`msc_filters.c` und seine echte
+Native-Regression, SPOP-Runtime-/Metadatenfixtures, fünf SPOE-Producer-Beispiele und
+zwei Harnesskonfigurationen. Die EN/DE-Paare `docs/phase4-mode-budget`,
+`docs/response-limit-stack-checklist` und neu `docs/body-inspection-review-matrix`
+erfassen aktuellen Vertrag und Grenzen. Beide Versionen dieses Records werden
+aktualisiert; Capability-Evidenz wird durch ausgewählte Proben nicht hochgestuft.
+
 ## Ausgeführte Befehle
+
+Der neue Review-Run reproduziert auch den Apache-EOS-Provenienzfehler (drei rote Fälle) und besteht nach Korrektur alle neun echten APR-/Native-Regressionen plus striktes C17. Die externe Mutation der früheren 1-MiB-Grenze lässt die unveränderte echte Marker-Fixture bei Assertion 407 mit Exit 1 scheitern; die unveränderte Common-Suite besteht 13 Methoden/207 Szenarien mit Exit 0. SPOP64-, Envoy-Achtpaket-, Traefik-Protokoll-/API- und Stock-Sicherheitsresultate sind in der Matrix getrennt klassifiziert.
 
 Repository-native `make quick-check`, `check-i09-native-routes`, `check-apache-event-sink` und `check-haproxy-spop-event-sink` bestanden mit unten genannten Zahlen. Echte Engine-, Go-/C-Build-, Hostharness- und Fixtureprüfungen behalten externe Laufprotokolle. Dokumentationsvalidierung nutzt RTK-gewrapptes `make check-bilingual-docs check-doc-links check-connector-config-reference`, `ci/tools/new-change-record.py check` und `git diff --check`. Wiederholte historische Läufe werden nicht summiert.
 
@@ -47,6 +56,11 @@ vor Bereitschaft; kein `TMPDIR`-/öffentlicher Fallback existiert. Adversarielle
 UID-/Mount-Deployment-Nachweise fehlen weiterhin.
 
 ## Runtime-Evidence
+
+Die folgenden erhaltenen Resultate gehören zum früheren Policy-Removal-Run.
+Frische Abnahme-Reparaturresultate und ihr engerer Evidenzumfang stehen in der
+Matrix der zehn Profile; historische Resultate zertifizieren den finalen
+reparierten Head nicht.
 
 Echte Common-Tests bestanden 207 native Szenarien über 13 Methoden für
 Request-/Response-Grenzen, Aktionen, DetectionOnly, Chunks/Dateien, verschiedene
@@ -115,20 +129,24 @@ statt dieses Quelldokument als Live-Statusfeed zu behandeln.
 
 ## Finaler Diff- und Review-Status
 
-[Draft-PR #407](https://github.com/Easton97-Jens/ModSecurity-conector/pull/407)
-bleibt auf `fix/engine-owned-response-limits-stack-20261011`, gestapelt auf #382-
-Branch `fix/unified-native-results-events-20260921`, exakte Basis `2619b20b9d2e70fa07cbe71f664b48ff3c105380`.
-Reguläre Commits/Basismerges erhalten veröffentlichte Historie; kein Force-Push,
-Rewrite oder PR-/Master-Merge erfolgte. Ausgelieferter Reparaturhead
-`455944cfff472d6cf47b8ff0bb252d262adaf804` folgt `ef4e90dc`; er ändert nur Testkomplexität
-über äquivalente Acht-Fall-Helperextraktion, erhält alle Assertions und besteht
-echte gezielte Tests. Die [Live-PR-Checks](https://github.com/Easton97-Jens/ModSecurity-conector/pull/407/checks)
-liefern den neuesten exakten Head-Auslieferungsreadback. Die exakte Quellcode-/Testanalyse dieses Heads vom 2026-10-11T19:13:56Z
-bestand: Check `114552418608` erfolgreich mit null Annotationen, null offenen/
-akzeptierten Issues und Hotspots, acht Rootmetriken und alle 269 gemessenen
-Komponenten-Duplikationswerte null; Quality Gate OK ohne ignorierte Bedingungen.
-Vier CI-Prüfungen waren bei Erstellung noch offen. Dies belegt diesen Head;
-spätere reine Dokumentationscommits verwenden den Live-Readback statt einer
-selbstreferenziellen Statusfortschreibung.
+PR #407 erhält bestehenden Branch und #382-Stack. I09/#408 und I11/#406 sind in
+der geprüften Basis; I10/#409 und I12/#410 bleiben getrennt. Kein Merge nach #382/master,
+Force-Push oder History-Rewrite ist autorisiert. Tatsächlichen Draft-/Head-/Basisstand
+und finale Exact-Head-CI/Sonar aus GitHub statt veraltetem eingebettetem SHA lesen.
 
-Unabhängige Quellcode-/P2-/P4-/EOS-/Sticky-IO-Reviews fanden keinen konkreten offenen Befund. Finale lokale Validierung bleibt getrennt von exakten Head-Remotechecks. Siehe [Stack-Checkliste](../../../docs/response-limit-stack-checklist.de.md).
+Die unabhängige Prüfung reproduzierte zwei PR-eigene Fehler: Apache-Native-Response-
+Reject konnte eine zurückgewiesene Brigade vor EOS freigeben oder nach Commit
+herabstufen; SPOP-req.body_len konnte ein gepuffertes Präfix als vollständig erklären.
+Korrekturen erhalten native Entscheidungen und technische Guards. Aktuelle
+Abnahmeschichten und die zwei unabhängigen Basis-Follow-ups stehen in der
+[Matrix der zehn Profile](../../../docs/body-inspection-review-matrix.de.md).
+Ready for review hängt von allen sieben Kriterien, finalen ausführbaren Prüfungen,
+unabhängigem Secretscan und Exact-Head-Remote-Readback ab; es ist keine Mergebereitschaft.
+Historische Resultate oben gehören zum früheren Removal-Run, nicht zum neuen
+Reparaturhead. Aktuelle Lokal-/Hostnachweise und verbleibende not_run-/blocked-Prüfungen
+stehen in Matrix und [Stackcheckliste](../../../docs/response-limit-stack-checklist.de.md).
+
+## Abnahmereparatur-Dateien und finaler lokaler Umfang
+Der Apache-Responsezustand trennt beobachtetes Host-EOS von nativer P4-Fehlerfinalisierung. Die Reparatur ändert mod_security3.h/msc_filters.c, die echte Regression, ihr Make-Ziel und Apache-CI-Wiring. SPOP-Fixtures und Producer-Argumente bilden tatsächliches vollständiges Framing ab. Traefik-Protokollchecks erhalten terminales Schließen und alle legitimen Kontrollen auf frischen Peers. Überholte Apache-/Native-Adapter-Quellchecks prüfen die tatsächlichen typisierten Fehlerhelper und erhaltenen nativen Status statt des entfernten connectorgewählten 413-Remaps. HAProxy-Capability-Begründungen beschreiben begrenzte Samples ohne Statuspromotion.
+
+Gepinntes CPython-3.14.7-quick-check: 304 gemeldete Tests, Exit 0; kombinierte Native-/Adapter-Suite: 69 Methoden, Exit 0. Breite Apache-Discovery: 237 Tests, 234 bestanden, drei Foreign-UID-Setupfehler, Gesamt-Exit 1. Diese Fehler sind blockierte Deploymentproben, keine abgeschwächten Assertions. Der getrennte Tree-Secretscan mit 47 Kandidaten bleibt Exit 1; alle Kandidaten wurden unabhängig als unveränderte technische Metadaten/Texte eingeordnet, ohne Scanner-Ausnahmen. Finaler Commit-Range- und Remote-Readback bleiben revisionsgebundene unabhängige Nachweise.

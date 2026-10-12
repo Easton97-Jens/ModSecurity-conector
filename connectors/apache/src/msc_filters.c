@@ -793,10 +793,10 @@ static msconnector_error_code apache_log_intervention_event(msc_t *msr, request_
     event.flags.headers_sent = input->response_already_committed;
     event.flags.body_started = input->phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
         input->response_already_committed;
-    /* An append/processing failure is not proof that EOS completed. */
+    /* Native failure finalization is not proof of an observed host EOS. */
     event.flags.eos_seen =
         (input->phase == MSCONNECTOR_PHASE_REQUEST_BODY && msr->request_body_processed) ||
-        (input->phase == MSCONNECTOR_PHASE_RESPONSE_BODY && msr->response_body_processed);
+        (input->phase == MSCONNECTOR_PHASE_RESPONSE_BODY && msr->response.body_eos_seen);
     event.flags.connection_aborted = strcmp(input->actual, "abort_connection") == 0;
     event.flags.body_truncated = input->phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
         msr->response_body_truncated;
@@ -2003,6 +2003,10 @@ static apr_status_t apache_output_filter_process_headers(msc_t *msr,
         intervention);
 }
 
+static apr_status_t apache_output_filter_finish_response(msc_t *msr,
+    msc_conf_t *conf, ap_filter_t *f, apr_bucket_brigade *bb_in,
+    apr_bucket_brigade *terminal_brigade);
+
 static apr_status_t apache_output_filter_prepare_response_brigade(msc_t *msr,
     msc_conf_t *conf, ap_filter_t *filter, apr_bucket_brigade **brigade,
     apr_bucket **eos_bucket)
@@ -2040,6 +2044,16 @@ static apr_status_t apache_output_filter_prepare_response_brigade(msc_t *msr,
                 msr->response_body_truncated
                     ? "response body accounting overflow"
                     : "failed to append response body to libmodsecurity");
+        }
+        if (msr->response_intervention_pending &&
+            msr->last_intervention_body_limit)
+        {
+            /* The native Reject already terminates inspection. Finish its
+             * one-shot P4 result and enforce it before forwarding this
+             * brigade or appending another bucket. No HTTP EOS is invented;
+             * this is failure finalization, not successful body completion. */
+            return apache_output_filter_finish_response(msr, conf, filter,
+                *brigade, *brigade);
         }
     }
     return APR_SUCCESS;
@@ -2131,6 +2145,31 @@ static apr_status_t apache_phase4_handle_intervention(msc_t *msr,
     msr->phase4_intervention = 1;
     msr->response.committed = apache_phase4_response_committed(msr, r);
     wanted = msc_apache_contract_intervention_action(msr);
+    /* Native Reject is a terminal inspection failure, not an ordinary late
+     * rule that Safe may downgrade to log_only. A committed prefix cannot be
+     * replaced with the native HTTP status, but EOS must never certify it as
+     * a complete successful response. Keep the native status and first cause
+     * for the event while sealing the output path in every connector mode. */
+    if (msr->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT &&
+        msr->response.committed)
+    {
+        apr_status_t rc;
+
+        msr->response_phase4_gate_failed = 1;
+        msr->response_phase4_terminal_output =
+            MSC_PHASE4_TERMINAL_OUTPUT_SEALED;
+        rc = apache_phase4_abort_response_connection(f);
+        if (apache_phase4_log_event(msr, r, wanted,
+                r->connection != NULL && r->connection->aborted
+                    ? "abort_connection" : "",
+                "native_response_body_limit_after_commit") != MSCONNECTOR_ERROR_NONE)
+        {
+            return apache_phase4_fail_closed(msr, f, bb_in, "event sink failure");
+        }
+        apr_brigade_cleanup(bb_in);
+        msc_discard_response_brigade(msr);
+        return rc;
+    }
     if (conf->common_config.phase4_mode == MSCONNECTOR_PHASE4_MODE_OFF)
     {
         if (apache_phase4_log_event(msr, r, wanted, wanted, "native_phase4_mode_off") !=
@@ -2194,6 +2233,21 @@ static apr_status_t apache_output_filter_finish_response(msc_t *msr,
 {
     int intervention = N_INTERVENTION_STATUS;
     apr_status_t rc;
+    apr_bucket *bucket;
+
+    if (terminal_brigade != NULL)
+    {
+        for (bucket = APR_BRIGADE_FIRST(terminal_brigade);
+            bucket != APR_BRIGADE_SENTINEL(terminal_brigade);
+            bucket = APR_BUCKET_NEXT(bucket))
+        {
+            if (APR_BUCKET_IS_EOS(bucket))
+            {
+                msr->response.body_eos_seen = 1;
+                break;
+            }
+        }
+    }
 
     if (!msr->response_body_processed)
     {
