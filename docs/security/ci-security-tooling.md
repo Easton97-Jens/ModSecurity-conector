@@ -46,14 +46,14 @@ not need a parallel lock schema.
 | --- | --- | --- |
 | `actions/checkout` | `v7.0.1` | `3d3c42e5aac5ba805825da76410c181273ba90b1` |
 | `actions/create-github-app-token` | `v3.2.0` | `bcd2ba49218906704ab6c1aa796996da409d3eb1` |
-| `actions/download-artifact` | `v8.0.1` | `3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c` |
+| `actions/download-artifact` | `v8.0.2` | `9000827ccba6bdab643e8b6fd33ac0654aef8333` |
 | `actions/github-script` | `v9.0.0` | `3a2844b7e9c422d3c10d287c895573f7108da1b3` |
 | `actions/setup-go` | `v7.0.0` | `b7ad1dad31e06c5925ef5d2fc7ad053ef454303e` |
 | `actions/setup-python` | `v7.0.0` | `5fda3b95a4ea91299a34e894583c3862153e4b97` |
-| `actions/upload-artifact` | `v7.0.1` | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` |
-| `github/codeql-action` | `v4.37.6` | `5595ccaf912efad79be6eef63a5619ff05969be3` |
-| `google/osv-scanner-action` | `v2.5.1` | `6e4298ebc4db23e847df9b2e2de2939d6f066c67` |
-| `ossf/scorecard-action` | `v2.4.4` | `2d1146689b8cda280b9bc96326124645441f03bc` |
+| `actions/upload-artifact` | `v7.0.2` | `cf430e030ddbb5b0abf93d22962f4752f3646cd9` |
+| `github/codeql-action` | `v4.38.3` | `24c54180a607b1449ed407dd24f251e4e9147c8d` |
+| `google/osv-scanner-action` | `v2.7.0` | `b1d267aea5211fa648d9d442fa64b90dbdcbdd36` |
+| `ossf/scorecard-action` | `v2.5.0` | `fa7117db83c52d787ae5a89f350999701505d78e` |
 
 For hosted execution, configure the repository variable
 `WORKFLOW_UPDATER_APP_CLIENT_ID` and the repository secret
@@ -66,6 +66,18 @@ covered by the explicit publisher allowlist and staging list. Adding a workflow
 requires updating both lists. Proposed-tree validation copies the complete
 registered contract inputs, including their offline test fixtures; those
 read-only inputs do not expand the publisher's permitted changes.
+
+Before publication, the private proposed tree runs every updater unit test
+through `make check-ci-security-contract`, including release-selection and
+negative provenance controls. CodeQL release fixtures use explicit versions
+independent of the live lock. The copied-tree integration test is separate
+from this target to avoid recursively invoking its own validation.
+
+The validator also downloads `actionlint` and `zizmor` from the proposed lock,
+verifies their SHA-256 digests, and executes them against the proposed workflows.
+Safe fixtures must return `0`; both high-severity insecure fixtures must return
+`14`. Checksum failures, tool errors, unexpected exit statuses, and timeouts
+reject the candidate before any push or PR creation.
 
 ## Central ordinary revision and toolchain pins
 
@@ -205,6 +217,30 @@ the runner's `ShellCheck` path when available. It also runs checksum-verified
 `zizmor` offline against all workflow files. A deliberately insecure fixture
 must fail and a safe fixture must pass; neither fixture is executable product
 configuration.
+
+Same-repository reusable workflows use GitHub's `$/` references, which select
+the running revision. The pinned `actionlint` `v1.7.12` does not yet recognize
+this syntax. `ci/tools/lint_workflows.py` uses YAML token positions to translate
+only safe literal `uses` paths to same-width `./` text in memory for actionlint
+stdin. Shell scripts, comments, source files, and runtime references stay intact;
+`zizmor` audits the original files. See the
+[GitHub syntax announcement](https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/)
+and [actionlint compatibility issue](https://github.com/rhysd/actionlint/issues/711).
+
+The adapter accepts no executable or workflow-path CLI arguments. Ordinary CI
+uses the fixed `RUNNER_TEMP/security-tools/actionlint` location; the boolean
+`--candidate-tree` mode uses the private proposed tree's fixed downloaded tool.
+It rejects traversal, symlink ancestors, foreign/writable tool staging, and
+nonregular files, and discovers only repository YAML workflows plus the two
+fixed permission fixtures. ShellCheck uses the fixed `/usr/bin/shellcheck`
+location when available. Integrity still comes from the checksum fetcher.
+
+The hosted NGINX workflow reserves an invocation-local runtime snapshot before
+provisioning and passes its exact path across the later `env -i` boundary with
+`SKIP_RUNTIME_COMPONENT_PREPARE=1`. The wrapper still verifies the snapshot's
+target and cache before running the harness. Ordinary NGINX CI executes the
+handoff regression, including rejected metadata and failed provisioning, so a
+missing handoff cannot silently trigger a second preparation.
 
 ## Secret and dependency scanning
 

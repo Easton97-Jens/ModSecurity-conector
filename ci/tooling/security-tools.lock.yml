@@ -24,24 +24,24 @@ pinned_actions:
     commit_sha: 3a2844b7e9c422d3c10d287c895573f7108da1b3
     upstream: https://github.com/actions/github-script
   actions/upload-artifact:
-    version: v7.0.1
-    commit_sha: 043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+    version: v7.0.2
+    commit_sha: cf430e030ddbb5b0abf93d22962f4752f3646cd9
     upstream: https://github.com/actions/upload-artifact
   actions/download-artifact:
-    version: v8.0.1
-    commit_sha: 3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+    version: v8.0.2
+    commit_sha: 9000827ccba6bdab643e8b6fd33ac0654aef8333
     upstream: https://github.com/actions/download-artifact
   github/codeql-action:
-    version: v4.37.8
-    commit_sha: db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28
+    version: v4.38.3
+    commit_sha: 24c54180a607b1449ed407dd24f251e4e9147c8d
     upstream: https://github.com/github/codeql-action
   google/osv-scanner-action:
-    version: v2.5.1
-    commit_sha: 6e4298ebc4db23e847df9b2e2de2939d6f066c67
+    version: v2.7.0
+    commit_sha: b1d267aea5211fa648d9d442fa64b90dbdcbdd36
     upstream: https://github.com/google/osv-scanner-action
   ossf/scorecard-action:
-    version: v2.4.4
-    commit_sha: 2d1146689b8cda280b9bc96326124645441f03bc
+    version: v2.5.0
+    commit_sha: fa7117db83c52d787ae5a89f350999701505d78e
     upstream: https://github.com/ossf/scorecard-action
 
 tools:
@@ -57,11 +57,11 @@ tools:
     purpose: GitHub Actions syntax, expression, and ShellCheck integration.
     permissions: contents:read
   zizmor:
-    version: v1.29.0
-    release_commit: 3c116961091b50bd1a08ffefe916469d4d90093c
+    version: v1.30.1
+    release_commit: 99a054ed9283c90abdd2d5b9fb5101d27dde9783
     asset: zizmor-x86_64-unknown-linux-gnu.tar.gz
-    url: https://github.com/zizmorcore/zizmor/releases/download/v1.29.0/zizmor-x86_64-unknown-linux-gnu.tar.gz
-    sha256: dd96df044a6e8538d5f423790f453bdd03d49e5b2bcc38214acc41a2f1297839
+    url: https://github.com/zizmorcore/zizmor/releases/download/v1.30.1/zizmor-x86_64-unknown-linux-gnu.tar.gz
+    sha256: e65324f4430c2717591937edcec90ccbefaf14c174f8ec9415e03ca875b46e1a
     executable: zizmor
     upstream: https://github.com/zizmorcore/zizmor
     license: MIT
