@@ -202,10 +202,15 @@ func (s *ExtProcServer) Process(stream extprocv3.ExternalProcessor_ProcessServer
 
 func (s *ExtProcServer) runResponseStream(ctx context.Context, state *responseStreamState, first *extprocv3.ProcessingRequest, firstIsRequestHeaders bool, finish func(string)) error {
 	handleProcessError := func(err error) error {
+		state.responseDone = true
 		var post *postTransportError
 		if errors.As(err, &post) {
 			finish(post.reason)
 			return status.Errorf(codes.Internal, "composite outcome evidence unavailable after Envoy response: %v", post.err)
+		}
+		if state.responseCommitted {
+			finish("processor_error_after_commit")
+			return status.Errorf(codes.Internal, "composite response failed after Envoy commit: %v", err)
 		}
 		finish("processor_error")
 		if sendErr := sendImmediate(state.stream, processor.Decision{Action: processor.ActionDeny, Status: statusUnavailable}); sendErr != nil {
@@ -218,6 +223,9 @@ func (s *ExtProcServer) runResponseStream(ctx context.Context, state *responseSt
 	}
 	if err := s.processStreamRequest(ctx, state, first, finish, handleProcessError); err != nil {
 		return err
+	}
+	if state.responseDone {
+		return nil
 	}
 	return s.runResponseLoop(ctx, state, finish, handleProcessError)
 }
@@ -250,9 +258,13 @@ func (s *ExtProcServer) runResponseLoop(ctx context.Context, state *responseStre
 		request, err := state.stream.Recv()
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				return nil
+				return handleProcessError(io.ErrUnexpectedEOF)
 			}
+			state.responseDone = true
 			finish("grpc_context_canceled_unattributed")
+			if errors.Is(err, context.Canceled) {
+				return status.Error(codes.Canceled, "ext_proc stream canceled before response EOS")
+			}
 			return classifyRecv(err)
 		}
 		terminal, err := s.processResponse(ctx, state, request)
@@ -271,6 +283,7 @@ type responseStreamState struct {
 	stream               extprocv3.ExternalProcessor_ProcessServer
 	response             *composite.Response
 	responseHeadersSeen  bool
+	responseCommitted    bool
 	responseTrailersSeen bool
 	responseDone         bool
 	upstreamStatus       int
@@ -287,7 +300,11 @@ func (s *ExtProcServer) processResponse(ctx context.Context, state *responseStre
 			return false, errors.New("duplicate response headers")
 		}
 		state.responseHeadersSeen = true
-		return s.responseHeaders(ctx, state.stream, state.response, request.GetResponseHeaders(), &state.upstreamStatus)
+		terminal, err := s.responseHeaders(ctx, state.stream, state.response, request.GetResponseHeaders(), &state.upstreamStatus)
+		if err == nil && !terminal {
+			state.responseCommitted = true
+		}
+		return terminal, err
 	case request.GetResponseBody() != nil:
 		if !state.responseHeadersSeen || state.responseDone || state.responseTrailersSeen {
 			return false, errors.New("response body violates stream order")

@@ -285,11 +285,8 @@ int main(void) {
             "static int self_test_rejects_oversized_endpoint_port(void)", SPOP_RUNTIME
         )
         self.assertIn("append_typed_uint32(&payload, 65536U)", SPOP_RUNTIME)
-        self_test_start = SPOP_RUNTIME.index("static int run_self_test(")
-        self_test_end = SPOP_RUNTIME.index("typedef struct legacy_server_config", self_test_start)
-        self.assertIn(
-            "run_spop_protocol_self_tests()", SPOP_RUNTIME[self_test_start:self_test_end]
-        )
+        self.assertIn("run_spop_protocol_self_tests()",
+            function_definition(SPOP_RUNTIME, "run_self_test"))
         self.assertIn("self_test_rejects_oversized_endpoint_port() != 0",
             function_definition(SPOP_RUNTIME, "run_spop_protocol_self_tests"))
 
@@ -306,12 +303,8 @@ int main(void) {
         )
         self.assertIn("static int self_test_rejects_fin_unset_frame(void)", SPOP_RUNTIME)
         self.assertIn("send_frame_with_flags(sockets[0], SPOP_FRM_NOTIFY, 0U", SPOP_RUNTIME)
-        self_test_start = SPOP_RUNTIME.index("static int run_self_test(")
-        self_test_end = SPOP_RUNTIME.index("typedef struct legacy_server_config", self_test_start)
-        self.assertIn(
-            "run_spop_protocol_self_tests()",
-            SPOP_RUNTIME[self_test_start:self_test_end],
-        )
+        self.assertIn("run_spop_protocol_self_tests()",
+            function_definition(SPOP_RUNTIME, "run_self_test"))
         self.assertIn("self_test_rejects_fin_unset_frame() != 0",
             function_definition(SPOP_RUNTIME, "run_spop_protocol_self_tests"))
 

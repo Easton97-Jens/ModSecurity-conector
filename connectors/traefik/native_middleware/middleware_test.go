@@ -1057,7 +1057,9 @@ func TestIncompleteHostWriteDoesNotInventResponseEOS(t *testing.T) {
 	}), transaction)
 	response := &failingResponseWriter{header: make(http.Header)}
 
-	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/disconnect", nil))
+	expectHostStop(t, func() {
+		middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/disconnect", nil))
+	})
 
 	if len(transaction.closed) != 1 {
 		t.Fatalf("Close calls = %d, want 1", len(transaction.closed))

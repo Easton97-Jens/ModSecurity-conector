@@ -45,7 +45,14 @@ func TestResponseCommitFailureStopsBodyAndEOS(t *testing.T) {
 			state := &streamState{config: *CreateConfig(), engine: tx, requestEOS: true}
 			target := httptest.NewRecorder()
 			writer := newResponseWriter(httptest.NewRequest(http.MethodGet, "/", nil), target, state)
-			n, err := writer.Write([]byte("first"))
+			var n int
+			var err error
+			if test.commitErr != nil {
+				expectHostStop(t, func() { n, err = writer.Write([]byte("first")) })
+				err = state.responseFailure()
+			} else {
+				n, err = writer.Write([]byte("first"))
+			}
 			test.check(t, writer, tx, target, n, err)
 			state.close(context.Background())
 			state.close(context.Background())
@@ -68,7 +75,7 @@ func assertFailedCommitStopsResponse(t *testing.T, writer *responseWriter, tx *f
 	if _, err = writer.Write([]byte("retry")); !errors.Is(err, errHostBridge) {
 		t.Fatalf("reentry error = %v", err)
 	}
-	writer.finish()
+	expectHostStop(t, writer.finish)
 	if len(tx.bodyCalls) != before {
 		t.Fatal("engine reentered after failed commit")
 	}
@@ -102,7 +109,9 @@ func TestLateOutcomeFailureStopsEngineReentry(t *testing.T) {
 func TestAppliedOutcomeFailureStopsLaterProcessing(t *testing.T) {
 	tx := &failingHostTransaction{outcomeErr: errHostBridge}
 	state := &streamState{engine: tx}
-	state.writeDecision(context.Background(), httptest.NewRecorder(), Decision{Action: ActionDeny, Status: 403})
+	expectHostStop(t, func() {
+		state.writeDecision(context.Background(), httptest.NewRecorder(), Decision{Action: ActionDeny, Status: 403})
+	})
 	_, err := state.processResponseBody(context.Background(), nil, true, false)
 	if !errors.Is(err, errHostBridge) || len(tx.bodyCalls) != 0 || tx.outcomes != 1 || state.responseEOS {
 		t.Fatalf("failed outcome continued: err=%v calls=%d outcomes=%d eos=%v", err, len(tx.bodyCalls), tx.outcomes, state.responseEOS)

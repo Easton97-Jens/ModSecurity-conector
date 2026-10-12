@@ -1124,8 +1124,8 @@ static int authorization_stream_request_body(
             "request body is disabled", "http_authorization_service");
         return 0;
     }
-    if (!msconnector_runtime_transaction_append_request_body_chunk(transaction,
-            parsed->body, parsed->body_size, error)) return 0;
+    if (msconnector_runtime_transaction_append_request_body_chunk(transaction,
+            parsed->body, parsed->body_size, error) != 1) return 0;
     while (remaining > 0U) {
         size_t received_size = 0U;
         const size_t capacity = remaining < sizeof(scratch) ? remaining : sizeof(scratch);
@@ -1155,11 +1155,22 @@ static int authorization_stream_request_body(
                 "http_authorization_service");
             return 0;
         }
-        if (!msconnector_runtime_transaction_append_request_body_chunk(transaction,
-                scratch, received_size, error)) return 0;
+        if (msconnector_runtime_transaction_append_request_body_chunk(transaction,
+                scratch, received_size, error) != 1) return 0;
         remaining -= received_size;
     }
     return msconnector_runtime_transaction_finish_request_body(transaction, decision, error);
+}
+
+static void authorization_response_set_stream_error(
+    const authorization_service *service, const msconnector_error *common_error,
+    authorization_response_state *response) {
+    authorization_response_set_runtime_error(service, common_error, response);
+    if (common_error->code == MSCONNECTOR_ERROR_HOST_API_FAILURE &&
+        common_error->source != NULL &&
+        strcmp(common_error->source, "http_authorization_service") == 0) {
+        response->status = error_status_from_message(common_error->message);
+    }
 }
 
 static void authorization_process_runtime_request(
@@ -1187,20 +1198,15 @@ static void authorization_process_runtime_request(
         response->status = 400;
         response->decision_name = "mapping_error";
         response->success = 0;
-    } else if (!msconnector_runtime_transaction_begin_request_stream(service->runtime, &request, NULL,
-            &transaction, &decision, &common_error)) {
+    } else if (msconnector_runtime_transaction_begin_request_stream(service->runtime, &request, NULL,
+            &transaction, &decision, &common_error) != 1) {
         authorization_response_set_runtime_error(service, &common_error, response);
     } else {
         if (!msconnector_decision_action_is_disruptive(
                 msconnector_decision_action_from_decision(&decision)) &&
-            !authorization_stream_request_body(service, connection, parsed,
-                transaction, &decision, &common_error, lock_held)) {
-            authorization_response_set_runtime_error(service, &common_error, response);
-            if (common_error.code == MSCONNECTOR_ERROR_HOST_API_FAILURE &&
-                common_error.source != NULL &&
-                strcmp(common_error.source, "http_authorization_service") == 0) {
-                response->status = error_status_from_message(common_error.message);
-            }
+            authorization_stream_request_body(service, connection, parsed,
+                transaction, &decision, &common_error, lock_held) != 1) {
+            authorization_response_set_stream_error(service, &common_error, response);
         } else {
             authorization_response_set_decision(service, &decision, response);
         }
@@ -1209,9 +1215,9 @@ static void authorization_process_runtime_request(
                 MSCONNECTOR_DECISION_ACTION_ALLOW ||
              msconnector_decision_action_from_decision(&decision) ==
                 MSCONNECTOR_DECISION_ACTION_LOG_ONLY)) {
-            if (!service->profile->handoff_response_companion(service->runtime,
+            if (service->profile->handoff_response_companion(service->runtime,
                     transaction, service->profile->response_companion_userdata,
-                    response_handle, &common_error)) {
+                    response_handle, &common_error) != 1) {
                 authorization_response_set_runtime_error(service, &common_error, response);
             } else {
                 /* The companion owns this live Common/native transaction until
@@ -1224,9 +1230,13 @@ static void authorization_process_runtime_request(
             }
         }
     }
-    if (!response_companion_owns_transaction && transaction != NULL &&
-        !msconnector_runtime_transaction_finish(transaction, &common_error)) {
-        authorization_response_set_runtime_error(service, &common_error, response);
+    if (!response_companion_owns_transaction && transaction != NULL) {
+        msconnector_error finish_error;
+        msconnector_error_init(&finish_error);
+        if (msconnector_runtime_transaction_finish(transaction, &finish_error) != 1 &&
+            response->success) {
+            authorization_response_set_runtime_error(service, &finish_error, response);
+        }
     }
     if (!response_companion_owns_transaction) {
         response->terminal_response_marker =

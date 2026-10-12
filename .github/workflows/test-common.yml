@@ -84,3 +84,8 @@ jobs:
           make -n smoke-nginx
           make -n smoke-all
           make -n runtime-matrix-all
+      - name: Execute productive HTTP and companion technical-error callers
+        env:
+          TMPDIR: ${{ runner.temp }}
+          RUNNER_TEMP: ${{ runner.temp }}
+        run: make check-i10-common-callers

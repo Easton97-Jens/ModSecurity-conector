@@ -114,6 +114,10 @@ int haproxy_modsecurity_transaction_handoff_response_companion(
     haproxy_modsecurity_transaction *transaction);
 int haproxy_modsecurity_transaction_claim_response_companion(
     haproxy_modsecurity_transaction *transaction);
+/* Borrowed transaction remains owned by the caller; do not query after finish. */
+msconnector_transaction_error_class haproxy_modsecurity_transaction_error_class(
+        const haproxy_modsecurity_transaction *transaction);
+
 int haproxy_modsecurity_transaction_set_response_commit_state(
     haproxy_modsecurity_transaction *transaction,
     int headers_sent, int body_started);

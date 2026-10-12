@@ -177,8 +177,10 @@ func serve(config processor.Config, runtime engineRuntime, eventLogPath string) 
 
 type limitedListener struct {
 	net.Listener
-	slots chan struct{}
-	done  chan struct{}
+	slots     chan struct{}
+	done      chan struct{}
+	closeOnce sync.Once
+	closeErr  error
 }
 
 func newLimitedListener(listener net.Listener, maximum int) net.Listener {
@@ -200,12 +202,11 @@ func (listener *limitedListener) Accept() (net.Conn, error) {
 }
 
 func (listener *limitedListener) Close() error {
-	select {
-	case <-listener.done:
-	default:
+	listener.closeOnce.Do(func() {
 		close(listener.done)
-	}
-	return listener.Listener.Close()
+		listener.closeErr = listener.Listener.Close()
+	})
+	return listener.closeErr
 }
 
 type limitedConn struct {
@@ -232,6 +233,7 @@ func newObserver(eventLogPath string, runtime engineRuntime) (processor.Observer
 }
 
 func waitForServerTermination(grpcServer *grpc.Server, listener net.Listener, shutdownTimeoutMS int, fatalErrors <-chan error) (int, error) {
+	defer listener.Close()
 	serveResult := make(chan error, 1)
 	go func() {
 		serveResult <- grpcServer.Serve(listener)

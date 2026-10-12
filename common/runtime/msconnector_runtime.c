@@ -3256,6 +3256,7 @@ int msconnector_runtime_transaction_fail(
     msconnector_transaction_error_class error_class,
     msconnector_error *error) {
     int result;
+    int terminal_rule_failure;
 
     if (error != NULL) {
         msconnector_error_init(error);
@@ -3264,12 +3265,30 @@ int msconnector_runtime_transaction_fail(
         return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
             "transaction is required", "runtime");
     }
+    if (transaction->event_write_failed != MSCONNECTOR_ERROR_NONE) {
+        return replay_event_write_failure(transaction, error);
+    }
+    terminal_rule_failure =
+        transaction->contract.status == MSCONNECTOR_TRANSACTION_STATUS_TERMINAL &&
+        transaction->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE &&
+        transaction->contract.rule_id[0] != '\0';
+    if (terminal_rule_failure &&
+        (transaction->host_action_event_emitted || transaction->finish_attempted ||
+         transaction->finished)) {
+        return contract_error(error, MSCONNECTOR_TRANSACTION_TRANSITION_AFTER_TERMINAL,
+            "failure after an accepted host action or finish is not allowed");
+    }
     result = msconnector_transaction_contract_fail(&transaction->contract,
         error_class, transaction_now_ms());
     if (result != MSCONNECTOR_TRANSACTION_TRANSITION_OK &&
         transaction->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
         return contract_error(error, result,
             "transaction failure violates the shared contract");
+    }
+    if (result == MSCONNECTOR_TRANSACTION_TRANSITION_OK && terminal_rule_failure) {
+        /* EngineDecision remains valid history, but the failed delivery now
+         * requires its own once-only technical completion event. */
+        transaction->terminal_event_emitted = 0;
     }
     transaction->request_blocked = 1;
     return emit_contract_terminal_event(transaction, error);

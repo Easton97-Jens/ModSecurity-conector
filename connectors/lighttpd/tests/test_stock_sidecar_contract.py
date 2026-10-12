@@ -15,6 +15,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import select
 import socket
 import socketserver
 import struct
@@ -212,7 +213,9 @@ def _upstream(responder):
 
 class _RunningSidecar:
     def __init__(self, binary: Path, config: Path, upstream_port: int, library_dir: Path,
-                 timeout_ms: int, environment: dict[str, str] | None = None) -> None:
+                 timeout_ms: int, environment: dict[str, str] | None = None,
+                 pass_fds: tuple[int, ...] = ()) -> None:
+        self._pass_fds = pass_fds
         self.port = _free_loopback_port()
         self.config = config
         self.process: subprocess.Popen[bytes] | None = None
@@ -238,6 +241,7 @@ class _RunningSidecar:
             env=self._environment,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            pass_fds=self._pass_fds,
         )
         return self
 
@@ -947,7 +951,7 @@ int main(void) {
         self.assertNotIn("sidecar_receipt_hash", source)
         self.assertIn("msconnector_runtime_transaction_fail", source)
         self.assertIn("sidecar_record_decision_delivery_failure", source)
-        self.assertIn("sidecar_record_decision_delivery_failure(state->transaction, &state->decision", source)
+        self.assertIn("sidecar_record_decision_delivery_failure(state->client, &state->client_stop, state->transaction, &state->decision", source)
         self.assertNotIn("sidecar_exchange_legacy", source)
         self.assertIn("SIDECAR_MAX_PARALLEL 16U", source)
         self.assertIn('"127.0.0.1:"', source)
@@ -1127,6 +1131,12 @@ int main(void) {
 
 #include <assert.h>
 
+void msconnector_error_init(msconnector_error *error) {memset(error,0,sizeof(*error));}
+int msconnector_runtime_error_http_status(const msconnector_runtime *runtime, msconnector_error_code code) {
+    (void)runtime;
+    assert(code == MSCONNECTOR_ERROR_NONE);
+    return 500;
+}
 int msconnector_runtime_transaction_record_failure_host_action(
     msconnector_runtime_transaction *transaction, int visible_http_status,
     int connection_aborted, msconnector_error *error) {
@@ -1285,7 +1295,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
 
     @classmethod
     def _compile(cls, output: Path, source: Path, *, define_main: bool,
-                 include_directory: Path) -> None:
+                 include_directory: Path, send_wrapper: Path | None = None) -> None:
         compiler = os.environ.get("CC", "cc")
         command = [
             compiler,
@@ -1295,6 +1305,8 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
         ]
         if define_main:
             command.append("-DMSCONNECTOR_STOCK_SIDECAR_MAIN")
+        if send_wrapper is not None:
+            command.extend([str(send_wrapper), "-Wl,--wrap=send"])
         command.extend([str(source), str(COMMON_RUNTIME), str(PROFILE_REGISTRY)])
         command.extend(str(path) for path in COMMON_SOURCES)
         command.extend([
@@ -1312,7 +1324,8 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
     def _fixture(self, rules: str, responder, *, engine_request_limit: int, engine_request_limit_action: str,
                  engine_response_limit: int, engine_response_limit_action: str, timeout_ms: int = 1000,
                  phase4_mode: str = "strict",
-                 environment: dict[str, str] | None = None):
+                 environment: dict[str, str] | None = None,
+                 pass_fds: tuple[int, ...] = ()):
         with tempfile.TemporaryDirectory(prefix="stock-lighttpd-sidecar-case-",
                                          dir=_temporary_root()) as temporary:
             directory = Path(temporary)
@@ -1357,7 +1370,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
             )
             with _upstream(responder) as upstream:
                 with _RunningSidecar(self.binary, config_path, upstream.server_address[1],
-                                     self.library_dir, timeout_ms, environment) as sidecar:
+                                     self.library_dir, timeout_ms, environment, pass_fds) as sidecar:
                     yield sidecar, upstream, event_path, config_path
 
     def test_startup_rejects_limits_that_exceed_sidecar_allocation_bounds(self) -> None:
@@ -1826,29 +1839,71 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
         normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
         rule = 'SecRule REQUEST_BODY "@contains block-reset" "id:9801102,phase:2,deny,status:418,log"'
 
-        with self._fixture(rule, lambda _request: normal, engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, events, _config):
-            client = sidecar.connect()
-            try:
-                client.sendall(self._request(body=b"block-reset"))
-                # The complete P2 input has been queued before the RST.  A
-                # reset forces the pending small decision response through
-                # the adapter's failed-delivery path instead of allowing a
-                # normal visible status to be inferred.
-                client.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
-            finally:
-                client.close()
-            event_text = self._wait_for_event(events, "MSCONN_EVENT_CONNECTOR_ERROR")
-            self.assertNotIn('"actual_action":"abort_connection"', event_text)
-            self.assertNotIn('"connection_aborted":true', event_text)
-            technical = [json.loads(line) for line in event_text.splitlines()
-                         if "MSCONN_EVENT_CONNECTOR_ERROR" in line]
-            self.assertTrue(technical)
-            for event in technical:
-                self.assertEqual(event["decision"]["status"], "error")
-                self.assertEqual(event["decision"].get("actual_action", ""), "")
-                self.assertEqual(event["decision"].get("rule_id", ""), "")
-            self.assertIn('"rule_id":"9801102"', event_text)
-            self.assertEqual(upstream.record_count(), 0)
+        with tempfile.TemporaryDirectory(prefix="sidecar-send-gate-", dir=_temporary_root()) as temporary:
+            directory = Path(temporary)
+            wrapper = directory / "send_gate.c"
+            wrapper.write_text(r'''
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <unistd.h>
+ssize_t __real_send(int, const void *, size_t, int);
+ssize_t __wrap_send(int fd, const void *data, size_t size, int flags) {
+    static int notified;
+    if (!notified && size >= 12 && memcmp(data, "HTTP/1.1 418", 12) == 0) {
+        char signal = 'R';
+        ssize_t received;
+        notified = 1;
+        if (write(atoi(getenv("SIDECAR_TEST_NOTIFY_FD")), &signal, 1) != 1) return -1;
+        do { received = read(atoi(getenv("SIDECAR_TEST_RELEASE_FD")), &signal, 1); }
+        while (received < 0 && errno == EINTR);
+        if (received != 1) return -1;
+    }
+    return __real_send(fd, data, size, flags);
+}
+''')
+            binary = directory / "sidecar"
+            self._compile(binary, SIDECAR_SOURCE, define_main=True,
+                          include_directory=Path(os.environ["MODSECURITY_INCLUDE_DIR"]),
+                          send_wrapper=wrapper)
+            notify_read, notify_write = os.pipe()
+            release_read, release_write = os.pipe()
+            with contextlib.ExitStack() as stack:
+                for descriptor in (notify_read, notify_write, release_read, release_write):
+                    stack.callback(os.close, descriptor)
+                stack.enter_context(mock.patch.object(self, "binary", binary))
+                sidecar, upstream, events, _config = stack.enter_context(self._fixture(
+                    rule, lambda _request: normal,
+                    engine_response_limit=1048576, engine_response_limit_action="Reject",
+                    engine_request_limit=1048576, engine_request_limit_action="Reject",
+                    environment={"SIDECAR_TEST_NOTIFY_FD": str(notify_write),
+                                 "SIDECAR_TEST_RELEASE_FD": str(release_read)},
+                    pass_fds=(notify_write, release_read)))
+                client = sidecar.connect()
+                try:
+                    client.sendall(self._request(body=b"block-reset"))
+                    self.assertTrue(select.select([notify_read], [], [], 5)[0],
+                                    "productive P2 decision write was not reached")
+                    self.assertEqual(os.read(notify_read, 1), b"R")
+                    client.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+                finally:
+                    client.close()
+                    self.assertEqual(os.write(release_write, b"R"), 1)
+                event_text = self._wait_for_event(events, "MSCONN_EVENT_CONNECTOR_ERROR")
+                self.assertNotIn('"actual_action":"abort_connection"', event_text)
+                self.assertNotIn('"connection_aborted":true', event_text)
+                technical = [json.loads(line) for line in event_text.splitlines()
+                             if "MSCONN_EVENT_CONNECTOR_ERROR" in line]
+                self.assertTrue(technical)
+                for event in technical:
+                    self.assertEqual(event["phase"], "request_body")
+                    self.assertEqual(event["status"], "error")
+                    self.assertEqual(event["requested_action"], "error")
+                    self.assertEqual(event.get("actual_action", ""), "")
+                    self.assertEqual(event.get("rule_id", ""), "")
+                self.assertIn('"rule_id":"9801102"', event_text)
+                self.assertEqual(upstream.record_count(), 0)
 
     def test_parallel_capacity_and_connection_reuse_are_bounded(self) -> None:
         normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"

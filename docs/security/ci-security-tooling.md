@@ -235,6 +235,13 @@ nonregular files, and discovers only repository YAML workflows plus the two
 fixed permission fixtures. ShellCheck uses the fixed `/usr/bin/shellcheck`
 location when available. Integrity still comes from the checksum fetcher.
 
+Local `make lint` retains its optional installed `actionlint` from `PATH`. The
+separate `ci.tools.lint_installed_workflows` adapter reuses the same in-memory
+normalization and fixed workflow discovery, preserving sources, ShellCheck's
+default lookup and nonzero/timeout outcomes. It accepts no tool or file
+arguments and downloads nothing. The checksum-staged security CI and candidate
+adapter keep their stricter fixed tool locations and ownership checks.
+
 The hosted NGINX workflow reserves an invocation-local runtime snapshot before
 provisioning and passes its exact path across the later `env -i` boundary with
 `SKIP_RUNTIME_COMPONENT_PREPARE=1`. The wrapper still verifies the snapshot's

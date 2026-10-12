@@ -1312,6 +1312,28 @@ check-haproxy-c20:
 check-haproxy-c26:
 	@echo "SKIPPED: c26 is not a C standard mode; use c2y/gnu2y for future C or c++26 for C++."
 
+.PHONY: check-i10-adapter-errors check-i10-common-callers check-i10-haproxy-callers check-i10-envoy-callers check-i10-traefik-callers check-i10-lighttpd-callers
+
+check-i10-adapter-errors: check-i10-common-callers check-i10-haproxy-callers check-i10-envoy-callers check-i10-traefik-callers check-i10-lighttpd-callers
+
+check-i10-common-callers:
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_i10_service_callers tests.test_runtime_rule_delivery_failure
+
+check-i10-haproxy-callers:
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_haproxy_i10_host_callers tests.test_haproxy_i10_binding_callers
+
+check-i10-envoy-callers:
+	cd connectors/envoy/ext_proc && GOTOOLCHAIN=local go test -mod=readonly -count=1 -race ./...
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_i10_envoy_mutations tests.test_i10_envoy_finish
+
+check-i10-traefik-callers:
+	cd connectors/traefik/native_middleware && GOTOOLCHAIN=local go test -mod=readonly -count=1 -race ./... && GOTOOLCHAIN=local go vet -mod=readonly ./...
+	cd connectors/traefik/response_observer && GOTOOLCHAIN=local go test -mod=readonly -count=1 -race ./... && GOTOOLCHAIN=local go vet -mod=readonly ./...
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_traefik_i10_dispatcher tests.test_traefik_i10_mutations
+
+check-i10-lighttpd-callers:
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_lighttpd_i10_adapter_errors
+
 check-common-helpers:
 	MSCONNECTOR_C_STD="$(MSCONNECTOR_C_STD)" MSCONNECTOR_CFLAGS="$(MSCONNECTOR_CFLAGS)" sh ci/checks/common/check-common-helpers.sh
 
@@ -1480,7 +1502,7 @@ lint: check-framework
 	sh ci/checks/common/check-common-helpers.sh
 	sh ci/checks/common/check-adapter-helpers.sh
 	sh ci/checks/common/check-adapter-metadata-drift.sh
-	if command -v actionlint >/dev/null 2>&1; then actionlint .github/workflows/*.yml; else echo "actionlint unavailable"; fi
+	if command -v actionlint >/dev/null 2>&1; then $(PYTHON) -m ci.tools.lint_installed_workflows; else echo "actionlint unavailable"; fi
 	git diff --check
 
 summary: check-framework

@@ -42,6 +42,8 @@ class ApacheFailClosedTests(unittest.TestCase):
                 call = self.headers.index(f"{operation}(")
                 failure = self.headers.index(f'return apache_native_failed(r, "{operation}");', call)
                 self.assertLess(call, failure)
+                self.assertRegex(self.headers[call:failure + len(f'return apache_native_failed(r, "{operation}");')],
+                    re.compile(rf"{operation}\([^;]*?\)\s*!=\s*1\)\s*\{{\s*(?:msr->native_event_phase_active = 0;\s*)?return apache_native_failed\(r, \"{operation}\"\);", re.DOTALL))
 
     def test_connection_failure_is_fail_closed_in_the_late_hook(self) -> None:
         call = self.late_hook.index("msc_process_connection(")
@@ -55,7 +57,13 @@ class ApacheFailClosedTests(unittest.TestCase):
                 self.assertRegex(self.source, re.compile(rf"{operation}\([^;]*?\)\s*!=\s*1", re.DOTALL))
 
     def test_fail_closed_keeps_connection_close_and_owner_cleanup_contract(self) -> None:
+        connector_helper = function_body(self.source, "static int apache_fail_closed(")
+        native_helper = function_body(self.source, "static int apache_native_failed(")
+        for wrapper, cause in ((connector_helper, "CONNECTOR"), (native_helper, "INVALID_ENGINE_RESPONSE")):
+            self.assertRegex(wrapper, re.compile(
+                rf"return apache_fail_closed_with_cause\(r, operation,\s*MSCONNECTOR_TRANSACTION_ERROR_{cause}\);"))
         helper = function_body(self.source, "static int apache_fail_closed_with_cause(")
+        self.assertIn("apache_record_failure(msr, r, cause)", helper)
         self.assertIn("return HTTP_INTERNAL_SERVER_ERROR;", helper)
         self.assertIn("r->connection->keepalive = AP_CONN_CLOSE;", helper)
         native = function_body(self.source, "static int apache_native_failed(")

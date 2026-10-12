@@ -257,6 +257,14 @@ Repository-YAML-Workflows samt den zwei festen Berechtigungs-Fixtures.
 ShellCheck verwendet bei Verfügbarkeit den festen Pfad `/usr/bin/shellcheck`.
 Die Integrität stammt weiterhin vom Prüfsummen-Fetcher.
 
+Lokales `make lint` behält sein optional installiertes `actionlint` aus `PATH`.
+Der separate Adapter `ci.tools.lint_installed_workflows` verwendet dieselbe
+Normalisierung im Speicher und feste Workflow-Ermittlung; Quelldateien,
+ShellChecks Standard-Pfadsuche sowie Fehler- und Timeout-Ergebnisse bleiben
+erhalten. Er akzeptiert keine Tool- oder Dateiargumente und lädt nichts herunter.
+Der Adapter für checksum-gestützte Security-CI und Kandidaten behält seine
+strengeren festen Toolpfade und Ownership-Prüfungen.
+
 Der gehostete NGINX-Workflow reserviert vor der Provisionierung einen
 Invocation-eigenen Runtime-Snapshot und übergibt dessen exakten Pfad mit
 `SKIP_RUNTIME_COMPONENT_PREPARE=1` über die spätere `env -i`-Grenze.

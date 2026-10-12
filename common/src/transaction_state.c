@@ -258,6 +258,27 @@ static int contract_decision_mutable(const msconnector_transaction_contract *con
         contract->status != MSCONNECTOR_TRANSACTION_STATUS_TERMINAL;
 }
 
+/* A selected rule action can still fail at its host-delivery boundary. Only
+ * explicit failure may replace that prospective rule outcome; phase calls,
+ * normal decisions and cleanup retain their terminal guards. The Runtime
+ * additionally rejects conversion after an accepted host action or finish. */
+static int contract_has_terminal_rule_decision(
+    const msconnector_transaction_contract *contract) {
+    msconnector_transaction_decision_policy policy;
+
+    if (!contract_is_initialized(contract) ||
+        contract->status != MSCONNECTOR_TRANSACTION_STATUS_TERMINAL ||
+        contract->cleanup_started || contract->cleanup_complete) {
+        return 0;
+    }
+    if (contract->error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE ||
+        contract->rule_id[0] == '\0') {
+        return 0;
+    }
+    return msconnector_transaction_contract_decision_policy(contract,
+        contract->engine_decision, &policy) && policy.rule_correlation_required;
+}
+
 static int increment_size(size_t *value, size_t amount) {
     if (value == NULL || amount > SIZE_MAX - *value) {
         return 0;
@@ -962,8 +983,11 @@ int msconnector_transaction_contract_fail(msconnector_transaction_contract *cont
     msconnector_transaction_error_class error_class,
     uint64_t now_ms) {
     msconnector_transaction_decision_kind kind;
+    const int terminal_rule_failure =
+        error_class != MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT &&
+        contract_has_terminal_rule_decision(contract);
 
-    if (!contract_decision_mutable(contract) ||
+    if ((!contract_decision_mutable(contract) && !terminal_rule_failure) ||
         error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
         return contract_is_cleaned(contract) ?
             MSCONNECTOR_TRANSACTION_TRANSITION_AFTER_CLEANUP :
@@ -1011,6 +1035,20 @@ int msconnector_transaction_contract_fail(msconnector_transaction_contract *cont
         contract->rule_id[0] = '\0';
         contract->active_phase = -1;
         contract->status = MSCONNECTOR_TRANSACTION_STATUS_TERMINAL;
+        contract->completed_at_ms = now_ms;
+        return MSCONNECTOR_TRANSACTION_TRANSITION_OK;
+    }
+    if (terminal_rule_failure) {
+        msconnector_transaction_decision_policy policy;
+        if (!msconnector_transaction_contract_decision_policy(contract, kind, &policy)) {
+            return MSCONNECTOR_TRANSACTION_TRANSITION_INVALID;
+        }
+        contract->error_phase = contract->last_completed_phase;
+        contract->error_class = error_class;
+        contract->engine_decision = kind;
+        contract->action = policy.host_action;
+        contract->rule_id[0] = '\0';
+        contract->active_phase = -1;
         contract->completed_at_ms = now_ms;
         return MSCONNECTOR_TRANSACTION_TRANSITION_OK;
     }

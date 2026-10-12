@@ -2897,10 +2897,6 @@ static int load_config_file(agent_config *config, const char *path) {
     return 0;
 }
 
-static int fail_mode_closed(const agent_config *config) {
-    return strcmp(config->fail_mode, "closed") == 0;
-}
-
 static int mode_enforces(const agent_config *config) {
     return strcmp(config->mode, "detect-only") != 0;
 }
@@ -3522,16 +3518,13 @@ static const char *set_processing_failure(
         decision->error_class : MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
     const int retained_phase = decision->error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE ?
         decision->phase : phase;
+    (void)state;
+    /* Processing/API errors remain technical failures in observer and open modes. */
     copy_cstring(retained_reason, sizeof(retained_reason), reason != NULL ? reason : "");
-    if (fail_mode_closed(&state->config)) {
-        runtime_init_decision(decision, retained_phase, "deny", 503, retained_reason);
-        decision->error_class = retained_class;
-        decision->disruptive = 1;
-        return "fail-closed";
-    }
-    runtime_init_decision(decision, retained_phase, "pass", 200, retained_reason);
+    runtime_init_decision(decision, retained_phase, "deny", 503, retained_reason);
     decision->error_class = retained_class;
-    return "fail-open";
+    decision->disruptive = 1;
+    return "fail-closed";
 }
 
 static const char *set_admission_failure(
@@ -4102,8 +4095,8 @@ static void process_production_request_notify(
         } else {
             now_ms = (uint64_t)now.tv_sec * UINT64_C(1000) +
                 (uint64_t)now.tv_nsec / UINT64_C(1000000);
-            if (!msconnector_response_companion_transport_ensure_running(
-                    &state->response_transport, &companion_error) ||
+            if (msconnector_response_companion_transport_ensure_running(
+                    &state->response_transport, &companion_error) != 1 ||
                     haproxy_modsecurity_transaction_handoff_response_companion(transaction) != 0 ||
                     !haproxy_spop_response_companion_handoff(
                         &state->response_backend, transaction, now_ms,
@@ -5021,7 +5014,15 @@ static msconnector_error_code spop_bridge_error_code(
     case MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE: return MSCONNECTOR_ERROR_MODSECURITY_FAILURE;
     case MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT: return MSCONNECTOR_ERROR_TIMEOUT;
     case MSCONNECTOR_TRANSACTION_ERROR_ENGINE_UNAVAILABLE: return MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE;
-    case MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR: return MSCONNECTOR_ERROR_INTERNAL;
+    case MSCONNECTOR_TRANSACTION_ERROR_EVENT_LIMIT: return MSCONNECTOR_ERROR_EVENT_TOO_LARGE;
+    case MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR: return MSCONNECTOR_ERROR_HOST_API_FAILURE;
+    case MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL: return MSCONNECTOR_ERROR_PROTOCOL;
+    case MSCONNECTOR_TRANSACTION_ERROR_CORRELATION_MISSING: return MSCONNECTOR_ERROR_CORRELATION_MISSING;
+    case MSCONNECTOR_TRANSACTION_ERROR_CORRELATION_EXPIRED: return MSCONNECTOR_ERROR_CORRELATION_EXPIRED;
+    case MSCONNECTOR_TRANSACTION_ERROR_CORRELATION_MISMATCH: return MSCONNECTOR_ERROR_CORRELATION_MISMATCH;
+    case MSCONNECTOR_TRANSACTION_ERROR_CLIENT_CANCEL:
+    case MSCONNECTOR_TRANSACTION_ERROR_UPSTREAM_DISCONNECT: return MSCONNECTOR_ERROR_IO;
+    case MSCONNECTOR_TRANSACTION_ERROR_CLEANUP_INCOMPLETE: return MSCONNECTOR_ERROR_INTERNAL;
     default: return MSCONNECTOR_ERROR_PHASE_SEQUENCE;
     }
 }

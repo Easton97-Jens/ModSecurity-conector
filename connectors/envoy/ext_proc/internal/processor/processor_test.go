@@ -995,8 +995,8 @@ func TestExplicitEmptyRequestDoesNotSynthesizeBody(t *testing.T) {
 		{request: responseHeaders(false)},
 	}}
 
-	if err := service.Process(stream); err != nil {
-		t.Fatalf("Process() error = %v", err)
+	if err := service.Process(stream); err == nil {
+		t.Fatal("response without EOS returned success")
 	}
 	if got, want := len(stream.sent), 2; got != want {
 		t.Fatalf("sent responses = %d, want %d", got, want)

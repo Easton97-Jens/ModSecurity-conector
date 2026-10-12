@@ -72,7 +72,7 @@ func NewCommonRuntimeEngine(configPath string) (*CommonRuntimeEngine, error) {
 	defer C.free(unsafe.Pointer(cConfigPath))
 	var runtime *C.msc_envoy_ext_proc_runtime
 	var nativeError [commonRuntimeErrorBufferSize]C.char
-	if C.msc_envoy_ext_proc_runtime_create(cConfigPath, &runtime, &nativeError[0], C.size_t(len(nativeError))) == 0 {
+	if C.msc_envoy_ext_proc_runtime_create(cConfigPath, &runtime, &nativeError[0], C.size_t(len(nativeError))) != 1 {
 		return nil, fmt.Errorf("create Common runtime: %s", nativeErrorText(nativeError[:]))
 	}
 	if runtime == nil {
@@ -271,7 +271,7 @@ func (transaction *commonRuntimeTransaction) processRequestHeadersLocked(headers
 	var nativeError [commonRuntimeErrorBufferSize]C.char
 	if C.msc_envoy_ext_proc_transaction_begin(transaction.engine.runtime,
 		request.value, cBoolean(endOfStream), &native, &nativeDecision,
-		&nativeError[0], C.size_t(len(nativeError))) == 0 {
+		&nativeError[0], C.size_t(len(nativeError))) != 1 {
 		return Decision{}, fmt.Errorf("Common request headers: %s", nativeErrorText(nativeError[:]))
 	}
 	if native == nil {
@@ -296,7 +296,7 @@ func (transaction *commonRuntimeTransaction) processResponseHeadersLocked(direct
 	var nativeError [commonRuntimeErrorBufferSize]C.char
 	if C.msc_envoy_ext_proc_transaction_process_response_headers(transaction.native,
 		response.value, cBoolean(endOfStream), &nativeDecision,
-		&nativeError[0], C.size_t(len(nativeError))) == 0 {
+		&nativeError[0], C.size_t(len(nativeError))) != 1 {
 		return Decision{}, fmt.Errorf("Common response headers: %s", nativeErrorText(nativeError[:]))
 	}
 	transaction.updateTransactionIDLocked()
@@ -339,7 +339,7 @@ func (transaction *commonRuntimeTransaction) ProcessBody(ctx context.Context, di
 	var nativeError [commonRuntimeErrorBufferSize]C.char
 	if C.msc_envoy_ext_proc_transaction_process_body(transaction.native, &nativeRequest,
 		&nativeDecision, &nativeError[0],
-		C.size_t(len(nativeError))) == 0 {
+		C.size_t(len(nativeError))) != 1 {
 		return Decision{}, fmt.Errorf("Common %s body: %s", direction, nativeErrorText(nativeError[:]))
 	}
 	transaction.updateTransactionIDLocked()
@@ -419,7 +419,7 @@ func (transaction *commonRuntimeTransaction) RecordHostAction(ctx context.Contex
 	var nativeError [commonRuntimeErrorBufferSize]C.char
 	if C.msc_envoy_ext_proc_transaction_record_host_action(transaction.native,
 		nativeAction, C.int(action.VisibleStatus), cTransportResult, &nativeError[0],
-		C.size_t(len(nativeError))) == 0 {
+		C.size_t(len(nativeError))) != 1 {
 		return fmt.Errorf("Common host action: %s", nativeErrorText(nativeError[:]))
 	}
 	return nil
@@ -453,7 +453,7 @@ func (transaction *commonRuntimeTransaction) Close(ctx context.Context, summary 
 		// cause. Ordinary incomplete stream closes retain the native EOS gate.
 		if cause := commonRuntimeObservedCloseCause(summary.CloseReason); cause != C.MSC_ENVOY_EXT_PROC_CLOSE_UNOBSERVED {
 			if C.msc_envoy_ext_proc_transaction_observed_close(transaction.native, cause,
-				&nativeError[0], C.size_t(len(nativeError))) == 0 {
+				&nativeError[0], C.size_t(len(nativeError))) != 1 {
 				transaction.setCleanupFailure(fmt.Errorf("Common runtime %s: %s", summary.CloseReason, nativeErrorText(nativeError[:])))
 			}
 		}
@@ -464,7 +464,7 @@ func (transaction *commonRuntimeTransaction) Close(ctx context.Context, summary 
 			transaction.setCleanupFailure(fmt.Errorf("%w: %s", ErrTransactionFinishPhaseSequence, nativeErrorText(nativeError[:])))
 		} else if finishCode != C.MSCONNECTOR_ERROR_NONE {
 			transaction.setCleanupFailure(fmt.Errorf("Common runtime finish: %s", nativeErrorText(nativeError[:])))
-		} else if closed == 0 {
+		} else if closed != 1 {
 			transaction.setCleanupFailure(fmt.Errorf("Common runtime close: %s", nativeErrorText(nativeError[:])))
 		}
 		transaction.native = nil

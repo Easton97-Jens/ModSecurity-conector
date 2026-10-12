@@ -36,6 +36,11 @@ jobs:
           make check-remaining-connectors-start-wiring
           make check-remaining-connectors-claim-policy
           PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_trusted_lighttpd_namespace_dispatch_workflow
+      - name: Execute lighttpd technical-error callers and negative controls
+        env:
+          TMPDIR: ${{ runner.temp }}
+          RUNNER_TEMP: ${{ runner.temp }}
+        run: make check-i10-lighttpd-callers
       - name: Run private fixture namespace contract tests
         env:
           PYTHONDONTWRITEBYTECODE: "1"

@@ -33,6 +33,11 @@ jobs:
           go-version-file: connectors/envoy/ext_proc/go.mod
           check-latest: false
           cache: false
+      - name: Execute Envoy technical-error callers and negative controls
+        env:
+          TMPDIR: ${{ runner.temp }}
+          RUNNER_TEMP: ${{ runner.temp }}
+        run: make check-i10-envoy-callers
       - name: Test Envoy response observer
         working-directory: connectors/envoy/ext_proc
         env:

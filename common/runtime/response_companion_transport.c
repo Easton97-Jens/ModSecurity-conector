@@ -1073,6 +1073,22 @@ static int response_companion_remove_owned_socket(
     return unlink(transport->config.socket_path) == 0 || errno == ENOENT;
 }
 
+/* Common/backend operations define exactly one as success. Invalid callback
+ * returns must not become a successful protocol acknowledgement. Preserve a
+ * typed first error supplied by the backend instead of replacing its cause. */
+static int response_companion_backend_result(int result, msconnector_error *error)
+{
+    if (result == 1) {
+        return 1;
+    }
+    if (error != NULL && error->code == MSCONNECTOR_ERROR_NONE) {
+        msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
+            "response companion backend operation failed",
+            "response_companion_transport");
+    }
+    return 0;
+}
+
 static msconnector_runtime_response_companion_session *
 response_companion_runtime_backend_session(
     const msconnector_response_companion_backend_session *session)
@@ -1096,9 +1112,9 @@ static int response_companion_runtime_backend_claim(void *context,
         return response_companion_error(error, MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE,
             "response companion Runtime backend session allocation failed");
     }
-    if (!msconnector_runtime_response_companion_claim_handle(
+    if (msconnector_runtime_response_companion_claim_handle(
             (msconnector_runtime_response_companion_registry *)context, handle,
-            runtime_session, error)) {
+            runtime_session, error) != 1) {
         free(runtime_session);
         return 0;
     }
@@ -1117,7 +1133,7 @@ static int response_companion_runtime_backend_process_response_headers(
     (void)context;
     return runtime_session != NULL &&
         msconnector_runtime_response_companion_session_process_response_headers(
-            runtime_session, response, decision, error);
+            runtime_session, response, decision, error) == 1;
 }
 
 static int response_companion_runtime_backend_append_response_body_chunk(
@@ -1130,7 +1146,7 @@ static int response_companion_runtime_backend_append_response_body_chunk(
     (void)context;
     return runtime_session != NULL &&
         msconnector_runtime_response_companion_session_append_response_body_chunk(
-            runtime_session, data, size, error);
+            runtime_session, data, size, error) == 1;
 }
 
 static int response_companion_runtime_backend_finish_response_body(void *context,
@@ -1143,7 +1159,7 @@ static int response_companion_runtime_backend_finish_response_body(void *context
     (void)context;
     return runtime_session != NULL &&
         msconnector_runtime_response_companion_session_finish_response_body(
-            runtime_session, decision, error);
+            runtime_session, decision, error) == 1;
 }
 
 static int response_companion_runtime_backend_set_response_commit_state(
@@ -1156,7 +1172,7 @@ static int response_companion_runtime_backend_set_response_commit_state(
     (void)context;
     return runtime_session != NULL &&
         msconnector_runtime_response_companion_session_set_response_commit_state(
-            runtime_session, headers_sent, body_started, error);
+            runtime_session, headers_sent, body_started, error) == 1;
 }
 
 static int response_companion_runtime_backend_record_host_action(void *context,
@@ -1172,7 +1188,7 @@ static int response_companion_runtime_backend_record_host_action(void *context,
         msconnector_runtime_response_companion_session_record_host_action(
             runtime_session, action->decision, action->actual_action,
             action->visible_http_status, action->transport_result,
-            action->connection_aborted, error);
+            action->connection_aborted, error) == 1;
 }
 
 static int response_companion_runtime_backend_cancel(void *context,
@@ -1308,7 +1324,7 @@ static int response_companion_backend_claim(
     if (backend_locked) {
         (void)pthread_mutex_unlock(&transport->synchronization.backend_lock);
     }
-    return result;
+    return response_companion_backend_result(result, error);
 }
 
 static int response_companion_backend_process_response_headers(
@@ -1334,7 +1350,7 @@ static int response_companion_backend_process_response_headers(
     if (backend_locked) {
         (void)pthread_mutex_unlock(&transport->synchronization.backend_lock);
     }
-    return result;
+    return response_companion_backend_result(result, error);
 }
 
 static int response_companion_backend_append_response_body_chunk(
@@ -1359,7 +1375,7 @@ static int response_companion_backend_append_response_body_chunk(
     if (backend_locked) {
         (void)pthread_mutex_unlock(&transport->synchronization.backend_lock);
     }
-    return result;
+    return response_companion_backend_result(result, error);
 }
 
 static int response_companion_backend_finish_response_body(
@@ -1384,7 +1400,7 @@ static int response_companion_backend_finish_response_body(
     if (backend_locked) {
         (void)pthread_mutex_unlock(&transport->synchronization.backend_lock);
     }
-    return result;
+    return response_companion_backend_result(result, error);
 }
 
 static int response_companion_backend_set_response_commit_state(
@@ -1409,7 +1425,7 @@ static int response_companion_backend_set_response_commit_state(
     if (backend_locked) {
         (void)pthread_mutex_unlock(&transport->synchronization.backend_lock);
     }
-    return result;
+    return response_companion_backend_result(result, error);
 }
 
 static int response_companion_backend_record_host_action(
@@ -1434,7 +1450,7 @@ static int response_companion_backend_record_host_action(
     if (backend_locked) {
         (void)pthread_mutex_unlock(&transport->synchronization.backend_lock);
     }
-    return result;
+    return response_companion_backend_result(result, error);
 }
 
 /* The caller holds the generic backend lock unless this backend explicitly
@@ -1479,14 +1495,14 @@ static int response_companion_backend_cancel(
     }
     result = transport->config.backend.cancel(transport->config.backend.context, session,
         upstream_disconnect, error);
-    if (result && !response_companion_backend_require_terminal_release_locked(
+    if (result == 1 && !response_companion_backend_require_terminal_release_locked(
             transport, session, error)) {
         result = 0;
     }
     if (backend_locked) {
         (void)pthread_mutex_unlock(&transport->synchronization.backend_lock);
     }
-    return result;
+    return response_companion_backend_result(result, error);
 }
 
 static int response_companion_backend_release(
@@ -1507,14 +1523,14 @@ static int response_companion_backend_release(
             "response companion backend synchronization failed");
     }
     result = transport->config.backend.release(transport->config.backend.context, session, error);
-    if (result && !response_companion_backend_require_terminal_release_locked(
+    if (result == 1 && !response_companion_backend_require_terminal_release_locked(
             transport, session, error)) {
         result = 0;
     }
     if (backend_locked) {
         (void)pthread_mutex_unlock(&transport->synchronization.backend_lock);
     }
-    return result;
+    return response_companion_backend_result(result, error);
 }
 
 static void response_companion_backend_fail(
@@ -1639,7 +1655,9 @@ static int response_companion_handle_claim(
          * after a failed CLAIM.  Give it one terminal cleanup callback and
          * then invalidate the transport's borrowed capability. */
         response_companion_backend_fail(worker->transport, &state->session,
-            MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL);
+            error.code == MSCONNECTOR_ERROR_NONE ?
+                MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL :
+                response_companion_error_class_from_error(&error));
     }
     if (!result && error.code == MSCONNECTOR_ERROR_NONE) {
         msconnector_error_set(&error, MSCONNECTOR_ERROR_PROTOCOL,

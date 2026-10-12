@@ -6,7 +6,7 @@ Date: 2026-10-10. Documentation base and inspected source inventory: `b2622a5d6c
 
 This manually maintained matrix contains 56 rows for 14 distinct route legs, one each for I09/I10/I11/I12. I10/I12 retain the historical revision-bound source/test-path inventory; their listed tests were not freshly executed for this matrix. The I09 addendum and I11 rows retain separate pre-integration code evidence. Current I11 tests are recorded separately in the Change Record. `OPEN_REST_SCOPE` stays open. `AUDIT_INCOMPLETE_NO_NEW_BUG_PROVEN` means incomplete audit, not a proved bug; `SOURCE_CONFIRMED_PROPAGATION_GAP` described the two historical I11 findings, now repaired in the current patch below. `CURRENT_PR382_ROUTE_MATRIX_NOT_PROVEN` denotes missing host proof for this #382 revision.
 
-Completed I09f/I10e Apache module repairs and other checked subsets remain preserved. The [R17 report](https://github.com/Easton97-Jens/ModSecurity-conector/pull/396#issuecomment-6101794434) is downstream NGINX-H1 system evidence from PR #396 for `2f02370b07149265841411894f1a2cf7f1e978ff`, not product testing of #382 or a later documentation head. Narrow I12b/V08a/V09a/V10a references are in the [checklist](pr-382-checklist.md). I09 code/API and I11 implementation are complete in their separately verified pre-integration scopes; I10/I12 and V08–V10 remain open.
+Completed I09f/I10e Apache module repairs and other checked subsets remain preserved. The [R17 report](https://github.com/Easton97-Jens/ModSecurity-conector/pull/396#issuecomment-6101794434) is downstream NGINX-H1 system evidence from PR #396 for `2f02370b07149265841411894f1a2cf7f1e978ff`, not product testing of #382 or a later documentation head. Narrow I12b/V08a/V09a/V10a references are in the [checklist](pr-382-checklist.md). I09 code/API and I11 implementation are complete in their separately verified pre-integration scopes; I10 is complete in its separately verified implementation scope; I12 and V08–V10 remain open.
 
 Current I11 update (2026-10-11): all 14 I11 rows were reconciled against current sink owners; their relative links identify the patch. Older SHA links in I09/I10/I12 remain historical inventory references. `IMPLEMENTATION_COMPLETE_COMPILED_VERIFIED` means reconciled implementation with passed current compiled acceptance, not live-host PASS; baseline/environment failures remain recorded separately.
 
@@ -14,11 +14,43 @@ CURRENT_PATCH_COMPILED_VERIFIED identifies shared Common compiled regression evi
 
 Integration readback: published I11 head `6a79efe7` and PR #382 base `492663334d89428dce084792145ef94e91579788` (I09 / PR #408) are combined in PR #406. Fresh local integration checks and conflict-resolution decisions are in the [integration change record](../reports/audits/change-records/CR-20261011-pr406-i09-i11-conflict-resolution.md). The I09 and I11 evidence below belongs to their separate earlier revisions; it is not current-head CI or live-host proof. Pushed-head delivery checks are tracked separately in PR #406.
 
+## PR #409 base refresh, 2026-10-12
+
+Verified I10 head `caafe7ecec1a91669cbb82cea18b2b97309cde44` is combined with PR #382 base `d94a7a38b90bc56b828d70f7df8794e12fd21e10`, including I09/I11 closure and engine-owned body limits. I09, I10 and I11 retain their separately verified earlier implementation acceptance; the status labels below do not claim freshly executed tests on the combined head. The [refresh Change Record](../reports/audits/change-records/CR-20261012-pr409-base-refresh.md) separates fresh integration/delivery evidence; it is pending at this documentation reconciliation. I12/V08–V10 live evidence remains open.
+
+
 ## 2026-10-11 addendum: I09 code/API only
 
-The [current route audit](pr-382-i09-route-audit.md) closes I09 code/API for all 14 route legs and ten profiles. Confirmed gaps are repaired; integrated33 compiled methods and Common C17 smoke passed. Contracts 74/adoption 19, HAProxy 194, Traefik 86, lighttpd 178 and Go 56/30/21 supplement code evidence; all 219 NGINX methods are accounted for by 180 completed before the 1800s timeout plus 39 resumed successfully; the original aggregate remains a timeout.
+The [current route audit](pr-382-i09-route-audit.md) closes I09 code/API for all 14 route legs and ten profiles. Confirmed gaps are repaired; integrated 33 compiled methods and Common C17 smoke passed. Contracts 74/adoption 19, HAProxy 194, Traefik 86, lighttpd 178 and Go 56/30/21 supplement code evidence; all 219 NGINX methods are accounted for by 180 completed before the 1800s timeout plus 39 resumed successfully; the original aggregate remains a timeout.
 
-This addendum supersedes open implementation and next-code-audit actions in all 14 historical I09 rows with `I09_CODE_API_CLOSED`; it changes no historical SHA/test provenance or open host proof. The I09/I10/I12 rows preserve historical 2026-10-10 provenance; I11 rows reflect the separately completed sink reconciliation. I10/I12, V06/V07 release/current CI and V08–V10 live proof remain open. Full HTX host-header build is unavailable; the historical local I09 Vortex analysis returned Sonar 403, and a baseline-confirmed validator/documentation wording failure was a separate validation limit. These historical results do not describe PR #406's current-head Cloud analysis. No release/runtime closure; R16/R17 are not rebound.
+This addendum supersedes open implementation and next-code-audit actions in all 14 historical I09 rows with `I09_CODE_API_CLOSED`; it changes no historical SHA/test provenance or open host proof. The I09/I10/I12 rows preserve historical 2026-10-10 provenance; I11 rows reflect the separately completed sink reconciliation. I10 is complete in the separate scope documented below; I12, V06/V07 release/current CI and V08–V10 live proof remain open. The historical I09 verification had no full HTX host-header build; the historical local I09 Vortex analysis returned Sonar 403, and a baseline-confirmed validator/documentation wording failure was a separate validation limit. These historical results do not describe PR #406's current-head Cloud analysis. No release/runtime closure; R16/R17 are not rebound.
+
+## I10: current implementation reconciliation, 2026-10-11
+
+Status: `I10_IMPLEMENTATION_COMPLETE`. The productive adapter audit starts at `0df51024008fc84f0a6820f3b011055b69c3a3e2` in separate worktree/branch `fix/pr382-i10-adapter-errors-20261011`. The [EN/DE Change Record](../reports/audits/change-records/CR-20261011-pr382-i10-adapter-errors.md) contains ten logical routes, all 14 separate legs, actual defects/fixes, executable caller/mutation evidence and the command ledger. I10a–I10e remain intact. Technical failures are terminal in Off/Safe; only `lighttpd-stock` has `strict_post_commit_action=1` in the current registry. Other Strict capabilities are not added.
+
+The following 56 rows retain the **historical source/test inventory from 2026-10-10**, supplemented by the separate I11 sink reconciliation; they are not freshly executed combined integration checks. Historical I10 host-proof requirements belong to I12/V08–V10; they do not automatically block I10 implementation completion. I09 and I11 are closed by the separate addenda above. Host API invocation/stop results are not observed client aborts.
+
+### Current productive I10 legs
+
+| Leg | Executable productive test | Actually observed seam | Current status |
+| --- | --- | --- | --- |
+| `nginx-native` | `tests.test_nginx_late_error_results` | native dispatcher return | `IMPLEMENTATION_PASS` |
+| `apache-native` | `tests.test_apache_terminal_contract_failures` | APR/filter return | `IMPLEMENTATION_PASS` |
+| `haproxy-native-htx` | `tests.test_haproxy_i10_host_callers` | HTX host calls/result | `IMPLEMENTATION_PASS` |
+| `haproxy-spoe-spop-request` | `tests.test_haproxy_i10_binding_callers` | real SPOP ACK bytes503 | `IMPLEMENTATION_PASS` |
+| `haproxy-spop-htx-response-companion` | `tests.test_haproxy_i10_host_callers` | MRC1/HTX terminal result | `IMPLEMENTATION_PASS` |
+| `envoy-ext-proc` | `internal/processor/technical_error_test.go` | non-nil gRPC error | `IMPLEMENTATION_PASS` |
+| `envoy-ext-authz-request` | `tests.test_i10_service_callers; compositeenvoy` | HTTP authorization/gRPC return | `IMPLEMENTATION_PASS` |
+| `envoy-ext-authz-response-companion` | `tests.test_i10_service_callers; compositeenvoy` | MRC1 RESULT/non-nil gRPC error | `IMPLEMENTATION_PASS` |
+| `traefik-native-middleware-uds` | `tests.test_traefik_i10_dispatcher; native_middleware` | MSE1 bytes/ErrAbortHandler | `IMPLEMENTATION_PASS` |
+| `traefik-forwardauth-request` | `tests.test_i10_service_callers` | HTTP authorization error bytes | `IMPLEMENTATION_PASS` |
+| `traefik-forwardauth-response-observer` | `response_observer/observer_test.go` | WriteHeader-before-ACK/ErrAbortHandler | `IMPLEMENTATION_PASS` |
+| `lighttpd-stock-sidecar` | `tests.test_lighttpd_i10_adapter_errors` | exchange result/socket peerEOF | `IMPLEMENTATION_PASS` |
+| `lighttpd-stock-native-control` | `tests.test_lighttpd_i10_adapter_errors` | native control hook return | `IMPLEMENTATION_PASS` |
+| `lighttpd-patched-native` | `tests.test_lighttpd_i10_adapter_errors` | HANDLER_ERROR/once reset | `IMPLEMENTATION_PASS` |
+
+Measured returns/API invocations and local socket bytes are I10 adapter evidence. Live client abort/reset, neighbor streams and physical logs remain separate I12/I11 evidence. The linked Change Record matrix separates Off/Safe/Strict and pre/postcommit; the current registry is unchanged.
 
 ## Revision-scoped remaining work
 
@@ -83,6 +115,6 @@ This addendum supersedes open implementation and next-code-audit actions in all 
 
 ## Boundaries and separate next steps
 
-The current 2026-10-11 I11 reconciliation applies to `0df51024008fc84f0a6820f3b011055b69c3a3e2` plus the reviewed working-tree patch in the isolated worktree. Apache and SPOP propagation repairs are implemented in the patch; I11 implementation acceptance is complete, with baseline/environment limitations recorded separately. The I09 addendum supersedes its historical open code inventory; I10/I12 remain revision-scoped open work. Details and actually executed commands appear in the [Change Record](../reports/audits/change-records/CR-20261011-pr382-i11-physical-sink-parity.md).
+The current 2026-10-11 I11 reconciliation applies to `0df51024008fc84f0a6820f3b011055b69c3a3e2` plus the reviewed working-tree patch in the isolated worktree. Apache and SPOP propagation repairs are implemented in the patch; I11 implementation acceptance is complete, with baseline/environment limitations recorded separately. The I09 addendum supersedes its historical open code inventory; I10 is complete in its separately verified scope; I12 remains revision-scoped open work. Details and actually executed commands appear in the [Change Record](../reports/audits/change-records/CR-20261011-pr382-i11-physical-sink-parity.md).
 
 Transport short-write/EAGAIN/UDS/gRPC aborts are not physical event-log sink proof. Stock native lighttpd remains diagnostic/control; patched Strict abort is not claimed as client-validated. I12/V10, Protected, H2/H3, CRS, Off, production and CI/Sonar/secret scans remain separate evidence. A stacked Draft PR is authorized; no merge or deployment has occurred.

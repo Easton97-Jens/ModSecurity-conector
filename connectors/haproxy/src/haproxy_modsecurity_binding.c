@@ -1612,11 +1612,18 @@ int haproxy_modsecurity_transaction_claim_response_companion(
     return 0;
 }
 
+msconnector_transaction_error_class haproxy_modsecurity_transaction_error_class(
+        const haproxy_modsecurity_transaction *transaction) {
+    return transaction != NULL && transaction->contract_initialized ?
+        transaction->contract.error_class : MSCONNECTOR_TRANSACTION_ERROR_NONE;
+}
+
 int haproxy_modsecurity_transaction_set_response_commit_state(
         haproxy_modsecurity_transaction *transaction,
         int headers_sent, int body_started) {
     if (transaction == 0 || !transaction->contract_initialized ||
-            !transaction->response_companion_claimed ||
+            (transaction->response_phases_require_companion &&
+                !transaction->response_companion_claimed) ||
             headers_sent < 0 || headers_sent > 1 || body_started < 0 || body_started > 1 ||
             (headers_sent == 0 && body_started != 0)) {
         return 1;

@@ -29,7 +29,7 @@ FUNCTIONS = (
     "copy_spop_string", "copy_cstring", "runtime_init_decision", "set_response_phase_disabled_failure",
     "set_admission_failure", "ensure_notify_request_id", "notify_request_has_required_endpoints",
     "protocol_failure_requires_enforcement", "mode_enforces", "production_ack_enforces",
-    "process_production_notify", "finish_production_response_transaction", "process_production_response_notify", "fail_mode_closed",
+    "process_production_notify", "finish_production_response_transaction", "process_production_response_notify",
     "set_processing_failure", "set_response_correlation_failure",
     "build_response_from_notify",
     "parse_sample_content_length", "notify_request_has_complete_body_sample", "process_production_request_notify", "build_modsecurity_request_from_notify",
@@ -159,6 +159,7 @@ int main(int argc, char **argv) {
     spop_frame frame = {0};
     FILE *file;
     int first, again, code, caller = 0, cleanup, log_owned = 0, decision_owned = 0;
+    int failure_enforced = -1;
     FILE *log = NULL;
     long size = 0;
     if (argc != 3) { return 2; }
@@ -251,6 +252,7 @@ int main(int argc, char **argv) {
                 strcpy(request.server_ip, "127.0.0.1");
                 process_production_request_notify(&state, &request, &decision,
                     &processed, &origin, &text, handle);
+                failure_enforced = production_ack_enforces(&state.config, origin);
                 first = !decision_log_failed(&state);
             } else if (strcmp(argv[1], "ownership") == 0) {
                 int processed = 0;
@@ -285,10 +287,10 @@ int main(int argc, char **argv) {
         }
         cleanup = close_agent_owned_streams(&log, 0, &state.decision_log, 1);
     }
-    printf("{\"first\":%d,\"again\":%d,\"code\":%d,\"io\":%d,"
+    printf("{\"status\":%d,\"disruptive\":%d,\"failure_enforced\":%d,\"first\":%d,\"again\":%d,\"code\":%d,\"io\":%d,"
         "\"too_large\":%d,\"internal\":%d,\"caller\":%d,\"ack_calls\":%d,"
         "\"invalid_native\":%d,\"native_class\":%d,\"native_phase\":%d,\"size\":%ld,\"cleanup\":%d,\"abort\":%d,\"finish\":%d,\"store\":%d,\"handoff\":%d,\"retained_code\":%d,\"original\":%d}\n",
-        first, again, code, MSCONNECTOR_ERROR_IO, MSCONNECTOR_ERROR_EVENT_TOO_LARGE,
+        decision.status, decision.disruptive, failure_enforced, first, again, code, MSCONNECTOR_ERROR_IO, MSCONNECTOR_ERROR_EVENT_TOO_LARGE,
         MSCONNECTOR_ERROR_INTERNAL, caller, ack_calls, MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, decision.error_class, decision.phase, size, cleanup,
         abort_calls, finish_calls, store_calls, handoff_calls, state.decision_log_error.code,
         strcmp(decision.log_message, "original engine failure") == 0);
@@ -409,6 +411,7 @@ class HaproxySpopEventSinkFailureTests(unittest.TestCase):
         self.assertEqual(result["abort"], 0)
         self.assertEqual(result["native_phase"], 5)
         self.assertEqual(result["native_class"], result["invalid_native"])
+        self.assertEqual((result["status"], result["disruptive"], result["failure_enforced"]), (503, 1, 1))
         events = [json.loads(line) for line in path.read_text().splitlines()]
         terminal = [event for event in events if event.get("event") == "invalid_engine_response"]
         self.assertEqual(len(terminal), 1)
@@ -424,6 +427,7 @@ class HaproxySpopEventSinkFailureTests(unittest.TestCase):
                 self.assertEqual(result["retained_code"], result["io"])
                 self.assertEqual(result["native_phase"], 5)
                 self.assertEqual(result["native_class"], result["invalid_native"])
+                self.assertEqual((result["status"], result["disruptive"], result["failure_enforced"]), (503, 1, 1))
                 self.assertEqual(result["finish"], 1)
                 self.assertEqual(result["abort"], 0)
                 self.assertEqual(result["caller"], -1)

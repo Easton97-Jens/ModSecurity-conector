@@ -25,7 +25,7 @@ static msconnector_transaction_error_class failure=MSCONNECTOR_TRANSACTION_ERROR
 struct stream {struct {short status;} *txn;};
 struct haproxy_modsecurity_htx_filter_context {
  haproxy_modsecurity_transaction *transaction;
- struct {char transaction_id[128];int disabled,fail_closed,error_emitted;haproxy_modsecurity_decision error;} lifecycle;
+ struct {char transaction_id[128];int disabled,fail_closed,error_emitted,host_failure_applied;haproxy_modsecurity_decision error;} lifecycle;
  struct {int headers_seen,finished;} request;
  struct {int headers_seen,headers_committed;} response;
 };
