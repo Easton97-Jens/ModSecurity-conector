@@ -249,6 +249,7 @@ PROPOSED_TREE_BASELINE_PATHS = frozenset(
         "ci/runtime/lifecycle/prepare-with-crs-no-mrts-upload.py",
         "ci/tools/fetch_security_tool.py",
         "ci/tools/lint_workflows.py",
+        "ci/tools/lint_installed_workflows.py",
         "ci/tools/read-framework-revisions.py",
         "ci/tools/sync-project-versions.py",
         "ci/tools/prepare-readonly-submodule-validation-sandbox.py",

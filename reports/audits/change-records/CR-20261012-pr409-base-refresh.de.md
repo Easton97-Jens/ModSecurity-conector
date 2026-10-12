@@ -43,6 +43,8 @@ Lokaler Make-Lint zeigte zudem eine Integrationslücke der Basis: Er rief weiter
 
 Erster normaler Push des lokalen Merges `c7361835` wurde sicher abgewiesen: Gleichzeitiger Publisher hatte `9b2ef717` ergänzt, einen äquivalenten PR382-Basismerge. Sein Delta enthält exakt die bereits geprüfte30-Dateien-Basisänderung ohne zusätzliche Produktedits. Normaler Taskbranch-Merge erhält diesen veröffentlichten Commit und unsere geprüften Korrekturen; zusammengeführter Sourcebaum entspricht vor dieser gepaarten Berichtsergänzungc736. Kein Force-Push, Rebase oder Verlust fremder Arbeit.
 
+Aktuelle8e-CI zeigte eine weitere Integrationslücke: actionlint-Job114944636231/Run38289128723 scheiterte, weil echte Updater-Validierung einen privaten Proposed Tree ohne neu importierten Installed-Lint-Adapter kopierte. Diese reguläre Datei ins bestehende schreibgeschützte Baseline-Inventar aufnehmen; Updater-Publikationsautorität, Symlink-Guards, Toolauswahl und Assertions bleiben unverändert. Vollständiges Updater-Modul besteht nun46 Top-Level-Tests in196.608s einschließlich echter Proposed-Tree-CI-Security-Contractausführung. Früheres lokales281-Methoden-Target wählte die nichtrekursive Testklasse und führte diesen Integrationstest nicht aus; dessen PASS bewies diese fehlende Ebene nicht. Fehlgeschlagenes Hostedlog und SHA-genauer Sonar-Readback (null Befunde) bleiben erhalten; Sonar8e ist nach Korrekturpush historisch.
+
 ## Geänderte Dateien
 
 - `.github/workflows/test-common.yml`
@@ -53,6 +55,7 @@ Erster normaler Push des lokalen Merges `c7361835` wurde sicher abgewiesen: Glei
 - `.github/workflows/test-traefik.yml`
 - `Makefile`
 - `ci/tools/lint_installed_workflows.py`
+- `ci/tools/update-workflow-tools.py`
 - `common/runtime/http_authorization_service.c`
 - `common/runtime/msconnector_runtime.c`
 - `common/runtime/response_companion_transport.c`
@@ -172,6 +175,10 @@ Evidence zur zweiten Basis folgt. Erste zwei CI-Contractläufe zeigten Upload-/D
 | `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_all_remote_actions_are_immutable_sha_pins` | 1 | Python 1 | 0.317 | `evidence/second-base-pin-diagnosis/` |
 | `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_all_remote_actions_are_immutable_sha_pins` | 0 | Python 1 | 0.469 | `evidence/second-base-pin-final/` |
 | `rtk proxy /usr/local/bin/sonar-with-env list issues -p Easton97-Jens_ModSecurity-conector --pull-request 409 --new-code --page-size 500 --page 1 --format json` | 0 | Python 0 | 1.422 | `evidence/sonar-final-readback/` |
+
+| Exakter Befehl | Exit | Anzahl | Sekunden | Run / Evidence |
+| --- | --- | --- | --- | --- |
+| `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.ci_security.test_update_workflow_tools` | 0 | Python 46, einschließlich echter Proposed-Tree-Baseline | 196.608 | `evidence/updater-full-final/` |
 
 ## Security-Auswirkung
 

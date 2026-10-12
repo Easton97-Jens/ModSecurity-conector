@@ -43,6 +43,8 @@ Local Make lint also exposed a base integration gap: it still called raw install
 
 The first ordinary push of local merge `c7361835` was safely rejected because a concurrent publisher had added `9b2ef717`, an equivalent PR382-base merge. Its delta contains exactly the already inspected30-file base change and no extra product edits. A normal task-branch merge preserves that published commit and our tested corrections; the merged source tree matchesc736 before this paired record note. No force-push, rebase or discarded foreign work.
 
+Current8e CI exposed one further integration defect: actionlint job114944636231/run38289128723 failed when real updater validation copied a private proposed tree without the newly imported installed-lint adapter. Add that regular file to the existing read-only baseline inventory; updater publication authority, symlink guards, tool selection and assertions are unchanged. The complete updater module now passes46 top-level tests in196.608s, including actual proposed-tree CI-security contract execution. The earlier local281-method target selected the nonrecursive test class and did not execute this integration test; its PASS was not proof of the omitted layer. Failed hosted log and exact-SHA Sonar readback (zero findings) are retained; Sonar8e remains historical after corrective push.
+
 ## Changed files
 
 - `.github/workflows/test-common.yml`
@@ -53,6 +55,7 @@ The first ordinary push of local merge `c7361835` was safely rejected because a 
 - `.github/workflows/test-traefik.yml`
 - `Makefile`
 - `ci/tools/lint_installed_workflows.py`
+- `ci/tools/update-workflow-tools.py`
 - `common/runtime/http_authorization_service.c`
 - `common/runtime/msconnector_runtime.c`
 - `common/runtime/response_companion_transport.c`
@@ -172,6 +175,10 @@ Second-base evidence follows. The first two CI-contract runs exposed upload/down
 | `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_all_remote_actions_are_immutable_sha_pins` | 1 | Python 1 | 0.317 | `evidence/second-base-pin-diagnosis/` |
 | `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_all_remote_actions_are_immutable_sha_pins` | 0 | Python 1 | 0.469 | `evidence/second-base-pin-final/` |
 | `rtk proxy /usr/local/bin/sonar-with-env list issues -p Easton97-Jens_ModSecurity-conector --pull-request 409 --new-code --page-size 500 --page 1 --format json` | 0 | Python 0 | 1.422 | `evidence/sonar-final-readback/` |
+
+| Exact command | Exit | Count | Seconds | Run / evidence |
+| --- | --- | --- | --- | --- |
+| `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.ci_security.test_update_workflow_tools` | 0 | Python 46, including real proposed-tree baseline | 196.608 | `evidence/updater-full-final/` |
 
 ## Security impact
 
