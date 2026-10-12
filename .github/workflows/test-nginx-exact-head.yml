@@ -165,6 +165,11 @@ jobs:
         run: |
           set -eu
           make setup-dev
+          # Keep the exact producer snapshot across the later env -i boundary.
+          # A fresh wrapper invocation otherwise prepares the runtime again.
+          RUNTIME_COMPONENT_ENV_SNAPSHOT=$(/bin/sh \
+            ci/runtime/lifecycle/reserve-runtime-env-snapshot.sh "$RUNTIME_REPORT_OUTPUT_ROOT")
+          export RUNTIME_COMPONENT_ENV_SNAPSHOT
           env \
             -u MRTS_NATIVE_NGINX_BIN \
             -u MRTS_NATIVE_NGINX_MODULE_DIR \
@@ -176,6 +181,8 @@ jobs:
             -u NGINX_PREFIX \
             -u NGINX_BUILD_DIR \
             make fetch-deps
+          test -s "$RUNTIME_COMPONENT_ENV_SNAPSHOT"
+          echo "RUNTIME_COMPONENT_ENV_SNAPSHOT=$RUNTIME_COMPONENT_ENV_SNAPSHOT" >> "$GITHUB_ENV"
       - name: Print bounded NGINX provisioning failure diagnostics
         if: failure()
         run: |
@@ -211,6 +218,8 @@ jobs:
             BUILD_ROOT="$BUILD_ROOT" TMP_ROOT="$TMP_ROOT" LOG_ROOT="$LOG_ROOT" \
             CONNECTOR_COMPONENT_CACHE="$CONNECTOR_COMPONENT_CACHE" \
             RUNTIME_REPORT_OUTPUT_ROOT="$RUNTIME_REPORT_OUTPUT_ROOT" \
+            RUNTIME_COMPONENT_ENV_SNAPSHOT="$RUNTIME_COMPONENT_ENV_SNAPSHOT" \
+            SKIP_RUNTIME_COMPONENT_PREPARE=1 \
             SOURCE_ROOT="$SOURCE_ROOT" MODSECURITY_SOURCE_DIR="$MODSECURITY_SOURCE_DIR" \
             MODSECURITY_V3_SOURCE_DIR="$MODSECURITY_V3_SOURCE_DIR" \
             ALLOW_RUNTIME_BUILDS="$ALLOW_RUNTIME_BUILDS" \

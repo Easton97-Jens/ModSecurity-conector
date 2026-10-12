@@ -1640,6 +1640,26 @@ jobs:
         self.assertGreaterEqual(text.count("sha256:"), 3)
         self.assertIn("full_history_gitleaks: advisory_until_historical_findings_are_triaged", text)
 
+    def test_workflow_lint_preserves_self_repository_security_auditing(self) -> None:
+        """Keep self references on the running revision and audit original files."""
+
+        caller = self.jobs("all-connectors-no-crs.yml")["no-crs"]
+        self.assertIn("uses: $/.github/workflows/reusable-five-connectors-profile.yml", caller)
+        lint_jobs = self.jobs("ci-security-workflow-lint.yml")
+        self.assertIn("python3 ci/tools/lint_workflows.py --actionlint", lint_jobs["actionlint"])
+        self.assertIn('"$RUNNER_TEMP/security-tools/zizmor" --offline .github/workflows', lint_jobs["zizmor"])
+        self.assertNotIn("self-repository", lint_jobs["zizmor"])
+
+    def test_nginx_ci_executes_snapshot_handoff_regressions(self) -> None:
+        job = self.jobs("test-nginx.yml")["nginx-structure"]
+        for module in (
+            "tests.test_nginx_exact_head_gate_contract",
+            "tests.test_nginx_exact_head_runtime_handoff",
+            "tests.test_runtime_env_snapshot_contract",
+        ):
+            self.assertIn(module, job)
+        self.assertLess(job.index("make setup-dev"), job.index(".venv/bin/python -m unittest"))
+
     def test_all_workflows_default_deny_and_declare_job_permissions(self) -> None:
         for path in self.workflow_paths():
             text = path.read_text(encoding="utf-8")

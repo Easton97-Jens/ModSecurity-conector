@@ -64,13 +64,9 @@ jobs:
           set -eu
           mapfile -d '' workflows < <(find .github/workflows ci/fixtures/workflow-permission-contract -type f \( -name '*.yml' -o -name '*.yaml' \) -print0)
           test "${#workflows[@]}" -gt 0
-          if command -v shellcheck >/dev/null 2>&1; then
-            "$RUNNER_TEMP/security-tools/actionlint" -shellcheck="$(command -v shellcheck)" "${workflows[@]}"
-          else
-            "$RUNNER_TEMP/security-tools/actionlint" "${workflows[@]}"
-          fi
+          python3 ci/tools/lint_workflows.py --actionlint "$RUNNER_TEMP/security-tools/actionlint" "${workflows[@]}"
       - name: Validate CI-security workflow contracts
-        run: python3 -m unittest -v tests.test_ci_security_workflows tests.test_validate_submodule_candidate_state tests.test_update_submodules_local_git tests.test_update_framework_versions tests.test_verify_framework_candidate_contract tests.test_prepare_readonly_submodule_validation_sandbox tests.test_run_readonly_submodule_validation_namespace tests.ci_security.test_update_workflow_tools
+        run: python3 -m unittest -v tests.test_ci_security_workflows tests.test_lint_workflows tests.test_validate_submodule_candidate_state tests.test_update_submodules_local_git tests.test_update_framework_versions tests.test_verify_framework_candidate_contract tests.test_prepare_readonly_submodule_validation_sandbox tests.test_run_readonly_submodule_validation_namespace tests.ci_security.test_update_workflow_tools
 
   zizmor:
     permissions:

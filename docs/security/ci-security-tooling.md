@@ -51,7 +51,7 @@ not need a parallel lock schema.
 | `actions/setup-go` | `v7.0.0` | `b7ad1dad31e06c5925ef5d2fc7ad053ef454303e` |
 | `actions/setup-python` | `v7.0.0` | `5fda3b95a4ea91299a34e894583c3862153e4b97` |
 | `actions/upload-artifact` | `v7.0.2` | `cf430e030ddbb5b0abf93d22962f4752f3646cd9` |
-| `github/codeql-action` | `v4.37.6` | `5595ccaf912efad79be6eef63a5619ff05969be3` |
+| `github/codeql-action` | `v4.38.3` | `24c54180a607b1449ed407dd24f251e4e9147c8d` |
 | `google/osv-scanner-action` | `v2.7.0` | `b1d267aea5211fa648d9d442fa64b90dbdcbdd36` |
 | `ossf/scorecard-action` | `v2.5.0` | `fa7117db83c52d787ae5a89f350999701505d78e` |
 
@@ -66,6 +66,18 @@ covered by the explicit publisher allowlist and staging list. Adding a workflow
 requires updating both lists. Proposed-tree validation copies the complete
 registered contract inputs, including their offline test fixtures; those
 read-only inputs do not expand the publisher's permitted changes.
+
+Before publication, the private proposed tree runs every updater unit test
+through `make check-ci-security-contract`, including release-selection and
+negative provenance controls. CodeQL release fixtures use explicit versions
+independent of the live lock. The copied-tree integration test is separate
+from this target to avoid recursively invoking its own validation.
+
+The validator also downloads `actionlint` and `zizmor` from the proposed lock,
+verifies their SHA-256 digests, and executes them against the proposed workflows.
+Safe fixtures must return `0`; both high-severity insecure fixtures must return
+`14`. Checksum failures, tool errors, unexpected exit statuses, and timeouts
+reject the candidate before any push or PR creation.
 
 ## Central ordinary revision and toolchain pins
 
@@ -205,6 +217,22 @@ the runner's `ShellCheck` path when available. It also runs checksum-verified
 `zizmor` offline against all workflow files. A deliberately insecure fixture
 must fail and a safe fixture must pass; neither fixture is executable product
 configuration.
+
+Same-repository reusable workflows use GitHub's `$/` references, which select
+the running revision. The pinned `actionlint` `v1.7.12` does not yet recognize
+this syntax. `ci/tools/lint_workflows.py` uses YAML token positions to translate
+only safe literal `uses` paths to same-width `./` text in memory for actionlint
+stdin. Shell scripts, comments, source files, and runtime references stay intact;
+`zizmor` audits the original files. See the
+[GitHub syntax announcement](https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/)
+and [actionlint compatibility issue](https://github.com/rhysd/actionlint/issues/711).
+
+The hosted NGINX workflow reserves an invocation-local runtime snapshot before
+provisioning and passes its exact path across the later `env -i` boundary with
+`SKIP_RUNTIME_COMPONENT_PREPARE=1`. The wrapper still verifies the snapshot's
+target and cache before running the harness. Ordinary NGINX CI executes the
+handoff regression, including rejected metadata and failed provisioning, so a
+missing handoff cannot silently trigger a second preparation.
 
 ## Secret and dependency scanning
 

@@ -53,7 +53,7 @@ bestehende Connector-Consumer kein paralleles Lock-Schema benötigen.
 | `actions/setup-go` | `v7.0.0` | `b7ad1dad31e06c5925ef5d2fc7ad053ef454303e` |
 | `actions/setup-python` | `v7.0.0` | `5fda3b95a4ea91299a34e894583c3862153e4b97` |
 | `actions/upload-artifact` | `v7.0.2` | `cf430e030ddbb5b0abf93d22962f4752f3646cd9` |
-| `github/codeql-action` | `v4.37.6` | `5595ccaf912efad79be6eef63a5619ff05969be3` |
+| `github/codeql-action` | `v4.38.3` | `24c54180a607b1449ed407dd24f251e4e9147c8d` |
 | `google/osv-scanner-action` | `v2.7.0` | `b1d267aea5211fa648d9d442fa64b90dbdcbdd36` |
 | `ossf/scorecard-action` | `v2.5.0` | `fa7117db83c52d787ae5a89f350999701505d78e` |
 
@@ -69,6 +69,20 @@ Workflow erfordert die Aktualisierung beider Listen. Die Proposed-Tree-Prüfung
 kopiert die vollständigen registrierten Vertragseingaben einschließlich ihrer
 Offline-Test-Fixtures; diese read-only-Eingaben erweitern die erlaubten
 Änderungen des Publishers nicht.
+
+Vor der Veröffentlichung führt der private Proposed Tree sämtliche Updater-
+Unit-Tests über `make check-ci-security-contract` aus, einschließlich Release-
+Auswahl und negativer Provenance-Kontrollen. CodeQL-Release-Fixtures verwenden
+explizite Versionen unabhängig von der aktuellen Lockdatei. Der Integrationstest
+des kopierten Baums bleibt außerhalb dieses Targets, damit die Validierung
+sich nicht selbst rekursiv aufruft.
+
+Der Validator lädt außerdem `actionlint` und `zizmor` aus der vorgeschlagenen
+Lockdatei herunter, prüft ihre SHA-256-Digests und führt sie gegen die
+vorgeschlagenen Workflows aus. Sichere Fixtures müssen `0` liefern; beide
+unsicheren Fixtures mit hoher Severity müssen `14` liefern. Prüfsummenfehler,
+Tool-Fehler, unerwartete Exit-Status und Timeouts weisen den Kandidaten vor
+jedem Push und jeder PR-Erstellung zurück.
 
 ## Zentrale gewöhnliche Revisions- und Toolchain-Pins
 
@@ -223,6 +237,24 @@ und übergibt den `ShellCheck`-Pfad des Runners, wenn er verfügbar ist. Zudem
 läuft checksum-verifiziertes `zizmor` offline gegen alle Workflow-Dateien. Eine
 absichtlich unsichere Fixture muss fehlschlagen und eine sichere Fixture muss
 bestehen; beide Fixtures sind keine ausführbare Produktkonfiguration.
+
+Wiederverwendbare Workflows desselben Repositorys verwenden GitHubs `$/`-
+Referenzen, die die laufende Revision auswählen. Das gepinnte `actionlint`
+`v1.7.12` erkennt diese Syntax noch nicht. `ci/tools/lint_workflows.py` übersetzt
+anhand von YAML-Token-Positionen ausschließlich sichere literale `uses`-Pfade
+im Speicher in gleich lange `./`-Texte für den actionlint-stdin. Shell-Skripte,
+Kommentare, Quelldateien und Runtime-Referenzen bleiben erhalten; `zizmor`
+prüft die Originaldateien. Siehe die
+[GitHub-Syntax-Ankündigung](https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/)
+und das [actionlint-Kompatibilitäts-Issue](https://github.com/rhysd/actionlint/issues/711).
+
+Der gehostete NGINX-Workflow reserviert vor der Provisionierung einen
+Invocation-eigenen Runtime-Snapshot und übergibt dessen exakten Pfad mit
+`SKIP_RUNTIME_COMPONENT_PREPARE=1` über die spätere `env -i`-Grenze.
+Der Wrapper prüft weiterhin Ziel und Cache des Snapshots vor dem Harness-Aufruf.
+Die gewöhnliche NGINX-CI führt die Übergabe-Regression aus, einschließlich
+zurückgewiesener Metadaten und gescheiterter Provisionierung, damit eine
+fehlende Übergabe keinen zweiten Aufbau unbemerkt auslöst.
 
 ## Secret- und Dependency-Scanning
 
