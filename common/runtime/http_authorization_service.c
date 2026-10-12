@@ -1162,6 +1162,17 @@ static int authorization_stream_request_body(
     return msconnector_runtime_transaction_finish_request_body(transaction, decision, error);
 }
 
+static void authorization_response_set_stream_error(
+    const authorization_service *service, const msconnector_error *common_error,
+    authorization_response_state *response) {
+    authorization_response_set_runtime_error(service, common_error, response);
+    if (common_error->code == MSCONNECTOR_ERROR_HOST_API_FAILURE &&
+        common_error->source != NULL &&
+        strcmp(common_error->source, "http_authorization_service") == 0) {
+        response->status = error_status_from_message(common_error->message);
+    }
+}
+
 static void authorization_process_runtime_request(
     authorization_service *service,
     const authorization_connection *connection,
@@ -1195,12 +1206,7 @@ static void authorization_process_runtime_request(
                 msconnector_decision_action_from_decision(&decision)) &&
             authorization_stream_request_body(service, connection, parsed,
                 transaction, &decision, &common_error, lock_held) != 1) {
-            authorization_response_set_runtime_error(service, &common_error, response);
-            if (common_error.code == MSCONNECTOR_ERROR_HOST_API_FAILURE &&
-                common_error.source != NULL &&
-                strcmp(common_error.source, "http_authorization_service") == 0) {
-                response->status = error_status_from_message(common_error.message);
-            }
+            authorization_response_set_stream_error(service, &common_error, response);
         } else {
             authorization_response_set_decision(service, &decision, response);
         }

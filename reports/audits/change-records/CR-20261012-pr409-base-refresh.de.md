@@ -35,6 +35,8 @@ Der Immediate-Client-RST-Test scheiterte auch auf unveränderter exakter Basis v
 
 I09/I10/I11-Abschluss und historische Routenevidenz bleiben getrennt; vier Checklist-/Matrix-Paardokumente erhalten14 produktive I10-Legs und56 historische Zeilen. Source-Tests verwenden tatsächliche Funktionsdefinitionen statt Rekursion oder veraltete Helfer zu verlangen. Die HTX-Pfadsicherheitsfixture übergibt die neu erforderliche explizite Enginepolicy und erhält Pfad-/Symlinkguards.
 
+Erster gepushter Integrationshead `e4c4f2a6` bestand normales Cloud-Gate; vollständiger authentifizierter Readback fand jedoch zwei c:S3776 CODE_SMELL-Findings: HTTP-Autorisierung Complexity26 statt25 und Sidecar-Exchange27 statt25. Obligatorische Null-Findings-Prüfung verweigerte korrekt den Abschluss; Duplikation0.0%. Enge Helper-Extraktion trennt Streaming-Autorisierungsfehler-Mapping und Strict-Sidecar-Abschluss; Guards, Callbacks, Terminalzustand und Beobachtungen erhalten. Produktive Common11 und volle lighttpd51 SDK-/Caller-/Mutationsprüfungen bestehen erneut. Keine Scanner-/Gate-/Thresholdänderung oder Suppression. Aktueller Head-CI-/Sonar-Readback steht nach normalem Follow-up-Push im PR.
+
 ## Geänderte Dateien
 
 - `.github/workflows/test-common.yml`
@@ -137,6 +139,10 @@ Alle Befehle liefen über RTK mit task-eigenen externen Build-/Cache-/Temp-Roots
 | `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v connectors.lighttpd.tests.test_stock_sidecar_contract.StockSidecarLoopbackContractTest.test_client_reset_during_a_rule_block_does_not_invent_an_abort_host_action` | 1 | Python 1 | 14.377 | `evidence/rule-delivery-native-reproducer/` |
 | `rtk proxy make check-apache-event-sink check-haproxy-spop-event-sink check-apache-native-response-limit` | 2 | Python 20 | 7.363 | `evidence/sink-regressions/` |
 | `rtk proxy make check-apache-event-sink check-haproxy-spop-event-sink check-apache-native-response-limit` | 0 | Python 48 | 10.856 | `evidence/sink-regressions-final/` |
+| `rtk proxy /usr/local/bin/sonar-with-env list issues -p Easton97-Jens_ModSecurity-conector --pull-request 409 --new-code --page-size 500 --page 1 --format json` | 0 | Python 0 | 1.478 | `evidence/sonar-current-readback/` |
+| `rtk proxy make check-i10-common-callers` | 0 | Python 11 | 38.104 | `evidence/sonar-refactor-common/` |
+| `rtk proxy make check-bilingual-docs check-doc-links` | 0 | Python 0 | 14.012 | `evidence/sonar-refactor-docs/` |
+| `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_lighttpd_i10_adapter_errors connectors.lighttpd.tests.test_i09_api_returns connectors.lighttpd.tests.test_stock_sidecar_contract` | 0 | Python 51 | 50.655 | `evidence/sonar-refactor-lighttpd/` |
 
 Zusätzliche Worker-Evidence unter `native-worker/` und `go-worker/`: HAProxy7 Callermethoden/22 erkannte Mutanten; lighttpd ursprüngliche479 Fälle/9 Mutanten erhalten, mit neuen Socketowner-Kontrollen und zehntem Mutanten; Traefik-Dispatcher690 Fehler/690 terminale Reentries/270 gültige Kontrollen in zugelassenen Modi und15 C-/Go-Mutanten; Envoy18 kompilierte Bridge-/Finishchecks plus8 echte Common-/libModSecurity-/CGo-Packages. Neue Common-Delivery-Regression:5 Methoden,12 Regelfälle,6 versiegelte Lifecycle-Negative,4 Erstursachen-/physische IO-Fälle und2 erkannte Sourcemutationen. Common-HTTP-Matrix360 Negativfälle plus120 MRC1-Fehler und6 kompilierte Mutationen. Strict bleibt nur nach aktuellem Registry zugelassen. Keine Compilerwarnung/Assertion abgeschwächt.
 

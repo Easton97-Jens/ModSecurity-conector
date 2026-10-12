@@ -1532,6 +1532,21 @@ static int sidecar_exchange_request(sidecar_exchange_state *state) {
     return 1;
 }
 
+static int sidecar_finish_strict_response(sidecar_exchange_state *state) {
+    if (sidecar_shutdown_owned_socket(state->client, &state->client_stop)) {
+        (void)msconnector_runtime_transaction_record_host_action(
+            state->transaction, &state->decision,
+            MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION,
+            0, "connection_aborted", 1, &state->error);
+    } else {
+        sidecar_record_decision_delivery_failure(state->client, &state->client_stop,
+            state->transaction, &state->decision, &state->error);
+    }
+    (void)msconnector_runtime_transaction_finish(state->transaction, &state->error);
+    state->handled = 1;
+    return 0;
+}
+
 static int sidecar_exchange_response(sidecar_exchange_state *state) {
     msconnector_response response;
     state->upstream = sidecar_connect(state->dependencies.options->upstream,
@@ -1593,18 +1608,7 @@ static int sidecar_exchange_response(sidecar_exchange_state *state) {
         }
         action = sidecar_phase4_action(state->client_response_started, phase4_mode);
         if (action == MSCONNECTOR_LATE_INTERVENTION_ABORT_CONNECTION) {
-            if (sidecar_shutdown_owned_socket(state->client, &state->client_stop)) {
-                (void)msconnector_runtime_transaction_record_host_action(
-                    state->transaction, &state->decision,
-                    MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION,
-                    0, "connection_aborted", 1, &state->error);
-            } else {
-                sidecar_record_decision_delivery_failure(state->client, &state->client_stop,
-                    state->transaction, &state->decision, &state->error);
-            }
-            (void)msconnector_runtime_transaction_finish(state->transaction, &state->error);
-            state->handled = 1;
-            return 0;
+            return sidecar_finish_strict_response(state);
         }
         if (action == MSCONNECTOR_LATE_INTERVENTION_LOG_ONLY) {
             if (msconnector_runtime_transaction_record_host_action(

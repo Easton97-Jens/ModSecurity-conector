@@ -17,7 +17,7 @@ class PatchedAPIResults(unittest.TestCase):
         start = source.index("if (action == MSCONNECTOR_LATE_INTERVENTION_ABORT_CONNECTION)", source.index("static int sidecar_exchange_response"))
         opening = source.index("{", start)
         branch = source[start:matching_delimiter(source, opening, "{", "}") + 1]
-        helper = "\n".join(function_definition(source, name) for name in ("sidecar_shutdown_owned_socket", "sidecar_record_decision_delivery_failure"))
+        helper = "\n".join(function_definition(source, name) for name in ("sidecar_shutdown_owned_socket", "sidecar_record_decision_delivery_failure", "sidecar_finish_strict_response"))
         harness = r'''
 #include <assert.h>
 #include <sys/socket.h>
@@ -25,6 +25,7 @@ class PatchedAPIResults(unittest.TestCase):
 #include "msconnector/late_intervention.h"
 typedef struct {int attempted,succeeded;} sidecar_owned_socket_stop;
 typedef struct {sidecar_owned_socket_stop client_stop;int client,handled;msconnector_runtime_transaction *transaction;msconnector_decision decision;msconnector_error error;} state_t;
+typedef state_t sidecar_exchange_state;
 static int shutdown_result,actions,failures;
 int shutdown(int fd,int how) {(void)fd;assert(how==SHUT_RDWR);return shutdown_result;}
 int msconnector_runtime_transaction_record_host_action(msconnector_runtime_transaction *t,const msconnector_decision *d,msconnector_decision_action a,int h,const char *s,int b,msconnector_error *e) {(void)t;(void)d;(void)h;(void)s;(void)e;assert(a==MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION);assert(b==1);++actions;return 1;}

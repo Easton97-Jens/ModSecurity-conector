@@ -35,6 +35,8 @@ The immediate client-RST regression also failed on the unchanged exact base, bef
 
 I09/I10/I11 closure and all historical route evidence remain distinct; the four paired checklist/matrix files retain 14 productive I10 legs and 56 historical rows. Updated source tests use actual function definitions instead of requiring recursion or obsolete helpers. The HTX path-security fixture supplies the newly required explicit engine policy, preserving path/symlink guards.
 
+First pushed integration head `e4c4f2a6` passed the normal Cloud gate but full authenticated readback found two c:S3776 CODE_SMELL findings: HTTP authorization complexity26 versus25 and sidecar exchange27 versus25. Mandatory zero-findings enforcement correctly rejected it; duplication was0.0%. Narrow helper extraction separates streamed authorization error mapping and Strict sidecar completion, preserving all guards, callbacks, terminal state and observations. Productive Common11 and full lighttpd51 SDK/caller/mutation tests pass again. No scanner/gate/threshold change or suppression. Current-head CI/Sonar readback is recorded in the PR after ordinary follow-up push.
+
 ## Changed files
 
 - `.github/workflows/test-common.yml`
@@ -137,6 +139,10 @@ All commands ran through RTK with task-owned external build/cache/temp roots and
 | `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v connectors.lighttpd.tests.test_stock_sidecar_contract.StockSidecarLoopbackContractTest.test_client_reset_during_a_rule_block_does_not_invent_an_abort_host_action` | 1 | Python 1 | 14.377 | `evidence/rule-delivery-native-reproducer/` |
 | `rtk proxy make check-apache-event-sink check-haproxy-spop-event-sink check-apache-native-response-limit` | 2 | Python 20 | 7.363 | `evidence/sink-regressions/` |
 | `rtk proxy make check-apache-event-sink check-haproxy-spop-event-sink check-apache-native-response-limit` | 0 | Python 48 | 10.856 | `evidence/sink-regressions-final/` |
+| `rtk proxy /usr/local/bin/sonar-with-env list issues -p Easton97-Jens_ModSecurity-conector --pull-request 409 --new-code --page-size 500 --page 1 --format json` | 0 | Python 0 | 1.478 | `evidence/sonar-current-readback/` |
+| `rtk proxy make check-i10-common-callers` | 0 | Python 11 | 38.104 | `evidence/sonar-refactor-common/` |
+| `rtk proxy make check-bilingual-docs check-doc-links` | 0 | Python 0 | 14.012 | `evidence/sonar-refactor-docs/` |
+| `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_lighttpd_i10_adapter_errors connectors.lighttpd.tests.test_i09_api_returns connectors.lighttpd.tests.test_stock_sidecar_contract` | 0 | Python 51 | 50.655 | `evidence/sonar-refactor-lighttpd/` |
 
 Additional worker evidence under `native-worker/` and `go-worker/`: HAProxy7 caller methods/22 detected mutants; lighttpd original479 cases and9 mutants retained, with new socket-owner controls and a tenth mutant; Traefik dispatcher690 failures/690 terminal reentries/270 valid controls in admitted modes and15 C/Go mutants; Envoy18 compiled bridge/finish checks plus8 genuine Common/libModSecurity/CGo packages. New Common delivery regression has5 methods,12 rule cases,6 sealed-lifecycle negatives,4 first-cause/physical-IO cases and2 detected source mutations. Common HTTP matrix360 negative cases plus120 MRC1 failures and6 compiled mutations. Strict remains admitted only where current registry allows it. No compiler warning or assertion was weakened.
 

@@ -58,7 +58,7 @@ class LighttpdI10AdapterErrors(unittest.TestCase):
         types = source[source.index("typedef struct sidecar_options"):source.index("typedef struct sidecar_runtime_context")]
         types += source[source.index("typedef enum sidecar_failure_origin"):source.index("static uint64_t sidecar_now_ms")]
         types += source[source.index("typedef struct sidecar_exchange_payload"):source.index("static int sidecar_capture_request_endpoints")]
-        names = ("sidecar_shutdown_owned_socket", "sidecar_now_ms", "sidecar_remaining", "sidecar_wait", "sidecar_send_all_observed", "sidecar_send_all", "sidecar_recv_some_with_flags", "sidecar_recv_some", "sidecar_headers_release", "sidecar_write_error", "sidecar_record_failure_action", "sidecar_failure_error_class", "sidecar_exchange_state_init", "sidecar_read_response_body", "sidecar_phase4_action", "sidecar_exchange_response", "sidecar_exchange_error", "sidecar_exchange")
+        names = ("sidecar_shutdown_owned_socket", "sidecar_now_ms", "sidecar_remaining", "sidecar_wait", "sidecar_send_all_observed", "sidecar_send_all", "sidecar_recv_some_with_flags", "sidecar_recv_some", "sidecar_headers_release", "sidecar_write_error", "sidecar_record_failure_action", "sidecar_failure_error_class", "sidecar_exchange_state_init", "sidecar_read_response_body", "sidecar_phase4_action", "sidecar_finish_strict_response", "sidecar_exchange_response", "sidecar_exchange_error", "sidecar_exchange")
         text = (ROOT / "tests/fixtures/lighttpd_i10_sidecar.c").read_text().replace("/* TYPES */", types)
         text = text.replace("/* DEFINITIONS */", "\n".join(function_definition(source, name) for name in names))
         variants = {"sidecar-current": text,
