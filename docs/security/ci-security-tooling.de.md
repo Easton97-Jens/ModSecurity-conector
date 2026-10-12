@@ -248,6 +248,15 @@ prüft die Originaldateien. Siehe die
 [GitHub-Syntax-Ankündigung](https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/)
 und das [actionlint-Kompatibilitäts-Issue](https://github.com/rhysd/actionlint/issues/711).
 
+Der Adapter akzeptiert keine CLI-Argumente für Executables oder Workflow-Pfade.
+Gewöhnliche CI verwendet den festen Pfad `RUNNER_TEMP/security-tools/actionlint`;
+der boolesche Modus `--candidate-tree` verwendet das feste heruntergeladene Tool
+des privaten Proposed Trees. Er weist Traversal, Symlink-Vorfahren, fremdes oder
+beschreibbares Tool-Staging und nichtreguläre Dateien zurück und ermittelt nur
+Repository-YAML-Workflows samt den zwei festen Berechtigungs-Fixtures.
+ShellCheck verwendet bei Verfügbarkeit den festen Pfad `/usr/bin/shellcheck`.
+Die Integrität stammt weiterhin vom Prüfsummen-Fetcher.
+
 Der gehostete NGINX-Workflow reserviert vor der Provisionierung einen
 Invocation-eigenen Runtime-Snapshot und übergibt dessen exakten Pfad mit
 `SKIP_RUNTIME_COMPONENT_PREPARE=1` über die spätere `env -i`-Grenze.

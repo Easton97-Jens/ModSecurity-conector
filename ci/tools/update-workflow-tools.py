@@ -1726,10 +1726,6 @@ def run_proposed_tree_workflow_lints(proposed_root: Path) -> None:
         "ci/fixtures/workflow-permission-contract/safe.yml",
         "ci/fixtures/workflow-permission-contract/unsafe.yml",
     )
-    workflow_paths = [
-        str(resolve_regular_file(proposed_root, Path(path)))
-        for path in (*WORKFLOW_UPDATE_PATHS, *permission_fixtures)
-    ]
     lint_wrapper = resolve_regular_file(
         proposed_root, Path("ci/tools/lint_workflows.py")
     )
@@ -1738,9 +1734,7 @@ def run_proposed_tree_workflow_lints(proposed_root: Path) -> None:
         [
             sys.executable,
             str(lint_wrapper),
-            "--actionlint",
-            str(executables["actionlint"]),
-            *workflow_paths,
+            "--candidate-tree",
         ],
     )
     zizmor = [str(executables["zizmor"]), "--offline"]

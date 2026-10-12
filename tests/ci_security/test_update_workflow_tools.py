@@ -470,9 +470,10 @@ class WorkflowToolUpdaterTests(WorkflowToolUpdaterFixtures, unittest.TestCase):
                 )
 
     def test_codeql_resolver_rejects_a_stale_release_page(self) -> None:
+        releases = [self.release_fixture("v4.38.0")]
         with self.assertRaisesRegex(UPDATER.UpdateError, "release page is stale"):
             self.resolve_codeql_from_page(
-                [self.release_fixture("v4.38.0")],
+                releases,
                 current_version="v4.38.3",
             )
 
@@ -1216,7 +1217,10 @@ jobs:
                     executable.chmod(0o700)
                     return executable
 
-            with patch.object(UPDATER, "load_fetcher_module", return_value=FakeFetcher):
+            with (
+                self.runner_temp_environment(Path(temporary_directory)),
+                patch.object(UPDATER, "load_fetcher_module", return_value=FakeFetcher),
+            ):
                 UPDATER.run_proposed_tree_workflow_lints(root)
             self.assertEqual(fetched, ["actionlint", "zizmor"])
 

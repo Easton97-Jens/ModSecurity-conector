@@ -1646,7 +1646,8 @@ jobs:
         caller = self.jobs("all-connectors-no-crs.yml")["no-crs"]
         self.assertIn("uses: $/.github/workflows/reusable-five-connectors-profile.yml", caller)
         lint_jobs = self.jobs("ci-security-workflow-lint.yml")
-        self.assertIn("python3 ci/tools/lint_workflows.py --actionlint", lint_jobs["actionlint"])
+        self.assertIn("python3 ci/tools/lint_workflows.py", lint_jobs["actionlint"])
+        self.assertNotIn("--actionlint", lint_jobs["actionlint"])
         self.assertIn('"$RUNNER_TEMP/security-tools/zizmor" --offline .github/workflows', lint_jobs["zizmor"])
         self.assertNotIn("self-repository", lint_jobs["zizmor"])
 

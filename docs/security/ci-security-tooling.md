@@ -227,6 +227,14 @@ stdin. Shell scripts, comments, source files, and runtime references stay intact
 [GitHub syntax announcement](https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/)
 and [actionlint compatibility issue](https://github.com/rhysd/actionlint/issues/711).
 
+The adapter accepts no executable or workflow-path CLI arguments. Ordinary CI
+uses the fixed `RUNNER_TEMP/security-tools/actionlint` location; the boolean
+`--candidate-tree` mode uses the private proposed tree's fixed downloaded tool.
+It rejects traversal, symlink ancestors, foreign/writable tool staging, and
+nonregular files, and discovers only repository YAML workflows plus the two
+fixed permission fixtures. ShellCheck uses the fixed `/usr/bin/shellcheck`
+location when available. Integrity still comes from the checksum fetcher.
+
 The hosted NGINX workflow reserves an invocation-local runtime snapshot before
 provisioning and passes its exact path across the later `env -i` boundary with
 `SKIP_RUNTIME_COMPONENT_PREPARE=1`. The wrapper still verifies the snapshot's
