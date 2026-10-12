@@ -540,10 +540,48 @@ ngx_http_modsecurity_extract_intervention_rule_id(ngx_http_modsecurity_ctx_t *ct
     }
 }
 
+ngx_int_t
+ngx_http_modsecurity_capture_request_body_intervention(ngx_http_request_t *r)
+{
+    ngx_http_modsecurity_ctx_t *ctx = ngx_http_modsecurity_get_module_ctx(r);
+    ModSecurityIntervention intervention;
+    msconnector_intervention common;
+    ngx_int_t result;
+
+    ngx_memzero(&intervention, sizeof(intervention));
+    intervention.status = 200;
+    result = ngx_http_modsecurity_collect_native_intervention(
+        ctx != NULL ? ctx->modsec_transaction : NULL, ctx, &intervention);
+    if (result == 1 && intervention.disruptive) {
+        common = msconnector_intervention_make(intervention.disruptive,
+            intervention.status, intervention.url, intervention.log);
+        if (!msconnector_intervention_is_request_body_limit_rejection(
+                MSCONNECTOR_PHASE_REQUEST_BODY, &common)) {
+            result = ngx_http_modsecurity_reject_native_intervention(ctx,
+                MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE);
+        } else if (!ctx->request_intervention_pending) {
+            ctx->pending_request_intervention = intervention;
+            ctx->request_intervention_pending = 1;
+            ngx_memzero(&intervention, sizeof(intervention));
+        }
+    }
+    msc_intervention_cleanup(&intervention);
+    return result == NGX_ERROR ? NGX_ERROR : NGX_OK;
+}
+
+static void
+ngx_http_modsecurity_log_native_intervention(ngx_http_request_t *r,
+    const ModSecurityIntervention *intervention)
+{
+    const char *log = intervention->log != NULL ? intervention->log :
+        "(no log message was specified)";
+
+    ngx_log_error(NGX_LOG_ERR, (ngx_log_t *)r->connection->log, 0, "%s", log);
+}
+
 int
 ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_request_t *r, ngx_int_t early_log)
 {
-    const char *log = NULL;
     ModSecurityIntervention intervention;
     msconnector_intervention common_intervention;
     ngx_int_t result = 0;
@@ -568,6 +606,15 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
         result = NGX_ERROR;
         goto cleanup;
     }
+    if (ctx->native_event_phase == MSCONNECTOR_PHASE_REQUEST_BODY &&
+        ctx->request_intervention_pending) {
+        msc_intervention_cleanup(&intervention);
+        intervention = ctx->pending_request_intervention;
+        ngx_memzero(&ctx->pending_request_intervention,
+            sizeof(ctx->pending_request_intervention));
+        ctx->request_intervention_pending = 0;
+        native_result = 1;
+    }
     if (native_result == 0 || !intervention.disruptive) {
         dd("nothing to do");
         goto cleanup;
@@ -586,9 +633,7 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
             ctx->native_event_phase, &common_intervention);
     ctx->native_request_body_limit_rejection =
         request_body_limit_rejection != 0;
-    intervention.status = request_body_limit_rejection
-        ? NGX_HTTP_REQUEST_ENTITY_TOO_LARGE
-        : msconnector_intervention_normalize_status(intervention.url,
+    intervention.status = msconnector_intervention_normalize_status(intervention.url,
             intervention.status, mcf->common_config.default_block_status);
     ctx->last_intervention_status = intervention.status;
     ctx->last_intervention_rule_id[0] = '\0';
@@ -622,11 +667,7 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
 
     // logging to nginx error log can be disable by setting `modsecurity_use_error_log` to off
     if (mcf->common_config.use_error_log == MSCONNECTOR_BOOL_ON) {
-        log = intervention.log;
-        if (intervention.log == NULL) {
-          log = "(no log message was specified)";
-        }
-        ngx_log_error(NGX_LOG_ERR, (ngx_log_t *)r->connection->log, 0, "%s", log);
+        ngx_http_modsecurity_log_native_intervention(r, &intervention);
     }
 
     /* Native response-body Reject is a technical limit failure, not a rule
@@ -811,6 +852,8 @@ ngx_http_modsecurity_cleanup(void *data)
     }
 
     if (ctx->modsec_transaction != NULL) {
+        msc_intervention_cleanup(&ctx->pending_request_intervention);
+        ctx->request_intervention_pending = 0;
         msc_transaction_cleanup(ctx->modsec_transaction);
         ctx->modsec_transaction = NULL;
         native_cleanup_completed = 1;

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net"
@@ -311,19 +312,14 @@ func TestTraefikMiddlewareEntryPointSignature(t *testing.T) {
 }
 
 func newTestMiddleware(t *testing.T, next http.Handler, transaction *recordingTransaction) *Middleware {
-	return newTestMiddlewareWithRequestBodyLimit(t, next, transaction, defaultMaxRequestBodyBytes)
-}
-
-func newTestMiddlewareWithRequestBodyLimit(t *testing.T, next http.Handler, transaction *recordingTransaction, requestBodyLimit int64) *Middleware {
 	t.Helper()
 	config := CreateConfig()
 	config.EngineSocketPath = "/run/msconnector-test.sock"
 	config.MaxRequestChunkBytes = 3
-	config.MaxRequestBodyBytes = requestBodyLimit
 	config.MaxResponseChunkBytes = 2
 	middleware, err := newWithEngine(next, config, "test", &recordingEngine{transaction: transaction})
 	if err != nil {
-		t.Fatalf("newWithEngine() error = %v", err)
+		t.Fatal(err)
 	}
 	return middleware
 }
@@ -439,13 +435,13 @@ func TestMiddlewareDrainsRequestBeforeResponseHeadersWhenHandlerSkipsBody(t *tes
 
 func TestMiddlewareAllowsInLimitRequestBodyBeforeResponseHeaders(t *testing.T) {
 	transaction := &recordingTransaction{}
-	middleware := newTestMiddlewareWithRequestBodyLimit(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if _, err := io.ReadAll(request.Body); err != nil {
 			t.Errorf("ReadAll(request.Body) error = %v", err)
 			return
 		}
 		writer.WriteHeader(http.StatusNoContent)
-	}), transaction, int64(len("request")))
+	}), transaction)
 	source := newTrackingRequestBody("request")
 	request := httptest.NewRequest(http.MethodPost, "http://example.test/in-limit", nil)
 	request.ContentLength = int64(len("request"))
@@ -464,11 +460,11 @@ func TestMiddlewareAllowsInLimitRequestBodyBeforeResponseHeaders(t *testing.T) {
 	}
 }
 
-func TestMiddlewareRejectsOverLimitBodyDuringSkippedHandlerDrain(t *testing.T) {
+func TestMiddlewareStreamsSkippedRequestBodyWithoutAggregatePolicy(t *testing.T) {
 	transaction := &recordingTransaction{}
-	middleware := newTestMiddlewareWithRequestBodyLimit(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.WriteHeader(http.StatusNoContent)
-	}), transaction, 5)
+	}), transaction)
 	source := newTrackingRequestBody("request")
 	request := httptest.NewRequest(http.MethodPost, "http://example.test/over-limit-drain", nil)
 	request.ContentLength = int64(len("request"))
@@ -476,17 +472,17 @@ func TestMiddlewareRejectsOverLimitBodyDuringSkippedHandlerDrain(t *testing.T) {
 	response := httptest.NewRecorder()
 	middleware.ServeHTTP(response, request)
 
-	assertOverLimitRequestRejectedBeforeP3(t, transaction, response, source, len("request"))
+	assertCompleteRequestStream(t, transaction, response, source, len("request"))
 }
 
-func TestMiddlewareRejectsOverLimitBodyReadByHandlerWithoutFurtherDrain(t *testing.T) {
+func TestMiddlewareStreamsHandlerRequestBodyWithoutAggregatePolicy(t *testing.T) {
 	transaction := &recordingTransaction{}
-	middleware := newTestMiddlewareWithRequestBodyLimit(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if _, err := io.ReadAll(request.Body); !errors.Is(err, ErrRequestRejected) {
-			t.Errorf("ReadAll(request.Body) error = %v, want ErrRequestRejected", err)
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if _, err := io.ReadAll(request.Body); err != nil {
+			t.Errorf("ReadAll(request.Body) error = %v", err)
 		}
 		writer.WriteHeader(http.StatusNoContent)
-	}), transaction, 5)
+	}), transaction)
 	source := newTrackingRequestBody("request")
 	request := httptest.NewRequest(http.MethodPost, "http://example.test/over-limit-handler", nil)
 	request.ContentLength = int64(len("request"))
@@ -494,54 +490,61 @@ func TestMiddlewareRejectsOverLimitBodyReadByHandlerWithoutFurtherDrain(t *testi
 	response := httptest.NewRecorder()
 	middleware.ServeHTTP(response, request)
 
-	assertOverLimitRequestRejectedBeforeP3(t, transaction, response, source, len("request"))
+	assertCompleteRequestStream(t, transaction, response, source, len("request"))
 }
 
-func assertOverLimitRequestRejectedBeforeP3(t *testing.T, transaction *recordingTransaction, response *httptest.ResponseRecorder, source *trackingRequestBody, inputBytes int) {
+func assertCompleteRequestStream(t *testing.T, transaction *recordingTransaction, response *httptest.ResponseRecorder, source *trackingRequestBody, inputBytes int) {
 	t.Helper()
-	if got, want := response.Code, http.StatusRequestEntityTooLarge; got != want {
-		t.Fatalf("status = %d, want body-limit status %d", got, want)
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("status=%d", response.Code)
 	}
-	if source.readBytes >= inputBytes {
-		t.Fatalf("over-limit source was fully drained: read=%d input=%d", source.readBytes, inputBytes)
+	if source.readBytes != inputBytes || len(transaction.closed) != 1 || !transaction.closed[0].RequestEOS {
+		t.Fatal("request not completely inspected before response")
 	}
-	for _, event := range transaction.events {
-		if event == "response-headers" {
-			t.Fatalf("P3 ran after request body limit rejection: events=%v", transaction.events)
-		}
-	}
-	if len(transaction.closed) != 1 || transaction.closed[0].RequestEOS {
-		t.Fatalf("over-limit request incorrectly reached EOS: %#v", transaction.closed)
-	}
-	engineRequestBytes := 0
-	for _, call := range transaction.bodyCalls {
+	assertCompleteRequestCallbacks(t, transaction.bodyCalls, inputBytes)
+	assertRequestCompletedBeforeResponse(t, transaction.events)
+}
+
+func assertCompleteRequestCallbacks(t *testing.T, calls []bodyCall, inputBytes int) {
+	t.Helper()
+	total := 0
+	eos := 0
+	for _, call := range calls {
 		if call.direction == DirectionRequest {
-			engineRequestBytes += call.length
+			total += call.length
+			if call.end {
+				eos++
+			}
 		}
 	}
-	if got, want := engineRequestBytes, 3; got != want {
-		t.Fatalf("over-limit chunk reached engine: engine request bytes=%d, want only first bounded chunk=%d", got, want)
+	if total != inputBytes || eos != 1 {
+		t.Fatalf("engine bytes=%d want=%d EOS=%d want=1", total, inputBytes, eos)
 	}
 }
 
-func TestMiddlewareConfigRejectsOutOfRangeRequestBodyLimit(t *testing.T) {
-	config := CreateConfig()
-	if config.MaxRequestBodyBytes != defaultMaxRequestBodyBytes {
-		t.Fatalf("default max request body bytes = %d, want %d", config.MaxRequestBodyBytes, defaultMaxRequestBodyBytes)
+func assertRequestCompletedBeforeResponse(t *testing.T, events []string) {
+	t.Helper()
+	lastRequest, firstResponse := -1, -1
+	for index, event := range events {
+		if event == "request-body" {
+			lastRequest = index
+		}
+		if event == "response-headers" && firstResponse < 0 {
+			firstResponse = index
+		}
 	}
-	config.MaxRequestBodyBytes = maximumMaxRequestBodyBytes + 1
-	if _, err := normalizedConfig(config); err == nil {
-		t.Fatal("normalizedConfig accepted a request body limit above the finite cap")
+	if lastRequest < 0 || firstResponse <= lastRequest {
+		t.Fatalf("P3 preceded request completion: events=%v", events)
 	}
-	config = CreateConfig()
-	config.MaxRequestBodyBytes = -1
-	if _, err := normalizedConfig(config); err == nil {
-		t.Fatal("normalizedConfig accepted a non-positive request body limit")
-	}
-	config = CreateConfig()
-	config.MaxRequestBodyBytes = 2
-	if _, err := normalizedConfig(config); err == nil {
-		t.Fatal("normalizedConfig accepted a request chunk larger than the aggregate request body limit")
+}
+
+func TestMiddlewareConfigRejectsRemovedRequestBodyOption(t *testing.T) {
+	for _, value := range []int64{0, -1, 2, 1048576} {
+		config := CreateConfig()
+		config.MaxRequestBodyBytes = &value
+		if _, err := normalizedConfig(config); err == nil || !strings.Contains(err.Error(), "was removed") {
+			t.Fatalf("removed option %d: %v", value, err)
+		}
 	}
 }
 
@@ -1226,4 +1229,36 @@ func (writer *failingResponseWriter) Write(_ []byte) (int, error) {
 		writer.status = http.StatusOK
 	}
 	return 0, io.ErrClosedPipe
+}
+
+func TestRemovedBodyOptionJSONIsRejected(t *testing.T) {
+	for _, key := range []string{
+		"maxRequestBodyBytes", "MaxRequestBodyBytes", "MAXREQUESTBODYBYTES", "mAxReQuEsTbOdYbYtEs",
+		"maxResponseBodyBytes", "MaxResponseBodyBytes", "MAXRESPONSEBODYBYTES", "mAxReSpOnSeBoDyByTeS",
+	} {
+		for _, value := range []string{"null", "0", "1048576"} {
+			t.Run(key+"/"+value, func(t *testing.T) {
+				var config Config
+				err := json.Unmarshal([]byte(`{"`+key+`":`+value+`}`), &config)
+				if err == nil || !strings.Contains(err.Error(), "was removed") {
+					t.Fatalf("key=%s value=%s error=%v", key, value, err)
+				}
+			})
+		}
+	}
+}
+
+func TestRemovedResponseBodyOptionIsRejected(t *testing.T) {
+	for _, value := range []string{"null", "0", "1048576"} {
+		var config Config
+		if err := json.Unmarshal([]byte(`{"maxResponseBodyBytes":`+value+`}`), &config); err == nil || !strings.Contains(err.Error(), "was removed") {
+			t.Fatalf("value=%s error=%v", value, err)
+		}
+	}
+	config := CreateConfig()
+	value := int64(0)
+	config.MaxResponseBodyBytes = &value
+	if err := validateConfigLimits(*config); err == nil {
+		t.Fatal("host decoder legacy response option accepted")
+	}
 }

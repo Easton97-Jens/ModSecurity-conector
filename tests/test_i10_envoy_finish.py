@@ -30,12 +30,17 @@ class EnvoyFinishCallerTests(unittest.TestCase):
             '(void)t; (void)error; ++calls_finish; return 1;',
             '(void)t; ++calls_finish; return boundary_result("finish", error);',
         ).replace(
-            'msc_envoy_ext_proc_transaction_close(transaction);',
+            '''if (strcmp(argv[1], "void-close") == 0) {
+        msc_envoy_ext_proc_transaction_close(transaction);
+        close_result = 1;
+    } else {
+        close_result = msc_envoy_ext_proc_transaction_close_checked(transaction, error, sizeof(error), &close_code);
+    }''',
             '''scenario = "finish";
-    int close_result = msc_envoy_ext_proc_transaction_close_checked(transaction, error, sizeof(error));
+    close_result = msc_envoy_ext_proc_transaction_close_checked(transaction, error, sizeof(error), &close_code);
     int first_cause_retained = cause == MSCONNECTOR_ERROR_NONE ||
         strcmp(error, msconnector_error_default_message(cause)) == 0;
-    int null_close = msc_envoy_ext_proc_transaction_close_checked(NULL, error, sizeof(error));
+    int null_close = msc_envoy_ext_proc_transaction_close_checked(NULL, error, sizeof(error), NULL);
     printf("{\\\"close\\\":%d,\\\"finish\\\":%d,\\\"destroy\\\":%d,\\\"first_cause\\\":%d,\\\"null_close\\\":%d}\\n",
         close_result, calls_finish, calls_destroy, first_cause_retained, null_close);
     return 0;''',

@@ -21,7 +21,7 @@ class LighttpdI10AdapterErrors(unittest.TestCase):
         cls.addClassCleanup(cls.temporary.cleanup)
         cls.directory = Path(cls.temporary.name)
         source = NATIVE.read_text()
-        names = ("mod_msconnector_error_response", "mod_msconnector_fail_request", "mod_msconnector_apply_decision", "mod_msconnector_response_headers_committed", "mod_msconnector_response_body_committed", "mod_msconnector_finish_request_body", "mod_msconnector_finish_response_body", "mod_msconnector_handle_response_body", "mod_msconnector_handle_response_abort", "mod_msconnector_append_request_body_range", "mod_msconnector_reject_request_body_gate_conflict", "mod_msconnector_handle_request_body")
+        names = ("mod_msconnector_record_api_failure", "mod_msconnector_error_response", "mod_msconnector_fail_request", "mod_msconnector_apply_decision", "mod_msconnector_response_headers_committed", "mod_msconnector_response_body_committed", "mod_msconnector_finish_request_body", "mod_msconnector_finish_response_body", "mod_msconnector_handle_response_body", "mod_msconnector_handle_response_abort", "mod_msconnector_append_request_body_range", "mod_msconnector_reject_request_body_gate_conflict", "mod_msconnector_handle_request_body")
         # Preserve productive signatures and bodies exactly.
         definitions = []
         for name in names:
@@ -38,7 +38,7 @@ class LighttpdI10AdapterErrors(unittest.TestCase):
         cls.binaries = {}
         variants = {"current": fixture,
                     "swallow-error": fixture.replace("return PLUGIN_BODY_HOOK_ERROR;", "return PLUGIN_BODY_HOOK_CONTINUE;"),
-                    "retry-native": fixture.replace("if (ctx != NULL && ctx->technical_failed) return PLUGIN_BODY_HOOK_ERROR;", "if (ctx != NULL && ctx->technical_failed) ctx->technical_failed = 0;"),
+                    "retry-native": fixture.replace("if (ctx != NULL && (ctx->technical_failed || ctx->api_failed)) return PLUGIN_BODY_HOOK_ERROR;", "if (ctx != NULL && ctx->technical_failed) ctx->technical_failed = 0;"),
                     "second-response": fixture.replace("if (r->write_queue.bytes_out > 0 ||", "if (r->write_queue.bytes_out < 0 ||")}
         variants["reset-success"] = fixture.replace("handler_ctx_destroy(ctx_slot);\n    return result;", "handler_ctx_destroy(ctx_slot);\n    (void)result;\n    return HANDLER_GO_ON;")
         for variant, text in variants.items():
@@ -58,7 +58,7 @@ class LighttpdI10AdapterErrors(unittest.TestCase):
         types = source[source.index("typedef struct sidecar_options"):source.index("typedef struct sidecar_runtime_context")]
         types += source[source.index("typedef enum sidecar_failure_origin"):source.index("static uint64_t sidecar_now_ms")]
         types += source[source.index("typedef struct sidecar_exchange_payload"):source.index("static int sidecar_capture_request_endpoints")]
-        names = ("sidecar_now_ms", "sidecar_remaining", "sidecar_wait", "sidecar_send_all_observed", "sidecar_send_all", "sidecar_recv_some_with_flags", "sidecar_recv_some", "sidecar_headers_release", "sidecar_write_error", "sidecar_record_failure_action", "sidecar_failure_error_class", "sidecar_exchange_state_init", "sidecar_read_response_body", "sidecar_phase4_action", "sidecar_exchange_response", "sidecar_exchange_error", "sidecar_exchange")
+        names = ("sidecar_shutdown_owned_socket", "sidecar_now_ms", "sidecar_remaining", "sidecar_wait", "sidecar_send_all_observed", "sidecar_send_all", "sidecar_recv_some_with_flags", "sidecar_recv_some", "sidecar_headers_release", "sidecar_write_error", "sidecar_record_failure_action", "sidecar_failure_error_class", "sidecar_exchange_state_init", "sidecar_read_response_body", "sidecar_phase4_action", "sidecar_exchange_response", "sidecar_exchange_error", "sidecar_exchange")
         text = (ROOT / "tests/fixtures/lighttpd_i10_sidecar.c").read_text().replace("/* TYPES */", types)
         text = text.replace("/* DEFINITIONS */", "\n".join(function_definition(source, name) for name in names))
         variants = {"sidecar-current": text,
@@ -106,6 +106,64 @@ class LighttpdI10AdapterErrors(unittest.TestCase):
             with self.subTest(mutation=variant):
                 result = self.call(1, commitment, fault, operation, variant)
                 self.assertNotEqual(result.returncode, 0, "socket mutation escaped executable assertions")
+
+    def test_owned_socket_shutdown_is_once_for_success_and_failure(self):
+        source = (ROOT / "connectors/lighttpd/stock_sidecar/stock_sidecar.c").read_text()
+        helper = function_definition(source, "sidecar_shutdown_owned_socket")
+        harness = r'''
+#include <assert.h>
+#include <sys/socket.h>
+#include <unistd.h>
+typedef struct { int attempted; int succeeded; } sidecar_owned_socket_stop;
+static int calls;
+static int forced_failure;
+static int observed_shutdown(int fd, int how) {
+    ++calls;
+    if (forced_failure) return -1;
+    return shutdown(fd, how);
+}
+#define shutdown observed_shutdown
+__HELPER__
+int main(void) {
+    int pair[2];
+    char byte;
+    sidecar_owned_socket_stop stop = {0};
+    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, pair) == 0);
+    assert(send(pair[0], "x", 1, 0) == 1);
+    assert(sidecar_shutdown_owned_socket(pair[0], &stop) == 1);
+    assert(stop.attempted == 1 && stop.succeeded == 1 && calls == 1);
+    assert(recv(pair[1], &byte, 1, 0) == 1 && byte == 'x');
+    assert(recv(pair[1], &byte, 1, 0) == 0);
+    assert(sidecar_shutdown_owned_socket(pair[0], &stop) == 1);
+    assert(calls == 1);
+    assert(close(pair[0]) == 0 && close(pair[1]) == 0);
+    stop = (sidecar_owned_socket_stop){0};
+    calls = 0;
+    forced_failure = 1;
+    assert(sidecar_shutdown_owned_socket(-1, &stop) == 0);
+    assert(stop.attempted == 1 && stop.succeeded == 0 && calls == 1);
+    forced_failure = 0;
+    assert(sidecar_shutdown_owned_socket(-1, &stop) == 0);
+    assert(calls == 1);
+    return 0;
+}
+'''
+        variants = {"owned-stop": helper,
+                    "owned-stop-retry": helper.replace("if (stop->attempted)", "if (0)")}
+        self.assertNotEqual(variants["owned-stop"], variants["owned-stop-retry"])
+        for variant, body in variants.items():
+            path = self.directory / (variant + ".c")
+            binary = self.directory / variant
+            path.write_text(harness.replace("__HELPER__", body))
+            compiled = subprocess.run(shlex.split(os.environ.get("CC", "cc")) +
+                ["-std=c17", "-Wall", "-Wextra", "-Werror", str(path), "-o", str(binary)],
+                capture_output=True, text=True, timeout=60)
+            self.assertEqual(compiled.returncode, 0, compiled.stderr)
+            result = subprocess.run([str(binary)], capture_output=True, text=True, timeout=10)
+            if variant == "owned-stop":
+                self.assertEqual(result.returncode, 0, result.stderr)
+            else:
+                self.assertNotEqual(result.returncode, 0, "duplicate syscall mutation survived")
 
     def call(self, mode, commitment, operation, fault, variant="current"):
         return subprocess.run([str(self.binaries[variant]), str(mode), str(commitment), str(operation), str(fault)], capture_output=True, text=True, timeout=10)

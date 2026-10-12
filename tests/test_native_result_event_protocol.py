@@ -148,10 +148,16 @@ CALLBACK_PREAMBLE = r'''
 #include <stddef.h>
 #include <stdio.h>
 typedef struct { int value; } Transaction;
-typedef struct { Transaction *transaction; } msconnector_native_transaction;
 typedef struct { int value; } msconnector_runtime;
 typedef struct { int code; } msconnector_error;
-typedef struct { int phase; } msconnector_decision;
+typedef struct { int phase, disruptive; } msconnector_decision;
+typedef struct {
+    Transaction *transaction;
+    msconnector_decision pending_request_decision;
+    int request_decision_pending;
+    msconnector_decision pending_response_decision;
+    int response_decision_pending;
+} msconnector_native_transaction;
 #define MSCONNECTOR_ERROR_MODSECURITY_FAILURE 1
 #define MSCONNECTOR_PHASE_REQUEST_BODY 3
 #define MSCONNECTOR_PHASE_RESPONSE_BODY 5
@@ -175,17 +181,17 @@ static int native_decision(msconnector_runtime *runtime, msconnector_native_tran
 CALLBACK_MAIN = r'''
 #define CHECK(x) do { if (!(x)) { fprintf(stderr, "check failed at %d\n", __LINE__); return 1; } } while (0)
 int main(void) {
-    Transaction tx={0}; msconnector_native_transaction native={&tx}; msconnector_runtime runtime={0};
+    Transaction tx={0}; msconnector_native_transaction native={.transaction=&tx}; msconnector_runtime runtime={0};
     msconnector_error error={0}; msconnector_decision decision={0};
     const int results[]={-1,0,1,2}; unsigned i;
     for (i=0;i<sizeof(results)/sizeof(results[0]);i++) {
         int append_ok=results[i]==0 || results[i]==1;
         native_result=results[i]; calls=decisions=0; error.code=0;
         CHECK(native_append_request_body(&runtime,&native,(const unsigned char *)"abc",3,&error)==append_ok);
-        CHECK(calls==1 && decisions==0 && error.code==(append_ok ? 0:1));
+        CHECK(calls==1 && decisions==append_ok && error.code==(append_ok ? 0:1));
         calls=decisions=0; error.code=0;
         CHECK(native_append_response_body(&runtime,&native,(const unsigned char *)"abc",3,&error)==append_ok);
-        CHECK(calls==1 && decisions==0 && error.code==(append_ok ? 0:1));
+        CHECK(calls==1 && decisions==append_ok && error.code==(append_ok ? 0:1));
         calls=decisions=0; error.code=0;
         CHECK(native_finish_request_body(&runtime,&native,&decision,&error)==(results[i]==1));
         CHECK(calls==1 && decisions==(results[i]==1));

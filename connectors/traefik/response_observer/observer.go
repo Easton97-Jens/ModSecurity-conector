@@ -677,11 +677,11 @@ func (s *responseState) applyImmediate(value result) {
 		s.failBeforeCommit()
 		return
 	}
-	s.precommitFail = true
 	if value.decision == decisionRedirect && value.redirect != "" {
 		s.target.Header().Set("Location", value.redirect)
 	}
 	s.writeTerminalStatus(status)
+	s.precommitFail = true
 	s.headerSent = true
 	s.status = status
 	if err := s.sendOutcome(actualDecision, false, false, status); err != nil {

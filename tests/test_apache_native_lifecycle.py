@@ -62,7 +62,7 @@ static void fixture_log(const char *file, ...) { (void)file; ++diagnostics; }
 #undef ap_get_module_config
 #define ap_get_module_config(vector, module) (vector)
 
-void apache_emit_contract_failure_event(msc_t *msr, request_rec *r,
+msconnector_error_code apache_emit_contract_failure_event(msc_t *msr, request_rec *r,
         enum msconnector_phase phase, msconnector_transaction_error_class cause,
         int status) {
     (void)r; (void)status;
@@ -72,6 +72,7 @@ void apache_emit_contract_failure_event(msc_t *msr, request_rec *r,
         event_phase = phase;
         ++writes;
     }
+    return MSCONNECTOR_ERROR_NONE;
 }
 void modsecurity_log_cb(void *log, const void *data) { (void)log; (void)data; }
 
@@ -221,13 +222,19 @@ static int check_intervention(int argc, char **argv, apr_pool_t *pool) {
             MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT);
         transaction.last_intervention_log = "[id \"42\"] stale rule";
     }
+    if (strcmp(argv[7], "sink") == 0) {
+        transaction.intervention.event_sink_error = MSCONNECTOR_ERROR_IO;
+        transaction.intervention.mandatory_event_failed = 1;
+        transaction.last_intervention_log = "[id \"42\"] stale rule";
+    }
     recurse_intervention = strcmp(argv[7], "recursive") == 0;
     transaction.native_event_phase = (enum msconnector_phase)strtol(argv[8], NULL, 10);
     result = process_intervention(transaction.t, &request);
     rule = result != N_INTERVENTION_STATUS &&
         msc_apache_contract_record_intervention_decision(&transaction);
     repeated = result;
-    if (transaction.contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+    if (transaction.contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE ||
+        transaction.intervention.mandatory_event_failed) {
         repeated = process_intervention(transaction.t, &request);
     }
     printf("{\"result\":%d,\"repeated\":%d,\"native_calls\":%d,\"releases\":%d,"
@@ -445,6 +452,15 @@ class ApacheNativeLifecycleTests(unittest.TestCase):
         self.assertEqual(result["native_calls"], 0)
         self.assertEqual(result["rule"], 0)
         self.assertEqual(result["writes"], 1)
+
+    def test_failed_mandatory_sink_never_reenters_native_or_stale_rule(self):
+        result = self.intervention(state="sink", status=302, redirect=1)
+        self.assertEqual(result["result"], 500)
+        self.assertEqual(result["repeated"], 500)
+        self.assertEqual(result["native_calls"], 0)
+        self.assertEqual(result["rule"], 0)
+        self.assertEqual(result["writes"], 0)
+        self.assertEqual(result["location"], 0)
 
     def test_intervention_callback_reentry_is_bounded_and_terminal(self):
         result = self.intervention(state="recursive", redirect=1)

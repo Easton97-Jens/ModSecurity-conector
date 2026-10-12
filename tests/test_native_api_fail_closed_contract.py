@@ -1,9 +1,12 @@
-"""Regression contracts for libmodsecurity's boolean C API result handling."""
+"""Guard operation-specific native results and every actual caller."""
 
 from pathlib import Path
 import re
+import os
+import shutil
+import subprocess
+import tempfile
 import unittest
-
 from tests.c_source_contract import function_definition, matching_delimiter
 
 
@@ -18,6 +21,7 @@ NATIVE_RESULT = (ROOT / "common" / "include" / "msconnector" / "native_result.h"
 
 def requires_success(source: str, operation: str) -> bool:
     """Check every call, with append partial distinct from phase success."""
+    source = re.sub(r"/\*.*?\*/|//[^\n]*", "", source, flags=re.DOTALL)
     calls = list(re.finditer(rf"{re.escape(operation)}\s*\(", source))
     if not calls:
         return False
@@ -68,13 +72,40 @@ class NativeAPIFailClosedContractTests(unittest.TestCase):
         for operation in ("msc_process_connection", "msc_add_request_header", "msc_process_request_headers", "msc_append_request_body", "msc_process_request_body", "msc_process_uri", "msc_add_response_header", "msc_process_response_headers"):
             with self.subTest(operation=operation):
                 self.assertTrue(requires_success(HAPROXY, operation))
-        self.assertTrue(requires_success(HAPROXY, "phase->append_body"))
-        self.assertTrue(requires_success(HAPROXY, "phase->finish_body"))
+        self.assertTrue(requires_success(function_definition(HAPROXY, "append_body_chunk"), "phase->append_body"))
+        self.assertTrue(requires_success(function_definition(HAPROXY, "finish_body"), "phase->finish_body"))
+        for function, append, finish in (("request_body_phase", "msc_append_request_body", "msc_process_request_body"),
+                                        ("response_body_phase", "msc_append_response_body", "msc_process_response_body")):
+            route = function_definition(HAPROXY, function)
+            self.assertIn(append + ", " + finish, route)
 
     def test_apache_response_mapping_and_body_paths_classify_failures(self) -> None:
         for operation in ("msc_process_request_body", "msc_append_request_body", "msc_add_response_header", "msc_process_response_headers", "msc_append_response_body", "msc_process_response_body"):
             with self.subTest(operation=operation):
                 self.assertTrue(requires_success(APACHE_FILTERS, operation))
+
+    def test_guard_requires_negative_operation_specific_predicate(self) -> None:
+        for operation in ("msc_append_request_body", "msc_process_request_body"):
+            helper = "msconnector_native_body_append_can_continue" if "append" in operation else "msconnector_native_phase_succeeded"
+            original = f"if (!{helper}({operation}(tx))) return 0;"
+            self.assertTrue(requires_success(original, operation))
+            self.assertFalse(requires_success(original.replace("!" + helper, helper), operation))
+            self.assertFalse(requires_success(original.replace(helper, "unchecked_result"), operation))
+            self.assertFalse(requires_success("/* " + original + " */", operation))
+        self.assertFalse(requires_success("if (msc_append_request_body(tx) != 1) return 0;", "msc_append_request_body"))
+        self.assertFalse(requires_success("if (!msconnector_native_body_append_can_continue(msc_process_request_body(tx))) return 0;", "msc_process_request_body"))
+
+    def test_real_native_predicates_reject_unknown_results_and_preserve_partial(self) -> None:
+        compiler = shutil.which("cc")
+        self.assertIsNotNone(compiler)
+        with tempfile.TemporaryDirectory(prefix="native-results-", dir=os.environ.get("TMPDIR") or os.environ.get("RUNNER_TEMP")) as directory:
+            fixture = Path(directory) / "results.c"
+            binary = Path(directory) / "results"
+            fixture.write_text('#include "msconnector/native_result.h"\nint main(void) { int values[]={-2,-1,0,1,2,17}; for(unsigned i=0;i<6;i++){int r=values[i]; if(msconnector_native_phase_succeeded(r)!=(r==1))return 1; if(msconnector_native_body_append_can_continue(r)!=(r==0||r==1))return 2;} return 0;}\n')
+            compiled = subprocess.run([compiler, "-std=c17", "-Wall", "-Wextra", "-Werror", "-I" + str(ROOT / "common/include"), str(fixture), "-o", str(binary)], capture_output=True, text=True)
+            self.assertEqual(compiled.returncode, 0, compiled.stderr)
+            executed = subprocess.run([str(binary)], capture_output=True, text=True)
+            self.assertEqual(executed.returncode, 0, executed.stderr)
 
 
 if __name__ == "__main__":

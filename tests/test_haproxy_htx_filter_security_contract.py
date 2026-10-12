@@ -85,13 +85,14 @@ class HAProxyHTXFilterSecurityContractTest(unittest.TestCase):
             r"(?s)if \(!ctx->transaction \|\| !ctx->response\.headers_seen \|\|.*?return -1;",
         )
 
-    def test_htx_request_and_response_payloads_have_cumulative_finite_budgets(self) -> None:
+    def test_htx_full_chunks_preserve_overflow_without_body_policy(self) -> None:
         source = FILTER.read_text(encoding="utf-8")
-        self.assertIn("request.body_limit", source)
-        self.assertIn("response.body_limit", source)
-        self.assertIn("*body_bytes_seen > body_limit - value.len", source)
+        self.assertNotIn("request.body_limit", source)
+        self.assertNotIn("response.body_limit", source)
+        self.assertIn("SIZE_MAX - value.len", source)
+        self.assertIn("value.len > UINT_MAX", source)
         self.assertIn("*body_bytes_seen += value.len", source)
-        self.assertIn("body_limit == 0U", source)
+        self.assertNotIn("request_body_limit", source)
 
     def test_request_setup_failure_aborts_before_a_payload_callback_can_pass(self) -> None:
         body = _request_headers_body()
@@ -193,6 +194,7 @@ class HAProxyHTXFilterSecurityContractTest(unittest.TestCase):
             r"(?s)static int haproxy_modsecurity_htx_finish_request\(.*?"
             r"haproxy_modsecurity_transaction_finish_request_body\(\s*"
             r"ctx->transaction, &decision\) != 0\) \{\s*"
+            r"ctx->lifecycle.error = decision;\s*"
             r"haproxy_modsecurity_htx_fail_closed_request_phase\(s, ctx,\s*"
             r"\"request body eos\"\);",
         )

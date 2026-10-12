@@ -116,11 +116,9 @@ werden durch den gepatchten geliehenen Anfrage-Hook untersucht, und
 Proxy-/Upstream-Dispatch bleibt gesperrt, bis Anfrage-Body-EOS die Common-P2-
 Entscheidung erzeugt hat. Eine disruptive Entscheidung sowie ein Body-Limit-,
 Engine-, Mapping- oder Hostfehler beenden die Anfrage, bevor ein Byte zum
-Upstream gelangt. Eine deklarierte Content-Length oberhalb des Common-P2-Limits
-wird vor dem Body-Lesen abgewiesen; gechunkte Bereiche werden im Hook durch
-dasselbe Limit begrenzt. Weil dieses Gate die Host-Queue bis EOS behält,
-verlangt sein Streaming-Profil `body_limit_action=reject`;
-`process_partial` wird bei ausgewähltem Request-Streaming abgewiesen. Der
+Upstream gelangt. Jeder geliehene MEM/FILE-Bereich erreicht die native Engine
+über begrenzte Arbeitsbuffer. Das Modul besitzt kein kumuliertes Bytelimit und
+wählt weder Reject noch ProcessPartial. Der
 Response-Streaming-Vertrag bleibt auf HTTP/1.1-Identity-Entity-Bytes
 beschränkt. Dieser Quell-/Build-Vertrag ist weiterhin keine echte
 Host-Promotion.
@@ -137,17 +135,12 @@ eine ausführbare Konfiguration mit verwalteten absoluten Pfaden.
 
 ## HTTP/1.1-Pre-Upstream-Phase-2-Gate
 
-Dieses begrenzte Profil verlangt `mod_proxy` vor `mod_msconnector` in
-`server.modules`, HTTP/1.1, ein positives Common-Request-Body-Limit,
-`body_limit_action=reject` sowie das gepatchte Host-/Modulpaar. Der Connector
-unterdrückt aktives Host-Request-Streaming vor jedem Body-Lesen. ModSecurity
-erhält weiterhin geliehene Body-Ranges, aber kein Request-Byte darf den Proxy-
-Upstream verbinden oder erreichen, bevor terminales EOS eine Allow-
-Entscheidung erzeugt hat.
-Die Grenze für den zurückgehaltenen Body ergibt sich aus dem positiven Common-
-`request_body_limit` (standardmäßig 1 MiB) und dem ablehnenden Lesezyklus;
-das Modul setzt `server.max-request-size` nicht, sodass dieser Wert eine
-zusätzliche Host-seitige Defense-in-Depth-Grenze bleibt.
+Dieses Profil verlangt `mod_proxy` vor `mod_msconnector` in
+`server.modules`, HTTP/1.1 und das gepatchte Host-/Modulpaar. Der Connector
+unterdrückt Host-Request-Streaming bis zum nativen P2-Abschluss bei EOS. Die
+Host-Queue kann Memory-/File-Chunks für die spätere Upstream-Übergabe behalten;
+der Connector setzt keine Gesamtbody-Größe. `server.max-request-size` bleibt
+eine getrennte Host-Einstellung, deren effektiver Wert echte Hostbelege benötigt.
 
 Der Repository-eigene Gate-Runner validiert einen verzögerten Phase-2-Marker
 als `403` mit null Upstream-Verbindungen vor EOS sowie einen verzögerten
@@ -155,10 +148,7 @@ benignen 32-Byte-Chunked-Request als `200` erst nach EOS; lighttpd leitete
 diesen erlaubten Request als `Content-Length` weiter. Vorab konfigurierte
 `server.stream-request-body`, eine `Incremental`-Anfrage und eine ausdrücklich
 aktivierte body-tragende `Upgrade`- plus `gw.upgrade-with-request-body`-Anfrage
-werden vor einer Upstream-Verbindung mit `501` abgewiesen. Der Runner prüft
-außerdem, dass eine Streaming-Konfiguration mit
-`body_limit_action=process_partial` vor einem Listener oder einer Upstream-
-Verbindung nicht geladen wird. HTTP/2, HTTP/3, andere Stream-Handler,
+werden vor einer Upstream-Verbindung mit `501` abgewiesen. Die native Direktive `SecRequestBodyLimitAction` bestimmt die Engine-Aktion. HTTP/2, HTTP/3, andere Stream-Handler,
 Response-Body-P4 und unbeschränktes Upstream-Request-Streaming bleiben
 außerhalb dieses Profils.
 
@@ -278,15 +268,38 @@ Runtime. Eine reine Request-Route benötigt für Phase 4 weiterhin den
 unterstützten Response-Observer beziehungsweise Companion; die Wahl eines
 Modus erzeugt keinen fehlenden Response-Pfad.
 
-Alte Connector-/Runtime-Budget-Einstellungen dürfen aus
-Kompatibilitätsgründen weiter parsebar bleiben, dürfen eine Response aber nicht
-allein deshalb abweisen oder abbrechen, weil eine alte Inspection-Bytezahl
-überschritten wurde. Unabhängige Allokations-, Pufferspeicher-,
-Chunk-/Message-/Frame-, Timeout-, Überlauf- und Transportlimits bleiben in
-jedem Modus aktiv. Ein puffernder Sidecar darf deshalb weiterhin eine Response
-ablehnen, die nicht in seinen begrenzten Host-Speicher passt; das ist
-Host-Kapazität und keine WAF-Inspection-Policy.
+Kumulierte Connector-/Runtime-Response-Größeneinstellungen wurden entfernt;
+unbekannte alte Schlüssel werden beim Konfigurationsladen abgewiesen.
+Unabhängige Chunk-/Message-/Frame-, Timeout-, Überlauf- und Transportlimits
+bleiben in jedem Modus aktiv. Der Stock-Sidecar verwendet begrenzte
+Response-Blöcke und hält keinen vollständigen Response-Body im Speicher.
 
 Der [connectorübergreifende Vertrag zur Eigentümerschaft von Response-Limits](../../docs/phase4-mode-budget.de.md)
 beschreibt den genauen Geltungsbereich, die Kompatibilitätsgrenze und die
 Grenzen der Validierung.
+
+## Native Body-Policy und verbleibende Hostgrenzen
+
+Request-Limit/-Aktion gehören ausschließlich zu `SecRequestBodyLimit` und
+`SecRequestBodyLimitAction`, Response-Limit/-Aktion ausschließlich zu
+`SecResponseBodyLimit` und `SecResponseBodyLimitAction`. Der Connector ergänzt
+keine Body-Größenoption, keinen Default und keine kumulierte Durchsetzung.
+Begrenzte IO-Blöcke und geprüfte Zähler wählen kein Engine-Limit und keine Aktion.
+
+Der Stock-Sidecar übergibt Request-Blöcke an die native Engine und eine private,
+sofort unlinked Spooldatei. Er spielt die Datei erst nach nativem P2-Allow ab.
+Dateisystemfehler führen zum Abbruch; Vollbody-RAM-Allokation und eigene
+Gesamtbody-Grenze entfallen. Gepatchte Host-Queue und die eigene Einstellung
+`server.max-request-size` benötigen unabhängige Hostbelege.
+
+Das optionale technische CLI-Argument `--spool-directory /run/msconnector-lighttpd`
+wählt den Speicherort für Request-Spooldateien. Ohne dieses Argument verwendet
+der Sidecar das Elternverzeichnis von `--config`. Es muss bereits existieren,
+kanonisch, beschreibbar, Eigentum der effektiven Service-UID und im Modus 0700
+sein. Beim Start werden die Vorfahren geprüft, Verzeichnisdeskriptoren ohne
+Symlink-Verfolgung festgehalten und die Dateierstellung geprüft. Für eine
+Konfiguration unter `/etc` ist ein separates privates Laufzeitverzeichnis
+anzugeben. Es gibt keinen Fallback auf Umgebungsvariablen oder öffentliche
+Temporärverzeichnisse. Request-Dateien werden exklusiv im Modus 0600 unter dem
+festgehaltenen Verzeichnis erstellt und sofort unlinked; diese Speicheroption
+führt kein Gesamtbody-Limit ein.

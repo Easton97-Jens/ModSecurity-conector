@@ -93,7 +93,9 @@ termination; request-side host actions are rejected. `p1_deny`
 requires a P1 deny decision and matching client-visible 4xx/5xx status,
 request termination, and no upstream response observation. `p2_deny` and
 `p2_oversize` require P1 allow/P2 deny sequence; `p2_oversize` additionally
-requires status 413. `p3_deny` and `p3_redirect` require P3 deny/redirect,
+requires matching native P2, request-side deny and client status (403 or 413).
+A host-buffer 413 without native P2 is not this case's lifecycle evidence.
+`p3_deny` and `p3_redirect` require P3 deny/redirect,
 matching client status, and upstream-response observation. `p3_redirect` also
 requires a true `redirect_location_verified` attestation: the trusted client
 boundary must have observed exactly one `Location` field matching the canonical

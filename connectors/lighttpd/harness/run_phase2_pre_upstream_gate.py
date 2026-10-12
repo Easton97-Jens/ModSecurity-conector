@@ -646,7 +646,6 @@ def write_runtime_inputs(
     upstream_endpoint: LoopbackEndpoint,
     configured_streaming: bool,
     upgrade_request_body: bool,
-    body_limit_action: str = "reject",
 ) -> dict[str, str]:
     document_root = root.child("document-root")
     upload_dir: TaskRuntimeDirectory | None = None
@@ -669,9 +668,6 @@ def write_runtime_inputs(
                 "transaction_id_header=x-modsec-transaction-id",
                 "request_body_mode=streaming",
                 "response_body_mode=none",
-                "request_body_limit=1048576",
-                "response_body_limit=1048576",
-                f"body_limit_action={body_limit_action}",
                 "default_block_status=403",
                 "default_error_status=500",
                 "max_header_count=256",
@@ -1071,50 +1067,6 @@ def run_normal_profile(
         normal_root.close()
 
 
-def run_process_partial_case(
-    inputs: RunnerInputs, summary: dict[str, Any], upstream: ChunkAwareMetadataUpstream
-) -> None:
-    case_root = inputs.root.child("process-partial")
-    try:
-        case_inputs = write_runtime_inputs(
-            case_root,
-            rules_file=inputs.rules_file,
-            host_endpoint=inputs.configured_host_endpoint,
-            upstream_endpoint=inputs.upstream_endpoint,
-            configured_streaming=False,
-            upgrade_request_body=False,
-            body_limit_action="process_partial",
-        )
-        baseline = upstream.accepted_connections()
-        config_check = run_config_check(
-            inputs.binary,
-            inputs.module_dir,
-            case_inputs["config"],
-            pass_fds=case_root.inherited_fds(),
-        )
-        output = config_check.stdout + config_check.stderr
-        error_log = case_root.read_bytes_if_present("lighttpd-error.log")
-        if error_log is not None:
-            output += error_log
-        if config_check.returncode == 0:
-            raise GateFailure("streaming process_partial configuration unexpectedly loaded")
-        if b"requires body_limit_action=reject" not in output:
-            raise GateFailure("streaming process_partial configuration did not fail closed")
-        if listener_rows(inputs.configured_host_endpoint):
-            raise GateFailure("process_partial configuration created a listener")
-        if upstream.accepted_connections() != baseline:
-            raise GateFailure("process_partial configuration reached the upstream")
-        summary["cases"].append(
-            {
-                "label": "process_partial_body_limit_action",
-                "config_check_returncode": config_check.returncode,
-                "upstream_connections_before": baseline,
-                "upstream_connections_after": upstream.accepted_connections(),
-            }
-        )
-    finally:
-        case_root.close()
-
 
 def run_configured_stream_case(
     inputs: RunnerInputs,
@@ -1270,7 +1222,6 @@ def main(argv: list[str] | None = None) -> int:
         state.upstream = ChunkAwareMetadataUpstream(inputs.upstream_endpoint)
         state.upstream.start()
         run_normal_profile(inputs, summary, state.upstream, state)
-        run_process_partial_case(inputs, summary, state.upstream)
         run_configured_stream_case(inputs, summary, state.upstream, state)
         run_enabled_upgrade_case(inputs, summary, state.upstream, state)
         summary["upstream"] = state.upstream.snapshot()

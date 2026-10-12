@@ -39,8 +39,6 @@ typedef struct {
     PLUGIN_DATA;
     plugin_config defaults;
     msconnector_runtime *runtime;
-    size_t request_body_limit;
-    size_t response_body_limit;
     size_t total_header_limit;
     size_t header_count_limit;
     unsigned long host_transaction_counter;
@@ -64,6 +62,7 @@ typedef struct {
     int request_intervened;
     int request_body_gate_rejected;
     int response_body_finished;
+    int api_failed;
 #ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
     int response_body_aborted;
     off_t request_body_next_offset;
@@ -74,6 +73,16 @@ typedef struct {
 /* Allocation failure still needs a per-request terminal marker.  This
  * read-only tombstone is never passed to Common or freed. */
 static handler_ctx mod_msconnector_failed_context = { .technical_failed = 1 };
+static void mod_msconnector_record_api_failure(handler_ctx *ctx) {
+    msconnector_error error;
+    if (ctx == NULL || ctx->api_failed) {
+        return;
+    }
+    ctx->api_failed = 1;
+    msconnector_error_init(&error);
+    (void)msconnector_runtime_transaction_fail(ctx->transaction,
+        MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, &error);
+}
 
 INIT_FUNC(mod_msconnector_init);
 FREE_FUNC(mod_msconnector_free);
@@ -311,17 +320,6 @@ SETDEFAULTS_FUNC(mod_msconnector_set_defaults) {
         msconnector_runtime_destroy(&p->runtime);
         return HANDLER_ERROR;
     }
-    if (request_body_mode == MSCONNECTOR_BODY_MODE_STREAMING &&
-        msconnector_runtime_body_limit_action(p->runtime) !=
-          MSCONNECTOR_BODY_LIMIT_ACTION_REJECT) {
-        log_error(
-            srv->errh,
-            __FILE__,
-            __LINE__,
-            "patched lighttpd request_body_mode=streaming requires body_limit_action=reject to retain a bounded pre-upstream request-body buffer");
-        msconnector_runtime_destroy(&p->runtime);
-        return HANDLER_ERROR;
-    }
     if (request_body_mode != MSCONNECTOR_BODY_MODE_STREAMING &&
         p->defaults.request_body_gate != NULL &&
         !buffer_is_blank(p->defaults.request_body_gate)) {
@@ -352,10 +350,6 @@ SETDEFAULTS_FUNC(mod_msconnector_set_defaults) {
     }
 #endif
 
-    p->request_body_limit =
-        msconnector_runtime_request_body_limit(p->runtime);
-    p->response_body_limit =
-        msconnector_runtime_response_body_limit(p->runtime);
     p->total_header_limit =
         msconnector_runtime_total_header_limit(p->runtime);
     p->header_count_limit =
@@ -453,6 +447,9 @@ static handler_t mod_msconnector_apply_decision(
     handler_t result;
     msconnector_error runtime_error;
     int status;
+    if (ctx != NULL && (ctx->technical_failed || ctx->api_failed)) {
+        return HANDLER_ERROR;
+    }
     if (!msconnector_decision_is_disruptive(decision)) {
         return HANDLER_GO_ON;
     }
@@ -599,7 +596,7 @@ static handler_t mod_msconnector_finish_request_body(
     msconnector_decision decision;
     msconnector_error runtime_error;
 
-    if (ctx != NULL && ctx->technical_failed) return HANDLER_ERROR;
+    if (ctx != NULL && (ctx->technical_failed || ctx->api_failed)) return HANDLER_ERROR;
     if (ctx->request_body_finished) {
         return HANDLER_GO_ON;
     }
@@ -642,7 +639,7 @@ static handler_t mod_msconnector_prepare_request_body(
         handler_ctx *ctx) {
     handler_t rc;
 
-    if (ctx != NULL && ctx->technical_failed) return HANDLER_ERROR;
+    if (ctx != NULL && (ctx->technical_failed || ctx->api_failed)) return HANDLER_ERROR;
     if (ctx != NULL && ctx->request_body_gate_rejected) return HANDLER_FINISHED;
     if (!p->request_body_hooks_enabled || ctx->request_body_finished) {
         return HANDLER_GO_ON;
@@ -657,18 +654,6 @@ static handler_t mod_msconnector_prepare_request_body(
     }
     if (r->reqbody_length == 0) {
         return mod_msconnector_finish_request_body(r, p, ctx);
-    }
-    if (p->request_body_limit == 0U ||
-        (r->reqbody_length > 0 &&
-         (uintmax_t)r->reqbody_length > (uintmax_t)p->request_body_limit)) {
-        log_error(
-            r->conf.errh,
-            __FILE__,
-            __LINE__,
-            "patched lighttpd request body exceeds the Common P2 bound before upstream release");
-        ctx->request_body_gate_rejected = 1;
-        return mod_msconnector_error_response(
-            r, p->runtime, MSCONNECTOR_ERROR_BODY_TOO_LARGE);
     }
     if (r->conf.stream_request_body
         & (FDEVENT_STREAM_REQUEST | FDEVENT_STREAM_REQUEST_BUFMIN)) {
@@ -715,7 +700,7 @@ static handler_t mod_msconnector_handle_request_body(
     mod_msconnector_body_append_context append;
     char mapper_error[256] = "";
 
-    if (ctx != NULL && ctx->technical_failed) return HANDLER_ERROR;
+    if (ctx != NULL && (ctx->technical_failed || ctx->api_failed)) return HANDLER_ERROR;
     if (ctx != NULL && ctx->request_body_gate_rejected) return HANDLER_FINISHED;
     if (!p->request_body_hooks_enabled || ctx == NULL ||
         ctx->transaction == NULL || ctx->request_body_finished) {
@@ -727,6 +712,7 @@ static handler_t mod_msconnector_handle_request_body(
             r, ctx, "streaming became active before Phase-2 completion");
     }
     if (stream_offset != ctx->request_body_next_offset) {
+        mod_msconnector_record_api_failure(ctx);
         log_error(
             r->conf.errh,
             __FILE__,
@@ -735,18 +721,11 @@ static handler_t mod_msconnector_handle_request_body(
         return mod_msconnector_fail_request(
             r, p->runtime, ctx, MSCONNECTOR_ERROR_HOST_API_FAILURE);
     }
-    if (length < 0 ||
-        (uintmax_t)stream_offset > (uintmax_t)p->request_body_limit ||
-        (uintmax_t)length >
-            (uintmax_t)p->request_body_limit - (uintmax_t)stream_offset) {
-        log_error(
-            r->conf.errh,
-            __FILE__,
-            __LINE__,
-            "patched lighttpd request-body hook exceeded the Common P2 bound");
-        ctx->request_body_gate_rejected = 1;
-        return mod_msconnector_error_response(
-            r, p->runtime, MSCONNECTOR_ERROR_BODY_TOO_LARGE);
+    if (length < 0 || stream_offset < 0 ||
+        (uintmax_t)length > (uintmax_t)INT64_MAX - (uintmax_t)stream_offset) {
+        mod_msconnector_record_api_failure(ctx);
+        return mod_msconnector_error_response(r, p->runtime,
+            MSCONNECTOR_ERROR_HOST_API_FAILURE);
     }
 
     append.ctx = ctx;
@@ -759,6 +738,7 @@ static handler_t mod_msconnector_handle_request_body(
             &append,
             mapper_error,
             sizeof(mapper_error))) {
+        mod_msconnector_record_api_failure(ctx);
         log_error(
             r->conf.errh,
             __FILE__,
@@ -801,7 +781,7 @@ static plugin_body_hook_result mod_msconnector_finish_response_body(
     const enum msconnector_phase4_mode phase4_mode =
         msconnector_runtime_phase4_mode(p->runtime);
 
-    if (ctx != NULL && ctx->technical_failed) return PLUGIN_BODY_HOOK_ERROR;
+    if (ctx != NULL && (ctx->technical_failed || ctx->api_failed)) return PLUGIN_BODY_HOOK_ERROR;
     if (ctx->response_body_finished) {
         return PLUGIN_BODY_HOOK_CONTINUE;
     }
@@ -903,7 +883,7 @@ static plugin_body_hook_result mod_msconnector_handle_response_body(
     msconnector_error runtime_error;
     handler_t response_start_result;
 
-    if (ctx != NULL && ctx->technical_failed) return PLUGIN_BODY_HOOK_ERROR;
+    if (ctx != NULL && (ctx->technical_failed || ctx->api_failed)) return PLUGIN_BODY_HOOK_ERROR;
     if (!p->response_body_hooks_enabled || ctx == NULL ||
         ctx->transaction == NULL || ctx->request_intervened ||
         ctx->response_body_finished) {
@@ -916,6 +896,7 @@ static plugin_body_hook_result mod_msconnector_handle_response_body(
     if (!ctx->response_processed) {
         response_start_result = mod_msconnector_handle_response_start(r, p);
         if (response_start_result == HANDLER_ERROR || !ctx->response_processed) {
+            mod_msconnector_record_api_failure(ctx);
             log_error(
                 r->conf.errh,
                 __FILE__,
@@ -930,7 +911,10 @@ static plugin_body_hook_result mod_msconnector_handle_response_body(
         }
     }
     if (stream_offset != ctx->response_body_next_offset ||
+        stream_offset < 0 ||
+        (uintmax_t)length > (uintmax_t)INT64_MAX - (uintmax_t)stream_offset ||
         (length > 0U && data == NULL)) {
+        mod_msconnector_record_api_failure(ctx);
         log_error(
             r->conf.errh,
             __FILE__,
@@ -973,8 +957,9 @@ static plugin_body_hook_result mod_msconnector_handle_response_abort(
         void *p_d) {
     plugin_data *p = p_d;
     handler_ctx *ctx = r->plugin_ctx[p->id];
+    msconnector_error runtime_error;
 
-    if (ctx != NULL && ctx->technical_failed) return PLUGIN_BODY_HOOK_ERROR;
+    if (ctx != NULL && (ctx->technical_failed || ctx->api_failed)) return PLUGIN_BODY_HOOK_ERROR;
     if (reason != PLUGIN_RESPONSE_ABORT_UPSTREAM_EOF ||
         !p->response_body_hooks_enabled || ctx == NULL ||
         ctx->transaction == NULL || ctx->response_body_finished ||
@@ -986,6 +971,15 @@ static plugin_body_hook_result mod_msconnector_handle_response_abort(
      * before Content-Length/dechunk completion is a typed abort event.  The
      * host owns the fail-closed response and request reset owns destruction. */
     ctx->response_body_aborted = 1;
+    ctx->api_failed = 1;
+    msconnector_error_init(&runtime_error);
+    if (msconnector_runtime_transaction_cancel(ctx->transaction, 1, &runtime_error) != 1) {
+        log_error(r->conf.errh, __FILE__, __LINE__,
+            "msconnector upstream disconnect was not recorded: %s",
+            msconnector_error_code_name(runtime_error.code));
+        (void)mod_msconnector_fail_request(r, p->runtime, ctx, runtime_error.code);
+        return PLUGIN_BODY_HOOK_ERROR;
+    }
     log_error(
         r->conf.errh,
         __FILE__,
@@ -1061,7 +1055,7 @@ REQUEST_FUNC(mod_msconnector_handle_uri_clean) {
 #endif
     ctx_slot = (handler_ctx **)&r->plugin_ctx[p->id];
     if (*ctx_slot != NULL) {
-        if ((*ctx_slot)->technical_failed) return HANDLER_ERROR;
+        if ((*ctx_slot)->technical_failed || (*ctx_slot)->api_failed) return HANDLER_ERROR;
         if ((*ctx_slot)->request_body_gate_rejected) return HANDLER_FINISHED;
 #ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
         return mod_msconnector_prepare_request_body(r, p, *ctx_slot);
@@ -1080,7 +1074,6 @@ REQUEST_FUNC(mod_msconnector_handle_uri_clean) {
     msconnector_runtime_request_contract(p->runtime, &contract);
 #ifndef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
     contract.request_body = MSCONNECTOR_MAPPER_UNSUPPORTED;
-    contract.max_body_bytes = 0U;
 #endif
     if (p->header_count_limit > 0U &&
         (contract.max_header_count == 0U ||
@@ -1110,7 +1103,11 @@ REQUEST_FUNC(mod_msconnector_handle_uri_clean) {
 
     msconnector_error_init(&runtime_error);
     msconnector_decision_init(&decision);
+#ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
+    if (msconnector_runtime_transaction_begin_request_stream(
+#else
     if (msconnector_runtime_transaction_begin(
+#endif
             p->runtime,
             &ctx->request,
             ctx->host_request_id,
@@ -1152,7 +1149,7 @@ REQUEST_FUNC(mod_msconnector_handle_response_start) {
         return HANDLER_GO_ON;
     }
     ctx = r->plugin_ctx[p->id];
-    if (ctx != NULL && ctx->technical_failed) return HANDLER_ERROR;
+    if (ctx != NULL && (ctx->technical_failed || ctx->api_failed)) return HANDLER_ERROR;
     if (ctx == NULL || ctx->transaction == NULL || ctx->response_processed) {
         return HANDLER_GO_ON;
     }
@@ -1170,7 +1167,6 @@ REQUEST_FUNC(mod_msconnector_handle_response_start) {
     msconnector_runtime_response_contract(p->runtime, &contract);
 #ifndef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
     contract.response_body = MSCONNECTOR_MAPPER_UNSUPPORTED;
-    contract.max_body_bytes = 0U;
 #endif
     if (p->header_count_limit > 0U &&
         (contract.max_header_count == 0U ||
@@ -1185,6 +1181,7 @@ REQUEST_FUNC(mod_msconnector_handle_response_start) {
             &ctx->response,
             mapper_error,
             sizeof(mapper_error))) {
+        mod_msconnector_record_api_failure(ctx);
         log_error(
             r->conf.errh,
             __FILE__,
@@ -1233,7 +1230,7 @@ REQUEST_FUNC(mod_msconnector_handle_request_reset) {
     if (ctx == NULL) {
         return HANDLER_GO_ON;
     }
-    if (ctx->technical_failed) {
+    if (ctx->technical_failed || ctx->api_failed) {
         handler_ctx_destroy(ctx_slot);
         return HANDLER_ERROR;
     }

@@ -168,13 +168,6 @@ type TransactionOpener interface {
 	Open(context.Context, StreamMetadata) (Transaction, error)
 }
 
-// Phase4BodyBudgetDisabler is an optional engine capability. Only an explicit
-// off mode from the loaded engine disables the extra cumulative response
-// budget. Engines without this capability keep the existing bounded behavior.
-type Phase4BodyBudgetDisabler interface {
-	Phase4BodyBudgetDisabled() bool
-}
-
 // Transaction consumes each bounded header/body callback synchronously.
 // Body slices are borrowed from the protobuf message and must not be retained.
 type Transaction interface {
@@ -183,11 +176,14 @@ type Transaction interface {
 	Close(context.Context, Summary)
 }
 
-// CleanupFailureReporter is an optional transaction capability. Native
-// cleanup cannot safely free a transaction while another native call owns the
-// engine mutex; implementations report that bounded cleanup failure so the
-// stream handler can return a controlled error and the supervisor can restart
-// the process.
+// ErrTransactionFinishPhaseSequence identifies a native incomplete lifecycle
+// whose mandatory event was delivered and whose resources were safely freed.
+// It remains a failed transaction completion without requiring a process restart.
+var ErrTransactionFinishPhaseSequence = errors.New("transaction finish phase sequence")
+
+// CleanupFailureReporter reports mandatory finish-event failures and unsafe
+// native cleanup. A semantic ErrTransactionFinishPhaseSequence is local to the
+// transaction; sink failures and unsafe cleanup require controlled restart.
 type CleanupFailureReporter interface {
 	CleanupFailure() error
 }
@@ -711,7 +707,7 @@ func (state *streamState) deferCleanupUntilOperationReturns(service *Service, op
 	}
 	go func() {
 		<-operationDone
-		if err := state.closeOwned(reason); err != nil {
+		if err := state.closeOwned(reason); state.cleanupFailure != nil {
 			service.reportFatal(fmt.Errorf("ext_proc deferred native operation cleanup failed: %w", err))
 		}
 	}()
@@ -913,6 +909,9 @@ func (state *streamState) handleBody(ctx context.Context, direction Direction, m
 
 	body := message.GetBody()
 	decision := state.bodyLimitDecision(direction, len(body))
+	if decision.Action == ActionDeny && decision.Status == 500 {
+		return nil, false, fmt.Errorf("body chunk exceeds technical capacity or accounting overflow")
+	}
 	if decision.Action == ActionAllow {
 		processedDecision, err := state.processBody(ctx, direction, body, message.GetEndOfStream())
 		if err != nil {
@@ -940,20 +939,22 @@ func (state *streamState) validateBodyOrder(direction Direction) error {
 
 func (state *streamState) bodyLimitDecision(direction Direction, bodyLength int) Decision {
 	if bodyLength > state.config.MaxBodyChunkBytes {
-		return payloadTooLargeDecision()
+		return Decision{Action: ActionDeny, Status: 500}
 	}
-	current, limit := state.summary.RequestBodyBytes, state.config.MaxRequestBodyBytes
+	current := state.summary.RequestBodyBytes
+	chunks := state.summary.RequestBodyChunks
 	if direction == DirectionResponse {
-		current, limit = state.summary.ResponseBodyBytes, state.config.MaxResponseBodyBytes
-		if policy, ok := state.engine.(Phase4BodyBudgetDisabler); ok && policy.Phase4BodyBudgetDisabled() {
-			// This is an accounting ceiling, never a chunk/allocation limit.
-			limit = math.MaxInt64
-		}
+		current = state.summary.ResponseBodyBytes
+		chunks = state.summary.ResponseBodyChunks
 	}
-	next, ok := cumulativeBodyBytes(current, bodyLength)
-	if !ok || next > limit {
-		return payloadTooLargeDecision()
+	if chunks == math.MaxUint64 {
+		return Decision{Action: ActionDeny, Status: 500}
 	}
+	_, ok := cumulativeBodyBytes(current, bodyLength)
+	if !ok {
+		return Decision{Action: ActionDeny, Status: 500}
+	}
+
 	return allowDecision()
 }
 
@@ -970,10 +971,6 @@ func cumulativeBodyBytes(current int64, bodyLength int) (int64, bool) {
 		return 0, false
 	}
 	return current + increment, true
-}
-
-func payloadTooLargeDecision() Decision {
-	return Decision{Action: ActionDeny, Status: int(typev3.StatusCode_PayloadTooLarge)}
 }
 
 func (state *streamState) recordBodyProgress(direction Direction, bodyLength int, endOfStream bool) {
@@ -1689,7 +1686,11 @@ func (state *streamState) closeOwned(reason CloseReason) error {
 	state.summary.TransactionID = state.transactionID
 	state.summary.CloseReason = reason
 	summary := state.summary
-	resultChannel := make(chan error, 1)
+	type cleanupResult struct {
+		err   error
+		fatal bool
+	}
+	resultChannel := make(chan cleanupResult, 1)
 	go func() {
 		var cleanupErr error
 		if state.transaction != nil {
@@ -1703,22 +1704,22 @@ func (state *streamState) closeOwned(reason CloseReason) error {
 		observerErr := state.observer.Record(summary)
 		if cleanupErr != nil {
 			if observerErr != nil {
-				resultChannel <- fmt.Errorf("transaction cleanup: %w; metadata evidence: %v", cleanupErr, observerErr)
+				resultChannel <- cleanupResult{err: fmt.Errorf("transaction cleanup: %w; metadata evidence: %w", cleanupErr, observerErr), fatal: true}
 				return
 			}
-			resultChannel <- cleanupErr
+			resultChannel <- cleanupResult{err: cleanupErr, fatal: !errors.Is(cleanupErr, ErrTransactionFinishPhaseSequence)}
 			return
 		}
-		resultChannel <- observerErr
+		resultChannel <- cleanupResult{err: observerErr, fatal: observerErr != nil}
 	}()
 	timer := time.NewTimer(state.config.cleanupTimeout())
 	defer timer.Stop()
 	select {
-	case err := <-resultChannel:
-		if err != nil {
-			state.cleanupFailure = err
+	case result := <-resultChannel:
+		if result.fatal {
+			state.cleanupFailure = result.err
 		}
-		return err
+		return result.err
 	case <-timer.C:
 		state.cleanupFailure = fmt.Errorf("ext_proc transaction cleanup remained blocked after bounded cleanup grace; controlled restart required")
 		return state.cleanupFailure

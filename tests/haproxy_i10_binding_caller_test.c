@@ -55,7 +55,7 @@ static void check_header_failure(int mode, int companion) {
   assert(haproxy_modsecurity_transaction_process_response_headers(t, &response,
                                                                   &d) != 0);
   assert(msconnector_transaction_contract_is_terminal(&t->contract));
-  assert(t->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
+  assert(t->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE);
   unsigned int before = native_calls;
   assert(haproxy_modsecurity_transaction_process_response_headers(t, &response,
                                                                   &d) != 0);

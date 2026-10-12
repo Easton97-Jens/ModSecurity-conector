@@ -25,22 +25,55 @@ struct msconnector_runtime_transaction { int unused; };
 static msconnector_runtime runtime;
 static msconnector_runtime_transaction native;
 static int raw, stage, begin_calls, finish_calls, destroy_calls, handoff_calls;
-static msconnector_error_code cause;
+static int append_calls, stream_peer_fd;
+static msconnector_error_code cause, selected_error;
 int msconnector_runtime_error_log_enabled(const msconnector_runtime *r) { (void)r; return 0; }
 int msconnector_runtime_error_http_status(const msconnector_runtime *r, msconnector_error_code c) {
-    (void)r; return msconnector_error_http_status(c);
+    (void)r; selected_error = c; return msconnector_error_http_status(c);
 }
-int msconnector_runtime_transaction_begin(msconnector_runtime *r, const msconnector_request *q,
+int msconnector_runtime_transaction_begin_request_stream(msconnector_runtime *r, const msconnector_request *q,
     const char *id, msconnector_runtime_transaction **out, msconnector_decision *d, msconnector_error *e) {
     (void)r; (void)q; (void)id; ++begin_calls; *out = &native;
     msconnector_decision_set_deny(d, 403, "stale-rule", "stale");
     if (stage == 0) { msconnector_error_set(e, cause, "first failure", "fixture"); return raw; }
     msconnector_decision_set_allow(d); return 1;
 }
+msconnector_body_mode msconnector_runtime_request_body_mode(const msconnector_runtime *r) {
+    (void)r; return MSCONNECTOR_BODY_MODE_STREAMING;
+}
+int msconnector_runtime_transaction_append_request_body_chunk(msconnector_runtime_transaction *t,
+    const unsigned char *body, size_t size, msconnector_error *e) {
+    (void)t; (void)body;
+    ++append_calls;
+    if (stage == 4) { msconnector_error_set(e, cause, "body append failure", "fixture"); return raw; }
+    if (stage == 6) {
+        if (append_calls == 1) {
+            assert(size == 0U);
+            assert(send(stream_peer_fd, "b", 1U, MSG_NOSIGNAL) == 1);
+        } else {
+            assert(append_calls == 2 && size == 1U);
+            msconnector_error_set(e, cause, "streamed body append failure", "fixture");
+            return raw;
+        }
+    }
+    return 1;
+}
+int msconnector_runtime_transaction_finish_request_body(msconnector_runtime_transaction *t,
+    msconnector_decision *d, msconnector_error *e) {
+    (void)t;
+    if (stage == 5) { msconnector_error_set(e, cause, "body EOS failure", "fixture"); return raw; }
+    msconnector_decision_set_allow(d); return 1;
+}
+int msconnector_runtime_transaction_fail(msconnector_runtime_transaction *t,
+    msconnector_transaction_error_class failure, msconnector_error *e) {
+    (void)t; (void)failure; (void)e; return 1;
+}
 int msconnector_runtime_transaction_finish(msconnector_runtime_transaction *t, msconnector_error *e) {
     (void)t; ++finish_calls;
     if (stage == 2) { msconnector_error_set(e, cause, "finish failure", "fixture"); return raw; }
-    if (stage == 0) { msconnector_error_set(e, MSCONNECTOR_ERROR_IO, "later cleanup", "fixture"); return 0; }
+    if (stage == 0 || stage == 4 || stage == 5 || stage == 6) {
+        msconnector_error_set(e, MSCONNECTOR_ERROR_IO, "later cleanup", "fixture"); return 0;
+    }
     return 1;
 }
 void msconnector_runtime_transaction_destroy(msconnector_runtime_transaction **t) {
@@ -60,6 +93,8 @@ int main(int argc, char **argv) {
     authorization_service service = {0};
     msconnector_http_authorization_profile profile = {0};
     static const char request[] = "GET /ok HTTP/1.1\r\nHost: example.test\r\nConnection: close\r\n\r\n";
+    static const char streamed_request[] = "POST /ok HTTP/1.1\r\nHost: example.test\r\nContent-Length: 1\r\nConnection: close\r\n\r\n";
+    const char *wire_request;
     assert(argc == 7); stage = atoi(argv[2]); raw = atoi(argv[3]);
     cause = (msconnector_error_code)atoi(argv[4]); runtime.mode = atoi(argv[5]);
     profile.transaction_profile = msconnector_profile_registry_find(argv[1]);
@@ -70,22 +105,26 @@ int main(int argc, char **argv) {
         envoy_modsecurity_map_request : traefik_modsecurity_map_request;
     if (stage == 1 || stage == 3) { profile.handoff_response_companion = handoff; }
     service.runtime = &runtime; service.profile = &profile; service.connection_timeout_ms = 1000UL;
-    service.request_limits.body_limit = 1024U; service.request_limits.total_header_limit = 8192U;
+    service.request_limits.total_header_limit = 8192U;
     service.request_limits.header_count_limit = 32U;
     msconnector_request_mapper_contract_init(&service.request_limits.mapper_contract);
     assert(pthread_mutex_init(&service.runtime_lock, NULL) == 0);
     assert(socketpair(AF_UNIX, SOCK_STREAM, 0, pair) == 0);
-    assert(send(pair[1], request, sizeof(request)-1U, MSG_NOSIGNAL) == (ssize_t)(sizeof(request)-1U));
+    stream_peer_fd = pair[1];
+    wire_request = stage == 6 ? streamed_request : request;
+    assert(send(pair[1], wire_request, strlen(wire_request), MSG_NOSIGNAL) == (ssize_t)strlen(wire_request));
     if (atoi(argv[6])) { assert(shutdown(pair[1], SHUT_RD) == 0); }
     address.sin_family = AF_INET; address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     address.sin_port = htons(8080U);
     assert(connection_deadline_init(&deadline, 1000UL));
     result = handle_authorization_request(&(authorization_connection){pair[0], &address, &address, &deadline}, &service);
     assert(begin_calls == 1);
-    if (stage < 3 || atoi(argv[6])) { assert(result == 0); }
+    if (stage == 6) { assert(append_calls == 2); }
+    if (stage != 3 || atoi(argv[6])) { assert(result == 0); }
+    if (stage != 3 && !atoi(argv[6])) { assert(selected_error == cause); }
     if (!atoi(argv[6])) {
         count = recv(pair[1], wire, sizeof(wire)-1U, 0); assert(count > 0); wire[count] = '\0';
-        if (stage < 3) {
+        if (stage != 3) {
             char status[64]; snprintf(status, sizeof(status), "HTTP/1.1 %d ", msconnector_error_http_status(cause));
             assert(strncmp(wire, status, strlen(status)) == 0);
             assert(strstr(wire, "x-msconnector-decision: runtime_error") != NULL);
@@ -93,7 +132,7 @@ int main(int argc, char **argv) {
             assert(strstr(wire, "x-msconnector-response-handle") == NULL);
         } else { assert(result == 1 && strncmp(wire, "HTTP/1.1 200 ", 13U) == 0); }
     }
-    if (stage < 3) { assert(finish_calls == 1 && destroy_calls == 1); }
+    if (stage != 3) { assert(finish_calls == 1 && destroy_calls == 1); }
     else { assert(finish_calls == 0 && destroy_calls == 0); }
     assert(handoff_calls == (stage == 1 || stage == 3));
     close(pair[0]); close(pair[1]); assert(pthread_mutex_destroy(&service.runtime_lock) == 0);
@@ -159,7 +198,7 @@ int main(int argc, char **argv) {
         .record_host_action=outcome,.cancel=cancel,.release=release,.fail=fail};
     atomic_init(&transport.synchronization.backend_faulted,0);
     transport.config.operation_timeout_ms=1000U; transport.config.max_header_count=32U;
-    transport.config.max_header_bytes=8192U; transport.config.max_response_body_bytes=8192U;
+    transport.config.max_header_bytes=8192U;
     response_companion_reset_session_state(&state); state.claimed=1; state.session.opaque=&transport;
     state.response_headers=1; state.committed=1; state.has_decision=1;
     msconnector_decision_set_deny(&state.latest_decision,403,"stale-rule","stale");
@@ -251,7 +290,7 @@ class ServiceCallerTests(unittest.TestCase):
         # Public error codes: invalid engine, connector, protocol, timeout, unavailable.
         for profile in ("envoy-ext-authz", "traefik-forwardauth"):
             for mode in (0, 1):  # adapter is mode-independent; Common policy tested separately
-                for stage in (0, 1, 2):
+                for stage in (0, 1, 2, 4, 5, 6):
                     for cause in (12, 20, 15, 13, 4):
                         for raw in (0, -1, 2):
                             with self.subTest(profile=profile, mode=mode, stage=stage, cause=cause, raw=raw):
@@ -280,6 +319,15 @@ class ServiceCallerTests(unittest.TestCase):
             ("common/runtime/http_authorization_service.c", AUTH,
              "&transaction, &decision, &common_error) != 1", "&transaction, &decision, &common_error) == 0",
              ("envoy-ext-authz", 0, -1, 13, 1, 0)),
+            ("common/runtime/http_authorization_service.c", AUTH,
+             "parsed->body, parsed->body_size, error) != 1", "parsed->body, parsed->body_size, error) == 0",
+             ("traefik-forwardauth", 4, -1, 20, 1, 0)),
+            ("common/runtime/http_authorization_service.c", AUTH,
+             "transaction, &decision, &common_error, lock_held) != 1", "transaction, &decision, &common_error, lock_held) == 0",
+             ("envoy-ext-authz", 5, -1, 13, 1, 0)),
+            ("common/runtime/http_authorization_service.c", AUTH,
+             "scratch, received_size, error) != 1", "scratch, received_size, error) == 0",
+             ("traefik-forwardauth", 6, -1, 13, 1, 0)),
             ("common/runtime/response_companion_transport.c", TRANSPORT,
              "if (result == 1) {\n        return 1;", "if (result != 0) {\n        return 1;",
              ("body", -1, 12)),
@@ -288,7 +336,7 @@ class ServiceCallerTests(unittest.TestCase):
              "case MSCONNECTOR_ERROR_MODSECURITY_FAILURE:\n        return MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;",
              ("body", 0, 12)),
         ):
-            with self.subTest(source=relative):
+            with self.subTest(source=relative, args=args):
                 mutation_root = self.directory / ("mutated-auth" if fixture == AUTH else "mutated-transport")
                 path = mutation_root / relative
                 path.parent.mkdir(parents=True, exist_ok=True)

@@ -188,9 +188,8 @@ int main(void) {
             config_contents="response-body-limit=1\n",
         )
         self.assertEqual(run_result.returncode, 0, run_result.stderr)
-        self.assertGreaterEqual(
-            run_result.stderr.count("response-body-limit is unsupported"), 2
-        )
+        # Both removed CLI/config forms failed during parsing (exit 2),
+        # before any production server could start.
         self.assertGreaterEqual(
             run_result.stderr.count("response phases require an integrated P3/P4"), 2
         )
@@ -228,6 +227,8 @@ int main(void) {
     assert(log != NULL);
     assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
     memset(&state, 0, sizeof(state));
+    assert(pthread_mutex_init(&state.decision_log_lock, NULL) == 0);
+    state.decision_log_lock_initialized = 1;
     config_init(&state.config);
     state.config.response_phases_enabled = 0;
     assert(config_set(&state.config, "mode", "detect-only") == 0);
@@ -255,6 +256,8 @@ int main(void) {
         "response_phase_disabled_closed"));
     assert(state.transactions == NULL);
 
+    assert(pthread_mutex_destroy(&state.decision_log_lock) == 0);
+    state.decision_log_lock_initialized = 0;
     fclose(log);
     close(sockets[0]);
     close(sockets[1]);
@@ -297,6 +300,8 @@ int main(void) {
     state.config.response_phases_enabled = 0;
     state.engine = (haproxy_modsecurity_engine *)0x1;
     state.log = log;
+    assert(pthread_mutex_init(&state.decision_log_lock, NULL) == 0);
+    state.decision_log_lock_initialized = 1;
 
     /* A SPOP NOTIFY contains exactly one message.  A concatenated response
      * and request message must not be reclassified or partially accepted. */
@@ -333,6 +338,7 @@ int main(void) {
      * focused control avoids substituting an invalid fake engine pointer. */
     free_notify_request(&request);
 
+    assert(pthread_mutex_destroy(&state.decision_log_lock) == 0);
     fclose(log);
     close(sockets[0]);
     close(sockets[1]);

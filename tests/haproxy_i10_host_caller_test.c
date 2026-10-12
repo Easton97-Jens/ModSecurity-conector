@@ -12,8 +12,8 @@
 /* Real ABI declarations above; controlled readonly hooks below. */
 #define haproxy_modsecurity_transaction_abort                                  \
   fixture_haproxy_modsecurity_transaction_abort
-#define haproxy_modsecurity_transaction_finish                                 \
-  fixture_haproxy_modsecurity_transaction_finish
+#define haproxy_modsecurity_transaction_finish_with_decision                   \
+  fixture_haproxy_modsecurity_transaction_finish_with_decision
 #define haproxy_modsecurity_transaction_set_response_commit_state              \
   fixture_haproxy_modsecurity_transaction_set_response_commit_state
 #define haproxy_modsecurity_transaction_finish_request_body                    \
@@ -79,6 +79,19 @@ struct filter {
     if (0)                                                                     \
       fprintf(stderr, __VA_ARGS__);                                            \
   } while (0)
+#define haproxy_modsecurity_transaction_error fixture_haproxy_modsecurity_transaction_error
+#define haproxy_modsecurity_error_event_write fixture_haproxy_modsecurity_error_event_write
+static msconnector_transaction_error_class fixture_haproxy_modsecurity_transaction_error(
+    const haproxy_modsecurity_transaction *t) {
+  (void)t;
+  return MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
+}
+static int fixture_haproxy_modsecurity_error_event_write(
+    const haproxy_modsecurity_decision *d, const char *id, char *line, size_t capacity) {
+  assert(d->error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE);
+  (void)id;
+  return snprintf(line, capacity, "typed technical error\n") > 0;
+}
 /* PRODUCT_STRUCTS */
 static int native_result;
 static int common_result;
@@ -144,8 +157,9 @@ static void fixture_haproxy_modsecurity_transaction_abort(
   (void)t;
   abort_calls++;
 }
-static int fixture_haproxy_modsecurity_transaction_finish(
-    const haproxy_modsecurity_transaction *t) {
+static int fixture_haproxy_modsecurity_transaction_finish_with_decision(
+    const haproxy_modsecurity_transaction *t, haproxy_modsecurity_decision *d) {
+  if (finish_result != 0) d->error_class = MSCONNECTOR_TRANSACTION_ERROR_CLEANUP_INCOMPLETE;
   (void)t;
   finish_calls++;
   return finish_result;

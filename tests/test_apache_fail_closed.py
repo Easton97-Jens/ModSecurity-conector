@@ -66,6 +66,11 @@ class ApacheFailClosedTests(unittest.TestCase):
         self.assertIn("apache_record_failure(msr, r, cause)", helper)
         self.assertIn("return HTTP_INTERNAL_SERVER_ERROR;", helper)
         self.assertIn("r->connection->keepalive = AP_CONN_CLOSE;", helper)
+        native = function_body(self.source, "static int apache_native_failed(")
+        self.assertIn("return apache_fail_closed_with_cause(r, operation,", native)
+        self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE", native)
+        connector = function_body(self.source, "static int apache_fail_closed(")
+        self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR", connector)
         self.assertIn("apr_pool_cleanup_register(r->pool, msr,", self.source)
         self.assertIn("msc_cleanup_request_transaction, apr_pool_cleanup_null);", self.source)
 

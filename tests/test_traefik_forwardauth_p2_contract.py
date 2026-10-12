@@ -25,12 +25,12 @@ class TraefikForwardAuthP2ContractTest(unittest.TestCase):
             ROOT / "connectors/traefik/config/traefik-forwardauth.conf"
         ).read_text(encoding="utf-8")
 
-    def test_checked_in_pair_enables_bounded_buffered_p2(self) -> None:
+    def test_checked_in_pair_keeps_disclosed_host_body_cap(self) -> None:
         RUNNER.validate_forwardauth_p2_contract(self.dynamic, self.service)
         self.assertRegex(self.dynamic, r"(?m)^        forwardBody: true$")
         self.assertRegex(self.dynamic, r"(?m)^        maxBodySize: 4096$")
         self.assertRegex(self.service, r"(?m)^request_body_mode=buffered$")
-        self.assertRegex(self.service, r"(?m)^request_body_limit=4096$")
+        self.assertNotRegex(self.service, r"(?m)^(request_body_limit|response_body_limit|body_limit_action)=")
 
     def test_post_body_fixture_and_oversize_case_are_explicitly_modelled(self) -> None:
         """Source-contract coverage; a Traefik binary is required for host evidence."""
@@ -41,7 +41,7 @@ class TraefikForwardAuthP2ContractTest(unittest.TestCase):
         self.assertGreater(len(oversized_body), RUNNER.FORWARDAUTH_P2_BODY_LIMIT)
         self.assertIn("forwardBody: true", self.dynamic)
         self.assertIn("maxBodySize: 4096", self.dynamic)
-        self.assertIn("request_body_limit=4096", self.service)
+        self.assertNotIn("request_body_limit=", self.service)
 
     def test_missing_forward_body_is_rejected(self) -> None:
         missing_forward_body = self.dynamic.replace("        forwardBody: true\n", "")
@@ -53,10 +53,16 @@ class TraefikForwardAuthP2ContractTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "maxBodySize must equal 4096"):
             RUNNER.validate_forwardauth_p2_contract(oversized, self.service)
 
-    def test_mismatched_common_limit_is_rejected(self) -> None:
-        mismatched = self.service.replace("request_body_limit=4096", "request_body_limit=4097")
-        with self.assertRaisesRegex(RuntimeError, "request_body_limit must equal 4096"):
-            RUNNER.validate_forwardauth_p2_contract(self.dynamic, mismatched)
+    def test_host_validator_adds_no_native_engine_body_policy(self) -> None:
+        # The host contract checks forwarding and its disclosed full-body cap.
+        # Native limit/action live in rules_file, independently of this helper.
+        for mode in ("buffered", "streaming"):
+            service = self.service.replace("request_body_mode=buffered", f"request_body_mode={mode}")
+            RUNNER.validate_forwardauth_p2_contract(self.dynamic, service)
+        source = (ROOT / "connectors/traefik/scripts/runtime_smoke.py").read_text(encoding="utf-8")
+        self.assertNotIn("request_body_limit=", source)
+        self.assertNotIn("body_limit_action=", source)
+        self.assertRegex(self.service, r"(?m)^rules_file=.+$")
 
     def test_body_headers_are_auth_request_only_and_not_response_or_upstream_headers(self) -> None:
         auth_request, auth_response = self.dynamic.split("        authResponseHeaders:", 1)
@@ -72,8 +78,10 @@ class TraefikForwardAuthP2ContractTest(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("forwardAuth P2 requires forwardBody=true and maxBodySize=4096", script)
-        self.assertIn("request_body_mode=buffered", script)
-        self.assertIn("request_body_limit=4096", script)
+        self.assertIn("4096-byte host limitation", script)
+        self.assertNotIn("request_body_limit=", script)
+        self.assertNotIn("body_limit_action=", script)
+        self.assertIn("--check-config", script)
         self.assertIn("exit 77", script)
 
 

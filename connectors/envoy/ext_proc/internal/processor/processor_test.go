@@ -454,8 +454,6 @@ func TestCumulativeBodyAccountingRejectsSignedOverflow(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			config := testConfig(LateActionSafe)
-			config.MaxRequestBodyBytes = math.MaxInt64
-			config.MaxResponseBodyBytes = math.MaxInt64
 			state := newStreamState(config, recordingEngine{transaction: &recordingTransaction{}}, discardObserver{})
 
 			// The last representable byte is a legitimate boundary and must be
@@ -865,42 +863,21 @@ func TestRequestDenyUsesImmediateResponseBeforeResponseHeaders(t *testing.T) {
 	}
 }
 
-func TestRequestBodyLimitUses413WithoutEngineBodyDispatch(t *testing.T) {
+func TestRequestBodyHasNoConnectorAggregateGate(t *testing.T) {
 	transaction := &recordingTransaction{}
-	config := testConfig(LateActionSafe)
-	config.MaxRequestBodyBytes = 4
-	service, err := NewService(config, recordingEngine{transaction: transaction})
+	service, err := NewService(testConfig(LateActionSafe), recordingEngine{transaction: transaction})
 	if err != nil {
-		t.Fatalf("NewService() error = %v", err)
+		t.Fatal(err)
 	}
-	stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
-		{request: requestHeaders(false)},
-		{request: requestBody([]byte("12345"), true)},
-	}}
-
+	stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{{request: requestHeaders(false)}, {request: requestBody([]byte("12345"), true)}}}
 	if err := service.Process(stream); err != nil {
-		t.Fatalf("Process() error = %v", err)
+		t.Fatal(err)
 	}
-	if got, want := len(stream.sent), 2; got != want {
-		t.Fatalf("sent responses = %d, want %d", got, want)
+	if len(transaction.requestBodyLengths) != 1 || transaction.requestBodyLengths[0] != 5 {
+		t.Fatalf("full input not dispatched: %v", transaction.requestBodyLengths)
 	}
-	if response := stream.sent[1].GetImmediateResponse(); response == nil || int(response.GetStatus().GetCode()) != 413 {
-		t.Fatalf("expected a request-body immediate 413 response, got %#v", stream.sent[1])
-	}
-	if got := transaction.requestBodyLengths; len(got) != 0 {
-		t.Fatalf("over-limit request body reached engine dispatch: %v", got)
-	}
-	if len(transaction.closed) != 1 {
-		t.Fatalf("close calls = %d, want 1", len(transaction.closed))
-	}
-	summary := transaction.closed[0]
-	if summary.CloseReason != CloseImmediateResponse || summary.RequestBodyChunks != 1 || summary.RequestBodyBytes != 5 {
-		t.Fatalf("unexpected body-limit cleanup summary: %#v", summary)
-	}
-	if got, want := transaction.hostActions, []HostAction{{
-		Action: AppliedActionDeny, VisibleStatus: 413, TransportResult: "http_status",
-	}}; !sameHostActions(got, want) {
-		t.Fatalf("host actions = %#v, want %#v", got, want)
+	if stream.sent[1].GetImmediateResponse() != nil {
+		t.Fatal("connector selected an aggregate body rejection")
 	}
 }
 
@@ -1340,8 +1317,6 @@ func testConfig(policy LateActionPolicy) Config {
 		MaxHeaderValueBytes:  8192,
 		MaxTotalHeaderBytes:  32768,
 		MaxBodyChunkBytes:    1024,
-		MaxRequestBodyBytes:  4096,
-		MaxResponseBodyBytes: 4096,
 		MaxGRPCMessageBytes:  2048,
 		EngineTimeoutMS:      100,
 		StreamIdleTimeoutMS:  100,
@@ -1776,4 +1751,62 @@ func sameHostActions(left, right []HostAction) bool {
 		}
 	}
 	return true
+}
+
+type reportedCleanupTransaction struct {
+	*recordingTransaction
+	err error
+}
+
+func (tx *reportedCleanupTransaction) CleanupFailure() error { return tx.err }
+func TestStreamCloseKeepsIncompleteFinishLocalAndSinkFailureFatal(t *testing.T) {
+	for _, mode := range []string{"sink", "incomplete"} {
+		t.Run(mode, func(t *testing.T) {
+			testStreamCloseFailureClassification(t, mode)
+		})
+	}
+}
+
+func testStreamCloseFailureClassification(t *testing.T, mode string) {
+	t.Helper()
+	first := errors.New("mandatory event sink failure")
+	if mode == "incomplete" {
+		first = fmt.Errorf("%w: incomplete body", ErrTransactionFinishPhaseSequence)
+	}
+	tx := &reportedCleanupTransaction{recordingTransaction: &recordingTransaction{}, err: first}
+	state := newStreamState(testConfig(LateActionSafe), nil, discardObserver{})
+	state.transaction = tx
+	if got := state.closeOwned(CloseContextCanceled); !errors.Is(got, first) {
+		t.Fatalf("closeOwned(cancel) = %v, want %v", got, first)
+	}
+	if mode == "sink" && !errors.Is(state.cleanupFailure, first) {
+		t.Fatalf("cleanupFailure = %v, want fatal sink cause %v", state.cleanupFailure, first)
+	}
+	if mode == "incomplete" && state.cleanupFailure != nil {
+		t.Fatalf("cleanupFailure = %v, want no process failure for incomplete lifecycle", state.cleanupFailure)
+	}
+	if got := state.closeOwned(CloseContextCanceled); got != nil {
+		t.Fatalf("closeOwned(retry) = %v, want no duplicate work", got)
+	}
+	if len(tx.closed) != 1 {
+		t.Fatalf("closeOwned(retry) close calls = %d, want 1", len(tx.closed))
+	}
+}
+
+type cleanupEvidenceFailureObserver struct{ err error }
+
+func (observer cleanupEvidenceFailureObserver) Record(Summary) error { return observer.err }
+func TestStreamCloseMetadataSinkFailureRemainsFatalAfterIncompleteFinish(t *testing.T) {
+	first := fmt.Errorf("%w: incomplete body", ErrTransactionFinishPhaseSequence)
+	sinkErr := errors.New("metadata physical write failure")
+	tx := &reportedCleanupTransaction{recordingTransaction: &recordingTransaction{}, err: first}
+	state := newStreamState(testConfig(LateActionSafe), nil, cleanupEvidenceFailureObserver{err: sinkErr})
+	state.transaction = tx
+	got := state.closeOwned(CloseContextCanceled)
+	if !errors.Is(got, first) || !errors.Is(got, sinkErr) {
+		t.Fatalf("closeOwned(cancel) = %v, want both first finish and sink cause", got)
+	}
+	if state.cleanupFailure != got {
+		t.Fatalf("cleanupFailure = %v, want fatal combined cause %v", state.cleanupFailure, got)
+	}
 }

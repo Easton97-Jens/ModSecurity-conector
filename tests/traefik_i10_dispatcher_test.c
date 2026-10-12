@@ -11,7 +11,7 @@ int test_begin(const msconnector_runtime *runtime,
                const msconnector_request *request, const char *host_request_id,
                msconnector_runtime_transaction **out,
                msconnector_decision *decision, msconnector_error *error);
-#define msconnector_runtime_transaction_begin test_begin
+#define msconnector_runtime_transaction_begin_request_stream test_begin
 int test_append_request_body_chunk(
     const msconnector_runtime_transaction *transaction,
     const unsigned char *data, size_t size, msconnector_error *error);
@@ -49,10 +49,13 @@ int test_record_host_action(const msconnector_runtime_transaction *transaction,
                             int connection_aborted, msconnector_error *error);
 #define msconnector_runtime_transaction_record_host_action                     \
   test_record_host_action
+int test_set_response_commit_state_checked(const msconnector_runtime_transaction *transaction,
+    int headers_sent, int body_started, msconnector_error *error);
+#define msconnector_runtime_transaction_set_response_commit_state_checked test_set_response_commit_state_checked
 #define main traefik_engine_service_program_main
 #include "../connectors/traefik/src/traefik_engine_service.c"
 #undef main
-#undef msconnector_runtime_transaction_begin
+#undef msconnector_runtime_transaction_begin_request_stream
 #undef msconnector_runtime_transaction_append_request_body_chunk
 #undef msconnector_runtime_transaction_finish_request_body
 #undef msconnector_runtime_transaction_process_response_headers
@@ -60,6 +63,7 @@ int test_record_host_action(const msconnector_runtime_transaction *transaction,
 #undef msconnector_runtime_transaction_finish_response_body
 #undef msconnector_runtime_transaction_finish
 #undef msconnector_runtime_transaction_record_host_action
+#undef msconnector_runtime_transaction_set_response_commit_state_checked
 int test_begin(const msconnector_runtime *runtime,
                const msconnector_request *request, const char *host_request_id,
                msconnector_runtime_transaction **out,
@@ -174,6 +178,16 @@ int test_record_host_action(const msconnector_runtime_transaction *transaction,
   return native_result;
 }
 
+int test_set_response_commit_state_checked(const msconnector_runtime_transaction *transaction,
+    int headers_sent, int body_started, msconnector_error *error) {
+  (void)transaction;
+  (void)headers_sent;
+  (void)body_started;
+  calls++;
+  msconnector_error_set(error, test_error_code, "injected", "fixture");
+  return native_result;
+}
+
 static void prepare_failure_frame(traefik_engine_session *session,
                                   traefik_engine_frame *frame,
                                   unsigned char *payload, size_t payload_size) {
@@ -198,6 +212,11 @@ static void prepare_failure_frame(traefik_engine_session *session,
     assert(
         traefik_engine_self_test_append_u16(payload, payload_size, &offset, 0));
     frame->payload_size = offset;
+  }
+  if (frame->opcode == 7) {
+    payload[0] = 1;
+    payload[1] = 1;
+    frame->payload_size = 2;
   }
   if (frame->opcode == 8)
     session->response_eos = 1;
@@ -240,6 +259,8 @@ static void run_dispatch_case(msconnector_runtime *runtime,
   native_result = 1;
   if (invalid < 2)
     native_result = invalid ? -1 : 0;
+  if (invalid == 4)
+    native_result = 2;
   calls = 0;
   if (invalid == 3) {
     assert(traefik_engine_dispatch(&session, &frame, &decision, &code) == 1);
@@ -314,7 +335,7 @@ static void run_framed_failure(msconnector_runtime *runtime) {
 }
 
 static void run_matrix(msconnector_runtime *runtime) {
-  const unsigned char opcodes[] = {1, 2, 3, 4, 5, 6, 8, 10};
+  const unsigned char opcodes[] = {1, 2, 3, 4, 5, 6, 7, 8, 10};
   for (size_t i = 0; i < sizeof(opcodes); i++)
     for (int invalid = 0; invalid < 4; invalid++) {
       if (invalid == 2 && opcodes[i] != 1 && opcodes[i] != 3 &&
@@ -322,9 +343,10 @@ static void run_matrix(msconnector_runtime *runtime) {
         continue;
       run_dispatch_states(runtime, opcodes[i], invalid);
     }
+  run_dispatch_states(runtime, 7, 4);
   run_framed_failure(runtime);
-  puts("traefik_i10_dispatcher=pass failures=300 reentries=300 "
-       "positive_controls=120");
+  puts("traefik_i10_dispatcher=pass failures=345 reentries=345 "
+       "positive_controls=135");
 }
 
 int main(int argc, char **argv) {

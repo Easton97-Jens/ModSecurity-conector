@@ -18,8 +18,10 @@
   fixture_msconnector_runtime_transaction_append_request_body_chunk
 #define msconnector_runtime_transaction_append_response_body_chunk             \
   fixture_msconnector_runtime_transaction_append_response_body_chunk
+#define msconnector_runtime_transaction_begin_request_stream fixture_msconnector_runtime_transaction_begin
 #define msconnector_runtime_transaction_begin                                  \
   fixture_msconnector_runtime_transaction_begin
+#define msconnector_runtime_transaction_cancel fixture_msconnector_runtime_transaction_cancel
 #define msconnector_runtime_transaction_fail                                   \
   fixture_msconnector_runtime_transaction_fail
 #define msconnector_runtime_transaction_finish                                 \
@@ -94,6 +96,7 @@ typedef struct {
   msconnector_response response;
   char host_request_id[96];
   int technical_failed;
+  int api_failed;
   int host_response_attempted;
   int response_processed;
   int request_body_finished;
@@ -202,6 +205,14 @@ int fixture_msconnector_runtime_transaction_append_response_body_chunk(
   (void)d;
   (void)n;
   return native_result(e);
+}
+int fixture_msconnector_runtime_transaction_cancel(
+    msconnector_runtime_transaction *tx, int upstream, msconnector_error *error) {
+  assert(upstream == 1);
+  if (tx->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE)
+    (void)msconnector_transaction_contract_fail(&tx->contract,
+        MSCONNECTOR_TRANSACTION_ERROR_UPSTREAM_DISCONNECT, 0);
+  return native_result(error);
 }
 int fixture_msconnector_runtime_transaction_finish_response_body(
     const msconnector_runtime_transaction *t, msconnector_decision *d,
@@ -424,7 +435,7 @@ static void fixture_reenter(int operation, request_st *r, plugin_data *p,
 /* Independent HTTP oracle: do not derive expected values from Common mapping.
  */
 static int fixture_expected_status(int operation) {
-  if (operation == 3 || operation == 4)
+  if (operation == 4)
     return 500;
   switch (fault) {
   case 5:

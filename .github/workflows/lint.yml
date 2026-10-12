@@ -68,6 +68,15 @@ jobs:
       - name: Verify runtime event sink failures
         if: ${{ !cancelled() }}
         run: python -m unittest -v tests.test_runtime_event_sink_failures tests.test_runtime_host_action_validation
+      - name: Install I09 Apache compiled-test prerequisites
+        if: ${{ !cancelled() }}
+        run: |
+          set -eu
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes apache2-dev build-essential libmodsecurity-dev
+      - name: Verify I09 route API and terminal error regressions
+        if: ${{ !cancelled() }}
+        run: make check-i09-native-routes
       - name: Verify Envoy bridge failure boundaries
         if: ${{ !cancelled() }}
         run: python -m unittest -v tests.test_envoy_bridge_failures
@@ -76,7 +85,7 @@ jobs:
         run: python -m unittest -v tests.test_nginx_request_phase_completion
       - name: Verify NGINX request native result regressions
         if: ${{ !cancelled() }}
-        run: python -m unittest -v tests.test_nginx_request_native_results tests.test_nginx_request_error_events tests.test_nginx_context_accounting tests.test_nginx_native_intervention_chain tests.test_nginx_native_logging
+        run: python -m unittest -v tests.test_nginx_request_native_results tests.test_nginx_request_error_events tests.test_nginx_context_accounting tests.test_nginx_native_intervention_chain tests.test_nginx_native_logging tests.test_nginx_bounded_event_uri
       - name: Verify NGINX late error and reentry regressions
         if: ${{ !cancelled() }}
         run: python -m unittest -v tests.test_nginx_late_error_results

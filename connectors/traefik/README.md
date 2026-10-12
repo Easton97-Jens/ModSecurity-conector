@@ -37,8 +37,7 @@ failure is fail-closed. This source/component wiring is
 `implemented_not_asserted`, not a live-host claim.
 
 The checked-in forwardAuth configuration explicitly enables request-side P2
-with `forwardBody: true` and `maxBodySize: 4096`. The C service configuration
-must use `request_body_mode=buffered` with the same 4096-byte Common limit; the
+with `forwardBody: true` and `maxBodySize: 4096`. The C service streams the authorization body to native P2; the
 start-smoke harness rejects a template that omits either setting or changes
 the service mode. This is bounded buffered host semantics, not incremental
 request-body streaming, and remains `configured_not_exercised` until fresh
@@ -508,9 +507,8 @@ paths. A request-only route still requires its supported response
 observer/companion to inspect Phase 4; selecting a mode does not create a
 missing response path.
 
-Legacy connector/runtime budget settings may remain parseable for
-compatibility, but they must not reject or abort a response solely because a
-legacy inspection-byte count is exceeded. Independent allocation,
+Connector/runtime cumulative response-size settings have been removed;
+unknown legacy keys are rejected during configuration loading. Independent allocation,
 buffered-storage, chunk/message/frame, timeout, overflow and transport limits
 remain active in every mode. A buffered sidecar may therefore still reject a
 response that cannot fit its bounded host storage; that is host capacity, not
@@ -518,3 +516,16 @@ WAF inspection policy.
 
 See [the cross-connector response-limit ownership contract](../../docs/phase4-mode-budget.md)
 for the exact scope, compatibility boundary and validation limitations.
+
+## Native body policy and remaining host limits
+
+Request limit/action belong exclusively to `SecRequestBodyLimit` and
+`SecRequestBodyLimitAction`; response limit/action belong exclusively to
+`SecResponseBodyLimit` and `SecResponseBodyLimitAction`. The connector adds no
+body-size option, default or cumulative enforcement. Bounded IO blocks and
+checked counters do not select an engine limit or action.
+
+The forwardAuth host still buffers the authorization body: smoke
+`maxBodySize=4096`, composite `maxBodySize=33`; composite `maxResponseBodySize=32768`
+also bounds the authorization response. These limitations remain; native UDS
+middleware is a separate streaming profile.

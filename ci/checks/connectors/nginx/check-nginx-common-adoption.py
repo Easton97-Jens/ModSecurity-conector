@@ -65,7 +65,7 @@ BODY_RESPONSE_BUFFER_CONTRACT_PATTERN = re.compile(
     r'size_t\s+len\s*=\s*buffer\s*->\s*last\s*>=\s*buffer\s*->\s*pos\s*'
     r'\?\s*\(\s*size_t\s*\)\s*\(\s*buffer\s*->\s*last\s*-\s*'
     r'buffer\s*->\s*pos\s*\)\s*:\s*0\s*;\s*'
-    r'return\s+ngx_http_modsecurity_append_limited_response_body\s*\(\s*'
+    r'return\s+ngx_http_modsecurity_append_accounted_response_body\s*\(\s*'
     r'ctx\s*,\s*mcf\s*,\s*data\s*,\s*len\s*\)\s*;\s*\}\s*'
     r'if\s*\(\s*buffer\s*->\s*in_file\s*\)\s*\{\s*'
     r'return\s+ngx_http_modsecurity_append_file_response_body\s*\(\s*'
@@ -74,12 +74,12 @@ BODY_RESPONSE_BUFFER_CONTRACT_PATTERN = re.compile(
 )
 BODY_RESPONSE_LIMITED_CONTRACT_PATTERN = re.compile(
     r'static\s+ngx_int_t\s+'
-    r'ngx_http_modsecurity_append_limited_response_body\s*\(\s*'
+    r'ngx_http_modsecurity_append_accounted_response_body\s*\(\s*'
     r'ngx_http_modsecurity_ctx_t\s*\*\s*ctx\s*,\s*'
     r'ngx_http_modsecurity_conf_t\s*\*\s*mcf\s*,\s*'
     r'u_char\s*\*\s*data\s*,\s*size_t\s+len\s*\)\s*\{\s*'
     r'size_t\s+allowed\s*;\s*'
-    r'if\s*\(\s*ngx_http_modsecurity_plan_limited_response_body\s*\(\s*'
+    r'if\s*\(\s*ngx_http_modsecurity_account_response_body\s*\(\s*'
     r'ctx\s*,\s*mcf\s*,\s*len\s*,\s*&\s*allowed\s*\)\s*'
     r'!=\s*NGX_OK\s*\)\s*\{\s*return\s+NGX_ERROR\s*;\s*\}\s*'
     r'return\s+ngx_http_modsecurity_append_response_body_chunk\s*\(\s*'
@@ -611,7 +611,8 @@ def c_event_jsonl_pipeline(active, strict=False):
                 + log + r'return\s+NGX_ERROR;\s*\}\s*return\s+NGX_OK;\s*\}')
     else:
         tail = (r'if\s*\(written\s*<\s*0\s*\|\|\s*\(size_t\)written\s*'
-                r'!=\s*line_length\)\s*\{\s*' + log + r'\}\s*return\s+1;\s*\}')
+                r'!=\s*line_length\)\s*\{\s*' + log
+                + r'return\s+0;\s*\}\s*return\s+1;\s*\}')
     return re.fullmatch(prefix + tail, active[active.index('{'):]) is not None
 
 _, event_metadata_helper = c_checked_function(common_h,
@@ -871,7 +872,7 @@ C_RESPONSE_MAPPER_FORBIDDEN_ALL_BRANCH_PATTERNS = (
 )
 C_RESPONSE_BODY_PRE_GATE_FORBIDDEN_PATTERNS = (
     re.compile(r'\bngx_http_modsecurity_append_response_body_buffer\b'),
-    re.compile(r'\bngx_http_modsecurity_append_limited_response_body\b'),
+    re.compile(r'\bngx_http_modsecurity_append_accounted_response_body\b'),
     re.compile(r'\bngx_http_modsecurity_append_file_response_body\b'),
     re.compile(r'\bngx_http_modsecurity_append_response_body_chunk\b'),
     re.compile(r'\bmsc_append_response_body\b'),
@@ -1230,11 +1231,30 @@ def c_rule_id_delegation_is_bounded():
         'ngx_http_modsecurity_contract_record_intervention',
         'ngx_http_modsecurity_process_redirect_intervention',
         'ngx_http_modsecurity_process_status_intervention',
-        'msc_intervention_cleanup',
     ):
         sinks = list(re.finditer(r'\b' + name + r'\s*\(', caller))
         if len(sinks) != 1 or calls[0].end() >= sinks[0].start():
             return False
+    # EOS may replace the just-collected result with an owned native request
+    # result retained during append. Only this exact ownership transfer may
+    # clean up before extracting the final intervention's bounded rule ID.
+    pending_restore = re.compile(
+        r'if\s*\(\s*ctx->native_event_phase\s*==\s*MSCONNECTOR_PHASE_REQUEST_BODY\s*&&\s*'
+        r'ctx->request_intervention_pending\s*\)\s*\{\s*'
+        r'msc_intervention_cleanup\s*\(\s*&intervention\s*\)\s*;\s*'
+        r'intervention\s*=\s*ctx->pending_request_intervention\s*;\s*'
+        r'ngx_memzero\s*\(\s*&ctx->pending_request_intervention\s*,\s*'
+        r'sizeof\s*\(\s*ctx->pending_request_intervention\s*\)\s*\)\s*;\s*'
+        r'ctx->request_intervention_pending\s*=\s*0\s*;\s*'
+        r'native_result\s*=\s*1\s*;\s*\}'
+    )
+    restores = list(pending_restore.finditer(caller))
+    cleanups = list(re.finditer(r'\bmsc_intervention_cleanup\s*\(', caller))
+    direct_cleanups = c_direct_matches(caller, re.compile(r'\bmsc_intervention_cleanup\s*\('))
+    if (len(restores) != 1 or len(cleanups) != 2 or len(direct_cleanups) != 1
+            or not restores[0].start() < cleanups[0].start() < restores[0].end() < calls[0].start()
+            or calls[0].end() >= direct_cleanups[0].start()):
+        return False
     return True
 
 server_header_resolver, _ = c_checked_function(header_c, server_header_resolver_marker)
@@ -1278,13 +1298,13 @@ body_response_mapper_once_unmasked, _ = c_unmasked_function(body_c,
 body_filter_prepare, _ = c_checked_function(body_c,
     'static ngx_int_t\nngx_http_modsecurity_prepare_response_body_filter')
 body_limited_response_plan, _ = c_checked_function(body_c,
-    'static ngx_int_t\nngx_http_modsecurity_plan_limited_response_body')
+    'static ngx_int_t\nngx_http_modsecurity_account_response_body')
 body_response_append_chunk, _ = c_checked_function(body_c,
     'static ngx_int_t\nngx_http_modsecurity_append_response_body_chunk')
 body_response_append_buffer, _ = c_checked_function(body_c,
     'static ngx_int_t\nngx_http_modsecurity_append_response_body_buffer')
 body_response_append_limited, _ = c_checked_function(body_c,
-    'static ngx_int_t\nngx_http_modsecurity_append_limited_response_body')
+    'static ngx_int_t\nngx_http_modsecurity_append_accounted_response_body')
 body_response_chain_append, _ = c_checked_function(body_c,
     'static ngx_int_t\nngx_http_modsecurity_append_response_chain_buffer')
 body_response_chain_append_all_branches = c_all_branch_function(body_c,
@@ -1745,11 +1765,15 @@ body_response_limit_contract_is_direct = (
     body_response_chain_append_is_direct_wrapper
     and C_PREPROCESSOR_DIRECTIVE.search(
         body_response_chain_append_all_branches) is None
-    and len(body_limit_plan_chunk_calls) == 1
-    and len(body_limit_bytes_seen_assignments) == 1
-    and BODY_LIMIT_BYTES_SEEN_INCREMENT_PATTERN.search(
-        body_limited_response_plan) is None
+    and not body_limit_plan_chunk_calls
+    and len(c_direct_matches(body_limited_response_plan,
+        BODY_LIMIT_BYTES_SEEN_INCREMENT_PATTERN)) == 1
+    and '*allowed = len;' in body_limited_response_plan
+    and 'SIZE_MAX - ctx->response_body_bytes_seen' in body_limited_response_plan
+    and 'SIZE_MAX - ctx->response_body_bytes_inspected' in body_limited_response_plan
+    and 'phase4_mode' not in body_limited_response_plan
 )
+
 body_response_chain_call_is_direct = (
     len(body_response_chain_append_calls) == 1
     and len(body_response_chain_call_contracts) == 1
@@ -1851,7 +1875,7 @@ checks = [
 ('typedef struct {\n    const char *method;\n    const char *uri;\n    const char *content_type;\n} ngx_http_modsecurity_event_request_metadata_t;' in common_h and 'ngx_http_modsecurity_event_request_metadata_t metadata = {\n        "", "", ""\n    };' in event_metadata_helper and 'if (r == NULL)' in event_metadata_helper and 'r->method_name.len > 0U' in event_metadata_helper and 'r->unparsed_uri.len > 0U' in event_metadata_helper and 'r->headers_in.content_type != NULL' in event_metadata_helper and 'value != (char *)-1 && value != NULL' in event_metadata_helper and 'metadata.method = value;' in event_metadata_helper and 'metadata.uri = value;' in event_metadata_helper and 'metadata.content_type = value;' in event_metadata_helper, 'NGINX event request-metadata helper preserves empty fallbacks for absent, empty, NULL, and allocation-failure values'),
 (EVENT_JSONL_HEADER in common_h and EVENT_JSONL_HEADER not in access_c and EVENT_JSONL_HEADER not in log_c, 'NGINX common header owns the event JSONL serialization dependency'),
 (EVENT_JSONL_LINE_BUFFER in event_jsonl_helper and 'int json_truncated = 0;' in event_jsonl_helper and event_jsonl_helper.count('msconnector_event_write_jsonl_line') == 1 and 'line_length = ngx_strlen(line);' in event_jsonl_helper and event_jsonl_helper.count('ngx_write_fd') == 1 and 'written < 0 || (size_t)written != line_length' in event_jsonl_helper and 'written < 0 ? ngx_errno : 0' in event_jsonl_helper and '"%s", write_failure_message' in event_jsonl_write and EVENT_BODY_BYTES_SEEN not in event_jsonl_helper and EVENT_BODY_BYTES_INSPECTED not in event_jsonl_helper and REQUEST_BODY_ACCESS not in event_jsonl_helper, 'NGINX common JSONL helper retains one bounded serialization and one warning-only write without body data'),
-('"%s%s", serialization_failure_message' in event_jsonl_serialization and 'json_truncated ? " (truncated)" : ""' in event_jsonl_serialization and 'return 0;' in event_jsonl_serialization and 'return 1;' in event_jsonl_write, 'NGINX common JSONL helper returns failure only for serialization and preserves warning-only write behavior'),
+('"%s%s", serialization_failure_message' in event_jsonl_serialization and 'json_truncated ? " (truncated)" : ""' in event_jsonl_serialization and 'return 0;' in event_jsonl_serialization and 'return 0;' in event_jsonl_write and 'return 1;' in event_jsonl_write, 'NGINX common JSONL helper reports serialization and physical-write failures while diagnostic callers retain warning-only host behavior'),
 ('ngx_http_modsecurity_write_event_jsonl' not in body_c and 'ngx_http_modsecurity_write_event_jsonl' not in header_c, 'NGINX common JSONL helper is not extended to body or header event paths'),
 (EVENT_JSONL_LINE_BUFFER in phase_event_jsonl_helper and 'int json_truncated = 0;' in phase_event_jsonl_helper and phase_event_jsonl_helper.count('msconnector_event_write_jsonl_line') == 1 and phase_event_jsonl_helper.count('ngx_write_fd') == 1 and 'return NGX_ERROR;' in phase_event_jsonl_helper and RETURN_NGX_OK in phase_event_jsonl_helper and 'written < 0' in phase_event_jsonl_helper and '(size_t)written != line_length' in phase_event_jsonl_helper and 'modsecurity %s common event serialization failed%s' in phase_event_jsonl_helper and 'modsecurity %s log write failed' in phase_event_jsonl_helper and 'modsecurity %s log short write: %z of %uz bytes' in phase_event_jsonl_helper and EVENT_BODY_BYTES_SEEN not in phase_event_jsonl_helper and EVENT_BODY_BYTES_INSPECTED not in phase_event_jsonl_helper and REQUEST_BODY_ACCESS not in phase_event_jsonl_helper, 'NGINX strict Phase3/4 JSONL helper has one bounded write tail and propagates serialization, write, and short-write failures without body data'),
 ('ngx_http_modsecurity_write_phase_event_jsonl(r, mcf, &event,\n        "phase3");' in phase3_log_event and 'msconnector_event_write_jsonl_line' not in phase3_log_event and 'ngx_write_fd' not in phase3_log_event and EVENT_JSONL_LINE_BUFFER not in phase3_log_event, 'NGINX Phase3 event construction delegates only the strict JSONL tail and retains its phase-specific diagnostics'),
@@ -1866,12 +1890,12 @@ checks = [
 ('log_result = ngx_http_modsecurity_phase4_log_event' in body_c and 'if (log_result != NGX_OK)' in body_c and 'return ngx_http_modsecurity_phase4_log_event' in body_c and 'return NGX_ERROR;' in phase_event_jsonl_helper and '"phase4"' in phase4_log_event, 'NGINX Phase4 event write and short-write failures are observable and propagated'),
 ('MSCONNECTOR_COMMON_SRC' in nginx_config and '$MSCONNECTOR_COMMON_SRC/event.c' in nginx_config and '$MSCONNECTOR_COMMON_SRC/transaction_state.c' in nginx_config and '$MSCONNECTOR_COMMON_SRC/late_intervention.c' in nginx_config, 'NGINX build uses stable Common source root and links event and late-intervention support'),
 ('common_response_validated' in common_h and ('if (!ctx->common_response_validated)' in body_c or CTX_RESPONSE_VALIDATED_GUARD in body_c) and 'ctx->common_response_validated = 1' in body_c, 'NGINX response mapper validation is gated once per response in body path'),
-('response_body_bytes_inspected' in common_h and 'ngx_http_modsecurity_append_limited_response_body' in body_c and 'msconnector_phase4_effective_body_limit(' in body_c and 'common_config.phase4_body_limit' not in body_c and 'ctx->response_body_truncated = 1' in body_c and not re.search(r'msc_append_response_body\s*\([^;]*,\s*len\s*\)', body_c), 'NGINX preserves checked response accounting without a connector-owned inspection limit'),
+('response_body_bytes_inspected' in common_h and 'ngx_http_modsecurity_append_accounted_response_body' in body_c and 'msconnector_phase4_effective_body_limit(' not in body_c and 'msconnector_body_limit_plan_chunk(' not in body_c and 'common_config.phase4_body_limit' not in body_c and 'SIZE_MAX - ctx->response_body_bytes_seen' in body_c, 'NGINX preserves checked response accounting without a connector-owned inspection limit'),
 (body_response_buffer_is_limited, 'NGINX response-body buffer route retains the bounded memory/file planner paths'),
-(body_response_limited_is_direct, 'NGINX limited response-body helper passes the Common-planned allowance to the raw chunk route'),
+(body_response_limited_is_direct, 'NGINX response-body helper passes each accounted complete chunk to the raw route'),
 (phase4_mime_is_engine_owned, 'NGINX has no connector-owned Phase4 content-type allowlist'),
 ('chain->buf->last_buf ||' in body_c and 'chain->buf->last_in_chain' in body_c and 'ctx->phase4_processed' in body_c, 'NGINX finalizes Phase4 once at the actual main or subrequest end-of-stream'),
-(body_response_limit_contract_is_direct, 'NGINX records response-body bytes through the Common bounded plan before append'),
+(body_response_limit_contract_is_direct, 'NGINX records response-body bytes with checked full-chunk accounting before append'),
 ('ngx_http_modsecurity_phase4_actual_action(action, wanted)' in body_c and '"redirect" : "deny"' in body_c, 'NGINX preserves redirect as the requested pre-commit action'),
 ('event.body.content_type' in body_c and EVENT_BODY_BYTES_SEEN in body_c and EVENT_BODY_BYTES_INSPECTED in body_c, 'NGINX Phase4 events include payload-free content-type and body-byte metadata'),
 ('ngx_str_t event_transaction_id' in common_h and 'ctx->event_transaction_id' in module_c and 'ctx->event_transaction_id' in body_c and 'event.meta.transaction_id = ctx != NULL' in body_c, 'NGINX Phase4 events retain a request-level transaction ID instead of a connection-only identifier'),

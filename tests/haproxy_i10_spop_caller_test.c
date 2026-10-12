@@ -23,9 +23,13 @@ static void check_request_failure(agent_state *state, size_t failure,
   request.has_server_ip = 1;
   request.has_client_port = 1;
   request.has_server_port = 1;
-  runtime_header headers[] = {{"Host", "example.test"}};
+  runtime_header headers[] = {{"Host", "example.test"}, {"Content-Length", "1"}};
   request.headers = headers;
-  request.header_count = 1;
+  request.header_count = 2;
+  request.has_body = 1;
+  request.has_body_len_arg = 1;
+  request.has_headers_text = 1;
+  request.advertised_body_len = 1;
   unsigned char body[] = "x";
   request.body = body;
   request.body_len = 1;
@@ -34,7 +38,7 @@ static void check_request_failure(agent_state *state, size_t failure,
   const char *text = "pass";
   char handle[HAPROXY_SPOP_RESPONSE_COMPANION_HANDLE_STORAGE] = {0};
   native_failure = failure_name;
-  native_failure_result = failure == 2 ? 2 : 0;
+  native_failure_result = failure == 2 ? -1 : 0;
   unsigned int cleanup_before = native_cleanups;
   process_production_request_notify(state, &request, &d, &processed, &origin,
                                     &text, handle);
@@ -150,7 +154,7 @@ static void check_owner_failure(agent_state *state, int operation) {
   if (operation < 3)
     assert(context.error.code == MSCONNECTOR_ERROR_MODSECURITY_FAILURE);
   if (operation == 5)
-    assert(context.error.code == MSCONNECTOR_ERROR_HOST_API_FAILURE);
+    assert(context.error.code == MSCONNECTOR_ERROR_MODSECURITY_FAILURE);
   if (operation == 4)
     assert(context.transaction_consumed == 1);
   else
@@ -162,7 +166,8 @@ static void check_mode(const char *mode, const char *fail_mode, int enforces) {
   copy_cstring(state.config.mode, sizeof(state.config.mode), mode);
   copy_cstring(state.config.fail_mode, sizeof(state.config.fail_mode),
                fail_mode);
-  state.config.request_body_limit = 1024;
+  assert(pthread_mutex_init(&state.decision_log_lock, NULL) == 0);
+  state.decision_log_lock_initialized = 1;
   haproxy_modsecurity_engine_config cfg;
   memset(&cfg, 0, sizeof(cfg));
   msconnector_config_init(&cfg.common_config);

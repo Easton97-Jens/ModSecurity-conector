@@ -80,22 +80,22 @@ static int test_native(const char *name) {
 
     def test_spop_failure_reason_negative_control(self):
         source = (ROOT / "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c").read_text()
-        old = 'runtime_init_decision(decision, phase, "deny", 503, retained_reason);'
+        old = 'runtime_init_decision(decision, retained_phase, "deny", 503, retained_reason);'
         self.assertIn(old, source)
         result = self.run_caller(BINDING.read_text(), spop=True,
             runtime_source=source.replace(old,
-                'runtime_init_decision(decision, phase, "deny", 503, reason);'))
+                'runtime_init_decision(decision, retained_phase, "deny", 503, reason);'))
         self.assertNotEqual(result.returncode, 0, "borrowed failure reason regression survived")
 
     def test_spop_request_negative_controls(self):
         source = (ROOT / "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c").read_text()
         mutations = {
             "native-failure-cause-lost": ("return MSCONNECTOR_ERROR_MODSECURITY_FAILURE;", "return MSCONNECTOR_ERROR_PHASE_SEQUENCE;"),
-            "header-failure-cause-lost": ("return MSCONNECTOR_ERROR_HOST_API_FAILURE;", "return MSCONNECTOR_ERROR_PHASE_SEQUENCE;"),
-            "technical-fail-open": ('runtime_init_decision(decision, phase, "deny", 503, retained_reason);',
-                'runtime_init_decision(decision, phase, "pass", 200, retained_reason);'),
-            "ignored-request-terminal-error": ('if (haproxy_modsecurity_transaction_finish(transaction) != 0)',
-                'if (haproxy_modsecurity_transaction_finish(transaction) == 123)'),
+            "header-failure-cause-lost": ("case MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE: return MSCONNECTOR_ERROR_MODSECURITY_FAILURE;", "case MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE: return MSCONNECTOR_ERROR_PHASE_SEQUENCE;"),
+            "technical-fail-open": ('runtime_init_decision(decision, retained_phase, "deny", 503, retained_reason);',
+                'runtime_init_decision(decision, retained_phase, "pass", 200, retained_reason);'),
+            "ignored-request-terminal-error": ('if (haproxy_modsecurity_transaction_finish_with_decision(transaction, decision) != 0)',
+                'if (haproxy_modsecurity_transaction_finish_with_decision(transaction, decision) == 123)'),
             "detect-only-drops-failure-ack": ('return origin != SPOP_ACK_ENGINE_DECISION || mode_enforces(config);',
                 'return origin == SPOP_ACK_ENGINE_DECISION || mode_enforces(config);'),
         }
@@ -114,8 +114,8 @@ static int test_native(const char *name) {
         mutations = {
             "direct-commit-rejected": ("(transaction->response_phases_require_companion &&\n                !transaction->response_companion_claimed)",
                 "!transaction->response_companion_claimed"),
-            "header-failure-not-terminal": ("MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);\n            return 0;",
-                "MSCONNECTOR_TRANSACTION_ERROR_NONE, 0U);\n            return 0;"),
+            "header-failure-not-terminal": ("MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, \"msc_add_response_header failed\");",
+                "MSCONNECTOR_TRANSACTION_ERROR_NONE, \"msc_add_response_header failed\");"),
         }
         for name, (old, new) in mutations.items():
             with self.subTest(mutation=name):

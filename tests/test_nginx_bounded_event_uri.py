@@ -23,6 +23,7 @@ PREAMBLE = r'''
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
+#include <unistd.h>
 #include "msconnector/event_jsonl.h"
 #include "ngx_http_modsecurity_event_uri.h"
 typedef unsigned char u_char;
@@ -36,6 +37,7 @@ enum { NGX_OK = 0, NGX_ERROR = -1, NGX_LOG_WARN = 5 };
 #define ngx_strlen strlen
 #define ngx_errno 5
 static int writes;
+static int write_failure;
 static char captured[4096];
 static void ngx_log_error(int level, void *log, int error, const char *format, ...) {
     (void)level; (void)log; (void)error; (void)format;
@@ -43,6 +45,8 @@ static void ngx_log_error(int level, void *log, int error, const char *format, .
 static ssize_t ngx_write_fd(int fd, u_char *line, size_t length) {
     if (fd != 7 || length >= sizeof(captured)) { abort(); }
     ++writes;
+    if (write_failure == 1) { return write(-1, line, length); }
+    if (write_failure == 2) { return (ssize_t)length - 1; }
     memcpy(captured, line, length);
     captured[length] = '\0';
     return (ssize_t)length;
@@ -84,6 +88,10 @@ int main(int argc, char **argv) {
     } else if (strcmp(argv[2], "oversized-method") == 0) {
         memset(method, 'M', sizeof(method)-1); method[sizeof(method)-1]='\0';
         event.request.method = method;
+    } else if (strcmp(argv[2], "write-error") == 0) {
+        write_failure = 1;
+    } else if (strcmp(argv[2], "short-write") == 0) {
+        write_failure = 2;
     } else if (strcmp(argv[2], "control") != 0) return 2;
     result = phase ? ngx_http_modsecurity_write_phase_event_jsonl(&request, &conf, &event, "phase4")
         : ngx_http_modsecurity_write_event_jsonl(&request, &conf, &event, "serialize", "write");
@@ -187,3 +195,13 @@ class BoundedEventUriTests(unittest.TestCase):
                 self.assertEqual(writes, 1)
                 self.assertIs(event["truncated"], True)
                 self.assertIs(event["redacted"], True)
+
+    def test_failed_and_incomplete_physical_writes_never_report_success(self):
+        for binary in self.binaries:
+            for writer in ("request", "phase"):
+                for scenario in ("write-error", "short-write"):
+                    with self.subTest(sanity=binary.name, writer=writer, scenario=scenario):
+                        code, writes, event, _ = self.observe(binary, writer, scenario)
+                        self.assertEqual(code, -1 if writer == "phase" else 0)
+                        self.assertEqual(writes, 1)
+                        self.assertIsNone(event)

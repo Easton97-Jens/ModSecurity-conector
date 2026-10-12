@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"os"
 	"strings"
@@ -30,14 +31,13 @@ const (
 )
 
 type Config struct {
-	SocketPath           string
-	HandleHeader         string
-	Timeout              time.Duration
-	ExpectedPeerUID      *int
-	ExpectedPeerGID      *int
-	MaxHeaderCount       int
-	MaxHeaderBytes       int
-	MaxResponseBodyBytes int64
+	SocketPath      string
+	HandleHeader    string
+	Timeout         time.Duration
+	ExpectedPeerUID *int
+	ExpectedPeerGID *int
+	MaxHeaderCount  int
+	MaxHeaderBytes  int
 }
 
 type Service struct {
@@ -108,9 +108,7 @@ func newServiceWithStreamLimit(config Config, streamLimit int) (*Service, error)
 	if config.MaxHeaderBytes <= 0 {
 		config.MaxHeaderBytes = 32768
 	}
-	if config.MaxResponseBodyBytes <= 0 {
-		config.MaxResponseBodyBytes = 1 << 20
-	}
+
 	return &Service{
 		config:          config,
 		streamSlots:     make(chan struct{}, streamLimit),
@@ -463,8 +461,8 @@ func (s *Service) terminalResponseBody(state *stream, message *extprocv3.HttpBod
 		return nil, false, fmt.Errorf("response observer: terminal authorization response body out of order")
 	}
 	bodyBytes := int64(len(message.GetBody()))
-	if bodyBytes > s.config.MaxResponseBodyBytes-state.responseBytes {
-		return nil, false, fmt.Errorf("response observer: terminal authorization response body limit exceeded")
+	if state.responseBytes < 0 || bodyBytes > math.MaxInt64-state.responseBytes {
+		return nil, false, fmt.Errorf("response observer: terminal authorization response body accounting overflow")
 	}
 	state.responseBytes += bodyBytes
 	state.responseDone = message.GetEndOfStream()
@@ -475,8 +473,8 @@ func (s *Service) observeResponseBody(state *stream, body []byte) error {
 	/* Envoy may legitimately deliver a STREAMED callback larger than one
 	 * MRC1 frame.  Validate its complete logical contribution before forwarding
 	 * any prefix, then preserve the MRC1 per-frame bound below. */
-	if int64(len(body)) > s.config.MaxResponseBodyBytes-state.responseBytes {
-		return fmt.Errorf("response observer: response body limit exceeded")
+	if state.responseBytes < 0 || int64(len(body)) > math.MaxInt64-state.responseBytes {
+		return fmt.Errorf("response observer: response body accounting overflow")
 	}
 	for len(body) > 0 {
 		chunk := body

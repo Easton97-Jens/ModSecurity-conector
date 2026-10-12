@@ -13,13 +13,11 @@ const commonBodyLimitPayload = "envoy-body-limit-payload-must-not-be-an-event-fi
 
 // Use a fresh real engine transaction for each valid or invalid host outcome.
 // A rejected host acknowledgement must not be repaired by a later valid one.
-func newCommonBodyLimitTransaction(t *testing.T) (Transaction, string) {
+func newCommonBodyLimitTransaction(t *testing.T, requestLimit int, requestAction string) (Transaction, string) {
 	t.Helper()
 	engine, eventPath := newCommonRuntimeEngineForRulesTest(t, `SecRuleEngine On
 SecRequestBodyAccess On
-SecRequestBodyLimit 32
-SecRequestBodyLimitAction Reject
-`)
+`, requestLimit, requestAction, 1048576, "Reject")
 	ctx := context.Background()
 	transaction, err := engine.Open(ctx, commonTestStreamMetadata("body-limit-without-rule-id"))
 	if err != nil {
@@ -30,7 +28,7 @@ SecRequestBodyLimitAction Reject
 		[]Header{{Name: "host", Value: []byte("example.test")}}, false)
 	assertCommonDecision(t, "request headers", decision, err, ActionAllow, 0)
 	decision, err = transaction.ProcessBody(ctx, DirectionRequest, []byte(commonBodyLimitPayload), true)
-	assertCommonDecision(t, "body limit", decision, err, ActionDeny, 413)
+	assertCommonDecision(t, "body limit", decision, err, ActionDeny, 403)
 	if decision.RuleID != "" {
 		t.Fatalf("body-limit rule ID=%q, want empty", decision.RuleID)
 	}
@@ -38,7 +36,7 @@ SecRequestBodyLimitAction Reject
 }
 
 func TestCommonBodyLimitInvalidHostActionRemainsTerminal(t *testing.T) {
-	transaction, eventPath := newCommonBodyLimitTransaction(t)
+	transaction, eventPath := newCommonBodyLimitTransaction(t, 32, "Reject")
 	ctx := context.Background()
 	recorder, ok := transaction.(HostActionRecorder)
 	if !ok {
@@ -48,7 +46,7 @@ func TestCommonBodyLimitInvalidHostActionRemainsTerminal(t *testing.T) {
 		Action: AppliedActionRedirect, VisibleStatus: 302, TransportResult: "http_status",
 	})
 	if first == nil {
-		t.Fatal("RecordHostAction() accepted a non-413 body-limit action")
+		t.Fatal("RecordHostAction() accepted a non-native body-limit action")
 	}
 	before, err := os.ReadFile(eventPath)
 	if err != nil {
@@ -56,7 +54,7 @@ func TestCommonBodyLimitInvalidHostActionRemainsTerminal(t *testing.T) {
 	}
 	for _, action := range []HostAction{
 		{Action: AppliedActionRedirect, VisibleStatus: 302, TransportResult: "http_status"},
-		{Action: AppliedActionDeny, VisibleStatus: 413, TransportResult: "http_status"},
+		{Action: AppliedActionDeny, VisibleStatus: 403, TransportResult: "http_status"},
 	} {
 		if next := recorder.RecordHostAction(ctx, action); next == nil || next.Error() != first.Error() {
 			t.Fatalf("host acknowledgement resumed or replaced first error: first=%v next=%v", first, next)

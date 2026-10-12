@@ -223,8 +223,10 @@ typedef struct {
     unsigned native_event_phase_active:1;
     /* Exact P2 SecRequestBodyLimitAction Reject marker.  It is distinct from
      * ordinary rule-ID-bearing denies and permits the canonical rule-ID-free
-     * BODY_LIMIT/413 translation only at this native boundary. */
+     * native BODY_LIMIT status reporting only at this native boundary. */
     unsigned native_request_body_limit_rejection:1;
+    unsigned request_intervention_pending:1;
+    ModSecurityIntervention pending_request_intervention;
     unsigned native_response_body_limit_rejection:1;
     unsigned native_response_body_eos:1;
     size_t response_body_append_calls;
@@ -244,6 +246,7 @@ typedef struct {
      * buffer once per request and reuses it for bounded file reads; it never
      * retains a response payload in the Common transaction or event path. */
     u_char *phase4_file_scratch;
+    u_char *request_file_scratch;
     ngx_str_t event_transaction_id;
     enum msconnector_phase native_event_phase;
     /* Keep only the bounded rule identifier needed for a metadata-only
@@ -405,6 +408,7 @@ extern ngx_module_t ngx_http_modsecurity_module;
 
 /* ngx_http_modsecurity_module.c */
 int ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_request_t *r, ngx_int_t early_log);
+ngx_int_t ngx_http_modsecurity_capture_request_body_intervention(ngx_http_request_t *r);
 ngx_http_modsecurity_ctx_t *ngx_http_modsecurity_create_ctx(ngx_http_request_t *r);
 ngx_http_modsecurity_ctx_t *ngx_http_modsecurity_get_module_ctx(ngx_http_request_t *r);
 char *ngx_str_to_char(ngx_str_t a, ngx_pool_t *p);
@@ -502,6 +506,7 @@ ngx_http_modsecurity_write_event_jsonl(
     if (written < 0 || (size_t)written != line_length) {
         ngx_log_error(NGX_LOG_WARN, r->connection->log,
             written < 0 ? ngx_errno : 0, "%s", write_failure_message);
+        return 0;
     }
 
     return 1;

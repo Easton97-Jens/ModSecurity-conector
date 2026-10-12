@@ -24,19 +24,21 @@ class HaproxyBindingPhaseContractTests(unittest.TestCase):
         )
         for call in calls:
             with self.subTest(call=call):
-                self.assertRegex(
-                    SOURCE,
-                    re.compile(rf"{call}\(.*?\)\s*!=\s*1", re.DOTALL),
-                )
+                if call in ("msc_process_request_headers", "msc_process_request_body"):
+                    self.assertRegex(SOURCE, re.compile(rf"msconnector_native_phase_succeeded\({call}\(", re.DOTALL))
+                elif call == "msc_append_request_body":
+                    self.assertRegex(SOURCE, re.compile(r"msconnector_native_body_append_can_continue\(\s*msc_append_request_body\(", re.DOTALL))
+                else:
+                    self.assertRegex(SOURCE, re.compile(rf"{call}\(.*?\)\s*!=\s*1", re.DOTALL))
 
     def test_direct_response_phase_calls_require_exact_success(self):
         calls = ("msc_add_response_header",)
         for call in calls:
             with self.subTest(call=call):
-                self.assertRegex(
-                    SOURCE,
-                    re.compile(rf"{call}\(.*?\)\s*!=\s*1", re.DOTALL),
-                )
+                if call == "msc_process_response_headers":
+                    self.assertRegex(SOURCE, re.compile(r"msconnector_native_phase_succeeded\(\s*msc_process_response_headers\(", re.DOTALL))
+                else:
+                    self.assertRegex(SOURCE, re.compile(rf"{call}\(.*?\)\s*!=\s*1", re.DOTALL))
 
         self.assertRegex(
             SOURCE,
@@ -101,20 +103,19 @@ class HaproxyBindingPhaseContractTests(unittest.TestCase):
         )
         self.assertIsNotNone(helper)
         body = helper.group(0)
-        self.assertIn("body_limit == 0U", body)
-        self.assertIn("(size_t)body_len > body_limit - *phase->body_bytes_seen", body)
+        self.assertIn("SIZE_MAX - (size_t)body_len", body)
+        self.assertNotIn("body_limit -", body)
         self.assertLess(
-            body.index("(size_t)body_len > body_limit - *phase->body_bytes_seen"),
+            body.index("SIZE_MAX - (size_t)body_len"),
             body.index("phase->append_body("),
         )
 
-    def test_request_and_response_copy_effective_common_body_limits(self):
-        self.assertIn(
-            "transaction->engine->common_config.request_body_limit", SOURCE
-        )
-        self.assertIn(
-            "msconnector_phase4_effective_body_limit(\n            transaction->engine->common_config.phase4_mode)", SOURCE
-        )
+    def test_neither_direction_has_connector_body_limit_policy(self):
+        self.assertNotIn("common_config.request_body_limit", SOURCE)
+        self.assertNotIn("contract.response_body_limit", SOURCE)
+        self.assertNotIn("common_config.response_body_limit", SOURCE)
+        self.assertIn("capture_pending_body_intervention(transaction, decision, phase->phase)", SOURCE)
+        self.assertIn("SIZE_MAX - (size_t)body_len", SOURCE)
 
 
 if __name__ == "__main__":

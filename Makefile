@@ -1209,6 +1209,17 @@ check-apache-c17:
 check-apache-intervention-cleanup:
 	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_intervention_cleanup
 
+.PHONY: check-apache-native-response-limit
+check-apache-native-response-limit:
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_native_response_limit
+
+.PHONY: check-apache-event-sink check-haproxy-spop-event-sink
+check-apache-event-sink:
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_event_sink_failures
+
+check-haproxy-spop-event-sink:
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_haproxy_spop_event_sink_failures
+
 check-apache-c17-lint:
 	@APACHE_C_STD_PROFILE=c17 sh ci/checks/connectors/apache/check-apache-c-standards.sh || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "SKIPPED: apache C17 compile check blocked in lint environment"; exit 0; fi; exit "$$rc"; }
 
@@ -1306,7 +1317,7 @@ check-haproxy-c26:
 check-i10-adapter-errors: check-i10-common-callers check-i10-haproxy-callers check-i10-envoy-callers check-i10-traefik-callers check-i10-lighttpd-callers
 
 check-i10-common-callers:
-	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_i10_service_callers
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_i10_service_callers tests.test_runtime_rule_delivery_failure
 
 check-i10-haproxy-callers:
 	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_haproxy_i10_host_callers tests.test_haproxy_i10_binding_callers
@@ -1328,6 +1339,10 @@ check-common-helpers:
 
 check-common-helpers-c17:
 	$(MAKE) check-common-helpers MSCONNECTOR_C_STD=c17
+
+.PHONY: check-i09-native-routes
+check-i09-native-routes:
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_i09_common_routes tests.test_i09_native_decision tests.test_i09_body_phase tests.test_apache_i09_filter_events tests.test_haproxy_native_results tests.test_haproxy_host_native_results connectors.traefik.tests.test_i09_api_returns connectors.lighttpd.tests.test_i09_api_returns
 
 check-common-http-header-fuzz:
 	sh ci/checks/common/check-common-http-header-fuzz.sh

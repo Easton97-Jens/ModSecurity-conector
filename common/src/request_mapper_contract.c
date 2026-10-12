@@ -17,7 +17,6 @@ void msconnector_request_mapper_contract_init(msconnector_request_mapper_contrac
     contract->headers = MSCONNECTOR_MAPPER_REQUIRED;
     contract->request_body = MSCONNECTOR_MAPPER_OPTIONAL;
     contract->max_header_count = 1024U;
-    contract->max_body_bytes = 0U;
 }
 
 int msconnector_request_mapper_contract_validate(const msconnector_request_mapper_contract *contract, char *error, size_t error_len) {
@@ -41,7 +40,6 @@ int msconnector_request_mapper_validate_output(const msconnector_request_mapper_
     if (contract->headers == MSCONNECTOR_MAPPER_REQUIRED && request->header_count > 0U && request->headers == 0) { set_error(error, error_len, "missing headers"); return 0; }
     if (contract->max_header_count > 0U && request->header_count > contract->max_header_count) { set_error(error, error_len, "too many headers"); return 0; }
     if (contract->request_body == MSCONNECTOR_MAPPER_UNSUPPORTED && request->body.size > 0U) { set_error(error, error_len, "body unsupported"); return 0; }
-    if (contract->max_body_bytes > 0U && request->body.size > contract->max_body_bytes) { set_error(error, error_len, "body too large"); return 0; }
     if (request->body.size > 0U && request->body.data == 0) { set_error(error, error_len, "missing body data"); return 0; }
     return 1;
 }

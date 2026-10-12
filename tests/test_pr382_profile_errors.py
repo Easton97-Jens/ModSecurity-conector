@@ -57,7 +57,7 @@ static int prepare(msconnector_transaction_contract *contract,
             MSCONNECTOR_TRANSACTION_TRANSITION_OK);
     }
     REQUIRE(msconnector_transaction_contract_record_response_metadata(contract,
-        201, "text/csv", 1U, 8U, 64U) == MSCONNECTOR_TRANSACTION_TRANSITION_OK);
+        201, "text/csv", 1U, 8U) == MSCONNECTOR_TRANSACTION_TRANSITION_OK);
     REQUIRE(msconnector_transaction_contract_set_response_committed(contract, committed) ==
         MSCONNECTOR_TRANSACTION_TRANSITION_OK);
     REQUIRE(begin(contract, profile, MSCONNECTOR_PHASE_RESPONSE_BODY) ==

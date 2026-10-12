@@ -3,7 +3,6 @@
 #include "common/runtime/msconnector_runtime.h"
 #include "connectors/profile_registry.h"
 #include "msconnector/late_intervention.h"
-#include "msconnector/phase4_budget.h"
 #include <arpa/inet.h>
 #include <assert.h>
 #include <errno.h>
@@ -198,6 +197,7 @@ static int sidecar_forward_response(sidecar_exchange_state *s) {
   s->client_response_started = 1;
   return 1;
 }
+static int sidecar_replay_request_body(const sidecar_exchange_state *s) { (void)s; return 1; }
 static void sidecar_finish_decision(sidecar_exchange_state *s) {
   s->handled = 1;
 }
@@ -209,9 +209,10 @@ static void sidecar_record_action(const msconnector_runtime_transaction *t,
   (void)e;
 }
 static void sidecar_record_decision_delivery_failure(
-    int fd, const msconnector_runtime_transaction *t,
+    int fd, const sidecar_owned_socket_stop *stop, const msconnector_runtime_transaction *t,
     const msconnector_decision *d, const msconnector_error *e) {
   (void)fd;
+  (void)stop;
   (void)t;
   (void)d;
   (void)e;

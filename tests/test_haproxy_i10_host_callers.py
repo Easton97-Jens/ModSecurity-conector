@@ -13,7 +13,7 @@ from tests.c_source_contract import function_definition
 ROOT = Path(__file__).resolve().parents[1]
 OVERLAY = ROOT / "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c"
 FUNCTIONS = (
-    "companion_cancel_cause_from_error", "companion_cancel_and_close", "abort_context", "finish_context", "apply_precommit_deny",
+    "companion_cancel_cause_from_error", "companion_cancel_and_close", "abort_context", "finish_context", "error_phase", "report_error", "apply_precommit_deny",
     "fail_closed_precommit", "fail_closed_postcommit", "fail_closed_request_phase",
     "companion_result_is_forwardable", "companion_record_precommit_outcome", "companion_record_terminal_outcome",
     "companion_open_and_claim", "companion_commit", "process_companion_response_headers", "send_companion_response_chunk", "finish_companion_response",

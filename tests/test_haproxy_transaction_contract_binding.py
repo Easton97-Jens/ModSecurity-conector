@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+from tests.c_source_contract import function_definition
 
 
 SOURCE = (
@@ -61,15 +62,20 @@ def test_mapping_rejection_is_terminal_and_not_ignored() -> None:
     )
     response_stage = SOURCE[response_start:response_end]
     assert "haproxy_modsecurity_map_owned_response" in response_mapper
-    assert "msconnector_transaction_contract_fail" in response_mapper
+    assert "transaction_failure(transaction, decision, MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR" in response_mapper
+    failure = function_definition(SOURCE, "transaction_failure")
+    retained = function_definition(SOURCE, "retain_transaction_failure")
+    assert "retain_transaction_failure(transaction, decision, error_class)" in failure
+    assert "msconnector_transaction_contract_fail(&transaction->contract, error_class, 0U)" in retained
     assert "if (!map_response_for_transaction(transaction, response, decision))" in response_stage
     assert "return 1;" in response_stage
     assert "common response mapper validation skipped" not in response_mapper
 
 
-def test_body_chunks_use_common_limits_and_contract_phases() -> None:
-    assert "request body exceeds Common limit" in SOURCE
-    assert "response body exceeds Common limit" in SOURCE
+def test_body_chunks_use_full_chunks_and_contract_phases() -> None:
+    assert "request body exceeds Common limit" not in SOURCE
+    assert "response body exceeds Common limit" not in SOURCE
+    assert "SIZE_MAX - (size_t)body_len" in SOURCE
     assert "msconnector_transaction_contract_begin_phase" in SOURCE
     assert "msconnector_transaction_contract_complete_phase" in SOURCE
     assert "msconnector_transaction_contract_record_body" in SOURCE
@@ -109,7 +115,7 @@ def test_body_accounting_precedes_the_native_engine_sink() -> None:
     assert "Common body phase is not active" in body_append
     assert "Common body accounting failed" in body_append
     assert "MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE" in body_append
-    assert "MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR" in body_append[native_append:]
+    assert "MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE" in body_append[native_append:]
     assert "(void)msconnector_transaction_contract_record_body" not in body_append
 
 
@@ -122,7 +128,7 @@ def test_body_eos_requires_the_same_active_common_phase_before_native_finish() -
 
     assert phase_check < native_finish
     assert "MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE" in body_finish[:native_finish]
-    assert "MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR" in body_finish[native_finish:]
+    assert "MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE" in body_finish[native_finish:]
     assert "contract_phase, 0U" in body_finish
 
 
@@ -208,7 +214,9 @@ def test_finish_reports_incomplete_contract_before_cleanup() -> None:
     finish_end = SOURCE.index("void haproxy_modsecurity_transaction_abort(", finish_start)
     finish_path = SOURCE[finish_start:finish_end]
     assert "msconnector_transaction_contract_finish" in finish_path
-    assert "transaction_cleanup(transaction, 1)" in finish_path
+    assert "msc_process_logging(transaction->transaction)" in finish_path
+    assert "msconnector_native_phase_succeeded(logging_result)" in finish_path
+    assert "transaction_cleanup(transaction, 0)" in finish_path
     assert "return result;" in finish_path
 
 
@@ -257,7 +265,10 @@ def test_spop_request_id_parser_validates_length_delimited_bytes_before_copy() -
     assert "A" in parser
     assert "UUID" in parser
     assert "run_spop_request_id_validation_self_test" in spop_source
-    assert '"SPOP request-id validation self-test failed\\n"' in spop_source
+    dispatcher = spop_source[spop_source.index("static int run_spop_protocol_self_tests("):
+                             spop_source.index("typedef struct spop_self_test_context")]
+    assert "run_spop_request_id_validation_self_test() != 0" in dispatcher
+    assert '"SPOP protocol self-test failed\\n"' in spop_source
 
 
 def test_spop_response_body_chunks_do_not_finalize_without_transport_eos() -> None:
@@ -323,10 +334,9 @@ def test_spop_rejects_response_body_activation_without_the_native_htx_eos_bridge
         "static int run_production_agent_command(", validation_start
     )
     validation_path = spop_source[validation_start:validation_end]
-    assert "response_body_limit > 0U" in validation_path
+    assert "response_body_limit" not in validation_path
     assert "response_body_timeout_ms > 0U" in validation_path
     assert 'strcmp(config->response_companion, "none") == 0' in validation_path
-    assert "unsupported with response-companion=none" in validation_path
     assert "must be zero with response-companion=none" in validation_path
     assert "validate_production_config(&config)" in spop_source
 
@@ -610,6 +620,7 @@ def test_spop_delayed_owner_lifetime_harness_is_asan_ubsan_clean() -> None:
                 "-Iconnectors/haproxy/src",
                 "tests/haproxy_spop_response_companion_lifetime_test.c",
                 "common/src/decision.c",
+                "common/src/decision_action.c",
                 "common/src/error.c",
                 "common/src/intervention.c",
                 "common/src/block_statuses.c",
@@ -652,14 +663,18 @@ def test_spop_stop_failure_exits_without_releasing_worker_owned_state() -> None:
     start = spop_source.index("static int destroy_agent_runtime(")
     end = spop_source.index("static int run_agent_server(", start)
     cleanup = spop_source[start:end]
-    stop = cleanup.index("spop_transport_stop_bounded")
-    failure = cleanup.index("event=spop-response-transport-shutdown-failed")
-    terminal = cleanup[failure:cleanup.index("    }\n", failure)]
+    stop_helper = spop_source[spop_source.index("static void stop_response_transport_or_exit("):
+                              spop_source.index("static void destroy_agent_owner_queue_or_exit(")]
+    stop = stop_helper.index("spop_transport_stop_bounded")
+    failure = stop_helper.index("event=spop-response-transport-shutdown-failed")
+    terminal = stop_helper[failure:stop_helper.index("    }\n", failure)]
     assert "_Exit(SPOP_OWNER_RESTART_EXIT_CODE);" in terminal
     assert "close_owned_stream" not in terminal
     assert "haproxy_spop_response_companion_backend_expire" not in terminal
     assert "spop_owner_queue_destroy(state)" not in terminal
     assert stop < failure
+    assert cleanup.index("stop_response_transport_or_exit(state);") < cleanup.index(
+        "expire_agent_response_backend(state);")
 
 
 def test_htx_early_response_uses_common_phase_error_path() -> None:
