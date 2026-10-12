@@ -41,6 +41,8 @@ During the final audit PR382 advanced again to `1e7f7c84`, incorporating master 
 
 Local Make lint also exposed a base integration gap: it still called raw installed actionlint, which rejected the new self-repository syntax. A separate installed-tool adapter reuses the existing safe in-memory normalizer and fixed workflow discovery. It preserves the previous PATH tool selection, default ShellCheck behavior, unchanged source and all failure/timeout outcomes; no tool/file override, download or installation. Strict security/candidate tool staging and guards are unchanged. Eleven adapter methods and actual installed-actionlint execution pass; affected local checks are recorded below.
 
+The first ordinary push of local merge `c7361835` was safely rejected because a concurrent publisher had added `9b2ef717`, an equivalent PR382-base merge. Its delta contains exactly the already inspected30-file base change and no extra product edits. A normal task-branch merge preserves that published commit and our tested corrections; the merged source tree matchesc736 before this paired record note. No force-push, rebase or discarded foreign work.
+
 ## Changed files
 
 - `.github/workflows/test-common.yml`

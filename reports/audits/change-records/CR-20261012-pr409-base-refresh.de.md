@@ -41,6 +41,8 @@ Während der Schlussprüfung aktualisierte PR382 seine Basis erneut auf `1e7f7c8
 
 Lokaler Make-Lint zeigte zudem eine Integrationslücke der Basis: Er rief weiterhin direkt installiertes actionlint auf, das neue Self-Repository-Syntax ablehnte. Separater Adapter für das installierte Tool verwendet bestehenden sicheren Normalisierer im Speicher und feste Workflow-Ermittlung. Bisherige PATH-Toolauswahl, ShellCheck-Standardverhalten, unveränderte Quellen und alle Fehler-/Timeout-Ergebnisse bleiben erhalten; keine Tool-/Datei-Overrides, Downloads oder Installation. Striktes Security-/Kandidaten-Toolstaging und Guards bleiben unverändert. Elf Adaptermethoden und echte Ausführung des installierten actionlint bestehen; betroffene lokale Prüfungen stehen unten.
 
+Erster normaler Push des lokalen Merges `c7361835` wurde sicher abgewiesen: Gleichzeitiger Publisher hatte `9b2ef717` ergänzt, einen äquivalenten PR382-Basismerge. Sein Delta enthält exakt die bereits geprüfte30-Dateien-Basisänderung ohne zusätzliche Produktedits. Normaler Taskbranch-Merge erhält diesen veröffentlichten Commit und unsere geprüften Korrekturen; zusammengeführter Sourcebaum entspricht vor dieser gepaarten Berichtsergänzungc736. Kein Force-Push, Rebase oder Verlust fremder Arbeit.
+
 ## Geänderte Dateien
 
 - `.github/workflows/test-common.yml`
