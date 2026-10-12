@@ -40,8 +40,8 @@ class NginxBodyBufferFixtureContractTest(unittest.TestCase):
                 "event": "phase4_intervention",
                 "phase": "response_body",
                 "rule_id": "1250001",
-                "body_bytes_seen": RUNNER_MODULE.FIXTURE_LIMIT + extra,
-                "body_bytes_inspected": RUNNER_MODULE.FIXTURE_LIMIT + extra,
+                "body_bytes_seen": RUNNER_MODULE.FIXTURE_PAYLOAD_BYTES + extra,
+                "body_bytes_inspected": RUNNER_MODULE.FIXTURE_PAYLOAD_BYTES + extra,
                 "body_truncated": False,
                 "truncated": False,
                 "eos_seen": True,
@@ -173,12 +173,12 @@ class NginxBodyBufferFixtureContractTest(unittest.TestCase):
 
     def test_positive_event_accounting_is_retained_with_the_rule_binding(self) -> None:
         paths = {
-            "/memory-within": RUNNER_MODULE.FIXTURE_LIMIT,
-            "/memory-over-limit": RUNNER_MODULE.FIXTURE_LIMIT + 1,
-            "/file-within": RUNNER_MODULE.FIXTURE_LIMIT,
-            "/file-over-limit": RUNNER_MODULE.FIXTURE_LIMIT + 1,
-            "/mixed-within": RUNNER_MODULE.FIXTURE_LIMIT,
-            "/mixed-over-limit": RUNNER_MODULE.FIXTURE_LIMIT + 1,
+            "/memory-within": RUNNER_MODULE.FIXTURE_PAYLOAD_BYTES,
+            "/memory-over-limit": RUNNER_MODULE.FIXTURE_PAYLOAD_BYTES + 1,
+            "/file-within": RUNNER_MODULE.FIXTURE_PAYLOAD_BYTES,
+            "/file-over-limit": RUNNER_MODULE.FIXTURE_PAYLOAD_BYTES + 1,
+            "/mixed-within": RUNNER_MODULE.FIXTURE_PAYLOAD_BYTES,
+            "/mixed-over-limit": RUNNER_MODULE.FIXTURE_PAYLOAD_BYTES + 1,
         }
         events = self._positive_events()
         retained = RUNNER_MODULE.validate_positive_events(events)
@@ -186,7 +186,7 @@ class NginxBodyBufferFixtureContractTest(unittest.TestCase):
         self.assertEqual(retained["/mixed-over-limit"]["rule_id"], "1250001")
         self.assertEqual(
             retained["/file-over-limit"]["body_bytes_seen"],
-            RUNNER_MODULE.FIXTURE_LIMIT + 1,
+            RUNNER_MODULE.FIXTURE_PAYLOAD_BYTES + 1,
         )
 
     def test_positive_event_accounting_rejects_a_mixed_file_backing_match_gap(self) -> None:

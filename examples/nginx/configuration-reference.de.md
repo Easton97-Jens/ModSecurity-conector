@@ -501,7 +501,7 @@ Zusammenführung: ngx_conf_merge_* führt Skalar-/Zeigerkonfiguration zusammen, 
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Nur P4. Response-Bytes werden ModSecurity unter Beachtung der Engine-Konfiguration und der Connector-Body-Limits weiterhin angeboten; der Modus steuert die Interventionsbehandlung, nicht den MIME-Inspektionsbereich.
+P1–P4-Relevanz: Nur P4. Response-Bytes werden ModSecurity unter Beachtung der Engine-Konfiguration weiterhin angeboten; unabhängige technische Schutzmechanismen bleiben erhalten. Der Modus steuert die Interventionsbehandlung, nicht den MIME-Inspektionsbereich.
 
 off bewahrt die native Interventionsbehandlung von NGINX, ohne die ModSecurity-Response-Body-Inspektion zu deaktivieren. safe wendet eine Intervention an, solange die Antwort noch geändert werden kann, und protokolliert eine späte disruptive Entscheidung, ohne einen neuen Status zu erfinden. strict verwendet nach dem Commit den nativen abort_connection-Pfad. Die Response-MIME-Auswahl gehört über SecResponseBodyMimeType zu ModSecurity.
 

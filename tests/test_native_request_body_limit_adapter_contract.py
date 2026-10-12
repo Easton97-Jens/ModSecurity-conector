@@ -43,16 +43,18 @@ class NativeRequestBodyLimitAdapterContractTests(unittest.TestCase):
         )
         normalize = intervention.index("msconnector_intervention_normalize_status")
         self.assertLess(classifier, normalize)
-        self.assertIn("status = body_limit ? HTTP_REQUEST_ENTITY_TOO_LARGE", intervention)
-        self.assertIn("msr->last_intervention_body_limit = body_limit;", intervention)
-        self.assertIn("HTTP_REQUEST_ENTITY_TOO_LARGE", intervention)
+        self.assertIn("status = msconnector_intervention_normalize_status(intervention->url,", intervention)
+        self.assertIn("intervention->status, default_block_status)", intervention)
+        self.assertIn("msr->last_intervention_body_limit = body_limit ||", intervention)
+        self.assertNotIn("HTTP_REQUEST_ENTITY_TOO_LARGE", intervention)
         self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT", mapper)
         self.assertLess(
             mapper.index("MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT"),
             mapper.index("msconnector_rule_id_extract_from_message"),
         )
         self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT", phase2)
-        self.assertIn("HTTP_REQUEST_ENTITY_TOO_LARGE", phase2)
+        self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT,\n                msr->last_intervention_status)", phase2)
+        self.assertNotIn("HTTP_REQUEST_ENTITY_TOO_LARGE", phase2)
 
     def test_nginx_classifies_before_rule_id_correlation_and_emits_body_limit(self) -> None:
         intervention = function_definition(
@@ -74,7 +76,9 @@ class NativeRequestBodyLimitAdapterContractTests(unittest.TestCase):
         )
         self.assertLess(classifier, normalize)
         self.assertLess(retained, normalize)
-        self.assertIn("NGX_HTTP_REQUEST_ENTITY_TOO_LARGE", intervention)
+        self.assertIn("intervention.status = msconnector_intervention_normalize_status(intervention.url,", intervention)
+        self.assertIn("ctx->last_intervention_status = intervention.status;", intervention)
+        self.assertNotIn("NGX_HTTP_REQUEST_ENTITY_TOO_LARGE", intervention)
         self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT", mapper)
         self.assertLess(
             mapper.index("MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT"),
@@ -97,7 +101,8 @@ class NativeRequestBodyLimitAdapterContractTests(unittest.TestCase):
 
         self.assertIn("msconnector_intervention_is_request_body_limit_rejection", capture)
         self.assertIn("decision->body_limit", capture)
-        self.assertIn("if (body_limit) {\n            decision->status = 413;", capture)
+        self.assertIn("decision->status = intervention.status;", capture)
+        self.assertNotIn("decision->status = 413;", capture)
         self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT", mapper)
         self.assertLess(
             mapper.index("MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT"),
@@ -106,7 +111,7 @@ class NativeRequestBodyLimitAdapterContractTests(unittest.TestCase):
         self.assertIn("SecRequestBodyLimit 8", native_self_test)
         self.assertIn("SecRequestBodyLimitAction Reject", native_self_test)
         self.assertIn("decision->body_limit != 0", native_self_test)
-        self.assertIn("decision->status == 413", native_self_test)
+        self.assertIn("decision->status == 403", native_self_test)
         self.assertIn("decision->rule_id == 0", native_self_test)
         self.assertIn(
             "return haproxy_modsecurity_request_body_limit_self_test(decision);",

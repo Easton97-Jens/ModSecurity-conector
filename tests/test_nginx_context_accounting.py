@@ -20,7 +20,13 @@ typedef unsigned char u_char;
 typedef intptr_t ngx_int_t;
 typedef struct request ngx_http_request_t;
 typedef struct transaction Transaction;
-typedef struct intervention ModSecurityIntervention;
+typedef struct intervention {
+    int status;
+    int pause;
+    char *url;
+    char *log;
+    int disruptive;
+} ModSecurityIntervention;
 typedef struct array ngx_array_t;
 typedef struct { size_t len; u_char *data; } ngx_str_t;
 '''

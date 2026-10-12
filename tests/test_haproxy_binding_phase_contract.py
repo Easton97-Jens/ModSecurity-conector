@@ -62,7 +62,7 @@ class HaproxyBindingPhaseContractTests(unittest.TestCase):
         )
         self.assertRegex(
             finish_helper.group(0),
-            re.compile(r"msconnector_native_phase_succeeded\(phase->finish_body\(", re.DOTALL),
+            re.compile(r"msconnector_native_phase_succeeded\(\s*phase->finish_body\(", re.DOTALL),
         )
 
     def test_rule_loading_keeps_its_distinct_negative_error_contract(self):
@@ -101,21 +101,19 @@ class HaproxyBindingPhaseContractTests(unittest.TestCase):
         )
         self.assertIsNotNone(helper)
         body = helper.group(0)
-        self.assertIn("body_limit == 0U", body)
-        self.assertIn("(size_t)body_len > body_limit - *phase->body_bytes_seen", body)
+        self.assertIn("SIZE_MAX - (size_t)body_len", body)
+        self.assertNotIn("body_limit -", body)
         self.assertLess(
-            body.index("(size_t)body_len > body_limit - *phase->body_bytes_seen"),
+            body.index("SIZE_MAX - (size_t)body_len"),
             body.index("phase->append_body("),
         )
 
-    def test_request_and_response_copy_effective_common_body_limits(self):
-        self.assertIn(
-            "transaction->engine->common_config.request_body_limit", SOURCE
-        )
-        self.assertIn(
-            "msconnector_phase4_effective_body_limit(\n            transaction->engine->common_config.phase4_mode)", SOURCE
-        )
-        self.assertIn("transaction->contract.response_body_limit", SOURCE)
+    def test_neither_direction_has_connector_body_limit_policy(self):
+        self.assertNotIn("common_config.request_body_limit", SOURCE)
+        self.assertNotIn("contract.response_body_limit", SOURCE)
+        self.assertNotIn("common_config.response_body_limit", SOURCE)
+        self.assertIn("capture_pending_body_intervention(transaction, decision, phase->phase)", SOURCE)
+        self.assertIn("SIZE_MAX - (size_t)body_len", SOURCE)
 
 
 if __name__ == "__main__":

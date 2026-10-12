@@ -25,7 +25,6 @@
 #include "ngx_http_modsecurity_mapper.h"
 #include "msconnector/event.h"
 #include "msconnector/event_jsonl.h"
-#include "msconnector/phase4_budget.h"
 
 static ngx_http_output_header_filter_pt ngx_http_next_header_filter;
 
@@ -590,19 +589,6 @@ ngx_http_modsecurity_handle_response_header_intervention(ngx_http_request_t *r,
         ret);
 }
 
-/* Keep metadata accounting consistent with the body planner. SIZE_MAX is an
- * arithmetic ceiling only; it is never a response allocation request. */
-static size_t
-ngx_http_modsecurity_response_body_limit(
-    const ngx_http_modsecurity_conf_t *mcf)
-{
-    if (mcf == NULL) {
-        return 0U;
-    }
-    return msconnector_phase4_effective_body_limit(
-        mcf->phase4_mode);
-}
-
 ngx_int_t
 ngx_http_modsecurity_header_filter_init(void)
 {
@@ -704,8 +690,7 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
             &response_header_bytes) != NGX_OK ||
         msconnector_transaction_contract_record_response_metadata(
             &ctx->contract, (int)status, response_content_type,
-            response_header_count, response_header_bytes,
-            ngx_http_modsecurity_response_body_limit(mcf)) !=
+            response_header_count, response_header_bytes) !=
             MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
         ctx->response_headers_processing_failed = 1;
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,

@@ -528,20 +528,19 @@ int msconnector_transaction_contract_record_request_metadata(
     const char *uri,
     const char *content_type,
     size_t header_count,
-    size_t header_bytes,
-    size_t body_limit) {
+    size_t header_bytes) {
     if (!contract_is_initialized(contract)) {
         return MSCONNECTOR_TRANSACTION_TRANSITION_INVALID;
     }
     if (!contract_mutable(contract) || header_count > MSCONNECTOR_MAX_HEADER_COUNT ||
-        header_bytes > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES || body_limit == 0U ||
+        header_bytes > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES ||
         !copy_text(contract->request_method, sizeof(contract->request_method), method, 1) ||
         !copy_text(contract->request_uri, sizeof(contract->request_uri), uri, 1) ||
         !copy_text(contract->request_content_type,
             sizeof(contract->request_content_type), content_type, 0)) {
         if (contract != NULL && contract_mutable(contract) &&
             (header_count > MSCONNECTOR_MAX_HEADER_COUNT ||
-             header_bytes > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES || body_limit == 0U)) {
+             header_bytes > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES)) {
             (void)msconnector_transaction_contract_fail(contract,
                 MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL, contract->created_at_ms);
         }
@@ -551,7 +550,6 @@ int msconnector_transaction_contract_record_request_metadata(
     }
     contract->request_header_count = header_count;
     contract->request_header_bytes = header_bytes;
-    contract->request_body_limit = body_limit;
     return MSCONNECTOR_TRANSACTION_TRANSITION_OK;
 }
 
@@ -560,19 +558,18 @@ int msconnector_transaction_contract_record_response_metadata(
     int status,
     const char *content_type,
     size_t header_count,
-    size_t header_bytes,
-    size_t body_limit) {
+    size_t header_bytes) {
     if (!contract_is_initialized(contract)) {
         return MSCONNECTOR_TRANSACTION_TRANSITION_INVALID;
     }
     if (!contract_mutable(contract) || status < 100 || status > 599 ||
         header_count > MSCONNECTOR_MAX_HEADER_COUNT ||
-        header_bytes > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES || body_limit == 0U ||
+        header_bytes > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES ||
         !copy_text(contract->response_content_type,
             sizeof(contract->response_content_type), content_type, 0)) {
         if (contract != NULL && contract_mutable(contract) &&
             (header_count > MSCONNECTOR_MAX_HEADER_COUNT ||
-             header_bytes > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES || body_limit == 0U)) {
+             header_bytes > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES)) {
             (void)msconnector_transaction_contract_fail(contract,
                 MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL, contract->created_at_ms);
         }
@@ -583,7 +580,6 @@ int msconnector_transaction_contract_record_response_metadata(
     contract->response_status = status;
     contract->response_header_count = header_count;
     contract->response_header_bytes = header_bytes;
-    contract->response_body_limit = body_limit;
     return MSCONNECTOR_TRANSACTION_TRANSITION_OK;
 }
 
@@ -607,13 +603,9 @@ int msconnector_transaction_contract_record_body(msconnector_transaction_contrac
             MSCONNECTOR_TRANSACTION_TRANSITION_PHASE_ACTIVE;
     }
     if (!increment_size(response_direction ? &contract->response_body_bytes :
-            &contract->request_body_bytes, bytes) ||
-        (response_direction && contract->response_body_limit > 0U &&
-            contract->response_body_bytes > contract->response_body_limit) ||
-        (!response_direction && contract->request_body_limit > 0U &&
-            contract->request_body_bytes > contract->request_body_limit)) {
+            &contract->request_body_bytes, bytes)) {
         (void)msconnector_transaction_contract_fail(contract,
-            MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, contract->phase_started_at_ms);
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, contract->phase_started_at_ms);
         return MSCONNECTOR_TRANSACTION_TRANSITION_INVALID;
     }
     return MSCONNECTOR_TRANSACTION_TRANSITION_OK;
@@ -1009,7 +1001,8 @@ int msconnector_transaction_contract_fail(msconnector_transaction_contract *cont
         break;
     }
     if (kind == MSCONNECTOR_TRANSACTION_DECISION_BLOCK) {
-        /* Limits are host policy errors, not a forged rule decision. */
+        /* Native body-limit rejections carry no rule correlation. Technical
+         * pointer, accounting, and phase errors use their own error classes. */
         contract->error_phase = contract->active_phase >= 0 ?
             contract->active_phase : contract->last_completed_phase;
         contract->error_class = error_class;

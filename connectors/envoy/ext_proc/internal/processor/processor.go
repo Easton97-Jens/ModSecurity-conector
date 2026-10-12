@@ -168,13 +168,6 @@ type TransactionOpener interface {
 	Open(context.Context, StreamMetadata) (Transaction, error)
 }
 
-// Phase4BodyBudgetDisabler is an optional engine capability. Only an explicit
-// off mode from the loaded engine disables the extra cumulative response
-// budget. Engines without this capability keep the existing bounded behavior.
-type Phase4BodyBudgetDisabler interface {
-	Phase4BodyBudgetDisabled() bool
-}
-
 // Transaction consumes each bounded header/body callback synchronously.
 // Body slices are borrowed from the protobuf message and must not be retained.
 type Transaction interface {
@@ -913,6 +906,9 @@ func (state *streamState) handleBody(ctx context.Context, direction Direction, m
 
 	body := message.GetBody()
 	decision := state.bodyLimitDecision(direction, len(body))
+	if decision.Action == ActionDeny && decision.Status == 500 {
+		return nil, false, fmt.Errorf("body chunk exceeds technical capacity or accounting overflow")
+	}
 	if decision.Action == ActionAllow {
 		processedDecision, err := state.processBody(ctx, direction, body, message.GetEndOfStream())
 		if err != nil {
@@ -940,20 +936,22 @@ func (state *streamState) validateBodyOrder(direction Direction) error {
 
 func (state *streamState) bodyLimitDecision(direction Direction, bodyLength int) Decision {
 	if bodyLength > state.config.MaxBodyChunkBytes {
-		return payloadTooLargeDecision()
+		return Decision{Action: ActionDeny, Status: 500}
 	}
-	current, limit := state.summary.RequestBodyBytes, state.config.MaxRequestBodyBytes
+	current := state.summary.RequestBodyBytes
+	chunks := state.summary.RequestBodyChunks
 	if direction == DirectionResponse {
-		current, limit = state.summary.ResponseBodyBytes, state.config.MaxResponseBodyBytes
-		if policy, ok := state.engine.(Phase4BodyBudgetDisabler); ok && policy.Phase4BodyBudgetDisabled() {
-			// This is an accounting ceiling, never a chunk/allocation limit.
-			limit = math.MaxInt64
-		}
+		current = state.summary.ResponseBodyBytes
+		chunks = state.summary.ResponseBodyChunks
 	}
-	next, ok := cumulativeBodyBytes(current, bodyLength)
-	if !ok || next > limit {
-		return payloadTooLargeDecision()
+	if chunks == math.MaxUint64 {
+		return Decision{Action: ActionDeny, Status: 500}
 	}
+	_, ok := cumulativeBodyBytes(current, bodyLength)
+	if !ok {
+		return Decision{Action: ActionDeny, Status: 500}
+	}
+
 	return allowDecision()
 }
 
@@ -970,10 +968,6 @@ func cumulativeBodyBytes(current int64, bodyLength int) (int64, bool) {
 		return 0, false
 	}
 	return current + increment, true
-}
-
-func payloadTooLargeDecision() Decision {
-	return Decision{Action: ActionDeny, Status: int(typev3.StatusCode_PayloadTooLarge)}
 }
 
 func (state *streamState) recordBodyProgress(direction Direction, bodyLength int, endOfStream bool) {

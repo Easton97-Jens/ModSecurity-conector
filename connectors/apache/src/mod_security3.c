@@ -129,8 +129,7 @@ int msc_apache_contract_record_request_metadata(msc_t *msr, request_rec *r)
     return msconnector_transaction_contract_record_request_metadata(&msr->contract,
         r->method == NULL ? "GET" : r->method,
         r->unparsed_uri == NULL || r->unparsed_uri[0] == '\0' ? "/" : r->unparsed_uri,
-        content_type, header_count, header_bytes,
-        effective_config.request_body_limit) ==
+        content_type, header_count, header_bytes) ==
         MSCONNECTOR_TRANSACTION_TRANSITION_OK;
 }
 
@@ -461,8 +460,7 @@ static int apache_store_native_intervention(msc_t *msr, request_rec *r,
         intervention->log);
     body_limit = msconnector_intervention_is_request_body_limit_rejection(
         msr->native_event_phase, &common_intervention);
-    status = body_limit ? HTTP_REQUEST_ENTITY_TOO_LARGE :
-        msconnector_intervention_normalize_status(intervention->url,
+    status = msconnector_intervention_normalize_status(intervention->url,
             intervention->status, default_block_status);
     log = apr_pstrdup(r->pool, intervention->log == NULL
         ? "(no log message was specified)" : intervention->log);
@@ -483,7 +481,9 @@ static int apache_store_native_intervention(msc_t *msr, request_rec *r,
     }
     msr->last_intervention_status = status;
     msr->last_intervention_log = log;
-    msr->last_intervention_body_limit = body_limit;
+    msr->last_intervention_body_limit = body_limit ||
+        msconnector_intervention_is_response_body_limit_rejection(
+            msr->native_event_phase, &common_intervention);
     if (intervention->disruptive) {
         msr->phase4_intervention = 1;
     }

@@ -413,11 +413,12 @@ checks.extend([
         and "ap_save_brigade(" not in filters_c
         and DISCARD_RESPONSE_BRIGADE_CALL in filters_c
         and DISCARD_RESPONSE_BRIGADE_CALL in utils_c
-        and "MSCONNECTOR_BODY_LIMIT_ACTION_REJECT" in filters_c
+        and "msconnector_body_limit_plan_chunk" not in phase4_append_helper
+        and "SIZE_MAX - msr->response_body_bytes_seen" in phase4_append_helper
         and "apache_phase4_in_scope" not in filters_c
         and "SecResponseBodyMimeType selection" in filters_c
         and re.search(r"!msconnector_native_body_append_can_continue\(msc_append_response_body\(msr->t,\s*"
-                      r"\(const unsigned char \*\)data, plan\.append_size\)\)", phase4_append_helper) is not None
+                      r"\(const unsigned char \*\)data, len\)\)", phase4_append_helper) is not None
         and "!msconnector_native_phase_succeeded(msc_process_response_body(msr->t))" in phase4_finish_code
         and "r->bytes_sent > 0" in filters_c
         and "response_phase4_eos_released" in filters_c
@@ -475,7 +476,10 @@ checks.extend([
         and function_call_count(input_filter_eos_handler, "apache_input_filter_terminal_error") >= 2
         and "msc_apache_contract_begin" in input_filter_process_bucket
         and "msc_apache_contract_record_body" in input_filter_process_bucket
-        and "HTTP_REQUEST_ENTITY_TOO_LARGE" in input_filter_process_bucket
+        and "HTTP_INTERNAL_SERVER_ERROR" in input_filter_process_bucket
+        and "msr->request_body_bytes_seen > SIZE_MAX - len" in input_filter_process_bucket
+        and "(len > 0 && data == NULL)" in input_filter_process_bucket
+        and "request_intervention_pending" in input_filter_process_bucket
         and "apache_input_filter_handle_eos" in input_filter_handler
         and "apache_input_filter_process_bucket" in input_filter_handler
         and "if (msr == NULL)" in input_filter_handler

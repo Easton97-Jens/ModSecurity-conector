@@ -33,6 +33,8 @@ FILTER_FUNCTIONS = (
     "apache_phase4_response_committed", "apache_phase4_abort_response_connection",
     "apache_phase4_fail_closed", "apache_phase4_handle_intervention",
     "msc_finalize_request_body", "apache_output_filter_process_headers",
+    "apache_input_filter_process_bucket", "apache_phase4_append_bucket",
+    "apache_phase4_finish_response_body",
 )
 MODULE_FUNCTIONS = (
     "msc_apache_contract_fail", "msc_apache_contract_finish",
@@ -54,7 +56,6 @@ PREAMBLE = r'''
 #include "msconnector/late_intervention.h"
 #include "msconnector/rule_id.h"
 #include "msconnector/native_result.h"
-#include "msconnector/phase4_budget.h"
 #include "connectors/profile_registry.h"
 static int fault, opens, writes, closes, diagnostics, responses, response_status;
 static int native_calls;
@@ -98,6 +99,19 @@ apr_status_t __wrap_apr_file_close(apr_file_t *file) {
      * write on a private regular file. Preserve actual cleanup, return fault. */
     return fault == 3 ? APR_EGENERAL : status;
 }
+void ap_remove_input_filter(ap_filter_t *filter) { (void)filter; }
+static apr_status_t apache_input_filter_terminal_error(msc_t *msr, request_rec *r, int status) {
+    (void)msr; (void)r; (void)status; return APR_EGENERAL;
+}
+int msc_apache_contract_record_body(msc_t *msr, int response, size_t size) {
+    (void)msr; (void)response; (void)size; return 1;
+}
+int msc_append_request_body(Transaction *transaction, const unsigned char *body, size_t size) {
+    (void)transaction; (void)body; (void)size; return 1;
+}
+int msc_append_response_body(Transaction *transaction, const unsigned char *body, size_t size) {
+    (void)transaction; (void)body; (void)size; return 1;
+}
 static void msc_discard_response_brigade(msc_t *msr) { (void)msr; }
 void ap_remove_output_filter(ap_filter_t *filter) { (void)filter; }
 static apr_status_t apache_send_precommit_terminal_error(msc_t *msr,
@@ -107,8 +121,8 @@ static apr_status_t apache_send_precommit_terminal_error(msc_t *msr,
     return AP_FILTER_ERROR;
 }
 static int apache_contract_record_response_metadata(msc_t *msr,
-        request_rec *r, const char *type, size_t limit) {
-    (void)msr; (void)r; (void)type; (void)limit; return 1;
+        request_rec *r, const char *type) {
+    (void)msr; (void)r; (void)type; return 1;
 }
 static int apache_add_response_headers(msc_t *msr, apr_table_t *headers) {
     (void)msr; (void)headers; return 1;
@@ -129,8 +143,24 @@ int msc_apache_contract_begin(msc_t *msr, enum msconnector_phase phase) {
 int msc_apache_contract_complete(msc_t *msr, enum msconnector_phase phase) {
     (void)msr; (void)phase; return 1;
 }
+static int eos_diagnostic;
 int msc_process_request_body(Transaction *transaction) {
-    (void)transaction; ++native_calls; return 1;
+    msc_t *owner = (msc_t *)transaction;
+    ++native_calls;
+    if (eos_diagnostic) {
+        (void)apache_log_rule_match_event(owner, owner->r,
+            MSCONNECTOR_PHASE_REQUEST_BODY, "1234");
+    }
+    return 1;
+}
+int msc_process_response_body(Transaction *transaction) {
+    msc_t *owner = (msc_t *)transaction;
+    ++native_calls;
+    if (eos_diagnostic) {
+        (void)apache_log_rule_match_event(owner, owner->r,
+            MSCONNECTOR_PHASE_RESPONSE_BODY, "1234");
+    }
+    return 1;
 }
 int process_intervention(Transaction *transaction, request_rec *r) {
     (void)transaction; (void)r; return HTTP_FORBIDDEN;
@@ -201,10 +231,34 @@ int main(int argc, char **argv) {
     } else if (mode == 4 || mode == 10) {
         result = apache_emit_phase1_intervention_event(&msr, &request, msr.last_intervention_status, "control");
         first = msr.intervention.event_sink_error;
-    } else if (mode == 5) {
+    } else if (mode == 5 || mode == 11) {
+        if (mode == 11) {
+            apr_bucket_alloc_t *allocator = apr_bucket_alloc_create(pool);
+            apr_bucket_brigade *output = apr_brigade_create(pool, allocator);
+            apr_bucket *bucket = apr_bucket_immortal_create("body", 4U, allocator);
+            APR_BRIGADE_INSERT_TAIL(output, bucket);
+            if (apache_input_filter_process_bucket(&msr, &request, &filter, &conf,
+                    output, bucket, APR_BLOCK_READ) != APR_SUCCESS ||
+                    !msr.request_intervention_pending) { return 95; }
+            eos_diagnostic = 1;
+        }
         result = msc_finalize_request_body(&msr, &request);
         first = msr.intervention.event_sink_error;
         (void)msc_finalize_request_body(&msr, &request);
+    } else if (mode == 12) {
+        apr_bucket_alloc_t *allocator = apr_bucket_alloc_create(pool);
+        apr_bucket_brigade *brigade = apr_brigade_create(pool, allocator);
+        apr_bucket *bucket = apr_bucket_immortal_create("body", 4U, allocator);
+        int native_intervention;
+        APR_BRIGADE_INSERT_TAIL(brigade, bucket);
+        if (apache_phase4_append_bucket(&msr, &conf, bucket) != APR_SUCCESS ||
+                !msr.response_intervention_pending) { return 96; }
+        eos_diagnostic = 1;
+        if (apache_phase4_finish_response_body(&msr, &filter, brigade,
+                &native_intervention) != APR_SUCCESS) { return 97; }
+        result = apache_phase4_handle_intervention(&msr, &conf, &filter,
+            brigade, native_intervention);
+        first = msr.intervention.event_sink_error;
     } else if (mode == 6) {
         result = apache_output_filter_process_headers(&msr, &request, &filter, NULL);
         first = msr.intervention.event_sink_error;
@@ -334,6 +388,19 @@ class ApacheEventSinkFailureTests(unittest.TestCase):
         self.assertEqual((result["opens"], result["writes"], result["closes"]), (1, 1, 1))
         self.assertEqual(len(result["bytes"].splitlines()), 1)
         json.loads(result["bytes"])
+
+    def test_eos_diagnostic_sink_failure_survives_pending_native_restore(self):
+        result = self.run_case(mode=11, fault=1)
+        self.assert_io_failure(result)
+        self.assertEqual(result["result"], 500)
+        self.assertEqual((result["opens"], result["writes"], result["closes"]), (1, 1, 1))
+
+    def test_response_eos_sink_failure_survives_captured_append_intervention(self):
+        result = self.run_case(mode=12, fault=1)
+        self.assert_io_failure(result)
+        self.assertNotEqual(result["result"], 0)
+        self.assertEqual(result["status"], 500)
+        self.assertEqual((result["opens"], result["writes"], result["closes"]), (1, 1, 1))
 
     def test_invalid_serialization_never_opens_sink(self):
         result = self.run_case(mode=1)

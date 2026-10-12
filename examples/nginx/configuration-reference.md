@@ -501,7 +501,7 @@ Merge: ngx_conf_merge_* combines scalar/pointer configuration, while msc_rules_m
 
 ### Phases and runtime effect
 
-P4 only. Response bytes continue to be offered to ModSecurity subject to engine configuration and connector body limits; the mode controls intervention handling, not MIME inspection scope.
+P4 only. Response bytes continue to be offered to ModSecurity subject to engine configuration; independent technical safeguards remain. The mode controls intervention handling, not MIME inspection scope.
 
 off preserves NGINX's native intervention handling without disabling ModSecurity response-body inspection. safe applies an intervention while the response is still changeable and records a late disruptive decision without inventing a new status. strict uses the native abort_connection path after commit. Response MIME selection belongs to ModSecurity through SecResponseBodyMimeType.
 

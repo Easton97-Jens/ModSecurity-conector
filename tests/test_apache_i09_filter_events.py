@@ -40,7 +40,6 @@ PREAMBLE = r'''
 #include "msconnector/event_jsonl.h"
 #include "msconnector/native_result.h"
 #include "msconnector/rule_id.h"
-#include "msconnector/phase4_budget.h"
 #include "connectors/profile_registry.h"
 
 static int native_result = 1, native_calls, host_calls, writes, closes, discard_calls;
@@ -82,7 +81,7 @@ int msc_add_response_header(Transaction *t, const unsigned char *key, const unsi
     (void)t; (void)key; (void)value; return 1;
 }
 static int apache_contract_record_response_metadata(msc_t *msr, request_rec *r,
-    const char *type, size_t limit) { (void)msr; (void)r; (void)type; (void)limit; return 1; }
+    const char *type) { (void)msr; (void)r; (void)type; return 1; }
 static int apache_phase3_snapshot_response_state(msc_t *msr, request_rec *r) {
     msr->response_status_snapshot = r->status; msr->response_headers_snapshot_taken = 1; return 1;
 }

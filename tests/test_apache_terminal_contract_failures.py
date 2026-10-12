@@ -92,7 +92,11 @@ class ApacheTerminalContractFailureTests(unittest.TestCase):
                 self.assertIn("msr->native_event_phase_active = 1;", phase_source)
                 self.assertIn("msr->native_event_phase_active = 0;", phase_source)
 
-        self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT", fail_closed)
+        # Genuine engine BODY_LIMIT is retained through the canonical first
+        # cause; a connector truncation flag must not invent that cause.
+        self.assertIn("error_class = msr->contract.error_class;", fail_closed)
+        self.assertIn("error_class = MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;", fail_closed)
+        self.assertNotIn("response_body_truncated", fail_closed)
         self.assertIn("msc_apache_contract_fail(msr, error_class)", fail_closed)
         self.assertIn('return "body_limit";', failure_name)
         self.assertIn('return "invalid_engine_response";', failure_name)

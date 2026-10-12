@@ -30,9 +30,9 @@ FUNCTIONS = (
     "set_admission_failure", "ensure_notify_request_id", "notify_request_has_required_endpoints",
     "protocol_failure_requires_enforcement", "mode_enforces", "production_ack_enforces",
     "process_production_notify", "finish_production_response_transaction", "process_production_response_notify", "fail_mode_closed",
-    "set_processing_failure", "set_response_correlation_failure", "set_body_limit_failure",
-    "body_exceeds_limit", "bounded_body_length", "build_response_from_notify",
-    "process_production_request_notify", "build_modsecurity_request_from_notify",
+    "set_processing_failure", "set_response_correlation_failure",
+    "build_response_from_notify",
+    "parse_sample_content_length", "notify_request_has_complete_body_sample", "process_production_request_notify", "build_modsecurity_request_from_notify",
     "notify_request_method", "notify_request_uri", "finish_or_store_request_transaction",
 )
 STUBS = r'''
@@ -238,8 +238,14 @@ int main(int argc, char **argv) {
                 state.config.response_phases_enabled = 1;
                 if (fail_finish) { state.config.response_phases_enabled=0; }
                 else { strcpy(state.config.response_companion, "native-htx"); }
-                state.config.request_body_limit = 1024U;
                 request.is_response = request.is_response_body = 0;
+                /* Complete HTTP/1.1 bodyless request with an explicitly
+                 * observed empty sample and complete empty header block. */
+                request.has_headers_bin = 1;
+                request.has_body = request.has_body_len_arg = 1;
+                request.body_len = request.advertised_body_len = 0U;
+                request.has_http_version = 1;
+                strcpy(request.http_version, "1.1");
                 request.has_client_ip = request.has_server_ip = 1;
                 strcpy(request.client_ip, "127.0.0.1");
                 strcpy(request.server_ip, "127.0.0.1");

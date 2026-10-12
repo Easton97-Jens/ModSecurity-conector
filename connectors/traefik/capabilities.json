@@ -62,7 +62,7 @@
   ],
   "host_model_constraints": [
     "The forwardAuth service alone observes the authorization request before upstream handling; the mandatory following response-observer plugin receives the corresponding response headers and streaming body.",
-    "Traefik v3.7 supports buffered forwardAuth request bodies with forwardBody and maxBodySize; the checked-in dynamic configuration enables both with a 4096-byte cap and the service config requires request_body_mode=buffered.",
+    "Traefik v3.7 supports buffered forwardAuth request bodies with forwardBody and maxBodySize; the checked-in dynamic configuration enables both with a 4096-byte cap while the service ingests the forwarded body incrementally.",
     "Traefik documents that forwardBody buffering breaks streaming, so streaming request-body inspection is outside this host path.",
     "The authorization service currently sees the Traefik-to-service socket endpoints and does not map original client connection endpoints into Common connection metadata.",
     "The full-lifecycle profile separately selects native-middleware through full-lifecycle-traefik-native in a pinned Traefik local-plugin host probe. Its selected UDS engine service performs Common/libmodsecurity evaluation, while this forwardAuth compatibility declaration remains separate and unpromoted.",
@@ -79,7 +79,7 @@
     },
     "request_body_buffered": {
       "state": "configured_not_exercised",
-      "reason": "The checked-in middleware explicitly sets forwardBody=true and maxBodySize=4096, and the service requires request_body_mode=buffered; a fresh real-host P2 result is still required for runtime promotion."
+      "reason": "The checked-in middleware explicitly sets forwardBody=true and maxBodySize=4096, while the service ingests the forwarded body incrementally; a fresh real-host P2 result is still required for runtime promotion."
     },
     "request_body_streaming": {
       "state": "unsupported_by_host_model",
@@ -203,7 +203,7 @@
     },
     "request_body_limits": {
       "state": "configured_not_exercised",
-      "reason": "Traefik maxBodySize=4096 and the Common request_body_limit=4096 are explicitly configured; a fresh real-host over-limit result is still required."
+      "reason": "Traefik forwardAuth maxBodySize=4096 remains a full-request host limitation; native engine limits require fresh real-host evidence."
     },
     "response_body_limits": {
       "state": "unsupported_by_host_model",

@@ -19,7 +19,6 @@ PREAMBLE = r'''
 #include "msconnector/intervention.h"
 #include "msconnector/rule_id.h"
 #include "msconnector/log_sanitize.h"
-#include "msconnector/phase4_budget.h"
 #include "msconnector/transaction_contract.h"
 #include "msconnector/event_jsonl.h"
 #include <stdio.h>
@@ -60,8 +59,6 @@ int main(int argc,char **argv) {
  CHECK(argc==3);result=atoi(argv[2]);tx->engine=&engine;tx->transaction=&native;
  CHECK(msconnector_transaction_contract_init(&tx->contract,msconnector_profile_registry_find("haproxy-htx"),"test-id","haproxy","test",MSCONNECTOR_TRANSACTION_MODE_STRICT,1)==0);
  tx->contract_initialized=1;
- tx->contract.request_body_limit=100;tx->contract.response_body_limit=100;
- engine.common_config.request_body_limit=100;
  engine.common_config.phase4_mode=MSCONNECTOR_PHASE4_MODE_SAFE;
  if(strcmp(argv[1],"connection")==0) {
   init_decision(&decision,1);CHECK(process_request_connection(&native,&request,&decision)==-1);
@@ -132,13 +129,14 @@ int main(int argc,char **argv) {
    tx->response_headers_processed=1;
   }
   haproxy_modsecurity_body_phase state=response_phase?response_body_phase(tx):request_body_phase(tx);
-  if(strstr(argv[1],"limit")!=NULL) {
+  if(strstr(argv[1],"overflow")!=NULL) {
    unsigned char body[101]={0}; char line[4096];
+   *state.body_bytes_seen=SIZE_MAX;
    int prior=strstr(argv[1],"prior")!=NULL;
    if(prior) CHECK(msconnector_transaction_contract_fail(&tx->contract,
        MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT,0U)==MSCONNECTOR_TRANSACTION_TRANSITION_OK);
    const msconnector_transaction_error_class expected=prior?
-       MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT:MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT;
+       MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT:MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
    snprintf(tx->request_id,sizeof(tx->request_id),"test-id");
    CHECK(append_body_chunk(tx,body,sizeof(body),&decision,&state)!=0);
    CHECK(calls==0 && tx->contract.error_class==expected);
@@ -174,7 +172,7 @@ class HaproxyNativeResultsTests(unittest.TestCase):
         source = SOURCE.read_text()
         declarations = source[source.index("struct haproxy_modsecurity_engine {"):source.index("msconnector_transaction_error_class haproxy_modsecurity_transaction_error(")]
         declarations += source[source.index("typedef int (*haproxy_modsecurity_body_append)"):source.index("static int haproxy_common_sdk_probe_semantics")]
-        names = ["copy_message", "init_decision", "native_error_decision", "contract_phase_from_decision", "decision_phase_from_contract", "retain_transaction_failure", "transaction_failure", "haproxy_modsecurity_error_event_write_checked", "haproxy_modsecurity_error_event_write", "haproxy_modsecurity_transaction_error_event_write_checked", "haproxy_modsecurity_transaction_error_event_write", "init_intervention", "capture_log_rule_id", "capture_intervention", "record_contract_decision", "begin_contract_phase", "validate_body_preconditions", "append_body_chunk", "finish_body", "request_body_phase", "response_body_phase", "request_text_or_default", "process_request_connection", "process_request_headers", "transaction_cleanup", "begin_transaction_protocol", "add_response_headers", "haproxy_modsecurity_transaction_process_response_headers", "process_transaction_logging", "haproxy_modsecurity_transaction_finish_with_decision", "haproxy_modsecurity_transaction_finish"]
+        names = ["copy_message", "init_decision", "native_error_decision", "contract_phase_from_decision", "decision_phase_from_contract", "retain_transaction_failure", "transaction_failure", "haproxy_modsecurity_error_event_write_checked", "haproxy_modsecurity_error_event_write", "haproxy_modsecurity_transaction_error_event_write_checked", "haproxy_modsecurity_transaction_error_event_write", "init_intervention", "capture_log_rule_id", "capture_intervention", "record_contract_decision", "begin_contract_phase", "capture_pending_body_intervention", "validate_body_preconditions", "append_body_chunk", "finish_body", "request_body_phase", "response_body_phase", "request_text_or_default", "process_request_connection", "process_request_headers", "transaction_cleanup", "begin_transaction_protocol", "add_response_headers", "haproxy_modsecurity_transaction_process_response_headers", "process_transaction_logging", "haproxy_modsecurity_transaction_finish_with_decision", "haproxy_modsecurity_transaction_finish"]
         declarations += "static int map_response_for_transaction(haproxy_modsecurity_transaction *t,const haproxy_modsecurity_response *r,haproxy_modsecurity_decision *d){(void)t;(void)r;(void)d;return 1;}\n"
         fixture = PREAMBLE + declarations + "\n".join(function_definition(source, name) for name in names) + MAIN
         (directory / "fixture.c").write_text(fixture)
@@ -200,18 +198,18 @@ class HaproxyNativeResultsTests(unittest.TestCase):
                     observed = subprocess.run([str(self.binary), boundary, str(result)], capture_output=True, text=True, timeout=10)
                     self.assertEqual(observed.returncode, 0, observed.stderr)
 
-    def test_first_oversized_body_chunk_emits_body_phase_once(self):
-        for boundary, phase in (("limit", "request_body"), ("response_limit", "response_body"),
-                                ("limit_prior", "request_headers"), ("response_limit_prior", "response_headers")):
+    def test_first_overflowing_body_chunk_emits_technical_body_phase_once(self):
+        for boundary, phase in (("overflow", "request_body"), ("response_overflow", "response_body"),
+                                ("overflow_prior", "request_headers"), ("response_overflow_prior", "response_headers")):
             with self.subTest(boundary=boundary):
                 observed = subprocess.run([str(self.binary), boundary, "1"], capture_output=True, text=True, timeout=10)
                 self.assertEqual(observed.returncode, 0, observed.stderr)
                 event = json.loads(observed.stdout)
                 self.assertEqual(event["phase"], phase)
                 prior = "prior" in boundary
-                self.assertEqual(event["message_id"], "MSCONN_EVENT_ENGINE_TIMEOUT" if prior else "MSCONN_EVENT_BODY_LIMIT")
-                self.assertEqual(event["event"], "engine_timeout" if prior else "body_limit")
-                self.assertEqual(event["status"], "error" if prior else "blocked")
+                self.assertEqual(event["message_id"], "MSCONN_EVENT_ENGINE_TIMEOUT" if prior else "MSCONN_EVENT_CONNECTOR_ERROR")
+                self.assertEqual(event["event"], "engine_timeout" if prior else "connector_error")
+                self.assertEqual(event["status"], "error")
                 self.assertEqual(event["rule_id"], "")
                 self.assertEqual(event["actual_action"], "")
 

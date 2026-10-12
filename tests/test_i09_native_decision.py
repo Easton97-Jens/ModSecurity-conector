@@ -105,7 +105,7 @@ int main(void) {
         types = source[source.index("#define RUNTIME_NAME_SIZE"):source.index("static void set_text_error")]
         functions = "\n".join(function_definition(source, name) for name in (
             "runtime_error", "native_is_request_body_limit_rejection",
-            "native_intervention_status", "native_capture_rule_id", "native_decision"))
+            "native_copy_redirect_target", "native_capture_rule_id", "native_decision"))
         # Only the libModSecurity call/cleanup seam is replaced. Collector,
         # decision normalization and rule-id parsing are production code.
         includes = INCLUDES[:INCLUDES.index("static int audit_calls, cleanup_calls;")]

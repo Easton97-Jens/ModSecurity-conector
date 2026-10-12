@@ -112,27 +112,28 @@ int main(void) {state_t state={0};assert(exercise(&state,MSCONNECTOR_LATE_INTERV
         self.assertNotEqual(mutation, branch)
         self.compile_and_run(harness.replace("__BRANCH__", mutation), should_fail=True)
 
-    def test_stock_response_accounting_bound_matches_all_modes(self):
+    def test_stock_declared_length_checks_representation_without_body_policy(self):
         source = (ROOT / "connectors/lighttpd/stock_sidecar/stock_sidecar.c").read_text()
-        start = source.index("if (!state->payload.response_headers.no_body &&", source.index("static int sidecar_exchange_response"))
-        condition = source[start + 4:source.index(") {", start)]
+        self.assertNotIn("phase4_effective_body_limit", source)
+        self.assertNotIn("phase4_budget.h", source)
+        self.assertNotIn("request_body_limit", source)
+        parser = function_definition(source, "sidecar_decimal")
         harness = r'''
 #include <assert.h>
+#include <errno.h>
 #include <stdint.h>
-#include "msconnector/phase4_budget.h"
-struct state_t {struct {struct {int no_body;size_t content_length;} response_headers;} payload;struct {int runtime;} dependencies;};
-static enum msconnector_phase4_mode msconnector_runtime_phase4_mode(int mode) {return (enum msconnector_phase4_mode)mode;}
-static int rejected(struct state_t *state) {return __CONDITION__;}
+#include <stdio.h>
+#include <stdlib.h>
+__PARSER__
 int main(void) {
- struct state_t state={0};state.payload.response_headers.content_length=SIZE_MAX;
- const int modes[]={MSCONNECTOR_PHASE4_MODE_OFF,MSCONNECTOR_PHASE4_MODE_SAFE,MSCONNECTOR_PHASE4_MODE_STRICT};
- for (unsigned i=0;i<sizeof(modes)/sizeof(modes[0]);++i) {state.dependencies.runtime=modes[i];assert(!rejected(&state));}
- state.dependencies.runtime=-1;state.payload.response_headers.content_length=1;assert(rejected(&state));
- state.payload.response_headers.content_length=0;assert(!rejected(&state));
- state.payload.response_headers.content_length=SIZE_MAX;state.payload.response_headers.no_body=1;assert(!rejected(&state));
+ char largest[32];size_t value=0;
+ assert(snprintf(largest,sizeof(largest),"%zu",SIZE_MAX)>0);
+ assert(sidecar_decimal(largest,&value));assert(value==SIZE_MAX);
+ assert(!sidecar_decimal("18446744073709551616",&value));
+ assert(!sidecar_decimal("42trailing",&value));
  return 0;
 }
-'''.replace("__CONDITION__", condition)
+'''.replace("__PARSER__", parser)
         self.compile_and_run(harness)
 
     def compile_and_run(self, harness, should_fail=False):
@@ -205,6 +206,12 @@ int main(void) {
  memset(&ctx,0,sizeof(ctx));ctx.transaction=(void*)1;
  assert(mod_msconnector_handle_response_abort(&r,PLUGIN_RESPONSE_ABORT_UPSTREAM_EOF,&p)==PLUGIN_BODY_HOOK_CONTINUE);assert(cancellations==1);assert(ctx.api_failed);
  assert(mod_msconnector_handle_response_abort(&r,PLUGIN_RESPONSE_ABORT_UPSTREAM_EOF,&p)==PLUGIN_BODY_HOOK_CONTINUE);assert(cancellations==1);
+ memset(&ctx,0,sizeof(ctx));ctx.transaction=(void*)1;ctx.response_processed=1;ctx.response_body_next_offset=INT64_MAX;
+ before=appends;int commits_before=commits;
+ assert(mod_msconnector_handle_response_body(&r,bytes,1,INT64_MAX,0,&p)==PLUGIN_BODY_HOOK_ERROR);
+ assert(ctx.api_failed);assert(appends==before);assert(commits==commits_before);
+ assert(mod_msconnector_handle_response_body(&r,bytes,1,INT64_MAX,1,&p)==PLUGIN_BODY_HOOK_ERROR);
+ assert(appends==before);assert(commits==commits_before);
  return 0;
 }
 '''.replace("__FUNCTIONS__", functions)

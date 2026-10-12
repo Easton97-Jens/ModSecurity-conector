@@ -13,7 +13,6 @@
 #include "msconnector/options.h"
 #include "msconnector/rule_id.h"
 #include "msconnector/body_policy.h"
-#include "msconnector/phase4_budget.h"
 #include "msconnector/native_result.h"
 
 #include <apr_file_io.h>
@@ -132,6 +131,21 @@ int msc_finalize_request_body(msc_t *msr, request_rec *r)
     msr->native_event_phase_active = 1;
     intervention = process_intervention(msr->t, r);
     msr->native_event_phase_active = 0;
+    if (msr->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE &&
+        msr->request_intervention_pending)
+    {
+        /* EOS callbacks may have observed a sink failure after the native
+         * append snapshot. Restore the native decision without resetting the
+         * independent sticky event-sink state or its no-replay marker. */
+        msconnector_error_code sink_error = msr->intervention.event_sink_error;
+        int mandatory_failed = msr->intervention.mandatory_event_failed;
+        int terminal_attempted = msr->intervention.terminal_event_attempted;
+        msr->intervention = msr->pending_request_intervention;
+        msr->intervention.event_sink_error = sink_error;
+        msr->intervention.mandatory_event_failed = mandatory_failed;
+        msr->intervention.terminal_event_attempted = terminal_attempted;
+        intervention = msr->last_intervention_status;
+    }
     if (intervention != N_INTERVENTION_STATUS)
     {
         if (!msc_apache_contract_record_intervention_decision(msr))
@@ -152,7 +166,7 @@ int msc_finalize_request_body(msc_t *msr, request_rec *r)
             apache_emit_contract_failure_event(msr, r,
                 MSCONNECTOR_PHASE_REQUEST_BODY,
                 MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT,
-                HTTP_REQUEST_ENTITY_TOO_LARGE);
+                msr->last_intervention_status);
         }
         else
         {
@@ -277,8 +291,6 @@ static apr_status_t apache_input_filter_process_bucket(msc_t *msr,
 {
     const char *data;
     apr_size_t len;
-    msconnector_body_limit_plan plan;
-    msconnector_config effective_config;
     int ret;
 
     ret = apr_bucket_read(bucket, &data, &len, block);
@@ -296,11 +308,10 @@ static apr_status_t apache_input_filter_process_bucket(msc_t *msr,
         return apache_input_filter_terminal_error(msr, r,
             HTTP_INTERNAL_SERVER_ERROR);
     }
-    /* A global-only httpd configuration need not pass through the directory
-     * merge hook. Resolve defaults in a local copy, after inheritance, rather
-     * than treating unresolved zero limits as an oversized request. */
-    if (!msconnector_config_merge(&effective_config, NULL,
-            &conf->common_config)) {
+    (void)conf;
+    if ((len > 0 && data == NULL) ||
+        msr->request_body_bytes_seen > SIZE_MAX - len ||
+        msr->request_body_bytes_inspected > SIZE_MAX - len) {
         (void)msc_apache_contract_fail(msr,
             MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
         apache_emit_contract_failure_event(msr, r,
@@ -311,41 +322,23 @@ static apr_status_t apache_input_filter_process_bucket(msc_t *msr,
         return apache_input_filter_terminal_error(msr, r,
             HTTP_INTERNAL_SERVER_ERROR);
     }
-    if (!msconnector_body_limit_plan_chunk(msr->request_body_bytes_seen,
-            msr->request_body_bytes_inspected,
-            effective_config.request_body_limit,
-            effective_config.body_limit_action, len, &plan)) {
-        msr->request_body_bytes_seen = plan.bytes_seen;
-        msr->request_body_truncated = 1;
+    if (!msc_apache_contract_record_body(msr, 0, len)) {
         (void)msc_apache_contract_fail(msr,
-            MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT);
+            MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE);
         apache_emit_contract_failure_event(msr, r,
             MSCONNECTOR_PHASE_REQUEST_BODY,
-            MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT,
-            HTTP_REQUEST_ENTITY_TOO_LARGE);
+            MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE,
+            HTTP_INTERNAL_SERVER_ERROR);
         ap_remove_input_filter(f);
         return apache_input_filter_terminal_error(msr, r,
-            HTTP_REQUEST_ENTITY_TOO_LARGE);
+            HTTP_INTERNAL_SERVER_ERROR);
     }
-    if (plan.append_size > 0 &&
-        !msc_apache_contract_record_body(msr, 0, plan.append_size)) {
-        msconnector_transaction_error_class error_class =
-            msr->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT
-            ? MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT
-            : MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE;
-        int status = error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT
-            ? HTTP_REQUEST_ENTITY_TOO_LARGE : HTTP_INTERNAL_SERVER_ERROR;
-
-        msr->request_body_bytes_seen = msr->contract.request_body_bytes;
-        (void)msc_apache_contract_fail(msr, error_class);
-        apache_emit_contract_failure_event(msr, r,
-            MSCONNECTOR_PHASE_REQUEST_BODY, error_class, status);
-        ap_remove_input_filter(f);
-        return apache_input_filter_terminal_error(msr, r, status);
-    }
-    if (plan.append_size > 0 &&
+    msr->native_event_phase = MSCONNECTOR_PHASE_REQUEST_BODY;
+    msr->native_event_phase_active = 1;
+    if (len > 0 &&
         !msconnector_native_body_append_can_continue(msc_append_request_body(msr->t,
-            (const unsigned char *)data, plan.append_size))) {
+            (const unsigned char *)data, len))) {
+        msr->native_event_phase_active = 0;
         (void)msc_apache_contract_fail(msr,
             MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE);
         apache_emit_contract_failure_event(msr, r,
@@ -356,10 +349,19 @@ static apr_status_t apache_input_filter_process_bucket(msc_t *msr,
         return apache_input_filter_terminal_error(msr, r,
             HTTP_INTERNAL_SERVER_ERROR);
     }
-    msr->request_body_bytes_seen = plan.bytes_seen;
-    msr->request_body_bytes_inspected += plan.append_size;
-    if (plan.truncated)
-        msr->request_body_truncated = 1;
+    ret = process_intervention(msr->t, r);
+    msr->native_event_phase_active = 0;
+    if (msr->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+        ap_remove_input_filter(f);
+        return apache_input_filter_terminal_error(msr, r,
+            HTTP_INTERNAL_SERVER_ERROR);
+    }
+    if (ret != N_INTERVENTION_STATUS && !msr->request_intervention_pending) {
+        msr->pending_request_intervention = msr->intervention;
+        msr->request_intervention_pending = 1;
+    }
+    msr->request_body_bytes_seen += len;
+    msr->request_body_bytes_inspected += len;
     APR_BUCKET_REMOVE(bucket);
     APR_BRIGADE_INSERT_TAIL(output, bucket);
     return APR_SUCCESS;
@@ -791,10 +793,10 @@ static msconnector_error_code apache_log_intervention_event(msc_t *msr, request_
     event.flags.headers_sent = input->response_already_committed;
     event.flags.body_started = input->phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
         input->response_already_committed;
-    /* An append/processing failure is not proof that EOS completed. */
+    /* Native failure finalization is not proof of an observed host EOS. */
     event.flags.eos_seen =
         (input->phase == MSCONNECTOR_PHASE_REQUEST_BODY && msr->request_body_processed) ||
-        (input->phase == MSCONNECTOR_PHASE_RESPONSE_BODY && msr->response_body_processed);
+        (input->phase == MSCONNECTOR_PHASE_RESPONSE_BODY && msr->response.body_eos_seen);
     event.flags.connection_aborted = strcmp(input->actual, "abort_connection") == 0;
     event.flags.body_truncated = input->phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
         msr->response_body_truncated;
@@ -977,7 +979,8 @@ static msconnector_error_code apache_phase4_log_event(msc_t *msr, request_rec *r
     {
         return MSCONNECTOR_ERROR_NONE;
     }
-    input.event_name = "phase4_intervention";
+    input.event_name = msr->last_intervention_body_limit
+        ? "body_limit" : "phase4_intervention";
     input.phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
     input.wanted = wanted;
     input.actual = actual;
@@ -1010,7 +1013,6 @@ static apr_status_t apache_phase4_append_bucket(msc_t *msr,
     const char *data = NULL;
     apr_size_t len = 0;
     apr_status_t rc;
-    msconnector_body_limit_plan plan;
 
     if (msr == NULL || conf == NULL || bucket == NULL || msr->t == NULL)
     {
@@ -1035,40 +1037,47 @@ static apr_status_t apache_phase4_append_bucket(msc_t *msr,
             return APR_EGENERAL;
         }
         msr->response_body_seen = 1;
-        /* Phase 4 has an EOS-only final decision. libModSecurity owns MIME
-         * selection and response-inspection limits, so every response bucket
-         * is appended exactly once and no P4 mode adds a connector byte
-         * policy. The shared planner is retained only for checked accounting
-         * and integer-overflow rejection. Output committed by an earlier
-         * brigade is never rewritten.
-         */
-        if (!msconnector_body_limit_plan_chunk(msr->response_body_bytes_seen,
-                msr->response_body_bytes_inspected,
-                msconnector_phase4_effective_body_limit(
-                    conf->common_config.phase4_mode),
-                MSCONNECTOR_BODY_LIMIT_ACTION_REJECT, len, &plan))
+        /* Borrow every complete bucket; engine configuration owns inspection
+         * policy. These counters only protect arithmetic and lifecycle state. */
+        if (data == NULL ||
+            msr->response_body_bytes_inspected > msr->response_body_bytes_seen ||
+            len > SIZE_MAX - msr->response_body_bytes_seen ||
+            len > SIZE_MAX - msr->response_body_bytes_inspected)
         {
-            msr->response_body_bytes_seen = plan.bytes_seen;
-            msr->response_body_truncated = 1;
+            (void)msc_apache_contract_fail(msr,
+                MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
             return APR_EGENERAL;
         }
-        msr->response_body_bytes_seen = plan.bytes_seen;
-        if (!msc_apache_contract_record_body(msr, 1, plan.append_size))
+        msr->response_body_bytes_seen += len;
+        if (!msc_apache_contract_record_body(msr, 1, len))
         {
             return APR_EGENERAL;
         }
-        if (plan.append_size > 0 &&
+        if (len > 0 &&
             !msconnector_native_body_append_can_continue(msc_append_response_body(msr->t,
-                (const unsigned char *)data, plan.append_size)))
+                (const unsigned char *)data, len)))
         {
             (void)msc_apache_contract_fail(msr,
                 MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE);
             return APR_EGENERAL;
         }
-        msr->response_body_bytes_inspected += plan.append_size;
-        if (plan.truncated)
+        msr->response_body_bytes_inspected += len;
+        if (!msr->response_intervention_pending)
         {
-            msr->response_body_truncated = 1;
+            int intervention;
+            msr->native_event_phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
+            msr->native_event_phase_active = 1;
+            intervention = process_intervention(msr->t, msr->r);
+            msr->native_event_phase_active = 0;
+            if (msr->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE)
+            {
+                return APR_EGENERAL;
+            }
+            if (intervention != N_INTERVENTION_STATUS)
+            {
+                msr->pending_response_intervention = msr->intervention;
+                msr->response_intervention_pending = 1;
+            }
         }
     }
 
@@ -1607,12 +1616,6 @@ static apr_status_t apache_phase4_fail_closed(msc_t *msr, ap_filter_t *f,
     {
         error_class = msr->contract.error_class;
     }
-    if (msr != NULL &&
-        msr->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE &&
-        msr->response_body_truncated)
-    {
-        error_class = MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT;
-    }
 
     if (bb_in != NULL)
     {
@@ -1829,7 +1832,7 @@ static int apache_response_header_metrics(const apr_table_t *headers,
 }
 
 static int apache_contract_record_response_metadata(msc_t *msr,
-    request_rec *r, const char *content_type, size_t body_limit)
+    request_rec *r, const char *content_type)
 {
     size_t header_count = 0U;
     size_t header_bytes = 0U;
@@ -1843,7 +1846,7 @@ static int apache_contract_record_response_metadata(msc_t *msr,
         return 0;
     }
     return msconnector_transaction_contract_record_response_metadata(&msr->contract,
-        r->status, content_type, header_count, header_bytes, body_limit) ==
+        r->status, content_type, header_count, header_bytes) ==
         MSCONNECTOR_TRANSACTION_TRANSITION_OK;
 }
 
@@ -1881,9 +1884,7 @@ static apr_status_t apache_output_filter_process_headers(msc_t *msr,
             HTTP_INTERNAL_SERVER_ERROR);
     }
     content_type = apache_response_content_type(r);
-    if (!apache_contract_record_response_metadata(msr, r, content_type,
-            msconnector_phase4_effective_body_limit(
-                conf->common_config.phase4_mode)))
+    if (!apache_contract_record_response_metadata(msr, r, content_type))
     {
         (void)msc_apache_contract_fail(msr,
             MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
@@ -2002,6 +2003,10 @@ static apr_status_t apache_output_filter_process_headers(msc_t *msr,
         intervention);
 }
 
+static apr_status_t apache_output_filter_finish_response(msc_t *msr,
+    msc_conf_t *conf, ap_filter_t *f, apr_bucket_brigade *bb_in,
+    apr_bucket_brigade *terminal_brigade);
+
 static apr_status_t apache_output_filter_prepare_response_brigade(msc_t *msr,
     msc_conf_t *conf, ap_filter_t *filter, apr_bucket_brigade **brigade,
     apr_bucket **eos_bucket)
@@ -2040,6 +2045,16 @@ static apr_status_t apache_output_filter_prepare_response_brigade(msc_t *msr,
                     ? "response body accounting overflow"
                     : "failed to append response body to libmodsecurity");
         }
+        if (msr->response_intervention_pending &&
+            msr->last_intervention_body_limit)
+        {
+            /* The native Reject already terminates inspection. Finish its
+             * one-shot P4 result and enforce it before forwarding this
+             * brigade or appending another bucket. No HTTP EOS is invented;
+             * this is failure finalization, not successful body completion. */
+            return apache_output_filter_finish_response(msr, conf, filter,
+                *brigade, *brigade);
+        }
     }
     return APR_SUCCESS;
 }
@@ -2076,6 +2091,21 @@ static apr_status_t apache_phase4_finish_response_body(msc_t *msr,
     msr->native_event_phase_active = 1;
     *intervention = process_intervention(msr->t, f->r);
     msr->native_event_phase_active = 0;
+    if (msr->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE &&
+        msr->response_intervention_pending)
+    {
+        /* EOS callbacks may have observed a sink failure after the native
+         * append snapshot. Restore the native decision without resetting the
+         * independent sticky event-sink state or its no-replay marker. */
+        msconnector_error_code sink_error = msr->intervention.event_sink_error;
+        int mandatory_failed = msr->intervention.mandatory_event_failed;
+        int terminal_attempted = msr->intervention.terminal_event_attempted;
+        msr->intervention = msr->pending_response_intervention;
+        msr->intervention.event_sink_error = sink_error;
+        msr->intervention.mandatory_event_failed = mandatory_failed;
+        msr->intervention.terminal_event_attempted = terminal_attempted;
+        *intervention = msr->last_intervention_status;
+    }
     if (*intervention != N_INTERVENTION_STATUS &&
         !msc_apache_contract_record_intervention_decision(msr))
     {
@@ -2115,6 +2145,31 @@ static apr_status_t apache_phase4_handle_intervention(msc_t *msr,
     msr->phase4_intervention = 1;
     msr->response.committed = apache_phase4_response_committed(msr, r);
     wanted = msc_apache_contract_intervention_action(msr);
+    /* Native Reject is a terminal inspection failure, not an ordinary late
+     * rule that Safe may downgrade to log_only. A committed prefix cannot be
+     * replaced with the native HTTP status, but EOS must never certify it as
+     * a complete successful response. Keep the native status and first cause
+     * for the event while sealing the output path in every connector mode. */
+    if (msr->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT &&
+        msr->response.committed)
+    {
+        apr_status_t rc;
+
+        msr->response_phase4_gate_failed = 1;
+        msr->response_phase4_terminal_output =
+            MSC_PHASE4_TERMINAL_OUTPUT_SEALED;
+        rc = apache_phase4_abort_response_connection(f);
+        if (apache_phase4_log_event(msr, r, wanted,
+                r->connection != NULL && r->connection->aborted
+                    ? "abort_connection" : "",
+                "native_response_body_limit_after_commit") != MSCONNECTOR_ERROR_NONE)
+        {
+            return apache_phase4_fail_closed(msr, f, bb_in, "event sink failure");
+        }
+        apr_brigade_cleanup(bb_in);
+        msc_discard_response_brigade(msr);
+        return rc;
+    }
     if (conf->common_config.phase4_mode == MSCONNECTOR_PHASE4_MODE_OFF)
     {
         if (apache_phase4_log_event(msr, r, wanted, wanted, "native_phase4_mode_off") !=
@@ -2178,6 +2233,21 @@ static apr_status_t apache_output_filter_finish_response(msc_t *msr,
 {
     int intervention = N_INTERVENTION_STATUS;
     apr_status_t rc;
+    apr_bucket *bucket;
+
+    if (terminal_brigade != NULL)
+    {
+        for (bucket = APR_BRIGADE_FIRST(terminal_brigade);
+            bucket != APR_BRIGADE_SENTINEL(terminal_brigade);
+            bucket = APR_BUCKET_NEXT(bucket))
+        {
+            if (APR_BUCKET_IS_EOS(bucket))
+            {
+                msr->response.body_eos_seen = 1;
+                break;
+            }
+        }
+    }
 
     if (!msr->response_body_processed)
     {

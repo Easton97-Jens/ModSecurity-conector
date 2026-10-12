@@ -10,7 +10,7 @@ import (
 // Exercise the Go receiver, C ABI and real Common contract together. A C-only
 // latch is insufficient when the Go caller unconditionally reports success.
 func TestCommonResponseCommitErrorReachesGoCaller(t *testing.T) {
-	engine, _ := newCommonRuntimeEngineForTest(t)
+	engine, _ := newCommonRuntimeEngineForTest(t, 1048576, "Reject", 1048576, "Reject")
 	ctx := context.Background()
 	transaction, err := engine.Open(ctx, commonTestStreamMetadata("early-commit-error"))
 	if err != nil {
@@ -38,7 +38,7 @@ func TestCommonResponseCommitErrorReachesGoCaller(t *testing.T) {
 }
 
 func TestCommonResponseCommitAcceptsValidEmptyCompletion(t *testing.T) {
-	engine, _ := newCommonRuntimeEngineForTest(t)
+	engine, _ := newCommonRuntimeEngineForTest(t, 1048576, "Reject", 1048576, "Reject")
 	ctx := context.Background()
 	transaction, err := engine.Open(ctx, commonTestStreamMetadata("empty-commit-success"))
 	if err != nil {

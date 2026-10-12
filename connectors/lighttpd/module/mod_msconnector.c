@@ -39,8 +39,6 @@ typedef struct {
     PLUGIN_DATA;
     plugin_config defaults;
     msconnector_runtime *runtime;
-    size_t request_body_limit;
-    size_t response_body_limit;
     size_t total_header_limit;
     size_t header_count_limit;
     unsigned long host_transaction_counter;
@@ -317,17 +315,6 @@ SETDEFAULTS_FUNC(mod_msconnector_set_defaults) {
         msconnector_runtime_destroy(&p->runtime);
         return HANDLER_ERROR;
     }
-    if (request_body_mode == MSCONNECTOR_BODY_MODE_STREAMING &&
-        msconnector_runtime_body_limit_action(p->runtime) !=
-          MSCONNECTOR_BODY_LIMIT_ACTION_REJECT) {
-        log_error(
-            srv->errh,
-            __FILE__,
-            __LINE__,
-            "patched lighttpd request_body_mode=streaming requires body_limit_action=reject to retain a bounded pre-upstream request-body buffer");
-        msconnector_runtime_destroy(&p->runtime);
-        return HANDLER_ERROR;
-    }
     if (request_body_mode != MSCONNECTOR_BODY_MODE_STREAMING &&
         p->defaults.request_body_gate != NULL &&
         !buffer_is_blank(p->defaults.request_body_gate)) {
@@ -358,10 +345,6 @@ SETDEFAULTS_FUNC(mod_msconnector_set_defaults) {
     }
 #endif
 
-    p->request_body_limit =
-        msconnector_runtime_request_body_limit(p->runtime);
-    p->response_body_limit =
-        msconnector_runtime_response_body_limit(p->runtime);
     p->total_header_limit =
         msconnector_runtime_total_header_limit(p->runtime);
     p->header_count_limit =
@@ -630,18 +613,6 @@ static handler_t mod_msconnector_prepare_request_body(
     if (r->reqbody_length == 0) {
         return mod_msconnector_finish_request_body(r, p, ctx);
     }
-    if (p->request_body_limit == 0U ||
-        (r->reqbody_length > 0 &&
-         (uintmax_t)r->reqbody_length > (uintmax_t)p->request_body_limit)) {
-        log_error(
-            r->conf.errh,
-            __FILE__,
-            __LINE__,
-            "patched lighttpd request body exceeds the Common P2 bound before upstream release");
-        ctx->request_body_gate_rejected = 1;
-        return mod_msconnector_error_response(
-            r, p->runtime, MSCONNECTOR_ERROR_BODY_TOO_LARGE);
-    }
     if (r->conf.stream_request_body
         & (FDEVENT_STREAM_REQUEST | FDEVENT_STREAM_REQUEST_BUFMIN)) {
         return mod_msconnector_reject_request_body_gate_conflict(
@@ -709,18 +680,11 @@ static handler_t mod_msconnector_handle_request_body(
         return mod_msconnector_error_response(
             r, p->runtime, MSCONNECTOR_ERROR_HOST_API_FAILURE);
     }
-    if (length < 0 ||
-        (uintmax_t)stream_offset > (uintmax_t)p->request_body_limit ||
-        (uintmax_t)length >
-            (uintmax_t)p->request_body_limit - (uintmax_t)stream_offset) {
-        log_error(
-            r->conf.errh,
-            __FILE__,
-            __LINE__,
-            "patched lighttpd request-body hook exceeded the Common P2 bound");
-        ctx->request_body_gate_rejected = 1;
-        return mod_msconnector_error_response(
-            r, p->runtime, MSCONNECTOR_ERROR_BODY_TOO_LARGE);
+    if (length < 0 || stream_offset < 0 ||
+        (uintmax_t)length > (uintmax_t)INT64_MAX - (uintmax_t)stream_offset) {
+        mod_msconnector_record_api_failure(ctx);
+        return mod_msconnector_error_response(r, p->runtime,
+            MSCONNECTOR_ERROR_HOST_API_FAILURE);
     }
 
     append.ctx = ctx;
@@ -907,6 +871,8 @@ static plugin_body_hook_result mod_msconnector_handle_response_body(
         }
     }
     if (stream_offset != ctx->response_body_next_offset ||
+        stream_offset < 0 ||
+        (uintmax_t)length > (uintmax_t)INT64_MAX - (uintmax_t)stream_offset ||
         (length > 0U && data == NULL)) {
         mod_msconnector_record_api_failure(ctx);
         log_error(
@@ -1059,7 +1025,6 @@ REQUEST_FUNC(mod_msconnector_handle_uri_clean) {
     msconnector_runtime_request_contract(p->runtime, &contract);
 #ifndef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
     contract.request_body = MSCONNECTOR_MAPPER_UNSUPPORTED;
-    contract.max_body_bytes = 0U;
 #endif
     if (p->header_count_limit > 0U &&
         (contract.max_header_count == 0U ||
@@ -1091,7 +1056,11 @@ REQUEST_FUNC(mod_msconnector_handle_uri_clean) {
 
     msconnector_error_init(&runtime_error);
     msconnector_decision_init(&decision);
+    #ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
+    if (!msconnector_runtime_transaction_begin_request_stream(
+#else
     if (!msconnector_runtime_transaction_begin(
+#endif
             p->runtime,
             &ctx->request,
             ctx->host_request_id,
@@ -1154,7 +1123,6 @@ REQUEST_FUNC(mod_msconnector_handle_response_start) {
     msconnector_runtime_response_contract(p->runtime, &contract);
 #ifndef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
     contract.response_body = MSCONNECTOR_MAPPER_UNSUPPORTED;
-    contract.max_body_bytes = 0U;
 #endif
     if (p->header_count_limit > 0U &&
         (contract.max_header_count == 0U ||

@@ -72,9 +72,10 @@ def test_mapping_rejection_is_terminal_and_not_ignored() -> None:
     assert "common response mapper validation skipped" not in response_mapper
 
 
-def test_body_chunks_use_common_limits_and_contract_phases() -> None:
-    assert "request body exceeds Common limit" in SOURCE
-    assert "response body exceeds Common limit" in SOURCE
+def test_body_chunks_use_full_chunks_and_contract_phases() -> None:
+    assert "request body exceeds Common limit" not in SOURCE
+    assert "response body exceeds Common limit" not in SOURCE
+    assert "SIZE_MAX - (size_t)body_len" in SOURCE
     assert "msconnector_transaction_contract_begin_phase" in SOURCE
     assert "msconnector_transaction_contract_complete_phase" in SOURCE
     assert "msconnector_transaction_contract_record_body" in SOURCE
@@ -333,10 +334,9 @@ def test_spop_rejects_response_body_activation_without_the_native_htx_eos_bridge
         "static int run_production_agent_command(", validation_start
     )
     validation_path = spop_source[validation_start:validation_end]
-    assert "response_body_limit > 0U" in validation_path
+    assert "response_body_limit" not in validation_path
     assert "response_body_timeout_ms > 0U" in validation_path
     assert 'strcmp(config->response_companion, "none") == 0' in validation_path
-    assert "unsupported with response-companion=none" in validation_path
     assert "must be zero with response-companion=none" in validation_path
     assert "validate_production_config(&config)" in spop_source
 

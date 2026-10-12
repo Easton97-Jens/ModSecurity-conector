@@ -1,4 +1,4 @@
-"""Execute first-chunk runtime limit failures at actual P2/P4 boundaries.
+"""Execute first-chunk checked accounting failures at actual P2/P4 boundaries.
 
 Production append, contract and event serialization are compiled. Only native
 append/logging/free callbacks are controlled; no live host or transport claim.
@@ -24,7 +24,7 @@ PROFILES = (
     "traefik-native-uds", "lighttpd-stock", "lighttpd-patched",
 )
 EXTRA_FUNCTIONS = (
-    "transaction_mutable_runtime", "apply_body_limit_plan",
+    "transaction_mutable_runtime",
     "begin_contract_phase", "begin_companion_contract_phase",
     "begin_or_resume_streaming_body_phase", "append_request_body_to_engine",
     "msconnector_runtime_transaction_append_request_body_chunk",
@@ -63,22 +63,21 @@ int main(int argc, char **argv) {
     msconnector_body_policy_init(&runtime.body_policy);
     runtime.body_policy.request_body_mode = MSCONNECTOR_BODY_MODE_STREAMING;
     runtime.body_policy.response_body_mode = MSCONNECTOR_BODY_MODE_STREAMING;
-    runtime.body_policy.body_limit_action = MSCONNECTOR_BODY_LIMIT_ACTION_REJECT;
-    runtime.body_policy.request_body_limit = 1U;
     runtime.config.enable = MSCONNECTOR_BOOL_ON;
     tx->response_headers_processed = phase == MSCONNECTOR_PHASE_RESPONSE_BODY;
     if (strcmp(argv[3], "prior") == 0) {
         if (msconnector_runtime_transaction_fail(tx,
                 MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT, &error) != 1) return 4;
     }
-    /* Response inspection has no connector-owned policy ceiling. SIZE_MAX
+    /* Neither direction has a connector-owned inspection ceiling. SIZE_MAX
      * tests the real checked-accounting overflow path with a one-byte input;
      * no corresponding allocation or large buffer is created. */
     if (phase == MSCONNECTOR_PHASE_RESPONSE_BODY) tx->response_body.bytes_seen = SIZE_MAX;
+    else tx->request_body.bytes_seen = SIZE_MAX;
     for (int attempt = 0; attempt < 2; ++attempt) {
         int result = phase == MSCONNECTOR_PHASE_REQUEST_BODY ?
             msconnector_runtime_transaction_append_request_body_chunk(tx,
-                (const unsigned char *)"xx", 2U, &error) :
+                (const unsigned char *)"x", 1U, &error) :
             append_response_body_chunk_internal(tx,
                 (const unsigned char *)"x", 1U, &error, companion);
         if (attempt == 0) { first = result; first_code = error.code; }
@@ -115,13 +114,13 @@ class RuntimeBodyPhaseTests(unittest.TestCase):
         names = tuple(dict.fromkeys((*FUNCTIONS, *EXTRA_FUNCTIONS)))
         definitions = [function_definition(source, name) for name in names]
         declarations = "\n".join(value[:value.index("{")] + ";" for value in definitions)
-        includes = INCLUDES + '#include "msconnector/phase4_budget.h"\n'
+        includes = INCLUDES
         fixture = includes + types + NATIVE_SEAMS + declarations + "\n"
         fixture += "\n".join(definitions) + common_fixture.MAIN[:common_fixture.MAIN.index("int main(")] + BODY_MAIN
         cls.binary = common_fixture.CommonRouteErrorTests.compile.__func__(
             cls, "body-phase", fixture, common_fixture.SOURCES)
 
-    def run_case(self, profile, phase, mode="limit"):
+    def run_case(self, profile, phase, mode="overflow"):
         result = subprocess.run([str(self.binary), profile, str(phase), mode],
                                 capture_output=True, text=True, timeout=10, check=False)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -129,26 +128,30 @@ class RuntimeBodyPhaseTests(unittest.TestCase):
         self.assertEqual(len(records), 2, "exactly one terminal event and state record")
         return records
 
-    def test_first_rejected_chunk_keeps_body_phase_and_distinct_limit_event(self):
+    def test_first_overflow_keeps_body_phase_and_distinct_connector_error_event(self):
         for profile in PROFILES:
             for phase, expected in ((3, "request_body"), (5, "response_body")):
                 with self.subTest(profile=profile, phase=expected):
                     event, state = self.run_case(profile, phase)
                     self.assertEqual(state["first"], 0)
                     self.assertEqual(state["second"], 0)
-                    self.assertEqual(state["cause"], "body_limit")
+                    self.assertEqual(state["cause"], "connector_error")
                     self.assertEqual(state["error_phase"], phase)
                     self.assertEqual(state["append_calls"], 0)
+                    self.assertEqual(state["request_finished"], int(phase == 5))
+                    self.assertEqual(state["response_finished"], 0)
+                    self.assertNotEqual(state["first_code"], 0)
+                    self.assertNotEqual(state["second_code"], 0)
                     self.assertFalse(state["completed"] & (1 << (phase - 2)))
-                    self.assertEqual(event["message_id"], "MSCONN_EVENT_BODY_LIMIT")
-                    self.assertEqual(event["event"], "body_limit")
+                    self.assertEqual(event["message_id"], "MSCONN_EVENT_CONNECTOR_ERROR")
+                    self.assertEqual(event["event"], "connector_error")
                     self.assertEqual(event["phase"], expected)
-                    self.assertEqual(event["status"], "blocked")
+                    self.assertEqual(event["status"], "error")
                     self.assertEqual(event["rule_id"], "")
                     self.assertEqual(event["actual_action"], "")
                     self.assertEqual(event["body_bytes_seen"], state["body_bytes_seen"])
 
-    def test_prior_technical_failure_prevents_limit_reclassification_or_native_reentry(self):
+    def test_prior_technical_failure_prevents_overflow_reclassification_or_native_reentry(self):
         for profile in PROFILES:
             for phase in (3, 5):
                 with self.subTest(profile=profile, phase=phase):

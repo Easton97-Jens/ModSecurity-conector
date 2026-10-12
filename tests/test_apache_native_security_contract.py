@@ -24,7 +24,7 @@ class ApacheNativeSecurityContractTests(unittest.TestCase):
             re.compile(
                 r"!msconnector_native_body_append_can_continue\("
                 r"msc_append_request_body\(msr->t,\s*"
-                r"\(const unsigned char \*\)data, plan\.append_size\)\)",
+                r"\(const unsigned char \*\)data, len\)\)",
                 re.DOTALL,
             ),
         )

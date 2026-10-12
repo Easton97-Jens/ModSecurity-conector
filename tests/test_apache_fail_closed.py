@@ -40,12 +40,12 @@ class ApacheFailClosedTests(unittest.TestCase):
         for operation in ("msc_process_uri", "msc_add_request_header", "msc_process_request_headers"):
             with self.subTest(operation=operation):
                 call = self.headers.index(f"{operation}(")
-                failure = self.headers.index(f'return apache_fail_closed(r, "{operation}");', call)
+                failure = self.headers.index(f'return apache_native_failed(r, "{operation}");', call)
                 self.assertLess(call, failure)
 
     def test_connection_failure_is_fail_closed_in_the_late_hook(self) -> None:
         call = self.late_hook.index("msc_process_connection(")
-        failure = self.late_hook.index('return apache_fail_closed(r, "msc_process_connection");', call)
+        failure = self.late_hook.index('return apache_native_failed(r, "msc_process_connection");', call)
         self.assertLess(call, failure)
         self.assertLess(failure, self.late_hook.index("process_request_headers"))
 
@@ -55,9 +55,14 @@ class ApacheFailClosedTests(unittest.TestCase):
                 self.assertRegex(self.source, re.compile(rf"{operation}\([^;]*?\)\s*!=\s*1", re.DOTALL))
 
     def test_fail_closed_keeps_connection_close_and_owner_cleanup_contract(self) -> None:
-        helper = function_body(self.source, "static int apache_fail_closed(")
+        helper = function_body(self.source, "static int apache_fail_closed_with_cause(")
         self.assertIn("return HTTP_INTERNAL_SERVER_ERROR;", helper)
         self.assertIn("r->connection->keepalive = AP_CONN_CLOSE;", helper)
+        native = function_body(self.source, "static int apache_native_failed(")
+        self.assertIn("return apache_fail_closed_with_cause(r, operation,", native)
+        self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE", native)
+        connector = function_body(self.source, "static int apache_fail_closed(")
+        self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR", connector)
         self.assertIn("apr_pool_cleanup_register(r->pool, msr,", self.source)
         self.assertIn("msc_cleanup_request_transaction, apr_pool_cleanup_null);", self.source)
 

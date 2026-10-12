@@ -1,5 +1,7 @@
 # NGINX Connector
 
+Request- and response-body inspection limits and actions belong exclusively to libModSecurity: configure `SecRequestBodyLimit`, `SecRequestBodyNoFilesLimit`, `SecRequestBodyLimitAction`, `SecResponseBodyLimit`, and `SecResponseBodyLimitAction` in the engine rules. The connector has no body-size option, default, fallback, cumulative rejection, or inspection-prefix truncation. Checked counters, pointer/file validation, and bounded scratch or transport frames remain technical safety controls.
+
 **Language:** English | [Deutsch](README.de.md)
 
 Status: adapter-owned source migration
@@ -60,9 +62,9 @@ selective intake is recorded per file in [the origin map](ORIGIN.md) and
   closed, while `msc_append_request_body()`,
   `msc_request_body_from_file()`, and `msc_append_response_body()` retain
   nonfatal `ProcessPartial` handling because that return signal also denotes
-  engine-level limit handling. That compatibility is separate from the
-  connector-owned Phase-4 body budget: an over-limit current buffer is
-  rejected before it can be forwarded downstream.
+  engine-level limit handling. Engine interventions retain their native
+  meaning; the connector forwards full response chunks without a second
+  inspection budget.
 - [PR #385](https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/385)
   at `471a2a54843bb8f560758a7e75b146db2243ab29` supplies selected
   response-header and pre-commit redirect-replacement handling. A task-local
@@ -539,9 +541,9 @@ restores the upstream representation before returning; this is an explicit
 fixture boundary, not a claim about every upstream output filter. The mixed
 control retains both representations and uses distinct file backing: the P4
 rule confirms memory-first inspection while the separately recorded forwarded
-body remains NGINX's file backing. Its test configuration selects the existing
-limit solely to exercise within-limit and reject-before-forwarding cases; it
-does not change a product default. Its allocation-error case changes only the
+body remains NGINX's file backing. Each fixture invocation explicitly supplies `--response-body-limit` and
+`--response-body-limit-action`, which configure `SecResponseBodyLimit` and
+`SecResponseBodyLimitAction` in that fixture’s engine rules. Its allocation-error case changes only the
 test binary: the same test-only boundary enables a fixture wrapper for the
 known 32 KiB `ngx_pnalloc` scratch request and records one wrapper hit. It
 neither changes connector code nor enables a production fault-injection switch.
@@ -578,6 +580,10 @@ budget; engine policy and accounting/file-read safety checks continue to apply.
 
 ## Phase-4 mode and response-body limit ownership
 
+Response-body inspection limit and action are configured exclusively through
+`SecResponseBodyLimit` and `SecResponseBodyLimitAction`. The connector has no
+option, default, fallback, or second enforcement logic for this policy.
+
 The default mode is `off`; supported values are `off`, `safe`, and `strict`.
 No valid Phase-4 mode adds a connector-owned cumulative response-inspection
 budget. libModSecurity owns WAF inspection selection and limits through
@@ -599,3 +605,5 @@ WAF inspection policy.
 
 See [the cross-connector response-limit ownership contract](../../docs/phase4-mode-budget.md)
 for the exact scope, compatibility boundary and validation limitations.
+
+Request temp files are read from the validated host descriptor with one reusable 32768-byte scratch buffer. Each complete chunk reaches the engine; the scratch size does not limit total request size. Append-time native Reject is retained through EOS, and append zero continues for native ProcessPartial.

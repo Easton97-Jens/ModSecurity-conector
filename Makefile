@@ -1209,6 +1209,10 @@ check-apache-c17:
 check-apache-intervention-cleanup:
 	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_intervention_cleanup
 
+.PHONY: check-apache-native-response-limit
+check-apache-native-response-limit:
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_native_response_limit
+
 .PHONY: check-apache-event-sink check-haproxy-spop-event-sink
 check-apache-event-sink:
 	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_event_sink_failures

@@ -122,6 +122,8 @@ typedef struct
     int committed;
     int headers_processed;
     int body_processed;
+    /* Native failure finalization can finish P4 before a host EOS bucket. */
+    int body_eos_seen;
     int phase4_intervention;
     int phase4_strict_abort;
 } msc_response_state;
@@ -168,6 +170,10 @@ typedef struct
     /* A log callback is synchronous with host processing; retain only the
      * decision needed to emit bounded native metadata. */
     msc_intervention_state intervention;
+    msc_intervention_state pending_response_intervention;
+    int response_intervention_pending;
+    msc_intervention_state pending_request_intervention;
+    int request_intervention_pending;
 } msc_t;
 
 /* Keep the established field vocabulary at call sites while grouping the

@@ -48,8 +48,6 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`spoe-agent:port`](#spoe-agent-port) | Kompatibilität | Ganzzahl | nein | nicht gesetzt, sofern nicht konfiguriert | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
 | [`spoe-agent:port-file`](#spoe-agent-port-file) | Kompatibilität | Zeichenkette/Pfad | nein | nicht gesetzt, sofern nicht konfiguriert | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
 | [`spoe-agent:ready-file`](#spoe-agent-ready-file) | Kompatibilität | Zeichenkette/Pfad | nein | nicht gesetzt, sofern nicht konfiguriert | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
-| [`spoe-agent:request-body-limit`](#spoe-agent-request-body-limit) | Kompatibilität | Ganzzahl | nein | 65532 | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
-| [`spoe-agent:response-body-limit`](#spoe-agent-response-body-limit) | Kompatibilität | Ganzzahl | nein | 0 | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | Kompatibilitäts-Response-Steuerung. Die ausgewählten SPOE-Nachrichten liefern keinen Response-Body; dies ist daher keine native P4-Unterstützung. |
 | [`spoe-agent:response-body-timeout`](#spoe-agent-response-body-timeout) | Kompatibilität | Ganzzahl | nein | 0 | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | Kompatibilitäts-Timeout für die Response-Steuerung; reines SPOE/SPOP überträgt keinen Response-Body und ist daher kein natives P4-Stream-Idle-Limit. |
 | [`spoe-agent:response-phases`](#spoe-agent-response-phases) | Kompatibilität | Boolescher Wert | nein | false | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | Kompatibilitäts-Response-Steuerung. Die ausgewählten SPOE-Nachrichten liefern keinen Response-Body; dies ist daher keine native P4-Unterstützung. |
 | [`spoe-agent:rules-dir`](#spoe-agent-rules-dir) | Kompatibilität | Zeichenkette/Pfad | nein | nicht gesetzt, sofern nicht konfiguriert | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
@@ -658,7 +656,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 ### Sicherheit und Betrieb
 
-Der Begleiter muss einen expliziten privaten UDS-Socket, passende Service-UID/GID, ein begrenztes Response-Body-Limit und eine fail-closed-Korrelation über einen opaken Handle verwenden.
+Der Begleiter muss einen expliziten privaten UDS-Socket, passende Service-UID/GID, begrenzte Protokollframes und eine fail-closed-Korrelation über einen opaken Handle verwenden.
 
 <a id="spoe-agent-response-companion-gid"></a>
 ## `spoe-agent:response-companion-gid`
@@ -713,7 +711,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 ### Sicherheit und Betrieb
 
-Der Begleiter muss einen expliziten privaten UDS-Socket, passende Service-UID/GID, ein begrenztes Response-Body-Limit und eine fail-closed-Korrelation über einen opaken Handle verwenden.
+Der Begleiter muss einen expliziten privaten UDS-Socket, passende Service-UID/GID, begrenzte Protokollframes und eine fail-closed-Korrelation über einen opaken Handle verwenden.
 
 <a id="spoe-agent-response-companion-socket"></a>
 ## `spoe-agent:response-companion-socket`
@@ -768,7 +766,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 ### Sicherheit und Betrieb
 
-Der Begleiter muss einen expliziten privaten UDS-Socket, passende Service-UID/GID, ein begrenztes Response-Body-Limit und eine fail-closed-Korrelation über einen opaken Handle verwenden.
+Der Begleiter muss einen expliziten privaten UDS-Socket, passende Service-UID/GID, begrenzte Protokollframes und eine fail-closed-Korrelation über einen opaken Handle verwenden.
 
 <a id="spoe-agent-response-companion-uid"></a>
 ## `spoe-agent:response-companion-uid`
@@ -823,7 +821,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 ### Sicherheit und Betrieb
 
-Der Begleiter muss einen expliziten privaten UDS-Socket, passende Service-UID/GID, ein begrenztes Response-Body-Limit und eine fail-closed-Korrelation über einen opaken Handle verwenden.
+Der Begleiter muss einen expliziten privaten UDS-Socket, passende Service-UID/GID, begrenzte Protokollframes und eine fail-closed-Korrelation über einen opaken Handle verwenden.
 
 <a id="timeout-client"></a>
 ## `timeout client`
@@ -2130,116 +2128,6 @@ Zusammenführung: Kein Merge; config_set übernimmt einen geparsten Wert.
 P1–P4-Relevanz: Nur Kompatibilitäts-Request-/Response-Headerpfad; keine Aussage zum nativen Response-Body-Lebenszyklus.
 
 SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption.
-
-### Validierung und Fehler
-
-Unbekannte Schlüssel lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
-
-### Beispiel
-
-Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
-
-Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agent.conf](../../examples/haproxy/compatibility-spoe/modsecurity-agent.conf).
-
-### Sicherheit und Betrieb
-
-Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberprüfung; diesen Pfad nicht zum ausgewählten nativen Kern hochstufen.
-
-<a id="spoe-agent-request-body-limit"></a>
-## `spoe-agent:request-body-limit`
-
-### Kurzbeschreibung
-
-SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption.
-
-### Syntax
-
-```text
-request-body-limit=<value>
-```
-
-### Gültige Kontexte
-
-- SPOE/SPOP-Kompatibilitätsagent-key=value-Datei
-
-### Werte
-
-| Typ | Zulässige Werte | Erforderlich |
-| --- | --- | --- |
-| Ganzzahl | dezimale Ganzzahl | nein |
-
-### Standardwert
-
-65532
-
-Quelle: `config_init(), sofern angegeben; andernfalls Initialisierung mit null/leeren Werten`.
-
-### Vererbung und Zusammenführung
-
-Keine native HTX-Vererbung; eine Konfigurationsdatei des Kompatibilitätsagenten.
-
-Zusammenführung: Kein Merge; config_set übernimmt einen geparsten Wert.
-
-### Phasen und Laufzeitwirkung
-
-P1–P4-Relevanz: Nur Kompatibilitäts-Request-/Response-Headerpfad; keine Aussage zum nativen Response-Body-Lebenszyklus.
-
-SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption.
-
-### Validierung und Fehler
-
-Unbekannte Schlüssel lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
-
-### Beispiel
-
-Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
-
-Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agent.conf](../../examples/haproxy/compatibility-spoe/modsecurity-agent.conf).
-
-### Sicherheit und Betrieb
-
-Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberprüfung; diesen Pfad nicht zum ausgewählten nativen Kern hochstufen.
-
-<a id="spoe-agent-response-body-limit"></a>
-## `spoe-agent:response-body-limit`
-
-### Kurzbeschreibung
-
-Kompatibilitäts-Response-Steuerung. Die ausgewählten SPOE-Nachrichten liefern keinen Response-Body; dies ist daher keine native P4-Unterstützung.
-
-### Syntax
-
-```text
-response-body-limit=<value>
-```
-
-### Gültige Kontexte
-
-- SPOE/SPOP-Kompatibilitätsagent-key=value-Datei
-
-### Werte
-
-| Typ | Zulässige Werte | Erforderlich |
-| --- | --- | --- |
-| Ganzzahl | dezimale Ganzzahl | nein |
-
-### Standardwert
-
-0
-
-Quelle: `config_init(), sofern angegeben; andernfalls Initialisierung mit null/leeren Werten`.
-
-### Vererbung und Zusammenführung
-
-Keine native HTX-Vererbung; eine Konfigurationsdatei des Kompatibilitätsagenten.
-
-Zusammenführung: Kein Merge; config_set übernimmt einen geparsten Wert.
-
-### Phasen und Laufzeitwirkung
-
-P1–P4-Relevanz: Nur Kompatibilitäts-Request-/Response-Headerpfad; keine Aussage zum nativen Response-Body-Lebenszyklus.
-
-Kompatibilitäts-Response-Steuerung. Die ausgewählten SPOE-Nachrichten liefern keinen Response-Body; dies ist daher keine native P4-Unterstützung.
 
 ### Validierung und Fehler
 

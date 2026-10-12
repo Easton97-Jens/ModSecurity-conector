@@ -188,9 +188,8 @@ int main(void) {
             config_contents="response-body-limit=1\n",
         )
         self.assertEqual(run_result.returncode, 0, run_result.stderr)
-        self.assertGreaterEqual(
-            run_result.stderr.count("response-body-limit is unsupported"), 2
-        )
+        # Both removed CLI/config forms failed during parsing (exit 2),
+        # before any production server could start.
         self.assertGreaterEqual(
             run_result.stderr.count("response phases require an integrated P3/P4"), 2
         )

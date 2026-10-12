@@ -73,7 +73,9 @@ typedef struct msconnector_runtime_response_companion_session {
 /*
  * Body chunks are borrowed from the host.  The runtime never retains a chunk
  * pointer after append_*_body_chunk() returns.  Counters describe metadata
- * only and are safe to place in events or result records.
+ * only and are safe to place in events or result records. For responses,
+ * bytes_inspected means bytes offered to the native engine; it does not expose
+ * the engine-owned ProcessPartial inspection prefix.
  */
 typedef struct msconnector_runtime_body_progress {
     size_t bytes_seen;
@@ -147,10 +149,6 @@ void msconnector_runtime_response_contract(
     const msconnector_runtime *runtime,
     msconnector_response_mapper_contract *contract);
 
-size_t msconnector_runtime_request_body_limit(const msconnector_runtime *runtime);
-size_t msconnector_runtime_response_body_limit(const msconnector_runtime *runtime);
-msconnector_body_limit_action msconnector_runtime_body_limit_action(
-    const msconnector_runtime *runtime);
 msconnector_body_mode msconnector_runtime_request_body_mode(
     const msconnector_runtime *runtime);
 msconnector_body_mode msconnector_runtime_response_body_mode(
@@ -183,6 +181,16 @@ int msconnector_runtime_error_http_status(
     msconnector_error_code code);
 
 int msconnector_runtime_transaction_begin(
+    msconnector_runtime *runtime,
+    const msconnector_request *request,
+    const char *host_request_id,
+    msconnector_runtime_transaction **out,
+    msconnector_decision *decision,
+    msconnector_error *error);
+
+/* Begin P1 and defer P2 EOS for this transaction, including buffered mode.
+ * No body pointer is retained; none mode keeps its existing disabled semantics. */
+int msconnector_runtime_transaction_begin_request_stream(
     msconnector_runtime *runtime,
     const msconnector_request *request,
     const char *host_request_id,
@@ -236,7 +244,7 @@ int msconnector_runtime_transaction_finish_unobserved_response_body(
     msconnector_error *error);
 
 /*
- * Close a native streaming transaction after the host has rejected its
+ * Close a native streaming or deferred-EOS transaction after the host has rejected its
  * incomplete request body before EOS. This records the logging phase exactly
  * once, but never processes or finalizes the request body, marks request-body
  * EOS, or produces a Phase-2 decision. It is only for a terminal host-side

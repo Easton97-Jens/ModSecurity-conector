@@ -134,7 +134,7 @@ make -C connectors/envoy serve-envoy-connector \
 ```
 
 The template config enables request processing, uses `x-request-id` as the host
-transaction ID header, caps request bodies at 4096 bytes, disables response-body
+transaction ID header, disables response-body
 processing, uses 403/500 block/error defaults, applies explicit header/event
 limits, and writes metadata-only JSONL outside the checkout.
 
@@ -224,9 +224,8 @@ paths. A request-only route still requires its supported response
 observer/companion to inspect Phase 4; selecting a mode does not create a
 missing response path.
 
-Legacy connector/runtime budget settings may remain parseable for
-compatibility, but they must not reject or abort a response solely because a
-legacy inspection-byte count is exceeded. Independent allocation,
+Connector/runtime cumulative response-size settings have been removed;
+unknown legacy keys are rejected during configuration loading. Independent allocation,
 buffered-storage, chunk/message/frame, timeout, overflow and transport limits
 remain active in every mode. A buffered sidecar may therefore still reject a
 response that cannot fit its bounded host storage; that is host capacity, not
@@ -234,3 +233,33 @@ WAF inspection policy.
 
 See [the cross-connector response-limit ownership contract](../../docs/phase4-mode-budget.md)
 for the exact scope, compatibility boundary and validation limitations.
+
+## Native body policy and remaining host limits
+
+Request limit/action belong exclusively to `SecRequestBodyLimit` and
+`SecRequestBodyLimitAction`; response limit/action belong exclusively to
+`SecResponseBodyLimit` and `SecResponseBodyLimitAction`. The connector adds no
+body-size option, default or cumulative enforcement. Bounded IO blocks and
+checked counters do not select an engine limit or action.
+
+The ext_authz host still buffers one authorization request: smoke config
+`max_request_bytes=4096`, composite config `max_request_bytes=33`. These are
+remaining total-request host restrictions; native ext_proc is a separate profile.
+Both templates require complete samples with `allow_partial_message: false`.
+The adapter rejects an explicit partial or ambiguous
+`x-envoy-auth-partial-body` marker before opening a Common transaction. It does
+not turn a captured prefix into native EOS or choose ProcessPartial. A complete
+sample accepted by the transport has no additional connector size threshold.
+
+The composite response companion preserves Envoy's pre-authorization buffer
+rejection with status 413 only when internal host attributes attest
+`response.code=413` and `response.code_details=request_payload_too_large`, with
+no ext_authz metadata and an unambiguous response status. This path opens no
+Common transaction and records no native P2/P4 decision. Client/upstream headers
+cannot select it; other lease-less responses retain the existing failure path.
+
+An observed composite lease timeout records Common's existing typed timeout;
+a controlled coordinator restart records its typed connector error before
+checked finish/destruction. Neither fabricates response phases or EOS.
+Ordinary incomplete stream closure, timeout-event output failures and retained
+adapter errors remain cleanup failures.

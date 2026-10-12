@@ -454,8 +454,6 @@ func TestCumulativeBodyAccountingRejectsSignedOverflow(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			config := testConfig(LateActionSafe)
-			config.MaxRequestBodyBytes = math.MaxInt64
-			config.MaxResponseBodyBytes = math.MaxInt64
 			state := newStreamState(config, recordingEngine{transaction: &recordingTransaction{}}, discardObserver{})
 
 			// The last representable byte is a legitimate boundary and must be
@@ -865,42 +863,21 @@ func TestRequestDenyUsesImmediateResponseBeforeResponseHeaders(t *testing.T) {
 	}
 }
 
-func TestRequestBodyLimitUses413WithoutEngineBodyDispatch(t *testing.T) {
+func TestRequestBodyHasNoConnectorAggregateGate(t *testing.T) {
 	transaction := &recordingTransaction{}
-	config := testConfig(LateActionSafe)
-	config.MaxRequestBodyBytes = 4
-	service, err := NewService(config, recordingEngine{transaction: transaction})
+	service, err := NewService(testConfig(LateActionSafe), recordingEngine{transaction: transaction})
 	if err != nil {
-		t.Fatalf("NewService() error = %v", err)
+		t.Fatal(err)
 	}
-	stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
-		{request: requestHeaders(false)},
-		{request: requestBody([]byte("12345"), true)},
-	}}
-
+	stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{{request: requestHeaders(false)}, {request: requestBody([]byte("12345"), true)}}}
 	if err := service.Process(stream); err != nil {
-		t.Fatalf("Process() error = %v", err)
+		t.Fatal(err)
 	}
-	if got, want := len(stream.sent), 2; got != want {
-		t.Fatalf("sent responses = %d, want %d", got, want)
+	if len(transaction.requestBodyLengths) != 1 || transaction.requestBodyLengths[0] != 5 {
+		t.Fatalf("full input not dispatched: %v", transaction.requestBodyLengths)
 	}
-	if response := stream.sent[1].GetImmediateResponse(); response == nil || int(response.GetStatus().GetCode()) != 413 {
-		t.Fatalf("expected a request-body immediate 413 response, got %#v", stream.sent[1])
-	}
-	if got := transaction.requestBodyLengths; len(got) != 0 {
-		t.Fatalf("over-limit request body reached engine dispatch: %v", got)
-	}
-	if len(transaction.closed) != 1 {
-		t.Fatalf("close calls = %d, want 1", len(transaction.closed))
-	}
-	summary := transaction.closed[0]
-	if summary.CloseReason != CloseImmediateResponse || summary.RequestBodyChunks != 1 || summary.RequestBodyBytes != 5 {
-		t.Fatalf("unexpected body-limit cleanup summary: %#v", summary)
-	}
-	if got, want := transaction.hostActions, []HostAction{{
-		Action: AppliedActionDeny, VisibleStatus: 413, TransportResult: "http_status",
-	}}; !sameHostActions(got, want) {
-		t.Fatalf("host actions = %#v, want %#v", got, want)
+	if stream.sent[1].GetImmediateResponse() != nil {
+		t.Fatal("connector selected an aggregate body rejection")
 	}
 }
 
@@ -1340,8 +1317,6 @@ func testConfig(policy LateActionPolicy) Config {
 		MaxHeaderValueBytes:  8192,
 		MaxTotalHeaderBytes:  32768,
 		MaxBodyChunkBytes:    1024,
-		MaxRequestBodyBytes:  4096,
-		MaxResponseBodyBytes: 4096,
 		MaxGRPCMessageBytes:  2048,
 		EngineTimeoutMS:      100,
 		StreamIdleTimeoutMS:  100,

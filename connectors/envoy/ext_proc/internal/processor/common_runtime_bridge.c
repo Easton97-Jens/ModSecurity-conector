@@ -412,7 +412,7 @@ int msc_envoy_ext_proc_transaction_begin(
             "Common transaction allocation failed");
         return 0;
     }
-    result = msconnector_runtime_transaction_begin(runtime->runtime,
+    result = msconnector_runtime_transaction_begin_request_stream(runtime->runtime,
         &native_request, request->transaction_id, &transaction->transaction,
         &native_decision, &runtime_error);
     free(headers);
@@ -630,6 +630,41 @@ const char *msc_envoy_ext_proc_transaction_id(
 {
     return transaction == NULL || transaction->transaction == NULL ? NULL :
         msconnector_runtime_transaction_id(transaction->transaction);
+}
+
+int msc_envoy_ext_proc_transaction_observed_close(
+    msc_envoy_ext_proc_transaction *transaction,
+    msc_envoy_ext_proc_observed_close_cause cause, char *error, size_t error_len)
+{
+    msconnector_error runtime_error;
+    int result;
+
+    if (!msc_envoy_ext_proc_check_transaction(transaction, error, error_len)) {
+        return 0;
+    }
+    msconnector_error_init(&runtime_error);
+    switch (cause) {
+    case MSC_ENVOY_EXT_PROC_CLOSE_TIMEOUT:
+        result = msconnector_runtime_transaction_timeout(transaction->transaction,
+            &runtime_error);
+        break;
+    case MSC_ENVOY_EXT_PROC_CLOSE_RESTART:
+        result = msconnector_runtime_transaction_fail(transaction->transaction,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, &runtime_error);
+        break;
+    default:
+        return msc_envoy_ext_proc_fail(transaction, MSCONNECTOR_ERROR_INTERNAL,
+            error, error_len);
+    }
+    if (result != 1) {
+        transaction->failure_code = runtime_error.code == MSCONNECTOR_ERROR_NONE ?
+            MSCONNECTOR_ERROR_INTERNAL : runtime_error.code;
+        msc_envoy_ext_proc_set_runtime_error(error, error_len, &runtime_error,
+            "Common runtime observed close failed");
+        return 0;
+    }
+    transaction->terminal = 1;
+    return 1;
 }
 
 int msc_envoy_ext_proc_transaction_close_checked(

@@ -171,14 +171,12 @@ typedef struct msconnector_transaction_contract {
         size_t request_header_count;
         size_t request_header_bytes;
         size_t request_body_bytes;
-        size_t request_body_limit;
     };
     struct {
         char response_content_type[MSCONNECTOR_TRANSACTION_CONTRACT_CONTENT_TYPE_SIZE];
         size_t response_header_count;
         size_t response_header_bytes;
         size_t response_body_bytes;
-        size_t response_body_limit;
         int response_status;
         int response_committed;
     };
@@ -271,15 +269,13 @@ int msconnector_transaction_contract_record_request_metadata(
     const char *uri,
     const char *content_type,
     size_t header_count,
-    size_t header_bytes,
-    size_t body_limit);
+    size_t header_bytes);
 int msconnector_transaction_contract_record_response_metadata(
     msconnector_transaction_contract *contract,
     int status,
     const char *content_type,
     size_t header_count,
-    size_t header_bytes,
-    size_t body_limit);
+    size_t header_bytes);
 int msconnector_transaction_contract_record_body(msconnector_transaction_contract *contract,
     int response_direction,
     size_t bytes);

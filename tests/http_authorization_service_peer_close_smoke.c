@@ -13,6 +13,7 @@
 #include "msconnector/decision.h"
 #include "msconnector/error.h"
 #include "msconnector/request_mapper_contract.h"
+#include "fixtures/http_authorization_request_stream_stubs.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -28,7 +29,6 @@
 #include <unistd.h>
 
 struct msconnector_runtime { int unused; };
-struct msconnector_runtime_transaction { int unused; };
 static struct msconnector_runtime fake_runtime;
 static int ready_fd = -1;
 static int release_fd = -1;
@@ -238,10 +238,8 @@ void msconnector_runtime_destroy(msconnector_runtime **runtime) {
 void msconnector_runtime_request_contract(const msconnector_runtime *runtime,
     msconnector_request_mapper_contract *contract) {
     (void)runtime; msconnector_request_mapper_contract_init(contract);
-    contract->max_header_count = 16U; contract->max_body_bytes = 1024U;
+    contract->max_header_count = 16U;
 }
-size_t msconnector_runtime_request_body_limit(const msconnector_runtime *r)
-    { (void)r; return 1024U; }
 size_t msconnector_runtime_total_header_limit(const msconnector_runtime *r)
     { (void)r; return 4096U; }
 size_t msconnector_runtime_header_count_limit(const msconnector_runtime *r)
@@ -251,7 +249,7 @@ int msconnector_runtime_error_log_enabled(const msconnector_runtime *r)
 int msconnector_runtime_error_http_status(const msconnector_runtime *r,
     msconnector_error_code code) { (void)r; (void)code; return 500; }
 
-int msconnector_runtime_transaction_begin(msconnector_runtime *runtime,
+int msconnector_runtime_transaction_begin_request_stream(msconnector_runtime *runtime,
     const msconnector_request *request, const char *request_id,
     msconnector_runtime_transaction **out, msconnector_decision *decision,
     msconnector_error *error) {
@@ -275,8 +273,8 @@ int msconnector_runtime_transaction_finish(msconnector_runtime_transaction *t,
     msconnector_error *error) {
     char release;
 
-    if (t == NULL) return 0;
-    t->unused = 0;
+    if (t == NULL || t->finished) return 0;
+    t->finished = 1;
     /* This is the last fake-runtime callback before response serialization.
      * It lets the parent send the RST before the service reaches send_all(). */
     if (transaction_count == 1U &&
@@ -442,6 +440,7 @@ cleanup:
 }
 
 int main(void) {
+    msconnector_test_request_stream_stubs_smoke();
     const int result = run_peer_test();
 
     if (result == EXIT_SUCCESS) {

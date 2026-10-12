@@ -432,7 +432,7 @@ func (transaction *commonRuntimeTransaction) TransactionID() string {
 	return transaction.transactionID
 }
 
-func (transaction *commonRuntimeTransaction) Close(ctx context.Context, _ Summary) {
+func (transaction *commonRuntimeTransaction) Close(ctx context.Context, summary Summary) {
 	if transaction == nil || transaction.engine == nil {
 		return
 	}
@@ -449,18 +449,39 @@ func (transaction *commonRuntimeTransaction) Close(ctx context.Context, _ Summar
 	}
 	if transaction.native != nil && !transaction.engine.closed {
 		var nativeError [commonRuntimeErrorBufferSize]C.char
+		// Only observed composite expiry/restart supplies a typed terminal
+		// cause. Ordinary incomplete stream closes retain the native EOS gate.
+		if cause := commonRuntimeObservedCloseCause(summary.CloseReason); cause != C.MSC_ENVOY_EXT_PROC_CLOSE_UNOBSERVED {
+			if C.msc_envoy_ext_proc_transaction_observed_close(transaction.native, cause,
+				&nativeError[0], C.size_t(len(nativeError))) == 0 {
+				transaction.setCleanupFailure(fmt.Errorf("Common runtime %s: %s", summary.CloseReason, nativeErrorText(nativeError[:])))
+			}
+		}
 		var finishCode C.int
-		C.msc_envoy_ext_proc_transaction_close_checked(transaction.native,
+		closed := C.msc_envoy_ext_proc_transaction_close_checked(transaction.native,
 			&nativeError[0], C.size_t(len(nativeError)), &finishCode)
 		if finishCode == C.MSCONNECTOR_ERROR_PHASE_SEQUENCE {
 			transaction.setCleanupFailure(fmt.Errorf("%w: %s", ErrTransactionFinishPhaseSequence, nativeErrorText(nativeError[:])))
 		} else if finishCode != C.MSCONNECTOR_ERROR_NONE {
 			transaction.setCleanupFailure(fmt.Errorf("Common runtime finish: %s", nativeErrorText(nativeError[:])))
+		} else if closed == 0 {
+			transaction.setCleanupFailure(fmt.Errorf("Common runtime close: %s", nativeErrorText(nativeError[:])))
 		}
 		transaction.native = nil
 	}
 	transaction.closed = true
 	delete(transaction.engine.transactions, transaction)
+}
+
+func commonRuntimeObservedCloseCause(reason CloseReason) C.msc_envoy_ext_proc_observed_close_cause {
+	switch reason {
+	case CloseReason("timeout"):
+		return C.MSC_ENVOY_EXT_PROC_CLOSE_TIMEOUT
+	case CloseReason("restart"):
+		return C.MSC_ENVOY_EXT_PROC_CLOSE_RESTART
+	default:
+		return C.MSC_ENVOY_EXT_PROC_CLOSE_UNOBSERVED
+	}
 }
 
 func (transaction *commonRuntimeTransaction) setCleanupFailure(err error) {
