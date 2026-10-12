@@ -45,7 +45,7 @@ while withholding upstream replay until native P2 allows it. Disk errors remain
 technical failures, rather than selecting an inspection prefix or limit action.
 
 `bytes_inspected` describes bytes offered to the engine, not the native
-ProcessPartial prefix. Append zero is operation-specific and must not be
+ProcessPartial prefix. An append return value of 0 is operation-specific and must not be
 misreported as allocation or file failure when native ProcessPartial permits it.
 Native Request Reject may report HTTP 403 during append, whereas another native
 path may report 413; the connector preserves the actual result through EOS.

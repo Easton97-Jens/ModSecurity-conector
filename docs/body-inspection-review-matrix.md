@@ -74,6 +74,27 @@ These IDs are durable follow-up references, not claims that GitHub issues were c
 
 ## Review versus merge evidence
 
+An exact-head Sonar readback exposed one `c:S3776` issue in SPOP
+`parse_headers_text` (complexity 26, threshold 25), despite Quality Gate OK.
+The stricter zero-new-issue acceptance therefore required a repair. Extracting
+`parse_header_text_line` preserves statement behavior, framing/length checks and
+complete header terminators; independent review found no new security finding.
+After extraction, the broad 64-test SPOP suite, genuine combined HAProxy/HTX
+harness and 28 integrated host assertions passed again, exit 0. Fresh final-head
+CI/Sonar readback remains mandatory; the earlier Quality Gate is not that proof.
+
+The focused reliability-boundary test compiles the productive parser translation
+unit with actual `error.c` and the checked event producer. Stale I09/I11 mocks were
+aligned with those contracts, retaining assertions and adding malformed BOOL,
+incomplete-sample and mismatched-header controls; the focused test passed, exit 0.
+Its lower JSON writer remains stubbed, so this proves parser/checked-producer
+behavior, not physical event-sink delivery. After correcting the Traefik fixture
+to the actual `begin_request_stream` API, the complete reliability module passed
+15 tests, exit 0, in 7.936 seconds. Assertions remain intact, with stronger
+`lock < stream_begin < unlock` ordering. Independent final diff review found no
+scoped blocker. The runtime helper remained unchanged during the fixture repair;
+fresh final-head CI/Sonar readback remains separate.
+
 Final-head quick checks, affected regressions/builds/generators/docs, a sensitive former-limit mutation control, an independent redacted secret scan and exact-head CI/Sonar readback are mandatory before Ready. Zero new open/accepted issues, hotspots and duplication must be observed without exemptions. Sonar without measured coverage proves no executable test coverage. The complete I12/V08–V10 matrix and blocked deployment probes remain separate from review readiness. Read actual delivery state from [PR checks](https://github.com/Easton97-Jens/ModSecurity-conector/pull/407/checks), not an old source-document SHA. See the [stack checklist](response-limit-stack-checklist.md).
 
 The independent redacted whole-worktree Gitleaks scan returned exit 1 for 47 candidates. Read-only classification established 44 cache hashes, one public Action commit SHA, one report identifier and one audit prose match, all unchanged against the immutable base and prior head. No scanner exclusion, suppression or risk acceptance was added. This does not convert the tree scan into a pass; final commit-range scanning has its own proof.

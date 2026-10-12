@@ -1293,6 +1293,27 @@ static int parse_headers_bin(notify_request *request, const unsigned char *value
     return -1;
 }
 
+static int parse_header_text_line(notify_request *request,
+        const unsigned char *value, size_t start, size_t end)
+{
+    size_t colon = start;
+    size_t header_value_start;
+
+    while (colon < end && value[colon] != ':') {
+        colon++;
+    }
+    if (colon == end) {
+        return -1;
+    }
+    header_value_start = colon + 1U;
+    while (header_value_start < end &&
+            (value[header_value_start] == ' ' || value[header_value_start] == '\t')) {
+        header_value_start++;
+    }
+    return add_request_header(request, value + start, colon - start,
+        value + header_value_start, end - header_value_start);
+}
+
 static int parse_headers_text(notify_request *request, const unsigned char *value, size_t value_len) {
     size_t start = 0;
     int complete = 0;
@@ -1300,9 +1321,6 @@ static int parse_headers_text(notify_request *request, const unsigned char *valu
     while (start < value_len) {
         size_t end = start;
         size_t next_start;
-        size_t colon;
-        size_t name_len;
-        size_t header_value_start;
 
         while (end < value_len && value[end] != '\n') {
             end++;
@@ -1322,21 +1340,7 @@ static int parse_headers_text(notify_request *request, const unsigned char *valu
             complete = 1;
             break;
         }
-        colon = start;
-        while (colon < end && value[colon] != ':') {
-            colon++;
-        }
-        if (colon == end) {
-            return -1;
-        }
-        name_len = colon - start;
-        header_value_start = colon + 1U;
-        while (header_value_start < end &&
-                (value[header_value_start] == ' ' || value[header_value_start] == '\t')) {
-            header_value_start++;
-        }
-        if (add_request_header(request, value + start, name_len,
-                value + header_value_start, end - header_value_start) != 0) {
+        if (parse_header_text_line(request, value, start, end) != 0) {
             return -1;
         }
         start = next_start;

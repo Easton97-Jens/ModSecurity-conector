@@ -74,6 +74,29 @@ Diese IDs sind dauerhafte Follow-up-Referenzen, keine Behauptung erstellter GitH
 
 ## Review- und Merge-Nachweise
 
+Ein Exact-Head-Sonar-Readback zeigte ein `c:S3776`-Issue in SPOP
+`parse_headers_text` (Komplexität 26, Schwelle 25), trotz Quality Gate OK.
+Die strengere Null-Neu-Issue-Abnahme erforderte deshalb eine Korrektur. Extraktion
+von `parse_header_text_line` erhält Statementverhalten, Framing-/Längenprüfungen
+und vollständige Headerterminatoren; unabhängige Prüfung fand keinen neuen
+Securitybefund. Nach Extraktion bestanden breite SPOP-Suite mit 64 Tests, echter
+kombinierter HAProxy-/HTX-Harness und 28 integrierte Hostassertions erneut mit
+Exit 0. Frischer Final-Head-CI-/Sonar-Readback bleibt verpflichtend; das frühere
+Quality Gate ist dieser Nachweis nicht.
+
+Der fokussierte Reliability-Boundary-Test kompiliert die produktive Parser-
+Translation-Unit mit tatsächlichem `error.c` und geprüftem Eventproducer.
+Veraltete I09-/I11-Mocks wurden an diese Contracts angepasst, Assertions erhalten
+und Kontrollen für ungültiges BOOL, unvollständiges Sample und widersprüchliche
+Header ergänzt; der fokussierte Test bestand mit Exit 0. Der untere JSON-Writer
+bleibt gestubbt: Dies belegt Parser-/Checked-Producer-Verhalten, keine physische
+Event-Sink-Zustellung. Nach Anpassung der Traefik-Fixture an die tatsächliche
+`begin_request_stream`-API bestand das vollständige Reliability-Modul 15 Tests
+mit Exit 0 in 7.936 Sekunden. Assertions bleiben erhalten, mit stärkerer
+`lock < stream_begin < unlock`-Reihenfolge. Unabhängiger finaler Diffreview fand
+keinen Blocker im Scope. Der Runtimehelper blieb bei Fixturekorrektur unverändert;
+frischer Final-Head-CI-/Sonar-Readback bleibt getrennt.
+
 Final-Head-Quickchecks, betroffene Regressionen/Builds/Generatoren/Docs, eine empfindliche Mutationskontrolle früherer Limits, unabhängiger redigierter Secretscan und Exact-Head-CI-/Sonar-Readback sind vor Ready verpflichtend. Null neue offene/akzeptierte Issues, Hotspots und Duplikation müssen ohne Ausnahmen beobachtet werden. Sonar ohne gemessene Coverage belegt keine ausführbare Testcoverage. Vollständige I12-/V08–V10-Matrix und blockierte Deploymentproben bleiben getrennt von Reviewbereitschaft. Tatsächlichen Lieferstand aus [PR-Checks](https://github.com/Easton97-Jens/ModSecurity-conector/pull/407/checks) lesen, nicht aus altem Quelldokument-SHA. Siehe [Stackcheckliste](response-limit-stack-checklist.de.md).
 
 Der unabhängige redigierte Gitleaks-Scan des vollständigen Worktrees lieferte Exit 1 für 47 Kandidaten. Die schreibfreie Einordnung bestätigte 44 Cache-Hashes, eine öffentliche Action-Commit-SHA, einen Report-Identifier und einen Audit-Texttreffer, jeweils unverändert gegenüber unveränderlicher Basis und bisherigem Head. Keine Scanner-Ausnahme, Unterdrückung oder Risikoannahme wurde ergänzt. Dies macht den Tree-Scan nicht erfolgreich; der finale Commit-Range-Scan benötigt seinen eigenen Nachweis.

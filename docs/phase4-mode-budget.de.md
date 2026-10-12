@@ -47,7 +47,7 @@ bis zum nativen P2-Allow zurück. Datenträgerfehler bleiben technische Fehler u
 wählen kein Inspektionspräfix und keine Limitaktion.
 
 `bytes_inspected` beschreibt der Engine angebotene Bytes, nicht das native
-ProcessPartial-Präfix. Append null ist operationsspezifisch und darf bei gültigem
+ProcessPartial-Präfix. Der Append-Rückgabewert 0 ist operationsspezifisch und darf bei gültigem
 nativem ProcessPartial nicht als Allokations- oder Dateifehler gemeldet werden.
 Natives Request-Reject kann während Append HTTP 403 liefern; ein anderer nativer
 Pfad kann 413 liefern. Der Connector erhält das tatsächliche Ergebnis bis EOS.

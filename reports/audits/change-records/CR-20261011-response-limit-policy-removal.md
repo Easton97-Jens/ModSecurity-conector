@@ -36,6 +36,22 @@ are updated; capability evidence is not promoted from selected probes.
 
 ## Commands executed
 
+Strict delivery readback identified one SPOP `c:S3776` issue (complexity 26 > 25)
+even though Quality Gate was OK. Statement-equivalent `parse_header_text_line`
+extraction retains framing, length and header-terminator controls, without a
+scanner exemption. Independent review found no new security finding. Fresh broad
+SPOP64, genuine combined HAProxy/HTX harness and integrated28 checks passed,
+exit 0. The productive-parser reliability-boundary test also passed, exit 0,
+using actual `error.c`/checked event producer with stronger malformed BOOL and
+incomplete/mismatched sample assertions. Its lower JSON writer remains stubbed;
+it is not physical sink evidence. After correcting the Traefik fixture to the
+actual `begin_request_stream` API, the complete reliability module passed 15 tests,
+exit 0, in 7.936 seconds, preserving assertions and strengthening
+`lock < stream_begin < unlock`. Independent final diff review found no scoped
+blocker; the runtime helper was unchanged during this fixture repair. The result
+is retained in `spop-sonar-final/reliability-full-final.log`; final exact-head
+CI/Sonar still needs its separate readback.
+
 The new review run also reproduces the Apache EOS-provenance defect (three red cases) and passes all nine genuine APR/native regressions plus strict C17 after correction. The former-1-MiB external mutation fails the unchanged real marker fixture at assertion 407, exit 1; the unmutated Common suite passes 13 methods/207 scenarios, exit 0. SPOP64, Envoy eight-package, Traefik protocol/API and Stock safety results are classified separately in the matrix.
 
 Repository-native `make quick-check`, `check-i09-native-routes`, `check-apache-event-sink` and `check-haproxy-spop-event-sink` passed with the counts below. Genuine engine, Go/C build, host harness and fixture checks retain external run logs. Documentation validation uses RTK-wrapped `make check-bilingual-docs check-doc-links check-connector-config-reference`, `ci/tools/new-change-record.py check` and `git diff --check`. Repeated historical runs are not summed.

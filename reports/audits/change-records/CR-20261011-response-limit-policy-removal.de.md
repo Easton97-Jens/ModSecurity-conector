@@ -36,6 +36,23 @@ aktualisiert; Capability-Evidenz wird durch ausgewählte Proben nicht hochgestuf
 
 ## Ausgeführte Befehle
 
+Strikter Lieferreadback fand ein SPOP-`c:S3776`-Issue (Komplexität 26 > 25),
+obwohl Quality Gate OK war. Statementgleiche `parse_header_text_line`-Extraktion
+erhält Framing-, Längen- und Headerterminatorprüfungen ohne Scannerausnahme.
+Unabhängige Prüfung fand keinen neuen Securitybefund. Frische breite SPOP64-,
+echte kombinierte HAProxy-/HTX-Harness- und Integrated28-Checks bestanden mit
+Exit 0. Der produktive Parser-Reliability-Boundary-Test bestand ebenfalls mit
+Exit 0 unter tatsächlichem `error.c`/geprüftem Eventproducer und stärkeren
+Assertions für ungültiges BOOL sowie unvollständige/widersprüchliche Samples.
+Sein unterer JSON-Writer bleibt gestubbt; dies ist keine physische Sink-Evidenz.
+Nach Anpassung der Traefik-Fixture an die tatsächliche `begin_request_stream`-API
+bestand das vollständige Reliability-Modul 15 Tests mit Exit 0 in 7.936 Sekunden;
+Assertions bleiben erhalten und `lock < stream_begin < unlock` wird verstärkt.
+Unabhängiger finaler Diffreview fand keinen Blocker im Scope; der Runtimehelper
+blieb bei dieser Fixturekorrektur unverändert. Das Ergebnis liegt in
+`spop-sonar-final/reliability-full-final.log`; finale Exact-Head-CI/Sonar benötigt
+weiterhin eigenen Readback.
+
 Der neue Review-Run reproduziert auch den Apache-EOS-Provenienzfehler (drei rote Fälle) und besteht nach Korrektur alle neun echten APR-/Native-Regressionen plus striktes C17. Die externe Mutation der früheren 1-MiB-Grenze lässt die unveränderte echte Marker-Fixture bei Assertion 407 mit Exit 1 scheitern; die unveränderte Common-Suite besteht 13 Methoden/207 Szenarien mit Exit 0. SPOP64-, Envoy-Achtpaket-, Traefik-Protokoll-/API- und Stock-Sicherheitsresultate sind in der Matrix getrennt klassifiziert.
 
 Repository-native `make quick-check`, `check-i09-native-routes`, `check-apache-event-sink` und `check-haproxy-spop-event-sink` bestanden mit unten genannten Zahlen. Echte Engine-, Go-/C-Build-, Hostharness- und Fixtureprüfungen behalten externe Laufprotokolle. Dokumentationsvalidierung nutzt RTK-gewrapptes `make check-bilingual-docs check-doc-links check-connector-config-reference`, `ci/tools/new-change-record.py check` und `git diff --check`. Wiederholte historische Läufe werden nicht summiert.
