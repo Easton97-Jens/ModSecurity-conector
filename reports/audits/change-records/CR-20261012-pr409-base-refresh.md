@@ -9,7 +9,7 @@
 | --- | --- |
 | Change ID | CR-20261012-pr409-base-refresh |
 | Date (UTC) | 2026-10-12 |
-| Base revision | `d94a7a38b90bc56b828d70f7df8794e12fd21e10` |
+| Base revision | `1e7f7c8405ddcc7fc4a5ff117ef45c5bf0686707` |
 
 ## Motivation and problem statement
 
@@ -17,7 +17,7 @@ PR #409 at `caafe7ecec1a91669cbb82cea18b2b97309cde44` conflicted with its update
 
 ## Acceptance criteria
 
-- Preserve published history while incorporating exact base `d94a7a38b90bc56b828d70f7df8794e12fd21e10`; do not merge the PR into its base/master.
+- Preserve published history while incorporating initial refreshed base `d94a7a38b90bc56b828d70f7df8794e12fd21e10` and the subsequent current base `1e7f7c8405ddcc7fc4a5ff117ef45c5bf0686707`; do not merge the PR into its base/master.
 - Resolve all 18 integration conflicts without losing I09/I10/I11 or engine-owned body policy.
 - Preserve exact-one, first technical cause, terminal reentry, truthful host observations and once-only cleanup.
 - Execute current caller/native/mutation/SDK/regression/lint/docs checks; retain failed attempts and skipped checks explicitly.
@@ -37,14 +37,20 @@ I09/I10/I11 closure and all historical route evidence remain distinct; the four 
 
 First pushed integration head `e4c4f2a6` passed the normal Cloud gate but full authenticated readback found two c:S3776 CODE_SMELL findings: HTTP authorization complexity26 versus25 and sidecar exchange27 versus25. Mandatory zero-findings enforcement correctly rejected it; duplication was0.0%. Narrow helper extraction separates streamed authorization error mapping and Strict sidecar completion, preserving all guards, callbacks, terminal state and observations. Productive Common11 and full lighttpd51 SDK/caller/mutation tests pass again. No scanner/gate/threshold change or suppression. Current-head CI/Sonar readback is recorded in the PR after ordinary follow-up push.
 
+During the final audit PR382 advanced again to `1e7f7c84`, incorporating master #411. Its30-file CI/tool/documentation/test delta merged without conflicts and leaves all Common/connector product source unchanged from independently reviewed `35a7b0a9`. All I10 targets and the new tool pins/NGINX producer-snapshot handoff are retained. Full authenticated Sonar readback for35a reports zero findings and its mandatory scaffold-lint passed; this is historical once the second merge is pushed. The new CI-security contract exposed three upload-artifact references in the protected exact-head workflow that were already stale in exact base1e7. Align them with the existing central locked v7.0.2 SHA; retain all workflow guards, permissions, isolation and tests. No new dependency choice or scanner weakening.
+
+Local Make lint also exposed a base integration gap: it still called raw installed actionlint, which rejected the new self-repository syntax. A separate installed-tool adapter reuses the existing safe in-memory normalizer and fixed workflow discovery. It preserves the previous PATH tool selection, default ShellCheck behavior, unchanged source and all failure/timeout outcomes; no tool/file override, download or installation. Strict security/candidate tool staging and guards are unchanged. Eleven adapter methods and actual installed-actionlint execution pass; affected local checks are recorded below.
+
 ## Changed files
 
 - `.github/workflows/test-common.yml`
+- `.github/workflows/run-protected-nginx-exact-head.yml`
 - `.github/workflows/test-envoy.yml`
 - `.github/workflows/test-haproxy.yml`
 - `.github/workflows/test-lighttpd.yml`
 - `.github/workflows/test-traefik.yml`
 - `Makefile`
+- `ci/tools/lint_installed_workflows.py`
 - `common/runtime/http_authorization_service.c`
 - `common/runtime/msconnector_runtime.c`
 - `common/runtime/response_companion_transport.c`
@@ -75,6 +81,8 @@ First pushed integration head `e4c4f2a6` passed the normal Cloud gate but full a
 - `connectors/traefik/response_observer/observer_test.go`
 - `connectors/traefik/src/traefik_engine_service.c`
 - `docs/pr-382-checklist.de.md`
+- `docs/security/ci-security-tooling.de.md`
+- `docs/security/ci-security-tooling.md`
 - `docs/pr-382-checklist.md`
 - `docs/pr-382-i09-i12-rest-matrix.de.md`
 - `docs/pr-382-i09-i12-rest-matrix.md`
@@ -100,6 +108,7 @@ First pushed integration head `e4c4f2a6` passed the normal Cloud gate but full a
 - `tests/test_i10_envoy_finish.py`
 - `tests/test_i10_envoy_mutations.py`
 - `tests/test_i10_service_callers.py`
+- `tests/test_lint_workflows.py`
 - `tests/test_lighttpd_i10_adapter_errors.py`
 - `tests/test_native_api_fail_closed_contract.py`
 - `tests/test_runtime_rule_delivery_failure.py`
@@ -145,6 +154,22 @@ All commands ran through RTK with task-owned external build/cache/temp roots and
 | `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_lighttpd_i10_adapter_errors connectors.lighttpd.tests.test_i09_api_returns connectors.lighttpd.tests.test_stock_sidecar_contract` | 0 | Python 51 | 50.655 | `evidence/sonar-refactor-lighttpd/` |
 
 Additional worker evidence under `native-worker/` and `go-worker/`: HAProxy7 caller methods/22 detected mutants; lighttpd original479 cases and9 mutants retained, with new socket-owner controls and a tenth mutant; Traefik dispatcher690 failures/690 terminal reentries/270 valid controls in admitted modes and15 C/Go mutants; Envoy18 compiled bridge/finish checks plus8 genuine Common/libModSecurity/CGo packages. New Common delivery regression has5 methods,12 rule cases,6 sealed-lifecycle negatives,4 first-cause/physical-IO cases and2 detected source mutations. Common HTTP matrix360 negative cases plus120 MRC1 failures and6 compiled mutations. Strict remains admitted only where current registry allows it. No compiler warning or assertion was weakened.
+
+Second-base evidence follows. The first two CI-contract runs exposed upload/download pin mismatches; the first lint run exposed raw-actionlint syntax incompatibility. Final281-method CI contracts passed with5 existing user-identity/mount/PID-namespace skips, final304-method lint passed, and all11 adapter methods plus real installed-tool and3 NGINX handoff checks passed. Full exact-base inventory found6 stale artifact references (3 upload v7.0.2 /3 download v8.0.2); all now match the existing central lock. The Sonar-final-readback row is bound to35a and historical for the second merge; current delivery proof follows its new push.
+
+| Exact command | Exit | Count | Seconds | Run / evidence |
+| --- | --- | --- | --- | --- |
++| `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_lint_workflows` | 0 | Python 11 | 0.519 | `evidence/second-base-actionlint-adapter/` |
+| `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -m ci.tools.lint_installed_workflows` | 0 | Python 0 | 20.207 | `evidence/second-base-actionlint-real/` |
+| `rtk proxy make check-ci-security-contract` | 2 | Python 278; skipped 5 | 164.904 | `evidence/second-base-ci-contract/` |
+| `rtk proxy make check-ci-security-contract` | 0 | Python 281; skipped 5 | 166.317 | `evidence/second-base-ci-contract-complete/` |
+| `rtk proxy make check-ci-security-contract` | 2 | Python 278; skipped 5 | 165.603 | `evidence/second-base-ci-contract-final/` |
+| `rtk proxy make lint` | 2 | Python 304 | 172.935 | `evidence/second-base-lint/` |
+| `rtk proxy make lint` | 0 | Python 304 | 177.216 | `evidence/second-base-lint-final/` |
+| `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_nginx_exact_head_runtime_handoff` | 0 | Python 3 | 6.941 | `evidence/second-base-nginx-handoff/` |
+| `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_all_remote_actions_are_immutable_sha_pins` | 1 | Python 1 | 0.317 | `evidence/second-base-pin-diagnosis/` |
+| `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_all_remote_actions_are_immutable_sha_pins` | 0 | Python 1 | 0.469 | `evidence/second-base-pin-final/` |
+| `rtk proxy /usr/local/bin/sonar-with-env list issues -p Easton97-Jens_ModSecurity-conector --pull-request 409 --new-code --page-size 500 --page 1 --format json` | 0 | Python 0 | 1.422 | `evidence/sonar-final-readback/` |
 
 ## Security impact
 

@@ -75,7 +75,7 @@ jobs:
             --markdown-code
       - name: Upload sanitized host runtime evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: nginx-hostruntime-evidence
           path: ${{ runner.temp }}/hostruntime-evidence/nginx
@@ -83,6 +83,7 @@ jobs:
       - name: Syntax and dry-run checks
         run: |
           make setup-dev
+          .venv/bin/python -m unittest -v tests.test_nginx_exact_head_gate_contract tests.test_nginx_exact_head_runtime_handoff tests.test_runtime_env_snapshot_contract
           sh -n connectors/nginx/harness/run_nginx_smoke.sh
           make -n smoke-nginx
           make quick-check

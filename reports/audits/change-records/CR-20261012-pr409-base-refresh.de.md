@@ -9,7 +9,7 @@
 | --- | --- |
 | Change-ID | CR-20261012-pr409-base-refresh |
 | Datum (UTC) | 2026-10-12 |
-| Basis-Revision | `d94a7a38b90bc56b828d70f7df8794e12fd21e10` |
+| Basis-Revision | `1e7f7c8405ddcc7fc4a5ff117ef45c5bf0686707` |
 
 ## Motivation und Problemstellung
 
@@ -17,7 +17,7 @@ PR #409 bei `caafe7ecec1a91669cbb82cea18b2b97309cde44` hatte Konflikte mit der a
 
 ## Akzeptanzkriterien
 
-- Veröffentlichte Historie erhalten und exakte Basis `d94a7a38b90bc56b828d70f7df8794e12fd21e10` integrieren; den PR nicht in seine Basis/master mergen.
+- Veröffentlichte Historie erhalten und erste aktualisierte Basis `d94a7a38b90bc56b828d70f7df8794e12fd21e10` sowie folgende aktuelle Basis `1e7f7c8405ddcc7fc4a5ff117ef45c5bf0686707` integrieren; den PR nicht in seine Basis/master mergen.
 - Alle18 Integrationskonflikte ohne Verlust von I09/I10/I11 oder engine-gesteuerter Body-Policy lösen.
 - Exakt-eins, erste technische Ursache, terminales Reentry, wahrheitsgemäße Hostbeobachtungen und einmaliges Cleanup erhalten.
 - Aktuelle Caller-/Native-/Mutations-/SDK-/Regressions-/Lint-/Dokumentprüfungen ausführen; Fehlversuche und Skips ausdrücklich erhalten.
@@ -37,14 +37,20 @@ I09/I10/I11-Abschluss und historische Routenevidenz bleiben getrennt; vier Check
 
 Erster gepushter Integrationshead `e4c4f2a6` bestand normales Cloud-Gate; vollständiger authentifizierter Readback fand jedoch zwei c:S3776 CODE_SMELL-Findings: HTTP-Autorisierung Complexity26 statt25 und Sidecar-Exchange27 statt25. Obligatorische Null-Findings-Prüfung verweigerte korrekt den Abschluss; Duplikation0.0%. Enge Helper-Extraktion trennt Streaming-Autorisierungsfehler-Mapping und Strict-Sidecar-Abschluss; Guards, Callbacks, Terminalzustand und Beobachtungen erhalten. Produktive Common11 und volle lighttpd51 SDK-/Caller-/Mutationsprüfungen bestehen erneut. Keine Scanner-/Gate-/Thresholdänderung oder Suppression. Aktueller Head-CI-/Sonar-Readback steht nach normalem Follow-up-Push im PR.
 
+Während der Schlussprüfung aktualisierte PR382 seine Basis erneut auf `1e7f7c84` und übernahm master #411. Dessen30-Dateien-Delta für CI/Werkzeuge/Dokumentation/Tests integrierte sich konfliktfrei; Common-/Connector-Produktsource bleibt gegenüber unabhängig geprüftem `35a7b0a9` unverändert. Alle I10-Targets sowie neue Werkzeug-Pins und NGINX-Producer-Snapshot-Handoff bleiben erhalten. Vollständiger authentifizierter Sonar-Readback für35a meldet null Befunde und obligatorischer Scaffold-Lint besteht; nach zweitem Merge-Push ist dies historische Evidence. Der neue CI-Security-Contract fand drei Upload-Artifact-Referenzen im geschützten Exact-Head-Workflow, die bereits in exakter Basis1e7 veraltet waren. An bestehende zentral gesperrte v7.0.2-SHA angleichen; alle Workflow-Guards, Permissions, Isolation und Tests erhalten. Keine neue Dependencywahl oder Scannerabschwächung.
+
+Lokaler Make-Lint zeigte zudem eine Integrationslücke der Basis: Er rief weiterhin direkt installiertes actionlint auf, das neue Self-Repository-Syntax ablehnte. Separater Adapter für das installierte Tool verwendet bestehenden sicheren Normalisierer im Speicher und feste Workflow-Ermittlung. Bisherige PATH-Toolauswahl, ShellCheck-Standardverhalten, unveränderte Quellen und alle Fehler-/Timeout-Ergebnisse bleiben erhalten; keine Tool-/Datei-Overrides, Downloads oder Installation. Striktes Security-/Kandidaten-Toolstaging und Guards bleiben unverändert. Elf Adaptermethoden und echte Ausführung des installierten actionlint bestehen; betroffene lokale Prüfungen stehen unten.
+
 ## Geänderte Dateien
 
 - `.github/workflows/test-common.yml`
+- `.github/workflows/run-protected-nginx-exact-head.yml`
 - `.github/workflows/test-envoy.yml`
 - `.github/workflows/test-haproxy.yml`
 - `.github/workflows/test-lighttpd.yml`
 - `.github/workflows/test-traefik.yml`
 - `Makefile`
+- `ci/tools/lint_installed_workflows.py`
 - `common/runtime/http_authorization_service.c`
 - `common/runtime/msconnector_runtime.c`
 - `common/runtime/response_companion_transport.c`
@@ -75,6 +81,8 @@ Erster gepushter Integrationshead `e4c4f2a6` bestand normales Cloud-Gate; vollst
 - `connectors/traefik/response_observer/observer_test.go`
 - `connectors/traefik/src/traefik_engine_service.c`
 - `docs/pr-382-checklist.de.md`
+- `docs/security/ci-security-tooling.de.md`
+- `docs/security/ci-security-tooling.md`
 - `docs/pr-382-checklist.md`
 - `docs/pr-382-i09-i12-rest-matrix.de.md`
 - `docs/pr-382-i09-i12-rest-matrix.md`
@@ -100,6 +108,7 @@ Erster gepushter Integrationshead `e4c4f2a6` bestand normales Cloud-Gate; vollst
 - `tests/test_i10_envoy_finish.py`
 - `tests/test_i10_envoy_mutations.py`
 - `tests/test_i10_service_callers.py`
+- `tests/test_lint_workflows.py`
 - `tests/test_lighttpd_i10_adapter_errors.py`
 - `tests/test_native_api_fail_closed_contract.py`
 - `tests/test_runtime_rule_delivery_failure.py`
@@ -145,6 +154,22 @@ Alle Befehle liefen über RTK mit task-eigenen externen Build-/Cache-/Temp-Roots
 | `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_lighttpd_i10_adapter_errors connectors.lighttpd.tests.test_i09_api_returns connectors.lighttpd.tests.test_stock_sidecar_contract` | 0 | Python 51 | 50.655 | `evidence/sonar-refactor-lighttpd/` |
 
 Zusätzliche Worker-Evidence unter `native-worker/` und `go-worker/`: HAProxy7 Callermethoden/22 erkannte Mutanten; lighttpd ursprüngliche479 Fälle/9 Mutanten erhalten, mit neuen Socketowner-Kontrollen und zehntem Mutanten; Traefik-Dispatcher690 Fehler/690 terminale Reentries/270 gültige Kontrollen in zugelassenen Modi und15 C-/Go-Mutanten; Envoy18 kompilierte Bridge-/Finishchecks plus8 echte Common-/libModSecurity-/CGo-Packages. Neue Common-Delivery-Regression:5 Methoden,12 Regelfälle,6 versiegelte Lifecycle-Negative,4 Erstursachen-/physische IO-Fälle und2 erkannte Sourcemutationen. Common-HTTP-Matrix360 Negativfälle plus120 MRC1-Fehler und6 kompilierte Mutationen. Strict bleibt nur nach aktuellem Registry zugelassen. Keine Compilerwarnung/Assertion abgeschwächt.
+
+Evidence zur zweiten Basis folgt. Erste zwei CI-Contractläufe zeigten Upload-/Download-Pinabweichungen; erster Lintlauf zeigte Syntaxinkompatibilität des direkten actionlint-Aufrufs. Finale281 Methoden CI-Contracts bestehen mit5 vorhandenen Benutzeridentitäts-/Mount-/PID-Namespace-Skips, finaler304-Methoden-Lint besteht, und alle11 Adaptermethoden sowie echte installierte Toolausführung und3 NGINX-Handoffprüfungen bestehen. Vollständige Inventur der exakten Basis fand6 veraltete Artifact-Referenzen (3 Upload v7.0.2 /3 Download v8.0.2); alle entsprechen jetzt bestehendem zentralen Lock. Sonar-final-readback-Zeile ist an35a gebunden und für zweiten Merge historisch; aktuelle Delivery-Evidence folgt dessen neuem Push.
+
+| Exact command | Exit | Count | Seconds | Run / evidence |
+| --- | --- | --- | --- | --- |
++| `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_lint_workflows` | 0 | Python 11 | 0.519 | `evidence/second-base-actionlint-adapter/` |
+| `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -m ci.tools.lint_installed_workflows` | 0 | Python 0 | 20.207 | `evidence/second-base-actionlint-real/` |
+| `rtk proxy make check-ci-security-contract` | 2 | Python 278; skipped 5 | 164.904 | `evidence/second-base-ci-contract/` |
+| `rtk proxy make check-ci-security-contract` | 0 | Python 281; skipped 5 | 166.317 | `evidence/second-base-ci-contract-complete/` |
+| `rtk proxy make check-ci-security-contract` | 2 | Python 278; skipped 5 | 165.603 | `evidence/second-base-ci-contract-final/` |
+| `rtk proxy make lint` | 2 | Python 304 | 172.935 | `evidence/second-base-lint/` |
+| `rtk proxy make lint` | 0 | Python 304 | 177.216 | `evidence/second-base-lint-final/` |
+| `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_nginx_exact_head_runtime_handoff` | 0 | Python 3 | 6.941 | `evidence/second-base-nginx-handoff/` |
+| `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_all_remote_actions_are_immutable_sha_pins` | 1 | Python 1 | 0.317 | `evidence/second-base-pin-diagnosis/` |
+| `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_all_remote_actions_are_immutable_sha_pins` | 0 | Python 1 | 0.469 | `evidence/second-base-pin-final/` |
+| `rtk proxy /usr/local/bin/sonar-with-env list issues -p Easton97-Jens_ModSecurity-conector --pull-request 409 --new-code --page-size 500 --page 1 --format json` | 0 | Python 0 | 1.422 | `evidence/sonar-final-readback/` |
 
 ## Security-Auswirkung
 
