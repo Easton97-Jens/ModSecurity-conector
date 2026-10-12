@@ -3,6 +3,8 @@ import unittest
 
 import yaml
 
+from tests.test_ci_security_workflows import locked_action_reference_with_version
+
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
@@ -136,7 +138,7 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
         )[1]
         self.assertIn("if: success()", fixture_upload)
         self.assertIn(
-            "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1",
+            locked_action_reference_with_version("actions/upload-artifact"),
             fixture_upload,
         )
         self.assertIn(
@@ -149,7 +151,7 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
         )[1].split("      - name: Upload native NGINX body-buffer fixture evidence", 1)[0]
         self.assertIn("if: success()", functional_upload)
         self.assertIn(
-            "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1",
+            locked_action_reference_with_version("actions/upload-artifact"),
             functional_upload,
         )
         self.assertIn(

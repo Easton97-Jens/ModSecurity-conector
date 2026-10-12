@@ -343,7 +343,7 @@ check-bilingual-docs:
 	$(PYTHON) ci/checks/documentation/check-bilingual-docs.py
 
 check-ci-security-contract: check-project-versions
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest -v tests.test_ci_security_workflows tests.test_framework_revision_pins tests.test_project_toolchain_pins tests.test_validate_submodule_candidate_state tests.test_update_submodules_local_git tests.test_update_framework_versions tests.test_verify_framework_candidate_contract tests.test_prepare_readonly_submodule_validation_sandbox tests.test_run_readonly_submodule_validation_namespace tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_all_locked_action_references_are_in_the_publisher_allowlist
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest -v tests.test_ci_security_workflows tests.test_lint_workflows tests.test_nginx_exact_head_gate_contract tests.test_framework_revision_pins tests.test_project_toolchain_pins tests.test_validate_submodule_candidate_state tests.test_update_submodules_local_git tests.test_update_framework_versions tests.test_verify_framework_candidate_contract tests.test_prepare_readonly_submodule_validation_sandbox tests.test_run_readonly_submodule_validation_namespace tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests
 	$(PYTHON) ci/tools/fetch_security_tool.py --tool actionlint --validate-only
 	$(PYTHON) ci/tools/fetch_security_tool.py --tool zizmor --validate-only
 	$(PYTHON) ci/tools/fetch_security_tool.py --tool gitleaks --validate-only

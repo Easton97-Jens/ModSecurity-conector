@@ -8,7 +8,8 @@ Actions workflow:
   candidate only below ``RUNNER_TEMP`` (or exposes a base64 GitHub output).
 * ``validate`` rechecks the candidate against the checked-in lock and, for
   changed downloaded tools, verifies the release asset digest without
-  executing the downloaded file.
+  executing the downloaded file.  Proposed-tree validation additionally runs
+  checksum-verified workflow linters against the private candidate snapshot.
 * ``apply`` changes only the reviewed lock, the enumerated workflow pins, and
   the paired workflow-security guides.  The publisher calls it only after the
   read-only jobs succeeded.
@@ -228,11 +229,17 @@ PROPOSED_TREE_BASELINE_PATHS = frozenset(
         "connectors/haproxy/htx-overlay/version-contract.json",
         "connectors/lighttpd/SOURCE_MAP.json",
         "connectors/lighttpd/lighttpd-version.contract",
+        "connectors/nginx/harness/run_exact_head_use_error_log.sh",
+        "connectors/nginx/harness/run_github_hosted_functional_a.py",
+        "connectors/nginx/harness/nginx_smoke.conf",
+        "connectors/nginx/harness/run_nginx_smoke.sh",
         "ci/checks/evidence/check-runtime-producer-readiness.py",
         "ci/lib/framework_revision_pins.py",
         "ci/tooling/project-versions.lock.json",
         "ci/fixtures/workflow-permission-contract/safe.yml",
         "ci/fixtures/workflow-permission-contract/unsafe.yml",
+        "ci/fixtures/zizmor/safe.yml",
+        "ci/fixtures/zizmor/insecure.yml",
         "ci/provisioning/components/prepare-runtime-components.py",
         "ci/requirements/update-submodules-validation-linux-x86_64.txt",
         "ci/runtime/broker/nginx_root_broker.py",
@@ -241,6 +248,7 @@ PROPOSED_TREE_BASELINE_PATHS = frozenset(
         "ci/runtime/lifecycle/run-with-crs-no-mrts.sh",
         "ci/runtime/lifecycle/prepare-with-crs-no-mrts-upload.py",
         "ci/tools/fetch_security_tool.py",
+        "ci/tools/lint_workflows.py",
         "ci/tools/read-framework-revisions.py",
         "ci/tools/sync-project-versions.py",
         "ci/tools/prepare-readonly-submodule-validation-sandbox.py",
@@ -263,6 +271,8 @@ PROPOSED_TREE_BASELINE_PATHS = frozenset(
         "tests/test_prepare_runtime_components.py",
         "tests/test_verify_framework_candidate_contract.py",
         "tests/test_ci_security_workflows.py",
+        "tests/test_lint_workflows.py",
+        "tests/test_nginx_exact_head_gate_contract.py",
         "tests/test_prepare_readonly_submodule_validation_sandbox.py",
         "tests/test_run_readonly_submodule_validation_namespace.py",
         "tests/test_update_framework_versions.py",
@@ -631,6 +641,18 @@ def managed_workflow_action_name(
     are deliberately rejected rather than treated as ``actions/checkout``.
     """
 
+    if value.startswith("$/"):
+        relative = value[2:]
+        if (
+            not relative.startswith(".github/workflows/")
+            or not is_safe_posix_path(relative)
+            or "@" in relative
+            or not relative.endswith((".yml", ".yaml"))
+        ):
+            raise UpdateError(
+                f"{description} has an unsafe self-repository workflow reference"
+            )
+        return None
     if value.startswith("./"):
         return None
     match = REMOTE_WORKFLOW_USE.fullmatch(value)
@@ -1643,6 +1665,95 @@ def run_proposed_tree_contract_checks(proposed_root: Path) -> None:
         )
 
 
+def run_proposed_workflow_lint(
+    proposed_root: Path, arguments: list[str], *, expected_returncode: int = 0
+) -> None:
+    """Require a bounded lint result; tool failures never satisfy negative fixtures."""
+
+    try:
+        result = subprocess.run(
+            arguments,
+            cwd=proposed_root,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=180,
+            shell=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise UpdateError(f"proposed workflow-tool lint could not complete: {exc}") from exc
+    if result.returncode != expected_returncode:
+        output = f"{result.stdout}{result.stderr}".strip()[:8000]
+        raise UpdateError(
+            "proposed workflow-tool lint failed "
+            f"({Path(arguments[0]).name}, expected {expected_returncode}, "
+            f"got {result.returncode}): {output}"
+        )
+
+
+def run_proposed_tree_workflow_lints(proposed_root: Path) -> None:
+    """Execute the proposed checksum-verified tools before publishing any update."""
+
+    _lock_path, lock, _lock_digest = load_lock(proposed_root)
+    fetcher = load_fetcher_module()
+    tools_root = proposed_root / ".candidate-security-tools"
+    tools_root.mkdir(mode=0o700)
+    executables: dict[str, Path] = {}
+    for name in ("actionlint", "zizmor"):
+        record = lock["tools"].get(name)
+        if not isinstance(record, dict):
+            raise UpdateError(f"proposed lock is missing workflow lint tool {name!r}")
+        downloader_record = {
+            "version": record.get("version"),
+            "asset": record.get("asset"),
+            "url": record.get("asset_url"),
+            "sha256": record.get("sha256"),
+            "executable": record.get("executable"),
+            "upstream": record.get("upstream"),
+        }
+        try:
+            executable = fetcher.fetch_record(
+                name, downloader_record, tools_root / name
+            )
+            executables[name] = resolve_regular_file(
+                proposed_root, executable.relative_to(proposed_root)
+            )
+        except (OSError, ValueError) as exc:
+            raise UpdateError(
+                f"proposed workflow lint tool {name!r} verification failed: {exc}"
+            ) from exc
+
+    permission_fixtures = (
+        "ci/fixtures/workflow-permission-contract/safe.yml",
+        "ci/fixtures/workflow-permission-contract/unsafe.yml",
+    )
+    lint_wrapper = resolve_regular_file(
+        proposed_root, Path("ci/tools/lint_workflows.py")
+    )
+    run_proposed_workflow_lint(
+        proposed_root,
+        [
+            sys.executable,
+            str(lint_wrapper),
+            "--candidate-tree",
+        ],
+    )
+    zizmor = [str(executables["zizmor"]), "--offline"]
+    run_proposed_workflow_lint(proposed_root, [*zizmor, ".github/workflows"])
+    for fixture, expected_returncode in (
+        ("ci/fixtures/zizmor/insecure.yml", 14),
+        ("ci/fixtures/zizmor/safe.yml", 0),
+        (permission_fixtures[1], 14),
+        (permission_fixtures[0], 0),
+    ):
+        # Both negative fixtures intentionally contain high-severity findings.
+        # A crash, usage error, or skipped audit must not count as rejection.
+        resolve_regular_file(proposed_root, Path(fixture))
+        run_proposed_workflow_lint(
+            proposed_root, [*zizmor, fixture], expected_returncode=expected_returncode
+        )
+
+
 def validate_proposed_tree(root: Path, candidate: dict[str, Any]) -> None:
     """Apply a candidate only in RUNNER_TEMP, then validate its resulting tree."""
 
@@ -1652,6 +1763,7 @@ def validate_proposed_tree(root: Path, candidate: dict[str, Any]) -> None:
         copy_update_inputs(source_root, proposed_root)
         apply_candidate(proposed_root, candidate)
         run_proposed_tree_contract_checks(proposed_root)
+        run_proposed_tree_workflow_lints(proposed_root)
     finally:
         shutil.rmtree(proposed_root, ignore_errors=True)
 
