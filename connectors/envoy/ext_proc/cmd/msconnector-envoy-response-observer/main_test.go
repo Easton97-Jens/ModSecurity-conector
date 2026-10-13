@@ -610,6 +610,9 @@ func prepareResponseObserverBindFailure(t *testing.T, kind string) (string, *os.
 		if err := os.WriteFile(path, []byte("foreign"), 0640); err != nil {
 			t.Fatal(err)
 		}
+		if err := os.Chmod(path, 0640); err != nil {
+			t.Fatal(err)
+		}
 		return path, parent, 1
 	case "unavailable-descriptor":
 		if err := parent.Close(); err != nil {

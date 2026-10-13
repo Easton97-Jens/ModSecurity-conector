@@ -130,6 +130,14 @@ und exakte Assertion sind wiederhergestellt; der vorhandene native Wrapper
 normalisiert nur validierte Verweise im Speicher für das ältere Tool,
 während Security-Audits weiterhin Originalquellen prüfen.
 
+An `8a36baac97b7a0eb177a2fb31e7b6f9f6288c338` bestanden Sonar und beide strengen
+Gates ohne Befunde/Annotationen/Duplikation. Native Envoy-CI zeigte danach eine
+umask-Annahme im Fixture: Erzeugung mit 0640 ergibt unter umask 077 den Modus0600.
+Das Fixture stellt nun 0640 vor dem Listener-Aufruf ausdrücklich her;
+die unveränderte Assertion verlangt weiterhin Erhalt dieses fremden Dateimodus.
+Der Fehler ist unter 077 reproduzierbar; Wiederholungen/Race und Modulprüfungen
+werden mit dieser Maske erneut ausgeführt. Das korrigiert Setup ohne schwächeres Cleanup.
+
 ## Security-Auswirkung
 
 Spool-Zulassung schlägt geschlossen fehl und erhält Reservierungen bis zum

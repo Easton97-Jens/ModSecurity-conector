@@ -128,6 +128,14 @@ reference and exact assertion are restored; the existing native compatibility
 wrapper normalizes only validated references in memory for the older tool,
 while security audits continue to inspect original sources.
 
+At `8a36baac97b7a0eb177a2fb31e7b6f9f6288c338`, Sonar and both strict gates passed
+with zero findings/annotations/duplication. Native Envoy CI then exposed a test
+fixture's umask assumption: creation with 0640 becomes 0600 under umask 077.
+The fixture now explicitly establishes 0640 before invoking the listener;
+the unchanged assertion still requires preservation of that foreign file mode.
+The failure reproduces under 077; focused repetitions/race and module checks
+are repeated with that mask. This corrects test setup without relaxing cleanup.
+
 ## Security impact
 
 Spool admission fails closed and preserves resource reservations through actual
