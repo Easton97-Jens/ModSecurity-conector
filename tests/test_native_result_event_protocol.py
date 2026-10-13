@@ -114,6 +114,15 @@ int main(int argc, char **argv) {
         CHECK(!msconnector_event_write_jsonl_line(&event, line, 8, &truncated));
         CHECK(truncated && line[0] == '\0');
         return 0;
+    } else if (strcmp(argv[1], "byte-escape") == 0) {
+        event.request.client_ip = "127.0.0.\200";
+    } else if (strcmp(argv[1], "escape-overflow") == 0) {
+        memset(oversized, 0x80, 11);
+        oversized[11] = '\0';
+        event.request.client_ip = oversized;
+        CHECK(!msconnector_event_write_jsonl_line(&event, line, sizeof(line), &truncated));
+        CHECK(truncated && line[0] == '\0');
+        return 0;
     } else if (strcmp(argv[1], "null") == 0) {
         CHECK(!msconnector_event_protocol_view(NULL, &canonical));
         CHECK(!msconnector_event_protocol_view(&event, NULL));
@@ -136,6 +145,9 @@ int main(int argc, char **argv) {
     CHECK(event.flags.eos_seen == canonical.flags.eos_seen);
     CHECK(event.http.visible_http_status == canonical.http.visible_http_status);
     CHECK(event.flags.connection_aborted == canonical.flags.connection_aborted);
+    canonical.decision.phase = MSCONNECTOR_PHASE_REQUEST_HEADERS;
+    CHECK(msconnector_integrity_event_hash(&canonical, 17) != event.integrity.event_hash);
+    canonical.decision.phase = event.decision.phase;
     canonical.http.visible_http_status++;
     CHECK(msconnector_integrity_event_hash(&canonical, 17) != event.integrity.event_hash);
     fputs(line, stdout);
@@ -297,8 +309,16 @@ class NativeResultEventProtocolTests(unittest.TestCase):
         self.assertEqual(custom["message"], "application text")
 
     def test_normalization_cannot_hide_invalid_or_lossy_input(self) -> None:
-        for scenario in ("invalid", "small", "null"):
+        for scenario in ("invalid", "small", "null", "escape-overflow"):
             self.run_event(scenario)
+
+    def test_malformed_byte_escape_preserves_value_phase_and_integrity(self) -> None:
+        event = self.run_event("byte-escape")
+        self.assertEqual(event["client_ip"], "127.0.0.\u0080")
+        self.assertEqual(event["phase"], "response_body")
+        self.assertFalse(event["truncated"])
+        self.assertEqual(event["previous_event_hash"], 17)
+        self.assertNotEqual(event["event_hash"], 0)
 
 
 class NativeResultWiringTests(unittest.TestCase):

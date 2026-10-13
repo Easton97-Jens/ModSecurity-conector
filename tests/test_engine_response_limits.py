@@ -11,6 +11,38 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def native_compile_command(source, binary):
+    """Use the same selected libModSecurity paths as native bridge builds."""
+    prefix = os.environ.get("MODSECURITY_PREFIX", "")
+    include = os.environ.get("MODSECURITY_INCLUDE_DIR") or (str(Path(prefix) / "include") if prefix else "")
+    library = os.environ.get("MODSECURITY_LIB_FILE", "")
+    library_dir = os.environ.get("MODSECURITY_LIB_DIR") or (str(Path(prefix) / "lib") if prefix else "")
+    if include and not (Path(include) / "modsecurity/modsecurity.h").is_file():
+        raise ValueError("selected MODSECURITY_INCLUDE_DIR has no modsecurity/modsecurity.h")
+    if library:
+        if not Path(library).is_file():
+            raise ValueError("selected MODSECURITY_LIB_FILE is not a file")
+        library = str(Path(library).resolve())
+        library_dir = str(Path(library).parent)
+        link = [library]
+    elif library_dir:
+        if not (Path(library_dir) / "libmodsecurity.so").is_file():
+            raise ValueError("selected MODSECURITY_LIB_DIR has no libmodsecurity.so")
+        library_dir = str(Path(library_dir).resolve())
+        link = ["-L" + library_dir, "-lmodsecurity"]
+    else:
+        link = ["-lmodsecurity"]
+    if library_dir:
+        link.append("-Wl,-rpath," + library_dir)
+    return shlex.split(os.environ.get("CC", "cc")) + [
+        "-std=c17", "-Wall", "-Wextra", "-Werror", "-I.", "-Icommon/include",
+    ] + (["-I" + include] if include else []) + [
+        source, "common/runtime/msconnector_runtime.c",
+    ] + [str(p.relative_to(ROOT)) for p in sorted((ROOT / "common/src").glob("*.c"))] + [
+        "connectors/profile_registry.c",
+    ] + link + ["-pthread", "-o", str(binary)]
+
+
 def engine_fixture_arguments(directory, limit, action, mode, length, chunk, marker):
     if limit is None or action is None:
         raise ValueError("response fixture requires explicit SecResponseBodyLimit and SecResponseBodyLimitAction")
@@ -55,11 +87,7 @@ class EngineResponseLimits(unittest.TestCase):
         cls.addClassCleanup(cls.temp.cleanup)
         cls.directory = Path(cls.temp.name)
         cls.binary = cls.directory / "engine-limit"
-        command = shlex.split(os.environ.get("CC", "cc")) + [
-            "-std=c17", "-Wall", "-Wextra", "-Werror", "-I.", "-Icommon/include",
-            "tests/engine_response_limit_test.c", "common/runtime/msconnector_runtime.c",
-        ] + [str(p.relative_to(ROOT)) for p in sorted((ROOT / "common/src").glob("*.c"))] + [
-            "connectors/profile_registry.c", "-lmodsecurity", "-pthread", "-o", str(cls.binary)]
+        command = native_compile_command("tests/engine_response_limit_test.c", cls.binary)
         result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=90)
         if result.returncode:
             raise AssertionError("real libModSecurity test compilation failed:\n" + result.stdout + result.stderr)
@@ -70,6 +98,21 @@ class EngineResponseLimits(unittest.TestCase):
             result = subprocess.run([str(self.binary)] + args, capture_output=True, text=True, timeout=30)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             print(result.stdout.strip())
+
+    def test_native_transaction_companion_serialization_and_phase_contracts(self):
+        """Exercise genuine engine/Runtime chaining, lossless bytes and overflow.
+
+        This deliberately belongs to the libModSecurity suite; lightweight
+        serializer protocol tests keep their existing dependency boundary.
+        """
+        binary = self.directory / "transaction-companion"
+        command = native_compile_command("tests/transaction_phase_runtime_companion_test.c", binary)
+        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=90)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        with tempfile.TemporaryDirectory(dir=self.directory) as directory:
+            result = subprocess.run([str(binary)], cwd=directory, capture_output=True,
+                                    text=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_boundaries_actions_chunking_and_modes(self):
         for limit in (128, 1024):
@@ -121,11 +164,7 @@ class EngineResponseLimits(unittest.TestCase):
 
     def test_genuine_http_service_large_request_before_companion_handoff(self):
         binary = self.directory / "http-stream"
-        command = shlex.split(os.environ.get("CC", "cc")) + [
-            "-std=c17", "-Wall", "-Wextra", "-Werror", "-I.", "-Icommon/include",
-            "tests/engine_http_request_stream_test.c", "common/runtime/msconnector_runtime.c",
-        ] + [str(p.relative_to(ROOT)) for p in sorted((ROOT / "common/src").glob("*.c"))] + [
-            "connectors/profile_registry.c", "-lmodsecurity", "-pthread", "-o", str(binary)]
+        command = native_compile_command("tests/engine_http_request_stream_test.c", binary)
         result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=90)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         for limit, action, marker, expected_status in (

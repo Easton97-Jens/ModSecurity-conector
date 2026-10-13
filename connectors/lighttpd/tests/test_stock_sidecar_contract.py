@@ -2231,6 +2231,16 @@ ssize_t __wrap_send(int fd, const void *data, size_t size, int flags) {
                     self.assertTrue(select.select([notify_read], [], [], 5)[0],
                                     "productive P2 decision write was not reached")
                     self.assertEqual(os.read(notify_read, 1), b"R")
+                    # The write barrier is reached only after the productive
+                    # native decision. Capture its identity before inducing the
+                    # real reset, rather than accepting any later error event.
+                    decisions = [json.loads(line) for line in events.read_text().splitlines()
+                                 if "MSCONN_EVENT_ENGINE_DECISION" in line]
+                    self.assertEqual(len(decisions), 1)
+                    decision = decisions[0]
+                    self.assertEqual(decision["rule_id"], "9801102")
+                    self.assertEqual(decision["body_bytes_seen"], len(b"block-reset"))
+                    self.assertEqual(decision["actual_action"], "")
                     client.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
                 finally:
                     client.close()
@@ -2242,6 +2252,7 @@ ssize_t __wrap_send(int fd, const void *data, size_t size, int flags) {
                              if "MSCONN_EVENT_CONNECTOR_ERROR" in line]
                 self.assertTrue(technical)
                 for event in technical:
+                    self.assertEqual(event["transaction_id"], decision["transaction_id"])
                     self.assertEqual(event["phase"], "request_body")
                     self.assertEqual(event["status"], "error")
                     self.assertEqual(event["requested_action"], "error")
@@ -2249,6 +2260,13 @@ ssize_t __wrap_send(int fd, const void *data, size_t size, int flags) {
                     self.assertEqual(event.get("rule_id", ""), "")
                 self.assertIn('"rule_id":"9801102"', event_text)
                 self.assertEqual(upstream.record_count(), 0)
+                # A reset must release the request owner without poisoning a
+                # subsequent real decision or an independently allowed request.
+                self.assertEqual(_status(sidecar.exchange(
+                    self._request(body=b"block-reset"))), 418)
+                self.assertEqual(upstream.record_count(), 0)
+                self.assertEqual(_status(sidecar.exchange(self._request("/after-reset"))), 200)
+                self.assertEqual(upstream.record_count(), 1)
 
     def test_parallel_capacity_and_connection_reuse_are_bounded(self) -> None:
         normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"

@@ -193,6 +193,54 @@ belong in the [current PR description](https://github.com/Easton97-Jens/ModSecur
 and external delivery ledger. Historical green CI/Sonar is not promoted to the
 current revision. This record authorizes no merge.
 
+### I12 native regression follow-up, 2026-10-13
+
+Starting product `8c574cdf86f10af976297c31d31485b042eba73b` remains the source
+of these component observations. The old Companion assertion classified one
+reversibly escaped byte as lossy and failed with SIGABRT/exit134. The repaired
+fixture checks lossless escaping separately from real escaped-field overflow,
+retaining physical no-write/hash-chain/first-cause assertions and explicit
+native request/response policies. Product serializer/runtime code is unchanged.
+
+`make check-native-engine-body-inspection` now runs the genuine Companion C
+regression inside the native suite and existing Envoy runtime-components CI
+step. External SDK include/library selections are honored; invalid selections
+fail closed. Fourteen native methods pass with both system and explicitly
+selected external libraries, without skips; the prefix-selected Companion
+passes separately. Nineteen protocol/sink tests pass.
+
+Stock's current RST control already passes. Strengthened tests correlate the
+productive P2 decision and technical write failure, then prove denied418 with
+backend0 and allowed200 with backend1 after reset. Six native component controls
+pass; their UID0 scope does not establish Nonroot or stock-host acceptance.
+An opt-in real Traefik UDS regression covers Reject/ProcessPartial, separate or
+combined EOS, both directions, checked Finish/Destroy acknowledgments and
+connection closure:18 native subcases pass
+with race detection and the EOS-loss mutation fails as expected. No productive
+append bug is reproduced; actual Traefik-host protocol-error classification
+remains open. These checks do not independently count physical native cleanup.
+The opt-in test requires the private real C service; ordinary
+Go unit runs explicitly skip that additional integration control.
+
+Local receipts remain under
+`/var/tmp/codex/ModSecurity-conector/runs/e2e/20261013T125816Z-8c574cdf-i12-completion/{common-lossy,stock-rst,traefik-repair,native-wiring}`.
+They are retained local artifacts, not uploaded download links. `tests/README.md`
+and its German companion document the new native target. Framework/MRTS source
+and gitlinks, dependencies, gates and runtime guards remain unchanged. Full
+live-host I12, exact final-head CI/Sonar/reviews and the independent historical
+secret gate are not established by these component results.
+
+The broad check also reproduced a separate optional-prerequisite test-fixture
+defect: inherited GNU Make command-line assignments override the child fixture's
+deliberately missing Framework and private build paths. The five synthetic
+nested-Make invocations now clear only `MAKEFLAGS`, `MAKEOVERRIDES`, `MFLAGS`
+and `GNUMAKEFLAGS`. Production Make/scripts, compiler flags and all failure
+assertions remain unchanged. The original missing-Framework case fails with
+inherited assignments; the corrected complete20-test module passes through
+the normal outer Make target with explicit Python/Framework assignments.
+Receipts: the same local run's `optional-fixture/` directory. Broad verification
+and exact final-head delivery evidence remain separate.
+
 ### Immutable original index
 
 Each numbered link identifies one original Change ID through its filename.

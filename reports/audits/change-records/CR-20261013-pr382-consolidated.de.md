@@ -200,6 +200,59 @@ beobachtete Remotechecks gehören in die [aktuelle PR-Beschreibung](https://gith
 und das externe Lieferprotokoll. Historische grüne CI/Sonar werden nicht auf die
 aktuelle Revision übertragen. Dieser Record erlaubt keinen Merge.
 
+### I12-Native-Regressionen, 2026-10-13
+
+Produkt-Ausgangsstand `8c574cdf86f10af976297c31d31485b042eba73b` bleibt die
+Quelle dieser Komponentenbeobachtungen. Die alte Companion-Assertion behandelte
+ein reversibel escaptes Byte als verlustbehaftet und scheiterte mit
+SIGABRT/Exit134. Die korrigierte Fixture prüft verlustfreies Escaping getrennt
+von echtem Escape-Feldüberlauf; physische No-write-/Hashketten-/Erstursachen-
+Assertions und explizite native Request-/Response-Policies bleiben erhalten.
+Produktiver Serializer-/Runtime-Code bleibt unverändert.
+
+`make check-native-engine-body-inspection` führt die echte Companion-C-Regression
+jetzt in der nativen Suite und dem bestehenden Envoy-Runtime-Components-CI-
+Schritt aus. Externe SDK-Include-/Bibliotheksauswahl wird berücksichtigt;
+ungültige Auswahl scheitert geschlossen. Vierzehn native Methoden bestehen mit
+Systembibliothek und explizit gewählter externer Bibliothek ohne Skips;
+der Companion besteht separat mit Prefix-Auswahl. Neunzehn Protokoll-/Sinktests
+bestehen.
+
+Stocks aktuelle RST-Kontrolle besteht bereits. Verstärkte Tests korrelieren
+produktive P2-Entscheidung und technischen Schreibfehler und weisen danach
+Deny418/Backend0 sowie Allow200/Backend1 nach. Sechs native Komponentencontrols
+bestehen; ihr UID0-Scope belegt keinen Nonroot- oder Stock-Host-Abschluss.
+Eine optionale echte Traefik-UDS-Regression prüft Reject/ProcessPartial,
+getrennten/kombinierten EOS, beide Richtungen, geprüfte Finish-/Destroy-
+Bestätigungen und Verbindungsfreigabe:
+18 native Subcases bestehen mit Race-Detector; die EOS-Verlustmutation scheitert
+erwartet. Kein produktiver Appendfehler ist reproduziert; die Klassifizierung
+des echten Traefik-Host-Protokollfehlers bleibt offen. Diese Checks zählen
+physisches natives Cleanup nicht unabhängig. Der optionale Test
+benötigt den privaten echten C-Service; gewöhnliche Go-Unit-Läufe überspringen
+diese zusätzliche Integration ausdrücklich.
+
+Lokale Receipts liegen unter
+`/var/tmp/codex/ModSecurity-conector/runs/e2e/20261013T125816Z-8c574cdf-i12-completion/{common-lossy,stock-rst,traefik-repair,native-wiring}`.
+Dies sind lokal erhaltene Artefakte, keine hochgeladenen Downloadlinks.
+`tests/README.md` und die deutsche Begleitfassung dokumentieren das neue native
+Target. Framework-/MRTS-Quellen und Gitlinks, Dependencies, Gates und
+Runtime-Guards bleiben unverändert. Vollständiges Live-Host-I12, finale
+Head-CI/Sonar/Reviews und das unabhängige historische Secret-Gate werden durch
+diese Komponentenergebnisse nicht belegt.
+
+Die breitere Prüfung reproduzierte außerdem einen separaten Fixturefehler im
+Optional-Prerequisite-Test: geerbte GNU-Make-Kommandozuweisungen überschreiben
+das absichtlich fehlende Framework und private Buildpfade der Child-Fixture.
+Die fünf synthetischen Nested-Make-Aufrufe entfernen jetzt nur `MAKEFLAGS`,
+`MAKEOVERRIDES`, `MFLAGS` und `GNUMAKEFLAGS`. Produktive Make-/Skriptpfade,
+Compilerflags und sämtliche Fehlerassertionen bleiben unverändert. Der alte
+Missing-Framework-Fall scheitert mit geerbten Zuweisungen; das korrigierte
+vollständige20-Testmodul besteht über das normale äußere Make-Target mit
+expliziten Python-/Framework-Zuweisungen. Receipts: `optional-fixture/` im
+gleichen lokalen Run. Breitere Verifikation und finale Head-Liefernachweise
+bleiben getrennt.
+
 ### Unveränderlicher Originalindex
 
 Jeder nummerierte Link identifiziert eine Original-Change-ID durch ihren Dateinamen.

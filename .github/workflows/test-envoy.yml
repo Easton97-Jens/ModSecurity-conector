@@ -91,6 +91,8 @@ jobs:
           GOCACHE: ${{ runner.temp }}/pr382-envoy-native/go-cache
           GOTMPDIR: ${{ runner.temp }}/pr382-envoy-native/tmp/go
           PYTHON: ${{ steps.setup-python.outputs.python-path }}
+          CODEX_RUN_ROOT: ${{ runner.temp }}/pr382-envoy-native/component-tests
+          TMPDIR: ${{ runner.temp }}/pr382-envoy-native/tmp
         run: |
           set -eu
           umask 077
@@ -98,6 +100,8 @@ jobs:
           go version
           sh ci/provisioning/cache/with-runtime-components.sh \
             sh connectors/envoy/build/build_ext_proc.sh
+          sh ci/provisioning/cache/with-runtime-components.sh \
+            make check-native-engine-body-inspection PYTHON="$PYTHON"
       - name: Collect host runtime preflight evidence
         if: always()
         env:

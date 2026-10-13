@@ -75,6 +75,9 @@ static void create_runtime_fixture(char config_path[TEST_PATH_SIZE],
     assert(request_body_mode != NULL);
     assert(phase4_mode != NULL);
     assert(response_policy.limit > 0U && response_policy.action != NULL);
+    assert(fputs("SecRequestBodyLimit 1048576\n"
+        "SecRequestBodyNoFilesLimit 1048576\n"
+        "SecRequestBodyLimitAction Reject\n", rules) != EOF);
     assert(fprintf(rules, "SecResponseBodyLimit %zu\nSecResponseBodyLimitAction %s\n",
         response_policy.limit, response_policy.action) > 0);
     assert(fputs(rules_text, rules) != EOF);
@@ -177,7 +180,7 @@ static void test_regular_block_emits_one_terminal_event(void) {
     assert(unlink(fixture.rules_path) == 0);
 }
 
-static void test_lossy_event_is_not_written_or_chained(void) {
+static void test_invalid_byte_event_is_losslessly_written(void) {
     static const char blocking_rules[] =
         "SecRuleEngine On\n"
         "SecRule REQUEST_URI \"@streq /blocked\" \"id:1002,phase:1,deny,status:403,log\"\n";
@@ -201,6 +204,63 @@ static void test_lossy_event_is_not_written_or_chained(void) {
     request.uri = "/blocked";
     request.http_version = "HTTP/1.1";
     request.client.address = invalid_client_address;
+    request.client.port = 12345;
+    request.server.address = "127.0.0.1";
+    request.server.port = 9191;
+    msconnector_error_init(&error);
+    msconnector_decision_init(&decision);
+    /* A malformed UTF-8 byte has a reversible JSON byte escape; it is not
+     * serialization loss when the complete escaped value fits the field. */
+    assert(msconnector_runtime_transaction_begin(fixture.runtime, &request, "escaped-event",
+        &transaction, &decision, &error));
+    assert(transaction != NULL);
+    assert(msconnector_decision_action_from_decision(&decision) ==
+        MSCONNECTOR_DECISION_ACTION_DENY);
+    assert(msconnector_runtime_transaction_finish(transaction, &error));
+    msconnector_runtime_transaction_destroy(&transaction);
+    msconnector_runtime_destroy(&fixture.runtime);
+    event_file = fopen(fixture.event_path, "r");
+    assert(event_file != NULL);
+    size = fread(contents, 1U, sizeof(contents) - 1U, event_file);
+    assert(ferror(event_file) == 0);
+    assert(fclose(event_file) == 0);
+    contents[size] = '\0';
+    assert(strstr(contents, "\"client_ip\":\"127.0.0.\\u0080\"") != NULL);
+    assert(strstr(contents, "\"phase\":\"request_headers\"") != NULL);
+    assert(strstr(contents, "\"rule_id\":\"1002\"") != NULL);
+    assert(strstr(contents, "\"truncated\":false") != NULL);
+    assert(strstr(contents, "\"previous_event_hash\":0") != NULL);
+    assert(strstr(contents, "\"event_hash\":0") == NULL);
+    assert(strchr(contents, '\n') == strrchr(contents, '\n'));
+    assert(unlink(fixture.config_path) == 0);
+    assert(unlink(fixture.event_path) == 0);
+    assert(unlink(fixture.rules_path) == 0);
+}
+
+static void test_lossy_event_is_not_written_or_chained(void) {
+    static const char blocking_rules[] =
+        "SecRuleEngine On\n"
+        "SecRule REQUEST_URI \"@streq /blocked\" \"id:1002,phase:1,deny,status:403,log\"\n";
+    /* Eleven byte escapes need 66 bytes, exceeding the serializer's 64-byte
+     * client-IP field, although the raw input fits the Runtime metadata. */
+    char oversized_escaped_address[12];
+    authz_runtime_fixture fixture = {0};
+    msconnector_runtime_transaction *transaction = NULL;
+    msconnector_request request = {0};
+    msconnector_decision decision;
+    msconnector_error error;
+    char contents[16384];
+    FILE *event_file;
+    size_t size;
+
+    memset(oversized_escaped_address, 0x80, sizeof(oversized_escaped_address) - 1U);
+    oversized_escaped_address[sizeof(oversized_escaped_address) - 1U] = '\0';
+    create_authz_runtime_fixture(&fixture, blocking_rules,
+        (response_fixture_policy){1024U, "Reject"});
+    request.method = "GET";
+    request.uri = "/blocked";
+    request.http_version = "HTTP/1.1";
+    request.client.address = oversized_escaped_address;
     request.client.port = 12345;
     request.server.address = "127.0.0.1";
     request.server.port = 9191;
@@ -486,6 +546,7 @@ int main(void) {
     assert(unlink(rules_path) == 0);
     test_strict_profile_admission_is_fail_closed();
     test_regular_block_emits_one_terminal_event();
+    test_invalid_byte_event_is_losslessly_written();
     test_lossy_event_is_not_written_or_chained();
     test_buffered_request_body_handoff();
     assert(rmdir(test_private_root) == 0);
