@@ -302,6 +302,24 @@ not live-host evidence. The task's external
 retests when completed; no old binary is relabeled. Exact final validation
 and delivery results remain in the current report/PR delivery ledger.
 
+### SPOP phase metadata and caller quality follow-up, 2026-10-13
+
+Genuine rebuilt6175 HAProxy attempt `1791920706986259057` passes8directHTX
+controls but fails normal combinedP3deny cleanup. Productive SPOP conversion
+uses Common decision constructors, resetting phase to CONNECTION and losing
+the original nativeP3/P4 phase. Guarded RELEASE correctly requires P3; it is
+not relaxed. The bridge now explicitly maps native1–5 to named Common phases
+after both Allow and disruptive constructors. Productive Ccaller regressions
+exercise P3/P4 Allow/Deny/Redirect, original-omission and numeric-cast controls.
+Original failure/logs remain retained in `hosts-haproxy-postfix-01/retry-02`.
+Shared Common/Envoy sources are unchanged by this follow-up.
+
+Exact6175 hosted Sonar reports one new Ctest cognitive-complexity finding
+28>25 at `check_precommit`. The unchanged release/close error assertions move
+into a coherent `check_precommit_cleanup_failure` helper. The real caller
+Off/Safe/Strict matrix and its15 mutation controls pass, exit0,18.816seconds.
+No assertion, compiler warning, scanner rule or gate is suppressed.
+
 ### Immutable original index
 
 Each numbered link identifies one original Change ID through its filename.

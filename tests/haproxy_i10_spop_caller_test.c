@@ -190,7 +190,46 @@ static void check_mode(const char *mode, const char *fail_mode, int enforces) {
          enforces);
   haproxy_modsecurity_engine_destroy(state.engine);
 }
-int main(void) {
+static void check_bridge_native_decisions(void) {
+  const int phases[] = {3, 4};
+  const enum msconnector_phase expected_phases[] = {
+      MSCONNECTOR_PHASE_RESPONSE_HEADERS, MSCONNECTOR_PHASE_RESPONSE_BODY};
+  const char *actions[] = {"pass", "deny", "redirect"};
+  const msconnector_decision_action expected_actions[] = {
+      MSCONNECTOR_DECISION_ACTION_ALLOW, MSCONNECTOR_DECISION_ACTION_DENY,
+      MSCONNECTOR_DECISION_ACTION_REDIRECT};
+  for (size_t phase = 0; phase < 2; phase++) {
+    for (size_t action = 0; action < 3; action++) {
+      spop_bridge_task_context context = {0};
+      haproxy_modsecurity_decision native = {0};
+      context.command.decision_storage = &context.decision_storage;
+      native.phase = phases[phase];
+      native.disruptive = action != 0;
+      native.status = action == 2 ? 302 : action == 1 ? 403 : 200;
+      copy_cstring(native.action, sizeof(native.action), actions[action]);
+      copy_cstring(native.redirect_url, sizeof(native.redirect_url),
+                   "https://example.test/redirect");
+      copy_cstring(native.log_message, sizeof(native.log_message), "native rule");
+      assert(set_bridge_native_decision(&context, &native));
+      assert(context.decision.phase == expected_phases[phase]);
+      assert(msconnector_decision_action_from_decision(&context.decision) ==
+             expected_actions[action]);
+      assert(context.error.code == MSCONNECTOR_ERROR_NONE);
+      if (action != 0) {
+        assert(context.decision.http_status == native.status);
+        assert(context.decision.reason != NULL);
+        assert(strcmp(context.decision.reason, "native rule") == 0);
+      }
+      if (action == 2)
+        assert(strcmp(context.decision.redirect_url,
+                      "https://example.test/redirect") == 0);
+    }
+  }
+}
+int main(int argc, char **argv) {
+  check_bridge_native_decisions();
+  if (argc == 2 && strcmp(argv[1], "native-decisions") == 0)
+    return 0;
   const char *modes[] = {"detect-only", "enforce"};
   const char *fail_modes[] = {"closed", "open"};
   for (size_t mode = 0; mode < 2; mode++) {

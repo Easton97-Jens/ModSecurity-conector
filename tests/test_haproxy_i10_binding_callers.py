@@ -115,6 +115,26 @@ static int test_native(const char *name) {
         result = self.run_caller(BINDING.read_text(), spop=True)
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_spop_native_response_phase_conversion_negative_controls(self):
+        source = (ROOT / "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c").read_text()
+        assignment = "context->decision.phase = bridge_phase_from_native_decision(native_decision->phase);"
+        self.assertEqual(source.count(assignment), 2)
+        mutations = {
+            "original-phase-omission": "",
+            "numeric-phase-cast": "(void)bridge_phase_from_native_decision(native_decision->phase); context->decision.phase = (enum msconnector_phase)native_decision->phase;",
+        }
+        for name, replacement in mutations.items():
+            with self.subTest(mutation=name):
+                # Retain the helper as referenced so omission is detected at runtime,
+                # rather than by the compiler's unused-function warning.
+                if not replacement:
+                    replacement = "(void)bridge_phase_from_native_decision(native_decision->phase);"
+                result = self.run_caller(BINDING.read_text(), spop=True,
+                    runtime_source=source.replace(assignment, replacement),
+                    arguments=("native-decisions",))
+                self.assertNotEqual(result.returncode, 0, name + " survived")
+                self.assertIn("context.decision.phase == expected_phases[phase]", result.stderr)
+
     def test_spop_failure_reason_negative_control(self):
         source = (ROOT / "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c").read_text()
         old = 'runtime_init_decision(decision, retained_phase, "deny", 503, retained_reason);'

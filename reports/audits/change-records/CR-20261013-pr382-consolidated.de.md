@@ -320,6 +320,26 @@ Hostretests nach Abschluss; keine alte Binary wird umetikettiert. Exakte
 finale Prüfungs- und Lieferergebnisse stehen im aktuellen Bericht/PR-
 Lieferprotokoll.
 
+### SPOP-Phasenmetadaten und Caller-Qualitätsfolgeprüfung, 2026-10-13
+
+HAProxy-Versuch `1791920706986259057` mit echt neu gebauten6175Binaries
+besteht8direkteHTX-Controls, scheitert aber beim regulären Combined-P3-Deny-
+Cleanup. Die produktive SPOP-Konvertierung verwendet Common-Entscheidungs-
+konstruktoren, setzt dadurch die Phase auf CONNECTION zurück und verliert
+nativeP3/P4. Der RELEASEguard verlangt korrekt P3 und wird nicht abgeschwächt.
+Die Bridge bildet jetzt native1–5 nach Allow- und disruptiven Konstruktoren
+explizit auf benannte Common-Phasen ab. Produktive Ccaller-Regressionen prüfen
+P3/P4 Allow/Deny/Redirect sowie Originalauslassung und numerischen Cast.
+Originalfehler/-logs bleiben in `hosts-haproxy-postfix-01/retry-02` erhalten.
+Gemeinsame Common-/Envoy-Quellen bleiben bei diesem Folgefix unverändert.
+
+Hosted-Sonar des exakten6175Heads meldet einen neuen Ctest-Befund zur
+kognitiven Komplexität28>25 in `check_precommit`. Unveränderte Release-/Close-
+Fehlerassertions stehen jetzt im zusammengehörigen Helper
+`check_precommit_cleanup_failure`. Die tatsächliche Off/Safe/Strict-Callermatrix
+und ihre15Mutationskontrollen bestehen mit Exit0 in18,816Sekunden. Keine
+Assertion, Compilerwarnung, Scannerregel oder Prüfung wird unterdrückt.
+
 ### Unveränderlicher Originalindex
 
 Jeder nummerierte Link identifiziert eine Original-Change-ID durch ihren Dateinamen.

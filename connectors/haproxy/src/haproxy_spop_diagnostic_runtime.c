@@ -4818,6 +4818,18 @@ static void copy_spop_bridge_result(const void *opaque, void *result) {
     }
 }
 
+static enum msconnector_phase bridge_phase_from_native_decision(int phase)
+{
+    switch (phase) {
+    case 1: return MSCONNECTOR_PHASE_REQUEST_HEADERS;
+    case 2: return MSCONNECTOR_PHASE_REQUEST_BODY;
+    case 3: return MSCONNECTOR_PHASE_RESPONSE_HEADERS;
+    case 4: return MSCONNECTOR_PHASE_RESPONSE_BODY;
+    case 5: return MSCONNECTOR_PHASE_LOGGING;
+    default: return MSCONNECTOR_PHASE_CONNECTION;
+    }
+}
+
 static int set_bridge_native_decision(spop_bridge_task_context *context,
         const haproxy_modsecurity_decision *native_decision)
 {
@@ -4828,6 +4840,7 @@ static int set_bridge_native_decision(spop_bridge_task_context *context,
     }
     if (native_decision->disruptive == 0) {
         msconnector_decision_set_allow(&context->decision);
+        context->decision.phase = bridge_phase_from_native_decision(native_decision->phase);
         return 1;
     }
     storage = context->command.decision_storage;
@@ -4846,6 +4859,7 @@ static int set_bridge_native_decision(spop_bridge_task_context *context,
         msconnector_decision_set_deny(&context->decision,
             native_decision->status, NULL, storage->log_message);
     }
+    context->decision.phase = bridge_phase_from_native_decision(native_decision->phase);
     return 1;
 }
 
