@@ -254,6 +254,33 @@ passes module tests with race detection and vet. Both edits affect test code
 only. Remote Sonar/CI must be read back on the delivered follow-up revision;
 the historical secret-range gate remains independently failed.
 
+### HAProxy native companion outcome repair, 2026-10-13
+
+Actual combined host attempt `1791917296154368188` returned the expected
+P3-deny403 and P4-Safe200, but physical logs showed failed outcome
+acknowledgement/terminal cleanup and protocol errors. The binding rejected
+every terminal Common state, including successful native blocking decisions.
+It now permits the observed host outcome after a valid terminal decision;
+technical failures and completed/cleaned states remain rejected. Native
+body-limit Reject is policy, so its outcome and finish must preserve BODY_LIMIT
+without treating successful enforcement as a technical protocol failure.
+Native logging failures still fail finish. Claim, phase, correlation,
+duplicate, bounds and first-cause handling remain enforced. The host outcome
+does not overwrite the engine decision.
+
+Focused P3/P4/native-limit cases fail against the original guard and pass
+after correction. Existing full binding/Common caller, native-result, phase,
+technical-error/reentry and mutation regressions are rerun: eight final caller
+tests and 18 native/phase contracts pass; all 26 existing zero-argument
+transaction-contract checks pass through explicit direct invocation because
+the selected interpreter has no pytest. Logging-failure and original-guard
+mutations are detected. The native API
+seam controls interventions and cleanup counts; these component tests are
+not live-host evidence. The task's external
+`hosts-haproxy-postfix-01/` retains genuine rebuilt binaries and fresh host
+retests when completed; no old binary is relabeled. Exact final validation
+and delivery results remain in the current report/PR delivery ledger.
+
 ### Immutable original index
 
 Each numbered link identifies one original Change ID through its filename.
