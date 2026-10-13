@@ -1644,7 +1644,7 @@ jobs:
         """Keep self references on the running revision and audit original files."""
 
         caller = self.jobs("all-connectors-no-crs.yml")["no-crs"]
-        self.assertIn("uses: ./.github/workflows/reusable-five-connectors-profile.yml", caller)
+        self.assertIn("uses: $/.github/workflows/reusable-five-connectors-profile.yml", caller)
         lint_jobs = self.jobs("ci-security-workflow-lint.yml")
         self.assertIn("python3 ci/tools/lint_workflows.py", lint_jobs["actionlint"])
         self.assertNotIn("--actionlint", lint_jobs["actionlint"])

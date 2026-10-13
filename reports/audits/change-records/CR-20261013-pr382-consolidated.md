@@ -117,10 +117,16 @@ eight Sonar findings but introduced twelve findings in new tests, launcher and
 reference text. This follow-up removes arbitrary launcher inputs, extracts
 coherent test/path helpers and preserves every original assertion. Its CI
 registration repair adds only the new Go candidate workflow to the existing
-exact publisher/copy/staging inventory; it also repairs a pre-existing malformed
-local reusable-workflow reference. Action pins and permission boundaries remain
+exact publisher/copy/staging inventory. Action pins and permission boundaries remain
 unchanged. Current source validation precedes a fresh normal delivery; remote
 results from the first delivery cannot attest the follow-up.
+
+The follow-up at `f96714c5470f9148dd6971871cff688b81cc36a9` incorrectly changed an
+existing self-repository workflow reference after running an older actionlint
+directly. Its independent zizmor check exposed that error. The original `$/`
+reference and exact assertion are restored; the existing native compatibility
+wrapper normalizes only validated references in memory for the older tool,
+while security audits continue to inspect original sources.
 
 ## Security impact
 

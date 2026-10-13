@@ -32,7 +32,7 @@ class AllConnectorsNoCrsWorkflowContractTest(unittest.TestCase):
         self.assertNotIn("workflow_call:", self.caller)
         self.assertIn("\npermissions: {}\n", self.caller)
         self.assertIn("  no-crs:\n    permissions:\n      contents: read\n", self.caller)
-        self.assertIn("uses: ./.github/workflows/reusable-five-connectors-profile.yml", self.caller)
+        self.assertIn("uses: $/.github/workflows/reusable-five-connectors-profile.yml", self.caller)
         self.assertIn("profile: no-crs", self.caller)
         self.assertNotIn("inputs:", self.caller)
         self.assertNotIn("secrets:", self.caller)

@@ -39,7 +39,7 @@ def read_arguments(profile: str, install_root: Path = Path("/")) -> list[str]:
                 "--spool-directory": f"/var/lib/msconnector/lighttpd-stock/{profile}"}
     numeric = {"--timeout-ms", "--spool-capacity-bytes", "--spool-free-reserve-bytes"}
     values = dict(zip(arguments[::2], arguments[1::2]))
-    if not set(expected) <= values.keys() or not values.keys() <= expected.keys() | numeric:
+    if expected.keys() - values.keys() or values.keys() - (expected.keys() | numeric):
         raise ValueError("argv record violates the closed Stock option contract")
     for option, expected_value in expected.items():
         if values[option] != expected_value:

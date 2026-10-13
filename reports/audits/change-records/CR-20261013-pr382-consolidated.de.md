@@ -118,11 +118,17 @@ acht Sonar-Befunde, führte jedoch zwölf Befunde in neuen Tests, Launcher und
 Referenztext ein. Dieses Follow-up entfernt beliebige Launcher-Eingaben, zieht
 zusammengehörige Test-/Pfadhelfer heraus und erhält jede ursprüngliche Assertion.
 Die CI-Registrierung ergänzt ausschließlich den neuen Go-Kandidatenworkflow in
-der vorhandenen exakten Publisher-/Kopier-/Staging-Liste; außerdem korrigiert sie
-einen bereits vorhandenen fehlerhaften lokalen Reusable-Workflow-Verweis.
+der vorhandenen exakten Publisher-/Kopier-/Staging-Liste.
 Action-Pins und Berechtigungsgrenzen bleiben gleich. Aktuelle Quellprüfung liegt
 vor einer neuen normalen Lieferung; Remote-Ergebnisse der ersten Lieferung
 belegen das Follow-up nicht.
+
+Das Follow-up `f96714c5470f9148dd6971871cff688b81cc36a9` änderte einen bestehenden
+Self-Repository-Workflow-Verweis fälschlich nach direktem Aufruf eines älteren
+actionlint. Der unabhängige zizmor-Check zeigte den Fehler. Originalverweis `$/`
+und exakte Assertion sind wiederhergestellt; der vorhandene native Wrapper
+normalisiert nur validierte Verweise im Speicher für das ältere Tool,
+während Security-Audits weiterhin Originalquellen prüfen.
 
 ## Security-Auswirkung
 
