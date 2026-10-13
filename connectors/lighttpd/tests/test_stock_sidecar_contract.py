@@ -537,7 +537,7 @@ int main(void) {
         transaction_id = "sidecar-host-action-test"
         engine_event = _strict_stock_event(
             harness, message_id=case.expected_engine_event or "", transaction_id=transaction_id,
-            sequence=1, previous_hash=0, phase="request_headers", actual_action="deny",
+            sequence=1, previous_hash=0, phase="request_headers", actual_action="", event_name="engine_decision",
             rule_id=case.expected_rule_id or "",
         )
         host_action_event = _strict_stock_event(
@@ -589,7 +589,7 @@ int main(void) {
         engine_event = _strict_stock_event(
             harness, message_id=case.expected_engine_event or "", transaction_id=transaction_id,
             sequence=2, previous_hash=int(host_action_event["event_hash"]), phase="request_headers",
-            actual_action="deny", rule_id=case.expected_rule_id or "",
+            actual_action="", event_name="engine_decision", rule_id=case.expected_rule_id or "",
         )
         receipt = _transaction_receipt(transaction_id)
         with tempfile.TemporaryDirectory(prefix="stock-reverse-causal-",
@@ -612,7 +612,7 @@ int main(void) {
                 harness, message_id=case.expected_engine_event or "", transaction_id=transaction_id,
                 sequence=1, previous_hash=0,
                 phase=harness._EVENT_CONTRACT_PHASE_NAMES[case.expected_phase_sequence[-1]],
-                actual_action="deny", visible_http_status=200, original_http_status=200,
+                actual_action="", event_name="engine_decision", visible_http_status=200, original_http_status=200,
                 response_committed=case.expected_response_committed,
                 rule_id=case.expected_rule_id or "",
             )
@@ -655,6 +655,173 @@ int main(void) {
 
         verify_response_case(p3_case, "deny", "http_status")
         verify_response_case(p4_case, "log_only", "log_only")
+
+    def test_real_backend_unobserved_action_is_not_host_enforcement(self) -> None:
+        harness = _load_real_backend_harness()
+        case = next(c for c in harness.REAL_BACKEND_CASES if c.name == "p1_deny")
+        engine = _strict_stock_event(
+            harness, message_id="MSCONN_EVENT_ENGINE_DECISION", event_name="engine_decision",
+            transaction_id="unobserved-unit-control", sequence=1, previous_hash=0,
+            phase="request_headers", actual_action="", rule_id=case.expected_rule_id or "",
+        )
+        harness._validate_event_schema(engine)
+        self.assertIsNone(harness._host_action_event_from_records(
+            [engine], case, _transaction_receipt("unobserved-unit-control")))
+        for altered in (
+            {**engine, "transport_result": "http_status"},
+            {**engine, "message_id": "MSCONN_EVENT_REQUEST_BLOCKED"},
+            {**engine, "event": "custom_event"},
+            {**engine, "actual_action": "invented"},
+            {**engine, "status": "ok", "action": "allow", "requested_action": "allow"},
+        ):
+            with self.subTest(altered=altered["message_id"], action=altered["actual_action"]):
+                with self.assertRaises(RuntimeError):
+                    harness._validate_event_schema(altered)
+        fabricated = {**engine, "actual_action": "deny"}
+        self.assertFalse(harness._is_engine_event_candidate(fabricated, case))
+        technical = {**engine, "message_id": "MSCONN_EVENT_PROTOCOL_ERROR",
+                     "event": "protocol_error", "status": "error", "action": "error",
+                     "requested_action": "error", "rule_id": ""}
+        harness._validate_event_schema(technical)
+        with self.assertRaises(RuntimeError):
+            harness._validate_event_schema({**technical, "transport_result": "http_status"})
+
+    def test_real_backend_retains_failed_attempt_raw_artifacts(self) -> None:
+        harness = _load_real_backend_harness()
+        with tempfile.TemporaryDirectory(prefix="stock-retention-unit-",
+                                         dir=_temporary_root()) as temporary:
+            runtime = Path(temporary)
+            runtime.chmod(0o700)
+            with self.assertRaisesRegex(RuntimeError, "unit failure"):
+                with harness.retained_attempt(runtime) as attempt:
+                    (attempt / "physical-stderr.log").write_bytes(b"unit fixture error\n")
+                    raise RuntimeError("unit failure")
+            self.assertTrue(attempt.is_dir())
+            self.assertEqual((attempt / "physical-stderr.log").read_bytes(), b"unit fixture error\n")
+            receipt = json.loads((attempt / "attempt.json").read_text())
+            self.assertEqual(receipt["outcome"], "failed")
+            self.assertTrue(receipt["raw_artifacts_retained"])
+            self.assertEqual(receipt["artifacts"][0]["sha256"],
+                             hashlib.sha256(b"unit fixture error\n").hexdigest())
+            self.assertEqual((attempt / "physical-stderr.log").stat().st_mode & 0o777, 0o600)
+
+    def test_real_backend_client_exit_and_partial_bytes_are_retained(self) -> None:
+        harness = _load_real_backend_harness()
+        with tempfile.TemporaryDirectory(prefix="stock-client-unit-",
+                                         dir=_temporary_root()) as temporary:
+            root = Path(temporary)
+            # No host is launched: an unused loopback port exercises a real client failure.
+            with self.assertRaisesRegex(RuntimeError, "client exchange failed"):
+                harness.exchange(harness.free_port(), b"GET / HTTP/1.1\r\n\r\n", root / "client")
+            receipt = json.loads((root / "client/client.json").read_text())
+            self.assertEqual(receipt["wait_returncode"], 77)
+            self.assertIsNone(receipt["http_status"])
+            self.assertEqual(receipt["response_bytes"], 0)
+            self.assertTrue((root / "client/stderr.log").read_bytes())
+
+    def test_real_backend_launch_receipt_failure_reaps_child(self) -> None:
+        harness = _load_real_backend_harness()
+        children = []
+        real_popen = subprocess.Popen
+
+        def recording_popen(*args, **kwargs):
+            child = real_popen(*args, **kwargs)
+            children.append(child)
+            return child
+
+        with tempfile.TemporaryDirectory(prefix="stock-launch-failure-unit-",
+                                         dir=_temporary_root()) as temporary:
+            with mock.patch.object(harness.subprocess, "Popen", side_effect=recording_popen), \
+                    mock.patch.object(harness, "write_observation", side_effect=OSError("unit disk error")):
+                with self.assertRaisesRegex(OSError, "unit disk error"):
+                    harness.launch_logged([sys.executable, "-c", "import time; time.sleep(60)"],
+                                          Path(temporary), "unit-child")
+            self.assertEqual(len(children), 1)
+            self.assertIsNotNone(children[0].returncode)
+            self.assertIsNotNone(children[0].poll())
+
+    def test_real_backend_client_zero_exit_does_not_hide_incomplete_framing(self) -> None:
+        harness = _load_real_backend_harness()
+        with tempfile.TemporaryDirectory(prefix="stock-framing-unit-",
+                                         dir=_temporary_root()) as temporary:
+            with socket.socket() as listener:
+                listener.bind(("127.0.0.1", 0))
+                listener.listen(1)
+                listener.settimeout(5)
+
+                def reply():
+                    with listener.accept()[0] as connection:
+                        connection.recv(4096)
+                        connection.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\n")
+
+                thread = threading.Thread(target=reply)
+                thread.start()
+                try:
+                    with self.assertRaisesRegex(harness.CaseObservationError, "incomplete"):
+                        harness.exchange(listener.getsockname()[1],
+                                         b"GET / HTTP/1.1\r\n\r\n", Path(temporary) / "client")
+                finally:
+                    thread.join(timeout=6)
+                self.assertFalse(thread.is_alive())
+            receipt = json.loads((Path(temporary) / "client/client.json").read_text())
+            self.assertEqual(receipt["wait_returncode"], 0)
+            self.assertEqual(receipt["content_length"], 10)
+            self.assertEqual(receipt["body_bytes"], 0)
+            self.assertFalse(receipt["framing_complete"])
+
+    def test_real_backend_failed_client_retains_backend_observation(self) -> None:
+        harness = _load_real_backend_harness()
+        case = harness.REAL_BACKEND_CASES[0]
+        with tempfile.TemporaryDirectory(prefix="stock-backend-failure-unit-",
+                                         dir=_temporary_root()) as temporary:
+            root = Path(temporary)
+            log = root / "access.log"
+            log.write_text("", encoding="utf-8")
+            log.chmod(0o600)
+
+            def failing_client(*args, **kwargs):
+                log.write_text("unit-request-a\nunit-request-b\n", encoding="utf-8")
+                raise RuntimeError("unit client failure")
+
+            with mock.patch.object(harness, "verify_artifact_digest"), \
+                    mock.patch.object(harness, "launch_logged", return_value=mock.Mock()), \
+                    mock.patch.object(harness, "wait_ready"), \
+                    mock.patch.object(harness, "exchange", side_effect=failing_client), \
+                    mock.patch.object(harness, "stop_with_receipt") as cleanup:
+                with self.assertRaisesRegex(RuntimeError, "unit client failure"):
+                    harness.run_case(runtime_root=root, initial_receipt=root / "receipt.json",
+                                     temporary_root=root, sidecar_binary=root / "unit-binary",
+                                     sidecar_binary_digest="0" * 64, backend_port=1,
+                                     backend_access_log=log, case=case, metadata={})
+            cleanup.assert_called_once()
+            evidence = json.loads((root / "cases" / case.name / "backend-final.json").read_text())
+            self.assertEqual(evidence["requests_observed"], 2)
+            self.assertEqual(evidence["access_log_sha256"], hashlib.sha256(log.read_bytes()).hexdigest())
+
+    def test_real_backend_catalog_continues_but_does_not_hide_failure(self) -> None:
+        harness = _load_real_backend_harness()
+        with tempfile.TemporaryDirectory(prefix="stock-catalog-unit-",
+                                         dir=_temporary_root()) as temporary:
+            attempted = []
+
+            def case_result(*, case, **kwargs):
+                attempted.append(case.name)
+                if len(attempted) == 1:
+                    raise harness.CaseObservationError("unit catalog mismatch")
+                if len(attempted) == 2:
+                    raise RuntimeError("unit missing evidence")
+                return {"case": case.name}
+
+            with mock.patch.object(harness, "run_case", side_effect=case_result):
+                results = harness.run_catalog(temporary_root=Path(temporary))
+            self.assertEqual(attempted, [case.name for case in harness.REAL_BACKEND_CASES])
+            self.assertEqual([result["result"] for result in results[:2]], ["FAIL", "BLOCKED"])
+            for case in harness.REAL_BACKEND_CASES:
+                self.assertTrue((Path(temporary) / "cases" / case.name / "outcome.json").is_file())
+            with mock.patch.object(harness, "run_case", side_effect=harness.CleanupFailure("unit cleanup")) as run:
+                with self.assertRaises(harness.CleanupFailure):
+                    harness.run_catalog(temporary_root=Path(temporary))
+                self.assertEqual(run.call_count, 1)
 
     def test_real_backend_event_hash_matches_common_p4_vectors(self) -> None:
         harness = _load_real_backend_harness()
@@ -808,8 +975,8 @@ int main(void) {
         engine_event = _strict_stock_event(
             harness, message_id=body_limit_case.expected_engine_event or "",
             transaction_id=transaction_id, sequence=1, previous_hash=0,
-            phase="request_headers", actual_action="deny", requested_action="deny",
-            event_name="rule_block",
+            phase="request_headers", actual_action="", requested_action="deny",
+            event_name="request_body_limit_exceeded",
         )
         host_event = _strict_stock_event(
             harness, message_id=body_limit_case.expected_host_action_event or "",
@@ -876,7 +1043,7 @@ int main(void) {
         )
         self.assertLess(
             source.rindex("verify_stock_launch_artifacts("),
-            source.index("backend = subprocess.Popen"),
+            source.index("backend = launch_logged"),
         )
         self.assertIn('"stock_lighttpd_staticfile_linkage": _STOCK_STATICFILE_LINKAGE', source)
         self.assertNotIn("write_receipt(receipt, outcome)", source)

@@ -214,6 +214,27 @@ Parent results. I12/V08–V10 remain open. Original raw artifacts/checksums stay
 unchanged; new runs receive their own source/config/host bindings. No removed
 redundant record is restored; I09/I10/I11 and the original122 index entries remain.
 
+### Stock real-backend evidence producer correction, 2026-10-13
+
+The historical Stock06 physical log remains byte-identical. Its canonical
+engine decision legitimately has empty `actual_action` before host observation;
+the old validator rejected it. The corrected validator permits that contract
+only for unobserved engine/error events and requires a separate observed,
+same-transaction native deny451. Wrong correlation or missing host proof fails
+closed; no engine action is invented.
+
+The seven-case real-backend harness retains every attempt, physical stderr,
+launch/exit/cleanup receipts, direct waited client headers/body/hash/framing and
+independent backend failure/final counts. Failed cases continue after successful
+cleanup; a cleanup failure stops further launches. Verified receipts publish
+only after cleanup. Eighteen focused harness tests pass, including incomplete
+framing despite client exit0, missing host evidence, wrong correlation and
+launch/cleanup failures. Root's real current Stock host reexecution remains
+required. Local receipts:
+`/var/tmp/codex/ModSecurity-conector/runs/e2e/20261013T125816Z-8c574cdf-i12-completion/stock-harness/resumed-01`.
+This modifies only the host-specific harness and its tests; product sources,
+Framework/MRTS gitlinks, scanners and native runtime guards are unchanged.
+
 ### Immutable original index
 
 Each numbered link identifies one original Change ID through its filename.

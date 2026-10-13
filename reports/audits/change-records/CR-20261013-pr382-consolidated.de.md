@@ -222,6 +222,28 @@ Rohbelege und Prüfsummen werden unverändert erhalten; neue Runs haben eigene
 Source-/Config-/Hostbindungen. Keine entfernten redundanten Records werden
 wiederhergestellt; I09/I10/I11 und die 122 ursprünglichen Indexeinträge bleiben erhalten.
 
+### Korrektur des Stock-Real-Backend-Evidence-Producers, 2026-10-13
+
+Der historische physische Stock06-Log bleibt bytegleich. Seine kanonische
+Engine-Entscheidung hat vor Hostbeobachtung zulässig leeres `actual_action`;
+der alte Validator lehnte dies ab. Der korrigierte Validator erlaubt diesen
+Contract nur für unbeobachtete Engine-/Error-Events und verlangt separat ein
+beobachtetes natives Deny451 derselben Transaktion. Falsche Korrelation oder
+fehlender Hostnachweis scheitert geschlossen; keine Engine-Aktion wird erfunden.
+
+Der sieben Fälle umfassende Real-Backend-Harness erhält jeden Versuch,
+physisches Stderr, Launch-/Exit-/Cleanupreceipts, direkt gewartete Clientheader,
+Body/Hash/Framing und unabhängige Backend-Fehler-/Endzähler. Fehlgeschlagene Fälle
+laufen nach erfolgreichem Cleanup weiter; ein Cleanupfehler stoppt weitere
+Starts. Verifizierte Receipts werden erst nach Cleanup veröffentlicht.
+Achtzehn fokussierte Harness-Tests bestehen, einschließlich unvollständigem
+Framing trotz Client-Exit0, fehlendem Hostnachweis, falscher Korrelation und
+Launch-/Cleanupfehlern. Roots echte aktuelle Stock-Host-Wiederholung bleibt
+erforderlich. Lokale Receipts:
+`/var/tmp/codex/ModSecurity-conector/runs/e2e/20261013T125816Z-8c574cdf-i12-completion/stock-harness/resumed-01`.
+Nur der hostspezifische Harness und seine Tests ändern sich; Produktquellen,
+Framework-/MRTS-Gitlinks, Scanner und native Runtime-Guards bleiben unverändert.
+
 ### Unveränderlicher Originalindex
 
 Jeder nummerierte Link identifiziert eine Original-Change-ID durch ihren Dateinamen.
