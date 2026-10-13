@@ -2,6 +2,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "response_companion_client.h"
+#include "response_companion_protocol.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -78,6 +79,7 @@ static void client_reset_transaction(msconnector_response_companion_client *clie
     client->body_started = 0;
     client->response_eos = 0;
     client->outcome_recorded = 0;
+    client->precommit_terminal_outcome = 0;
 }
 
 static void client_mark_closed(msconnector_response_companion_client *client)
@@ -776,6 +778,9 @@ int msconnector_response_companion_client_outcome(
         return 0;
     }
     client->outcome_recorded = 1;
+    client->precommit_terminal_outcome = !client->committed &&
+        msconnector_response_companion_precommit_outcome_matches(
+            result->decision, result->status, action, visible_status, connection_aborted);
     return 1;
 }
 
@@ -832,7 +837,10 @@ int msconnector_response_companion_client_release(
     msconnector_response_companion_client *client,
     msconnector_response_companion_result *result, msconnector_error *error)
 {
-    if (!client_is_open(client) || !client->claimed || !client->response_eos) {
+    if (!client_is_open(client) || !client->claimed ||
+        (!client->response_eos &&
+         !(client->response_headers && !client->committed &&
+           client->outcome_recorded && client->precommit_terminal_outcome))) {
         set_error(error, MSCONNECTOR_ERROR_PHASE_SEQUENCE, "MRC1 RELEASE is invalid");
         return 0;
     }

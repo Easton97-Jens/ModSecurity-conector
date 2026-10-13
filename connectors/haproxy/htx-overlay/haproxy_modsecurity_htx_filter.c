@@ -998,6 +998,21 @@ static int haproxy_modsecurity_htx_companion_record_precommit_outcome(
         &ctx->companion.client, action, visible_status, 0, &result,
         &error);
     haproxy_modsecurity_htx_companion_result_reset(&result);
+    if (ok == 1) {
+        memset(&result, 0, sizeof(result));
+        msconnector_error_init(&error);
+        ok = msconnector_response_companion_client_release(
+            &ctx->companion.client, &result, &error);
+        haproxy_modsecurity_htx_companion_result_reset(&result);
+        if (ok == 1) {
+            msconnector_error_init(&error);
+            ok = msconnector_response_companion_client_close(
+                &ctx->companion.client, &error);
+            ctx->companion.terminal = 1;
+            ctx->companion.terminal_result = ok == 1;
+            return ctx->companion.terminal_result;
+        }
+    }
     {
         const int cleanup_ok = haproxy_modsecurity_htx_companion_cancel_and_close(ctx, &error);
         return ok == 1 && cleanup_ok == 1;

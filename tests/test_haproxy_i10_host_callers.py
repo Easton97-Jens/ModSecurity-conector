@@ -65,6 +65,9 @@ class HAProxyI10HostCallers(unittest.TestCase):
     def test_negative_controls_detect_actual_boundary_regressions(self):
         source = OVERLAY.read_text()
         mutations = {
+            "normal-deny-fabricates-cancel": (
+                "if (ok == 1) {\n        memset(&result, 0, sizeof(result));",
+                "if (0) {\n        memset(&result, 0, sizeof(result));"),
             "invalid-nested-success-ignored": ("|| result.success != 1", "|| result.success == 123"),
             "invalid-result-success-accepted": ("result->success == 1 &&", "result->success != 0 &&"),
             "invalid-release-accepted": ("if (ok != 1) {\n        haproxy_modsecurity_htx_companion_cancel_and_close(ctx, &error);\n        return 0;", "if (ok == 0) {\n        haproxy_modsecurity_htx_companion_cancel_and_close(ctx, &error);\n        return 0;"),

@@ -268,6 +268,27 @@ Native logging failures still fail finish. Claim, phase, correlation,
 duplicate, bounds and first-cause handling remain enforced. The host outcome
 does not overwrite the engine decision.
 
+The genuine a30 rebuild/retest (`1791918602525320691`) then exposes a second
+cause: after successful P3 OUTCOME the HTX caller invokes a typed connector-error
+CANCEL because normal MRC1 RELEASE previously required P4 EOS. The existing
+RELEASE opcode now also accepts an acknowledged, matching disruptive P3
+outcome before commitment. Client and server share the matching predicate;
+CLAIM-only, Allow/log-only, missing outcome and mismatched status remain
+ineligible. HTX uses OUTCOME -> RELEASE -> close on success; explicit technical
+CANCEL remains intact. No artificial EOS, new opcode or error suppression is
+introduced. The client structure changes, so consumers require a genuine
+rebuild; old host inputs retain their original revision identity.
+
+Genuine libModSecurity/client/server tests and standalone client tests pass.
+Four copied original-guard/outcome-validation controls compile successfully
+and fail at the intended assertions. Receipts:
+`haproxy-precommit-native-validation.json`, SHA256
+`73ccabd26af1514570e9f7327812e71c825be858067aed5ce9a47599bf6d2454`,
+in the task run. The real transport regression is wired into the existing
+native body suite; the overlay build copies its new private helper header.
+Focused host/build and response-handle contracts pass; the stale test cleanup
+signature is aligned with the actual integer return without weakening checks.
+
 Focused P3/P4/native-limit cases fail against the original guard and pass
 after correction. Existing full binding/Common caller, native-result, phase,
 technical-error/reentry and mutation regressions are rerun: eight final caller
