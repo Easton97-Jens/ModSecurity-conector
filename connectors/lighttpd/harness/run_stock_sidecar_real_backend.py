@@ -258,15 +258,15 @@ REAL_BACKEND_CASES = (
         engine_response_limit=65536,
         engine_response_limit_action="Reject",
         phase4_mode="strict",
-        expected_status=413,
+        expected_status=403,
         expected_body=b"",
-        expected_phase_sequence=("P1",),
+        expected_phase_sequence=("P1", "P2"),
         expected_engine_decision="block",
         expected_contract_action="deny",
         expected_error_class="body_limit",
         expected_response_committed=False,
         expected_engine_event="MSCONN_EVENT_BODY_LIMIT",
-        expected_host_action_event="MSCONN_EVENT_INTERNAL_ERROR",
+        expected_host_action_event="MSCONN_EVENT_BODY_LIMIT",
         expected_rule_id=None,
         expected_actual_action="deny",
         expected_transport_result="http_status",
@@ -318,7 +318,7 @@ REAL_BACKEND_CASES = (
         expected_error_class="none",
         expected_response_committed=True,
         expected_engine_event="MSCONN_EVENT_ENGINE_DECISION",
-        expected_host_action_event="MSCONN_EVENT_RESPONSE_BLOCKED",
+        expected_host_action_event="MSCONN_EVENT_PHASE4_LATE_INTERVENTION",
         expected_rule_id="9821004",
         expected_actual_action="log_only",
         expected_transport_result="log_only",
@@ -667,9 +667,9 @@ def request_body(request: bytes) -> bytes:
 
 
 def expected_snapshot_request_bytes(case: RealBackendCase) -> int:
-    # The sidecar rejects Content-Length over its P2 limit before it accepts a
-    # request-body byte. Every other catalog case has one bounded body stream.
-    return 0 if case.expected_error_class == "body_limit" else len(request_body(case.request))
+    # This catalog sets the native engine limit. The sidecar therefore accepts
+    # the complete bounded request before libModSecurity returns BODY_LIMIT.
+    return len(request_body(case.request))
 
 
 def receipt_case_path(runtime_root: Path, initial: Path, case: RealBackendCase) -> Path:
@@ -926,7 +926,7 @@ def _validate_event_enums(record: dict[str, object]) -> None:
             record["requested_action"] in {"deny", "redirect", "drop", "rate_limit",
                                            "abort_connection", "stream_reset"}
         policy = record["message_id"] == "MSCONN_EVENT_BODY_LIMIT" and \
-            record["event"] in {"request_body_limit_exceeded", "response_body_limit_exceeded"} and \
+            record["event"] == "body_limit" and \
             record["status"] == "blocked" and record["action"] == "deny" and \
             record["requested_action"] == "deny" and record["rule_id"] == ""
         error = _UNOBSERVED_ERROR_EVENTS.get(record["message_id"])
@@ -1088,7 +1088,7 @@ def _event_matches_identity(record: dict[str, object], case: RealBackendCase) ->
 
 
 def _is_engine_event_candidate(record: dict[str, object], case: RealBackendCase) -> bool:
-    event_name = "request_body_limit_exceeded" if case.expected_engine_event == \
+    event_name = "body_limit" if case.expected_engine_event == \
         "MSCONN_EVENT_BODY_LIMIT" else "engine_decision"
     return record.get("message_id") == case.expected_engine_event and \
         _event_matches_identity(record, case) and \

@@ -2,7 +2,20 @@
 
 **Sprache:** [English](pr-382-i09-i12-rest-matrix.md) | Deutsch
 
-## Aktueller Review-/Go-Abgleich vom 2026-10-13
+## Aktuelle I12-Ausführung vom 2026-10-13
+
+Ergebnis: **I12_PARTIAL**. Der [aktuelle Hostbericht](pr-382-i12-host-evidence-20261013.de.md)
+ist die aktuelle I12-Einordnung für Parent
+`a9d48bb58aa948aea7d79e20cdf09d3f239b7808`, alle 13 Pflichtteile und die
+separate Stock-native-Diagnosekontrolle. Er erhält 1.406 Pflicht- und
+78 Diagnoseanforderungen samt fehlender Evidenz. Normale #382-zu-#410-Merges
+bewahren den historischen Bericht vom 11.10.2026. Neu reproduzierte HAProxy-
+Outcome-/Abschluss-/Phasenkonvertierungsfehler sind im Parent repariert; begrenzte Wiederholung
+schließt die vollständige Matrix nicht. I12/V08–V10 und das historische
+Secret-Gate bleiben offen. Die revisionsgebundenen Tabellen unten behalten
+ihren früheren Evidenzscope.
+
+## Früherer Review-/Go-Checkpoint vom 2026-10-13
 
 Status: **BLOCKED_FOR_I12**. Die aktuelle Korrektur startet bei
 `4639f982a8125f4150394e4d4f2e8af4e690f494`. Der [konsolidierte Change Record](../reports/audits/change-records/CR-20261013-pr382-consolidated.de.md)
@@ -21,8 +34,8 @@ Commits beseitigen sie nicht. Keine Scanner-Ausnahme oder History-Rewrite erfolg
 Der echte Nonroot-Stock-Start ist wegen lokaler UID-Abbildung `0 0 1` BLOCKED.
 Der master-Updater wurde nach Integration nicht ausgeführt;
 **MASTER_WORKFLOW_VERIFIED: NOT_EXECUTED**. Die [I12-Übergabe](pr-382-i12-handoff.de.md) bindet
-noch benötigte Hostnachweise und finale Lieferdaten; #410 und die vollständige
-I12-Matrix bleiben unangetastet. Historische R16/R17- und Tabellenrevisionen
+noch benötigte Hostnachweise und finale Lieferdaten; jener frühere Task ließ
+#410 und die vollständige I12-Matrix unangetastet. Historische R16/R17- und Tabellenrevisionen
 unten behalten ihren ursprünglichen Umfang.
 
 Stand: 2026-10-10. Dokumentationsbasis und geprüfter Sourcebestand: `b2622a5d6ca746485c08f4789208299a111f47c7`.

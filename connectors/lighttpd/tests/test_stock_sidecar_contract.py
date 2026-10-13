@@ -971,18 +971,20 @@ int main(void) {
                           if candidate.name == "allow_full")
         body_limit_case = next(candidate for candidate in harness.REAL_BACKEND_CASES
                                if candidate.name == "p2_body_limit")
+        self.assertEqual(harness.expected_snapshot_request_bytes(body_limit_case), 5)
         transaction_id = "body-limit-event-test"
         engine_event = _strict_stock_event(
             harness, message_id=body_limit_case.expected_engine_event or "",
             transaction_id=transaction_id, sequence=1, previous_hash=0,
-            phase="request_headers", actual_action="", requested_action="deny",
-            event_name="request_body_limit_exceeded",
+            phase="request_body", actual_action="", requested_action="deny",
+            event_name="body_limit",
         )
         host_event = _strict_stock_event(
             harness, message_id=body_limit_case.expected_host_action_event or "",
             transaction_id=transaction_id, sequence=2, previous_hash=int(engine_event["event_hash"]),
-            phase="request_headers", actual_action="deny", requested_action="error",
-            transport_result="http_status", visible_http_status=413,
+            phase="request_body", actual_action="deny", requested_action="deny",
+            transport_result="http_status", visible_http_status=403,
+            event_name="body_limit",
         )
         receipt = {
             "transaction_id_sha256": hashlib.sha256(transaction_id.encode("utf-8")).hexdigest(),

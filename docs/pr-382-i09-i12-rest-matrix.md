@@ -2,7 +2,19 @@
 
 **Language:** English | [Deutsch](pr-382-i09-i12-rest-matrix.de.md)
 
-## Current review/Go reconciliation, 2026-10-13
+## Current I12 execution, 2026-10-13
+
+Outcome: **I12_PARTIAL**. The [current host report](pr-382-i12-host-evidence-20261013.md)
+is the current I12 disposition for Parent
+`a9d48bb58aa948aea7d79e20cdf09d3f239b7808`, all 13 required legs and the
+separate Stock-native diagnostic control. It retains 1,406 required and
+78 diagnostic obligations and all missing evidence. Normal #382-to-#410
+merges preserve the historical 2026-10-11 report. Newly reproduced HAProxy
+outcome/completion/phase-conversion defects are repaired in Parent; bounded reexecution does not
+close the full matrix. I12/V08–V10 and the historical secret gate remain open.
+The revision-bound tables below preserve their earlier evidence scope.
+
+## Earlier review/Go checkpoint, 2026-10-13
 
 State: **BLOCKED_FOR_I12**. Current remediation starts at
 `4639f982a8125f4150394e4d4f2e8af4e690f494`. The [consolidated Change Record](../reports/audits/change-records/CR-20261013-pr382-consolidated.md)
@@ -21,7 +33,7 @@ them. No scanner exception or history rewrite is performed. The real nonroot
 Stock startup is BLOCKED by local UID mapping `0 0 1`. The master updater has
 not run after integration; **MASTER_WORKFLOW_VERIFIED: NOT_EXECUTED**. The
 [I12 handoff](pr-382-i12-handoff.md) binds missing host evidence and final delivery facts;
-#410 and the full I12 matrix remain untouched. Historical R16/R17 and the table
+That earlier task left #410 and the full I12 matrix untouched. Historical R16/R17 and the table
 revisions below retain their original scope.
 
 Date: 2026-10-10. Documentation base and inspected source inventory: `b2622a5d6ca746485c08f4789208299a111f47c7`.

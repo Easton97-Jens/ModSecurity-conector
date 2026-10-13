@@ -389,6 +389,41 @@ Status-Ternary in der neuen SPOP-Regression. Eine Statuswerttabelle erhält
 genau dieselben Allow-/Deny-/Redirect-Testinputs200/403/302 ohne Schachtelung.
 Produktquellen ändern sich nicht; echte e2445-Host-/Buildidentitäten bleiben.
 
+### Aktueller I12-Kampagnenstatus, 2026-10-13
+
+Der [aktuelle zweisprachige Hostbericht](../../../docs/pr-382-i12-host-evidence-20261013.de.md)
+ersetzt frühere Liefer-/Checkpointaussagen in diesem Record. Ergebnis ist
+**I12_PARTIAL**; alle13Pflichtteile und die separate Stock-native-Diagnose
+sind bewertet. Finaler Parent: `a9d48bb58aa948aea7d79e20cdf09d3f239b7808`.
+Der bestehende #410 mergt den Parent normal und erhält den alten #410-Head
+`511c4ac4515f0e515f68b3bbc38274c5a230d903` in der Ancestry. Kein master-Merge,
+History-Rewrite, neuer PR oder Framework-/MRTS-Gitlinkwechsel erfolgte.
+
+Die Auswahl bleibt1.406Pflicht-IDs plus78Diagnose-IDs; der
+[generierte Missing-Case-Index](../../../docs/pr-382-i12-missing-case-index-20261013.de.md)
+erhält jede fehlende Pflicht samt Grund. Smoke-/Driver-Exit0 wird nicht zur
+vollständigen I12-/V08–V10-Abnahme aufgewertet. Historische79Records,
+Fehlversuche, physische Rawlogs und originale Quell-/Buildidentitäten bleiben
+erhalten; alle85.108historischen Manifesteinträge wurden unverändert nachgehasht.
+
+Echte Apache-Sink-/Recoveryprobes, direkte/Combined-HAProxyprobes, Envoy-
+Request-/Responseprobes und lighttpd-Stock-/Patched-/Kontrollbeobachtungen
+bleiben in runspezifischen Paketen erhalten. Zwei reproduzierte HAProxy-
+Terminal-Cleanupfehler und Phasenmetadaten sind im Parent mit nativen Negativ-/Mutationschecks
+repariert; SPOP/HTX aus e2445 und Envoy aus 6175 wurden wirklich neu gebaut
+und getestet. Begrenzte Inputvergleiche binden unveränderte Produktinputs
+an finalen a9, ohne tatsächliche Build-/Runidentitäten umzuetikettieren. Verbleibende NGINX-/Traefik-/Patched-Launchervoraussetzungen
+und physische Lifecycle-/Transport-/Korrelationsproducerlücken sind explizit
+benannt. Fehlende Felder bleiben null. Harnesskorrekturen erhalten native403-
+Policyergebnisse, gültige leere unbeobachtete Aktionen und Cleanupreceipts;
+physische HAProxyfehler in Normalfällen verhindern jetzt PASS-Veröffentlichung.
+
+Die spätere Sicherheitsscope-Anweisung wird umgesetzt: Advisory-Freigabe
+wurde geprüft, kein weiterer Deep-Scan-/Review-Trigger erfolgt. Der bereits
+belegte historische Gitleaks-Rangefehler bleibt ein unabhängiges Release-Gate.
+Finale lokale Prüfungen geänderter Pfade und Hosted-Ergebnisse des exakten
+Heads stehen im aktuellen Bericht und Lieferprotokoll. Beide PRs bleiben Draft.
+
 ### Unveränderlicher Originalindex
 
 Jeder nummerierte Link identifiziert eine Original-Change-ID durch ihren Dateinamen.

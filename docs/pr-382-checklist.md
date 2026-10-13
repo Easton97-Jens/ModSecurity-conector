@@ -2,7 +2,20 @@
 
 **Language:** English | [Deutsch](pr-382-checklist.de.md)
 
-## Current review/Go reconciliation, 2026-10-13
+## Current I12 execution, 2026-10-13
+
+Outcome: **I12_PARTIAL**. Parent
+`a9d48bb58aa948aea7d79e20cdf09d3f239b7808` includes the reproduced HAProxy
+native outcome, normal P3 completion and phase-conversion repairs. The existing #410 branch receives
+this Parent through normal merges and retains its historical evidence.
+The [current host report](pr-382-i12-host-evidence-20261013.md) covers all
+13 required legs and the separate Stock-native control, 1,406 required and
+78 diagnostic obligations, actual host attempts and remaining prerequisites.
+Bounded host success and component tests leave I12/V08/V09/V10 unchecked.
+The independent historical secret-range gate remains failed. Final exact
+Parent/evidence delivery and CI states are in the current PR descriptions.
+
+## Earlier review/Go checkpoint, 2026-10-13
 
 State: **BLOCKED_FOR_I12**. Current remediation starts at
 `4639f982a8125f4150394e4d4f2e8af4e690f494`. The [consolidated Change Record](../reports/audits/change-records/CR-20261013-pr382-consolidated.md)
@@ -21,7 +34,7 @@ them. No scanner exception or history rewrite is performed. The real nonroot
 Stock startup is BLOCKED by local UID mapping `0 0 1`. The master updater has
 not run after integration; **MASTER_WORKFLOW_VERIFIED: NOT_EXECUTED**. The
 [I12 handoff](pr-382-i12-handoff.md) binds missing host evidence and final delivery facts;
-#410 and the full I12 matrix remain untouched. Historical R16/R17 and the table
+That earlier task left #410 and the full I12 matrix untouched. Historical R16/R17 and the table
 revisions below retain their original scope.
 
 [Draft PR #382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382),

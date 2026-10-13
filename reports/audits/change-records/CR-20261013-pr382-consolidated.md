@@ -367,6 +367,42 @@ SPOP regression fixture. A three-value status table preserves the exact
 Allow/Deny/Redirect200/403/302 test inputs without nesting. No production
 source changes; genuine e2445 host/build identities remain unchanged.
 
+### Current I12 campaign disposition, 2026-10-13
+
+The [current paired host report](../../../docs/pr-382-i12-host-evidence-20261013.md)
+supersedes earlier delivery/checkpoint claims in this record. Outcome is
+**I12_PARTIAL**, with all 13 required legs and the separate Stock-native
+diagnostic assessed. The final Parent is `a9d48bb58aa948aea7d79e20cdf09d3f239b7808`.
+The existing #410 normally merges the Parent and retains old #410 head
+`511c4ac4515f0e515f68b3bbc38274c5a230d903` in ancestry. No master integration,
+history rewrite, new PR or Framework/MRTS gitlink change occurred.
+
+The complete selection remains 1,406 required IDs plus78 diagnostic IDs;
+the [generated missing-case index](../../../docs/pr-382-i12-missing-case-index-20261013.md)
+preserves every missing obligation and its reason. No smoke/driver exit0
+is promoted to full I12/V08–V10 PASS. Historical79records, failed attempts,
+physical raw logs and original source/build identities remain intact;
+all85,108 historical manifest entries were rehashed unchanged.
+
+Actual Apache sink/recovery probes, HAProxy direct/combined probes, Envoy
+request/response probes and lighttpd Stock/patched/control observations are
+retained in run-specific packets. Two reproduced HAProxy terminal-cleanup
+defects and phase metadata are repaired in the Parent, with native negative/mutation checks;
+SPOP/HTX binaries from e2445 and Envoy binaries from 6175 are genuinely rebuilt
+and retested; scoped input comparisons bind unchanged product inputs to
+final a9 without relabelling actual build/run identities.
+Remaining NGINX/Traefik/patched launcher prerequisites and physical lifecycle/
+transport/correlation producer gaps are reported explicitly. Absent fields
+remain null. Harness fixes preserve native403 policy outcomes, valid empty
+unobserved actions and cleanup receipts; normal-case physical HAProxy errors
+now reject publication of PASS.
+
+The user's later security-scope instruction is applied: advisory authorization
+was checked, with no further deep scan/review trigger. The already established
+historical Gitleaks range failure remains an independent release gate.
+Final changed-path/local and exact-head hosted results are recorded in the
+current report and delivery ledger. Both PRs remain Draft.
+
 ### Immutable original index
 
 Each numbered link identifies one original Change ID through its filename.
