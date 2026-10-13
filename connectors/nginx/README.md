@@ -469,14 +469,14 @@ match rule `1100503`; HTTP `200` alone is insufficient. The isolated cached
 host probe produced that native event and the unchanged collector/normalizer
 accepted the individual case. Its aggregate remains `FAIL`; no new exact-head
 E2E or full canonical PASS is claimed. See the
-[empty-header Change Record](../../reports/audits/change-records/CR-20261001-nginx-empty-header-driver.md).
+[empty-header Change Record](https://github.com/Easton97-Jens/ModSecurity-conector/blob/4639f982a8125f4150394e4d4f2e8af4e690f494/reports/audits/change-records/CR-20261001-nginx-empty-header-driver.md).
 
 One isolated `transaction_id_generated_or_fallback` diagnostic observed HTTP
 `200`, an actual audit request line ending in `HTTP/1.1`, a root master with a
 `nobody` worker, native rule `1100502`, and a PASS for that case from the
 unchanged Parent source collector. Its one-case aggregate is `FAIL`; it is not
 canonical or exact-head lifecycle PASS. See the
-[H1 request-binding Change Record](../../reports/audits/change-records/CR-20261001-nginx-h1-request-binding.md).
+[H1 request-binding Change Record](https://github.com/Easton97-Jens/ModSecurity-conector/blob/4639f982a8125f4150394e4d4f2e8af4e690f494/reports/audits/change-records/CR-20261001-nginx-h1-request-binding.md).
 
 Historical generated evidence keeps NGINX `partial`:
 

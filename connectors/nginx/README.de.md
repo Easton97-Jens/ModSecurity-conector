@@ -505,14 +505,14 @@ allein reicht nicht. Der isolierte Host-Probe mit vorhandenem Cache erzeugte
 dieses native Event, und der unveränderte Collector/Normalizer akzeptierte den
 einzelnen Case. Sein Aggregat bleibt `FAIL`; kein neuer Exact-Head-E2E oder
 vollständiger kanonischer PASS wird behauptet. Siehe den
-[Leerheader-Change-Record](../../reports/audits/change-records/CR-20261001-nginx-empty-header-driver.de.md).
+[Leerheader-Change-Record](https://github.com/Easton97-Jens/ModSecurity-conector/blob/4639f982a8125f4150394e4d4f2e8af4e690f494/reports/audits/change-records/CR-20261001-nginx-empty-header-driver.de.md).
 
 Eine isolierte `transaction_id_generated_or_fallback`-Diagnose beobachtete HTTP
 `200`, eine tatsächliche Audit-Request-Zeile mit `HTTP/1.1`, einen Root-Master
 mit `nobody`-Worker, die native Regel `1100502` und einen PASS für diesen Case
 aus dem unveränderten Parent-Source-Collector. Ihr Ein-Case-Aggregat ist
 `FAIL`; dies ist kein kanonischer oder Exact-Head-Lifecycle-PASS. Siehe den
-[H1-Request-Binding-Change-Record](../../reports/audits/change-records/CR-20261001-nginx-h1-request-binding.de.md).
+[H1-Request-Binding-Change-Record](https://github.com/Easton97-Jens/ModSecurity-conector/blob/4639f982a8125f4150394e4d4f2e8af4e690f494/reports/audits/change-records/CR-20261001-nginx-h1-request-binding.de.md).
 
 Historisch generierte Beweise halten NGINX `partial` fest:
 

@@ -66,4 +66,4 @@ bleibt eine begrenzte vollständige Nachricht, unabhängige Host-Requestgrößen
 bleiben. Natives ext_proc, natives Traefik-UDS und HTX sind ihre Streaming-Alternativen.
 Der 32768-Byte-Authorization-Response-Schutz bleibt getrennt von Anwendungsresponse-
 Inspection. Siehe [Ownership-Vertrag](phase4-mode-budget.de.md) und
-[Change Record](../reports/audits/change-records/CR-20261011-response-limit-policy-removal.de.md).
+[Change Record](https://github.com/Easton97-Jens/ModSecurity-conector/blob/4639f982a8125f4150394e4d4f2e8af4e690f494/reports/audits/change-records/CR-20261011-response-limit-policy-removal.de.md).

@@ -2,9 +2,32 @@
 
 **Sprache:** [English](pr-382-checklist.md) | Deutsch
 
+## Aktueller Review-/Go-Abgleich vom 2026-10-13
+
+Status: **BLOCKED_FOR_I12**. Die aktuelle Korrektur startet bei
+`4639f982a8125f4150394e4d4f2e8af4e690f494`. Der [konsolidierte Change Record](../reports/audits/change-records/CR-20261013-pr382-consolidated.de.md)
+ersetzt 122 historische EN/DE-Paare durch ein Paar und erhält ihre unveränderlichen
+Originalnachweise. Private/budgetierte Stock-Spools, Traefik-Commit-vor-ACK,
+Envoy-Socket-Ownership und acht Sonar-Quellkorrekturen erhalten I09/I10/I11 sowie
+Engine-eigene Body-Limits. Go 1.27.2, vier Modulminima 1.26.9 und gezielte
+`x/net` 0.61.0 / `x/sys` 0.49.0 / `x/text` 0.43.0 ersetzen verwundbare Versionen;
+grpc 1.83.2 und protobuf 1.36.11 bleiben unverändert.
+
+Alle vier lokalen Go-Modulprüfungen einschließlich Race und govulncheck bestehen,
+ebenso 71 Updater-/Workflowtests und quick-check. Lokale fokussierte Akzeptanz
+ersetzt keinen finalen Remote-CI-/Sonar-/Review-Abruf. Zwei historische
+Gitleaks-Prosa-Treffer blockieren den unabhängigen PR-Secret-Check; angehängte
+Commits beseitigen sie nicht. Keine Scanner-Ausnahme oder History-Rewrite erfolgt.
+Der echte Nonroot-Stock-Start ist wegen lokaler UID-Abbildung `0 0 1` BLOCKED.
+Der master-Updater wurde nach Integration nicht ausgeführt;
+**MASTER_WORKFLOW_VERIFIED: NOT_EXECUTED**. Die [I12-Übergabe](pr-382-i12-handoff.de.md) bindet
+noch benötigte Hostnachweise und finale Lieferdaten; #410 und die vollständige
+I12-Matrix bleiben unangetastet. Historische R16/R17- und Tabellenrevisionen
+unten behalten ihren ursprünglichen Umfang.
+
 [Draft-PR #382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382),
 Branch `fix/unified-native-results-events-20260921`, Basis
-`5170d24801243cdcd7bf1bca6123bf8cb2c72386`. Aktualisiert: 2026-10-12.
+`5170d24801243cdcd7bf1bca6123bf8cb2c72386`. Aktualisiert: 2026-10-13.
 Historischer Stack-Abruf vom 10.10.2026: Der Branch ist über Merge-Commit `b3dc0139` mit `master` `3019722fbda40dc281b861c1cc38085be2f430a0` synchronisiert; `behind=0` und GitHub meldet den PR als mergebar. Framework-PR #137 ist gemergt und der Parent pinnt jetzt dessen Merge-Commit `99a7985c1be92a2297b1b59208f64df6768f2cbf`. Der gestapelte PR #396 ist in #382 bei `da50b67c` gemergt; sein späterer historischer Source-Head bleibt nur Evidence-Provenienz.
 
 **I09 ist am 11.10.2026 für die geprüften Code-/API-Verträge abgeschlossen.** Der [aktuelle I09-Routenaudit](pr-382-i09-route-audit.de.md) deckt 14 Routenteile für zehn Profile ab. I10 und I11 sind in ihren getrennt verifizierten Implementierungsumfängen abgeschlossen; I12 bleibt offen. Die I11-Implementierung schließt weder Live-Host-Nachweise noch Freigabe-CI ab. Die abgeschlossenen Apache-Modulkorrekturen bleiben erhalten.
@@ -22,22 +45,22 @@ werden nicht verwendet. Historische Nachweise gelten nur für ihre Revision und
 Testebene. Die sechs Hostaktionstests wurden tatsächlich in `5a696b7c` geliefert.
 
 Referenzen: [Vertrag/Migration](pr-382-event-contract.de.md),
-[Haupt-Change-Record](../reports/audits/change-records/CR-20260921-pr382-native-results-events.de.md),
-[Apache-Lebenszyklus](../reports/audits/change-records/CR-20260923-pr382-apache-native-lifecycle.de.md),
-[Apache-Adoption](../reports/audits/change-records/CR-20260923-pr382-apache-adoption.de.md),
-[native Envoy-Testreparatur](../reports/audits/change-records/CR-20260923-pr382-envoy-test-boundaries.de.md).
+[Haupt-Change-Record](../reports/audits/change-records/CR-20261013-pr382-consolidated.de.md),
+[Apache-Lebenszyklus](https://github.com/Easton97-Jens/ModSecurity-conector/blob/4639f982a8125f4150394e4d4f2e8af4e690f494/reports/audits/change-records/CR-20260923-pr382-apache-native-lifecycle.de.md),
+[Apache-Adoption](https://github.com/Easton97-Jens/ModSecurity-conector/blob/4639f982a8125f4150394e4d4f2e8af4e690f494/reports/audits/change-records/CR-20260923-pr382-apache-adoption.de.md),
+[native Envoy-Testreparatur](https://github.com/Easton97-Jens/ModSecurity-conector/blob/4639f982a8125f4150394e4d4f2e8af4e690f494/reports/audits/change-records/CR-20260923-pr382-envoy-test-boundaries.de.md).
 
 
 ## PR-#409-Basisaktualisierung vom 12.10.2026
 
-PR #409 kombiniert den verifizierten I10-Head `caafe7ecec1a91669cbb82cea18b2b97309cde44` mit der neueren PR-#382-Basis `d94a7a38b90bc56b828d70f7df8794e12fd21e10` einschließlich I09-/I11-Abschluss und engine-eigenen Body-Limits. Die abgeschlossenen Checkboxen erhalten ihre getrennte frühere Implementierungsakzeptanz; sie behaupten keine neu ausgeführten Tests oder CI am kombinierten Head. Frische Integrations-/Deliveryprüfungen stehen separat im [Aktualisierungs-Change-Record](../reports/audits/change-records/CR-20261012-pr409-base-refresh.de.md); zum Dokumentationsabgleich sind sie noch ausstehend. I12/V08–V10-Live-Nachweise bleiben offen; R16/R17 werden nicht umgebunden.
+PR #409 kombiniert den verifizierten I10-Head `caafe7ecec1a91669cbb82cea18b2b97309cde44` mit der neueren PR-#382-Basis `d94a7a38b90bc56b828d70f7df8794e12fd21e10` einschließlich I09-/I11-Abschluss und engine-eigenen Body-Limits. Die abgeschlossenen Checkboxen erhalten ihre getrennte frühere Implementierungsakzeptanz; sie behaupten keine neu ausgeführten Tests oder CI am kombinierten Head. Frische Integrations-/Deliveryprüfungen stehen separat im [Aktualisierungs-Change-Record](https://github.com/Easton97-Jens/ModSecurity-conector/blob/4639f982a8125f4150394e4d4f2e8af4e690f494/reports/audits/change-records/CR-20261012-pr409-base-refresh.de.md); zum Dokumentationsabgleich sind sie noch ausstehend. I12/V08–V10-Live-Nachweise bleiben offen; R16/R17 werden nicht umgebunden.
 
 
 ## Aktueller I11-Sink-Abgleich vom 2026-10-11
 
-Integrationsstand: Der veröffentlichte I11-Head `6a79efe7` und PR-#382-Basis `492663334d89428dce084792145ef94e91579788` (I09 / PR #408) sind in PR #406 kombiniert. Frische lokale Integrationsprüfungen und Konfliktentscheidungen stehen im [Integrations-Change-Record](../reports/audits/change-records/CR-20261011-pr406-i09-i11-conflict-resolution.de.md). Die folgenden I09-/I11-Belege gehören zu ihren getrennten früheren Revisionen; sie sind kein CI- oder Live-Host-Nachweis des aktuellen Heads. Delivery-Prüfungen des gepushten Heads werden getrennt in PR #406 verfolgt.
+Integrationsstand: Der veröffentlichte I11-Head `6a79efe7` und PR-#382-Basis `492663334d89428dce084792145ef94e91579788` (I09 / PR #408) sind in PR #406 kombiniert. Frische lokale Integrationsprüfungen und Konfliktentscheidungen stehen im [Integrations-Change-Record](https://github.com/Easton97-Jens/ModSecurity-conector/blob/4639f982a8125f4150394e4d4f2e8af4e690f494/reports/audits/change-records/CR-20261011-pr406-i09-i11-conflict-resolution.de.md). Die folgenden I09-/I11-Belege gehören zu ihren getrennten früheren Revisionen; sie sind kein CI- oder Live-Host-Nachweis des aktuellen Heads. Delivery-Prüfungen des gepushten Heads werden getrennt in PR #406 verfolgt.
 
-Der isolierte Branch `fix/i11-event-sink-parity-20261011` basiert auf `0df51024008fc84f0a6820f3b011055b69c3a3e2` von PR #382. Codearbeit und aktuelle kompilierte Tests erfüllen die I11-Implementierungsakzeptanz; I11 ist `[x]`, Live-Host-Nachweise I12/V10 bleiben offen. [Change Record](../reports/audits/change-records/CR-20261011-pr382-i11-physical-sink-parity.de.md) und [Restmatrix](pr-382-i09-i12-rest-matrix.de.md) trennen aktuelle Patchnachweise von historischen R16/R17- und offenen I12/V10-Nachweisen. Die folgende historische Beschreibung ungeprüfter Apache-/SPOP-Sinks gilt für ihren damaligen Stand, nicht für den aktuellen Patch.
+Der isolierte Branch `fix/i11-event-sink-parity-20261011` basiert auf `0df51024008fc84f0a6820f3b011055b69c3a3e2` von PR #382. Codearbeit und aktuelle kompilierte Tests erfüllen die I11-Implementierungsakzeptanz; I11 ist `[x]`, Live-Host-Nachweise I12/V10 bleiben offen. [Change Record](https://github.com/Easton97-Jens/ModSecurity-conector/blob/4639f982a8125f4150394e4d4f2e8af4e690f494/reports/audits/change-records/CR-20261011-pr382-i11-physical-sink-parity.de.md) und [Restmatrix](pr-382-i09-i12-rest-matrix.de.md) trennen aktuelle Patchnachweise von historischen R16/R17- und offenen I12/V10-Nachweisen. Die folgende historische Beschreibung ungeprüfter Apache-/SPOP-Sinks gilt für ihren damaligen Stand, nicht für den aktuellen Patch.
 
 I11-Belege vor der Integration (veröffentlichter Head `6a79efe7`): physische Sinktests 50, Common/Event-Regressionen 60, vollständig instrumentierte C-ASan/UBSan-Tests 46, Apache-native/C17 45 und Adoption 28, Envoy-native/tagged 218 Tests/324 Cases/8 Pakete sowie Race 105/164/3 bestehen. Alle 110 NGINX-Adoptionsmethoden bestehen in vier disjunkten Shards mit 28+28+27+27 Tests. Bilingual-/Pfad-/Link-, Workflow-, Format- und Change-Record-Checks bestehen. Breite Apache-Suite: aktueller Patch 215 Tests, 7 Failures/7 Errors; unveränderte Basis 195 Tests, 8 Failures/7 Errors. Keine neuen Fail-/Errorsets; der frühere precommit_rate_limit-Fixturefehler besteht jetzt. Drei UID/chown-Environmentfehler treten auf beiden Ständen auf. HAProxy-Suite: 203 Tests, fünf auf der Basis reproduzierte Fehler, zwölf Skips. Keine dieser breiten Suites wird als vollständig grün behauptet.
 
@@ -157,7 +180,7 @@ Lokale Raw-Evidence bleibt unter `/var/tmp/codex/ModSecurity-conector/analysis/n
 - [x] I09i: Traefik-Direkt-/Companion- und lighttpd-Sidecar-/Modulrouten propagieren Commit-/Action-Fehler; Host-Latches verhindern Fortsetzung und post-denial Commit. Stock-native Body-Hooks bleiben nicht unterstützt.
 - [x] I09j: Integrierte 33 kompilierte Testmethoden und Common-C17-Smoke bestanden; unabhängige Folgeprüfung fand in den ausgewählten Pfaden keine verbleibende I09-Code-Lücke. Externe Grenzen und offene Freigabeprüfungen bleiben unten dokumentiert.
 
-- [x] I10: Produktive technische Fehlerweitergabe aller zehn Registry-Routen und 14 getrennter Legs ist implementiert und executable/native verifiziert. I10a–I10e bleiben erhalten; Live-Host-/Client-/Transportnachweise bleiben I12/V08–V10. Siehe [Change Record](../reports/audits/change-records/CR-20261011-pr382-i10-adapter-errors.de.md).
+- [x] I10: Produktive technische Fehlerweitergabe aller zehn Registry-Routen und 14 getrennter Legs ist implementiert und executable/native verifiziert. I10a–I10e bleiben erhalten; Live-Host-/Client-/Transportnachweise bleiben I12/V08–V10. Siehe [Change Record](https://github.com/Easton97-Jens/ModSecurity-conector/blob/4639f982a8125f4150394e4d4f2e8af4e690f494/reports/audits/change-records/CR-20261011-pr382-i10-adapter-errors.de.md).
 - [x] I10a: Späte technische NGINX-Fehler kommen vor Safe-/Strict-Regelpolicy (`52445b18`; V14).
 - [x] I10b: Echte Common-Policy-Tests prüfen fünf Fehlerklassen, zehn Profile, zwei Vertragsmodi und beide Commit-Zustände; technische Fehler werden kein Safe-Log-only. Kein Host-I/O-Nachweis.
 - [x] I10c: Echte NGINX-Collector-/Dispatcher-/P4-Kettentests erhalten späte Regeln, Off-Verhalten und Bereinigung (`1ce569e1`; V17).

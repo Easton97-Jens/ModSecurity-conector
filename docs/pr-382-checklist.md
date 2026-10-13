@@ -2,9 +2,31 @@
 
 **Language:** English | [Deutsch](pr-382-checklist.de.md)
 
+## Current review/Go reconciliation, 2026-10-13
+
+State: **BLOCKED_FOR_I12**. Current remediation starts at
+`4639f982a8125f4150394e4d4f2e8af4e690f494`. The [consolidated Change Record](../reports/audits/change-records/CR-20261013-pr382-consolidated.md)
+replaces 122 historical EN/DE pairs with one pair while retaining immutable
+original evidence. Private/budgeted Stock spools, Traefik commit-before-ACK,
+Envoy socket ownership and eight Sonar source repairs preserve I09/I10/I11 and
+engine-owned body limits. Go 1.27.2, four module minima 1.26.9 and targeted
+`x/net` 0.61.0 / `x/sys` 0.49.0 / `x/text` 0.43.0 replace vulnerable versions;
+grpc 1.83.2 and protobuf 1.36.11 remain unchanged.
+
+All four local Go module validations, including race and govulncheck, pass,
+as do 71 updater/workflow tests and quick-check. Focused local acceptance does
+not replace final remote CI/Sonar/review readback. Two historical Gitleaks prose
+matches block the independent PR secret check; append-only commits do not remove
+them. No scanner exception or history rewrite is performed. The real nonroot
+Stock startup is BLOCKED by local UID mapping `0 0 1`. The master updater has
+not run after integration; **MASTER_WORKFLOW_VERIFIED: NOT_EXECUTED**. The
+[I12 handoff](pr-382-i12-handoff.md) binds missing host evidence and final delivery facts;
+#410 and the full I12 matrix remain untouched. Historical R16/R17 and the table
+revisions below retain their original scope.
+
 [Draft PR #382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382),
 branch `fix/unified-native-results-events-20260921`, base
-`5170d24801243cdcd7bf1bca6123bf8cb2c72386`. Updated: 2026-10-12.
+`5170d24801243cdcd7bf1bca6123bf8cb2c72386`. Updated: 2026-10-13.
 Historical 2026-10-10 stack readback: the branch is synchronized through `master` `3019722fbda40dc281b861c1cc38085be2f430a0` via merge commit `b3dc0139`; `behind=0` and GitHub reports the PR mergeable. Framework PR #137 is merged and the Parent now pins its merge commit `99a7985c1be92a2297b1b59208f64df6768f2cbf`. Stacked PR #396 is merged into #382 at `da50b67c`; its later historical source-head SHA remains evidence provenance only.
 
 **I09 is closed for the audited code/API contracts on 2026-10-11.** The [current I09 route audit](pr-382-i09-route-audit.md) covers 14 route legs across ten profiles. I10 and I11 are complete in their separately verified implementation scopes; I12 remains open. The I11 implementation closes neither live-host proof nor release CI. Completed Apache module repairs remain preserved.
@@ -21,21 +43,21 @@ used. Historical test claims apply only to the referenced revision and test laye
 The six host-action tests were actually delivered in `5a696b7c`.
 
 References: [contract/migration](pr-382-event-contract.md),
-[main Change Record](../reports/audits/change-records/CR-20260921-pr382-native-results-events.md),
-[Apache lifecycle](../reports/audits/change-records/CR-20260923-pr382-apache-native-lifecycle.md),
-[Apache adoption](../reports/audits/change-records/CR-20260923-pr382-apache-adoption.md),
-[Envoy native test repair](../reports/audits/change-records/CR-20260923-pr382-envoy-test-boundaries.md).
+[main Change Record](../reports/audits/change-records/CR-20261013-pr382-consolidated.md),
+[Apache lifecycle](https://github.com/Easton97-Jens/ModSecurity-conector/blob/4639f982a8125f4150394e4d4f2e8af4e690f494/reports/audits/change-records/CR-20260923-pr382-apache-native-lifecycle.md),
+[Apache adoption](https://github.com/Easton97-Jens/ModSecurity-conector/blob/4639f982a8125f4150394e4d4f2e8af4e690f494/reports/audits/change-records/CR-20260923-pr382-apache-adoption.md),
+[Envoy native test repair](https://github.com/Easton97-Jens/ModSecurity-conector/blob/4639f982a8125f4150394e4d4f2e8af4e690f494/reports/audits/change-records/CR-20260923-pr382-envoy-test-boundaries.md).
 
 
 ## PR #409 base refresh, 2026-10-12
 
-PR #409 combines verified I10 head `caafe7ecec1a91669cbb82cea18b2b97309cde44` with newer PR #382 base `d94a7a38b90bc56b828d70f7df8794e12fd21e10`, including I09/I11 closure and engine-owned body limits. Completed checkboxes preserve their separately verified earlier implementation acceptance; they do not claim freshly executed tests or CI on the combined head. Fresh integration/delivery checks are recorded separately in the [refresh Change Record](../reports/audits/change-records/CR-20261012-pr409-base-refresh.md); they are pending at this documentation reconciliation. I12/V08–V10 live evidence remains open; R16/R17 are not rebound.
+PR #409 combines verified I10 head `caafe7ecec1a91669cbb82cea18b2b97309cde44` with newer PR #382 base `d94a7a38b90bc56b828d70f7df8794e12fd21e10`, including I09/I11 closure and engine-owned body limits. Completed checkboxes preserve their separately verified earlier implementation acceptance; they do not claim freshly executed tests or CI on the combined head. Fresh integration/delivery checks are recorded separately in the [refresh Change Record](https://github.com/Easton97-Jens/ModSecurity-conector/blob/4639f982a8125f4150394e4d4f2e8af4e690f494/reports/audits/change-records/CR-20261012-pr409-base-refresh.md); they are pending at this documentation reconciliation. I12/V08–V10 live evidence remains open; R16/R17 are not rebound.
 
 ## Current 2026-10-11 I11 sink reconciliation
 
-Integration readback: published I11 head `6a79efe7` and PR #382 base `492663334d89428dce084792145ef94e91579788` (I09 / PR #408) are combined in PR #406. Fresh local integration checks and conflict-resolution decisions are in the [integration change record](../reports/audits/change-records/CR-20261011-pr406-i09-i11-conflict-resolution.md). The I09 and I11 evidence below belongs to their separate earlier revisions; it is not current-head CI or live-host proof. Pushed-head delivery checks are tracked separately in PR #406.
+Integration readback: published I11 head `6a79efe7` and PR #382 base `492663334d89428dce084792145ef94e91579788` (I09 / PR #408) are combined in PR #406. Fresh local integration checks and conflict-resolution decisions are in the [integration change record](https://github.com/Easton97-Jens/ModSecurity-conector/blob/4639f982a8125f4150394e4d4f2e8af4e690f494/reports/audits/change-records/CR-20261011-pr406-i09-i11-conflict-resolution.md). The I09 and I11 evidence below belongs to their separate earlier revisions; it is not current-head CI or live-host proof. Pushed-head delivery checks are tracked separately in PR #406.
 
-The isolated branch `fix/i11-event-sink-parity-20261011` starts at `0df51024008fc84f0a6820f3b011055b69c3a3e2` from PR #382. Code changes and current compiled tests satisfy I11 implementation acceptance; I11 is `[x]`, with live-host I12/V10 evidence still open. The [Change Record](../reports/audits/change-records/CR-20261011-pr382-i11-physical-sink-parity.md) and [remaining-work matrix](pr-382-i09-i12-rest-matrix.md) separate current patch evidence from historical R16/R17 and open I12/V10 evidence. The historical description of unchecked Apache/SPOP sinks below applies to its original checkpoint, not the current patch.
+The isolated branch `fix/i11-event-sink-parity-20261011` starts at `0df51024008fc84f0a6820f3b011055b69c3a3e2` from PR #382. Code changes and current compiled tests satisfy I11 implementation acceptance; I11 is `[x]`, with live-host I12/V10 evidence still open. The [Change Record](https://github.com/Easton97-Jens/ModSecurity-conector/blob/4639f982a8125f4150394e4d4f2e8af4e690f494/reports/audits/change-records/CR-20261011-pr382-i11-physical-sink-parity.md) and [remaining-work matrix](pr-382-i09-i12-rest-matrix.md) separate current patch evidence from historical R16/R17 and open I12/V10 evidence. The historical description of unchecked Apache/SPOP sinks below applies to its original checkpoint, not the current patch.
 
 Pre-integration I11 evidence (published head `6a79efe7`): physical sink tests 50, Common/event regressions 60, fully instrumented C ASan/UBSan tests 46, Apache native/C17 45 and adoption 28, Envoy native/tagged 218 tests/324 cases/8 packages and race 105/164/3 pass. All 110 NGINX adoption methods pass in four disjoint shards of 28+28+27+27 tests. Bilingual/path/link, workflow, format and Change Record checks pass. Broad Apache suite: current patch 215 tests, 7 failures/7 errors; unchanged base 195 tests, 8 failures/7 errors. No new failure/error sets; the earlier precommit_rate_limit fixture failure now passes. Three UID/chown environment errors occur on both revisions. HAProxy suite: 203 tests, five failures reproduced on base, twelve skips. Neither broad suite is claimed fully green.
 
@@ -152,7 +174,7 @@ Local raw evidence remains under `/var/tmp/codex/ModSecurity-conector/analysis/n
 - [x] I09i: Traefik direct/companion and lighttpd sidecar/module routes propagate commit/action failures; host latches prevent continuation and post-denial commit. Stock-native body hooks remain unsupported.
 - [x] I09j: Integrated 33 compiled test methods and Common C17 smoke passed; independent follow-up found no residual I09 code gap in selected paths. External limits and open release checks remain documented below.
 
-- [x] I10: Productive technical-error propagation across all ten registry routes and 14 separate legs is implemented and executable/native verified. I10a–I10e remain intact; live-host/client/transport evidence remains I12/V08–V10. See [Change Record](../reports/audits/change-records/CR-20261011-pr382-i10-adapter-errors.md).
+- [x] I10: Productive technical-error propagation across all ten registry routes and 14 separate legs is implemented and executable/native verified. I10a–I10e remain intact; live-host/client/transport evidence remains I12/V08–V10. See [Change Record](https://github.com/Easton97-Jens/ModSecurity-conector/blob/4639f982a8125f4150394e4d4f2e8af4e690f494/reports/audits/change-records/CR-20261011-pr382-i10-adapter-errors.md).
 - [x] I10a: NGINX late technical errors precede Safe/Strict rule policy (`52445b18`; V14).
 - [x] I10b: Actual Common policy tests cover five error classes, ten profiles, two contract modes and both commitment states; technical failure never becomes Safe log-only. Not host-I/O proof.
 - [x] I10c: Real NGINX collector/dispatcher/P4 chain tests retain late rules, Off behavior and cleanup (`1ce569e1`; V17).
