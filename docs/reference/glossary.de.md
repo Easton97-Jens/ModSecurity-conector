@@ -2,6 +2,19 @@
 
 **Sprache:** [English](glossary.md) | Deutsch
 
+## Schnellorientierung
+
+Nutzen Sie dieses Glossar, wenn ein Repository-Begriff unklar ist. Besonders
+wichtig sind die Unterschiede zwischen **Hostfamilie** und **logischem Profil**,
+zwischen **Source-/Konfigurationszustand** und **Runtime-Evidence** sowie
+zwischen **Phase-4-Policy** und den eigenen Response-Body-Inspection-
+Einstellungen der ModSecurity Engine.
+
+Begriffe wie PASS, BLOCKED, Profile-ID, Integrationsmodus, Run-ID, kanonische
+Evidence, Companion, Observer, UDS, EOS, HTX und P1–P4 besitzen
+repository-spezifische Bedeutungen; verwenden Sie die Definitionen hier statt
+Alltagssprache abzuleiten.
+
 Dieses Glossar definiert Repository-Begriffe. Es ersetzt nicht die kurze lokale
 Erklärung, die beim ersten Auftreten eines Begriffs in einem Kommando, einer
 Konfiguration oder einem Evidence-Guide erforderlich ist.

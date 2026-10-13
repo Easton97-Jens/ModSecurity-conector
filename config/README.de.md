@@ -2,6 +2,18 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
+## Hier beginnen
+
+Dieses Verzeichnis enthält repository-eigene Konfigurationsunterstützung und
+Test-Fixtures. Für operator-orientierte Konfiguration beginnen Sie mit
+[docs/configuration](../docs/configuration.de.md) und den vollständigen
+[Beispielen](../examples/README.de.md).
+
+Eine Datei unter `config/` ist nicht automatisch eine installierbare
+Produktionskonfiguration. Prüfen Sie den zuständigen Guide, das konsumierende
+Target und ob die Datei Test-Fixture, Template, generierter Input oder
+Runtime-Konfiguration ist.
+
 ## Zweck und Grenze
 
 \`config/\` enthält kleine, versionierte maschinenlesbare Inputs für

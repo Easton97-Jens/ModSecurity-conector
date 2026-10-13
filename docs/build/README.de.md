@@ -2,6 +2,18 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
+## Schnellorientierung
+
+Verwenden Sie das Root-`Makefile` als Source of Truth für Befehle. Wählen Sie
+für den ersten Build **eine** Hostfamilie, lesen Sie deren Connector-Guide und
+führen Sie danach das Root-Build-Target aus. Generierte Build-/Runtime-Daten
+gehören außerhalb des Source-Checkouts.
+
+Ein erfolgreicher Build bedeutet nur, dass der ausgewählte Build-Schritt
+abgeschlossen wurde. Er beweist nicht, dass der Host die Konfiguration geladen,
+Traffic verarbeitet, P1–P4 ausgeführt oder kanonische Runtime-Evidence erzeugt
+hat. Für Runtime-Aussagen gilt der Test-/Evidence-Guide.
+
 Dieser Bereich erläutert, wie Root- und Connector-Make-Targets ausgewählte
 Connector-Routen vorbereiten und bauen. Ein Build-, Link- oder Config-Load-
 Ergebnis ist keine Runtime-Evidence und erhebt keinen Production-, CRS-,

@@ -2,6 +2,17 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
+## Start here
+
+This directory contains the host-specific product integrations. New users
+should normally read [docs/connectors](../docs/connectors/README.md) and
+[examples](../examples/README.md) first; the files here are code-adjacent
+implementation, provenance, capability, and harness documentation.
+
+Keep host SDK/API details here and keep reusable connector-neutral contracts in
+`common/`. A capability declaration or source file describes implementation
+state; it is not a runtime PASS result.
+
 ## Purpose and evidence boundary
 
 This directory contains the repository-owned integration layers for Apache,

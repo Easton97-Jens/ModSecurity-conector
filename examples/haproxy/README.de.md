@@ -2,6 +2,16 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
+## Hier beginnen
+
+HAProxy besitzt zwei logische Lösungen. Verwenden Sie natives `haproxy-htx`
+für die direkte HTX-Filterroute; verwenden Sie `haproxy-spoe-spop` nur, wenn
+bewusst der request-seitige SPOE/SPOP-Pfad zusammen mit seinem verpflichtenden
+nativen HTX-Response-Companion gewählt wird.
+
+Beginnen Sie mit dem passenden `safe`-Bundle. Historische SPOE-
+Kompatibilitätsdateien sind keine vollständige P1–P4-Lösung.
+
 ## Integration und Grenze
 
 Integrationsmodus: nativer HTX-Filter. Die nativen Referenzen

@@ -2,6 +2,18 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
+## Schnellorientierung
+
+Wählen Sie ein **logisches Profil** und nicht nur einen Hostnamen. Apache und
+NGINX besitzen jeweils ein direktes logisches Profil; HAProxy, Envoy, Traefik
+und lighttpd besitzen jeweils zwei getrennte logische Lösungen mit
+unterschiedlichen Transport- oder Response-Sichtbarkeitsgrenzen.
+
+Bestimmen Sie zuerst die Hostfamilie, wählen Sie das logische Profil, öffnen Sie
+das passende [Beispiel](../../examples/README.de.md) und lesen Sie danach den
+hostspezifischen Guide. Ein Compatibility-/Request-only-Baustein ist kein
+Nachweis für ein responsefähiges Profil.
+
 Dieser Bereich navigiert sechs Hostintegrationen und zehn logische
 Connector-Profile. Die Hostfamilien-Zeilen unten dienen nur der Navigation: Der
 gemeinsame Vertrag bewertet jedes logische Profil getrennt, und ein Ergebnis

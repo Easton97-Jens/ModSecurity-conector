@@ -2,6 +2,18 @@
 
 **Language:** English | [Deutsch](runtime-failure-policy.de.md)
 
+## Quick orientation
+
+This policy answers **what the connector should do when something goes wrong at
+runtime**. The key principle is fail-closed handling at security-relevant
+boundaries without inventing capabilities the host cannot provide.
+
+Read the connector-specific guide first for topology. Then use this document to
+understand how configuration errors, engine failures, timeouts, malformed
+responses, transport failures, cleanup failures, and post-commit limitations
+are classified. A failure category is not evidence that every host/profile has
+exercised that path; actual behavior claims still require matching run evidence.
+
 **Scope:** Apache, NGINX, HAProxy HTX, HAProxy SPOE/SPOP, Envoy `ext_authz`,
 Envoy `ext_proc`, Traefik `forwardAuth`, Traefik Native UDS, lighttpd Stock,
 and lighttpd Patched.

@@ -2,6 +2,25 @@
 
 **Sprache:** [English](operations-and-security.md) | Deutsch
 
+## Schnellorientierung
+
+Lesen Sie diesen Guide, bevor ein Connector außerhalb eines wegwerfbaren
+lokalen Tests betrieben wird. Eine sichere Ausgangsbasis ist einfach:
+
+- Listener, Admin-Endpunkte, Prozessoren und private Companions auf Loopback
+  oder private UDS begrenzen, sofern Exposition nicht ausdrücklich geplant ist;
+- generierte Runtime-/Build-/Evidence-Daten außerhalb des Source-Checkouts halten;
+- begrenzte Request-/Response-, Header-, Message-/Frame-, Timeout- und
+  Speicherlimits verwenden, statt Schutzmechanismen zu entfernen;
+- Rules-Dateien, Sockets, Logs, Eventdateien, Credentials und Service-Identitäten
+  nach Least Privilege schützen;
+- niemals Secrets, Cookies, Authorization-Werte, Private Keys oder
+  Request-/Response-Bodies in Run-IDs oder Review-Evidence schreiben.
+
+Eine Beispielkonfiguration ist für sich allein kein sicheres Deployment.
+Host-Exposition, TLS, Service-Accounts, Dateisystemrechte, Logging/Retention und
+Netzwerkpolicy bleiben deployment-spezifische Entscheidungen.
+
 ## Geltungsbereich
 
 Dieser Guide fasst repositoryweite Betriebs- und Sicherheitsgrenzen zusammen.

@@ -2,6 +2,18 @@
 
 **Sprache:** [English](repository-concept.md) | Deutsch
 
+## Schnellorientierung
+
+Dieses Dokument erklärt das Ownership-Modell und die langfristige
+Repository-Struktur. Für eine erste Konfiguration oder einen ersten Build ist
+es normalerweise nicht erforderlich.
+
+Die praktische Regel lautet: Parent besitzt Connector-Produktintegration sowie
+deren Orchestrierung/Evidence-Consumer; das Framework besitzt
+wiederverwendbare Testinhalte und Runner; MRTS ist eine separate verschachtelte
+Grenze. Eine Änderung in einem Ownership-Bereich darf die Source of Truth eines
+anderen Bereichs nicht stillschweigend neu definieren.
+
 ## Verbindlichkeit, Geltungsbereich und Claim-Disziplin
 
 Dieses Dokument ist das verbindliche Zielkonzept für das Produkt-Monorepo. Es
@@ -296,10 +308,11 @@ implizit.
 | Kontrolle | Quellenbasierter Default oder ausgewählter Wert | Security-Wirkung und Klassifikation |
 | --- | --- | --- |
 | `enabled` | Common-Runtime-Default `off`. | Bezogen auf Common-Enforcement fail-open, bis er explizit aktiviert wird; keine repositoryweite Host-Failure-Policy. |
-| `request_body_limit`, `response_body_limit`, Header-Limits und `max_event_json_bytes` | Common-Runtime-Defaults begrenzen Body-/Header-/Event-Input. | Begrenzen Ressourcen und Metadatenexposition; ein höherer Wert beweist kein sicheres Buffering. |
-| `body_limit_action` | Common-Runtime-Default `reject`. | Weist einen Chunk über dem Limit vor der Engine-Eingabe ab; die daraus folgende Host-Response bleibt connectorspezifisch. |
+| `request_body_limit`, Header-Limits und `max_event_json_bytes` | Common-Runtime-Defaults begrenzen Request-/Header-/Event-Input. | Begrenzen Ressourcen und Metadatenexposition; ein höherer Wert beweist kein sicheres Buffering. |
+| `response_body_limit` | Der Common-Runtime-Default kann Host-/Runtime-Response-Kapazität begrenzen, wenn eine Topologie begrenzten Speicher oder Transport benötigt. | Dies ist nicht die WAF-Response-Inspection-Byte-Policy; dafür gelten libModSecurity-`SecResponseBodyLimit` / `SecResponseBodyLimitAction`. |
+| `body_limit_action` | Common-Runtime-Default `reject`. | Steuert Common-Verhalten bei Überschreitung einer anwendbaren Common-Request-/Body-Kapazitätsgrenze. Es ersetzt nicht libModSecurity-`SecResponseBodyLimitAction`; das resultierende Hostverhalten bleibt connectorspezifisch. |
 | `default_block_status` und `default_error_status` | Common-Runtime-Defaults `403` und `500`. | Für eine disruptive native Intervention ohne Redirect-URL bleibt ein erlaubter Engine-Blockstatus erhalten; jeder andere Status wird auf einen erlaubten `default_block_status`, andernfalls `403`, gemappt. Eine nichtleere Redirect-URL behält einen 3xx-Status bei oder mappt jeden anderen Status auf `302`. Diese Kanonisierung ersetzt nicht die getrennte Common-Policy `invalid_engine_response` und beweist keine einheitliche fail-closed Response. |
-| `response_body_mode` und `phase4_mode` | Common-Runtime-Defaults `none` und `safe`. | Standardmäßig wird kein P4-Input verarbeitet; Safe-Late-Verhalten ist konservativ und kann nach Commit `log_only` sein, keine universelle fail-open-/fail-closed-Policy. Apache folgt dieser gemeinsamen commitbasierten Regel, sobald sein Präfix vor EOS den nächsten Filter erreicht. |
+| `response_body_mode` und `phase4_mode` | Common-Runtime-Defaults `none` und `off`. | Standardmäßig wird kein P4-Input verarbeitet. `off` behält native Late-Intervention-Behandlung bei, ohne eine connector-eigene WAF-Response-Byte-Policy hinzuzufügen; ausgewählte `safe`-/`strict`-Modi steuern unterstützte Late-Actions und keine Inspection-Byte-Limits. |
 | Envoy `failure_mode_allow` | Ausgewählte `ext_proc`-Templates setzen `failure_mode_allow: false`. | Ausgewählte Konfiguration dokumentiert fail-closed Processor-Erreichbarkeit; keine Evidence für jedes Envoy-Deployment. |
 | `rules_remote_key` / `rules_remote_url` und externe Downloads | Policy A: registrierte Konfigurationseingaben sind technisch deaktiviert. | Jede nicht leere Remote-Rule-Konfiguration wird vor Loader, Download, Origin-Fallback oder Secret-Weiterleitung abgelehnt; eine zukünftige Policy bräuchte separate Prüfung und Evidence. |
 

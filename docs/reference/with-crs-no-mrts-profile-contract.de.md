@@ -2,6 +2,14 @@
 
 **Sprache:** [English](with-crs-no-mrts-profile-contract.md) | Deutsch
 
+## Schnellorientierung
+
+Diese Referenz beschreibt ein bestimmtes Test-/Evidence-Profil:
+**CRS aktiviert, MRTS nicht ausgewählt**. Halten Sie es von No-CRS-Runs und von
+Profilen mit ausgewähltem MRTS getrennt. Ein PASS in diesem Profil belegt nur
+den aufgezeichneten Connector-/Profil-/Rules-/Protokoll-Scope dieses Runs und
+ist keine allgemeine CRS-Zertifizierung.
+
 Diese Seite beschreibt die Parent-eigene Evidenzgrenze, die durch
 `ci/runtime/lifecycle/with-crs-no-mrts-profile.py` und
 `ci/runtime/lifecycle/aggregate-five-connector-with-crs-no-mrts.py`
