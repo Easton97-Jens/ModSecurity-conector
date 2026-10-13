@@ -195,6 +195,7 @@ static void check_bridge_native_decisions(void) {
   const enum msconnector_phase expected_phases[] = {
       MSCONNECTOR_PHASE_RESPONSE_HEADERS, MSCONNECTOR_PHASE_RESPONSE_BODY};
   const char *actions[] = {"pass", "deny", "redirect"};
+  const int expected_statuses[] = {200, 403, 302};
   const msconnector_decision_action expected_actions[] = {
       MSCONNECTOR_DECISION_ACTION_ALLOW, MSCONNECTOR_DECISION_ACTION_DENY,
       MSCONNECTOR_DECISION_ACTION_REDIRECT};
@@ -205,7 +206,7 @@ static void check_bridge_native_decisions(void) {
       context.command.decision_storage = &context.decision_storage;
       native.phase = phases[phase];
       native.disruptive = action != 0;
-      native.status = action == 2 ? 302 : action == 1 ? 403 : 200;
+      native.status = expected_statuses[action];
       copy_cstring(native.action, sizeof(native.action), actions[action]);
       copy_cstring(native.redirect_url, sizeof(native.redirect_url),
                    "https://example.test/redirect");

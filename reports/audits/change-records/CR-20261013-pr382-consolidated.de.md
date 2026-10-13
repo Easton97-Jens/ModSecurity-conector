@@ -340,6 +340,11 @@ Fehlerassertions stehen jetzt im zusammengehörigen Helper
 und ihre15Mutationskontrollen bestehen mit Exit0 in18,816Sekunden. Keine
 Assertion, Compilerwarnung, Scannerregel oder Prüfung wird unterdrückt.
 
+Der nächste Sonarcheck des exakten Heads beanstandet einen geschachtelten
+Status-Ternary in der neuen SPOP-Regression. Eine Statuswerttabelle erhält
+genau dieselben Allow-/Deny-/Redirect-Testinputs200/403/302 ohne Schachtelung.
+Produktquellen ändern sich nicht; echte e2445-Host-/Buildidentitäten bleiben.
+
 ### Unveränderlicher Originalindex
 
 Jeder nummerierte Link identifiziert eine Original-Change-ID durch ihren Dateinamen.
