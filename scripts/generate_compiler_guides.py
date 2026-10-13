@@ -19,6 +19,19 @@ OUTPUT = ROOT / "docs" / "build" / "compilers"
 MARKER = "<!-- Generated from scripts/generate_compiler_guides.py; do not edit directly. -->"
 
 
+def module_go_requirement(relative: str) -> str:
+    """Read the module-owned minimum separately from the selected toolchain."""
+    text = (ROOT / relative).read_text(encoding="utf-8")
+    versions = re.findall(r"(?m)^go (\d+\.\d+\.\d+)$", text)
+    if len(versions) != 1:
+        raise RuntimeError(f"invalid Go minimum in {relative}")
+    return versions[0]
+
+
+ENVOY_GO_MINIMUM = module_go_requirement("connectors/envoy/ext_proc/go.mod")
+TRAEFIK_GO_MINIMUM = module_go_requirement("connectors/traefik/native_middleware/go.mod")
+
+
 def read_assignment_contract(path: Path, expected_keys: set[str]) -> dict[str, str]:
     """Read a bounded literal key/value contract without evaluating it."""
 
@@ -513,7 +526,7 @@ DETAILS: dict[str, dict[str, object]] = {
         "package_status": PACKAGE_STATUS_ASSISTED_SOURCE_BUILD,
         "extra_prepare": "prepare-envoy-runtime",
         "host_source": VERIFIED_BINARY_SERVICE_SOURCE,
-        "go_requirement": "1.26.5",
+        "go_requirement": ENVOY_GO_MINIMUM,
         "go_module": "connectors/envoy/ext_proc/go.mod",
         "test_prerequisites": (
             "Git, a writable external parent, Go and C/C++ build tools, libmodsecurity inputs, and the Framework submodule. The specific preparation target obtains only the pinned host binary through repository policy.",
@@ -531,7 +544,7 @@ DETAILS: dict[str, dict[str, object]] = {
         ),
         "source_validation": (
             GO_VERSION_COMMAND,
-            "grep -Fx 'go 1.26.5' connectors/envoy/ext_proc/go.mod",
+            f"grep -Fx 'go {ENVOY_GO_MINIMUM}' connectors/envoy/ext_proc/go.mod",
             "make -C connectors/envoy check-envoy-ext-proc-config",
             "NO_CRS_RUN_ID=\"$run_id\" make evidence-check-envoy",
         ),
@@ -570,7 +583,7 @@ DETAILS: dict[str, dict[str, object]] = {
         "package_status": PACKAGE_STATUS_ASSISTED_SOURCE_BUILD,
         "extra_prepare": "prepare-traefik-runtime",
         "host_source": VERIFIED_BINARY_MIDDLEWARE_SERVICE_SOURCE,
-        "go_requirement": "1.26.5",
+        "go_requirement": TRAEFIK_GO_MINIMUM,
         "go_module": "connectors/traefik/native_middleware/go.mod",
         "test_prerequisites": (
             "Git, a writable external parent, Go and C/C++ build tools, libmodsecurity inputs, and the Framework submodule. Runtime preparation supplies the pinned host binary through provenance policy.",
@@ -589,7 +602,7 @@ DETAILS: dict[str, dict[str, object]] = {
         ),
         "source_validation": (
             GO_VERSION_COMMAND,
-            "grep -Fx 'go 1.26.5' connectors/traefik/native_middleware/go.mod",
+            f"grep -Fx 'go {TRAEFIK_GO_MINIMUM}' connectors/traefik/native_middleware/go.mod",
             "make -C connectors/traefik test-engine-service",
             "NO_CRS_RUN_ID=\"$run_id\" make evidence-check-traefik",
         ),
@@ -3876,14 +3889,14 @@ def source_first_guide(item: dict[str, str], german: bool) -> str:
     )
     go_prereqs: dict[str, tuple[str, str, tuple[str, ...]]] = {
         "envoy": (
-            "The repository ext_proc module requires Go 1.26.5; verify the pinned module declaration before its Section 7 build.",
-            "Das repository-eigene ext_proc-Modul verlangt Go 1.26.5; die gepinnte Moduldeklaration vor dem Build in Abschnitt 7 prüfen.",
-            (GO_VERSION_COMMAND, 'grep -Fx "go 1.26.5" "$CONNECTOR_ROOT/connectors/envoy/ext_proc/go.mod"'),
+            f"The repository ext_proc module requires Go {ENVOY_GO_MINIMUM}; verify the pinned module declaration before its Section 7 build.",
+            f"Das repository-eigene ext_proc-Modul verlangt Go {ENVOY_GO_MINIMUM}; die gepinnte Moduldeklaration vor dem Build in Abschnitt 7 prüfen.",
+            (GO_VERSION_COMMAND, f'grep -Fx "go {ENVOY_GO_MINIMUM}" "$CONNECTOR_ROOT/connectors/envoy/ext_proc/go.mod"'),
         ),
         "traefik": (
-            "The repository native middleware module requires Go 1.26.5; this differs from the optional Traefik-v3.7.10 host-source requirement in Section 6.",
-            "Das repository-eigene native Middleware-Modul verlangt Go 1.26.5; dies unterscheidet sich von der optionalen Traefik-v3.7.10-Host-Source-Anforderung in Abschnitt 6.",
-            (GO_VERSION_COMMAND, 'grep -Fx "go 1.26.5" "$CONNECTOR_ROOT/connectors/traefik/native_middleware/go.mod"'),
+            f"The repository native middleware module requires Go {TRAEFIK_GO_MINIMUM}; this differs from the optional Traefik-v3.7.10 host-source requirement in Section 6.",
+            f"Das repository-eigene native Middleware-Modul verlangt Go {TRAEFIK_GO_MINIMUM}; dies unterscheidet sich von der optionalen Traefik-v3.7.10-Host-Source-Anforderung in Abschnitt 6.",
+            (GO_VERSION_COMMAND, f'grep -Fx "go {TRAEFIK_GO_MINIMUM}" "$CONNECTOR_ROOT/connectors/traefik/native_middleware/go.mod"'),
         ),
     }
     go_prereq = go_prereqs.get(slug)

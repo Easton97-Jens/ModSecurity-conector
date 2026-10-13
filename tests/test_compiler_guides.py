@@ -803,8 +803,9 @@ class CompilerGuideGenerationTest(unittest.TestCase):
         self.assertIn('grep -E "^go " go.mod', traefik_source)
         self.assertIn('grep -Fx "go 1.25.0" go.mod', traefik_source)
         self.assertIn("git rev-parse HEAD", traefik_source)
-        self.assertIn('go 1.26.5', numbered_section(guide("envoy"), 4))
-        self.assertIn('go 1.26.5', numbered_section(guide("traefik"), 4))
+        for slug, module in (("envoy", "envoy/ext_proc"), ("traefik", "traefik/native_middleware")):
+            minimum = re.search(r"(?m)^go (\S+)$", (ROOT / "connectors" / module / "go.mod").read_text()).group(1)
+            self.assertIn(f'go {minimum}', numbered_section(guide(slug), 4))
 
     def test_repository_test_paths_follow_manual_steps_and_targets_exist(self) -> None:
         for connector in GENERATOR.CONNECTORS:
