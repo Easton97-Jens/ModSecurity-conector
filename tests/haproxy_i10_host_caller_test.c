@@ -582,6 +582,24 @@ static void check_invalid(struct fixture_environment *e, int invalid_result) {
   assert(eos_calls == 1 && close_calls == 1 && outcome_calls == 0 &&
          release_calls == 0);
 }
+static void check_precommit_cleanup_failure(struct fixture_environment *e,
+                                           int bad_close) {
+  reset(&e->c, &e->s);
+  e->c.companion.mode = 1;
+  e->c.transaction = NULL;
+  decision_kind = MSCONNECTOR_DECISION_KIND_DENY;
+  if (bad_close)
+    close_result = -1;
+  else
+    release_result = -1;
+  assert(haproxy_modsecurity_htx_process_companion_response_headers(
+             &e->s, &e->f, &e->res) == -1);
+  assert(e->s.replies == 1 && e->s.kills == 1 && outcome_calls == 1);
+  assert(cancel_calls == (bad_close ? 0 : 1) && release_calls == 1 &&
+         close_calls == 1 && e->c.lifecycle.fail_closed);
+  assert(haproxy_modsecurity_htx_filter_http_end(&e->s, &e->f, &e->res) == -1);
+  assert(cancel_calls == (bad_close ? 0 : 1) && close_calls == 1);
+}
 static void check_precommit(struct fixture_environment *e) {
   /* A real precommit deny is normal terminal policy cleanup after its
    * acknowledged host outcome, never a typed technical cancellation. */
@@ -614,22 +632,7 @@ static void check_precommit(struct fixture_environment *e) {
   assert(cancel_calls == 1 && release_calls == 0);
   assert(e->c.lifecycle.fail_closed);
   for (int bad_cleanup = 0; bad_cleanup < 2; bad_cleanup++) {
-    reset(&e->c, &e->s);
-    e->c.companion.mode = 1;
-    e->c.transaction = NULL;
-    decision_kind = MSCONNECTOR_DECISION_KIND_DENY;
-    if (bad_cleanup)
-      close_result = -1;
-    else
-      release_result = -1;
-    assert(haproxy_modsecurity_htx_process_companion_response_headers(
-               &e->s, &e->f, &e->res) == -1);
-    assert(e->s.replies == 1 && e->s.kills == 1 && outcome_calls == 1);
-    assert(cancel_calls == (bad_cleanup ? 0 : 1) && release_calls == 1 &&
-           close_calls == 1 && e->c.lifecycle.fail_closed);
-    assert(haproxy_modsecurity_htx_filter_http_end(&e->s, &e->f, &e->res) ==
-           -1);
-    assert(cancel_calls == (bad_cleanup ? 0 : 1) && close_calls == 1);
+    check_precommit_cleanup_failure(e, bad_cleanup);
   }
 }
 static void check_eos(struct fixture_environment *e) {
