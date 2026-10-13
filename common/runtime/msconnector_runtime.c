@@ -205,9 +205,12 @@ struct msconnector_runtime_transaction {
      * Zero means no failure. No borrowed error text or body is retained. */
     msconnector_error_code event_write_failed;
     int response_companion_handed_off;
-    int finish_attempted;
-    msconnector_error_code finish_error;
-    int finished;
+    /* Completion is one attempt whose result remains stable on re-entry. */
+    struct {
+        int finish_attempted;
+        msconnector_error_code finish_error;
+        int finished;
+    } completion;
 };
 
 typedef struct msconnector_runtime_host_action {
@@ -2533,7 +2536,7 @@ int msconnector_runtime_transaction_append_request_body_chunk(
             "transaction is required", "runtime");
     }
     runtime = transaction->runtime;
-    if (transaction->finish_attempted || transaction->request_body.finished) {
+    if (transaction->completion.finish_attempted || transaction->request_body.finished) {
         return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
             "request body append after finalization is not allowed", "runtime");
     }
@@ -2600,7 +2603,7 @@ int msconnector_runtime_transaction_finish_request_body(
     }
     runtime = transaction->runtime;
     msconnector_decision_set_allow(decision);
-    if (transaction->finish_attempted || transaction->request_body.finished) {
+    if (transaction->completion.finish_attempted || transaction->request_body.finished) {
         return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
             "request body may only be finalized once", "runtime");
     }
@@ -2721,7 +2724,7 @@ static int process_response_headers_internal(
             "transaction, response and decision are required", "runtime");
     }
     msconnector_decision_set_allow(decision);
-    if (transaction->finish_attempted || transaction->response_headers_processed ||
+    if (transaction->completion.finish_attempted || transaction->response_headers_processed ||
         (companion && !transaction->response_companion_handed_off) ||
         (!companion && transaction->response_companion_handed_off)) {
         return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
@@ -2786,7 +2789,7 @@ static int validate_response_body_append(
     int companion) {
     const msconnector_runtime *runtime = transaction->runtime;
 
-    if (transaction->finish_attempted || transaction->response_body.finished ||
+    if (transaction->completion.finish_attempted || transaction->response_body.finished ||
         (companion && !transaction->response_companion_handed_off) ||
         (!companion && transaction->response_companion_handed_off)) {
         return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
@@ -2939,7 +2942,7 @@ static int finish_response_body_internal(
     }
     runtime = transaction->runtime;
     msconnector_decision_set_allow(decision);
-    if (transaction->finish_attempted || transaction->response_body.finished ||
+    if (transaction->completion.finish_attempted || transaction->response_body.finished ||
         (companion && !transaction->response_companion_handed_off) ||
         (!companion && transaction->response_companion_handed_off)) {
         return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
@@ -3010,7 +3013,7 @@ int msconnector_runtime_transaction_finish_unobserved_response_body(
             "transaction is required", "runtime");
     }
     runtime = transaction->runtime;
-    if (transaction->finish_attempted || transaction->response_body.finished) {
+    if (transaction->completion.finish_attempted || transaction->response_body.finished) {
         return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
             "unobserved response body may only be finalized once", "runtime");
     }
@@ -3049,7 +3052,7 @@ int msconnector_runtime_transaction_set_response_commit_state_checked(
         return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
             "transaction is required", "runtime");
     }
-    if (transaction->finish_attempted || transaction->finished) {
+    if (transaction->completion.finish_attempted || transaction->completion.finished) {
         return contract_error(error, MSCONNECTOR_TRANSACTION_TRANSITION_AFTER_TERMINAL,
             "response commit after transaction finish is not allowed");
     }
@@ -3107,7 +3110,7 @@ int msconnector_runtime_transaction_record_host_action(
     if (transaction->event_write_failed != MSCONNECTOR_ERROR_NONE) {
         return replay_event_write_failure(transaction, error);
     }
-    if (transaction->finish_attempted || transaction->finished) {
+    if (transaction->completion.finish_attempted || transaction->completion.finished) {
         return contract_error(error, MSCONNECTOR_TRANSACTION_TRANSITION_AFTER_TERMINAL,
             "host action after transaction finish is not allowed");
     }
@@ -3273,8 +3276,8 @@ int msconnector_runtime_transaction_fail(
         transaction->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE &&
         transaction->contract.rule_id[0] != '\0';
     if (terminal_rule_failure &&
-        (transaction->host_action_event_emitted || transaction->finish_attempted ||
-         transaction->finished)) {
+        (transaction->host_action_event_emitted || transaction->completion.finish_attempted ||
+         transaction->completion.finished)) {
         return contract_error(error, MSCONNECTOR_TRANSACTION_TRANSITION_AFTER_TERMINAL,
             "failure after an accepted host action or finish is not allowed");
     }
@@ -3478,7 +3481,7 @@ int msconnector_runtime_response_companion_handoff_with_handle(
             MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE);
     }
     if (registry == NULL || transaction == NULL || transaction->runtime == NULL ||
-        ttl_ms == 0U || transaction->finish_attempted || transaction->finished ||
+        ttl_ms == 0U || transaction->completion.finish_attempted || transaction->completion.finished ||
         transaction->response_companion_handed_off || handle == NULL) {
         return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
             "response companion handoff requires a live transaction and handle output",
@@ -4270,7 +4273,7 @@ int msconnector_runtime_transaction_snapshot_get(
     snapshot->response_headers_processed = transaction->response_headers_processed;
     snapshot->response_headers_sent = transaction->response_headers_sent;
     snapshot->response_body_started = transaction->response_body_started;
-    snapshot->finished = transaction->finished;
+    snapshot->finished = transaction->completion.finished;
     return 1;
 }
 
@@ -4309,7 +4312,7 @@ static void runtime_transaction_cleanup_best_effort(
         return;
     }
     msconnector_error_init(&ignored);
-    if (!transaction->finish_attempted) {
+    if (!transaction->completion.finish_attempted) {
         (void)msconnector_runtime_transaction_finish(transaction, &ignored);
     }
     if (transaction->native_started) {
@@ -4370,7 +4373,7 @@ int msconnector_runtime_transaction_process_response(
     }
     runtime = transaction->runtime;
     msconnector_decision_set_allow(decision);
-    if (transaction->finish_attempted || transaction->response_headers_processed) {
+    if (transaction->completion.finish_attempted || transaction->response_headers_processed) {
         return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
             "response processing may only be attempted once", "runtime");
     }
@@ -4401,7 +4404,7 @@ int msconnector_runtime_transaction_process_response(
 static int finish_transaction_with_logging(
     msconnector_runtime_transaction *transaction,
     msconnector_error *error) {
-    transaction->finish_attempted = 1;
+    transaction->completion.finish_attempted = 1;
     if (transaction->native_started) {
         int logged;
 
@@ -4410,10 +4413,10 @@ static int finish_transaction_with_logging(
         runtime_operation_unlock(transaction->runtime);
         if (!logged) {
             msconnector_error terminal_error;
-            transaction->finish_error = error == NULL || error->code == MSCONNECTOR_ERROR_NONE ?
+            transaction->completion.finish_error = error == NULL || error->code == MSCONNECTOR_ERROR_NONE ?
                 MSCONNECTOR_ERROR_MODSECURITY_FAILURE : error->code;
             if (transaction->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
-                msconnector_transaction_error_class cause = transaction->finish_error ==
+                msconnector_transaction_error_class cause = transaction->completion.finish_error ==
                     MSCONNECTOR_ERROR_MODSECURITY_FAILURE ?
                     MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE :
                     MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
@@ -4434,12 +4437,12 @@ static int finish_transaction_with_logging(
         return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
             "transaction could not be made immutable", "flow_guard");
     }
-    transaction->finished = 1;
+    transaction->completion.finished = 1;
     return 1;
 }
 
 static int prepare_transaction_finish(
-    msconnector_runtime_transaction *transaction,
+    const msconnector_runtime_transaction *transaction,
     msconnector_error *error,
     int *already_finished) {
     *already_finished = 0;
@@ -4453,13 +4456,13 @@ static int prepare_transaction_finish(
     if (transaction->event_write_failed != MSCONNECTOR_ERROR_NONE) {
         return replay_event_write_failure(transaction, error);
     }
-    if (transaction->finished) {
+    if (transaction->completion.finished) {
         *already_finished = 1;
         return 1;
     }
-    if (transaction->finish_attempted) {
-        return runtime_error(error, transaction->finish_error == MSCONNECTOR_ERROR_NONE ?
-            MSCONNECTOR_ERROR_INTERNAL : transaction->finish_error,
+    if (transaction->completion.finish_attempted) {
+        return runtime_error(error, transaction->completion.finish_error == MSCONNECTOR_ERROR_NONE ?
+            MSCONNECTOR_ERROR_INTERNAL : transaction->completion.finish_error,
             "transaction finish previously failed", "runtime");
     }
     return 1;

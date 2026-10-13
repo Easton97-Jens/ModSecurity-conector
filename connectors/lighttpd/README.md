@@ -267,7 +267,7 @@ the request. Disk/filesystem failures fail closed; no full-body RAM allocation o
 connector total-body cap remains. Patched-host request queue storage and its own
 `server.max-request-size` need independent host evidence.
 
-The optional technical CLI argument `--spool-directory /run/msconnector-lighttpd`
+The optional technical CLI argument `--spool-directory /var/lib/msconnector/lighttpd-stock/safe`
 selects request-spool storage. Without it, the sidecar uses the parent of
 `--config`. The directory must already exist, be canonical, owned by the
 effective service UID, writable and mode 0700. Startup checks the ancestor
@@ -276,3 +276,36 @@ configuration under `/etc`, supply a separate private runtime directory. There
 is no environment or public temporary-directory fallback. Request files are
 0600, created exclusively beneath the pinned directory and immediately unlinked;
 this storage option introduces no total-body limit.
+
+The shipped argv records select separate disk-backed private directories under
+`/var/lib/msconnector/lighttpd-stock/{all,off,safe,strict}`. Launch a record as the
+service UID using `python3 connectors/lighttpd/launch_stock_sidecar.py --binary
+/absolute/path/lighttpd-stock-sidecar --args-file
+examples/lighttpd/stock/safe/stock-sidecar.args`. The launcher provisions missing
+spool directories and rejects unsafe existing paths without changing their
+permissions. Configuration parents such as `/etc/lighttpd` may remain 0755;
+spool directories must be effective-UID-owned 0700. `--install-root` relocates
+absolute config/spool paths for staged installations; runtime config contents
+still need installation-specific rules and event paths.
+
+`--spool-capacity-bytes` defaults to 268435456 (256 MiB) aggregate outstanding
+spool reservations per process, rounded to filesystem blocks.
+`--spool-free-reserve-bytes` defaults to 67108864 (64 MiB) unprivileged available
+free space. These are technical disk admission capacities, independent of native
+WAF body policy. After P1 allows, admission checks the pinned filesystem,
+preallocates the complete declared request with `posix_fallocate`, and rechecks
+the free-space floor before any native body append. Failure returns 503 and a
+connector resource error, never a WAF BODY_LIMIT event. There is no sparse-file
+fallback. Reservations remain held until the descriptor closes on every exit,
+including replay, cancellation and receipt failure. A directory lifetime lock
+rejects a second sidecar process using the same directory. Deadline checks before
+and after allocation do not make synchronous regular-file calls cancellable.
+
+An administrator must provision root-owned non-writable ancestors before an
+unprivileged service can use `/var/lib`: for example,
+`install -d -o root -g root -m 0755 /var/lib/msconnector /var/lib/msconnector/lighttpd-stock`,
+then `install -d -o SERVICE_UID -g SERVICE_GID -m 0700 /var/lib/msconnector/lighttpd-stock/safe`
+(and the other selected profiles). These commands describe initial provisioning;
+do not use them to repair existing unsafe paths implicitly. The launcher can
+create missing children only where its effective UID has directory write
+permission; it validates administrator-provisioned paths without elevation.

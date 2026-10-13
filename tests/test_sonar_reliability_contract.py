@@ -1017,7 +1017,7 @@ static void test_notify_header_argument(
     if (expected_header_count > 1U) {
         assert(strcmp(request.headers[1].value, "two") == 0);
     }
-    assert(request.is_response == expected_response);
+    assert(request.http_metadata.is_response == expected_response);
     assert(request.has_headers_bin == expected_binary);
     assert(request.has_headers_text == expected_text);
     free_notify_request(&request);
@@ -1094,7 +1094,7 @@ static void test_response_header_key_rejects_nonbytes(void) {
         argument.data, argument.len, &pos) == -1);
     assert(pos == argument.len);
     assert(request.header_count == 0U);
-    assert(request.is_response == 0);
+    assert(request.http_metadata.is_response == 0);
     free_notify_request(&request);
 }
 
@@ -1124,8 +1124,8 @@ static void test_notify_body_key_argument(
         argument.data, argument.len, &pos) == (expected_body ? 0 : -1));
     assert(pos == argument.len);
     assert(request.has_body == expected_body);
-    assert(request.is_response == expected_response);
-    assert(request.is_response_body == expected_response_body);
+    assert(request.http_metadata.is_response == expected_response);
+    assert(request.http_metadata.is_response_body == expected_response_body);
     if (expected_body) {
         assert(request.body_len == 4U);
         assert(memcmp(request.body, "body", 4U) == 0);
@@ -1154,8 +1154,8 @@ static void test_unknown_body_key_does_not_consume_or_mutate(void) {
         argument.data, argument.len, &pos) == 1);
     assert(pos == 0U);
     assert(request.has_body == 0);
-    assert(request.is_response == 0);
-    assert(request.is_response_body == 0);
+    assert(request.http_metadata.is_response == 0);
+    assert(request.http_metadata.is_response_body == 0);
     free_notify_request(&request);
 }
 
@@ -1206,7 +1206,7 @@ static void test_spop_rejects_overflow_and_truncated_protocol_values(void) {
     memset(&request, 0, sizeof(request));
     assert(parse_notify_payload(notify.data, notify.len, &request) == 0);
     assert(request.has_notify == 1);
-    assert(request.is_response == 0);
+    assert(request.http_metadata.is_response == 0);
     assert(strcmp(request.message_name, "check-request") == 0);
     free_notify_request(&request);
 
@@ -1523,8 +1523,8 @@ static void test_spop_valid_engine_decision_stays_detect_only(void) {
     memset(&request, 0, sizeof(request));
     request.has_headers_bin = 1;
     request.has_body = request.has_body_len_arg = 1;
-    request.has_http_version = 1;
-    strcpy(request.http_version, "1.1");
+    request.http_metadata.has_http_version = 1;
+    strcpy(request.http_metadata.http_version, "1.1");
     request.has_method = 1;
     request.has_path = 1;
     request.has_uri = 1;
@@ -1589,8 +1589,8 @@ static void test_spop_valid_engine_block_is_enforced_after_owner_queue(void) {
     memset(&request, 0, sizeof(request));
     request.has_headers_bin = 1;
     request.has_body = request.has_body_len_arg = 1;
-    request.has_http_version = 1;
-    strcpy(request.http_version, "1.1");
+    request.http_metadata.has_http_version = 1;
+    strcpy(request.http_metadata.http_version, "1.1");
     request.has_method = 1;
     request.has_path = 1;
     request.has_uri = 1;
@@ -1769,7 +1769,7 @@ static void test_spop_rejects_response_arguments_on_request_messages(void) {
     assert(append_typed_string(&payload, "X-Response: yes\r\n\r\n") == 0);
     memset(&request, 0, sizeof(request));
     assert(parse_notify_payload(payload.data, payload.len, &request) == 0);
-    assert(request.is_response == 1);
+    assert(request.http_metadata.is_response == 1);
     assert(request.header_count == 1U);
     free_notify_request(&request);
 }

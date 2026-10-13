@@ -60,7 +60,7 @@ int main(int argc, char **argv) {
         transaction.event_write_failed = MSCONNECTOR_ERROR_IO;
         transaction.terminal_event_emitted = 1;
         transaction.host_action_event_emitted = 1;
-        transaction.finished = 1;
+        transaction.completion.finished = 1;
     } else if (strcmp(argv[5], "duplicate") == 0) {
         transaction.host_action_event_emitted = 1;
     } else if (strcmp(argv[5], "limit") == 0) {

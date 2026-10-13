@@ -106,10 +106,13 @@ typedef struct traefik_engine_session {
     int terminal;
     int failed;
     uint8_t failure_result;
-    int pending_disruptive;
-    uint8_t pending_action;
-    uint8_t pending_phase;
-    uint16_t pending_status;
+    /* Deferred host-result acknowledgement retains its wire action and phase. */
+    struct {
+        int pending_disruptive;
+        uint8_t pending_action;
+        uint8_t pending_phase;
+        uint16_t pending_status;
+    } pending_result;
     int response_status;
     msconnector_decision pending_decision;
     char pending_rule_id[TRAEFIK_ENGINE_PROTOCOL_MAX_RULE_ID + 1U];
@@ -865,10 +868,10 @@ static void traefik_engine_record_decision(traefik_engine_session *session,
         return;
     }
     session->terminal = 1;
-    session->pending_disruptive = 1;
-    session->pending_action = (uint8_t)decision->kind;
-    session->pending_phase = (uint8_t)decision->phase;
-    session->pending_status = decision->http_status > 0 &&
+    session->pending_result.pending_disruptive = 1;
+    session->pending_result.pending_action = (uint8_t)decision->kind;
+    session->pending_result.pending_phase = (uint8_t)decision->phase;
+    session->pending_result.pending_status = decision->http_status > 0 &&
         decision->http_status <= UINT16_MAX ? (uint16_t)decision->http_status
         : 0U;
     session->pending_decision = *decision;
@@ -893,7 +896,7 @@ static int traefik_engine_record_host_outcome(traefik_engine_session *session,
 {
     int success;
     if (session == NULL || session->transaction == NULL ||
-        !session->pending_disruptive) {
+        !session->pending_result.pending_disruptive) {
         return 0;
     }
     if (session->service == NULL ||
@@ -1234,12 +1237,12 @@ static int traefik_engine_handle_outcome(traefik_engine_session *session,
 
     if (session == NULL || frame == NULL || decision == NULL ||
         result_code == NULL || !session->begun || session->destroyed ||
-        !session->pending_disruptive || !traefik_engine_parse_outcome(frame,
+        !session->pending_result.pending_disruptive || !traefik_engine_parse_outcome(frame,
             &action, &flags, &visible_status)) {
         return 0;
     }
     /* A committed response has no verified abort path; only log-only is real. */
-    if (session->pending_phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
+    if (session->pending_result.pending_phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
         (session->response_headers_sent || session->response_body_started)) {
         if (action != MSCONNECTOR_DECISION_KIND_LOG_ONLY || flags != 0U ||
             session->response_status <= 0 ||
@@ -1261,12 +1264,12 @@ static int traefik_engine_handle_outcome(traefik_engine_session *session,
             MSCONNECTOR_PHASE_RESPONSE_BODY);
         decision->kind = MSCONNECTOR_DECISION_KIND_LOG_ONLY;
         decision->late_intervention = 1;
-        session->pending_disruptive = 0;
+        session->pending_result.pending_disruptive = 0;
         return 1;
     }
-    if (action != session->pending_action ||
+    if (action != session->pending_result.pending_action ||
         flags != TRAEFIK_ENGINE_PROTOCOL_OUTCOME_HOST_ACTION_APPLIED ||
-        visible_status != session->pending_status) {
+        visible_status != session->pending_result.pending_status) {
         return 0;
     }
     msconnector_error_init(&error);
@@ -1277,7 +1280,7 @@ static int traefik_engine_handle_outcome(traefik_engine_session *session,
         return -1;
     }
     *decision = session->pending_decision;
-    session->pending_disruptive = 0;
+    session->pending_result.pending_disruptive = 0;
     return 1;
 }
 
@@ -1367,7 +1370,7 @@ static int traefik_engine_dispatch(traefik_engine_session *session,
         session->failed = 1;
         session->terminal = 1;
         session->failure_result = *result_code;
-        session->pending_disruptive = 0;
+        session->pending_result.pending_disruptive = 0;
         msconnector_decision_init(decision);
         memset(&session->pending_decision, 0, sizeof(session->pending_decision));
     }

@@ -11,7 +11,9 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 
 | Option | Layer | Type | Required | Default | Context | Short description |
 | --- | --- | --- | --- | --- | --- | --- |
+| [`--spool-capacity-bytes`](#spool-capacity-bytes) | Environment / runtime | integer | no | 268435456 | Stock lighttpd sidecar startup | Aggregate technical capacity of live request spools, including block rounding. |
 | [`--spool-directory`](#spool-directory) | Environment / runtime | path | no | validated private parent of --config | Stock lighttpd sidecar startup | Optional private request-spool directory; supply it when the configuration parent cannot provide suitable storage. |
+| [`--spool-free-reserve-bytes`](#spool-free-reserve-bytes) | Environment / runtime | integer | no | 67108864 | Stock lighttpd sidecar startup | Free filesystem space retained when admitting and preallocating a request spool. |
 | [`msconnector.config-file`](#msconnector-config-file) | Host / Connector | path | yes | none | T_CONFIG_SCOPE_SERVER | Path to the Common Runtime configuration used by the native plugin. |
 | [`msconnector.enabled`](#msconnector-enabled) | Host / Connector | lighttpd boolean | no | off | T_CONFIG_SCOPE_SERVER | Enables the native lighttpd plugin. |
 | [`msconnector.expose-host-transaction-id`](#msconnector-expose-host-transaction-id) | Host / Connector | lighttpd boolean | no | off | T_CONFIG_SCOPE_SERVER | Opt-in response-header evidence for the server-generated host transaction ID. |
@@ -107,6 +109,61 @@ Repository targets: `make check-config-lighttpd` and `make check-config-all-conn
 
 ## Option details
 
+<a id="spool-capacity-bytes"></a>
+## `--spool-capacity-bytes`
+
+### Short description
+
+Aggregate technical capacity of live request spools, including block rounding.
+
+### Syntax
+
+```text
+--spool-capacity-bytes 268435456
+```
+
+### Valid contexts
+
+- Stock lighttpd sidecar startup
+
+### Values
+
+| Type | Allowed values | Required |
+| --- | --- | --- |
+| integer | positive decimal byte count representable by size_t | no |
+
+### Default
+
+268435456
+
+Source: `SIDECAR_DEFAULT_SPOOL_CAPACITY`.
+
+### Inheritance and merge
+
+not applicable
+
+Merge: One startup value; no request-time override.
+
+### Phases and runtime effect
+
+Before native request-body ingestion; reservations remain until descriptor cleanup.
+
+Aggregate technical capacity of live request spools, including block rounding.
+
+### Validation and errors
+
+Checked block rounding, aggregate reservations and available-space checks precede real disk allocation; admission failures return HTTP 503.
+
+### Example
+
+Selected example value: `--spool-capacity-bytes 268435456`.
+
+Source-backed example: [examples/lighttpd/stock/safe/stock-sidecar.args](../../examples/lighttpd/stock/safe/stock-sidecar.args).
+
+### Safety and operations
+
+Technical storage admission is separate from engine inspection limits. Dedicated filesystems or quotas isolate unrelated writers; synchronous filesystem calls cannot be cancelled by socket deadlines.
+
 <a id="spool-directory"></a>
 ## `--spool-directory`
 
@@ -117,7 +174,7 @@ Optional private request-spool directory; supply it when the configuration paren
 ### Syntax
 
 ```text
---spool-directory /run/msconnector-lighttpd
+--spool-directory /var/lib/msconnector/lighttpd-stock/safe
 ```
 
 ### Valid contexts
@@ -154,13 +211,68 @@ Startup validates ancestors, pins no-follow directory descriptors and probes fil
 
 ### Example
 
-Selected example value: `--spool-directory /run/msconnector-lighttpd`.
+Selected example value: `--spool-directory /var/lib/msconnector/lighttpd-stock/safe`.
 
-Source-backed example: `connectors/lighttpd/README.md`.
+Source-backed example: [examples/lighttpd/stock/safe/stock-sidecar.args](../../examples/lighttpd/stock/safe/stock-sidecar.args).
 
 ### Safety and operations
 
 Request files are exclusively created as 0600 beneath the pinned private directory and immediately unlinked; no environment or public temporary-directory fallback.
+
+<a id="spool-free-reserve-bytes"></a>
+## `--spool-free-reserve-bytes`
+
+### Short description
+
+Free filesystem space retained when admitting and preallocating a request spool.
+
+### Syntax
+
+```text
+--spool-free-reserve-bytes 67108864
+```
+
+### Valid contexts
+
+- Stock lighttpd sidecar startup
+
+### Values
+
+| Type | Allowed values | Required |
+| --- | --- | --- |
+| integer | positive decimal byte count representable by size_t | no |
+
+### Default
+
+67108864
+
+Source: `SIDECAR_DEFAULT_SPOOL_FREE_RESERVE`.
+
+### Inheritance and merge
+
+not applicable
+
+Merge: One startup value; no request-time override.
+
+### Phases and runtime effect
+
+Before native request-body ingestion; reservations remain until descriptor cleanup.
+
+Free filesystem space retained when admitting and preallocating a request spool.
+
+### Validation and errors
+
+Checked block rounding, aggregate reservations and available-space checks precede real disk allocation; admission failures return HTTP 503.
+
+### Example
+
+Selected example value: `--spool-free-reserve-bytes 67108864`.
+
+Source-backed example: [examples/lighttpd/stock/safe/stock-sidecar.args](../../examples/lighttpd/stock/safe/stock-sidecar.args).
+
+### Safety and operations
+
+Technical storage admission is separate from engine inspection limits. Dedicated filesystems or quotas isolate unrelated writers; synchronous filesystem calls cannot be cancelled by socket deadlines.
 
 <a id="msconnector-config-file"></a>
 ## `msconnector.config-file`

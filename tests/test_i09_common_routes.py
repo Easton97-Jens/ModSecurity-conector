@@ -100,7 +100,7 @@ int main(int argc, char **argv) {
     printf("{\"first\":%d,\"second\":%d,\"first_code\":%d,\"second_code\":%d,"
         "\"cause\":%d,\"audit\":%d,\"completed\":%u,\"finished\":%d,",
         first, second, first_code, second_code, tx->contract.error_class, audit_calls,
-        tx->contract.completed_phase_mask, tx->finished);
+        tx->contract.completed_phase_mask, tx->completion.finished);
     msconnector_runtime_transaction_destroy(&tx);
     printf("\"cleanup\":%d,\"destroyed\":%d}\n", cleanup_calls, tx == NULL);
     fclose(runtime.event_file);

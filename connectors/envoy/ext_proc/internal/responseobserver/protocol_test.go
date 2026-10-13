@@ -491,7 +491,9 @@ func TestProcessCapacityIsGlobalAcrossGRPCTransports(t *testing.T) {
 	defer firstConnection.Close()
 	secondConnection := dial(t)
 	defer secondConnection.Close()
-	first, err := extprocv3.NewExternalProcessorClient(firstConnection).Process(context.Background())
+	streamContext, cancelStreams := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelStreams()
+	first, err := extprocv3.NewExternalProcessorClient(firstConnection).Process(streamContext)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -502,11 +504,17 @@ func TestProcessCapacityIsGlobalAcrossGRPCTransports(t *testing.T) {
 		t.Fatalf("first stream did not reach the held response-only state: %v", err)
 	}
 
-	excess, err := extprocv3.NewExternalProcessorClient(secondConnection).Process(context.Background())
+	excess, err := extprocv3.NewExternalProcessorClient(secondConnection).Process(streamContext)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := excess.Send(request()); err != nil {
+	// Admission rejection can arrive before Send. Synchronize that ordering
+	// deliberately: gRPC Send returns EOF for a server-generated error, while
+	// Recv carries the actual status that must still be ResourceExhausted.
+	if _, err := excess.Header(); err != nil && status.Code(err) != codes.ResourceExhausted {
+		t.Fatalf("cross-transport excess stream header error = %v, want nil or ResourceExhausted", err)
+	}
+	if err := excess.Send(request()); err != nil && err != io.EOF {
 		t.Fatal(err)
 	}
 	if _, err := excess.Recv(); status.Code(err) != codes.ResourceExhausted {
@@ -519,7 +527,7 @@ func TestProcessCapacityIsGlobalAcrossGRPCTransports(t *testing.T) {
 	if _, err := first.Recv(); err == nil {
 		t.Fatal("first stream remained active after CloseSend")
 	}
-	next, err := extprocv3.NewExternalProcessorClient(secondConnection).Process(context.Background())
+	next, err := extprocv3.NewExternalProcessorClient(secondConnection).Process(streamContext)
 	if err != nil {
 		t.Fatal(err)
 	}

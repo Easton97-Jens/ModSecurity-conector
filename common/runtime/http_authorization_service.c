@@ -1173,14 +1173,19 @@ static void authorization_response_set_stream_error(
     }
 }
 
+/* Mapping diagnostics borrow a bounded caller-owned output buffer. */
+typedef struct authorization_mapping_error {
+    char *data;
+    size_t capacity;
+} authorization_mapping_error;
+
 static void authorization_process_runtime_request(
     authorization_service *service,
     const authorization_connection *connection,
     const parsed_http_request *parsed,
     int *lock_held,
     const msconnector_generic_request_source *source,
-    char *error,
-    size_t error_len,
+    const authorization_mapping_error *mapping_error,
     authorization_response_state *response) {
     msconnector_request request;
     msconnector_runtime_transaction *transaction = NULL;
@@ -1194,7 +1199,7 @@ static void authorization_process_runtime_request(
     msconnector_secure_zero(response_handle, sizeof(response_handle));
     response->response_handle = NULL;
     if (!service->profile->map_request(source, &service->request_limits.mapper_contract,
-            &request, error, error_len)) {
+            &request, mapping_error->data, mapping_error->capacity)) {
         response->status = 400;
         response->decision_name = "mapping_error";
         response->success = 0;
@@ -1322,8 +1327,9 @@ static int handle_authorization_request(
         return 0;
     }
     int runtime_lock_held = 1;
+    const authorization_mapping_error mapping_error = {error, sizeof(error)};
     authorization_process_runtime_request(service, connection, &parsed,
-        &runtime_lock_held, &source, error, sizeof(error), &response);
+        &runtime_lock_held, &source, &mapping_error, &response);
     if (runtime_lock_held && pthread_mutex_unlock(&service->runtime_lock) != 0) {
         parsed_request_destroy(&parsed);
         return 0;

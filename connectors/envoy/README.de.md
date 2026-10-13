@@ -2,6 +2,19 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
+Der Linux-Response-Observer benötigt ein kanonisches Socket-Verzeichnis mit
+Service-UID als Eigentümer und Modus `0700`, procfs-Descriptor-Pfade sowie
+`Renameat2(RENAME_NOREPLACE)`. Er bindet einen privaten temporären Namen und
+veröffentlicht den konfigurierten Socket atomar; ein vorhandenes Ziel wird beim
+Start niemals entfernt. Socket- und Elternverzeichnis-Descriptoren halten die
+Identität bis zum einmaligen Cleanup, auch bei Verzeichnisersatz. Peer-Credential-
+Prüfungen bleiben verpflichtend. Prozesse derselben Service-UID sind vertraute
+Verzeichnisschreiber: Linux besitzt kein bedingtes Inode-Unlink; diese Prozesse
+dürfen den Eintrag während des Cleanups nicht adversarial ersetzen. Fehlendes
+procfs oder fehlende atomare Veröffentlichung führen zu einem geschlossenen
+Fehlerpfad. Konfigurierte Adressen und unterstützte Socket-Pfadlängen bleiben
+erhalten.
+
 
 Status: `minimal_runtime_smoke` / `connector-gap`
 

@@ -16,6 +16,7 @@ import os
 from pathlib import Path
 import shutil
 import select
+import shlex
 import socket
 import socketserver
 import struct
@@ -26,6 +27,7 @@ import threading
 import time
 import unittest
 from unittest import mock
+from types import SimpleNamespace
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -214,7 +216,7 @@ def _upstream(responder):
 class _RunningSidecar:
     def __init__(self, binary: Path, config: Path, upstream_port: int, library_dir: Path,
                  timeout_ms: int, environment: dict[str, str] | None = None,
-                 pass_fds: tuple[int, ...] = ()) -> None:
+                 pass_fds: tuple[int, ...] = (), extra_arguments: tuple[str, ...] = ()) -> None:
         self._pass_fds = pass_fds
         self.port = _free_loopback_port()
         self.config = config
@@ -225,6 +227,7 @@ class _RunningSidecar:
             "--listen", f"127.0.0.1:{self.port}",
             "--upstream", f"127.0.0.1:{upstream_port}",
             "--timeout-ms", str(timeout_ms),
+            *extra_arguments,
         ]
         self._environment = os.environ.copy()
         original_path = self._environment.get("LD_LIBRARY_PATH", "")
@@ -287,6 +290,40 @@ class _RunningSidecar:
                 response.extend(chunk)
 
 
+class StockSidecarLauncherContractTest(unittest.TestCase):
+    def test_launcher_rejects_unsafe_existing_paths_without_chmod(self) -> None:
+        spec = importlib.util.spec_from_file_location("stock_launcher", ROOT / "connectors/lighttpd/launch_stock_sidecar.py")
+        self.assertIsNotNone(spec)
+        launcher = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(launcher)
+        with tempfile.TemporaryDirectory(prefix="stock-launcher-negatives-", dir=_temporary_root()) as temporary:
+            directory = Path(temporary)
+            spool = directory / "spool"
+            launcher.prepare_spool(spool)
+            self.assertEqual(spool.stat().st_mode & 0o777, 0o700)
+            spool.chmod(0o755)
+            with self.assertRaises(ValueError):
+                launcher.prepare_spool(spool)
+            self.assertEqual(spool.stat().st_mode & 0o777, 0o755)
+            spool.chmod(0o700)
+            with mock.patch.object(launcher.os, "geteuid", return_value=os.geteuid() + 1):
+                with self.assertRaises(ValueError):
+                    launcher.prepare_spool(spool)
+            with mock.patch.object(launcher.os, "fstatvfs", return_value=SimpleNamespace(f_flag=os.ST_RDONLY)):
+                with self.assertRaisesRegex(ValueError, "read-only"):
+                    launcher.prepare_spool(spool)
+            link = directory / "link"
+            link.symlink_to(spool, target_is_directory=True)
+            with self.assertRaises(OSError):
+                launcher.prepare_spool(link)
+            unsafe = directory / "unsafe"
+            unsafe.mkdir(mode=0o777)
+            unsafe.chmod(0o777)
+            with self.assertRaises(ValueError):
+                launcher.prepare_spool(unsafe / "child")
+            self.assertFalse((unsafe / "child").exists())
+
+
 class StockSidecarSourceContractTest(unittest.TestCase):
     def _compile_and_run_c_harness(
         self, harness_source: str, *, prefix: str, filename: str,
@@ -320,6 +357,81 @@ class StockSidecarSourceContractTest(unittest.TestCase):
                 [str(binary)], cwd=ROOT, text=True, capture_output=True, check=False,
             )
             self.assertEqual(executed.returncode, 0, executed.stderr)
+
+    def test_spool_admission_faults_rounding_and_lifetime(self) -> None:
+        compiler = shutil.which("cc")
+        include_directory = Path(os.environ.get("MODSECURITY_INCLUDE_DIR", "/usr/include"))
+        if compiler is None or not (include_directory / "modsecurity/modsecurity.h").is_file():
+            self.skipTest("requires C compiler and libmodsecurity headers")
+        harness = r'''
+#define fstatvfs test_fstatvfs
+#define posix_fallocate test_fallocate
+#include "__SIDECAR_SOURCE__"
+#undef fstatvfs
+#undef posix_fallocate
+#include <assert.h>
+static int stat_failure, allocation_failure, allocation_calls, stat_calls, after_floor, malformed;
+static off_t allocation_length;
+int test_fstatvfs(int fd, struct statvfs *v) {
+    (void)fd; ++stat_calls;
+    if (stat_failure) { errno=EIO;return -1; }
+    memset(v,0,sizeof(*v));v->f_frsize=4096;v->f_bavail=1024;
+    if (after_floor && stat_calls%2==0) v->f_bavail=0;
+    if (malformed==1) v->f_frsize=0;
+    if (malformed==2) v->f_bavail=SIZE_MAX;
+    if (malformed==3) v->f_flag=ST_RDONLY;
+    return 0;
+}
+int test_fallocate(int fd, off_t offset, off_t length) {
+    (void)fd;assert(offset==0);++allocation_calls;allocation_length=length;
+    return allocation_failure;
+}
+static sidecar_exchange_state state_for(sidecar_options *options, sidecar_spool_budget *budget, size_t length) {
+    sidecar_exchange_state state;memset(&state,0,sizeof(state));
+    state.dependencies.options=options;state.dependencies.spool_budget=budget;
+    state.payload.request_spool_fd=-1;state.payload.request_headers.content_length=length;
+    state.deadline.at_ms=sidecar_now_ms()+10000;return state;
+}
+int main(void) {
+    char *arguments[]={"sidecar","--config","config","--listen","127.0.0.1:8000", "--upstream","127.0.0.1:8001", "--spool-free-reserve-bytes","0"};
+    sidecar_options parsed;
+    assert(!sidecar_parse_args(9,arguments,&parsed));
+    arguments[8]="184467440737095516160";assert(!sidecar_parse_args(9,arguments,&parsed));
+    arguments[7]="--spool-capacity-bytes";arguments[8]="0";assert(!sidecar_parse_args(9,arguments,&parsed));
+    assert(sidecar_parse_args(7,arguments,&parsed));
+    assert(parsed.spool_capacity_bytes==SIDECAR_DEFAULT_SPOOL_CAPACITY && parsed.spool_free_reserve_bytes==SIDECAR_DEFAULT_SPOOL_FREE_RESERVE);
+    int fd=open("__TEST_ROOT__",O_RDONLY|O_DIRECTORY);assert(fd>=0);
+    sidecar_options options={.spool_directory_fd=fd};
+    sidecar_spool_budget budget={.lock=PTHREAD_MUTEX_INITIALIZER,.capacity=8192,.free_reserve=4096};
+    sidecar_exchange_state a=state_for(&options,&budget,4097);
+    assert(sidecar_admit_request_spool(&a));assert(allocation_length==4097);
+    assert(budget.reserved==8192 && a.payload.spool_reservation==8192);
+    sidecar_exchange_state b=state_for(&options,&budget,1);
+    assert(!sidecar_admit_request_spool(&b));assert(b.failure_status==503);
+    assert(allocation_calls==1 && b.payload.request_spool_fd==-1);
+    sidecar_release_request_spool(&a);sidecar_release_request_spool(&a);assert(budget.reserved==0);
+    assert(sidecar_admit_request_spool(&b));assert(budget.reserved==4096);
+    int released_fd=b.payload.request_spool_fd;sidecar_release_request_spool(&b);
+    assert(fcntl(released_fd,F_GETFD)<0 && errno==EBADF);assert(budget.reserved==0);
+    allocation_failure=ENOSPC;b=state_for(&options,&budget,1);errno=0;
+    assert(!sidecar_admit_request_spool(&b));assert(errno==ENOSPC && budget.reserved==0 && b.payload.request_spool_fd==-1);
+    allocation_failure=EOPNOTSUPP;assert(!sidecar_admit_request_spool(&b));assert(errno==EOPNOTSUPP);
+    allocation_failure=0;stat_failure=1;assert(!sidecar_admit_request_spool(&b));assert(errno==EIO);
+    stat_failure=0;after_floor=1;stat_calls=0;assert(!sidecar_admit_request_spool(&b));assert(budget.reserved==0 && b.payload.request_spool_fd==-1);
+    after_floor=0;int previous=allocation_calls;
+    for (malformed=1;malformed<=3;++malformed) {
+        assert(!sidecar_admit_request_spool(&b));assert(allocation_calls==previous);
+    }
+    malformed=0;b=state_for(&options,&budget,SIZE_MAX);
+    assert(!sidecar_admit_request_spool(&b));assert(allocation_calls==previous);
+    b=state_for(&options,&budget,1);budget.free_reserve=SIZE_MAX;
+    assert(!sidecar_admit_request_spool(&b));assert(allocation_calls==previous);
+    budget.free_reserve=0;assert(sidecar_admit_request_spool(&b));sidecar_release_request_spool(&b);
+    assert(close(fd)==0);assert(pthread_mutex_destroy(&budget.lock)==0);return 0;
+}
+'''
+        self._compile_and_run_c_harness(harness, prefix="stock-spool-admission-",
+            filename="spool_admission", compiler=compiler, include_directory=include_directory, link_crypto=True)
 
     def test_private_spool_anchors_storage_and_rejects_unsafe_roots(self) -> None:
         compiler = shutil.which("cc")
@@ -371,6 +483,7 @@ int main(void) {
     assert(sidecar_prepare_spool_directory(&options));assert(close(options.spool_directory_fd)==0);
     options.spool_directory=NULL;options.config=config;
     assert(sidecar_prepare_spool_directory(&options));
+    assert(sidecar_open_spool_directory(safe)<0); /* same-dir process lock */
     int directory_fd=options.spool_directory_fd;
     assert((fcntl(directory_fd,F_GETFD)&FD_CLOEXEC)!=0);
     assert(rename(safe,moved)==0);assert(symlink(unsafe,safe)==0);
@@ -1295,7 +1408,8 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
 
     @classmethod
     def _compile(cls, output: Path, source: Path, *, define_main: bool,
-                 include_directory: Path, send_wrapper: Path | None = None) -> None:
+                 include_directory: Path, send_wrapper: Path | None = None,
+                 allocation_wrapper: Path | None = None) -> None:
         compiler = os.environ.get("CC", "cc")
         command = [
             compiler,
@@ -1307,6 +1421,8 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
             command.append("-DMSCONNECTOR_STOCK_SIDECAR_MAIN")
         if send_wrapper is not None:
             command.extend([str(send_wrapper), "-Wl,--wrap=send"])
+        if allocation_wrapper is not None:
+            command.extend([str(allocation_wrapper), "-Wl,--wrap=posix_fallocate"])
         command.extend([str(source), str(COMMON_RUNTIME), str(PROFILE_REGISTRY)])
         command.extend(str(path) for path in COMMON_SOURCES)
         command.extend([
@@ -1325,7 +1441,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
                  engine_response_limit: int, engine_response_limit_action: str, timeout_ms: int = 1000,
                  phase4_mode: str = "strict",
                  environment: dict[str, str] | None = None,
-                 pass_fds: tuple[int, ...] = ()):
+                 pass_fds: tuple[int, ...] = (), extra_arguments: tuple[str, ...] = ()):
         with tempfile.TemporaryDirectory(prefix="stock-lighttpd-sidecar-case-",
                                          dir=_temporary_root()) as temporary:
             directory = Path(temporary)
@@ -1370,8 +1486,202 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
             )
             with _upstream(responder) as upstream:
                 with _RunningSidecar(self.binary, config_path, upstream.server_address[1],
-                                     self.library_dir, timeout_ms, environment, pass_fds) as sidecar:
+                                     self.library_dir, timeout_ms, environment, pass_fds, extra_arguments) as sidecar:
                     yield sidecar, upstream, event_path, config_path
+
+    def test_preallocation_enospc_is_503_without_body_limit_or_upstream(self) -> None:
+        normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
+        with tempfile.TemporaryDirectory(prefix="stock-enospc-", dir=_temporary_root()) as temporary:
+            directory = Path(temporary)
+            wrapper = directory / "allocation_failure.c"
+            wrapper.write_text("#include <errno.h>\n#include <sys/types.h>\n"
+                               "int __wrap_posix_fallocate(int fd, off_t offset, off_t length) {"
+                               "(void)fd;(void)offset;(void)length;return ENOSPC;}\n")
+            binary = directory / "sidecar"
+            self._compile(binary, SIDECAR_SOURCE, define_main=True,
+                          include_directory=Path(os.environ["MODSECURITY_INCLUDE_DIR"]),
+                          allocation_wrapper=wrapper)
+            with mock.patch.object(self, "binary", binary), self._fixture(
+                "", lambda _request: normal, engine_request_limit=1048576,
+                engine_request_limit_action="Reject", engine_response_limit=1048576,
+                engine_response_limit_action="Reject",
+            ) as (sidecar, upstream, events, _config):
+                self.assertEqual(_status(sidecar.exchange(self._request(body=b"abc"))), 503)
+                self.assertEqual(upstream.record_count(), 0)
+                text = self._wait_for_event(events, "MSCONN_EVENT_CONNECTOR_ERROR")
+                self.assertNotIn("MSCONN_EVENT_BODY_LIMIT", text)
+                # Zero-body requests require no spool and remain legitimate.
+                self.assertEqual(_status(sidecar.exchange(self._request())), 200)
+                self.assertEqual(upstream.record_count(), 1)
+
+    def test_engine_processpartial_keeps_full_spooled_upstream_body(self) -> None:
+        normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
+        body = b"x" * (1048576 + 2048)
+        with self._fixture("", lambda _request: normal, engine_request_limit=4096,
+            engine_request_limit_action="ProcessPartial", engine_response_limit=1048576,
+            engine_response_limit_action="Reject", timeout_ms=5000,
+        ) as (sidecar, upstream, _events, _config):
+            self.assertEqual(_status(sidecar.exchange(self._request(body=body))), 200)
+            self.assertEqual(upstream.records[0].split(b"\r\n\r\n", 1)[1], body)
+
+    def test_aggregate_spool_capacity_is_resource_error_and_readmits_after_close(self) -> None:
+        normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
+        with self._fixture("", lambda _request: normal,
+            engine_request_limit=2097152, engine_request_limit_action="Reject",
+            engine_response_limit=1048576, engine_response_limit_action="Reject", timeout_ms=2000,
+            extra_arguments=("--spool-capacity-bytes", "8192", "--spool-free-reserve-bytes", "4096"),
+        ) as (sidecar, upstream, events, _config):
+            client = sidecar.connect()
+            try:
+                client.sendall(b"POST /hold HTTP/1.1\r\nHost: example.test\r\nContent-Length: 4097\r\n\r\n")
+                deadline = time.monotonic() + 1.0
+                allocated = False
+                while time.monotonic() < deadline and not allocated:
+                    for descriptor in Path(f"/proc/{sidecar.process.pid}/fd").iterdir():
+                        try:
+                            info = descriptor.stat()
+                        except FileNotFoundError:
+                            continue
+                        if info.st_nlink == 0 and info.st_size == 4097:
+                            allocated = True
+                            break
+                    if not allocated:
+                        time.sleep(0.01)
+                self.assertTrue(allocated, "held request never reached preallocation admission")
+                self.assertEqual(_status(sidecar.exchange(self._request(body=b"x"))), 503)
+                self.assertEqual(upstream.record_count(), 0)
+                text = self._wait_for_event(events, "MSCONN_EVENT_CONNECTOR_ERROR")
+                self.assertNotIn("MSCONN_EVENT_BODY_LIMIT", text)
+            finally:
+                client.close()
+            self._wait_for_event(events, "client_cancel")
+            # Cleanup closes the descriptor before releasing the reservation.
+            time.sleep(0.05)
+            self.assertEqual(_status(sidecar.exchange(self._request(body=b"x"))), 200)
+            self.assertEqual(upstream.record_count(), 1)
+
+    def test_supplied_argv_profiles_launch_with_private_installed_spools(self) -> None:
+        launcher = ROOT / "connectors/lighttpd/launch_stock_sidecar.py"
+        for profile in ("all", "off", "safe", "strict"):
+            with self.subTest(profile=profile), tempfile.TemporaryDirectory(
+                prefix="stock-installed-profile-", dir=_temporary_root()
+            ) as temporary:
+                install_root = Path(temporary)
+                config_parent = install_root / "etc/lighttpd"
+                config_parent.mkdir(parents=True, mode=0o755)
+                config_parent.chmod(0o755)
+                # The configuration directory is intentionally public-readable;
+                # the supplied explicit spool is separate and private.
+                record_source = ROOT / f"examples/lighttpd/stock/{profile}/stock-sidecar.args"
+                supplied_arguments = shlex.split(record_source.read_text(), comments=True)
+                config = config_parent / Path(supplied_arguments[supplied_arguments.index("--config") + 1]).name
+                config.write_text(
+                    (ROOT / f"examples/lighttpd/stock/{profile}/msconnector-runtime.conf").read_text()
+                    .replace("rules_file=/etc/modsecurity/no-crs-baseline.conf", "rules_inline=SecRuleEngine On")
+                    .replace(f"event_path=/var/log/lighttpd/msconnector-stock-{profile}-events.jsonl",
+                             f"event_path={install_root}/events.jsonl"), encoding="utf-8")
+                record = ROOT / f"examples/lighttpd/stock/{profile}/stock-sidecar.args"
+                command = [sys.executable, str(launcher), "--binary", str(self.binary),
+                           "--args-file", str(record), "--install-root", str(install_root)]
+                # Keep supplied record ports: all four start checks run serially.
+                process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                try:
+                    deadline = time.monotonic() + 3
+                    while True:
+                        if process.poll() is not None:
+                            out, err = process.communicate()
+                            self.fail(f"{profile} exited {process.returncode}: {out!r} {err!r}")
+                        try:
+                            client = socket.create_connection(("127.0.0.1", 8080), timeout=0.1)
+                            break
+                        except OSError:
+                            if time.monotonic() >= deadline:
+                                self.fail(f"{profile} did not become ready")
+                            time.sleep(0.02)
+                    client.close()
+                    spool = install_root / f"var/lib/msconnector/lighttpd-stock/{profile}"
+                    self.assertEqual(spool.stat().st_mode & 0o777, 0o700)
+                    self.assertEqual(spool.stat().st_uid, os.geteuid())
+                    self.assertEqual(config_parent.stat().st_mode & 0o777, 0o755)
+                    # Second actual process must fail readiness for the same spool.
+                    duplicate = subprocess.run(command, capture_output=True, timeout=3)
+                    self.assertEqual(duplicate.returncode, 78, duplicate.stderr)
+                finally:
+                    process.terminate()
+                    process.communicate(timeout=3)
+                for mode in (0o755, 0o500):
+                    spool.chmod(mode)
+                    negative = subprocess.run(command, capture_output=True, timeout=3)
+                    self.assertEqual(negative.returncode, 78, negative.stderr)
+                    self.assertEqual(spool.stat().st_mode & 0o777, mode)
+                spool.chmod(0o700)
+                spool.rmdir()
+                target = install_root / "alternate-private-spool"
+                target.mkdir(mode=0o700)
+                spool.symlink_to(target, target_is_directory=True)
+                negative = subprocess.run(command, capture_output=True, timeout=3)
+                self.assertEqual(negative.returncode, 78, negative.stderr)
+
+    @unittest.skipUnless(os.geteuid() == 0, "nonroot installed fixture requires root to assign task-owned service UID")
+    def test_supplied_argv_profiles_start_as_unprivileged_service_uid(self) -> None:
+        service_uid = 65534
+        uid_map = [tuple(map(int, line.split())) for line in Path("/proc/self/uid_map").read_text().splitlines()]
+        if not any(first <= service_uid < first + count for first, _outside, count in uid_map):
+            self.skipTest("BLOCKED: user namespace maps only UID 0; cannot provision or run a distinct service UID")
+        def become_service_uid() -> None:
+            os.setgroups([])
+            os.setgid(service_uid)
+            os.setuid(service_uid)
+        for profile in ("all", "off", "safe", "strict"):
+            with self.subTest(profile=profile), tempfile.TemporaryDirectory(
+                prefix="stock-service-install-", dir=_temporary_root()
+            ) as temporary:
+                install_root = Path(temporary)
+                install_root.chmod(0o755)
+                config_parent = install_root / "etc/lighttpd"
+                config_parent.mkdir(parents=True, mode=0o755)
+                spool = install_root / f"var/lib/msconnector/lighttpd-stock/{profile}"
+                spool.mkdir(parents=True, mode=0o700)
+                os.chown(spool, service_uid, service_uid)
+                record_source = ROOT / f"examples/lighttpd/stock/{profile}/stock-sidecar.args"
+                supplied_arguments = shlex.split(record_source.read_text(), comments=True)
+                config = config_parent / Path(supplied_arguments[supplied_arguments.index("--config") + 1]).name
+                config.write_text(
+                    (ROOT / f"examples/lighttpd/stock/{profile}/msconnector-runtime.conf").read_text()
+                    .replace("rules_file=/etc/modsecurity/no-crs-baseline.conf", "rules_inline=SecRuleEngine On")
+                    .replace(f"event_path=/var/log/lighttpd/msconnector-stock-{profile}-events.jsonl",
+                             f"event_path={spool}/events.jsonl"), encoding="utf-8")
+                record = install_root / "stock-sidecar.args"
+                shutil.copyfile(ROOT / f"examples/lighttpd/stock/{profile}/stock-sidecar.args", record)
+                binary, launcher = install_root / "sidecar", install_root / "launcher.py"
+                shutil.copyfile(self.binary, binary)
+                binary.chmod(0o755)
+                shutil.copyfile(ROOT / "connectors/lighttpd/launch_stock_sidecar.py", launcher)
+                command = [str(Path(sys.executable).resolve()), str(launcher), "--binary", str(binary),
+                           "--args-file", str(record), "--install-root", str(install_root)]
+                process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                           preexec_fn=become_service_uid)
+                try:
+                    deadline = time.monotonic() + 3
+                    while True:
+                        if process.poll() is not None:
+                            out, err = process.communicate()
+                            self.fail(f"nonroot {profile} exited {process.returncode}: {out!r} {err!r}")
+                        try:
+                            client = socket.create_connection(("127.0.0.1", 8080), timeout=0.1)
+                            break
+                        except OSError:
+                            if time.monotonic() >= deadline:
+                                self.fail(f"nonroot {profile} did not become ready")
+                            time.sleep(0.02)
+                    client.close()
+                    self.assertEqual(config_parent.stat().st_mode & 0o777, 0o755)
+                    self.assertEqual(config_parent.stat().st_uid, 0)
+                    self.assertEqual(spool.stat().st_uid, service_uid)
+                    self.assertEqual(spool.stat().st_mode & 0o777, 0o700)
+                finally:
+                    process.terminate()
+                    process.communicate(timeout=3)
 
     def test_startup_rejects_limits_that_exceed_sidecar_allocation_bounds(self) -> None:
         limit_overrides = (

@@ -27,6 +27,8 @@
 #include <strings.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/file.h>
+#include <sys/statvfs.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
@@ -38,6 +40,8 @@
 #define SIDECAR_DEFAULT_TIMEOUT_MS 10000U
 #define SIDECAR_BACKLOG 64
 #define SIDECAR_MAX_PARALLEL 16U
+#define SIDECAR_DEFAULT_SPOOL_CAPACITY (256U * 1024U * 1024U)
+#define SIDECAR_DEFAULT_SPOOL_FREE_RESERVE (64U * 1024U * 1024U)
 #define SIDECAR_RECEIPT_HEX_SIZE (SHA256_DIGEST_LENGTH * 2U)
 #define SIDECAR_RECEIPT_BINDING_SIZE 64U
 
@@ -47,8 +51,19 @@ typedef struct sidecar_options {
     const char *upstream;
     const char *spool_directory;
     int spool_directory_fd;
+    size_t spool_capacity_bytes;
+    size_t spool_free_reserve_bytes;
     uint64_t timeout_ms;
 } sidecar_options;
+
+/* Technical disk admission, independent of the engine's inspection policy.
+ * Reservations remain owned until their preallocated descriptor is closed. */
+typedef struct sidecar_spool_budget {
+    pthread_mutex_t lock;
+    size_t reserved;
+    size_t capacity;
+    size_t free_reserve;
+} sidecar_spool_budget;
 
 typedef struct sidecar_owned_socket_stop {
     int attempted;
@@ -60,6 +75,7 @@ typedef struct sidecar_runtime_context {
     msconnector_runtime *runtime;
     unsigned int active;
     pthread_mutex_t lock;
+    sidecar_spool_budget spool_budget;
 } sidecar_runtime_context;
 
 typedef struct sidecar_worker {
@@ -878,6 +894,7 @@ typedef struct sidecar_exchange_payload {
     sidecar_headers request_headers;
     sidecar_headers response_headers;
     int request_spool_fd;
+    size_t spool_reservation;
     size_t body_read;
 } sidecar_exchange_payload;
 
@@ -891,6 +908,7 @@ typedef struct sidecar_request_endpoints {
 typedef struct sidecar_exchange_dependencies {
     const sidecar_options *options;
     msconnector_runtime *runtime;
+    sidecar_spool_budget *spool_budget;
 } sidecar_exchange_dependencies;
 
 typedef struct sidecar_exchange_state {
@@ -1083,6 +1101,18 @@ static int sidecar_open_spool_directory(const char *path) {
         close(directory_fd);
         return -1;
     }
+    /* The lifetime lock prevents independent processes from bypassing the
+     * aggregate admission budget in the same pinned directory. */
+    if (flock(directory_fd, LOCK_EX | LOCK_NB) != 0) {
+        close(directory_fd);
+        return -1;
+    }
+    struct statvfs filesystem;
+    if (fstatvfs(directory_fd, &filesystem) != 0 ||
+        filesystem.f_frsize == 0 || (filesystem.f_flag & ST_RDONLY) != 0) {
+        close(directory_fd);
+        return -1;
+    }
     /* Readiness proves private file creation, including read-only filesystem
      * failures, without retaining a filename or a descriptor. */
     int probe = sidecar_open_request_spool(directory_fd);
@@ -1107,6 +1137,97 @@ static int sidecar_prepare_spool_directory(sidecar_options *options) {
     return options->spool_directory_fd >= 0;
 }
 
+/* Checked arithmetic uses unprivileged available blocks, never f_bfree. */
+static int sidecar_spool_space(int fd, size_t requested, size_t reserve,
+                               size_t *rounded) {
+    struct statvfs filesystem;
+    if (fstatvfs(fd, &filesystem) != 0) return 0;
+    if ((filesystem.f_flag & ST_RDONLY) != 0 || filesystem.f_frsize == 0 ||
+        filesystem.f_frsize > SIZE_MAX || filesystem.f_bavail > SIZE_MAX) {
+        errno = EOVERFLOW;
+        return 0;
+    }
+    size_t block = (size_t)filesystem.f_frsize;
+    size_t blocks = requested / block;
+    if (requested % block != 0) ++blocks;
+    if (blocks > SIZE_MAX / block || (size_t)filesystem.f_bavail > SIZE_MAX / block) {
+        errno = EOVERFLOW;
+        return 0;
+    }
+    *rounded = blocks * block;
+    size_t available = (size_t)filesystem.f_bavail * block;
+    if (available < reserve || *rounded > available - reserve) {
+        errno = ENOSPC;
+        return 0;
+    }
+    return 1;
+}
+
+static void sidecar_release_request_spool(sidecar_exchange_state *state) {
+    sidecar_spool_budget *budget = state->dependencies.spool_budget;
+    if (state->payload.request_spool_fd >= 0) {
+        /* Release the actual disk extent before making capacity reusable. */
+        close(state->payload.request_spool_fd);
+        state->payload.request_spool_fd = -1;
+    }
+    if (state->payload.spool_reservation != 0U) {
+        (void)pthread_mutex_lock(&budget->lock);
+        budget->reserved -= state->payload.spool_reservation;
+        state->payload.spool_reservation = 0U;
+        (void)pthread_mutex_unlock(&budget->lock);
+    }
+}
+
+static int sidecar_admit_request_spool(sidecar_exchange_state *state) {
+    sidecar_spool_budget *budget = state->dependencies.spool_budget;
+    size_t requested = state->payload.request_headers.content_length;
+    size_t rounded = 0U;
+    off_t length = (off_t)requested;
+    int result = 0;
+    int allocation_error;
+    /* No body chunk is passed to the engine until disk admission succeeds.
+     * Regular-file allocation is synchronous; deadline checks bound the
+     * exchange before/after it, but cannot cancel a blocked filesystem call. */
+    state->failure_status = 503;
+    if (length < 0 || (uintmax_t)length != (uintmax_t)requested) {
+        errno = EOVERFLOW;
+        return 0;
+    }
+    if (sidecar_remaining(&state->deadline) == 0) return 0;
+    (void)pthread_mutex_lock(&budget->lock);
+    if (sidecar_remaining(&state->deadline) == 0 ||
+        !sidecar_spool_space(state->dependencies.options->spool_directory_fd,
+            requested, budget->free_reserve, &rounded)) goto done;
+    if (budget->reserved > budget->capacity || rounded > budget->capacity - budget->reserved) {
+        errno = ENOSPC;
+        goto done;
+    }
+    state->payload.request_spool_fd = sidecar_open_request_spool(
+        state->dependencies.options->spool_directory_fd);
+    if (state->payload.request_spool_fd < 0) goto done;
+    allocation_error = posix_fallocate(state->payload.request_spool_fd, 0, length);
+    if (allocation_error != 0) { errno = allocation_error; goto done; }
+    /* Other filesystem users can consume space between the first check and
+     * allocation. A failed post-check rolls the new extent back by close. */
+    size_t ignored;
+    if (!sidecar_spool_space(state->dependencies.options->spool_directory_fd,
+            0U, budget->free_reserve, &ignored) ||
+        sidecar_remaining(&state->deadline) == 0) goto done;
+    budget->reserved += rounded;
+    state->payload.spool_reservation = rounded;
+    state->failure_status = 502;
+    result = 1;
+done:
+    if (!result && state->payload.request_spool_fd >= 0) {
+        int saved_errno = errno;
+        close(state->payload.request_spool_fd);
+        state->payload.request_spool_fd = -1;
+        errno = saved_errno;
+    }
+    (void)pthread_mutex_unlock(&budget->lock);
+    return result;
+}
+
 static int sidecar_read_request_body(sidecar_exchange_state *state) {
     unsigned char chunk[SIDECAR_IO_CHUNK];
     while (state->payload.body_read < state->payload.request_headers.content_length) {
@@ -1125,7 +1246,7 @@ static int sidecar_read_request_body(sidecar_exchange_state *state) {
         while (written < received) {
             ssize_t count = write(state->payload.request_spool_fd, chunk + written, received - written);
             if (count < 0 && errno == EINTR) continue;
-            if (count <= 0) return 0;
+            if (count <= 0) { state->failure_status = 503; return 0; }
             written += (size_t)count;
         }
         state->payload.body_read += received;
@@ -1519,8 +1640,7 @@ static int sidecar_exchange_request(sidecar_exchange_state *state) {
         return 0;
     }
     if (state->payload.request_headers.content_length > 0U) {
-        state->payload.request_spool_fd = sidecar_open_request_spool(state->dependencies.options->spool_directory_fd);
-        if (state->payload.request_spool_fd < 0 || !sidecar_read_request_body(state)) return 0;
+        if (!sidecar_admit_request_spool(state) || !sidecar_read_request_body(state)) return 0;
     }
     if (msconnector_runtime_transaction_finish_request_body(state->transaction,
                                                               &state->decision,
@@ -1632,7 +1752,9 @@ static void sidecar_exchange_error(sidecar_exchange_state *state) {
     msconnector_error_init(&completion_error);
     /* A later deadline must not replace the first typed failure or its status.
      * Completion APIs use scratch diagnostics to retain that original error. */
-    if (state->error.code != MSCONNECTOR_ERROR_NONE) {
+    if (state->failure_status == 503) {
+        status = 503;
+    } else if (state->error.code != MSCONNECTOR_ERROR_NONE) {
         status = msconnector_runtime_error_http_status(state->dependencies.runtime,
             state->error.code);
     } else if (sidecar_remaining(&state->deadline) == 0) {
@@ -1644,7 +1766,7 @@ static void sidecar_exchange_error(sidecar_exchange_state *state) {
         (void)sidecar_write_error(state->client, status, &state->deadline);
         return;
     }
-    if (state->error.code == MSCONNECTOR_ERROR_NONE &&
+    if (state->failure_status != 503 && state->error.code == MSCONNECTOR_ERROR_NONE &&
             sidecar_remaining(&state->deadline) == 0) {
         (void)msconnector_runtime_transaction_timeout(state->transaction, &completion_error);
     } else {
@@ -1659,11 +1781,12 @@ static void sidecar_exchange_error(sidecar_exchange_state *state) {
 }
 
 static int sidecar_exchange(int client, const sidecar_options *options,
-                            msconnector_runtime *runtime) {
+                            msconnector_runtime *runtime, sidecar_spool_budget *budget) {
     sidecar_exchange_state state;
     msconnector_runtime_transaction_snapshot receipt_snapshot;
     int receipt_ready = 0;
     sidecar_exchange_state_init(&state, client, options, runtime);
+    state.dependencies.spool_budget = budget;
     state.result = sidecar_exchange_request(&state) && sidecar_exchange_response(&state);
     if (!state.result && !state.handled) {
         sidecar_exchange_error(&state);
@@ -1686,7 +1809,7 @@ static int sidecar_exchange(int client, const sidecar_options *options,
     msconnector_runtime_transaction_destroy(&state.transaction);
     sidecar_headers_release(&state.payload.request_headers);
     sidecar_headers_release(&state.payload.response_headers);
-    if (state.payload.request_spool_fd >= 0) close(state.payload.request_spool_fd);
+    sidecar_release_request_spool(&state);
     free(state.payload.response_block);
     free(state.payload.request_block);
     if (!sidecar_shutdown_owned_socket(client, &state.client_stop)) state.result = 0;
@@ -1698,7 +1821,7 @@ static int sidecar_exchange(int client, const sidecar_options *options,
 static void *sidecar_worker_main(void *argument) {
     sidecar_worker *worker = argument;
     sidecar_runtime_context *context = worker->context;
-    (void)sidecar_exchange(worker->client, context->options, context->runtime);
+    (void)sidecar_exchange(worker->client, context->options, context->runtime, &context->spool_budget);
     /* Exchange owns the single shutdown attempt for normal, rejected and
      * failed requests. Close only releases the descriptor. */
     close(worker->client);
@@ -1713,13 +1836,21 @@ static int sidecar_parse_args(int argc, char **argv, sidecar_options *options) {
     memset(options, 0, sizeof(*options));
     options->timeout_ms = SIDECAR_DEFAULT_TIMEOUT_MS;
     options->spool_directory_fd = -1;
+    options->spool_capacity_bytes = SIDECAR_DEFAULT_SPOOL_CAPACITY;
+    options->spool_free_reserve_bytes = SIDECAR_DEFAULT_SPOOL_FREE_RESERVE;
     for (size_t i = 1U; i < (size_t)argc; i += 2U) {
         if (i + 1U >= (size_t)argc) return 0;
         if (strcmp(argv[i], "--config") == 0) options->config = argv[i + 1U];
         else if (strcmp(argv[i], "--listen") == 0) options->listen = argv[i + 1U];
         else if (strcmp(argv[i], "--upstream") == 0) options->upstream = argv[i + 1U];
         else if (strcmp(argv[i], "--spool-directory") == 0) options->spool_directory = argv[i + 1U];
-        else if (strcmp(argv[i], "--timeout-ms") == 0) {
+        else if (strcmp(argv[i], "--spool-capacity-bytes") == 0) {
+            if (!sidecar_decimal(argv[i + 1U], &options->spool_capacity_bytes) ||
+                options->spool_capacity_bytes == 0U) return 0;
+        } else if (strcmp(argv[i], "--spool-free-reserve-bytes") == 0) {
+            if (!sidecar_decimal(argv[i + 1U], &options->spool_free_reserve_bytes) ||
+                options->spool_free_reserve_bytes == 0U) return 0;
+        } else if (strcmp(argv[i], "--timeout-ms") == 0) {
             size_t value;
             if (!sidecar_decimal(argv[i + 1U], &value) || value == 0U) return 0;
             options->timeout_ms = value;
@@ -1826,6 +1957,9 @@ int msconnector_stock_sidecar_main(int argc, char **argv) {
     memset(&context, 0, sizeof(context));
     context.options = &options;
     context.runtime = runtime;
+    context.spool_budget.capacity = options.spool_capacity_bytes;
+    context.spool_budget.free_reserve = options.spool_free_reserve_bytes;
+    (void)pthread_mutex_init(&context.spool_budget.lock, NULL);
     (void)pthread_mutex_init(&context.lock, NULL);
     (void)signal(SIGPIPE, SIG_IGN);
     int accept_status = 0;
@@ -1842,6 +1976,7 @@ int msconnector_stock_sidecar_main(int argc, char **argv) {
     close(listener);
     sidecar_wait_for_workers(&context);
     close(options.spool_directory_fd);
+    (void)pthread_mutex_destroy(&context.spool_budget.lock);
     (void)pthread_mutex_destroy(&context.lock);
     msconnector_error_init(&error);
     msconnector_runtime_destroy(&runtime);

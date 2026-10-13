@@ -170,10 +170,10 @@ int main(int argc, char **argv) {
     strcpy(state.config.decision_log, "configured");
     strcpy(request.request_id, "private-fixture");
     request.has_request_id = 1;
-    request.is_response = 1;
-    request.is_response_body = 1;
+    request.http_metadata.is_response = 1;
+    request.http_metadata.is_response_body = 1;
     request.response_status = 200;
-    request.has_response_status = 1;
+    request.http_metadata.has_response_status = 1;
     runtime_init_decision(&decision, 4, "deny", 403, "original engine failure");
     decision.disruptive = 1;
     if (strncmp(argv[1], "technical-", 10U) == 0) {
@@ -239,14 +239,14 @@ int main(int argc, char **argv) {
                 state.config.response_phases_enabled = 1;
                 if (fail_finish) { state.config.response_phases_enabled=0; }
                 else { strcpy(state.config.response_companion, "native-htx"); }
-                request.is_response = request.is_response_body = 0;
+                request.http_metadata.is_response = request.http_metadata.is_response_body = 0;
                 /* Complete HTTP/1.1 bodyless request with an explicitly
                  * observed empty sample and complete empty header block. */
                 request.has_headers_bin = 1;
                 request.has_body = request.has_body_len_arg = 1;
-                request.body_len = request.advertised_body_len = 0U;
-                request.has_http_version = 1;
-                strcpy(request.http_version, "1.1");
+                request.body_len = request.http_metadata.advertised_body_len = 0U;
+                request.http_metadata.has_http_version = 1;
+                strcpy(request.http_metadata.http_version, "1.1");
                 request.has_client_ip = request.has_server_ip = 1;
                 strcpy(request.client_ip, "127.0.0.1");
                 strcpy(request.server_ip, "127.0.0.1");

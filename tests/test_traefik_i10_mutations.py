@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 class TraefikI10MutationTests(unittest.TestCase):
     def test_go_host_boundaries_detect_mutations(self) -> None:
         cases = (
-            ("native-commit", "native_middleware", "middleware.go", "markResponseCommit", "panic(http.ErrAbortHandler)", "return", "TestTechnicalFailureReachesMiddlewareHost/commit"),
+            ("native-commit", "native_middleware", "middleware.go", "reportResponseCommit", "panic(http.ErrAbortHandler)", "return", "TestTechnicalFailureReachesMiddlewareHost/commit"),
             ("native-eos", "native_middleware", "middleware.go", "finish", "panic(http.ErrAbortHandler)", "return", "TestTechnicalFailureReachesMiddlewareHost/(response-eos|late-outcome)"),
             ("native-outcome", "native_middleware", "middleware.go", "acknowledgeApplied", "panic(http.ErrAbortHandler)", "return", "TestTechnicalFailureReachesMiddlewareHost/outcome"),
             ("native-reentry", "native_middleware", "middleware.go", None, "if state.terminalError != nil {", "if false {", "TestTechnicalFailureIsTerminalAndKeepsFirstCause"),

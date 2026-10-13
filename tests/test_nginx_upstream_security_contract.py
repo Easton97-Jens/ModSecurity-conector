@@ -343,7 +343,7 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         self.assertIn("ngx_fd_info(file->fd, &file_info)", request_file)
         self.assertIn("ngx_is_file(&file_info)", request_file)
         self.assertIn("ngx_file_size(&file_info) != file_size", request_file)
-        self.assertIn("ngx_read_file(file, ctx->request_file_scratch", request_file)
+        self.assertIn("ngx_read_file(file, ctx->scratch_buffers.request_file_scratch", request_file)
         self.assertIn("ngx_http_modsecurity_append_request_chunk(r, ctx", request_file)
         self.assertIn("read_size < 0 || (size_t)read_size != amount", request_file)
         self.assertNotIn("msc_request_body_from_file", request_file)
@@ -784,7 +784,7 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
             "buffer->file_pos < 0",
             "buffer->file_last < buffer->file_pos",
             "buffer->file == NULL",
-            "ngx_read_file(buffer->file, ctx->phase4_file_scratch",
+            "ngx_read_file(buffer->file, ctx->scratch_buffers.phase4_file_scratch",
             "NGX_HTTP_MODSECURITY_PHASE4_FILE_READ_CHUNK",
             "ngx_http_modsecurity_append_response_body_chunk",
             "MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR",

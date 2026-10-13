@@ -6,6 +6,8 @@
 #include <arpa/inet.h>
 #include <assert.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <pthread.h>
 #include <poll.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -48,6 +50,7 @@ static int cleanup_calls;
 static int receipt_calls;
 static int host_calls;
 static int exchange_allowed;
+static int fixture_spool_fd = -1;
 static int timeout_calls;
 static int visible_status;
 size_t msconnector_runtime_total_header_limit(const msconnector_runtime *r) {
@@ -167,6 +170,10 @@ static int sidecar_write_non_allow_receipt(
 }
 static int sidecar_exchange_request(sidecar_exchange_state *s) {
   s->transaction = &tx;
+  /* Keep the actual cleanup helper exercised even when the native request
+   * seam supplies no body: one real descriptor owns one budget reservation. */
+  s->payload.request_spool_fd = fixture_spool_fd;
+  s->payload.spool_reservation = 4096U;
   return exchange_allowed;
 }
 
@@ -374,7 +381,15 @@ static void fixture_exchange(const int *client, const int *upstream,
   phase_upstream = upstream[0];
   if (exchange_allowed)
     assert(send(upstream[1], "x", 1, 0) == 1);
-  int result = sidecar_exchange(client[0], options, runtime);
+  sidecar_spool_budget budget = {
+      .lock = PTHREAD_MUTEX_INITIALIZER, .reserved = 4096U,
+      .capacity = 8192U, .free_reserve = 4096U};
+  fixture_spool_fd = open("/dev/null", O_RDWR);
+  assert(fixture_spool_fd >= 0);
+  int result = sidecar_exchange(client[0], options, runtime, &budget);
+  assert(budget.reserved == 0U);
+  assert(fcntl(fixture_spool_fd, F_GETFD) < 0 && errno == EBADF);
+  assert(pthread_mutex_destroy(&budget.lock) == 0);
   assert(result == exchange_allowed);
   assert(cleanup_calls == 1);
   assert(receipt_calls == 1);

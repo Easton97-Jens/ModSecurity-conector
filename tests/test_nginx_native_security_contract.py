@@ -49,7 +49,7 @@ class NginxNativeSecurityContractTest(unittest.TestCase):
         self.assertIn("ngx_is_file(&file_info)", ACCESS)
         self.assertIn("ngx_file_size(&file_info) != file_size", ACCESS)
         self.assertIn("ngx_pnalloc(r->pool, 32768U)", ACCESS)
-        self.assertIn("ngx_read_file(file, ctx->request_file_scratch", ACCESS)
+        self.assertIn("ngx_read_file(file, ctx->scratch_buffers.request_file_scratch", ACCESS)
 
     def test_native_ingestion_failures_remain_fail_closed(self) -> None:
         self.assertIn("ret = msc_append_request_body", ACCESS)

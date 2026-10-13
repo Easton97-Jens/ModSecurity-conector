@@ -1318,7 +1318,8 @@ def run_case(*, runtime_root: Path, initial_receipt: Path, temporary_root: Path,
     sidecar = subprocess.Popen(
         [str(sidecar_binary), "--config", str(runtime_config),
          "--listen", f"127.0.0.1:{sidecar_port}",
-         "--upstream", f"127.0.0.1:{backend_port}", "--timeout-ms", "3000"],
+         "--upstream", f"127.0.0.1:{backend_port}", "--timeout-ms", "3000",
+         "--spool-directory", str(case_root)],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         env={

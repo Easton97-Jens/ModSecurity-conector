@@ -112,8 +112,8 @@ static int test_native(const char *name) {
     def test_terminal_reentry_and_commit_negative_controls(self):
         source = BINDING.read_text()
         mutations = {
-            "direct-commit-rejected": ("(transaction->response_phases_require_companion &&\n                !transaction->response_companion_claimed)",
-                "!transaction->response_companion_claimed"),
+            "direct-commit-rejected": ("(transaction->response_companion.response_phases_require_companion &&\n                !transaction->response_companion.response_companion_claimed)",
+                "!transaction->response_companion.response_companion_claimed"),
             "header-failure-not-terminal": ("MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, \"msc_add_response_header failed\");",
                 "MSCONNECTOR_TRANSACTION_ERROR_NONE, \"msc_add_response_header failed\");"),
         }

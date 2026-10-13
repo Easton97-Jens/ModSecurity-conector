@@ -140,8 +140,8 @@ class LighttpdPhase2PreUpstreamGateContractTest(unittest.TestCase):
             "msconnector_modsecurity_process_logging(&transaction->modsecurity, error)",
             logging_finish,
         )
-        self.assertIn("transaction->finish_attempted = 1;", logging_finish)
-        self.assertIn("transaction->finished = 1;", logging_finish)
+        self.assertIn("transaction->completion.finish_attempted = 1;", logging_finish)
+        self.assertIn("transaction->completion.finished = 1;", logging_finish)
         self.assertIn("return finish_transaction_with_logging(transaction, error);", rejected_finish)
         self.assertNotIn(
             "msconnector_runtime_transaction_finish_request_body(", rejected_finish

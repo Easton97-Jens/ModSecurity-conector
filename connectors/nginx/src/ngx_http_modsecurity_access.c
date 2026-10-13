@@ -813,16 +813,16 @@ ngx_http_modsecurity_inspect_request_body_file(ngx_http_request_t *r,
             "ModSecurity: invalid request body file descriptor or size");
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-    if (ctx->request_file_scratch == NULL) {
-        ctx->request_file_scratch = ngx_pnalloc(r->pool, 32768U);
-        if (ctx->request_file_scratch == NULL) {
+    if (ctx->scratch_buffers.request_file_scratch == NULL) {
+        ctx->scratch_buffers.request_file_scratch = ngx_pnalloc(r->pool, 32768U);
+        if (ctx->scratch_buffers.request_file_scratch == NULL) {
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
     }
     while (offset < file_size) {
         size_t amount = (uintmax_t)(file_size - offset) > 32768U ?
             32768U : (size_t)(file_size - offset);
-        ssize_t read_size = ngx_read_file(file, ctx->request_file_scratch,
+        ssize_t read_size = ngx_read_file(file, ctx->scratch_buffers.request_file_scratch,
             amount, offset);
         if (read_size < 0 || (size_t)read_size != amount) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
@@ -830,7 +830,7 @@ ngx_http_modsecurity_inspect_request_body_file(ngx_http_request_t *r,
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
         rc = ngx_http_modsecurity_append_request_chunk(r, ctx,
-            ctx->request_file_scratch, amount);
+            ctx->scratch_buffers.request_file_scratch, amount);
         if (rc != NGX_OK) {
             return rc;
         }

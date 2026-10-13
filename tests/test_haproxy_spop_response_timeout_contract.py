@@ -238,7 +238,7 @@ int main(void) {
     strcpy(request.message_name, "check-response");
     strcpy(request.request_id, "peer-response");
     request.has_request_id = 1;
-    request.is_response = 1;
+    request.http_metadata.is_response = 1;
     memset(&frame, 0, sizeof(frame));
     frame.stream_id = 7;
     frame.frame_id = 9;
@@ -332,7 +332,7 @@ int main(void) {
     memcpy(frame.payload, payload.data, payload.len);
     memset(&request, 0, sizeof(request));
     assert(parse_notify_payload(frame.payload, frame.payload_len, &request) == 0);
-    assert(request.is_response == 0);
+    assert(request.http_metadata.is_response == 0);
     /* The ordinary request classification remains unchanged.  The engine
      * path itself is covered by the existing request/decision contracts; this
      * focused control avoids substituting an invalid fake engine pointer. */
@@ -370,7 +370,7 @@ int main(void) {
     memset(&request, 0xA5, sizeof(request));
     assert(parse_notify_payload(NULL, 0U, &request) != 0);
     assert(request.has_notify == 0);
-    assert(request.is_response == 0);
+    assert(request.http_metadata.is_response == 0);
     assert(request.message_name[0] == '\0');
 
     /* A nonempty malformed payload remains malformed. */
@@ -382,7 +382,7 @@ int main(void) {
     memset(&request, 0, sizeof(request));
     assert(parse_notify_payload(normal, sizeof(normal), &request) == 0);
     assert(request.has_notify == 1);
-    assert(request.is_response == 0);
+    assert(request.http_metadata.is_response == 0);
     assert(strcmp(request.message_name, "check-request") == 0);
     free_notify_request(&request);
     return 0;

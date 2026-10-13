@@ -179,7 +179,7 @@ int main(int argc, char **argv) {
     finish_code = error.code;
     rejected = msconnector_runtime_transaction_finish_host_rejected_request_body(tx, &error);
     before_cleanup = audit_calls;
-    attempted = tx->finish_attempted;
+    attempted = tx->completion.finish_attempted;
     final_calls = sink.calls;
     cause = tx->contract.error_class;
     retained = runtime.previous_event_hash == hash_before && tx->flow.sequence == sequence;

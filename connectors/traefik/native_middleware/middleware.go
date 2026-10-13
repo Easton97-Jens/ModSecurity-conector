@@ -691,13 +691,16 @@ func (state *streamState) markResponseCommit(contextValue context.Context, statu
 	if status >= 100 && status <= 999 {
 		state.responseStatus = status
 	}
-	transaction := state.engine
 	failed := state.terminalError != nil
 	state.mu.Unlock()
 	if failed {
 		return
 	}
-	if committer, ok := transaction.(responseCommitter); ok {
+	state.reportResponseCommit(contextValue, headersSent, bodyStarted)
+}
+
+func (state *streamState) reportResponseCommit(contextValue context.Context, headersSent bool, bodyStarted bool) {
+	if committer, ok := state.engine.(responseCommitter); ok {
 		if err := committer.SetResponseCommit(contextValue, headersSent, bodyStarted); err != nil {
 			state.recordRequestError(err)
 			panic(http.ErrAbortHandler)
@@ -722,21 +725,24 @@ func (state *streamState) acknowledgeApplied(contextValue context.Context, decis
 // result in net/http, so a complete successful body write is the strongest
 // ResponseWriter confirmation available here. The engine receives the outcome
 // while its Common commit state is still pre-action. That acknowledgement
-// terminates the rule transaction, so the actual commit is then retained only
-// in the local summary. A failed or short body write still records only
+// terminates the rule transaction, so the actual commit is retained locally
+// before acknowledgement without updating Common's pre-action state.
+// A failed or short body write still records only
 // commit metadata and deliberately emits no host outcome.
 func (state *streamState) writeDecision(contextValue context.Context, target http.ResponseWriter, decision Decision) {
 	count, writeErr := writeDecision(target, decision)
 	status, _ := normalizeDecision(decision)
+	state.mu.Lock()
+	state.responseCommitted = true
+	state.responseStatus = status
+	state.mu.Unlock()
 	if writeErr == nil {
 		state.acknowledgeApplied(contextValue, decision)
-		state.mu.Lock()
-		state.responseCommitted = true
-		state.responseStatus = status
-		state.mu.Unlock()
 	} else {
-		state.markResponseCommit(contextValue, status, true, count > 0)
+		// Preserve the host write failure even if reporting the accepted
+		// headers/body also fails. Neither failure proves an applied outcome.
 		state.recordRequestError(writeErr)
+		state.reportResponseCommit(contextValue, true, count > 0)
 		panic(http.ErrAbortHandler)
 	}
 }

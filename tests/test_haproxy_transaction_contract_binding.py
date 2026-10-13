@@ -178,7 +178,7 @@ def test_spop_uses_direct_request_routes_and_owned_companion_response_routes() -
     assert "MSCONNECTOR_TRANSACTION_PHASE_ROUTE_DIRECT" in profile_validation
     assert "MSCONNECTOR_TRANSACTION_PHASE_ROUTE_COMPANION_REQUIRED" in profile_validation
     assert "required direct P1/P2 and owned P3/P4 routes" in profile_validation
-    assert "response_phases_require_companion" in SOURCE
+    assert "response_companion.response_phases_require_companion" in SOURCE
     assert "haproxy_modsecurity_transaction_handoff_response_companion" in SOURCE
     assert "haproxy_modsecurity_transaction_claim_response_companion" in SOURCE
     assert "msconnector_transaction_contract_begin_companion_phase" in SOURCE
@@ -230,7 +230,7 @@ def test_spop_missing_response_correlation_is_terminal_error() -> None:
     ).read_text(encoding="utf-8")
     missing_branch = spop_source[spop_source.index(
         "transaction = transaction_cache_take(state, request->request_id);") :
-        spop_source.index("    if (request->is_response_body)", spop_source.index(
+        spop_source.index("    if (request->http_metadata.is_response_body)", spop_source.index(
             "transaction = transaction_cache_take(state, request->request_id);"))]
     assert "set_response_correlation_failure" in missing_branch
     assert 'runtime_init_decision(decision, phase, "pass"' not in missing_branch

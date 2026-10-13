@@ -90,8 +90,8 @@ typedef struct runtime_header {
 } runtime_header;
 
 typedef struct notify_request {
-    /* Anonymous C17 member groups keep the protocol representation cohesive
-     * while retaining the established request->field access contract. */
+    /* Protocol values, owned payload and presence markers retain the existing
+     * direct access; HTTP route metadata has its own named state. */
     struct {
     char message_name[64];
     char request_id[128];
@@ -128,13 +128,16 @@ typedef struct notify_request {
     int has_headers_text;
     int has_body;
     int has_body_len_arg;
-    int has_http_version;
-    char http_version[4];
-    unsigned int advertised_body_len;
-    int has_response_status;
-    int is_response;
-    int is_response_body;
     };
+    /* HTTP version and response route metadata parsed for this notify frame. */
+    struct {
+        int has_http_version;
+        char http_version[4];
+        unsigned int advertised_body_len;
+        int has_response_status;
+        int is_response;
+        int is_response_body;
+    } http_metadata;
 } notify_request;
 
 typedef struct agent_config {
@@ -1438,7 +1441,7 @@ static int parse_notify_headers(notify_request *request,
     }
     free_notify_request(&parsed);
     if (is_response) {
-        request->is_response = 1;
+        request->http_metadata.is_response = 1;
     }
     return 0;
 }
@@ -1758,8 +1761,8 @@ static int parse_notify_body_argument(
     }
     request->has_body = 1;
     if (response_body) {
-        request->is_response = 1;
-        request->is_response_body = 1;
+        request->http_metadata.is_response = 1;
+        request->http_metadata.is_response_body = 1;
     }
     return 0;
 }
@@ -1858,7 +1861,7 @@ static int parse_notify_uint_argument(
     notify_uint_argument arguments[] = {
         {(const unsigned char *)"client_port", sizeof("client_port") - 1U, &request->client_port, &request->has_client_port},
         {(const unsigned char *)"server_port", sizeof("server_port") - 1U, &request->server_port, &request->has_server_port},
-        {(const unsigned char *)"response_status", sizeof("response_status") - 1U, &request->response_status, &request->has_response_status},
+        {(const unsigned char *)"response_status", sizeof("response_status") - 1U, &request->response_status, &request->http_metadata.has_response_status},
     };
 
     for (size_t index = 0U; index < sizeof(arguments) / sizeof(arguments[0]); ++index) {
@@ -1922,7 +1925,7 @@ static int parse_notify_response_header_argument(
                         header_value_len) != 0)) {
             return -1;
         }
-        request->is_response = 1;
+        request->http_metadata.is_response = 1;
         return 0;
     }
     return 1;
@@ -1953,7 +1956,7 @@ static int parse_notify_body_length_argument(
             (type == 2U && value > INT32_MAX)) {
         return -1;
     }
-    request->advertised_body_len = (unsigned int)value;
+    request->http_metadata.advertised_body_len = (unsigned int)value;
     request->has_body_len_arg = 1;
     return 0;
 }
@@ -1995,9 +1998,9 @@ static int parse_notify_http_version_argument(notify_request *request,
              memcmp(value, "2.0", 3U) != 0 && memcmp(value, "3.0", 3U) != 0)) {
         return -1;
     }
-    memcpy(request->http_version, value, 3U);
-    request->http_version[3] = '\0';
-    request->has_http_version = 1;
+    memcpy(request->http_metadata.http_version, value, 3U);
+    request->http_metadata.http_version[3] = '\0';
+    request->http_metadata.has_http_version = 1;
     return 0;
 }
 
@@ -2010,7 +2013,7 @@ static int parse_notify_argument(
         size_t *pos) {
     int result;
 
-    if (!request->is_response &&
+    if (!request->http_metadata.is_response &&
             notify_argument_is_response_bearing(arg_name, arg_name_len)) {
         return -1;
     }
@@ -2073,10 +2076,10 @@ static int parse_notify_message_header(const unsigned char *data, size_t len,
     }
     copy_spop_string(request->message_name, sizeof(request->message_name),
         message_name, message_name_len);
-    request->is_response =
+    request->http_metadata.is_response =
         KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response") ||
         KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response-body");
-    request->is_response_body =
+    request->http_metadata.is_response_body =
         KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response-body");
     *nb_args = argument_count;
     request->has_notify = 1;
@@ -2999,7 +3002,7 @@ static int phase4_common_event_write(
         return 0;
     }
 
-    original_status = request->has_response_status ?
+    original_status = request->http_metadata.has_response_status ?
         (int)request->response_status : 200;
     (void)snprintf(rule_id, sizeof(rule_id), "%u", decision->rule_id);
     msconnector_event_init(&event);
@@ -3114,7 +3117,7 @@ static void decision_log_render_metadata(
     reason_code = safe_decision_reason_code(
         decision, modsecurity_processed, decision_text);
 
-    original_status = request->has_response_status ?
+    original_status = request->http_metadata.has_response_status ?
         (int)request->response_status : 200;
     if (phase4_disruptive) {
         requested_action = phase4_requested_action(decision, decision_text);
@@ -3145,10 +3148,10 @@ static void decision_log_render_metadata(
     JSON_FIELD_INT("phase", decision->phase);
     JSON_FIELD_BOOL("live_executed", 1);
     JSON_FIELD_BOOL("modsecurity_processed", modsecurity_processed);
-    JSON_FIELD_BOOL("request_headers_seen", !request->is_response && request->header_count > 0U);
-    JSON_FIELD_BOOL("request_body_seen", !request->is_response && request->has_body);
-    JSON_FIELD_BOOL("response_headers_seen", request->is_response && request->header_count > 0U);
-    JSON_FIELD_BOOL("response_body_seen", request->is_response_body && request->has_body);
+    JSON_FIELD_BOOL("request_headers_seen", !request->http_metadata.is_response && request->header_count > 0U);
+    JSON_FIELD_BOOL("request_body_seen", !request->http_metadata.is_response && request->has_body);
+    JSON_FIELD_BOOL("response_headers_seen", request->http_metadata.is_response && request->header_count > 0U);
+    JSON_FIELD_BOOL("response_body_seen", request->http_metadata.is_response_body && request->has_body);
     JSON_FIELD_UINT("expected_status", state->config.expected_status);
     JSON_FIELD_STRING("observed_status", "");
     JSON_FIELD_STRING("result", "");
@@ -3278,7 +3281,7 @@ static int decision_log_write(
             "SPOP decision serialization allocation failed", "haproxy-spoe-spop");
         goto unlock;
     }
-    phase4_disruptive = modsecurity_processed && request->is_response_body &&
+    phase4_disruptive = modsecurity_processed && request->http_metadata.is_response_body &&
         decision->phase == 4 && decision->disruptive != 0 &&
         decision->error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE;
     decision_log_render_metadata(file, state, request, decision,
@@ -3652,7 +3655,7 @@ static void build_response_from_notify(
         const notify_request *request,
         haproxy_modsecurity_response *response) {
     memset(response, 0, sizeof(*response));
-    response->status = request->has_response_status ? (int)request->response_status : 200;
+    response->status = request->http_metadata.has_response_status ? (int)request->response_status : 200;
     response->protocol = "HTTP/1.1";
     response->headers = (const haproxy_modsecurity_header *)request->headers;
     response->header_count = request->header_count;
@@ -3831,7 +3834,7 @@ static void finish_production_response_transaction(
         spop_ack_decision_origin *decision_origin,
         const char **decision_text,
         int modsec_rc) {
-    const int phase = request->is_response_body ? 4 : 3;
+    const int phase = request->http_metadata.is_response_body ? 4 : 3;
     if (modsec_rc != 0) {
         haproxy_modsecurity_transaction_abort_with_error(transaction, decision->error_class);
     } else if (haproxy_modsecurity_transaction_finish_with_decision(transaction, decision) != 0) {
@@ -3852,7 +3855,7 @@ static void process_production_response_notify(
     haproxy_modsecurity_response response;
     haproxy_modsecurity_transaction *transaction;
     int modsec_rc;
-    int phase = request->is_response_body ? 4 : 3;
+    int phase = request->http_metadata.is_response_body ? 4 : 3;
 
     if (!state->config.response_phases_enabled) {
         *decision_text = set_response_phase_disabled_failure(decision, phase);
@@ -3872,7 +3875,7 @@ static void process_production_response_notify(
         return;
     }
     build_response_from_notify(request, &response);
-    if (request->is_response_body) {
+    if (request->http_metadata.is_response_body) {
         /* SPOE/SPOP has no HTTP response-EOS field in this NOTIFY contract.
          * Append only; calling process_response_body() here would finalize P4
          * for every chunk.  The transaction remains bounded by the cache and
@@ -3900,7 +3903,7 @@ static void process_production_response_notify(
         haproxy_modsecurity_transaction_abort(transaction);
         return;
     }
-    if (request->is_response_body && modsec_rc == 0 &&
+    if (request->http_metadata.is_response_body && modsec_rc == 0 &&
             decision->disruptive == 0) {
         if (transaction_cache_store(state, request->request_id, transaction) != 0) {
             haproxy_modsecurity_transaction_abort(transaction);
@@ -3909,7 +3912,7 @@ static void process_production_response_notify(
                 "transaction cache store failed while awaiting response EOS");
             (void)decision_log_write(state, request, decision, 0, *decision_text);
         }
-    } else if (!request->is_response_body &&
+    } else if (!request->http_metadata.is_response_body &&
             decision->disruptive == 0) {
         if (transaction_cache_store(state, request->request_id, transaction) != 0) {
             haproxy_modsecurity_transaction_abort(transaction);
@@ -3999,7 +4002,7 @@ static int notify_request_has_complete_body_sample(const notify_request *request
     if (!request->has_body || !request->has_body_len_arg ||
             (!request->has_headers_bin && !request->has_headers_text) ||
             request->body_len > UINT_MAX ||
-            request->body_len != (size_t)request->advertised_body_len) {
+            request->body_len != (size_t)request->http_metadata.advertised_body_len) {
         return 0;
     }
     for (unsigned int index = 0U; index < request->header_count; ++index) {
@@ -4022,7 +4025,7 @@ static int notify_request_has_complete_body_sample(const notify_request *request
      * available here. Positive samples require an unambiguous total. */
     return declared_length == request->body_len &&
         (has_content_length || (request->body_len == 0U &&
-         request->has_http_version && request->http_version[0] == '1'));
+         request->http_metadata.has_http_version && request->http_metadata.http_version[0] == '1'));
 
 }
 
@@ -4164,8 +4167,8 @@ static int process_production_notify(
     int enforce;
     spop_ack_decision_origin decision_origin = SPOP_ACK_FAILURE_DECISION;
     int phase = 2;
-    if (request->is_response) {
-        phase = request->is_response_body ? 4 : 3;
+    if (request->http_metadata.is_response) {
+        phase = request->http_metadata.is_response_body ? 4 : 3;
     }
     char response_handle[HAPROXY_SPOP_RESPONSE_COMPANION_HANDLE_STORAGE];
 
@@ -4176,12 +4179,12 @@ static int process_production_notify(
     result.decision_origin = &decision_origin;
     result.decision_text = &decision_text;
     result.response_handle = response_handle;
-    if (request->is_response && !state->config.response_phases_enabled) {
+    if (request->http_metadata.is_response && !state->config.response_phases_enabled) {
         /* Reject before owner-queue admission: this agent cannot legitimately
          * own a response transaction, even if the queue is unavailable. */
         decision_text = set_response_phase_disabled_failure(&decision, phase);
         decision_log_write(state, request, &decision, 0, decision_text);
-    } else if (!request->is_response &&
+    } else if (!request->http_metadata.is_response &&
             !notify_request_has_required_endpoints(request)) {
         decision_text = set_admission_failure(&decision, phase,
             "missing client or server endpoint");
@@ -4221,7 +4224,7 @@ static void run_spop_production_task(void *opaque)
     if (decision_log_failed(context->state)) {
         return;
     }
-    if (context->request.is_response) {
+    if (context->request.http_metadata.is_response) {
         process_production_response_notify(context->state, &context->request,
             &context->decision, &context->modsec_processed,
             &context->decision_origin, &context->decision_text);
@@ -5531,7 +5534,7 @@ static int run_spop_sample_framing_self_test(void)
         request.has_body = 1;
         request.has_body_len_arg = 1;
         request.body_len = 4U;
-        request.advertised_body_len = 4U;
+        request.http_metadata.advertised_body_len = 4U;
         int result = add_request_header(&request,
             (const unsigned char *)"Content-Length", 14U,
             (const unsigned char *)lengths[index], strlen(lengths[index]));
@@ -5593,24 +5596,24 @@ static int run_spop_incomplete_request_sample_self_test(void)
     if (notify_request_has_complete_body_sample(&request)) {
         return -1;
     }
-    request.has_http_version = 1;
-    strcpy(request.http_version, "2.0");
+    request.http_metadata.has_http_version = 1;
+    strcpy(request.http_metadata.http_version, "2.0");
     if (notify_request_has_complete_body_sample(&request)) {
         return -1;
     }
-    strcpy(request.http_version, "1.1");
+    strcpy(request.http_metadata.http_version, "1.1");
     /* Explicit empty HTTP/1 input with complete unframed headers is legitimate. */
     if (!notify_request_has_complete_body_sample(&request)) {
         return -1;
     }
     request.body_len = 4U;
-    request.advertised_body_len = 4U;
+    request.http_metadata.advertised_body_len = 4U;
     /* Matching prefix lengths alone do not establish complete framing. */
     if (notify_request_has_complete_body_sample(&request)) {
         return -1;
     }
     request.body_len = 0U;
-    request.advertised_body_len = 0U;
+    request.http_metadata.advertised_body_len = 0U;
     if (add_request_header(&request, (const unsigned char *)"Transfer-Encoding",
             17U, (const unsigned char *)"chunked", 7U) != 0 ||
             notify_request_has_complete_body_sample(&request)) {
@@ -6012,7 +6015,7 @@ static int handle_notify_frame(
         "NOTIFY request metadata method_present=%d path_present=%d uri_present=%d host_present=%d test_header_present=%d headers=%u body_len=%lu",
         request.has_method, request.has_path, request.has_uri, request.has_host,
         request.has_test_header, request.header_count, (unsigned long)request.body_len);
-    if (!request.is_response && (!request.has_host ||
+    if (!request.http_metadata.is_response && (!request.has_host ||
             request.host[0] == '\0')) {
         log_line(log, "NOTIFY rejected: missing request host");
         free_notify_request(&request);

@@ -6,12 +6,14 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
 	"time"
 
 	extprocv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
+	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
@@ -39,9 +41,7 @@ func (listener replacingResponseObserverListener) Accept() (net.Conn, error) {
 	return nil, errors.New("not implemented")
 }
 func (listener replacingResponseObserverListener) Close() error {
-	// Retain the original inode while replacing the path. Remove-and-create
-	// can recycle that inode and fail to model a different file identity.
-	if err := os.Rename(listener.path, listener.path+".original"); err != nil {
+	if err := os.Remove(listener.path); err != nil {
 		return err
 	}
 	return os.WriteFile(listener.path, []byte("replacement"), 0600)
@@ -223,19 +223,39 @@ func TestOwnedListenerDoesNotRemoveReplacedSocket(t *testing.T) {
 	if err := os.WriteFile(path, []byte("owned"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	info, err := os.Stat(path)
+	// Model the production listener's pinned filesystem inode in this regular-
+	// file stand-in, so remove/create cannot recycle the original identity.
+	original, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer original.Close()
+	info, err := original.Stat()
 	if err != nil {
 		t.Fatal(err)
 	}
 	identity := info.Sys().(*syscall.Stat_t)
+	parentFile, err := os.Open(filepath.Dir(path))
+	if err != nil {
+		t.Fatal(err)
+	}
 	listener := &ownedListener{
-		Listener: replacingResponseObserverListener{path: path},
-		path:     path,
-		dev:      identity.Dev,
-		ino:      identity.Ino,
+		Listener:   replacingResponseObserverListener{path: path},
+		path:       path,
+		name:       filepath.Base(path),
+		dev:        identity.Dev,
+		ino:        identity.Ino,
+		parentFile: parentFile,
 	}
 	if err := listener.Close(); err != nil {
 		t.Fatal(err)
+	}
+	replacement, err := os.Lstat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if os.SameFile(info, replacement) {
+		t.Fatal("replacement fixture reused the owned file identity")
 	}
 	contents, err := os.ReadFile(path)
 	if err != nil {
@@ -246,37 +266,425 @@ func TestOwnedListenerDoesNotRemoveReplacedSocket(t *testing.T) {
 	}
 }
 
+type closeHookResponseObserverListener struct {
+	net.Listener
+	afterClose func() error
+}
+
+func (listener closeHookResponseObserverListener) Close() error {
+	return errors.Join(listener.Listener.Close(), listener.afterClose())
+}
+
+func TestOwnedListenerPreservesReplacementDuringClose(t *testing.T) {
+	for _, kind := range []string{"file", "socket", "symlink"} {
+		t.Run(kind, func(t *testing.T) {
+			path := filepath.Join(testSocketDir(t), "observer.sock")
+			base, err := secureListener(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			owned := base.(*ownedListener)
+			closeFailure := errors.New("injected close failure")
+			var replacement net.Listener
+			owned.Listener = closeHookResponseObserverListener{Listener: owned.Listener, afterClose: func() error {
+				if kind == "symlink" {
+					// Its target deliberately has the owned identity.
+					if err := os.Rename(path, path+".original"); err != nil {
+						return err
+					}
+				} else if err := os.Remove(path); err != nil {
+					return err
+				}
+				switch kind {
+				case "file":
+					err = os.WriteFile(path, []byte("replacement"), 0600)
+				case "socket":
+					replacement, err = net.Listen("unix", path)
+				case "symlink":
+					err = os.Symlink(path+".original", path)
+				}
+				return errors.Join(closeFailure, err)
+			}}
+			if err := owned.Close(); !errors.Is(err, closeFailure) {
+				t.Fatalf("Close() = %v, want injected close failure", err)
+			}
+			if replacement != nil {
+				defer replacement.Close()
+			}
+			info, err := os.Lstat(path)
+			if err != nil {
+				t.Fatalf("replacement %s was removed: %v", kind, err)
+			}
+			if kind == "file" {
+				data, err := os.ReadFile(path)
+				if err != nil || string(data) != "replacement" {
+					t.Fatalf("replacement file contents = %q, %v, want replacement", data, err)
+				}
+			} else if kind == "socket" && info.Mode()&os.ModeSocket == 0 {
+				t.Fatalf("replacement mode = %v, want socket", info.Mode())
+			} else if kind == "symlink" && info.Mode()&os.ModeSymlink == 0 {
+				t.Fatalf("replacement mode = %v, want symlink", info.Mode())
+			}
+		})
+	}
+}
+
+func TestOwnedListenerPinsSocketIdentityUntilCleanup(t *testing.T) {
+	path := filepath.Join(testSocketDir(t), "observer.sock")
+	base, err := secureListener(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owned := base.(*ownedListener)
+	defer owned.Close()
+	original, err := owned.identityFile.Stat()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("replacement"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	replacement, err := os.Lstat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if os.SameFile(original, replacement) {
+		t.Fatal("replacement reused pinned socket identity")
+	}
+	if err := owned.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := owned.identityFile.Stat(); !errors.Is(err, os.ErrClosed) {
+		t.Fatalf("identity descriptor after Close() = %v, want os.ErrClosed", err)
+	}
+	if data, err := os.ReadFile(path); err != nil || string(data) != "replacement" {
+		t.Fatalf("replacement after Close() = %q, %v, want replacement", data, err)
+	}
+}
+
+func TestOwnedListenerCleansOwnedSocketAfterCloseFailure(t *testing.T) {
+	path := filepath.Join(testSocketDir(t), "observer.sock")
+	base, err := secureListener(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owned := base.(*ownedListener)
+	closeFailure := errors.New("injected close failure")
+	owned.Listener = closeHookResponseObserverListener{Listener: owned.Listener, afterClose: func() error { return closeFailure }}
+	if err := owned.Close(); !errors.Is(err, closeFailure) {
+		t.Fatalf("Close() = %v, want injected close failure", err)
+	}
+	if _, err := os.Lstat(path); !os.IsNotExist(err) {
+		t.Fatalf("owned socket after failed Close() = %v, want absent", err)
+	}
+	if _, err := owned.identityFile.Stat(); !errors.Is(err, os.ErrClosed) {
+		t.Fatalf("identity after failed Close() = %v, want os.ErrClosed", err)
+	}
+}
+
+func TestOwnedListenerRepeatedStartStopAndConcurrentClose(t *testing.T) {
+	path := filepath.Join(testSocketDir(t), "observer.sock")
+	for restart := 0; restart < 10; restart++ {
+		listener, err := secureListener(path)
+		if err != nil {
+			t.Fatalf("secureListener() restart %d = %v", restart, err)
+		}
+		var wait sync.WaitGroup
+		for closer := 0; closer < 4; closer++ {
+			wait.Go(func() {
+				if err := listener.Close(); err != nil {
+					t.Errorf("Close() restart %d = %v", restart, err)
+				}
+			})
+		}
+		wait.Wait()
+		if _, err := os.Lstat(path); !os.IsNotExist(err) {
+			t.Fatalf("socket after restart %d Close() = %v, want absent", restart, err)
+		}
+	}
+}
+
+func TestSecureListenerPreservesExistingPath(t *testing.T) {
+	path := filepath.Join(testSocketDir(t), "observer.sock")
+	if err := os.WriteFile(path, []byte("foreign"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if listener, err := secureListener(path); err == nil {
+		_ = listener.Close()
+		t.Fatal("secureListener() accepted existing path")
+	}
+	if data, err := os.ReadFile(path); err != nil || string(data) != "foreign" {
+		t.Fatalf("existing file after secureListener() = %q, %v, want foreign", data, err)
+	}
+}
+
 func TestOwnedListenerRemovesItsOwnSocketPath(t *testing.T) {
 	dir := testSocketDir(t)
 	if err := os.Chmod(dir, 0700); err != nil {
 		t.Fatal(err)
 	}
 	path := filepath.Join(dir, "observer.sock")
-	base, err := net.Listen("unix", path)
+	listener, err := secureListener(path)
 	if err != nil {
 		t.Fatal(err)
-	}
-	unixListener, ok := base.(*net.UnixListener)
-	if !ok {
-		t.Fatalf("listener type = %T, want *net.UnixListener", base)
-	}
-	unixListener.SetUnlinkOnClose(false)
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	identity := info.Sys().(*syscall.Stat_t)
-	listener := &ownedListener{
-		Listener: base,
-		path:     path,
-		dev:      identity.Dev,
-		ino:      identity.Ino,
 	}
 	if err := listener.Close(); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Lstat(path); !os.IsNotExist(err) {
 		t.Fatalf("owned socket path remains after close: %v", err)
+	}
+}
+
+func TestOwnedListenerCleanupAnchorsOriginalDirectory(t *testing.T) {
+	root := testSocketDir(t)
+	dir := filepath.Join(root, "private")
+	if err := os.Mkdir(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "observer.sock")
+	base, err := secureListener(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owned := base.(*ownedListener)
+	originalDir := filepath.Join(root, "original")
+	owned.Listener = closeHookResponseObserverListener{Listener: owned.Listener, afterClose: func() error {
+		if err := os.Rename(dir, originalDir); err != nil {
+			return err
+		}
+		if err := os.Mkdir(dir, 0700); err != nil {
+			return err
+		}
+		return os.WriteFile(path, []byte("foreign"), 0600)
+	}}
+	if err := owned.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(path); err != nil || string(data) != "foreign" {
+		t.Fatalf("redirected path after Close() = %q, %v, want foreign", data, err)
+	}
+	if _, err := os.Lstat(filepath.Join(originalDir, "observer.sock")); !os.IsNotExist(err) {
+		t.Fatalf("original socket after Close() = %v, want absent", err)
+	}
+	if _, err := owned.parentFile.Stat(); !errors.Is(err, os.ErrClosed) {
+		t.Fatalf("directory descriptor after Close() = %v, want os.ErrClosed", err)
+	}
+}
+
+func TestOwnedListenerBindAnchorsValidatedDirectory(t *testing.T) {
+	root := testSocketDir(t)
+	dir := filepath.Join(root, "private")
+	if err := os.Mkdir(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	fd, err := unix.Open(dir, unix.O_PATH|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent := os.NewFile(uintptr(fd), dir)
+	originalDir := filepath.Join(root, "original")
+	if err := os.Rename(dir, originalDir); err != nil {
+		_ = parent.Close()
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(dir, 0700); err != nil {
+		_ = parent.Close()
+		t.Fatal(err)
+	}
+	foreignPath := filepath.Join(dir, "foreign")
+	if err := os.WriteFile(foreignPath, []byte("foreign"), 0640); err != nil {
+		_ = parent.Close()
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "observer.sock")
+	listener, err := bindOwnedResponseObserverListener(path, parent)
+	if err != nil {
+		t.Fatalf("bind after directory replacement = %v, want listener in original directory", err)
+	}
+	defer listener.Close()
+	if got := listener.Addr().String(); got != path {
+		t.Fatalf("Addr() = %q, want configured path %q", got, path)
+	}
+	info, err := os.Lstat(filepath.Join(originalDir, "observer.sock"))
+	if err != nil || info.Mode().Perm() != 0600 {
+		t.Fatalf("original directory socket = %v, %v, want mode 0600", info, err)
+	}
+	if _, err := os.Lstat(path); !os.IsNotExist(err) {
+		t.Fatalf("replacement directory socket = %v, want absent", err)
+	}
+	if data, err := os.ReadFile(foreignPath); err != nil || string(data) != "foreign" {
+		t.Fatalf("foreign file after bind = %q, %v, want foreign", data, err)
+	}
+	if err := listener.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(filepath.Join(originalDir, "observer.sock")); !os.IsNotExist(err) {
+		t.Fatalf("original socket after Close() = %v, want absent", err)
+	}
+}
+
+func TestOwnedListenerBindFailsClosed(t *testing.T) {
+	for _, kind := range []string{"existing-file", "oversized-name", "unavailable-descriptor"} {
+		t.Run(kind, func(t *testing.T) {
+			dir := testSocketDir(t)
+			parent, err := os.Open(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			name := "observer.sock"
+			if kind == "oversized-name" {
+				name = strings.Repeat("s", 108)
+			}
+			path := filepath.Join(dir, name)
+			if kind == "existing-file" {
+				if err := os.WriteFile(path, []byte("foreign"), 0640); err != nil {
+					_ = parent.Close()
+					t.Fatal(err)
+				}
+			} else if kind == "unavailable-descriptor" {
+				if err := parent.Close(); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if listener, err := bindOwnedResponseObserverListener(path, parent); err == nil {
+				_ = listener.Close()
+				t.Fatalf("bind(%s) succeeded, want failure", kind)
+			}
+			if _, err := parent.Stat(); !errors.Is(err, os.ErrClosed) {
+				t.Fatalf("parent after bind(%s) = %v, want os.ErrClosed", kind, err)
+			}
+			if kind == "existing-file" {
+				data, err := os.ReadFile(path)
+				if err != nil || string(data) != "foreign" {
+					t.Fatalf("existing file after failed bind = %q, %v, want foreign", data, err)
+				}
+				info, err := os.Lstat(path)
+				if err != nil || info.Mode().Perm() != 0640 {
+					t.Fatalf("existing file after failed bind = %v, %v, want mode 0640", info, err)
+				}
+			} else if _, err := os.Lstat(path); !os.IsNotExist(err) {
+				t.Fatalf("socket after failed bind(%s) = %v, want absent", kind, err)
+			}
+			entries, err := os.ReadDir(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantEntries := 0
+			if kind == "existing-file" {
+				wantEntries = 1
+			}
+			if len(entries) != wantEntries {
+				t.Fatalf("directory after failed bind(%s) = %v, want %d original entries and no temporary socket", kind, entries, wantEntries)
+			}
+		})
+	}
+}
+
+func TestOwnedListenerPreservesMaximumPublicPathLength(t *testing.T) {
+	dir := testSocketDir(t)
+	nameLength := len(unix.RawSockaddrUnix{}.Path) - 1 - len(dir) - 1
+	if nameLength < 1 {
+		t.Fatal("test directory exceeds Linux public socket path capacity")
+	}
+	path := filepath.Join(dir, strings.Repeat("s", nameLength))
+	listener, err := secureListener(path)
+	if err != nil {
+		t.Fatalf("secureListener(maximum public path) = %v", err)
+	}
+	defer listener.Close()
+	if got := listener.Addr().String(); got != path {
+		t.Fatalf("Addr() = %q, want maximum configured path %q", got, path)
+	}
+	connection, err := net.Dial("unix", path)
+	if err != nil {
+		t.Fatalf("Dial(maximum public path) = %v", err)
+	}
+	_ = connection.Close()
+	if err := listener.Close(); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("directory after maximum path Close() = %v, %v, want empty", entries, err)
+	}
+}
+
+func TestOwnedListenerIdentityPinFailureCleansOnlyItsOwnTemporarySocket(t *testing.T) {
+	for _, kind := range []string{"open-failure", "stat-failure", "type-mismatch", "replacement-preserved"} {
+		t.Run(kind, func(t *testing.T) {
+			dir := testSocketDir(t)
+			name := ".observer-test"
+			path := filepath.Join(dir, name)
+			base, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = base.Close() })
+			parent, err := os.Open(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = parent.Close() })
+			var pinned *os.File
+			openIdentity := func(parentFD int, name string) (*os.File, error) {
+				switch kind {
+				case "open-failure":
+					return nil, unix.EMFILE
+				case "replacement-preserved":
+					if err := os.Rename(path, path+".original"); err != nil {
+						return nil, err
+					}
+					if err := os.WriteFile(path, []byte("foreign"), 0640); err != nil {
+						return nil, err
+					}
+					return nil, unix.EMFILE
+				case "type-mismatch":
+					foreign := filepath.Join(dir, "foreign")
+					if err := os.WriteFile(foreign, []byte("foreign"), 0640); err != nil {
+						return nil, err
+					}
+					pinned, err = os.Open(foreign)
+					return pinned, err
+				default:
+					pinned, err = openResponseObserverSocketIdentity(parentFD, name)
+					if err == nil {
+						err = pinned.Close()
+					}
+					return pinned, err
+				}
+			}
+			if owned, err := ownBoundResponseObserverListener(base, parent, filepath.Join(dir, "observer.sock"), name, openIdentity); err == nil {
+				_ = owned.Close()
+				t.Fatalf("identity pin(%s) succeeded, want failure", kind)
+			} else if (kind == "open-failure" || kind == "replacement-preserved") && !errors.Is(err, unix.EMFILE) {
+				t.Fatalf("identity pin(%s) = %v, want EMFILE", kind, err)
+			} else if kind == "stat-failure" && !errors.Is(err, os.ErrClosed) {
+				t.Fatalf("identity pin(stat-failure) = %v, want os.ErrClosed", err)
+			}
+			if _, err := base.Accept(); !errors.Is(err, net.ErrClosed) {
+				t.Fatalf("Accept after failed pin(%s) = %v, want net.ErrClosed", kind, err)
+			}
+			if _, err := parent.Stat(); !errors.Is(err, os.ErrClosed) {
+				t.Fatalf("parent after failed pin(%s) = %v, want os.ErrClosed", kind, err)
+			}
+			if pinned != nil {
+				if _, err := pinned.Stat(); !errors.Is(err, os.ErrClosed) {
+					t.Fatalf("inode descriptor after failed pin(%s) = %v, want os.ErrClosed", kind, err)
+				}
+			}
+			if kind == "replacement-preserved" {
+				data, err := os.ReadFile(path)
+				if err != nil || string(data) != "foreign" {
+					t.Fatalf("replacement after failed pin = %q, %v, want foreign", data, err)
+				}
+			} else if _, err := os.Lstat(path); !os.IsNotExist(err) {
+				t.Fatalf("temporary socket after failed pin(%s) = %v, want absent", kind, err)
+			}
+		})
 	}
 }
 

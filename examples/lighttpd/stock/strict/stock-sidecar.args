@@ -4,3 +4,6 @@
 --listen 127.0.0.1:8080
 --upstream 127.0.0.1:8081
 --timeout-ms 10000
+--spool-directory /var/lib/msconnector/lighttpd-stock/strict
+--spool-capacity-bytes 268435456
+--spool-free-reserve-bytes 67108864

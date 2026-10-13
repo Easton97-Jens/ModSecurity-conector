@@ -376,10 +376,10 @@ ngx_http_modsecurity_append_file_response_body(
             "ModSecurity: missing file-backed response body source");
         return NGX_ERROR;
     }
-    if (ctx->phase4_file_scratch == NULL) {
-        ctx->phase4_file_scratch = ngx_pnalloc(r->pool,
+    if (ctx->scratch_buffers.phase4_file_scratch == NULL) {
+        ctx->scratch_buffers.phase4_file_scratch = ngx_pnalloc(r->pool,
             NGX_HTTP_MODSECURITY_PHASE4_FILE_READ_CHUNK);
-        if (ctx->phase4_file_scratch == NULL) {
+        if (ctx->scratch_buffers.phase4_file_scratch == NULL) {
             (void)msconnector_transaction_contract_fail(&ctx->contract,
                 MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
@@ -393,7 +393,7 @@ ngx_http_modsecurity_append_file_response_body(
     while (remaining > 0U) {
         chunk = remaining > NGX_HTTP_MODSECURITY_PHASE4_FILE_READ_CHUNK
             ? NGX_HTTP_MODSECURITY_PHASE4_FILE_READ_CHUNK : remaining;
-        read_count = ngx_read_file(buffer->file, ctx->phase4_file_scratch,
+        read_count = ngx_read_file(buffer->file, ctx->scratch_buffers.phase4_file_scratch,
             chunk, file_offset);
         if (read_count < 0 || (size_t)read_count != chunk) {
             (void)msconnector_transaction_contract_fail(&ctx->contract,
@@ -404,7 +404,7 @@ ngx_http_modsecurity_append_file_response_body(
             return NGX_ERROR;
         }
         if (ngx_http_modsecurity_append_response_body_chunk(ctx,
-                ctx->phase4_file_scratch, chunk) != NGX_OK) {
+                ctx->scratch_buffers.phase4_file_scratch, chunk) != NGX_OK) {
             return NGX_ERROR;
         }
         file_offset += (off_t)chunk;

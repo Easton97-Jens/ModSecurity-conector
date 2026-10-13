@@ -222,11 +222,11 @@ static void prepare_failure_frame(traefik_engine_session *session,
     session->response_eos = 1;
   if (frame->opcode == 10) {
     session->transaction = (msconnector_runtime_transaction *)session;
-    session->pending_phase = MSCONNECTOR_PHASE_REQUEST_HEADERS;
-    session->pending_disruptive = 1;
-    session->pending_action = MSCONNECTOR_DECISION_KIND_DENY;
-    session->pending_status = 403;
-    payload[0] = session->pending_action;
+    session->pending_result.pending_phase = MSCONNECTOR_PHASE_REQUEST_HEADERS;
+    session->pending_result.pending_disruptive = 1;
+    session->pending_result.pending_action = MSCONNECTOR_DECISION_KIND_DENY;
+    session->pending_result.pending_status = 403;
+    payload[0] = session->pending_result.pending_action;
     payload[1] = 1;
     traefik_engine_write_u16(payload + 2, 403);
     frame->payload_size = 4;
@@ -270,7 +270,7 @@ static void run_dispatch_case(msconnector_runtime *runtime,
     assert(traefik_engine_dispatch(&session, &frame, &decision, &code) == -1);
     assert(code != TRAEFIK_ENGINE_PROTOCOL_RESULT_OK && calls == 1 &&
            session.failed);
-    assert(!session.pending_disruptive && decision.rule_id == NULL);
+    assert(!session.pending_result.pending_disruptive && decision.rule_id == NULL);
     uint8_t first = code;
     frame.opcode = TRAEFIK_ENGINE_PROTOCOL_RESPONSE_CHUNK;
     assert(traefik_engine_dispatch(&session, &frame, &decision, &code) == -1);

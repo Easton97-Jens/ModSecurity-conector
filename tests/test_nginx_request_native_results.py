@@ -56,7 +56,7 @@ typedef struct {
     msconnector_transaction_contract contract;
     void *modsec_transaction;
     size_t request_body_bytes_seen;
-    u_char *request_file_scratch;
+    struct { u_char *request_file_scratch; } scratch_buffers;
     enum msconnector_phase native_event_phase;
     int native_event_phase_active;
     int intervention_triggered;

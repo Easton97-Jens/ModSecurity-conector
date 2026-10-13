@@ -150,13 +150,16 @@ struct haproxy_modsecurity_transaction {
     char request_id[128];
     msconnector_transaction_contract contract;
     int contract_initialized;
-    int response_phases_require_companion;
-    int response_companion_handed_off;
-    int response_companion_claimed;
-    msconnector_decision_action response_companion_action;
-    char response_companion_transport_result[32];
-    int response_companion_visible_status;
-    int response_companion_connection_aborted;
+    /* Companion ownership and the actual returned host result share a lifetime. */
+    struct {
+        int response_phases_require_companion;
+        int response_companion_handed_off;
+        int response_companion_claimed;
+        msconnector_decision_action response_companion_action;
+        char response_companion_transport_result[32];
+        int response_companion_visible_status;
+        int response_companion_connection_aborted;
+    } response_companion;
 };
 
 msconnector_transaction_error_class haproxy_modsecurity_transaction_error(
@@ -583,8 +586,8 @@ static int begin_contract_phase(haproxy_modsecurity_transaction *transaction,
     }
     if ((phase == MSCONNECTOR_TRANSACTION_PHASE_P3 ||
             phase == MSCONNECTOR_TRANSACTION_PHASE_P4) &&
-            transaction->response_phases_require_companion) {
-        if (!transaction->response_companion_claimed) {
+            transaction->response_companion.response_phases_require_companion) {
+        if (!transaction->response_companion.response_companion_claimed) {
             (void)msconnector_transaction_contract_fail(&transaction->contract,
                 MSCONNECTOR_TRANSACTION_ERROR_CORRELATION_MISSING, 0U);
             return MSCONNECTOR_TRANSACTION_TRANSITION_CORRELATION_MISSING;
@@ -1496,7 +1499,7 @@ int haproxy_modsecurity_transaction_begin_request_with_profile(
         return 1;
     }
     created->contract_initialized = 1;
-    created->response_phases_require_companion =
+    created->response_companion.response_phases_require_companion =
         profile->profile_id == MSCONNECTOR_PROFILE_HAPROXY_SPOE_SPOP;
     created->transaction = create_request_transaction_with_id(engine->modsec,
         engine->rules, created->request_id);
@@ -1584,31 +1587,31 @@ int haproxy_modsecurity_transaction_begin(
 int haproxy_modsecurity_transaction_handoff_response_companion(
         haproxy_modsecurity_transaction *transaction) {
     if (transaction == 0 || !transaction->contract_initialized ||
-            !transaction->response_phases_require_companion ||
-            transaction->response_companion_handed_off) {
+            !transaction->response_companion.response_phases_require_companion ||
+            transaction->response_companion.response_companion_handed_off) {
         return 1;
     }
     if (msconnector_transaction_contract_handoff_response_companion(
             &transaction->contract, 0U) != MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
         return 1;
     }
-    transaction->response_companion_handed_off = 1;
+    transaction->response_companion.response_companion_handed_off = 1;
     return 0;
 }
 
 int haproxy_modsecurity_transaction_claim_response_companion(
         haproxy_modsecurity_transaction *transaction) {
     if (transaction == 0 || !transaction->contract_initialized ||
-            !transaction->response_phases_require_companion ||
-            !transaction->response_companion_handed_off ||
-            transaction->response_companion_claimed) {
+            !transaction->response_companion.response_phases_require_companion ||
+            !transaction->response_companion.response_companion_handed_off ||
+            transaction->response_companion.response_companion_claimed) {
         return 1;
     }
     if (msconnector_transaction_contract_claim_response_companion(
             &transaction->contract, 0U) != MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
         return 1;
     }
-    transaction->response_companion_claimed = 1;
+    transaction->response_companion.response_companion_claimed = 1;
     return 0;
 }
 
@@ -1622,8 +1625,8 @@ int haproxy_modsecurity_transaction_set_response_commit_state(
         haproxy_modsecurity_transaction *transaction,
         int headers_sent, int body_started) {
     if (transaction == 0 || !transaction->contract_initialized ||
-            (transaction->response_phases_require_companion &&
-                !transaction->response_companion_claimed) ||
+            (transaction->response_companion.response_phases_require_companion &&
+                !transaction->response_companion.response_companion_claimed) ||
             headers_sent < 0 || headers_sent > 1 || body_started < 0 || body_started > 1 ||
             (headers_sent == 0 && body_started != 0)) {
         return 1;
@@ -1643,7 +1646,7 @@ int haproxy_modsecurity_transaction_record_response_companion_outcome(
         int visible_http_status, int connection_aborted) {
     size_t transport_len;
     if (transaction == 0 || !transaction->contract_initialized ||
-            !transaction->response_companion_claimed ||
+            !transaction->response_companion.response_companion_claimed ||
             msconnector_transaction_contract_is_terminal(&transaction->contract) ||
             actual_action < MSCONNECTOR_DECISION_ACTION_ALLOW ||
             actual_action > MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION ||
@@ -1653,18 +1656,18 @@ int haproxy_modsecurity_transaction_record_response_companion_outcome(
         return 1;
     }
     transport_len = 0U;
-    while (transport_len < sizeof(transaction->response_companion_transport_result) &&
+    while (transport_len < sizeof(transaction->response_companion.response_companion_transport_result) &&
             transport_result[transport_len] != '\0') {
         ++transport_len;
     }
-    if (transport_len >= sizeof(transaction->response_companion_transport_result)) {
+    if (transport_len >= sizeof(transaction->response_companion.response_companion_transport_result)) {
         return 1;
     }
-    transaction->response_companion_action = actual_action;
-    memcpy(transaction->response_companion_transport_result, transport_result,
+    transaction->response_companion.response_companion_action = actual_action;
+    memcpy(transaction->response_companion.response_companion_transport_result, transport_result,
         transport_len + 1U);
-    transaction->response_companion_visible_status = visible_http_status;
-    transaction->response_companion_connection_aborted = connection_aborted;
+    transaction->response_companion.response_companion_visible_status = visible_http_status;
+    transaction->response_companion.response_companion_connection_aborted = connection_aborted;
     /* OUTCOME describes the host's observed action. It must not be fed back
      * as a second engine decision; the Common contract's engine decision was
      * already recorded during P1/P2/P3/P4 evaluation. */

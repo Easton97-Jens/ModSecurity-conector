@@ -29,7 +29,7 @@ static void check_request_failure(agent_state *state, size_t failure,
   request.has_body = 1;
   request.has_body_len_arg = 1;
   request.has_headers_text = 1;
-  request.advertised_body_len = 1;
+  request.http_metadata.advertised_body_len = 1;
   unsigned char body[] = "x";
   request.body = body;
   request.body_len = 1;

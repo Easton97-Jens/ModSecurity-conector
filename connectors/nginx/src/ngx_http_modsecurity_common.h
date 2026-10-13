@@ -244,9 +244,12 @@ typedef struct {
     /* A file-only response buffer cannot be passed directly to
      * libModSecurity. The body filter allocates this fixed-size scratch
      * buffer once per request and reuses it for bounded file reads; it never
-     * retains a response payload in the Common transaction or event path. */
-    u_char *phase4_file_scratch;
-    u_char *request_file_scratch;
+     * retains a response payload in the Common transaction or event path.
+     * Both reusable file-read buffers belong to this request. */
+    struct {
+        u_char *phase4_file_scratch;
+        u_char *request_file_scratch;
+    } scratch_buffers;
     ngx_str_t event_transaction_id;
     enum msconnector_phase native_event_phase;
     /* Keep only the bounded rule identifier needed for a metadata-only

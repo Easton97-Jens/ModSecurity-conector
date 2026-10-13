@@ -2,6 +2,17 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
+The Linux response-observer listener requires a canonical service-UID-owned
+`0700` socket directory, procfs descriptor paths and `Renameat2(RENAME_NOREPLACE)`.
+It binds a private temporary name and publishes the configured socket atomically;
+it never removes an existing destination during startup. Socket and parent
+directory descriptors retain identity through once-only cleanup, including
+directory replacement. Peer-credential checks remain mandatory. Processes of
+the same service UID are trusted directory writers: Linux has no conditional
+inode unlink, so they must not replace the entry adversarially during cleanup.
+Missing procfs or atomic-publication support fails closed. Configured addresses
+and supported socket-path lengths are preserved.
+
 Status: `minimal_runtime_smoke` / `connector-gap`
 
 The implemented host model is an external HTTP authorization service for

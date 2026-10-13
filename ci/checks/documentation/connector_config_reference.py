@@ -826,6 +826,7 @@ def extract_lighttpd(root: Path) -> list[dict[str, Any]]:
             description="Compatibility-only lighttpd host field.", compatibility_only=True,
         ))
     values.append(extract_lighttpd_spool_directory(root))
+    values.extend(extract_lighttpd_spool_resources(root))
     return values
 
 
@@ -838,7 +839,7 @@ def extract_lighttpd_spool_directory(root: Path) -> dict[str, Any]:
     return _option(
         "lighttpd", "--spool-directory", "runtime_cli_flag", source,
         "sidecar_parse_args / sidecar_prepare_spool_directory",
-        syntax="--spool-directory /run/msconnector-lighttpd", value_type="path",
+        syntax="--spool-directory /var/lib/msconnector/lighttpd-stock/safe", value_type="path",
         allowed_values="existing canonical writable directory, effective-UID-owned and mode 0700",
         default="validated private parent of --config", default_source="sidecar_prepare_spool_directory", required=False,
         contexts="Stock lighttpd sidecar startup", inheritance=NOT_APPLICABLE,
@@ -847,9 +848,41 @@ def extract_lighttpd_spool_directory(root: Path) -> dict[str, Any]:
         phase_relevance="P2 request ingestion and replay after native allow.",
         security_relevance="Request files are exclusively created as 0600 beneath the pinned private directory and immediately unlinked; no environment or public temporary-directory fallback.",
         runtime_effect="Selects disk spool storage with bounded IO buffers; it sets no total-body limit or engine action.",
-        example_file="connectors/lighttpd/README.md", example_value="--spool-directory /run/msconnector-lighttpd",
+        example_file="examples/lighttpd/stock/safe/stock-sidecar.args", example_value="--spool-directory /var/lib/msconnector/lighttpd-stock/safe",
         description="Optional private request-spool directory; supply it when the configuration parent cannot provide suitable storage.",
     )
+
+
+def extract_lighttpd_spool_resources(root: Path) -> list[dict[str, Any]]:
+    source = "connectors/lighttpd/stock_sidecar/stock_sidecar.c"
+    text = _read(root, source)
+    options = []
+    definitions = (
+        ("--spool-capacity-bytes", "spool_capacity_bytes", "SIDECAR_DEFAULT_SPOOL_CAPACITY",
+         "Aggregate technical capacity of live request spools, including block rounding."),
+        ("--spool-free-reserve-bytes", "spool_free_reserve_bytes", "SIDECAR_DEFAULT_SPOOL_FREE_RESERVE",
+         "Free filesystem space retained when admitting and preallocating a request spool."),
+    )
+    for flag, field, macro, description in definitions:
+        default = re.search(rf"#define {macro} \((\d+)U \* 1024U \* 1024U\)", text)
+        if default is None or f'strcmp(argv[i], "{flag}") == 0' not in text or f"options->{field} = {macro}" not in text:
+            raise ValueError(f"stock lighttpd {flag} parser or default wiring changed")
+        value = str(int(default.group(1)) * 1024 * 1024)
+        options.append(_option(
+            "lighttpd", flag, "runtime_cli_flag", source, "sidecar_parse_args / sidecar_admit_request_spool",
+            syntax=f"{flag} {value}", value_type="integer",
+            allowed_values="positive decimal byte count representable by size_t",
+            default=value, default_source=macro, required=False,
+            contexts="Stock lighttpd sidecar startup", inheritance=NOT_APPLICABLE,
+            merge_behavior="One startup value; no request-time override.",
+            validation="Checked block rounding, aggregate reservations and available-space checks precede real disk allocation; admission failures return HTTP 503.",
+            phase_relevance="Before native request-body ingestion; reservations remain until descriptor cleanup.",
+            security_relevance="Technical storage admission is separate from engine inspection limits. Dedicated filesystems or quotas isolate unrelated writers; synchronous filesystem calls cannot be cancelled by socket deadlines.",
+            runtime_effect=description,
+            example_file="examples/lighttpd/stock/safe/stock-sidecar.args", example_value=f"{flag} {value}",
+            description=description,
+        ))
+    return options
 
 
 COMMON_DETAILS: dict[str, dict[str, str]] = {
@@ -3060,6 +3093,16 @@ def _inline_literal(value: str) -> str:
 
 
 GERMAN_TEXT: dict[str, str] = {
+    "268435456": "268435456",
+    "67108864": "67108864",
+    "SIDECAR_DEFAULT_SPOOL_CAPACITY": "SIDECAR_DEFAULT_SPOOL_CAPACITY",
+    "SIDECAR_DEFAULT_SPOOL_FREE_RESERVE": "SIDECAR_DEFAULT_SPOOL_FREE_RESERVE",
+    "positive decimal byte count representable by size_t": "positive dezimale Bytezahl, die durch size_t darstellbar ist",
+    "Aggregate technical capacity of live request spools, including block rounding.": "Gemeinsame technische Kapazität aktiver Request-Spools einschließlich Blockrundung.",
+    "Free filesystem space retained when admitting and preallocating a request spool.": "Freier Dateisystemspeicher, der bei Zulassung und Vorallokation eines Request-Spools erhalten bleibt.",
+    "Checked block rounding, aggregate reservations and available-space checks precede real disk allocation; admission failures return HTTP 503.": "Geprüfte Blockrundung, gemeinsame Reservierungen und Prüfungen des verfügbaren Speichers erfolgen vor der echten Datenträgerallokation; Zulassungsfehler liefern HTTP 503.",
+    "Before native request-body ingestion; reservations remain until descriptor cleanup.": "Vor dem nativen Einlesen des Request-Bodys; Reservierungen bleiben bis zur Descriptor-Freigabe bestehen.",
+    "Technical storage admission is separate from engine inspection limits. Dedicated filesystems or quotas isolate unrelated writers; synchronous filesystem calls cannot be cancelled by socket deadlines.": "Technische Speicherzulassung und Inspection-Limits der Engine sind getrennt. Dedizierte Dateisysteme oder Quotas isolieren fremde Schreiber; synchrone Dateisystemaufrufe können durch Socket-Deadlines nicht abgebrochen werden.",
     "existing canonical writable directory, effective-UID-owned and mode 0700": "vorhandenes kanonisches, beschreibbares Verzeichnis mit Eigentümer entsprechend der effektiven UID und Modus 0700",
     "validated private parent of --config": "geprüftes privates Elternverzeichnis von --config",
     "sidecar_prepare_spool_directory": "sidecar_prepare_spool_directory",

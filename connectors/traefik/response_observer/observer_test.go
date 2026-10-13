@@ -805,8 +805,11 @@ func startFakeObserver(t *testing.T, decide func(byte) (byte, byte)) (string, fu
 	}
 	log := &opLog{}
 	done := make(chan struct{})
+	acceptorDone := make(chan struct{})
 	var workers sync.WaitGroup
+	var stopOnce sync.Once
 	go func() {
+		defer close(acceptorDone)
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
@@ -821,7 +824,16 @@ func startFakeObserver(t *testing.T, decide func(byte) (byte, byte)) (string, fu
 			go func() { defer workers.Done(); serveFake(conn, log, decide) }()
 		}
 	}()
-	return path, func() { close(done); _ = listener.Close(); workers.Wait(); _ = os.Remove(path) }, log
+	return path, func() {
+		stopOnce.Do(func() {
+			close(done)
+			_ = listener.Close()
+			// Stop registering accepted connections before waiting for workers.
+			<-acceptorDone
+			workers.Wait()
+			_ = os.Remove(path)
+		})
+	}, log
 }
 
 func serveFake(conn net.Conn, log *opLog, decide func(byte) (byte, byte)) {

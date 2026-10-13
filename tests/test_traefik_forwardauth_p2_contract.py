@@ -26,7 +26,7 @@ class TraefikForwardAuthP2ContractTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
     def test_checked_in_pair_keeps_disclosed_host_body_cap(self) -> None:
-        RUNNER.validate_forwardauth_p2_contract(self.dynamic, self.service)
+        RUNNER.validate_forwardauth_p2_contract(self.dynamic)
         self.assertRegex(self.dynamic, r"(?m)^        forwardBody: true$")
         self.assertRegex(self.dynamic, r"(?m)^        maxBodySize: 4096$")
         self.assertRegex(self.service, r"(?m)^request_body_mode=buffered$")
@@ -46,19 +46,20 @@ class TraefikForwardAuthP2ContractTest(unittest.TestCase):
     def test_missing_forward_body_is_rejected(self) -> None:
         missing_forward_body = self.dynamic.replace("        forwardBody: true\n", "")
         with self.assertRaisesRegex(RuntimeError, "forwardBody"):
-            RUNNER.validate_forwardauth_p2_contract(missing_forward_body, self.service)
+            RUNNER.validate_forwardauth_p2_contract(missing_forward_body)
 
     def test_oversized_host_limit_is_rejected(self) -> None:
         oversized = self.dynamic.replace("        maxBodySize: 4096", "        maxBodySize: 4097")
         with self.assertRaisesRegex(RuntimeError, "maxBodySize must equal 4096"):
-            RUNNER.validate_forwardauth_p2_contract(oversized, self.service)
+            RUNNER.validate_forwardauth_p2_contract(oversized)
 
     def test_host_validator_adds_no_native_engine_body_policy(self) -> None:
         # The host contract checks forwarding and its disclosed full-body cap.
         # Native limit/action live in rules_file, independently of this helper.
         for mode in ("buffered", "streaming"):
             service = self.service.replace("request_body_mode=buffered", f"request_body_mode={mode}")
-            RUNNER.validate_forwardauth_p2_contract(self.dynamic, service)
+            self.assertIn(f"request_body_mode={mode}", service)
+            RUNNER.validate_forwardauth_p2_contract(self.dynamic)
         source = (ROOT / "connectors/traefik/scripts/runtime_smoke.py").read_text(encoding="utf-8")
         self.assertNotIn("request_body_limit=", source)
         self.assertNotIn("body_limit_action=", source)

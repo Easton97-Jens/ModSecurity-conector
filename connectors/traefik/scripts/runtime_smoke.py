@@ -453,10 +453,8 @@ def dynamic_config(upstream_port: int, auth_port: int, companion_socket: Path) -
 """
 
 
-def validate_forwardauth_p2_contract(
-    dynamic_text: str, service_text: str
-) -> None:
-    """Reject a forwardAuth/service pair that silently disables or loosens P2."""
+def validate_forwardauth_p2_contract(dynamic_text: str) -> None:
+    """Reject a forwardAuth host configuration that disables or loosens P2."""
 
     if "        forwardBody: true" not in dynamic_text:
         raise RuntimeError("forwardAuth P2 requires forwardBody: true")
@@ -727,10 +725,7 @@ def run(args: argparse.Namespace) -> int:
     auth_port = free_port()
     traefik_port = free_port()
     dynamic_text = dynamic_config(upstream_port, auth_port, companion_socket)
-    validate_forwardauth_p2_contract(
-        dynamic_text,
-        service_config.read_text(encoding="utf-8"),
-    )
+    validate_forwardauth_p2_contract(dynamic_text)
     traefik_config.write_text(dynamic_text, encoding="utf-8")
 
     upstream = http.server.ThreadingHTTPServer(("127.0.0.1", upstream_port), UpstreamHandler)

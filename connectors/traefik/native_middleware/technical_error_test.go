@@ -136,6 +136,9 @@ func assertTechnicalMiddlewareFailure(t *testing.T, boundary string, tx *errorTr
 	if !pre && boundary != "outcome" && recorder.Code != 200 {
 		t.Fatalf("committed status changed: %d", recorder.Code)
 	}
+	if boundary == "outcome" && (recorder.Code != http.StatusForbidden || recorder.Body.String() != "request rejected\n" || !tx.closed[0].ResponseCommitted || tx.closed[0].ResponseEOS) {
+		t.Fatalf("failed acknowledgement host status/body/summary = %d/%q/%+v, want complete 403 denial and committed non-EOS cleanup", recorder.Code, recorder.Body.String(), tx.closed[0])
+	}
 }
 func TestTechnicalFailureIsTerminalAndKeepsFirstCause(t *testing.T) {
 	tx := &errorTransaction{boundary: "response-body"}
