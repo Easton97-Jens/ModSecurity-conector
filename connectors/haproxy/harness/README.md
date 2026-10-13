@@ -143,3 +143,5 @@ Executable cases and runners are framework-owned, for example:
 
 - `modules/ModSecurity-test-Framework/tests/cases/`
 - `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`
+
+An advertised `body_len` that differs from the received `req.body` sample is rejected as an unsupported incomplete transport sample (admission status 503), without a BODY_LIMIT classification. The complete one-frame sample is handed to libModSecurity; this route does not implement full-body incremental transport.

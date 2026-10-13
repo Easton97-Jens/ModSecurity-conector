@@ -350,7 +350,7 @@ Der Checklistdiff ergänzt exakte aktuelle Laufbindung und unabgehakte I12c–l;
 historisches I12b/R17 und alle 56 Source-Matrixzeilen bleiben unverändert.
 Empfohlene Partition ist ein atomarer Dokumentationscommit mit Checklistpaar,
 Restmatrixpaar, diesem Berichtpaar und dem
-[Change-Record-Paar](../reports/audits/change-records/CR-20261011-pr382-i12-host-evidence.de.md)
+[Change-Record-Paar](https://github.com/Easton97-Jens/ModSecurity-conector/blob/511c4ac4515f0e515f68b3bbc38274c5a230d903/reports/audits/change-records/CR-20261011-pr382-i12-host-evidence.de.md)
 (acht Dateien). Rohfixtures/Builds/Nachweise und lokale Pläne bleiben außerhalb.
 Der Nutzer autorisierte einen gestapelten Draft PR auf
 `fix/unified-native-results-events-20260921`; Liefer-/Reviewergebnisse werden erst

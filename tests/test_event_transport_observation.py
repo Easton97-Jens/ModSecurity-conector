@@ -213,8 +213,9 @@ class EventTransportObservationTests(unittest.TestCase):
                     self.assertEqual(event["event"], name)
                     self.assertEqual(event["message_id"], message_id)
                     self.assertEqual(event["actual_action"], "")
-                    self.assertEqual(event["action"], "deny")
-                    self.assertEqual(event["requested_action"], "deny")
+                    requested = "error" if scenario in ("cancel", "disconnect") else "deny"
+                    self.assertEqual(event["action"], requested)
+                    self.assertEqual(event["requested_action"], requested)
                     self.assertEqual(event["visible_http_status"], 201)
                     self.assertFalse(event["connection_aborted"])
 

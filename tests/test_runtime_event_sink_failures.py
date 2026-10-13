@@ -31,7 +31,8 @@ FUNCTIONS = (
     "emit_contract_terminal_event", "msconnector_runtime_transaction_record_host_action",
     "msconnector_runtime_transaction_snapshot_get", "runtime_transaction_cleanup_checked",
     "runtime_transaction_cleanup_best_effort", "msconnector_runtime_transaction_finalize_and_snapshot",
-    "finish_transaction_with_logging", "msconnector_runtime_transaction_finish_host_rejected_request_body",
+    "finish_transaction_with_logging", "prepare_transaction_finish",
+    "msconnector_runtime_transaction_finish_host_rejected_request_body",
     "msconnector_runtime_transaction_finish", "msconnector_runtime_transaction_destroy",
 )
 INCLUDES = r'''
@@ -178,7 +179,7 @@ int main(int argc, char **argv) {
     finish_code = error.code;
     rejected = msconnector_runtime_transaction_finish_host_rejected_request_body(tx, &error);
     before_cleanup = audit_calls;
-    attempted = tx->finish_attempted;
+    attempted = tx->completion.finish_attempted;
     final_calls = sink.calls;
     cause = tx->contract.error_class;
     retained = runtime.previous_event_hash == hash_before && tx->flow.sequence == sequence;

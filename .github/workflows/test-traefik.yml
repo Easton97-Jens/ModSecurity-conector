@@ -37,6 +37,11 @@ jobs:
           cache: false
           check-latest: false
           go-version-file: connectors/traefik/response_observer/go.mod
+      - name: Execute Traefik technical-error callers and negative controls
+        env:
+          TMPDIR: ${{ runner.temp }}
+          RUNNER_TEMP: ${{ runner.temp }}
+        run: make check-i10-traefik-callers
       - name: Execute the Traefik response-observer suite
         working-directory: connectors/traefik/response_observer
         run: |
@@ -76,7 +81,7 @@ jobs:
             --fixture connectors/traefik/config/traefik-native-middleware-dynamic.yaml
       - name: Upload sanitized host runtime evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: traefik-hostruntime-evidence
           path: ${{ runner.temp }}/hostruntime-evidence/traefik

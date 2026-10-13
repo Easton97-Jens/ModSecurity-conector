@@ -128,14 +128,41 @@ jobs:
               raise SystemExit("component resolver returned an unapproved component")
           if target != "v1.83.2" or not isinstance(component_current, str):
               raise SystemExit("component resolver returned an invalid component version")
-          component_current_tuple = component_version_tuple(component_current)
-          target_tuple = component_version_tuple(target)
+          component_version_tuple(component_current)
           if not isinstance(item_available, bool) or component_available != item_available:
               raise SystemExit("component resolver returned inconsistent update availability")
           if component_status != ("update_available" if component_available else "current"):
               raise SystemExit("component resolver returned an inconsistent component status")
-          if component_available != (component_current_tuple < target_tuple):
-            raise SystemExit("component resolver returned an inconsistent component floor")
+          requirements = component.get("requirements")
+          approved_targets = {
+              "google.golang.org/grpc": "v1.83.2",
+              "golang.org/x/sys": "v0.49.0",
+              "golang.org/x/net": "v0.61.0",
+              "golang.org/x/text": "v0.43.0",
+          }
+          if not isinstance(requirements, list) or len(requirements) != len(approved_targets):
+              raise SystemExit("component resolver returned an invalid requirement list")
+          seen = set()
+          requirement_available = False
+          for requirement in requirements:
+              if not isinstance(requirement, dict):
+                  raise SystemExit("component resolver returned an invalid requirement")
+              module = requirement.get("dependency")
+              if not isinstance(module, str) or module not in approved_targets or module in seen:
+                  raise SystemExit("component resolver returned an unapproved requirement")
+              seen.add(module)
+              version = requirement.get("current_version")
+              target_version = requirement.get("target_version")
+              if not isinstance(version, str) or target_version != approved_targets[module]:
+                  raise SystemExit("component resolver returned an invalid requirement target")
+              update = component_version_tuple(version) < component_version_tuple(target_version)
+              if requirement.get("update_available") is not update:
+                  raise SystemExit("component resolver returned an inconsistent requirement floor")
+              if module == dependency and version != component_current:
+                  raise SystemExit("component resolver returned an inconsistent primary requirement")
+              requirement_available = requirement_available or update
+          if component_available != requirement_available:
+              raise SystemExit("component resolver returned an inconsistent component floor")
 
           available = toolchain_available or component_available
           print(f"current_version={current}")
@@ -276,7 +303,7 @@ jobs:
             --json
           (
             cd connectors/envoy/ext_proc
-            go mod edit -require=google.golang.org/grpc@v1.83.2
+            python3 ../../../scripts/update-go-components.py --apply-requirements --json
             go mod tidy
           )
 
@@ -347,6 +374,7 @@ jobs:
           go mod tidy -diff
           go mod verify
           go test -mod=readonly ./...
+          go test -race -mod=readonly ./...
           go vet -mod=readonly ./...
           go build -mod=readonly ./...
 
@@ -360,6 +388,7 @@ jobs:
           go mod tidy -diff
           go mod verify
           go test -mod=readonly ./...
+          go test -race -mod=readonly ./...
           go vet -mod=readonly ./...
           go build -mod=readonly ./...
 
@@ -373,6 +402,7 @@ jobs:
           go mod tidy -diff
           go mod verify
           go test -mod=readonly ./...
+          go test -race -mod=readonly ./...
           go vet -mod=readonly ./...
           go build -mod=readonly ./...
 
@@ -386,6 +416,7 @@ jobs:
           go mod tidy -diff
           go mod verify
           go test -mod=readonly ./...
+          go test -race -mod=readonly ./...
           go vet -mod=readonly ./...
           go build -mod=readonly ./...
 
@@ -536,7 +567,7 @@ jobs:
               --json
             (
               cd connectors/envoy/ext_proc
-              go mod edit -require=google.golang.org/grpc@v1.83.2
+              python3 ../../../scripts/update-go-components.py --apply-requirements --json
               go mod tidy
             )
             candidate_report="$(
@@ -651,7 +682,7 @@ jobs:
               "- Component update available: $COMPONENT_UPDATE_AVAILABLE" \
               "- Changed files: only ci/tooling/project-versions.lock.json, .go-version and/or connectors/envoy/ext_proc/go.mod plus connectors/envoy/ext_proc/go.sum" \
               "- Release policy: highest stable numeric Go release from the canonical metadata endpoint" \
-              "- Module directives: only the fixed google.golang.org/grpc security bundle may change (grpc v1.83.1→v1.83.2; golang.org/x/sys v0.46.0→v0.47.0; golang.org/x/net v0.56.0→v0.58.0; golang.org/x/text v0.39.0→v0.41.0); validated go.mod/go.sum hashes must match" \
+              "- Module directives: only the fixed google.golang.org/grpc security bundle may change (grpc v1.83.1→v1.83.2; golang.org/x/sys v0.46.0/v0.47.0→v0.49.0; golang.org/x/net v0.56.0/v0.58.0→v0.61.0; golang.org/x/text v0.39.0/v0.41.0→v0.43.0; already safe pins remain unchanged); validated go.mod/go.sum hashes must match" \
               "- Merge: no automatic merge" \
               "" \
               "## Deutsch" \
@@ -666,7 +697,7 @@ jobs:
               "- Verfügbares Komponentenupdate: $COMPONENT_UPDATE_AVAILABLE" \
               "- Geänderte Dateien: nur ci/tooling/project-versions.lock.json, .go-version und/oder connectors/envoy/ext_proc/go.mod plus connectors/envoy/ext_proc/go.sum" \
               "- Release-Policy: höchste stabile numerische Go-Release vom kanonischen Metadatenendpoint" \
-              "- Modul-Direktiven: Nur das feste Sicherheits-Bundle für google.golang.org/grpc darf sich ändern (grpc v1.83.1→v1.83.2; golang.org/x/sys v0.46.0→v0.47.0; golang.org/x/net v0.56.0→v0.58.0; golang.org/x/text v0.39.0→v0.41.0); validierte go.mod/go.sum-Hashes müssen übereinstimmen" \
+              "- Modul-Direktiven: Nur das feste Sicherheits-Bundle für google.golang.org/grpc darf sich ändern (grpc v1.83.1→v1.83.2; golang.org/x/sys v0.46.0/v0.47.0→v0.49.0; golang.org/x/net v0.56.0/v0.58.0→v0.61.0; golang.org/x/text v0.39.0/v0.41.0→v0.43.0; bereits sichere Pins bleiben unverändert); validierte go.mod/go.sum-Hashes müssen übereinstimmen" \
               "- Merge: kein automatischer Merge"
           } > "$pr_body"
 

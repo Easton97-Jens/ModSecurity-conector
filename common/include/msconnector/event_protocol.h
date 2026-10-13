@@ -69,6 +69,12 @@ static inline const char *msconnector_event_protocol_error_name(const char *id)
         msconnector_event_protocol_equal(id, MSCONN_EVENT_CONNECTOR_ERROR)) {
         return "connector_error";
     }
+    if (msconnector_event_protocol_equal(id, MSCONN_EVENT_CLIENT_CANCEL)) {
+        return "client_cancel";
+    }
+    if (msconnector_event_protocol_equal(id, MSCONN_EVENT_UPSTREAM_DISCONNECT)) {
+        return "upstream_disconnect";
+    }
     return NULL;
 }
 

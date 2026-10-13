@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -47,6 +48,44 @@ func TestWaitForServerTerminationStopsOnFatalCleanupFailure(t *testing.T) {
 	}
 }
 
+func TestI10AlreadyStoppedServerReleasesUnadoptedListener(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	address := listener.Addr().String()
+	server := grpc.NewServer()
+	server.Stop()
+	if _, err := waitForServerTermination(server, listener, 100, nil); err != nil {
+		t.Fatal(err)
+	}
+	replacement, err := net.Listen("tcp", address)
+	if err != nil {
+		t.Fatalf("stopped server retained unadopted listener: %v", err)
+	}
+	replacement.Close()
+}
+
+func TestI10ListenerConcurrentCleanupIsOnceOnly(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	limited := newLimitedListener(listener, 1)
+	var wait sync.WaitGroup
+	for i := 0; i < 32; i++ {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			if err := limited.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
+	}
+	wait.Wait()
+}
+
 func TestServeRejectsUnprovenStrictPolicyBeforeListenerAdmission(t *testing.T) {
 	occupied, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -62,8 +101,6 @@ func TestServeRejectsUnprovenStrictPolicyBeforeListenerAdmission(t *testing.T) {
 		MaxHeaderValueBytes:  8192,
 		MaxTotalHeaderBytes:  32768,
 		MaxBodyChunkBytes:    1024,
-		MaxRequestBodyBytes:  4096,
-		MaxResponseBodyBytes: 4096,
 		MaxGRPCMessageBytes:  2048,
 		EngineTimeoutMS:      100,
 		StreamIdleTimeoutMS:  100,
@@ -118,8 +155,6 @@ func strictTestConfig(listenAddress string) processor.Config {
 		MaxHeaderValueBytes:  8192,
 		MaxTotalHeaderBytes:  32768,
 		MaxBodyChunkBytes:    1024,
-		MaxRequestBodyBytes:  4096,
-		MaxResponseBodyBytes: 4096,
 		MaxGRPCMessageBytes:  2048,
 		EngineTimeoutMS:      100,
 		StreamIdleTimeoutMS:  100,

@@ -123,7 +123,7 @@ esac
 (
     cd "$REPO_ROOT"
     "$ENGINE_BIN" --serve --config "$CONFIG_PATH" --socket "$SOCKET_PATH" \
-        --max-connections 3
+        --max-connections 5
 ) &
 SERVICE_PID=$!
 
@@ -171,6 +171,25 @@ def invoke(connection, opcode, payload, expected_result):
     assert result[0] == opcode and result[1] == expected_result, result[:2]
     return result
 
+def assert_terminal(connection):
+    # Once a technical RESULT was sent, no later command may reach the
+    # transaction. EOF and peer reset are equivalent terminal dispositions.
+    connection.settimeout(3)
+    commands = ((10, b"\x00\x00\x00\x00"), (3, b""), (8, b""))
+    frames = b""
+    for opcode, payload in commands:
+        frame = b"MSE1" + bytes((1, opcode, 0, 0))
+        frames += frame + len(payload).to_bytes(4, "big") + payload
+    try:
+        connection.sendall(frames)
+    except (BrokenPipeError, ConnectionResetError):
+        pass
+    try:
+        received = connection.recv(12)
+    except ConnectionResetError:
+        received = b""
+    assert received == b"", ("terminal peer accepted another command", received)
+
 def begin_payload(uri, request_id, headers):
     wire_headers = len(headers).to_bytes(2, "big")
     for name, value in headers:
@@ -184,13 +203,29 @@ def begin_payload(uri, request_id, headers):
 
 with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
     connection.connect(path)
+    invoke(connection, 1, begin_payload("/engine-oversized", "engine-runtime-oversized", [
+        ("host", "example.test")
+    ]), 0)
+    # A single oversized frame is a technical terminal error, independently
+    # of native body policy. OUTCOME cannot revive its rejected transaction.
+    invoke(connection, 2, b"x" * 32769, 2)
+    assert_terminal(connection)
+
+with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+    connection.connect(path)
+    invoke(connection, 1, begin_payload("/engine-invalid-outcome", "engine-runtime-invalid-outcome", [
+        ("host", "example.test")
+    ]), 0)
+    # No disruptive action is pending: this OUTCOME is independently invalid.
+    invoke(connection, 10, b"\x00\x00\x00\x00", 2)
+    assert_terminal(connection)
+
+# All legitimate P2/EOS/P3/P4/finish/destroy controls use a fresh transaction.
+with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+    connection.connect(path)
     invoke(connection, 1, begin_payload("/engine-safe", "engine-runtime-safe", [
         ("host", "example.test")
     ]), 0)
-    # A bounded protocol rejection must not consume or retain the oversized
-    # request chunk; the following EOS remains valid.
-    invoke(connection, 2, b"x" * 32769, 2)
-    invoke(connection, 10, b"\x00\x00\x00\x00", 2)
     invoke(connection, 3, b"", 0)
     response = (200).to_bytes(2, "big") + text("HTTP/1.1") + (0).to_bytes(2, "big")
     invoke(connection, 4, response, 0)
@@ -213,7 +248,7 @@ with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
     connection.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER,
                           struct.pack("ii", 1, 0))
 
-# The third persistent-service connection proves that the Common runtime
+# The following persistent-service connection proves that the Common runtime
 # evaluates the configured targeted request-header rule. It is still not a
 # Traefik host action: OUTCOME is only the service in-memory coordination
 # hook and writes no evidence.

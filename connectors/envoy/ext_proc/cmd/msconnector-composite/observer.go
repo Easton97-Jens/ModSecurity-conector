@@ -424,20 +424,25 @@ func compositeEventRecordFor(event composite.Event) ([]byte, error) {
 }
 
 func (o *compositeObserver) Observe(event composite.Event) error {
-	if o == nil || o.file == nil {
-		return o.fail(errors.New("event observer is closed"))
-	}
-	if err := validateCompositeEvent(event); err != nil {
-		return o.fail(err)
-	}
-	line, err := compositeEventRecordFor(event)
-	if err != nil {
-		return o.fail(err)
+	if o == nil {
+		return errors.New("event observer is closed")
 	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	if o.lastErr != nil {
+		return o.lastErr
+	}
 	if o.file == nil {
 		o.lastErr = errors.New("event observer is closed")
+		return o.lastErr
+	}
+	if err := validateCompositeEvent(event); err != nil {
+		o.lastErr = err
+		return o.lastErr
+	}
+	line, err := compositeEventRecordFor(event)
+	if err != nil {
+		o.lastErr = err
 		return o.lastErr
 	}
 	line = append(line, '\n')
@@ -485,8 +490,9 @@ func (o *compositeObserver) fail(err error) error {
 	if o.lastErr == nil {
 		o.lastErr = err
 	}
+	first := o.lastErr
 	o.mu.Unlock()
-	return err
+	return first
 }
 
 func (o *compositeObserver) Err() error {
@@ -504,10 +510,12 @@ func (o *compositeObserver) Close() error {
 	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if o.file == nil {
-		return nil
+	if o.file != nil {
+		err := o.file.Close()
+		o.file = nil
+		if o.lastErr == nil {
+			o.lastErr = err
+		}
 	}
-	err := o.file.Close()
-	o.file = nil
-	return err
+	return o.lastErr
 }

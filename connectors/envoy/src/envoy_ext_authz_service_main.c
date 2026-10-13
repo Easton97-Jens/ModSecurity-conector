@@ -48,8 +48,7 @@ static int envoy_handoff_response_companion(
         }
         if (!msconnector_envoy_ext_authz_response_companion_set_limits(companion,
                 msconnector_runtime_header_count_limit(runtime),
-                msconnector_runtime_total_header_limit(runtime),
-                msconnector_runtime_response_body_limit(runtime))) {
+                msconnector_runtime_total_header_limit(runtime))) {
             return 0;
         }
         envoy_response_companion_ready = 1;
@@ -59,7 +58,7 @@ static int envoy_handoff_response_companion(
             &companion->transport_initialized, &companion->transport_ready,
             &(msconnector_response_companion_transport_options){
                 "envoy", companion->socket_path, companion->max_header_count,
-                companion->max_header_bytes, companion->max_response_body_bytes,
+                companion->max_header_bytes,
                 configured_timeout == 0U ?
                 MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_DEFAULT_TIMEOUT_MS :
                 configured_timeout}, error)) {

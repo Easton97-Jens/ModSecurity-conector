@@ -36,7 +36,7 @@ P2_APPEND_GUARD = (
     r"!\s*msconnector_native_body_append_can_continue\s*\(\s*"
     r"msc_append_request_body\s*\(\s*msr->t\s*,\s*"
     r"\(\s*const\s+unsigned\s+char\s*\*\s*\)\s*data\s*,\s*"
-    r"plan\.append_size\s*\)\s*\)"
+    r"len\s*\)\s*\)"
 )
 REMOVE_OUTPUT_FILTER = "ap_remove_output_filter(f);"
 BUCKET_NEXT_LOOP = "bucket = APR_BUCKET_NEXT(bucket))"
@@ -186,15 +186,32 @@ terminal_success_seal = (
 
 review_guards: list[tuple[bool, str]] = [
     (
+        base.tokens_in_order(input_bucket_processor,
+            "ret = process_intervention(msr->t, r);",
+            "if (ret != N_INTERVENTION_STATUS && !msr->request_intervention_pending)",
+            "msr->pending_request_intervention = msr->intervention;",
+            "msr->request_intervention_pending = 1;")
+        and base.tokens_in_order(request_body_finalizer,
+            "intervention = process_intervention(msr->t, r);",
+            "msr->request_intervention_pending)",
+            "msr->intervention = msr->pending_request_intervention;",
+            "intervention = msr->last_intervention_status;"),
+        "Apache retains a native request append intervention through matching-rule EOS completion",
+    ),
+    (
         base.tokens_in_order(
             request_body_finalizer,
+            "if (msr->intervention.mandatory_event_failed ||",
+            "msr->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE)",
+            "return HTTP_INTERNAL_SERVER_ERROR;",
             "if (msr->request_body_processed)",
             f"return {INTERVENTION_SENTINEL};",
             P2_PROCESS,
             f"msc_apache_contract_complete(msr,\n            {REQUEST_BODY_PHASE})",
             "msr->request_body_processed = 1;",
             "intervention = process_intervention(msr->t, r);",
-            "return intervention;",
+            "return msr->intervention.mandatory_event_failed\n"
+            "        ? HTTP_INTERNAL_SERVER_ERROR : intervention;",
         )
         # This helper is part of the P2 call graph. A known-unreachable
         # lexical decoy must not satisfy its completion/intervention contract.
@@ -353,11 +370,11 @@ review_guards: list[tuple[bool, str]] = [
             input_bucket_processor,
             r"\bret\s*=\s*apr_bucket_read\s*\(\s*bucket\s*,\s*&data\s*,\s*&len\s*,\s*block\s*\)",
             r"\bif\s*\(\s*ret\s*!=\s*APR_SUCCESS\s*\)\s*return\s+ret\s*;",
-            r"\bmsconnector_body_limit_plan_chunk\s*\(\s*msr->request_body_bytes_seen\s*,\s*msr->request_body_bytes_inspected\s*,",
-            r"\bmsc_apache_contract_record_body\s*\(\s*msr\s*,\s*0\s*,\s*plan\.append_size\s*\)",
+            r"\bmsr->request_body_bytes_seen\s*>\s*SIZE_MAX\s*-\s*len",
+            r"\bmsc_apache_contract_record_body\s*\(\s*msr\s*,\s*0\s*,\s*len\s*\)",
             P2_APPEND_GUARD,
-            r"\bmsr->request_body_bytes_seen\s*=\s*plan\.bytes_seen\s*;",
-            r"\bmsr->request_body_bytes_inspected\s*\+=\s*plan\.append_size\s*;",
+            r"\bmsr->request_body_bytes_seen\s*\+=\s*len\s*;",
+            r"\bmsr->request_body_bytes_inspected\s*\+=\s*len\s*;",
             r"\bAPR_BUCKET_REMOVE\s*\(\s*bucket\s*\)",
             r"\bAPR_BRIGADE_INSERT_TAIL\s*\(\s*output\s*,\s*bucket\s*\)",
             RETURN_APR_SUCCESS_PATTERN,
@@ -371,26 +388,29 @@ review_guards: list[tuple[bool, str]] = [
             r"\(\s*const\s+unsigned\s+char\s*\*\s*\)\s*data\s*,\s*len\s*\)",
             input_bucket_processor,
             re.DOTALL,
-        ) is None,
-        "Apache Phase2 bounded bucket helper reads, plans, records, appends, accounts, removes, and forwards only after success",
+        ) is not None
+        and "msconnector_body_limit_plan_chunk" not in input_bucket_processor
+        and "(len > 0 && data == NULL)" in input_bucket_processor
+        and "msr->request_body_bytes_inspected > SIZE_MAX - len" in input_bucket_processor,
+        "Apache Phase2 bucket helper validates pointers and arithmetic, records and appends complete chunks, captures intervention, and forwards after native success",
     ),
     (
         patterns_in_order(
             input_bucket_processor_direct,
             r"\bret\s*=\s*apr_bucket_read\s*\(\s*bucket\s*,\s*&data\s*,\s*&len\s*,\s*block\s*\)",
             r"\bif\s*\(\s*ret\s*!=\s*APR_SUCCESS\s*\)\s*return\s+ret\s*;",
-            r"\bmsconnector_body_limit_plan_chunk\s*\(\s*msr->request_body_bytes_seen\s*,\s*msr->request_body_bytes_inspected\s*,",
-            r"\bmsc_apache_contract_record_body\s*\(\s*msr\s*,\s*0\s*,\s*plan\.append_size\s*\)",
+            r"\bmsr->request_body_bytes_seen\s*>\s*SIZE_MAX\s*-\s*len",
+            r"\bmsc_apache_contract_record_body\s*\(\s*msr\s*,\s*0\s*,\s*len\s*\)",
             P2_APPEND_GUARD,
-            r"\bmsr->request_body_bytes_seen\s*=\s*plan\.bytes_seen\s*;",
-            r"\bmsr->request_body_bytes_inspected\s*\+=\s*plan\.append_size\s*;",
+            r"\bmsr->request_body_bytes_seen\s*\+=\s*len\s*;",
+            r"\bmsr->request_body_bytes_inspected\s*\+=\s*len\s*;",
         )
         and not base.has_forbidden_contract_control_flow(input_bucket_processor)
         and all(
             base.function_call_count(input_bucket_processor_direct, name) == 1
             for name in (
                 "apr_bucket_read",
-                "msconnector_body_limit_plan_chunk",
+                "process_intervention",
                 "msc_apache_contract_record_body",
                 "msc_append_request_body",
                 "APR_BUCKET_REMOVE",
@@ -401,10 +421,8 @@ review_guards: list[tuple[bool, str]] = [
         and re.search(r"\breturn\s+0\s*;", input_bucket_processor) is None
         and direct_body_ends_with(
             input_bucket_processor,
-            r"\bmsr->request_body_bytes_seen\s*=\s*plan\.bytes_seen\s*;\s*"
-            r"\bmsr->request_body_bytes_inspected\s*\+=\s*plan\.append_size\s*;\s*"
-            r"(?:\bif\s*\(\s*plan\.truncated\s*\)\s*"
-            r"\bmsr->request_body_truncated\s*=\s*1\s*;\s*)?"
+            r"\bmsr->request_body_bytes_seen\s*\+=\s*len\s*;\s*"
+            r"\bmsr->request_body_bytes_inspected\s*\+=\s*len\s*;\s*"
             r"\bAPR_BUCKET_REMOVE\s*\(\s*bucket\s*\)\s*;\s*"
             r"\bAPR_BRIGADE_INSERT_TAIL\s*\(\s*output\s*,\s*bucket\s*\)\s*;\s*"
             + RETURN_APR_SUCCESS_PATTERN,
@@ -465,7 +483,7 @@ review_guards: list[tuple[bool, str]] = [
             token in input_bucket_processor
             for token in (
                 "MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE",
-                "msconnector_body_limit_plan_chunk",
+                "MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR",
                 "msc_apache_contract_record_body",
                 "msc_append_request_body",
             )
@@ -479,7 +497,7 @@ review_guards: list[tuple[bool, str]] = [
         ) >= 2
         and "if (msr == NULL)" in input_filter_handler
         and "if (conf == NULL)" in input_filter_handler,
-        "Apache input helper errors remove the filter and enter the shared terminal bridge for sequence, limit, contract, append, context, and EOS failures",
+        "Apache input helper errors remove the filter and enter the shared terminal bridge for sequence, pointer/overflow, contract, append/intervention, context, and EOS failures",
     ),
     (
         patterns_in_order(
@@ -536,7 +554,9 @@ review_guards: list[tuple[bool, str]] = [
         base.tokens_in_order(
             phase4_fail_closed_helper,
             "if (apache_phase4_response_committed(msr, r))",
-            "return apache_phase4_abort_response_connection(f);",
+            "rc = apache_phase4_abort_response_connection(f);",
+            "apache_emit_contract_failure_event_with_action(msr, r,",
+            "return rc;",
             '"ModSecurity: Phase 4 response gate failed before response commit: %s"',
             REMOVE_OUTPUT_FILTER,
             "return apache_send_precommit_terminal_error(msr, f, NULL,",

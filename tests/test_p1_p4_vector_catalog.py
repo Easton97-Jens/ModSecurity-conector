@@ -95,7 +95,7 @@ class P1P4VectorCatalogTests(unittest.TestCase):
 
         body_limit = self.vectors["p2_body_limit"]
         self.assertGreater(body_limit["request"]["headers"]["Content-Length"], 32)
-        self.assertEqual(body_limit["expected"]["response_status"], 413)
+        self.assertEqual(body_limit["expected"]["response_status"], 403)
 
         empty = self.vectors["p2_empty_body"]
         self.assertEqual(empty["request"]["headers"]["Content-Length"], 0)

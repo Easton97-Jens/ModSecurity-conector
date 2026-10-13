@@ -64,21 +64,21 @@ der Phase-2-Allow-Entscheidung; erst dann darf der Proxy verbinden und den
 Request weiterleiten. Der validierte verzögerte Allow-Gegenfall wurde am
 Upstream als `Content-Length` neu gerahmt.
 
-Das Profil verlangt `mod_proxy` vor `mod_msconnector`, ein positives Common-
-Request-Body-Limit, `body_limit_action=reject` und das passende
+Das Profil verlangt `mod_proxy` vor `mod_msconnector` und das passende
 gepatchte Host-/Modulpaar. Es weist vorab konfigurierte
 `server.stream-request-body`, `Incremental` und ausdrücklich aktivierte
 body-tragende `Upgrade`- plus `gw.upgrade-with-request-body`-Anfragen vor
-einer Upstream-Verbindung mit `501` ab. Eine Streaming-Konfiguration mit
-`body_limit_action=process_partial` wird bereits beim Laden der Konfiguration
-vor einem Listener oder einer Upstream-Verbindung abgewiesen. Dies ist kein
-Claim für HTTP/2, HTTP/3, andere Stream-Handler, Response-Body-P4,
-unbeschränktes Upstream-Streaming oder Production-Readiness.
+einer Upstream-Verbindung mit `501` ab. Native `SecRequestBodyLimit` und
+`SecRequestBodyLimitAction` bestimmen die Inspektion einschließlich
+ProcessPartial- und DetectionOnly-Verhalten; keine Common-Bytegrenze und keine
+ablehnende Connector-Aktion sind erforderlich.
 
-Die Grenze für den zurückgehaltenen Body beruht auf dem positiven Common-
-`request_body_limit` (standardmäßig 1 MiB) und einem ablehnenden Lesezyklus.
-Das Modul konfiguriert `server.max-request-size` nicht; dieser Wert bleibt eine
-unabhängige Host-seitige Defense-in-Depth-Grenze.
+Der Host hält seine Requestqueue bis zum nativen P2-Abschluss zurück.
+Dateibasierte Host-Queuebereiche werden mit begrenztem Arbeitsspeicher besucht.
+Das Modul konfiguriert `server.max-request-size` nicht; dies bleibt eine
+unabhängige Host-Größenkontrolle. Neue Hostnachweise dieser geänderten Pfade
+stehen aus. Dies belegt kein HTTP/2, HTTP/3, andere Stream-Handler, P4,
+unbeschränktes Upstream-Streaming oder Production-Readiness.
 
 ## P1--P4-Lifecycle und Entity-Body-Grenze
 

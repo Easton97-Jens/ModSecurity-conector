@@ -1,5 +1,7 @@
 # Apache Connector
 
+Request- and response-body inspection limits and actions belong exclusively to libModSecurity: configure `SecRequestBodyLimit`, `SecRequestBodyNoFilesLimit`, `SecRequestBodyLimitAction`, `SecResponseBodyLimit`, and `SecResponseBodyLimitAction` in the engine rules. The connector has no body-size option, default, fallback, cumulative rejection, or inspection-prefix truncation. Checked counters, pointer/file validation, and bounded scratch or transport frames remain technical safety controls.
+
 **Language:** English | [Deutsch](README.de.md)
 
 Status: adapter-owned source migration complete
@@ -231,6 +233,10 @@ its run-scoped artifacts after execution. This source contract does not label
 either H1 or H2 as passed.
 
 ## Phase-4 mode and response-body limit ownership
+
+Response-body inspection limit and action are configured exclusively through
+`SecResponseBodyLimit` and `SecResponseBodyLimitAction`. The connector has no
+option, default, fallback, or second enforcement logic for this policy.
 
 The default mode is `off`; supported values are `off`, `safe`, and `strict`.
 No valid Phase-4 mode adds a connector-owned cumulative response-inspection

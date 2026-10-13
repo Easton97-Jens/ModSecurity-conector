@@ -1,7 +1,7 @@
 """Compile the actual NGINX request-body functions with controlled host/API seams.
 
 This checks native-result propagation and completion ordering, not a live NGINX
-host or a native libModSecurity file reader. File API zero remains an error.
+host. File reads must return every requested byte; native append zero continues.
 """
 from __future__ import annotations
 
@@ -19,6 +19,7 @@ from tests.c_source_contract import function_definition
 ROOT = Path(__file__).resolve().parents[1]
 ACCESS = ROOT / "connectors/nginx/src/ngx_http_modsecurity_access.c"
 FUNCTIONS = (
+    "ngx_http_modsecurity_append_request_chunk",
     "ngx_http_modsecurity_append_request_body",
     "ngx_http_modsecurity_inspect_request_body_file",
     "ngx_http_modsecurity_inspect_request_body",
@@ -35,7 +36,7 @@ typedef unsigned char u_char;
 typedef int ngx_int_t;
 typedef struct { int unused; } ngx_pool_t;
 typedef struct { size_t len; u_char *data; } ngx_str_t;
-typedef struct { ngx_str_t name; } ngx_file_t;
+typedef struct { ngx_str_t name; int fd; } ngx_file_t;
 typedef struct { ngx_file_t file; off_t offset; } ngx_temp_file_t;
 typedef struct { u_char *pos; u_char *last; int last_buf; } ngx_buf_t;
 typedef struct ngx_chain_s { ngx_buf_t *buf; struct ngx_chain_s *next; } ngx_chain_t;
@@ -49,12 +50,13 @@ typedef struct request_s {
     int error_page;
 } ngx_http_request_t;
 typedef struct {
-    struct { size_t request_body_limit; } common_config;
+    int unused;
 } ngx_http_modsecurity_conf_t;
 typedef struct {
     msconnector_transaction_contract contract;
     void *modsec_transaction;
     size_t request_body_bytes_seen;
+    struct { u_char *request_file_scratch; } scratch_buffers;
     enum msconnector_phase native_event_phase;
     int native_event_phase_active;
     int intervention_triggered;
@@ -62,7 +64,7 @@ typedef struct {
 } ngx_http_modsecurity_ctx_t;
 typedef struct { off_t size; int regular; } ngx_file_info_t;
 enum { NGX_OK = 0, NGX_ERROR = -1, NGX_DECLINED = -5,
-       NGX_LOG_ERR = 4, NGX_FILE_ERROR = -1,
+       NGX_LOG_ERR = 4, NGX_FILE_ERROR = -1, NGX_INVALID_FILE = -1,
        NGX_HTTP_INTERNAL_SERVER_ERROR = 500,
        NGX_HTTP_GATEWAY_TIME_OUT = 504,
        NGX_HTTP_REQUEST_ENTITY_TOO_LARGE = 413 };
@@ -85,11 +87,18 @@ static ngx_int_t ngx_http_modsecurity_engine_call_finish(ngx_http_request_t *r,
     enum msconnector_phase phase, ngx_http_modsecurity_engine_call_measurement *value, int result) {
     (void)r; (void)phase; (void)value; (void)result; return NGX_OK;
 }
-static char *ngx_str_to_char(ngx_str_t value, ngx_pool_t *pool) {
-    (void)pool; return (char *)value.data;
+static int ngx_fd_info(int fd, ngx_file_info_t *info) {
+    (void)fd; info->size = observed_file_size; info->regular = 1; return 0;
 }
-static int ngx_file_info(const u_char *name, ngx_file_info_t *info) {
-    (void)name; info->size = observed_file_size; info->regular = 1; return 0;
+static u_char *ngx_pnalloc(ngx_pool_t *pool, size_t size) {
+    static u_char scratch[32768]; (void)pool; (void)size; return scratch;
+}
+static ssize_t ngx_read_file(ngx_file_t *file, u_char *data, size_t size, off_t offset) {
+    (void)file; (void)offset; ++file_calls; memset(data, 97, size);
+    return file_result == 1 ? (ssize_t)size : file_result;
+}
+static int ngx_http_modsecurity_capture_request_body_intervention(ngx_http_request_t *request) {
+    (void)request; return NGX_OK;
 }
 static int ngx_is_file(const ngx_file_info_t *info) { return info->regular; }
 static off_t ngx_file_size(const ngx_file_info_t *info) { return info->size; }
@@ -115,9 +124,6 @@ int msconnector_transaction_contract_fail(msconnector_transaction_contract *cont
 static int msc_append_request_body(void *transaction, const unsigned char *data, size_t bytes) {
     (void)transaction; (void)data; (void)bytes; ++append_calls; return append_result;
 }
-static int msc_request_body_from_file(void *transaction, const char *name) {
-    (void)transaction; (void)name; ++file_calls; return file_result;
-}
 static int msc_process_request_body(void *transaction) {
     (void)transaction; ++phase_calls; return phase_result;
 }
@@ -135,11 +141,11 @@ int main(int argc, char **argv) {
     u_char data[] = "abc";
     ngx_buf_t buffer = {data, data + 3, 1};
     ngx_chain_t chain = {&buffer, NULL};
-    ngx_temp_file_t file = {{{8, (u_char *)"fixture"}}, 3};
+    ngx_temp_file_t file = {{{8, (u_char *)"fixture"}, 1}, 3};
     request_body_t body = {&chain, NULL};
     connection_t connection = {NULL};
     ngx_http_request_t request = {&body, &connection, NULL, NULL, 0};
-    ngx_http_modsecurity_conf_t config = {{64}};
+    ngx_http_modsecurity_conf_t config = {0};
     ngx_http_modsecurity_ctx_t ctx = {0};
     int result;
     if (argc != 5) { return 2; }
@@ -157,7 +163,7 @@ int main(int argc, char **argv) {
         result = ngx_http_modsecurity_append_request_body(&request, &ctx, &config);
     } else {
         if (strcmp(argv[1], "empty") == 0) { body.bufs = NULL; }
-        if (strcmp(argv[1], "limit") == 0) { config.common_config.request_body_limit = 2; }
+        if (strcmp(argv[1], "overflow") == 0) { ctx.request_body_bytes_seen = SIZE_MAX; }
         result = ngx_http_modsecurity_inspect_request_body(&request, &ctx, &config);
     }
     printf("{\"result\":%d,\"append_calls\":%d,\"phase_calls\":%d,"
@@ -247,7 +253,7 @@ class NginxRequestNativeResultsTests(unittest.TestCase):
         self.assertEqual(result["completions"], 1)
         self.assertEqual(result["processed"], 1)
 
-    def test_file_zero_is_not_mistaken_for_memory_partial(self) -> None:
+    def test_file_short_or_failed_reads_never_reach_eos(self) -> None:
         for native in (-1, 0, 2):
             with self.subTest(native=native):
                 result = self.run_case("file", file_result=native)
@@ -268,9 +274,9 @@ class NginxRequestNativeResultsTests(unittest.TestCase):
         self.assertEqual(result["file_calls"], 0)
         self.assertEqual(result["phase_calls"], 0)
 
-    def test_host_budget_rejects_before_native_append(self) -> None:
-        result = self.run_case("limit")
-        self.assertEqual(result["result"], 413)
+    def test_counter_overflow_stops_before_native_append(self) -> None:
+        result = self.run_case("overflow")
+        self.assertEqual(result["result"], 500)
         self.assertEqual(result["append_calls"], 0)
         self.assertEqual(result["phase_calls"], 0)
 

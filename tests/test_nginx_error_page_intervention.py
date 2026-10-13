@@ -93,6 +93,8 @@ enum {
 };
 static int native_result;
 static int event_calls;
+static int completion_calls;
+static int completion_native_result;
 static int msconnector_transaction_contract_fail(
     msconnector_transaction_contract *contract, int error_class, unsigned int rule_id)
 {
@@ -119,6 +121,18 @@ static void ngx_http_modsecurity_request_intervention_log_event(
     (void)reason;
     ++event_calls;
 }
+/* Completion logging only observes the P1 allow continuation. Keep its
+ * attempts separate from rule-intervention events without changing the result. */
+static void ngx_http_modsecurity_request_completion_log_event(
+    ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
+    ngx_http_modsecurity_conf_t *mcf, int result)
+{
+    (void)r;
+    (void)ctx;
+    (void)mcf;
+    ++completion_calls;
+    completion_native_result = result;
+}
 static int p2_result(ngx_http_request_t *r,
     ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf)
 {
@@ -130,6 +144,9 @@ static int p1_result(ngx_http_request_t *r,
     ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf)
 {
     int ret;
+    /* The extracted tail follows successful native P1 processing, independently
+     * of the intervention result selected by the fixture's global variable. */
+    int native_result = 1;
     msconnector_nginx_intervention_disposition disposition;
 """
             + header_tail
@@ -152,11 +169,12 @@ int main(int argc, char **argv)
     event_calls = 0;
     ctx.intervention_triggered = 0;
     result = p2_result(&request, &ctx, &config);
-    printf("%d %d %d %d %d %d %d\n",
+    printf("%d %d %d %d %d %d %d %d %d\n",
         (int)ngx_http_modsecurity_intervention_disposition(
             native_result, request.error_page),
         result, ctx.intervention_triggered, event_calls,
-        headers, header_triggered, header_events);
+        headers, header_triggered, header_events,
+        completion_calls, completion_native_result);
     return 0;
 }
 """
@@ -184,18 +202,19 @@ int main(int argc, char **argv)
             for error_page in (0, 1):
                 with self.subTest(status=status, error_page=error_page):
                     self.assertEqual(self.observe(status, error_page),
-                                     (3, status, 1, 1, status, 1, 1))
+                                     (3, status, 1, 1, status, 1, 1, 0, 0))
 
     def test_p1_allow_continues_to_p2_even_on_error_pages(self) -> None:
         for error_page in (0, 1):
             with self.subTest(error_page=error_page):
                 self.assertEqual(self.observe(0, error_page),
-                                 (2, -5, 0, 0, 0, 0, 0))
+                                 (2, -5, 0, 0, 0, 0, 0, 1, 1))
 
     def test_native_error_remains_fail_closed_without_a_success_event(self) -> None:
         for error_page in (0, 1):
             with self.subTest(error_page=error_page):
-                self.assertEqual(self.observe(-1, error_page), (0, 500, 1, 0, 500, 1, 0))
+                self.assertEqual(self.observe(-1, error_page),
+                                 (0, 500, 1, 0, 500, 1, 0, 0, 0))
 
 
 if __name__ == "__main__":

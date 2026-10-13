@@ -54,7 +54,7 @@ class HAProxySPOPSelfTestCleanupContractTests(unittest.TestCase):
         self.assertIn("pthread_mutex_lock(&state->decision_log_lock)", source)
         self.assertIn("pthread_mutex_unlock(&state->decision_log_lock)", source)
         self.assertIn("pthread_mutex_destroy(&state->decision_log_lock)", source)
-        decision_start = source.index("static void decision_log_write(")
+        decision_start = source.index("static int decision_log_write(")
         decision_end = source.index("static int production_config_has_safe_peer_limits", decision_start)
         decision_body = source[decision_start:decision_end]
         self.assertLess(

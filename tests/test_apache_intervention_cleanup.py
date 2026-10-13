@@ -18,39 +18,30 @@ C17_CHECK = (
 
 def c_function(source: str, signature: str) -> str:
     """Return a complete definition, accounting for braces in comments/text."""
-    name = signature.split("(", 1)[0].split()[-1]
+    name = signature.split("(", 1)[0].split()[-1].lstrip("*")
     return function_definition(source, name)
 
 
 class ApacheInterventionCleanupTests(unittest.TestCase):
-    def test_request_body_defaults_resolve_without_mutating_shared_config(self) -> None:
-        source = FILTERS.read_text(encoding="utf-8")
-        bucket = c_function(
-            source, "static apr_status_t apache_input_filter_process_bucket("
-        )
-        resolution = "msconnector_config_merge(&effective_config, NULL,"
-        self.assertLess(
-            bucket.index(resolution),
-            bucket.index("msconnector_body_limit_plan_chunk("),
-        )
-        self.assertIn("effective_config.request_body_limit", bucket)
-        self.assertIn("effective_config.body_limit_action", bucket)
-        self.assertNotIn(
-            "msconnector_config_apply_defaults(&conf->common_config)", bucket
-        )
-        invalid = bucket.split(resolution, 1)[1].split(
-            "msconnector_body_limit_plan_chunk(", 1
-        )[0]
-        self.assertIn("HTTP_INTERNAL_SERVER_ERROR", invalid)
-        self.assertNotIn("HTTP_REQUEST_ENTITY_TOO_LARGE", invalid)
+    def test_request_body_has_full_chunk_accounting_without_policy_defaults(self) -> None:
+        bucket = c_function(FILTERS.read_text(encoding="utf-8"),
+            "static apr_status_t apache_input_filter_process_bucket(")
+        self.assertIn("SIZE_MAX - len", bucket)
+        self.assertIn("len > 0 && data == NULL", bucket)
+        self.assertIn("msc_apache_contract_record_body(msr, 0, len)", bucket)
+        self.assertIn("(const unsigned char *)data, len)", bucket)
+        self.assertIn("pending_request_intervention", bucket)
+        self.assertLess(bucket.index("msc_apache_contract_record_body"), bucket.index("msc_append_request_body"))
+        self.assertLess(bucket.index("process_intervention"), bucket.index("APR_BRIGADE_INSERT_TAIL"))
+        self.assertNotIn("body_limit_plan", bucket)
+        self.assertNotIn("request_body_limit", bucket)
+        self.assertNotIn("body_limit_action", bucket)
 
-    def test_request_metadata_and_body_use_the_same_resolved_limit(self) -> None:
-        metadata = c_function(
-            MODULE.read_text(encoding="utf-8"),
-            "int msc_apache_contract_record_request_metadata(",
-        )
-        self.assertIn("msconnector_config_merge(&effective_config, NULL,", metadata)
-        self.assertIn("effective_config.request_body_limit", metadata)
+    def test_request_metadata_has_no_connector_body_limit(self) -> None:
+        metadata = c_function(MODULE.read_text(encoding="utf-8"),
+            "int msc_apache_contract_record_request_metadata(")
+        self.assertIn("content_type, header_count, header_bytes)", metadata)
+        self.assertNotIn("request_body_limit", metadata)
         self.assertNotIn("MSCONNECTOR_MAX_BODY_BUFFER_SIZE", metadata)
 
     def setUp(self) -> None:

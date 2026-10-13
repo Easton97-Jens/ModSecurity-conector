@@ -32,18 +32,21 @@ class ApacheConnectionPhaseContractTests(unittest.TestCase):
             intervention = branch.index("it = process_intervention(msr->t, r);")
             self.assertLess(call, gate)
             self.assertLess(gate, intervention)
-            self.assertIn("return apache_fail_closed", branch[gate:intervention])
+            self.assertIn("return apache_native_failed", branch[gate:intervention])
 
     def test_failure_gate_logs_and_precedes_normal_request_processing(self) -> None:
-        fail_closed = function_region(self.source, "static int apache_fail_closed(")
-        self.assertIn("libmodsecurity operation failed", fail_closed)
+        fail_closed = function_region(self.source, "static int apache_fail_closed_with_cause(")
+        self.assertIn("ModSecurity: operation failed: %s", fail_closed)
         self.assertIn("HTTP_INTERNAL_SERVER_ERROR", fail_closed)
+        native = function_region(self.source, "static int apache_native_failed(")
+        self.assertIn("return apache_fail_closed_with_cause(r, operation,", native)
+        self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE", native)
         for branch in (self.early, self.late):
             gate = branch.index(") != 1)")
             intervention = branch.index("it = process_intervention(msr->t, r);")
             failure_path = branch[gate:intervention]
-            self.assertIn("apache_fail_closed", failure_path)
-            self.assertIn("return apache_fail_closed", failure_path)
+            self.assertIn("apache_native_failed", failure_path)
+            self.assertIn("return apache_native_failed", failure_path)
 
 
 if __name__ == "__main__":

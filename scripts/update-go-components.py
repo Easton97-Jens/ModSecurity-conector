@@ -14,6 +14,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import BinaryIO, Iterator, TextIO
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from version_updater_common import read_current_version_with_stat, replace_project_files
+
 
 MAX_COMPONENT_FILE_BYTES = 1024 * 1024
 BASELINE_FRAME_SEPARATOR = b"\0"
@@ -56,9 +59,9 @@ class ModuleVersion:
 
 
 GRPC_TARGET_VERSION = ModuleVersion(1, 83, 2)
-SYS_TARGET_VERSION = ModuleVersion(0, 47, 0)
-NET_TARGET_VERSION = ModuleVersion(0, 58, 0)
-TEXT_TARGET_VERSION = ModuleVersion(0, 41, 0)
+SYS_TARGET_VERSION = ModuleVersion(0, 49, 0)
+NET_TARGET_VERSION = ModuleVersion(0, 61, 0)
+TEXT_TARGET_VERSION = ModuleVersion(0, 43, 0)
 
 
 @dataclass(frozen=True)
@@ -69,6 +72,11 @@ class RequirementUpdate:
     baseline_version: ModuleVersion
     target_version: ModuleVersion
     indirect: bool
+    additional_baselines: tuple[ModuleVersion, ...] = ()
+
+    @property
+    def approved_baselines(self) -> tuple[ModuleVersion, ...]:
+        return (self.baseline_version, *self.additional_baselines)
 
 
 @dataclass(frozen=True)
@@ -100,10 +108,14 @@ class ComponentResolution:
 
     component: GoComponent
     primary_version: ModuleVersion
+    requirements: dict[str, RequirementLine]
 
     @property
     def update_available(self) -> bool:
-        return self.primary_version < self.component.primary_update.target_version
+        return any(
+            self.requirements[update.dependency].version < update.target_version
+            for update in self.component.updates
+        )
 
 
 GRPC_COMPONENT = GoComponent(
@@ -120,29 +132,32 @@ GRPC_COMPONENT = GoComponent(
             baseline_version=ModuleVersion(0, 46, 0),
             target_version=SYS_TARGET_VERSION,
             indirect=False,
+            additional_baselines=(ModuleVersion(0, 47, 0),),
         ),
         RequirementUpdate(
             dependency=NET_MODULE,
             baseline_version=ModuleVersion(0, 56, 0),
             target_version=NET_TARGET_VERSION,
             indirect=True,
+            additional_baselines=(ModuleVersion(0, 58, 0),),
         ),
         RequirementUpdate(
             dependency=TEXT_MODULE,
             baseline_version=ModuleVersion(0, 39, 0),
             target_version=TEXT_TARGET_VERSION,
             indirect=True,
+            additional_baselines=(ModuleVersion(0, 41, 0),),
         ),
     ),
 )
 COMPONENTS = (GRPC_COMPONENT,)
 TRUSTED_TARGET_GO_SUM_ENTRIES = {
-    (NET_MODULE, str(NET_TARGET_VERSION), GO_SUM_ROOT_SUFFIX): "h1:ynWG7rqYi4ccpTEuPZ2QGWHktVEM9DMCj9yzDE0Q7To=",
-    (NET_MODULE, str(NET_TARGET_VERSION), GO_SUM_GO_MOD_SUFFIX): "h1:YwCddHnFlT7eLQqVprV19OnhLGtc5xOKgE0RyqgfWAU=",
-    (SYS_MODULE, str(SYS_TARGET_VERSION), GO_SUM_ROOT_SUFFIX): "h1:o7XGOvZQCADBQQ4Y7VNq2dRWQR7JmOUW8Kxx4ZsNgWs=",
-    (SYS_MODULE, str(SYS_TARGET_VERSION), GO_SUM_GO_MOD_SUFFIX): "h1:4GL1E5IUh+htKOUEOaiffhrAeqysfVGipDYzABqnCmw=",
-    (TEXT_MODULE, str(TEXT_TARGET_VERSION), GO_SUM_ROOT_SUFFIX): "h1:vz/seA0lnX87Othu2f/0L24RcgrXD9/YFTSuGjj3rH8=",
-    (TEXT_MODULE, str(TEXT_TARGET_VERSION), GO_SUM_GO_MOD_SUFFIX): "h1:jvf1O8ajNzZqhSrQBPbutR/EB83Cc0CFrezNQIwbb5M=",
+    (NET_MODULE, str(NET_TARGET_VERSION), GO_SUM_ROOT_SUFFIX): "h1:RR+6j/BTBCrggOLugxa+66R8FvoN6MHlzDlZIbN9YFw=",
+    (NET_MODULE, str(NET_TARGET_VERSION), GO_SUM_GO_MOD_SUFFIX): "h1:WgDCOTH8iwtB66T4/GfI94AHo/hhdb7Hah9NDseQfiI=",
+    (SYS_MODULE, str(SYS_TARGET_VERSION), GO_SUM_ROOT_SUFFIX): "h1:XbzkgYJHdqh/8m2Uu0W/dQv8nktxx4BFHp1M0gROTXA=",
+    (SYS_MODULE, str(SYS_TARGET_VERSION), GO_SUM_GO_MOD_SUFFIX): "h1:hNLxWAXmnKAxqDtdwIYC4bM9oQPEecfsnNMuSxOs3og=",
+    (TEXT_MODULE, str(TEXT_TARGET_VERSION), GO_SUM_ROOT_SUFFIX): "h1:1QivrlhwAsnMOcqgOdl9my7s9OyZl8O5/UGUTJVXoWc=",
+    (TEXT_MODULE, str(TEXT_TARGET_VERSION), GO_SUM_GO_MOD_SUFFIX): "h1:hbSIYA/amXcRXTFSZqh8tWHEoqRvvbKPJ2uz/KU+a+s=",
     (GRPC_MODULE, str(GRPC_TARGET_VERSION), GO_SUM_ROOT_SUFFIX): "h1:EManeRomTObA0BU7I8vXgg/78uE5MJ9M8B39EX2WscU=",
     (GRPC_MODULE, str(GRPC_TARGET_VERSION), GO_SUM_GO_MOD_SUFFIX): "h1:YPI1hK3kDked6iHvgX3tR0y+nX/qpMFKhPgFsokw1S8=",
 }
@@ -185,7 +200,7 @@ def read_regular_file(path: Path, label: str) -> bytes:
         before_open = os.lstat(path)
     except OSError as error:
         raise ComponentError(f"{label} cannot be inspected safely") from error
-    if not stat.S_ISREG(before_open.st_mode):
+    if not stat.S_ISREG(before_open.st_mode) or before_open.st_nlink != 1:
         raise ComponentError(f"{label} must be a regular non-symlink file")
 
     nofollow = getattr(os, "O_NOFOLLOW", None)
@@ -198,7 +213,7 @@ def read_regular_file(path: Path, label: str) -> bytes:
     try:
         descriptor = os.open(path, flags)
         opened = os.fstat(descriptor)
-        if not stat.S_ISREG(opened.st_mode) or not os.path.samestat(before_open, opened):
+        if not stat.S_ISREG(opened.st_mode) or opened.st_nlink != 1 or not os.path.samestat(before_open, opened):
             raise ComponentError(f"{label} changed while being opened")
         source = os.fdopen(descriptor, "rb")
         descriptor = None
@@ -336,19 +351,17 @@ def resolve_component(root: Path, component: GoComponent = GRPC_COMPONENT) -> Co
     go_mod = decode_utf8(read_regular_file(go_mod_path, str(go_mod_path)), str(go_mod_path))
     requirements = component_requirements(go_mod, component)
     primary = requirements[component.primary_update.dependency]
-    if primary.version < component.primary_update.target_version:
-        for update in component.updates:
-            if requirements[update.dependency].version != update.baseline_version:
-                raise ComponentError(
-                    f"component baseline is inconsistent for {update.dependency}; refusing an open-ended update"
-                )
-    else:
-        for update in component.updates:
-            if requirements[update.dependency].version < update.target_version:
-                raise ComponentError(
-                    f"component floor is inconsistent for {update.dependency}; refusing a partial update"
-                )
-    return ComponentResolution(component=component, primary_version=primary.version)
+    _validate_requirement_baselines(requirements, component)
+    return ComponentResolution(component=component, primary_version=primary.version, requirements=requirements)
+
+
+def _validate_requirement_baselines(requirements: dict[str, RequirementLine], component: GoComponent) -> None:
+    """Permit only registered older versions; preserve already newer safe pins."""
+
+    for update in component.updates:
+        version = requirements[update.dependency].version
+        if version < update.target_version and version not in update.approved_baselines:
+            raise ComponentError(f"component baseline is inconsistent for {update.dependency}; refusing an open-ended update")
 
 
 def resolution_payload(resolution: ComponentResolution) -> dict[str, object]:
@@ -367,20 +380,30 @@ def resolution_payload(resolution: ComponentResolution) -> dict[str, object]:
                 "current_version": str(resolution.primary_version),
                 "target_version": str(primary.target_version),
                 "update_available": available,
+                "requirements": [
+                    {
+                        "dependency": update.dependency,
+                        "current_version": str(resolution.requirements[update.dependency].version),
+                        "target_version": str(update.target_version),
+                        "update_available": resolution.requirements[update.dependency].version < update.target_version,
+                    }
+                    for update in component.updates
+                ],
             }
         ],
     }
 
 
 def expected_go_mod_after_update(baseline_go_mod: str, component: GoComponent) -> str:
-    """Allow only the exact requirement bundle mandated by grpc v1.83.2."""
+    """Apply only registered upgrades, preserving newer safe requirements."""
 
     requirements = component_requirements(baseline_go_mod, component)
+    _validate_requirement_baselines(requirements, component)
     lines = baseline_go_mod.splitlines(keepends=True)
     for update in component.updates:
         requirement = requirements[update.dependency]
-        if requirement.version != update.baseline_version:
-            raise ComponentError(f"component baseline is inconsistent for {update.dependency}")
+        if requirement.version >= update.target_version:
+            continue
         suffix = " // indirect" if update.indirect else ""
         lines[requirement.line_index] = (
             f"\t{update.dependency} {update.target_version}{suffix}{requirement.line_ending}"
@@ -416,7 +439,7 @@ def _allowed_go_sum_versions(component: GoComponent) -> set[tuple[str, str]]:
     return {
         (update.dependency, str(version))
         for update in component.updates
-        for version in (update.baseline_version, update.target_version)
+        for version in (*update.approved_baselines, update.target_version)
     }
 
 
@@ -455,10 +478,12 @@ def _require_trusted_target_checksum(
         raise ComponentError(f"component candidate lacks a trusted target checksum for {update.dependency}")
 
 
-def _validate_trusted_target_checksums(candidate_entries: list[str], component: GoComponent) -> None:
+def _validate_trusted_target_checksums(candidate_entries: list[str], component: GoComponent, requirements: dict[str, RequirementLine]) -> None:
     """Bind every target dependency to both trusted Go checksum rows."""
 
     for update in component.updates:
+        if requirements[update.dependency].version != update.target_version:
+            continue
         for suffix in (GO_SUM_ROOT_SUFFIX, GO_SUM_GO_MOD_SUFFIX):
             _require_trusted_target_checksum(candidate_entries, update, suffix)
 
@@ -468,6 +493,7 @@ def validate_go_sum_update(
     candidate_go_sum: str,
     *,
     component: GoComponent,
+    requirements: dict[str, RequirementLine],
 ) -> None:
     """Allow checksum changes only for the exact declared component bundle."""
 
@@ -475,7 +501,8 @@ def validate_go_sum_update(
     candidate_entries = _read_unique_go_sum_entries(candidate_go_sum, "candidate")
     removed, added = _calculate_go_sum_changes(baseline_entries, candidate_entries)
     _validate_changed_go_sum_entries(removed | added, _allowed_go_sum_versions(component))
-    _validate_trusted_target_checksums(candidate_entries, component)
+    _validate_changed_go_sum_entries(added, {(update.dependency, str(update.target_version)) for update in component.updates})
+    _validate_trusted_target_checksums(candidate_entries, component, requirements)
 
 
 def validate_component_candidate(
@@ -496,15 +523,15 @@ def validate_component_candidate(
         raise ComponentError("component candidate changed go.mod outside the approved bundle")
     candidate_requirements = component_requirements(candidate_go_mod_text, component)
     for update in component.updates:
-        if candidate_requirements[update.dependency].version != update.target_version:
+        if candidate_requirements[update.dependency].version < update.target_version:
             raise ComponentError(f"component candidate lacks the target requirement for {update.dependency}")
-    validate_go_sum_update(baseline_go_sum_text, candidate_go_sum_text, component=component)
+    validate_go_sum_update(baseline_go_sum_text, candidate_go_sum_text, component=component, requirements=candidate_requirements)
     primary = component.primary_update
     return {
         "status": "valid",
         "directory": str(component.directory),
         "dependency": primary.dependency,
-        "baseline_version": str(primary.baseline_version),
+        "baseline_version": str(component_requirements(baseline_go_mod_text, component)[primary.dependency].version),
         "target_version": str(primary.target_version),
         "go_mod_sha256": hashlib.sha256(candidate_go_mod).hexdigest(),
         "go_sum_sha256": hashlib.sha256(candidate_go_sum).hexdigest(),
@@ -538,12 +565,30 @@ def emit(payload: dict[str, object], output: TextIO) -> None:
     print(json.dumps(payload, sort_keys=True, separators=(",", ":")), file=output)
 
 
-def build_arg_parser() -> argparse.ArgumentParser:
-    """Build the fail-closed, non-mutating command modes."""
+def apply_component_requirements(root: Path) -> dict[str, object]:
+    """Atomically apply the bounded manifest edit before Go resolves checksums."""
 
-    parser = argparse.ArgumentParser(description=__doc__)
+    validate_component_files(root)
+    filename = str(GRPC_COMPONENT.directory / GO_MOD_FILENAME)
+    source = decode_utf8(read_regular_file(component_path(root, GRPC_COMPONENT, GO_MOD_FILENAME), filename), filename)
+    candidate = expected_go_mod_after_update(source, GRPC_COMPONENT)
+    original, metadata = read_current_version_with_stat(
+        root, version_filename=filename, parse_stable_version=str, max_bytes=MAX_COMPONENT_FILE_BYTES,
+    )
+    if original != source.removesuffix("\n"):
+        raise ComponentError("component manifest changed before the approved edit")
+    if candidate != source:
+        replace_project_files(root, [(filename, candidate.encode("utf-8"), original, metadata, str, MAX_COMPONENT_FILE_BYTES)])
+    return {"status": "updated" if candidate != source else "current", "directory": str(GRPC_COMPONENT.directory)}
+
+
+def build_arg_parser() -> argparse.ArgumentParser:
+    """Build the fail-closed resolver, bounded editor, and validator modes."""
+
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--check", action="store_true", help="resolve the approved component bundle")
+    mode.add_argument("--apply-requirements", action="store_true", help="apply only the registered go.mod upgrades")
     mode.add_argument(
         "--validate-candidate",
         action="store_true",
@@ -631,6 +676,8 @@ def _run_mode(
     selected_root = _select_repository_root(args, root)
     if args.check:
         return resolution_payload(resolve_component(selected_root))
+    if args.apply_requirements:
+        return apply_component_requirements(selected_root)
     if args.validate_candidate:
         return _validate_candidate_mode(args, selected_root, input_stream)
     return validate_component_files(selected_root)

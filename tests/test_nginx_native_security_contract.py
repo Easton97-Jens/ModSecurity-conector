@@ -42,18 +42,20 @@ class NginxNativeSecurityContractTest(unittest.TestCase):
         self.assertNotIn("server_name", MAPPER)
         self.assertNotIn("headers_in.server", MAPPER)
 
-    def test_request_body_has_content_length_chunk_and_file_caps(self) -> None:
-        self.assertIn("common_config.request_body_limit", ACCESS)
-        self.assertIn("request_body_bytes_seen > limit", ACCESS)
-        self.assertIn("chunk_size > limit - ctx->request_body_bytes_seen", ACCESS)
-        self.assertIn("ngx_file_info(", ACCESS)
-        self.assertIn("ngx_file_size(&file_info)", ACCESS)
-        self.assertIn("NGX_HTTP_REQUEST_ENTITY_TOO_LARGE", ACCESS)
+    def test_request_body_preserves_technical_file_and_overflow_guards(self) -> None:
+        self.assertNotIn("common_config.request_body_limit", ACCESS)
+        self.assertIn("SIZE_MAX - chunk_size", ACCESS)
+        self.assertIn("ngx_fd_info(file->fd, &file_info)", ACCESS)
+        self.assertIn("ngx_is_file(&file_info)", ACCESS)
+        self.assertIn("ngx_file_size(&file_info) != file_size", ACCESS)
+        self.assertIn("ngx_pnalloc(r->pool, 32768U)", ACCESS)
+        self.assertIn("ngx_read_file(file, ctx->scratch_buffers.request_file_scratch", ACCESS)
 
     def test_native_ingestion_failures_remain_fail_closed(self) -> None:
         self.assertIn("ret = msc_append_request_body", ACCESS)
-        self.assertIn("ret = msc_request_body_from_file", ACCESS)
-        self.assertIn("if (ret != 1)", ACCESS)
+        self.assertNotIn("msc_request_body_from_file", ACCESS)
+        self.assertIn("if (!msconnector_native_body_append_can_continue(ret))", ACCESS)
+        self.assertIn("ngx_http_modsecurity_capture_request_body_intervention(r)", ACCESS)
 
     def test_mapper_failure_stops_initialization_before_header_sink(self) -> None:
         mapper = ACCESS.split(

@@ -221,6 +221,7 @@ def tokens_in_order(text: str, *tokens: str) -> bool:
 def typed_event_status_assignment(text: str) -> bool:
     """Check one executable status assignment with bounded linear string scans."""
     compact = "".join(function_section(text, "apache_log_intervention_event").split())
+    compact = compact.replace("event.decision.status==", "event.decision.status_EQ_")
     marker = "event.decision.status="
     if compact.count(marker) != 1:
         return False
@@ -266,28 +267,28 @@ def native_redirect_storage_is_checked(text: str) -> bool:
 
 intervention_event_helper = source_section(
     filters_c,
-    "static void apache_log_intervention_event",
-    "static void apache_phase4_log_event",
+    "static msconnector_error_code apache_log_intervention_event",
+    "static msconnector_error_code apache_phase4_log_event",
 )
 intervention_http_helper = source_section(
     filters_c,
     "static void apache_intervention_set_http",
-    "static void apache_intervention_write_event",
+    "static msconnector_error_code apache_intervention_write_event",
 )
 intervention_writer = source_section(
     filters_c,
-    "static void apache_intervention_write_event",
-    "static void apache_log_intervention_event",
+    "static msconnector_error_code apache_intervention_write_event",
+    "static msconnector_error_code apache_log_intervention_event",
 )
 intervention_writer_code = function_section(filters_c, "apache_intervention_write_event")
 phase4_event_wrapper = source_section(
     filters_c,
-    "static void apache_phase4_log_event",
-    "static void apache_phase3_log_event",
+    "static msconnector_error_code apache_phase4_log_event",
+    "static msconnector_error_code apache_phase3_log_event",
 )
 phase3_event_wrapper = source_section(
     filters_c,
-    "static void apache_phase3_log_event",
+    "static msconnector_error_code apache_phase3_log_event",
     "static apr_status_t apache_phase4_append_bucket",
 )
 request_body_finalizer = function_section(filters_c, "msc_finalize_request_body")
@@ -370,12 +371,18 @@ checks.extend([
     (
         "char line[4096];" in intervention_writer_code
         and function_call_count(intervention_writer_code, "msconnector_event_write_jsonl_line") == 1
-        and function_call_count(intervention_writer_code, "apr_file_puts") == 1
+        and function_call_count(intervention_writer_code, "apr_file_write_full") == 1
+        and tokens_in_order(intervention_writer_code,
+            "msconnector_event_write_jsonl_line", "apache_open_event_file",
+            "rc = apr_file_write_full", "rc != APR_SUCCESS || written != length",
+            "code = MSCONNECTOR_ERROR_IO;", "apr_file_close",
+            "close_rc != APR_SUCCESS", "code = MSCONNECTOR_ERROR_IO;",
+            "return apache_event_sink_result(msr, r, code, mandatory);")
         and "apr_psprintf" not in intervention_writer_code
         and re.search(
             r"if\s*\(\s*!msconnector_event_write_jsonl_line\([^;]+?\)\s*\)\s*\{\s*"
-            r"ap_log_rerror\([^;]+?\);\s*return\s*;\s*\}\s*"
-            r"rc\s*=\s*apr_file_puts\(line,\s*file\);",
+            r"ap_log_rerror\([^;]+?\);\s*return\s+apache_event_sink_result\([^;]+?\);\s*\}\s*"
+            r"rc\s*=\s*apache_open_event_file\(",
             intervention_writer_code, re.DOTALL) is not None,
         "Apache P3/P4 events reject serialization failure before the single canonical JSONL write",
     ),
@@ -406,11 +413,12 @@ checks.extend([
         and "ap_save_brigade(" not in filters_c
         and DISCARD_RESPONSE_BRIGADE_CALL in filters_c
         and DISCARD_RESPONSE_BRIGADE_CALL in utils_c
-        and "MSCONNECTOR_BODY_LIMIT_ACTION_REJECT" in filters_c
+        and "msconnector_body_limit_plan_chunk" not in phase4_append_helper
+        and "SIZE_MAX - msr->response_body_bytes_seen" in phase4_append_helper
         and "apache_phase4_in_scope" not in filters_c
         and "SecResponseBodyMimeType selection" in filters_c
         and re.search(r"!msconnector_native_body_append_can_continue\(msc_append_response_body\(msr->t,\s*"
-                      r"\(const unsigned char \*\)data, plan\.append_size\)\)", phase4_append_helper) is not None
+                      r"\(const unsigned char \*\)data, len\)\)", phase4_append_helper) is not None
         and "!msconnector_native_phase_succeeded(msc_process_response_body(msr->t))" in phase4_finish_code
         and "r->bytes_sent > 0" in filters_c
         and "response_phase4_eos_released" in filters_c
@@ -468,7 +476,10 @@ checks.extend([
         and function_call_count(input_filter_eos_handler, "apache_input_filter_terminal_error") >= 2
         and "msc_apache_contract_begin" in input_filter_process_bucket
         and "msc_apache_contract_record_body" in input_filter_process_bucket
-        and "HTTP_REQUEST_ENTITY_TOO_LARGE" in input_filter_process_bucket
+        and "HTTP_INTERNAL_SERVER_ERROR" in input_filter_process_bucket
+        and "msr->request_body_bytes_seen > SIZE_MAX - len" in input_filter_process_bucket
+        and "(len > 0 && data == NULL)" in input_filter_process_bucket
+        and "request_intervention_pending" in input_filter_process_bucket
         and "apache_input_filter_handle_eos" in input_filter_handler
         and "apache_input_filter_process_bucket" in input_filter_handler
         and "if (msr == NULL)" in input_filter_handler
@@ -500,12 +511,12 @@ checks.extend([
         "Apache preserves redirect through the canonical decision mapper and native Location sink",
     ),
     (
-        "failed to open intervention log" in intervention_event_helper
+        "failed to open intervention log" in intervention_writer
         and "failed to write intervention log" in intervention_writer
         and "common intervention event serialization %s" in intervention_writer
-        and "failed to close intervention log" in intervention_event_helper
+        and "failed to close intervention log" in intervention_writer
         and RC_NOT_SUCCESS in intervention_writer_code
-        and "apr_file_close" in intervention_event_helper,
+        and "apr_file_close" in intervention_writer,
         "Apache reports open, canonical write, serialization, and close failures for shared P3/P4 event logging",
     ),
     ("msconnector_rule_id_extract_from_message" in filters_c, "Apache rule-id extraction uses Common helper"),

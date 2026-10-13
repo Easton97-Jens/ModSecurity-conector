@@ -50,7 +50,6 @@
 #include "msconnector/config_parser.h"
 #include "msconnector/decision_action.h"
 #include "msconnector/late_intervention.h"
-#include "msconnector/phase4_budget.h"
 #include "msconnector/limits.h"
 
 #define HAPROXY_MODSECURITY_HTX_MAX_HEADERS MSCONNECTOR_MAX_HEADER_COUNT
@@ -92,6 +91,9 @@ struct haproxy_modsecurity_htx_filter_context {
         char transaction_id[128];
         int disabled;
         int fail_closed;
+        int host_failure_applied;
+        int error_emitted;
+        haproxy_modsecurity_decision error;
     } lifecycle;
     struct {
         struct haproxy_modsecurity_htx_owned_headers headers;
@@ -100,7 +102,6 @@ struct haproxy_modsecurity_htx_filter_context {
         int headers_seen;
         int finished;
         size_t payload_bytes_seen;
-        size_t body_limit;
     } request;
     struct {
         int headers_seen;
@@ -108,7 +109,6 @@ struct haproxy_modsecurity_htx_filter_context {
         int body_started;
         int finished;
         size_t payload_bytes_seen;
-        size_t body_limit;
         char handle[HAPROXY_MODSECURITY_HTX_RESPONSE_HANDLE_LENGTH + 1U];
         int handle_present;
     } response;
@@ -116,6 +116,7 @@ struct haproxy_modsecurity_htx_filter_context {
         msconnector_response_companion_client client;
         int mode;
         int terminal;
+        int terminal_result;
     } companion;
 };
 
@@ -232,30 +233,39 @@ haproxy_modsecurity_htx_companion_cancel_cause_from_error(
 /* Every abnormal HTX lifecycle path closes the private stream after an
  * explicit CANCEL where one is still valid.  `close` remains a final guard for
  * an I/O failure during CANCEL and never retains a transaction handle. */
-static void haproxy_modsecurity_htx_companion_cancel_and_close(
+static int haproxy_modsecurity_htx_companion_cancel_and_close(
     struct haproxy_modsecurity_htx_filter_context *ctx,
     const msconnector_error *error)
 {
     msconnector_response_companion_result result;
     msconnector_error cancel_error;
+    int ok = 1;
+    int close_ok;
 
     if (ctx == NULL || !ctx->companion.client.opened) {
-        return;
+        return ctx != NULL && ctx->companion.terminal ?
+            ctx->companion.terminal_result : 1;
     }
+    if (ctx->companion.terminal) {
+        return ctx->companion.terminal_result;
+    }
+    ctx->companion.terminal = 1;
+    ctx->companion.terminal_result = 0;
     memset(&result, 0, sizeof(result));
     msconnector_error_init(&cancel_error);
     if (ctx->companion.client.claimed &&
         !ctx->companion.client.response_eos) {
-        (void)msconnector_response_companion_client_cancel_with_cause(
+        ok = msconnector_response_companion_client_cancel_with_cause(
             &ctx->companion.client,
             haproxy_modsecurity_htx_companion_cancel_cause_from_error(error),
             &result, &cancel_error);
     }
     haproxy_modsecurity_htx_companion_result_reset(&result);
     msconnector_error_init(&cancel_error);
-    (void)msconnector_response_companion_client_close(
+    close_ok = msconnector_response_companion_client_close(
         &ctx->companion.client, &cancel_error);
-    ctx->companion.terminal = 1;
+    ctx->companion.terminal_result = ok == 1 && close_ok == 1;
+    return ctx->companion.terminal_result;
 }
 
 static int haproxy_modsecurity_htx_copy_common_headers(
@@ -518,14 +528,56 @@ static void haproxy_modsecurity_htx_abort_context(
     ctx->lifecycle.disabled = 1;
 }
 
-static void haproxy_modsecurity_htx_finish_context(
+static int haproxy_modsecurity_htx_finish_context(
     struct haproxy_modsecurity_htx_filter_context *ctx)
 {
     if (!ctx || !ctx->transaction) {
+        return 0;
+    }
+    {
+        const int rc = haproxy_modsecurity_transaction_finish_with_decision(
+            ctx->transaction, &ctx->lifecycle.error);
+        ctx->transaction = NULL;
+        return rc;
+    }
+}
+
+static int haproxy_modsecurity_htx_error_phase(
+    const struct haproxy_modsecurity_htx_filter_context *ctx)
+{
+    if (ctx->response.headers_seen) {
+        return 4;
+    }
+    if (ctx->request.finished) {
+        return 3;
+    }
+    if (ctx->request.headers_seen) {
+        return 2;
+    }
+    return 1;
+}
+
+static void haproxy_modsecurity_htx_report_error(
+    struct haproxy_modsecurity_htx_filter_context *ctx)
+{
+    char line[4096];
+    if (ctx == NULL || ctx->lifecycle.error_emitted) {
         return;
     }
-    haproxy_modsecurity_transaction_finish(ctx->transaction);
-    ctx->transaction = NULL;
+    if (ctx->lifecycle.error.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+        ctx->lifecycle.error.error_class = ctx->transaction != NULL ?
+            haproxy_modsecurity_transaction_error(ctx->transaction) :
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
+        if (ctx->lifecycle.error.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+            ctx->lifecycle.error.error_class = MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
+        }
+        ctx->lifecycle.error.phase = haproxy_modsecurity_htx_error_phase(ctx);
+    }
+    if (haproxy_modsecurity_error_event_write(&ctx->lifecycle.error,
+            ctx->lifecycle.transaction_id, line, sizeof(line))) {
+        ctx->lifecycle.error_emitted = 1;
+        ha_warning("%s", line);
+    }
 }
 
 /*
@@ -568,7 +620,9 @@ static int haproxy_modsecurity_htx_apply_precommit_deny(
     }
 
     /* Disable before the generated local response can revisit this filter. */
-    haproxy_modsecurity_htx_finish_context(ctx);
+    if (haproxy_modsecurity_htx_finish_context(ctx) != 0) {
+        return 0;
+    }
     ctx->lifecycle.disabled = 1;
     s->txn->status = (short)status;
     http_set_term_flags(s);
@@ -582,6 +636,14 @@ static int haproxy_modsecurity_htx_fail_closed_precommit(
     struct stream *s, struct haproxy_modsecurity_htx_filter_context *ctx,
     const char *stage)
 {
+    if (ctx != NULL) {
+        ctx->lifecycle.fail_closed = 1;
+        if (ctx->lifecycle.host_failure_applied) {
+            return -1;
+        }
+        ctx->lifecycle.host_failure_applied = 1;
+    }
+    haproxy_modsecurity_htx_report_error(ctx);
     haproxy_modsecurity_htx_abort_context(ctx);
     if (!s || !s->txn) {
         return -1;
@@ -599,6 +661,9 @@ static void haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed(
     struct stream *s, struct haproxy_modsecurity_htx_filter_context *ctx,
     const haproxy_modsecurity_decision *decision, const char *stage)
 {
+    if (ctx != NULL && ctx->lifecycle.disabled) {
+        return;
+    }
     if (!haproxy_modsecurity_htx_apply_precommit_deny(s, ctx, decision)) {
         (void)haproxy_modsecurity_htx_fail_closed_precommit(s, ctx, stage);
     }
@@ -612,6 +677,14 @@ static void haproxy_modsecurity_htx_fail_closed_postcommit(
     struct stream *s, struct haproxy_modsecurity_htx_filter_context *ctx,
     const char *stage)
 {
+    if (ctx != NULL) {
+        ctx->lifecycle.fail_closed = 1;
+        if (ctx->lifecycle.host_failure_applied) {
+            return;
+        }
+        ctx->lifecycle.host_failure_applied = 1;
+    }
+    haproxy_modsecurity_htx_report_error(ctx);
     ha_warning("modsecurity-htx: fail-closed postcommit %s; transaction_id=%s\n",
         stage != NULL ? stage : "phase", ctx != NULL && ctx->lifecycle.transaction_id[0] ?
         ctx->lifecycle.transaction_id : "unavailable");
@@ -741,6 +814,7 @@ static int haproxy_modsecurity_htx_begin_request(
         &ctx->transaction);
     haproxy_modsecurity_htx_request_snapshot_free(ctx);
     if (rc != 0) {
+        ctx->lifecycle.error = decision;
         return -1;
     }
     haproxy_modsecurity_htx_report_decision("request", ctx, &decision);
@@ -757,10 +831,33 @@ static int haproxy_modsecurity_htx_begin_request(
     return 0;
 }
 
+static int haproxy_modsecurity_htx_append_data(
+    struct haproxy_modsecurity_htx_filter_context *ctx, struct ist value,
+    haproxy_modsecurity_htx_append_body_chunk append_body_chunk,
+    size_t *body_bytes_seen)
+{
+    haproxy_modsecurity_decision decision;
+
+    /* `value.ptr` is borrowed from HAProxy's current HTX buffer. */
+    if (value.len > UINT_MAX || *body_bytes_seen > SIZE_MAX - value.len) {
+        ctx->lifecycle.error.error_class = MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
+        ctx->lifecycle.error.body_limit = 0;
+        ctx->lifecycle.error.phase = haproxy_modsecurity_htx_error_phase(ctx);
+        return -1;
+    }
+    if (append_body_chunk(ctx->transaction, (const unsigned char *)value.ptr,
+            (unsigned int)value.len, &decision) != 0) {
+        ctx->lifecycle.error = decision;
+        return -1;
+    }
+    *body_bytes_seen += value.len;
+    return 0;
+}
+
 static int haproxy_modsecurity_htx_append_payload(
     struct filter *filter, struct http_msg *msg, unsigned int offset, unsigned int len,
     haproxy_modsecurity_htx_append_body_chunk append_body_chunk,
-    size_t *body_bytes_seen, size_t body_limit)
+    size_t *body_bytes_seen)
 {
     struct haproxy_modsecurity_htx_filter_context *ctx = filter->ctx;
     struct htx *htx;
@@ -769,7 +866,7 @@ static int haproxy_modsecurity_htx_append_payload(
     unsigned int remaining = len;
 
     if (!ctx || !ctx->transaction || !msg || !msg->chn || !append_body_chunk ||
-            !body_bytes_seen || body_limit == 0U) {
+            !body_bytes_seen) {
         return -1;
     }
     htx = htxbuf(&msg->chn->buf);
@@ -783,9 +880,16 @@ static int haproxy_modsecurity_htx_append_payload(
         if (type == HTX_BLK_UNUSED) {
             continue;
         }
-        if (type == HTX_BLK_DATA) {
+        if (type != HTX_BLK_DATA) {
+            if (offset != 0U || block_size > remaining) {
+                return -1;
+            }
+            remaining -= block_size;
+            offset = 0U;
+            continue;
+        }
+        {
             struct ist value = htx_get_blk_value(htx, blk);
-            haproxy_modsecurity_decision decision;
 
             if (offset > value.len) {
                 return -1;
@@ -794,21 +898,11 @@ static int haproxy_modsecurity_htx_append_payload(
             if (value.len > remaining) {
                 value = isttrim(value, remaining);
             }
-            /* `value.ptr` is borrowed from HAProxy's current HTX buffer. */
-            if (value.len > UINT_MAX ||
-                value.len > body_limit || *body_bytes_seen > body_limit - value.len ||
-                append_body_chunk(
-                    ctx->transaction, (const unsigned char *)value.ptr,
-                    (unsigned int)value.len, &decision) != 0) {
+            if (haproxy_modsecurity_htx_append_data(ctx, value,
+                    append_body_chunk, body_bytes_seen) != 0) {
                 return -1;
             }
-            *body_bytes_seen += value.len;
             remaining -= (unsigned int)value.len;
-        } else {
-            if (offset != 0U || block_size > remaining) {
-                return -1;
-            }
-            remaining -= block_size;
         }
         offset = 0U;
     }
@@ -821,8 +915,7 @@ static int haproxy_modsecurity_htx_append_request_payload(
     return haproxy_modsecurity_htx_append_payload(
         filter, msg, offset, len,
         haproxy_modsecurity_transaction_append_request_body_chunk,
-        &((struct haproxy_modsecurity_htx_filter_context *)filter->ctx)->request.payload_bytes_seen,
-        ((struct haproxy_modsecurity_htx_filter_context *)filter->ctx)->request.body_limit);
+        &((struct haproxy_modsecurity_htx_filter_context *)filter->ctx)->request.payload_bytes_seen);
 }
 
 static int haproxy_modsecurity_htx_process_response_headers(
@@ -863,6 +956,7 @@ static int haproxy_modsecurity_htx_process_response_headers(
     free(protocol_copy);
     haproxy_modsecurity_htx_owned_headers_free(&headers);
     if (rc != 0) {
+        ctx->lifecycle.error = decision;
         return -1;
     }
     ctx->response.headers_seen = 1;
@@ -882,7 +976,7 @@ static int haproxy_modsecurity_htx_process_response_headers(
 static int haproxy_modsecurity_htx_companion_result_is_forwardable(
     const msconnector_response_companion_result *result)
 {
-    return result != NULL && result->success &&
+    return result != NULL && result->success == 1 &&
         (result->decision == MSCONNECTOR_DECISION_KIND_ALLOW ||
          result->decision == MSCONNECTOR_DECISION_KIND_LOG_ONLY);
 }
@@ -904,8 +998,10 @@ static int haproxy_modsecurity_htx_companion_record_precommit_outcome(
         &ctx->companion.client, action, visible_status, 0, &result,
         &error);
     haproxy_modsecurity_htx_companion_result_reset(&result);
-    haproxy_modsecurity_htx_companion_cancel_and_close(ctx, &error);
-    return ok;
+    {
+        const int cleanup_ok = haproxy_modsecurity_htx_companion_cancel_and_close(ctx, &error);
+        return ok == 1 && cleanup_ok == 1;
+    }
 }
 
 static int haproxy_modsecurity_htx_companion_record_terminal_outcome(
@@ -934,22 +1030,23 @@ static int haproxy_modsecurity_htx_companion_record_terminal_outcome(
             connection_aborted, &result, &error);
         haproxy_modsecurity_htx_companion_result_reset(&result);
     }
-    if (ok) {
+    if (ok == 1) {
         memset(&result, 0, sizeof(result));
         msconnector_error_init(&error);
         ok = msconnector_response_companion_client_release(
             &ctx->companion.client, &result, &error);
         haproxy_modsecurity_htx_companion_result_reset(&result);
     }
-    if (!ok) {
+    if (ok != 1) {
         haproxy_modsecurity_htx_companion_cancel_and_close(ctx, &error);
         return 0;
     }
     msconnector_error_init(&error);
-    (void)msconnector_response_companion_client_close(
+    ok = msconnector_response_companion_client_close(
         &ctx->companion.client, &error);
     ctx->companion.terminal = 1;
-    return 1;
+    ctx->companion.terminal_result = ok == 1;
+    return ctx->companion.terminal_result;
 }
 
 static int haproxy_modsecurity_htx_companion_open_and_claim(
@@ -972,16 +1069,16 @@ static int haproxy_modsecurity_htx_companion_open_and_claim(
         config->response_companion_socket,
         config->response_companion_timeout_ms, config->response_companion_uid,
         config->response_companion_gid, &error);
-    if (ok) {
+    if (ok == 1) {
         ok = msconnector_response_companion_client_claim(
             &ctx->companion.client, ctx->response.handle, &result,
             &error);
     }
     haproxy_modsecurity_htx_companion_result_reset(&result);
-    if (!ok) {
+    if (ok != 1) {
         haproxy_modsecurity_htx_companion_cancel_and_close(ctx, &error);
     }
-    return ok;
+    return ok == 1;
 }
 
 static int haproxy_modsecurity_htx_companion_commit(
@@ -997,13 +1094,13 @@ static int haproxy_modsecurity_htx_companion_commit(
     memset(&result, 0, sizeof(result));
     msconnector_error_init(&error);
     ok = msconnector_response_companion_client_commit(
-        &ctx->companion.client, 1, 0, &result, &error) &&
+        &ctx->companion.client, 1, 0, &result, &error) == 1 &&
         haproxy_modsecurity_htx_companion_result_is_forwardable(&result);
     haproxy_modsecurity_htx_companion_result_reset(&result);
-    if (!ok) {
+    if (ok != 1) {
         haproxy_modsecurity_htx_companion_cancel_and_close(ctx, &error);
     }
-    return ok;
+    return ok == 1;
 }
 
 static int haproxy_modsecurity_htx_process_companion_response_headers(
@@ -1062,7 +1159,7 @@ static int haproxy_modsecurity_htx_process_companion_response_headers(
     free(protocol_copy);
     haproxy_modsecurity_htx_owned_headers_free(&headers);
     free(common_headers);
-    if (!ok) {
+    if (ok != 1 || result.success != 1) {
         haproxy_modsecurity_htx_companion_result_reset(&result);
         return haproxy_modsecurity_htx_fail_closed_precommit(s, ctx,
             "response-companion phase-3");
@@ -1079,8 +1176,12 @@ static int haproxy_modsecurity_htx_process_companion_response_headers(
     status = result.decision == MSCONNECTOR_DECISION_KIND_DENY &&
         msconnector_block_status_is_allowed((int)result.status) ?
         (int)result.status : 503;
-    (void)haproxy_modsecurity_htx_companion_record_precommit_outcome(ctx,
-        MSCONNECTOR_DECISION_ACTION_DENY, status);
+    if (result.decision == MSCONNECTOR_DECISION_KIND_ERROR ||
+            result.decision == MSCONNECTOR_DECISION_KIND_UNSUPPORTED) {
+        haproxy_modsecurity_htx_companion_result_reset(&result);
+        return haproxy_modsecurity_htx_fail_closed_precommit(s, ctx,
+            "response-companion technical phase-3 failure");
+    }
     haproxy_modsecurity_htx_companion_result_reset(&result);
     memset(&host_decision, 0, sizeof(host_decision));
     host_decision.disruptive = 1;
@@ -1088,6 +1189,15 @@ static int haproxy_modsecurity_htx_process_companion_response_headers(
     host_decision.status = status;
     snprintf(host_decision.action, sizeof(host_decision.action), "%s", "deny");
     if (haproxy_modsecurity_htx_apply_precommit_deny(s, ctx, &host_decision)) {
+        /* The concrete reply API has now been invoked. A failed OUTCOME
+         * acknowledgement cannot generate a second HTTP reply. */
+        ctx->response.headers_committed = 1;
+        if (!haproxy_modsecurity_htx_companion_record_precommit_outcome(ctx,
+                MSCONNECTOR_DECISION_ACTION_DENY, status)) {
+            haproxy_modsecurity_htx_fail_closed_postcommit(s, ctx,
+                "response-companion precommit outcome acknowledgement");
+            return -1;
+        }
         return 1;
     }
     return haproxy_modsecurity_htx_fail_closed_precommit(s, ctx,
@@ -1108,9 +1218,9 @@ static int haproxy_modsecurity_htx_send_companion_response_chunk(
         }
         memset(&result, 0, sizeof(result));
         msconnector_error_init(&error);
-        if (!msconnector_response_companion_client_body_chunk(
+        if (msconnector_response_companion_client_body_chunk(
                 &ctx->companion.client,
-                (const unsigned char *)data, chunk_size, &result, &error) ||
+                (const unsigned char *)data, chunk_size, &result, &error) != 1 ||
             !haproxy_modsecurity_htx_companion_result_is_forwardable(&result)) {
             haproxy_modsecurity_htx_companion_result_reset(&result);
             return -1;
@@ -1194,8 +1304,7 @@ static int haproxy_modsecurity_htx_append_response_payload(
     return haproxy_modsecurity_htx_append_payload(
         filter, msg, offset, len,
         haproxy_modsecurity_transaction_append_response_body_chunk,
-        &((struct haproxy_modsecurity_htx_filter_context *)filter->ctx)->response.payload_bytes_seen,
-        ((struct haproxy_modsecurity_htx_filter_context *)filter->ctx)->response.body_limit);
+        &((struct haproxy_modsecurity_htx_filter_context *)filter->ctx)->response.payload_bytes_seen);
 }
 
 static int haproxy_modsecurity_htx_finish_companion_response(
@@ -1233,8 +1342,8 @@ static int haproxy_modsecurity_htx_finish_companion_response(
     ctx->response.finished = 1;
     memset(&result, 0, sizeof(result));
     msconnector_error_init(&error);
-    if (!msconnector_response_companion_client_body_eos(
-            &ctx->companion.client, &result, &error)) {
+    if (msconnector_response_companion_client_body_eos(
+            &ctx->companion.client, &result, &error) != 1 || result.success != 1) {
         haproxy_modsecurity_htx_companion_result_reset(&result);
         haproxy_modsecurity_htx_fail_closed_postcommit(s, ctx,
             "response-companion phase-4 eos");
@@ -1275,20 +1384,20 @@ static int haproxy_modsecurity_htx_finish_companion_response(
             msconnector_decision_action_name(actual_action));
     }
     haproxy_modsecurity_htx_companion_result_reset(&result);
+    /* A shutdown request is not a transport observation.  Stop the affected
+     * stream without reporting connection_aborted through OUTCOME. */
+    if (connection_aborted) {
+        haproxy_modsecurity_htx_fail_closed_postcommit(s, ctx,
+            "response-companion terminal failure or strict intervention");
+        unregister_data_filter(s, msg->chn, filter);
+        return 1;
+    }
     if (!haproxy_modsecurity_htx_companion_record_terminal_outcome(ctx,
-            actual_action, visible_status, connection_aborted,
-            record_host_action)) {
+            actual_action, visible_status, 0, record_host_action)) {
         haproxy_modsecurity_htx_fail_closed_postcommit(s, ctx,
             "response-companion terminal cleanup");
         unregister_data_filter(s, msg->chn, filter);
         return 1;
-    }
-    if (connection_aborted) {
-        /* The stream-kill request is intentionally the only strict postcommit
-         * host action.  Its exact client-visible behavior needs native
-         * HAProxy runtime evidence before it can be promoted as enforcement. */
-        ctx->lifecycle.disabled = 1;
-        stream_shutdown(s, SF_ERR_KILLED);
     }
     unregister_data_filter(s, msg->chn, filter);
     return 1;
@@ -1354,9 +1463,6 @@ static int haproxy_modsecurity_htx_filter_attach(struct stream *s, struct filter
         free(ctx);
         return -1;
     }
-    ctx->request.body_limit = config->common_config.request_body_limit;
-    ctx->response.body_limit = msconnector_phase4_effective_body_limit(
-        config->common_config.phase4_mode);
     ctx->companion.mode =
         haproxy_modsecurity_htx_companion_enabled(config);
     filter->ctx = ctx;
@@ -1380,6 +1486,12 @@ static int haproxy_modsecurity_htx_handle_response_headers(
     struct stream *s, struct filter *filter, struct http_msg *msg)
 {
     struct haproxy_modsecurity_htx_filter_context *ctx = filter->ctx;
+
+    if (ctx->response.headers_committed) {
+        haproxy_modsecurity_htx_fail_closed_postcommit(s, ctx,
+            "response headers after commitment");
+        return -1;
+    }
 
         if (ctx->companion.mode) {
             if (ctx->lifecycle.disabled || !ctx->request.finished ||
@@ -1414,6 +1526,11 @@ static int haproxy_modsecurity_htx_handle_response_headers(
             (void)haproxy_modsecurity_htx_fail_closed_precommit(s, ctx,
                 "response headers");
         } else if (!ctx->lifecycle.disabled) {
+            if (haproxy_modsecurity_transaction_set_response_commit_state(
+                    ctx->transaction, 1, 0) != 0) {
+                return haproxy_modsecurity_htx_fail_closed_precommit(s, ctx,
+                    "response commit");
+            }
             /* The following return lets HAProxy forward the headers.  By the
              * later body EOS they are necessarily committed. */
             ctx->response.headers_committed = 1;
@@ -1471,7 +1588,6 @@ static int haproxy_modsecurity_htx_filter_http_headers(
         return -1;
     }
     if (ctx->lifecycle.fail_closed) {
-        haproxy_modsecurity_htx_abort_context(ctx);
         return -1;
     }
     if (msg->chn->flags & CF_ISRESP) {
@@ -1486,6 +1602,9 @@ static int haproxy_modsecurity_htx_filter_request_payload(
 {
     struct haproxy_modsecurity_htx_filter_context *ctx = filter->ctx;
 
+    if (ctx->lifecycle.fail_closed) {
+        return -1;
+    }
     if (ctx->companion.mode) {
         if (!ctx->lifecycle.disabled &&
             (!ctx->request.headers_seen || ctx->request.finished)) {
@@ -1548,7 +1667,7 @@ static int haproxy_modsecurity_htx_filter_http_payload(
 {
     struct haproxy_modsecurity_htx_filter_context *ctx = filter->ctx;
 
-    if (!ctx || !msg || !msg->chn) {
+    if (!ctx || !msg || !msg->chn || ctx->lifecycle.fail_closed) {
         return -1;
     }
     if (!(msg->chn->flags & CF_ISRESP)) {
@@ -1594,6 +1713,7 @@ static int haproxy_modsecurity_htx_finish_request(
     }
     if (haproxy_modsecurity_transaction_finish_request_body(
             ctx->transaction, &decision) != 0) {
+        ctx->lifecycle.error = decision;
         haproxy_modsecurity_htx_fail_closed_request_phase(s, ctx,
             "request body eos");
         return 1;
@@ -1655,6 +1775,7 @@ static int haproxy_modsecurity_htx_finish_response(
     ctx->response.finished = 1;
     if (haproxy_modsecurity_transaction_finish_response_body(ctx->transaction,
             &decision) != 0) {
+        ctx->lifecycle.error = decision;
         haproxy_modsecurity_htx_fail_closed_postcommit(s, ctx,
             "response body eos");
         unregister_data_filter(s, msg->chn, filter);
@@ -1672,15 +1793,18 @@ static int haproxy_modsecurity_htx_finish_response(
              * HAProxy's supported postcommit stream-kill primitive; the exact
              * client-visible wire result is an explicit native-runtime test
              * obligation rather than a reason to forward the response. */
-            haproxy_modsecurity_htx_fail_closed_postcommit(s, ctx,
-                "response body strict intervention");
+            haproxy_modsecurity_htx_abort_context(ctx);
+            stream_shutdown(s, SF_ERR_KILLED);
             unregister_data_filter(s, msg->chn, filter);
             return 1;
         }
     }
     /* Off uses the native terminal path. Safe resolves to log-only; normal terminal cleanup
      * is allowed to complete without a disruptive host action. */
-    haproxy_modsecurity_htx_finish_context(ctx);
+    if (haproxy_modsecurity_htx_finish_context(ctx) != 0) {
+        haproxy_modsecurity_htx_fail_closed_postcommit(s, ctx,
+            "response terminal completion");
+    }
     unregister_data_filter(s, msg->chn, filter);
     return 1;
 }
@@ -1690,7 +1814,7 @@ static int haproxy_modsecurity_htx_filter_http_end(
 {
     struct haproxy_modsecurity_htx_filter_context *ctx = filter->ctx;
 
-    if (!ctx || !msg || !msg->chn) {
+    if (!ctx || !msg || !msg->chn || ctx->lifecycle.fail_closed) {
         return -1;
     }
     if (!(msg->chn->flags & CF_ISRESP)) {

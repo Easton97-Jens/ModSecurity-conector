@@ -142,3 +142,5 @@ Ausführbare Fälle und Läufer sind Eigentum des Frameworks, zum Beispiel:
 
 - `modules/ModSecurity-test-Framework/tests/cases/`
 - `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`
+
+Ein angekündigtes `body_len`, das vom empfangenen `req.body`-Sample abweicht, wird als unvollständiges, nicht unterstütztes Transport-Sample abgewiesen (Admission-Status 503), ohne BODY_LIMIT-Klassifizierung. Das vollständige Sample eines Frames wird libModSecurity übergeben; diese Route implementiert keinen inkrementellen Transport des gesamten Bodys.

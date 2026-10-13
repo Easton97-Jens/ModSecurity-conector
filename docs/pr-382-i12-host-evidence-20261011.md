@@ -343,7 +343,7 @@ The checklist diff adds exact current-run binding and unchecked I12c–l;
 historical I12b/R17 and all 56 source-matrix rows remain unchanged. The proposed
 partition is one atomic documentation commit containing the checklist pair,
 remaining-work matrix pair, this report pair and the
-[Change Record pair](../reports/audits/change-records/CR-20261011-pr382-i12-host-evidence.md)
+[Change Record pair](https://github.com/Easton97-Jens/ModSecurity-conector/blob/511c4ac4515f0e515f68b3bbc38274c5a230d903/reports/audits/change-records/CR-20261011-pr382-i12-host-evidence.md)
 (eight files). Raw fixtures/builds/evidence and local plans stay outside it.
 The user authorized a stacked Draft PR on `fix/unified-native-results-events-20260921`;
 delivery/review results are recorded only after actual readback. No merge,

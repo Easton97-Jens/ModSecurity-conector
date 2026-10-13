@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,6 +19,7 @@ import (
 type JSONLObserver struct {
 	mu             sync.Mutex
 	file           *os.File
+	lastErr        error
 	evaluationMode string
 	ruleEvaluation string
 }
@@ -192,6 +194,11 @@ func (observer *JSONLObserver) Record(summary Summary) error {
 	if observer == nil {
 		return fmt.Errorf("event observer is closed")
 	}
+	observer.mu.Lock()
+	defer observer.mu.Unlock()
+	if observer.lastErr != nil {
+		return observer.lastErr
+	}
 	record := jsonlCompletionRecord{
 		Event:               "ext_proc_stream_complete",
 		IntegrationMode:     "ext_proc",
@@ -209,15 +216,20 @@ func (observer *JSONLObserver) Record(summary Summary) error {
 	}
 	encoded, err := json.Marshal(record)
 	if err != nil {
-		return fmt.Errorf("encode event: %w", err)
+		observer.lastErr = fmt.Errorf("encode event: %w", err)
+		return observer.lastErr
 	}
-	observer.mu.Lock()
-	defer observer.mu.Unlock()
 	if observer.file == nil {
 		return fmt.Errorf("event observer is closed")
 	}
-	if _, err := observer.file.Write(append(encoded, '\n')); err != nil {
-		return fmt.Errorf("write event: %w", err)
+	line := append(encoded, '\n')
+	n, err := observer.file.Write(line)
+	if err == nil && n != len(line) {
+		err = io.ErrShortWrite
+	}
+	if err != nil {
+		observer.lastErr = fmt.Errorf("write event: %w", err)
+		return observer.lastErr
 	}
 	return nil
 }
@@ -228,10 +240,12 @@ func (observer *JSONLObserver) Close() error {
 	}
 	observer.mu.Lock()
 	defer observer.mu.Unlock()
-	if observer.file == nil {
-		return nil
+	if observer.file != nil {
+		err := observer.file.Close()
+		observer.file = nil
+		if observer.lastErr == nil {
+			observer.lastErr = err
+		}
 	}
-	err := observer.file.Close()
-	observer.file = nil
-	return err
+	return observer.lastErr
 }
