@@ -5,6 +5,7 @@ extern const char *native_failure;
 extern int native_failure_result;
 extern unsigned int native_calls;
 extern unsigned int native_cleanups;
+extern int native_intervention;
 static haproxy_modsecurity_engine engine;
 static haproxy_modsecurity_header headers[] = {{"Host", "example.test"}};
 static haproxy_modsecurity_header response_headers[] = {
@@ -37,6 +38,7 @@ static haproxy_modsecurity_transaction *start(int companion, int mode) {
   response.header_count = 1;
   native_failure = NULL;
   native_failure_result = 0;
+  native_intervention = 0;
   assert(haproxy_modsecurity_transaction_begin_request_with_profile(
              &engine, &request, companion ? "haproxy-spoe-spop" : "haproxy-htx",
              &d, &t) == 0);
@@ -82,6 +84,12 @@ static void check_terminal(int mode, int companion, int commitment,
   assert(native_calls == before);
   assert(t->contract.error_class == error);
   assert(haproxy_modsecurity_transaction_error_class(t) == error);
+  if (companion) {
+    assert(haproxy_modsecurity_transaction_record_response_companion_outcome(
+               t, MSCONNECTOR_DECISION_ACTION_ALLOW, "complete", 200, 0) != 0);
+    assert(t->response_companion.response_companion_transport_result[0] == '\0');
+    assert(t->contract.error_class == error);
+  }
   assert(msconnector_transaction_contract_fail(
              &t->contract, MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0) != 123);
   assert(t->contract.error_class == error);
@@ -123,7 +131,66 @@ static void check_route(int mode, int companion) {
   }
   check_eos_failure(mode, companion);
 }
-int main(void) {
+static void check_companion_native_outcome(int phase, int body_limit, int logging_failure) {
+  haproxy_modsecurity_decision d;
+  haproxy_modsecurity_transaction *t = start(1, MSCONNECTOR_PHASE4_MODE_SAFE);
+  if (phase == 4) {
+    assert(haproxy_modsecurity_transaction_process_response_headers(t, &response, &d) == 0);
+    assert(haproxy_modsecurity_transaction_set_response_commit_state(t, 1, 1) == 0);
+    assert(haproxy_modsecurity_transaction_append_response_body_chunk(
+               t, (const unsigned char *)"x", 1, &d) == 0);
+  }
+  native_intervention = body_limit ? 2 : 1;
+  assert((phase == 3 ?
+      haproxy_modsecurity_transaction_process_response_headers(t, &response, &d) :
+      haproxy_modsecurity_transaction_finish_response_body(t, &d)) == 0);
+  assert(d.disruptive && d.rule_id == (body_limit ? 0 : 123));
+  assert(d.body_limit == body_limit);
+  assert(t->contract.status == MSCONNECTOR_TRANSACTION_STATUS_TERMINAL);
+  const msconnector_transaction_error_class expected_error = body_limit ?
+      MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT : MSCONNECTOR_TRANSACTION_ERROR_NONE;
+  assert(t->contract.error_class == expected_error);
+  const msconnector_decision_action actual = phase == 3 ?
+      MSCONNECTOR_DECISION_ACTION_DENY : MSCONNECTOR_DECISION_ACTION_LOG_ONLY;
+  const msconnector_decision_action engine_action = t->contract.action;
+  const unsigned int before = native_calls;
+  assert(haproxy_modsecurity_transaction_record_response_companion_outcome(
+             t, actual, NULL, 200, 0) != 0);
+  assert(haproxy_modsecurity_transaction_record_response_companion_outcome(
+             t, actual, "complete", 1000, 0) != 0);
+  assert(t->response_companion.response_companion_transport_result[0] == '\0');
+  assert(haproxy_modsecurity_transaction_record_response_companion_outcome(
+             t, actual, "complete", phase == 3 ? 403 : 200, 0) == 0);
+  assert(native_calls == before);
+  assert(t->contract.error_class == expected_error);
+  assert(t->contract.action == engine_action);
+  assert(t->response_companion.response_companion_action == actual);
+  assert(t->response_companion.response_companion_visible_status == (phase == 3 ? 403 : 200));
+  assert(strcmp(t->response_companion.response_companion_transport_result, "complete") == 0);
+  native_intervention = 0;
+  if (logging_failure) {
+    native_failure = "msc_process_logging";
+    native_failure_result = 0;
+  }
+  const unsigned int cleanups = native_cleanups;
+  assert(haproxy_modsecurity_transaction_finish_with_decision(t, &d) == logging_failure);
+  if (logging_failure) {
+    assert(d.error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT);
+  }
+  assert(native_cleanups == cleanups + 1);
+}
+int main(int argc, char **argv) {
+  if (argc == 2) {
+    const int logging_failure = strcmp(argv[1], "body-limit-logging-failure") == 0;
+    const int body_limit = logging_failure || strcmp(argv[1], "body-limit") == 0;
+    assert(body_limit || strcmp(argv[1], "3") == 0 || strcmp(argv[1], "4") == 0);
+    check_companion_native_outcome(body_limit ? 4 : atoi(argv[1]), body_limit, logging_failure);
+    return 0;
+  }
+  check_companion_native_outcome(3, 0, 0);
+  check_companion_native_outcome(4, 0, 0);
+  check_companion_native_outcome(4, 1, 0);
+  check_companion_native_outcome(4, 1, 1);
   const int modes[] = {MSCONNECTOR_PHASE4_MODE_OFF,
                        MSCONNECTOR_PHASE4_MODE_SAFE,
                        MSCONNECTOR_PHASE4_MODE_STRICT};

@@ -1647,7 +1647,10 @@ int haproxy_modsecurity_transaction_record_response_companion_outcome(
     size_t transport_len;
     if (transaction == 0 || !transaction->contract_initialized ||
             !transaction->response_companion.response_companion_claimed ||
-            msconnector_transaction_contract_is_terminal(&transaction->contract) ||
+            (msconnector_transaction_contract_is_terminal(&transaction->contract) &&
+                (transaction->contract.status != MSCONNECTOR_TRANSACTION_STATUS_TERMINAL ||
+                 (transaction->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE &&
+                  transaction->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT))) ||
             actual_action < MSCONNECTOR_DECISION_ACTION_ALLOW ||
             actual_action > MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION ||
             transport_result == 0 ||
@@ -1668,7 +1671,10 @@ int haproxy_modsecurity_transaction_record_response_companion_outcome(
         transport_len + 1U);
     transaction->response_companion.response_companion_visible_status = visible_http_status;
     transaction->response_companion.response_companion_connection_aborted = connection_aborted;
-    /* OUTCOME describes the host's observed action. It must not be fed back
+    /* A native blocking decision (including native body-limit Reject) can
+     * already be terminal without a technical error;
+     * the host must still acknowledge its observed response before RELEASE.
+     * OUTCOME describes the host's observed action. It must not be fed back
      * as a second engine decision; the Common contract's engine decision was
      * already recorded during P1/P2/P3/P4 evaluation. */
     return 0;
@@ -1893,7 +1899,10 @@ int haproxy_modsecurity_transaction_finish_with_decision(
         return 0;
     }
     int result = process_transaction_logging(transaction, decision);
-    if (transaction->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+    /* Native body-limit Reject is a completed policy decision. A logging
+     * failure still owns its nonzero result even when first cause is retained. */
+    if (transaction->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE &&
+            transaction->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT) {
         result = 1;
         if (decision != NULL && decision->error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
             transaction_failure(transaction, decision, transaction->contract.error_class,

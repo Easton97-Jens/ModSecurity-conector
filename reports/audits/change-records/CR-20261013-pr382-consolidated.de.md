@@ -297,6 +297,50 @@ erforderlich. Lokale Receipts:
 Nur der hostspezifische Harness und seine Tests ändern sich; Produktquellen,
 Framework-/MRTS-Gitlinks, Scanner und native Runtime-Guards bleiben unverändert.
 
+### Native Test-Quality-Gate-Nachprüfung, 2026-10-13
+
+Der Sonar-Check für exakt `b982c6f35abc47eccddcfded2bfd920f92516d90` hat null
+neue/akzeptierte Issues und Hotspots; der strenge Duplikationscheck meldet
+jedoch 13 neue duplizierte Zeilen in
+`tests/transaction_phase_runtime_companion_test.c`. Ein gemeinsamer
+Eventdatei-Lesehelfer erhält dieselben Open-/Read-/Error-/Close- und
+Terminierungsassertionen an vier Aufrufstellen. Die gezielte echte
+libModSecurity-Companion-Regression besteht mit C17 und
+`-Wall -Wextra -Werror`; `git diff --check` besteht. Der vorherige Refactor
+des Traefik-Body-Policy-Tests erhält alle Fälle und besteht Modultests mit
+Race-Detector sowie Vet. Beide Änderungen betreffen ausschließlich Testcode.
+Remote-Sonar/CI müssen für die gelieferte Folgerevision zurückgelesen werden;
+das historische Secret-Range-Gate bleibt unabhängig fehlgeschlagen.
+
+### HAProxy-Native-Companion-Outcome-Reparatur, 2026-10-13
+
+Echter Combined-Hostversuch `1791917296154368188` lieferte erwartete
+P3-Deny403 und P4-Safe200; physische Logs zeigten jedoch gescheiterte
+Outcomebestätigung/Terminal-Cleanup und Protokollfehler. Das Binding lehnte
+jeden terminalen Common-Zustand ab, einschließlich erfolgreicher nativer
+Blockentscheidungen. Es erlaubt jetzt das beobachtete Hostoutcome nach einer
+gültigen terminalen Entscheidung; technische Fehler und Completed-/Cleaned-
+Zustände bleiben gesperrt. Native Body-Limit-Reject ist Policy; Outcome und
+Finish müssen BODY_LIMIT erhalten, ohne erfolgreiche Enforcement als
+technischen Protokollfehler zu behandeln. Native Loggingfehler lassen Finish
+weiterhin scheitern. Claim, Phase, Korrelation, Duplikat-, Größen- und
+Erstursachenbehandlung bleiben durchgesetzt. Das Hostoutcome überschreibt
+die Engineentscheidung nicht.
+
+Gezielte P3-/P4-/Native-Limit-Fälle scheitern am Originalguard und bestehen
+nach Korrektur. Bestehende Full-Binding-/Common-Caller-, Native-Result-,
+Phasen-, Technikfehler-/Reentry- und Mutationsregressionen werden wiederholt:
+Acht finale Callertests und 18 Native-/Phasencontracts bestehen; alle 26
+bestehenden Zero-Argument-Transaktionscontractchecks bestehen durch expliziten
+Direktaufruf, weil der gewählte Interpreter kein pytest hat. Loggingfehler-
+und Originalguard-Mutationen werden erkannt.
+Die native API-Naht steuert Interventionen und Cleanupzähler; diese
+Komponententests sind keine Live-Hostevidenz. Externes Taskverzeichnis
+`hosts-haproxy-postfix-01/` erhält echte neu gebaute Binaries und frische
+Hostretests nach Abschluss; keine alte Binary wird umetikettiert. Exakte
+finale Prüfungs- und Lieferergebnisse stehen im aktuellen Bericht/PR-
+Lieferprotokoll.
+
 ### Unveränderlicher Originalindex
 
 Jeder nummerierte Link identifiziert eine Original-Change-ID durch ihren Dateinamen.

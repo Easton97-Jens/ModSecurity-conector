@@ -103,17 +103,23 @@ static void create_runtime_fixture(char config_path[TEST_PATH_SIZE],
     assert(fclose(config) == 0);
 }
 
-static void assert_terminal_events(const char *event_path) {
-    char contents[32768];
+static void read_event_contents(const char *event_path, char *contents,
+    size_t capacity) {
     FILE *event_file;
     size_t size;
 
     event_file = fopen(event_path, "r");
     assert(event_file != NULL);
-    size = fread(contents, 1U, sizeof(contents) - 1U, event_file);
+    size = fread(contents, 1U, capacity - 1U, event_file);
     assert(ferror(event_file) == 0);
     assert(fclose(event_file) == 0);
     contents[size] = '\0';
+}
+
+static void assert_terminal_events(const char *event_path) {
+    char contents[32768];
+
+    read_event_contents(event_path, contents, sizeof(contents));
     assert(strstr(contents, "\"event\":\"engine_timeout\"") != NULL);
     assert(strstr(contents, "\"event\":\"client_cancel\"") != NULL);
     assert(strstr(contents, "\"event\":\"protocol_error\"") != NULL);
@@ -148,8 +154,6 @@ static void test_regular_block_emits_one_terminal_event(void) {
     msconnector_decision decision;
     msconnector_error error;
     char contents[16384];
-    FILE *event_file;
-    size_t size;
 
     create_authz_runtime_fixture(&fixture, blocking_rules,
         (response_fixture_policy){1024U, "Reject"});
@@ -165,12 +169,7 @@ static void test_regular_block_emits_one_terminal_event(void) {
     msconnector_runtime_transaction_destroy(&transaction);
     msconnector_runtime_destroy(&fixture.runtime);
 
-    event_file = fopen(fixture.event_path, "r");
-    assert(event_file != NULL);
-    size = fread(contents, 1U, sizeof(contents) - 1U, event_file);
-    assert(ferror(event_file) == 0);
-    assert(fclose(event_file) == 0);
-    contents[size] = '\0';
+    read_event_contents(fixture.event_path, contents, sizeof(contents));
     assert(strstr(contents, "MSCONN_EVENT_ENGINE_DECISION") != NULL);
     assert(strstr(contents, "MSCONN_EVENT_CONNECTOR_ERROR") == NULL);
     assert(strstr(contents, "\"transaction_id\":\"rule-block\"") != NULL);
@@ -193,8 +192,6 @@ static void test_invalid_byte_event_is_losslessly_written(void) {
     msconnector_decision decision;
     msconnector_error error;
     char contents[16384];
-    FILE *event_file;
-    size_t size;
 
     create_authz_runtime_fixture(&fixture, blocking_rules,
         (response_fixture_policy){1024U, "Reject"});
@@ -219,12 +216,7 @@ static void test_invalid_byte_event_is_losslessly_written(void) {
     assert(msconnector_runtime_transaction_finish(transaction, &error));
     msconnector_runtime_transaction_destroy(&transaction);
     msconnector_runtime_destroy(&fixture.runtime);
-    event_file = fopen(fixture.event_path, "r");
-    assert(event_file != NULL);
-    size = fread(contents, 1U, sizeof(contents) - 1U, event_file);
-    assert(ferror(event_file) == 0);
-    assert(fclose(event_file) == 0);
-    contents[size] = '\0';
+    read_event_contents(fixture.event_path, contents, sizeof(contents));
     assert(strstr(contents, "\"client_ip\":\"127.0.0.\\u0080\"") != NULL);
     assert(strstr(contents, "\"phase\":\"request_headers\"") != NULL);
     assert(strstr(contents, "\"rule_id\":\"1002\"") != NULL);
@@ -286,12 +278,7 @@ static void test_lossy_event_is_not_written_or_chained(void) {
     assert(msconnector_runtime_transaction_finish(transaction, &error));
     msconnector_runtime_transaction_destroy(&transaction);
 
-    event_file = fopen(fixture.event_path, "r");
-    assert(event_file != NULL);
-    size = fread(contents, 1U, sizeof(contents) - 1U, event_file);
-    assert(ferror(event_file) == 0);
-    assert(fclose(event_file) == 0);
-    contents[size] = '\0';
+    read_event_contents(fixture.event_path, contents, sizeof(contents));
     assert(strstr(contents, "MSCONN_EVENT_ENGINE_DECISION") != NULL);
     assert(strstr(contents, "\"transaction_id\":\"post-lossy\"") != NULL);
     assert(strstr(contents, "\"previous_event_hash\":0") != NULL);

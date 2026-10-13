@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BINDING = ROOT / "connectors/haproxy/src/haproxy_modsecurity_binding.c"
 
 class HAProxyI10BindingCallers(unittest.TestCase):
-    def run_caller(self, source, *, spop=False, runtime_source=None):
+    def run_caller(self, source, *, spop=False, runtime_source=None, arguments=()):
         temp_root = Path(os.environ.get("TMPDIR", "/var/tmp/codex/ModSecurity-conector/tmp"))
         temp_root.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="haproxy-i10-native-", dir=temp_root) as directory:
@@ -26,12 +26,20 @@ class HAProxyI10BindingCallers(unittest.TestCase):
 const char *native_failure;
 int native_failure_result;
 unsigned int native_calls, native_cleanups;
+int native_intervention;
 static int test_native(const char *name) {
     native_calls++;
     return native_failure != 0 && strcmp(name, native_failure) == 0 ? native_failure_result : 1;
 }
 """
             native = native.replace("struct ModSecurity {", control + "\nstruct ModSecurity {")
+            native = native.replace(
+                'if (intervention != 0) memset(intervention, 0, sizeof(*intervention)); return 0;',
+                'if (intervention != 0) { memset(intervention, 0, sizeof(*intervention)); '
+                'if (native_intervention) { intervention->status = 403; intervention->disruptive = 1; '
+                'intervention->log = native_intervention == 2 ? '
+                '"Response body limit is marked to reject the request" : "[id \\\"123\\\"]"; '
+                'return 1; } } return 0;')
             native = re.sub(r"(int msc_(?:process|append|add)[^\n]+)return 1;", r"\1return test_native(__func__);", native)
             native = native.replace("void msc_transaction_cleanup(Transaction *value) { (void)value; }",
                 "void msc_transaction_cleanup(Transaction *value) { (void)value; native_cleanups++; }")
@@ -72,7 +80,36 @@ static int test_native(const char *name) {
                        "-o", str(temp / "caller")]
             compiled = subprocess.run(command, capture_output=True, text=True)
             self.assertEqual(compiled.returncode, 0, compiled.stdout + compiled.stderr)
-            return subprocess.run([str(temp / "caller")], capture_output=True, text=True, cwd=temp, timeout=30)
+            return subprocess.run([str(temp / "caller"), *arguments], capture_output=True, text=True, cwd=temp, timeout=30)
+
+    def test_native_response_decisions_accept_host_outcome(self):
+        for phase in ("3", "4", "body-limit", "body-limit-logging-failure"):
+            with self.subTest(phase=phase):
+                result = self.run_caller(BINDING.read_text(), arguments=(phase,))
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_body_limit_logging_failure_negative_control(self):
+        source = BINDING.read_text()
+        old = 'int result = process_transaction_logging(transaction, decision);'
+        self.assertIn(old, source)
+        result = self.run_caller(source.replace(old,
+            '(void)process_transaction_logging(transaction, decision); int result = 0;'),
+            arguments=("body-limit-logging-failure",))
+        self.assertNotEqual(result.returncode, 0, "native logging failure was ignored")
+
+    def test_terminal_decision_outcome_negative_control(self):
+        source = BINDING.read_text()
+        guard = '''(msconnector_transaction_contract_is_terminal(&transaction->contract) &&
+                (transaction->contract.status != MSCONNECTOR_TRANSACTION_STATUS_TERMINAL ||
+                 (transaction->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE &&
+                  transaction->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT)))'''
+        self.assertIn(guard, source)
+        source = source.replace(guard,
+            'msconnector_transaction_contract_is_terminal(&transaction->contract)')
+        for phase in ("3", "4", "body-limit"):
+            with self.subTest(phase=phase):
+                result = self.run_caller(source, arguments=(phase,))
+                self.assertNotEqual(result.returncode, 0, "terminal outcome rejection survived")
 
     def test_full_spop_request_caller_and_ack_fail_closed(self):
         result = self.run_caller(BINDING.read_text(), spop=True)
@@ -112,6 +149,9 @@ static int test_native(const char *name) {
     def test_terminal_reentry_and_commit_negative_controls(self):
         source = BINDING.read_text()
         mutations = {
+            "technical-outcome-admitted": (
+                "transaction->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE &&",
+                "0 &&"),
             "direct-commit-rejected": ("(transaction->response_companion.response_phases_require_companion &&\n                !transaction->response_companion.response_companion_claimed)",
                 "!transaction->response_companion.response_companion_claimed"),
             "header-failure-not-terminal": ("MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, \"msc_add_response_header failed\");",
