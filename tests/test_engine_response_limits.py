@@ -11,7 +11,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def native_compile_command(source, binary):
+def native_compile_command(source, binary, *, extra_sources=(), extra_flags=()):
     """Use the same selected libModSecurity paths as native bridge builds."""
     prefix = os.environ.get("MODSECURITY_PREFIX", "")
     include = os.environ.get("MODSECURITY_INCLUDE_DIR") or (str(Path(prefix) / "include") if prefix else "")
@@ -36,9 +36,9 @@ def native_compile_command(source, binary):
         link.append("-Wl,-rpath," + library_dir)
     return shlex.split(os.environ.get("CC", "cc")) + [
         "-std=c17", "-Wall", "-Wextra", "-Werror", "-I.", "-Icommon/include",
-    ] + (["-I" + include] if include else []) + [
+    ] + (["-I" + include] if include else []) + list(extra_flags) + [
         source, "common/runtime/msconnector_runtime.c",
-    ] + [str(p.relative_to(ROOT)) for p in sorted((ROOT / "common/src").glob("*.c"))] + [
+    ] + list(extra_sources) + [str(p.relative_to(ROOT)) for p in sorted((ROOT / "common/src").glob("*.c"))] + [
         "connectors/profile_registry.c",
     ] + link + ["-pthread", "-o", str(binary)]
 
@@ -112,6 +112,24 @@ class EngineResponseLimits(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=self.directory) as directory:
             result = subprocess.run([str(binary)], cwd=directory, capture_output=True,
                                     text=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_native_response_transport_precommit_release_and_reuse(self):
+        """Real MRC1 client/server P3 deny cleanup without fabricated CANCEL."""
+        short_root = Path("/var/tmp/codex/ModSecurity-conector/t")
+        short_root.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="mrc1-", dir=short_root) as directory:
+            binary = Path(directory) / "transport"
+            command = native_compile_command(
+                "tests/response_companion_transport_test.c", binary,
+                extra_flags=['-DMSCONNECTOR_TEST_TEMPORARY_DIRECTORY="' + directory + '"'],
+                extra_sources=["common/runtime/response_companion_client.c",
+                               "common/runtime/response_companion_transport.c"],
+            )
+            result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=90)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            result = subprocess.run([str(binary)], cwd=directory,
+                                    capture_output=True, text=True, timeout=90)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_boundaries_actions_chunking_and_modes(self):

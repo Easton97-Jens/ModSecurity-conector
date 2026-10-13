@@ -327,6 +327,29 @@ weiterhin scheitern. Claim, Phase, Korrelation, Duplikat-, Größen- und
 Erstursachenbehandlung bleiben durchgesetzt. Das Hostoutcome überschreibt
 die Engineentscheidung nicht.
 
+Der echte a30-Neubau/-Retest (`1791918602525320691`) zeigt danach eine zweite
+Ursache: Nach erfolgreichem P3-OUTCOME verwendet der HTX-Caller eine typisierte
+Connector-Error-CANCEL, weil normales MRC1-RELEASE bisher P4-EOS verlangte.
+Der bestehende RELEASE-Opcode akzeptiert jetzt auch ein bestätigtes,
+passendes disruptives P3-Outcome vor Commit. Client und Server teilen den
+Matching-Prädikat; CLAIM-only, Allow/log_only, fehlendes Outcome und falscher
+Status bleiben unzulässig. HTX verwendet bei Erfolg OUTCOME -> RELEASE ->
+close; explizite technische CANCEL bleiben erhalten. Kein künstlicher EOS,
+neuer Opcode oder Fehlerunterdrückung. Die Clientstruktur ändert sich;
+Consumer benötigen echte Neubauten. Alte Hostinputs behalten ihre originale
+Revisionsidentität.
+
+Echte libModSecurity-/Client-/Servertests und Standalone-Clienttests bestehen.
+Vier kopierte Originalguard-/Outcomevalidierungs-Controls kompilieren und
+scheitern an den beabsichtigten Assertions. Receipts:
+`haproxy-precommit-native-validation.json`, SHA256
+`73ccabd26af1514570e9f7327812e71c825be858067aed5ce9a47599bf6d2454`,
+im Task-Run. Die echte Transportregression ist in die bestehende native
+Body-Suite integriert; der Overlaybuild kopiert ihren neuen privaten
+Helperheader. Fokussierte Host-/Build- und Response-Handle-Contracts bestehen;
+die veraltete Test-Cleanup-Signatur folgt dem tatsächlichen Integer-Return
+ohne abgeschwächte Checks.
+
 Gezielte P3-/P4-/Native-Limit-Fälle scheitern am Originalguard und bestehen
 nach Korrektur. Bestehende Full-Binding-/Common-Caller-, Native-Result-,
 Phasen-, Technikfehler-/Reentry- und Mutationsregressionen werden wiederholt:

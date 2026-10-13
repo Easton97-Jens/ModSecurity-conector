@@ -2,6 +2,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "response_companion_transport.h"
+#include "response_companion_protocol.h"
 
 #include "msconnector/decision_action.h"
 #include "msconnector/limits.h"
@@ -109,6 +110,7 @@ typedef struct response_companion_session_state {
     int committed;
     int has_decision;
     int outcome_recorded;
+    int precommit_terminal_outcome;
     size_t response_body_bytes;
 } response_companion_session_state;
 
@@ -1869,6 +1871,10 @@ static int response_companion_handle_outcome(
     }
     if (result) {
         state->outcome_recorded = 1;
+        state->precommit_terminal_outcome = !state->committed &&
+            msconnector_response_companion_precommit_outcome_matches(
+                state->latest_decision.kind, state->latest_decision.http_status,
+                actual_action, visible_status, connection_aborted);
     } else {
         response_companion_fail_session(worker->transport, state,
             response_companion_error_class_from_error(&error));
@@ -1942,12 +1948,21 @@ static int response_companion_handle_release(
     int result;
 
     msconnector_error_init(&error);
-    result = state->response_eos && frame->payload_size == 0U &&
+    /* A validated disruptive P3 outcome also completes the exchange before
+     * upstream response commitment; no artificial P4 EOS or CANCEL is needed. */
+    const int precommit_terminal = state->response_headers &&
+        state->has_decision && state->outcome_recorded &&
+        state->precommit_terminal_outcome && !state->committed &&
+        state->latest_decision.phase == MSCONNECTOR_PHASE_RESPONSE_HEADERS &&
+        state->latest_decision.disruptive &&
+        state->latest_decision.kind >= MSCONNECTOR_DECISION_KIND_DENY &&
+        state->latest_decision.kind <= MSCONNECTOR_DECISION_KIND_CONNECTION_ABORT;
+    result = (state->response_eos || precommit_terminal) && frame->payload_size == 0U &&
         response_companion_backend_release(worker->transport, &state->session,
             &error);
     if (!result && error.code == MSCONNECTOR_ERROR_NONE) {
         msconnector_error_set(&error, MSCONNECTOR_ERROR_PHASE_SEQUENCE,
-            "response companion release before P4 end-of-stream is invalid",
+            "response companion release requires P4 EOS or terminal precommit outcome",
             "response_companion_transport");
     }
     if (!result) {
@@ -1959,7 +1974,8 @@ static int response_companion_handle_release(
         return 0;
     }
     if (result) {
-        /* RELEASE has finished P4 and detached the exact claimed registry
+        /* RELEASE has finished P4 or an acknowledged terminal P3 decision
+         * and detached the exact claimed registry
          * entry. Reset every per-session bit before admitting the next CLAIM
          * on this trusted connection. */
         response_companion_reset_session_state(state);
