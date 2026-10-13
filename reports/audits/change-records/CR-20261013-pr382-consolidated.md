@@ -362,6 +362,11 @@ into a coherent `check_precommit_cleanup_failure` helper. The real caller
 Off/Safe/Strict matrix and its15 mutation controls pass, exit0,18.816seconds.
 No assertion, compiler warning, scanner rule or gate is suppressed.
 
+The next exact-head Sonar check rejects a nested status ternary in the new
+SPOP regression fixture. A three-value status table preserves the exact
+Allow/Deny/Redirect200/403/302 test inputs without nesting. No production
+source changes; genuine e2445 host/build identities remain unchanged.
+
 ### Immutable original index
 
 Each numbered link identifies one original Change ID through its filename.
