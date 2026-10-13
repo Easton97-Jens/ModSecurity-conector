@@ -1340,6 +1340,10 @@ check-common-helpers:
 check-common-helpers-c17:
 	$(MAKE) check-common-helpers MSCONNECTOR_C_STD=c17
 
+.PHONY: check-native-engine-body-inspection
+check-native-engine-body-inspection:
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_engine_response_limits
+
 .PHONY: check-i09-native-routes
 check-i09-native-routes:
 	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_i09_common_routes tests.test_i09_native_decision tests.test_i09_body_phase tests.test_apache_i09_filter_events tests.test_haproxy_native_results tests.test_haproxy_host_native_results connectors.traefik.tests.test_i09_api_returns connectors.lighttpd.tests.test_i09_api_returns

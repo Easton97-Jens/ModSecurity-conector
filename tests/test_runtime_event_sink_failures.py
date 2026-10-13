@@ -160,6 +160,9 @@ int main(int argc, char **argv) {
     hash_before = runtime.previous_event_hash;
     if (strcmp(argv[1], "serialize") == 0) {
         runtime.limits.max_event_json_bytes = 1U;
+    } else if (strcmp(argv[1], "lossy-field") == 0) {
+        memset(tx->metadata.request_client_ip, 0x80, 11U);
+        tx->metadata.request_client_ip[11] = '\0';
     } else if (strcmp(argv[1], "short") == 0) {
         sink.failure = 2;
     } else if (strcmp(argv[1], "success") != 0) {
@@ -284,6 +287,13 @@ class RuntimeEventSinkFailureTests(unittest.TestCase):
         result = self.case("serialize")
         self.assert_terminal_sink_failure(result, "too_large")
         self.assertEqual(result["first_calls"], 0)
+
+    def test_lossy_field_does_not_write_chain_or_mask_the_first_cause(self) -> None:
+        for commitment in ("before", "after"):
+            with self.subTest(commitment=commitment):
+                result = self.case("lossy-field", commitment)
+                self.assert_terminal_sink_failure(result, "too_large")
+                self.assertEqual(result["first_calls"], 0)
 
     def test_successful_terminal_event_does_not_mask_failed_followup(self) -> None:
         result = self.case("followup")
