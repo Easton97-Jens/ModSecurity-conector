@@ -197,14 +197,18 @@ client abort.
 - [Repository examples overview](../README.md)
 
 The shipped argv records select separate disk-backed private directories under
-`/var/lib/msconnector/lighttpd-stock/{all,off,safe,strict}`. Launch a record as the
-service UID using `python3 connectors/lighttpd/launch_stock_sidecar.py --binary
-/absolute/path/lighttpd-stock-sidecar --args-file
-examples/lighttpd/stock/safe/stock-sidecar.args`. The launcher provisions missing
+`/var/lib/msconnector/lighttpd-stock/{all,off,safe,strict}`. Launch a profile as the
+service UID using `python3 connectors/lighttpd/launch_stock_sidecar.py --profile safe`.
+The launcher accepts only `all`, `off`, `safe` and `strict`, reads their fixed
+repository argv records, and executes the installed native component at
+`/usr/libexec/msconnector/lighttpd-stock-sidecar`. Arbitrary executable paths,
+argv-file paths and extra options are unsupported. It validates ownership,
+permissions and native artifact type, then executes through a pinned descriptor. The launcher provisions missing
 spool directories and rejects unsafe existing paths without changing their
 permissions. Configuration parents such as `/etc/lighttpd` may remain 0755;
 spool directories must be effective-UID-owned 0700. `--install-root` relocates
-absolute config/spool paths for staged installations; runtime config contents
+the fixed component path and absolute config/spool paths for staged installations;
+external builds must be staged at that fixed component path. Runtime config contents
 still need installation-specific rules and event paths.
 
 `--spool-capacity-bytes` defaults to 268435456 (256 MiB) aggregate outstanding

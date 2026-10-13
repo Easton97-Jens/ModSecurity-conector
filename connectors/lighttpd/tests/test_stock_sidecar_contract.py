@@ -291,6 +291,34 @@ class _RunningSidecar:
 
 
 class StockSidecarLauncherContractTest(unittest.TestCase):
+    def test_launcher_has_closed_profile_and_executable_contract(self) -> None:
+        spec = importlib.util.spec_from_file_location("stock_launcher_closed", ROOT / "connectors/lighttpd/launch_stock_sidecar.py")
+        launcher = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(launcher)
+        for malicious in ("../../etc/passwd", "--config", "/etc/passwd", "safe;sh"):
+            with self.subTest(profile=malicious), self.assertRaises(ValueError):
+                launcher.read_arguments(malicious)
+        with tempfile.TemporaryDirectory(prefix="stock-launcher-contract-", dir=_temporary_root()) as temporary:
+            directory = Path(temporary)
+            record = directory / "record.args"
+            record.write_text("--config /etc/passwd --listen 127.0.0.1:8080 --upstream 127.0.0.1:8081 --spool-directory /var/lib/msconnector/lighttpd-stock/safe")
+            with mock.patch.dict(launcher.PROFILE_RECORDS, {"safe": record}):
+                with self.assertRaises(ValueError):
+                    launcher.read_arguments("safe")
+            executable = directory / "usr/libexec/msconnector/lighttpd-stock-sidecar"
+            executable.parent.mkdir(parents=True, mode=0o755)
+            executable.write_text("#!/bin/sh\nexit 0\n")
+            executable.chmod(0o755)
+            with self.assertRaisesRegex(ValueError, "native ELF"):
+                launcher.open_component_binary(directory)
+            executable.unlink()
+            executable.symlink_to("/bin/sh")
+            with self.assertRaises(OSError):
+                launcher.open_component_binary(directory)
+            result = subprocess.run([sys.executable, str(ROOT / "connectors/lighttpd/launch_stock_sidecar.py"),
+                                     "--binary", "/bin/sh", "--args-file", "/etc/passwd"], capture_output=True)
+            self.assertEqual(result.returncode, 2)
+
     def test_launcher_rejects_unsafe_existing_paths_without_chmod(self) -> None:
         spec = importlib.util.spec_from_file_location("stock_launcher", ROOT / "connectors/lighttpd/launch_stock_sidecar.py")
         self.assertIsNotNone(spec)
@@ -1580,9 +1608,12 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
                     .replace("rules_file=/etc/modsecurity/no-crs-baseline.conf", "rules_inline=SecRuleEngine On")
                     .replace(f"event_path=/var/log/lighttpd/msconnector-stock-{profile}-events.jsonl",
                              f"event_path={install_root}/events.jsonl"), encoding="utf-8")
-                record = ROOT / f"examples/lighttpd/stock/{profile}/stock-sidecar.args"
-                command = [sys.executable, str(launcher), "--binary", str(self.binary),
-                           "--args-file", str(record), "--install-root", str(install_root)]
+                installed_binary = install_root / "usr/libexec/msconnector/lighttpd-stock-sidecar"
+                installed_binary.parent.mkdir(parents=True, mode=0o755)
+                shutil.copyfile(self.binary, installed_binary)
+                installed_binary.chmod(0o755)
+                command = [sys.executable, str(launcher), "--profile", profile,
+                           "--install-root", str(install_root)]
                 # Keep supplied record ports: all four start checks run serially.
                 process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 try:
@@ -1651,14 +1682,18 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
                     .replace("rules_file=/etc/modsecurity/no-crs-baseline.conf", "rules_inline=SecRuleEngine On")
                     .replace(f"event_path=/var/log/lighttpd/msconnector-stock-{profile}-events.jsonl",
                              f"event_path={spool}/events.jsonl"), encoding="utf-8")
-                record = install_root / "stock-sidecar.args"
+                record = install_root / f"examples/lighttpd/stock/{profile}/stock-sidecar.args"
+                record.parent.mkdir(parents=True, mode=0o755)
                 shutil.copyfile(ROOT / f"examples/lighttpd/stock/{profile}/stock-sidecar.args", record)
-                binary, launcher = install_root / "sidecar", install_root / "launcher.py"
+                binary = install_root / "usr/libexec/msconnector/lighttpd-stock-sidecar"
+                binary.parent.mkdir(parents=True, mode=0o755)
+                launcher = install_root / "connectors/lighttpd/launch_stock_sidecar.py"
+                launcher.parent.mkdir(parents=True, mode=0o755)
                 shutil.copyfile(self.binary, binary)
                 binary.chmod(0o755)
                 shutil.copyfile(ROOT / "connectors/lighttpd/launch_stock_sidecar.py", launcher)
-                command = [str(Path(sys.executable).resolve()), str(launcher), "--binary", str(binary),
-                           "--args-file", str(record), "--install-root", str(install_root)]
+                command = [str(Path(sys.executable).resolve()), str(launcher), "--profile", profile,
+                           "--install-root", str(install_root)]
                 process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                            preexec_fn=become_service_uid)
                 try:

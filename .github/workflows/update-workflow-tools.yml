@@ -399,6 +399,7 @@ jobs:
             .github/workflows/update-python-version.yml \
             .github/workflows/update-submodules.yml \
             .github/workflows/update-workflow-tools.yml \
+            .github/workflows/validate-go-candidate.yml \
             .github/workflows/verified-report-governance.yml \
             docs/security/ci-security-tooling.md \
             docs/security/ci-security-tooling.de.md

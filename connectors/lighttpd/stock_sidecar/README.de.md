@@ -159,14 +159,21 @@ kontrolliert.
 
 Die ausgelieferten argv-Dateien wählen separate private, diskgestützte
 Verzeichnisse unter `/var/lib/msconnector/lighttpd-stock/{all,off,safe,strict}`.
-Eine Datei wird als Service-UID mit `python3 connectors/lighttpd/launch_stock_sidecar.py
---binary /absoluter/pfad/lighttpd-stock-sidecar --args-file
-examples/lighttpd/stock/safe/stock-sidecar.args` gestartet. Der Launcher erstellt
+Ein Profil wird als Service-UID mit
+`python3 connectors/lighttpd/launch_stock_sidecar.py --profile safe` gestartet.
+Der Launcher akzeptiert ausschließlich `all`, `off`, `safe` und `strict`, liest
+deren feste repository-eigene argv-Dateien und startet die installierte native
+Komponente unter `/usr/libexec/msconnector/lighttpd-stock-sidecar`. Beliebige
+Programm- oder argv-Dateipfade und zusätzliche Optionen sind nicht unterstützt.
+Er prüft Eigentümer, Berechtigungen und nativen Artefakttyp und führt das Programm
+über einen festgehaltenen Deskriptor aus. Der Launcher erstellt
 fehlende Spoolverzeichnisse und verwirft unsichere bestehende Pfade ohne Änderung
 ihrer Berechtigungen. Konfigurationsverzeichnisse wie `/etc/lighttpd` dürfen 0755
 behalten; Spoolverzeichnisse müssen der effektiven UID gehören und 0700 haben.
-`--install-root` verlagert absolute Konfigurations- und Spoolpfade für gestufte
-Installationen; Regel- und Ereignispfade im Konfigurationsinhalt sind weiterhin
+`--install-root` verlagert den festen Komponentenpfad sowie absolute
+Konfigurations- und Spoolpfade für gestufte Installationen. Externe Builds müssen
+an diesem festen Komponentenpfad bereitgestellt werden. Regel- und
+Ereignispfade im Konfigurationsinhalt sind weiterhin
 an die Installation anzupassen.
 
 `--spool-capacity-bytes` verwendet standardmäßig 268435456 (256 MiB) für die

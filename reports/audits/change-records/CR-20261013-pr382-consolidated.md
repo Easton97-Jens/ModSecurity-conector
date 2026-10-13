@@ -45,7 +45,9 @@ remain technical errors, rather than fabricated rule/BODY_LIMIT events.
 Current changes address these concrete triggers:
 
 - Stock lighttpd profiles now select explicit private spool paths. A launcher
-  validates/provisions service-owned 0700 directories. Admission uses a shared
+  selects only a shipped profile and executes the fixed installed native
+  component through a validated descriptor, without arbitrary binary/argv-file
+  inputs. It validates/provisions service-owned 0700 directories. Admission uses a shared
   256 MiB spool budget and 64 MiB filesystem free reserve, full allocation and
   checked arithmetic; exhaustion returns technical 503 before upstream contact.
   Reservations last until the unlinked 0600 descriptor closes. One directory
@@ -100,7 +102,7 @@ Exact wrapped commands, environments, logs and exits are retained under
 | Updater/version/workflow unit suite; actionlint on both Go workflows | 71 tests pass; both workflow checks exit 0; `go-updater/validation-summary.json`. |
 | `rtk proxy make quick-check`; native Traefik targets; native events/body suite | Exit 0; `root-validation/{quick-check,traefik-native,native-events-body}.json`. |
 | `rtk proxy make check-i09-native-routes check-i10-adapter-errors check-apache-event-sink check-haproxy-spop-event-sink check-apache-native-response-limit check-common-helpers-c17 check-http-authorization-service-timeout`; `rtk proxy make -C connectors/envoy test-envoy-ext-proc` | Both final runs exit 0; Parent Python and external build/cache/short socket paths are recorded in the runner. |
-| Stock sidecar suite | 43 PASS, one real nonroot startup BLOCKED by UID namespace mapping `0 0 1`; no nonroot runtime PASS is inferred. |
+| Stock sidecar suite | Closed-launcher follow-up: 44 PASS, one real nonroot startup BLOCKED by UID namespace mapping `0 0 1`; no nonroot runtime PASS is inferred. |
 | Config-reference/all-example tests and generated-reference check; compiler-guide contracts | Exit 0; 22 compiler-guide tests pass; generator output is current. |
 | Compiled C/route/mutation checks and private layout comparison | Focused acceptance passes; opaque size/alignment/offsets unchanged, including NGINX sanity configurations; `sonar/` evidence. Final native aggregate/Envoy reruns pass: `root-validation/{native-i09-i10-sinks,envoy-native}.json`, exit 0 (234.759 / 14.283 seconds). |
 | Independent Gitleaks 8.30.1 PR-range scan | Exit 1, two historical prose false positives; current docs-directory scan exits 0. No suppression or narrowed PR scan. |
@@ -109,6 +111,16 @@ Exact wrapped commands, environments, logs and exits are retained under
 Earlier aggregate failures and their subsequent fixes remain separate run
 attempts; they are not relabeled PASS. Final pushed-head CI, Sonar zero/duplication
 readback and Codex/security review are pending at this checkpoint.
+
+The first delivery at `34b396875876d2d52e09bf44722e55d13bd9ab28` closed the original
+eight Sonar findings but introduced twelve findings in new tests, launcher and
+reference text. This follow-up removes arbitrary launcher inputs, extracts
+coherent test/path helpers and preserves every original assertion. Its CI
+registration repair adds only the new Go candidate workflow to the existing
+exact publisher/copy/staging inventory; it also repairs a pre-existing malformed
+local reusable-workflow reference. Action pins and permission boundaries remain
+unchanged. Current source validation precedes a fresh normal delivery; remote
+results from the first delivery cannot attest the follow-up.
 
 ## Security impact
 

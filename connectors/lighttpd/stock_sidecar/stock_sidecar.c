@@ -1639,9 +1639,8 @@ static int sidecar_exchange_request(sidecar_exchange_state *state) {
         sidecar_finish_decision(state);
         return 0;
     }
-    if (state->payload.request_headers.content_length > 0U) {
-        if (!sidecar_admit_request_spool(state) || !sidecar_read_request_body(state)) return 0;
-    }
+    if (state->payload.request_headers.content_length > 0U &&
+        (!sidecar_admit_request_spool(state) || !sidecar_read_request_body(state))) return 0;
     if (msconnector_runtime_transaction_finish_request_body(state->transaction,
                                                               &state->decision,
                                                               &state->error) != 1) return 0;

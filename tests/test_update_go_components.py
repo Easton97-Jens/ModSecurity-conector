@@ -255,10 +255,11 @@ class UpdateGoComponentsTests(unittest.TestCase):
             with self.subTest(dependency=update.dependency):
                 key = (update.dependency, str(update.target_version), "")
                 bad_sum = target_sum.replace(updater.TRUSTED_TARGET_GO_SUM_ENTRIES[key], "h1:tampered=")
+                candidate_inputs = (
+                    baseline_mod.encode(), target_go_mod().encode(), baseline_sum.encode(), bad_sum.encode(),
+                )
                 with self.assertRaises(updater.ComponentError):
-                    updater.validate_component_candidate(
-                        baseline_mod.encode(), target_go_mod().encode(), baseline_sum.encode(), bad_sum.encode(),
-                    )
+                    updater.validate_component_candidate(*candidate_inputs)
 
     def test_workflow_resolver_accepts_component_only_updates_and_rejects_corrupt_reports(self) -> None:
         workflow = (SCRIPT.parents[1] / ".github/workflows/update-go-version.yml").read_text()

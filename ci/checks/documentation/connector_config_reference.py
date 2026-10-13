@@ -54,6 +54,8 @@ ALLOWED_VALUES_LIGHTTPD_BOOLEAN = "lighttpd boolean values; examples use enable/
 DEFAULT_SOURCE_LIGHTTPD_PLUGIN_DATA = "ck_calloc plugin_data allocation and default config"
 LIGHTTPD_DEFAULTS_ONLY_INHERITANCE = "Only defaults are loaded; the module has no request-time conditional patch path."
 LIGHTTPD_DEFAULTS_MERGE = "config_plugin_values_init populates defaults; no documented per-request merge."
+LIGHTTPD_STOCK_STARTUP_CONTEXT = "Stock lighttpd sidecar startup"
+LIGHTTPD_STOCK_STARTUP_MERGE = "One startup value; no request-time override."
 ALLOWED_VALUES_COMMON_BOOLEAN = "on | off | true | false | 1 | 0 | yes | no"
 DEFAULT_SOURCE_COMMON_APPLY_DEFAULTS = "common/src/config.c:msconnector_config_apply_defaults"
 DEFAULT_SOURCE_RUNTIME_PARSER = "runtime parser has no default"
@@ -842,8 +844,8 @@ def extract_lighttpd_spool_directory(root: Path) -> dict[str, Any]:
         syntax="--spool-directory /var/lib/msconnector/lighttpd-stock/safe", value_type="path",
         allowed_values="existing canonical writable directory, effective-UID-owned and mode 0700",
         default="validated private parent of --config", default_source="sidecar_prepare_spool_directory", required=False,
-        contexts="Stock lighttpd sidecar startup", inheritance=NOT_APPLICABLE,
-        merge_behavior="One startup value; no request-time override.",
+        contexts=LIGHTTPD_STOCK_STARTUP_CONTEXT, inheritance=NOT_APPLICABLE,
+        merge_behavior=LIGHTTPD_STOCK_STARTUP_MERGE,
         validation="Startup validates ancestors, pins no-follow directory descriptors and probes file creation; unsuitable storage requires an explicit private directory.",
         phase_relevance="P2 request ingestion and replay after native allow.",
         security_relevance="Request files are exclusively created as 0600 beneath the pinned private directory and immediately unlinked; no environment or public temporary-directory fallback.",
@@ -873,8 +875,8 @@ def extract_lighttpd_spool_resources(root: Path) -> list[dict[str, Any]]:
             syntax=f"{flag} {value}", value_type="integer",
             allowed_values="positive decimal byte count representable by size_t",
             default=value, default_source=macro, required=False,
-            contexts="Stock lighttpd sidecar startup", inheritance=NOT_APPLICABLE,
-            merge_behavior="One startup value; no request-time override.",
+            contexts=LIGHTTPD_STOCK_STARTUP_CONTEXT, inheritance=NOT_APPLICABLE,
+            merge_behavior=LIGHTTPD_STOCK_STARTUP_MERGE,
             validation="Checked block rounding, aggregate reservations and available-space checks precede real disk allocation; admission failures return HTTP 503.",
             phase_relevance="Before native request-body ingestion; reservations remain until descriptor cleanup.",
             security_relevance="Technical storage admission is separate from engine inspection limits. Dedicated filesystems or quotas isolate unrelated writers; synchronous filesystem calls cannot be cancelled by socket deadlines.",
@@ -3106,8 +3108,8 @@ GERMAN_TEXT: dict[str, str] = {
     "existing canonical writable directory, effective-UID-owned and mode 0700": "vorhandenes kanonisches, beschreibbares Verzeichnis mit Eigentümer entsprechend der effektiven UID und Modus 0700",
     "validated private parent of --config": "geprüftes privates Elternverzeichnis von --config",
     "sidecar_prepare_spool_directory": "sidecar_prepare_spool_directory",
-    "Stock lighttpd sidecar startup": "Start des Sidecars für ungepatchtes lighttpd",
-    "One startup value; no request-time override.": "Ein Wert beim Start; kein Überschreiben während eines Requests.",
+    LIGHTTPD_STOCK_STARTUP_CONTEXT: "Start des Sidecars für ungepatchtes lighttpd",
+    LIGHTTPD_STOCK_STARTUP_MERGE: "Ein Wert beim Start; kein Überschreiben während eines Requests.",
     "Startup validates ancestors, pins no-follow directory descriptors and probes file creation; unsuitable storage requires an explicit private directory.": "Beim Start werden die Vorfahren geprüft, Verzeichnis-Descriptoren ohne Symlink-Folgen fixiert und die Dateierstellung getestet; bei ungeeignetem Speicher ist ein explizites privates Verzeichnis erforderlich.",
     "P2 request ingestion and replay after native allow.": "P2-Request-Einlesen und Wiedergabe nach nativem Allow.",
     "Request files are exclusively created as 0600 beneath the pinned private directory and immediately unlinked; no environment or public temporary-directory fallback.": "Request-Dateien werden exklusiv mit Modus 0600 unter dem fixierten privaten Verzeichnis erstellt und sofort aus dem Verzeichnis entfernt; es gibt keinen Fallback über die Umgebung oder ein öffentliches temporäres Verzeichnis.",

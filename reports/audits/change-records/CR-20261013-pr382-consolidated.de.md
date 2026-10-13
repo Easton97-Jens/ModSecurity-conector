@@ -46,7 +46,9 @@ Regel-/BODY_LIMIT-Events.
 Aktuelle Änderungen beheben diese konkreten Auslöser:
 
 - Stock-lighttpd-Profile wählen jetzt explizite private Spool-Pfade. Ein Launcher
-  validiert/erstellt service-eigene 0700-Verzeichnisse. Zulassung verwendet ein
+  wählt ausschließlich ein geliefertes Profil und startet die fest installierte
+  native Komponente über einen geprüften Descriptor, ohne beliebige Binary-/
+  Argv-Dateieingaben. Er validiert/erstellt service-eigene 0700-Verzeichnisse. Zulassung verwendet ein
   gemeinsames 256-MiB-Spool-Budget und 64 MiB freien Dateisystemreserve, vollständige
   Allokation und geprüfte Arithmetik; Erschöpfung liefert technische 503 vor
   Upstream-Kontakt. Reservierungen gelten bis zum Schließen des entlinkten
@@ -101,7 +103,7 @@ Remote-SHA. Exakte gewrappte Befehle, Umgebungen, Logs und Exits bleiben unter
 | Updater-/Versions-/Workflow-Unitsuite; actionlint für beide Go-Workflows | 71 Tests bestehen; beide Workflowchecks Exit 0; `go-updater/validation-summary.json`. |
 | `rtk proxy make quick-check`; native Traefik-Targets; native Event-/Body-Suite | Exit 0; `root-validation/{quick-check,traefik-native,native-events-body}.json`. |
 | `rtk proxy make check-i09-native-routes check-i10-adapter-errors check-apache-event-sink check-haproxy-spop-event-sink check-apache-native-response-limit check-common-helpers-c17 check-http-authorization-service-timeout`; `rtk proxy make -C connectors/envoy test-envoy-ext-proc` | Beide finalen Läufe Exit 0; Parent-Python und externe Build-/Cache-/kurze Socketpfade wie im Runner protokolliert. |
-| Stock-Sidecar-Suite | 43 PASS, echter Nonroot-Start wegen UID-Namespace-Mapping `0 0 1` einmal BLOCKED; daraus folgt kein Nonroot-Runtime-PASS. |
+| Stock-Sidecar-Suite | Follow-up mit geschlossenem Launcher: 44 PASS, echter Nonroot-Start wegen UID-Namespace-Mapping `0 0 1` einmal BLOCKED; daraus folgt kein Nonroot-Runtime-PASS. |
 | Konfigurationsreferenz-/All-Example-Tests und generierte Referenzprüfung; Compilerguide-Verträge | Exit 0; 22 Compilerguide-Tests bestehen; Generatorausgabe ist aktuell. |
 | Kompilierte C-/Routen-/Mutationstests und privater Layoutvergleich | Fokussierte Akzeptanz besteht; opake Größe/Alignment/Offsets unverändert, einschließlich NGINX-Sanity-Konfigurationen; Nachweise in `sonar/`. Finale native Gesamt-/Envoy-Wiederholungen bestehen: `root-validation/{native-i09-i10-sinks,envoy-native}.json`, Exit 0 (234.759 / 14.283 Sekunden). |
 | Unabhängiger Gitleaks-8.30.1-Scan des PR-Commitbereichs | Exit 1, zwei historische Prosa-False-Positives; Scan des aktuellen docs-Verzeichnisses Exit 0. Keine Unterdrückung oder verengter PR-Scan. |
@@ -110,6 +112,17 @@ Remote-SHA. Exakte gewrappte Befehle, Umgebungen, Logs und Exits bleiben unter
 Frühere Gesamtfehler und Folgekorrekturen bleiben getrennte Laufversuche;
 sie werden nicht als PASS umetikettiert. Finale CI des gepushten Heads,
 Sonar-Nullbefund-/Duplikationsabruf und Codex-/Security-Review stehen hier aus.
+
+Die erste Lieferung `34b396875876d2d52e09bf44722e55d13bd9ab28` schloss die ursprünglichen
+acht Sonar-Befunde, führte jedoch zwölf Befunde in neuen Tests, Launcher und
+Referenztext ein. Dieses Follow-up entfernt beliebige Launcher-Eingaben, zieht
+zusammengehörige Test-/Pfadhelfer heraus und erhält jede ursprüngliche Assertion.
+Die CI-Registrierung ergänzt ausschließlich den neuen Go-Kandidatenworkflow in
+der vorhandenen exakten Publisher-/Kopier-/Staging-Liste; außerdem korrigiert sie
+einen bereits vorhandenen fehlerhaften lokalen Reusable-Workflow-Verweis.
+Action-Pins und Berechtigungsgrenzen bleiben gleich. Aktuelle Quellprüfung liegt
+vor einer neuen normalen Lieferung; Remote-Ergebnisse der ersten Lieferung
+belegen das Follow-up nicht.
 
 ## Security-Auswirkung
 
