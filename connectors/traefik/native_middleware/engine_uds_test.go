@@ -954,93 +954,119 @@ func TestUDSEngineNativeBodyPolicy(t *testing.T) {
 		t.Fatal("native fixture policy must be Reject or ProcessPartial")
 	}
 	t.Run("native-append-after-eos", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		opened, err := newUnixSocketEngine(socketPath).Open(ctx, Metadata{Method: http.MethodPost, RequestURI: "/append-after-eos", HTTPVersion: "HTTP/1.1", Hostname: "example.test", ClientAddress: "127.0.0.1", ClientPort: 12345, ServerAddress: "127.0.0.1", ServerPort: 80})
-		if err != nil {
-			t.Fatal(err)
-		}
-		transaction := opened.(*unixSocketTransaction)
-		defer transaction.Close(ctx, Summary{})
-		if _, err := transaction.ProcessHeaders(ctx, DirectionRequest, nil, true); err != nil {
-			t.Fatal(err)
-		}
-		_, err = transaction.ProcessBody(ctx, DirectionRequest, []byte("late"), true)
-		if !errors.Is(err, errUDSEngineRejected) {
-			t.Fatalf("native append-after-EOS error = %v, want lifecycle rejection", err)
-		}
-		if transaction.connection != nil || !transaction.closed {
-			t.Fatal("native failed append retained its connection or active lifecycle")
-		}
-		if err := transaction.CloseChecked(ctx, Summary{}); err != nil {
-			t.Fatalf("terminal cleanup = %v", err)
-		}
+		runUDSNativeAppendAfterEOS(t, socketPath)
 	})
 	for _, direction := range []Direction{DirectionRequest, DirectionResponse} {
 		for _, combinedEOS := range []bool{false, true} {
 			for _, oversized := range []bool{false, true} {
 				name := fmt.Sprintf("%v/combined-eos-%t/oversized-%t", direction, combinedEOS, oversized)
 				t.Run(name, func(t *testing.T) {
-					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-					defer cancel()
-					engine := newUnixSocketEngine(socketPath)
-					opened, err := engine.Open(ctx, Metadata{Method: http.MethodPost, RequestURI: "/native-body-policy", HTTPVersion: "HTTP/1.1", Hostname: "example.test", ClientAddress: "127.0.0.1", ClientPort: 12345, ServerAddress: "127.0.0.1", ServerPort: 80})
-					if err != nil {
-						t.Fatal(err)
-					}
-					transaction := opened.(*unixSocketTransaction)
-					defer transaction.Close(ctx, Summary{})
-					decision, err := transaction.ProcessHeaders(ctx, DirectionRequest, []Header{{Name: "content-type", Value: "text/plain"}}, direction == DirectionResponse)
-					if err != nil || decision.disruptive() {
-						t.Fatalf("request headers = %+v, %v", decision, err)
-					}
-					if direction == DirectionResponse {
-						decision, err = transaction.ProcessResponseHeaders(ctx, http.StatusOK, "HTTP/1.1", []Header{{Name: "content-type", Value: "text/plain"}})
-						if err != nil || decision.disruptive() {
-							t.Fatalf("response headers = %+v, %v", decision, err)
-						}
-					}
-					body := []byte("small")
-					if oversized {
-						body = []byte("abcdefghijklmnop")
-					}
-					decision, err = transaction.ProcessBody(ctx, direction, body, combinedEOS)
-					if err != nil {
-						t.Fatalf("body append = %v", err)
-					}
-					if !combinedEOS {
-						if decision.disruptive() {
-							t.Fatalf("successful native append unexpectedly decided before EOS: %+v", decision)
-						}
-						decision, err = transaction.ProcessBody(ctx, direction, nil, true)
-						if err != nil {
-							t.Fatalf("body EOS = %v", err)
-						}
-					}
-					if oversized && policy == "Reject" {
-						if decision.Action != ActionDeny || decision.Status != http.StatusForbidden {
-							t.Fatalf("native Reject decision = %+v, want Deny 403", decision)
-						}
-					} else if decision.disruptive() {
-						t.Fatalf("legitimate native control decision = %+v, want Allow", decision)
-					}
-					if direction == DirectionRequest && !decision.disruptive() {
-						if _, err := transaction.ProcessResponseHeaders(ctx, http.StatusOK, "HTTP/1.1", nil); err != nil {
-							t.Fatalf("control response headers = %v", err)
-						}
-						if _, err := transaction.ProcessBody(ctx, DirectionResponse, nil, true); err != nil {
-							t.Fatalf("control response EOS = %v", err)
-						}
-					}
-					if err := transaction.CloseChecked(ctx, Summary{}); err != nil {
-						t.Fatalf("native Finish/Destroy = %v", err)
-					}
-					if !transaction.closed || transaction.connection != nil {
-						t.Fatal("native transaction retained its connection after Finish/Destroy")
-					}
+					runUDSNativeBodyPolicyCase(t, socketPath, policy, direction, combinedEOS, oversized)
 				})
 			}
 		}
+	}
+}
+
+func runUDSNativeAppendAfterEOS(t *testing.T, socketPath string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	opened, err := newUnixSocketEngine(socketPath).Open(ctx, Metadata{Method: http.MethodPost, RequestURI: "/append-after-eos", HTTPVersion: "HTTP/1.1", Hostname: "example.test", ClientAddress: "127.0.0.1", ClientPort: 12345, ServerAddress: "127.0.0.1", ServerPort: 80})
+	if err != nil {
+		t.Fatal(err)
+	}
+	transaction := opened.(*unixSocketTransaction)
+	defer transaction.Close(ctx, Summary{})
+	if _, err := transaction.ProcessHeaders(ctx, DirectionRequest, nil, true); err != nil {
+		t.Fatal(err)
+	}
+	_, err = transaction.ProcessBody(ctx, DirectionRequest, []byte("late"), true)
+	if !errors.Is(err, errUDSEngineRejected) {
+		t.Fatalf("native append-after-EOS error = %v, want lifecycle rejection", err)
+	}
+	if transaction.connection != nil || !transaction.closed {
+		t.Fatal("native failed append retained its connection or active lifecycle")
+	}
+	if err := transaction.CloseChecked(ctx, Summary{}); err != nil {
+		t.Fatalf("terminal cleanup = %v", err)
+	}
+}
+
+func runUDSNativeBodyPolicyCase(t *testing.T, socketPath, policy string, direction Direction, combinedEOS, oversized bool) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	engine := newUnixSocketEngine(socketPath)
+	opened, err := engine.Open(ctx, Metadata{Method: http.MethodPost, RequestURI: "/native-body-policy", HTTPVersion: "HTTP/1.1", Hostname: "example.test", ClientAddress: "127.0.0.1", ClientPort: 12345, ServerAddress: "127.0.0.1", ServerPort: 80})
+	if err != nil {
+		t.Fatal(err)
+	}
+	transaction := opened.(*unixSocketTransaction)
+	defer transaction.Close(ctx, Summary{})
+	decision, err := transaction.ProcessHeaders(ctx, DirectionRequest, []Header{{Name: "content-type", Value: "text/plain"}}, direction == DirectionResponse)
+	if err != nil || decision.disruptive() {
+		t.Fatalf("request headers = %+v, %v", decision, err)
+	}
+	if direction == DirectionResponse {
+		decision, err = transaction.ProcessResponseHeaders(ctx, http.StatusOK, "HTTP/1.1", []Header{{Name: "content-type", Value: "text/plain"}})
+		if err != nil || decision.disruptive() {
+			t.Fatalf("response headers = %+v, %v", decision, err)
+		}
+	}
+	decision = processUDSNativeBodyPolicy(t, ctx, transaction, direction, combinedEOS, oversized)
+	assertUDSNativeBodyPolicyDecision(t, decision, policy, oversized)
+	if direction == DirectionRequest && !decision.disruptive() {
+		completeUDSNativeControlResponse(t, ctx, transaction)
+	}
+	if err := transaction.CloseChecked(ctx, Summary{}); err != nil {
+		t.Fatalf("native Finish/Destroy = %v", err)
+	}
+	if !transaction.closed || transaction.connection != nil {
+		t.Fatal("native transaction retained its connection after Finish/Destroy")
+	}
+}
+
+func completeUDSNativeControlResponse(t *testing.T, ctx context.Context, transaction *unixSocketTransaction) {
+	t.Helper()
+	if _, err := transaction.ProcessResponseHeaders(ctx, http.StatusOK, "HTTP/1.1", nil); err != nil {
+		t.Fatalf("control response headers = %v", err)
+	}
+	if _, err := transaction.ProcessBody(ctx, DirectionResponse, nil, true); err != nil {
+		t.Fatalf("control response EOS = %v", err)
+	}
+}
+
+func processUDSNativeBodyPolicy(t *testing.T, ctx context.Context, transaction *unixSocketTransaction, direction Direction, combinedEOS, oversized bool) Decision {
+	t.Helper()
+	body := []byte("small")
+	if oversized {
+		body = []byte("abcdefghijklmnop")
+	}
+	decision, err := transaction.ProcessBody(ctx, direction, body, combinedEOS)
+	if err != nil {
+		t.Fatalf("body append = %v", err)
+	}
+	if !combinedEOS {
+		if decision.disruptive() {
+			t.Fatalf("successful native append unexpectedly decided before EOS: %+v", decision)
+		}
+		decision, err = transaction.ProcessBody(ctx, direction, nil, true)
+		if err != nil {
+			t.Fatalf("body EOS = %v", err)
+		}
+	}
+	return decision
+}
+
+func assertUDSNativeBodyPolicyDecision(t *testing.T, decision Decision, policy string, oversized bool) {
+	t.Helper()
+	if oversized && policy == "Reject" {
+		if decision.Action != ActionDeny || decision.Status != http.StatusForbidden {
+			t.Fatalf("native Reject decision = %+v, want Deny 403", decision)
+		}
+	} else if decision.disruptive() {
+		t.Fatalf("legitimate native control decision = %+v, want Allow", decision)
 	}
 }
 
