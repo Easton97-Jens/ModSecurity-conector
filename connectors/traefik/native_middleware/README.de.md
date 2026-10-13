@@ -1,4 +1,4 @@
-# Native Traefik-Streaming-Middleware-Quelle
+# Native Traefik-Middleware-Quelle
 
 **Sprache:** [English](README.md) | Deutsch
 
@@ -14,13 +14,32 @@ Capability-Erklärung.
 
 ## Was die Quelle tut
 
-- Sie umschließt den Request-Body, begrenzt Lesevorgänge auf
-  `maxRequestChunkBytes` und sendet sie synchron an eine
-  `Transaction`-Nahtstelle pro Request.
-- Vor dem Response-Commit wird ein ungelesener Body bis zum Request-EOS
-  verarbeitet; `requestBodyIdleTimeoutMillis` ist dabei unabhängig von
-  Engine-Timeout und `maxRequestBodyBytes`. Bei Inaktivität oder Cancel wird
-  fail-closed beendet und die eigene Quelle geschlossen.
+- Sie liest den vollständigen Request-Body vor dem nächsten Handler ein,
+  begrenzt Lesevorgänge auf `maxRequestChunkBytes` und sendet sie synchron an
+  die `Transaction` pro Request. Erst ein vollständig erlaubtes Request-EOS
+  gibt den Handler frei.
+- Sie puffert höchstens `maxRequestBodyBytes` (harte Obergrenze: 1 MiB) für
+  bytegenaue Wiedergabe an den nächsten Handler, ohne die Bytes erneut zu prüfen.
+- `requestBodyIdleTimeoutMillis` ist unabhängig von Engine-Timeout und
+  `maxRequestBodyBytes`. Bei Inaktivität oder Cancel wird vor dem nächsten
+  Handler fail-closed beendet und die eigene Quelle geschlossen.
+- Erst bei Idle/Cancel verkürzt sie die Read-Deadline über den
+  ResponseController des Hosts: `Close` allein löst einen laufenden `Read`
+  des Server-Bodys nicht. Erfolgreiche Reads ersetzen oder löschen niemals den
+  absoluten ReadTimeout des Operators. Eigene Quellen ohne Host-Deadline-Unterstützung
+  müssen ihre Lesevorgänge bei `Close` lösen. Der Controller folgt Wrappern mit
+  `Unwrap`. Verbirgt ein Wrapper Deadlines und `Unwrap`, liefert er
+  `ErrNotSupported`; bei einem echten HTTP-Body hinter einem solchen Wrapper
+  benötigt die Idle-Grenze einen Host-Read-Timeout und ist durch Quelltests
+  nicht belegt.
+- Die endliche Grenze `maxRequestBodyBytes` (Standard und harte Obergrenze:
+  1 MiB) greift, bevor ein überschreitender Chunk die Engine erreicht. Die
+  Aktion vor dem Commit ist HTTP 413; danach werden keine weiteren Request-Bytes
+  geprüft oder weitergeleitet. Das hosteigene `Body.Close` darf Restbytes bis zur
+  konfigurierten Idle-Deadline einlesen.
+- Abgeschnittene deklarierte Bodies (auch nil/`NoBody` bei positiver Content-Length)
+  sowie Lese-/Enginefehler führen zum
+  geschlossenen HTTP-500-Pfad, ohne Handler-Aufruf oder erfundenes Request-EOS.
 - Sie umschließt den ResponseWriter, wertet Response-Header vor dem Commit aus
   und teilt jedes `Write` vor der Weiterleitung in
   `maxResponseChunkBytes`-Callbacks auf.
@@ -29,6 +48,11 @@ Capability-Erklärung.
   Chunk den schnellen Pfad des umschlossenen Writers bei.
 - In `Summary` verbleiben nur Metadaten sowie Byte-/Chunk-Zähler, niemals ein
   vollständiger Request- oder Response-Body.
+- `Metadata.ServerAddress` und `Metadata.ServerPort` werden ausschließlich aus
+  dem vom Host bereitgestellten `http.LocalAddrContextKey` abgeleitet; ein
+  fehlender, nicht-IP- oder ungültiger Port-Endpunkt liefert HTTP 500, bevor
+  die Engine geöffnet wird, während die client-kontrollierte Request-Authority
+  ausschließlich `Metadata.Hostname` bleibt.
 - Ein disruptives Ergebnis nach dem Response-Commit wird als `log_only`
   behandelt; es wird kein geänderter Status, Reset oder Client-Abbruch
   behauptet.
@@ -54,6 +78,10 @@ erzwingen. Eine plattformspezifische `SO_PEERCRED`-Prüfung benötigt einen
 ausdrücklich unterstützten Plattformvertrag und wird von diesem Paket nicht
 impliziert.
 
+Die Zuordnung des vertrauenswürdigen lokalen Endpunkts schützt nur die
+Provenienz des Server-Endpunkts. Sie authentifiziert keinen späteren UDS-Peer
+und löst daher nicht das Socket-Ersetzungsrisiko aus FND-PARENT-0015.
+
 Das UDS-Protokoll lehnt unbekannte Engine-Aktionen ab, statt sie als
 HTTP-Ablehnung umzudeuten. Es meldet ein disruptives Ergebnis erst nach einem
 erfolgreichen tatsächlichen `ResponseWriter`-Schreibvorgang. Nach dem
@@ -63,7 +91,8 @@ erzeugt keinen geänderten Status, Reset oder Client-Abbruch-Anspruch.
 ## UDS-Cancellation-, Timeout- und Cleanup-Grenze
 
 Jede `ServeHTTP`-Transaktion besitzt genau eine private UDS-Verbindung; sie
-wird nie von einer Folgeanfrage wiederverwendet. Jeder Austausch verwendet das
+wird nie von einer Folgeanfrage wiederverwendet. Jeder Austausch während
+Request/Streaming verwendet das
 kleinere von konfiguriertem Engine-Timeout und Request-Context-Deadline. Eine
 Context-Cancellation verkürzt die Verbindungs-Deadline sofort, löst einen
 wartenden Read oder Write und verbindet ihren Watcher vor Rückkehr des Aufrufs.
@@ -71,6 +100,15 @@ Ein Timeout, Cancel, Peer-Reset, ungültiges oder unvollständiges Resultat
 verwirft die Verbindung, schließt ihren FD und beendet nur diese Transaktion;
 kein Teilframe darf wiederverwendet werden. `Close` bleibt idempotent, auch
 wenn ein früherer Austausch die Verbindung bereits verworfen hat.
+
+Nach regulärer Handler-Rückkehr darf eine Response mit expliziter Content-Length,
+deren sämtliche Bytes der Host-Writer akzeptiert hat, auch bei anschließendem
+Client-Abbruch abgeschlossen werden. Nur dieser vollständige Stream ohne
+Lese-/Schreibfehler oder Hijack verwendet für die letzte Body-Commit-Bestätigung,
+Response-EOS und Cleanup einen Context mit erhaltenen Request-Werten und
+unabhängiger Ein-Sekunden-Deadline. Unbekannte oder unvollständige Längen sowie
+fehlerhafte Streams behalten die normale Request-Cancellation. Ein Enginefehler
+wird in `Summary` niemals als erfolgreiches Response-EOS gewertet.
 
 Vor dem Response-Commit führt ein Engine-Austauschfehler zum dokumentierten
 geschlossenen HTTP-500-Pfad. Ein abgebrochener Host-Request kann seinen

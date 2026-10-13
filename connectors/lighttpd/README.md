@@ -15,6 +15,11 @@ transaction and deterministic cleanup, so this topology needs no cross-process
 correlation handle or TTL registry. Event JSONL contains bounded metadata and
 counters only; request and response body payloads are never emitted.
 
+Before Common transaction begin, the sidecar derives client and server IP
+endpoints from `getpeername()` and `getsockname()` on its accepted TCP socket.
+It rejects a non-IP endpoint or port zero and never treats the HTTP `Host`
+authority as a network endpoint.
+
 For P4, the sidecar uses one bounded response chunk at a time: it appends that
 chunk once to Common/libModSecurity and forwards it immediately to the client;
 only response EOS invokes the final P4 decision. After a committed prefix,

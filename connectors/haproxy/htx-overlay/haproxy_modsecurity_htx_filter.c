@@ -5,15 +5,15 @@
  * companion build-overlay.sh copies it into a version-pinned worktree
  * and links it with the repository-owned ModSecurity binding.
  *
- * The filter is forward-first and does not own a request or response buffer:
+ * The default profile is forward-first; neither mode owns a body buffer:
  *
  *   - http_payload walks only the current HTX DATA slices and passes borrowed
  *     pointers directly to the matching request or response binding call;
  *   - no bytes, chains, or HTX blocks are retained in this module;
- *   - request Phase 2 and response Phase 4 are finalized exactly once at the
- *     respective HTX http_end callbacks;
- *   - body chunks always return their original length, so this filter never
- *     waits for a complete body before HAProxy can continue forwarding it.
+ *   - streaming P2 and P4 are finalized once at HTX http_end; host-buffered P2
+ *     is finalized at complete request headers before any upstream dispatch;
+ *   - default streaming body chunks return their original length; explicit
+ *     request-body-mode host-buffered inspects complete bounded HTX at headers.
  *
  * A Phase-4 intervention discovered after response commitment is resolved
  * through the Common late-intervention policy.  This overlay currently records
@@ -64,10 +64,12 @@
 #define HAPROXY_MODSECURITY_HTX_MAX_URI_BYTES 8192U
 #define HAPROXY_MODSECURITY_HTX_MAX_PROTOCOL_BYTES 32U
 #define HAPROXY_MODSECURITY_HTX_RESPONSE_HANDLE_LENGTH 64U
+#define HAPROXY_MODSECURITY_HTX_BUFFERED_REQUEST_LIMIT 65536U
 
 const char *haproxy_modsecurity_htx_filter_id = "modsecurity-htx streaming filter";
 
 struct haproxy_modsecurity_htx_filter_config {
+    int host_buffered_request;
     char *rules_file;
     char *response_companion_socket;
     uint64_t response_companion_timeout_ms;
@@ -1006,6 +1008,46 @@ static int haproxy_modsecurity_htx_companion_commit(
     return ok;
 }
 
+/* Native rule IDs are canonical positive signed integers. Bound the scan
+ * before parsing MRC1-owned text; never retain it after result reset. */
+static int haproxy_modsecurity_htx_companion_p3_rule_id(
+    const msconnector_response_companion_result *result, int *rule_id)
+{
+    size_t index;
+    unsigned int value = 0U;
+
+    if (result == NULL || rule_id == NULL || !result->success ||
+        (result->decision != MSCONNECTOR_DECISION_KIND_DENY &&
+         result->decision != MSCONNECTOR_DECISION_KIND_REDIRECT) ||
+        result->rule_id == NULL || result->rule_id[0] < '1' ||
+        result->rule_id[0] > '9') {
+        return 0;
+    }
+    for (index = 0U; index < MSCONNECTOR_MAX_RULE_ID_LENGTH; ++index) {
+        unsigned char digit = (unsigned char)result->rule_id[index];
+        if (digit == '\0') {
+            *rule_id = (int)value;
+            return 1;
+        }
+        if (digit < '0' || digit > '9' ||
+            value > ((unsigned int)INT_MAX - (digit - '0')) / 10U) {
+            return 0;
+        }
+        value = value * 10U + (digit - '0');
+    }
+    return 0;
+}
+
+static msconnector_decision_action haproxy_modsecurity_htx_companion_p3_host_action(
+    int intended_status, int actual_status)
+{
+    /* http_reply_and_close() may replace the intended reply with a rendering
+     * error. Such a fallback is an observed host error, not the requested deny. */
+    return actual_status == intended_status && actual_status >= 400 &&
+        actual_status <= 599 ? MSCONNECTOR_DECISION_ACTION_DENY :
+        MSCONNECTOR_DECISION_ACTION_ERROR;
+}
+
 static int haproxy_modsecurity_htx_process_companion_response_headers(
     struct stream *s, struct filter *filter, struct http_msg *msg)
 {
@@ -1022,6 +1064,11 @@ static int haproxy_modsecurity_htx_process_companion_response_headers(
     msconnector_error error;
     haproxy_modsecurity_decision host_decision;
     int status;
+    int requested_status;
+    int actual_status;
+    msconnector_decision_action actual_action;
+    int rule_id;
+    const char *requested_action;
     int ok;
 
     if (ctx == NULL || config == NULL || msg == NULL || msg->chn == NULL ||
@@ -1076,18 +1123,40 @@ static int haproxy_modsecurity_htx_process_companion_response_headers(
     /* HAProxy's selected HTX API has a concrete deny reply, but no supported
      * dynamic redirect reply builder.  Preserve a deny status where valid and
      * otherwise fail closed with 503 rather than forwarding a disruptive P3. */
+    if (!ctx->lifecycle.transaction_id[0] ||
+        !haproxy_modsecurity_htx_companion_p3_rule_id(&result, &rule_id)) {
+        haproxy_modsecurity_htx_companion_result_reset(&result);
+        return haproxy_modsecurity_htx_fail_closed_precommit(s, ctx,
+            "response-companion phase-3 uncorrelated decision");
+    }
+    requested_status = result.status;
+    requested_action = result.decision == MSCONNECTOR_DECISION_KIND_DENY ?
+        "deny" : "redirect";
     status = result.decision == MSCONNECTOR_DECISION_KIND_DENY &&
         msconnector_block_status_is_allowed((int)result.status) ?
         (int)result.status : 503;
-    (void)haproxy_modsecurity_htx_companion_record_precommit_outcome(ctx,
-        MSCONNECTOR_DECISION_ACTION_DENY, status);
     haproxy_modsecurity_htx_companion_result_reset(&result);
     memset(&host_decision, 0, sizeof(host_decision));
     host_decision.disruptive = 1;
     host_decision.phase = 3;
+    host_decision.rule_id = rule_id;
     host_decision.status = status;
     snprintf(host_decision.action, sizeof(host_decision.action), "%s", "deny");
     if (haproxy_modsecurity_htx_apply_precommit_deny(s, ctx, &host_decision)) {
+        actual_status = s->txn->status;
+        if (actual_status < 400 || actual_status > 599) {
+            haproxy_modsecurity_htx_fail_closed_postcommit(s, ctx,
+                "response-companion phase-3 invalid host reply status");
+            return -1;
+        }
+        actual_action = haproxy_modsecurity_htx_companion_p3_host_action(
+            status, actual_status);
+        (void)haproxy_modsecurity_htx_companion_record_precommit_outcome(ctx,
+            actual_action, actual_status);
+        ha_warning("modsecurity-htx: response-companion phase-3 intervention; transaction_id=%s phase=3 rule_id=%d requested=%s requested_status=%d host_action=%s host_status=%d\n",
+            ctx->lifecycle.transaction_id, rule_id, requested_action,
+            requested_status, msconnector_decision_action_name(actual_action),
+            actual_status);
         return 1;
     }
     return haproxy_modsecurity_htx_fail_closed_precommit(s, ctx,
@@ -1294,15 +1363,35 @@ static int haproxy_modsecurity_htx_finish_companion_response(
     return 1;
 }
 
+/* The frontend body wait runs before backend selection/filter attachment.
+ * A backend filter cannot constrain that earlier frontend timeout. A listen
+ * proxy can also be selected as a backend, so only a pure frontend is safe. */
+static int haproxy_modsecurity_htx_buffered_profile_is_valid(
+    const struct proxy *px)
+{
+    if (!px || !(px->cap & PR_CAP_FE) || (px->cap & PR_CAP_BE) ||
+        px->mode != PR_MODE_HTTP ||
+        !(px->options & PR_O_WREQ_BODY) ||
+        !px->timeout.httpreq || px->timeout.httpreq == TICK_ETERNITY ||
+        px->timeout.httpreq > 5000) {
+        return 0;
+    }
+    return 1;
+}
+
 static int haproxy_modsecurity_htx_filter_init(struct proxy *px, struct flt_conf *fconf)
 {
     struct haproxy_modsecurity_htx_filter_config *config = fconf->conf;
     haproxy_modsecurity_engine_config engine_config;
     haproxy_modsecurity_decision decision;
 
-    (void)px;
     if (!config) {
         ha_alert("modsecurity-htx: filter configuration is required\n");
+        return -1;
+    }
+    if (config->host_buffered_request &&
+        !haproxy_modsecurity_htx_buffered_profile_is_valid(px)) {
+        ha_alert("modsecurity-htx: host-buffered requires a pure HTTP frontend with option http-buffer-request and timeout http-request in 1..5000ms\n");
         return -1;
     }
     if (haproxy_modsecurity_htx_companion_enabled(config)) {
@@ -1314,7 +1403,9 @@ static int haproxy_modsecurity_htx_filter_init(struct proxy *px, struct flt_conf
         return -1;
     }
     memset(&engine_config, 0, sizeof(engine_config));
-    engine_config.connector_info = "HAProxy native HTX streaming overlay";
+    engine_config.connector_info = config->host_buffered_request ?
+        "HAProxy native HTX bounded host-buffered request overlay" :
+        "HAProxy native HTX streaming overlay";
     engine_config.common_config = config->common_config;
     engine_config.rules_file = config->rules_file;
     if (haproxy_modsecurity_engine_create(&engine_config, &config->engine, &decision) != 0) {
@@ -1423,10 +1514,42 @@ static int haproxy_modsecurity_htx_handle_response_headers(
     return 1;
 }
 
+static int haproxy_modsecurity_htx_finish_request(
+    struct stream *s, struct filter *filter, struct http_msg *msg,
+    struct haproxy_modsecurity_htx_filter_context *ctx);
+
+/* HAProxy 3.2.25 http-buffer-request releases on either EOM or buffer-full.
+ * EOM is mandatory here: incomplete/full buffers must fail before HAProxy's
+ * header analyzer advances any outgoing bytes. Inspect borrowed HTX DATA and
+ * evaluate P2 in this callback, so analyzer-loop scheduling cannot connect the
+ * backend between header release and the request-body EOS callback. */
+static int haproxy_modsecurity_htx_inspect_buffered_request(
+    struct stream *s, struct filter *filter, struct http_msg *msg)
+{
+    struct haproxy_modsecurity_htx_filter_context *ctx = filter->ctx;
+    struct htx *htx = htxbuf(&msg->chn->buf);
+
+    if (!(htx->flags & HTX_FL_EOM)) {
+        haproxy_modsecurity_htx_fail_closed_request_phase(s, ctx,
+            "host-buffered request lacks complete EOM");
+        return 1;
+    }
+    if (haproxy_modsecurity_htx_append_request_payload(filter, msg, 0U,
+            htx->data) != 0) {
+        haproxy_modsecurity_htx_fail_closed_request_phase(s, ctx,
+            "host-buffered request exceeds limit or append failed");
+        return 1;
+    }
+    ha_warning("modsecurity-htx: buffered request inspected before header release; transaction_id=%s body_mode=buffered body_bytes_seen=%zu eos_seen=true\n",
+        ctx->lifecycle.transaction_id, ctx->request.payload_bytes_seen);
+    return haproxy_modsecurity_htx_finish_request(s, filter, msg, ctx);
+}
+
 static int haproxy_modsecurity_htx_handle_request_headers(
     struct stream *s, struct filter *filter, struct http_msg *msg)
 {
     struct haproxy_modsecurity_htx_filter_context *ctx = filter->ctx;
+    struct haproxy_modsecurity_htx_filter_config *config = FLT_CONF(filter);
 
     if (ctx->request.headers_seen) {
         /* P1 is a single logical phase even when HAProxy reuses the stream or
@@ -1458,6 +1581,9 @@ static int haproxy_modsecurity_htx_handle_request_headers(
         haproxy_modsecurity_htx_fail_closed_request_phase(s, ctx,
             "request headers");
     } else if (!ctx->lifecycle.disabled) {
+        if (config->host_buffered_request) {
+            return haproxy_modsecurity_htx_inspect_buffered_request(s, filter, msg);
+        }
         register_data_filter(s, msg->chn, filter);
     }
     return 1;
@@ -1908,6 +2034,27 @@ static int parse_phase4_option(
     return HAPROXY_MODSECURITY_HTX_PARSE_HANDLED;
 }
 
+static int parse_request_mode_option(
+    struct haproxy_modsecurity_htx_filter_config *config,
+    char **args, int pos, char **err, int cur_arg, int *mode_set)
+{
+    if (strcmp(args[pos], "request-body-mode") != 0) {
+        return HAPROXY_MODSECURITY_HTX_PARSE_UNHANDLED;
+    }
+    if (*mode_set || args[pos + 1] == NULL ||
+        (strcmp(args[pos + 1], "streaming") != 0 &&
+         strcmp(args[pos + 1], "host-buffered") != 0)) {
+        memprintf(err, "'%s' requires one request-body-mode streaming or host-buffered", args[cur_arg]);
+        return HAPROXY_MODSECURITY_HTX_PARSE_ERROR;
+    }
+    *mode_set = 1;
+    config->host_buffered_request = strcmp(args[pos + 1], "host-buffered") == 0;
+    if (config->host_buffered_request) {
+        config->common_config.request_body_limit = HAPROXY_MODSECURITY_HTX_BUFFERED_REQUEST_LIMIT;
+    }
+    return HAPROXY_MODSECURITY_HTX_PARSE_HANDLED;
+}
+
 static int haproxy_modsecurity_htx_filter_parse(
     char **args, int *cur_arg, struct proxy *px, struct flt_conf *fconf,
     char **err, void *private)
@@ -1915,6 +2062,7 @@ static int haproxy_modsecurity_htx_filter_parse(
     struct haproxy_modsecurity_htx_filter_config *config;
     int pos;
     int timeout_set = 0;
+    int mode_set = 0;
 
     (void)px;
     (void)private;
@@ -1941,6 +2089,9 @@ static int haproxy_modsecurity_htx_filter_parse(
             handled = parse_identity_option(config, args, pos, err, *cur_arg, 0);
         }
         if (handled == HAPROXY_MODSECURITY_HTX_PARSE_UNHANDLED) {
+            handled = parse_request_mode_option(config, args, pos, err, *cur_arg, &mode_set);
+        }
+        if (handled == HAPROXY_MODSECURITY_HTX_PARSE_UNHANDLED) {
             handled = parse_phase4_option(config, args, pos);
         }
         if (handled == HAPROXY_MODSECURITY_HTX_PARSE_ERROR) {
@@ -1953,6 +2104,11 @@ static int haproxy_modsecurity_htx_filter_parse(
             return -1;
         }
         pos += 2;
+    }
+    if (config->host_buffered_request && config->response_companion_socket != NULL) {
+        memprintf(err, "'%s' host-buffered is restricted to the direct rules-file profile", args[*cur_arg]);
+        haproxy_modsecurity_htx_filter_config_destroy(config);
+        return -1;
     }
     if (config->response_companion_socket != NULL &&
         (!timeout_set || !config->response_companion_uid_set ||

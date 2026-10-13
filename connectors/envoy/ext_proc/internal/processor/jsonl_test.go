@@ -200,7 +200,12 @@ func TestJSONLObserverRejectsUnexpectedExistingFileTypes(t *testing.T) {
 func TestJSONLObserverRejectsExistingFileWithUnsafePermissions(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "events.jsonl")
-	if err := os.WriteFile(path, nil, 0o666); err != nil {
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// The runner deliberately uses a restrictive umask. Set the unsafe mode
+	// explicitly so this test exercises the observer rather than process state.
+	if err := os.Chmod(path, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := NewJSONLObserver(path); err == nil {

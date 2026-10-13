@@ -240,7 +240,7 @@ func (s *udsSession) dispatchControl(ctx context.Context, op byte, p []byte) (wi
 		return result, terminal, true
 	}
 	if op == opClaim {
-		result, terminal := s.dispatchClaim(p)
+		result, terminal := s.dispatchClaim(ctx, p)
 		return result, terminal, true
 	}
 	if s.requestTerminal {
@@ -405,7 +405,7 @@ func (s *udsSession) dispatchReserve(p []byte) (wireResult, bool) {
 	return wireResult{token: token}, false
 }
 
-func (s *udsSession) dispatchClaim(p []byte) (wireResult, bool) {
+func (s *udsSession) dispatchClaim(ctx context.Context, p []byte) (wireResult, bool) {
 	if s.claimed {
 		return wireResult{decision: decisionDeny, status: 409}, true
 	}
@@ -413,7 +413,7 @@ func (s *udsSession) dispatchClaim(p []byte) (wireResult, bool) {
 	if err != nil || s.leaseToken == "" || token != s.leaseToken {
 		return wireResult{decision: decisionDeny, status: 503}, true
 	}
-	resp, err := s.svc.Coordinator.Claim(token, s.session)
+	resp, err := s.svc.Coordinator.ClaimContext(ctx, token, s.session)
 	if err == nil {
 		s.response, s.claimed = resp, true
 		return wireResult{}, false

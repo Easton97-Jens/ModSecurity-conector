@@ -2,6 +2,43 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
+## Go-Composite-Common-Runtime und beobachteter Lifecycle
+
+Das separat gebaute `msconnector-composite --mode envoy` wählt die kanonische
+Identität `envoy / ext_authz / envoy-ext-authz` mit gepufferten Requests und
+gestreamten Responses. Es verwendet den additiven gepufferten Header-Start,
+explizites Request-Append/EOS und die private Common-Response-Companion-Session
+für P3/P4. Direktes `envoy-ext-proc` verwendet standardmäßig gestreamte Requests
+und Responses; sein ausdrückliches Host-Profil mit gepufferter Zulassung ist unten beschrieben.
+
+Go-Lease, Kontext und Deadline werden vor dem nativen Claim geprüft. Nativer
+Ablauf konsumiert die Ownership; konsumierte Cleanup-Fehler werden nicht
+wiederholt. Unaufgelöstes Cleanup versetzt den Coordinator dauerhaft in einen
+Fehlerzustand und sperrt die Aufnahme für kontrollierten Neustart. Terminales
+Cleanup ist einmalig geschützt und behält die Entry-Ownership bis zum
+Abschluss. Ein echter Common-Body-Limit-Fehler wird auf 413 abgebildet und mit
+der tatsächlichen Host-Aktion aufgezeichnet; terminales Cleanup eines
+unvollständigen Bodys erfindet weder EOS noch P2-Regelauswertung.
+
+Am 2026-10-03 bestand der externe Lauf `p370efix.LLQmPm7g` den nativen Build,
+344 benannte Tagged-Tests ohne Skips, C17-Companion-Prüfungen, direkten Verkehr
+mit echtem Envoy und die Go-Composite-Lifecycle-Matrix. Der korrigierte
+Fokuslauf `p370efu.Ggj72Jct` liefert Fehler-/Folgeanfrage-Evidence im selben
+Dienst. Die Matrix bleibt `lifecycle_only` mit
+`catalog_acceptance=false`; P4 Strict wird nicht hochgestuft. Diese Evidence
+gilt für das Go-Executable und die gewählte Konfiguration, nicht für die
+beibehaltene C-`ext_authz`-Route. Deren bestehende Einschränkungen
+`implemented_not_asserted` bleiben erhalten.
+
+Source-Manifeste, Executable-/Bibliothekshashes, Beobachtungen geladener
+Bibliotheken, Ressourcenmessungen und Cleanup-Ergebnisse bleiben bei den
+externen Läufen erhalten.
+
+Vollständige G1–G9-Abnahme aller neun Nicht-NGINX-Profile bleibt offen;
+Produktionsreife wird nicht behauptet. Siehe
+[Change Record](../../../reports/audits/change-records/CR-20261003-pr370-composite-common-runtime.de.md)
+für Umfang, Befehle und verbleibende Lücken.
+
 Dieses Verzeichnis ist eine angeheftete Go-Implementierung des Beamten von Envoy
 `envoy.service.ext_proc.v3.ExternalProcessor` gRPC-Schnittstelle. Es ist getrennt
 vom vorhandenen C `ext_authz`-Dienst und ändert den ausgewählten nicht,
@@ -113,7 +150,19 @@ ob Envoy einen Downstream-Client- oder Upstream-Reset gesehen hat.
 Die angeheftete Abhängigkeit ist das offiziell generierte Envoy Go API-Modul in
 `go.mod`/`go.sum`. `../config/envoy-ext-proc-versions.env` zeichnet das beabsichtigte auf
 Framework-synchronisierte Envoy-Version und `../config/envoy-ext-proc-streaming.yaml.in` werden verwendet
-nur `STREAMED` Körpermodi, niemals `BUFFERED`.
+standardmäßig nur `STREAMED`-Körpermodi. Die ausdrückliche Auswahl
+`PROFILE=buffered-admission` rendert Envoy-Anfragen mit `BUFFERED`, Antworten mit
+`STREAMED` und einem Listener-Puffer von 65536 Bytes. Header und Trailer bleiben
+auf `SEND`. Common behält `request_body_mode=streaming`: Envoy liefert die
+zugelassene Anfrage als einen Body-Callback mit EOS. Dieses Profil hält die
+Upstream-Zulassung bis zur vollständigen Anfrageentscheidung zurück, auch bei
+verzögerten Downstream-Chunks. Der direkte Qualifikationslauf verwendet dieses
+Profil mit einem Common-Anfragelimit von 32 Bytes; der größere begrenzte
+Host-Puffer lässt den 33-Byte-Überlauf zur nativen Einstufung bei Common ankommen.
+Das vorhandene Streaming-Profil bleibt mit seinem eigenen Vertrag verfügbar.
+Verwirft der Antwortadapter einen übergroßen Chunk, beendet tatsächliches Body-
+oder Trailer-EOS Common mit einem leeren letzten Callback. Verworfene Bytes
+gelangen nicht zu Common; ein Abbruch vor EOS behält den nativen Abbruchablauf.
 
 ## Mindestversionen für die Abhängigkeitssicherheit
 

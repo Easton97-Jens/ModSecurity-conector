@@ -43,6 +43,10 @@ jobs:
             make
       - name: Verify Apache intervention cleanup source contract
         run: python3 -m unittest -v tests.test_apache_intervention_cleanup
+      - name: Verify Apache APXS staging and pinned source fallback
+        env:
+          TMPDIR: ${{ runner.temp }}
+        run: python3 -m unittest -v tests.test_apache_apxs_profile_registry_staging tests.test_apache_httpd_archive_fallback
       - name: Verify Apache Autotools bootstrap from tracked source only
         env:
           APACHE_AUTOTOOLS_TEST_PARENT: ${{ runner.temp }}

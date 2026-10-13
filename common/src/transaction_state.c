@@ -1000,7 +1000,7 @@ int msconnector_transaction_contract_fail(msconnector_transaction_contract *cont
         break;
     }
     if (kind == MSCONNECTOR_TRANSACTION_DECISION_BLOCK) {
-        /* Limits are host policy errors, not a forged rule decision. */
+        /* Limit outcomes are not forged rule decisions. */
         contract->error_class = error_class;
         contract->engine_decision = kind;
         contract->action = MSCONNECTOR_DECISION_ACTION_DENY;

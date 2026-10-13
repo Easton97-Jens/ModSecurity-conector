@@ -16,6 +16,11 @@ benötigt diese Topologie weder prozessübergreifende Korrelation noch eine
 TTL-Registry. Event-JSONL enthält nur begrenzte Metadaten und Zähler; Request-
 und Response-Body-Payloads werden niemals ausgegeben.
 
+Vor dem Common-Transaktionsbeginn leitet der Sidecar Client- und Server-IP-
+Endpunkte mit `getpeername()` und `getsockname()` aus seinem akzeptierten TCP-
+Socket ab. Er weist einen Nicht-IP-Endpunkt oder Port null ab und behandelt die
+HTTP-`Host`-Authority niemals als Netzwerkendpunkt.
+
 Für P4 verwendet der Sidecar jeweils genau einen begrenzten Response-Chunk: Er
 hängt diesen Chunk einmal an Common/libModSecurity an und reicht ihn sofort an
 den Client weiter; nur Response-EOS ruft die finale P4-Entscheidung auf. Nach

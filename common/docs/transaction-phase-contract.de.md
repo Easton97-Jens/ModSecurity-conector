@@ -354,6 +354,44 @@ Transaktionen, Stream-Wiederverwendung und Shutdown-Cleanup. Native
 Hostkompilierung und Live-Transportnachweise bleiben getrennt von diesen
 Unit-/Komponentenchecks.
 
+## Verzögerter gepufferter Requeststart und Composite-Ownership
+
+`msconnector_runtime_transaction_begin_request_headers()` ist additiv: Es
+öffnet nur P1 bei `request_body_mode=buffered`, `body.data == NULL` und
+`body.size == 0`. Der Adapter muss begrenzte Request-Chunks explizit anhängen
+und `msconnector_runtime_transaction_finish_request_body()` bei EOS vor P3
+oder Companion-Handoff aufrufen. Auch eine leere Entity erfordert diesen
+EOS-Aufruf. Das gewöhnliche `msconnector_runtime_transaction_begin()`
+verarbeitet weiterhin die vollständige gepufferte Entity einschließlich einer
+leeren Entity.
+
+Ein Host, der einen unvollständigen Request mit 413 ablehnt, verwendet
+`msconnector_runtime_transaction_finish_host_rejected_request_body()` für
+terminales Logging und Cleanup. Dieser Pfad erzeugt weder Request-EOS noch
+eine P2-Entscheidung und ersetzt keinen normalen Body-Abschluss.
+
+Das Go-Executable `msconnector-composite` wählt ausschließlich den geschlossenen
+Envoy- oder Traefik-Composite-Modus. Die kanonischen Identitäten sind
+`envoy / ext_authz / envoy-ext-authz` beziehungsweise
+`traefik / forwardAuth / traefik-forwardauth`; beide erfordern gepufferte
+Request- und gestreamte Response-Bodies. Direktes
+`envoy / ext_proc / envoy-ext-proc` behält gestreamte Request- und
+Response-Bodies. Unbekannte Modi verhindern den Start.
+
+Der Go-Lease-Claim wird einschließlich Kontext und Deadline vor dem privaten
+Common-Companion-Claim validiert. Beide Ownership-Schichten teilen die
+begrenzte Lease-Laufzeit. Ablauf konsumiert abgelaufenen nativen Zustand; ein
+konsumierter Cleanup-Fehler wird niemals so wiederholt, als wäre ein nativer
+Pointer noch gültig. Unaufgelöstes natives Cleanup versetzt den Coordinator in
+einen Fehlerzustand, zeichnet fehlgeschlagenes Cleanup auf, sperrt die
+Aufnahme und erfordert kontrollierten Neustart. Shutdown behält die
+Entry-Ownership bis zum Abschluss des geschützten terminalen Cleanups.
+
+Frische Go-Composite-Host-Evidence ist in
+[CR-20261003-pr370-composite-common-runtime](../../reports/audits/change-records/CR-20261003-pr370-composite-common-runtime.de.md)
+dokumentiert. Sie stuft keine Legacy-C-Routenstatus hoch und bestätigt keine
+vollständige G1–G9-Reife der neun Nicht-NGINX-Profile.
+
 ## Verwandte Referenzen
 
 - [Gemeinsames Design](design.de.md)
