@@ -253,6 +253,21 @@ expliziten Python-/Framework-Zuweisungen. Receipts: `optional-fixture/` im
 gleichen lokalen Run. Breitere Verifikation und finale Head-Liefernachweise
 bleiben getrennt.
 
+### Native Test-Quality-Gate-Nachprüfung, 2026-10-13
+
+Der Sonar-Check für exakt `b982c6f35abc47eccddcfded2bfd920f92516d90` hat null
+neue/akzeptierte Issues und Hotspots; der strenge Duplikationscheck meldet
+jedoch 13 neue duplizierte Zeilen in
+`tests/transaction_phase_runtime_companion_test.c`. Ein gemeinsamer
+Eventdatei-Lesehelfer erhält dieselben Open-/Read-/Error-/Close- und
+Terminierungsassertionen an vier Aufrufstellen. Die gezielte echte
+libModSecurity-Companion-Regression besteht mit C17 und
+`-Wall -Wextra -Werror`; `git diff --check` besteht. Der vorherige Refactor
+des Traefik-Body-Policy-Tests erhält alle Fälle und besteht Modultests mit
+Race-Detector sowie Vet. Beide Änderungen betreffen ausschließlich Testcode.
+Remote-Sonar/CI müssen für die gelieferte Folgerevision zurückgelesen werden;
+das historische Secret-Range-Gate bleibt unabhängig fehlgeschlagen.
+
 ### Unveränderlicher Originalindex
 
 Jeder nummerierte Link identifiziert eine Original-Change-ID durch ihren Dateinamen.

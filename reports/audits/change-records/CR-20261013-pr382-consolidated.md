@@ -241,6 +241,19 @@ the normal outer Make target with explicit Python/Framework assignments.
 Receipts: the same local run's `optional-fixture/` directory. Broad verification
 and exact final-head delivery evidence remain separate.
 
+### Native test quality-gate follow-up, 2026-10-13
+
+The exact `b982c6f35abc47eccddcfded2bfd920f92516d90` Sonar check has zero
+new/accepted issues and hotspots, but the strict duplication check reports
+13 new duplicated lines in `tests/transaction_phase_runtime_companion_test.c`.
+A shared event-file reader now retains the same open/read/error/close and
+termination assertions at four call sites. The focused genuine libModSecurity
+Companion regression passes with C17, `-Wall -Wextra -Werror`; `git diff --check`
+passes. The preceding Traefik body-policy test refactor retains all cases and
+passes module tests with race detection and vet. Both edits affect test code
+only. Remote Sonar/CI must be read back on the delivered follow-up revision;
+the historical secret-range gate remains independently failed.
+
 ### Immutable original index
 
 Each numbered link identifies one original Change ID through its filename.
