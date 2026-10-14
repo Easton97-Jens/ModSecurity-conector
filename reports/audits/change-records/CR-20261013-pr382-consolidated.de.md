@@ -671,6 +671,36 @@ Free bleibt ungemessen. Historisches `protocol_error` wird nicht als behoben
 behauptet. Vollständige I12-Qualifikation benötigt weiterhin unabhängige
 Beobachtungen jedes ausgewählten Fallvertrags.
 
+### Traefik-Framingabschluss-Nachprüfung, 2026-10-14
+
+Die frische unabhängige Prüfung reproduzierte sauberes Peer-EOF nach nur drei
+von zehn deklarierten Bytes im tatsächlichen `response.read(4096)`-Zweig.
+Normaler Abschluss verwendet jetzt den bestehenden begrenzten Bodyreader und
+weist verbleibende deklarierte Länge ab; Timeout/Trunkierung schließen beide
+Clientsockets. Echte TCP-Tests prüfen genau diesen Zweig und fragmentierte
+Content-Length-/Chunked-Bodies. Die kombinierte Suite bestand 65 Tests; der
+frische native Retake `1791970798770219279` bestand alle sechs Profile mit
+unveränderten 54/55-Byte-Allow-/Safe-Ergebnissen und ohne Client-Cancel-Event.
+Natives EOS/Finish/Free bleibt unabhängig unqualifiziert.
+
+Der tatsächliche Provider von `bdaca57d` meldete S3776-Komplexität16 sowie S5778
+für einen Portlookup innerhalb einer Ausnahmeassertion. Der zusammenhängende
+Bodyhelper verringert die Requestkomplexität; Portlookups liegen jetzt vor den
+Ausnahmeprüfungen. Strenge Gates, Status-/Bodyoracles und alle physischen
+Fehlerkontrollen bleiben erhalten.
+
+### Traefik-Response-Cleanup bei erhaltener Ausnahme, 2026-10-14
+
+Die begrenzte zweite Prüfung reproduzierte eine offene Responsedatei nach
+Bodytimeout: `HTTPConnection` hatte sie für Connection-Close abgetrennt,
+während die erhaltene Ursache ihren Deskriptor lebend hielt. Explizite
+Response-Ownership schließt jetzt Datei, Connection und Duplicate vor Rückkehr;
+Closefehler ersetzen eine aktive Bodyursache nicht. Eine echte Regression
+erhält Ausnahme und Response, prüft die geschlossene Datei und `EBADF` vor GC.
+Alle 66 kombinierten Tests bestanden; nativer Retake `1791971306363843767`
+bestand mit sauberem Namespace-Cleanup. Erfolgreiches natives EOS und einmalige
+Engine-API-Zähler bleiben unbekannt.
+
 ### Unveränderlicher Originalindex
 
 Jeder nummerierte Link identifiziert eine Original-Change-ID durch ihren Dateinamen.

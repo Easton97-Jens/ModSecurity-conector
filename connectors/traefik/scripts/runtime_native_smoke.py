@@ -820,6 +820,42 @@ def require_response_socket_eof(completion_socket: socket.socket) -> None:
         raise RuntimeError("native response carried bytes beyond its declared body")
 
 
+def read_response_body(response: http.client.HTTPResponse) -> tuple[int, int]:
+    """Require a bounded, complete body through the actual sized-read path."""
+
+    try:
+        status, body_bytes, _ = read_complete_response(response)
+    except (OSError, http.client.HTTPException) as exc:
+        raise RuntimeError("native response body did not complete") from exc
+    if response.length not in (None, 0):
+        raise RuntimeError("native response ended before its declared body length")
+    return status, body_bytes
+
+
+def close_response_resources(
+    response: http.client.HTTPResponse | None,
+    connection: http.client.HTTPConnection,
+    completion_socket: socket.socket | None,
+) -> None:
+    """Close every owned resource while retaining an active failure cause."""
+
+    active_error = sys.exception()
+    cleanup_errors: list[BaseException] = []
+    for resource in (response, connection, completion_socket):
+        if resource is not None:
+            try:
+                resource.close()
+            except BaseException as exc:
+                cleanup_errors.append(exc)
+    if cleanup_errors:
+        if active_error is None:
+            raise cleanup_errors[0]
+        active_error.add_note(
+            "native response cleanup failures: "
+            + ", ".join(type(error).__name__ for error in cleanup_errors)
+        )
+
+
 def request_through_traefik(
     port: int,
     body: bytes,
@@ -835,6 +871,7 @@ def request_through_traefik(
         connection = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
         connection.response_class = CompletionHTTPResponse
         completion_socket: socket.socket | None = None
+        response: http.client.HTTPResponse | None = None
         try:
             headers = {
                 "Content-Type": PLAIN_TEXT_CONTENT_TYPE,
@@ -853,13 +890,7 @@ def request_through_traefik(
                 raise RuntimeError("native request has no connected completion socket")
             completion_socket = connection.sock.dup()
             response = connection.getresponse()
-            status = int(response.status)
-            body_bytes = 0
-            while True:
-                chunk = response.read(4096)
-                if not chunk:
-                    break
-                body_bytes += len(chunk)
+            status, body_bytes = read_response_body(response)
             require_response_socket_eof(completion_socket)
             if status == expected_status:
                 return status, body_bytes
@@ -867,9 +898,7 @@ def request_through_traefik(
         except (OSError, http.client.HTTPException) as exc:
             last_error = exc
         finally:
-            connection.close()
-            if completion_socket is not None:
-                completion_socket.close()
+            close_response_resources(response, connection, completion_socket)
         time.sleep(0.2)
     raise RuntimeError(f"native router did not complete expected status {expected_status}: {last_error}")
 

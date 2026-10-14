@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import concurrent.futures
+import errno
+import fcntl
 import importlib.util
 import json
 import os
@@ -127,11 +129,12 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
             listener.bind(("127.0.0.1", 0))
             listener.listen(1)
             listener.settimeout(3)
+            port = listener.getsockname()[1]
             with mock.patch.object(socket.socket, "dup", tracked_dup), mock.patch.object(
                 runner.CompletionHTTPResponse, "begin", side_effect=RuntimeError("setup failed")
             ):
                 with self.assertRaisesRegex(RuntimeError, "setup failed"):
-                    runner.request_through_traefik(listener.getsockname()[1], b"", "failure", 200)
+                    runner.request_through_traefik(port, b"", "failure", 200)
             peer, _ = listener.accept()
             peer.close()
         self.assertEqual(len(owned), 1)
@@ -155,13 +158,13 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
 
             response.fp.read = observe_read
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                body = pool.submit(response.read)
+                body = pool.submit(runner.read_response_body, response)
                 try:
                     self.assertTrue(first_body_read.wait(3))
                 finally:
                     right.sendall(b"bc\r\n0\r\n\r\n")
                     right.shutdown(socket.SHUT_WR)
-                self.assertEqual(body.result(timeout=3), b"abc")
+                self.assertEqual(body.result(timeout=3), (200, 3))
             response.close()
 
     def test_unbuffered_content_length_handles_actual_short_reads(self) -> None:
@@ -182,13 +185,13 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
 
             response.fp.read = observe_read
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                body = pool.submit(response.read)
+                body = pool.submit(runner.read_response_body, response)
                 try:
                     self.assertTrue(first_body_read.wait(3))
                 finally:
                     right.sendall(b"bc")
                     right.shutdown(socket.SHUT_WR)
-                self.assertEqual(body.result(timeout=3), b"abc")
+                self.assertEqual(body.result(timeout=3), (200, 3))
             response.close()
 
     def test_physical_tcp_reset_is_not_normal_eof(self) -> None:
@@ -202,6 +205,117 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
             peer.close()
             with self.assertRaisesRegex(RuntimeError, "physical socket EOF"):
                 runner.require_response_socket_eof(client)
+
+    def test_sized_body_read_rejects_truncation_and_inflight_timeout(self) -> None:
+        for close_peer in (True, False):
+            with self.subTest(close_peer=close_peer):
+                left, right = socket.socketpair()
+                with left, right:
+                    left.settimeout(0.02)
+                    right.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\nabc")
+                    if close_peer:
+                        right.shutdown(socket.SHUT_WR)
+                    response = runner.CompletionHTTPResponse(left)
+                    try:
+                        response.begin()
+                        with self.assertRaisesRegex(RuntimeError, "incomplete body|did not complete"):
+                            runner.read_response_body(response)
+                        if close_peer:
+                            self.assertEqual(response.length, 7)
+                    finally:
+                        response.close()
+
+    def test_request_truncation_and_body_timeout_close_owned_sockets(self) -> None:
+        original_connection = runner.http.client.HTTPConnection
+        original_dup = socket.socket.dup
+        original_response_init = runner.CompletionHTTPResponse.__init__
+        for close_peer in (True, False):
+            owned = []
+            retained_responses = []
+            retained_errors = []
+
+            def track_response(response, *args, **kwargs):
+                original_response_init(response, *args, **kwargs)
+                retained_responses.append((response, response.fp, response.fp.fileno()))
+
+            def tracked_dup(sock):
+                duplicate = original_dup(sock)
+                owned.append(duplicate)
+                return duplicate
+
+            def bounded_connection(host, port, timeout):
+                return original_connection(host, port, timeout=0.05)
+
+            with self.subTest(close_peer=close_peer), socket.socket() as listener:
+                listener.bind(("127.0.0.1", 0))
+                listener.listen(1)
+                listener.settimeout(3)
+                port = listener.getsockname()[1]
+
+                def serve():
+                    peer, _ = listener.accept()
+                    with peer:
+                        peer.settimeout(3)
+                        request = b""
+                        while b"\r\n\r\n" not in request:
+                            request += peer.recv(4096)
+                        peer.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\nConnection: close\r\n\r\nabc")
+                        if close_peer:
+                            peer.shutdown(socket.SHUT_WR)
+                        self.assertEqual(peer.recv(1), b"")
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    server = pool.submit(serve)
+                    with mock.patch.object(socket.socket, "dup", tracked_dup), mock.patch.object(
+                        runner.http.client, "HTTPConnection", bounded_connection
+                    ), mock.patch.object(
+                        runner.CompletionHTTPResponse, "__init__", track_response
+                    ):
+                        try:
+                            runner.request_through_traefik(port, b"", "truncated", 200)
+                        except RuntimeError as exc:
+                            retained_errors.append(exc)
+                        else:
+                            self.fail("incomplete response unexpectedly succeeded")
+                    server.result(timeout=3)
+                self.assertEqual(len(owned), 1)
+                self.assertEqual(owned[0].fileno(), -1)
+                self.assertEqual(len(retained_errors), 1)
+                self.assertRegex(str(retained_errors[0]), "incomplete body|did not complete")
+                if not close_peer:
+                    self.assertIsInstance(retained_errors[0].__cause__, TimeoutError)
+                self.assertEqual(len(retained_responses), 1)
+                response, response_file, response_fd = retained_responses[0]
+                self.assertTrue(response_file.closed)
+                self.assertIsNone(response.fp)
+                with self.assertRaises(OSError) as closed:
+                    fcntl.fcntl(response_fd, fcntl.F_GETFD)
+                self.assertEqual(closed.exception.errno, errno.EBADF)
+
+    def test_response_cleanup_closes_all_resources_and_preserves_original_error(self) -> None:
+        original = RuntimeError("original body failure")
+        response = mock.Mock()
+        response.close.side_effect = OSError("response close failed")
+        connection = mock.Mock()
+        connection.close.side_effect = OSError("connection close failed")
+        completion = mock.Mock()
+        try:
+            try:
+                raise original
+            finally:
+                runner.close_response_resources(response, connection, completion)
+        except RuntimeError as exc:
+            self.assertIs(exc, original)
+            self.assertIn("cleanup failures", exc.__notes__[0])
+        else:
+            self.fail("cleanup lost the active failure")
+        response.close.assert_called_once()
+        connection.close.assert_called_once()
+        completion.close.assert_called_once()
+
+        with self.assertRaises(OSError):
+            runner.close_response_resources(response, connection, completion)
+        self.assertEqual(completion.close.call_count, 2)
 
     def test_unbuffered_http_parser_does_not_hide_extra_tail(self) -> None:
         left, right = socket.socketpair()

@@ -631,6 +631,33 @@ snapshot preserves all 121 trusted executable files. Retake
 unmeasured. Historic `protocol_error` is not claimed fixed. Complete I12
 qualification still requires each selected contract's independent observations.
 
+### Traefik framed completion follow-up, 2026-10-14
+
+Fresh independent review reproduced clean peer EOF after only three of ten
+declared bytes on the actual `response.read(4096)` branch. Normal completion
+now uses the existing bounded body reader and rejects a remaining declared
+length; timeout/truncation close both client sockets. Real TCP tests exercise
+this exact branch and fragmented Content-Length/chunked bodies. The combined
+suite passed 65 tests; fresh native retake `1791970798770219279` passed all six
+profiles with unchanged 54/55-byte allow/Safe results and no client-cancel
+event. Native EOS/finish/free remain independently unqualified.
+
+The actual `bdaca57d` provider reported S3776 complexity 16 and S5778 for a
+port lookup inside an exception assertion. The coherent body helper reduces
+the request function's complexity; port lookups now precede exception checks.
+Strict gates, status/body oracles and every physical failure control remain.
+
+### Traefik retained-exception response cleanup, 2026-10-14
+
+The bounded second review reproduced an open response file after body timeout:
+`HTTPConnection` had detached it for Connection-Close, while the retained cause
+kept its descriptor alive. Explicit response ownership now closes that file,
+connection and duplicate before returning; close errors do not replace an
+active body failure. A real regression retains the exception and response,
+checks the file is closed and observes `EBADF` before any GC. All 66 combined
+tests passed; native retake `1791971306363843767` passed with clean namespace
+cleanup. Successful native EOS and once-only engine API counts remain unknown.
+
 ### Immutable original index
 
 Each numbered link identifies one original Change ID through its filename.
