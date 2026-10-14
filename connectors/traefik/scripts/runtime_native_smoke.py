@@ -787,6 +787,39 @@ def write_dynamic_config(path: Path, upstream_port: int, engine_socket: Path) ->
     )
 
 
+class CompletionHTTPResponse(http.client.HTTPResponse):
+    """Avoid reading past the body before the separate physical EOF check."""
+
+    def __init__(self, sock: socket.socket, *args: Any, **kwargs: Any) -> None:
+        super().__init__(sock, *args, **kwargs)
+        self.fp.close()
+        self.fp = sock.makefile("rb", buffering=0)
+
+    def _safe_read(self, amount: int) -> bytes:
+        # Raw socket reads may be short. Preserve HTTP chunk framing without
+        # buffering bytes that belong to the separate completion observation.
+        chunks = []
+        remaining = amount
+        while remaining:
+            chunk = self.fp.read(remaining)
+            if not chunk:
+                raise http.client.IncompleteRead(b"".join(chunks), remaining)
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        return b"".join(chunks)
+
+
+def require_response_socket_eof(completion_socket: socket.socket) -> None:
+    """Wait for a bounded actual peer close, without synthesizing native EOS."""
+
+    try:
+        extra = completion_socket.recv(1)
+    except OSError as exc:
+        raise RuntimeError("native response did not reach physical socket EOF") from exc
+    if extra:
+        raise RuntimeError("native response carried bytes beyond its declared body")
+
+
 def request_through_traefik(
     port: int,
     body: bytes,
@@ -800,6 +833,8 @@ def request_through_traefik(
     last_error: Exception | None = None
     while time.monotonic() < deadline:
         connection = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
+        connection.response_class = CompletionHTTPResponse
+        completion_socket: socket.socket | None = None
         try:
             headers = {
                 "Content-Type": PLAIN_TEXT_CONTENT_TYPE,
@@ -807,12 +842,16 @@ def request_through_traefik(
             }
             if extra_headers:
                 headers.update(extra_headers)
+            headers["Connection"] = "close"
             connection.request(
                 method,
                 path,
                 body=body,
                 headers=headers,
             )
+            if connection.sock is None:
+                raise RuntimeError("native request has no connected completion socket")
+            completion_socket = connection.sock.dup()
             response = connection.getresponse()
             status = int(response.status)
             body_bytes = 0
@@ -821,6 +860,7 @@ def request_through_traefik(
                 if not chunk:
                     break
                 body_bytes += len(chunk)
+            require_response_socket_eof(completion_socket)
             if status == expected_status:
                 return status, body_bytes
             last_error = RuntimeError(f"native router returned unexpected status {status}")
@@ -828,6 +868,8 @@ def request_through_traefik(
             last_error = exc
         finally:
             connection.close()
+            if completion_socket is not None:
+                completion_socket.close()
         time.sleep(0.2)
     raise RuntimeError(f"native router did not complete expected status {expected_status}: {last_error}")
 

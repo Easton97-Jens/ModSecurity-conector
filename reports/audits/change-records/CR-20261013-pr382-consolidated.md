@@ -609,6 +609,28 @@ parser results remain intact. The affected Root/Nobody suite passed all 116
 tests (exit 0) after these changes. Fresh physical retakes and exact new-head
 Sonar/CI remain separate required evidence.
 
+### Traefik native client completion, 2026-10-14
+
+The normal fixture closed TCP as soon as the declared response body arrived,
+while the plugin still performed EOS and deferred engine finalization. The
+client now requests connection close, retains a private duplicate socket and
+requires bounded physical peer EOF after exact HTTP framing. Unbuffered reads
+keep extra tail bytes visible; complete-read handling preserves fragmented
+Content-Length and chunked framing. Timeout, TCP reset and extra bytes fail;
+every duplicate descriptor closes on errors. Cancellation fixtures remain
+separate and plugin/engine production sources are unchanged.
+
+The affected suite passed 46 tests; the combined native-client/SDK-observer
+suite passed 63 tests (exit 0). Initial isolated attempt
+`1791969629249293459` stopped with exit 77 before traffic because the new
+read-only snapshot lost executable bits; its original remains intact. A fresh
+snapshot preserves all 121 trusted executable files. Retake
+`1791969989698580089` passed six native profiles, HTTP 200/54-byte allow and
+200/55-byte Safe, with clean owned process/mount cleanup. The former allow-side
+`client_cancel` record disappears; successful native EOS/Finish/free remains
+unmeasured. Historic `protocol_error` is not claimed fixed. Complete I12
+qualification still requires each selected contract's independent observations.
+
 ### Immutable original index
 
 Each numbered link identifies one original Change ID through its filename.

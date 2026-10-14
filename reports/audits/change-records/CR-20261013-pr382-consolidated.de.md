@@ -647,6 +647,30 @@ Die betroffene Root-/Nobody-Suite bestand nach den Änderungen alle 116 Tests
 (Exit 0). Frische physische Retakes und Sonar/CI am neuen Head bleiben separat
 verpflichtende Nachweise.
 
+### Nativer Traefik-Clientabschluss, 2026-10-14
+
+Die normale Fixture schloss TCP unmittelbar nach dem deklarierten Responsebody,
+während das Plugin noch EOS und den verzögerten Engineabschluss ausführte.
+Der Client fordert jetzt Connection-Close an, hält einen privaten duplizierten
+Socket und verlangt nach exaktem HTTP-Framing begrenzt das physische Peer-EOF.
+Ungepufferte Reads lassen zusätzliche Tailbytes sichtbar; vollständiges Lesen
+erhält fragmentiertes Content-Length- und Chunked-Framing. Timeout, TCP-Reset
+und zusätzliche Bytes schlagen fehl; jeder duplizierte Deskriptor schließt bei
+Fehlern. Cancellation-Fixtures bleiben getrennt; Plugin-/Engine-Produktquellen
+sind unverändert.
+
+Die betroffene Suite bestand 46 Tests; die kombinierte Native-Client-/SDK-
+Observer-Suite bestand 63 Tests (Exit 0). Der erste isolierte Versuch
+`1791969629249293459` stoppte mit Exit 77 vor Traffic, weil die neue
+schreibgeschützte Kopie Ausführungsbits verlor; sein Original bleibt erhalten.
+Eine frische Kopie erhält alle 121 vertrauenswürdigen ausführbaren Dateien.
+Retake `1791969989698580089` bestand sechs native Profile, HTTP200/54-Byte-Allow
+und 200/55-Byte-Safe sowie sauberes eigenes Prozess-/Mount-Cleanup. Der frühere
+Allow-seitige `client_cancel`-Beleg entfällt; erfolgreiches natives EOS/Finish/
+Free bleibt ungemessen. Historisches `protocol_error` wird nicht als behoben
+behauptet. Vollständige I12-Qualifikation benötigt weiterhin unabhängige
+Beobachtungen jedes ausgewählten Fallvertrags.
+
 ### Unveränderlicher Originalindex
 
 Jeder nummerierte Link identifiziert eine Original-Change-ID durch ihren Dateinamen.
