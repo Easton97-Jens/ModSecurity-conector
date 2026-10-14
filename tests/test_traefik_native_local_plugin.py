@@ -141,7 +141,12 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
             tag.split(",", 1)[0]
             for tag in re.findall(r'`json:"([^"]+)', config_block.group("body"))
         ]
-        self.assertEqual(len(fields), 9)
+        # Two decoder tombstones reject removed inspection limits; they are
+        # not configurable host controls and must stay out of the inventory.
+        removed_fields = {"maxRequestBodyBytes", "maxResponseBodyBytes"}
+        self.assertEqual(len(fields), 10)
+        self.assertTrue(removed_fields.issubset(fields))
+        active_fields = set(fields) - removed_fields
         native_options = {
             option["name"]
             for option in inventory["options"]
@@ -150,7 +155,14 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
                 "http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative."
             )
         }
-        for field in fields:
+        prefix = "http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative."
+        self.assertEqual(native_options, {prefix + field for field in active_fields})
+        for field in removed_fields:
+            with self.subTest(removed_field=field):
+                self.assertNotIn(prefix + field, reference)
+                self.assertNotIn(prefix + field, reference_de)
+                self.assertNotIn(f"{field}:", selected_example)
+        for field in active_fields:
             path = (
                 "http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative."
                 + field
@@ -160,11 +172,11 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
                 self.assertIn(path, reference_de)
                 self.assertIn(path, native_options)
                 self.assertIn(f"{field}:", selected_example)
-        self.assertIn("maximum 1048576 bytes", reference)
+        self.assertIn("uds maximum 32768", reference)
         self.assertIn("maximum 60000 milliseconds", reference)
-        self.assertIn("maximal 1048576 Bytes", reference_de)
+        self.assertIn("UDS-Maximum 32768", reference_de)
         self.assertIn(
-            '"default": "1048576"',
+            '"default": "32768"',
             (ROOT / "reports/connector-configuration-inventory.json").read_text(
                 encoding="utf-8"
             ),
@@ -361,6 +373,50 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
             "result_path": result_path,
             "retained": retained,
         }
+
+    def test_readonly_plugin_source_stages_private_copy_and_cleans_it_safely(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="traefik-readonly-stage-") as temporary:
+            root = Path(temporary)
+            source = root / "sealed-plugin"
+            source.mkdir(mode=0o700)
+            (source / "nested").mkdir(mode=0o700)
+            files = {
+                "go.mod": "module example.test/native_middleware\n",
+                "middleware.go": "package native_middleware\n",
+                "engine_uds.go": "package native_middleware\n",
+                ".traefik.yml": "import: example.test/native_middleware\n",
+                "nested/marker": "sealed source remains unchanged\n",
+            }
+            for relative, content in files.items():
+                (source / relative).write_text(content, encoding="utf-8")
+                (source / relative).chmod(0o444)
+            (source / "nested").chmod(0o555)
+            source.chmod(0o555)
+            inputs = SimpleNamespace(
+                runtime_root=root / "runtime",
+                module_name=runner.read_plugin_module(source),
+            )
+            try:
+                with mock.patch.object(runner, "PLUGIN_SOURCE", source):
+                    artifacts = runner.stage_native_runtime(inputs)
+                workspace = inputs.runtime_root / "plugins-local"
+                for candidate in (workspace, *workspace.rglob("*")):
+                    expected = 0o700 if candidate.is_dir() else 0o600
+                    self.assertEqual(stat.S_IMODE(candidate.stat().st_mode), expected)
+                artifacts.event_path.write_text("host evidence\n", encoding="utf-8")
+                self.assertTrue(runner.cleanup_staged_runtime_workspaces(inputs, artifacts))
+                self.assertFalse(workspace.exists())
+                self.assertEqual(artifacts.event_path.read_text(), "host evidence\n")
+                self.assertEqual(stat.S_IMODE(source.stat().st_mode), 0o555)
+                self.assertEqual(stat.S_IMODE((source / "nested").stat().st_mode), 0o555)
+                for relative, content in files.items():
+                    self.assertEqual((source / relative).read_text(), content)
+                    self.assertEqual(stat.S_IMODE((source / relative).stat().st_mode), 0o444)
+            finally:
+                # Restore only this test's owned copies for temporary cleanup,
+                # including the intentionally failing pre-fix execution.
+                for candidate in (root, *root.rglob("*")):
+                    candidate.chmod(0o700 if candidate.is_dir() else 0o600)
 
     def test_staged_workspace_cleanup_removes_only_owned_directories_and_keeps_evidence(self) -> None:
         with tempfile.TemporaryDirectory(prefix="msconnector-traefik-cleanup-") as temporary:

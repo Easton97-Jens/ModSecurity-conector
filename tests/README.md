@@ -71,6 +71,7 @@ argument, or expected artifact.
 | \`make check-test-matrix\` | Checks generated test-matrix consistency and ownership boundaries. |
 | \`make quick-check\` | Runs the repository's focused quick contract checks. It does not create canonical runtime evidence. |
 | `make check-native-engine-body-inspection` | Runs genuine libModSecurity request/response limits and Companion C serialization/phase regressions. Requires a C17 compiler, headers and library; the Envoy native CI job also runs it. Component results do not establish live connector host evidence. |
+| `make check-native-lifecycle-observer` | Verifies the test-only GNU linker observer with real Common state, a controlled native ABI and the explicitly selected SDK. Requires `NATIVE_OBSERVER_TEST_OUT`, `MODSECURITY_INCLUDE_DIR` and `MODSECURITY_LIB_DIR`; missing configuration blocks the target. |
 | \`make lint\` | Runs broad syntax, contract, documentation, and governance checks, including root test-related contracts. |
 
 The native suite accepts the existing `MODSECURITY_PREFIX`,
@@ -81,6 +82,15 @@ fixtures set native limits/actions explicitly. Lossless byte escapes must retain
 phase and event integrity; escaped-field overflow must neither write nor advance
 the hash chain. Lightweight event-protocol tests retain their separate dependency
 boundary.
+
+The lifecycle observer records actual API entry/return pairs, separate host and
+canonical transaction IDs, Common state snapshots and per-process final receipts.
+Link it only into test artifacts with the twelve `--wrap` symbols listed in
+`tests/test_native_lifecycle_observer.py`. A supervisor supplies a private inherited
+append descriptor and retains its original JSONL. Same-object internal calls can
+bypass wrapping; missing receipts or outstanding mappings leave cleanup unqualified.
+Native MIME selection and actual host EOS remain `null`. Successful component
+tests or API counts alone do not establish a host lifecycle result.
 
 Use [test levels](../docs/testing-and-evidence.md),
 [core lifecycle testing](../docs/testing-and-evidence.md), and the

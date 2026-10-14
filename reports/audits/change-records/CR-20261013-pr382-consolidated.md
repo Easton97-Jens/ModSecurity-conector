@@ -483,6 +483,40 @@ DAC admission and native host validation. No HTTP request or I12 PASS is
 claimed by these setup probes. Original controller/source/specs and outside
 cleanup receipts remain immutable in their individual attempts.
 
+### Physical lifecycle observer and private Traefik staging, 2026-10-14
+
+The test-only GNU linker observer preserves the actual API arguments, returns
+and errno while recording paired calls, separate host/canonical IDs and public
+Common state at each edge. Repeated successful terminal finish calls remain
+attempts rather than invented transitions. Twelve wrappers cover external link
+references; internal calls within one object may bypass them. Private inherited
+append output, a fork-shared byte budget, invalidation controls and final receipts
+bound observation. Missing receipts or live mappings prevent qualification;
+native MIME selection and actual host EOS remain null. Release artifacts remain
+uninstrumented.
+
+Actual selected-SDK controls and the additive NGINX module relink pass. Baseline
+module and objects remain unchanged. The new explicit Make target blocks missing
+output/SDK configuration. These component/link results establish no host PASS.
+Receipts remain in the current external run's `native-observer-root/`,
+`native-observer/`, `nginx-observed-build/` and `verification/harness-02/`.
+
+The first real isolated Traefik attempts retain compiler failures and refused
+private-copy cleanup. A wrong fixture GCC_EXEC_PREFIX relocated the existing
+compiler's library search; removing it is independently reproduced as fail/pass.
+The native harness now normalizes only its freshly copied plugin workspace to
+0700 directories/0600 files, preserving sealed source and cleanup identity.
+A regression proves read-only source preservation, private copy and safe removal
+while retaining logs. The stale inventory test now checks eight active controls
+and both rejected decoder tombstones separately; documented UDS chunk bounds
+remain 32768, with no connector-owned total inspection limit restored.
+
+Exact e5c02189 hosted checks are terminal:22 success/two conditional skips;
+SonarGateOK/RatingA, zero new/accepted/hotspots/annotations and zero new duplicated
+blocks/lines/density; scaffold-lint passes without changing the strict parser.
+These results attest e5 only. Later commits require their own readback. Genuine
+host retakes and all1484-case qualification remain pending at this checkpoint.
+
 ### Immutable original index
 
 Each numbered link identifies one original Change ID through its filename.

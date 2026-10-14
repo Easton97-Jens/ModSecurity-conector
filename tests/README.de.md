@@ -72,6 +72,7 @@ Testname, Fixture, Kommandoargument oder erwartetes Artefakt aufnehmen.
 | \`make check-test-matrix\` | Prüft Konsistenz und Ownership-Grenzen der generierten Test-Matrix. |
 | \`make quick-check\` | Führt die fokussierten schnellen Repository-Contract-Checks aus. Erzeugt keine kanonische Runtime-Evidence. |
 | `make check-native-engine-body-inspection` | Führt echte libModSecurity-Request-/Response-Limits und Companion-C-Serialisierungs-/Phasenregressionen aus. Benötigt C17-Compiler, Header und Bibliothek; läuft auch im nativen Envoy-CI-Job. Komponentenergebnisse belegen keine echte Connector-Host-Evidence. |
+| `make check-native-lifecycle-observer` | Prüft den GNU-Linker-Observer ausschließlich für Tests mit echtem Common-Zustand, kontrolliertem nativen ABI und ausdrücklich gewähltem SDK. Benötigt `NATIVE_OBSERVER_TEST_OUT`, `MODSECURITY_INCLUDE_DIR` und `MODSECURITY_LIB_DIR`; fehlende Konfiguration blockiert das Target. |
 | \`make lint\` | Führt breite Syntax-, Contract-, Dokumentations- und Governance-Checks aus, einschließlich Root-Test-bezogener Contracts. |
 
 Die native Suite akzeptiert die bestehende SDK-Auswahl über
@@ -82,6 +83,16 @@ Runtime-Suchpfad. Inspection-Fixtures setzen native Limits/Aktionen ausdrücklic
 Verlustfreie Byte-Escapes müssen Phase und Eventintegrität erhalten;
 Escape-Feldüberlauf darf weder schreiben noch die Hashkette fortsetzen.
 Leichtgewichtige Eventprotokolltests behalten ihre getrennte Dependency-Grenze.
+
+Der Lifecycle-Observer erfasst tatsächliche API-Eintritts-/Rückkehrpaare, getrennte
+Host- und kanonische Transaktions-IDs, Common-Zustandsaufnahmen und finale Belege
+pro Prozess. Er wird ausschließlich in Testartefakte mit den zwölf `--wrap`-
+Symbolen aus `tests/test_native_lifecycle_observer.py` gelinkt. Ein Supervisor
+übergibt einen privaten geerbten Append-Deskriptor und erhält dessen originales
+JSONL. Interne Aufrufe desselben Objekts können Wrapping umgehen; fehlende finale
+Belege oder offene Zuordnungen lassen Cleanup unqualifiziert. Native MIME-Auswahl
+und tatsächliches Host-EOS bleiben `null`. Erfolgreiche Komponententests oder
+API-Zähler allein belegen keinen Host-Lifecycle-Abschluss.
 
 Für Auswahl der Testebene und korrekte Ergebnisdarstellung [Testebenen](../docs/testing-and-evidence.de.md),
 [Core-Lifecycle-Testing](../docs/testing-and-evidence.de.md) und den

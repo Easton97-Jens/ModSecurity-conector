@@ -510,6 +510,44 @@ explizite DAC-Admission und nativen Hosttest. Setup-Probes behaupten keinen
 HTTP-Request oder I12-PASS. Originale Controller-/Quell-/Specs und Outside-
 Cleanup-Receipts ihrer einzelnen Attempts bleiben unverändert erhalten.
 
+### Physischer Lifecycle-Observer und privates Traefik-Staging, 2026-10-14
+
+Der GNU-Linker-Observer ausschließlich für Tests erhält tatsächliche Argumente,
+Rückgaben und errno. Er erfasst Aufrufpaare, getrennte Host-/kanonische IDs und
+den öffentlichen Common-Zustand an jeder Aufrufkante. Wiederholte erfolgreiche
+Finish-Aufrufe im Terminalzustand bleiben Versuche, keine erfundenen Übergänge.
+Zwölf Wrapper erfassen externe Linkreferenzen; interne Aufrufe desselben Objekts
+können sie umgehen. Privater geerbter Append-Ausgabedeskriptor, Fork-gemeinsames
+Bytebudget, Invalidierungskontrollen und finale Belege begrenzen die Beobachtung.
+Fehlende Abschlussbelege oder offene Zuordnungen verhindern Qualifikation;
+native MIME-Auswahl und tatsächliches Host-EOS bleiben null. Releaseartefakte
+bleiben ohne Instrumentierung.
+
+Kontrollen mit ausdrücklich ausgewähltem SDK und der additive NGINX-Modul-Relink
+bestehen. Baseline-Modul und Objekte bleiben unverändert. Das neue ausdrückliche
+Make-Target blockiert fehlende Ausgabe-/SDK-Konfiguration. Diese Komponenten-/
+Linkergebnisse belegen keinen Host-PASS. Belege liegen im aktuellen externen Run
+unter `native-observer-root/`, `native-observer/`, `nginx-observed-build/` und
+`verification/harness-02/`.
+
+Die ersten echten isolierten Traefik-Versuche erhalten Compilerfehler und
+verweigertes Cleanup der privaten Kopie. Ein falscher Fixture-GCC_EXEC_PREFIX
+verlegte die Bibliothekssuche des vorhandenen Compilers; Entfernen reproduziert
+unabhängig FAIL/PASS. Der native Harness normalisiert ausschließlich seinen
+frisch kopierten Plugin-Workspace auf Verzeichnisse0700/Dateien0600 und erhält
+versiegelte Quelle sowie Cleanup-Identität. Eine Regression belegt Quellerhalt,
+private Kopie und sichere Entfernung bei erhaltenen Logs. Der veraltete Inventar-
+Test prüft acht aktive Steuerfelder und beide abgewiesenen Decoder-Tombstones
+getrennt; dokumentierte UDS-Chunk-Grenzen bleiben32768. Kein Connector-eigenes
+Gesamt-Inspection-Limit wird wieder eingeführt.
+
+Revisionsgenaue e5c02189-Checks sind terminal:22 erfolgreich/zwei bedingte Skips;
+SonarGateOK/RatingA, null neue/akzeptierte/Hotspot-/Annotationsbefunde und null
+neue Duplikationsblöcke/-zeilen/-dichte; scaffold-lint besteht ohne Änderung des
+strengen Parsers. Dies attestiert ausschließlich e5. Spätere Commits benötigen
+eigene Abrufe. Echte Host-Retakes und die Qualifikation sämtlicher1484 Fälle
+stehen an diesem Zwischenstand weiterhin aus.
+
 ### Unveränderlicher Originalindex
 
 Jeder nummerierte Link identifiziert eine Original-Change-ID durch ihren Dateinamen.

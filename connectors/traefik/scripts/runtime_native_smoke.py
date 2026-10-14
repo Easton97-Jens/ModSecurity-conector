@@ -1447,6 +1447,13 @@ def stage_native_runtime(inputs: NativeRuntimeInputs) -> NativeRuntimeArtifacts:
         plugin_destination = inputs.runtime_root / "plugins-local/src" / Path(inputs.module_name)
         plugin_destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(PLUGIN_SOURCE, plugin_destination)
+        # copytree preserves sealed source modes. The fresh owned copy must
+        # remain writable so fail-closed cleanup can remove its directories.
+        plugin_workspace = inputs.runtime_root / "plugins-local"
+        for candidate in (plugin_workspace, *plugin_workspace.rglob("*")):
+            if candidate.is_symlink():
+                raise MissingDependency(f"staged native plugin contains a symlink: {candidate}")
+            os.chmod(candidate, 0o700 if candidate.is_dir() else 0o600)
         config_dir = inputs.runtime_root / "effective-config"
         logs_dir = inputs.runtime_root / "logs"
         config_dir.mkdir()
