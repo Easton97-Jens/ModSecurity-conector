@@ -692,10 +692,14 @@ int main(void) {
                                          dir=_temporary_root()) as temporary:
             runtime = Path(temporary)
             runtime.chmod(0o700)
-            with self.assertRaisesRegex(RuntimeError, "unit failure"):
+            def failing_attempt():
                 with harness.retained_attempt(runtime) as attempt:
                     (attempt / "physical-stderr.log").write_bytes(b"unit fixture error\n")
                     raise RuntimeError("unit failure")
+
+            with self.assertRaisesRegex(RuntimeError, "unit failure"):
+                failing_attempt()
+            attempt, = runtime.iterdir()
             self.assertTrue(attempt.is_dir())
             self.assertEqual((attempt / "physical-stderr.log").read_bytes(), b"unit fixture error\n")
             receipt = json.loads((attempt / "attempt.json").read_text())
@@ -711,8 +715,10 @@ int main(void) {
                                          dir=_temporary_root()) as temporary:
             root = Path(temporary)
             # No host is launched: an unused loopback port exercises a real client failure.
+            port = harness.free_port()
+            client_root = root / "client"
             with self.assertRaisesRegex(RuntimeError, "client exchange failed"):
-                harness.exchange(harness.free_port(), b"GET / HTTP/1.1\r\n\r\n", root / "client")
+                harness.exchange(port, b"GET / HTTP/1.1\r\n\r\n", client_root)
             receipt = json.loads((root / "client/client.json").read_text())
             self.assertEqual(receipt["wait_returncode"], 77)
             self.assertIsNone(receipt["http_status"])
@@ -740,6 +746,157 @@ int main(void) {
             self.assertIsNotNone(children[0].returncode)
             self.assertIsNotNone(children[0].poll())
 
+    def test_real_backend_client_cli_rejects_path_arguments_without_io(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="stock-client-path-unit-",
+                                         dir=_temporary_root()) as temporary:
+            root = Path(temporary)
+            secret = root / "outside-request"
+            secret.write_bytes(b"outside-private-fixture")
+            output = root / "outside-response"
+            result = subprocess.run(
+                [sys.executable, str(REAL_BACKEND_HARNESS), "--client-exchange", "1",
+                 str(secret), str(output)], capture_output=True, timeout=5, check=False,
+            )
+            self.assertEqual(result.returncode, 77)
+            self.assertFalse(output.exists())
+            self.assertNotIn(b"outside-private-fixture", result.stdout + result.stderr)
+
+    def test_real_backend_cleanup_probe_error_is_not_closed_listener_evidence(self) -> None:
+        harness = _load_real_backend_harness()
+        process = mock.Mock(pid=1234, returncode=0)
+        with tempfile.TemporaryDirectory(prefix="stock-cleanup-probe-unit-",
+                                         dir=_temporary_root()) as temporary:
+            path = Path(temporary) / "probe-error.json"
+            with mock.patch.object(harness, "stop"), \
+                    mock.patch.object(harness.socket, "create_connection", side_effect=socket.timeout):
+                with self.assertRaises(harness.CleanupFailure):
+                    harness.stop_with_receipt(process, 1, path)
+            receipt = json.loads(path.read_text())
+            self.assertFalse(receipt["listener_closed_observed"])
+            self.assertIsNone(receipt["listener_connected_observed"])
+            self.assertEqual(receipt["listener_probe_error"], "TimeoutError")
+            refused_path = Path(temporary) / "refused.json"
+            with mock.patch.object(harness, "stop"), \
+                    mock.patch.object(harness.socket, "create_connection", side_effect=ConnectionRefusedError):
+                harness.stop_with_receipt(process, 1, refused_path)
+            refused = json.loads(refused_path.read_text())
+            self.assertTrue(refused["listener_closed_observed"])
+            self.assertIsNone(refused["listener_probe_error"])
+
+    def test_real_backend_client_artifacts_reject_alias_and_existing_output(self) -> None:
+        harness = _load_real_backend_harness()
+        with tempfile.TemporaryDirectory(prefix="stock-client-boundary-unit-",
+                                         dir=_temporary_root()) as temporary:
+            root = Path(temporary)
+            private = root / "private"
+            private.mkdir(mode=0o700)
+            alias = root / "alias"
+            alias.symlink_to(private, target_is_directory=True)
+            aliased_client = alias / "client"
+            with self.assertRaises(ValueError):
+                harness.exchange(1, b"fixture", aliased_client)
+            self.assertFalse((private / "client/request.http").exists())
+            output = private / "response.http"
+            output.write_bytes(b"preserved")
+            output.chmod(0o600)
+            def open_existing_output():
+                with harness.client_artifacts(private, b"fixture"):
+                    return
+
+            with self.assertRaises(FileExistsError):
+                open_existing_output()
+            self.assertEqual(output.read_bytes(), b"preserved")
+
+    def test_real_backend_client_rejects_unsafe_descriptor_classes(self) -> None:
+        harness = _load_real_backend_harness()
+        with tempfile.TemporaryDirectory(prefix="stock-client-fd-unit-",
+                                         dir=_temporary_root()) as temporary:
+            root = Path(temporary)
+            root.chmod(0o700)
+            with harness.client_artifacts(root, b"fixture") as (source, response, _out, _err):
+                descriptor_pairs = ((0, response.fileno()), (source.fileno(), source.fileno()))
+                for request_fd, response_fd in descriptor_pairs:
+                    with self.subTest(request_fd=request_fd, response_fd=response_fd):
+                        with self.assertRaises(RuntimeError):
+                            harness.client_exchange(1, request_fd, response_fd)
+                os.fchmod(source.fileno(), 0o644)
+                with self.assertRaisesRegex(RuntimeError, "owner-private"):
+                    harness.client_exchange(1, source.fileno(), response.fileno())
+                os.fchmod(source.fileno(), 0o600)
+                duplicate = os.dup(source.fileno())
+                try:
+                    with self.assertRaisesRegex(RuntimeError, "distinct fresh"):
+                        harness.client_exchange(1, source.fileno(), duplicate)
+                finally:
+                    os.close(duplicate)
+                read_only = os.open(root / "response.http", os.O_RDONLY)
+                try:
+                    with self.assertRaisesRegex(RuntimeError, "access is invalid"):
+                        harness.client_exchange(1, source.fileno(), read_only)
+                finally:
+                    os.close(read_only)
+                os.link(root / "request.http", root / "hardlink")
+                with self.assertRaisesRegex(RuntimeError, "owner-private"):
+                    harness.client_exchange(1, source.fileno(), response.fileno())
+
+    def test_real_backend_client_preserves_partial_binary_bytes_on_socket_error(self) -> None:
+        harness = _load_real_backend_harness()
+        with tempfile.TemporaryDirectory(prefix="stock-client-partial-unit-",
+                                         dir=_temporary_root()) as temporary:
+            root = Path(temporary)
+            root.chmod(0o700)
+            connection = mock.MagicMock()
+            connection.__enter__.return_value = connection
+            connection.recv.side_effect = [b"\x00\xffraw-partial", socket.timeout("unit timeout")]
+            with harness.client_artifacts(root, b"\x00\xffrequest") as (source, response, _out, _err):
+                with mock.patch.object(harness.socket, "create_connection", return_value=connection):
+                    with self.assertRaises(socket.timeout):
+                        harness.client_exchange(1, source.fileno(), response.fileno())
+                response.seek(0)
+                self.assertEqual(response.read(), b"\x00\xffraw-partial")
+            connection.sendall.assert_called_once_with(b"\x00\xffrequest")
+
+    def test_real_backend_client_real_subprocess_preserves_binary_response(self) -> None:
+        harness = _load_real_backend_harness()
+        payload = b"\x00\xffcomplete-binary-body"
+        with tempfile.TemporaryDirectory(prefix="stock-client-binary-unit-",
+                                         dir=_temporary_root()) as temporary, socket.socket() as listener:
+            listener.bind(("127.0.0.1", 0))
+            listener.listen(1)
+            listener.settimeout(5)
+
+            def reply():
+                with listener.accept()[0] as connection:
+                    connection.recv(4096)
+                    connection.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: " +
+                                       str(len(payload)).encode("ascii") + b"\r\n\r\n" + payload)
+
+            thread = threading.Thread(target=reply)
+            thread.start()
+            try:
+                status, body = harness.exchange(listener.getsockname()[1],
+                                               b"GET / HTTP/1.1\r\n\r\n", Path(temporary) / "client")
+            finally:
+                thread.join(timeout=6)
+            self.assertFalse(thread.is_alive())
+            self.assertEqual((status, body), (200, payload))
+
+    def test_real_backend_client_response_bound_retains_prior_bytes(self) -> None:
+        harness = _load_real_backend_harness()
+        with tempfile.TemporaryDirectory(prefix="stock-client-bound-unit-",
+                                         dir=_temporary_root()) as temporary:
+            root = Path(temporary)
+            root.chmod(0o700)
+            connection = mock.MagicMock()
+            connection.__enter__.return_value = connection
+            connection.recv.side_effect = [b"partial", b"x" * harness._MAX_CLIENT_RESPONSE_BYTES]
+            with harness.client_artifacts(root, b"request") as (source, response, _out, _err):
+                with mock.patch.object(harness.socket, "create_connection", return_value=connection):
+                    with self.assertRaisesRegex(RuntimeError, "bounded catalog limit"):
+                        harness.client_exchange(1, source.fileno(), response.fileno())
+                response.seek(0)
+                self.assertEqual(response.read(), b"partial")
+
     def test_real_backend_client_zero_exit_does_not_hide_incomplete_framing(self) -> None:
         harness = _load_real_backend_harness()
         with tempfile.TemporaryDirectory(prefix="stock-framing-unit-",
@@ -757,9 +914,10 @@ int main(void) {
                 thread = threading.Thread(target=reply)
                 thread.start()
                 try:
+                    port = listener.getsockname()[1]
+                    client_root = Path(temporary) / "client"
                     with self.assertRaisesRegex(harness.CaseObservationError, "incomplete"):
-                        harness.exchange(listener.getsockname()[1],
-                                         b"GET / HTTP/1.1\r\n\r\n", Path(temporary) / "client")
+                        harness.exchange(port, b"GET / HTTP/1.1\r\n\r\n", client_root)
                 finally:
                     thread.join(timeout=6)
                 self.assertFalse(thread.is_alive())

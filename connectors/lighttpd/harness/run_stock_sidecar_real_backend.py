@@ -4,8 +4,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 import hashlib
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -21,6 +22,11 @@ import time
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+_CI_LIB = REPOSITORY_ROOT / "ci" / "lib"
+if str(_CI_LIB) not in sys.path:
+    sys.path.insert(0, str(_CI_LIB))
+from runtime_path_utils import open_private_runtime_root  # noqa: E402
+
 _COMMIT_SHA = re.compile(r"^[0-9a-f]{40,64}$", re.ASCII)
 _LIGHTTPD_VERSION = re.compile(r"\blighttpd/(\d+\.\d+\.\d+)\b", re.ASCII)
 _SHA256_HEX = re.compile(r"^[0-9a-f]{64}$", re.ASCII)
@@ -1336,17 +1342,21 @@ def stop_with_receipt(process: subprocess.Popen[bytes], port: int, path: Path) -
         stop(process)
     except (OSError, subprocess.TimeoutExpired) as error:
         raise CleanupFailure("Stock lighttpd child could not be reaped") from error
-    listener_closed = False
+    listener_connected = None
+    listener_probe_error = None
     try:
         with socket.create_connection(("127.0.0.1", port), timeout=0.2):
-            pass
+            listener_connected = True
     except ConnectionRefusedError:
-        listener_closed = True
-    except OSError:
-        pass
+        listener_connected = False
+    except OSError as error:
+        listener_probe_error = type(error).__name__
+    listener_closed = listener_connected is False
     write_observation(path, {"pid": process.pid, "wait_returncode": process.returncode,
                              "process_reaped": process.returncode is not None,
                              "listener_closed_observed": listener_closed,
+                             "listener_connected_observed": listener_connected,
+                             "listener_probe_error": listener_probe_error,
                              "observed_unix_ns": time.time_ns()})
     if not listener_closed or process.returncode is None:
         raise CleanupFailure("Stock lighttpd child cleanup could not be established")
@@ -1392,11 +1402,31 @@ def wait_ready(port: int, process: subprocess.Popen[bytes], label: str) -> None:
     raise RuntimeError(f"{label} listener did not become ready")
 
 
-def client_exchange(port: int, request_path: Path, response_path: Path) -> None:
+def validate_client_descriptors(request_descriptor: int, response_descriptor: int) -> None:
+    if request_descriptor < 3 or response_descriptor < 3 or request_descriptor == response_descriptor:
+        raise RuntimeError("Stock lighttpd client requires distinct inherited artifact descriptors")
+    identities = []
+    for descriptor in (request_descriptor, response_descriptor):
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or \
+                stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1:
+            raise RuntimeError("Stock lighttpd client artifact descriptor is not owner-private")
+        identities.append((info.st_dev, info.st_ino))
+    if identities[0] == identities[1] or os.fstat(response_descriptor).st_size != 0:
+        raise RuntimeError("Stock lighttpd client requires distinct fresh output")
+    if fcntl.fcntl(request_descriptor, fcntl.F_GETFL) & os.O_ACCMODE == os.O_WRONLY or \
+            fcntl.fcntl(response_descriptor, fcntl.F_GETFL) & os.O_ACCMODE == os.O_RDONLY:
+        raise RuntimeError("Stock lighttpd client artifact descriptor access is invalid")
+
+
+def client_exchange(port: int, request_descriptor: int, response_descriptor: int) -> None:
+    validate_client_descriptors(request_descriptor, response_descriptor)
+    with os.fdopen(request_descriptor, "rb", closefd=False) as source:
+        request = source.read()
     response = bytearray()
     try:
         with socket.create_connection(("127.0.0.1", port), timeout=5.0) as client:
-            client.sendall(request_path.read_bytes())
+            client.sendall(request)
             while True:
                 chunk = client.recv(4096)
                 if not chunk:
@@ -1405,32 +1435,40 @@ def client_exchange(port: int, request_path: Path, response_path: Path) -> None:
                     raise RuntimeError("Stock lighttpd client response exceeds its bounded catalog limit")
                 response.extend(chunk)
     finally:
-        with response_path.open("xb") as output:
-            response_path.chmod(0o600)
+        with os.fdopen(response_descriptor, "wb", closefd=False) as output:
             output.write(response)
 
 
-def exchange(port: int, request: bytes, evidence_root: Path) -> tuple[int, bytes]:
-    evidence_root.mkdir(mode=0o700)
-    request_path = evidence_root / "request.http"
-    request_path.write_bytes(request)
-    request_path.chmod(0o600)
-    response_path = evidence_root / "response.http"
-    argv = [sys.executable, str(Path(__file__).resolve()), "--client-exchange",
-            str(port), str(request_path), str(response_path)]
-    started = time.time_ns()
+@contextmanager
+def client_artifacts(evidence_root: Path, request: bytes):
+    with open_private_runtime_root(evidence_root) as root, ExitStack() as artifacts:
+        streams = {}
+        for name in ("request.http", "response.http", "stdout.log", "stderr.log"):
+            descriptor = os.open(name, os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                                 0o600, dir_fd=root.descriptor)
+            stream = artifacts.enter_context(os.fdopen(descriptor, "w+b"))
+            os.fchmod(stream.fileno(), 0o600)
+            if name == "request.http":
+                stream.write(request)
+                stream.flush()
+                stream.seek(0)
+            streams[name] = stream
+        yield streams["request.http"], streams["response.http"], streams["stdout.log"], streams["stderr.log"]
+
+
+def run_client(argv: list[str], descriptors: tuple[int, int], stdout, stderr) -> tuple[int, bool]:
     timed_out = False
-    with (evidence_root / "stdout.log").open("xb") as stdout, \
-            (evidence_root / "stderr.log").open("xb") as stderr:
-        with subprocess.Popen(argv, stdout=stdout, stderr=stderr) as process:
-            try:
-                process.wait(timeout=8)
-            except subprocess.TimeoutExpired:
-                timed_out = True
-                process.kill()
-                process.wait(timeout=5)
-            returncode = process.returncode
-    raw = response_path.read_bytes() if response_path.exists() else b""
+    with subprocess.Popen(argv, stdout=stdout, stderr=stderr, pass_fds=descriptors) as process:
+        try:
+            process.wait(timeout=8)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            process.kill()
+            process.wait(timeout=5)
+        return process.returncode, timed_out
+
+
+def client_framing(raw: bytes, returncode: int):
     head, separator, body = raw.partition(b"\r\n\r\n")
     status_line = head.split(b"\r\n", 1)[0].split()
     observed_status = int(status_line[1]) if separator and len(status_line) >= 2 and \
@@ -1442,6 +1480,21 @@ def exchange(port: int, request: bytes, evidence_root: Path) -> tuple[int, bytes
                             for line in head.split(b"\r\n")[1:])
     framing_complete = bool(separator) and not transfer_encoding and \
         (len(body) == content_length if lengths else returncode == 0)
+    return head, separator, body, status_line, observed_status, content_length, transfer_encoding, framing_complete
+
+
+def exchange(port: int, request: bytes, evidence_root: Path) -> tuple[int, bytes]:
+    evidence_root.mkdir(mode=0o700)
+    started = time.time_ns()
+    with client_artifacts(evidence_root, request) as (source, response, stdout, stderr):
+        descriptors = source.fileno(), response.fileno()
+        argv = [sys.executable, str(Path(__file__).resolve()), "--client-exchange",
+                str(port), *(str(descriptor) for descriptor in descriptors)]
+        returncode, timed_out = run_client(argv, descriptors, stdout, stderr)
+        response.seek(0)
+        raw = response.read(_MAX_CLIENT_RESPONSE_BYTES + 1)
+    head, separator, body, status_line, observed_status, content_length, transfer_encoding, framing_complete = \
+        client_framing(raw, returncode)
     write_observation(evidence_root / "client.json", {
         "argv": argv, "cwd": str(Path.cwd()), "started_unix_ns": started,
         "finished_unix_ns": time.time_ns(), "wait_returncode": returncode,
@@ -1471,6 +1524,20 @@ class CleanupFailure(RuntimeError):
 
 class CaseObservationError(RuntimeError):
     """An observed result disagrees with the fixed catalog contract."""
+
+
+def follow_up_health(case: RealBackendCase, sidecar_port: int, case_root: Path,
+                     backend_access_log: Path, baseline_backend_requests: int) -> str:
+    if case.name != "p4_safe_rate_limit":
+        return "not_run"
+    status, body = exchange(sidecar_port, http_request("GET", _HEALTH_PATH),
+                            case_root / "follow-up-client")
+    if status != 200 or body != b"stock-backend-health":
+        raise RuntimeError("Stock lighttpd did not remain healthy after P4 Safe")
+    wait_for_backend_requests(
+        backend_access_log, baseline_backend_requests + case.expected_backend_requests + 1
+    )
+    return "passed"
 
 
 def run_case(*, runtime_root: Path, initial_receipt: Path, temporary_root: Path,
@@ -1530,16 +1597,8 @@ def run_case(*, runtime_root: Path, initial_receipt: Path, temporary_root: Path,
                 not isinstance(original_status, int) or isinstance(original_status, bool) or \
                 not 0 <= original_status <= 599:
             raise RuntimeError("Stock lighttpd receipt projection is not internally consistent")
-        follow_up_health = "not_run"
-        if case.name == "p4_safe_rate_limit":
-            follow_status, follow_body = exchange(sidecar_port, http_request("GET", _HEALTH_PATH),
-                                                case_root / "follow-up-client")
-            if follow_status != 200 or follow_body != b"stock-backend-health":
-                raise RuntimeError("Stock lighttpd did not remain healthy after P4 Safe")
-            wait_for_backend_requests(
-                backend_access_log, baseline_backend_requests + case.expected_backend_requests + 1
-            )
-            follow_up_health = "passed"
+        health = follow_up_health(case, sidecar_port, case_root, backend_access_log,
+                                  baseline_backend_requests)
         if sidecar.poll() is not None:
             raise RuntimeError("Stock lighttpd sidecar stopped during an active catalog case")
         verified = {
@@ -1589,7 +1648,7 @@ def run_case(*, runtime_root: Path, initial_receipt: Path, temporary_root: Path,
             "cleanup_complete": snapshot["cleanup_complete"],
             "backend_requests_observed": observed_backend_requests,
             "process_healthy": True,
-            "follow_up_health": follow_up_health,
+            "follow_up_health": health,
             "payloads_persisted": False,
             "opaque_handles_persisted": False,
         }
@@ -1767,9 +1826,9 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         if len(sys.argv) == 5 and sys.argv[1] == "--client-exchange":
-            client_exchange(int(sys.argv[2]), Path(sys.argv[3]), Path(sys.argv[4]))
+            client_exchange(int(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4]))
             raise SystemExit(0)
         raise SystemExit(main())
-    except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
+    except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as error:
         print(f"lighttpd_stock_sidecar_real_backend: BLOCKED: {error}", file=sys.stderr)
         raise SystemExit(77)

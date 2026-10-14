@@ -403,6 +403,43 @@ historical Gitleaks range failure remains an independent release gate.
 Final changed-path/local and exact-head hosted results are recorded in the
 current report and delivery ledger. Both PRs remain Draft.
 
+### Focused PR410 Sonar repair, 2026-10-14
+
+The current request explicitly authorizes analysis and repair of the actual
+PR410 findings. Authenticated readback through the canonical Sonar wrapper
+finds ten open issues at starting head
+`1a40c9109f7aef3373ec24019000eb9ebe4dc27b`: three HIGH security impacts and
+seven maintainability issues. Exact-head GitHub check `115518660334` fails
+only `new_security_rating`, C rather than A. The failed decoration omits
+finding counters, so both strict scaffold checks correctly fail closed.
+No parser change or missing-counter-to-zero fallback was introduced.
+
+The two `pythonsecurity:S8707` paths were reproduced using synthetic bytes
+and a private loopback listener: the internal client CLI could read an
+arbitrary file and create an output outside its case directory. Its sole
+normal caller now opens fixed artifact names exclusively through the existing
+descriptor-backed `PrivateRuntimeRoot` and passes only owned regular-file
+descriptors to the child. Checks retain exact 0600 mode, one link, distinct
+identities, correct access modes and fresh output. Binary/partial response
+bytes, timeouts, the existing response bound and exit77 remain intact.
+
+The `pythonsecurity:S8705` Git call uses fixed argv and no shell; an option
+injection was not demonstrated. The actual unchecked foreign-checkout input
+is closed by binding the helper to its own canonical source root. Git receives
+fixed arguments and that trusted cwd. Both artifact probes have ten-second
+deadlines; hashes, version and source-equivalence validation remain mandatory.
+S108, two S3776, S9154 and three S5778 are corrected without suppressions.
+
+An independent bounded pre-patch investigation and candidate review found
+no concrete remaining bypass or compatibility defect. Root reran 79 focused
+tests, including both harnesses, native spool contracts and strict Sonar
+parser controls, with the selected SDK: exit0, no skips. Whitespace passes.
+Exact wrapped argv, source hashes, exits and original logs are retained in
+`/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/verification/focused/`;
+the original synthetic reproduction is under `sonar-stock/` in that run.
+Current-head hosted Sonar/scaffold results are still pending at this checkpoint;
+local tests do not establish a passing cloud gate or I12 host acceptance.
+
 ### Immutable original index
 
 Each numbered link identifies one original Change ID through its filename.

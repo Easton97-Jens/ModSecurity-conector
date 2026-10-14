@@ -6,6 +6,7 @@ import importlib.util
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -31,6 +32,9 @@ class PreparedArtifactTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
+        root_patch = mock.patch.object(PREPARED, "SOURCE_ROOT", self.root)
+        root_patch.start()
+        self.addCleanup(root_patch.stop)
         self.inputs = []
         for relative in ("connectors/profile_registry.c", "connectors/profile_registry.h",
                          "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c"):
@@ -66,12 +70,56 @@ class PreparedArtifactTests(unittest.TestCase):
     def validate(self):
         with mock.patch.object(PREPARED.subprocess, "run", side_effect=[
                 subprocess.CompletedProcess([], 0, stdout="b" * 40 + "\n", stderr=""),
-                subprocess.CompletedProcess([], 0, stdout="HAProxy version 3.2.25\n", stderr="")]):
+                subprocess.CompletedProcess([], 0, stdout="HAProxy version 3.2.25\n", stderr="")]) as run:
+            self.process_calls = run
             return PREPARED.validate(self.root, str(self.haproxy), str(self.spoa),
                 str(self.manifest), str(self.proof), str(self.library), "3.2.25")
 
     def test_matching_pair_and_complete_production_proof_is_accepted(self):
         self.assertEqual(self.validate()["verified_production_inputs"], 3)
+        self.assertEqual(self.process_calls.call_args_list[0], mock.call(
+            ["git", "rev-parse", "HEAD"], cwd=self.root, check=True,
+            capture_output=True, text=True, timeout=PREPARED.PROBE_TIMEOUT_SECONDS))
+        self.assertEqual(self.process_calls.call_args_list[1].kwargs["timeout"],
+                         PREPARED.PROBE_TIMEOUT_SECONDS)
+
+    def test_untrusted_source_roots_fail_before_files_or_processes(self):
+        foreign = self.root / "foreign"
+        foreign.mkdir()
+        alias = self.root / "alias-root"
+        alias.symlink_to(self.root, target_is_directory=True)
+        inputs = (".", "--help", str(foreign), str(alias),
+                  str(alias / "foreign"), str(self.root) + "/./",
+                  str(self.root) + "/foreign/..", str(self.root) + "/")
+        for root in inputs:
+            with self.subTest(root=root), mock.patch.object(PREPARED.subprocess, "run") as run:
+                with self.assertRaises(ValueError):
+                    PREPARED.validate(root, "missing-haproxy", "missing-spoa",
+                                      "missing-manifest", "missing-proof", "missing-library", "3.2.25")
+                run.assert_not_called()
+
+    def test_source_root_canonical_file_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "own checkout"):
+            PREPARED.canonical_source_root(self.library)
+
+    def test_cli_preserves_noncanonical_root_for_rejection(self):
+        result = subprocess.run([sys.executable, str(PREPARED_PATH),
+            str(ROOT) + "/./", "missing-haproxy", "missing-spoa", "missing-manifest",
+            "missing-proof", "missing-library", "3.2.25"], capture_output=True,
+            text=True, timeout=10)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("source root must be canonical", result.stderr)
+
+    def test_timed_out_probe_cannot_publish_prepared_artifacts(self):
+        timeout = subprocess.TimeoutExpired("prepared probe", PREPARED.PROBE_TIMEOUT_SECONDS)
+        revision = subprocess.CompletedProcess([], 0, stdout="b" * 40 + "\n", stderr="")
+        for outcomes in ([timeout], [revision, timeout]):
+            with self.subTest(probe=len(outcomes)), \
+                    mock.patch.object(PREPARED.subprocess, "run", side_effect=outcomes):
+                with self.assertRaises(subprocess.TimeoutExpired):
+                    PREPARED.validate(self.root, str(self.haproxy), str(self.spoa),
+                        str(self.manifest), str(self.proof), str(self.library), "3.2.25")
 
     def test_modified_artifact_is_rejected(self):
         self.spoa.write_bytes(b"changed")

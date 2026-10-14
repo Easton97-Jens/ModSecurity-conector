@@ -424,6 +424,47 @@ belegte historische Gitleaks-Rangefehler bleibt ein unabhängiges Release-Gate.
 Finale lokale Prüfungen geänderter Pfade und Hosted-Ergebnisse des exakten
 Heads stehen im aktuellen Bericht und Lieferprotokoll. Beide PRs bleiben Draft.
 
+### Begrenzte PR410-Sonar-Reparatur, 2026-10-14
+
+Der aktuelle Auftrag erlaubt ausdrücklich Analyse und Reparatur der echten
+PR410-Befunde. Die authentifizierte Abfrage über den kanonischen Sonar-Wrapper
+liefert zehn offene Issues am Ausgangshead
+`1a40c9109f7aef3373ec24019000eb9ebe4dc27b`: drei HIGH-Security-Auswirkungen
+und sieben Wartbarkeitsbefunde. Der revisionsgenaue GitHub-Check `115518660334`
+scheitert ausschließlich an `new_security_rating`, C statt A. Der fehlgeschlagene
+Providertext enthält keine Befundzähler; beide strengen Scaffold-Prüfungen
+scheitern deshalb korrekt fail-closed. Kein Parser wurde geändert und kein
+fehlender Zähler als null interpretiert.
+
+Die beiden `pythonsecurity:S8707`-Pfade wurden mit synthetischen Bytes und
+privatem Loopback-Listener reproduziert: Der interne Client-CLI konnte eine
+beliebige Datei lesen und Ausgabe außerhalb seines Fallverzeichnisses anlegen.
+Sein einziger normaler Aufrufer öffnet feste Artefaktnamen jetzt exklusiv über
+den bestehenden deskriptorbasierten `PrivateRuntimeRoot` und übergibt dem Kind
+nur eigene reguläre Dateideskriptoren. Exakt 0600, ein Link, unterschiedliche
+Identitäten, passende Zugriffsmodi und frische Ausgabe bleiben geprüft.
+Binäre/partielle Antwortbytes, Zeitlimits, bestehende Antwortgrenze und
+Exit77 bleiben erhalten.
+
+Der `pythonsecurity:S8705`-Git-Aufruf nutzt feste Argumente ohne Shell; eine
+Optionsinjektion wurde nicht nachgewiesen. Die echte ungeprüfte Auswahl eines
+fremden Checkouts wird durch Bindung an den eigenen kanonischen Quellroot
+geschlossen. Git erhält feste Argumente und diesen vertrauenswürdigen cwd.
+Beide Artefaktprobes haben zehn Sekunden Deadline; Hash-, Versions- und
+Quellgleichheitsprüfungen bleiben verpflichtend. S108, zweimal S3776, S9154
+und dreimal S5778 werden ohne Unterdrückungen korrigiert.
+
+Eine unabhängige begrenzte Voruntersuchung und Kandidatenprüfung fanden keinen
+konkreten verbleibenden Bypass oder Kompatibilitätsfehler. Root führte 79
+fokussierte Tests beider Harnesses, nativer Spool-Verträge und strenger Sonar-
+Parserkontrollen mit dem ausgewählten SDK erneut aus: Exit0, keine Skips.
+Whitespace besteht. Exakte RTK-Befehle, Quellhashes, Exits und Original-Logs
+bleiben unter
+`/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/verification/focused/`
+erhalten; die ursprüngliche synthetische Reproduktion liegt unter `sonar-stock/`
+dieses Runs. Revisionsgenaues Hosted-Sonar/Scaffold ist an diesem Checkpoint
+noch offen; lokale Tests beweisen weder Cloud-Gate noch I12-Hostabnahme.
+
 ### Unveränderlicher Originalindex
 
 Jeder nummerierte Link identifiziert eine Original-Change-ID durch ihren Dateinamen.
