@@ -66,8 +66,35 @@ class NginxNativeSecurityContractTest(unittest.TestCase):
         )[1].split("static ngx_int_t", 1)[0]
 
         self.assertIn("validation failed", mapper)
-        self.assertIn("return NGX_HTTP_BAD_REQUEST", mapper)
+        self.assertIn("ngx_int_t mapper_status = NGX_HTTP_INTERNAL_SERVER_ERROR;", mapper)
+        self.assertIn("&mapper_status, mapper_error, sizeof(mapper_error)", mapper)
+        self.assertIn("return mapper_status;", mapper)
+        self.assertNotIn("return NGX_HTTP_BAD_REQUEST", mapper)
         self.assertNotIn("validation skipped", mapper)
+        request_mapper = function_definition(MAPPER, "ngx_http_modsecurity_map_request")
+        self.assertIn(
+            "if (failure_status != NULL) {\n"
+            "        *failure_status = NGX_HTTP_INTERNAL_SERVER_ERROR;\n"
+            "    }",
+            request_mapper,
+        )
+        self.assertLess(
+            request_mapper.index("*failure_status = NGX_HTTP_INTERNAL_SERVER_ERROR;"),
+            request_mapper.index("if (r == NULL || out == NULL || contract == NULL)"),
+        )
+        self.assertIn(
+            "if (contract->max_header_count > 0U &&\n"
+            "        ngx_http_modsecurity_count_list_headers(&r->headers_in.headers) >\n"
+            "            contract->max_header_count) {\n"
+            "        if (failure_status != NULL) {\n"
+            "            *failure_status = NGX_HTTP_BAD_REQUEST;\n"
+            "        }\n"
+            '        ngx_http_modsecurity_mapper_error(error, error_len, "too many headers");\n'
+            "        return 0;\n"
+            "    }",
+            request_mapper,
+        )
+        self.assertEqual(request_mapper.count("*failure_status = NGX_HTTP_BAD_REQUEST;"), 1)
         self.assertIn(
             "rc = ngx_http_modsecurity_validate_common_request_mapper(r);",
             initialize,
