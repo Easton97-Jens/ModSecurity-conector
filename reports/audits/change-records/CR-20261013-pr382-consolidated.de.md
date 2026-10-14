@@ -569,6 +569,42 @@ kanonische Common-IDs bleiben getrennt. Roots verification/harness-04 besteht56
 Tests und Whitespace mit ausdrücklichemSDK; daraus wird weder ein Host-Lifecycle-
 Abschluss noch ein Sonar-Ergebnis des nächsten exakten Heads abgeleitet.
 
+Der authentische aba76c1b-Provider meldet vier neue Befunde: zwei verschachtelte
+bedingte Operatoren, eine implizite Weak-Funktionsadresse und strlen für eine
+SDK-Version als Compilezeitkonstante. Getrennte Identitätszweige, eine explizite
+Weak-Symboladresse und Arraylängen zur Compilezeit beheben diese Befunde. Alle56
+gezielten Observer-/Traefik-Harnesstests bestehen erneut in verification/harness-05.
+Das neue Providerergebnis bleibt erforderlich; kein Befund wurde akzeptiert,
+ausgeschlossen oder als null gezählt.
+
+### Zulassung des gepatchten lighttpd-Phase-2-Harness, 2026-10-14
+
+Der echte Host-Konfigurationstest wies `/proc/self/fd/5/events.jsonl` mit
+`ENOTDIR` ab: Common öffnet jeden Elternpfad bewusst mit `O_NOFOLLOW`, weshalb
+`/proc/self` für den Event-Sink ungeeignet ist. Der anschließende Adapter-Retake
+bestand diese Grenze und zeigte die fehlende native Einstellung
+`msconnector.request-body-gate = "pre-upstream"`. Beide Fehler traten vor
+Requests auf; keiner belegt einen Fehler der Phase-2-Entscheidung.
+
+`run_phase2_pre_upstream_gate.py` setzt nun das erforderliche Gate und verwendet
+die benannte Methode `event_sink_path` ausschließlich für Events. Sie prüft das
+kanonische Verzeichnis gegen den gehaltenen Deskriptor, privaten Besitzer und
+ursprüngliches Gerät/Inode des zugelassenen Task-Roots. Andere Pfade, sämtliche
+deskriptorrelativen Schreibvorgänge, Commons No-Follow-Prüfungen und native
+Streaming-Guards bleiben erhalten. Root-Austausch oder Escape wird abgewiesen;
+ein innerhalb desselben Roots umbenanntes Kind folgt dem gehaltenen Inode.
+
+Die Parent-Vertragssuite besteht 21 Tests, darunter sechs neue Tests mit dem
+tatsächlich kompilierten sicheren Common-Eventöffner und Negativkontrollen für
+Verzeichnisse/Deskriptoren. Die zusätzliche Connector-Suite besteht sechs Tests,
+nachdem ihre veraltete Body-Limit-Assertion durch Prüfungen auf fehlendes
+Connector-Limit und erforderliches natives Gate ersetzt wurde. Alle 27
+gezielten Tests bestehen. Die Prüfung verwendete RTK, die ausgewählte Parent-
+Python3.14.7-Umgebung und externen temporären Speicher. Echte Host-Ausführung
+der aktuellen Quelle, finale CI/Sonar und vollständige I12-Qualifikation stehen
+aus. Diese Harness-Änderung führt weder Produktlimit noch Abhängigkeit,
+Framework/MRTS-Änderung, Merge oder Deployment ein.
+
 ### Unveränderlicher Originalindex
 
 Jeder nummerierte Link identifiziert eine Original-Change-ID durch ihren Dateinamen.

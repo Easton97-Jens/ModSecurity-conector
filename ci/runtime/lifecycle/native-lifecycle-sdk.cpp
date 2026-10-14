@@ -24,11 +24,12 @@ extern "C" int msconnector_lifecycle_sdk_transaction_id(
         return restore_errno(saved, -1);
     output[0] = '\0';
     const char *identity = modsecurity::msc_who_am_i(static_cast<modsecurity::ModSecurity *>(engine));
-    const char *prefix = identity == nullptr ? nullptr : std::strstr(identity, "ModSecurity v");
+    constexpr char version_prefix[] = "ModSecurity v";
+    const char *prefix = identity == nullptr ? nullptr : std::strstr(identity, version_prefix);
     if (prefix == nullptr) return restore_errno(saved, -2);
-    const char *version = prefix + std::strlen("ModSecurity v");
-    constexpr const char *expected = MSCONNECTOR_LIFECYCLE_SDK_EXPECTED_VERSION;
-    const size_t expected_length = std::strlen(expected);
+    const char *version = prefix + sizeof(version_prefix) - 1U;
+    constexpr char expected[] = MSCONNECTOR_LIFECYCLE_SDK_EXPECTED_VERSION;
+    constexpr size_t expected_length = sizeof(expected) - 1U;
     if (std::strncmp(version, expected, expected_length) != 0 ||
         (version[expected_length] != '\0' && version[expected_length] != ' ' && version[expected_length] != '('))
         return restore_errno(saved, -2);

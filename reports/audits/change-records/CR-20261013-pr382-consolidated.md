@@ -536,6 +536,40 @@ fake-ABI fallback are covered. Input IDs and Common canonical IDs remain separat
 Root's verification/harness-04 passes56 tests and whitespace with explicitSDK;
 no hosted lifecycle or exact next-head Sonar result is inferred.
 
+The authentic aba76c1b provider reports four new findings: two nested conditional
+operators, an implicit weak function address and strlen on a compile-time SDK
+version. Separate identity branches, an explicit weak-symbol address and
+compile-time array lengths correct those findings. All56 focused observer/
+Traefik harness tests pass again in verification/harness-05. The new provider
+result remains required; no finding was accepted, excluded or counted as zero.
+
+### Patched lighttpd Phase-2 harness admission, 2026-10-14
+
+The actual hosted configuration check rejected `/proc/self/fd/5/events.jsonl`
+with `ENOTDIR`: Common deliberately opens every parent with `O_NOFOLLOW`, so
+`/proc/self` is unsuitable for the event sink. The subsequent adapter retake
+passed that boundary and exposed the missing native
+`msconnector.request-body-gate = "pre-upstream"` setting. Both failures preceded
+requests; neither establishes a Phase-2 decision failure.
+
+`run_phase2_pre_upstream_gate.py` now selects that required gate and uses the
+named `event_sink_path` only for events. The method checks the canonical
+directory against its held descriptor, private ownership, and the admitted
+task root's original device/inode. Other paths, all descriptor-relative writes,
+Common's no-follow checks, and native streaming guards remain intact. Root
+replacement or escape is rejected; a renamed child inside the same root follows
+the held inode.
+
+The Parent contract suite passes 21 tests, including six new tests using the
+actual compiled Common secure event opener and directory/descriptor negative
+controls. The additional connector suite passes six tests after replacing its
+stale removed-body-limit assertion with current no-connector-limit and required
+native-gate checks. All 27 focused tests pass. Validation used RTK, the
+selected Parent Python3.14.7 environment, and external temporary storage.
+Actual current-source hosted execution, final CI/Sonar, and full I12
+qualification remain pending. This harness change introduces no product limit,
+dependency, Framework/MRTS edit, merge, or deployment.
+
 ### Immutable original index
 
 Each numbered link identifies one original Change ID through its filename.

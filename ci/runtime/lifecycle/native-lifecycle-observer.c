@@ -100,7 +100,11 @@ static void remember(const void *key, int native, const char *id, const char *ca
     for (size_t i = 0U; i < MAP_CAPACITY; ++i) {
         if (mappings[i].key != NULL) continue;
         mappings[i].key = key; mappings[i].native = native;
-        mappings[i].id_origin = native ? (id == NULL ? "unknown" : "caller_argument") : "common_public_contract";
+        mappings[i].id_origin = "common_public_contract";
+        if (native) {
+            mappings[i].id_origin = "unknown";
+            if (id != NULL) mappings[i].id_origin = "caller_argument";
+        }
         if (id != NULL && strnlen(id, sizeof(mappings[i].id)) < sizeof(mappings[i].id))
             (void)snprintf(mappings[i].id, sizeof(mappings[i].id), "%s", id);
         if (canonical != NULL && strnlen(canonical, sizeof(mappings[i].canonical)) < sizeof(mappings[i].canonical))
@@ -361,11 +365,14 @@ static Transaction *constructed(Transaction *transaction, const char *id, uint64
     int saved = errno;
     char actual_id[MSCONNECTOR_MAX_TRANSACTION_ID_LENGTH];
     int extracted = 0;
-    if (transaction != NULL && msconnector_lifecycle_sdk_transaction_id != NULL)
+    if (transaction != NULL && &msconnector_lifecycle_sdk_transaction_id != NULL)
         extracted = msconnector_lifecycle_sdk_transaction_id(engine, transaction, actual_id, sizeof(actual_id));
     (void)pthread_mutex_lock(&lock);
     if (extracted < 0) invalid();
-    remember(transaction, 1, extracted == 1 ? actual_id : (extracted < 0 ? NULL : id), NULL);
+    const char *observed_id = id;
+    if (extracted == 1) observed_id = actual_id;
+    else if (extracted < 0) observed_id = NULL;
+    remember(transaction, 1, observed_id, NULL);
     struct mapping *entry = lookup(transaction, 1);
     if (entry != NULL) {
         if (extracted == 1) entry->id_origin = "sdk_public_m_id";
