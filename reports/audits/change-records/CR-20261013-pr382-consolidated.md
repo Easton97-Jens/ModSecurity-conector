@@ -448,6 +448,41 @@ is `verification/focused-02/`. Full quick-check plus bilingual/link/variable
 checks exit0 in 197.163 seconds. The new exact-head strict zero-issue and
 scaffold readback remains pending; no parser or gate was weakened.
 
+At exact follow-up `71ba09f0a695c333c2c10d3a0db46d2dc956ec40`, Sonar check
+`115688597895` succeeds with zero new/accepted issues, hotspots and annotations.
+Authenticated cloud readback confirms Rating A/Gate OK and zero duplicated
+lines, blocks and density. Scaffold-lint job `115687673149` succeeds without
+a parser change. These facts belong to that head; later delivery requires
+fresh readback again.
+
+### NGINX restricted ownership handoff, 2026-10-14
+
+The original harness reproduces chmod EPERM after worker chown under mask
+`0xc1`. The repair creates and sets exact0700 modes for the complete subtree
+before transferring children, then parents. A repeated handoff verifies all
+eight existing paths under the resolved worker identity without changing
+inode/ctime. Symlink, UID/GID and mode drift remain rejected. The wrong-owner
+phase4 negative fixture also sets0600 before chown; its rejection contract
+is retained. Only the NGINX harness and its ownership tests change.
+
+Seven actual root/nobody tests, including the real Framework materializer,
+pass in 2.487 seconds. The initial attempt in the command sandbox had only
+UID0 mapped and could neither drop the bounding set nor chown65534; that
+environment failure is retained. The authorized outside rerun uses genuine
+identity mapping, and the five capability regressions explicitly drop to
+`0xc1`. Receipts are under `nginx-handoff/` in the 2026-10-14 task run.
+
+Fresh offline NGINX1.31.6/module builds compile 33 current Parent inputs from
+`a9d48bb58aa948aea7d79e20cdf09d3f239b7808`, using C17/GCC15.2.0 and real
+libModSecurity3.0.14. Build/version/linkage exit0 is not host acceptance.
+The private namespace-only0711 worker alias retains host attempt/data0700.
+Two harmless actual admissions reproduce missing runuser PAM and restricted
+master EACCES on worker-private logs. Private locked fixture accounts with
+PAM root/Unix checks repair the former; the latter needs separately explicit
+DAC admission and native host validation. No HTTP request or I12 PASS is
+claimed by these setup probes. Original controller/source/specs and outside
+cleanup receipts remain immutable in their individual attempts.
+
 ### Immutable original index
 
 Each numbered link identifies one original Change ID through its filename.

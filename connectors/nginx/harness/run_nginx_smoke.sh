@@ -376,6 +376,29 @@ prepare_nginx_worker_paths() {
     if [ "$CURRENT_UID" = "0" ]; then
         resolve_nginx_worker_identity
         worker_group=$NGINX_WORKER_RESOLVED_GROUP
+        # A previous handoff is immutable from the restricted root master:
+        # without DAC_OVERRIDE/FOWNER it cannot traverse or chmod worker 0700
+        # directories. Verify the complete tree as the worker instead.
+        if [ "$(stat -c '%u' "$NGINX_WORKER_STATE_ROOT" 2>/dev/null || true)" = "$NGINX_WORKER_RESOLVED_UID" ]; then
+            nginx_worker_runuser -u "$NGINX_WORKER_RESOLVED_USER" -g "$worker_group" -- \
+                /bin/sh -eu -c '
+                    expected=$1
+                    shift
+                    for path do
+                        [ ! -L "$path" ] && [ -d "$path" ] &&
+                            [ "$(stat -c "%u:%g:%a" "$path")" = "$expected" ] || exit 1
+                    done
+                ' nginx-worker-paths "$NGINX_WORKER_RESOLVED_UID:$NGINX_WORKER_RESOLVED_GID:700" \
+                "$NGINX_WORKER_STATE_ROOT" \
+                "$NGINX_WORKER_STATE_ROOT/client_body_temp" \
+                "$NGINX_WORKER_STATE_ROOT/proxy_temp" \
+                "$NGINX_WORKER_STATE_ROOT/fastcgi_temp" \
+                "$NGINX_WORKER_STATE_ROOT/uwsgi_temp" \
+                "$NGINX_WORKER_STATE_ROOT/scgi_temp" \
+                "$NGINX_SERVER_LOG_ROOT" "$NGINX_SERVER_LOG_ROOT/audit" || \
+                blocked "existing NGINX worker paths failed ownership/mode validation"
+            return 0
+        fi
     fi
     for path in \
         "$NGINX_WORKER_STATE_ROOT" \
@@ -387,12 +410,30 @@ prepare_nginx_worker_paths() {
         "$NGINX_SERVER_LOG_ROOT" \
         "$NGINX_SERVER_LOG_ROOT/audit"
     do
-        install -d -m 700 "$path"
-        if [ "$CURRENT_UID" = "0" ]; then
-            chown "$NGINX_WORKER_RESOLVED_USER:$worker_group" "$path"
+        [ ! -L "$path" ] || blocked "NGINX worker path must not be a symlink: $path"
+        if [ -e "$path" ]; then
+            [ -d "$path" ] || blocked "NGINX worker path must be a directory: $path"
+            [ "$(stat -c '%u' "$path")" = "$CURRENT_UID" ] || \
+                blocked "NGINX worker path must be owned by the launcher before handoff: $path"
         fi
+        install -d -m 700 "$path"
         chmod 700 "$path"
     done
+    # Finish all creation and mode changes before losing ownership. Children
+    # precede their private parents so restricted root retains traversal.
+    if [ "$CURRENT_UID" = "0" ]; then
+        for path in \
+            "$NGINX_WORKER_STATE_ROOT/client_body_temp" \
+            "$NGINX_WORKER_STATE_ROOT/proxy_temp" \
+            "$NGINX_WORKER_STATE_ROOT/fastcgi_temp" \
+            "$NGINX_WORKER_STATE_ROOT/uwsgi_temp" \
+            "$NGINX_WORKER_STATE_ROOT/scgi_temp" \
+            "$NGINX_SERVER_LOG_ROOT/audit" \
+            "$NGINX_WORKER_STATE_ROOT" "$NGINX_SERVER_LOG_ROOT"
+        do
+            chown "$NGINX_WORKER_RESOLVED_USER:$worker_group" "$path"
+        done
+    fi
 }
 
 resolve_nginx_worker_identity() {
@@ -1645,9 +1686,9 @@ prepare_phase4_log_target() {
             [ "$CURRENT_UID" = "0" ] || \
                 blocked "unsafe_wrong_owner phase4 fixture requires root"
             create_fresh_phase4_regular_file "$NGINX_PHASE4_LOG_FILE"
+            chmod 600 "$NGINX_PHASE4_LOG_FILE"
             chown "$NGINX_WORKER_USER" "$NGINX_PHASE4_LOG_FILE" || \
                 fail "could not create wrong-owner phase4 rejection target"
-            chmod 600 "$NGINX_PHASE4_LOG_FILE"
             ;;
         *)
             blocked "unsupported NGINX_PHASE4_LOG_TARGET_MODE=$NGINX_PHASE4_LOG_TARGET_MODE"

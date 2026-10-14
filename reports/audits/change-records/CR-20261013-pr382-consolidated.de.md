@@ -474,6 +474,42 @@ Variablenprüfung Exit0 in 197,163 Sekunden. Revisionsgenaues strenges Null-Issu
 und Scaffold-Readback des neuen Heads ist noch offen; kein Parser oder Gate
 wurde abgeschwächt.
 
+Am exakten Folgehead `71ba09f0a695c333c2c10d3a0db46d2dc956ec40` besteht
+Sonar-Check `115688597895` mit null neuen/akzeptierten Issues, Hotspots und
+Annotationen. Authentifiziertes Cloud-Readback bestätigt Rating A/Gate OK und
+null duplizierte Zeilen, Blöcke und Dichte. Scaffold-lint-Job `115687673149`
+besteht ohne Parseränderung. Diese Fakten gelten für diesen Head; spätere
+Lieferung erfordert erneut frisches Readback.
+
+### NGINX-Ownership-Handoff mit begrenzten Rechten, 2026-10-14
+
+Der ursprüngliche Harness reproduziert chmod-EPERM nach Worker-chown unter
+Maske `0xc1`. Die Reparatur erstellt den vollständigen Unterbaum und setzt
+exakt0700 vor Übergabe erst der Kinder, dann der Eltern. Wiederholter Handoff
+prüft alle acht vorhandenen Pfade unter aufgelöster Workeridentität ohne
+Inode-/ctime-Änderung. Symlink-, UID/GID- und Modusabweichungen bleiben
+abgewiesen. Die Wrong-Owner-P4-Negativfixture setzt ebenfalls0600 vor chown;
+ihr Ablehnungsvertrag bleibt erhalten. Nur NGINX-Harness und Ownershiptests
+werden geändert.
+
+Sieben echte Root/nobody-Tests einschließlich realem Framework-Materializer
+bestehen in 2,487 Sekunden. Der erste Aufruf im Command-Sandbox hatte nur
+UID0 abgebildet und konnte weder Bounding-Set reduzieren noch chown65534
+ausführen; dieser Umgebungsfehler bleibt erhalten. Der autorisierte Outside-
+Rerun nutzt echte UID-Abbildung; die fünf Capability-Regressionen reduzieren
+ausdrücklich auf `0xc1`. Receipts liegen unter `nginx-handoff/` des Task-Runs.
+
+Frische Offline-NGINX1.31.6-/Modulbuilds kompilieren 33 aktuelle Parentinputs
+aus `a9d48bb58aa948aea7d79e20cdf09d3f239b7808` mit C17/GCC15.2.0 und echtem
+libModSecurity3.0.14. Build-/Versions-/Linkage-Exit0 ist keine Hostabnahme.
+Der ausschließlich private Namespace-Worker-Alias0711 erhält Host-Attempt/
+Data0700. Zwei harmlose echte Admissions reproduzieren fehlendes runuser-PAM
+und Master-EACCES auf worker-privaten Logs. Private gesperrte Fixturekonten
+mit PAM-Root-/Unix-Prüfungen beheben Ersteres; Letzteres braucht separat
+explizite DAC-Admission und nativen Hosttest. Setup-Probes behaupten keinen
+HTTP-Request oder I12-PASS. Originale Controller-/Quell-/Specs und Outside-
+Cleanup-Receipts ihrer einzelnen Attempts bleiben unverändert erhalten.
+
 ### Unveränderlicher Originalindex
 
 Jeder nummerierte Link identifiziert eine Original-Change-ID durch ihren Dateinamen.
