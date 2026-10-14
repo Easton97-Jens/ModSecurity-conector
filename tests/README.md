@@ -85,12 +85,14 @@ boundary.
 
 The lifecycle observer records actual API entry/return pairs, separate host and
 canonical transaction IDs, Common state snapshots and per-process final receipts.
-Link it only into test artifacts with the twelve `--wrap` symbols listed in
+Link it only into test artifacts with the fourteen `--wrap` symbols listed in
 `tests/test_native_lifecycle_observer.py`. A supervisor supplies a private inherited
 append descriptor and retains its original JSONL. Same-object internal calls can
 bypass wrapping; missing receipts or outstanding mappings leave cleanup unqualified.
 Native MIME selection and actual host EOS remain `null`. Successful component
 tests or API counts alone do not establish a host lifecycle result.
+Native append records include actual byte counts and null/non-null input kinds;
+these APIs expose no EOS argument, so empty appends cannot qualify host EOS.
 
 Use [test levels](../docs/testing-and-evidence.md),
 [core lifecycle testing](../docs/testing-and-evidence.md), and the

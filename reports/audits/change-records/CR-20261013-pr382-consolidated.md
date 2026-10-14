@@ -488,7 +488,7 @@ cleanup receipts remain immutable in their individual attempts.
 The test-only GNU linker observer preserves the actual API arguments, returns
 and errno while recording paired calls, separate host/canonical IDs and public
 Common state at each edge. Repeated successful terminal finish calls remain
-attempts rather than invented transitions. Twelve wrappers cover external link
+attempts rather than invented transitions. Fourteen wrappers cover external link
 references; internal calls within one object may bypass them. Private inherited
 append output, a fork-shared byte budget, invalidation controls and final receipts
 bound observation. Missing receipts or live mappings prevent qualification;
@@ -516,6 +516,14 @@ SonarGateOK/RatingA, zero new/accepted/hotspots/annotations and zero new duplica
 blocks/lines/density; scaffold-lint passes without changing the strict parser.
 These results attest e5 only. Later commits require their own readback. Genuine
 host retakes and all1484-case qualification remain pending at this checkpoint.
+
+The exact3a1 delivery introduced five observer maintainability findings:
+two excessive parameter lists, two combined declarations and a mutable lookup
+reader. Typed observation context, separate declarations and a const reader
+correct those actual findings. Native append wrappers now record size/input kind
+without inventing EOS;15 selected-SDK tests pass. Public native/Common append
+APIs expose no EOS argument. Their success or an empty append therefore leaves
+host EOS unknown. Strict remote readback for this follow-up remains required.
 
 ### Immutable original index
 

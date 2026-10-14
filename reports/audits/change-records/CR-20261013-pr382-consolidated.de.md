@@ -516,7 +516,7 @@ Der GNU-Linker-Observer ausschließlich für Tests erhält tatsächliche Argumen
 Rückgaben und errno. Er erfasst Aufrufpaare, getrennte Host-/kanonische IDs und
 den öffentlichen Common-Zustand an jeder Aufrufkante. Wiederholte erfolgreiche
 Finish-Aufrufe im Terminalzustand bleiben Versuche, keine erfundenen Übergänge.
-Zwölf Wrapper erfassen externe Linkreferenzen; interne Aufrufe desselben Objekts
+Vierzehn Wrapper erfassen externe Linkreferenzen; interne Aufrufe desselben Objekts
 können sie umgehen. Privater geerbter Append-Ausgabedeskriptor, Fork-gemeinsames
 Bytebudget, Invalidierungskontrollen und finale Belege begrenzen die Beobachtung.
 Fehlende Abschlussbelege oder offene Zuordnungen verhindern Qualifikation;
@@ -547,6 +547,15 @@ neue Duplikationsblöcke/-zeilen/-dichte; scaffold-lint besteht ohne Änderung d
 strengen Parsers. Dies attestiert ausschließlich e5. Spätere Commits benötigen
 eigene Abrufe. Echte Host-Retakes und die Qualifikation sämtlicher1484 Fälle
 stehen an diesem Zwischenstand weiterhin aus.
+
+Die revisionsgenaue3a1-Lieferung führte fünf Wartbarkeitsbefunde im Observer ein:
+zwei zu lange Parameterlisten, zwei kombinierte Deklarationen und einen mutablen
+Lookup-Reader. Typisierter Beobachtungskontext, getrennte Deklarationen und ein
+Const-Reader korrigieren die tatsächlichen Befunde. Native Append-Wrapper
+erfassen nun Größe/Eingabeart ohne erfundenes EOS;15 Tests mit ausgewähltem SDK
+bestehen. Öffentliche native/Common-Append-APIs bieten kein EOS-Argument.
+Erfolg oder leere Appends lassen Host-EOS daher unbekannt. Der strenge Remote-
+Abruf für diese Nachprüfung bleibt erforderlich.
 
 ### Unveränderlicher Originalindex
 

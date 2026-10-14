@@ -19,6 +19,7 @@ SYMBOLS = (
     "msconnector_transaction_contract_record_response_metadata", "msc_new_transaction",
     "msc_new_transaction_with_id", "msc_transaction_cleanup", "msc_process_request_body",
     "msc_process_response_body", "msc_process_logging",
+    "msc_append_request_body", "msc_append_response_body",
 )
 FIXTURE = r'''
 #include "msconnector/transaction_contract.h"
@@ -32,9 +33,9 @@ FIXTURE = r'''
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
-extern _Thread_local unsigned int native_calls[6];
+extern _Thread_local unsigned int native_calls[8];
 static _Thread_local int token;
-_Thread_local unsigned int native_calls[6];
+_Thread_local unsigned int native_calls[8];
 Transaction *msc_new_transaction(ModSecurity *m, RulesSet *r, void *d) {
     (void)m;(void)r;(void)d; ++native_calls[5];errno = EDOM; return (Transaction *)&token;
 }
@@ -46,6 +47,14 @@ int msc_process_request_body(Transaction *t) {(void)t;++native_calls[2];errno=ER
 int msc_process_response_body(Transaction *t) {(void)t;++native_calls[3];errno=ERANGE;return 9;}
 int msc_process_logging(Transaction *t) {(void)t;++native_calls[4];errno=ERANGE;return 1;}
 void msc_transaction_cleanup(Transaction *t) {(void)t;++native_calls[1];errno=EILSEQ;}
+int msc_append_request_body(Transaction *t,const unsigned char *data,size_t size) {
+    (void)t;++native_calls[6];errno=ENOBUFS;
+    return data!=NULL && size==3U ? 17 : -8;
+}
+int msc_append_response_body(Transaction *t,const unsigned char *data,size_t size) {
+    (void)t;++native_calls[7];errno=ENOBUFS;
+    return data==NULL && size==0U ? 19 : -9;
+}
 static void *cycle(void *argument) {
     const char *id = argument;
     unsigned int before[5];memcpy(before,native_calls,sizeof(before));
@@ -53,6 +62,12 @@ static void *cycle(void *argument) {
     if (msconnector_transaction_contract_init(&c,NULL,id,"test","test",0,1) != 0) abort();
     Transaction *t=msc_new_transaction_with_id(NULL,NULL,id,NULL);
     if (!t || errno != EDOM) abort();
+    unsigned int request_appends=native_calls[6],response_appends=native_calls[7];
+    const unsigned char data[3]={'a','b','c'};
+    if(msc_append_request_body(t,data,3U)!=17 || errno!=ENOBUFS)abort();
+    if(msc_append_request_body(t,data,0U)!=-8 || errno!=ENOBUFS)abort();
+    if(msc_append_response_body(t,NULL,0U)!=19 || errno!=ENOBUFS)abort();
+    if(native_calls[6]!=request_appends+2U || native_calls[7]!=response_appends+1U)abort();
     if (msc_process_request_body(t) != -7 || errno != ERANGE) abort();
     if (msc_process_response_body(t) != 9 || errno != ERANGE) abort();
     if (msc_process_logging(t) != 1 || errno != ERANGE) abort();
@@ -242,6 +257,15 @@ class NativeLifecycleObserverTests(unittest.TestCase):
         native = [e for e in events if e["function"].startswith("native_")]
         self.assertTrue(all(e["canonical_transaction_id"] is None for e in native))
 
+    def test_native_append_byte_counts_and_input_kind_never_imply_eos(self):
+        events, _ = self.run_fixture()
+        appends = [e for e in events if e["function"].startswith("native_append_") and e["edge"] == "return"]
+        self.assertEqual([e["input_size"] for e in appends], [3, 0, 0, 3, 0, 0])
+        self.assertEqual([e["input_kind"] for e in appends],
+                         ["non_null_buffer", "non_null_buffer", "null_buffer"] * 2)
+        self.assertEqual([e["result"] for e in appends], [17, -8, 19, 17, -8, 19])
+        self.assertTrue(all(e["argument_eos"] is None and e["host_eos"] is None for e in events))
+
     def test_commit_arguments_and_observed_states_distinguish_attempts(self):
         events, _ = self.run_fixture()
         commits = [e for e in events if e["function"] == "common_set_response_committed"]
@@ -276,6 +300,8 @@ int main(void) {
     if(!m || !r)return 2;
     Transaction *t=msc_new_transaction_with_id(m,r,"genuine-sdk",0);
     if(!t)return 3;
+    (void)msc_append_request_body(t,(const unsigned char *)"abc",3U);
+    (void)msc_append_response_body(t,(const unsigned char *)"xyz",3U);
     msc_transaction_cleanup(t);msc_rules_cleanup(r);msc_cleanup(m);return 0;
 }
 ''', encoding="utf-8")
@@ -300,6 +326,10 @@ int main(void) {
         self.assertEqual(len(cleanup), 1)
         self.assertEqual(cleanup[0]["transaction_id"], "genuine-sdk")
         self.assertIsNone(cleanup[0]["result"])
+        appends = [e for e in events if e["function"].startswith("native_append_") and e["edge"] == "return"]
+        self.assertEqual(len(appends), 2)
+        self.assertTrue(all(e["input_size"] == 3 and e["input_kind"] == "non_null_buffer" for e in appends))
+        self.assertTrue(all(e["argument_eos"] is None for e in appends))
 
     def test_fork_receipts(self):
         events, _ = self.run_fixture("fork")

@@ -24,6 +24,14 @@
 #define BYTE_BUDGET (16U * 1024U * 1024U)
 struct mapping { const void *key; int native; char id[MSCONNECTOR_MAX_TRANSACTION_ID_LENGTH]; char canonical[64]; };
 struct budget { atomic_uint bytes; atomic_int invalid; };
+struct observed_subject {
+    const void *key;
+    int native;
+    int phase;
+    int input_known;
+    size_t input_size;
+    int data_present;
+};
 static struct mapping mappings[MAP_CAPACITY];
 static struct budget *budget;
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
@@ -32,7 +40,14 @@ static uint64_t sequence;
 static unsigned int pending;
 static dev_t admitted_device;
 static ino_t admitted_inode;
-static char run[400] = "null", profile[400] = "null", fixture[800] = "null";
+static char run[400] = "null";
+static char profile[400] = "null";
+static char fixture[800] = "null";
+
+static struct observed_subject subject(const void *key, int native, int phase) {
+    const struct observed_subject value = {key, native, phase, 0, 0U, 0};
+    return value;
+}
 
 static void invalid(void) {
     if (budget != NULL) atomic_store(&budget->invalid, 1);
@@ -92,7 +107,7 @@ static void forget(const void *key, int native) {
 /* Caller holds process-local lock. One bounded O_APPEND write per record;
  * a partial/error write permanently invalidates the entire inherited run. */
 static void event(const char *function, const char *edge, uint64_t call,
-                  const void *key, int native, int phase, const char *result,
+                  const struct observed_subject *observed, const char *result,
                   const char *argument_committed) {
     if (output_fd < 0 || budget == NULL) return;
     struct stat descriptor_status;
@@ -101,8 +116,9 @@ static void event(const char *function, const char *edge, uint64_t call,
         descriptor_status.st_dev != admitted_device || descriptor_status.st_ino != admitted_inode ||
         descriptor_flags < 0 || (descriptor_flags & O_APPEND) == 0) { invalid(); return; }
     char id[6U * MSCONNECTOR_MAX_TRANSACTION_ID_LENGTH + 3U] = "null";
-    char canonical[400] = "null", record[4096];
-    struct mapping *entry = lookup(key, native);
+    char canonical[400] = "null";
+    char record[4096];
+    const struct mapping *entry = lookup(observed->key, observed->native);
     if (entry != NULL && entry->id[0] != '\0' &&
         quoted(id, sizeof(id), entry->id, sizeof(entry->id) - 1U) != 0) invalid();
     if (entry != NULL && entry->canonical[0] != '\0' &&
@@ -111,8 +127,8 @@ static void event(const char *function, const char *edge, uint64_t call,
     /* Only an already admitted, successfully initialized Common object is
      * inspected. Native opaque handles and init's uninitialized entry are
      * never dereferenced. Each edge reports its own observed public state. */
-    if (entry != NULL && native == 0) {
-        const msconnector_transaction_contract *contract = key;
+    if (entry != NULL && observed->native == 0) {
+        const msconnector_transaction_contract *contract = observed->key;
         (void)snprintf(state, sizeof(state),
             "{\"status\":%d,\"response_committed\":%d,\"active_phase\":%d,"
             "\"last_completed_phase\":%d,\"completed_phase_mask\":%u,"
@@ -130,17 +146,25 @@ static void event(const char *function, const char *edge, uint64_t call,
     else invalid();
     unsigned int live = 0U;
     for (size_t i = 0U; i < MAP_CAPACITY; ++i) if (mappings[i].key != NULL) ++live;
+    char input_size[32] = "null";
+    const char *input_kind = "null";
+    if (observed->input_known) {
+        (void)snprintf(input_size, sizeof(input_size), "%zu", observed->input_size);
+        input_kind = observed->data_present ? "\"non_null_buffer\"" : "\"null_buffer\"";
+    }
     int length = snprintf(record, sizeof(record),
         "{\"schema\":\"native-lifecycle-v1\",\"pid\":%ld,\"uid\":%ld,\"gid\":%ld,"
         "\"sequence\":%" PRIu64 ",\"monotonic_ns\":%" PRIu64 ",\"call\":%" PRIu64 ","
         "\"run\":%s,\"profile\":%s,\"case\":%s,\"function\":\"%s\",\"edge\":\"%s\","
         "\"transaction_id\":%s,\"canonical_transaction_id\":%s,\"phase\":%d,\"result\":%s,\"invalid\":%s,"
         "\"argument_committed\":%s,\"contract_state\":%s,"
+        "\"input_size\":%s,\"input_kind\":%s,\"argument_eos\":null,"
         "\"pending_calls\":%u,\"live_mappings\":%u,\"native_mime_selection\":null,\"host_eos\":null}\n",
         (long)getpid(), (long)geteuid(), (long)getegid(), ++sequence, ns, call,
-        run, profile, fixture, function, edge, id, canonical, phase, result,
+        run, profile, fixture, function, edge, id, canonical, observed->phase, result,
         atomic_load(&budget->invalid) ? "true" : "false",
-        argument_committed == NULL ? "null" : argument_committed, state, pending, live);
+        argument_committed == NULL ? "null" : argument_committed, state,
+        input_size, input_kind, pending, live);
     if (length <= 0 || (size_t)length >= sizeof(record)) { invalid(); return; }
     unsigned int previous = atomic_load(&budget->bytes);
     do {
@@ -149,38 +173,44 @@ static void event(const char *function, const char *edge, uint64_t call,
     if (write(output_fd, record, (size_t)length) != (ssize_t)length) invalid();
 }
 
-static uint64_t enter_argument(const char *name, const void *key, int native, int phase, const char *argument) {
+static uint64_t enter_subject(const char *name, const struct observed_subject *observed, const char *argument) {
     int saved = errno;
     (void)pthread_mutex_lock(&lock);
     uint64_t call = sequence + 1U;
     ++pending;
-    event(name, "enter", call, key, native, phase, "null", argument);
+    event(name, "enter", call, observed, "null", argument);
     (void)pthread_mutex_unlock(&lock);
     errno = saved;
     return call;
+}
+
+static uint64_t enter_argument(const char *name, const void *key, int native, int phase, const char *argument) {
+    const struct observed_subject observed = subject(key, native, phase);
+    return enter_subject(name, &observed, argument);
 }
 
 static uint64_t enter(const char *name, const void *key, int native, int phase) {
     return enter_argument(name, key, native, phase, NULL);
 }
 
-static void returned_argument(const char *name, uint64_t call, const void *key, int native,
-                     int phase, int result, int remove, const char *argument) {
+static void returned_subject(const char *name, uint64_t call, const struct observed_subject *observed,
+                     int result, int remove, const char *argument) {
     int saved = errno;
     char number[32];
     if (strcmp(name, "native_cleanup") == 0) (void)snprintf(number, sizeof(number), "null");
     else (void)snprintf(number, sizeof(number), "%d", result);
     (void)pthread_mutex_lock(&lock);
-    event(name, "return", call, key, native, phase, number, argument);
+    event(name, "return", call, observed, number, argument);
     if (pending == 0U) invalid(); else --pending;
-    if (remove) forget(key, native);
+    if (remove) forget(observed->key, observed->native);
     (void)pthread_mutex_unlock(&lock);
     errno = saved;
 }
 
 static void returned(const char *name, uint64_t call, const void *key, int native,
                      int phase, int result, int remove) {
-    returned_argument(name, call, key, native, phase, result, remove, NULL);
+    const struct observed_subject observed = subject(key, native, phase);
+    returned_subject(name, call, &observed, result, remove, NULL);
 }
 
 static void before_fork(void) { (void)pthread_mutex_lock(&lock); }
@@ -190,7 +220,8 @@ static void child_fork(void) {
      * Their absence is explicit rather than treated as child-owned calls. */
     if (pending != 0U) invalid();
     sequence = 0U; pending = 0U;
-    event("observer", "fork", 0U, NULL, 0, 0, "null", NULL);
+    const struct observed_subject observed = subject(NULL, 0, 0);
+    event("observer", "fork", 0U, &observed, "null", NULL);
     (void)pthread_mutex_unlock(&lock);
 }
 
@@ -219,7 +250,8 @@ __attribute__((constructor)) static void admission(void) {
         quoted(profile, sizeof(profile), getenv("MSCONNECTOR_LIFECYCLE_PROFILE"), 64U) != 0 ||
         quoted(fixture, sizeof(fixture), getenv("MSCONNECTOR_LIFECYCLE_CASE"), 128U) != 0) invalid();
     if (pthread_atfork(before_fork, after_fork, child_fork) != 0) invalid();
-    event("observer", "admitted", 0U, NULL, 0, 0, "null", NULL);
+    const struct observed_subject observed = subject(NULL, 0, 0);
+    event("observer", "admitted", 0U, &observed, "null", NULL);
     errno = saved;
     return;
 rejected:
@@ -233,7 +265,8 @@ __attribute__((destructor)) static void final_receipt(void) {
     int saved = errno;
     (void)pthread_mutex_lock(&lock);
     if (pending != 0U) invalid();
-    event("observer", "final", 0U, NULL, 0, 0, "null", NULL);
+    const struct observed_subject observed = subject(NULL, 0, 0);
+    event("observer", "final", 0U, &observed, "null", NULL);
     if (budget != NULL && atomic_load(&budget->invalid)) {
         static const char invalid_message[] = "native-lifecycle-observer: evidence invalid\n";
         (void)write(STDERR_FILENO, invalid_message, sizeof(invalid_message) - 1U);
@@ -279,7 +312,8 @@ int __wrap_msconnector_transaction_contract_set_response_committed(msconnector_t
     errno = saved;
     uint64_t call = enter_argument("common_set_response_committed", c, 0, 0, argument);
     int result = __real_msconnector_transaction_contract_set_response_committed(c, committed);
-    returned_argument("common_set_response_committed", call, c, 0, 0, result, 0, argument); return result;
+    const struct observed_subject observed = subject(c, 0, 0);
+    returned_subject("common_set_response_committed", call, &observed, result, 0, argument); return result;
 }
 extern int __real_msconnector_transaction_contract_record_response_metadata(msconnector_transaction_contract *, int, const char *, size_t, size_t);
 int __wrap_msconnector_transaction_contract_record_response_metadata(msconnector_transaction_contract *c, int status, const char *type, size_t count, size_t bytes) {
@@ -319,6 +353,21 @@ int __wrap_msc_##suffix(Transaction *transaction) { \
 NATIVE_WRAPPER(process_request_body, 2)
 NATIVE_WRAPPER(process_response_body, 4)
 NATIVE_WRAPPER(process_logging, 0)
+
+/* Native append APIs have a byte count, but no EOS argument. In particular
+ * null/zero input is an actual append call, never evidence of host EOS. */
+#define NATIVE_APPEND_WRAPPER(direction, phase_value) \
+extern int __real_msc_append_##direction##_body(Transaction *, const unsigned char *, size_t); \
+int __wrap_msc_append_##direction##_body(Transaction *transaction, const unsigned char *data, size_t size) { \
+    struct observed_subject observed = subject(transaction, 1, phase_value); \
+    observed.input_known = 1; observed.input_size = size; observed.data_present = data != NULL; \
+    uint64_t call = enter_subject("native_append_" #direction "_body", &observed, NULL); \
+    int result = __real_msc_append_##direction##_body(transaction, data, size); \
+    returned_subject("native_append_" #direction "_body", call, &observed, result, 0, NULL); \
+    return result; \
+}
+NATIVE_APPEND_WRAPPER(request, 2)
+NATIVE_APPEND_WRAPPER(response, 4)
 extern void __real_msc_transaction_cleanup(Transaction *);
 void __wrap_msc_transaction_cleanup(Transaction *transaction) {
     uint64_t call = enter("native_cleanup", transaction, 1, 0);

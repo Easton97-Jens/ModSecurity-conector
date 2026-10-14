@@ -86,13 +86,16 @@ Leichtgewichtige Eventprotokolltests behalten ihre getrennte Dependency-Grenze.
 
 Der Lifecycle-Observer erfasst tatsächliche API-Eintritts-/Rückkehrpaare, getrennte
 Host- und kanonische Transaktions-IDs, Common-Zustandsaufnahmen und finale Belege
-pro Prozess. Er wird ausschließlich in Testartefakte mit den zwölf `--wrap`-
+pro Prozess. Er wird ausschließlich in Testartefakte mit den vierzehn `--wrap`-
 Symbolen aus `tests/test_native_lifecycle_observer.py` gelinkt. Ein Supervisor
 übergibt einen privaten geerbten Append-Deskriptor und erhält dessen originales
 JSONL. Interne Aufrufe desselben Objekts können Wrapping umgehen; fehlende finale
 Belege oder offene Zuordnungen lassen Cleanup unqualifiziert. Native MIME-Auswahl
 und tatsächliches Host-EOS bleiben `null`. Erfolgreiche Komponententests oder
 API-Zähler allein belegen keinen Host-Lifecycle-Abschluss.
+Native Append-Belege enthalten tatsächliche Bytezahlen und NULL-/Nicht-NULL-
+Eingabearten. Diese APIs haben kein EOS-Argument; leere Appends belegen kein
+Host-EOS.
 
 Für Auswahl der Testebene und korrekte Ergebnisdarstellung [Testebenen](../docs/testing-and-evidence.de.md),
 [Core-Lifecycle-Testing](../docs/testing-and-evidence.de.md) und den
