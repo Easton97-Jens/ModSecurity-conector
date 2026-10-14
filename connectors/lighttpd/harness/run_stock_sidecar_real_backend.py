@@ -33,6 +33,7 @@ _SHA256_HEX = re.compile(r"^[0-9a-f]{64}$", re.ASCII)
 _METADATA_KEY = re.compile(r"^[A-Za-z_]\w*$", re.ASCII)
 _CASE_NAME = re.compile(r"^[a-z0-9_]+$", re.ASCII)
 _MAX_CLIENT_RESPONSE_BYTES = 128 * 1024
+_CLIENT_REQUEST_ARTIFACT = "request.http"
 _MAX_EVENT_FILE_BYTES = 64 * 1024
 _MAX_RECEIPT_BYTES = 16 * 1024
 _BACKEND_ACCESS_LOG_WAIT_SECONDS = 6.0
@@ -1443,17 +1444,17 @@ def client_exchange(port: int, request_descriptor: int, response_descriptor: int
 def client_artifacts(evidence_root: Path, request: bytes):
     with open_private_runtime_root(evidence_root) as root, ExitStack() as artifacts:
         streams = {}
-        for name in ("request.http", "response.http", "stdout.log", "stderr.log"):
+        for name in (_CLIENT_REQUEST_ARTIFACT, "response.http", "stdout.log", "stderr.log"):
             descriptor = os.open(name, os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
                                  0o600, dir_fd=root.descriptor)
             stream = artifacts.enter_context(os.fdopen(descriptor, "w+b"))
             os.fchmod(stream.fileno(), 0o600)
-            if name == "request.http":
+            if name == _CLIENT_REQUEST_ARTIFACT:
                 stream.write(request)
                 stream.flush()
                 stream.seek(0)
             streams[name] = stream
-        yield streams["request.http"], streams["response.http"], streams["stdout.log"], streams["stderr.log"]
+        yield streams[_CLIENT_REQUEST_ARTIFACT], streams["response.http"], streams["stdout.log"], streams["stderr.log"]
 
 
 def run_client(argv: list[str], descriptors: tuple[int, int], stdout, stderr) -> tuple[int, bool]:

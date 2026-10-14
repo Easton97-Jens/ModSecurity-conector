@@ -462,8 +462,17 @@ Whitespace besteht. Exakte RTK-Befehle, Quellhashes, Exits und Original-Logs
 bleiben unter
 `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/verification/focused/`
 erhalten; die ursprüngliche synthetische Reproduktion liegt unter `sonar-stock/`
-dieses Runs. Revisionsgenaues Hosted-Sonar/Scaffold ist an diesem Checkpoint
-noch offen; lokale Tests beweisen weder Cloud-Gate noch I12-Hostabnahme.
+dieses Runs. Am Reparaturhead `4f59d1632322a78676e224ef40c0ab7c8e96286c`
+bestätigt die Cloud Security Rating A und Quality Gate OK. Sieben neue
+Wartbarkeitsbefunde bleiben von den behobenen Sicherheitsbefunden getrennt:
+S1192 für den wiederholten Request-Artefaktnamen und sechs S5778-Ausnahmetests.
+Der Folgepatch verwendet eine Dateinamenkonstante und ermittelt Deskriptorwerte
+vor der Ausnahmeprüfung; alle Negativfälle bleiben erhalten. Root wiederholte
+dieselben 79 Tests mit ausgewähltem SDK: Exit0, keine Skips; zweiter Receipt
+`verification/focused-02/`. Vollständiges quick-check samt EN/DE-, Link- und
+Variablenprüfung Exit0 in 197,163 Sekunden. Revisionsgenaues strenges Null-Issue-
+und Scaffold-Readback des neuen Heads ist noch offen; kein Parser oder Gate
+wurde abgeschwächt.
 
 ### Unveränderlicher Originalindex
 

@@ -437,8 +437,16 @@ parser controls, with the selected SDK: exit0, no skips. Whitespace passes.
 Exact wrapped argv, source hashes, exits and original logs are retained in
 `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/verification/focused/`;
 the original synthetic reproduction is under `sonar-stock/` in that run.
-Current-head hosted Sonar/scaffold results are still pending at this checkpoint;
-local tests do not establish a passing cloud gate or I12 host acceptance.
+At repair head `4f59d1632322a78676e224ef40c0ab7c8e96286c`, cloud readback
+confirms Security Rating A and Quality Gate OK. Seven newly reported
+maintainability issues remain separate from those resolved security findings:
+S1192 for the repeated request-artifact name and six S5778 exception tests.
+The follow-up uses one filename constant and computes descriptor values
+before the exception assertion, preserving every negative case. Root reran
+the same 79 tests with the selected SDK: exit0, no skips; the second receipt
+is `verification/focused-02/`. Full quick-check plus bilingual/link/variable
+checks exit0 in 197.163 seconds. The new exact-head strict zero-issue and
+scaffold readback remains pending; no parser or gate was weakened.
 
 ### Immutable original index
 

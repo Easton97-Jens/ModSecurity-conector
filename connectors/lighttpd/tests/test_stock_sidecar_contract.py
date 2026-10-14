@@ -814,30 +814,32 @@ int main(void) {
             root = Path(temporary)
             root.chmod(0o700)
             with harness.client_artifacts(root, b"fixture") as (source, response, _out, _err):
-                descriptor_pairs = ((0, response.fileno()), (source.fileno(), source.fileno()))
-                for request_fd, response_fd in descriptor_pairs:
-                    with self.subTest(request_fd=request_fd, response_fd=response_fd):
+                source_fd = source.fileno()
+                response_fd = response.fileno()
+                descriptor_pairs = ((0, response_fd), (source_fd, source_fd))
+                for unsafe_request_fd, unsafe_response_fd in descriptor_pairs:
+                    with self.subTest(request_fd=unsafe_request_fd, response_fd=unsafe_response_fd):
                         with self.assertRaises(RuntimeError):
-                            harness.client_exchange(1, request_fd, response_fd)
-                os.fchmod(source.fileno(), 0o644)
+                            harness.client_exchange(1, unsafe_request_fd, unsafe_response_fd)
+                os.fchmod(source_fd, 0o644)
                 with self.assertRaisesRegex(RuntimeError, "owner-private"):
-                    harness.client_exchange(1, source.fileno(), response.fileno())
-                os.fchmod(source.fileno(), 0o600)
-                duplicate = os.dup(source.fileno())
+                    harness.client_exchange(1, source_fd, response_fd)
+                os.fchmod(source_fd, 0o600)
+                duplicate = os.dup(source_fd)
                 try:
                     with self.assertRaisesRegex(RuntimeError, "distinct fresh"):
-                        harness.client_exchange(1, source.fileno(), duplicate)
+                        harness.client_exchange(1, source_fd, duplicate)
                 finally:
                     os.close(duplicate)
                 read_only = os.open(root / "response.http", os.O_RDONLY)
                 try:
                     with self.assertRaisesRegex(RuntimeError, "access is invalid"):
-                        harness.client_exchange(1, source.fileno(), read_only)
+                        harness.client_exchange(1, source_fd, read_only)
                 finally:
                     os.close(read_only)
                 os.link(root / "request.http", root / "hardlink")
                 with self.assertRaisesRegex(RuntimeError, "owner-private"):
-                    harness.client_exchange(1, source.fileno(), response.fileno())
+                    harness.client_exchange(1, source_fd, response_fd)
 
     def test_real_backend_client_preserves_partial_binary_bytes_on_socket_error(self) -> None:
         harness = _load_real_backend_harness()
@@ -849,9 +851,11 @@ int main(void) {
             connection.__enter__.return_value = connection
             connection.recv.side_effect = [b"\x00\xffraw-partial", socket.timeout("unit timeout")]
             with harness.client_artifacts(root, b"\x00\xffrequest") as (source, response, _out, _err):
+                source_fd = source.fileno()
+                response_fd = response.fileno()
                 with mock.patch.object(harness.socket, "create_connection", return_value=connection):
                     with self.assertRaises(socket.timeout):
-                        harness.client_exchange(1, source.fileno(), response.fileno())
+                        harness.client_exchange(1, source_fd, response_fd)
                 response.seek(0)
                 self.assertEqual(response.read(), b"\x00\xffraw-partial")
             connection.sendall.assert_called_once_with(b"\x00\xffrequest")
@@ -891,9 +895,11 @@ int main(void) {
             connection.__enter__.return_value = connection
             connection.recv.side_effect = [b"partial", b"x" * harness._MAX_CLIENT_RESPONSE_BYTES]
             with harness.client_artifacts(root, b"request") as (source, response, _out, _err):
+                source_fd = source.fileno()
+                response_fd = response.fileno()
                 with mock.patch.object(harness.socket, "create_connection", return_value=connection):
                     with self.assertRaisesRegex(RuntimeError, "bounded catalog limit"):
-                        harness.client_exchange(1, source.fileno(), response.fileno())
+                        harness.client_exchange(1, source_fd, response_fd)
                 response.seek(0)
                 self.assertEqual(response.read(), b"partial")
 
