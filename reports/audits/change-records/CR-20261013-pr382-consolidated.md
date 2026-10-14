@@ -696,6 +696,56 @@ The real curl collector, bounded process/server cleanup and three header control
 
 The Apache/NGINX harness bytes and product sources remain unchanged by this refactor, so existing 130 selected host executions and 37 parser-only qualifications retain their original identities and scope. New quick-check and documentation receipts are recorded by the generator. The subsequent delivery head requires a fresh exact-head authenticated Sonar strict-zero result, successful scaffold and terminal GitHub CI; the older 9992 Gate OK is not substituted for that evidence.
 
+### NGINX typed mapper failure repair, 2026-10-14
+
+Base: `a9d48bb58aa948aea7d79e20cdf09d3f239b7808`. A fresh genuine NGINX
+host probe with valid HTTP and injected server-owned mapped pointer faults
+returned `400`, despite the original catalog's `500` expectation. RFC 9110
+distinguishes invalid client requests from internal server errors. The mapper
+now defaults its explicit failure-status output to `500`; only the existing
+client header-count rejection selects `400`. A present Host value that cannot
+be allocated also fails with `500`. The caller preserves this status without
+classifying diagnostic strings. Zero still means no header-count limit.
+
+Changed files: `connectors/nginx/src/ngx_http_modsecurity_mapper.c`,
+`connectors/nginx/src/ngx_http_modsecurity_mapper.h`,
+`connectors/nginx/src/ngx_http_modsecurity_access.c`,
+`ci/checks/connectors/nginx/check-nginx-common-adoption.py`,
+`tests/test_nginx_common_adoption.py`, `tests/test_nginx_request_mapper_status.py`,
+and the `connectors/nginx/README.md` / `README.de.md` pair. This consolidated
+record retains all original history. Common, Framework, MRTS, gitlinks, native
+body policies, dependencies and gates are unchanged.
+
+Evidence root:
+`/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/nginx-oracle-retake`.
+The compiled real mapper/caller and Common validator regression fails before
+the repair and passes afterward: two internal pointer faults and eight
+allocation-failure positions return `500`; 1024 headers succeed, 1025 return
+`400`, and a zero limit preserves success. `product-integrated-03/receipt.json`
+records 151 successful targeted tests. After the final checker edits,
+`product-final-focused-05/receipt.json` records 46 successful tests, including
+typed-status and client-limit mutations. `product-native-targets-04/receipt.json`
+records `rtk proxy make check-nginx-common-adoption` and
+`rtk proxy make check-nginx-c17`, both exit 0: 77 source guards and 33 actual
+C17 translation units with `-Wall -Wextra -Werror`. The receipts retain exact
+Python, external build paths, selected SDK, commands and source hashes.
+
+The body-pointer injection currently occurs before P1, whereas its original
+catalog entry names P2. That separate harness-scope conflict remains explicit;
+the repair does not rewrite the original oracle or normalize driver exits.
+The earlier native driver override of `400` is not an original-oracle PASS.
+Broad local checks passed through RTK on an exact tracked-source snapshot with
+the existing Framework mounted read-only: `verification/product-quick-05/checks.json`
+records `make quick-check` exit 0; `verification/product-delivery-02/receipt.json`
+records native I09/I10, Apache/HAProxy event-sink, Common C17 and real native
+body-inspection checks exit 0. `verification/product-docs-05/checks.json` records
+the bilingual, documentation-link and Change Record checks exit 0. These
+directories are siblings of `nginx-oracle-retake` under the evidence root.
+Actual updated-product host retakes and exact final-head CI/Sonar remain pending
+at this product checkpoint. Historical Gitleaks remains
+an independent release blocker. No new PR, master merge or history rewrite is
+authorized by this record.
+
 ### Immutable original index
 
 Each numbered link identifies one original Change ID through its filename.

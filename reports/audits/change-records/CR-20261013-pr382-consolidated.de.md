@@ -740,6 +740,58 @@ Der echte curl-Collector, begrenztes Prozess-/Server-Cleanup und die drei Header
 
 Die Apache-/NGINX-Harnessbytes und Produktquellen bleiben bei diesem Refactor unverändert; die vorhandenen 130 ausgewählten Hostausführungen und 37 Parserqualifikationen behalten daher ihre Originalidentitäten und Reichweite. Neue Quick-Check- und Dokumentationsbelege werden durch den Generator erfasst. Der spätere Delivery-Head verlangt ein frisches authentifiziertes Sonar-Ergebnis mit strikten Nullzählern am exakten Head, erfolgreichen Scaffold und abgeschlossene GitHub-CI; das ältere 9992-Gate-OK ersetzt diese Nachweise nicht.
 
+### NGINX-Reparatur des typisierten Mapperfehlerstatus, 2026-10-14
+
+Basis: `a9d48bb58aa948aea7d79e20cdf09d3f239b7808`. Eine neue echte
+NGINX-Hostprobe mit gültigem HTTP und injizierten serverseitigen Mapping-Zeigerfehlern
+lieferte `400`, obwohl der Originalkatalog `500` erwartet. RFC 9110 unterscheidet
+ungültige Clientrequests von internen Serverfehlern. Der Mapper setzt seinen
+expliziten Fehlerstatus zunächst auf `500`; nur die bestehende clientseitige
+Headeranzahlgrenze wählt `400`. Ein vorhandener Host-Wert, der nicht alloziert
+werden kann, scheitert ebenfalls mit `500`. Der Aufrufer erhält diesen Status
+ohne Klassifikation von Diagnosetexten. Null bedeutet weiterhin keine Headeranzahlgrenze.
+
+Geänderte Dateien: `connectors/nginx/src/ngx_http_modsecurity_mapper.c`,
+`connectors/nginx/src/ngx_http_modsecurity_mapper.h`,
+`connectors/nginx/src/ngx_http_modsecurity_access.c`,
+`ci/checks/connectors/nginx/check-nginx-common-adoption.py`,
+`tests/test_nginx_common_adoption.py`, `tests/test_nginx_request_mapper_status.py`
+und das Paar `connectors/nginx/README.md` / `README.de.md`. Dieser konsolidierte
+Record erhält die gesamte Originalhistorie. Common, Framework, MRTS, Gitlinks,
+native Body-Policies, Abhängigkeiten und Gates bleiben unverändert.
+
+Evidence-Root:
+`/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/nginx-oracle-retake`.
+Die kompilierte Regression mit echtem Mapper/Aufrufer und Common-Validator
+scheitert vor der Reparatur und besteht danach: Zwei interne Zeigerfehler und
+acht Allokationsfehlerstellen liefern `500`; 1024 Header gelingen, 1025 liefern
+`400`, und ein Grenzwert null erhält den Erfolg. `product-integrated-03/receipt.json`
+belegt 151 erfolgreiche gezielte Tests. Nach den letzten Checkeränderungen
+belegt `product-final-focused-05/receipt.json` 46 erfolgreiche Tests einschließlich
+Mutationen des typisierten Status und der Clientgrenze.
+`product-native-targets-04/receipt.json` belegt
+`rtk proxy make check-nginx-common-adoption` und `rtk proxy make check-nginx-c17`,
+beide mit Exit 0: 77 Quellguards und 33 tatsächliche C17-Übersetzungseinheiten
+mit `-Wall -Wextra -Werror`. Die Receipts erhalten Python-Auswahl, externe
+Buildpfade, ausgewähltes SDK, exakte Befehle und Quellhashes.
+
+Die Body-Zeigerinjektion erfolgt derzeit vor P1, während der Originalkatalog P2
+nennt. Dieser separate Harness-Geltungsbereichskonflikt bleibt explizit;
+die Reparatur überschreibt das Original-Oracle nicht und normalisiert keine
+Driver-Exits. Das frühere native Driver-Override `400` ist kein Original-Oracle-PASS.
+Breite lokale Prüfungen bestanden durch RTK auf einem exakten Snapshot der
+versionierten Quellen mit dem bestehenden Framework als Read-only-Mount:
+`verification/product-quick-05/checks.json` belegt `make quick-check` mit Exit 0;
+`verification/product-delivery-02/receipt.json` belegt native I09/I10-,
+Apache-/HAProxy-Event-Sink-, Common-C17- und echte native Body-Inspection-Prüfungen
+mit Exit 0. `verification/product-docs-05/checks.json` belegt zweisprachige
+Dokumentation, Dokumentationslinks und Change Records mit Exit 0. Diese
+Verzeichnisse liegen neben `nginx-oracle-retake` unter dem Evidence-Root.
+Echte Hostretakes des aktualisierten Produkts und CI/Sonar am exakten Final-Head
+stehen an diesem Produktcheckpoint noch aus.
+Historisches Gitleaks bleibt ein unabhängiger Releaseblocker. Dieser Record
+autorisiert keinen neuen PR, Master-Merge oder eine Historienumschreibung.
+
 ### Unveränderlicher Originalindex
 
 Jeder nummerierte Link identifiziert eine Original-Change-ID durch ihren Dateinamen.

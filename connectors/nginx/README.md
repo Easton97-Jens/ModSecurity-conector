@@ -510,6 +510,13 @@ verification is claimed here.
 
 NGINX Common SDK module builds that use a copied connector source tree must set `MSCONNECTOR_COMMON_SRC` (or `CONNECTOR_COMMON_SRC` / `COMMON_SRC_ROOT`) to the repository Common source root; `MSCONNECTOR_COMMON_INC` remains the Common include root. They must also set `MSCONNECTOR_PROFILE_REGISTRY_ROOT` to a root containing `connectors/profile_registry.c` and `connectors/profile_registry.h`. The managed exact-head coordinator supplies a cache-identity-bound staged root. If unset, the config only falls back to `$ngx_addon_dir/../..` when both registry files exist there; that fallback is for direct checkout builds, not copied trees.
 
+Request mapping reports a typed failure status. An invalid server-owned mapped
+pointer or host-pool allocation failure returns HTTP `500`; the existing
+client header-count limit returns HTTP `400`. A zero header-count limit retains
+its existing unlimited meaning. NGINX still owns malformed HTTP and missing
+Host rejection. These technical mapping failures introduce no WAF body limit
+or rule decision.
+
 ## Canonical Phase-4 boundary
 
 NGINX uses a bounded native response-body filter.  Its presence does not prove
