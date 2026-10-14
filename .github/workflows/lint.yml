@@ -68,12 +68,29 @@ jobs:
       - name: Verify runtime event sink failures
         if: ${{ !cancelled() }}
         run: python -m unittest -v tests.test_runtime_event_sink_failures tests.test_runtime_host_action_validation
+      - name: Verify immutable I12 oracles and physical lifecycle ledgers
+        if: ${{ !cancelled() }}
+        run: |
+          python -m unittest -v tests.test_i12_oracle_reconciliation tests.test_i12_lifecycle_ledger tests.test_i12_current_report
+          I12_TEST_ROOT="$RUNNER_TEMP" python -m unittest discover -s ci/runtime/lifecycle/i12 -p test_capture_sources.py -v
       - name: Install I09 Apache compiled-test prerequisites
         if: ${{ !cancelled() }}
         run: |
           set -eu
           sudo apt-get update
           sudo apt-get install --no-install-recommends --yes apache2-dev build-essential libmodsecurity-dev
+      - name: Verify I12 native observer and Apache header measurement controls
+        if: ${{ !cancelled() }}
+        run: |
+          set -eu
+          SDK_LIBRARY="$(cc -print-file-name=libmodsecurity.so)"
+          test -f "$SDK_LIBRARY"
+          SDK_LIBRARY_DIR="$(dirname "$SDK_LIBRARY")"
+          export NATIVE_OBSERVER_TEST_OUT="$BUILD_ROOT/i12-observer-controls"
+          export MODSECURITY_INCLUDE_DIR=/usr/include
+          export MODSECURITY_LIB_DIR="$SDK_LIBRARY_DIR"
+          export MODSECURITY_LIB_FILE="$SDK_LIBRARY"
+          python -m unittest -v tests.test_native_lifecycle_observer tests.test_apache_header_semantics
       - name: Verify I09 route API and terminal error regressions
         if: ${{ !cancelled() }}
         run: make check-i09-native-routes

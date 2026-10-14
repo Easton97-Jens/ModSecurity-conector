@@ -2,17 +2,69 @@
 
 **Language:** English | [Deutsch](pr-382-i09-i12-rest-matrix.de.md)
 
-## Current I12 execution, 2026-10-14
+## Current I12 lifecycle consolidation, 2026-10-14
 
-Outcome: **I12_PARTIAL**. The [current host report](pr-382-i12-host-evidence-20261014.md)
-and [complete index](pr-382-i12-missing-case-index-20261014.md) retain all
-1,406 required and 78 diagnostic IDs. Current isolated retakes resolve the
-earlier NGINX ownership and Traefik staging/compiler blockers; separate Apache,
-HAProxy, Envoy, Stock and patched evidence remains bounded by each case oracle.
-Missing physical lifecycle evidence and unresolved fixtures are still explicit.
-The independent historical secret gate remains **RELEASE_BLOCKED_SECRET_HISTORY**.
-Earlier UID-only restrictions and source propagation gaps below retain their
-historical scope and are superseded by the current report for host readiness.
+State: **I12_PARTIAL** and independently **RELEASE_BLOCKED_SECRET_HISTORY**.
+Both PRs remain Draft. The [current host report](pr-382-i12-host-evidence-20261014.md)
+and [complete original index](pr-382-i12-missing-case-index-20261014.md)
+bind physical packets, original contracts and hashes. Earlier sections below
+describe only their historical checkpoints.
+
+The unchanged selection contains 1484 original IDs: 1406 required and 78
+diagnostic. There are 21 full required-case lifecycle PASS and 0 FAIL, with at
+least one full case on each of 13/13 required route parts. Actual execution is
+recorded for 151 original IDs. The 37 historical configuration PASS include 36
+required cases; total qualified required PASS is 57, required FAIL is 0, and
+1426 original IDs remain unqualified. Of the original 596 unresolved oracles,
+21 are independently source-confirmed and actually retaken; 575 remain unresolved.
+Original membership, null oracles, raw records and earlier failures are preserved.
+
+The 21 full cases do not qualify all 1406 required IDs. Applicable host/native
+EOS, MIME, finish/free, client/backend, handle and cleanup evidence is physically
+measured for these packets; justified nonapplicability remains explicit.
+Zero-byte append and client EOF do not replace native EOS evidence. Stock-native
+control remains diagnostic, including its 23 originally unresolved oracles;
+it was not broadly relabelled unsupported. Other required IDs, missing fixtures,
+further limits, late/commit, sink failures, cancellation/reset and neighbor
+cases remain open. I12/V08–V10 remain open overall.
+
+[Private capture sources](../ci/runtime/lifecycle/i12/README.md) retain nine explicit variants. Each packet
+binds actual source, loaded images, SDKs and configuration. Earlier a9/0275
+builds remain distinct from current product/delivery revisions; source success
+does not replace host execution.
+
+Published #382 product head is `9980eb049dde0643da6a4f04e3b6712801b670b3`;
+the normal #410 integration is `eca03db3`. The test-only follow-up replaces the
+stale mapper400 assertion with typed dispatch/default500 and the separately
+bounded headercount400 contract; all 38 requested contract tests and five
+compiled mapper tests pass. New #382 CI is pending. The e47 Sonar SUCCESS
+(check `116148729241`, Gate OK, Security A, new/accepted issues 0, hotspots 0,
+duplication 0) remains historical evidence for e47 only, with no transfer to
+9980 or #410. Remote #410 remains `02754040bced960cfc1857416cd7101bb3116ef4`
+at this pre-push checkpoint; #410 source CI awaits Root push and fresh readback.
+Historical Gitleaks remains a separate release blocker. No all-CI PASS, master
+merge or release is asserted.
+
+Root additionally approved 20 `HARNESS_DEFECT_CONFIRMED` supplemental
+dispositions outside the original 596-member subset. Original generic catalog
+exit 1 remains unchanged and is not treated as a direct-native or wrapper-driver
+contract: actual waited native exits are 255 x 8, 78 x 9, 2 x 1 and 77 x 2.
+These are process exits, not HTTP statuses; nine operations are parser-only and
+eleven are service-startup failures. Nine physically empty sidecar stderr
+first-causes remain NULL; source/config cause is separate. Scope-file cases
+reject the Common Runtime unknown `phase4_content_types_file` key and do not
+prove MIME/wildcard parser execution. Formal resolved expectation and retest
+remain null; this produces no additional configuration or lifecycle PASS.
+The different 29 historical original596 gaps and 23 Stock-native diagnostic
+oracles remain unresolved; no new unsupported approval is inferred.
+
+Disposition source: `catalog-conflicts/final-supplemental20/disposition-summary.json`,
+SHA256 `d68c2535d5ece0990670b3e01f173df9d98ad26684fef1f7bf39ca37cc436021`.
+Root-approved records15, oracle13 and ledger08 retain 21 resolved/575 unresolved,
+21 full PASS, 13 routes, 151 executed, 37 configuration PASS, 57 required
+qualified PASS and 1426 unqualified IDs. Actual Quick06 and Docs10 passed;
+Root90 tests and SourceRoot05 passed with 150 source objects, nine variants,
+45 patch applications and 15 guards. These remain distinct from pending hosted CI.
 
 ## Earlier I12 execution, 2026-10-13
 

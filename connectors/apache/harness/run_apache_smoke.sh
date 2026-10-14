@@ -2746,6 +2746,16 @@ if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
     --rules-preamble-file "$MODSECURITY_RULE_PREAMBLE_FILE" > "$LOG_DIR/case-materialize.log" 2>&1; then
     not_executable "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
 fi
+if [ -n "${APACHE_NATIVE_ORACLE_OVERRIDE:-}" ]; then
+    [ -n "${APACHE_NATIVE_ORACLE_IDENTITY:-}" ] || \
+        blocked "APACHE_NATIVE_ORACLE_IDENTITY is required for an explicit oracle override"
+    "$PYTHON_BIN" "$SCRIPT_DIR/apache_oracle_overrides.py" \
+        --selection "$APACHE_NATIVE_ORACLE_OVERRIDE" \
+        --case "$TEST_CASE" --framework "$FRAMEWORK_ROOT" --rules "$RULES_FILE" \
+        --identity "$APACHE_NATIVE_ORACLE_IDENTITY" \
+        --receipt "$LOG_DIR/apache-native-oracle-override.json" || \
+        blocked "Apache-native oracle override failed its source and proof guards"
+fi
 configure_apache_profile_audit
 . "$CASE_ENV_FILE"
 if ! "$PYTHON_BIN" "$REPO_ROOT/ci/runtime/common/harness-case-metadata.py" response-header-fixture \

@@ -2,21 +2,107 @@
 
 **Language:** English | [Deutsch](pr-382-i12-handoff.de.md)
 
-Date: 2026-10-14. State: **I12_PARTIAL**. Both PRs remain Draft.
-The [current host report](pr-382-i12-host-evidence-20261014.md) and
-[complete 1,484-ID index](pr-382-i12-missing-case-index-20261014.md) bind the
-new isolated host attempts and remaining qualification gaps. Product #382
-remains `a9d48bb58aa948aea7d79e20cdf09d3f239b7808`; normal #410 commits repair
-Sonar, ownership/staging and patched-host orchestration. Current PR descriptions
-retain exact final delivery heads and CI. #410 is mergeable at the readback;
-historical conflict and UID-mapping restrictions below describe the older task.
+## Current I12 lifecycle consolidation, 2026-10-14
 
-The user explicitly authorized the independent host campaign despite the
-historical Gitleaks failure. That check remains **RELEASE_BLOCKED_SECRET_HISTORY**;
-it does not stop safely executable I12 cases. New private namespaces map both
-root and nobody, keep candidate source/artifacts read-only, use private ports
-and retain process/listener cleanup. Missing EOS/MIME/Common-Finish evidence
-still prevents full I12/V08–V10 acceptance. No master merge or release occurred.
+State: **I12_PARTIAL** and independently **RELEASE_BLOCKED_SECRET_HISTORY**.
+Both PRs remain Draft. The [current host report](pr-382-i12-host-evidence-20261014.md)
+and [complete original index](pr-382-i12-missing-case-index-20261014.md)
+bind physical packets, original contracts and hashes. Earlier sections below
+describe only their historical checkpoints.
+
+The unchanged selection contains 1484 original IDs: 1406 required and 78
+diagnostic. There are 21 full required-case lifecycle PASS and 0 FAIL, with at
+least one full case on each of 13/13 required route parts. Actual execution is
+recorded for 151 original IDs. The 37 historical configuration PASS include 36
+required cases; total qualified required PASS is 57, required FAIL is 0, and
+1426 original IDs remain unqualified. Of the original 596 unresolved oracles,
+21 are independently source-confirmed and actually retaken; 575 remain unresolved.
+Original membership, null oracles, raw records and earlier failures are preserved.
+
+The 21 full cases do not qualify all 1406 required IDs. Applicable host/native
+EOS, MIME, finish/free, client/backend, handle and cleanup evidence is physically
+measured for these packets; justified nonapplicability remains explicit.
+Zero-byte append and client EOF do not replace native EOS evidence. Stock-native
+control remains diagnostic, including its 23 originally unresolved oracles;
+it was not broadly relabelled unsupported. Other required IDs, missing fixtures,
+further limits, late/commit, sink failures, cancellation/reset and neighbor
+cases remain open. I12/V08–V10 remain open overall.
+
+[Private capture sources](../ci/runtime/lifecycle/i12/README.md) retain nine explicit variants. Each packet
+binds actual source, loaded images, SDKs and configuration. Earlier a9/0275
+builds remain distinct from current product/delivery revisions; source success
+does not replace host execution.
+
+Published #382 product head is `9980eb049dde0643da6a4f04e3b6712801b670b3`;
+the normal #410 integration is `eca03db3`. The test-only follow-up replaces the
+stale mapper400 assertion with typed dispatch/default500 and the separately
+bounded headercount400 contract; all 38 requested contract tests and five
+compiled mapper tests pass. New #382 CI is pending. The e47 Sonar SUCCESS
+(check `116148729241`, Gate OK, Security A, new/accepted issues 0, hotspots 0,
+duplication 0) remains historical evidence for e47 only, with no transfer to
+9980 or #410. Remote #410 remains `02754040bced960cfc1857416cd7101bb3116ef4`
+at this pre-push checkpoint; #410 source CI awaits Root push and fresh readback.
+Historical Gitleaks remains a separate release blocker. No all-CI PASS, master
+merge or release is asserted.
+
+
+The extension includes four additional HAProxy body/header cases, two native
+HAProxy request-limit cases at 16 bytes (`Reject` and `ProcessPartial`), and two
+genuine lighttpd empty-body cases. Separate confirmed expectations and retakes
+do not qualify siblings. Patched lighttpd records an actual null EOS argument
+on its genuine empty-body branch and native P2 finalization without request append.
+
+Apache preserves the original duplicate-header FAIL and original rule. A separate
+hash/version-bound override follows actual Apache/APR merging into one header
+value `one, two`, without product comma splitting. The 14 canonical host cases,
+12 real APR/SDK regressions and full Root-reviewed Apache packet are separate
+evidence. NGINX repair `12756aa957f54d3efce6bd97ec0dbac07fa576cc` propagates
+internal mapper faults as HTTP500; actual HTTP500/client-HTTP400 retakes and
+full case09 are separately bound. The earlier body-P2 versus injected-P1 scope
+conflict remains preserved as a historical disposition.
+
+Exactly three generators produce oracle reconciliation, the lifecycle ledger
+and current EN/DE report with index. They preserve originals, the 596-member
+subset and nulls. The native test observer records 38 wrappers plus an explicit
+snapshot, typed handle associations and actual returns. The renderer binds the
+37 historical configuration PASS to their unchanged physical original source
+and rejects unsubstantiated PASS/scope/execution labels. Private hooks are
+excluded from release artifacts.
+
+Actually passed: 62 native/oracle/ledger/Apache tests, 13 renderer tests, 115
+NGINX mutation tests, 77 guards, five compiled mapper tests, Root Quick06,
+native contracts and Docs10. Capture checks passed nine variants, 45 patch
+applications, 15 negative guards and five capture groups. The source-copy
+receipt-overwrite correction rejects an existing receipt before any write and
+creates it exclusively; three added controls preserve file/hardlink/directory
+targets. The 150-object registry verifies; observer C/H and manifests are unchanged.
+This is a functional source-copy guard, not a security scan. Root validates
+the final combined documentation/source snapshot again after this handoff.
+
+No deep security scan, gate weakening or guard weakening occurred. Framework/
+MRTS gitlinks and original raw evidence remain unchanged. All earlier CR sections
+and the immutable original index are preserved.
+
+Root additionally approved 20 `HARNESS_DEFECT_CONFIRMED` supplemental
+dispositions outside the original 596-member subset. Original generic catalog
+exit 1 remains unchanged and is not treated as a direct-native or wrapper-driver
+contract: actual waited native exits are 255 x 8, 78 x 9, 2 x 1 and 77 x 2.
+These are process exits, not HTTP statuses; nine operations are parser-only and
+eleven are service-startup failures. Nine physically empty sidecar stderr
+first-causes remain NULL; source/config cause is separate. Scope-file cases
+reject the Common Runtime unknown `phase4_content_types_file` key and do not
+prove MIME/wildcard parser execution. Formal resolved expectation and retest
+remain null; this produces no additional configuration or lifecycle PASS.
+The different 29 historical original596 gaps and 23 Stock-native diagnostic
+oracles remain unresolved; no new unsupported approval is inferred.
+
+Disposition source: `catalog-conflicts/final-supplemental20/disposition-summary.json`,
+SHA256 `d68c2535d5ece0990670b3e01f173df9d98ad26684fef1f7bf39ca37cc436021`.
+Root-approved records15, oracle13 and ledger08 retain 21 resolved/575 unresolved,
+21 full PASS, 13 routes, 151 executed, 37 configuration PASS, 57 required
+qualified PASS and 1426 unqualified IDs. Actual Quick06 and Docs10 passed;
+Root90 tests and SourceRoot05 passed with 150 source objects, nine variants,
+45 patch applications and 15 guards. These remain distinct from pending hosted CI.
 
 ## Historical review checkpoint, 2026-10-13
 
