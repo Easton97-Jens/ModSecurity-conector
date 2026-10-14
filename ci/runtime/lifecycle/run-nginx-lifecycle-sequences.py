@@ -481,7 +481,7 @@ def configtest_invocation(output, port, argv, environment, fault_descriptor, wor
             finally:
                 if fault_descriptor is not None:
                     os.close(fault_descriptor)
-        except BaseException as cleanup_error:
+        except OSError as cleanup_error:
             raise original_error from cleanup_error
         raise
 

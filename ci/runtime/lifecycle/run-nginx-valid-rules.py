@@ -33,6 +33,8 @@ PROJECTION = load_helper("nginx_projection", HERE.parent / "common/prepare-nginx
 BASELINE_RULES_NAME = "no-crs-baseline.conf"
 PROC_ROOT = Path("/proc")
 NATIVE_EVENTS_NAME = "phase1-events.jsonl"
+STARTUP_STDOUT_NAME = "startup.stdout"
+STARTUP_STDERR_NAME = "startup.stderr"
 VALID_RULES_CONTRACT = {"operation": "startup", "directive": "modsecurity_rules_file",
             "value": BASELINE_RULES_NAME, "expected_exit_code": 0,
             "expected_outcome": "config_accepted", "error_class": "none",
@@ -141,7 +143,7 @@ def pidfd_running(handle: int) -> bool:
 
 
 def verify_startup_captures(output: Path) -> None:
-    for name in ("startup.stdout", "startup.stderr", "nginx-error.log"):
+    for name in (STARTUP_STDOUT_NAME, STARTUP_STDERR_NAME, "nginx-error.log"):
         path = output / name
         if path.exists() and path.stat().st_size > BASE.CAPTURE_LIMIT:
             raise ValueError("startup capture limit exceeded")
@@ -288,6 +290,20 @@ def execute_native_probe(environment: dict, output: Path, run_id: str, port: int
     return request, transaction
 
 
+def retain_startup_completion(process, output, receipt):
+    if process is None:
+        return
+    code = process.returncode
+    receipt.update(returncode=code, exit_code=code if code >= 0 else None,
+                   signal=-code if code < 0 else None)
+    try:
+        stdout = bounded_capture(output / STARTUP_STDOUT_NAME)
+        stderr = bounded_capture(output / STARTUP_STDERR_NAME)
+        BASE.completed_invocation_receipt(receipt, code, stdout, stderr, None)
+    except (OSError, ValueError) as exc:
+        receipt["capture_failure"] = str(exc)
+
+
 def run(args) -> bool:
     binary, module, output = BASE.validate_inputs(args)
     if os.geteuid() != 0:
@@ -337,7 +353,7 @@ def run(args) -> bool:
     try:
         if exit_code != 0 or failure or fragments != CONTRACT["diagnostic_fragments"]:
             raise ValueError("configuration acceptance was not proven")
-        with (output / "startup.stdout").open("wb") as out, (output / "startup.stderr").open("wb") as err:
+        with (output / STARTUP_STDOUT_NAME).open("wb") as out, (output / STARTUP_STDERR_NAME).open("wb") as err:
             startup_cwd = os.getcwd()
             process = subprocess.Popen([str(output / "nginx-binary"), "-e", "stderr", "-c", str(config),
                                         "-p", str(output) + "/"], env=environment,
@@ -350,17 +366,7 @@ def run(args) -> bool:
         failure = str(exc)
     finally:
         cleanup = stop_owned_master(process, roles, port, args.run_id, worker_handles)
-    if process is not None:
-        code = process.returncode
-        startup_invocation.update(returncode=code, exit_code=code if code >= 0 else None,
-                                  signal=-code if code < 0 else None)
-        try:
-            startup_stdout = bounded_capture(output / "startup.stdout")
-            startup_stderr = bounded_capture(output / "startup.stderr")
-            BASE.completed_invocation_receipt(startup_invocation, process.returncode,
-                                               startup_stdout, startup_stderr, None)
-        except (OSError, ValueError) as exc:
-            startup_invocation["capture_failure"] = str(exc)
+    retain_startup_completion(process, output, startup_invocation)
     passed = failure is None and transaction is not None and cleanup["verified"] and valid_roles(roles)
     raw_request = write_json(output / "request-result.json", request)
     raw_roles = write_json(output / "roles.json", roles)

@@ -596,6 +596,19 @@ contract; missing request/response lifecycle fields are not inferred from it.
 The affected parser/sequence suite passed 79 tests before this cleanup repair;
 the final affected checks and exact delivery-head CI are recorded separately.
 
+### NGINX strict quality follow-up, 2026-10-14
+
+The actual `10102fcf` analysis reported eight new maintainability findings:
+two S5754 cleanup catches, two S3776 functions, two S1192 startup filename
+literals, and C S5350/S886 on stat-field traversal. There were no new security
+issues or duplicate lines. Cleanup catches now use the actual `OSError` type;
+bounded stream capture and startup completion have coherent helpers; startup
+filenames are constants; field traversal uses a constant iteration count and
+an explicit null guard. Primary causes, private FDs, capture bounds and all
+parser results remain intact. The affected Root/Nobody suite passed all 116
+tests (exit 0) after these changes. Fresh physical retakes and exact new-head
+Sonar/CI remain separate required evidence.
+
 ### Immutable original index
 
 Each numbered link identifies one original Change ID through its filename.

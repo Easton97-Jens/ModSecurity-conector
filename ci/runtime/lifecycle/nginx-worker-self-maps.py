@@ -41,7 +41,7 @@ class Capture:
             except BaseException as sync_error:
                 try:
                     os.close(descriptor)
-                except BaseException as close_error:
+                except OSError as close_error:
                     raise sync_error from close_error
                 raise
             os.close(descriptor)

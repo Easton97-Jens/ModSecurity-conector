@@ -145,6 +145,19 @@ def completed_invocation_receipt(receipt: dict, returncode: int,
                    stdout_sha256=digest(stdout), stderr_sha256=digest(stderr))
 
 
+def capture_available(selector, captured, timeout):
+    for key, _ in selector.select(timeout):
+        chunk = os.read(key.fileobj.fileno(), 8192)
+        if not chunk:
+            selector.unregister(key.fileobj)
+            continue
+        capacity = CAPTURE_LIMIT - sum(map(len, captured.values()))
+        captured[key.data].extend(chunk[:capacity])
+        if len(chunk) > capacity:
+            return "configtest_capture_limit"
+    return None
+
+
 def invoke(argv: list[str], environment: dict[str, str], *,
            invocation_receipt: dict | None = None) -> tuple[int, bytes, bytes, str | None]:
     """Capture both streams with a hard combined byte limit and deadline."""
@@ -165,16 +178,7 @@ def invoke(argv: list[str], environment: dict[str, str], *,
                 if remaining <= 0:
                     failure = "configtest_timeout"
                     break
-                for key, _ in selector.select(min(remaining, 0.2)):
-                    chunk = os.read(key.fileobj.fileno(), 8192)
-                    if not chunk:
-                        selector.unregister(key.fileobj)
-                        continue
-                    capacity = CAPTURE_LIMIT - sum(map(len, captured.values()))
-                    captured[key.data].extend(chunk[:capacity])
-                    if len(chunk) > capacity:
-                        failure = "configtest_capture_limit"
-                        break
+                failure = capture_available(selector, captured, min(remaining, 0.2))
                 if failure:
                     break
         if failure:

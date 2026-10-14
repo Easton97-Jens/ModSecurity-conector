@@ -633,6 +633,20 @@ Request-/Response-Lifecycle-Felder werden daraus nicht abgeleitet. Die betroffen
 Parser-/Sequenzsuite bestand vor dieser Cleanupreparatur 79 Tests; die letzten
 betroffenen Prüfungen und CI am Liefer-Head werden separat dokumentiert.
 
+### Strenge NGINX-Qualitätsnachprüfung, 2026-10-14
+
+Die tatsächliche Analyse von `10102fcf` meldete acht neue Wartbarkeitsbefunde:
+zweimal S5754 bei Cleanup-Catches, zweimal S3776 für Funktionen, zweimal S1192
+für Startdateinamen sowie C S5350/S886 für Statfelditeration. Neue
+Sicherheitsbefunde oder duplizierte Zeilen gab es nicht. Cleanup-Catches verwenden
+jetzt den tatsächlichen Typ `OSError`; begrenzte Streamerfassung und
+Startabschluss haben zusammenhängende Helfer; Startdateinamen sind Konstanten;
+die Felditeration hat eine konstante Iterationszahl und explizite Nullprüfung.
+Erste Ursachen, private FDs, Capturegrenzen und Parserergebnisse bleiben erhalten.
+Die betroffene Root-/Nobody-Suite bestand nach den Änderungen alle 116 Tests
+(Exit 0). Frische physische Retakes und Sonar/CI am neuen Head bleiben separat
+verpflichtende Nachweise.
+
 ### Unveränderlicher Originalindex
 
 Jeder nummerierte Link identifiziert eine Original-Change-ID durch ihren Dateinamen.

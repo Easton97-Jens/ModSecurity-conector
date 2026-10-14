@@ -62,9 +62,11 @@ static unsigned long long starttime(void)
     char *last = strrchr(raw, ')');
     if (last == NULL) return 0U;
     char *save = NULL;
-    char *field = strtok_r(last + 1, " ", &save);
-    for (unsigned int index = 0U; index < 19U && field != NULL; ++index)
+    const char *field = strtok_r(last + 1, " ", &save);
+    for (unsigned int index = 0U; index < 19U; ++index) {
+        if (field == NULL) return 0U;
         field = strtok_r(NULL, " ", &save);
+    }
     if (field == NULL) return 0U;
     size_t length = strnlen(field, sizeof(raw));
     if (length == 0U || length >= sizeof(raw) || strspn(field, "0123456789") != length) return 0U;
