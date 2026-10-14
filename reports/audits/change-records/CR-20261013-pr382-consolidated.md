@@ -668,7 +668,7 @@ measurement. The mock cause check uses `assertRaises` and verifies identity.
 All 66 combined tests and native retake `1791972087966404513` passed (exit 0).
 No findings, exclusions, tests or quality requirements were waived.
 
-### Final I12 reconciliation, 2026-10-14
+### I12 reconciliation checkpoint before additional Apache cases, 2026-10-14
 
 All 1,484 original IDs remain: 1,406 required across 13 independent route parts and 78 diagnostics. Exactly 37 original configuration-parser contracts are Root-qualified PASS (36 required and one diagnostic). The other 1,447 remain unqualified: 1,370 required and 77 diagnostic. Actual selected execution is separately recorded as 108/1,406 required plus 8/78 diagnostic, 116/1,484 total. Three sibling request-parser probes do not establish their selected companion parser. The 596 unresolved original oracle entries, original 79 raw records and earlier failed attempts remain preserved.
 
@@ -677,6 +677,16 @@ Bounded readiness evidence covers all 13 required route parts: Apache 27 control
 Final native UDS v5 attempt `1791972087966404513` records allow HTTP 200/54 bytes, P1 deny 403/alternative 429, P2 deny 403, P3 deny 403 and P4 Safe HTTP 200/55 bytes. Current physical logs contain zero client_cancel and protocol_error records; 185 plugin/engine product inputs remain identical. The original allow with client_cancel=1/EOS=false and failed executable-mode snapshot remain preserved. Successful native EOS, finish/free and MIME remain unknown; TCP EOF and synthetic metadata do not establish native EOS. Product parent a9, genuine older build identities, hosted source 3a with exact harness deltas and current code `6b472cab6c18dfb5d6034461e1df5609e4ec3606` remain separate.
 
 Result: `I12_PARTIAL` and independent `RELEASE_BLOCKED_SECRET_HISTORY`; both PRs remain Draft. Exact code 6b has authenticated Sonar Gate OK, Security A, explicit zero new/accepted issues, hotspots and duplication, and strict scaffold success. Its 24 successful, two skipped and two running checks are a captured checkpoint. The later documentation head receives separate fresh terminal GitHub/Sonar evidence externally and in both PR bodies. Current paired reports: [host evidence](../../../docs/pr-382-i12-host-evidence-20261014.md) and [missing-case index](../../../docs/pr-382-i12-missing-case-index-20261014.md). The generator, original contracts, Root approvals, partial packets and raw SHA references remain in the new run's final-reconciliation directory.
+
+### Apache canonical fixtures and empty-header repair, 2026-10-14
+
+An independent completion review identified 14 original Apache YAML cases supported by the existing dispatcher. The first attempt `1791974271929607351` accepted all configurations but produced no HTTP response: the unchanged guard correctly rejected a root-owned executable under UID 65534. One-case diagnostic `1791974703385184818` retained that exact error. A private owned copy with identical approved binary SHA fixed provisioning without weakening the guard.
+
+Retake `1791974869509186563` produced all 14 HTTP responses, with 12 fixture PASS and two posttraffic audit-oracle FAIL. A real curl collector reproduced the missing empty header: curl suppresses `Name:` and `Name: `; the Apache case driver now uses `Name;` for those present-empty values. Quoted nonempty values, embedded colons, trailing spaces and duplicate ordering remain intact. Only the #410 harness and its new real HTTP regression test changed; both product worktrees and #382 remain at a9.
+
+Current retake `1791975496308340489` produced 14 real HTTP/header/body packets: 13 fixture PASS and one preserved duplicate-header oracle FAIL. Physical native audit confirms the empty header and rule `1100503`. The actual Apache Core binary merges duplicates into one `one, two` field before the connector sees the APR table; its exact binary calls `apr_table_compress(..., 1)` before the post-read hook. Inventing duplicate boundaries by comma splitting would be incorrect, so original rule `1100504` and its FAIL remain unchanged. Driver exit 1/controller 77 are retained; no resource error, namespace survivor or mount leak occurred.
+
+Root reviewed 14 additional partial selected executions and rehashed 474 unique retained files. Selected execution is now 122 required plus eight diagnostic, 130 total; qualification remains 37 original parser-only PASS and 1,447 unqualified. The source equality scope covers 194 Apache/Common inputs; the previous 140 compiler-input scope remains distinct. Hosted source is 3a with the explicit Apache harness delta SHA `30fd539bc319b8583cb9cfb23db7bedaf58c894afd5fc88c50076a8250d0d437`. Three real-wire regression tests, shell syntax and final working-source quick-check pass with exit 0. The previously published 93b checkpoint has 26 successful/two skipped checks and authenticated Sonar OK/A/strict zeros; the new repair delivery requires separate fresh exact-head CI and Sonar evidence.
 
 ### Immutable original index
 

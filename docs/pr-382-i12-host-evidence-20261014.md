@@ -8,13 +8,22 @@ Status: **I12_PARTIAL**. Final reconciliation.
 
 PASS / FAIL (required): **36 / 0**. Status counts: {"NOT_EXECUTED_UNQUALIFIED": 1447, "PASS": 37}
 
-Actual selected execution with complete or incomplete qualification: 108 / 1406 required; 8 / 78 diagnostic; 116 / 1484 total. Separately, only the sibling request parser executed; selected companion parser unproven: 3. Execution dispositions: {"ACTUAL_CANONICAL_YAML_HOST_CLIENT_EXECUTED_INCOMPLETE_LIFECYCLE_PACKET": 14, "ACTUAL_NATIVE_OPERATION_EXECUTED_INCOMPLETE_LIFECYCLE_PACKET": 40, "CATALOG_NATIVE_OVERRIDE_ORACLE_CONFLICT": 2, "CATALOG_PARSER_SCOPE_CONFLICT_ACCEPTS_CONFIG_SINK_OPENS_AT_RUNTIME": 1, "LITERAL_CATALOG_EXIT_MISMATCH_NO_NORMALIZATION": 22, "QUALIFIED_CONFIG_PARSER_ONLY": 37, "SHARED_REQUEST_RUNTIME_REJECTION_DOES_NOT_BIND_COMPANION_PARSER": 3}
+Actual selected execution with complete or incomplete qualification: 122 / 1406 required; 8 / 78 diagnostic; 130 / 1484 total. Separately, only the sibling request parser executed; selected companion parser unproven: 3. Execution dispositions: {"ACTUAL_CANONICAL_YAML_HOST_CLIENT_EXECUTED_INCOMPLETE_LIFECYCLE_PACKET": 27, "ACTUAL_NATIVE_OPERATION_EXECUTED_INCOMPLETE_LIFECYCLE_PACKET": 40, "CATALOG_NATIVE_OVERRIDE_ORACLE_CONFLICT": 2, "CATALOG_PARSER_SCOPE_CONFLICT_ACCEPTS_CONFIG_SINK_OPENS_AT_RUNTIME": 1, "LITERAL_CATALOG_EXIT_MISMATCH_NO_NORMALIZATION": 22, "QUALIFIED_CONFIG_PARSER_ONLY": 37, "SHARED_REQUEST_RUNTIME_REJECTION_DOES_NOT_BIND_COMPANION_PARSER": 3, "SOURCE_HOST_HEADER_COALESCING_ORACLE_CONFLICT": 1}
 
 ## Identity
 
 ```json
 {
-  "current_code_ci": "Exact code6b472cab: Sonar GateOK/A/all strict zeros and scaffold SUCCESS. 24SUCCESS/2conditionalSKIP/2Envoy jobs still running at captured code checkpoint; final documentation head requires independent fresh terminal CI.",
+  "current_code_ci": "Historical93b4023234b8b3340464f5424b6e4d44e5d5dfdf terminal26SUCCESS/2SKIP and authenticated Sonar strict-zero/A are separately retained. The new two-file Apache working delta requires fresh ordinary final delivery CI/Sonar, attested externally and in both PR bodies; no self-referential documentation SHA.",
+  "current_uncommitted_delta": {
+    "current_delivery_ci": "Previous93b4023234b8b3340464f5424b6e4d44e5d5dfdf checkpoint remains historical; the new harness/test delta requires fresh delivery CI after ordinary commit.",
+    "executed_harness_sha256": "30fd539bc319b8583cb9cfb23db7bedaf58c894afd5fc88c50076a8250d0d437",
+    "new_commit_sha": null,
+    "owner": "Parent Apache test harness only",
+    "path": "connectors/apache/harness/run_apache_smoke.sh",
+    "product_source_changed": false,
+    "selected_production_inputs_equal_to_parent_a9": 194
+  },
   "documentation_delivery_head": "Recorded by external final attestation and PR body after normal commit; no self-referential SHA.",
   "evidence_source_head": "6b472cab6c18dfb5d6034461e1df5609e4ec3606",
   "framework_sha": "99a7985c1be92a2297b1b59208f64df6768f2cbf",
@@ -29,7 +38,7 @@ Build producer, hosted source and final evidence head remain separate identities
 
 | Leg | IDs | Readiness | Attempts |
 | --- | ---: | --- | --- |
-| apache-native | 155 | BOUNDED_HOST_OBSERVED | 1791962156241815212 |
+| apache-native | 155 | BOUNDED_HOST_OBSERVED | 1791962156241815212, 1791974271929607351, 1791974703385184818, 1791974869509186563, 1791975496308340489 |
 | nginx-native | 140 | BOUNDED_HOST_OBSERVED | 1791958559271098737, 1791960903387896662, 1791960907140903764, 1791962405402364792, 1791967087014954093, 1791968113416310259, 1791962256146614715 |
 | haproxy-native-htx | 112 | BOUNDED_HOST_OBSERVED | 1791962159961898700 |
 | haproxy-spop-request | 94 | BOUNDED_HOST_OBSERVED | 1791962159961898700 |
@@ -66,12 +75,17 @@ Root approval: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr
     "success": 24
   },
   "provider_evidence": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/final-reconciliation/github-pr410-6b-source-checkpoint.json",
-  "remaining_provider_checks": "Two Envoy code-checkpoint jobs remain running in this snapshot. Final documentation delivery requires fresh terminal provider/Sonar evidence, retained externally and in both PR bodies; no previous head is reused.",
-  "scaffold_check_id": 115795357445,
+  "remaining_provider_checks": "Historical93b checkpoint passed all required checks and authenticated strict-zero/A. New Apache two-file working delta awaits fresh ordinary delivery and CI/Sonar; no final-head reuse.",
+  "scaffold_check_id": 115804226929,
   "scaffold_result": "success",
   "security_hotspots": 0,
   "security_rating": "A",
-  "source_head": "6b472cab6c18dfb5d6034461e1df5609e4ec3606"
+  "source_head": "93b4023234b8b3340464f5424b6e4d44e5d5dfdf",
+  "terminal_check_counts": {
+    "skipped": 2,
+    "success": 26
+  },
+  "terminal_provider_evidence": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/final-ci-monitor/terminal-checks.json"
 }
 ```
 
@@ -83,7 +97,7 @@ These observed values apply to the stated code source revision. The later docume
 
 Unmeasured client/backend/API/EOS/MIME/finish/free/cleanup values remain null with reasons. Configuration tests qualify only their parser layer; HTTP fields are not applicable under their original contract.
 
-- `apache-native`: Actual bounded host controls are retained; exact complete selected-case client/backend/API/EOS/MIME/finish/free qualification is missing.
+- `apache-native`: Initial27 bounded controls remain retained. Newly attempted canonical14: v1 fails before HTTP at owned-executable guard; v2 reaches all14 actualHTTP with12 fixturePASS/two fixtureFAIL; currentv3 reaches all14 actualHTTP with13 fixturePASS/one posttraffic duplicate-header oracle conflict. The system Apache core coalesces duplicate headers before the connector mapper; original oracle is preserved and no product bug/full-case FAIL is inferred. Root approved exact14 partial receipts (474 unique raw file hashes); lifetime/API/EOS/MIME/finish/free remain incomplete.
 - `nginx-native`: True root-master/nobody-worker operation succeeds. Each historic60 batch has57 PASS,2 config failures before traffic and1 obsolete log-oracle mismatch after actual HTTP200 with response_committed=true.42 exact selected native operations ran after collector repair; full independent lifecycle fields and two catalog/native-override oracle resolutions remain missing. Additionally,14 exactly selected canonical YAML host/client cases actually executed; two phase3 fixture aliases bind the unchanged exact selected YAML. Derived31 rows add no requests; complete independent lifecycle qualification remains missing.
 - `haproxy-native-htx`: Actual bounded host controls are retained; exact complete selected-case client/backend/API/EOS/MIME/finish/free qualification is missing.
 - `haproxy-spop-request`: Actual bounded host controls are retained; exact complete selected-case client/backend/API/EOS/MIME/finish/free qualification is missing.
@@ -108,10 +122,24 @@ Unmeasured client/backend/API/EOS/MIME/finish/free/cleanup values remain null wi
   "actual_host_loaded_sdk_sha256": null,
   "actual_main_native_cleanup_enter_return_pairs": 27,
   "actual_module_build_parent_sha": "8c574cdf86f10af976297c31d31485b042eba73b",
+  "additional_full_case_PASS": 0,
+  "additional_selected_partial_execution": 14,
+  "canonical14_current_attempt": "1791975496308340489",
+  "canonical14_executed_harness_sha256": "30fd539bc319b8583cb9cfb23db7bedaf58c894afd5fc88c50076a8250d0d437",
+  "canonical14_fixture_verdicts": {
+    "pass": 13,
+    "posttraffic_original_oracle_conflict": 1
+  },
+  "canonical14_product_inputs_equal": 194,
+  "canonical14_root_partial_approval": "approved_partial_execution_only",
+  "canonical194_product_input_scope_distinct": true,
+  "compiler_input_equality_scope": 140,
+  "duplicate_header_disposition": "SOURCE_HOST_HEADER_COALESCING_ORACLE_CONFLICT",
   "fixture_cases": 27,
   "host_binary_sha256": "32226a96ed9257837341b7909edae8da368922565f4662b1f76624e7c74e4a3d",
   "hosted_parent_sha": "3a1bafecd0c38ccf20427d580c767ed42addf4aa",
   "module_sha256": "908c9e7a7062ada3e36499a69e2c41e17791a36021d5872d0981bfc5864bb5d0",
+  "owned_executable_identity": "Task-owned regular copy verified against original system Apache SHA; no guard weakening.",
   "per_case_effective_configs": "Retained in native42-apache27-raw-audit.json; exact hashes verified.",
   "scoped_equal_production_input_count": 140,
   "selected_sdk_build_sha256": "32257230b8f378987ba1204049dcc1e23927fd44c8778e09d41805ad705c3407"
@@ -121,6 +149,14 @@ Unmeasured client/backend/API/EOS/MIME/finish/free/cleanup values remain null wi
 - `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/isolation/attempt-1791962156241815212/controller-result.json` — SHA256 `ce5bb2da87c49d80a8f8337886fcbfd6786994f13cff5a2689ee9ac0298e947c`.
 - `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/remaining-hosts-preparation/apache-v1/preparation.json` — SHA256 `b344a33227c39e09f3af26b0ab7c798ee9736e748d39387f6f48009b2d6216fd`.
 - `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/final-reconciliation/native42-apache27-raw-audit.json` — SHA256 `b1f90709b224be0a926f6bb14a7725359ce8593ea013dd5cc3bdd3f7f1902768`.
+- `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/final-reconciliation/apache-duplicate-header-core-proof/ap_read_request.stdout` — SHA256 `79937edbef5dad3ac167b4d0667dd70eb0ee3e957df8161faed1d2185f0cbf7e`.
+- `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/final-reconciliation/apache-duplicate-header-core-proof/ap_read_request.stderr` — SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/final-reconciliation/apache-duplicate-header-core-proof/ap_get_mime_headers_core.stdout` — SHA256 `f2284c6b63ca706a03857538727f436fa512bb50572898e471a14e45c3eca199`.
+- `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/final-reconciliation/apache-duplicate-header-core-proof/ap_get_mime_headers_core.stderr` — SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/final-reconciliation/apache-duplicate-header-core-proof/receipt.json` — SHA256 `15299e98c87691ef60a490b26e8bda774390459928aed8eb80975ec5d66e0918`.
+- `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/final-reconciliation/apache-duplicate-header-core-proof/conclusion.json` — SHA256 `97c4622d37fc25c00b833d0fb92f5f7edccec39dd83e7b04c9026ca2606ba38e`.
+- `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/apache-canonical14-final-preparation/audit-1791975496308340489/candidate-rows.json` — SHA256 `645be5c9bed204a119a025d54808a2ba7810162d45fe79c5aeaba714fd894266`.
+- `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/final-reconciliation/root-apache-canonical14-partial-approval.json` — SHA256 `cdc682111aaf517612cf249973de1d2934eccb3404f7207c5548a69e4d6cb5d3`.
 ### nginx-native
 
 ```json
@@ -701,6 +737,13 @@ Unmeasured client/backend/API/EOS/MIME/finish/free/cleanup values remain null wi
 | authenticated Sonar:6b472cab-issues | `rtk proxy /usr/local/bin/sonar-with-env api get '/api/issues/search?componentKeys=Easton97-Jens_ModSecurity-conector&pullRequest=410&resolved=false&ps=100'` | 0 | `6b472cab6c18dfb5d6034461e1df5609e4ec3606` |
 | authenticated Sonar:6b472cab-gate | `rtk proxy /usr/local/bin/sonar-with-env api get '/api/qualitygates/project_status?projectKey=Easton97-Jens_ModSecurity-conector&pullRequest=410'` | 0 | `6b472cab6c18dfb5d6034461e1df5609e4ec3606` |
 | authenticated Sonar:6b472cab-measures | `rtk proxy /usr/local/bin/sonar-with-env api get '/api/measures/component?component=Easton97-Jens_ModSecurity-conector&pullRequest=410&metricKeys=new_security_rating,new_violations,new_accepted_issues,new_security_hotspots,new_duplicated_lines,new_duplicated_blocks,new_duplicated_lines_density'` | 0 | `6b472cab6c18dfb5d6034461e1df5609e4ec3606` |
+| quick-06:0 | `rtk proxy make quick-check check-bilingual-docs check-doc-links check-variable-documentation PYTHON=/var/tmp/codex/ModSecurity-conector/runs/e2e/20261013T125816Z-8c574cdf-i12-completion/python-runtime/venv/bin/python FRAMEWORK_ROOT=/var/tmp/codex/ModSecurity-conector/worktrees/pr410-sonar-host-repair-20261014/modules/ModSecurity-test-Framework` | 0 | `93b4023234b8b3340464f5424b6e4d44e5d5dfdf` |
+| apache-empty-header-root-01:0 | `rtk proxy /var/tmp/codex/ModSecurity-conector/runs/e2e/20261013T125816Z-8c574cdf-i12-completion/python-runtime/venv/bin/python -m unittest -v tests.test_apache_empty_header_driver` | 0 | `93b4023234b8b3340464f5424b6e4d44e5d5dfdf` |
+| apache-empty-header-root-01:1 | `rtk proxy sh -n connectors/apache/harness/run_apache_smoke.sh` | 0 | `93b4023234b8b3340464f5424b6e4d44e5d5dfdf` |
+| apache-empty-header-root-01:2 | `rtk proxy git diff --check` | 0 | `93b4023234b8b3340464f5424b6e4d44e5d5dfdf` |
+| 93b authenticated checkpoint:checkpoint93b4023-issues | `rtk proxy /usr/local/bin/sonar-with-env api get '/api/issues/search?componentKeys=Easton97-Jens_ModSecurity-conector&pullRequest=410&resolved=false&ps=100'` | 0 | `93b4023234b8b3340464f5424b6e4d44e5d5dfdf` |
+| 93b authenticated checkpoint:checkpoint93b4023-gate | `rtk proxy /usr/local/bin/sonar-with-env api get '/api/qualitygates/project_status?projectKey=Easton97-Jens_ModSecurity-conector&pullRequest=410'` | 0 | `93b4023234b8b3340464f5424b6e4d44e5d5dfdf` |
+| 93b authenticated checkpoint:checkpoint93b4023-measures | `rtk proxy /usr/local/bin/sonar-with-env api get '/api/measures/component?component=Easton97-Jens_ModSecurity-conector&pullRequest=410&metricKeys=new_security_rating,new_violations,new_accepted_issues,new_security_hotspots,new_duplicated_lines,new_duplicated_blocks,new_duplicated_lines_density'` | 0 | `93b4023234b8b3340464f5424b6e4d44e5d5dfdf` |
 
 `focused:0`: Observed head and retained per-command evidence; never promoted to a different final delivery head.
 
@@ -751,6 +794,20 @@ Unmeasured client/backend/API/EOS/MIME/finish/free/cleanup values remain null wi
 `authenticated Sonar:6b472cab-gate`: Actual authenticated code-head0/A/GateOK, independently matched to successful exact-head GitHub Sonar provider. Final documentation head requires its own attestation.
 
 `authenticated Sonar:6b472cab-measures`: Actual authenticated code-head0/A/GateOK, independently matched to successful exact-head GitHub Sonar provider. Final documentation head requires its own attestation.
+
+`quick-06:0`: Actual working Apache harness/test delta checked on prior93b checkpoint; new delivery requires fresh CI.
+
+`apache-empty-header-root-01:0`: Actual working Apache harness/test delta checked on prior93b checkpoint; new delivery requires fresh CI.
+
+`apache-empty-header-root-01:1`: Actual working Apache harness/test delta checked on prior93b checkpoint; new delivery requires fresh CI.
+
+`apache-empty-header-root-01:2`: Actual working Apache harness/test delta checked on prior93b checkpoint; new delivery requires fresh CI.
+
+`93b authenticated checkpoint:checkpoint93b4023-issues`: Actual historical93b terminal26-success/two-skip and authenticated strict-zero SecurityA/GateOK; subsequent working delta is not covered.
+
+`93b authenticated checkpoint:checkpoint93b4023-gate`: Actual historical93b terminal26-success/two-skip and authenticated strict-zero SecurityA/GateOK; subsequent working delta is not covered.
+
+`93b authenticated checkpoint:checkpoint93b4023-measures`: Actual historical93b terminal26-success/two-skip and authenticated strict-zero SecurityA/GateOK; subsequent working delta is not covered.
 
 `focused:0`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/verification/focused/results.json` — SHA256 `0fbd29afadfce50edd82f44800ab223330c94c4f6db06a1c84604a23db2805b4`.
 
@@ -900,6 +957,48 @@ Unmeasured client/backend/API/EOS/MIME/finish/free/cleanup values remain null wi
 
 `authenticated Sonar:6b472cab-measures`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/sonar/6b472cab-measures.stderr` — SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
 
+`quick-06:0`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/verification/quick-06/results.json` — SHA256 `130115fc8c08d70ebdea42b3993cc8cc30f15fd4d6ac6368552791b45ffa73d6`.
+
+`quick-06:0`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/verification/quick-06/0.stdout.log` — SHA256 `f2bceb4f3233af7ea95c5e53baf26f0d4490eda8d09955adf63aef334f9c4d0d`.
+
+`quick-06:0`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/verification/quick-06/0.stderr.log` — SHA256 `2e6f9321153a1842b64480a70c7b5f895a80e4089a45277f2e331e56bfe55a21`.
+
+`apache-empty-header-root-01:0`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/verification/apache-empty-header-root-01/receipt.json` — SHA256 `b3e38d343c92054b590a3357bfcda31ea91d1b50e5d0cc84512d82924aa0cbac`.
+
+`apache-empty-header-root-01:0`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/verification/apache-empty-header-root-01/0.stdout` — SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+
+`apache-empty-header-root-01:0`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/verification/apache-empty-header-root-01/0.stderr` — SHA256 `42d1cfa5b55f24f4fa3072c148b15a53f282e1eb5cd22a71670a6635cd6a6368`.
+
+`apache-empty-header-root-01:1`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/verification/apache-empty-header-root-01/receipt.json` — SHA256 `b3e38d343c92054b590a3357bfcda31ea91d1b50e5d0cc84512d82924aa0cbac`.
+
+`apache-empty-header-root-01:1`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/verification/apache-empty-header-root-01/1.stdout` — SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+
+`apache-empty-header-root-01:1`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/verification/apache-empty-header-root-01/1.stderr` — SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+
+`apache-empty-header-root-01:2`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/verification/apache-empty-header-root-01/receipt.json` — SHA256 `b3e38d343c92054b590a3357bfcda31ea91d1b50e5d0cc84512d82924aa0cbac`.
+
+`apache-empty-header-root-01:2`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/verification/apache-empty-header-root-01/2.stdout` — SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+
+`apache-empty-header-root-01:2`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/verification/apache-empty-header-root-01/2.stderr` — SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+
+`93b authenticated checkpoint:checkpoint93b4023-issues`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/sonar/checkpoint93b4023-query-receipts.json` — SHA256 `cc217b73abe5b318b062dbdfb19383c7c7e0ece4e6a31b991cc6f28451561fdf`.
+
+`93b authenticated checkpoint:checkpoint93b4023-issues`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/sonar/checkpoint93b4023-issues.stdout` — SHA256 `a0df6fcd7aa349a218b37a27f84117fe80387cdc20a27e459c0f4d71b699c70d`.
+
+`93b authenticated checkpoint:checkpoint93b4023-issues`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/sonar/checkpoint93b4023-issues.stderr` — SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+
+`93b authenticated checkpoint:checkpoint93b4023-gate`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/sonar/checkpoint93b4023-query-receipts.json` — SHA256 `cc217b73abe5b318b062dbdfb19383c7c7e0ece4e6a31b991cc6f28451561fdf`.
+
+`93b authenticated checkpoint:checkpoint93b4023-gate`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/sonar/checkpoint93b4023-gate.stdout` — SHA256 `8cfb48611758ee377cd6c00ebee6ae6470fa1ffba0a0e53797d780bbc275955f`.
+
+`93b authenticated checkpoint:checkpoint93b4023-gate`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/sonar/checkpoint93b4023-gate.stderr` — SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+
+`93b authenticated checkpoint:checkpoint93b4023-measures`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/sonar/checkpoint93b4023-query-receipts.json` — SHA256 `cc217b73abe5b318b062dbdfb19383c7c7e0ece4e6a31b991cc6f28451561fdf`.
+
+`93b authenticated checkpoint:checkpoint93b4023-measures`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/sonar/checkpoint93b4023-measures.stdout` — SHA256 `73ce55b1b93f0fd469f4bbe4bf03d454052245f0a9d9201fae56fd2da2f25569`.
+
+`93b authenticated checkpoint:checkpoint93b4023-measures`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/sonar/checkpoint93b4023-measures.stderr` — SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+
 Release: **RELEASE_BLOCKED_SECRET_HISTORY**. Historic PR #382 secret-history range check remains independently failed; current host evidence does not remediate immutable history. Both PRs remain Draft.
 
 [Complete case index](pr-382-i12-missing-case-index-20261014.md).
@@ -908,7 +1007,7 @@ Release: **RELEASE_BLOCKED_SECRET_HISTORY**. Historic PR #382 secret-history ran
 
 Run: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion`.
 
-Generator SHA256: `173001dc365f1230e426b27ff1b4ce6a2d6b8e6911073a90b377b2a951842e7f`.
+Generator SHA256: `134f3df11974c7a6bb3cb34a432a47b7ded10d0f0f97747c9bc6100441d10cc9`.
 
 Catalog SHA256: `ddf5a766fbcc10d33f36c21c548fe8b09649e36b23487b8404a86dc62c18e3a4`.
 
