@@ -1584,8 +1584,11 @@ request_mapper_status_function, _ = c_checked_function(
     mapper_c, 'int ngx_http_modsecurity_map_request')
 request_mapper_status_all_branches = c_all_branch_function(
     mapper_c, 'int ngx_http_modsecurity_map_request')
+# Count every target, including assignments whose RHS is not an enum token.
+request_mapper_status_assignment_targets = re.findall(
+    r'\*failure_status\s*=', request_mapper_status_function)
 request_mapper_status_assignments = re.findall(
-    r'\*failure_status\s*=\s*([^;]+);', request_mapper_status_function)
+    r'\*failure_status\s*=\s*([A-Z_]{1,64});', request_mapper_status_function)
 request_mapper_client_limit_pattern = re.compile(
     r'if\s*\(\s*contract->max_header_count\s*>\s*0U\s*&&\s*'
     r'ngx_http_modsecurity_count_list_headers\s*\(\s*&r->headers_in.headers\s*\)\s*>\s*'
@@ -1600,6 +1603,7 @@ request_mapper_typed_status_is_fail_closed = (
     and C_PREPROCESSOR_DIRECTIVE.search(request_mapper_status_all_branches) is None
     and not c_has_unstructured_control_flow(request_mapper_status_function)
     and not c_has_ucn_escape(request_mapper_status_all_branches)
+    and len(request_mapper_status_assignment_targets) == len(request_mapper_status_assignments)
     and request_mapper_status_assignments == ['NGX_HTTP_INTERNAL_SERVER_ERROR', 'NGX_HTTP_BAD_REQUEST']
     and re.search(r'if\s*\(\s*failure_status\s*!=\s*NULL\s*\)\s*\{\s*'
                   r'\*failure_status\s*=\s*NGX_HTTP_INTERNAL_SERVER_ERROR\s*;\s*\}',

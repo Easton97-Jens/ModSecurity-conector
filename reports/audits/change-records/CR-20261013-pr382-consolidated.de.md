@@ -397,6 +397,43 @@ stehen an diesem Produktcheckpoint noch aus.
 Historisches Gitleaks bleibt ein unabhängiger Releaseblocker. Dieser Record
 autorisiert keinen neuen PR, Master-Merge oder eine Historienumschreibung.
 
+### Mapper-Checker- und CI-Folgekorrektur, 2026-10-14
+
+Basis: `12756aa957f54d3efce6bd97ec0dbac07fa576cc`. SonarCloud meldete
+`python:S8786` für die neue Mapperstatus-Zuweisungsregex. Ein begrenztes
+Enum-Token und eine unabhängige Zählung sämtlicher Zuweisungsziele entfernen
+überlappendes Whitespace-/RHS-Backtracking und verwerfen zusätzliche oder nicht
+parsebare Zuweisungen. Zwei Regressionsmethoden prüfen fünf ungültige Fälle,
+einschließlich 262144 Whitespace-Bytes ohne Semikolon. Echte Skalierungskontrollen
+mit 262144, 524288 und 1048576 Bytes belegen ungefähr lineare
+13.46/26.86/52.71 ms für die RHS-Suche. Die bestehenden 77 Quellguards bestehen.
+Der erste vollständige Mutationstestlauf erreichte sein Driverlimit von
+600 Sekunden; eine getrennt erhaltene begrenzte Wiederholung bestand alle
+115 Tests in 792.982 Sekunden mit tatsächlichem terminalem Exit0.
+`sonar382-regex-fix/validation-receipt-v2.json` erhält Ergebnis und ursprünglichen
+Timeout getrennt. Keine Finding-Unterdrückung oder Quality-Gate-Änderung.
+
+Die kompilierte Mapperregression verwendet innerhalb des Testprozesses den
+bestehenden `CC`-Vertrag direkt und läuft im vorhandenen NGINX-CI-Unittestschritt.
+Ihre fünf frisch kompilierten Tests bestehen ohne vorausgesetzte RTK-Installation
+innerhalb gehosteter Tests; lokale Taskbefehle bleiben RTK-gekapselt. Geändert
+sind Checker, Mutationstests, `tests/test_nginx_request_mapper_status.py` und
+`.github/workflows/lint.yml` sowie dieses EN/DE-Recordpaar.
+
+Echte Hostnachweise auf aktualisiertem Produkt liegen inzwischen getrennt vor:
+Versuch `1792016388444376671` erhält beide injizierten internen Fehler als echtes
+HTTP500 mit physischem `connector_error`; Versuch `1792015343768509429` erfasst
+echtes Client-HTTP400 für fehlenden Host/ungültige Content-Length und einen
+gesunden HTTP200-Nachbarn. Früherer Legacy-Driverexit1, falscher400-Override und
+reiner Protocol-Eventselektor bleiben unverändert. Der Geltungsbereichskonflikt
+Body-P2 gegenüber injiziertem P1 bleibt ungeklärt. Evidence liegt unter dem
+bestehenden Runroot in
+`nginx-oracle-retake/typed-status-review/typed500-client400-final-conflict-disposition07.json`
+und `verification/portable-mapper-ci-01/receipt.json`; Checker-Kontrollen liegen
+in `sonar382-regex-fix`. Gehostete CI/Sonar sind nach Lieferung am neuen Head
+erneut zu lesen. Historischer Gitleaks-Releaseblocker und beide Draftzustände
+bleiben getrennt.
+
 ### Unveränderlicher Originalindex
 
 Jeder nummerierte Link identifiziert eine Original-Change-ID durch ihren Dateinamen.

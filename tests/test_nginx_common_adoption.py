@@ -647,6 +647,32 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
                 self._assert_rejected(mutate,
                     "NGINX mapper propagates internal failure 500 and independently bounded client header-count failure 400")
 
+    def test_extra_unparseable_mapper_status_assignment_is_rejected(self) -> None:
+        for expression in ("NGX_OK + 1", "unknown_status()", "A" * 65, ""):
+            with self.subTest(expression=expression):
+                def mutate(repository, expression=expression):
+                    path = repository / "connectors/nginx/src/ngx_http_modsecurity_mapper.c"
+                    source = path.read_text(encoding="utf-8")
+                    _, end = function_bounds(source, "int ngx_http_modsecurity_map_request")
+                    source = source[:end - 1] + "    *failure_status = " + expression + ";\n" + source[end - 1:]
+                    path.write_text(source, encoding="utf-8")
+
+                self._assert_rejected(mutate,
+                    "NGINX mapper propagates internal failure 500 and independently bounded client header-count failure 400")
+
+    def test_large_mapper_assignment_without_semicolon_is_bounded_and_rejected(self) -> None:
+        def mutate(repository):
+            path = repository / "connectors/nginx/src/ngx_http_modsecurity_mapper.c"
+            source = path.read_text(encoding="utf-8")
+            _, end = function_bounds(source, "int ngx_http_modsecurity_map_request")
+            # The existing 30s subprocess deadline catches the old quadratic
+            # whitespace/RHS backtracking; this does not time tiny inputs.
+            source = source[:end - 1] + "    *failure_status = " + " " * 262144 + "X\n" + source[end - 1:]
+            path.write_text(source, encoding="utf-8")
+
+        self._assert_rejected(mutate,
+            "NGINX mapper propagates internal failure 500 and independently bounded client header-count failure 400")
+
     def test_mapper_caller_default_must_remain_internal_server_error(self) -> None:
         def mutate(repository):
             replace_in_function(repository / "connectors/nginx/src/ngx_http_modsecurity_access.c",

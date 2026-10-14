@@ -95,7 +95,7 @@ class NginxRequestMapperStatusTests(unittest.TestCase):
         cls.temporary = tempfile.TemporaryDirectory(prefix="ngx-mapper-status-", dir=os.environ.get("RUNNER_TEMP"))
         cls.addClassCleanup(cls.temporary.cleanup)
         directory = Path(cls.temporary.name)
-        compiler = ["rtk", "proxy", *shlex.split(os.environ.get("CC", "cc"))]
+        compiler = shlex.split(os.environ.get("CC", "cc"))
         validator = directory / "validator.o"
         argv = compiler + ["-std=c17", "-Wall", "-Wextra", "-Werror", "-I", str(ROOT / "common/include"),
                            "-Dmsconnector_request_mapper_validate_output=actual_mapper_validate",
@@ -130,7 +130,7 @@ class NginxRequestMapperStatusTests(unittest.TestCase):
             raise AssertionError(compiled.stderr[-6000:])
 
     def probe(self, fault=0, allocation=0, headers=1, limit=1024):
-        result = subprocess.run(["rtk", "proxy", str(self.binary), *map(str, (fault, allocation, headers, limit))],
+        result = subprocess.run([str(self.binary), *map(str, (fault, allocation, headers, limit))],
                                 check=True, capture_output=True, text=True, timeout=5)
         return json.loads(result.stdout)
 
