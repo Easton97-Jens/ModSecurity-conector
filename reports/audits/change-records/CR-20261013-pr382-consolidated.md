@@ -746,6 +746,40 @@ at this product checkpoint. Historical Gitleaks remains
 an independent release blocker. No new PR, master merge or history rewrite is
 authorized by this record.
 
+### Mapper checker and CI follow-up, 2026-10-14
+
+Base: `12756aa957f54d3efce6bd97ec0dbac07fa576cc`. SonarCloud reported
+`python:S8786` for the new mapper-status assignment regex. A bounded enum token
+and an independent count of every assignment target remove overlapping
+whitespace/RHS backtracking while rejecting extra or unparseable assignments.
+Two regression methods cover five malformed cases, including 262144 whitespace
+bytes without a semicolon. Actual scaling controls at 262144, 524288 and
+1048576 bytes retained approximately linear 13.46/26.86/52.71 ms RHS searches.
+The existing 77 source guards pass. The first complete mutation-suite attempt
+timed out at its 600-second driver limit; a separately retained bounded repeat
+passed all 115 tests in 792.982 seconds, with an actual terminal exit0.
+`sonar382-regex-fix/validation-receipt-v2.json` retains the result and original
+timeout separately. No finding suppression or Quality Gate change is introduced.
+
+The compiled mapper regression now uses the existing `CC` contract directly
+inside the test process and runs in the existing NGINX CI unit-test step. Its
+five fresh compiled tests pass without assuming an installed RTK executable
+inside hosted tests; local task commands remain RTK-wrapped. Changed files
+are the checker, its mutation tests, `tests/test_nginx_request_mapper_status.py`
+and `.github/workflows/lint.yml`, plus this EN/DE record pair.
+
+Updated-product actual host evidence is now available separately: attempt
+`1792016388444376671` preserves both injected internal faults as actual HTTP500
+and physical `connector_error`; attempt `1792015343768509429` records genuine
+missing-Host/bad-Content-Length client HTTP400 and a healthy HTTP200 neighbor.
+The earlier legacy driver exit1, incorrect400 override and protocol-only event
+selector remain unchanged. The body-P2 versus injected-P1 scope conflict stays
+unresolved. Evidence lives below the existing run root in
+`nginx-oracle-retake/typed-status-review/typed500-client400-final-conflict-disposition07.json`
+and `verification/portable-mapper-ci-01/receipt.json`; checker controls are in
+`sonar382-regex-fix`. New-head hosted CI/Sonar must be read again after delivery.
+The historical Gitleaks release blocker and both Draft states remain separate.
+
 ### Immutable original index
 
 Each numbered link identifies one original Change ID through its filename.
