@@ -300,14 +300,15 @@ ngx_http_modsecurity_validate_common_request_mapper(ngx_http_request_t *r)
     msconnector_request_mapper_contract contract;
     msconnector_request mapped_request;
     char mapper_error[128];
+    ngx_int_t mapper_status = NGX_HTTP_INTERNAL_SERVER_ERROR;
 
     msconnector_request_mapper_contract_init(&contract);
     if (!ngx_http_modsecurity_map_request(r, &contract, &mapped_request,
-            mapper_error, sizeof(mapper_error))) {
+            &mapper_status, mapper_error, sizeof(mapper_error))) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
             "modsecurity common request mapper validation failed: %s",
             mapper_error);
-        return NGX_HTTP_BAD_REQUEST;
+        return mapper_status;
     }
 
     return NGX_OK;

@@ -548,6 +548,14 @@ keine Produktions-, CRS-, Vollmatrix- oder Runtime-Verifikation behauptet.
 
 NGINX-Common-SDK-Modul-Builds, die einen kopierten Connector-Quellbaum verwenden, müssen `MSCONNECTOR_COMMON_SRC` (oder `CONNECTOR_COMMON_SRC` / `COMMON_SRC_ROOT`) auf das Stammverzeichnis der gemeinsamen Quelle des Repositorys setzen; `MSCONNECTOR_COMMON_INC` bleibt der Common-Include-Root. Sie müssen außerdem `MSCONNECTOR_PROFILE_REGISTRY_ROOT` auf eine Root setzen, die `connectors/profile_registry.c` und `connectors/profile_registry.h` enthält. Der verwaltete Exact-Head-Koordinator stellt eine an die Cache-Identität gebundene gestagte Root bereit. Wenn die Variable nicht gesetzt ist, greift die Konfiguration nur dann auf `$ngx_addon_dir/../..` zurück, wenn dort beide Registry-Dateien existieren; dieser Fallback gilt für direkte Checkout-Builds, nicht für kopierte Trees.
 
+Das Request-Mapping liefert einen typisierten Fehlerstatus. Ein ungültiger
+serverseitiger Mapping-Zeiger oder eine fehlgeschlagene Host-Pool-Allokation
+führt zu HTTP `500`; die bestehende clientseitige Headeranzahlgrenze führt zu
+HTTP `400`. Der Grenzwert null behält seine bisherige unbegrenzte Bedeutung.
+NGINX verantwortet weiterhin die Ablehnung ungültigen HTTPs und eines fehlenden
+Host-Headers. Diese technischen Mappingfehler führen keine WAF-Bodygrenze oder
+Regelentscheidung ein.
+
 ## Kanonische Phase-4-Grenze
 
 NGINX verwendet einen begrenzten nativen Response-Body-Filter. Seine

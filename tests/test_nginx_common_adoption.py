@@ -364,7 +364,7 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
             inject_inactive_decoy(
                 repository / "connectors" / "nginx" / "src" / "ngx_http_modsecurity_access.c",
                 "static ngx_int_t\nngx_http_modsecurity_validate_common_request_mapper",
-                "mapper_error);\n        return NGX_HTTP_BAD_REQUEST;",
+                "mapper_error);\n        return mapper_status;",
                 "mapper_error);\n        return NGX_OK;",
             )
 
@@ -544,7 +544,7 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
             inject_inactive_decoy(
                 repository / "connectors" / "nginx" / "src" / "ngx_http_modsecurity_access.c",
                 "static ngx_int_t\nngx_http_modsecurity_validate_common_request_mapper",
-                "mapper_error);\n        return NGX_HTTP_BAD_REQUEST;",
+                "mapper_error);\n        return mapper_status;",
                 "mapper_error);\n        return NGX_OK;",
                 "#\\\nif 0\n",
                 "#\\\nendif\n",
@@ -608,7 +608,7 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
             replace_in_function(
                 path,
                 signature,
-                "mapper_error);\n        return NGX_HTTP_BAD_REQUEST;",
+                "mapper_error);\n        return mapper_status;",
                 "mapper_error);\n        return NGX_OK;",
             )
             replace_in_function(
@@ -625,6 +625,35 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
             mutate,
             "NGINX request mapper validation fails closed before request-header initialization",
         )
+
+    def test_mapper_typed_error_status_cannot_be_success_or_client_default(self) -> None:
+        for replacement in ("NGX_OK", "NGX_HTTP_BAD_REQUEST"):
+            with self.subTest(replacement=replacement):
+                def mutate(repository, replacement=replacement):
+                    path = repository / "connectors/nginx/src/ngx_http_modsecurity_mapper.c"
+                    replace_in_function(path, "int ngx_http_modsecurity_map_request",
+                        "*failure_status = NGX_HTTP_INTERNAL_SERVER_ERROR;",
+                        "*failure_status = " + replacement + ";")
+                self._assert_rejected(mutate,
+                    "NGINX mapper propagates internal failure 500 and independently bounded client header-count failure 400")
+
+    def test_mapper_client_header_limit_cannot_be_removed_or_unbounded(self) -> None:
+        for old, new in (("contract->max_header_count > 0U", "contract->max_header_count == 0U"),
+                         ("*failure_status = NGX_HTTP_BAD_REQUEST;", "*failure_status = NGX_OK;")):
+            with self.subTest(fragment=old):
+                def mutate(repository, old=old, new=new):
+                    replace_in_function(repository / "connectors/nginx/src/ngx_http_modsecurity_mapper.c",
+                                        "int ngx_http_modsecurity_map_request", old, new)
+                self._assert_rejected(mutate,
+                    "NGINX mapper propagates internal failure 500 and independently bounded client header-count failure 400")
+
+    def test_mapper_caller_default_must_remain_internal_server_error(self) -> None:
+        def mutate(repository):
+            replace_in_function(repository / "connectors/nginx/src/ngx_http_modsecurity_access.c",
+                "static ngx_int_t\nngx_http_modsecurity_validate_common_request_mapper",
+                "mapper_status = NGX_HTTP_INTERNAL_SERVER_ERROR;", "mapper_status = NGX_OK;")
+        self._assert_rejected(mutate,
+            "NGINX request mapper validation fails closed before request-header initialization")
 
     def test_unbraced_mapper_rejection_is_rejected(self) -> None:
         def mutate(repository: Path) -> None:

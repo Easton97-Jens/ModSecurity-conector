@@ -829,6 +829,7 @@ SECURITY_CRITICAL_MACRO_SYMBOLS = frozenset((
     'NULL',
     'NGX_ERROR',
     'NGX_HTTP_BAD_REQUEST',
+    'NGX_HTTP_INTERNAL_SERVER_ERROR',
     'NGX_OK',
     'msc_add_n_response_header',
     'msconnector_rule_id_extract_from_message',
@@ -837,6 +838,8 @@ SECURITY_CRITICAL_MACRO_SYMBOLS = frozenset((
     'last_intervention_rule_id',
     'sizeof',
     'ctx',
+    'mapper_status',
+    'failure_status',
     'intervention',
     'log',
     'ngx_http_modsecurity_add_n_response_header',
@@ -1347,7 +1350,7 @@ response_header_sink, _ = c_checked_function(
 )
 request_mapper_call_pattern = re.compile(
     r'ngx_http_modsecurity_map_request\s*\(\s*r\s*,\s*&contract\s*,\s*'
-    r'&mapped_request\s*,\s*mapper_error\s*,\s*'
+    r'&mapped_request\s*,\s*&mapper_status\s*,\s*mapper_error\s*,\s*'
     r'sizeof\s*\(\s*mapper_error\s*\)\s*\)'
 )
 request_mapper_any_call_pattern = re.compile(
@@ -1358,11 +1361,11 @@ request_mapper_contract_init_pattern = re.compile(
 )
 request_mapper_failure_rejection_pattern = re.compile(
     r'if\s*\(\s*!ngx_http_modsecurity_map_request\s*\(\s*'
-    r'r\s*,\s*&contract\s*,\s*&mapped_request\s*,\s*mapper_error\s*,\s*'
+    r'r\s*,\s*&contract\s*,\s*&mapped_request\s*,\s*&mapper_status\s*,\s*mapper_error\s*,\s*'
     r'sizeof\s*\(\s*mapper_error\s*\)\s*\)\s*\)\s*\{\s*'
     r'ngx_log_error\s*\(\s*NGX_LOG_ERR\s*,\s*r->connection->log\s*,\s*0\s*,\s*'
     r'"modsecurity common request mapper validation failed: %s"\s*,\s*'
-    r'mapper_error\s*\)\s*;\s*return\s+NGX_HTTP_BAD_REQUEST\s*;\s*\}'
+    r'mapper_error\s*\)\s*;\s*return\s+mapper_status\s*;\s*\}'
 )
 request_mapper_failure_propagation_pattern = re.compile(
     r'rc\s*=\s*ngx_http_modsecurity_validate_common_request_mapper\(r\);\s*'
@@ -1577,6 +1580,34 @@ request_hostname_call = request_initializer.find(
     'ngx_http_modsecurity_set_request_hostname')
 request_headers_call = request_initializer.find(
     'ngx_http_modsecurity_process_request_headers')
+request_mapper_status_function, _ = c_checked_function(
+    mapper_c, 'int ngx_http_modsecurity_map_request')
+request_mapper_status_all_branches = c_all_branch_function(
+    mapper_c, 'int ngx_http_modsecurity_map_request')
+request_mapper_status_assignments = re.findall(
+    r'\*failure_status\s*=\s*([^;]+);', request_mapper_status_function)
+request_mapper_client_limit_pattern = re.compile(
+    r'if\s*\(\s*contract->max_header_count\s*>\s*0U\s*&&\s*'
+    r'ngx_http_modsecurity_count_list_headers\s*\(\s*&r->headers_in.headers\s*\)\s*>\s*'
+    r'contract->max_header_count\s*\)\s*\{\s*'
+    r'if\s*\(\s*failure_status\s*!=\s*NULL\s*\)\s*\{\s*'
+    r'\*failure_status\s*=\s*NGX_HTTP_BAD_REQUEST\s*;\s*\}\s*'
+    r'ngx_http_modsecurity_mapper_error\s*\(\s*error\s*,\s*error_len\s*,\s*\)\s*;\s*'
+    r'return\s+0\s*;\s*\}')
+request_mapper_client_limit = request_mapper_client_limit_pattern.search(request_mapper_status_function)
+request_mapper_typed_status_is_fail_closed = (
+    critical_macro_controls_are_safe
+    and C_PREPROCESSOR_DIRECTIVE.search(request_mapper_status_all_branches) is None
+    and not c_has_unstructured_control_flow(request_mapper_status_function)
+    and not c_has_ucn_escape(request_mapper_status_all_branches)
+    and request_mapper_status_assignments == ['NGX_HTTP_INTERNAL_SERVER_ERROR', 'NGX_HTTP_BAD_REQUEST']
+    and re.search(r'if\s*\(\s*failure_status\s*!=\s*NULL\s*\)\s*\{\s*'
+                  r'\*failure_status\s*=\s*NGX_HTTP_INTERNAL_SERVER_ERROR\s*;\s*\}',
+                  request_mapper_status_function) is not None
+    and request_mapper_client_limit is not None
+    and request_mapper_client_limit.end() < request_mapper_status_function.find('ngx_http_modsecurity_copy_headers')
+    and 'if (!msconnector_request_mapper_validate_output(contract, out, error, error_len))' in request_mapper_status_function
+)
 request_mapper_contract_is_fail_closed = (
     critical_macro_controls_are_safe
     and
@@ -1592,7 +1623,10 @@ request_mapper_contract_is_fail_closed = (
     and C_PREPROCESSOR_DIRECTIVE.search(request_mapper_validator_unmasked) is None
     and len(request_mapper_return_statements) == 2
     and request_mapper_return_statements[0].group('expression').strip()
-    == 'NGX_HTTP_BAD_REQUEST'
+    == 'mapper_status'
+    and re.search(r'ngx_int_t\s+mapper_status\s*=\s*NGX_HTTP_INTERNAL_SERVER_ERROR\s*;',
+                  request_mapper_validator) is not None
+    and len(re.findall(r'\bmapper_status\s*=', request_mapper_validator)) == 1
     and request_mapper_return_statements[1].group('expression').strip()
     == 'NGX_OK'
     and not c_has_unstructured_control_flow(request_mapper_validator)
@@ -1841,6 +1875,7 @@ checks = [
 ('MSCONNECTOR_DIRECTIVE_' in module_c and ('directive_adapter.h' in module_c or 'directive_spec.h' in module_c), 'NGINX directive registration is tied to Common macros/specs/adapters'),
 ('ngx_http_request_t' in mapper_h and 'msconnector_request' in mapper_h and 'msconnector_request_mapper_contract' in mapper_h and 'msconnector_request_mapper_validate_output' in mapper_c, 'NGINX request mapper contract is present'),
 ('ngx_http_modsecurity_map_request' in access_c and 'msconnector_request_mapper_contract_init' in access_c, 'NGINX request mapper is exercised in access path'),
+(request_mapper_typed_status_is_fail_closed, 'NGINX mapper propagates internal failure 500 and independently bounded client header-count failure 400'),
 (
     request_mapper_contract_is_fail_closed,
     'NGINX request mapper validation fails closed before request-header initialization',
