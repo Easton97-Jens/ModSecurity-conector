@@ -668,6 +668,16 @@ measurement. The mock cause check uses `assertRaises` and verifies identity.
 All 66 combined tests and native retake `1791972087966404513` passed (exit 0).
 No findings, exclusions, tests or quality requirements were waived.
 
+### Final I12 reconciliation, 2026-10-14
+
+All 1,484 original IDs remain: 1,406 required across 13 independent route parts and 78 diagnostics. Exactly 37 original configuration-parser contracts are Root-qualified PASS (36 required and one diagnostic). The other 1,447 remain unqualified: 1,370 required and 77 diagnostic. Actual selected execution is separately recorded as 108/1,406 required plus 8/78 diagnostic, 116/1,484 total. Three sibling request-parser probes do not establish their selected companion parser. The 596 unresolved original oracle entries, original 79 raw records and earlier failed attempts remain preserved.
+
+Bounded readiness evidence covers all 13 required route parts: Apache 27 controls, 81 client exchanges and 27 native cleanup pairs; NGINX root-master/nobody-worker controls, 42 selected native operations, 14 exact canonical YAML host/client cases and both historical 60-fixture retakes (each 57 PASS, two pretraffic configuration failures and one posttraffic obsolete-log-oracle mismatch); HAProxy HTX eight and six shared SPOP/HTX companion controls counted once; three separate Envoy attempts; Traefik native UDS six, forwardAuth request two and companion four profiles; Stock sidecar seven controls with verified offline provenance; patched-native six P2 gate controls. These observations do not qualify 1,406 complete hosted lifecycle contracts.
+
+Final native UDS v5 attempt `1791972087966404513` records allow HTTP 200/54 bytes, P1 deny 403/alternative 429, P2 deny 403, P3 deny 403 and P4 Safe HTTP 200/55 bytes. Current physical logs contain zero client_cancel and protocol_error records; 185 plugin/engine product inputs remain identical. The original allow with client_cancel=1/EOS=false and failed executable-mode snapshot remain preserved. Successful native EOS, finish/free and MIME remain unknown; TCP EOF and synthetic metadata do not establish native EOS. Product parent a9, genuine older build identities, hosted source 3a with exact harness deltas and current code `6b472cab6c18dfb5d6034461e1df5609e4ec3606` remain separate.
+
+Result: `I12_PARTIAL` and independent `RELEASE_BLOCKED_SECRET_HISTORY`; both PRs remain Draft. Exact code 6b has authenticated Sonar Gate OK, Security A, explicit zero new/accepted issues, hotspots and duplication, and strict scaffold success. Its 24 successful, two skipped and two running checks are a captured checkpoint. The later documentation head receives separate fresh terminal GitHub/Sonar evidence externally and in both PR bodies. Current paired reports: [host evidence](../../../docs/pr-382-i12-host-evidence-20261014.md) and [missing-case index](../../../docs/pr-382-i12-missing-case-index-20261014.md). The generator, original contracts, Root approvals, partial packets and raw SHA references remain in the new run's final-reconciliation directory.
+
 ### Immutable original index
 
 Each numbered link identifies one original Change ID through its filename.

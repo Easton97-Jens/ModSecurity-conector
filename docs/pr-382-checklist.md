@@ -2,7 +2,18 @@
 
 **Language:** English | [Deutsch](pr-382-checklist.de.md)
 
-## Current I12 execution, 2026-10-13
+## Current I12 execution, 2026-10-14
+
+Outcome: **I12_PARTIAL**. The [current host report](pr-382-i12-host-evidence-20261014.md)
+and [complete index](pr-382-i12-missing-case-index-20261014.md) retain all
+1,484 IDs. NGINX and the three Traefik legs now execute in isolated hosts;
+Apache, HAProxy, Envoy, Stock and patched-host retakes retain separate original
+client/backend/log/cleanup evidence. Config-parser qualification covers only
+its explicit contract. I12/V08–V10 stay unchecked while physical EOS/MIME,
+Common-Finish and complete case/oracle bindings remain missing. The historical
+secret-range failure separately blocks release. Exact final CI is in the PR bodies.
+
+## Earlier I12 execution, 2026-10-13
 
 Outcome: **I12_PARTIAL**. Parent
 `a9d48bb58aa948aea7d79e20cdf09d3f239b7808` includes the reproduced HAProxy
@@ -310,7 +321,12 @@ The [nine-column I09–I12 matrix](pr-382-i09-i12-rest-matrix.md) makes the rema
 These are PR new-code metrics, not claims about all historical repository debt.
 Coverage and secret scanning are independent requirements.
 
-## 4. Route-specific state
+## 4. Historical route-specific source/test inventory
+
+This earlier table predates the separately completed I09/I10/I11 repairs.
+Its propagation/caller/adapter entries are historical scope, not current open
+product defects. The current remaining work is the fully bound I12 host index
+above, including the actual physical lifecycle observations each ID requires.
 
 | Route | Completed subset | Remaining |
 | --- | --- | --- |

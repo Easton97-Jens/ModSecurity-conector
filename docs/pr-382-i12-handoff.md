@@ -2,8 +2,26 @@
 
 **Language:** English | [Deutsch](pr-382-i12-handoff.de.md)
 
-Date: 2026-10-13. State: **BLOCKED_FOR_I12**. PR #382 remains Draft;
-PR #410 is neither merged nor rerun by this task.
+Date: 2026-10-14. State: **I12_PARTIAL**. Both PRs remain Draft.
+The [current host report](pr-382-i12-host-evidence-20261014.md) and
+[complete 1,484-ID index](pr-382-i12-missing-case-index-20261014.md) bind the
+new isolated host attempts and remaining qualification gaps. Product #382
+remains `a9d48bb58aa948aea7d79e20cdf09d3f239b7808`; normal #410 commits repair
+Sonar, ownership/staging and patched-host orchestration. Current PR descriptions
+retain exact final delivery heads and CI. #410 is mergeable at the readback;
+historical conflict and UID-mapping restrictions below describe the older task.
+
+The user explicitly authorized the independent host campaign despite the
+historical Gitleaks failure. That check remains **RELEASE_BLOCKED_SECRET_HISTORY**;
+it does not stop safely executable I12 cases. New private namespaces map both
+root and nobody, keep candidate source/artifacts read-only, use private ports
+and retain process/listener cleanup. Missing EOS/MIME/Common-Finish evidence
+still prevents full I12/V08–V10 acceptance. No master merge or release occurred.
+
+## Historical review checkpoint, 2026-10-13
+
+The previous review task was **BLOCKED_FOR_I12** and did not rerun #410.
+Its revision-specific observations follow; they are preserved as history.
 
 The final delivered Parent SHA, exact-head CI/Sonar/review results and normal
 commit IDs are recorded in the current [PR #382 description](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382).

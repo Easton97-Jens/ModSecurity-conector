@@ -2,7 +2,19 @@
 
 **Language:** English | [Deutsch](pr-382-i09-i12-rest-matrix.de.md)
 
-## Current I12 execution, 2026-10-13
+## Current I12 execution, 2026-10-14
+
+Outcome: **I12_PARTIAL**. The [current host report](pr-382-i12-host-evidence-20261014.md)
+and [complete index](pr-382-i12-missing-case-index-20261014.md) retain all
+1,406 required and 78 diagnostic IDs. Current isolated retakes resolve the
+earlier NGINX ownership and Traefik staging/compiler blockers; separate Apache,
+HAProxy, Envoy, Stock and patched evidence remains bounded by each case oracle.
+Missing physical lifecycle evidence and unresolved fixtures are still explicit.
+The independent historical secret gate remains **RELEASE_BLOCKED_SECRET_HISTORY**.
+Earlier UID-only restrictions and source propagation gaps below retain their
+historical scope and are superseded by the current report for host readiness.
+
+## Earlier I12 execution, 2026-10-13
 
 Outcome: **I12_PARTIAL**. The [current host report](pr-382-i12-host-evidence-20261013.md)
 is the current I12 disposition for Parent

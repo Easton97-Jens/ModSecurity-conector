@@ -2,7 +2,19 @@
 
 **Sprache:** [English](pr-382-i09-i12-rest-matrix.md) | Deutsch
 
-## Aktuelle I12-Ausführung vom 2026-10-13
+## Aktuelle I12-Ausführung vom 2026-10-14
+
+Ergebnis: **I12_PARTIAL**. Der [aktuelle Hostbericht](pr-382-i12-host-evidence-20261014.de.md)
+und [vollständige Index](pr-382-i12-missing-case-index-20261014.de.md) erhalten
+alle 1.406 Pflicht- und 78 Diagnose-IDs. Aktuelle isolierte Retakes beseitigen
+die früheren NGINX-Ownership- und Traefik-Staging-/Compilerblockaden; getrennte
+Apache-, HAProxy-, Envoy-, Stock- und Patched-Belege bleiben durch ihr Falloracle
+begrenzt. Fehlende physische Lifecycle-Belege und unaufgelöste Fixtures bleiben
+ausdrücklich offen. Der unabhängige historische Secret-Check bleibt
+**RELEASE_BLOCKED_SECRET_HISTORY**. Frühere UID-Grenzen und Quellweitergabelücken
+unten behalten ihre historische Reichweite; für Host-Readiness gilt der aktuelle Bericht.
+
+## Frühere I12-Ausführung vom 2026-10-13
 
 Ergebnis: **I12_PARTIAL**. Der [aktuelle Hostbericht](pr-382-i12-host-evidence-20261013.de.md)
 ist die aktuelle I12-Einordnung für Parent

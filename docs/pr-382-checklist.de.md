@@ -2,7 +2,19 @@
 
 **Sprache:** [English](pr-382-checklist.md) | Deutsch
 
-## Aktuelle I12-Ausführung vom 2026-10-13
+## Aktuelle I12-Ausführung vom 2026-10-14
+
+Ergebnis: **I12_PARTIAL**. Der [aktuelle Hostbericht](pr-382-i12-host-evidence-20261014.de.md)
+und [vollständige Index](pr-382-i12-missing-case-index-20261014.de.md) erhalten
+alle 1.484 IDs. NGINX und die drei Traefik-Routenteile laufen jetzt in isolierten
+Hosts; Apache-, HAProxy-, Envoy-, Stock- und Patched-Retakes erhalten getrennte
+originale Client-/Backend-/Log-/Cleanup-Belege. Parserqualifikation deckt nur ihren
+ausdrücklichen Konfigurationsvertrag ab. I12/V08–V10 bleiben bei fehlendem physischem
+EOS/MIME, Common-Finish und vollständigen Fall-/Oracle-Bindungen ungeprüft.
+Der historische Secret-Range-Fehler blockiert separat die Freigabe. Exakte finale
+CI steht in den PR-Beschreibungen.
+
+## Frühere I12-Ausführung vom 2026-10-13
 
 Ergebnis: **I12_PARTIAL**. Parent
 `a9d48bb58aa948aea7d79e20cdf09d3f239b7808` enthält die reproduzierte HAProxy-
@@ -316,7 +328,12 @@ Die [neunspaltige I09–I12-Matrix](pr-382-i09-i12-rest-matrix.de.md) zeigt verb
 Dies sind New-Code-Metriken des PRs, keine Behauptung zu allen historischen
 Repository-Befunden. Coverage und Secret-Scan bleiben unabhängig davon.
 
-## 4. Routenbezogener Stand
+## 4. Historische routenbezogene Quell-/Testinventur
+
+Diese frühere Tabelle stammt vor den separat abgeschlossenen I09/I10/I11-Reparaturen.
+Ihre Weitergabe-/Aufrufer-/Adaptereinträge sind historische Teilbereiche und keine
+aktuellen offenen Produktfehler. Aktuelle Restarbeit ist der vollständig gebundene
+I12-Hostindex oben mit den tatsächlich benötigten physischen Lifecycle-Beobachtungen.
 
 | Route | Erledigter Teilbereich | Verbleibend |
 | --- | --- | --- |
