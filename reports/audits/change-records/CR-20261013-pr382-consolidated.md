@@ -570,6 +570,32 @@ Actual current-source hosted execution, final CI/Sonar, and full I12
 qualification remain pending. This harness change introduces no product limit,
 dependency, Framework/MRTS edit, merge, or deployment.
 
+### NGINX worker mapping and parser receipts, 2026-10-14
+
+The 24 native fault/sequence probes originally stopped before traffic because
+Root cannot read the non-dumpable Nobody worker's `/proc/PID/maps`. An optional
+test-only preload captures that same worker's own maps immediately after its
+successful UID change, through a fresh private append descriptor. The parent
+checks the actual PID generation, UID/GID, complete bounded record and mapped
+module/fault libraries before traffic. The strict direct-read default remains;
+no `CAP_SYS_PTRACE`, host service or product body-limit change was introduced.
+
+Independent review reproduced two descriptor leaks on sync and parser/output
+errors. Cleanup now closes both map/fault descriptors while preserving the
+original exception. Five regressions use real descriptors and verify `EBADF`.
+All 21 Root/Nobody tests passed. Fresh isolated attempt
+`1791967087014954093` ran the same 24 native probes with every driver exit 0,
+then reaped its owned processes and removed namespace mounts. Earlier attempts
+remain unchanged; driver results are not complete I12 lifecycle qualification.
+
+NGINX config producers additionally retain the actual native parser argv, cwd,
+PID, normal exit or signal and raw stream hashes. Nine rejection probes in
+`1791965822160608456` and valid-rule startup in `1791965824941496409` passed
+with these receipts. Configuration-only qualification follows its three-field
+contract; missing request/response lifecycle fields are not inferred from it.
+The affected parser/sequence suite passed 79 tests before this cleanup repair;
+the final affected checks and exact delivery-head CI are recorded separately.
+
 ### Immutable original index
 
 Each numbered link identifies one original Change ID through its filename.

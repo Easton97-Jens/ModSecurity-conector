@@ -126,12 +126,36 @@ def snapshot_artifact(path: Path, destination: Path, *, executable: bool) -> str
     return result.hexdigest()
 
 
-def invoke(argv: list[str], environment: dict[str, str]) -> tuple[int, bytes, bytes, str | None]:
+def empty_invocation_receipt() -> dict:
+    """Unknown child facts stay null until an actual Popen succeeds."""
+    return {"schema_version": 1, "invoked": False, "argv": None, "cwd": None,
+            "pid": None, "returncode": None, "exit_code": None, "signal": None,
+            "capture_failure": None, "stdout_sha256": None, "stderr_sha256": None}
+
+
+def started_invocation_receipt(process: subprocess.Popen, cwd: str) -> dict:
+    return dict(empty_invocation_receipt(), invoked=True, argv=list(process.args),
+                cwd=cwd, pid=process.pid)
+
+
+def completed_invocation_receipt(receipt: dict, returncode: int,
+                                 stdout: bytes, stderr: bytes, failure: str | None) -> None:
+    receipt.update(returncode=returncode, exit_code=returncode if returncode >= 0 else None,
+                   signal=-returncode if returncode < 0 else None, capture_failure=failure,
+                   stdout_sha256=digest(stdout), stderr_sha256=digest(stderr))
+
+
+def invoke(argv: list[str], environment: dict[str, str], *,
+           invocation_receipt: dict | None = None) -> tuple[int, bytes, bytes, str | None]:
     """Capture both streams with a hard combined byte limit and deadline."""
     captured = {"stdout": bytearray(), "stderr": bytearray()}
     failure = None
+    receipt = {} if invocation_receipt is None else invocation_receipt
+    receipt.update(empty_invocation_receipt())
+    cwd = os.getcwd()
     with subprocess.Popen(argv, env=environment, stdin=subprocess.DEVNULL,
                           stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
+        receipt.update(started_invocation_receipt(process, cwd))
         deadline = time.monotonic() + TIMEOUT_SECONDS
         with selectors.DefaultSelector() as selector:
             selector.register(process.stdout, selectors.EVENT_READ, "stdout")
@@ -161,7 +185,9 @@ def invoke(argv: list[str], environment: dict[str, str]) -> tuple[int, bytes, by
             process.kill()
             exit_code = process.wait()
             failure = "configtest_timeout"
-    return exit_code, bytes(captured["stdout"]), bytes(captured["stderr"]), failure
+    stdout, stderr = bytes(captured["stdout"]), bytes(captured["stderr"])
+    completed_invocation_receipt(receipt, exit_code, stdout, stderr, failure)
+    return exit_code, stdout, stderr, failure
 
 
 def argument_parser() -> argparse.ArgumentParser:
@@ -279,7 +305,8 @@ def configtest_fixture_intact(case_id: str, output: Path) -> bool:
         os.close(directory)
 
 
-def configtest_result(args, contract: dict, output: Path, artifacts: tuple, capture: tuple) -> tuple:
+def configtest_result(args, contract: dict, output: Path, artifacts: tuple, capture: tuple,
+                      invocation_receipt: dict | None = None) -> tuple:
     binary_sha, module_sha, configuration, _ = artifacts
     exit_code, stdout, stderr, failure = capture
     text = stderr.decode("utf-8", errors="replace")
@@ -309,6 +336,7 @@ def configtest_result(args, contract: dict, output: Path, artifacts: tuple, capt
         "error_class": contract["error_class"] if passed else failure or "unexpected_config_error",
         "diagnostic_fragments": matched, "stdout_sha256": digest(stdout),
         "stderr_sha256": digest(stderr), "process_started": False, "listener_created": False,
+        "native_parser_invocation": invocation_receipt,
         "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
     if fixture is not None:
@@ -333,16 +361,19 @@ def main() -> int:
         environment = configtest_environment(args.library_dir)
         output.mkdir(mode=0o700)
         artifacts = retain_configtest_inputs(binary, module, output, contract)
+        invocation_receipt = empty_invocation_receipt()
         try:
             exit_code, stdout, stderr, failure = invoke(
                 [str(output / "nginx-binary"), "-e", "stderr", "-t", "-c", str(artifacts[3]), "-p", str(output) + "/"], environment,
+                invocation_receipt=invocation_receipt,
             )
         except OSError:
             exit_code, stdout, stderr, failure = -1, b"", b"", "configtest_exec_error"
+            invocation_receipt["capture_failure"] = failure
         (output / "stdout.log").write_bytes(stdout)
         (output / "stderr.log").write_bytes(stderr)
         result, passed = configtest_result(args, contract, output, artifacts,
-                                          (exit_code, stdout, stderr, failure))
+                                          (exit_code, stdout, stderr, failure), invocation_receipt)
         (output / "source-result.json").write_text(json.dumps(result, sort_keys=True, indent=2) + "\n", encoding="utf-8")
         (output / "source-result.jsonl").write_text(
             json.dumps(result["cases"][0], sort_keys=True) + "\n", encoding="utf-8",

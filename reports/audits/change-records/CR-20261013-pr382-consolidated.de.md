@@ -605,6 +605,34 @@ der aktuellen Quelle, finale CI/Sonar und vollständige I12-Qualifikation stehen
 aus. Diese Harness-Änderung führt weder Produktlimit noch Abhängigkeit,
 Framework/MRTS-Änderung, Merge oder Deployment ein.
 
+### NGINX-Workerabbild und Parserbelege, 2026-10-14
+
+Die 24 nativen Fault-/Sequenzproben stoppten ursprünglich vor dem Traffic,
+weil Root `/proc/PID/maps` des nicht dumpbaren Nobody-Workers nicht lesen kann.
+Ein optionaler Test-Preload erfasst unmittelbar nach dessen erfolgreichem
+UID-Wechsel die eigenen Maps desselben Workers über einen frischen privaten
+Append-Deskriptor. Der Parent prüft tatsächliche PID-Generation, UID/GID,
+vollständigen begrenzten Beleg und abgebildete Modul-/Faultbibliotheken vor dem
+Traffic. Der strenge direkte Leseweg bleibt Standard; es wurden weder
+`CAP_SYS_PTRACE`, Hostdienste noch Produkt-Bodylimits geändert.
+
+Die unabhängige Prüfung reproduzierte zwei Deskriptorlecks bei Sync- und
+Parser-/Ausgabefehlern. Cleanup schließt jetzt Map-/Faultdeskriptoren und erhält
+die ursprüngliche Ausnahme. Fünf Regressionen verwenden echte Deskriptoren und
+prüfen `EBADF`. Alle 21 Root-/Nobody-Tests bestanden. Der frische isolierte Lauf
+`1791967087014954093` führte dieselben 24 nativen Proben mit jeweils Driver-Exit 0
+aus, reapte danach eigene Prozesse und entfernte Namespace-Mounts. Frühere Läufe
+bleiben unverändert; Driverergebnisse sind keine vollständige I12-Abnahme.
+
+Die NGINX-Konfigurationsproduzenten erhalten zusätzlich tatsächliche native
+Parser-Argv, Cwd, PID, normalen Exit oder Signal und Hashes der Rohstreams.
+Neun Ablehnungsproben in `1791965822160608456` und der Start mit gültigen Regeln
+in `1791965824941496409` bestanden mit diesen Belegen. Die reine
+Konfigurationsqualifikation folgt ihrem Dreifeldvertrag; fehlende
+Request-/Response-Lifecycle-Felder werden daraus nicht abgeleitet. Die betroffene
+Parser-/Sequenzsuite bestand vor dieser Cleanupreparatur 79 Tests; die letzten
+betroffenen Prüfungen und CI am Liefer-Head werden separat dokumentiert.
+
 ### Unveränderlicher Originalindex
 
 Jeder nummerierte Link identifiziert eine Original-Change-ID durch ihren Dateinamen.

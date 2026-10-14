@@ -321,11 +321,15 @@ def run(args) -> bool:
     config = output / "nginx.conf"
     config.write_bytes(configuration)
     argv = [str(output / "nginx-binary"), "-e", "stderr", "-t", "-c", str(config), "-p", str(output) + "/"]
-    exit_code, stdout, stderr, failure = BASE.invoke(argv, environment)
+    parser_invocation = BASE.empty_invocation_receipt()
+    exit_code, stdout, stderr, failure = BASE.invoke(argv, environment,
+                                                    invocation_receipt=parser_invocation)
     (output / "stdout.log").write_bytes(stdout)
     (output / "stderr.log").write_bytes(stderr)
     fragments = [fragment for fragment in CONTRACT["diagnostic_fragments"] if fragment in stderr.decode(errors="replace")]
     process = None
+    startup_invocation = BASE.empty_invocation_receipt()
+    startup_invocation["readiness_observed"] = None
     worker_handles = {}
     roles = {"run_id": args.run_id, "master_pid": 0, "worker_pid": 0, "master_uid": -1, "worker_uid": -1}
     request = {}
@@ -334,15 +338,29 @@ def run(args) -> bool:
         if exit_code != 0 or failure or fragments != CONTRACT["diagnostic_fragments"]:
             raise ValueError("configuration acceptance was not proven")
         with (output / "startup.stdout").open("wb") as out, (output / "startup.stderr").open("wb") as err:
+            startup_cwd = os.getcwd()
             process = subprocess.Popen([str(output / "nginx-binary"), "-e", "stderr", "-c", str(config),
                                         "-p", str(output) + "/"], env=environment,
                                        stdin=subprocess.DEVNULL, stdout=out, stderr=err)
+            startup_invocation.update(BASE.started_invocation_receipt(process, startup_cwd))
             roles = observe_roles(process, args.run_id, port, output, worker_handles)
+            startup_invocation["readiness_observed"] = True
             request, transaction = execute_native_probe(environment, output, args.run_id, port)
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         failure = str(exc)
     finally:
         cleanup = stop_owned_master(process, roles, port, args.run_id, worker_handles)
+    if process is not None:
+        code = process.returncode
+        startup_invocation.update(returncode=code, exit_code=code if code >= 0 else None,
+                                  signal=-code if code < 0 else None)
+        try:
+            startup_stdout = bounded_capture(output / "startup.stdout")
+            startup_stderr = bounded_capture(output / "startup.stderr")
+            BASE.completed_invocation_receipt(startup_invocation, process.returncode,
+                                               startup_stdout, startup_stderr, None)
+        except (OSError, ValueError) as exc:
+            startup_invocation["capture_failure"] = str(exc)
     passed = failure is None and transaction is not None and cleanup["verified"] and valid_roles(roles)
     raw_request = write_json(output / "request-result.json", request)
     raw_roles = write_json(output / "roles.json", roles)
@@ -354,6 +372,8 @@ def run(args) -> bool:
                    binary_sha256=binary_sha, module_sha256=module_sha, config_path_identity="sha256:" + BASE.digest(configuration),
                    observed_exit_code=exit_code, observed_outcome="config_accepted" if exit_code == 0 else "unexpected_outcome",
                    stdout_sha256=BASE.digest(stdout), stderr_sha256=BASE.digest(stderr),
+                   native_parser_invocation=parser_invocation,
+                   native_startup_invocation=startup_invocation,
                    process_started=process is not None, listener_created=valid_roles(roles),
                    timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                    listen_port=port, docroot_projection_parent=str(parent), docroot_projection_root=str(projection),
