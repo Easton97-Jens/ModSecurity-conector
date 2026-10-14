@@ -688,6 +688,14 @@ Current retake `1791975496308340489` produced 14 real HTTP/header/body packets: 
 
 Root reviewed 14 additional partial selected executions and rehashed 474 unique retained files. Selected execution is now 122 required plus eight diagnostic, 130 total; qualification remains 37 original parser-only PASS and 1,447 unqualified. The source equality scope covers 194 Apache/Common inputs; the previous 140 compiler-input scope remains distinct. Hosted source is 3a with the explicit Apache harness delta SHA `30fd539bc319b8583cb9cfb23db7bedaf58c894afd5fc88c50076a8250d0d437`. Three real-wire regression tests, shell syntax and final working-source quick-check pass with exit 0. The previously published 93b checkpoint has 26 successful/two skipped checks and authenticated Sonar OK/A/strict zeros; the new repair delivery requires separate fresh exact-head CI and Sonar evidence.
 
+### Shared header-driver tests and strict duplication remediation, 2026-10-14
+
+Exact head `9992dba5ece90137880d6fcc3e0eccc7709c2521` completed 25 successful checks, two conditional skips and one scaffold failure. Authenticated Sonar reported Gate OK, Security A and zero new/accepted issues or hotspots, but 43 duplicated lines in two blocks (density 1.2565751022793687). The strict zero-duplication check correctly rejected copied Apache/NGINX test collectors; no provider parser, gate or exclusion was changed.
+
+The real curl collector, bounded process/server cleanup and three header controls now live once in `tests/header_driver_test_support.py`. Each Apache/NGINX test class retains its host configuration and independently inherits all three controls. Apache keeps both empty-header spellings and trailing whitespace; NGINX keeps its path-helper stub and HTTP/1 timeout. A reproduced module-qualified import failure was corrected with explicit package-relative versus direct/discovery imports. Root observed six real wire tests passing through module invocation and three plus three through discovery, all exit 0. The failed import receipt remains retained.
+
+The Apache/NGINX harness bytes and product sources remain unchanged by this refactor, so existing 130 selected host executions and 37 parser-only qualifications retain their original identities and scope. New quick-check and documentation receipts are recorded by the generator. The subsequent delivery head requires a fresh exact-head authenticated Sonar strict-zero result, successful scaffold and terminal GitHub CI; the older 9992 Gate OK is not substituted for that evidence.
+
 ### Immutable original index
 
 Each numbered link identifies one original Change ID through its filename.

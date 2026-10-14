@@ -14,18 +14,29 @@ Reale ausgewählte Ausführungen mit vollständiger oder unvollständiger Qualif
 
 ```json
 {
-  "current_code_ci": "Historical93b4023234b8b3340464f5424b6e4d44e5d5dfdf terminal26SUCCESS/2SKIP and authenticated Sonar strict-zero/A are separately retained. The new two-file Apache working delta requires fresh ordinary final delivery CI/Sonar, attested externally and in both PR bodies; no self-referential documentation SHA.",
+  "current_code_ci": "Exact9992 terminal25SUCCESS/2SKIP/1FAILED(scaffold-lint): SonarGateOK/SecurityA/issues0, duplicatedlines43/blocks2/density1.2565751022793687 fails strictduplicationzero. The current three-file shared HTTP test-support delta requires fresh later-head CI/Sonar, externally attested and in PR bodies.",
   "current_uncommitted_delta": {
-    "current_delivery_ci": "Previous93b4023234b8b3340464f5424b6e4d44e5d5dfdf checkpoint remains historical; the new harness/test delta requires fresh delivery CI after ordinary commit.",
-    "executed_harness_sha256": "30fd539bc319b8583cb9cfb23db7bedaf58c894afd5fc88c50076a8250d0d437",
+    "apache_executed_harness_sha256": "30fd539bc319b8583cb9cfb23db7bedaf58c894afd5fc88c50076a8250d0d437",
+    "current_delivery_ci": "Requires fresh later-head strict-zero/A CI and Sonar; no final-head reuse.",
     "new_commit_sha": null,
-    "owner": "Parent Apache test harness only",
-    "path": "connectors/apache/harness/run_apache_smoke.sh",
+    "owner": "Parent Apache/NGINX wire-HTTP regression test support only",
+    "paths": [
+      "tests/header_driver_test_support.py",
+      "tests/test_apache_empty_header_driver.py",
+      "tests/test_nginx_empty_header_driver.py"
+    ],
+    "physical_host_source_changed": false,
     "product_source_changed": false,
-    "selected_production_inputs_equal_to_parent_a9": 194
+    "scope_base_head": "9992dba5ece90137880d6fcc3e0eccc7709c2521",
+    "selected_production_inputs_equal_to_parent_a9": 194,
+    "working_source_sha256": {
+      "tests/header_driver_test_support.py": "eb1abf9f4f404144dac3391f179118f1f35b7768b8bc965e060edb7ddd70442b",
+      "tests/test_apache_empty_header_driver.py": "d281c277d8653fc87e807b3795f0e0df7dad7a438a2774abe9068825bc32bd05",
+      "tests/test_nginx_empty_header_driver.py": "29e7a6949a0995aeaa6117ba7ac6cd1a192d8dc45a56b7ebe14b1eaac1ac05e6"
+    }
   },
   "documentation_delivery_head": "Recorded by external final attestation and PR body after normal commit; no self-referential SHA.",
-  "evidence_source_head": "6b472cab6c18dfb5d6034461e1df5609e4ec3606",
+  "evidence_source_head": "9992dba5ece90137880d6fcc3e0eccc7709c2521",
   "framework_sha": "99a7985c1be92a2297b1b59208f64df6768f2cbf",
   "hosted_source_base_sha": "3a1bafecd0c38ccf20427d580c767ed42addf4aa",
   "mrts_executed": false,
@@ -61,31 +72,28 @@ Root approval: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr
 
 ```json
 {
-  "Sonar_check_id": 115796444509,
+  "Sonar_check_id": 115823891830,
   "Sonar_gate": "OK",
   "accepted_issues": 0,
-  "authenticated_sonar_evidence": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/sonar/6b472cab-query-receipts.json",
-  "duplicated_blocks": 0,
-  "duplicated_lines": 0,
-  "duplication_density": 0.0,
+  "authenticated_sonar_evidence": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/sonar/final9992dba5-query-receipts.json",
+  "duplicated_blocks": 2,
+  "duplicated_lines": 43,
+  "duplication_density": 1.2565751022793687,
   "new_issues": 0,
-  "observed_check_counts": {
-    "in_progress": 2,
-    "skipped": 2,
-    "success": 24
-  },
-  "provider_evidence": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/final-reconciliation/github-pr410-6b-source-checkpoint.json",
-  "remaining_provider_checks": "Historical93b checkpoint passed all required checks and authenticated strict-zero/A. New Apache two-file working delta awaits fresh ordinary delivery and CI/Sonar; no final-head reuse.",
-  "scaffold_check_id": 115804226929,
-  "scaffold_result": "success",
+  "provider_evidence": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/final-reconciliation/resume9992-terminal-checks.json",
+  "remaining_checks_newhead_required": "The three-file shared-header test-support delta and later documentation/delivery head require fresh exact-head terminal CI, authenticated Sonar strict duplication zero and Security A; retain externally and in PR bodies. GateOK at9992 is not strictduplicationzero.",
+  "scaffold_check_id": 115822870359,
+  "scaffold_failure_evidence": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/final-reconciliation/9992-scaffold-failure-excerpts.log",
+  "scaffold_result": "failure",
   "security_hotspots": 0,
   "security_rating": "A",
-  "source_head": "93b4023234b8b3340464f5424b6e4d44e5d5dfdf",
+  "source_head": "9992dba5ece90137880d6fcc3e0eccc7709c2521",
+  "strict_duplication_zero_passed": false,
   "terminal_check_counts": {
+    "failure": 1,
     "skipped": 2,
-    "success": 26
-  },
-  "terminal_provider_evidence": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/final-ci-monitor/terminal-checks.json"
+    "success": 25
+  }
 }
 ```
 
@@ -744,6 +752,16 @@ Nicht gemessene Client-/Backend-/API-/EOS-/MIME-/Finish-/Free-/Cleanup-Werte ble
 | 93b authenticated checkpoint:checkpoint93b4023-issues | `rtk proxy /usr/local/bin/sonar-with-env api get '/api/issues/search?componentKeys=Easton97-Jens_ModSecurity-conector&pullRequest=410&resolved=false&ps=100'` | 0 | `93b4023234b8b3340464f5424b6e4d44e5d5dfdf` |
 | 93b authenticated checkpoint:checkpoint93b4023-gate | `rtk proxy /usr/local/bin/sonar-with-env api get '/api/qualitygates/project_status?projectKey=Easton97-Jens_ModSecurity-conector&pullRequest=410'` | 0 | `93b4023234b8b3340464f5424b6e4d44e5d5dfdf` |
 | 93b authenticated checkpoint:checkpoint93b4023-measures | `rtk proxy /usr/local/bin/sonar-with-env api get '/api/measures/component?component=Easton97-Jens_ModSecurity-conector&pullRequest=410&metricKeys=new_security_rating,new_violations,new_accepted_issues,new_security_hotspots,new_duplicated_lines,new_duplicated_blocks,new_duplicated_lines_density'` | 0 | `93b4023234b8b3340464f5424b6e4d44e5d5dfdf` |
+| shared-header-resume-01:0 | `rtk proxy /var/tmp/codex/ModSecurity-conector/runs/e2e/20261013T125816Z-8c574cdf-i12-completion/python-runtime/venv/bin/python -m unittest -v tests.test_apache_empty_header_driver tests.test_nginx_empty_header_driver` | 1 | `9992dba5ece90137880d6fcc3e0eccc7709c2521` |
+| shared-header-resume-02:0 | `rtk proxy /var/tmp/codex/ModSecurity-conector/runs/e2e/20261013T125816Z-8c574cdf-i12-completion/python-runtime/venv/bin/python -m unittest -v tests.test_apache_empty_header_driver tests.test_nginx_empty_header_driver` | 0 | `9992dba5ece90137880d6fcc3e0eccc7709c2521` |
+| shared-header-resume-02:1 | `rtk proxy /var/tmp/codex/ModSecurity-conector/runs/e2e/20261013T125816Z-8c574cdf-i12-completion/python-runtime/venv/bin/python -m unittest discover -s tests -p test_apache_empty_header_driver.py -v` | 0 | `9992dba5ece90137880d6fcc3e0eccc7709c2521` |
+| shared-header-resume-02:2 | `rtk proxy /var/tmp/codex/ModSecurity-conector/runs/e2e/20261013T125816Z-8c574cdf-i12-completion/python-runtime/venv/bin/python -m unittest discover -s tests -p test_nginx_empty_header_driver.py -v` | 0 | `9992dba5ece90137880d6fcc3e0eccc7709c2521` |
+| shared-header-resume-02:3 | `rtk proxy git diff --check` | 0 | `9992dba5ece90137880d6fcc3e0eccc7709c2521` |
+| authenticated Sonar:final9992dba5-issues | `rtk proxy /usr/local/bin/sonar-with-env api get '/api/issues/search?componentKeys=Easton97-Jens_ModSecurity-conector&pullRequest=410&resolved=false&ps=100'` | 0 | `9992dba5ece90137880d6fcc3e0eccc7709c2521` |
+| authenticated Sonar:final9992dba5-gate | `rtk proxy /usr/local/bin/sonar-with-env api get '/api/qualitygates/project_status?projectKey=Easton97-Jens_ModSecurity-conector&pullRequest=410'` | 0 | `9992dba5ece90137880d6fcc3e0eccc7709c2521` |
+| authenticated Sonar:final9992dba5-measures | `rtk proxy /usr/local/bin/sonar-with-env api get '/api/measures/component?component=Easton97-Jens_ModSecurity-conector&pullRequest=410&metricKeys=new_security_rating,new_violations,new_accepted_issues,new_security_hotspots,new_duplicated_lines,new_duplicated_blocks,new_duplicated_lines_density'` | 0 | `9992dba5ece90137880d6fcc3e0eccc7709c2521` |
+| exact9992 terminal provider checkpoint | `Retained provider check-run readback and scaffold failure log; original argv retained by Root where available.` | 1 | `9992dba5ece90137880d6fcc3e0eccc7709c2521` |
+| quick-07:0 | `rtk proxy make quick-check check-bilingual-docs check-doc-links check-variable-documentation PYTHON=/var/tmp/codex/ModSecurity-conector/runs/e2e/20261013T125816Z-8c574cdf-i12-completion/python-runtime/venv/bin/python FRAMEWORK_ROOT=/var/tmp/codex/ModSecurity-conector/worktrees/pr410-sonar-host-repair-20261014/modules/ModSecurity-test-Framework` | 0 | `9992dba5ece90137880d6fcc3e0eccc7709c2521` |
 
 `focused:0`: Beobachteter Head und erhaltene Belege je Befehl; keine Übertragung auf einen anderen finalen Delivery-Head.
 
@@ -808,6 +826,26 @@ Nicht gemessene Client-/Backend-/API-/EOS-/MIME-/Finish-/Free-/Cleanup-Werte ble
 `93b authenticated checkpoint:checkpoint93b4023-gate`: Tatsächliches historisches93b mit terminal26Success/zweiSkip und authentifiziertem Strict-Zero-SecurityA/GateOK; nachfolgendes Working-Delta nicht abgedeckt.
 
 `93b authenticated checkpoint:checkpoint93b4023-measures`: Tatsächliches historisches93b mit terminal26Success/zweiSkip und authentifiziertem Strict-Zero-SecurityA/GateOK; nachfolgendes Working-Delta nicht abgedeckt.
+
+`shared-header-resume-01:0`: Tatsächliche lokale Prüfung des Arbeitsdeltas; ursprünglicher Modulimportfehler bleibt erhalten, korrigierte Modul-/Discovery-Prüfungen besitzen separate Belege. Keine neue physische Hostausführung oder I12-Promotion.
+
+`shared-header-resume-02:0`: Tatsächliche lokale Prüfung des Arbeitsdeltas; ursprünglicher Modulimportfehler bleibt erhalten, korrigierte Modul-/Discovery-Prüfungen besitzen separate Belege. Keine neue physische Hostausführung oder I12-Promotion.
+
+`shared-header-resume-02:1`: Tatsächliche lokale Prüfung des Arbeitsdeltas; ursprünglicher Modulimportfehler bleibt erhalten, korrigierte Modul-/Discovery-Prüfungen besitzen separate Belege. Keine neue physische Hostausführung oder I12-Promotion.
+
+`shared-header-resume-02:2`: Tatsächliche lokale Prüfung des Arbeitsdeltas; ursprünglicher Modulimportfehler bleibt erhalten, korrigierte Modul-/Discovery-Prüfungen besitzen separate Belege. Keine neue physische Hostausführung oder I12-Promotion.
+
+`shared-header-resume-02:3`: Tatsächliche lokale Prüfung des Arbeitsdeltas; ursprünglicher Modulimportfehler bleibt erhalten, korrigierte Modul-/Discovery-Prüfungen besitzen separate Belege. Keine neue physische Hostausführung oder I12-Promotion.
+
+`authenticated Sonar:final9992dba5-issues`: Authentifizierter Readback für exakt9992: GateOK/A/issues0, Duplikation43lines/2blocks verletzt strictzero; späterer Quellstand benötigt neue Bestätigung.
+
+`authenticated Sonar:final9992dba5-gate`: Authentifizierter Readback für exakt9992: GateOK/A/issues0, Duplikation43lines/2blocks verletzt strictzero; späterer Quellstand benötigt neue Bestätigung.
+
+`authenticated Sonar:final9992dba5-measures`: Authentifizierter Readback für exakt9992: GateOK/A/issues0, Duplikation43lines/2blocks verletzt strictzero; späterer Quellstand benötigt neue Bestätigung.
+
+`exact9992 terminal provider checkpoint`: 25SUCCESS/2SKIP/1FAILED scaffold-lint; strictduplicationzero fehlgeschlagen trotz SonarGateOK.
+
+`quick-07:0`: Neue lokale quick-check- sowie Bilingual-/Link-/Variablendokumentationsprüfungen bestanden auf9992 plus Arbeitsdelta des dreiteiligen Shared-Header-Tests; getrennt von späterem Delivery-Head-CI/Sonar und physischen Hostbelegen.
 
 `focused:0`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/verification/focused/results.json` — SHA256 `0fbd29afadfce50edd82f44800ab223330c94c4f6db06a1c84604a23db2805b4`.
 
@@ -998,6 +1036,38 @@ Nicht gemessene Client-/Backend-/API-/EOS-/MIME-/Finish-/Free-/Cleanup-Werte ble
 `93b authenticated checkpoint:checkpoint93b4023-measures`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/sonar/checkpoint93b4023-measures.stdout` — SHA256 `73ce55b1b93f0fd469f4bbe4bf03d454052245f0a9d9201fae56fd2da2f25569`.
 
 `93b authenticated checkpoint:checkpoint93b4023-measures`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/sonar/checkpoint93b4023-measures.stderr` — SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+
+`shared-header-resume-01:0`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/verification/shared-header-resume-01/receipt.json` — SHA256 `6031d662ecd3d4c81cacfae3a55f22d68b38793ca6865937cb37addd15786ebb`.
+
+`shared-header-resume-02:0`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/verification/shared-header-resume-02/receipt.json` — SHA256 `2868be364c3f69160bd7c62bc6b5de8255057d6583390005f4251754b6d2f5f0`.
+
+`shared-header-resume-02:1`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/verification/shared-header-resume-02/receipt.json` — SHA256 `2868be364c3f69160bd7c62bc6b5de8255057d6583390005f4251754b6d2f5f0`.
+
+`shared-header-resume-02:2`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/verification/shared-header-resume-02/receipt.json` — SHA256 `2868be364c3f69160bd7c62bc6b5de8255057d6583390005f4251754b6d2f5f0`.
+
+`shared-header-resume-02:3`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/verification/shared-header-resume-02/receipt.json` — SHA256 `2868be364c3f69160bd7c62bc6b5de8255057d6583390005f4251754b6d2f5f0`.
+
+`authenticated Sonar:final9992dba5-issues`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/sonar/final9992dba5-query-receipts.json` — SHA256 `b8eb0657b562879d68488761503f2be18b727f7258bd2dab1074a1535c43f3fc`.
+
+`authenticated Sonar:final9992dba5-issues`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/sonar/final9992dba5-issues.stdout` — SHA256 `a0df6fcd7aa349a218b37a27f84117fe80387cdc20a27e459c0f4d71b699c70d`.
+
+`authenticated Sonar:final9992dba5-gate`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/sonar/final9992dba5-query-receipts.json` — SHA256 `b8eb0657b562879d68488761503f2be18b727f7258bd2dab1074a1535c43f3fc`.
+
+`authenticated Sonar:final9992dba5-gate`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/sonar/final9992dba5-gate.stdout` — SHA256 `f1d3b06e6b713adeac432350197c604fdc669d7941219f19dce8cc2aaa9a5da1`.
+
+`authenticated Sonar:final9992dba5-measures`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/sonar/final9992dba5-query-receipts.json` — SHA256 `b8eb0657b562879d68488761503f2be18b727f7258bd2dab1074a1535c43f3fc`.
+
+`authenticated Sonar:final9992dba5-measures`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/sonar/final9992dba5-measures.stdout` — SHA256 `cb5be1fa11e4dafe69e476e6606ebd6db5650b20810838c98b156e2830355ce2`.
+
+`exact9992 terminal provider checkpoint`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/final-reconciliation/resume9992-terminal-checks.json` — SHA256 `9cc8aed4dad1b0e91134ad7de6ac0133740fda37fa4f1df5f34c1d207d33ce97`.
+
+`exact9992 terminal provider checkpoint`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/final-reconciliation/9992-scaffold-failure-excerpts.log` — SHA256 `d48a3850f8273a63e454709c4393735ea85205e7072054383e0be4e15ffe920f`.
+
+`quick-07:0`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/verification/quick-07/results.json` — SHA256 `49e163c9071bc337c4190aa075780f58229db56fcb4203a462bae57991e10100`.
+
+`quick-07:0`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/verification/quick-07/0.stdout.log` — SHA256 `01eb791acfdaa2406dd7c2e03c79bb58a223782a2d2dca2f953845e12a4f44bf`.
+
+`quick-07:0`: `/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/verification/quick-07/0.stderr.log` — SHA256 `007d8b634d576d142201aa1b00791425a92da74e78983b52b399879e0f35b8ee`.
 
 Release: **RELEASE_BLOCKED_SECRET_HISTORY**. Der historische Secret-History-Range-Check von PR #382 bleibt unabhängig fehlgeschlagen; aktuelle Hostbelege beheben unveränderliche Historie nicht. Beide PRs bleiben Draft.
 

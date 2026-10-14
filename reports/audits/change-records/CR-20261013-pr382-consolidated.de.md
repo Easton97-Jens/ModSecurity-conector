@@ -732,6 +732,14 @@ Aktueller Retake `1791975496308340489` lieferte 14 echte HTTP-/Header-/Body-Pake
 
 Root prüfte 14 zusätzliche ausgewählte Teilausführungen und hashte 474 einzigartige erhaltene Dateien erneut. Ausgewählte Ausführung jetzt: 122 verpflichtende plus acht diagnostische, insgesamt 130; Qualifikation unverändert 37 originale Parser-PASS und 1.447 unqualifizierte IDs. Der Quellgleichheitsumfang umfasst 194 Apache-/Common-Eingaben; der frühere Umfang von 140 Compiler-Eingaben bleibt getrennt. Gehostete Quelle ist 3a mit explizitem Apache-Harness-Delta SHA `30fd539bc319b8583cb9cfb23db7bedaf58c894afd5fc88c50076a8250d0d437`. Drei echte Wire-Regressionstests, Shellsyntax und aktueller Working-Source-Quick-Check bestehen mit Exit 0. Der zuvor veröffentlichte 93b-Checkpoint hat 26 erfolgreiche/zwei übersprungene Checks und authentifiziertes Sonar OK/A/strikte Nullzähler; die neue Reparaturlieferung verlangt eigene frische CI-/Sonar-Belege am exakten Head.
 
+### Gemeinsame Headerdriver-Tests und strikte Duplikationskorrektur, 2026-10-14
+
+Exakter Head `9992dba5ece90137880d6fcc3e0eccc7709c2521` schloss 25 erfolgreiche Checks, zwei bedingte Skips und einen Scaffold-Fehler ab. Authentifiziertes Sonar meldete Gate OK, Security A und null neue/akzeptierte Issues oder Hotspots, aber 43 duplizierte Zeilen in zwei Blöcken (Dichte 1.2565751022793687). Die strikte Null-Duplikationsprüfung lehnte die kopierten Apache-/NGINX-Testcollector korrekt ab; Providerparser, Gate und Ausschlüsse wurden nicht verändert.
+
+Der echte curl-Collector, begrenztes Prozess-/Server-Cleanup und die drei Headerkontrollen liegen jetzt einmalig in `tests/header_driver_test_support.py`. Jede Apache-/NGINX-Testklasse behält ihre Hostkonfiguration und erbt unabhängig alle drei Kontrollen. Apache erhält beide Leerheader-Schreibweisen und abschließende Leerzeichen; NGINX erhält seinen Pfadhelfer-Stub und HTTP/1-Timeout. Ein reproduzierter Fehler beim modulqualifizierten Import wurde durch explizite paketrelative beziehungsweise Direct-/Discovery-Imports korrigiert. Root beobachtete sechs echte Wire-Tests über Modulaufruf und drei plus drei über Discovery, alle Exit 0. Der fehlgeschlagene Importbeleg bleibt erhalten.
+
+Die Apache-/NGINX-Harnessbytes und Produktquellen bleiben bei diesem Refactor unverändert; die vorhandenen 130 ausgewählten Hostausführungen und 37 Parserqualifikationen behalten daher ihre Originalidentitäten und Reichweite. Neue Quick-Check- und Dokumentationsbelege werden durch den Generator erfasst. Der spätere Delivery-Head verlangt ein frisches authentifiziertes Sonar-Ergebnis mit strikten Nullzählern am exakten Head, erfolgreichen Scaffold und abgeschlossene GitHub-CI; das ältere 9992-Gate-OK ersetzt diese Nachweise nicht.
+
 ### Unveränderlicher Originalindex
 
 Jeder nummerierte Link identifiziert eine Original-Change-ID durch ihren Dateinamen.
