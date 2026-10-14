@@ -701,6 +701,17 @@ Alle 66 kombinierten Tests bestanden; nativer Retake `1791971306363843767`
 bestand mit sauberem Namespace-Cleanup. Erfolgreiches natives EOS und einmalige
 Engine-API-Zähler bleiben unbekannt.
 
+### Traefik-Cleanup-Qualitätsnachprüfung, 2026-10-14
+
+Die tatsächliche Analyse von `dd61b70d` fand S5754 beim Cleanup-Catch und zwei
+S8714-Ausnahmetestmuster. Cleanup fängt jetzt den tatsächlichen Owned-Close-Typ
+`OSError`. Die echte Deskriptorregression behält `Future.exception()` mit
+Traceback, Response und Datei; Assertions löschen die Ursache nicht vor der
+`EBADF`-Messung. Die Mock-Ursachenprüfung nutzt `assertRaises` und prüft Identität.
+Alle 66 kombinierten Tests und nativer Retake `1791972087966404513` bestanden
+(Exit 0). Befunde, Exclusions, Tests und Qualitätsanforderungen wurden nicht
+erlassen.
+
 ### Unveränderlicher Originalindex
 
 Jeder nummerierte Link identifiziert eine Original-Change-ID durch ihren Dateinamen.

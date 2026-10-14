@@ -840,12 +840,12 @@ def close_response_resources(
     """Close every owned resource while retaining an active failure cause."""
 
     active_error = sys.exception()
-    cleanup_errors: list[BaseException] = []
+    cleanup_errors: list[OSError] = []
     for resource in (response, connection, completion_socket):
         if resource is not None:
             try:
                 resource.close()
-            except BaseException as exc:
+            except OSError as exc:
                 cleanup_errors.append(exc)
     if cleanup_errors:
         if active_error is None:

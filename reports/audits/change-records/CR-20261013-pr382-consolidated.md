@@ -658,6 +658,16 @@ checks the file is closed and observes `EBADF` before any GC. All 66 combined
 tests passed; native retake `1791971306363843767` passed with clean namespace
 cleanup. Successful native EOS and once-only engine API counts remain unknown.
 
+### Traefik cleanup quality follow-up, 2026-10-14
+
+The actual `dd61b70d` analysis found S5754 on the cleanup catch and two S8714
+exception-test patterns. Cleanup now catches the actual owned-close `OSError`.
+The real descriptor regression retains `Future.exception()` with its traceback,
+response and file, so assertions never clear the cause before the `EBADF`
+measurement. The mock cause check uses `assertRaises` and verifies identity.
+All 66 combined tests and native retake `1791972087966404513` passed (exit 0).
+No findings, exclusions, tests or quality requirements were waived.
+
 ### Immutable original index
 
 Each numbered link identifies one original Change ID through its filename.

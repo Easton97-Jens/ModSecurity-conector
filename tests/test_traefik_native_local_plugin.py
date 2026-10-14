@@ -264,19 +264,18 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
                             peer.shutdown(socket.SHUT_WR)
                         self.assertEqual(peer.recv(1), b"")
 
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
                     server = pool.submit(serve)
                     with mock.patch.object(socket.socket, "dup", tracked_dup), mock.patch.object(
                         runner.http.client, "HTTPConnection", bounded_connection
                     ), mock.patch.object(
                         runner.CompletionHTTPResponse, "__init__", track_response
                     ):
-                        try:
-                            runner.request_through_traefik(port, b"", "truncated", 200)
-                        except RuntimeError as exc:
-                            retained_errors.append(exc)
-                        else:
-                            self.fail("incomplete response unexpectedly succeeded")
+                        client = pool.submit(runner.request_through_traefik, port, b"", "truncated", 200)
+                        retained_error = client.exception(timeout=3)
+                        self.assertIsInstance(retained_error, RuntimeError)
+                        self.assertIsNotNone(retained_error.__traceback__)
+                        retained_errors.append(retained_error)
                     server.result(timeout=3)
                 self.assertEqual(len(owned), 1)
                 self.assertEqual(owned[0].fileno(), -1)
@@ -299,16 +298,13 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
         connection = mock.Mock()
         connection.close.side_effect = OSError("connection close failed")
         completion = mock.Mock()
-        try:
+        with self.assertRaises(RuntimeError) as raised:
             try:
                 raise original
             finally:
                 runner.close_response_resources(response, connection, completion)
-        except RuntimeError as exc:
-            self.assertIs(exc, original)
-            self.assertIn("cleanup failures", exc.__notes__[0])
-        else:
-            self.fail("cleanup lost the active failure")
+        self.assertIs(raised.exception, original)
+        self.assertIn("cleanup failures", original.__notes__[0])
         response.close.assert_called_once()
         connection.close.assert_called_once()
         completion.close.assert_called_once()
