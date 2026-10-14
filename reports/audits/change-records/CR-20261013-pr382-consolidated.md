@@ -525,6 +525,17 @@ without inventing EOS;15 selected-SDK tests pass. Public native/Common append
 APIs expose no EOS argument. Their success or an empty append therefore leaves
 host EOS unknown. Strict remote readback for this follow-up remains required.
 
+### SDK-bound native identity observation, 2026-10-14
+
+The actual9a Sonar finding S3776 reports event complexity27>25. Coherent bounded
+identity serialization and descriptor-validation helpers remove that complexity
+without suppressions or changing observation admission. The optional test-only
+C++17 helper checks runtime version before using the selected SDK's public m_id;
+real named and anonymous constructors, rejected version/bounds, native errno and
+fake-ABI fallback are covered. Input IDs and Common canonical IDs remain separate.
+Root's verification/harness-04 passes56 tests and whitespace with explicitSDK;
+no hosted lifecycle or exact next-head Sonar result is inferred.
+
 ### Immutable original index
 
 Each numbered link identifies one original Change ID through its filename.

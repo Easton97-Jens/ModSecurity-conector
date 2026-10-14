@@ -183,7 +183,7 @@ class NativeLifecycleObserverTests(unittest.TestCase):
         cls.directory.cleanup()
 
     def run_fixture(self, mode="normal", configured=True, permissions=0o600):
-        path = self.work / f"{self._testMethodName}.jsonl"
+        path = self.work / f"{self._testMethodName}-{mode}.jsonl"
         descriptor = os.open(path, os.O_CREAT | os.O_WRONLY | os.O_APPEND | os.O_EXCL, permissions)
         environment = os.environ.copy()
         environment["LD_LIBRARY_PATH"] = str(self.library_directory)
@@ -204,7 +204,7 @@ class NativeLifecycleObserverTests(unittest.TestCase):
                 json.loads(raw_lines[-1])
             raw_lines = raw_lines[:-1]
         events = [json.loads(line) for line in raw_lines]
-        (OUTPUT / f"{self._testMethodName}.json").write_text(json.dumps({"mode": mode, "events": events,
+        (OUTPUT / f"{self._testMethodName}-{mode}.json").write_text(json.dumps({"mode": mode, "events": events,
                                                                        "stderr": result.stderr,
                                                                        "partial_record": path.read_text(encoding="utf-8").splitlines()[-1] if mode == "partial" else None}), encoding="utf-8")
         return events, result.stderr
@@ -295,22 +295,37 @@ class NativeLifecycleObserverTests(unittest.TestCase):
 #include <modsecurity/modsecurity.h>
 #include <modsecurity/rules_set.h>
 #include <modsecurity/transaction.h>
-int main(void) {
+#include <errno.h>
+#include <string.h>
+extern int msconnector_lifecycle_sdk_transaction_id(void *,const void *,char *,size_t);
+int main(int argc,char **argv) {
     ModSecurity *m=msc_init();RulesSet *r=msc_create_rules_set();
     if(!m || !r)return 2;
+    if(argc==2 && strcmp(argv[1],"bounds")==0) {
+        char long_id[1024];memset(long_id,'a',sizeof(long_id));long_id[sizeof(long_id)-1U]='\0';
+        Transaction *oversized=msc_new_transaction_with_id(m,r,long_id,0);if(!oversized)return 8;
+        msc_transaction_cleanup(oversized);msc_rules_cleanup(r);msc_cleanup(m);return 0;
+    }
     Transaction *t=msc_new_transaction_with_id(m,r,"genuine-sdk",0);
     if(!t)return 3;
     (void)msc_append_request_body(t,(const unsigned char *)"abc",3U);
     (void)msc_append_response_body(t,(const unsigned char *)"xyz",3U);
+    char id[256];errno=ERANGE;
+    if(msconnector_lifecycle_sdk_transaction_id(m,t,id,1U)!=-1 || errno!=ERANGE)return 4;
+    if(msconnector_lifecycle_sdk_transaction_id(m,NULL,id,sizeof(id))!=-1 || errno!=ERANGE)return 5;
+    msc_transaction_cleanup(t);
+    t=msc_new_transaction(m,r,0);if(!t)return 6;
+    if(msconnector_lifecycle_sdk_transaction_id(m,t,id,sizeof(id))!=1 || id[0]=='\0')return 7;
     msc_transaction_cleanup(t);msc_rules_cleanup(r);msc_cleanup(m);return 0;
 }
 ''', encoding="utf-8")
         binary = self.work / "genuine"
+        helper = self.compile_sdk_helper("genuine-helper")
         command = ["cc", "-std=c17", "-D_POSIX_C_SOURCE=200809L", "-Wall", "-Wextra", "-Werror",
                    "-pthread", "-I", str(ROOT / "common/include"), "-I", str(self.include),
                    str(ROOT / "ci/runtime/lifecycle/native-lifecycle-observer.c"), str(source),
                    str(ROOT / "common/src/transaction_state.c"), str(ROOT / "common/src/decision_action.c"),
-                   str(self.library), f"-Wl,-rpath,{self.library_directory}", "-o", str(binary)]
+                   str(helper), "-lstdc++", str(self.library), f"-Wl,-rpath,{self.library_directory}", "-o", str(binary)]
         command.extend(f"-Wl,--wrap={symbol}" for symbol in SYMBOLS)
         result = subprocess.run(command, capture_output=True, text=True, check=False)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -318,18 +333,72 @@ int main(void) {
         try:
             self.binary = binary
             events, stderr = self.run_fixture()
+            bounds_events, bounds_stderr = self.run_fixture("bounds")
         finally:
             self.binary = previous
         self.assertEqual(stderr, "")
         self.assert_pairs(events)
         cleanup = [e for e in events if e["function"] == "native_cleanup" and e["edge"] == "return"]
-        self.assertEqual(len(cleanup), 1)
+        self.assertEqual(len(cleanup), 2)
         self.assertEqual(cleanup[0]["transaction_id"], "genuine-sdk")
         self.assertIsNone(cleanup[0]["result"])
+        self.assertTrue(cleanup[1]["transaction_id"])
+        self.assertNotEqual(cleanup[1]["transaction_id"], "genuine-sdk")
+        self.assertTrue(all(e["transaction_id_origin"] == "sdk_public_m_id" for e in cleanup))
+        self.assertEqual(cleanup[0]["input_transaction_id"], "genuine-sdk")
+        self.assertIsNone(cleanup[1]["input_transaction_id"])
+        self.assertTrue(all(e["canonical_transaction_id"] is None for e in cleanup))
         appends = [e for e in events if e["function"].startswith("native_append_") and e["edge"] == "return"]
         self.assertEqual(len(appends), 2)
         self.assertTrue(all(e["input_size"] == 3 and e["input_kind"] == "non_null_buffer" for e in appends))
         self.assertTrue(all(e["argument_eos"] is None for e in appends))
+        self.assertTrue(bounds_events[-1]["invalid"])
+        self.assertIn("evidence invalid", bounds_stderr)
+        oversized = [e for e in bounds_events if e["function"] == "native_new_with_id" and e["edge"] == "return"]
+        self.assertEqual(len(oversized), 1)
+        self.assertIsNone(oversized[0]["transaction_id"])
+        self.assertEqual(oversized[0]["transaction_id_origin"], "unknown")
+
+    def compile_sdk_helper(self, name, mismatch=False):
+        output = self.work / (name + ".o")
+        command = ["c++", "-std=c++17", "-Wall", "-Wextra", "-Werror", "-isystem", str(self.include),
+                   "-c", str(ROOT / "ci/runtime/lifecycle/native-lifecycle-sdk.cpp"), "-o", str(output)]
+        if mismatch:
+            command.append('-DMSCONNECTOR_LIFECYCLE_SDK_EXPECTED_VERSION="9.9.9"')
+        result = subprocess.run(command, capture_output=True, text=True, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return output
+
+    def test_sdk_version_mismatch_rejected_before_transaction_access(self):
+        source = self.work / "mismatch.c"
+        source.write_text(r'''
+#include <modsecurity/modsecurity.h>
+#include <errno.h>
+#include <stdint.h>
+extern int msconnector_lifecycle_sdk_transaction_id(void *,const void *,char *,size_t);
+int main(void) {
+    ModSecurity *m=msc_init();if(!m)return 2;
+    char id[128];errno=ERANGE;
+    int result=msconnector_lifecycle_sdk_transaction_id(m,(const void *)(uintptr_t)1,id,sizeof(id));
+    if(result!=-2 || errno!=ERANGE || id[0]!='\0')return 3;
+    msc_cleanup(m);return 0;
+}
+''', encoding="utf-8")
+        helper = self.compile_sdk_helper("mismatch-helper", mismatch=True)
+        binary = self.work / "mismatch"
+        command = ["cc", "-std=c17", "-Wall", "-Wextra", "-Werror", "-I", str(self.include),
+                   str(source), str(helper), "-lstdc++", str(self.library),
+                   f"-Wl,-rpath,{self.library_directory}", "-o", str(binary)]
+        result = subprocess.run(command, capture_output=True, text=True, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        result = subprocess.run([str(binary)], capture_output=True, text=True, check=False,
+                                env=dict(os.environ, LD_LIBRARY_PATH=str(self.library_directory)))
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_fake_native_controls_do_not_load_sdk_accessor(self):
+        events, _ = self.run_fixture()
+        native = [e for e in events if e["function"].startswith("native_")]
+        self.assertFalse(any(e["transaction_id_origin"] == "sdk_public_m_id" for e in native))
 
     def test_fork_receipts(self):
         events, _ = self.run_fixture("fork")

@@ -557,6 +557,18 @@ bestehen. Öffentliche native/Common-Append-APIs bieten kein EOS-Argument.
 Erfolg oder leere Appends lassen Host-EOS daher unbekannt. Der strenge Remote-
 Abruf für diese Nachprüfung bleibt erforderlich.
 
+### SDK-gebundene native Identitätsbeobachtung, 2026-10-14
+
+Der tatsächliche9a-Sonar-Befund S3776 meldet event-Komplexität27>25. Begrenzte
+Helper für Identitätsserialisierung und Deskriptorprüfung senken die Komplexität
+ohne Unterdrückungen oder Änderung der Beobachtungszulassung. Der optionale
+C++17-Testhelper prüft die Runtime-Version vor Zugriff auf das öffentliche m_id
+des gewählten SDK. Echte benannte und anonyme Konstruktoren, abgewiesene Version/
+Grenzen, natives errno und Fake-ABI-Fallback sind abgedeckt. Eingabe-IDs und
+kanonische Common-IDs bleiben getrennt. Roots verification/harness-04 besteht56
+Tests und Whitespace mit ausdrücklichemSDK; daraus wird weder ein Host-Lifecycle-
+Abschluss noch ein Sonar-Ergebnis des nächsten exakten Heads abgeleitet.
+
 ### Unveränderlicher Originalindex
 
 Jeder nummerierte Link identifiziert eine Original-Change-ID durch ihren Dateinamen.

@@ -94,6 +94,15 @@ tests or API counts alone do not establish a host lifecycle result.
 Native append records include actual byte counts and null/non-null input kinds;
 these APIs expose no EOS argument, so empty appends cannot qualify host EOS.
 
+The optional `ci/runtime/lifecycle/native-lifecycle-sdk.cpp` helper reads the
+selected C++ SDK's public transaction ID after rejecting a runtime version
+mismatch. Bind the exact headers/library hashes and qualify both real constructors
+before linking it into a host test artifact. This includes anonymous native IDs;
+the caller's input ID remains separate and no Common/native correlation is inferred.
+The version check alone does not qualify an arbitrary ABI-compatible-looking build.
+Without this helper the observer retains its opaque native ABI behavior. Rejected
+or oversized IDs invalidate measurement while preserving the native call and errno.
+
 Use [test levels](../docs/testing-and-evidence.md),
 [core lifecycle testing](../docs/testing-and-evidence.md), and the
 [evidence guide](../docs/testing-and-evidence.md) to choose a test level and report

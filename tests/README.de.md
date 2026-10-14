@@ -97,6 +97,16 @@ Native Append-Belege enthalten tatsächliche Bytezahlen und NULL-/Nicht-NULL-
 Eingabearten. Diese APIs haben kein EOS-Argument; leere Appends belegen kein
 Host-EOS.
 
+Der optionale Helper `ci/runtime/lifecycle/native-lifecycle-sdk.cpp` liest die
+öffentliche Transaktions-ID des gewählten C++-SDK nach Ausschluss einer abweichenden
+Runtime-Version. Vor dem Linken in ein Host-Testartefakt müssen exakte Header- und
+Bibliothekshashes sowie beide echten Konstruktoren geprüft sein. Damit werden auch
+anonyme native IDs erfasst; die übergebene Eingabe-ID bleibt getrennt, eine Common-/
+Native-Korrelation wird nicht abgeleitet. Die Versionsprüfung allein qualifiziert
+keinen beliebigen Build mit scheinbar passendem ABI. Ohne Helper bleibt das native
+ABI für den Observer undurchsichtig. Abgewiesene oder überlange IDs machen die
+Messung ungültig und erhalten den nativen Aufruf sowie errno.
+
 Für Auswahl der Testebene und korrekte Ergebnisdarstellung [Testebenen](../docs/testing-and-evidence.de.md),
 [Core-Lifecycle-Testing](../docs/testing-and-evidence.de.md) und den
 [Evidence-Guide](../docs/testing-and-evidence.de.md) verwenden.

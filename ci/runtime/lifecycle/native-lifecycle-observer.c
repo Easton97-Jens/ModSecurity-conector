@@ -22,7 +22,17 @@
 
 #define MAP_CAPACITY 256U
 #define BYTE_BUDGET (16U * 1024U * 1024U)
-struct mapping { const void *key; int native; char id[MSCONNECTOR_MAX_TRANSACTION_ID_LENGTH]; char canonical[64]; };
+struct mapping {
+    const void *key;
+    int native;
+    char id[MSCONNECTOR_MAX_TRANSACTION_ID_LENGTH];
+    char canonical[64];
+    char input_id[MSCONNECTOR_MAX_TRANSACTION_ID_LENGTH];
+    const char *id_origin;
+};
+/* Undefined weak symbol keeps generic/fake-native builds fully opaque. */
+extern int msconnector_lifecycle_sdk_transaction_id(void *, const void *, char *, size_t)
+    __attribute__((weak));
 struct budget { atomic_uint bytes; atomic_int invalid; };
 struct observed_subject {
     const void *key;
@@ -90,6 +100,7 @@ static void remember(const void *key, int native, const char *id, const char *ca
     for (size_t i = 0U; i < MAP_CAPACITY; ++i) {
         if (mappings[i].key != NULL) continue;
         mappings[i].key = key; mappings[i].native = native;
+        mappings[i].id_origin = native ? (id == NULL ? "unknown" : "caller_argument") : "common_public_contract";
         if (id != NULL && strnlen(id, sizeof(mappings[i].id)) < sizeof(mappings[i].id))
             (void)snprintf(mappings[i].id, sizeof(mappings[i].id), "%s", id);
         if (canonical != NULL && strnlen(canonical, sizeof(mappings[i].canonical)) < sizeof(mappings[i].canonical))
@@ -104,25 +115,45 @@ static void forget(const void *key, int native) {
     if (entry != NULL) memset(entry, 0, sizeof(*entry));
 }
 
+struct serialized_identity {
+    char id[6U * MSCONNECTOR_MAX_TRANSACTION_ID_LENGTH + 3U];
+    char canonical[400];
+    char input_id[6U * MSCONNECTOR_MAX_TRANSACTION_ID_LENGTH + 3U];
+};
+
+static void serialize_identity(const struct mapping *entry, struct serialized_identity *identity) {
+    if (entry == NULL) return;
+    if (entry->id[0] != '\0' &&
+        quoted(identity->id, sizeof(identity->id), entry->id, sizeof(entry->id) - 1U) != 0) invalid();
+    if (entry->canonical[0] != '\0' &&
+        quoted(identity->canonical, sizeof(identity->canonical), entry->canonical, 63U) != 0) invalid();
+    if (entry->input_id[0] != '\0' &&
+        quoted(identity->input_id, sizeof(identity->input_id), entry->input_id, sizeof(entry->input_id) - 1U) != 0) invalid();
+}
+
+static int admitted_descriptor_still_valid(void) {
+    struct stat descriptor_status;
+    int descriptor_flags = fcntl(output_fd, F_GETFL);
+    if (fstat(output_fd, &descriptor_status) != 0 ||
+        descriptor_status.st_dev != admitted_device || descriptor_status.st_ino != admitted_inode ||
+        descriptor_flags < 0 || (descriptor_flags & O_APPEND) == 0) {
+        invalid();
+        return 0;
+    }
+    return 1;
+}
+
 /* Caller holds process-local lock. One bounded O_APPEND write per record;
  * a partial/error write permanently invalidates the entire inherited run. */
 static void event(const char *function, const char *edge, uint64_t call,
                   const struct observed_subject *observed, const char *result,
                   const char *argument_committed) {
     if (output_fd < 0 || budget == NULL) return;
-    struct stat descriptor_status;
-    int descriptor_flags = fcntl(output_fd, F_GETFL);
-    if (fstat(output_fd, &descriptor_status) != 0 ||
-        descriptor_status.st_dev != admitted_device || descriptor_status.st_ino != admitted_inode ||
-        descriptor_flags < 0 || (descriptor_flags & O_APPEND) == 0) { invalid(); return; }
-    char id[6U * MSCONNECTOR_MAX_TRANSACTION_ID_LENGTH + 3U] = "null";
-    char canonical[400] = "null";
-    char record[4096];
+    if (!admitted_descriptor_still_valid()) return;
+    struct serialized_identity identity = {"null", "null", "null"};
+    char record[8192];
     const struct mapping *entry = lookup(observed->key, observed->native);
-    if (entry != NULL && entry->id[0] != '\0' &&
-        quoted(id, sizeof(id), entry->id, sizeof(entry->id) - 1U) != 0) invalid();
-    if (entry != NULL && entry->canonical[0] != '\0' &&
-        quoted(canonical, sizeof(canonical), entry->canonical, 63U) != 0) invalid();
+    serialize_identity(entry, &identity);
     char state[512] = "null";
     /* Only an already admitted, successfully initialized Common object is
      * inspected. Native opaque handles and init's uninitialized entry are
@@ -157,12 +188,14 @@ static void event(const char *function, const char *edge, uint64_t call,
         "\"sequence\":%" PRIu64 ",\"monotonic_ns\":%" PRIu64 ",\"call\":%" PRIu64 ","
         "\"run\":%s,\"profile\":%s,\"case\":%s,\"function\":\"%s\",\"edge\":\"%s\","
         "\"transaction_id\":%s,\"canonical_transaction_id\":%s,\"phase\":%d,\"result\":%s,\"invalid\":%s,"
+        "\"transaction_id_origin\":\"%s\",\"input_transaction_id\":%s,"
         "\"argument_committed\":%s,\"contract_state\":%s,"
         "\"input_size\":%s,\"input_kind\":%s,\"argument_eos\":null,"
         "\"pending_calls\":%u,\"live_mappings\":%u,\"native_mime_selection\":null,\"host_eos\":null}\n",
         (long)getpid(), (long)geteuid(), (long)getegid(), ++sequence, ns, call,
-        run, profile, fixture, function, edge, id, canonical, observed->phase, result,
+        run, profile, fixture, function, edge, identity.id, identity.canonical, observed->phase, result,
         atomic_load(&budget->invalid) ? "true" : "false",
+        entry == NULL ? "unknown" : entry->id_origin, identity.input_id,
         argument_committed == NULL ? "null" : argument_committed, state,
         input_size, input_kind, pending, live);
     if (length <= 0 || (size_t)length >= sizeof(record)) { invalid(); return; }
@@ -324,10 +357,22 @@ int __wrap_msconnector_transaction_contract_record_response_metadata(msconnector
 
 extern Transaction *__real_msc_new_transaction(ModSecurity *, RulesSet *, void *);
 extern Transaction *__real_msc_new_transaction_with_id(ModSecurity *, RulesSet *, const char *, void *);
-static Transaction *constructed(Transaction *transaction, const char *id, uint64_t call, const char *name) {
+static Transaction *constructed(Transaction *transaction, const char *id, uint64_t call, const char *name, ModSecurity *engine) {
     int saved = errno;
+    char actual_id[MSCONNECTOR_MAX_TRANSACTION_ID_LENGTH];
+    int extracted = 0;
+    if (transaction != NULL && msconnector_lifecycle_sdk_transaction_id != NULL)
+        extracted = msconnector_lifecycle_sdk_transaction_id(engine, transaction, actual_id, sizeof(actual_id));
     (void)pthread_mutex_lock(&lock);
-    remember(transaction, 1, id, NULL);
+    if (extracted < 0) invalid();
+    remember(transaction, 1, extracted == 1 ? actual_id : (extracted < 0 ? NULL : id), NULL);
+    struct mapping *entry = lookup(transaction, 1);
+    if (entry != NULL) {
+        if (extracted == 1) entry->id_origin = "sdk_public_m_id";
+        if (id != NULL && strnlen(id, sizeof(entry->input_id)) < sizeof(entry->input_id))
+            (void)snprintf(entry->input_id, sizeof(entry->input_id), "%s", id);
+        else if (id != NULL) invalid();
+    }
     (void)pthread_mutex_unlock(&lock);
     errno = saved;
     returned(name, call, transaction, 1, 0, transaction != NULL, 0);
@@ -336,12 +381,12 @@ static Transaction *constructed(Transaction *transaction, const char *id, uint64
 Transaction *__wrap_msc_new_transaction(ModSecurity *m, RulesSet *r, void *data) {
     uint64_t call = enter("native_new", NULL, 1, 0);
     Transaction *transaction = __real_msc_new_transaction(m, r, data);
-    return constructed(transaction, NULL, call, "native_new");
+    return constructed(transaction, NULL, call, "native_new", m);
 }
 Transaction *__wrap_msc_new_transaction_with_id(ModSecurity *m, RulesSet *r, const char *id, void *data) {
     uint64_t call = enter("native_new_with_id", NULL, 1, 0);
     Transaction *transaction = __real_msc_new_transaction_with_id(m, r, id, data);
-    return constructed(transaction, id, call, "native_new_with_id");
+    return constructed(transaction, id, call, "native_new_with_id", m);
 }
 #define NATIVE_WRAPPER(suffix, phase) \
 extern int __real_msc_##suffix(Transaction *); \
