@@ -51,7 +51,15 @@ class HAProxyHTXPayloadFailClosedContractTest(unittest.TestCase):
         self.assertIn("return -1;", response_branch)
         self.assertIn("ctx->response.headers_committed = 1;", response_branch)
         self.assertIn("haproxy_modsecurity_htx_abort_context(ctx);", postcommit)
-        self.assertIn("stream_shutdown(s, SF_ERR_KILLED);", postcommit)
+        self.assertIn("haproxy_modsecurity_htx_abort_response_stream(s);", postcommit)
+        abort = SOURCE.split(
+            "static void haproxy_modsecurity_htx_abort_response_stream(", 1
+        )[1].split("static void haproxy_modsecurity_htx_fail_closed_postcommit(", 1)[0]
+        self.assertIn("channel_htx_erase(&s->res, htxbuf(&s->res.buf));", abort)
+        self.assertIn("stream_abort(s);", abort)
+        self.assertIn("sc_abort(s->scf);", abort)
+        self.assertIn("sc_shutdown(s->scf);", abort)
+        self.assertIn("stream_shutdown(s, SF_ERR_KILLED);", abort)
 
 
 if __name__ == "__main__":
