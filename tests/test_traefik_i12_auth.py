@@ -2,10 +2,12 @@
 import ast
 import importlib.util
 import json
+import os
 from pathlib import Path
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT=Path(__file__).resolve().parents[1]
 SPEC=importlib.util.spec_from_file_location('traefik_i12_auth_prepare', ROOT/'connectors/traefik/harness/i12_auth/prepare.py')
@@ -13,6 +15,15 @@ PREPARE=importlib.util.module_from_spec(SPEC);SPEC.loader.exec_module(PREPARE)
 
 REVIEW_SPEC=importlib.util.spec_from_file_location('traefik_i12_auth_review', ROOT/'connectors/traefik/harness/i12_auth/review.py')
 REVIEW=importlib.util.module_from_spec(REVIEW_SPEC);REVIEW_SPEC.loader.exec_module(REVIEW)
+
+
+def setUpModule():
+    storage = Path('/var/tmp/codex/ModSecurity-conector')
+    storage.mkdir(parents=True, exist_ok=True)
+    configured = mock.patch.dict(os.environ, {'CODEX_TEMP_ROOT': str(storage)})
+    configured.start()
+    unittest.addModuleCleanup(configured.stop)
+
 
 class AuthCaptureControls(unittest.TestCase):
     def test_eof_and_status_do_not_qualify_truncated_client_bytes(self):

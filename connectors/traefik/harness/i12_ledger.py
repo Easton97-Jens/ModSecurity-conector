@@ -27,9 +27,29 @@ def contracts():
     return module
 
 
-def reconcile(inventory, reviews=(), packets=()):
-    """Keep historical, source-resolved, and freshly qualified counts separate."""
-    contract = contracts()
+def provenance_mapping(records):
+    if not isinstance(records, list):
+        raise ValueError('Expected lossless provenance record list')
+    mapping = {}
+    for record in records:
+        if not isinstance(record, dict) or set(record) != {'path', 'sha256'}:
+            raise ValueError('Malformed provenance record')
+        path, digest = record['path'], record['sha256']
+        if not isinstance(path, str) or not isinstance(digest, str) or path in mapping:
+            raise ValueError('Malformed or duplicate provenance path')
+        mapping[path] = digest
+    return mapping
+
+
+def normalized_inventory(inventory):
+    """Restore the historical map before checking its immutable digest."""
+    result = copy.deepcopy(inventory)
+    for source in result['original_sources']:
+        source['original_source_hashes'] = provenance_mapping(source['original_source_hashes'])
+    return result
+
+
+def validate_inventory(inventory, contract):
     if contract.ORACLES.canonical_digest(inventory) != INVENTORY_SHA256:
         raise ValueError('Immutable Traefik baseline inventory changed')
     rows = copy.deepcopy(inventory['rows'])
@@ -42,13 +62,29 @@ def reconcile(inventory, reviews=(), packets=()):
         raise ValueError('Original Traefik IDs or selected contracts changed')
     if any(r['run_scoped_case_id'].split('::')[1] != r['leg_id'] for r in rows):
         raise ValueError('Original Traefik case/profile association changed')
-    for leg, count in COUNTS.items():
-        selected = [r for r in rows if r['leg_id'] == leg]
-        if len(selected) != count or any(r['required_leg'] is not True for r in selected):
-            raise ValueError('Original required route membership changed')
-        if sum(bool((r.get('original_oracle_disposition') or {}).get('original_596_member'))
-               for r in selected) != ORACLE_COUNTS[leg]:
-            raise ValueError('Original 124-oracle membership changed')
+    for leg in COUNTS:
+        validate_route_membership(rows, leg)
+    return rows, by_id
+
+
+def validate_route_membership(rows, leg):
+    selected = [r for r in rows if r['leg_id'] == leg]
+    if len(selected) != COUNTS[leg] or any(r['required_leg'] is not True for r in selected):
+        raise ValueError('Original required route membership changed')
+    if sum(bool((r.get('original_oracle_disposition') or {}).get('original_596_member'))
+           for r in selected) != ORACLE_COUNTS[leg]:
+        raise ValueError('Original 124-oracle membership changed')
+
+
+def validate_host_observations(measured):
+    for observation in measured['observations'].values():
+        if observation.get('value') is not None and any(
+                proof.get('role') == 'host_callback' and proof['bytes'] == 0
+                for proof in observation.get('evidence', [])):
+            raise ValueError('An empty host callback capture cannot establish a measurement')
+
+
+def apply_reviews(reviews, by_id, contract):
     seen_reviews = set()
     for review in reviews:
         identity = review['run_scoped_case_id']
@@ -56,6 +92,9 @@ def reconcile(inventory, reviews=(), packets=()):
             raise ValueError('Unknown or duplicate Traefik oracle review')
         seen_reviews.add(identity)
         by_id[identity]['fresh_oracle_review'] = contract.ORACLES.review_record(review, by_id[identity])
+
+
+def apply_packets(packets, by_id, contract):
     seen_packets = set()
     for supplied in packets:
         verified = contract.ORACLES.verify_reference(supplied)
@@ -70,39 +109,54 @@ def reconcile(inventory, reviews=(), packets=()):
         if oracle and oracle.get('unresolved_expected_value_reason'):
             oracle = None
         measured = contract.reviewed_packet(verified, row, oracle)
-        for observation in measured['observations'].values():
-            if observation.get('value') is not None and any(
-                    proof.get('role') == 'host_callback' and proof['bytes'] == 0
-                    for proof in observation.get('evidence', [])):
-                raise ValueError('An empty host callback capture cannot establish a measurement')
+        validate_host_observations(measured)
         row['fresh_lifecycle'] = measured
-    result = {}
-    for leg in COUNTS:
-        selected = [r for r in rows if r['leg_id'] == leg]
-        original = [r for r in selected if (r.get('original_oracle_disposition') or {}).get('original_596_member')]
-        resolved = [r for r in original if
-                    (r.get('fresh_oracle_review') or r['original_oracle_disposition']).get('resolved') is True]
-        fresh = [r for r in selected if r.get('fresh_lifecycle')]
-        full_pass = [r for r in fresh if r['fresh_lifecycle']['full_lifecycle_qualified'] and
-                     r['fresh_lifecycle']['outcome'] == 'PASS']
-        full_fail = [r for r in fresh if r['fresh_lifecycle']['full_lifecycle_qualified'] and
-                     r['fresh_lifecycle']['outcome'] == 'FAIL']
-        # A fresh partial attempt does not erase an old complete packet; both
-        # remain visible. A fresh qualified FAIL supersedes its old PASS.
-        qualified = {r['run_scoped_case_id'] for r in selected if r['qualified_host_lifecycle_pass']}
-        qualified.update(r['run_scoped_case_id'] for r in full_pass)
-        qualified.difference_update(r['run_scoped_case_id'] for r in full_fail)
-        result[leg] = dict(required_ids=len(selected),
-                           baseline_lifecycle_pass=sum(r['qualified_host_lifecycle_pass'] for r in selected),
-                           baseline_config_only_pass=sum(r['qualification_scope'] == 'historical_configuration_only' for r in selected),
-                           fresh_host_attempts=len(fresh), fresh_lifecycle_pass=len(full_pass),
-                           fresh_lifecycle_fail=len(full_fail),
-                           fresh_partial=len(fresh)-len(full_pass)-len(full_fail),
-                           lifecycle_pass=len(qualified),
-                           lifecycle_unqualified_ids=[r['run_scoped_case_id'] for r in selected
-                                                      if r['run_scoped_case_id'] not in qualified and r not in full_fail],
-                           original_oracles=len(original), resolved_original_oracles=len(resolved),
-                           unresolved_original_oracle_ids=[r['run_scoped_case_id'] for r in original if r not in resolved])
+
+
+def oracle_summary(selected):
+    original = [r for r in selected if (r.get('original_oracle_disposition') or {}).get('original_596_member')]
+    resolved = [r for r in original if
+                (r.get('fresh_oracle_review') or r['original_oracle_disposition']).get('resolved') is True]
+    return {'original_oracles': len(original), 'resolved_original_oracles': len(resolved),
+            'unresolved_original_oracle_ids': [r['run_scoped_case_id'] for r in original if r not in resolved]}
+
+
+def full_outcome(fresh, outcome):
+    return [r for r in fresh if r['fresh_lifecycle']['full_lifecycle_qualified'] and
+            r['fresh_lifecycle']['outcome'] == outcome]
+
+
+def route_summary(rows, leg):
+    selected = [r for r in rows if r['leg_id'] == leg]
+    fresh = [r for r in selected if r.get('fresh_lifecycle')]
+    full_pass = full_outcome(fresh, 'PASS')
+    full_fail = full_outcome(fresh, 'FAIL')
+    # A fresh partial attempt does not erase an old complete packet; both
+    # remain visible. A fresh qualified FAIL supersedes its old PASS.
+    qualified = {r['run_scoped_case_id'] for r in selected if r['qualified_host_lifecycle_pass']}
+    qualified.update(r['run_scoped_case_id'] for r in full_pass)
+    qualified.difference_update(r['run_scoped_case_id'] for r in full_fail)
+    return {'required_ids': len(selected),
+                       'baseline_lifecycle_pass': sum(r['qualified_host_lifecycle_pass'] for r in selected),
+                       'baseline_config_only_pass': sum(r['qualification_scope'] == 'historical_configuration_only' for r in selected),
+                       'fresh_host_attempts': len(fresh), 'fresh_lifecycle_pass': len(full_pass),
+                       'fresh_lifecycle_fail': len(full_fail),
+                       'fresh_partial': len(fresh)-len(full_pass)-len(full_fail),
+                       'lifecycle_pass': len(qualified),
+                       'lifecycle_unqualified_ids': [r['run_scoped_case_id'] for r in selected
+                                                  if r['run_scoped_case_id'] not in qualified and r not in full_fail],
+                       **oracle_summary(selected)}
+
+
+
+def reconcile(inventory, reviews=(), packets=()):
+    """Keep historical, source-resolved, and freshly qualified counts separate."""
+    contract = contracts()
+    inventory = normalized_inventory(inventory)
+    rows, by_id = validate_inventory(inventory, contract)
+    apply_reviews(reviews, by_id, contract)
+    apply_packets(packets, by_id, contract)
+    result = {leg: route_summary(rows, leg) for leg in COUNTS}
     for row in rows:
         row['baseline_status'] = row['status']
         row['baseline_qualification_scope'] = row['qualification_scope']
@@ -114,10 +168,10 @@ def reconcile(inventory, reviews=(), packets=()):
             row['qualified_host_lifecycle_pass'] = fresh['outcome'] == 'PASS'
         elif fresh and not row['qualified_host_lifecycle_pass']:
             row['status'] = 'PARTIAL_HOST_MEASUREMENTS'
-    return dict(schema_version=1, scope='traefik-only',
-                source_ledger=inventory['source_ledger'],
-                source_reconciliation=inventory['source_reconciliation'],
-                summary=result, rows=rows)
+    return {'schema_version': 1, 'scope': 'traefik-only',
+            'source_ledger': inventory['source_ledger'],
+            'source_reconciliation': inventory['source_reconciliation'],
+            'summary': result, 'rows': rows}
 
 
 def main():

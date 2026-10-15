@@ -7,6 +7,8 @@ import sys
 
 from review import records
 
+EVENTS_FILE = 'events.jsonl'
+
 
 def read(path):
     return json.loads(path.read_text())
@@ -19,7 +21,6 @@ def reference(path, role):
 
 def packet(attempt, label, case_id):
     data = attempt / 'data'
-    root = attempt.parents[1]
     tx = 'tf-' + label
     logs = data / 'runtime/logs'
     native = records(logs / 'native-lifecycle.jsonl')
@@ -55,7 +56,7 @@ def packet(attempt, label, case_id):
     cleanup = reference(data / 'result.json', 'cleanup_observer')
     debug = reference(logs / 'native-debug.log', 'native_debug')
     audit = reference(logs / 'native-audit.log', 'physical_event_sink')
-    sink = reference(logs / 'events.jsonl', 'physical_event_sink')
+    sink = reference(logs / EVENTS_FILE, 'physical_event_sink')
     config = data / 'runtime/effective-config/traefik-native-engine.conf'
     raw_response = (data / f'client/{label}.response.raw').read_bytes()
     headers = raw_response.split(b'\r\n\r\n', 1)[0].decode('latin1').split('\r\n')
@@ -82,7 +83,7 @@ def packet(attempt, label, case_id):
     observed('backend_request_count', len(backend), b)
     observed('backend_payload_identity', {'actual_backend': backend, 'client': client}, b, c)
     observed('client_backend_correlation', {'transaction_id': tx, 'actual_backend': backend, 'client': client}, b, c)
-    observed('native_events', {'physical_common_events': [row for row in records(logs / 'events.jsonl') if row.get('transaction_id') == tx],
+    observed('native_events', {'physical_common_events': [row for row in records(logs / EVENTS_FILE) if row.get('transaction_id') == tx],
              'audit_transaction_lines': [line for line in (logs / 'native-audit.log').read_text().splitlines() if tx in line]}, audit, sink)
     observed('native_api_returns', returns, n)
     observed('native_transaction_id', [row for row in direct if row.get('transaction_id_origin') == 'sdk_public_m_id'], n)
@@ -116,8 +117,8 @@ def packet(attempt, label, case_id):
     observed('transport_framing', {'headers': headers, 'client': client}, c)
     observed('transport_reset_scope', {'actual_client': client, 'actual_host_errors': [row for row in host if row.get('fields', {}).get('error')]}, c, h)
     observed('host_action', {'writer_rows': [row for row in host if row['operation'].startswith('writer_')], 'actual_status': client.get('status')}, h, c)
-    observed('physical_event_order', [row for row in records(logs / 'events.jsonl') if row.get('transaction_id') == tx], sink, audit)
-    observed('terminal_event_count', sum(row.get('transaction_id') == tx for row in records(logs / 'events.jsonl')), sink)
+    observed('physical_event_order', [row for row in records(logs / EVENTS_FILE) if row.get('transaction_id') == tx], sink, audit)
+    observed('terminal_event_count', sum(row.get('transaction_id') == tx for row in records(logs / EVENTS_FILE)), sink)
     # Null observations remain explicitly incomplete rather than fabricated.
     for field, value in observations.items():
         if value['value'] is None:

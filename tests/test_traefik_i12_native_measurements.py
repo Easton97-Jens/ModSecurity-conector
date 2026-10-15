@@ -20,6 +20,9 @@ NATIVE = ROOT / 'connectors/traefik/harness/i12/native'
 
 def setUpModule():
     EXTERNAL.mkdir(parents=True, exist_ok=True)
+    configured = mock.patch.dict(os.environ, {'CODEX_TEMP_ROOT': str(EXTERNAL)})
+    configured.start()
+    unittest.addModuleCleanup(configured.stop)
 
 
 def load_preparer(name):

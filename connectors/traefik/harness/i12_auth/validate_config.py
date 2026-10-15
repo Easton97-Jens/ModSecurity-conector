@@ -1,8 +1,18 @@
 """Check the actual generated Traefik YAML before any host starts."""
+import argparse
 import json
 from pathlib import Path
-import sys
 import yaml
+
+CONFIG_FILE = Path('/task/runtime/effective-config/traefik-forwardauth-dynamic.yaml')
+
+
+def read_effective_config(path):
+    if path != CONFIG_FILE or any(part.is_symlink() for part in (path, *path.parents)):
+        raise ValueError('physical task configuration required')
+    if not path.is_file() or path.stat().st_size > 65536:
+        raise ValueError('bounded regular configuration required')
+    return path.read_text()
 
 
 def validate(text):
@@ -21,4 +31,7 @@ def validate(text):
     return value
 
 if __name__=='__main__':
-    validate(Path(sys.argv[1]).read_text());print(json.dumps({'yaml':'valid','routers':['smoke','fault'],'maxBodySize':4096,'maxResponseBodySize':32768}))
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('config', type=Path, choices=(CONFIG_FILE,))
+    args = parser.parse_args()
+    validate(read_effective_config(args.config));print(json.dumps({'yaml':'valid','routers':['smoke','fault'],'maxBodySize':4096,'maxResponseBodySize':32768}))

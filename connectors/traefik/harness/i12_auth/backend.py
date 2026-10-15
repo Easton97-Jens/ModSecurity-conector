@@ -36,7 +36,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             'response_body_sha256': hashlib.sha256(response).hexdigest(), 'finished_ns': time.monotonic_ns()}
         (root / (name + '.response-body.raw')).write_bytes(response)
         with (root / 'receipts.jsonl').open('a') as stream:stream.write(json.dumps(record) + '\n')
-    def log_message(self, *_args):pass
+    def log_message(self, *_args):
+        return None  # Physical receipts own bounded HTTP evidence.
 server = http.server.HTTPServer(('127.0.0.1', int(sys.argv[1])), Handler)
 signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
 try:server.serve_forever(poll_interval=0.1)

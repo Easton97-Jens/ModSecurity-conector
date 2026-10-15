@@ -80,8 +80,9 @@ class TraefikI12LedgerTest(unittest.TestCase):
             packet['observations']['native_eos'] = dict(value=True,evidence=[
                 {**contract.ORACLES.reference(client),'role':'client_process'}])
             path.write_text(json.dumps(packet))
+            packet_reference = contract.ORACLES.reference(path)
             with self.assertRaisesRegex(ValueError,'physical producer'):
-                LEDGER.reconcile(self.inventory, packets=[contract.ORACLES.reference(path)])
+                LEDGER.reconcile(self.inventory, packets=[packet_reference])
 
     def test_partial_host_attempt_preserves_unknowns_and_does_not_resolve_oracle(self):
         contract = LEDGER.contracts()
@@ -126,8 +127,33 @@ class TraefikI12LedgerTest(unittest.TestCase):
             packet['observations']['host_eos'] = dict(value=[],evidence=[
                 {**contract.ORACLES.reference(host),'role':'host_callback'}])
             path.write_text(json.dumps(packet))
+            packet_reference = contract.ORACLES.reference(path)
             with self.assertRaisesRegex(ValueError,'empty host callback'):
-                LEDGER.reconcile(self.inventory,packets=[contract.ORACLES.reference(path)])
+                LEDGER.reconcile(self.inventory,packets=[packet_reference])
+
+    def test_lossless_provenance_keeps_original_canonical_digest(self):
+        normalized = LEDGER.normalized_inventory(self.inventory)
+        self.assertEqual(LEDGER.contracts().ORACLES.canonical_digest(normalized),
+                         LEDGER.INVENTORY_SHA256)
+        for original, restored in zip(self.inventory['original_sources'], normalized['original_sources']):
+            self.assertEqual(original['original_source_hashes'],
+                             [{'path': path, 'sha256': digest} for path, digest in restored['original_source_hashes'].items()])
+
+    def test_fingerprint_changes_duplicates_and_malformed_provenance_fail_closed(self):
+        mutations = (
+            lambda records: records[0].update(sha256='0' * 64),
+            lambda records: records.append(copy.deepcopy(records[0])),
+            lambda records: records[0].update(extra='unexpected'),
+            lambda records: records.__setitem__(0, {'path': ['invalid'], 'sha256': '0' * 64}),
+            lambda records: records.__setitem__(0, {'path': 'only-path'}),
+            lambda records: records.__setitem__(0, None),
+        )
+        for mutate in mutations:
+            with self.subTest(mutation=mutate):
+                changed = copy.deepcopy(self.inventory)
+                mutate(changed['original_sources'][0]['original_source_hashes'])
+                with self.assertRaises(ValueError):
+                    LEDGER.reconcile(changed)
 
 
 if __name__ == '__main__':

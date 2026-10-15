@@ -19,6 +19,11 @@ completed measurement; inspect `oracle_pass` for its actual expected outcome.
 
 Preparation never launches a host:
 
+Preparation requires `CODEX_TEMP_ROOT` to name the existing configured external
+storage root. Export it from the active project configuration before these
+commands. The output must be a fresh physical descendant; existing ancestors
+inside that root must belong to the invoking UID and prohibit group/world writes.
+
 ```sh
 rtk proxy python3 -B connectors/traefik/harness/i12/native/prepare.py \
   --repo /absolute/current/checkout \

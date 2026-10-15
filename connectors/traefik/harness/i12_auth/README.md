@@ -14,6 +14,11 @@ parsed by the already installed `/usr/bin/python3` PyYAML before host startup;
 router structure, request buffering 4096 and authorization-response capacity 32768
 are checked separately. No package or toolchain installation is performed.
 
+Preparation requires `CODEX_TEMP_ROOT` to name the existing configured external
+storage root. Export it from the active project configuration before these
+commands. The output must be a fresh physical descendant; existing ancestors
+inside that root must belong to the invoking UID and prohibit group/world writes.
+
 ```sh
 rtk proxy python3 -B connectors/traefik/harness/i12_auth/prepare.py --repository "$PWD" --output /var/tmp/codex/ModSecurity-conector/your-run/auth-inputs --leg traefik-forwardauth-request
 rtk proxy python3 -B -m unittest discover -s tests -p test_traefik_i12_auth.py -v

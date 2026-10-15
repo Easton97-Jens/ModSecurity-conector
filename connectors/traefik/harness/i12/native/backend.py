@@ -15,25 +15,30 @@ ROOT.mkdir(mode=0o700)
 class Handler(http.server.BaseHTTPRequestHandler):
     protocol_version = 'HTTP/1.1'
 
-    def do_POST(self):
-        if self.headers.get('Transfer-Encoding', '').lower() == 'chunked':
-            pieces = []
-            while True:
-                count = int(self.rfile.readline().strip(), 16)
-                if count == 0:
-                    self.rfile.readline()
-                    break
-                if count > 4096 or sum(map(len, pieces)) + count > 4096:
-                    raise ValueError('bounded backend body exceeded')
-                pieces.append(self.rfile.read(count))
-                if self.rfile.read(2) != b'\r\n':
-                    raise ValueError('invalid framing')
-            body = b''.join(pieces)
-        else:
-            count = int(self.headers.get('Content-Length', '0'))
-            if not 0 <= count <= 4096:
+    def read_chunked_body(self):
+        pieces = []
+        while True:
+            count = int(self.rfile.readline().strip(), 16)
+            if count == 0:
+                self.rfile.readline()
+                break
+            if count > 4096 or sum(map(len, pieces)) + count > 4096:
                 raise ValueError('bounded backend body exceeded')
-            body = self.rfile.read(count)
+            pieces.append(self.rfile.read(count))
+            if self.rfile.read(2) != b'\r\n':
+                raise ValueError('invalid framing')
+        return b''.join(pieces)
+
+    def read_body(self):
+        if self.headers.get('Transfer-Encoding', '').lower() == 'chunked':
+            return self.read_chunked_body()
+        count = int(self.headers.get('Content-Length', '0'))
+        if not 0 <= count <= 4096:
+            raise ValueError('bounded backend body exceeded')
+        return self.rfile.read(count)
+
+    def do_POST(self):
+        body = self.read_body()
         label = self.path.removeprefix('/i12-eos-')
         response = ('i12-response-marker:' + label + '\n').encode()
         if label in ('fault-postcommit', 'client-cancel'):
@@ -46,6 +51,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                    'request_received_ns': time.monotonic_ns(), 'write_error': None}
         (ROOT / f'{label}.request-body.raw').write_bytes(body)
         (ROOT / f'{label}.response-body.raw').write_bytes(response)
+        self.write_response(label, response, mime, receipt)
+
+    def write_response(self, label, response, mime, receipt):
         try:
             self.send_response(200)
             if mime is not None:
@@ -68,7 +76,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 output.write(json.dumps(receipt) + '\n')
 
     def log_message(self, *_):
-        pass
+        return None  # Physical receipts above own bounded HTTP evidence.
 
 
 if __name__ == '__main__':

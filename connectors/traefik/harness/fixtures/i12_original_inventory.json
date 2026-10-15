@@ -15148,115 +15148,436 @@
         "framework": "99a7985c1be92a2297b1b59208f64df6768f2cbf",
         "mrts_gitlink": "160000 commit 8a6bb546c4c81d8ffc7be801dceac60c6925685f\ttools/MRTS"
       },
-      "original_source_hashes": {
-        "parent:ci/runtime/lifecycle/resolve-full-lifecycle-profile.py": "474fe90d7bec9610f52c84e490708a0cf86cc27cba1675525c6290fae20a11b5",
-        "framework:ci/checks/catalog/no_crs_baseline.py": "eaf192048d7baabc7e5a20928ea54c3b7705ca1f071eff63c47a7f654dbbfcfe",
-        "framework:tests/cases/no-crs-baseline/catalog.json": "9a3fecac4cdaf6e3791a9c22a362531099b3a0bf10c328b8ba188310d69dc89e",
-        "parent:connectors/profile_registry.c": "b3c04ba057526c50f67cd7a8e04c8211ca936baa53c9ef3d6da8b32e4c7af802",
-        "parent:common/runtime/msconnector_runtime.c": "0fa85f5658be96a25204adf489b2e18149a5f826b5ed528e55ec7b2ffe410aa4",
-        "parent:docs/phase4-mode-budget.md": "1c3bc1339f9349e458ec05fa5c216328cc418a8e9087ad8e8bf75917da5679cb",
-        "parent:connectors/lighttpd/lighttpd-version.contract": "262bccec7a303746fab93a1a50a3f724b9d7f5aabb68b04c4ffeaf739dc611d1",
-        "parent:connectors/haproxy/htx-overlay/version-contract.json": "d0fbe1c1ca83108e4d2c922dcd3b44c948b8242cca9733d0419bd9cad1f74e29",
-        "parent:connectors/apache/capabilities.json": "bee9c4d63cfd040d79cf941f8b8439842ac37e9dc21c268d69b588ec702e5463",
-        "parent:connectors/apache/metadata.c": "97bda8a14ec1444dab087e499acc64b50d4da674f95bc4c91dfe1f3be8a2713f",
-        "parent:connectors/apache/src/mod_security3.c": "8ff78a6cfc18b34e78dbe491e3e3576f54e61b6665cea285113ac9150980698a",
-        "parent:connectors/apache/src/msc_filters.c": "1eb1e9261fb89e12e7a2094e9d0a856759932714223455508cd657fbbed1a5cd",
-        "parent:connectors/apache/src/msc_config.c": "da03118d339e2065a7f4a8f39b010feb0739fcbbfa5a9fbb4968d988da480773",
-        "parent:connectors/apache/harness/run_apache_smoke.sh": "3d2a04c7855e49822628c6f34c1995d351170fe59aac6b3be3df5131501683bb",
-        "parent:ci/runtime/lifecycle/run-apache-phase4-response-regression.sh": "78f2a5bf2999f54753af9d6141398259cfccd216a026d5c11670befa9addd295",
-        "parent:connectors/nginx/capabilities.json": "ebcc73cc6356b4bb7aa80e8fec0216c837a5b6d259764724af3b3997d87d51cf",
-        "parent:connectors/nginx/metadata.c": "cb4d361f489ad46a18433e9a6ffc149a452d0274ac9b893a415ba4c64b79c22b",
-        "parent:connectors/nginx/src/ngx_http_modsecurity_access.c": "a3ae9e941b143d152ff2d54c786072fc5e09717a56bba8e361315b3b12f7c69b",
-        "parent:connectors/nginx/src/ngx_http_modsecurity_header_filter.c": "bbdbd288429cc942595a8e8825ed0892f7e6c8ceeb9efadb06b4d1635b592fda",
-        "parent:connectors/nginx/src/ngx_http_modsecurity_body_filter.c": "6ed39a758ad9ca2eab430aecd8b6508d81f2b45962e1b453456fe829e73e8c35",
-        "parent:connectors/nginx/src/ngx_http_modsecurity_module.c": "659fd30b4bbdf8a6d861c0dd8c2280b2640a831569265cb0937167979b7db5a5",
-        "parent:connectors/nginx/harness/run_nginx_smoke.sh": "cb1ef99c2ad64a7be5032d174ee30d135bef96eb71457699a916df43f39f9dcf",
-        "parent:connectors/haproxy/capabilities.json": "a9546dccfa82050497aa3fd905732c63737fc902fcab2855a1a8d58dd7a926db",
-        "parent:connectors/haproxy/metadata.c": "7091b8d26a61f1829de3df2b40e9b8a3bdcb29b66613aa49ebcdf58e0a4ea13b",
-        "parent:connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c": "a976dbbffc1b90da202c1a72e93fa15efbe23f11da3a7ee6b9a2afda5b75c2a7",
-        "parent:connectors/haproxy/src/haproxy_modsecurity_binding.c": "c9dad5193dc24428d00f6e8b4ab34534b19853b987bd2c9588201d86cf1cc5e7",
-        "parent:connectors/haproxy/src/haproxy_modsecurity_mapper.c": "d6bbf3fae12883eca51414e092e78859e7b7af529342a526a7fc5304db787377",
-        "parent:connectors/haproxy/harness/run_haproxy_smoke.sh": "a8f6b2f565c627366900f02ae75404035282ef39b12ecd4334af781b7e91fa72",
-        "parent:connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c": "1081bb2fde8d0b9f3585631f107453114e0bb5919f219832fcbec721fe25e722",
-        "parent:connectors/haproxy/htx-overlay/haproxy-makefile.patch": "de7228a518660d92d9287c086b042c3c563bf167bd857925b294f8d7ea734fa7",
-        "parent:connectors/haproxy/harness/run_haproxy_htx_runtime.sh": "b771c71cc34baa8cf38f9e6f71bbd07606ae5365bc02b9088ae04488cb65b3a2",
-        "parent:connectors/envoy/capabilities.json": "5649e9a3106ba4188339620318775fbb9d271b2e8abdfd51516e3976bda15b86",
-        "parent:connectors/envoy/metadata.c": "c738d865e5d8fbe27c0a3c68c3c19b55edf36250c073eb19eb2f23925e73fc4a",
-        "parent:connectors/envoy/config/envoy-ext-authz-smoke.yaml.in": "dd1796f7565a2dd6b61292257b29b45a294251a1cc3e1af182e56b68ee01b8bb",
-        "parent:connectors/envoy/config/envoy-ext-authz.conf": "b7efd3dd71f6b4736576145f6ccb9e4eaed7810ab2f9cf82dbc9c8f96b4f248f",
-        "parent:connectors/envoy/src/envoy_ext_authz_service_main.c": "451ea1da26d48c953be614f7c9cd368c2f49b3253556516ff206815693b104b8",
-        "parent:connectors/envoy/src/envoy_ext_authz_response_companion.c": "58ef48396985b30c240c25950209307897d55d3e7fa9180d980a9028b3ef1093",
-        "parent:connectors/envoy/ext_proc/cmd/msconnector-envoy-response-observer/main.go": "8ef1046f9549b46a1fa88bf399696f263e7c2faee107e52c0c4a30ced6f41db9",
-        "parent:connectors/envoy/ext_proc/internal/responseobserver/service.go": "6e96afed63fd7343e9bc1188950b38d23371f08063c50dba4f276eda2d74c633",
-        "parent:connectors/envoy/src/envoy_modsecurity_mapper.c": "76633d1812a89e42c91e53375a470c0894cc5c0074730980cb6a42ac748cd72f",
-        "parent:connectors/envoy/harness/run_envoy_connector_runtime.sh": "66f68521380123c1399fd23f1b72111f57ae9f888813b1189dc699730d343b34",
-        "parent:connectors/envoy/config/envoy-ext-proc-service.json": "1f7e5f3f1b90e347a440af8a59be715531d693a72689c1cacc4c1ec565375a48",
-        "parent:connectors/envoy/config/envoy-ext-proc-versions.env": "07830f7e8ef26ec5e4b8e9b35c42f28f63e5716963aeac092d3de003189df2a3",
-        "parent:connectors/traefik/capabilities.json": "7f96b6b618b9386272e26138b43d6a7340e4ad09cdb91fcdca9071b9f36ecd69",
-        "parent:connectors/traefik/metadata.c": "0c4ba2581503de3eedae64e8bb7875067ce02ae0b82d684c389f5257e526afbf",
-        "parent:connectors/traefik/config/traefik-forwardauth-dynamic.yaml": "44317b48f5d1e3807e32789f2bbef71adc225c153ad583797d134b97197d672d",
-        "parent:connectors/traefik/config/traefik-forwardauth.conf": "8fad3105b2cd40ad1511e0985b813885c477bb0966bfd227796e6be10021a4ee",
-        "parent:connectors/traefik/src/traefik_forwardauth_service_main.c": "c5b3dea9f28f1d0a872e484f22e10b0ee92f701e527d268971e884b668048c09",
-        "parent:connectors/traefik/src/traefik_forwardauth_response_companion.c": "643a3715c110d7b7530f783c20d1f29e2501d3b79c4583965997741944c73410",
-        "parent:connectors/traefik/response_observer/observer.go": "445dcfd6c296c442d8b1593e4bc1106077900b0c745cf1b79beb0d3ead555580",
-        "parent:connectors/traefik/config/traefik-response-observer-static.yaml": "49de4a67a3df3a0ae97c52f73f374d358c8415734851cd3633a1b06358a930f7",
-        "parent:connectors/traefik/config/traefik-response-observer-dynamic.yaml": "bc6bd742b16c40158e5070d8b1d56b8623ea9a0a31442a1f21aa2c96dc053de7",
-        "parent:connectors/traefik/src/traefik_modsecurity_mapper.c": "9adcb9de1c8df6c2d9ad33086ccef02d4fb95e7b7902bbc7726d186582c2b1bd",
-        "parent:connectors/traefik/scripts/runtime_smoke.py": "f5bab467b1ae0bcdeaa2349dbecd5621c2c84ce8921467fdd676a6b9d0b25bca",
-        "parent:connectors/traefik/native_middleware/middleware.go": "ef076d44ed96893c0b7cee5eb7bb6745ba1a8afc35909df81cf24c1159e6cfb3",
-        "parent:connectors/traefik/native_middleware/.traefik.yml": "9a43550bbf6f9b8e51ec45d1b7daef794a3e114fae731fa157bbbdffdbb07d91",
-        "parent:connectors/traefik/config/traefik-native-middleware-dynamic.yaml": "3aa8d99ffed7192b590a0a9b9ea33e42faeefb6b414373c75e5e33ef1557e07e",
-        "parent:connectors/traefik/config/traefik-native-middleware-static.yaml": "0e1f23c0f63fd1ea25d02261c979a4ad2611ead86dafd7b6a1ef44f4b6dc151a",
-        "parent:connectors/traefik/scripts/runtime-native-middleware.sh": "27a92bdb2706d5caa09e25d95c8d27d0c88929e990a2e0074e17ba45e6582013",
-        "parent:connectors/traefik/scripts/runtime_native_smoke.py": "4d7112ba41be5b2cbe4c2846cbabd528f8c5b9d176db6659aa8540de327d342c",
-        "parent:connectors/traefik/config/traefik-engine-service.conf": "ed99f60451d11732b9877ec725e60142f857e120b08cde65d9adfaa52ffbca1a",
-        "parent:connectors/traefik/config/traefik-forwardauth-composite-dynamic.yaml": "c01482ea36cc6e1af0d2c6cd889efbff2a654129f2c05869272af789a1114622",
-        "parent:connectors/traefik/config/traefik-forwardauth-composite-static.yaml": "a019e5950652659378e5bbe726a442f4af1ea36e1d10315c93fad6980414d1d9",
-        "parent:connectors/traefik/config/traefik-native-engine-rules.conf": "e6bfcfdb4292de524031c0d2dccf562fa3f359b311d47cf46df20a0deeb1866a",
-        "parent:connectors/lighttpd/capabilities.json": "e192a971e12a849b7f99736f8cbc86fe09bf9ccb89f8bd6348f578406fc5b80d",
-        "parent:connectors/lighttpd/metadata.c": "15a1706075e4747da77ea4c5d711b25bd271a24c77cb09f6bbba267c7005f0f2",
-        "parent:connectors/lighttpd/config/lighttpd-native.conf": "d6742709f31038a8580120f5706f3600e001bbd26b97e1e0a77b4385dad03c17",
-        "parent:connectors/lighttpd/module/mod_msconnector.c": "a3c797390a78100a2b4488dd308cc39542778113102053fb2e0f8e6fb77a0bdd",
-        "parent:connectors/lighttpd/src/lighttpd_modsecurity_mapper.c": "0acb9b1c002e198c03454b811c89670e67c93d5ef8357ca35a1037478c33a891",
-        "parent:connectors/lighttpd/harness/runtime_lighttpd_smoke.sh": "a4fa5880b0368d91c53063a8522768f157ace465957b21fa946bc9a99a387359",
-        "parent:connectors/lighttpd/patches/0001-lighttpd-msconnector-stream-hooks.patch": "1a6d1a981b751017fafea0b5ad8489b77baa1f6c7db86b4c9e2c45064e98467a",
-        "parent:connectors/lighttpd/build/build_patched_host.sh": "7b5466ce7e8c3efe3e4daaed31775a076677c5a0f095a8390e4f920b6b76188e",
-        "parent:connectors/lighttpd/harness/run_patched_lifecycle_smoke.sh": "6983baec82287a892df56b76bc64431276a6ac3d8fa1229f9f0ddd600f8b5874",
-        "parent:connectors/lighttpd/stock_sidecar/stock_sidecar.c": "5c45a8b4f46ac3f8c92385ba21ff139f675fe786101482126ba0b47edf82dbc6",
-        "parent:connectors/lighttpd/stock_sidecar/README.md": "09ea004e12c43676d033bc7862aed4cd5d34b91f599591c7c67f91bae6f348f7",
-        "parent:connectors/lighttpd/build/build_stock_sidecar.sh": "8fccab4cdffa2f31172eebdcb88a839e967ccb31855abdd8de94bee21e7db8c0",
-        "parent:connectors/lighttpd/tests/test_stock_sidecar_contract.py": "fb5789314dc2cfd3d01c57e264bcd78c74ee21f4a95982b65ba770d9878b23a7",
-        "framework:tests/cases/no-crs-baseline/allow_without_marker.yaml": "b640dd967c98c6cd2e1bed52c1687d186573535a297485c6577bd750d3ea5a48",
-        "framework:tests/cases/no-crs-baseline/deny_header_marker_403.yaml": "cbe5657107505ecc0e2f44695ca3c12b68fcb953826210d422272160ad89b7a5",
-        "framework:tests/cases/no-crs-baseline/deny_with_alternative_status.yaml": "3e28637d74550201aaba6120aa4ae73a584ae51d52ff98b9fc49d76050258852",
-        "framework:tests/cases/no-crs-baseline/transaction_id_present.yaml": "631b7ef544766d502f35bdb894536fbf595cbd16fd5921e70426ccb2f831b1d4",
-        "framework:tests/cases/no-crs-baseline/transaction_id_generated_or_fallback.yaml": "c3ad34f6c06f268f7174e37b377b7f5d697afe340826a464144c9b227703a69a",
-        "framework:tests/cases/no-crs-baseline/deny_request_body_marker_403.yaml": "aa9f7ad41f461ce4b38ca369104598f15480443a91be690198abc41749fffed8",
-        "framework:tests/cases/no-crs-baseline/multiple_headers.yaml": "2f61f84a3c9bfe0a02e1e406842db49cedcecae9756daa8724d69ac1984cffe4",
-        "framework:tests/cases/no-crs-baseline/duplicate_header_names.yaml": "502f7fc36219912d89f492493e50fe32d9cf191e6802d7163ea3c22143ad5731",
-        "framework:tests/cases/no-crs-baseline/empty_header_value.yaml": "4d961093e7224e56a5b8d60326d11ddcbc0275ec0a4b26641ef7c2696a2ca34e",
-        "framework:tests/cases/no-crs-baseline/case_insensitive_header_name.yaml": "042244d99b35f58637f2aa55e47fb13b54c65bdb6623948521a49c2d9eb12e59",
-        "framework:tests/cases/no-crs-baseline/log_only.yaml": "d854af5e2c0ef97c5da04ad7121063a4c7cf18457711f2aa46036329d57606b9",
-        "framework:tests/cases/no-crs-baseline/redirect_if_supported.yaml": "88efbf76b470765147e6cc03653f85778d89e7368f88813640d6b60419d416bb",
-        "framework:tests/cases/no-crs-baseline/full-lifecycle/phase2_marker_split_across_chunks.yaml": "ca7e40df7ef9d170d984f07161e06767f9e3142c5194f0e764e84f5c4a942fdc",
-        "framework:tests/cases/no-crs-baseline/full-lifecycle/phase2_body_limits.yaml": "83e1bc8c6292e90f01acc84617f05113d2dbe625c88d7c4278f5327a6c121cfd",
-        "framework:tests/cases/no-crs-baseline/full-lifecycle/phase3_deny_before_commit.yaml": "7de9543c83206019ae7e77f158dd7325e7713d2c31583daeb0e012bba6d67f37",
-        "framework:tests/cases/no-crs-baseline/full-lifecycle/phase3_redirect_before_commit.yaml": "61d0423437203ef2731e33b6c10d91abfd78abea59d375139c34a92a1ed8ee50",
-        "framework:tests/cases/no-crs-baseline/full-lifecycle/phase4_marker_split_across_chunks.yaml": "76178c28c4ab92e6e220e25b377870ec33f558fefd04f32ae1be43ab47ca449c",
-        "framework:tests/cases/no-crs-baseline/full-lifecycle/phase4_late_intervention.yaml": "03174e7a6957753136b879d3278d20850360c7680021e98be2577371ffc336c1",
-        "framework:tests/fixtures/no-crs-baseline/invalid-content-type-scope.txt": "49918882d82bea9d4741116f6becc90b5c409a9f760420d414ebf5d049e3b439",
-        "framework:tests/fixtures/no-crs-baseline/wildcard-content-type-scope.txt": "1561a68a101937d9c49b55d7e74aa6f539541ed441c4f91683bf4ea1a2eeb45c",
-        "framework:tests/cases/no-crs-baseline/full-lifecycle/phase4_content_type.yaml": "de6bff51c5ed9411e7a9cd59fce5acd1ce30efa538b6bc8e44abc1de741c5778",
-        "framework:tests/cases/no-crs-baseline/full-lifecycle/phase4_first_byte_before_response_end.yaml": "14f87dfa91b39a9f0c58f2817d9b3b3b4699157872f6219b2fe2c2009a860d06",
-        "framework:tests/cases/no-crs-baseline/full-lifecycle/transport.yaml": "38271f04b5a87397cf4673171f944c87dfb08bad8c6a874eed19a90aec217b20",
-        "framework:tests/cases/no-crs-baseline/full-lifecycle/phase4_body_limits.yaml": "5edf753d6fdf4fa66b6cf9097fe7f0c13ae835bfed82e60792041d40950d8d0b",
-        "parent:connectors/haproxy/harness/combined_spop_htx/run_combined_spop_htx.sh": "ed7fe815a4db798074eb8606fe2e2b6e0e09f58ce65a02ba4381256fc535a624",
-        "parent:connectors/envoy/harness/run_envoy_ext_proc_runtime.sh": "e25bfd3e913c170b9980d9772224dd5e9d159d56e9b844fa09fc31885f3ade84",
-        "parent:connectors/envoy/harness/run_envoy_composite_matrix.sh": "f0312b1440f56a3ba21314a56a7275238cf8d579c951f7a6d1bac7a868962bf3",
-        "parent:connectors/traefik/harness/run_traefik_composite_matrix.sh": "d621df7faae8e131f83ce3cdbf8b870d77fc0ba29e5a0f03016c171ce580ae32",
-        "parent:connectors/lighttpd/harness/run_stock_sidecar_real_backend.py": "092b7a8e0740942af4a933cbe98eed5f9fba48940e44e7df4c92a21fdd20b77a",
-        "parent:connectors/lighttpd/harness/run_no_crs_fixture_trusted_namespace.py": "a1f00762c926445c1f04b13e4b4769c93166ecafe8e931f73ae1185f43973325"
-      }
+      "original_source_hashes": [
+        {
+          "path": "parent:ci/runtime/lifecycle/resolve-full-lifecycle-profile.py",
+          "sha256": "474fe90d7bec9610f52c84e490708a0cf86cc27cba1675525c6290fae20a11b5"
+        },
+        {
+          "path": "framework:ci/checks/catalog/no_crs_baseline.py",
+          "sha256": "eaf192048d7baabc7e5a20928ea54c3b7705ca1f071eff63c47a7f654dbbfcfe"
+        },
+        {
+          "path": "framework:tests/cases/no-crs-baseline/catalog.json",
+          "sha256": "9a3fecac4cdaf6e3791a9c22a362531099b3a0bf10c328b8ba188310d69dc89e"
+        },
+        {
+          "path": "parent:connectors/profile_registry.c",
+          "sha256": "b3c04ba057526c50f67cd7a8e04c8211ca936baa53c9ef3d6da8b32e4c7af802"
+        },
+        {
+          "path": "parent:common/runtime/msconnector_runtime.c",
+          "sha256": "0fa85f5658be96a25204adf489b2e18149a5f826b5ed528e55ec7b2ffe410aa4"
+        },
+        {
+          "path": "parent:docs/phase4-mode-budget.md",
+          "sha256": "1c3bc1339f9349e458ec05fa5c216328cc418a8e9087ad8e8bf75917da5679cb"
+        },
+        {
+          "path": "parent:connectors/lighttpd/lighttpd-version.contract",
+          "sha256": "262bccec7a303746fab93a1a50a3f724b9d7f5aabb68b04c4ffeaf739dc611d1"
+        },
+        {
+          "path": "parent:connectors/haproxy/htx-overlay/version-contract.json",
+          "sha256": "d0fbe1c1ca83108e4d2c922dcd3b44c948b8242cca9733d0419bd9cad1f74e29"
+        },
+        {
+          "path": "parent:connectors/apache/capabilities.json",
+          "sha256": "bee9c4d63cfd040d79cf941f8b8439842ac37e9dc21c268d69b588ec702e5463"
+        },
+        {
+          "path": "parent:connectors/apache/metadata.c",
+          "sha256": "97bda8a14ec1444dab087e499acc64b50d4da674f95bc4c91dfe1f3be8a2713f"
+        },
+        {
+          "path": "parent:connectors/apache/src/mod_security3.c",
+          "sha256": "8ff78a6cfc18b34e78dbe491e3e3576f54e61b6665cea285113ac9150980698a"
+        },
+        {
+          "path": "parent:connectors/apache/src/msc_filters.c",
+          "sha256": "1eb1e9261fb89e12e7a2094e9d0a856759932714223455508cd657fbbed1a5cd"
+        },
+        {
+          "path": "parent:connectors/apache/src/msc_config.c",
+          "sha256": "da03118d339e2065a7f4a8f39b010feb0739fcbbfa5a9fbb4968d988da480773"
+        },
+        {
+          "path": "parent:connectors/apache/harness/run_apache_smoke.sh",
+          "sha256": "3d2a04c7855e49822628c6f34c1995d351170fe59aac6b3be3df5131501683bb"
+        },
+        {
+          "path": "parent:ci/runtime/lifecycle/run-apache-phase4-response-regression.sh",
+          "sha256": "78f2a5bf2999f54753af9d6141398259cfccd216a026d5c11670befa9addd295"
+        },
+        {
+          "path": "parent:connectors/nginx/capabilities.json",
+          "sha256": "ebcc73cc6356b4bb7aa80e8fec0216c837a5b6d259764724af3b3997d87d51cf"
+        },
+        {
+          "path": "parent:connectors/nginx/metadata.c",
+          "sha256": "cb4d361f489ad46a18433e9a6ffc149a452d0274ac9b893a415ba4c64b79c22b"
+        },
+        {
+          "path": "parent:connectors/nginx/src/ngx_http_modsecurity_access.c",
+          "sha256": "a3ae9e941b143d152ff2d54c786072fc5e09717a56bba8e361315b3b12f7c69b"
+        },
+        {
+          "path": "parent:connectors/nginx/src/ngx_http_modsecurity_header_filter.c",
+          "sha256": "bbdbd288429cc942595a8e8825ed0892f7e6c8ceeb9efadb06b4d1635b592fda"
+        },
+        {
+          "path": "parent:connectors/nginx/src/ngx_http_modsecurity_body_filter.c",
+          "sha256": "6ed39a758ad9ca2eab430aecd8b6508d81f2b45962e1b453456fe829e73e8c35"
+        },
+        {
+          "path": "parent:connectors/nginx/src/ngx_http_modsecurity_module.c",
+          "sha256": "659fd30b4bbdf8a6d861c0dd8c2280b2640a831569265cb0937167979b7db5a5"
+        },
+        {
+          "path": "parent:connectors/nginx/harness/run_nginx_smoke.sh",
+          "sha256": "cb1ef99c2ad64a7be5032d174ee30d135bef96eb71457699a916df43f39f9dcf"
+        },
+        {
+          "path": "parent:connectors/haproxy/capabilities.json",
+          "sha256": "a9546dccfa82050497aa3fd905732c63737fc902fcab2855a1a8d58dd7a926db"
+        },
+        {
+          "path": "parent:connectors/haproxy/metadata.c",
+          "sha256": "7091b8d26a61f1829de3df2b40e9b8a3bdcb29b66613aa49ebcdf58e0a4ea13b"
+        },
+        {
+          "path": "parent:connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+          "sha256": "a976dbbffc1b90da202c1a72e93fa15efbe23f11da3a7ee6b9a2afda5b75c2a7"
+        },
+        {
+          "path": "parent:connectors/haproxy/src/haproxy_modsecurity_binding.c",
+          "sha256": "c9dad5193dc24428d00f6e8b4ab34534b19853b987bd2c9588201d86cf1cc5e7"
+        },
+        {
+          "path": "parent:connectors/haproxy/src/haproxy_modsecurity_mapper.c",
+          "sha256": "d6bbf3fae12883eca51414e092e78859e7b7af529342a526a7fc5304db787377"
+        },
+        {
+          "path": "parent:connectors/haproxy/harness/run_haproxy_smoke.sh",
+          "sha256": "a8f6b2f565c627366900f02ae75404035282ef39b12ecd4334af781b7e91fa72"
+        },
+        {
+          "path": "parent:connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c",
+          "sha256": "1081bb2fde8d0b9f3585631f107453114e0bb5919f219832fcbec721fe25e722"
+        },
+        {
+          "path": "parent:connectors/haproxy/htx-overlay/haproxy-makefile.patch",
+          "sha256": "de7228a518660d92d9287c086b042c3c563bf167bd857925b294f8d7ea734fa7"
+        },
+        {
+          "path": "parent:connectors/haproxy/harness/run_haproxy_htx_runtime.sh",
+          "sha256": "b771c71cc34baa8cf38f9e6f71bbd07606ae5365bc02b9088ae04488cb65b3a2"
+        },
+        {
+          "path": "parent:connectors/envoy/capabilities.json",
+          "sha256": "5649e9a3106ba4188339620318775fbb9d271b2e8abdfd51516e3976bda15b86"
+        },
+        {
+          "path": "parent:connectors/envoy/metadata.c",
+          "sha256": "c738d865e5d8fbe27c0a3c68c3c19b55edf36250c073eb19eb2f23925e73fc4a"
+        },
+        {
+          "path": "parent:connectors/envoy/config/envoy-ext-authz-smoke.yaml.in",
+          "sha256": "dd1796f7565a2dd6b61292257b29b45a294251a1cc3e1af182e56b68ee01b8bb"
+        },
+        {
+          "path": "parent:connectors/envoy/config/envoy-ext-authz.conf",
+          "sha256": "b7efd3dd71f6b4736576145f6ccb9e4eaed7810ab2f9cf82dbc9c8f96b4f248f"
+        },
+        {
+          "path": "parent:connectors/envoy/src/envoy_ext_authz_service_main.c",
+          "sha256": "451ea1da26d48c953be614f7c9cd368c2f49b3253556516ff206815693b104b8"
+        },
+        {
+          "path": "parent:connectors/envoy/src/envoy_ext_authz_response_companion.c",
+          "sha256": "58ef48396985b30c240c25950209307897d55d3e7fa9180d980a9028b3ef1093"
+        },
+        {
+          "path": "parent:connectors/envoy/ext_proc/cmd/msconnector-envoy-response-observer/main.go",
+          "sha256": "8ef1046f9549b46a1fa88bf399696f263e7c2faee107e52c0c4a30ced6f41db9"
+        },
+        {
+          "path": "parent:connectors/envoy/ext_proc/internal/responseobserver/service.go",
+          "sha256": "6e96afed63fd7343e9bc1188950b38d23371f08063c50dba4f276eda2d74c633"
+        },
+        {
+          "path": "parent:connectors/envoy/src/envoy_modsecurity_mapper.c",
+          "sha256": "76633d1812a89e42c91e53375a470c0894cc5c0074730980cb6a42ac748cd72f"
+        },
+        {
+          "path": "parent:connectors/envoy/harness/run_envoy_connector_runtime.sh",
+          "sha256": "66f68521380123c1399fd23f1b72111f57ae9f888813b1189dc699730d343b34"
+        },
+        {
+          "path": "parent:connectors/envoy/config/envoy-ext-proc-service.json",
+          "sha256": "1f7e5f3f1b90e347a440af8a59be715531d693a72689c1cacc4c1ec565375a48"
+        },
+        {
+          "path": "parent:connectors/envoy/config/envoy-ext-proc-versions.env",
+          "sha256": "07830f7e8ef26ec5e4b8e9b35c42f28f63e5716963aeac092d3de003189df2a3"
+        },
+        {
+          "path": "parent:connectors/traefik/capabilities.json",
+          "sha256": "7f96b6b618b9386272e26138b43d6a7340e4ad09cdb91fcdca9071b9f36ecd69"
+        },
+        {
+          "path": "parent:connectors/traefik/metadata.c",
+          "sha256": "0c4ba2581503de3eedae64e8bb7875067ce02ae0b82d684c389f5257e526afbf"
+        },
+        {
+          "path": "parent:connectors/traefik/config/traefik-forwardauth-dynamic.yaml",
+          "sha256": "44317b48f5d1e3807e32789f2bbef71adc225c153ad583797d134b97197d672d"
+        },
+        {
+          "path": "parent:connectors/traefik/config/traefik-forwardauth.conf",
+          "sha256": "8fad3105b2cd40ad1511e0985b813885c477bb0966bfd227796e6be10021a4ee"
+        },
+        {
+          "path": "parent:connectors/traefik/src/traefik_forwardauth_service_main.c",
+          "sha256": "c5b3dea9f28f1d0a872e484f22e10b0ee92f701e527d268971e884b668048c09"
+        },
+        {
+          "path": "parent:connectors/traefik/src/traefik_forwardauth_response_companion.c",
+          "sha256": "643a3715c110d7b7530f783c20d1f29e2501d3b79c4583965997741944c73410"
+        },
+        {
+          "path": "parent:connectors/traefik/response_observer/observer.go",
+          "sha256": "445dcfd6c296c442d8b1593e4bc1106077900b0c745cf1b79beb0d3ead555580"
+        },
+        {
+          "path": "parent:connectors/traefik/config/traefik-response-observer-static.yaml",
+          "sha256": "49de4a67a3df3a0ae97c52f73f374d358c8415734851cd3633a1b06358a930f7"
+        },
+        {
+          "path": "parent:connectors/traefik/config/traefik-response-observer-dynamic.yaml",
+          "sha256": "bc6bd742b16c40158e5070d8b1d56b8623ea9a0a31442a1f21aa2c96dc053de7"
+        },
+        {
+          "path": "parent:connectors/traefik/src/traefik_modsecurity_mapper.c",
+          "sha256": "9adcb9de1c8df6c2d9ad33086ccef02d4fb95e7b7902bbc7726d186582c2b1bd"
+        },
+        {
+          "path": "parent:connectors/traefik/scripts/runtime_smoke.py",
+          "sha256": "f5bab467b1ae0bcdeaa2349dbecd5621c2c84ce8921467fdd676a6b9d0b25bca"
+        },
+        {
+          "path": "parent:connectors/traefik/native_middleware/middleware.go",
+          "sha256": "ef076d44ed96893c0b7cee5eb7bb6745ba1a8afc35909df81cf24c1159e6cfb3"
+        },
+        {
+          "path": "parent:connectors/traefik/native_middleware/.traefik.yml",
+          "sha256": "9a43550bbf6f9b8e51ec45d1b7daef794a3e114fae731fa157bbbdffdbb07d91"
+        },
+        {
+          "path": "parent:connectors/traefik/config/traefik-native-middleware-dynamic.yaml",
+          "sha256": "3aa8d99ffed7192b590a0a9b9ea33e42faeefb6b414373c75e5e33ef1557e07e"
+        },
+        {
+          "path": "parent:connectors/traefik/config/traefik-native-middleware-static.yaml",
+          "sha256": "0e1f23c0f63fd1ea25d02261c979a4ad2611ead86dafd7b6a1ef44f4b6dc151a"
+        },
+        {
+          "path": "parent:connectors/traefik/scripts/runtime-native-middleware.sh",
+          "sha256": "27a92bdb2706d5caa09e25d95c8d27d0c88929e990a2e0074e17ba45e6582013"
+        },
+        {
+          "path": "parent:connectors/traefik/scripts/runtime_native_smoke.py",
+          "sha256": "4d7112ba41be5b2cbe4c2846cbabd528f8c5b9d176db6659aa8540de327d342c"
+        },
+        {
+          "path": "parent:connectors/traefik/config/traefik-engine-service.conf",
+          "sha256": "ed99f60451d11732b9877ec725e60142f857e120b08cde65d9adfaa52ffbca1a"
+        },
+        {
+          "path": "parent:connectors/traefik/config/traefik-forwardauth-composite-dynamic.yaml",
+          "sha256": "c01482ea36cc6e1af0d2c6cd889efbff2a654129f2c05869272af789a1114622"
+        },
+        {
+          "path": "parent:connectors/traefik/config/traefik-forwardauth-composite-static.yaml",
+          "sha256": "a019e5950652659378e5bbe726a442f4af1ea36e1d10315c93fad6980414d1d9"
+        },
+        {
+          "path": "parent:connectors/traefik/config/traefik-native-engine-rules.conf",
+          "sha256": "e6bfcfdb4292de524031c0d2dccf562fa3f359b311d47cf46df20a0deeb1866a"
+        },
+        {
+          "path": "parent:connectors/lighttpd/capabilities.json",
+          "sha256": "e192a971e12a849b7f99736f8cbc86fe09bf9ccb89f8bd6348f578406fc5b80d"
+        },
+        {
+          "path": "parent:connectors/lighttpd/metadata.c",
+          "sha256": "15a1706075e4747da77ea4c5d711b25bd271a24c77cb09f6bbba267c7005f0f2"
+        },
+        {
+          "path": "parent:connectors/lighttpd/config/lighttpd-native.conf",
+          "sha256": "d6742709f31038a8580120f5706f3600e001bbd26b97e1e0a77b4385dad03c17"
+        },
+        {
+          "path": "parent:connectors/lighttpd/module/mod_msconnector.c",
+          "sha256": "a3c797390a78100a2b4488dd308cc39542778113102053fb2e0f8e6fb77a0bdd"
+        },
+        {
+          "path": "parent:connectors/lighttpd/src/lighttpd_modsecurity_mapper.c",
+          "sha256": "0acb9b1c002e198c03454b811c89670e67c93d5ef8357ca35a1037478c33a891"
+        },
+        {
+          "path": "parent:connectors/lighttpd/harness/runtime_lighttpd_smoke.sh",
+          "sha256": "a4fa5880b0368d91c53063a8522768f157ace465957b21fa946bc9a99a387359"
+        },
+        {
+          "path": "parent:connectors/lighttpd/patches/0001-lighttpd-msconnector-stream-hooks.patch",
+          "sha256": "1a6d1a981b751017fafea0b5ad8489b77baa1f6c7db86b4c9e2c45064e98467a"
+        },
+        {
+          "path": "parent:connectors/lighttpd/build/build_patched_host.sh",
+          "sha256": "7b5466ce7e8c3efe3e4daaed31775a076677c5a0f095a8390e4f920b6b76188e"
+        },
+        {
+          "path": "parent:connectors/lighttpd/harness/run_patched_lifecycle_smoke.sh",
+          "sha256": "6983baec82287a892df56b76bc64431276a6ac3d8fa1229f9f0ddd600f8b5874"
+        },
+        {
+          "path": "parent:connectors/lighttpd/stock_sidecar/stock_sidecar.c",
+          "sha256": "5c45a8b4f46ac3f8c92385ba21ff139f675fe786101482126ba0b47edf82dbc6"
+        },
+        {
+          "path": "parent:connectors/lighttpd/stock_sidecar/README.md",
+          "sha256": "09ea004e12c43676d033bc7862aed4cd5d34b91f599591c7c67f91bae6f348f7"
+        },
+        {
+          "path": "parent:connectors/lighttpd/build/build_stock_sidecar.sh",
+          "sha256": "8fccab4cdffa2f31172eebdcb88a839e967ccb31855abdd8de94bee21e7db8c0"
+        },
+        {
+          "path": "parent:connectors/lighttpd/tests/test_stock_sidecar_contract.py",
+          "sha256": "fb5789314dc2cfd3d01c57e264bcd78c74ee21f4a95982b65ba770d9878b23a7"
+        },
+        {
+          "path": "framework:tests/cases/no-crs-baseline/allow_without_marker.yaml",
+          "sha256": "b640dd967c98c6cd2e1bed52c1687d186573535a297485c6577bd750d3ea5a48"
+        },
+        {
+          "path": "framework:tests/cases/no-crs-baseline/deny_header_marker_403.yaml",
+          "sha256": "cbe5657107505ecc0e2f44695ca3c12b68fcb953826210d422272160ad89b7a5"
+        },
+        {
+          "path": "framework:tests/cases/no-crs-baseline/deny_with_alternative_status.yaml",
+          "sha256": "3e28637d74550201aaba6120aa4ae73a584ae51d52ff98b9fc49d76050258852"
+        },
+        {
+          "path": "framework:tests/cases/no-crs-baseline/transaction_id_present.yaml",
+          "sha256": "631b7ef544766d502f35bdb894536fbf595cbd16fd5921e70426ccb2f831b1d4"
+        },
+        {
+          "path": "framework:tests/cases/no-crs-baseline/transaction_id_generated_or_fallback.yaml",
+          "sha256": "c3ad34f6c06f268f7174e37b377b7f5d697afe340826a464144c9b227703a69a"
+        },
+        {
+          "path": "framework:tests/cases/no-crs-baseline/deny_request_body_marker_403.yaml",
+          "sha256": "aa9f7ad41f461ce4b38ca369104598f15480443a91be690198abc41749fffed8"
+        },
+        {
+          "path": "framework:tests/cases/no-crs-baseline/multiple_headers.yaml",
+          "sha256": "2f61f84a3c9bfe0a02e1e406842db49cedcecae9756daa8724d69ac1984cffe4"
+        },
+        {
+          "path": "framework:tests/cases/no-crs-baseline/duplicate_header_names.yaml",
+          "sha256": "502f7fc36219912d89f492493e50fe32d9cf191e6802d7163ea3c22143ad5731"
+        },
+        {
+          "path": "framework:tests/cases/no-crs-baseline/empty_header_value.yaml",
+          "sha256": "4d961093e7224e56a5b8d60326d11ddcbc0275ec0a4b26641ef7c2696a2ca34e"
+        },
+        {
+          "path": "framework:tests/cases/no-crs-baseline/case_insensitive_header_name.yaml",
+          "sha256": "042244d99b35f58637f2aa55e47fb13b54c65bdb6623948521a49c2d9eb12e59"
+        },
+        {
+          "path": "framework:tests/cases/no-crs-baseline/log_only.yaml",
+          "sha256": "d854af5e2c0ef97c5da04ad7121063a4c7cf18457711f2aa46036329d57606b9"
+        },
+        {
+          "path": "framework:tests/cases/no-crs-baseline/redirect_if_supported.yaml",
+          "sha256": "88efbf76b470765147e6cc03653f85778d89e7368f88813640d6b60419d416bb"
+        },
+        {
+          "path": "framework:tests/cases/no-crs-baseline/full-lifecycle/phase2_marker_split_across_chunks.yaml",
+          "sha256": "ca7e40df7ef9d170d984f07161e06767f9e3142c5194f0e764e84f5c4a942fdc"
+        },
+        {
+          "path": "framework:tests/cases/no-crs-baseline/full-lifecycle/phase2_body_limits.yaml",
+          "sha256": "83e1bc8c6292e90f01acc84617f05113d2dbe625c88d7c4278f5327a6c121cfd"
+        },
+        {
+          "path": "framework:tests/cases/no-crs-baseline/full-lifecycle/phase3_deny_before_commit.yaml",
+          "sha256": "7de9543c83206019ae7e77f158dd7325e7713d2c31583daeb0e012bba6d67f37"
+        },
+        {
+          "path": "framework:tests/cases/no-crs-baseline/full-lifecycle/phase3_redirect_before_commit.yaml",
+          "sha256": "61d0423437203ef2731e33b6c10d91abfd78abea59d375139c34a92a1ed8ee50"
+        },
+        {
+          "path": "framework:tests/cases/no-crs-baseline/full-lifecycle/phase4_marker_split_across_chunks.yaml",
+          "sha256": "76178c28c4ab92e6e220e25b377870ec33f558fefd04f32ae1be43ab47ca449c"
+        },
+        {
+          "path": "framework:tests/cases/no-crs-baseline/full-lifecycle/phase4_late_intervention.yaml",
+          "sha256": "03174e7a6957753136b879d3278d20850360c7680021e98be2577371ffc336c1"
+        },
+        {
+          "path": "framework:tests/fixtures/no-crs-baseline/invalid-content-type-scope.txt",
+          "sha256": "49918882d82bea9d4741116f6becc90b5c409a9f760420d414ebf5d049e3b439"
+        },
+        {
+          "path": "framework:tests/fixtures/no-crs-baseline/wildcard-content-type-scope.txt",
+          "sha256": "1561a68a101937d9c49b55d7e74aa6f539541ed441c4f91683bf4ea1a2eeb45c"
+        },
+        {
+          "path": "framework:tests/cases/no-crs-baseline/full-lifecycle/phase4_content_type.yaml",
+          "sha256": "de6bff51c5ed9411e7a9cd59fce5acd1ce30efa538b6bc8e44abc1de741c5778"
+        },
+        {
+          "path": "framework:tests/cases/no-crs-baseline/full-lifecycle/phase4_first_byte_before_response_end.yaml",
+          "sha256": "14f87dfa91b39a9f0c58f2817d9b3b3b4699157872f6219b2fe2c2009a860d06"
+        },
+        {
+          "path": "framework:tests/cases/no-crs-baseline/full-lifecycle/transport.yaml",
+          "sha256": "38271f04b5a87397cf4673171f944c87dfb08bad8c6a874eed19a90aec217b20"
+        },
+        {
+          "path": "framework:tests/cases/no-crs-baseline/full-lifecycle/phase4_body_limits.yaml",
+          "sha256": "5edf753d6fdf4fa66b6cf9097fe7f0c13ae835bfed82e60792041d40950d8d0b"
+        },
+        {
+          "path": "parent:connectors/haproxy/harness/combined_spop_htx/run_combined_spop_htx.sh",
+          "sha256": "ed7fe815a4db798074eb8606fe2e2b6e0e09f58ce65a02ba4381256fc535a624"
+        },
+        {
+          "path": "parent:connectors/envoy/harness/run_envoy_ext_proc_runtime.sh",
+          "sha256": "e25bfd3e913c170b9980d9772224dd5e9d159d56e9b844fa09fc31885f3ade84"
+        },
+        {
+          "path": "parent:connectors/envoy/harness/run_envoy_composite_matrix.sh",
+          "sha256": "f0312b1440f56a3ba21314a56a7275238cf8d579c951f7a6d1bac7a868962bf3"
+        },
+        {
+          "path": "parent:connectors/traefik/harness/run_traefik_composite_matrix.sh",
+          "sha256": "d621df7faae8e131f83ce3cdbf8b870d77fc0ba29e5a0f03016c171ce580ae32"
+        },
+        {
+          "path": "parent:connectors/lighttpd/harness/run_stock_sidecar_real_backend.py",
+          "sha256": "092b7a8e0740942af4a933cbe98eed5f9fba48940e44e7df4c92a21fdd20b77a"
+        },
+        {
+          "path": "parent:connectors/lighttpd/harness/run_no_crs_fixture_trusted_namespace.py",
+          "sha256": "a1f00762c926445c1f04b13e4b4769c93166ecafe8e931f73ae1185f43973325"
+        }
+      ]
     }
   ]
 }

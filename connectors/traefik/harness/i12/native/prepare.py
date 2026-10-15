@@ -11,6 +11,32 @@ import os
 from pathlib import Path
 import shutil
 
+ADMISSION_FILE = 'admission.json'
+
+
+def validate_physical_destination(path, storage):
+    for item in (path, *path.parents, storage, *storage.parents):
+        if item.is_symlink():
+            raise ValueError('symlink output components are forbidden')
+    if path.resolve() != path or storage.resolve() != storage:
+        raise ValueError('physical output path required')
+    if not storage.is_dir() or storage not in path.parents:
+        raise ValueError('output outside configured external storage')
+    validate_non_checkout_ancestors(path, storage)
+
+
+def validate_non_checkout_ancestors(path, storage):
+    for ancestor in (path, *path.parents):
+        if ancestor.exists():
+            metadata = ancestor.stat()
+            if metadata.st_uid != os.getuid() or metadata.st_mode & 0o022:
+                raise ValueError('output ancestry must be private and task-owned')
+        if ancestor == storage:
+            break
+        metadata = ancestor / '.git'
+        if metadata.exists() or metadata.is_symlink():
+            raise ValueError('Git checkout/metadata destination is forbidden')
+
 
 def validate_output(path, *, fresh):
     """Reject unsafe destinations before copying, creating or chmodding anything.
@@ -19,22 +45,13 @@ def validate_output(path, *, fresh):
     checkout. Its own Git metadata is outside the disposable destination tree.
     """
     path = Path(path)
-    storage = Path(os.environ.get('CODEX_TEMP_ROOT', '/var/tmp/codex/ModSecurity-conector'))
+    configured = os.environ.get('CODEX_TEMP_ROOT')
+    if not configured:
+        raise ValueError('configured external storage root required')
+    storage = Path(configured)
     if not path.is_absolute() or not storage.is_absolute() or '..' in path.parts:
         raise ValueError('absolute normalized external output required')
-    for item in (path, *path.parents, storage, *storage.parents):
-        if item.is_symlink():
-            raise ValueError('symlink output components are forbidden')
-    if path.resolve() != path or storage.resolve() != storage:
-        raise ValueError('physical output path required')
-    if not storage.is_dir() or storage not in path.parents:
-        raise ValueError('output outside configured external storage')
-    for ancestor in (path, *path.parents):
-        if ancestor == storage:
-            break
-        metadata = ancestor / '.git'
-        if metadata.exists() or metadata.is_symlink():
-            raise ValueError('Git checkout/metadata destination is forbidden')
+    validate_physical_destination(path, storage)
     if fresh and path.exists():
         raise ValueError('fresh output required')
     if not fresh and not path.is_dir():
@@ -78,21 +95,7 @@ def seal(root):
     return inventory
 
 
-def prepare(repo, historical, output):
-    output = validate_output(output, fresh=True)
-    output.mkdir(parents=True, mode=0o700)
-    source, fixtures = output / 'source', output / 'fixtures'
-    previous = historical / 'traefik-lifecycle/execution-review/inputs-v4'
-    shutil.copytree(previous / 'source', source)
-    for path in (source, *source.rglob('*')):
-        path.chmod(0o700 if path.is_dir() or path.stat().st_mode & 0o111 else 0o600)
-    capture_root = repo / 'ci/runtime/lifecycle/i12'
-    spec = importlib.util.spec_from_file_location('capture_sources', capture_root / 'capture_sources.py')
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    registry = module.Registry(capture_root, repo)
-    profile = registry.manifest['profiles']['traefik-native']
-    overlays = {}
+def refresh_capture_source(repo, source, profile, registry, overlays):
     # Refresh every actual build input from this checkout before instrumentation.
     product_paths = [*sorted((repo / 'common').rglob('*.c')), *sorted((repo / 'common').rglob('*.h')),
                      *sorted((repo / 'connectors/traefik').rglob('*.c')),
@@ -118,6 +121,10 @@ def prepare(repo, historical, output):
         if relative in bindings and bindings[relative] != sha(path):
             overlays[relative] = {'baseline_a9_sha256': bindings[relative], 'instrumented_sha256': sha(path),
                                   'scope': 'central traefik-native capture-only observation'}
+    return bindings
+
+
+def stage_fixtures(fixtures, profile, registry):
     fixtures.mkdir()
     for relative, entry in profile['capture_files'].items():
         if relative.startswith('drivers/'):
@@ -127,6 +134,25 @@ def prepare(repo, historical, output):
                 path.chmod(0o700)
     for name in ('client.py', 'backend.py'):
         shutil.copyfile(Path(__file__).parent / name, fixtures / name)
+
+
+def prepare(repo, historical, output):
+    output = validate_output(output, fresh=True)
+    output.mkdir(parents=True, mode=0o700)
+    source, fixtures = output / 'source', output / 'fixtures'
+    previous = historical / 'traefik-lifecycle/execution-review/inputs-v4'
+    shutil.copytree(previous / 'source', source)
+    for path in (source, *source.rglob('*')):
+        path.chmod(0o700 if path.is_dir() or path.stat().st_mode & 0o111 else 0o600)
+    capture_root = repo / 'ci/runtime/lifecycle/i12'
+    spec = importlib.util.spec_from_file_location('capture_sources', capture_root / 'capture_sources.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    registry = module.Registry(capture_root, repo)
+    profile = registry.manifest['profiles']['traefik-native']
+    overlays = {}
+    bindings = refresh_capture_source(repo, source, profile, registry, overlays)
+    stage_fixtures(fixtures, profile, registry)
     driver = (fixtures / 'driver.py').read_text()
     driver = replace_once(driver, "RUN = 'tf-i12-eos-20261014'", "RUN = 'tf-i12-native-20261015'")
     driver = replace_once(driver, "'delivery_base': '02754040bced960cfc1857416cd7101bb3116ef4'", "'delivery_base': 'f27eb59b53beff6f65384fc2e5037881a3052c01'")
@@ -166,9 +192,9 @@ def prepare(repo, historical, output):
                                'ledger_sha256': sha(ledgers[name])} for name, target in
                               [('source', '/mnt/src'), ('fixtures', '/mnt/fixtures'), ('artifacts', '/mnt/artifacts')]],
                  'environment': {'CONNECTOR_ROOT': '/mnt/src'}}
-    save(output / 'admission.json', admission)
-    (output / 'admission.json').chmod(0o444)
-    print(json.dumps({'prepared': str(output), 'admission_sha256': sha(output / 'admission.json'), 'runtime_qualified': False}))
+    save(output / ADMISSION_FILE, admission)
+    (output / ADMISSION_FILE).chmod(0o444)
+    print(json.dumps({'prepared': str(output), 'admission_sha256': sha(output / ADMISSION_FILE), 'runtime_qualified': False}))
 
 
 if __name__ == '__main__':

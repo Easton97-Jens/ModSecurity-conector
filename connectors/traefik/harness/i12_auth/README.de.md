@@ -16,6 +16,12 @@ dynamische Konfiguration. Routerstruktur, Request-Puffergrenze 4096 und
 Authorization-Response-Kapazität 32768 werden getrennt geprüft. Pakete und
 Toolchains werden nicht installiert.
 
+Die Vorbereitung benötigt `CODEX_TEMP_ROOT` mit der vorhandenen konfigurierten
+externen Speicherwurzel. Die Variable vor diesen Befehlen aus der aktiven
+Projektkonfiguration exportieren. Das Ausgabeziel muss ein neuer physischer
+Unterpfad sein; vorhandene Vorfahren innerhalb dieser Wurzel müssen der
+aufrufenden UID gehören und Schreibzugriff für Gruppe und andere verbieten.
+
 ```sh
 rtk proxy python3 -B connectors/traefik/harness/i12_auth/prepare.py --repository "$PWD" --output /var/tmp/codex/ModSecurity-conector/your-run/auth-inputs --leg traefik-forwardauth-request
 rtk proxy python3 -B -m unittest discover -s tests -p test_traefik_i12_auth.py -v

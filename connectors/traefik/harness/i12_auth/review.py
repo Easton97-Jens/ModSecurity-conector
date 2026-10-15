@@ -13,6 +13,20 @@ def reference(path,role):
     data=path.read_bytes();return {'path':str(path),'sha256':sha(data),'bytes':len(data),'role':role}
 
 
+def decode_chunked(value, body):
+    entity=bytearray();remaining=body
+    try:
+        while True:
+            line,remaining=remaining.split(b'\r\n',1);size=int(line.split(b';')[0],16)
+            if size==0:
+                if remaining!=b'\r\n':raise ValueError('unexpected chunk trailers or extra bytes')
+                break
+            if len(remaining)<size+2 or remaining[size:size+2]!=b'\r\n':raise ValueError('incomplete chunk')
+            entity.extend(remaining[:size]);remaining=remaining[size+2:]
+        value.update(complete=True,entity_bytes=len(entity),entity_sha256=sha(entity))
+    except ValueError as error:value['reason']=str(error)
+
+
 def framing(raw):
     value={'response_bytes':len(raw),'response_status_lines':raw.count(b'HTTP/1.1 '),
         'complete':False,'entity_bytes':None,'entity_sha256':None}
@@ -29,17 +43,7 @@ def framing(raw):
         value.update(complete=int(lengths[0])==len(body),entity_bytes=len(body),entity_sha256=sha(body))
         if not value['complete']:value['reason']='Content-Length differs from received entity bytes'
     elif transfer==['chunked'] and not lengths:
-        entity=bytearray();remaining=body
-        try:
-            while True:
-                line,remaining=remaining.split(b'\r\n',1);size=int(line.split(b';')[0],16)
-                if size==0:
-                    if remaining!=b'\r\n':raise ValueError('unexpected chunk trailers or extra bytes')
-                    break
-                if len(remaining)<size+2 or remaining[size:size+2]!=b'\r\n':raise ValueError('incomplete chunk')
-                entity.extend(remaining[:size]);remaining=remaining[size+2:]
-            value.update(complete=True,entity_bytes=len(entity),entity_sha256=sha(entity))
-        except ValueError as error:value['reason']=str(error)
+        decode_chunked(value, body)
     else:value['reason']='unqualified or ambiguous response framing'
     return value
 

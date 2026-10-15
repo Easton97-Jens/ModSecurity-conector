@@ -20,6 +20,12 @@ tatsächlich erwartete Ergebnis steht in `oracle_pass`.
 
 Die Vorbereitung startet keinen Host:
 
+Die Vorbereitung benötigt `CODEX_TEMP_ROOT` mit der vorhandenen konfigurierten
+externen Speicherwurzel. Die Variable vor diesen Befehlen aus der aktiven
+Projektkonfiguration exportieren. Das Ausgabeziel muss ein neuer physischer
+Unterpfad sein; vorhandene Vorfahren innerhalb dieser Wurzel müssen der
+aufrufenden UID gehören und Schreibzugriff für Gruppe und andere verbieten.
+
 ```sh
 rtk proxy python3 -B connectors/traefik/harness/i12/native/prepare.py \
   --repo /absolute/current/checkout \

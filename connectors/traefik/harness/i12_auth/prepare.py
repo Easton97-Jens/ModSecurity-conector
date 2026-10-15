@@ -8,6 +8,7 @@ import ast
 import hashlib
 import importlib.util
 import json
+import os
 import shutil
 from pathlib import Path
 
@@ -27,21 +28,38 @@ def replace(text, before, after):
     if text.count(before) != 1:raise ValueError('capture relocation boundary differs: ' + before[:80])
     return text.replace(before, after, 1)
 
-def prepare(repository, output, leg='traefik-forwardauth-request', cases=None):
-    cases=CASES if cases is None else tuple(cases)
-    if len(set(cases))!=len(cases) or any(name not in CASES for name in cases):raise ValueError('invalid bounded case selection')
-    if 'neighbor' not in cases:cases=(*cases,'neighbor')
-    if leg not in ('traefik-forwardauth-request', 'traefik-forwardauth-response-companion'):
-        raise ValueError('invalid logical leg')
-    repository = repository.resolve();output = output.absolute()
+def validate_owned_ancestor(ancestor):
+    if not ancestor.exists():
+        return
+    metadata = ancestor.stat()
+    if metadata.st_uid != os.getuid() or metadata.st_mode & 0o022:
+        raise ValueError('output ancestry must be private and task-owned')
+
+
+def validate_output_ancestry(output, storage):
+    for component in (output, *output.parents, storage, *storage.parents):
+        if component.is_symlink():raise ValueError('physical output path required')
+    for ancestor in output.parents:
+        validate_owned_ancestor(ancestor)
+        if ancestor == storage:break
+        if (ancestor / '.git').exists() or (ancestor / '.git').is_symlink():raise ValueError('Git checkout/metadata is forbidden')
+
+
+def validate_output(output):
+    output = output.absolute()
     if output.exists():raise ValueError('fresh output required')
     if output.resolve()!=output:raise ValueError('physical output path required')
-    storage = Path('/var/tmp/codex/ModSecurity-conector')
+    configured = os.environ.get('CODEX_TEMP_ROOT')
+    if not configured:raise ValueError('configured external storage root required')
+    storage = Path(configured)
+    if not storage.is_absolute() or storage.resolve()!=storage or not storage.is_dir():
+        raise ValueError('physical configured storage root required')
     if storage not in output.parents:raise ValueError('output outside authorized external storage')
-    for ancestor in output.parents:
-        if ancestor == storage:break
-        if (ancestor / '.git').exists():raise ValueError('Git checkout/metadata is forbidden')
-    output.mkdir(parents=True, mode=0o700)
+    validate_output_ancestry(output, storage)
+    return output
+
+
+def stage_source(repository, output):
     source = output / 'source';source.mkdir()
     shutil.copytree(repository / 'common', source / 'common')
     (source / 'connectors').mkdir()
@@ -59,6 +77,10 @@ def prepare(repository, output, leg='traefik-forwardauth-request', cases=None):
               'parent_sha': registry.manifest['delivery_product_baseline']}
     (source / central.MARKER).write_text(json.dumps(marker) + '\n')
     central.apply(registry, 'traefik-forwardauth', source)
+    return source
+
+
+def stage_fixtures(source, output, cases):
     fixture = output / 'fixtures';fixture.mkdir()
     captured = source / '.i12-capture/traefik-forwardauth/drivers'
     for name in ('cc-wrapper.sh', 'cxx-wrapper.sh', 'sdk-who.c'):
@@ -70,6 +92,19 @@ def prepare(repository, output, leg='traefik-forwardauth-request', cases=None):
     text = helper.read_text();start = text.index('\tif transactionID != ');end = text.index(' {\n\t\treturn', start)
     text = text[:start] + '\tif ' + ' && '.join('transactionID != "i12-auth-' + name + '"' for name in cases) + text[end:]
     helper.write_text(text)
+    return fixture, captured
+
+
+def prepare(repository, output, leg='traefik-forwardauth-request', cases=None):
+    cases=CASES if cases is None else tuple(cases)
+    if len(set(cases))!=len(cases) or any(name not in CASES for name in cases):raise ValueError('invalid bounded case selection')
+    if 'neighbor' not in cases:cases=(*cases,'neighbor')
+    if leg not in ('traefik-forwardauth-request', 'traefik-forwardauth-response-companion'):
+        raise ValueError('invalid logical leg')
+    repository = repository.resolve();output = validate_output(output)
+    output.mkdir(parents=True, mode=0o700)
+    source = stage_source(repository, output)
+    fixture, captured = stage_fixtures(source, output, cases)
     driver = (captured / 'driver.py').read_text()
     driver = replace(driver, "LEG = 'traefik-forwardauth-request'", 'LEG = ' + repr(leg))
     driver = replace(driver, "CASE = 'I12::traefik-forwardauth-request::NEED-request-eos-once'", 'CASE = ' + repr('I12::'+leg+'::extended-host-capture'))

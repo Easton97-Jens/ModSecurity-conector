@@ -7,6 +7,9 @@ import json
 from pathlib import Path
 import review
 
+AUDIT_FILE = 'native-audit.log'
+COMMAND_SUFFIX = '.command.json'
+
 MAPPING={
  'traefik-forwardauth-request':{'allow':'allow_without_marker','p1-deny':'deny_header_marker_403','p2-deny':'deny_request_body_marker_403'},
  'traefik-forwardauth-response-companion':{'p3-deny':'deny_response_header_marker_403','p4-safe':'phase4_rule_observed'}}
@@ -37,7 +40,7 @@ def propose(observed,leg,inventory,destination):
           'product_host_identity':obs({'actual_loaded_images':before['processes'],'build_host_sha256':result['build']['host_sha256']},ref(data/'before-target.json','loaded_image'),isolation),
           'source_config_binding':obs({'source_inputs':result['build']['source_inputs'],'configuration':result['build']['configuration']},ref(data/'build-manifest.json','source_manifest'),ref(data/'runtime/effective-config/traefik-forwardauth.conf','effective_configuration'),ref(data/'runtime/effective-config/traefik-forwardauth-dynamic.yaml','effective_configuration')),
           'capability':obs({'product_profile':'traefik-forwardauth','selected_logical_leg':leg,'native_request_phases':[1,2],'native_companion_response_phases':[3,4],'physical_transaction_id':identity},hr,source_ref),
-          'client_exit':obs(review.read(data/('client-'+name+'.command.json'))['exit_code'],ref(data/('client-'+name+'.command.json'),'client_process')),
+          'client_exit':obs(review.read(data/('client-'+name+COMMAND_SUFFIX))['exit_code'],ref(data/('client-'+name+COMMAND_SUFFIX),'client_process')),
           'client_signal':obs(None,cp),
           'client_headers':obs(framing.get('headers'),wire),
           'client_bytes':obs(framing['entity_bytes'],wire),
@@ -45,7 +48,7 @@ def propose(observed,leg,inventory,destination):
           'backend_request_count':obs(len(item['backend']),bp),
           'backend_payload_identity':obs({'backend':item['backend'],'client':client,'backend_excluded':not item['backend']},bp,cp),
           'client_backend_correlation':obs({'selected_transaction_id':identity,'actual_backend':item['backend'],'client':client},bp,cp),
-          'native_events':obs({'common':scope['common_events'],'native_audit_transaction_id':identity},sink,ref(logs/'native-audit.log','physical_event_sink')),
+          'native_events':obs({'common':scope['common_events'],'native_audit_transaction_id':identity},sink,ref(logs/AUDIT_FILE,'physical_event_sink')),
           'native_api_returns':obs({'counts':counts,'allocation_scope_call':scope['allocation_scope_call'],'all_returns_in_review':str(observed)},nr),
           'native_transaction_id':obs({'value':scope['native_allocation']['transaction_id'],'origin':scope['native_allocation']['transaction_id_origin']},nr),
           'common_transaction_id':obs({'value':common['transaction_id'],'canonical':common['canonical_transaction_id']} if common else None,nr),
@@ -67,11 +70,11 @@ def propose(observed,leg,inventory,destination):
           'transport_framing':obs(framing,wire),
           'transport_reset_scope':obs({'client_eof':client['tcp_eof_observed'],'complete_framing':framing['complete'],'host_rows':scope['host_rows'],'reset_not_inferred_from_eof':True},cp,hr),
           'host_action':obs({'actual_host_rows':scope['host_rows'],'access_log_status_separate_from_client':True,'actual_client_status':framing.get('status')},hr,ref(logs/'traefik-access.log','host_callback'),cp),
-          'physical_event_order':obs({'actual_common_events':scope['common_events'],'native_event_sequences':[r['sequence'] for r in scope['all_calls']]},sink,ref(logs/'native-audit.log','physical_event_sink')),
-          'terminal_event_count':obs({'common_event_count':len(scope['common_events']),'native_logging_calls':counts.get('native_process_logging',0),'native_cleanup_calls':counts.get('native_cleanup',0)},sink,ref(logs/'native-audit.log','physical_event_sink'))}
+          'physical_event_order':obs({'actual_common_events':scope['common_events'],'native_event_sequences':[r['sequence'] for r in scope['all_calls']]},sink,ref(logs/AUDIT_FILE,'physical_event_sink')),
+          'terminal_event_count':obs({'common_event_count':len(scope['common_events']),'native_logging_calls':counts.get('native_process_logging',0),'native_cleanup_calls':counts.get('native_cleanup',0)},sink,ref(logs/AUDIT_FILE,'physical_event_sink'))}
         # An actual successful waited subprocess return proves absence of a terminating signal.
         code=observations['client_exit']['value']
-        observations['client_signal']=obs(-code if code<0 else 0,ref(data/('client-'+name+'.command.json'),'client_process'))
+        observations['client_signal']=obs(-code if code<0 else 0,ref(data/('client-'+name+COMMAND_SUFFIX),'client_process'))
         for field,value in observations.items():
             if value['value'] is None:value['reason']='This capture did not observe '+field
         row=selected[case];packet={'run_scoped_case_id':row['run_scoped_case_id'],'leg_id':leg,'fixture_case_id':name,
