@@ -341,7 +341,12 @@ def assert_followup_not_admitted_yet():
     try:
         connection.settimeout(1.0)
         connection.connect(path)
-        connection.sendall(frame(1, begin_payload("send-deadline-probe")))
+        try:
+            connection.sendall(frame(1, begin_payload("send-deadline-probe")))
+        except (BrokenPipeError, ConnectionResetError):
+            # The saturated listener can reject the peer before its first
+            # write, as well as while the following recv is pending.
+            return
         try:
             data = connection.recv(12)
         except socket.timeout:
