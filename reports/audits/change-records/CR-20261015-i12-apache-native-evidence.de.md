@@ -58,3 +58,5 @@ Diese Apache-Änderung führt keine fremden Connector-/Framework-/MRTS-Lieferung
 ## Finaler Diff- und Review-Status
 
 Lokale Prüfbelege und abschließender Diff definieren den geprüften Umfang. Normale Commits/Pushes und Draft-PR-Lieferung sind nur auf dem isolierten Branch gegen den Branch von #410 autorisiert; kein Force-Push oder automatischer Merge. Dieser Record erfindet keine Liefer-SHA, PR-Nummer, CI-Ergebnisse oder Abschlussfreigabe. I12 bleibt insgesamt unvollständig.
+
+Beobachtete Erstlieferung: normaler Implementierungscommit `68e3c34a780e26cfb714155b4f7652ca059a8572` auf `codex/i12-apache-410-20261015` gepusht; [Draft-PR #414](https://github.com/Easton97-Jens/ModSecurity-conector/pull/414) zielt auf `work/pr382-i12-host-evidence-20261011`. Lokaler, Remote- und PR-Implementierungshead stimmten überein. GitHub-Checks liefen zu diesem Zeitpunkt; kein `verified_pr`, Sonar Quality Gate, Merge- oder Release-Ergebnis wird beansprucht. Diese Liefernotiz ist ein normaler Folgecommit; der aktuelle finale Liefer-SHA wird separat gemeldet.

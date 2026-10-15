@@ -58,3 +58,5 @@ This Apache-only change does not run unrelated connector/Framework/MRTS delivery
 ## Final diff and review status
 
 Local validation receipts and the final diff define the reviewed scope. Normal commit/push and Draft PR delivery are authorized only on the isolated branch against #410's branch; no force-push or automatic merge is authorized. This record contains no fabricated delivery SHA, PR number, CI result or completion approval. Overall I12 status remains partial.
+
+Initial delivery observed: normal implementation commit `68e3c34a780e26cfb714155b4f7652ca059a8572` pushed to `codex/i12-apache-410-20261015`; [Draft PR #414](https://github.com/Easton97-Jens/ModSecurity-conector/pull/414) targets `work/pr382-i12-host-evidence-20261011`. Local/remote/PR implementation heads matched. GitHub checks were running at that observation; no `verified_pr`, Sonar Quality Gate, merge or release result is claimed. This delivery note is a normal follow-up commit; current final delivery SHA is reported separately.
