@@ -15,6 +15,27 @@ ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = None
 
 
+def constructor_id_type(include, output):
+    """Ask the selected C header for its constructor signature; retain both probes."""
+    probes = []
+    for spelling in ("const char", "char"):
+        source = (
+            '#include <modsecurity/transaction.h>\n'
+            'Transaction *(*constructor)(ModSecurity *, RulesSet *, '
+            + spelling + ' *, void *) = msc_new_transaction_with_id;\n'
+        )
+        argv = ["cc", "-std=c17", "-Wall", "-Wextra", "-Werror", "-fsyntax-only",
+                "-I", str(include), "-x", "c", "-"]
+        result = subprocess.run(argv, input=source, capture_output=True, text=True, check=False)
+        probes.append({"id_type": spelling, "source": source, "argv": argv,
+                       "returncode": result.returncode, "stderr": result.stderr})
+        if result.returncode == 0:
+            output.write_text(json.dumps(probes, indent=2) + "\n", encoding="utf-8")
+            return spelling
+    output.write_text(json.dumps(probes, indent=2) + "\n", encoding="utf-8")
+    raise RuntimeError("Selected SDK constructor matches neither supported public C signature")
+
+
 def companion_runtime_source_copy(output):
     """Add callbacks only at genuine typed boundaries in an external copy."""
     source = (ROOT / "common/runtime/msconnector_runtime.c").read_text(encoding="utf-8")
@@ -308,7 +329,9 @@ class NativeLifecycleObserverTests(unittest.TestCase):
         native.write_text(declarations + "static _Thread_local int token;" + native_implementation, encoding="utf-8")
         fixture.write_text(declarations + "static void *cycle" + main, encoding="utf-8")
         cls.binary = cls.work / "fixture"
+        id_type = constructor_id_type(cls.include, OUTPUT / "constructor-signature.json")
         command = ["cc", "-std=c17", "-D_POSIX_C_SOURCE=200809L", "-Wall", "-Wextra", "-Werror",
+                   "-DMSCONNECTOR_TEST_ID_CHAR=" + id_type,
                    "-pthread", "-I", str(ROOT / "common/include"), "-I", str(ROOT / "ci/runtime/lifecycle"), "-I", str(cls.include),
                    str(ROOT / "ci/runtime/lifecycle/native-lifecycle-observer.c"), str(fixture), str(native),
                    str(ROOT / "common/src/transaction_state.c"),
@@ -410,6 +433,24 @@ class NativeLifecycleObserverTests(unittest.TestCase):
         self.assertTrue(all(e["wall_ns"] > 0 and e["wall_sample_end_monotonic_ns"] >= e["monotonic_ns"] for e in events))
         self.assertTrue(all(not e["invalid"] for e in events))
         self.assertTrue(all(e["host_eos"] is None and e["native_mime_selection"] is None for e in events))
+
+    def test_constructor_qualifier_probe_accepts_both_public_header_signatures(self):
+        include = self.work / "signature-control"
+        headers = include / "modsecurity"
+        headers.mkdir(parents=True)
+        for spelling in ("const char", "char"):
+            (headers / "transaction.h").write_text(
+                'typedef struct ModSecurity_t ModSecurity;\n'
+                'typedef struct Rules_t RulesSet;\n'
+                'typedef struct Transaction_t Transaction;\n'
+                'Transaction *msc_new_transaction_with_id(ModSecurity *, RulesSet *, '
+                + spelling + ' *, void *);\n', encoding="utf-8")
+            selected = constructor_id_type(include, self.work / (spelling.replace(" ", "-") + "-probe.json"))
+            self.assertEqual(selected, spelling)
+        # Keep retained artifacts flat, as required by the evidence retention guard.
+        (headers / "transaction.h").unlink()
+        headers.rmdir()
+        include.rmdir()
 
     def test_real_common_failures_attempts_id_reuse_and_native_passthrough(self):
         events, stderr = self.run_fixture()
@@ -655,6 +696,7 @@ int main(void) {
 #include <modsecurity/rules_set.h>
 #include <modsecurity/transaction.h>
 #include <string.h>
+#include <stdlib.h>
 int main(int argc,char **argv) {
     if(argc!=2)return 2;
     int deny=strcmp(argv[1],"deny")==0;

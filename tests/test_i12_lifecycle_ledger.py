@@ -67,6 +67,15 @@ class LifecycleLedgerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Independent producers are missing"):
             self.review()
 
+    def test_direct_sdk_mime_accessor_is_native_api_and_transport_cannot_replace_it(self):
+        self.packet["observations"]["mime_gate"] = {
+            "value": {"native_mime_selection": {"content_type": "text/plain", "selected": True}},
+            "evidence": [{**self.raw_ref, "role": "native_api"}]}
+        self.assertTrue(self.review()["full_lifecycle_qualified"])
+        self.packet["observations"]["mime_gate"]["evidence"][0]["role"] = "client_process"
+        with self.assertRaisesRegex(ValueError, "suitable physical producer"):
+            self.review()
+
     def test_unknown_without_reason_is_rejected(self):
         self.packet["observations"]["mime_gate"] = {"value": None}
         with self.assertRaisesRegex(ValueError, "exact missing reason"):
@@ -117,6 +126,53 @@ class LifecycleLedgerTests(unittest.TestCase):
         self.packet["observations"]["native_free_calls"]["evidence"][0]["path"] = str(alias)
         with self.assertRaisesRegex(ValueError, "physical absolute regular file"):
             self.review()
+
+    def parser_control(self):
+        """Synthetic validator control; never exported as host evidence."""
+        self.oracle = {"native_result": "config_accepted", "visible_status": 0, "phase": 0,
+                       "physical_evidence_not_projection": True}
+        self.packet["oracle_sha256"] = LEDGER.ORACLES.canonical_digest(self.oracle)
+        row = {**self.row, "selected_requirement": {"execution_kind": "actual_configtest"}}
+        packet = {**self.packet, "execution_kind": "configuration_parser", "rules_sha256": "control-rules",
+                  "actual_observations": {
+                      "parser_process": {"argv": ["control-parser", "-tt"], "cwd": str(self.root),
+                                         "waited_exit": 0, "waited_signal": None, "stdout": "", "stderr": ""},
+                      "invocation_identity": {"synthetic": True},
+                      "source_config_binding": {"synthetic": True}, "cleanup": {"synthetic": True}},
+                  "measurement_evidence": [{**self.raw_ref, "role": role} for role in
+                      ("parser_process", "source_manifest", "effective_configuration", "invoked_image",
+                       "cleanup_observer", "isolation_receipt")]}
+        return row, packet
+
+    def parser_review(self, row, packet):
+        path = self.root / "parser-packet.json"
+        path.write_text(json.dumps(packet))
+        return LEDGER.reviewed_configuration_packet(LEDGER.ORACLES.reference(path), row, self.oracle)
+
+    def test_parser_scope_never_becomes_a_host_lifecycle_or_covers_an_http_id(self):
+        row, packet = self.parser_control()
+        result = self.parser_review(row, packet)
+        self.assertTrue(result["full_case_qualified"])
+        self.assertFalse(result["full_lifecycle_qualified"])
+        self.assertEqual(result["qualification_scope"], "configuration_control")
+        row["selected_requirement"]["execution_kind"] = "host_case_or_missing_fixture"
+        with self.assertRaisesRegex(ValueError, "original actual_configtest"):
+            self.parser_review(row, packet)
+
+    def test_parser_scope_requires_actual_process_image_and_independent_oracle(self):
+        row, packet = self.parser_control()
+        del packet["actual_observations"]["parser_process"]["waited_exit"]
+        with self.assertRaisesRegex(ValueError, "actual argv/cwd"):
+            self.parser_review(row, packet)
+        row, packet = self.parser_control()
+        packet["measurement_evidence"] = [item for item in packet["measurement_evidence"]
+                                          if item["role"] != "invoked_image"]
+        with self.assertRaisesRegex(ValueError, "independent process, image"):
+            self.parser_review(row, packet)
+        row, packet = self.parser_control()
+        packet["actual_observations"]["parser_process"]["waited_exit"] = 1
+        with self.assertRaisesRegex(ValueError, "contradicts actual exit"):
+            self.parser_review(row, packet)
 
 
 if __name__ == "__main__":
