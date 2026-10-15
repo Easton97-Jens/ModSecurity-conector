@@ -1,6 +1,7 @@
 """Mutation controls for exact-original packet qualification; no host verdicts."""
 import copy
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -112,10 +113,13 @@ class PredicateMutations(unittest.TestCase):
 
 class PacketMutations(unittest.TestCase):
     def setUp(self):
-        Q.RUNROOT.mkdir(parents=True, exist_ok=True)
-        self.directory = tempfile.TemporaryDirectory(dir=Q.RUNROOT, prefix='packet-controls-')
+        self.directory = tempfile.TemporaryDirectory(
+            dir=os.environ.get('TMPDIR', tempfile.gettempdir()), prefix='packet-controls-')
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
+        storage = patch.object(Q, 'RUNROOT', self.root)
+        storage.start()
+        self.addCleanup(storage.stop)
         self.proof = self.root / 'proof.json'
         self.proof.write_text('{}\n')
 

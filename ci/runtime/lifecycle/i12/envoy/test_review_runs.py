@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 HERE = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location('review_runs', HERE / 'review_runs.py')
@@ -16,8 +17,11 @@ spec.loader.exec_module(review)
 class ReviewControls(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(
-            prefix='envoy-review-', dir=os.environ.get('TMPDIR', str(review.STORAGE)))
+            prefix='envoy-review-', dir=os.environ.get('TMPDIR', tempfile.gettempdir()))
         self.root = Path(self.temporary.name)
+        storage = patch.object(review, 'STORAGE', self.root.parent)
+        storage.start()
+        self.addCleanup(storage.stop)
 
     def tearDown(self):
         self.temporary.cleanup()

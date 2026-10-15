@@ -12,7 +12,7 @@ import source_inventory as inventory
 
 class CompleteSourceControls(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(dir=os.environ.get('TMPDIR', '/var/tmp/codex/ModSecurity-conector'))
+        self.temporary = tempfile.TemporaryDirectory(dir=os.environ.get('TMPDIR', tempfile.gettempdir()))
         self.root = Path(self.temporary.name)
         self.source = self.root / 'source'
         self.source.mkdir()

@@ -33,6 +33,13 @@ All shell entrypoints used RTK. Actual native/CGo build, full Go tests, race and
 
 ## Security impact
 
+Synthetic unit fixtures use independently scoped temporary storage so hosted
+runner paths do not require this machine's capture root. Three pre-fix controls
+fail when that root is absent; all 95 current controls pass with absent
+production roots and in the normal environment. Actual capture containment and
+listener/privilege checks are unchanged. Receipts: `ci-portability-before.json`,
+`ci-portability-controls.json`, `final-envoy-controls-portable.json`.
+
 No product defaults, authentication, validation, compiler warnings, listener permissions or dependency pins are weakened. Actual candidates run as UID/GID65534, capabilities0, NoNewPrivs1 in private namespaces. The namespace FD prevents inode-reuse misattribution while retaining all ownership checks. No foreign process was signalled. Generated report metadata excludes payloads, opaque leases, private keys, caches and binaries.
 
 All 125 original oracles have individual physically validated source reviews. The 33 new concrete fixture/expectation proposals (14/10/9) remain separate from canonical resolution and lifecycle PASS. Complete build-source inventory (2,105 files), case/route/Parent binding and the bounded outer timeout with byte-exact partial logs have additional controls.

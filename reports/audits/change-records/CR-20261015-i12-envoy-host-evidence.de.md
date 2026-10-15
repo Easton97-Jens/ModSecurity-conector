@@ -32,6 +32,14 @@ Alle Shell-Einstiegspunkte nutzten RTK. Tatsächliche native/CGo-Build-, vollst�
 
 ## Security-Auswirkung
 
+Synthetische Unit-Fixtures verwenden unabhängig abgegrenzten Temporärspeicher,
+damit Hosted-Runner-Pfade die Capture-Wurzel dieses Rechners nicht voraussetzen.
+Drei Kontrollen vor der Korrektur scheitern bei fehlender Wurzel; alle 95
+aktuellen Kontrollen bestehen mit fehlenden Produktionswurzeln und in der
+normalen Umgebung. Echte Capture-Containment- und Listener-/Privilegienprüfungen
+bleiben unverändert. Receipts: `ci-portability-before.json`,
+`ci-portability-controls.json`, `final-envoy-controls-portable.json`.
+
 Keine Produktdefaults, Authentifizierung, Validierung, Compilerwarnungen, Listenerberechtigungen oder Dependency-Pins werden abgeschwächt. Tatsächliche Kandidaten laufen mit UID/GID65534, Capabilities0 und NoNewPrivs1 in privaten Namespaces. Der Namespace-FD verhindert Fehlzuordnung durch Inode-Wiederverwendung bei erhaltenen Ownership-Prüfungen. Kein fremder Prozess wurde signalisiert. Generierte Berichtsmetadaten schließen Payloads, opaque Leases, private Schlüssel, Caches und Binaries aus.
 
 Alle 125 Original-Oracles haben einzelne physisch geprüfte Quellreviews. 33 neue konkrete Fixture-/Erwartungsvorschläge (14/10/9) bleiben von kanonischer Auflösung und Lifecycle-PASS getrennt. Die gesamte Buildquellinventur (2.105 Dateien), Fall-/Routen-/Parent-Bindung sowie der begrenzte äußere Timeout mit bytegenauen Teillogs sind zusätzlich geprüft.

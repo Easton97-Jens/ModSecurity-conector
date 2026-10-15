@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 HERE = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location('validate_oracles', HERE / 'validate_oracles.py')
@@ -18,8 +19,11 @@ class OracleValidationControls(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(
             prefix='envoy-oracle-controls-',
-            dir=os.environ.get('TMPDIR', str(validator.STORAGE_ROOTS[0])))
+            dir=os.environ.get('TMPDIR', tempfile.gettempdir()))
         self.root = Path(self.temporary.name)
+        storage = patch.object(validator, 'STORAGE_ROOTS', (self.root.parent,))
+        storage.start()
+        self.addCleanup(storage.stop)
         self.source = self.root / 'source.txt'
         self.source.write_text('symbol boundary\nsecond line\n')
         self.reference = {'path': str(self.source),
