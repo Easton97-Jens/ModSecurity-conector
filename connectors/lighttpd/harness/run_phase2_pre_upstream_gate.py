@@ -79,6 +79,8 @@ class TaskRuntimeDirectory:
     """A private runtime directory held open by descriptor for its whole use."""
 
     directory_fd: int
+    task_root: Path
+    task_root_identity: tuple[int, int]
 
     @staticmethod
     def _component(name: str) -> None:
@@ -106,7 +108,7 @@ class TaskRuntimeDirectory:
         except Exception:
             os.close(child_fd)
             raise
-        return TaskRuntimeDirectory(child_fd)
+        return TaskRuntimeDirectory(child_fd, self.task_root, self.task_root_identity)
 
     def _open_new(self, name: str) -> int:
         self._component(name)
@@ -163,6 +165,29 @@ class TaskRuntimeDirectory:
     def runtime_path(self, name: str) -> str:
         self._component(name)
         return f"/proc/self/fd/{self.directory_fd}/{name}"
+
+    def event_sink_path(self, name: str) -> str:
+        """Use a verified real directory for Common's no-follow parent walker."""
+        self._component(name)
+        try:
+            pinned = os.fstat(self.directory_fd)
+            directory = Path(os.readlink(f"/proc/self/fd/{self.directory_fd}"))
+            root = ensure_directory(self.task_root, "selected runtime root")
+            directory = ensure_directory(directory, "event sink directory")
+            root_status = root.stat(follow_symlinks=False)
+            directory_status = directory.stat(follow_symlinks=False)
+        except OSError as exc:
+            raise GateFailure("could not verify pinned event sink directory") from exc
+        _require_private_task_directory(pinned, "pinned event sink directory")
+        _require_private_task_directory(root_status, "selected runtime root")
+        _require_private_task_directory(directory_status, "event sink directory")
+        if (root_status.st_dev, root_status.st_ino) != self.task_root_identity:
+            raise GateFailure("selected runtime root identity changed")
+        if not directory.is_relative_to(root):
+            raise GateFailure("event sink directory escaped selected runtime root")
+        if (directory_status.st_dev, directory_status.st_ino) != (pinned.st_dev, pinned.st_ino):
+            raise GateFailure("event sink directory differs from pinned descriptor")
+        return str(directory / name)
 
     def close(self) -> None:
         if self.directory_fd >= 0:
@@ -655,7 +680,7 @@ def write_runtime_inputs(
         root.write_text("events.jsonl", "")
         document_root_path = root.runtime_path("document-root")
         upload_dir_path = root.runtime_path("upload")
-        event_path = root.runtime_path("events.jsonl")
+        event_path = root.event_sink_path("events.jsonl")
         runtime_config = root.runtime_path("msconnector-runtime.conf")
         error_log = root.runtime_path("lighttpd-error.log")
         pid_file = root.runtime_path("lighttpd.pid")
@@ -690,6 +715,7 @@ def write_runtime_inputs(
             f'server.pid-file = "{pid_file}"',
             f'server.upload-dirs = ( "{upload_dir_path}" )',
             'msconnector.enabled = "enable"',
+            'msconnector.request-body-gate = "pre-upstream"',
             f'msconnector.config-file = "{runtime_config}"',
             "proxy.server = (",
             f'  "/" => ( ( "host" => "{LOOPBACK_HOST}", "port" => {upstream_endpoint.port} ) )',
@@ -836,7 +862,7 @@ def ensure_runtime_root(path: Path) -> TaskRuntimeRoot:
     except Exception:
         os.close(directory_fd)
         raise
-    return TaskRuntimeRoot(directory_fd)
+    return TaskRuntimeRoot(directory_fd, root, (pinned_stat.st_dev, pinned_stat.st_ino))
 
 
 def write_summary(root: TaskRuntimeRoot, summary: dict[str, Any]) -> None:

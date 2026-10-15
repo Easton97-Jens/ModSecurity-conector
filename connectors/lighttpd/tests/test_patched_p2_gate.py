@@ -69,7 +69,9 @@ class PatchedP2GateContractTest(unittest.TestCase):
         self.assertIn("r->con->reqbody_read(r)", prepare)
         self.assertNotRegex(prepare, r"stream_request_body\s*\|=")
         self.assertIn("request_body_finished", prepare)
-        self.assertIn("request body exceeds the Common P2 bound", prepare)
+        self.assertNotIn("request_body_limit", source)
+        self.assertNotIn("MSCONNECTOR_ERROR_BODY_TOO_LARGE", source)
+        self.assertIn('msconnector.request-body-gate = "pre-upstream"', CONFIG.read_text(encoding="utf-8"))
 
     def test_runtime_config_documents_the_explicit_pre_upstream_mode(self) -> None:
         config = CONFIG.read_text(encoding="utf-8")

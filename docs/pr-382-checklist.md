@@ -2,7 +2,84 @@
 
 **Language:** English | [Deutsch](pr-382-checklist.de.md)
 
-## Current review/Go reconciliation, 2026-10-13
+## Current I12 lifecycle consolidation, 2026-10-14
+
+State: **I12_PARTIAL** and independently **RELEASE_BLOCKED_SECRET_HISTORY**.
+Both PRs remain Draft. The [current host report](pr-382-i12-host-evidence-20261014.md)
+and [complete original index](pr-382-i12-missing-case-index-20261014.md)
+bind physical packets, original contracts and hashes. Earlier sections below
+describe only their historical checkpoints.
+
+The unchanged selection contains 1484 original IDs: 1406 required and 78
+diagnostic. There are 21 full required-case lifecycle PASS and 0 FAIL, with at
+least one full case on each of 13/13 required route parts. Actual execution is
+recorded for 151 original IDs. The 37 historical configuration PASS include 36
+required cases; total qualified required PASS is 57, required FAIL is 0, and
+1426 original IDs remain unqualified. Of the original 596 unresolved oracles,
+21 are independently source-confirmed and actually retaken; 575 remain unresolved.
+Original membership, null oracles, raw records and earlier failures are preserved.
+
+The 21 full cases do not qualify all 1406 required IDs. Applicable host/native
+EOS, MIME, finish/free, client/backend, handle and cleanup evidence is physically
+measured for these packets; justified nonapplicability remains explicit.
+Zero-byte append and client EOF do not replace native EOS evidence. Stock-native
+control remains diagnostic, including its 23 originally unresolved oracles;
+it was not broadly relabelled unsupported. Other required IDs, missing fixtures,
+further limits, late/commit, sink failures, cancellation/reset and neighbor
+cases remain open. I12/V08–V10 remain open overall.
+
+[Private capture sources](../ci/runtime/lifecycle/i12/README.md) retain nine explicit variants. Each packet
+binds actual source, loaded images, SDKs and configuration. Earlier a9/0275
+builds remain distinct from current product/delivery revisions; source success
+does not replace host execution.
+
+Published #382 product head is `9980eb049dde0643da6a4f04e3b6712801b670b3`;
+the normal #410 integration is `eca03db3`. The test-only follow-up replaces the
+stale mapper400 assertion with typed dispatch/default500 and the separately
+bounded headercount400 contract; all 38 requested contract tests and five
+compiled mapper tests pass. New #382 CI is pending. The e47 Sonar SUCCESS
+(check `116148729241`, Gate OK, Security A, new/accepted issues 0, hotspots 0,
+duplication 0) remains historical evidence for e47 only, with no transfer to
+9980 or #410. Remote #410 remains `02754040bced960cfc1857416cd7101bb3116ef4`
+at this pre-push checkpoint; #410 source CI awaits Root push and fresh readback.
+Historical Gitleaks remains a separate release blocker. No all-CI PASS, master
+merge or release is asserted.
+
+Root additionally approved 20 `HARNESS_DEFECT_CONFIRMED` supplemental
+dispositions outside the original 596-member subset. Original generic catalog
+exit 1 remains unchanged and is not treated as a direct-native or wrapper-driver
+contract: actual waited native exits are 255 x 8, 78 x 9, 2 x 1 and 77 x 2.
+These are process exits, not HTTP statuses; nine operations are parser-only and
+eleven are service-startup failures. Nine physically empty sidecar stderr
+first-causes remain NULL; source/config cause is separate. Scope-file cases
+reject the Common Runtime unknown `phase4_content_types_file` key and do not
+prove MIME/wildcard parser execution. Formal resolved expectation and retest
+remain null; this produces no additional configuration or lifecycle PASS.
+The different 29 historical original596 gaps and 23 Stock-native diagnostic
+oracles remain unresolved; no new unsupported approval is inferred.
+
+Disposition source: `catalog-conflicts/final-supplemental20/disposition-summary.json`,
+SHA256 `d68c2535d5ece0990670b3e01f173df9d98ad26684fef1f7bf39ca37cc436021`.
+Root-approved records15, oracle13 and ledger08 retain 21 resolved/575 unresolved,
+21 full PASS, 13 routes, 151 executed, 37 configuration PASS, 57 required
+qualified PASS and 1426 unqualified IDs. Actual Quick06 and Docs10 passed;
+Root90 tests and SourceRoot05 passed with 150 source objects, nine variants,
+45 patch applications and 15 guards. These remain distinct from pending hosted CI.
+
+## Earlier I12 execution, 2026-10-13
+
+Outcome: **I12_PARTIAL**. Parent
+`a9d48bb58aa948aea7d79e20cdf09d3f239b7808` includes the reproduced HAProxy
+native outcome, normal P3 completion and phase-conversion repairs. The existing #410 branch receives
+this Parent through normal merges and retains its historical evidence.
+The [current host report](pr-382-i12-host-evidence-20261013.md) covers all
+13 required legs and the separate Stock-native control, 1,406 required and
+78 diagnostic obligations, actual host attempts and remaining prerequisites.
+Bounded host success and component tests leave I12/V08/V09/V10 unchecked.
+The independent historical secret-range gate remains failed. Final exact
+Parent/evidence delivery and CI states are in the current PR descriptions.
+
+## Earlier review/Go checkpoint, 2026-10-13
 
 State: **BLOCKED_FOR_I12**. Current remediation starts at
 `4639f982a8125f4150394e4d4f2e8af4e690f494`. The [consolidated Change Record](../reports/audits/change-records/CR-20261013-pr382-consolidated.md)
@@ -21,7 +98,7 @@ them. No scanner exception or history rewrite is performed. The real nonroot
 Stock startup is BLOCKED by local UID mapping `0 0 1`. The master updater has
 not run after integration; **MASTER_WORKFLOW_VERIFIED: NOT_EXECUTED**. The
 [I12 handoff](pr-382-i12-handoff.md) binds missing host evidence and final delivery facts;
-#410 and the full I12 matrix remain untouched. Historical R16/R17 and the table
+That earlier task left #410 and the full I12 matrix untouched. Historical R16/R17 and the table
 revisions below retain their original scope.
 
 [Draft PR #382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382),
@@ -60,6 +137,23 @@ Integration readback: published I11 head `6a79efe7` and PR #382 base `492663334d
 The isolated branch `fix/i11-event-sink-parity-20261011` starts at `0df51024008fc84f0a6820f3b011055b69c3a3e2` from PR #382. Code changes and current compiled tests satisfy I11 implementation acceptance; I11 is `[x]`, with live-host I12/V10 evidence still open. The [Change Record](https://github.com/Easton97-Jens/ModSecurity-conector/blob/4639f982a8125f4150394e4d4f2e8af4e690f494/reports/audits/change-records/CR-20261011-pr382-i11-physical-sink-parity.md) and [remaining-work matrix](pr-382-i09-i12-rest-matrix.md) separate current patch evidence from historical R16/R17 and open I12/V10 evidence. The historical description of unchecked Apache/SPOP sinks below applies to its original checkpoint, not the current patch.
 
 Pre-integration I11 evidence (published head `6a79efe7`): physical sink tests 50, Common/event regressions 60, fully instrumented C ASan/UBSan tests 46, Apache native/C17 45 and adoption 28, Envoy native/tagged 218 tests/324 cases/8 packages and race 105/164/3 pass. All 110 NGINX adoption methods pass in four disjoint shards of 28+28+27+27 tests. Bilingual/path/link, workflow, format and Change Record checks pass. Broad Apache suite: current patch 215 tests, 7 failures/7 errors; unchanged base 195 tests, 8 failures/7 errors. No new failure/error sets; the earlier precommit_rate_limit fixture failure now passes. Three UID/chown environment errors occur on both revisions. HAProxy suite: 203 tests, five failures reproduced on base, twelve skips. Neither broad suite is claimed fully green.
+
+## Historical PR #382 host-evidence run, 2026-10-11
+
+The [historical host-evidence report](pr-382-i12-host-evidence-20261011.md) keeps
+route-specific observations and remaining cases separate from historical R17.
+Run `20261011T063350Z-0df51024008f-i12` binds tested Parent
+`0df51024008fc84f0a6820f3b011055b69c3a3e2`, Framework
+`99a7985c1be92a2297b1b59208f64df6768f2cbf` and MRTS
+`8a6bb546c4c81d8ffc7be801dceac60c6925685f`. This product tuple does not identify
+the later documentation or delivery commit.
+
+Build/version checks and isolated admission probes prove prerequisites only.
+An Apache allow observation alone does not close its required host, transport,
+physical-sink and cleanup matrix. Request and response companion legs require
+separate evidence. I12c–l and broad I12 remain unchecked; the report records
+actual case outcomes without transferring R17 PASS to this tuple. Local raw
+bundles are retained evidence, not downloadable GitHub artifacts.
 
 ## Historical R16: 2026-10-10 downstream NGINX-H1 system evidence from PR #396
 
@@ -198,6 +292,16 @@ Local raw evidence remains under `/var/tmp/codex/ModSecurity-conector/analysis/n
 - [ ] I12: Verify each direct, companion, middleware and sidecar route separately, including actual host/transport/log results.
 - [x] I12a: Ten separate ext_proc C-bridge failure/re-entry/empty-response scenarios pass (V22); not ext_authz/companion or live gRPC completion.
 - [x] I12b: Downstream R17 from PR #396 executed the standard NGINX-H1 route with actual Root/nobody and fresh projections, locally scoped functional PASS. This closes only the execution-reference subset, not PR #382 product testing or broad I12; R16 remains historical.
+- [ ] I12c: Apache native/direct: complete current-run host, client/backend, physical-sink and cleanup evidence.
+- [ ] I12d: HAProxy HTX direct: complete current-run native host/transport/log evidence.
+- [ ] I12e: HAProxy SPOE/SPOP: prove request and required response-companion legs separately.
+- [ ] I12f: Envoy ext_proc direct: prove actual Envoy/gRPC host, downstream action and physical logs.
+- [ ] I12g: Envoy ext_authz: prove request authorization and required response companion separately.
+- [ ] I12h: Traefik Native/UDS middleware: prove actual middleware/UDS host and downstream results.
+- [ ] I12i: Traefik forwardAuth: prove request authorization and required response companion separately.
+- [ ] I12j: lighttpd stock/sidecar: prove the traffic-owning sidecar route; keep the native diagnostic control separate.
+- [ ] I12k: lighttpd patched/native: prove supported native host actions without inventing Strict abort capability.
+- [ ] I12l: Reconcile all ten logical routes, required companion legs, current NGINX evidence, case outcomes, provenance and remaining work.
 - [x] I13: Bounded HAProxy Rule-ID decoder and ordered cleanup extracted without changing phase/ownership semantics.
 - [x] I14: All 96 original NGINX adoption cases plus four regressions retained.
 - [x] I15: HAProxy helper/callsite adoption checks and eight isolated regressions retained.
@@ -270,7 +374,12 @@ The [nine-column I09–I12 matrix](pr-382-i09-i12-rest-matrix.md) makes the rema
 These are PR new-code metrics, not claims about all historical repository debt.
 Coverage and secret scanning are independent requirements.
 
-## 4. Route-specific state
+## 4. Historical route-specific source/test inventory
+
+This earlier table predates the separately completed I09/I10/I11 repairs.
+Its propagation/caller/adapter entries are historical scope, not current open
+product defects. The current remaining work is the fully bound I12 host index
+above, including the actual physical lifecycle observations each ID requires.
 
 | Route | Completed subset | Remaining |
 | --- | --- | --- |

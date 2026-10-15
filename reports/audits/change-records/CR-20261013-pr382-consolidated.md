@@ -241,6 +241,48 @@ the normal outer Make target with explicit Python/Framework assignments.
 Receipts: the same local run's `optional-fixture/` directory. Broad verification
 and exact final-head delivery evidence remain separate.
 
+### Historical I12 evidence adopted from PR #410
+
+The ordinary merge of Parent `8c574cdf86f10af976297c31d31485b042eba73b` into the
+existing #410 branch preserves its old head
+`511c4ac4515f0e515f68b3bbc38274c5a230d903` in history.
+The additional historical Change ID `CR-20261011-pr382-i12-host-evidence`
+is consolidated here; its [immutable original](https://github.com/Easton97-Jens/ModSecurity-conector/blob/511c4ac4515f0e515f68b3bbc38274c5a230d903/reports/audits/change-records/CR-20261011-pr382-i12-host-evidence.md)
+remains accessible. The [historical I12 report](../../../docs/pr-382-i12-host-evidence-20261011.md)
+retains all observations; only its historical Change Record link now resolves
+to the immutable original revision instead of the removed file.
+Run `20261011T063350Z-0df51024008f-i12` tested Parent
+`0df51024008fc84f0a6820f3b011055b69c3a3e2`, Framework
+`99a7985c1be92a2297b1b59208f64df6768f2cbf`, MRTS
+`8a6bb546c4c81d8ffc7be801dceac60c6925685f`: 79 selected records,
+9 PASS, 6 FAIL, 53 BLOCKED, 11 NOT_EXECUTED; thirteen required legs with
+0 complete PASS, 2 FAIL, 11 BLOCKED. Advisory Stock-native control separately
+NOT_EXECUTED. These counts are not a complete required-case matrix or new
+Parent results. I12/V08–V10 remain open. Original raw artifacts/checksums stay
+unchanged; new runs receive their own source/config/host bindings. No removed
+redundant record is restored; I09/I10/I11 and the original122 index entries remain.
+
+### Stock real-backend evidence producer correction, 2026-10-13
+
+The historical Stock06 physical log remains byte-identical. Its canonical
+engine decision legitimately has empty `actual_action` before host observation;
+the old validator rejected it. The corrected validator permits that contract
+only for unobserved engine/error events and requires a separate observed,
+same-transaction native deny451. Wrong correlation or missing host proof fails
+closed; no engine action is invented.
+
+The seven-case real-backend harness retains every attempt, physical stderr,
+launch/exit/cleanup receipts, direct waited client headers/body/hash/framing and
+independent backend failure/final counts. Failed cases continue after successful
+cleanup; a cleanup failure stops further launches. Verified receipts publish
+only after cleanup. Eighteen focused harness tests pass, including incomplete
+framing despite client exit0, missing host evidence, wrong correlation and
+launch/cleanup failures. Root's real current Stock host reexecution remains
+required. Local receipts:
+`/var/tmp/codex/ModSecurity-conector/runs/e2e/20261013T125816Z-8c574cdf-i12-completion/stock-harness/resumed-01`.
+This modifies only the host-specific harness and its tests; product sources,
+Framework/MRTS gitlinks, scanners and native runtime guards are unchanged.
+
 ### Native test quality-gate follow-up, 2026-10-13
 
 The exact `b982c6f35abc47eccddcfded2bfd920f92516d90` Sonar check has zero
@@ -325,6 +367,335 @@ SPOP regression fixture. A three-value status table preserves the exact
 Allow/Deny/Redirect200/403/302 test inputs without nesting. No production
 source changes; genuine e2445 host/build identities remain unchanged.
 
+### Current I12 campaign disposition, 2026-10-13
+
+The [current paired host report](../../../docs/pr-382-i12-host-evidence-20261013.md)
+supersedes earlier delivery/checkpoint claims in this record. Outcome is
+**I12_PARTIAL**, with all 13 required legs and the separate Stock-native
+diagnostic assessed. The final Parent is `a9d48bb58aa948aea7d79e20cdf09d3f239b7808`.
+The existing #410 normally merges the Parent and retains old #410 head
+`511c4ac4515f0e515f68b3bbc38274c5a230d903` in ancestry. No master integration,
+history rewrite, new PR or Framework/MRTS gitlink change occurred.
+
+The complete selection remains 1,406 required IDs plus78 diagnostic IDs;
+the [generated missing-case index](../../../docs/pr-382-i12-missing-case-index-20261013.md)
+preserves every missing obligation and its reason. No smoke/driver exit0
+is promoted to full I12/V08–V10 PASS. Historical79records, failed attempts,
+physical raw logs and original source/build identities remain intact;
+all85,108 historical manifest entries were rehashed unchanged.
+
+Actual Apache sink/recovery probes, HAProxy direct/combined probes, Envoy
+request/response probes and lighttpd Stock/patched/control observations are
+retained in run-specific packets. Two reproduced HAProxy terminal-cleanup
+defects and phase metadata are repaired in the Parent, with native negative/mutation checks;
+SPOP/HTX binaries from e2445 and Envoy binaries from 6175 are genuinely rebuilt
+and retested; scoped input comparisons bind unchanged product inputs to
+final a9 without relabelling actual build/run identities.
+Remaining NGINX/Traefik/patched launcher prerequisites and physical lifecycle/
+transport/correlation producer gaps are reported explicitly. Absent fields
+remain null. Harness fixes preserve native403 policy outcomes, valid empty
+unobserved actions and cleanup receipts; normal-case physical HAProxy errors
+now reject publication of PASS.
+
+The user's later security-scope instruction is applied: advisory authorization
+was checked, with no further deep scan/review trigger. The already established
+historical Gitleaks range failure remains an independent release gate.
+Final changed-path/local and exact-head hosted results are recorded in the
+current report and delivery ledger. Both PRs remain Draft.
+
+### Focused PR410 Sonar repair, 2026-10-14
+
+The current request explicitly authorizes analysis and repair of the actual
+PR410 findings. Authenticated readback through the canonical Sonar wrapper
+finds ten open issues at starting head
+`1a40c9109f7aef3373ec24019000eb9ebe4dc27b`: three HIGH security impacts and
+seven maintainability issues. Exact-head GitHub check `115518660334` fails
+only `new_security_rating`, C rather than A. The failed decoration omits
+finding counters, so both strict scaffold checks correctly fail closed.
+No parser change or missing-counter-to-zero fallback was introduced.
+
+The two `pythonsecurity:S8707` paths were reproduced using synthetic bytes
+and a private loopback listener: the internal client CLI could read an
+arbitrary file and create an output outside its case directory. Its sole
+normal caller now opens fixed artifact names exclusively through the existing
+descriptor-backed `PrivateRuntimeRoot` and passes only owned regular-file
+descriptors to the child. Checks retain exact 0600 mode, one link, distinct
+identities, correct access modes and fresh output. Binary/partial response
+bytes, timeouts, the existing response bound and exit77 remain intact.
+
+The `pythonsecurity:S8705` Git call uses fixed argv and no shell; an option
+injection was not demonstrated. The actual unchecked foreign-checkout input
+is closed by binding the helper to its own canonical source root. Git receives
+fixed arguments and that trusted cwd. Both artifact probes have ten-second
+deadlines; hashes, version and source-equivalence validation remain mandatory.
+S108, two S3776, S9154 and three S5778 are corrected without suppressions.
+
+An independent bounded pre-patch investigation and candidate review found
+no concrete remaining bypass or compatibility defect. Root reran 79 focused
+tests, including both harnesses, native spool contracts and strict Sonar
+parser controls, with the selected SDK: exit0, no skips. Whitespace passes.
+Exact wrapped argv, source hashes, exits and original logs are retained in
+`/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/verification/focused/`;
+the original synthetic reproduction is under `sonar-stock/` in that run.
+At repair head `4f59d1632322a78676e224ef40c0ab7c8e96286c`, cloud readback
+confirms Security Rating A and Quality Gate OK. Seven newly reported
+maintainability issues remain separate from those resolved security findings:
+S1192 for the repeated request-artifact name and six S5778 exception tests.
+The follow-up uses one filename constant and computes descriptor values
+before the exception assertion, preserving every negative case. Root reran
+the same 79 tests with the selected SDK: exit0, no skips; the second receipt
+is `verification/focused-02/`. Full quick-check plus bilingual/link/variable
+checks exit0 in 197.163 seconds. The new exact-head strict zero-issue and
+scaffold readback remains pending; no parser or gate was weakened.
+
+At exact follow-up `71ba09f0a695c333c2c10d3a0db46d2dc956ec40`, Sonar check
+`115688597895` succeeds with zero new/accepted issues, hotspots and annotations.
+Authenticated cloud readback confirms Rating A/Gate OK and zero duplicated
+lines, blocks and density. Scaffold-lint job `115687673149` succeeds without
+a parser change. These facts belong to that head; later delivery requires
+fresh readback again.
+
+### NGINX restricted ownership handoff, 2026-10-14
+
+The original harness reproduces chmod EPERM after worker chown under mask
+`0xc1`. The repair creates and sets exact0700 modes for the complete subtree
+before transferring children, then parents. A repeated handoff verifies all
+eight existing paths under the resolved worker identity without changing
+inode/ctime. Symlink, UID/GID and mode drift remain rejected. The wrong-owner
+phase4 negative fixture also sets0600 before chown; its rejection contract
+is retained. Only the NGINX harness and its ownership tests change.
+
+Seven actual root/nobody tests, including the real Framework materializer,
+pass in 2.487 seconds. The initial attempt in the command sandbox had only
+UID0 mapped and could neither drop the bounding set nor chown65534; that
+environment failure is retained. The authorized outside rerun uses genuine
+identity mapping, and the five capability regressions explicitly drop to
+`0xc1`. Receipts are under `nginx-handoff/` in the 2026-10-14 task run.
+
+Fresh offline NGINX1.31.6/module builds compile 33 current Parent inputs from
+`a9d48bb58aa948aea7d79e20cdf09d3f239b7808`, using C17/GCC15.2.0 and real
+libModSecurity3.0.14. Build/version/linkage exit0 is not host acceptance.
+The private namespace-only0711 worker alias retains host attempt/data0700.
+Two harmless actual admissions reproduce missing runuser PAM and restricted
+master EACCES on worker-private logs. Private locked fixture accounts with
+PAM root/Unix checks repair the former; the latter needs separately explicit
+DAC admission and native host validation. No HTTP request or I12 PASS is
+claimed by these setup probes. Original controller/source/specs and outside
+cleanup receipts remain immutable in their individual attempts.
+
+### Physical lifecycle observer and private Traefik staging, 2026-10-14
+
+The test-only GNU linker observer preserves the actual API arguments, returns
+and errno while recording paired calls, separate host/canonical IDs and public
+Common state at each edge. Repeated successful terminal finish calls remain
+attempts rather than invented transitions. Fourteen wrappers cover external link
+references; internal calls within one object may bypass them. Private inherited
+append output, a fork-shared byte budget, invalidation controls and final receipts
+bound observation. Missing receipts or live mappings prevent qualification;
+native MIME selection and actual host EOS remain null. Release artifacts remain
+uninstrumented.
+
+Actual selected-SDK controls and the additive NGINX module relink pass. Baseline
+module and objects remain unchanged. The new explicit Make target blocks missing
+output/SDK configuration. These component/link results establish no host PASS.
+Receipts remain in the current external run's `native-observer-root/`,
+`native-observer/`, `nginx-observed-build/` and `verification/harness-02/`.
+
+The first real isolated Traefik attempts retain compiler failures and refused
+private-copy cleanup. A wrong fixture GCC_EXEC_PREFIX relocated the existing
+compiler's library search; removing it is independently reproduced as fail/pass.
+The native harness now normalizes only its freshly copied plugin workspace to
+0700 directories/0600 files, preserving sealed source and cleanup identity.
+A regression proves read-only source preservation, private copy and safe removal
+while retaining logs. The stale inventory test now checks eight active controls
+and both rejected decoder tombstones separately; documented UDS chunk bounds
+remain 32768, with no connector-owned total inspection limit restored.
+
+Exact e5c02189 hosted checks are terminal:22 success/two conditional skips;
+SonarGateOK/RatingA, zero new/accepted/hotspots/annotations and zero new duplicated
+blocks/lines/density; scaffold-lint passes without changing the strict parser.
+These results attest e5 only. Later commits require their own readback. Genuine
+host retakes and all1484-case qualification remain pending at this checkpoint.
+
+The exact3a1 delivery introduced five observer maintainability findings:
+two excessive parameter lists, two combined declarations and a mutable lookup
+reader. Typed observation context, separate declarations and a const reader
+correct those actual findings. Native append wrappers now record size/input kind
+without inventing EOS;15 selected-SDK tests pass. Public native/Common append
+APIs expose no EOS argument. Their success or an empty append therefore leaves
+host EOS unknown. Strict remote readback for this follow-up remains required.
+
+### SDK-bound native identity observation, 2026-10-14
+
+The actual9a Sonar finding S3776 reports event complexity27>25. Coherent bounded
+identity serialization and descriptor-validation helpers remove that complexity
+without suppressions or changing observation admission. The optional test-only
+C++17 helper checks runtime version before using the selected SDK's public m_id;
+real named and anonymous constructors, rejected version/bounds, native errno and
+fake-ABI fallback are covered. Input IDs and Common canonical IDs remain separate.
+Root's verification/harness-04 passes56 tests and whitespace with explicitSDK;
+no hosted lifecycle or exact next-head Sonar result is inferred.
+
+The authentic aba76c1b provider reports four new findings: two nested conditional
+operators, an implicit weak function address and strlen on a compile-time SDK
+version. Separate identity branches, an explicit weak-symbol address and
+compile-time array lengths correct those findings. All56 focused observer/
+Traefik harness tests pass again in verification/harness-05. The new provider
+result remains required; no finding was accepted, excluded or counted as zero.
+
+### Patched lighttpd Phase-2 harness admission, 2026-10-14
+
+The actual hosted configuration check rejected `/proc/self/fd/5/events.jsonl`
+with `ENOTDIR`: Common deliberately opens every parent with `O_NOFOLLOW`, so
+`/proc/self` is unsuitable for the event sink. The subsequent adapter retake
+passed that boundary and exposed the missing native
+`msconnector.request-body-gate = "pre-upstream"` setting. Both failures preceded
+requests; neither establishes a Phase-2 decision failure.
+
+`run_phase2_pre_upstream_gate.py` now selects that required gate and uses the
+named `event_sink_path` only for events. The method checks the canonical
+directory against its held descriptor, private ownership, and the admitted
+task root's original device/inode. Other paths, all descriptor-relative writes,
+Common's no-follow checks, and native streaming guards remain intact. Root
+replacement or escape is rejected; a renamed child inside the same root follows
+the held inode.
+
+The Parent contract suite passes 21 tests, including six new tests using the
+actual compiled Common secure event opener and directory/descriptor negative
+controls. The additional connector suite passes six tests after replacing its
+stale removed-body-limit assertion with current no-connector-limit and required
+native-gate checks. All 27 focused tests pass. Validation used RTK, the
+selected Parent Python3.14.7 environment, and external temporary storage.
+Actual current-source hosted execution, final CI/Sonar, and full I12
+qualification remain pending. This harness change introduces no product limit,
+dependency, Framework/MRTS edit, merge, or deployment.
+
+### NGINX worker mapping and parser receipts, 2026-10-14
+
+The 24 native fault/sequence probes originally stopped before traffic because
+Root cannot read the non-dumpable Nobody worker's `/proc/PID/maps`. An optional
+test-only preload captures that same worker's own maps immediately after its
+successful UID change, through a fresh private append descriptor. The parent
+checks the actual PID generation, UID/GID, complete bounded record and mapped
+module/fault libraries before traffic. The strict direct-read default remains;
+no `CAP_SYS_PTRACE`, host service or product body-limit change was introduced.
+
+Independent review reproduced two descriptor leaks on sync and parser/output
+errors. Cleanup now closes both map/fault descriptors while preserving the
+original exception. Five regressions use real descriptors and verify `EBADF`.
+All 21 Root/Nobody tests passed. Fresh isolated attempt
+`1791967087014954093` ran the same 24 native probes with every driver exit 0,
+then reaped its owned processes and removed namespace mounts. Earlier attempts
+remain unchanged; driver results are not complete I12 lifecycle qualification.
+
+NGINX config producers additionally retain the actual native parser argv, cwd,
+PID, normal exit or signal and raw stream hashes. Nine rejection probes in
+`1791965822160608456` and valid-rule startup in `1791965824941496409` passed
+with these receipts. Configuration-only qualification follows its three-field
+contract; missing request/response lifecycle fields are not inferred from it.
+The affected parser/sequence suite passed 79 tests before this cleanup repair;
+the final affected checks and exact delivery-head CI are recorded separately.
+
+### NGINX strict quality follow-up, 2026-10-14
+
+The actual `10102fcf` analysis reported eight new maintainability findings:
+two S5754 cleanup catches, two S3776 functions, two S1192 startup filename
+literals, and C S5350/S886 on stat-field traversal. There were no new security
+issues or duplicate lines. Cleanup catches now use the actual `OSError` type;
+bounded stream capture and startup completion have coherent helpers; startup
+filenames are constants; field traversal uses a constant iteration count and
+an explicit null guard. Primary causes, private FDs, capture bounds and all
+parser results remain intact. The affected Root/Nobody suite passed all 116
+tests (exit 0) after these changes. Fresh physical retakes and exact new-head
+Sonar/CI remain separate required evidence.
+
+### Traefik native client completion, 2026-10-14
+
+The normal fixture closed TCP as soon as the declared response body arrived,
+while the plugin still performed EOS and deferred engine finalization. The
+client now requests connection close, retains a private duplicate socket and
+requires bounded physical peer EOF after exact HTTP framing. Unbuffered reads
+keep extra tail bytes visible; complete-read handling preserves fragmented
+Content-Length and chunked framing. Timeout, TCP reset and extra bytes fail;
+every duplicate descriptor closes on errors. Cancellation fixtures remain
+separate and plugin/engine production sources are unchanged.
+
+The affected suite passed 46 tests; the combined native-client/SDK-observer
+suite passed 63 tests (exit 0). Initial isolated attempt
+`1791969629249293459` stopped with exit 77 before traffic because the new
+read-only snapshot lost executable bits; its original remains intact. A fresh
+snapshot preserves all 121 trusted executable files. Retake
+`1791969989698580089` passed six native profiles, HTTP 200/54-byte allow and
+200/55-byte Safe, with clean owned process/mount cleanup. The former allow-side
+`client_cancel` record disappears; successful native EOS/Finish/free remains
+unmeasured. Historic `protocol_error` is not claimed fixed. Complete I12
+qualification still requires each selected contract's independent observations.
+
+### Traefik framed completion follow-up, 2026-10-14
+
+Fresh independent review reproduced clean peer EOF after only three of ten
+declared bytes on the actual `response.read(4096)` branch. Normal completion
+now uses the existing bounded body reader and rejects a remaining declared
+length; timeout/truncation close both client sockets. Real TCP tests exercise
+this exact branch and fragmented Content-Length/chunked bodies. The combined
+suite passed 65 tests; fresh native retake `1791970798770219279` passed all six
+profiles with unchanged 54/55-byte allow/Safe results and no client-cancel
+event. Native EOS/finish/free remain independently unqualified.
+
+The actual `bdaca57d` provider reported S3776 complexity 16 and S5778 for a
+port lookup inside an exception assertion. The coherent body helper reduces
+the request function's complexity; port lookups now precede exception checks.
+Strict gates, status/body oracles and every physical failure control remain.
+
+### Traefik retained-exception response cleanup, 2026-10-14
+
+The bounded second review reproduced an open response file after body timeout:
+`HTTPConnection` had detached it for Connection-Close, while the retained cause
+kept its descriptor alive. Explicit response ownership now closes that file,
+connection and duplicate before returning; close errors do not replace an
+active body failure. A real regression retains the exception and response,
+checks the file is closed and observes `EBADF` before any GC. All 66 combined
+tests passed; native retake `1791971306363843767` passed with clean namespace
+cleanup. Successful native EOS and once-only engine API counts remain unknown.
+
+### Traefik cleanup quality follow-up, 2026-10-14
+
+The actual `dd61b70d` analysis found S5754 on the cleanup catch and two S8714
+exception-test patterns. Cleanup now catches the actual owned-close `OSError`.
+The real descriptor regression retains `Future.exception()` with its traceback,
+response and file, so assertions never clear the cause before the `EBADF`
+measurement. The mock cause check uses `assertRaises` and verifies identity.
+All 66 combined tests and native retake `1791972087966404513` passed (exit 0).
+No findings, exclusions, tests or quality requirements were waived.
+
+### I12 reconciliation checkpoint before additional Apache cases, 2026-10-14
+
+All 1,484 original IDs remain: 1,406 required across 13 independent route parts and 78 diagnostics. Exactly 37 original configuration-parser contracts are Root-qualified PASS (36 required and one diagnostic). The other 1,447 remain unqualified: 1,370 required and 77 diagnostic. Actual selected execution is separately recorded as 108/1,406 required plus 8/78 diagnostic, 116/1,484 total. Three sibling request-parser probes do not establish their selected companion parser. The 596 unresolved original oracle entries, original 79 raw records and earlier failed attempts remain preserved.
+
+Bounded readiness evidence covers all 13 required route parts: Apache 27 controls, 81 client exchanges and 27 native cleanup pairs; NGINX root-master/nobody-worker controls, 42 selected native operations, 14 exact canonical YAML host/client cases and both historical 60-fixture retakes (each 57 PASS, two pretraffic configuration failures and one posttraffic obsolete-log-oracle mismatch); HAProxy HTX eight and six shared SPOP/HTX companion controls counted once; three separate Envoy attempts; Traefik native UDS six, forwardAuth request two and companion four profiles; Stock sidecar seven controls with verified offline provenance; patched-native six P2 gate controls. These observations do not qualify 1,406 complete hosted lifecycle contracts.
+
+Final native UDS v5 attempt `1791972087966404513` records allow HTTP 200/54 bytes, P1 deny 403/alternative 429, P2 deny 403, P3 deny 403 and P4 Safe HTTP 200/55 bytes. Current physical logs contain zero client_cancel and protocol_error records; 185 plugin/engine product inputs remain identical. The original allow with client_cancel=1/EOS=false and failed executable-mode snapshot remain preserved. Successful native EOS, finish/free and MIME remain unknown; TCP EOF and synthetic metadata do not establish native EOS. Product parent a9, genuine older build identities, hosted source 3a with exact harness deltas and current code `6b472cab6c18dfb5d6034461e1df5609e4ec3606` remain separate.
+
+Result: `I12_PARTIAL` and independent `RELEASE_BLOCKED_SECRET_HISTORY`; both PRs remain Draft. Exact code 6b has authenticated Sonar Gate OK, Security A, explicit zero new/accepted issues, hotspots and duplication, and strict scaffold success. Its 24 successful, two skipped and two running checks are a captured checkpoint. The later documentation head receives separate fresh terminal GitHub/Sonar evidence externally and in both PR bodies. Current paired reports: [host evidence](../../../docs/pr-382-i12-host-evidence-20261014.md) and [missing-case index](../../../docs/pr-382-i12-missing-case-index-20261014.md). The generator, original contracts, Root approvals, partial packets and raw SHA references remain in the new run's final-reconciliation directory.
+
+### Apache canonical fixtures and empty-header repair, 2026-10-14
+
+An independent completion review identified 14 original Apache YAML cases supported by the existing dispatcher. The first attempt `1791974271929607351` accepted all configurations but produced no HTTP response: the unchanged guard correctly rejected a root-owned executable under UID 65534. One-case diagnostic `1791974703385184818` retained that exact error. A private owned copy with identical approved binary SHA fixed provisioning without weakening the guard.
+
+Retake `1791974869509186563` produced all 14 HTTP responses, with 12 fixture PASS and two posttraffic audit-oracle FAIL. A real curl collector reproduced the missing empty header: curl suppresses `Name:` and `Name: `; the Apache case driver now uses `Name;` for those present-empty values. Quoted nonempty values, embedded colons, trailing spaces and duplicate ordering remain intact. Only the #410 harness and its new real HTTP regression test changed; both product worktrees and #382 remain at a9.
+
+Current retake `1791975496308340489` produced 14 real HTTP/header/body packets: 13 fixture PASS and one preserved duplicate-header oracle FAIL. Physical native audit confirms the empty header and rule `1100503`. The actual Apache Core binary merges duplicates into one `one, two` field before the connector sees the APR table; its exact binary calls `apr_table_compress(..., 1)` before the post-read hook. Inventing duplicate boundaries by comma splitting would be incorrect, so original rule `1100504` and its FAIL remain unchanged. Driver exit 1/controller 77 are retained; no resource error, namespace survivor or mount leak occurred.
+
+Root reviewed 14 additional partial selected executions and rehashed 474 unique retained files. Selected execution is now 122 required plus eight diagnostic, 130 total; qualification remains 37 original parser-only PASS and 1,447 unqualified. The source equality scope covers 194 Apache/Common inputs; the previous 140 compiler-input scope remains distinct. Hosted source is 3a with the explicit Apache harness delta SHA `30fd539bc319b8583cb9cfb23db7bedaf58c894afd5fc88c50076a8250d0d437`. Three real-wire regression tests, shell syntax and final working-source quick-check pass with exit 0. The previously published 93b checkpoint has 26 successful/two skipped checks and authenticated Sonar OK/A/strict zeros; the new repair delivery requires separate fresh exact-head CI and Sonar evidence.
+
+### Shared header-driver tests and strict duplication remediation, 2026-10-14
+
+Exact head `9992dba5ece90137880d6fcc3e0eccc7709c2521` completed 25 successful checks, two conditional skips and one scaffold failure. Authenticated Sonar reported Gate OK, Security A and zero new/accepted issues or hotspots, but 43 duplicated lines in two blocks (density 1.2565751022793687). The strict zero-duplication check correctly rejected copied Apache/NGINX test collectors; no provider parser, gate or exclusion was changed.
+
+The real curl collector, bounded process/server cleanup and three header controls now live once in `tests/header_driver_test_support.py`. Each Apache/NGINX test class retains its host configuration and independently inherits all three controls. Apache keeps both empty-header spellings and trailing whitespace; NGINX keeps its path-helper stub and HTTP/1 timeout. A reproduced module-qualified import failure was corrected with explicit package-relative versus direct/discovery imports. Root observed six real wire tests passing through module invocation and three plus three through discovery, all exit 0. The failed import receipt remains retained.
+
+The Apache/NGINX harness bytes and product sources remain unchanged by this refactor, so existing 130 selected host executions and 37 parser-only qualifications retain their original identities and scope. New quick-check and documentation receipts are recorded by the generator. The subsequent delivery head requires a fresh exact-head authenticated Sonar strict-zero result, successful scaffold and terminal GitHub CI; the older 9992 Gate OK is not substituted for that evidence.
+
 ### NGINX typed mapper failure repair, 2026-10-14
 
 Base: `a9d48bb58aa948aea7d79e20cdf09d3f239b7808`. A fresh genuine NGINX
@@ -408,6 +779,108 @@ unresolved. Evidence lives below the existing run root in
 and `verification/portable-mapper-ci-01/receipt.json`; checker controls are in
 `sonar382-regex-fix`. New-head hosted CI/Sonar must be read again after delivery.
 The historical Gitleaks release blocker and both Draft states remain separate.
+
+### Current I12 lifecycle consolidation, 2026-10-14
+
+State: **I12_PARTIAL** and independently **RELEASE_BLOCKED_SECRET_HISTORY**.
+Both PRs remain Draft. The [current host report](../../../docs/pr-382-i12-host-evidence-20261014.md)
+and [complete original index](../../../docs/pr-382-i12-missing-case-index-20261014.md)
+bind physical packets, original contracts and hashes. Earlier sections below
+describe only their historical checkpoints.
+
+The unchanged selection contains 1484 original IDs: 1406 required and 78
+diagnostic. There are 21 full required-case lifecycle PASS and 0 FAIL, with at
+least one full case on each of 13/13 required route parts. Actual execution is
+recorded for 151 original IDs. The 37 historical configuration PASS include 36
+required cases; total qualified required PASS is 57, required FAIL is 0, and
+1426 original IDs remain unqualified. Of the original 596 unresolved oracles,
+21 are independently source-confirmed and actually retaken; 575 remain unresolved.
+Original membership, null oracles, raw records and earlier failures are preserved.
+
+The 21 full cases do not qualify all 1406 required IDs. Applicable host/native
+EOS, MIME, finish/free, client/backend, handle and cleanup evidence is physically
+measured for these packets; justified nonapplicability remains explicit.
+Zero-byte append and client EOF do not replace native EOS evidence. Stock-native
+control remains diagnostic, including its 23 originally unresolved oracles;
+it was not broadly relabelled unsupported. Other required IDs, missing fixtures,
+further limits, late/commit, sink failures, cancellation/reset and neighbor
+cases remain open. I12/V08–V10 remain open overall.
+
+[Private capture sources](../../../ci/runtime/lifecycle/i12/README.md) retain nine explicit variants. Each packet
+binds actual source, loaded images, SDKs and configuration. Earlier a9/0275
+builds remain distinct from current product/delivery revisions; source success
+does not replace host execution.
+
+Published #382 product head is `9980eb049dde0643da6a4f04e3b6712801b670b3`;
+the normal #410 integration is `eca03db3`. The test-only follow-up replaces the
+stale mapper400 assertion with typed dispatch/default500 and the separately
+bounded headercount400 contract; all 38 requested contract tests and five
+compiled mapper tests pass. New #382 CI is pending. The e47 Sonar SUCCESS
+(check `116148729241`, Gate OK, Security A, new/accepted issues 0, hotspots 0,
+duplication 0) remains historical evidence for e47 only, with no transfer to
+9980 or #410. Remote #410 remains `02754040bced960cfc1857416cd7101bb3116ef4`
+at this pre-push checkpoint; #410 source CI awaits Root push and fresh readback.
+Historical Gitleaks remains a separate release blocker. No all-CI PASS, master
+merge or release is asserted.
+
+
+The extension includes four additional HAProxy body/header cases, two native
+HAProxy request-limit cases at 16 bytes (`Reject` and `ProcessPartial`), and two
+genuine lighttpd empty-body cases. Separate confirmed expectations and retakes
+do not qualify siblings. Patched lighttpd records an actual null EOS argument
+on its genuine empty-body branch and native P2 finalization without request append.
+
+Apache preserves the original duplicate-header FAIL and original rule. A separate
+hash/version-bound override follows actual Apache/APR merging into one header
+value `one, two`, without product comma splitting. The 14 canonical host cases,
+12 real APR/SDK regressions and full Root-reviewed Apache packet are separate
+evidence. NGINX repair `12756aa957f54d3efce6bd97ec0dbac07fa576cc` propagates
+internal mapper faults as HTTP500; actual HTTP500/client-HTTP400 retakes and
+full case09 are separately bound. The earlier body-P2 versus injected-P1 scope
+conflict remains preserved as a historical disposition.
+
+Exactly three generators produce oracle reconciliation, the lifecycle ledger
+and current EN/DE report with index. They preserve originals, the 596-member
+subset and nulls. The native test observer records 38 wrappers plus an explicit
+snapshot, typed handle associations and actual returns. The renderer binds the
+37 historical configuration PASS to their unchanged physical original source
+and rejects unsubstantiated PASS/scope/execution labels. Private hooks are
+excluded from release artifacts.
+
+Actually passed: 62 native/oracle/ledger/Apache tests, 13 renderer tests, 115
+NGINX mutation tests, 77 guards, five compiled mapper tests, Root Quick06,
+native contracts and Docs10. Capture checks passed nine variants, 45 patch
+applications, 15 negative guards and five capture groups. The source-copy
+receipt-overwrite correction rejects an existing receipt before any write and
+creates it exclusively; three added controls preserve file/hardlink/directory
+targets. The 150-object registry verifies; observer C/H and manifests are unchanged.
+This is a functional source-copy guard, not a security scan. Root validates
+the final combined documentation/source snapshot again after this handoff.
+
+No deep security scan, gate weakening or guard weakening occurred. Framework/
+MRTS gitlinks and original raw evidence remain unchanged. All earlier CR sections
+and the immutable original index are preserved.
+
+Root additionally approved 20 `HARNESS_DEFECT_CONFIRMED` supplemental
+dispositions outside the original 596-member subset. Original generic catalog
+exit 1 remains unchanged and is not treated as a direct-native or wrapper-driver
+contract: actual waited native exits are 255 x 8, 78 x 9, 2 x 1 and 77 x 2.
+These are process exits, not HTTP statuses; nine operations are parser-only and
+eleven are service-startup failures. Nine physically empty sidecar stderr
+first-causes remain NULL; source/config cause is separate. Scope-file cases
+reject the Common Runtime unknown `phase4_content_types_file` key and do not
+prove MIME/wildcard parser execution. Formal resolved expectation and retest
+remain null; this produces no additional configuration or lifecycle PASS.
+The different 29 historical original596 gaps and 23 Stock-native diagnostic
+oracles remain unresolved; no new unsupported approval is inferred.
+
+Disposition source: `catalog-conflicts/final-supplemental20/disposition-summary.json`,
+SHA256 `d68c2535d5ece0990670b3e01f173df9d98ad26684fef1f7bf39ca37cc436021`.
+Root-approved records15, oracle13 and ledger08 retain 21 resolved/575 unresolved,
+21 full PASS, 13 routes, 151 executed, 37 configuration PASS, 57 required
+qualified PASS and 1426 unqualified IDs. Actual Quick06 and Docs10 passed;
+Root90 tests and SourceRoot05 passed with 150 source objects, nine variants,
+45 patch applications and 15 guards. These remain distinct from pending hosted CI.
 
 ### Immutable original index
 

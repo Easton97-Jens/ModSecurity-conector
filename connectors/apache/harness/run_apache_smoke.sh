@@ -1302,6 +1302,16 @@ send_case_request() {
     if [ -n "${REQUEST_HEADERS_FILE:-}" ] && [ -s "$REQUEST_HEADERS_FILE" ]; then
         while IFS= read -r header_line || [ -n "$header_line" ]; do
             [ -n "$header_line" ] || continue
+            case "$header_line" in
+                *:*)
+                    header_value=${header_line#*:}
+                    case "$header_value" in
+                        ''|' ') header_line="${header_line%%:*};" ;;
+                        *) : ;;
+                    esac
+                    ;;
+                *) : ;;
+            esac
             set -- "$@" -H "$header_line"
         done < "$REQUEST_HEADERS_FILE"
     fi
@@ -2735,6 +2745,16 @@ if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
     --output-root "$APACHE_CASE_OUTPUT_ROOT" \
     --rules-preamble-file "$MODSECURITY_RULE_PREAMBLE_FILE" > "$LOG_DIR/case-materialize.log" 2>&1; then
     not_executable "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
+fi
+if [ -n "${APACHE_NATIVE_ORACLE_OVERRIDE:-}" ]; then
+    [ -n "${APACHE_NATIVE_ORACLE_IDENTITY:-}" ] || \
+        blocked "APACHE_NATIVE_ORACLE_IDENTITY is required for an explicit oracle override"
+    "$PYTHON_BIN" "$SCRIPT_DIR/apache_oracle_overrides.py" \
+        --selection "$APACHE_NATIVE_ORACLE_OVERRIDE" \
+        --case "$TEST_CASE" --framework "$FRAMEWORK_ROOT" --rules "$RULES_FILE" \
+        --identity "$APACHE_NATIVE_ORACLE_IDENTITY" \
+        --receipt "$LOG_DIR/apache-native-oracle-override.json" || \
+        blocked "Apache-native oracle override failed its source and proof guards"
 fi
 configure_apache_profile_audit
 . "$CASE_ENV_FILE"

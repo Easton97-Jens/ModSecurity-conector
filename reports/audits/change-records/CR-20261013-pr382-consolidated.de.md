@@ -253,6 +253,50 @@ expliziten Python-/Framework-Zuweisungen. Receipts: `optional-fixture/` im
 gleichen lokalen Run. Breitere Verifikation und finale Head-Liefernachweise
 bleiben getrennt.
 
+### Übernommener historischer I12-Nachweis aus PR #410
+
+Der normale Merge von Parent `8c574cdf86f10af976297c31d31485b042eba73b` in den
+bestehenden #410-Branch erhält dessen alten Head
+`511c4ac4515f0e515f68b3bbc38274c5a230d903` in der Historie.
+Der zusätzliche historische Change-ID `CR-20261011-pr382-i12-host-evidence`
+wird hier konsolidiert; sein [unveränderliches Original](https://github.com/Easton97-Jens/ModSecurity-conector/blob/511c4ac4515f0e515f68b3bbc38274c5a230d903/reports/audits/change-records/CR-20261011-pr382-i12-host-evidence.de.md)
+bleibt erreichbar. Der [historische I12-Bericht](../../../docs/pr-382-i12-host-evidence-20261011.de.md)
+behält alle Beobachtungen; ausschließlich der historische Change-Record-Link
+zeigt jetzt auf die unveränderliche Originalrevision statt die entfernte Datei.
+Run `20261011T063350Z-0df51024008f-i12` testete Parent
+`0df51024008fc84f0a6820f3b011055b69c3a3e2`, Framework
+`99a7985c1be92a2297b1b59208f64df6768f2cbf`, MRTS
+`8a6bb546c4c81d8ffc7be801dceac60c6925685f`: 79 ausgewählte Records,
+9 PASS, 6 FAIL, 53 BLOCKED, 11 NOT_EXECUTED; 13 Pflichtteile mit
+0 vollständigen PASS, 2 FAIL, 11 BLOCKED. Ergänzende Stock-native-Kontrolle
+separat NOT_EXECUTED. Die Zahlen sind keine vollständige Pflichtfallmatrix und
+keine Ergebnisse des neuen Parents. I12/V08–V10 bleiben offen. Originale
+Rohbelege und Prüfsummen werden unverändert erhalten; neue Runs haben eigene
+Source-/Config-/Hostbindungen. Keine entfernten redundanten Records werden
+wiederhergestellt; I09/I10/I11 und die 122 ursprünglichen Indexeinträge bleiben erhalten.
+
+### Korrektur des Stock-Real-Backend-Evidence-Producers, 2026-10-13
+
+Der historische physische Stock06-Log bleibt bytegleich. Seine kanonische
+Engine-Entscheidung hat vor Hostbeobachtung zulässig leeres `actual_action`;
+der alte Validator lehnte dies ab. Der korrigierte Validator erlaubt diesen
+Contract nur für unbeobachtete Engine-/Error-Events und verlangt separat ein
+beobachtetes natives Deny451 derselben Transaktion. Falsche Korrelation oder
+fehlender Hostnachweis scheitert geschlossen; keine Engine-Aktion wird erfunden.
+
+Der sieben Fälle umfassende Real-Backend-Harness erhält jeden Versuch,
+physisches Stderr, Launch-/Exit-/Cleanupreceipts, direkt gewartete Clientheader,
+Body/Hash/Framing und unabhängige Backend-Fehler-/Endzähler. Fehlgeschlagene Fälle
+laufen nach erfolgreichem Cleanup weiter; ein Cleanupfehler stoppt weitere
+Starts. Verifizierte Receipts werden erst nach Cleanup veröffentlicht.
+Achtzehn fokussierte Harness-Tests bestehen, einschließlich unvollständigem
+Framing trotz Client-Exit0, fehlendem Hostnachweis, falscher Korrelation und
+Launch-/Cleanupfehlern. Roots echte aktuelle Stock-Host-Wiederholung bleibt
+erforderlich. Lokale Receipts:
+`/var/tmp/codex/ModSecurity-conector/runs/e2e/20261013T125816Z-8c574cdf-i12-completion/stock-harness/resumed-01`.
+Nur der hostspezifische Harness und seine Tests ändern sich; Produktquellen,
+Framework-/MRTS-Gitlinks, Scanner und native Runtime-Guards bleiben unverändert.
+
 ### Native Test-Quality-Gate-Nachprüfung, 2026-10-13
 
 Der Sonar-Check für exakt `b982c6f35abc47eccddcfded2bfd920f92516d90` hat null
@@ -345,6 +389,357 @@ Status-Ternary in der neuen SPOP-Regression. Eine Statuswerttabelle erhält
 genau dieselben Allow-/Deny-/Redirect-Testinputs200/403/302 ohne Schachtelung.
 Produktquellen ändern sich nicht; echte e2445-Host-/Buildidentitäten bleiben.
 
+### Aktueller I12-Kampagnenstatus, 2026-10-13
+
+Der [aktuelle zweisprachige Hostbericht](../../../docs/pr-382-i12-host-evidence-20261013.de.md)
+ersetzt frühere Liefer-/Checkpointaussagen in diesem Record. Ergebnis ist
+**I12_PARTIAL**; alle13Pflichtteile und die separate Stock-native-Diagnose
+sind bewertet. Finaler Parent: `a9d48bb58aa948aea7d79e20cdf09d3f239b7808`.
+Der bestehende #410 mergt den Parent normal und erhält den alten #410-Head
+`511c4ac4515f0e515f68b3bbc38274c5a230d903` in der Ancestry. Kein master-Merge,
+History-Rewrite, neuer PR oder Framework-/MRTS-Gitlinkwechsel erfolgte.
+
+Die Auswahl bleibt1.406Pflicht-IDs plus78Diagnose-IDs; der
+[generierte Missing-Case-Index](../../../docs/pr-382-i12-missing-case-index-20261013.de.md)
+erhält jede fehlende Pflicht samt Grund. Smoke-/Driver-Exit0 wird nicht zur
+vollständigen I12-/V08–V10-Abnahme aufgewertet. Historische79Records,
+Fehlversuche, physische Rawlogs und originale Quell-/Buildidentitäten bleiben
+erhalten; alle85.108historischen Manifesteinträge wurden unverändert nachgehasht.
+
+Echte Apache-Sink-/Recoveryprobes, direkte/Combined-HAProxyprobes, Envoy-
+Request-/Responseprobes und lighttpd-Stock-/Patched-/Kontrollbeobachtungen
+bleiben in runspezifischen Paketen erhalten. Zwei reproduzierte HAProxy-
+Terminal-Cleanupfehler und Phasenmetadaten sind im Parent mit nativen Negativ-/Mutationschecks
+repariert; SPOP/HTX aus e2445 und Envoy aus 6175 wurden wirklich neu gebaut
+und getestet. Begrenzte Inputvergleiche binden unveränderte Produktinputs
+an finalen a9, ohne tatsächliche Build-/Runidentitäten umzuetikettieren. Verbleibende NGINX-/Traefik-/Patched-Launchervoraussetzungen
+und physische Lifecycle-/Transport-/Korrelationsproducerlücken sind explizit
+benannt. Fehlende Felder bleiben null. Harnesskorrekturen erhalten native403-
+Policyergebnisse, gültige leere unbeobachtete Aktionen und Cleanupreceipts;
+physische HAProxyfehler in Normalfällen verhindern jetzt PASS-Veröffentlichung.
+
+Die spätere Sicherheitsscope-Anweisung wird umgesetzt: Advisory-Freigabe
+wurde geprüft, kein weiterer Deep-Scan-/Review-Trigger erfolgt. Der bereits
+belegte historische Gitleaks-Rangefehler bleibt ein unabhängiges Release-Gate.
+Finale lokale Prüfungen geänderter Pfade und Hosted-Ergebnisse des exakten
+Heads stehen im aktuellen Bericht und Lieferprotokoll. Beide PRs bleiben Draft.
+
+### Begrenzte PR410-Sonar-Reparatur, 2026-10-14
+
+Der aktuelle Auftrag erlaubt ausdrücklich Analyse und Reparatur der echten
+PR410-Befunde. Die authentifizierte Abfrage über den kanonischen Sonar-Wrapper
+liefert zehn offene Issues am Ausgangshead
+`1a40c9109f7aef3373ec24019000eb9ebe4dc27b`: drei HIGH-Security-Auswirkungen
+und sieben Wartbarkeitsbefunde. Der revisionsgenaue GitHub-Check `115518660334`
+scheitert ausschließlich an `new_security_rating`, C statt A. Der fehlgeschlagene
+Providertext enthält keine Befundzähler; beide strengen Scaffold-Prüfungen
+scheitern deshalb korrekt fail-closed. Kein Parser wurde geändert und kein
+fehlender Zähler als null interpretiert.
+
+Die beiden `pythonsecurity:S8707`-Pfade wurden mit synthetischen Bytes und
+privatem Loopback-Listener reproduziert: Der interne Client-CLI konnte eine
+beliebige Datei lesen und Ausgabe außerhalb seines Fallverzeichnisses anlegen.
+Sein einziger normaler Aufrufer öffnet feste Artefaktnamen jetzt exklusiv über
+den bestehenden deskriptorbasierten `PrivateRuntimeRoot` und übergibt dem Kind
+nur eigene reguläre Dateideskriptoren. Exakt 0600, ein Link, unterschiedliche
+Identitäten, passende Zugriffsmodi und frische Ausgabe bleiben geprüft.
+Binäre/partielle Antwortbytes, Zeitlimits, bestehende Antwortgrenze und
+Exit77 bleiben erhalten.
+
+Der `pythonsecurity:S8705`-Git-Aufruf nutzt feste Argumente ohne Shell; eine
+Optionsinjektion wurde nicht nachgewiesen. Die echte ungeprüfte Auswahl eines
+fremden Checkouts wird durch Bindung an den eigenen kanonischen Quellroot
+geschlossen. Git erhält feste Argumente und diesen vertrauenswürdigen cwd.
+Beide Artefaktprobes haben zehn Sekunden Deadline; Hash-, Versions- und
+Quellgleichheitsprüfungen bleiben verpflichtend. S108, zweimal S3776, S9154
+und dreimal S5778 werden ohne Unterdrückungen korrigiert.
+
+Eine unabhängige begrenzte Voruntersuchung und Kandidatenprüfung fanden keinen
+konkreten verbleibenden Bypass oder Kompatibilitätsfehler. Root führte 79
+fokussierte Tests beider Harnesses, nativer Spool-Verträge und strenger Sonar-
+Parserkontrollen mit dem ausgewählten SDK erneut aus: Exit0, keine Skips.
+Whitespace besteht. Exakte RTK-Befehle, Quellhashes, Exits und Original-Logs
+bleiben unter
+`/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/verification/focused/`
+erhalten; die ursprüngliche synthetische Reproduktion liegt unter `sonar-stock/`
+dieses Runs. Am Reparaturhead `4f59d1632322a78676e224ef40c0ab7c8e96286c`
+bestätigt die Cloud Security Rating A und Quality Gate OK. Sieben neue
+Wartbarkeitsbefunde bleiben von den behobenen Sicherheitsbefunden getrennt:
+S1192 für den wiederholten Request-Artefaktnamen und sechs S5778-Ausnahmetests.
+Der Folgepatch verwendet eine Dateinamenkonstante und ermittelt Deskriptorwerte
+vor der Ausnahmeprüfung; alle Negativfälle bleiben erhalten. Root wiederholte
+dieselben 79 Tests mit ausgewähltem SDK: Exit0, keine Skips; zweiter Receipt
+`verification/focused-02/`. Vollständiges quick-check samt EN/DE-, Link- und
+Variablenprüfung Exit0 in 197,163 Sekunden. Revisionsgenaues strenges Null-Issue-
+und Scaffold-Readback des neuen Heads ist noch offen; kein Parser oder Gate
+wurde abgeschwächt.
+
+Am exakten Folgehead `71ba09f0a695c333c2c10d3a0db46d2dc956ec40` besteht
+Sonar-Check `115688597895` mit null neuen/akzeptierten Issues, Hotspots und
+Annotationen. Authentifiziertes Cloud-Readback bestätigt Rating A/Gate OK und
+null duplizierte Zeilen, Blöcke und Dichte. Scaffold-lint-Job `115687673149`
+besteht ohne Parseränderung. Diese Fakten gelten für diesen Head; spätere
+Lieferung erfordert erneut frisches Readback.
+
+### NGINX-Ownership-Handoff mit begrenzten Rechten, 2026-10-14
+
+Der ursprüngliche Harness reproduziert chmod-EPERM nach Worker-chown unter
+Maske `0xc1`. Die Reparatur erstellt den vollständigen Unterbaum und setzt
+exakt0700 vor Übergabe erst der Kinder, dann der Eltern. Wiederholter Handoff
+prüft alle acht vorhandenen Pfade unter aufgelöster Workeridentität ohne
+Inode-/ctime-Änderung. Symlink-, UID/GID- und Modusabweichungen bleiben
+abgewiesen. Die Wrong-Owner-P4-Negativfixture setzt ebenfalls0600 vor chown;
+ihr Ablehnungsvertrag bleibt erhalten. Nur NGINX-Harness und Ownershiptests
+werden geändert.
+
+Sieben echte Root/nobody-Tests einschließlich realem Framework-Materializer
+bestehen in 2,487 Sekunden. Der erste Aufruf im Command-Sandbox hatte nur
+UID0 abgebildet und konnte weder Bounding-Set reduzieren noch chown65534
+ausführen; dieser Umgebungsfehler bleibt erhalten. Der autorisierte Outside-
+Rerun nutzt echte UID-Abbildung; die fünf Capability-Regressionen reduzieren
+ausdrücklich auf `0xc1`. Receipts liegen unter `nginx-handoff/` des Task-Runs.
+
+Frische Offline-NGINX1.31.6-/Modulbuilds kompilieren 33 aktuelle Parentinputs
+aus `a9d48bb58aa948aea7d79e20cdf09d3f239b7808` mit C17/GCC15.2.0 und echtem
+libModSecurity3.0.14. Build-/Versions-/Linkage-Exit0 ist keine Hostabnahme.
+Der ausschließlich private Namespace-Worker-Alias0711 erhält Host-Attempt/
+Data0700. Zwei harmlose echte Admissions reproduzieren fehlendes runuser-PAM
+und Master-EACCES auf worker-privaten Logs. Private gesperrte Fixturekonten
+mit PAM-Root-/Unix-Prüfungen beheben Ersteres; Letzteres braucht separat
+explizite DAC-Admission und nativen Hosttest. Setup-Probes behaupten keinen
+HTTP-Request oder I12-PASS. Originale Controller-/Quell-/Specs und Outside-
+Cleanup-Receipts ihrer einzelnen Attempts bleiben unverändert erhalten.
+
+### Physischer Lifecycle-Observer und privates Traefik-Staging, 2026-10-14
+
+Der GNU-Linker-Observer ausschließlich für Tests erhält tatsächliche Argumente,
+Rückgaben und errno. Er erfasst Aufrufpaare, getrennte Host-/kanonische IDs und
+den öffentlichen Common-Zustand an jeder Aufrufkante. Wiederholte erfolgreiche
+Finish-Aufrufe im Terminalzustand bleiben Versuche, keine erfundenen Übergänge.
+Vierzehn Wrapper erfassen externe Linkreferenzen; interne Aufrufe desselben Objekts
+können sie umgehen. Privater geerbter Append-Ausgabedeskriptor, Fork-gemeinsames
+Bytebudget, Invalidierungskontrollen und finale Belege begrenzen die Beobachtung.
+Fehlende Abschlussbelege oder offene Zuordnungen verhindern Qualifikation;
+native MIME-Auswahl und tatsächliches Host-EOS bleiben null. Releaseartefakte
+bleiben ohne Instrumentierung.
+
+Kontrollen mit ausdrücklich ausgewähltem SDK und der additive NGINX-Modul-Relink
+bestehen. Baseline-Modul und Objekte bleiben unverändert. Das neue ausdrückliche
+Make-Target blockiert fehlende Ausgabe-/SDK-Konfiguration. Diese Komponenten-/
+Linkergebnisse belegen keinen Host-PASS. Belege liegen im aktuellen externen Run
+unter `native-observer-root/`, `native-observer/`, `nginx-observed-build/` und
+`verification/harness-02/`.
+
+Die ersten echten isolierten Traefik-Versuche erhalten Compilerfehler und
+verweigertes Cleanup der privaten Kopie. Ein falscher Fixture-GCC_EXEC_PREFIX
+verlegte die Bibliothekssuche des vorhandenen Compilers; Entfernen reproduziert
+unabhängig FAIL/PASS. Der native Harness normalisiert ausschließlich seinen
+frisch kopierten Plugin-Workspace auf Verzeichnisse0700/Dateien0600 und erhält
+versiegelte Quelle sowie Cleanup-Identität. Eine Regression belegt Quellerhalt,
+private Kopie und sichere Entfernung bei erhaltenen Logs. Der veraltete Inventar-
+Test prüft acht aktive Steuerfelder und beide abgewiesenen Decoder-Tombstones
+getrennt; dokumentierte UDS-Chunk-Grenzen bleiben32768. Kein Connector-eigenes
+Gesamt-Inspection-Limit wird wieder eingeführt.
+
+Revisionsgenaue e5c02189-Checks sind terminal:22 erfolgreich/zwei bedingte Skips;
+SonarGateOK/RatingA, null neue/akzeptierte/Hotspot-/Annotationsbefunde und null
+neue Duplikationsblöcke/-zeilen/-dichte; scaffold-lint besteht ohne Änderung des
+strengen Parsers. Dies attestiert ausschließlich e5. Spätere Commits benötigen
+eigene Abrufe. Echte Host-Retakes und die Qualifikation sämtlicher1484 Fälle
+stehen an diesem Zwischenstand weiterhin aus.
+
+Die revisionsgenaue3a1-Lieferung führte fünf Wartbarkeitsbefunde im Observer ein:
+zwei zu lange Parameterlisten, zwei kombinierte Deklarationen und einen mutablen
+Lookup-Reader. Typisierter Beobachtungskontext, getrennte Deklarationen und ein
+Const-Reader korrigieren die tatsächlichen Befunde. Native Append-Wrapper
+erfassen nun Größe/Eingabeart ohne erfundenes EOS;15 Tests mit ausgewähltem SDK
+bestehen. Öffentliche native/Common-Append-APIs bieten kein EOS-Argument.
+Erfolg oder leere Appends lassen Host-EOS daher unbekannt. Der strenge Remote-
+Abruf für diese Nachprüfung bleibt erforderlich.
+
+### SDK-gebundene native Identitätsbeobachtung, 2026-10-14
+
+Der tatsächliche9a-Sonar-Befund S3776 meldet event-Komplexität27>25. Begrenzte
+Helper für Identitätsserialisierung und Deskriptorprüfung senken die Komplexität
+ohne Unterdrückungen oder Änderung der Beobachtungszulassung. Der optionale
+C++17-Testhelper prüft die Runtime-Version vor Zugriff auf das öffentliche m_id
+des gewählten SDK. Echte benannte und anonyme Konstruktoren, abgewiesene Version/
+Grenzen, natives errno und Fake-ABI-Fallback sind abgedeckt. Eingabe-IDs und
+kanonische Common-IDs bleiben getrennt. Roots verification/harness-04 besteht56
+Tests und Whitespace mit ausdrücklichemSDK; daraus wird weder ein Host-Lifecycle-
+Abschluss noch ein Sonar-Ergebnis des nächsten exakten Heads abgeleitet.
+
+Der authentische aba76c1b-Provider meldet vier neue Befunde: zwei verschachtelte
+bedingte Operatoren, eine implizite Weak-Funktionsadresse und strlen für eine
+SDK-Version als Compilezeitkonstante. Getrennte Identitätszweige, eine explizite
+Weak-Symboladresse und Arraylängen zur Compilezeit beheben diese Befunde. Alle56
+gezielten Observer-/Traefik-Harnesstests bestehen erneut in verification/harness-05.
+Das neue Providerergebnis bleibt erforderlich; kein Befund wurde akzeptiert,
+ausgeschlossen oder als null gezählt.
+
+### Zulassung des gepatchten lighttpd-Phase-2-Harness, 2026-10-14
+
+Der echte Host-Konfigurationstest wies `/proc/self/fd/5/events.jsonl` mit
+`ENOTDIR` ab: Common öffnet jeden Elternpfad bewusst mit `O_NOFOLLOW`, weshalb
+`/proc/self` für den Event-Sink ungeeignet ist. Der anschließende Adapter-Retake
+bestand diese Grenze und zeigte die fehlende native Einstellung
+`msconnector.request-body-gate = "pre-upstream"`. Beide Fehler traten vor
+Requests auf; keiner belegt einen Fehler der Phase-2-Entscheidung.
+
+`run_phase2_pre_upstream_gate.py` setzt nun das erforderliche Gate und verwendet
+die benannte Methode `event_sink_path` ausschließlich für Events. Sie prüft das
+kanonische Verzeichnis gegen den gehaltenen Deskriptor, privaten Besitzer und
+ursprüngliches Gerät/Inode des zugelassenen Task-Roots. Andere Pfade, sämtliche
+deskriptorrelativen Schreibvorgänge, Commons No-Follow-Prüfungen und native
+Streaming-Guards bleiben erhalten. Root-Austausch oder Escape wird abgewiesen;
+ein innerhalb desselben Roots umbenanntes Kind folgt dem gehaltenen Inode.
+
+Die Parent-Vertragssuite besteht 21 Tests, darunter sechs neue Tests mit dem
+tatsächlich kompilierten sicheren Common-Eventöffner und Negativkontrollen für
+Verzeichnisse/Deskriptoren. Die zusätzliche Connector-Suite besteht sechs Tests,
+nachdem ihre veraltete Body-Limit-Assertion durch Prüfungen auf fehlendes
+Connector-Limit und erforderliches natives Gate ersetzt wurde. Alle 27
+gezielten Tests bestehen. Die Prüfung verwendete RTK, die ausgewählte Parent-
+Python3.14.7-Umgebung und externen temporären Speicher. Echte Host-Ausführung
+der aktuellen Quelle, finale CI/Sonar und vollständige I12-Qualifikation stehen
+aus. Diese Harness-Änderung führt weder Produktlimit noch Abhängigkeit,
+Framework/MRTS-Änderung, Merge oder Deployment ein.
+
+### NGINX-Workerabbild und Parserbelege, 2026-10-14
+
+Die 24 nativen Fault-/Sequenzproben stoppten ursprünglich vor dem Traffic,
+weil Root `/proc/PID/maps` des nicht dumpbaren Nobody-Workers nicht lesen kann.
+Ein optionaler Test-Preload erfasst unmittelbar nach dessen erfolgreichem
+UID-Wechsel die eigenen Maps desselben Workers über einen frischen privaten
+Append-Deskriptor. Der Parent prüft tatsächliche PID-Generation, UID/GID,
+vollständigen begrenzten Beleg und abgebildete Modul-/Faultbibliotheken vor dem
+Traffic. Der strenge direkte Leseweg bleibt Standard; es wurden weder
+`CAP_SYS_PTRACE`, Hostdienste noch Produkt-Bodylimits geändert.
+
+Die unabhängige Prüfung reproduzierte zwei Deskriptorlecks bei Sync- und
+Parser-/Ausgabefehlern. Cleanup schließt jetzt Map-/Faultdeskriptoren und erhält
+die ursprüngliche Ausnahme. Fünf Regressionen verwenden echte Deskriptoren und
+prüfen `EBADF`. Alle 21 Root-/Nobody-Tests bestanden. Der frische isolierte Lauf
+`1791967087014954093` führte dieselben 24 nativen Proben mit jeweils Driver-Exit 0
+aus, reapte danach eigene Prozesse und entfernte Namespace-Mounts. Frühere Läufe
+bleiben unverändert; Driverergebnisse sind keine vollständige I12-Abnahme.
+
+Die NGINX-Konfigurationsproduzenten erhalten zusätzlich tatsächliche native
+Parser-Argv, Cwd, PID, normalen Exit oder Signal und Hashes der Rohstreams.
+Neun Ablehnungsproben in `1791965822160608456` und der Start mit gültigen Regeln
+in `1791965824941496409` bestanden mit diesen Belegen. Die reine
+Konfigurationsqualifikation folgt ihrem Dreifeldvertrag; fehlende
+Request-/Response-Lifecycle-Felder werden daraus nicht abgeleitet. Die betroffene
+Parser-/Sequenzsuite bestand vor dieser Cleanupreparatur 79 Tests; die letzten
+betroffenen Prüfungen und CI am Liefer-Head werden separat dokumentiert.
+
+### Strenge NGINX-Qualitätsnachprüfung, 2026-10-14
+
+Die tatsächliche Analyse von `10102fcf` meldete acht neue Wartbarkeitsbefunde:
+zweimal S5754 bei Cleanup-Catches, zweimal S3776 für Funktionen, zweimal S1192
+für Startdateinamen sowie C S5350/S886 für Statfelditeration. Neue
+Sicherheitsbefunde oder duplizierte Zeilen gab es nicht. Cleanup-Catches verwenden
+jetzt den tatsächlichen Typ `OSError`; begrenzte Streamerfassung und
+Startabschluss haben zusammenhängende Helfer; Startdateinamen sind Konstanten;
+die Felditeration hat eine konstante Iterationszahl und explizite Nullprüfung.
+Erste Ursachen, private FDs, Capturegrenzen und Parserergebnisse bleiben erhalten.
+Die betroffene Root-/Nobody-Suite bestand nach den Änderungen alle 116 Tests
+(Exit 0). Frische physische Retakes und Sonar/CI am neuen Head bleiben separat
+verpflichtende Nachweise.
+
+### Nativer Traefik-Clientabschluss, 2026-10-14
+
+Die normale Fixture schloss TCP unmittelbar nach dem deklarierten Responsebody,
+während das Plugin noch EOS und den verzögerten Engineabschluss ausführte.
+Der Client fordert jetzt Connection-Close an, hält einen privaten duplizierten
+Socket und verlangt nach exaktem HTTP-Framing begrenzt das physische Peer-EOF.
+Ungepufferte Reads lassen zusätzliche Tailbytes sichtbar; vollständiges Lesen
+erhält fragmentiertes Content-Length- und Chunked-Framing. Timeout, TCP-Reset
+und zusätzliche Bytes schlagen fehl; jeder duplizierte Deskriptor schließt bei
+Fehlern. Cancellation-Fixtures bleiben getrennt; Plugin-/Engine-Produktquellen
+sind unverändert.
+
+Die betroffene Suite bestand 46 Tests; die kombinierte Native-Client-/SDK-
+Observer-Suite bestand 63 Tests (Exit 0). Der erste isolierte Versuch
+`1791969629249293459` stoppte mit Exit 77 vor Traffic, weil die neue
+schreibgeschützte Kopie Ausführungsbits verlor; sein Original bleibt erhalten.
+Eine frische Kopie erhält alle 121 vertrauenswürdigen ausführbaren Dateien.
+Retake `1791969989698580089` bestand sechs native Profile, HTTP200/54-Byte-Allow
+und 200/55-Byte-Safe sowie sauberes eigenes Prozess-/Mount-Cleanup. Der frühere
+Allow-seitige `client_cancel`-Beleg entfällt; erfolgreiches natives EOS/Finish/
+Free bleibt ungemessen. Historisches `protocol_error` wird nicht als behoben
+behauptet. Vollständige I12-Qualifikation benötigt weiterhin unabhängige
+Beobachtungen jedes ausgewählten Fallvertrags.
+
+### Traefik-Framingabschluss-Nachprüfung, 2026-10-14
+
+Die frische unabhängige Prüfung reproduzierte sauberes Peer-EOF nach nur drei
+von zehn deklarierten Bytes im tatsächlichen `response.read(4096)`-Zweig.
+Normaler Abschluss verwendet jetzt den bestehenden begrenzten Bodyreader und
+weist verbleibende deklarierte Länge ab; Timeout/Trunkierung schließen beide
+Clientsockets. Echte TCP-Tests prüfen genau diesen Zweig und fragmentierte
+Content-Length-/Chunked-Bodies. Die kombinierte Suite bestand 65 Tests; der
+frische native Retake `1791970798770219279` bestand alle sechs Profile mit
+unveränderten 54/55-Byte-Allow-/Safe-Ergebnissen und ohne Client-Cancel-Event.
+Natives EOS/Finish/Free bleibt unabhängig unqualifiziert.
+
+Der tatsächliche Provider von `bdaca57d` meldete S3776-Komplexität16 sowie S5778
+für einen Portlookup innerhalb einer Ausnahmeassertion. Der zusammenhängende
+Bodyhelper verringert die Requestkomplexität; Portlookups liegen jetzt vor den
+Ausnahmeprüfungen. Strenge Gates, Status-/Bodyoracles und alle physischen
+Fehlerkontrollen bleiben erhalten.
+
+### Traefik-Response-Cleanup bei erhaltener Ausnahme, 2026-10-14
+
+Die begrenzte zweite Prüfung reproduzierte eine offene Responsedatei nach
+Bodytimeout: `HTTPConnection` hatte sie für Connection-Close abgetrennt,
+während die erhaltene Ursache ihren Deskriptor lebend hielt. Explizite
+Response-Ownership schließt jetzt Datei, Connection und Duplicate vor Rückkehr;
+Closefehler ersetzen eine aktive Bodyursache nicht. Eine echte Regression
+erhält Ausnahme und Response, prüft die geschlossene Datei und `EBADF` vor GC.
+Alle 66 kombinierten Tests bestanden; nativer Retake `1791971306363843767`
+bestand mit sauberem Namespace-Cleanup. Erfolgreiches natives EOS und einmalige
+Engine-API-Zähler bleiben unbekannt.
+
+### Traefik-Cleanup-Qualitätsnachprüfung, 2026-10-14
+
+Die tatsächliche Analyse von `dd61b70d` fand S5754 beim Cleanup-Catch und zwei
+S8714-Ausnahmetestmuster. Cleanup fängt jetzt den tatsächlichen Owned-Close-Typ
+`OSError`. Die echte Deskriptorregression behält `Future.exception()` mit
+Traceback, Response und Datei; Assertions löschen die Ursache nicht vor der
+`EBADF`-Messung. Die Mock-Ursachenprüfung nutzt `assertRaises` und prüft Identität.
+Alle 66 kombinierten Tests und nativer Retake `1791972087966404513` bestanden
+(Exit 0). Befunde, Exclusions, Tests und Qualitätsanforderungen wurden nicht
+erlassen.
+
+### I12-Abgleich vor zusätzlichen Apache-Fällen, 2026-10-14
+
+Alle 1.484 originalen IDs bleiben erhalten: 1.406 verpflichtende in 13 unabhängigen Routenteilen und 78 diagnostische. Exakt 37 originale Konfigurationsparser-Verträge sind durch Root als PASS qualifiziert (36 verpflichtende und ein diagnostischer). Die übrigen 1.447 bleiben unqualifiziert: 1.370 verpflichtende und 77 diagnostische. Tatsächlich ausgeführte ausgewählte Fälle werden getrennt als 108/1.406 verpflichtende plus 8/78 diagnostische, insgesamt 116/1.484, erfasst. Drei Geschwister-Request-Parser-Probes belegen ihren ausgewählten Companion-Parser nicht. Die 596 ungeklärten originalen Oracle-Einträge, ursprünglichen 79 Rohbelege und früheren fehlgeschlagenen Versuche bleiben erhalten.
+
+Begrenzte Readiness-Belege liegen für alle 13 verpflichtenden Routenteile vor: Apache 27 Kontrollen, 81 Client-Austausche und 27 native Cleanup-Paare; NGINX-Root-Master/Nobody-Worker-Kontrollen, 42 ausgewählte native Operationen, 14 exakte kanonische YAML-Host-/Clientfälle und beide historischen 60-Fixture-Retakes (je 57 PASS, zwei Konfigurationsfehler vor Traffic und ein veralteter Log-Oracle-Abgleich nach Traffic); HAProxy-HTX acht und sechs gemeinsame SPOP-/HTX-Companion-Kontrollen einmal gezählt; drei getrennte Envoy-Versuche; Traefik-Native-UDS sechs, ForwardAuth-Request zwei und Companion vier Profile; Stock-Sidecar sieben Kontrollen mit verifizierter Offline-Provenienz; Patched-Native sechs P2-Gate-Kontrollen. Diese Beobachtungen qualifizieren keine 1.406 vollständigen gehosteten Lebensdauerverträge.
+
+Der finale Native-UDS-v5-Versuch `1791972087966404513` erfasst Allow HTTP 200/54 Bytes, P1 Deny 403/Alternative 429, P2 Deny 403, P3 Deny 403 und P4 Safe HTTP 200/55 Bytes. Die aktuellen physischen Logs enthalten null client_cancel- und protocol_error-Einträge; 185 Plugin-/Engine-Produkteingaben bleiben identisch. Der ursprüngliche Allow mit client_cancel=1/EOS=false und der fehlgeschlagene Snapshot mit falschen Executable-Rechten bleiben erhalten. Erfolgreiches natives EOS, Finish/Free und MIME bleiben unbekannt; TCP-EOF und synthetische Metadaten belegen kein natives EOS. Produkt-Parent a9, echte ältere Build-Identitäten, gehostete Quelle 3a mit exakten Harness-Deltas und aktueller Code `6b472cab6c18dfb5d6034461e1df5609e4ec3606` bleiben getrennt.
+
+Ergebnis: `I12_PARTIAL` und unabhängig `RELEASE_BLOCKED_SECRET_HISTORY`; beide PRs bleiben Draft. Exakter Code 6b hat authentifiziertes Sonar Gate OK, Security A, explizit null neue/akzeptierte Issues, Hotspots und Duplikation sowie einen erfolgreichen strikten Scaffold-Check. Seine 24 erfolgreichen, zwei übersprungenen und zwei laufenden Checks sind ein erfasster Checkpoint. Der spätere Dokumentations-Head erhält separate frische abschließende GitHub-/Sonar-Belege extern und in beiden PR-Texten. Aktuelle Berichte: [Hostbelege](../../../docs/pr-382-i12-host-evidence-20261014.de.md) und [Missing-Case-Index](../../../docs/pr-382-i12-missing-case-index-20261014.de.md). Generator, Originalverträge, Root-Freigaben, Teilpakete und rohe SHA-Referenzen bleiben im neuen Run unter final-reconciliation erhalten.
+
+### Kanonische Apache-Fixtures und Leerheader-Korrektur, 2026-10-14
+
+Ein unabhängiger Abschlussreview fand 14 originale Apache-YAML-Fälle mit vorhandenem Dispatcher. Der erste Versuch `1791974271929607351` akzeptierte alle Konfigurationen, lieferte aber keine HTTP-Antwort: Der unveränderte Guard lehnte das root-eigene Binary unter UID 65534 korrekt ab. Die Einzelfalldiagnose `1791974703385184818` erhält diesen genauen Fehler. Eine private eigene Kopie mit identischer freigegebener Binary-SHA korrigierte die Bereitstellung ohne Guard-Abschwächung.
+
+Retake `1791974869509186563` lieferte alle 14 HTTP-Antworten mit zwölf Fixture-PASS und zwei Audit-Oracle-FAIL nach Traffic. Ein echter curl-Collector reproduzierte den fehlenden Leerheader: curl unterdrückt `Name:` und `Name: `; der Apache-Falldriver verwendet für diese vorhandenen leeren Werte jetzt `Name;`. Gequotete nichtleere Werte, enthaltene Doppelpunkte, abschließende Leerzeichen und die Reihenfolge doppelter Header bleiben erhalten. Nur das #410-Harness und sein neuer realer HTTP-Regressionstest änderten sich; beide Produktworktrees und #382 bleiben bei a9.
+
+Aktueller Retake `1791975496308340489` lieferte 14 echte HTTP-/Header-/Body-Pakete: 13 Fixture-PASS und einen erhaltenen Duplicate-Header-Oracle-FAIL. Das physische native Audit bestätigt den leeren Header und Regel `1100503`. Das tatsächliche Apache-Core-Binary führt doppelte Header zu einem Feld `one, two` zusammen, bevor der Connector die APR-Tabelle erhält; sein exaktes Binary ruft `apr_table_compress(..., 1)` vor dem Post-Read-Hook auf. Durch Kommatrennung erfundene ursprüngliche Headergrenzen wären falsch; Originalregel `1100504` und ihr FAIL bleiben deshalb unverändert. Driver-Exit 1/Controller 77 bleiben erhalten; es gab keinen Ressourcenfehler, Namespace-Überlebenden oder Mount-Leak.
+
+Root prüfte 14 zusätzliche ausgewählte Teilausführungen und hashte 474 einzigartige erhaltene Dateien erneut. Ausgewählte Ausführung jetzt: 122 verpflichtende plus acht diagnostische, insgesamt 130; Qualifikation unverändert 37 originale Parser-PASS und 1.447 unqualifizierte IDs. Der Quellgleichheitsumfang umfasst 194 Apache-/Common-Eingaben; der frühere Umfang von 140 Compiler-Eingaben bleibt getrennt. Gehostete Quelle ist 3a mit explizitem Apache-Harness-Delta SHA `30fd539bc319b8583cb9cfb23db7bedaf58c894afd5fc88c50076a8250d0d437`. Drei echte Wire-Regressionstests, Shellsyntax und aktueller Working-Source-Quick-Check bestehen mit Exit 0. Der zuvor veröffentlichte 93b-Checkpoint hat 26 erfolgreiche/zwei übersprungene Checks und authentifiziertes Sonar OK/A/strikte Nullzähler; die neue Reparaturlieferung verlangt eigene frische CI-/Sonar-Belege am exakten Head.
+
+### Gemeinsame Headerdriver-Tests und strikte Duplikationskorrektur, 2026-10-14
+
+Exakter Head `9992dba5ece90137880d6fcc3e0eccc7709c2521` schloss 25 erfolgreiche Checks, zwei bedingte Skips und einen Scaffold-Fehler ab. Authentifiziertes Sonar meldete Gate OK, Security A und null neue/akzeptierte Issues oder Hotspots, aber 43 duplizierte Zeilen in zwei Blöcken (Dichte 1.2565751022793687). Die strikte Null-Duplikationsprüfung lehnte die kopierten Apache-/NGINX-Testcollector korrekt ab; Providerparser, Gate und Ausschlüsse wurden nicht verändert.
+
+Der echte curl-Collector, begrenztes Prozess-/Server-Cleanup und die drei Headerkontrollen liegen jetzt einmalig in `tests/header_driver_test_support.py`. Jede Apache-/NGINX-Testklasse behält ihre Hostkonfiguration und erbt unabhängig alle drei Kontrollen. Apache erhält beide Leerheader-Schreibweisen und abschließende Leerzeichen; NGINX erhält seinen Pfadhelfer-Stub und HTTP/1-Timeout. Ein reproduzierter Fehler beim modulqualifizierten Import wurde durch explizite paketrelative beziehungsweise Direct-/Discovery-Imports korrigiert. Root beobachtete sechs echte Wire-Tests über Modulaufruf und drei plus drei über Discovery, alle Exit 0. Der fehlgeschlagene Importbeleg bleibt erhalten.
+
+Die Apache-/NGINX-Harnessbytes und Produktquellen bleiben bei diesem Refactor unverändert; die vorhandenen 130 ausgewählten Hostausführungen und 37 Parserqualifikationen behalten daher ihre Originalidentitäten und Reichweite. Neue Quick-Check- und Dokumentationsbelege werden durch den Generator erfasst. Der spätere Delivery-Head verlangt ein frisches authentifiziertes Sonar-Ergebnis mit strikten Nullzählern am exakten Head, erfolgreichen Scaffold und abgeschlossene GitHub-CI; das ältere 9992-Gate-OK ersetzt diese Nachweise nicht.
+
 ### NGINX-Reparatur des typisierten Mapperfehlerstatus, 2026-10-14
 
 Basis: `a9d48bb58aa948aea7d79e20cdf09d3f239b7808`. Eine neue echte
@@ -433,6 +828,115 @@ und `verification/portable-mapper-ci-01/receipt.json`; Checker-Kontrollen liegen
 in `sonar382-regex-fix`. Gehostete CI/Sonar sind nach Lieferung am neuen Head
 erneut zu lesen. Historischer Gitleaks-Releaseblocker und beide Draftzustände
 bleiben getrennt.
+
+### Aktuelle I12-Lifecycle-Konsolidierung, 2026-10-14
+
+Status: **I12_PARTIAL** und unabhängig **RELEASE_BLOCKED_SECRET_HISTORY**.
+Beide PRs bleiben Draft. Der [aktuelle Hostbericht](../../../docs/pr-382-i12-host-evidence-20261014.de.md)
+und [vollständige Originalindex](../../../docs/pr-382-i12-missing-case-index-20261014.de.md)
+binden physische Pakete, Originalverträge und Hashes. Frühere Abschnitte unten
+beschreiben ausschließlich ihren historischen Stand.
+
+Die unveränderte Auswahl enthält 1484 Original-IDs: 1406 verpflichtende und 78
+diagnostische. Es bestehen 21 vollständige Pflichtfall-Lifecycle-PASS und 0 FAIL,
+mit mindestens einem vollständigen Fall auf jedem der 13/13 Pflicht-Routenteile.
+Für 151 Original-IDs ist tatsächliche Ausführung erfasst. Die 37 historischen
+Config-PASS enthalten 36 Pflichtfälle; insgesamt bestehen 57 qualifizierte
+Pflicht-PASS, 0 Pflicht-FAIL und 1426 weiterhin unqualifizierte Original-IDs.
+Von ursprünglich 596 ungeklärten Oracles sind 21 unabhängig quellbestätigt und
+tatsächlich erneut ausgeführt; 575 bleiben ungeklärt. Originalmitgliedschaft,
+Oracle-Nullwerte, Rohbelege und frühere Fehlläufe bleiben erhalten.
+
+Die 21 vollständigen Fälle qualifizieren nicht alle 1406 Pflicht-IDs. Anwendbare
+Host-/native EOS-, MIME-, Finish-/Free-, Client-/Backend-, Handle- und
+Cleanup-Belege sind für diese Pakete physisch gemessen; begründete
+Nichtanwendbarkeit bleibt ausdrücklich erhalten. Nullbyte-Append und Client-EOF
+ersetzen keinen nativen EOS-Nachweis. Stock native bleibt Diagnose, einschließlich
+seiner 23 ursprünglich ungeklärten Oracles; keine pauschale Unsupported-
+Umetikettierung. Übrige Pflicht-IDs, fehlende Fixtures, weitere Limits,
+Late-/Commit-, Sinkfehler-, Cancellation-/Reset- und Nachbarfälle bleiben offen.
+I12/V08–V10 bleiben insgesamt offen.
+
+[Private Capture-Quellen](../../../ci/runtime/lifecycle/i12/README.de.md) erhalten neun ausdrückliche Varianten.
+Jedes Paket bindet tatsächliche Quellen, geladene Images, SDKs und Konfiguration.
+Frühere a9-/0275-Builds bleiben von aktuellen Produkt-/Lieferrevisionen getrennt;
+ein grüner Quelltest ersetzt keine Hostausführung.
+
+Veröffentlichter Produkt-Head von #382:
+`9980eb049dde0643da6a4f04e3b6712801b670b3`; normale #410-Integration:
+`eca03db3`. Der reine Testfolgefix ersetzt die veraltete Mapper400-Assertion
+durch typisierten Dispatch/Default500 und den getrennt begrenzten
+Headercount400-Vertrag; alle 38 angeforderten Vertragstests und fünf
+kompilierten Mappertests bestehen. Neue #382-CI steht aus. e47-Sonar-SUCCESS
+(Check `116148729241`, Gate OK, Security A, neue/akzeptierte Issues 0,
+Hotspots 0, Duplikation 0) bleibt ausschließlich historischer e47-Nachweis,
+ohne Übertragung auf 9980 oder #410. Remote #410 bleibt an diesem
+Vor-Push-Checkpoint bei `02754040bced960cfc1857416cd7101bb3116ef4`;
+#410-Source-CI erwartet Root-Push und frischen Readback. Historisches Gitleaks
+bleibt ein unabhängiger Releaseblocker. Kein Gesamt-CI-PASS, Master-Merge oder Release.
+
+
+Die Erweiterung enthält vier zusätzliche HAProxy-Body-/Headerfälle, zwei native
+HAProxy-Request-Limitfälle mit 16 Bytes (`Reject` und `ProcessPartial`) sowie
+zwei echte lighttpd-Leerbodyfälle. Getrennte bestätigte Erwartungen und Retakes
+qualifizieren keine Geschwisterfälle. Gepatchtes lighttpd erfasst ein tatsächliches
+Null-EOS-Argument im echten Leerbody-Zweig und native P2-Finalisierung ohne Request-Append.
+
+Apache erhält ursprünglichen Duplicate-Header-FAIL und Originalregel. Ein separat
+hash-/versionsgebundener Override folgt dem tatsächlichen Apache-/APR-Merge zu
+einem Headerwert `one, two`, ohne Comma-Splitting im Produkt. 14 kanonische
+Hostfälle, 12 echte APR-/SDK-Regressionen und vollständiges Root-geprüftes
+Apache-Paket sind getrennte Nachweise. NGINX-Fix
+`12756aa957f54d3efce6bd97ec0dbac07fa576cc` propagiert interne Mapperfehler als
+HTTP500; echte HTTP500-/Client-HTTP400-Retakes und vollständiger Fall09 sind
+separat gebunden. Der frühere Body-P2-/Injected-P1-Geltungsbereichskonflikt
+bleibt als historische Disposition erhalten.
+
+Genau drei Generatoren erzeugen Oracle-Reconciliation, Lifecycle-Ledger und
+aktuellen EN/DE-Bericht samt Index. Originale, 596-Mitgliedschaft und Nullwerte
+bleiben erhalten. Der native Testobserver erfasst 38 Wrapper sowie ausdrücklichen
+Snapshot, typisierte Handle-Zuordnungen und echte Rückgaben. Der Renderer bindet
+die 37 historischen Config-PASS an ihre unveränderte physische Originalquelle
+und verwirft unbelegte PASS-/Scope-/Ausführungsangaben. Private Hooks gehören
+nicht in Releaseartefakte.
+
+Tatsächlich bestanden: 62 Native-/Oracle-/Ledger-/Apache-Tests, 13 Renderertests,
+115 NGINX-Mutationstests, 77 Guards, fünf kompilierte Mappertests, Root-Quick06,
+Nativecontracts und Docs10. Capture-Prüfungen bestehen neun Varianten,
+45 Patchanwendungen, 15 Negativguards und fünf Capture-Gruppen. Der Sourcecopy-
+Receipt-Overwrite-Fix verweigert ein vorhandenes Receipt vor jedem Schreibvorgang
+und legt es exklusiv an; drei neue Kontrollen erhalten Datei-/Hardlink-/
+Verzeichnisziele. Die Registry mit 150 Objekten ist verifiziert; Observer-C/H
+und Manifeste sind unverändert. Dies ist ein funktionaler Sourcecopy-Guard,
+kein Securityscan. Root validiert den finalen kombinierten Doku-/Source-Snapshot
+nach dieser Übergabe erneut.
+
+Kein Deep-Security-Scan und keine Abschwächung von Gates oder Guards erfolgten.
+Framework-/MRTS-Gitlinks und Originalrohbelege bleiben unverändert. Alle früheren
+CR-Abschnitte und der unveränderliche Originalindex bleiben erhalten.
+
+Root bestätigte zusätzlich 20 ergänzende `HARNESS_DEFECT_CONFIRMED`-
+Dispositionen außerhalb der ursprünglichen 596-Mitgliedschaft. Der originale
+generische Katalogexit 1 bleibt unverändert und gilt nicht als Direct-native-
+oder Wrapperdriver-Vertrag: tatsächlich abgewartete Native-Exits sind 255 x 8,
+78 x 9, 2 x 1 und 77 x 2. Dies sind Prozessausgänge, keine HTTP-Statuswerte;
+neun Operationen sind reine Parserläufe und elf Dienststartfehler. Neun
+Firstcauses aus physisch leerem Sidecar-stderr bleiben NULL; Quell-/Configursache
+bleibt getrennt. Scopefile-Fälle verwerfen den unbekannten Common-Runtime-Key
+`phase4_content_types_file` und belegen keine MIME-/Wildcard-Parserausführung.
+Formale resolved expectation und retest bleiben null; daraus folgt kein
+zusätzliches Konfigurations- oder Lifecycle-PASS. Die anderen 29 historischen
+Original596-Lücken und 23 diagnostischen Stock-native-Oracles bleiben ungeklärt;
+keine neue Unsupported-Freigabe wird abgeleitet.
+
+Dispositionsquelle: `catalog-conflicts/final-supplemental20/disposition-summary.json`,
+SHA256 `d68c2535d5ece0990670b3e01f173df9d98ad26684fef1f7bf39ca37cc436021`.
+Root-bestätigte records15, oracle13 und ledger08 erhalten 21 geklärte/575 offene
+Oracles, 21 vollständige PASS, 13 Routen, 151 ausgeführte IDs, 37 Config-PASS,
+57 qualifizierte Pflicht-PASS und 1426 unqualifizierte IDs. Tatsächliche Quick06
+und Docs10 bestanden; Root90-Tests und SourceRoot05 bestanden mit 150 Quellobjekten,
+neun Varianten, 45 Patchanwendungen und 15 Guards. Dies bleibt von ausstehender
+gehosteter CI getrennt.
 
 ### Unveränderlicher Originalindex
 

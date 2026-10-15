@@ -793,8 +793,8 @@ if ! phase2_body_limit_status=$("$PYTHON_BIN" "$HELPER" probe \
     echo "envoy_ext_proc_runtime: FAIL - phase-2 body-limit probe could not be completed" >&2
     exit 1
 fi
-if [ "$phase2_body_limit_status" != "413" ]; then
-    echo "envoy_ext_proc_runtime: FAIL - phase-2 body limit returned $phase2_body_limit_status, expected 413" >&2
+if [ "$phase2_body_limit_status" != "403" ]; then
+    echo "envoy_ext_proc_runtime: FAIL - phase-2 body limit returned $phase2_body_limit_status, expected 403" >&2
     exit 1
 fi
 if [ -e "$P2_BODY_LIMIT_UPSTREAM_MARKER" ] || [ -L "$P2_BODY_LIMIT_UPSTREAM_MARKER" ]; then

@@ -103,6 +103,26 @@ accepts only its approved protected producer and protected-runtime evidence,
 while this PR neither invokes nor changes the broker production path. The
 contract tests prove validator behavior, not a hosted runtime result.
 
+## Optional NGINX worker self-map capture
+
+The closed Common-input-fault and lifecycle-sequence drivers normally read the
+actual nobody worker's `/proc/<pid>/maps`; a denied read remains a failure.
+An explicitly selected test-only `--worker-self-map-library` (or
+`NGX_NATIVE_WORKER_SELF_MAP_LIBRARY`) instead lets that same worker read
+`/proc/self/maps` immediately after its real successful transition to UID/GID
+65534. It adds no process-inspection capability. The Root parent opens a fresh
+0600, single-link, regular `O_APPEND` file and passes its private descriptor to
+the exact native launch. The helper binds the descriptor's device/inode and
+captures only its original master's own child.
+
+Before sending traffic, the parent requires complete bounded raw bytes,
+matching worker PID, parent PID, UID/GID and process start time, and actual
+maps entries for the selected native module and every loaded fixture library.
+Missing, unsafe, incomplete or mismatched capture fails closed. Raw bytes and
+the helper artifact hash remain in the run receipt; no master maps substitute
+for worker maps. This channel proves loaded mappings only. It supplies no
+host EOS, MIME decision, native/Common ID join or full lifecycle PASS.
+
 ## Optional-prerequisite status records
 
 `ci/tools/run-check-status.py` runs one direct child command, writes a

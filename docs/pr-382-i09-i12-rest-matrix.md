@@ -2,7 +2,83 @@
 
 **Language:** English | [Deutsch](pr-382-i09-i12-rest-matrix.de.md)
 
-## Current review/Go reconciliation, 2026-10-13
+## Current I12 lifecycle consolidation, 2026-10-14
+
+State: **I12_PARTIAL** and independently **RELEASE_BLOCKED_SECRET_HISTORY**.
+Both PRs remain Draft. The [current host report](pr-382-i12-host-evidence-20261014.md)
+and [complete original index](pr-382-i12-missing-case-index-20261014.md)
+bind physical packets, original contracts and hashes. Earlier sections below
+describe only their historical checkpoints.
+
+The unchanged selection contains 1484 original IDs: 1406 required and 78
+diagnostic. There are 21 full required-case lifecycle PASS and 0 FAIL, with at
+least one full case on each of 13/13 required route parts. Actual execution is
+recorded for 151 original IDs. The 37 historical configuration PASS include 36
+required cases; total qualified required PASS is 57, required FAIL is 0, and
+1426 original IDs remain unqualified. Of the original 596 unresolved oracles,
+21 are independently source-confirmed and actually retaken; 575 remain unresolved.
+Original membership, null oracles, raw records and earlier failures are preserved.
+
+The 21 full cases do not qualify all 1406 required IDs. Applicable host/native
+EOS, MIME, finish/free, client/backend, handle and cleanup evidence is physically
+measured for these packets; justified nonapplicability remains explicit.
+Zero-byte append and client EOF do not replace native EOS evidence. Stock-native
+control remains diagnostic, including its 23 originally unresolved oracles;
+it was not broadly relabelled unsupported. Other required IDs, missing fixtures,
+further limits, late/commit, sink failures, cancellation/reset and neighbor
+cases remain open. I12/V08–V10 remain open overall.
+
+[Private capture sources](../ci/runtime/lifecycle/i12/README.md) retain nine explicit variants. Each packet
+binds actual source, loaded images, SDKs and configuration. Earlier a9/0275
+builds remain distinct from current product/delivery revisions; source success
+does not replace host execution.
+
+Published #382 product head is `9980eb049dde0643da6a4f04e3b6712801b670b3`;
+the normal #410 integration is `eca03db3`. The test-only follow-up replaces the
+stale mapper400 assertion with typed dispatch/default500 and the separately
+bounded headercount400 contract; all 38 requested contract tests and five
+compiled mapper tests pass. New #382 CI is pending. The e47 Sonar SUCCESS
+(check `116148729241`, Gate OK, Security A, new/accepted issues 0, hotspots 0,
+duplication 0) remains historical evidence for e47 only, with no transfer to
+9980 or #410. Remote #410 remains `02754040bced960cfc1857416cd7101bb3116ef4`
+at this pre-push checkpoint; #410 source CI awaits Root push and fresh readback.
+Historical Gitleaks remains a separate release blocker. No all-CI PASS, master
+merge or release is asserted.
+
+Root additionally approved 20 `HARNESS_DEFECT_CONFIRMED` supplemental
+dispositions outside the original 596-member subset. Original generic catalog
+exit 1 remains unchanged and is not treated as a direct-native or wrapper-driver
+contract: actual waited native exits are 255 x 8, 78 x 9, 2 x 1 and 77 x 2.
+These are process exits, not HTTP statuses; nine operations are parser-only and
+eleven are service-startup failures. Nine physically empty sidecar stderr
+first-causes remain NULL; source/config cause is separate. Scope-file cases
+reject the Common Runtime unknown `phase4_content_types_file` key and do not
+prove MIME/wildcard parser execution. Formal resolved expectation and retest
+remain null; this produces no additional configuration or lifecycle PASS.
+The different 29 historical original596 gaps and 23 Stock-native diagnostic
+oracles remain unresolved; no new unsupported approval is inferred.
+
+Disposition source: `catalog-conflicts/final-supplemental20/disposition-summary.json`,
+SHA256 `d68c2535d5ece0990670b3e01f173df9d98ad26684fef1f7bf39ca37cc436021`.
+Root-approved records15, oracle13 and ledger08 retain 21 resolved/575 unresolved,
+21 full PASS, 13 routes, 151 executed, 37 configuration PASS, 57 required
+qualified PASS and 1426 unqualified IDs. Actual Quick06 and Docs10 passed;
+Root90 tests and SourceRoot05 passed with 150 source objects, nine variants,
+45 patch applications and 15 guards. These remain distinct from pending hosted CI.
+
+## Earlier I12 execution, 2026-10-13
+
+Outcome: **I12_PARTIAL**. The [current host report](pr-382-i12-host-evidence-20261013.md)
+is the current I12 disposition for Parent
+`a9d48bb58aa948aea7d79e20cdf09d3f239b7808`, all 13 required legs and the
+separate Stock-native diagnostic control. It retains 1,406 required and
+78 diagnostic obligations and all missing evidence. Normal #382-to-#410
+merges preserve the historical 2026-10-11 report. Newly reproduced HAProxy
+outcome/completion/phase-conversion defects are repaired in Parent; bounded reexecution does not
+close the full matrix. I12/V08–V10 and the historical secret gate remain open.
+The revision-bound tables below preserve their earlier evidence scope.
+
+## Earlier review/Go checkpoint, 2026-10-13
 
 State: **BLOCKED_FOR_I12**. Current remediation starts at
 `4639f982a8125f4150394e4d4f2e8af4e690f494`. The [consolidated Change Record](../reports/audits/change-records/CR-20261013-pr382-consolidated.md)
@@ -21,7 +97,7 @@ them. No scanner exception or history rewrite is performed. The real nonroot
 Stock startup is BLOCKED by local UID mapping `0 0 1`. The master updater has
 not run after integration; **MASTER_WORKFLOW_VERIFIED: NOT_EXECUTED**. The
 [I12 handoff](pr-382-i12-handoff.md) binds missing host evidence and final delivery facts;
-#410 and the full I12 matrix remain untouched. Historical R16/R17 and the table
+That earlier task left #410 and the full I12 matrix untouched. Historical R16/R17 and the table
 revisions below retain their original scope.
 
 Date: 2026-10-10. Documentation base and inspected source inventory: `b2622a5d6ca746485c08f4789208299a111f47c7`.
@@ -73,6 +149,23 @@ The following 56 rows retain the **historical source/test inventory from 2026-10
 | `lighttpd-patched-native` | `tests.test_lighttpd_i10_adapter_errors` | HANDLER_ERROR/once reset | `IMPLEMENTATION_PASS` |
 
 Measured returns/API invocations and local socket bytes are I10 adapter evidence. Live client abort/reset, neighbor streams and physical logs remain separate I12/I11 evidence. The linked Change Record matrix separates Off/Safe/Strict and pre/postcommit; the current registry is unchanged.
+
+## Historical run evidence, 2026-10-11
+
+The [historical host-evidence report](pr-382-i12-host-evidence-20261011.md) is the
+separate case/route readback for run `20261011T063350Z-0df51024008f-i12`, tested
+Parent `0df51024008fc84f0a6820f3b011055b69c3a3e2`, Framework
+`99a7985c1be92a2297b1b59208f64df6768f2cbf` and MRTS
+`8a6bb546c4c81d8ffc7be801dceac60c6925685f`. The historical 56-row source inventory
+below retains its original revision, links and inspection-only test status.
+Its source findings and historical R17 remain distinct from current live outcomes.
+
+I12c–l stay open. Build/version or isolation admission success is prerequisite
+evidence; an isolated Apache allow observation is insufficient for route PASS.
+Companion request and response legs, physical-sink faults, host/transport actions
+and cleanup require their own receipts. Current NGINX results must bind this
+tuple independently of R17. Counts and actual case statuses belong to the current
+report; retained local raw files are not downloadable GitHub artifacts.
 
 ## Revision-scoped remaining work
 
