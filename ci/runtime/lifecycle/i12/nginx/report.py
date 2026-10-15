@@ -8,11 +8,52 @@ candidates never change statuses, approve an oracle, or qualify a request here.
 import argparse
 import hashlib
 import json
+import os
 import re
+import stat
 from pathlib import Path
 
 
 BASELINE_SHA256 = "a3a901db7d70884d2f491c95246629071cd55280ad94ee0fd86049c2e954c7ff"
+EVIDENCE_ROOT = Path("/var/tmp/codex/ModSecurity-conector/runs")
+REPOSITORY_ROOT = Path(__file__).resolve().parents[5]
+
+
+def trusted_ancestry(path, *, regular=False):
+    """Reject writable/unowned ancestors before reaching any filesystem sink."""
+    for component in reversed((path, *path.parents)):
+        info = component.lstat()
+        if info.st_uid not in (0, os.geteuid()) or stat.S_ISLNK(info.st_mode):
+            raise ValueError("Path requires root/operator ownership without symlinks")
+        transit = (component != path and not component.is_relative_to(EVIDENCE_ROOT) and
+                   info.st_uid == 0 and stat.S_ISDIR(info.st_mode) and info.st_mode & stat.S_ISVTX)
+        if info.st_mode & 0o022 and not transit:
+            raise ValueError("Path has a group/world-writable component")
+        if component != path and not stat.S_ISDIR(info.st_mode):
+            raise ValueError("Path ancestor must be a directory")
+        if component == path and regular and not stat.S_ISREG(info.st_mode):
+            raise ValueError("Evidence must be a regular file")
+
+
+def evidence_path(path):
+    """Accept evidence only inside the operator-owned project run boundary."""
+    path = Path(path).absolute()
+    if ".." in path.parts or not path.is_relative_to(EVIDENCE_ROOT):
+        raise ValueError("Evidence path must remain inside the project run root")
+    trusted_ancestry(path, regular=True)
+    return path
+
+
+def output_path(path, tracked_name):
+    """Restrict publication to exactly this task's versioned report file."""
+    path = Path(path).absolute()
+    tracked = REPOSITORY_ROOT / tracked_name
+    if ".." in path.parts or path != tracked:
+        raise ValueError("Output is outside the NGINX report publication boundary")
+    trusted_ancestry(path.parent)
+    if path.exists() or path.is_symlink():
+        trusted_ancestry(path, regular=True)
+    return tracked
 
 
 def select(value, keys):
@@ -69,7 +110,16 @@ def public_summary(value):
                                          for item in value["qualified_failures"]]
         return result
     if "checks" in value:
-        result = select(value, ("generated", "input_sha256", "cleanup_fixture_patch_sha256", "tools", "limitations"))
+        result = select(value, ("generated", "cleanup_fixture_patch_sha256", "tools", "limitations"))
+        input_hashes = value.get("input_sha256", {})
+        canonical_hashes = json.dumps(
+            input_hashes,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+        result["input_sha256_count"] = len(input_hashes)
+        result["input_sha256_set_sha256"] = hashlib.sha256(canonical_hashes).hexdigest()
         result["checks"] = [select(check, ("name", "command", "cwd", "parent_revision", "scope",
             "exit_code", "status", "elapsed_seconds", "raw_log_sha256", "raw_log_bytes",
             "unittest_counts", "unittest_verdicts", "interpretation", "explicit_native_inputs"))
@@ -105,10 +155,11 @@ def check_public_artifact(value):
 
 
 def read(path):
-    return json.loads(path.read_text(encoding="utf-8"))
+    return json.loads(evidence_path(path).read_text(encoding="utf-8"))
 
 
 def reference(path):
+    path = evidence_path(path)
     content = path.read_bytes()
     return {"path": str(path.resolve()), "sha256": hashlib.sha256(content).hexdigest(),
             "bytes": len(content)}
@@ -117,6 +168,21 @@ def reference(path):
 def canonical_hash(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"),
                                      ensure_ascii=False).encode()).hexdigest()
+
+
+def public_source_hash_inventory(value):
+    """Keep a record readable while binding its bulky per-path hash inventory."""
+    if value is None:
+        return None
+    result = dict(value)
+    source_hashes = result.pop("original_source_hashes", {})
+    result["original_source_hashes_count"] = len(source_hashes)
+    result["original_source_hashes_set_sha256"] = canonical_hash(source_hashes)
+    return result
+
+
+def public_selected_requirement(value):
+    return public_source_hash_inventory(value)
 
 
 def compact(ledger, ledger_path, observations, verification):
@@ -159,7 +225,7 @@ def compact(ledger, ledger_path, observations, verification):
         compact_rows.append({
             "run_scoped_case_id": case_id,
             "selected_requirement_sha256": canonical_hash(selected),
-            "selected_requirement": selected,
+            "selected_requirement": public_selected_requirement(selected),
             "baseline_row_sha256": canonical_hash(row["baseline"]),
             "baseline_row_locator": {"input": "baseline", "run_scoped_case_id": case_id},
             "full_row_locator": {"input": "full_ledger", "row_index": index},
@@ -169,7 +235,7 @@ def compact(ledger, ledger_path, observations, verification):
             "full_lifecycle_qualified": row["full_lifecycle_qualified"],
             "new_packet": packet.get("receipt") if packet else None,
             "new_request_identity": new["request_identity"] if new else None,
-            "new_oracle_review": new["oracle_review"] if new else None,
+            "new_oracle_review": public_source_hash_inventory(new["oracle_review"]) if new else None,
             "original_oracle_unresolved": bool(selected["expected_oracle"].get(
                 "unresolved_expected_value_reason")),
             "remaining_gap": None if row["full_lifecycle_qualified"] else gaps[case_id],
@@ -255,8 +321,8 @@ def report(data, machine_path, german=False):
         if not item["summary"].get("checks"):
             lines += ["", "```json", json.dumps(item, indent=2, ensure_ascii=False), "```", ""]
     lines += ["", choose("## Complete 140-ID ledger", "## Vollständiges 140-ID-Ledger"), "",
-              choose(f"The [machine artifact](../{machine_path.as_posix()}) retains every original selected contract, its canonical hash, baseline status, new status and external raw-proof locators. The external baseline and full ledger are bound below by SHA256; heavy raw files are intentionally retained outside Git.",
-                     f"Das [Maschinenartefakt](../{machine_path.as_posix()}) behält jeden ursprünglichen ausgewählten Vertrag, seinen kanonischen Hash, Basisstatus, neuen Status und externe Rohbeleg-Locators. Externe Basis und vollständiges Ledger sind unten durch SHA256 gebunden; schwere Rohdateien bleiben außerhalb von Git."), "",
+              choose(f"The [machine artifact](../{machine_path.as_posix()}) retains every original selected contract as a readable projection with its canonical full-contract hash, baseline status, new status and external raw-proof locators. Per-path source hashes stay in the externally bound baseline. The external baseline and full ledger are bound below by SHA256; heavy raw files are intentionally retained outside Git.",
+                     f"Das [Maschinenartefakt](../{machine_path.as_posix()}) behält jeden ursprünglichen ausgewählten Vertrag als lesbare Projektion mit seinem kanonischen Vollvertragshash, Basisstatus, neuem Status und externen Rohbeleg-Locators. Pfadbezogene Quellhashes bleiben in der extern gebundenen Basis. Externe Basis und vollständiges Ledger sind unten durch SHA256 gebunden; schwere Rohdateien bleiben außerhalb von Git."), "",
               "```json", json.dumps(data["inputs"], indent=2), "```", "",
               choose("### Qualified original IDs", "### Qualifizierte ursprüngliche IDs"), "",
               choose("Each row below is one original selected ID. Packet hashes and independent request identities are retained in the machine artifact; a retest of an already qualified ID does not add another original requirement.",
@@ -268,8 +334,8 @@ def report(data, machine_path, german=False):
             lines.append(f"| `{row['run_scoped_case_id']}` | {row['baseline_status']} | {row['new_status']} |")
     lines += ["", choose("### Original IDs still without complete lifecycle qualification",
                          "### Ursprüngliche IDs weiterhin ohne vollständige Lifecycle-Qualifikation"), "",
-              choose("The ten historical configuration PASS results remain configuration evidence. The unresolved-oracle column identifies original open expectations that still lack a resolved reviewed oracle; other rows may have a known oracle but incomplete physical proof.",
-                     "Die zehn historischen Konfigurations-PASS bleiben Konfigurationsnachweise. Die Spalte für offene Oracles kennzeichnet ursprünglich offene Erwartungen ohne aufgelöstes geprüftes Oracle; andere Zeilen können ein bekanntes Oracle, aber unvollständige physische Belege besitzen."), "",
+              choose("The ten historical configuration PASS results remain configuration evidence. The unresolved-oracle column identifies original open expectations that still lack a resolved reviewed oracle; other rows may have a known oracle but incomplete physical proof. Gap reasons reproduce the canonical hash-bound mapping verbatim.",
+                     "Die zehn historischen Konfigurations-PASS bleiben Konfigurationsnachweise. Die Spalte für offene Oracles kennzeichnet ursprünglich offene Erwartungen ohne aufgelöstes geprüftes Oracle; andere Zeilen können ein bekanntes Oracle, aber unvollständige physische Belege besitzen. Die englischen Lückenbegründungen geben die kanonische hashgebundene Zuordnung unverändert wieder."), "",
               choose("| Original ID | Current | Original oracle still open | Remaining evidence |",
                      "| Ursprüngliche ID | Aktuell | Ursprüngliches Oracle weiterhin offen | Fehlender Nachweis |"),
               "| --- | --- | --- | --- |"]
@@ -295,11 +361,18 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--report-prefix", type=Path, required=True)
     args = parser.parse_args()
+    args.ledger = evidence_path(args.ledger)
+    args.observations = [evidence_path(path) for path in args.observations]
+    args.verification = [evidence_path(path) for path in args.verification]
+    args.output = output_path(args.output, "ci/runtime/lifecycle/i12/nginx/evidence-20261015.json")
+    reports = [(german, output_path(
+        Path(str(args.report_prefix) + (".de.md" if german else ".md")),
+        "docs/pr-410-i12-nginx-evidence-20261015" + (".de.md" if german else ".md")))
+        for german in (False, True)]
     data = compact(read(args.ledger), args.ledger, args.observations, args.verification)
     args.output.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    for german in (False, True):
-        path = Path(str(args.report_prefix) + (".de.md" if german else ".md"))
-        path.write_text(report(data, args.output, german), encoding="utf-8")
+    for german, path in reports:
+        path.write_text(report(data, args.output.relative_to(REPOSITORY_ROOT), german), encoding="utf-8")
 
 
 if __name__ == "__main__":

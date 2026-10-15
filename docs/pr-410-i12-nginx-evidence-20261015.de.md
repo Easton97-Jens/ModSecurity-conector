@@ -395,7 +395,7 @@ Jede folgende Prüfung nennt ihr beobachtetes Ergebnis einschließlich fehlgesch
 
 ## Vollständiges 140-ID-Ledger
 
-Das [Maschinenartefakt](../ci/runtime/lifecycle/i12/nginx/evidence-20261015.json) behält jeden ursprünglichen ausgewählten Vertrag, seinen kanonischen Hash, Basisstatus, neuen Status und externe Rohbeleg-Locators. Externe Basis und vollständiges Ledger sind unten durch SHA256 gebunden; schwere Rohdateien bleiben außerhalb von Git.
+Das [Maschinenartefakt](../ci/runtime/lifecycle/i12/nginx/evidence-20261015.json) behält jeden ursprünglichen ausgewählten Vertrag als lesbare Projektion mit seinem kanonischen Vollvertragshash, Basisstatus, neuem Status und externen Rohbeleg-Locators. Pfadbezogene Quellhashes bleiben in der extern gebundenen Basis. Externe Basis und vollständiges Ledger sind unten durch SHA256 gebunden; schwere Rohdateien bleiben außerhalb von Git.
 
 ```json
 {
@@ -516,7 +516,7 @@ Jede folgende Zeile ist eine ursprüngliche ausgewählte ID. Pakethashes und una
 
 ### Ursprüngliche IDs weiterhin ohne vollständige Lifecycle-Qualifikation
 
-Die zehn historischen Konfigurations-PASS bleiben Konfigurationsnachweise. Die Spalte für offene Oracles kennzeichnet ursprünglich offene Erwartungen ohne aufgelöstes geprüftes Oracle; andere Zeilen können ein bekanntes Oracle, aber unvollständige physische Belege besitzen.
+Die zehn historischen Konfigurations-PASS bleiben Konfigurationsnachweise. Die Spalte für offene Oracles kennzeichnet ursprünglich offene Erwartungen ohne aufgelöstes geprüftes Oracle; andere Zeilen können ein bekanntes Oracle, aber unvollständige physische Belege besitzen. Die englischen Lückenbegründungen geben die kanonische hashgebundene Zuordnung unverändert wieder.
 
 | Ursprüngliche ID | Aktuell | Ursprüngliches Oracle weiterhin offen | Fehlender Nachweis |
 | --- | --- | --- | --- |

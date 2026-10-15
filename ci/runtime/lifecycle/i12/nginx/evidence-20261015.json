@@ -1233,16 +1233,6 @@
       },
       "summary": {
         "generated": "2026-10-15T13:58:19.599538+00:00",
-        "input_sha256": {
-          "/var/tmp/codex/ModSecurity-conector/worktrees/i12-nginx-410-20261015/tests/test_nginx_native_cleanup_bridge.py": "262d117d3b268f1343ec6b497c9fab065e40157ea3a5b037467c94753849fb70",
-          "/var/tmp/codex/ModSecurity-conector/worktrees/i12-nginx-410-20261015/connectors/nginx/src/ngx_http_modsecurity_module.c": "659fd30b4bbdf8a6d861c0dd8c2280b2640a831569265cb0937167979b7db5a5",
-          "/var/tmp/codex/ModSecurity-conector/worktrees/i12-nginx-410-20261015/connectors/nginx/src/ngx_http_modsecurity_mapper.c": "f6e81c6a53c10849c92538158951f61137cc180ec287aa1e337bf32d0ec5618f",
-          "/var/tmp/codex/ModSecurity-conector/worktrees/i12-nginx-410-20261015/connectors/nginx/src/ngx_http_modsecurity_access.c": "3ad4e4d801672b0aec1c94326e6e0a2e12e2422e57d1e747121a0bbc2c1b73c8",
-          "/usr/include/modsecurity/modsecurity.h": "cdcd60240440f6aca6350c94dd21c72e35db798cedaf2b1533130ab4fb69aed0",
-          "/usr/include/modsecurity/intervention.h": "42eca68546bb2a1172b6d5d35c00d5e9aaa2c0649cbacb0cf984bb2a0645fd1d",
-          "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/nginx-current-build/nginx-src/objs/ngx_auto_config.h": "b2ccce0c28c3a906dcce0e36110430dcb7ee008d011419283791173e027f8c32",
-          "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T034122Z-pr410-completion/nginx-current-build/nginx-src/src/core/nginx.h": "588efa235f6ee3eb09322c3475bfa7d0d0fc40e00419ac3c86543f71a09d7893"
-        },
         "cleanup_fixture_patch_sha256": "a205151f1a71528d833608a2cfba605fc5b0487210db1bdadaa4397b2fc4dc0f",
         "tools": [
           {
@@ -1279,6 +1269,8 @@
           "The original native run failed on a stale cleanup stand-in, retained independently.",
           "The primary repaired suite retains its native-header skip; the separate explicit-native-header run executes those three tests."
         ],
+        "input_sha256_count": 8,
+        "input_sha256_set_sha256": "16f341c19e05003ac7e186b19e30bb6530de30853037dba654574e50a1c07e76",
         "checks": [
           {
             "name": "adoption-security-contracts",
@@ -1604,7 +1596,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "b083518f12c92cf7cb17711e9609aaebc6f6d946568c508ad5dc41772ead59d9",
       "baseline_row_locator": {
@@ -1683,7 +1677,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "17039765da5b93e99d44ee6682c95826c4dd596b23b30be53a143bb7ad0e2495",
       "baseline_row_locator": {
@@ -1758,7 +1754,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "eced33e23e29d4a4a5c5e4fec379ce7f08700a84e0d0a784da58b360a7e5047a",
       "baseline_row_locator": {
@@ -1832,7 +1830,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "7030a708ebc9ae4c50bd88f8aad9614ddcb957e37e9f883d34268519b7579780",
       "baseline_row_locator": {
@@ -1895,7 +1895,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "a816e2a69a24579a0cef854a69690c3a151a25bc9b374f7e79fe349ca762bdbc",
       "baseline_row_locator": {
@@ -1959,7 +1961,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "abf23379b3a40e32a27b5016993778f665c58866fe2f1ee217d1839f01103a7a",
       "baseline_row_locator": {
@@ -2036,7 +2040,9 @@
           "versioned-derived-validator-exit-and-result"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "6eba0267be891880c4a462bdac16f587002829dbf6924581e6c692fe463f63a7",
       "baseline_row_locator": {
@@ -2106,7 +2112,9 @@
           "versioned-derived-validator-exit-and-result"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "3aae1fbeec9a81be90cafe4d007d899363c5efbdad6a54437f43ba63546456f2",
       "baseline_row_locator": {
@@ -2192,7 +2200,9 @@
           "versioned-derived-validator-exit-and-result"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "3eb72d8c9e5897850bfda8eb9dc16a87f16b92b435b06dc1afbc4aa7aab76e6c",
       "baseline_row_locator": {
@@ -2278,7 +2288,9 @@
           "versioned-derived-validator-exit-and-result"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "8c5b7bdd553835b84addce238ba41694e12cf16e088c78f4d9b1fa6191f3de35",
       "baseline_row_locator": {
@@ -2363,7 +2375,9 @@
           "versioned-derived-validator-exit-and-result"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "c6c5fa5f33414f4e4bd7ed5b13507231e153d94f75ce48b0853f3c1438fd0e01",
       "baseline_row_locator": {
@@ -2448,7 +2462,9 @@
           "versioned-derived-validator-exit-and-result"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "f591ddcf007f4a7aa7ac0daf3cea01e5d78f084c538cce8190068ed4e8dcb818",
       "baseline_row_locator": {
@@ -2522,7 +2538,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "004654ade6e8a55d5940fac6e63c3ca9407093910ab1293ad51e240a2cbe5ac6",
       "baseline_row_locator": {
@@ -2584,7 +2602,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "3eb0441bbf616cae054d7f5a81e0b0100554f50dd1c1f2bc28d306563e580eff",
       "baseline_row_locator": {
@@ -2646,7 +2666,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "8d07554d0956ba2f7ca755c607661bbe78791814ce93f009b7dd81a849bda41c",
       "baseline_row_locator": {
@@ -2705,7 +2727,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "86dda854d4cf31b425f24f5025adfdd54c54967cb342fcebb7ddef2ec30c4463",
       "baseline_row_locator": {
@@ -2768,7 +2792,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "4090981e66d8b80124c705fb4e2a37a53033761e520c4f10b9941e398383d246",
       "baseline_row_locator": {
@@ -2830,7 +2856,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "1e47c5987ae49020ab490c376ac42f9818a5a1d80f913425a1ab605e1018f99a",
       "baseline_row_locator": {
@@ -2892,7 +2920,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "9362b3447d570efd98a5838dba7cde58ed4b57e184c1d7e1d6f9dfeb1a998d78",
       "baseline_row_locator": {
@@ -2955,7 +2985,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "b88acc2dfbe08f0f5497c24c4cfda4b27f3130f33029d2b73dd727e17c94255c",
       "baseline_row_locator": {
@@ -3021,7 +3053,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "6d339a983bbe8a6694466fd504bc2cc597c2fbcc6f6e3deed0c41d46fabc596f",
       "baseline_row_locator": {
@@ -3098,7 +3132,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "04bedcc9146632ed8cf508307ae5e890f3ae277a38aeed8951859240fdc2ded6",
       "baseline_row_locator": {
@@ -3173,7 +3209,9 @@
           "versioned-derived-validator-exit-and-result"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "ef53ed7d3c8d50ebba492ee7449e71e9d5365a08fdb351b3f0c3f92ed2dec578",
       "baseline_row_locator": {
@@ -3248,7 +3286,9 @@
           "versioned-derived-validator-exit-and-result"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "4cd1f13530cf89b2fd88577a9bf777d6d2e0c7a8bf54af3cfb9012d5dff15c28",
       "baseline_row_locator": {
@@ -3323,7 +3363,9 @@
           "versioned-derived-validator-exit-and-result"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "578aa8898b66386e600510330b4408a70e4f5294f9f6c6d600eaf2bda3bf6abe",
       "baseline_row_locator": {
@@ -3398,7 +3440,9 @@
           "versioned-derived-validator-exit-and-result"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "e3ef540b420aeb1bbfe6cb30bb6b283eb1979e9869f619f94d0c742afbebd533",
       "baseline_row_locator": {
@@ -3473,7 +3517,9 @@
           "versioned-derived-validator-exit-and-result"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "bd64ff3eec32f9318bb0f631842af0a59d63eb0d15453de310e19fe329ed5b45",
       "baseline_row_locator": {
@@ -3549,7 +3595,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "449a760c81af55d1223b6f6c47dd3311b2a9f920fa3e7ac196a74c499bac7bbd",
       "baseline_row_locator": {
@@ -3611,7 +3659,9 @@
           "versioned-derived-validator-exit-and-result"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "9124d41d29ae071b4117c6cdc0c7769f99da2c7c9ab9af67a35a624cd6c8746a",
       "baseline_row_locator": {
@@ -3684,7 +3734,9 @@
           "versioned-derived-validator-exit-and-result"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "e7c3880eeb2d577506259ad0f6225d4da20cdaf1a274cf3d1591e726d60533ab",
       "baseline_row_locator": {
@@ -3760,7 +3812,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "49ccb7c570240535c7c414d5dd0dacdf920a8248314c1c65c2ced31c631536d7",
       "baseline_row_locator": {
@@ -3827,7 +3881,9 @@
           "expected-parser-acceptance-or-rejection"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "51bc4f5ff6ff3a6b043d8ef306bbc0809dd442032c27121b3ee9ad74868d8330",
       "baseline_row_locator": {
@@ -3895,7 +3951,9 @@
           "expected-parser-acceptance-or-rejection"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "8a88b9420de47211191511d08b30a1a560b3252b62f2ed75e678fc04b529dd86",
       "baseline_row_locator": {
@@ -3962,7 +4020,9 @@
           "expected-parser-acceptance-or-rejection"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "1d0f6161b2b6c464389bc925fe514b16d3ef3d19c70d71f7aec1205f7821b7c6",
       "baseline_row_locator": {
@@ -4028,7 +4088,9 @@
           "expected-parser-acceptance-or-rejection"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "a7a0db592504cbe1c81d2039fed16e1ba0b7f4e62c0bbf3784ac7c17ae606aa9",
       "baseline_row_locator": {
@@ -4095,7 +4157,9 @@
           "expected-parser-acceptance-or-rejection"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "20e3817f0ec5aa9048e339015371c9f833d3c8205d8f490e711baee3cd10b51f",
       "baseline_row_locator": {
@@ -4162,7 +4226,9 @@
           "expected-parser-acceptance-or-rejection"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "668850f06e3354dba502056a2a24cc3a6f763c807a17a7b182d57c3c04806fc1",
       "baseline_row_locator": {
@@ -4228,7 +4294,9 @@
           "expected-parser-acceptance-or-rejection"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "a31a72469da14477ff67e75b40427f5689c198b04688c6671cbf9a253cab98bf",
       "baseline_row_locator": {
@@ -4295,7 +4363,9 @@
           "expected-parser-acceptance-or-rejection"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "d5944953ed2d564c4ed95e27c3e835c62a34178d2e39a02e74d9083369acb95d",
       "baseline_row_locator": {
@@ -4358,7 +4428,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "0e69e41c1f35e8ecc2526023257365a4d4719354d3063cad6995b0067d0a94f4",
       "baseline_row_locator": {
@@ -4433,7 +4505,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "923694e6d23c14adf87601ebd55d232deb46aa568337cf6b9e598f61d32cf58d",
       "baseline_row_locator": {
@@ -4495,7 +4569,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "b4647da0261d5fe999db76d707c3af04fc23a197bdf270910662d0ed4a491e55",
       "baseline_row_locator": {
@@ -4557,7 +4633,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "ac04b6bf598d7d053b511c232deb61b97c1dd5c8812729d08a49485d46251a96",
       "baseline_row_locator": {
@@ -4619,7 +4697,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "70cf89a22cee822eee5faf650c061f7d74e182b023a650b9a96de789234aae6d",
       "baseline_row_locator": {
@@ -4684,7 +4764,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "9f57bf963daf18242bd6000bf2a0bacb3d35e705549097cf31bf1371c0f2b451",
       "baseline_row_locator": {
@@ -4750,7 +4832,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "a86e55f88ceb3ae655b9ffd00d2b873fa23d14771c3ad764dd223f010f181ddb",
       "baseline_row_locator": {
@@ -4811,7 +4895,9 @@
           "versioned-derived-validator-exit-and-result"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "36beae0cbe537fabe3fc8f07cc9083d83131c7f5b742993f390c68a54f77d03d",
       "baseline_row_locator": {
@@ -4884,7 +4970,9 @@
           "versioned-derived-validator-exit-and-result"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "32cf81320b34ca9a1189828ebf9bd0831537a143d2f8617ddf1ec95207c0a360",
       "baseline_row_locator": {
@@ -4957,7 +5045,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "1caa48309be08e72d5ad8ffcb60de28058243fd017a1ba8045095317a28a5fbc",
       "baseline_row_locator": {
@@ -5028,7 +5118,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "281ab7d3e2fdfd3cc77d0943fd54fd3fefcb7395262f9ba8f34883a382732660",
       "baseline_row_locator": {
@@ -5101,7 +5193,9 @@
           "versioned-derived-validator-exit-and-result"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "c6549fc7dc328fabe9841ab216d2b2c78b3bee4e082875cf34074832a2cee768",
       "baseline_row_locator": {
@@ -5174,7 +5268,9 @@
           "versioned-derived-validator-exit-and-result"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "4a12c2dc420062497db6fc8c369f7070b7db41726b4332aafb5ce888702cf515",
       "baseline_row_locator": {
@@ -5247,7 +5343,9 @@
           "versioned-derived-validator-exit-and-result"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "384e3a383cf296de9399a2fc37cf6df009acd291f1f39b8398c90b6dcd21f303",
       "baseline_row_locator": {
@@ -5320,7 +5418,9 @@
           "versioned-derived-validator-exit-and-result"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "00ee7bfba8caee0a1c7cd4294e31ec4dfb235e865daa1dc61024126ff028a786",
       "baseline_row_locator": {
@@ -5393,7 +5493,9 @@
           "versioned-derived-validator-exit-and-result"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "24b56d4f94cab5266a5551d86c98dd95374f0b29859df5d17feae254a512d5ce",
       "baseline_row_locator": {
@@ -5454,7 +5556,9 @@
           "versioned-derived-validator-exit-and-result"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "dc9d5d930cf7298ac7c79183c84fb1659963bad2f03f9b1213942a8e7e53bc76",
       "baseline_row_locator": {
@@ -5527,7 +5631,9 @@
           "versioned-derived-validator-exit-and-result"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "3b4d497e9fb8e54aa9894f64c1940d6e3ef030b7ce9a196b9af8183a0a5bb2cf",
       "baseline_row_locator": {
@@ -5600,7 +5706,9 @@
           "versioned-derived-validator-exit-and-result"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "02ae58c9b6f3e4875ce3e48dfa1787321bb441eb2a89d9a5410ad69bb60e9123",
       "baseline_row_locator": {
@@ -5672,7 +5780,9 @@
         "historical_alias_ids": [],
         "source_fixture_paths": [
           "tests/cases/no-crs-baseline/full-lifecycle/phase3_deny_before_commit.yaml"
-        ]
+        ],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "2d76bdf1b26f4f27de87987cf153196c5f1ecee1a4b42875e9b92eb4bca27da8",
       "baseline_row_locator": {
@@ -5744,7 +5854,9 @@
         "historical_alias_ids": [],
         "source_fixture_paths": [
           "tests/cases/no-crs-baseline/full-lifecycle/phase3_redirect_before_commit.yaml"
-        ]
+        ],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "d4deabc194f96d35c1c42572aa5391f947503fcd2d06c2ef9dc941248bfc29e3",
       "baseline_row_locator": {
@@ -5810,7 +5922,9 @@
           "versioned-derived-validator-exit-and-result"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "351f7f7cf6f50bc190fdb18427fc9c4a4590990a87c52b5fb54e2d1900d2d731",
       "baseline_row_locator": {
@@ -5884,7 +5998,9 @@
         "historical_alias_ids": [],
         "source_fixture_paths": [
           "tests/cases/no-crs-baseline/full-lifecycle/phase4_marker_split_across_chunks.yaml"
-        ]
+        ],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "c12f312b46bb72e657c12c8b27766f5406cfbdce17fa727aebff4fe3631daedd",
       "baseline_row_locator": {
@@ -5955,7 +6071,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "16ba48ce24becdc3c1555f8a0601fb8529a477e556e7beae66fa418c2ea3f29e",
       "baseline_row_locator": {
@@ -6039,7 +6157,9 @@
         "historical_alias_ids": [],
         "source_fixture_paths": [
           "tests/cases/no-crs-baseline/full-lifecycle/phase4_late_intervention.yaml"
-        ]
+        ],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "0baefe24c6e80abbbb191d52be293d50cbaf8c3e83a4e3c7e1cccd1e9255e71b",
       "baseline_row_locator": {
@@ -6118,7 +6238,9 @@
         "historical_alias_ids": [],
         "source_fixture_paths": [
           "tests/cases/no-crs-baseline/full-lifecycle/phase4_late_intervention.yaml"
-        ]
+        ],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "13c3d1a96c69bdf5c9b96f53e49a67cfc391d13c3123008bc777373f70725f03",
       "baseline_row_locator": {
@@ -6208,7 +6330,9 @@
         "historical_alias_ids": [],
         "source_fixture_paths": [
           "tests/cases/no-crs-baseline/full-lifecycle/phase4_late_intervention.yaml"
-        ]
+        ],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "894b702c5d7c79de4b1374c61580c687d2a2db80b611c9c83ab1f2853c8fbd26",
       "baseline_row_locator": {
@@ -6281,7 +6405,9 @@
           "versioned-derived-validator-exit-and-result"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "2d1e54d2893bdd7ce0cb7dd5705a5af2e798c17e5b741be89085df79864ae678",
       "baseline_row_locator": {
@@ -6354,7 +6480,9 @@
           "versioned-derived-validator-exit-and-result"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "9ff46f16342f8443f7c389bace7d1734f45957d1b0eef80f5fd1456aac4d7dc4",
       "baseline_row_locator": {
@@ -6427,7 +6555,9 @@
           "versioned-derived-validator-exit-and-result"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "a6a6af285ffac3396b882f4d2d9200321b6440e3b6a90bc9715335c39f5763cf",
       "baseline_row_locator": {
@@ -6507,7 +6637,9 @@
         "historical_alias_ids": [],
         "source_fixture_paths": [
           "tests/fixtures/no-crs-baseline/invalid-content-type-scope.txt"
-        ]
+        ],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "7339543d1551f4c34ca8de09ba34f671ab11be91743515cf50b8e901f4241be9",
       "baseline_row_locator": {
@@ -6575,7 +6707,9 @@
         "historical_alias_ids": [],
         "source_fixture_paths": [
           "tests/fixtures/no-crs-baseline/wildcard-content-type-scope.txt"
-        ]
+        ],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "88c52d7b5994629dbeace4433115ddfe92718ec66feefa7c981e0a27ec0c5048",
       "baseline_row_locator": {
@@ -6648,7 +6782,9 @@
         "historical_alias_ids": [],
         "source_fixture_paths": [
           "tests/cases/no-crs-baseline/full-lifecycle/phase4_content_type.yaml"
-        ]
+        ],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "46e5152926fa313785147ff55f3b6cf203beede87ddb0f209deb70fabbe1f8a8",
       "baseline_row_locator": {
@@ -6720,7 +6856,9 @@
         "historical_alias_ids": [],
         "source_fixture_paths": [
           "tests/cases/no-crs-baseline/full-lifecycle/phase4_content_type.yaml"
-        ]
+        ],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "fbc814d6818d661324723b9dbba2af9ecb8519fd53bf4e4526e73e8292467e5d",
       "baseline_row_locator": {
@@ -6796,7 +6934,9 @@
         "historical_alias_ids": [],
         "source_fixture_paths": [
           "tests/cases/no-crs-baseline/full-lifecycle/phase4_content_type.yaml"
-        ]
+        ],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "4e29abda563f54c4a0a1e3d2fca40198a2c786d31da19942aba23be142d5e910",
       "baseline_row_locator": {
@@ -6871,7 +7011,9 @@
         "historical_alias_ids": [],
         "source_fixture_paths": [
           "tests/cases/no-crs-baseline/full-lifecycle/phase4_content_type.yaml"
-        ]
+        ],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "55d0bf85abfb068957651c8289476b21b36cc7ab1b3aa0fe7463b9d3eb21ad74",
       "baseline_row_locator": {
@@ -6949,7 +7091,9 @@
         "historical_alias_ids": [],
         "source_fixture_paths": [
           "tests/cases/no-crs-baseline/full-lifecycle/phase4_first_byte_before_response_end.yaml"
-        ]
+        ],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "9f9ea8bd912500fb7aaa588a949f4250d70850efdde9b0fa6981286380ba99f7",
       "baseline_row_locator": {
@@ -7027,7 +7171,9 @@
         "historical_alias_ids": [],
         "source_fixture_paths": [
           "tests/cases/no-crs-baseline/full-lifecycle/phase4_first_byte_before_response_end.yaml"
-        ]
+        ],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "7d7fda4788926ef8a422b4c13381c2ccb90db58bcd4f200c3dead62126672e8d",
       "baseline_row_locator": {
@@ -7096,7 +7242,9 @@
         "historical_alias_ids": [],
         "source_fixture_paths": [
           "tests/cases/no-crs-baseline/full-lifecycle/transport.yaml"
-        ]
+        ],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "a3a17aea1c31880a2c8e78b522c7fdbc1e9b6d729cb76e491f1fecb9886aae78",
       "baseline_row_locator": {
@@ -7164,7 +7312,9 @@
         "historical_alias_ids": [],
         "source_fixture_paths": [
           "tests/cases/no-crs-baseline/full-lifecycle/transport.yaml"
-        ]
+        ],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "422ab9c1106806a04ef736d3e93dd492caeb6961725172b191194e89f7b1a079",
       "baseline_row_locator": {
@@ -7231,7 +7381,9 @@
         "historical_alias_ids": [],
         "source_fixture_paths": [
           "tests/cases/no-crs-baseline/full-lifecycle/transport.yaml"
-        ]
+        ],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "e1a194804d1edf083ec8f06fc3f9a48a58adf14d21704c706c2012d2dc211adb",
       "baseline_row_locator": {
@@ -7298,7 +7450,9 @@
         "historical_alias_ids": [],
         "source_fixture_paths": [
           "tests/cases/no-crs-baseline/full-lifecycle/transport.yaml"
-        ]
+        ],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "7f79192702c4353a62aac81bc72d08bcaadd757504a971055b4bf01149700168",
       "baseline_row_locator": {
@@ -7371,7 +7525,9 @@
         "historical_alias_ids": [],
         "source_fixture_paths": [
           "tests/cases/no-crs-baseline/full-lifecycle/phase4_body_limits.yaml"
-        ]
+        ],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "f026563084844f3d016a685bf2ab21fdca9fce54fa67765837baf092e072939b",
       "baseline_row_locator": {
@@ -7444,7 +7600,9 @@
         "historical_alias_ids": [],
         "source_fixture_paths": [
           "tests/cases/no-crs-baseline/full-lifecycle/phase4_body_limits.yaml"
-        ]
+        ],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "2a8d51a539cc986812b51660fd84a059a164cd9633b2c934254ae32219951cdc",
       "baseline_row_locator": {
@@ -7518,7 +7676,9 @@
         "historical_alias_ids": [],
         "source_fixture_paths": [
           "tests/cases/no-crs-baseline/full-lifecycle/phase4_body_limits.yaml"
-        ]
+        ],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "527a17bd1ac1003f6a35606eeedc56a4e67bded8b385811ac38bda3e0919b421",
       "baseline_row_locator": {
@@ -7598,7 +7758,9 @@
         "historical_alias_ids": [],
         "source_fixture_paths": [
           "tests/cases/no-crs-baseline/full-lifecycle/phase4_body_limits.yaml"
-        ]
+        ],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "a1190d084633231b8dba5f1bdd3f37fe122938baf35f0c94df7327e39087f1e6",
       "baseline_row_locator": {
@@ -7723,7 +7885,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": false,
       "remaining_gap": null
@@ -7774,7 +7938,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "549e3722e61911bf931c12de1963ad49d5eb56511028faaf1cc20ee63fe5b1e2",
       "baseline_row_locator": {
@@ -7856,7 +8022,9 @@
         "historical_alias_ids": [],
         "source_fixture_paths": [
           "tests/cases/no-crs-baseline/full-lifecycle/phase4_late_intervention.yaml"
-        ]
+        ],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "142ec6177fe0009399b6a095ae7773dfb43db4d9e68ebca449e9ec222f3d9487",
       "baseline_row_locator": {
@@ -7935,7 +8103,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "33db552d80760db490ee3e05b942fd24f93c688f019dffb74b7abce79b97ec82",
       "baseline_row_locator": {
@@ -8014,7 +8184,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "14e9f1e36335e7bc06864f980013c6ea5d8482cf8f17d666fabb65aecf2a5a58",
       "baseline_row_locator": {
@@ -8092,7 +8264,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "2b211dfe7604e2d653d56eea9fb06009b7b1f669557329f3a85813c5cd71d9e9",
       "baseline_row_locator": {
@@ -8170,7 +8344,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "6a7e996f2dc69a1f12472f07b750401d99df28e3efbd5b0cfc01d37e45b3f990",
       "baseline_row_locator": {
@@ -8248,7 +8424,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "ac020d3f88747b7f2a2adcf0e8b53fddda075a3158901119592cb87e9913ae1b",
       "baseline_row_locator": {
@@ -8326,7 +8504,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "775a2f8f55d41eb437c86724997f921347d6ada8fa8f07c11c7b605b5203f34d",
       "baseline_row_locator": {
@@ -8412,7 +8592,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "6b222a205fd4f77f8ccbf99e42ecc683496c08fcdcbdf3f0eaf9ef2a18273e0e",
       "baseline_row_locator": {
@@ -8549,7 +8731,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": false,
       "remaining_gap": null
@@ -8619,7 +8803,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "95c04bd872b11a02ed55d067c23b60c4a81ed6ddc215d1e5eff74cfd2616a600",
       "baseline_row_locator": {
@@ -8758,7 +8944,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": false,
       "remaining_gap": null
@@ -8820,7 +9008,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "1284b040aec238806d6678fafa58601141773505743b27194630a3387c9696dc",
       "baseline_row_locator": {
@@ -8898,7 +9088,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "14d6fae4f9df72f3f777bec593269c2a71f1150be90ffb88b40211a7c8adf04a",
       "baseline_row_locator": {
@@ -8957,7 +9149,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "a49d3490cd1da5a1dc85d5b6b933b480e97fe37c9b3277c517fcba6e319e2889",
       "baseline_row_locator": {
@@ -9043,7 +9237,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -9086,7 +9282,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "6965430710ba6f4468a65131afef84babeaf71674443506c34f96e416999fbba",
       "baseline_row_locator": {
@@ -9170,115 +9368,6 @@
           "parent": "8c574cdf86f10af976297c31d31485b042eba73b",
           "framework": "99a7985c1be92a2297b1b59208f64df6768f2cbf",
           "mrts_gitlink": "160000 commit 8a6bb546c4c81d8ffc7be801dceac60c6925685f\ttools/MRTS"
-        },
-        "original_source_hashes": {
-          "parent:ci/runtime/lifecycle/resolve-full-lifecycle-profile.py": "474fe90d7bec9610f52c84e490708a0cf86cc27cba1675525c6290fae20a11b5",
-          "framework:ci/checks/catalog/no_crs_baseline.py": "eaf192048d7baabc7e5a20928ea54c3b7705ca1f071eff63c47a7f654dbbfcfe",
-          "framework:tests/cases/no-crs-baseline/catalog.json": "9a3fecac4cdaf6e3791a9c22a362531099b3a0bf10c328b8ba188310d69dc89e",
-          "parent:connectors/profile_registry.c": "b3c04ba057526c50f67cd7a8e04c8211ca936baa53c9ef3d6da8b32e4c7af802",
-          "parent:common/runtime/msconnector_runtime.c": "0fa85f5658be96a25204adf489b2e18149a5f826b5ed528e55ec7b2ffe410aa4",
-          "parent:docs/phase4-mode-budget.md": "1c3bc1339f9349e458ec05fa5c216328cc418a8e9087ad8e8bf75917da5679cb",
-          "parent:connectors/lighttpd/lighttpd-version.contract": "262bccec7a303746fab93a1a50a3f724b9d7f5aabb68b04c4ffeaf739dc611d1",
-          "parent:connectors/haproxy/htx-overlay/version-contract.json": "d0fbe1c1ca83108e4d2c922dcd3b44c948b8242cca9733d0419bd9cad1f74e29",
-          "parent:connectors/apache/capabilities.json": "bee9c4d63cfd040d79cf941f8b8439842ac37e9dc21c268d69b588ec702e5463",
-          "parent:connectors/apache/metadata.c": "97bda8a14ec1444dab087e499acc64b50d4da674f95bc4c91dfe1f3be8a2713f",
-          "parent:connectors/apache/src/mod_security3.c": "8ff78a6cfc18b34e78dbe491e3e3576f54e61b6665cea285113ac9150980698a",
-          "parent:connectors/apache/src/msc_filters.c": "1eb1e9261fb89e12e7a2094e9d0a856759932714223455508cd657fbbed1a5cd",
-          "parent:connectors/apache/src/msc_config.c": "da03118d339e2065a7f4a8f39b010feb0739fcbbfa5a9fbb4968d988da480773",
-          "parent:connectors/apache/harness/run_apache_smoke.sh": "3d2a04c7855e49822628c6f34c1995d351170fe59aac6b3be3df5131501683bb",
-          "parent:ci/runtime/lifecycle/run-apache-phase4-response-regression.sh": "78f2a5bf2999f54753af9d6141398259cfccd216a026d5c11670befa9addd295",
-          "parent:connectors/nginx/capabilities.json": "ebcc73cc6356b4bb7aa80e8fec0216c837a5b6d259764724af3b3997d87d51cf",
-          "parent:connectors/nginx/metadata.c": "cb4d361f489ad46a18433e9a6ffc149a452d0274ac9b893a415ba4c64b79c22b",
-          "parent:connectors/nginx/src/ngx_http_modsecurity_access.c": "a3ae9e941b143d152ff2d54c786072fc5e09717a56bba8e361315b3b12f7c69b",
-          "parent:connectors/nginx/src/ngx_http_modsecurity_header_filter.c": "bbdbd288429cc942595a8e8825ed0892f7e6c8ceeb9efadb06b4d1635b592fda",
-          "parent:connectors/nginx/src/ngx_http_modsecurity_body_filter.c": "6ed39a758ad9ca2eab430aecd8b6508d81f2b45962e1b453456fe829e73e8c35",
-          "parent:connectors/nginx/src/ngx_http_modsecurity_module.c": "659fd30b4bbdf8a6d861c0dd8c2280b2640a831569265cb0937167979b7db5a5",
-          "parent:connectors/nginx/harness/run_nginx_smoke.sh": "cb1ef99c2ad64a7be5032d174ee30d135bef96eb71457699a916df43f39f9dcf",
-          "parent:connectors/haproxy/capabilities.json": "a9546dccfa82050497aa3fd905732c63737fc902fcab2855a1a8d58dd7a926db",
-          "parent:connectors/haproxy/metadata.c": "7091b8d26a61f1829de3df2b40e9b8a3bdcb29b66613aa49ebcdf58e0a4ea13b",
-          "parent:connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c": "a976dbbffc1b90da202c1a72e93fa15efbe23f11da3a7ee6b9a2afda5b75c2a7",
-          "parent:connectors/haproxy/src/haproxy_modsecurity_binding.c": "c9dad5193dc24428d00f6e8b4ab34534b19853b987bd2c9588201d86cf1cc5e7",
-          "parent:connectors/haproxy/src/haproxy_modsecurity_mapper.c": "d6bbf3fae12883eca51414e092e78859e7b7af529342a526a7fc5304db787377",
-          "parent:connectors/haproxy/harness/run_haproxy_smoke.sh": "a8f6b2f565c627366900f02ae75404035282ef39b12ecd4334af781b7e91fa72",
-          "parent:connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c": "1081bb2fde8d0b9f3585631f107453114e0bb5919f219832fcbec721fe25e722",
-          "parent:connectors/haproxy/htx-overlay/haproxy-makefile.patch": "de7228a518660d92d9287c086b042c3c563bf167bd857925b294f8d7ea734fa7",
-          "parent:connectors/haproxy/harness/run_haproxy_htx_runtime.sh": "b771c71cc34baa8cf38f9e6f71bbd07606ae5365bc02b9088ae04488cb65b3a2",
-          "parent:connectors/envoy/capabilities.json": "5649e9a3106ba4188339620318775fbb9d271b2e8abdfd51516e3976bda15b86",
-          "parent:connectors/envoy/metadata.c": "c738d865e5d8fbe27c0a3c68c3c19b55edf36250c073eb19eb2f23925e73fc4a",
-          "parent:connectors/envoy/config/envoy-ext-authz-smoke.yaml.in": "dd1796f7565a2dd6b61292257b29b45a294251a1cc3e1af182e56b68ee01b8bb",
-          "parent:connectors/envoy/config/envoy-ext-authz.conf": "b7efd3dd71f6b4736576145f6ccb9e4eaed7810ab2f9cf82dbc9c8f96b4f248f",
-          "parent:connectors/envoy/src/envoy_ext_authz_service_main.c": "451ea1da26d48c953be614f7c9cd368c2f49b3253556516ff206815693b104b8",
-          "parent:connectors/envoy/src/envoy_ext_authz_response_companion.c": "58ef48396985b30c240c25950209307897d55d3e7fa9180d980a9028b3ef1093",
-          "parent:connectors/envoy/ext_proc/cmd/msconnector-envoy-response-observer/main.go": "8ef1046f9549b46a1fa88bf399696f263e7c2faee107e52c0c4a30ced6f41db9",
-          "parent:connectors/envoy/ext_proc/internal/responseobserver/service.go": "6e96afed63fd7343e9bc1188950b38d23371f08063c50dba4f276eda2d74c633",
-          "parent:connectors/envoy/src/envoy_modsecurity_mapper.c": "76633d1812a89e42c91e53375a470c0894cc5c0074730980cb6a42ac748cd72f",
-          "parent:connectors/envoy/harness/run_envoy_connector_runtime.sh": "66f68521380123c1399fd23f1b72111f57ae9f888813b1189dc699730d343b34",
-          "parent:connectors/envoy/config/envoy-ext-proc-service.json": "1f7e5f3f1b90e347a440af8a59be715531d693a72689c1cacc4c1ec565375a48",
-          "parent:connectors/envoy/config/envoy-ext-proc-versions.env": "07830f7e8ef26ec5e4b8e9b35c42f28f63e5716963aeac092d3de003189df2a3",
-          "parent:connectors/traefik/capabilities.json": "7f96b6b618b9386272e26138b43d6a7340e4ad09cdb91fcdca9071b9f36ecd69",
-          "parent:connectors/traefik/metadata.c": "0c4ba2581503de3eedae64e8bb7875067ce02ae0b82d684c389f5257e526afbf",
-          "parent:connectors/traefik/config/traefik-forwardauth-dynamic.yaml": "44317b48f5d1e3807e32789f2bbef71adc225c153ad583797d134b97197d672d",
-          "parent:connectors/traefik/config/traefik-forwardauth.conf": "8fad3105b2cd40ad1511e0985b813885c477bb0966bfd227796e6be10021a4ee",
-          "parent:connectors/traefik/src/traefik_forwardauth_service_main.c": "c5b3dea9f28f1d0a872e484f22e10b0ee92f701e527d268971e884b668048c09",
-          "parent:connectors/traefik/src/traefik_forwardauth_response_companion.c": "643a3715c110d7b7530f783c20d1f29e2501d3b79c4583965997741944c73410",
-          "parent:connectors/traefik/response_observer/observer.go": "445dcfd6c296c442d8b1593e4bc1106077900b0c745cf1b79beb0d3ead555580",
-          "parent:connectors/traefik/config/traefik-response-observer-static.yaml": "49de4a67a3df3a0ae97c52f73f374d358c8415734851cd3633a1b06358a930f7",
-          "parent:connectors/traefik/config/traefik-response-observer-dynamic.yaml": "bc6bd742b16c40158e5070d8b1d56b8623ea9a0a31442a1f21aa2c96dc053de7",
-          "parent:connectors/traefik/src/traefik_modsecurity_mapper.c": "9adcb9de1c8df6c2d9ad33086ccef02d4fb95e7b7902bbc7726d186582c2b1bd",
-          "parent:connectors/traefik/scripts/runtime_smoke.py": "f5bab467b1ae0bcdeaa2349dbecd5621c2c84ce8921467fdd676a6b9d0b25bca",
-          "parent:connectors/traefik/native_middleware/middleware.go": "ef076d44ed96893c0b7cee5eb7bb6745ba1a8afc35909df81cf24c1159e6cfb3",
-          "parent:connectors/traefik/native_middleware/.traefik.yml": "9a43550bbf6f9b8e51ec45d1b7daef794a3e114fae731fa157bbbdffdbb07d91",
-          "parent:connectors/traefik/config/traefik-native-middleware-dynamic.yaml": "3aa8d99ffed7192b590a0a9b9ea33e42faeefb6b414373c75e5e33ef1557e07e",
-          "parent:connectors/traefik/config/traefik-native-middleware-static.yaml": "0e1f23c0f63fd1ea25d02261c979a4ad2611ead86dafd7b6a1ef44f4b6dc151a",
-          "parent:connectors/traefik/scripts/runtime-native-middleware.sh": "27a92bdb2706d5caa09e25d95c8d27d0c88929e990a2e0074e17ba45e6582013",
-          "parent:connectors/traefik/scripts/runtime_native_smoke.py": "4d7112ba41be5b2cbe4c2846cbabd528f8c5b9d176db6659aa8540de327d342c",
-          "parent:connectors/traefik/config/traefik-engine-service.conf": "ed99f60451d11732b9877ec725e60142f857e120b08cde65d9adfaa52ffbca1a",
-          "parent:connectors/traefik/config/traefik-forwardauth-composite-dynamic.yaml": "c01482ea36cc6e1af0d2c6cd889efbff2a654129f2c05869272af789a1114622",
-          "parent:connectors/traefik/config/traefik-forwardauth-composite-static.yaml": "a019e5950652659378e5bbe726a442f4af1ea36e1d10315c93fad6980414d1d9",
-          "parent:connectors/traefik/config/traefik-native-engine-rules.conf": "e6bfcfdb4292de524031c0d2dccf562fa3f359b311d47cf46df20a0deeb1866a",
-          "parent:connectors/lighttpd/capabilities.json": "e192a971e12a849b7f99736f8cbc86fe09bf9ccb89f8bd6348f578406fc5b80d",
-          "parent:connectors/lighttpd/metadata.c": "15a1706075e4747da77ea4c5d711b25bd271a24c77cb09f6bbba267c7005f0f2",
-          "parent:connectors/lighttpd/config/lighttpd-native.conf": "d6742709f31038a8580120f5706f3600e001bbd26b97e1e0a77b4385dad03c17",
-          "parent:connectors/lighttpd/module/mod_msconnector.c": "a3c797390a78100a2b4488dd308cc39542778113102053fb2e0f8e6fb77a0bdd",
-          "parent:connectors/lighttpd/src/lighttpd_modsecurity_mapper.c": "0acb9b1c002e198c03454b811c89670e67c93d5ef8357ca35a1037478c33a891",
-          "parent:connectors/lighttpd/harness/runtime_lighttpd_smoke.sh": "a4fa5880b0368d91c53063a8522768f157ace465957b21fa946bc9a99a387359",
-          "parent:connectors/lighttpd/patches/0001-lighttpd-msconnector-stream-hooks.patch": "1a6d1a981b751017fafea0b5ad8489b77baa1f6c7db86b4c9e2c45064e98467a",
-          "parent:connectors/lighttpd/build/build_patched_host.sh": "7b5466ce7e8c3efe3e4daaed31775a076677c5a0f095a8390e4f920b6b76188e",
-          "parent:connectors/lighttpd/harness/run_patched_lifecycle_smoke.sh": "6983baec82287a892df56b76bc64431276a6ac3d8fa1229f9f0ddd600f8b5874",
-          "parent:connectors/lighttpd/stock_sidecar/stock_sidecar.c": "5c45a8b4f46ac3f8c92385ba21ff139f675fe786101482126ba0b47edf82dbc6",
-          "parent:connectors/lighttpd/stock_sidecar/README.md": "09ea004e12c43676d033bc7862aed4cd5d34b91f599591c7c67f91bae6f348f7",
-          "parent:connectors/lighttpd/build/build_stock_sidecar.sh": "8fccab4cdffa2f31172eebdcb88a839e967ccb31855abdd8de94bee21e7db8c0",
-          "parent:connectors/lighttpd/tests/test_stock_sidecar_contract.py": "fb5789314dc2cfd3d01c57e264bcd78c74ee21f4a95982b65ba770d9878b23a7",
-          "framework:tests/cases/no-crs-baseline/allow_without_marker.yaml": "b640dd967c98c6cd2e1bed52c1687d186573535a297485c6577bd750d3ea5a48",
-          "framework:tests/cases/no-crs-baseline/deny_header_marker_403.yaml": "cbe5657107505ecc0e2f44695ca3c12b68fcb953826210d422272160ad89b7a5",
-          "framework:tests/cases/no-crs-baseline/deny_with_alternative_status.yaml": "3e28637d74550201aaba6120aa4ae73a584ae51d52ff98b9fc49d76050258852",
-          "framework:tests/cases/no-crs-baseline/transaction_id_present.yaml": "631b7ef544766d502f35bdb894536fbf595cbd16fd5921e70426ccb2f831b1d4",
-          "framework:tests/cases/no-crs-baseline/transaction_id_generated_or_fallback.yaml": "c3ad34f6c06f268f7174e37b377b7f5d697afe340826a464144c9b227703a69a",
-          "framework:tests/cases/no-crs-baseline/deny_request_body_marker_403.yaml": "aa9f7ad41f461ce4b38ca369104598f15480443a91be690198abc41749fffed8",
-          "framework:tests/cases/no-crs-baseline/multiple_headers.yaml": "2f61f84a3c9bfe0a02e1e406842db49cedcecae9756daa8724d69ac1984cffe4",
-          "framework:tests/cases/no-crs-baseline/duplicate_header_names.yaml": "502f7fc36219912d89f492493e50fe32d9cf191e6802d7163ea3c22143ad5731",
-          "framework:tests/cases/no-crs-baseline/empty_header_value.yaml": "4d961093e7224e56a5b8d60326d11ddcbc0275ec0a4b26641ef7c2696a2ca34e",
-          "framework:tests/cases/no-crs-baseline/case_insensitive_header_name.yaml": "042244d99b35f58637f2aa55e47fb13b54c65bdb6623948521a49c2d9eb12e59",
-          "framework:tests/cases/no-crs-baseline/log_only.yaml": "d854af5e2c0ef97c5da04ad7121063a4c7cf18457711f2aa46036329d57606b9",
-          "framework:tests/cases/no-crs-baseline/redirect_if_supported.yaml": "88efbf76b470765147e6cc03653f85778d89e7368f88813640d6b60419d416bb",
-          "framework:tests/cases/no-crs-baseline/full-lifecycle/phase2_marker_split_across_chunks.yaml": "ca7e40df7ef9d170d984f07161e06767f9e3142c5194f0e764e84f5c4a942fdc",
-          "framework:tests/cases/no-crs-baseline/full-lifecycle/phase2_body_limits.yaml": "83e1bc8c6292e90f01acc84617f05113d2dbe625c88d7c4278f5327a6c121cfd",
-          "framework:tests/cases/no-crs-baseline/full-lifecycle/phase3_deny_before_commit.yaml": "7de9543c83206019ae7e77f158dd7325e7713d2c31583daeb0e012bba6d67f37",
-          "framework:tests/cases/no-crs-baseline/full-lifecycle/phase3_redirect_before_commit.yaml": "61d0423437203ef2731e33b6c10d91abfd78abea59d375139c34a92a1ed8ee50",
-          "framework:tests/cases/no-crs-baseline/full-lifecycle/phase4_marker_split_across_chunks.yaml": "76178c28c4ab92e6e220e25b377870ec33f558fefd04f32ae1be43ab47ca449c",
-          "framework:tests/cases/no-crs-baseline/full-lifecycle/phase4_late_intervention.yaml": "03174e7a6957753136b879d3278d20850360c7680021e98be2577371ffc336c1",
-          "framework:tests/fixtures/no-crs-baseline/invalid-content-type-scope.txt": "49918882d82bea9d4741116f6becc90b5c409a9f760420d414ebf5d049e3b439",
-          "framework:tests/fixtures/no-crs-baseline/wildcard-content-type-scope.txt": "1561a68a101937d9c49b55d7e74aa6f539541ed441c4f91683bf4ea1a2eeb45c",
-          "framework:tests/cases/no-crs-baseline/full-lifecycle/phase4_content_type.yaml": "de6bff51c5ed9411e7a9cd59fce5acd1ce30efa538b6bc8e44abc1de741c5778",
-          "framework:tests/cases/no-crs-baseline/full-lifecycle/phase4_first_byte_before_response_end.yaml": "14f87dfa91b39a9f0c58f2817d9b3b3b4699157872f6219b2fe2c2009a860d06",
-          "framework:tests/cases/no-crs-baseline/full-lifecycle/transport.yaml": "38271f04b5a87397cf4673171f944c87dfb08bad8c6a874eed19a90aec217b20",
-          "framework:tests/cases/no-crs-baseline/full-lifecycle/phase4_body_limits.yaml": "5edf753d6fdf4fa66b6cf9097fe7f0c13ae835bfed82e60792041d40950d8d0b",
-          "parent:connectors/haproxy/harness/combined_spop_htx/run_combined_spop_htx.sh": "ed7fe815a4db798074eb8606fe2e2b6e0e09f58ce65a02ba4381256fc535a624",
-          "parent:connectors/envoy/harness/run_envoy_ext_proc_runtime.sh": "e25bfd3e913c170b9980d9772224dd5e9d159d56e9b844fa09fc31885f3ade84",
-          "parent:connectors/envoy/harness/run_envoy_composite_matrix.sh": "f0312b1440f56a3ba21314a56a7275238cf8d579c951f7a6d1bac7a868962bf3",
-          "parent:connectors/traefik/harness/run_traefik_composite_matrix.sh": "d621df7faae8e131f83ce3cdbf8b870d77fc0ba29e5a0f03016c171ce580ae32",
-          "parent:connectors/lighttpd/harness/run_stock_sidecar_real_backend.py": "092b7a8e0740942af4a933cbe98eed5f9fba48940e44e7df4c92a21fdd20b77a",
-          "parent:connectors/lighttpd/harness/run_no_crs_fixture_trusted_namespace.py": "a1f00762c926445c1f04b13e4b4769c93166ecafe8e931f73ae1185f43973325"
         },
         "rootcause_group": "native_body_semantics",
         "category": "SOURCE_CONFIRMED_EXPECTATION",
@@ -9391,7 +9480,9 @@
           "full_lifecycle_qualified": false
         },
         "full_lifecycle_qualified": false,
-        "unsupported_applicability": null
+        "unsupported_applicability": null,
+        "original_source_hashes_count": 107,
+        "original_source_hashes_set_sha256": "f3fcdf679ebab39dafb0f665124d2395b4f0a1150122090b8e4430b05ebdaa67"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -9434,7 +9525,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "5534d0d8acfaa7de2ae9ae3a3d2c27bd8225062e865b2911ecde333c515df19b",
       "baseline_row_locator": {
@@ -9513,7 +9606,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -9556,7 +9651,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "d0744d7d627d9eee93551980ddfa638d4b36a01c43db23c5ccb544e6a65c2abc",
       "baseline_row_locator": {
@@ -9635,7 +9732,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -9678,7 +9777,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "9a42620c25156befe9c021326e0ae9acf07cd83f3c911828d6159d1774ff69cc",
       "baseline_row_locator": {
@@ -9757,7 +9858,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -9800,7 +9903,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "a4a6cc0aedede9e621a29f10a763ecef40bf70638e885be3b861acc575461624",
       "baseline_row_locator": {
@@ -9879,7 +9984,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -9922,7 +10029,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "21a5104ccd0b28192b909105785f05e00f4ec7475861f0bfe353b23731d2dfc8",
       "baseline_row_locator": {
@@ -10001,7 +10110,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -10044,7 +10155,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "5730213f17543f2b9e2aa58c550412786f461fe6f3ac6ce025f67ce641aca725",
       "baseline_row_locator": {
@@ -10123,7 +10236,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -10166,7 +10281,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "982b08746fd1c572e97780c7b6d5ae9fd55115db1aeb008bb4418f9960620ae7",
       "baseline_row_locator": {
@@ -10245,7 +10362,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -10288,7 +10407,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "49ea227bd8825b6cb1a09e85113c02b25f213fe5061445b45ce7182f2ca24d1b",
       "baseline_row_locator": {
@@ -10367,7 +10488,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -10410,7 +10533,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "8423eeeceb2737f5ba4c7ff8b4a285635e86228d421af579a466d1a433230365",
       "baseline_row_locator": {
@@ -10489,7 +10614,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -10532,7 +10659,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "2b15b7f0a5d885893f742d0bb08a8a63b54e71d7d4472448e9191861c8d737ad",
       "baseline_row_locator": {
@@ -10611,7 +10740,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -10654,7 +10785,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "ba99cafead7d4a07b1efd897e24a95112696b4ada07635c2f31790357fa35a22",
       "baseline_row_locator": {
@@ -10733,7 +10866,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -10776,7 +10911,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "833ac04bd935936bce37865d7f4c9f91fc52e011780d33df75925a9b7e42f80c",
       "baseline_row_locator": {
@@ -10855,7 +10992,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -10898,7 +11037,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "09b7ba9e64b6b577fc7cc82897c9280eb3f2bd7f5a035e2120de8a8b725f6688",
       "baseline_row_locator": {
@@ -10977,7 +11118,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -11020,7 +11163,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "75c7c6f3ecc3c25ad9c7af646b473aec3dc21e65b05f7f0f4aadbf209a61f671",
       "baseline_row_locator": {
@@ -11099,7 +11244,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -11142,7 +11289,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "9b728cea9ff7589c145dd87ca55aa40f92d2614122cc318af12bc20520201a9c",
       "baseline_row_locator": {
@@ -11221,7 +11370,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -11264,7 +11415,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "053cfc0e96b8759c615c785a5df15423cc842eff38b1a9fe96c6bfdc6e774bf3",
       "baseline_row_locator": {
@@ -11343,7 +11496,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -11386,7 +11541,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "9903c55959ed6377d94d0f5044b42408705d92fa5adc8ca591a774b681a1ce4d",
       "baseline_row_locator": {
@@ -11465,7 +11622,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -11508,7 +11667,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "75b49962b7c7c05a92232e647871f983a5e9987e3e59e4c6640c30447867c14c",
       "baseline_row_locator": {
@@ -11587,7 +11748,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -11630,7 +11793,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "bc446c82f5d7c1bbc4811e0ee06fb7a3e8696de66ce5ceaa4885ec9a767e4da4",
       "baseline_row_locator": {
@@ -11709,7 +11874,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -11752,7 +11919,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "18b305fbb219971e51e20c6527fe954412648a5e8fff52bd5add90c51d045ccc",
       "baseline_row_locator": {
@@ -11831,7 +12000,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -11874,7 +12045,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "62f3c77c078cf285458fb78a04e33227adc46fb48aef3232b23e2351dd5337ea",
       "baseline_row_locator": {
@@ -11953,7 +12126,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -11996,7 +12171,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "d57a0769b4697baede42d99a1cdc916d6a89a607675124ab5777c732a118a81e",
       "baseline_row_locator": {
@@ -12075,7 +12252,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -12118,7 +12297,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "831f73377c4cf72d23b615c22bf52b430311c3ff23682033f6411d6d54706c9a",
       "baseline_row_locator": {
@@ -12197,7 +12378,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -12240,7 +12423,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "04ef006c06d75709db96a42e0711d4a29f8b3b2bde0d5c73e511d7b4a5905e7c",
       "baseline_row_locator": {
@@ -12319,7 +12504,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -12362,7 +12549,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "f8076a8948a1f07a444cff934e970e3e713d0b1f49fabf1a743f2b8c364d73a2",
       "baseline_row_locator": {
@@ -12421,7 +12610,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "9a1a12cdb53a327ae6d896bf26951538de6e2fc7a01f69b9d0a54b158870b931",
       "baseline_row_locator": {
@@ -12480,7 +12671,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "7e2af655d6e4474605a1dcd6c79b7af97b09659b4a3477941f580f7005771147",
       "baseline_row_locator": {
@@ -12539,7 +12732,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "fc3795f45b647d1f88a002cbcbbe5922735403944b569c0bba76f218826c250d",
       "baseline_row_locator": {
@@ -12598,7 +12793,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "f49540509af113dfd99bba442a5d9df54ed10e5039601799e42ac59cfe44efcf",
       "baseline_row_locator": {
@@ -12657,7 +12854,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "500c203d4c497365eceecd9250be746be9d7f531544f9185be2ac021a03125f5",
       "baseline_row_locator": {
@@ -12716,7 +12915,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "8be8170b7a9312556edde1c78d1634a4d57ae7d70978489d8eaf891cde47d1cd",
       "baseline_row_locator": {
@@ -12775,7 +12976,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "a6ae9bd6b777a20924d07d31b3d436d8ec46adb288b609805fc347dc669d0dc4",
       "baseline_row_locator": {
@@ -12854,7 +13057,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -12897,7 +13102,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "76d7ecdae448be8dc886ee577b03981631990b93ec5c852d835c260f7195272d",
       "baseline_row_locator": {
@@ -12956,7 +13163,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "9b581592a25a82cd05d9ea4ea277ebe0ff7970f1ba7b7f6f9b85636d8cb6e03a",
       "baseline_row_locator": {
@@ -13035,7 +13244,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -13078,7 +13289,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "490785e83ed113e4e51a3efd5d906b94a7187824e9455952e1689f6a29cd03c3",
       "baseline_row_locator": {
@@ -13157,7 +13370,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -13200,7 +13415,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "f23dedf24564a1af58288f0102d1d25606563994c5fdeb196b4f788b7eecd6c6",
       "baseline_row_locator": {
@@ -13279,7 +13496,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -13322,7 +13541,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "8b8398ee96288f77a9d9b2292290fd9083b1a71f50469c9183cc24f3315cf23e",
       "baseline_row_locator": {
@@ -13401,7 +13622,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -13444,7 +13667,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "4838b87346cd640772ebcbe5bcb594ded46ee67837e7d5eeebc5d0798d6113fc",
       "baseline_row_locator": {
@@ -13523,7 +13748,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -13566,7 +13793,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "380149ab02eb1e065368c876b9033acd9c48cf357578863c4af1b31c27567031",
       "baseline_row_locator": {
@@ -13645,7 +13874,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -13688,7 +13919,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "99a5f27d610bfe048d3bea45b3ef58d28da05740e0d27c9fd43f38ba921d9743",
       "baseline_row_locator": {
@@ -13767,7 +14000,9 @@
           "unresolved_expected_value_reason": null
         },
         "retest": null,
-        "full_lifecycle_qualified": false
+        "full_lifecycle_qualified": false,
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "original_oracle_unresolved": true,
       "remaining_gap": null
@@ -13810,7 +14045,9 @@
           "uid-isolation-and-exact-source-host-config-run-binding"
         ],
         "historical_alias_ids": [],
-        "source_fixture_paths": []
+        "source_fixture_paths": [],
+        "original_source_hashes_count": 0,
+        "original_source_hashes_set_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       },
       "baseline_row_sha256": "147dcd1bd4e8e2c87a9735829cd2a8c8f3b424faee57c380d130bc69f580bbf1",
       "baseline_row_locator": {

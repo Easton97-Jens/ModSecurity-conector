@@ -9,7 +9,8 @@ import argparse
 import hashlib
 import importlib.util
 import json
-from pathlib import Path
+import os
+from pathlib import Path, PurePosixPath
 import re
 import stat
 
@@ -38,19 +39,67 @@ def ref(path, role):
     return {**SCHEMA.ORACLES.reference(path), "role": role}
 
 
+def absolute_path(value):
+    path = PurePosixPath(value)
+    if path.root != "/" or ".." in path.parts or str(path) != str(value):
+        raise ValueError(f"Image path must be absolute and normalized: {value}")
+    return path
+
+
 def physical(runtime, attempt, admission):
-    path = Path(runtime)
-    root = Path("/var/tmp/codex/ModSecurity-conector")
+    path = absolute_path(runtime)
+    # These are virtual mount names in the admitted namespace, never host
+    # temporary directories to open. Only their protected backing files are read.
+    root = PurePosixPath("/var/tmp/codex/ModSecurity-conector")
     if path.is_relative_to(root):
         return attempt / "data" / path.relative_to(root)
-    worker = Path("/var/tmp/codex/ModSecurity-nginx-i12")
+    worker = PurePosixPath("/var/tmp/codex/ModSecurity-nginx-i12")
     if path.is_relative_to(worker):
         return attempt / "data/nginx-worker-runtime" / path.relative_to(worker)
     for binding in sorted(admission["bindings"], key=lambda item: len(item["target"]), reverse=True):
-        target = Path(binding["target"])
+        target = absolute_path(binding["target"])
         if path.is_relative_to(target):
-            return Path(binding["source"]) / path.relative_to(target)
-    return path.resolve(strict=True)
+            return Path(absolute_path(binding["source"])) / path.relative_to(target)
+    return Path(path)
+
+
+def protected_image(path):
+    """Hash one pinned regular image through protected, non-symlink ancestors.
+
+    A root-owned sticky ancestor (such as the host's temporary mount) is
+    acceptable: it protects the next, trusted-owner directory from replacement.
+    Descendants and the final image must otherwise deny group/other writes.
+    Directory descriptors and O_NOFOLLOW prevent check/open replacement races.
+    """
+    path = absolute_path(path)
+    trusted_owners = {0, os.geteuid()}
+    directory = os.open("/", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        for component in path.parts[1:-1]:
+            child = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                            dir_fd=directory)
+            os.close(directory)
+            directory = child
+            info = os.fstat(directory)
+            writable = info.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
+            sticky_root = info.st_uid == 0 and info.st_mode & stat.S_ISVTX
+            if info.st_uid not in trusted_owners or (writable and not sticky_root):
+                raise ValueError(f"Unprotected image directory: {path}")
+        descriptor = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                             dir_fd=directory)
+        with os.fdopen(descriptor, "rb") as stream:
+            info = os.fstat(stream.fileno())
+            if (not stat.S_ISREG(info.st_mode) or info.st_uid not in trusted_owners or
+                    info.st_mode & (stat.S_IWGRP | stat.S_IWOTH)):
+                raise ValueError(f"Unprotected or non-regular image: {path}")
+            digest = hashlib.file_digest(stream, "sha256").hexdigest()
+            final = os.fstat(stream.fileno())
+            if (info.st_size, info.st_mtime_ns, info.st_ctime_ns) != (
+                    final.st_size, final.st_mtime_ns, final.st_ctime_ns):
+                raise ValueError(f"Image changed while hashing: {path}")
+            return info, digest
+    finally:
+        os.close(directory)
 
 
 def loaded_images(out, attempt, admission, receipt, build):
@@ -73,11 +122,11 @@ def loaded_images(out, attempt, admission, receipt, build):
         paths[columns[5]] = int(columns[4])
     for runtime, inode in sorted(paths.items()):
         source = physical(runtime, attempt, admission)
-        info = source.stat()
+        info, digest = protected_image(source)
         if info.st_ino != inode:
             raise ValueError(f"Mapped inode differs from physical image: {runtime}")
         images.append({"runtime_path": runtime, "physical_source": str(source), "inode": inode,
-                       "sha256": sha(source), "mode": oct(stat.S_IMODE(info.st_mode)),
+                       "sha256": digest, "mode": oct(stat.S_IMODE(info.st_mode)),
                        "uid": info.st_uid, "gid": info.st_gid})
     sdk = [item for item in images if "libmodsecurity.so" in item["runtime_path"]]
     modules = [item for item in images if item["sha256"] == build["module_sha256"]]

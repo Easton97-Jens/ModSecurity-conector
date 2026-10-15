@@ -395,7 +395,7 @@ Every check below reports its observed result, including failed setup attempts. 
 
 ## Complete 140-ID ledger
 
-The [machine artifact](../ci/runtime/lifecycle/i12/nginx/evidence-20261015.json) retains every original selected contract, its canonical hash, baseline status, new status and external raw-proof locators. The external baseline and full ledger are bound below by SHA256; heavy raw files are intentionally retained outside Git.
+The [machine artifact](../ci/runtime/lifecycle/i12/nginx/evidence-20261015.json) retains every original selected contract as a readable projection with its canonical full-contract hash, baseline status, new status and external raw-proof locators. Per-path source hashes stay in the externally bound baseline. The external baseline and full ledger are bound below by SHA256; heavy raw files are intentionally retained outside Git.
 
 ```json
 {
@@ -516,7 +516,7 @@ Each row below is one original selected ID. Packet hashes and independent reques
 
 ### Original IDs still without complete lifecycle qualification
 
-The ten historical configuration PASS results remain configuration evidence. The unresolved-oracle column identifies original open expectations that still lack a resolved reviewed oracle; other rows may have a known oracle but incomplete physical proof.
+The ten historical configuration PASS results remain configuration evidence. The unresolved-oracle column identifies original open expectations that still lack a resolved reviewed oracle; other rows may have a known oracle but incomplete physical proof. Gap reasons reproduce the canonical hash-bound mapping verbatim.
 
 | Original ID | Current | Original oracle still open | Remaining evidence |
 | --- | --- | --- | --- |

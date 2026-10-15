@@ -9,8 +9,10 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import stat
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 
@@ -134,8 +136,17 @@ def run_one(args, row, raw, maps):
     backend.fixture, backend.observations = row, []
     thread = threading.Thread(target=backend.serve_forever, daemon=True)
     port = raw.reserve_port()
-    worker = Path("/var/tmp/codex/ModSecurity-nginx-i12") / row["case_id"]
-    worker.mkdir(mode=0o711)
+    # Atomically reserve an unpredictable root-owned directory. The Nobody
+    # worker may traverse it, but cannot replace files or plant child symlinks.
+    # The sealed controller admits this tree as writable and maps it back to
+    # nginx-worker-runtime; its parent remains read-only inside the namespace.
+    scratch_parent = Path("/var/tmp/codex/ModSecurity-nginx-i12")
+    metadata = scratch_parent.lstat()
+    if (scratch_parent.resolve() != scratch_parent or not stat.S_ISDIR(metadata.st_mode)
+            or metadata.st_uid != 0 or metadata.st_mode & 0o022):
+        raise ValueError("root-owned non-writable worker scratch parent required")
+    worker = Path(tempfile.mkdtemp(prefix="nginx-i12-", dir=scratch_parent))
+    worker.chmod(0o711)
     for leaf in ("client", "proxy"):
         path = worker / leaf
         path.mkdir(mode=0o700)

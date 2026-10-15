@@ -41,6 +41,7 @@ NGINX-specific capture/harness and ledger/report emitters extend evidence withou
 - `tests/test_i12_nginx_invalid_return.py`
 - `tests/test_i12_nginx_ledger.py`
 - `tests/test_i12_nginx_qualify.py`
+- `tests/test_i12_nginx_security_boundaries.py`
 - `tests/test_i12_nginx_wire_client.py`
 
 New report pair: [English](../../../docs/pr-410-i12-nginx-evidence-20261015.md) / [Deutsch](../../../docs/pr-410-i12-nginx-evidence-20261015.de.md); compact machine artifact: `ci/runtime/lifecycle/i12/nginx/evidence-20261015.json`. This Change Record pair.
@@ -65,7 +66,11 @@ Report generation used `rtk proxy python3 ci/runtime/lifecycle/i12/nginx/report.
 
 Final RTK-proxied AST, JSON, exact-140-ID, outcome-count and EN/DE heading/table-structure checks passed. Both missing-key and extra-key mutations of the 69-ID gap mapping were rejected. Scoped `git diff --check` passed. Final repository-wide variable-documentation, bilingual, repository-reference, and link checks passed against the pinned Framework revision.
 
-The versioned artifact embeds only projected public summaries and original selected contracts. Full candidate lists, per-case decisions/body checks and verification environment mappings remain external, bound by input path/SHA256/size. A recursive fail-closed check rejects body hex, environment mappings and sensitive key names; commands, statuses, log digests, counts and oracle correction reasons remain inspectable. Public command summaries replace local developer checkout paths deterministically while the referenced raw verification receipt retains the exact invocation.
+The NGINX I12 harness now rejects unowned, group/world-writable, symlinked, nonregular, traversing, or out-of-bound evidence paths before reads, publication, configuration execution, and loaded-image hashing. Build outputs are created fresh and private; worker scratch directories additionally use unpredictable names inside their admitted storage boundary. Report publication remains limited to the three task-owned tracked files. Sixty-five focused I12 tests, including 13 persistent boundary regressions, passed. Hardened replay proposed all 93 retained candidates without approval and rematerialized all 71 reviewed records with 71 unique physical request paths.
+
+A fresh sealed compatibility retest, `attempt-1792079470951070559`, exercised `NEED-request-file` and `NEED-response-file` through the current harness: controller and driver exited zero, Root master and Nobody worker were observed, all four selected/follow-up clients exited zero with complete framing, both owned masters waited with cleanup verified, and the controller reported no timeout, resource violation, surviving namespace process, or mount leak. Each selected/follow-up allocation recorded P1, P2, P3 and P4 exactly once with native return 1, plus one Common finish, native logging and native cleanup call; the request used a 65,553-byte temporary-file body and the response used an actual file buffer ending at byte 36. Earlier blocked packaging attempts and one controller cleanup-race observation remain retained and are not counted as successful host evidence.
+
+The versioned artifact embeds only projected public summaries and readable projections of original selected contracts. Full candidate lists, per-case decisions/body checks, verification environment mappings, and per-path input/source-hash inventories remain external, bound by input path/SHA256/size. The public projections retain each inventory count and one canonical SHA256 for its complete mapping; every selected requirement also retains the canonical hash of the unprojected contract and an external baseline locator. A recursive fail-closed check rejects body hex, environment mappings and sensitive key names; commands, statuses, log digests, counts and oracle correction reasons remain inspectable. Public command summaries replace local developer checkout paths deterministically while the referenced raw verification receipt retains the exact invocation.
 
 ## Known limitations
 

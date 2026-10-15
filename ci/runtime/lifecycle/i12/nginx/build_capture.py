@@ -1,9 +1,59 @@
 """Fresh ordinary or source-observed NGX module; no hosts or old-output writes."""
-import argparse, ast, hashlib, json, re, shlex, subprocess, shutil, os, threading
+import argparse, ast, hashlib, json, re, shlex, subprocess, shutil, os, stat, threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 def sha(path): return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def create_private_output(output):
+    """Create a fresh output below trusted storage without following symlinks.
+
+    The root-owned sticky /var/tmp is only a transit ancestor. All storage and
+    output ancestors must be owned by root/the operator and deny other writers.
+    Existing directories are inspected through descriptors, never chmodded.
+    """
+    storage = Path("/var/tmp/codex/ModSecurity-conector")
+    output = Path(output)
+    if not output.is_absolute() or ".." in output.parts or storage not in output.parents:
+        raise ValueError("fresh absolute external output below trusted storage required")
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    descriptor = os.open("/", flags)
+    current = Path("/")
+    try:
+        root_stat = os.fstat(descriptor)
+        if root_stat.st_uid != 0 or root_stat.st_mode & 0o022:
+            raise ValueError("untrusted filesystem root")
+        for component in output.parts[1:]:
+            current = current / component
+            # The fixed anchor must already exist. Missing descendants can only
+            # be created through a previously verified non-writable directory.
+            if current == output:
+                os.mkdir(component, mode=0o700, dir_fd=descriptor)
+            elif storage in current.parents:
+                try:
+                    os.mkdir(component, mode=0o700, dir_fd=descriptor)
+                except FileExistsError:
+                    pass
+            child = os.open(component, flags, dir_fd=descriptor)
+            try:
+                metadata = os.fstat(child)
+                shared_transit = (current == Path("/var/tmp") and metadata.st_uid == 0
+                                  and metadata.st_mode & stat.S_ISVTX)
+                if metadata.st_uid not in (0, os.geteuid()) or (
+                    metadata.st_mode & 0o022 and not shared_transit
+                ):
+                    raise ValueError("untrusted output ancestor: " + str(current))
+            except BaseException:
+                os.close(child)
+                raise
+            os.close(descriptor)
+            descriptor = child
+    finally:
+        os.close(descriptor)
+    return output
+
+
 def build(a):
     w=Path(a.source); base=Path(a.base); out=Path(a.output)
     out.mkdir(mode=0o700); steps=[]; receipt_lock=threading.Lock()
@@ -150,11 +200,9 @@ def main():
     parser.add_argument("--jobs", type=int, default=8)
     args = parser.parse_args()
     checkout = Path(args.source).resolve(strict=True)
-    output = Path(args.output).resolve()
-    storage = Path("/var/tmp/codex/ModSecurity-conector")
-    if storage not in output.parents or output.exists() or not 1 <= args.jobs <= 8:
+    if not 1 <= args.jobs <= 8:
         parser.error("fresh external output and 1..8 jobs required")
-    output.mkdir(parents=True, mode=0o755)
+    output = create_private_output(args.output)
     def git(*argv):
         result = subprocess.run(["rtk", "proxy", "git", *argv], cwd=checkout,
                                 check=True, capture_output=True)

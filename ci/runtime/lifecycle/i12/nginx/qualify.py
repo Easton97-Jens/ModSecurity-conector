@@ -12,7 +12,9 @@ import argparse
 import copy
 import importlib.util
 import json
+import os
 from pathlib import Path
+import stat
 import tempfile
 
 
@@ -32,6 +34,7 @@ REQUIRED_CHECKS = {
 }
 TERMINALS = {2: "request_terminal_to_p2_once", 4: "response_terminal_to_p4_once"}
 PHASE_FUNCTIONS = {2: "native_process_request_body", 4: "native_process_response_body"}
+EVIDENCE_ROOT = Path("/var/tmp/codex/ModSecurity-conector/runs")
 REQUIRED_ASSERTIONS = {
     "raw_artifact_digests_match", "config_loaded", "receipt_errors_empty", "selected_transaction_unique",
     "selected_allocation_unique", "native_invalid_rows_absent", "selected_native_nobody",
@@ -45,6 +48,54 @@ REQUIRED_ASSERTIONS = {
 def require(condition, reason):
     if not condition:
         raise ValueError(reason)
+
+
+def publication_path(path):
+    """Keep approved packets inside project runs, with no link traversal."""
+    path = Path(path).absolute()
+    require(".." not in path.parts and path.is_relative_to(EVIDENCE_ROOT) and path != EVIDENCE_ROOT,
+            "Approved output must be inside the project run root")
+    trusted_ancestry(path, allow_missing=True)
+    require(not path.exists(), "Approved output directory must be fresh")
+    return path
+
+
+def trusted_ancestry(path, *, regular=False, allow_missing=False):
+    """Trust only root/operator-owned paths with protected ancestry."""
+    for component in reversed((path, *path.parents)):
+        try:
+            info = component.lstat()
+        except FileNotFoundError:
+            require(allow_missing, "Evidence file does not exist")
+            continue
+        require(info.st_uid in (0, os.geteuid()) and not stat.S_ISLNK(info.st_mode),
+                "Path requires root/operator ownership without symlinks")
+        transit = (component != path and not component.is_relative_to(EVIDENCE_ROOT) and
+                   info.st_uid == 0 and stat.S_ISDIR(info.st_mode) and info.st_mode & stat.S_ISVTX)
+        require(not info.st_mode & 0o022 or transit, "Path has a group/world-writable component")
+        require(component == path or stat.S_ISDIR(info.st_mode), "Path ancestor must be a directory")
+        require(component != path or not regular or stat.S_ISREG(info.st_mode),
+                "Evidence must be a regular file")
+
+
+def evidence_path(path):
+    path = Path(path).absolute()
+    require(".." not in path.parts and path.is_relative_to(EVIDENCE_ROOT),
+            "Evidence path must remain inside the project run root")
+    trusted_ancestry(path, regular=True)
+    return path
+
+
+def validate_references(value):
+    """Check nested hash references before unchanged shared readers use them."""
+    if isinstance(value, dict):
+        if "path" in value and "sha256" in value:
+            evidence_path(value["path"])
+        for child in value.values():
+            validate_references(child)
+    elif isinstance(value, list):
+        for child in value:
+            validate_references(child)
 
 
 def subset(actual, expected):
@@ -169,7 +220,7 @@ def verify_checks(packet, candidate, checks, oracle, outcome):
     expect(obs["native_free_calls"]["count"], checks["native_free_count"], "native free count")
     actual_body = obs["client_bytes"]
     check_body(bytes.fromhex(actual_body["body_hex"]), checks["body"], "Client body")
-    wire = Path(candidate["request_identity"]["physical_request_path"]).read_bytes()
+    wire = evidence_path(candidate["request_identity"]["physical_request_path"]).read_bytes()
     request_headers, request_body = wire.split(b"\r\n\r\n", 1)
     check_body(request_body, checks["request_body"], "Request body")
     request_types = []
@@ -231,6 +282,7 @@ def verify_checks(packet, candidate, checks, oracle, outcome):
 
 def materialize(baseline, candidates, decisions, output):
     """Validate all decisions before creating any approved packet."""
+    output = publication_path(output)
     require(type(candidates.get("controller_exit")) is int and candidates["controller_exit"] == 0 and
             type(candidates.get("driver_exit")) is int and candidates["driver_exit"] == 0,
             "Controller and driver must exit zero")
@@ -253,8 +305,11 @@ def materialize(baseline, candidates, decisions, output):
         candidate = by_id.get(identity)
         require(candidate and candidate.get("packet") and candidate.get("unknown_fields") == [] and candidate.get("gaps") == [],
                 "Candidate needs a physical packet without unknown fields or gaps")
+        validate_references(candidate["packet"])
         reference = LEDGER.ORACLES.verify_reference(candidate["packet"])
-        packet = json.loads(Path(reference["path"]).read_text())
+        packet = json.loads(evidence_path(reference["path"]).read_text())
+        validate_references(packet)
+        validate_references(decision.get("effective_oracle"))
         require(packet.get("run_scoped_case_id") == identity and packet.get("leg_id") == "nginx-native",
                 "Candidate packet identity mismatch")
         _, oracle = LEDGER.effective_review(originals[identity], decision.get("effective_oracle"))
@@ -268,14 +323,15 @@ def materialize(baseline, candidates, decisions, output):
                       oracle_sha256=LEDGER.ORACLES.canonical_digest(oracle), outcome=decision["outcome"],
                       full_lifecycle_qualified=True)
         request = candidate["request_identity"]
-        physical = str(Path(request["physical_request_path"]).resolve(strict=True))
+        physical = str(evidence_path(request["physical_request_path"]))
         transaction = (packet["run_id"], request["transaction_id"])
         require(physical not in requests and transaction not in transactions, "Duplicate physical request or native transaction")
         requests.add(physical)
         transactions.add(transaction)
         prepared.append((identity, packet, request, decision))
-    require(not output.exists(), "Approved output directory must be fresh")
-    output.parent.mkdir(parents=True, exist_ok=True)
+    output.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    # Recheck after parent creation before using it as a temporary directory.
+    output = publication_path(output)
     # A private sibling keeps incomplete Root packets out of the published
     # output and permits one same-filesystem rename after all shared guards.
     with tempfile.TemporaryDirectory(prefix=".nginx-qualification-", dir=output.parent) as scratch:
@@ -297,6 +353,7 @@ def materialize(baseline, candidates, decisions, output):
         published = copy.deepcopy(records)
         for record in published:
             record["packet"]["path"] = str(output / Path(record["packet"]["path"]).name)
+        output = publication_path(output)
         staging.rename(output)
     return published
 
@@ -306,10 +363,15 @@ def main():
     for name in ("baseline", "candidates", "decisions", "output", "packets"):
         parser.add_argument("--" + name, type=Path, required=True)
     args = parser.parse_args()
+    args.packets = publication_path(args.packets)
+    args.baseline = evidence_path(args.baseline)
+    args.candidates = evidence_path(args.candidates)
+    args.decisions = evidence_path(args.decisions)
     require(LEDGER.ORACLES.reference(args.baseline)["sha256"] == LEDGER.BASELINE_SHA256,
             "Immutable PR410 baseline SHA256 changed")
     records = materialize(json.loads(args.baseline.read_text()), json.loads(args.candidates.read_text()),
                           json.loads(args.decisions.read_text()), args.output)
+    args.packets = publication_path(args.packets)
     with args.packets.open("x") as stream:
         json.dump(records, stream, indent=2)
         stream.write("\n")
