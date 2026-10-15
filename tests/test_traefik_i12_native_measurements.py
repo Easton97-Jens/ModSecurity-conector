@@ -3,7 +3,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
-import subprocess
+import runpy
 import sys
 import tempfile
 import unittest
@@ -16,6 +16,10 @@ REVIEW = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(REVIEW)
 EXTERNAL = Path(os.environ.get('I12_TEST_ROOT', '/var/tmp/codex/ModSecurity-conector'))
 NATIVE = ROOT / 'connectors/traefik/harness/i12/native'
+
+
+def setUpModule():
+    EXTERNAL.mkdir(parents=True, exist_ok=True)
 
 
 def load_preparer(name):
@@ -90,10 +94,9 @@ class NativeOutputGuards(unittest.TestCase):
             before = sorted(str(path.relative_to(root)) for path in root.rglob('*'))
             for arguments in commands:
                 with self.subTest(script=arguments[0]):
-                    result = subprocess.run(['rtk', 'proxy', sys.executable, '-B', *arguments],
-                                            capture_output=True, text=True, timeout=20)
-                    self.assertNotEqual(result.returncode, 0)
-                    self.assertIn('symlink output components are forbidden', result.stderr)
+                    with mock.patch.object(sys, 'argv', arguments), mock.patch.dict(sys.modules, {'prepare': PREPARE}):
+                        with self.assertRaisesRegex(ValueError, 'symlink output components are forbidden'):
+                            runpy.run_path(arguments[0], run_name='__main__')
                     self.assertEqual(before, sorted(str(path.relative_to(root)) for path in root.rglob('*')))
 
     def test_followups_reject_git_root_before_chmod(self):
@@ -124,7 +127,6 @@ class NativeOutputGuards(unittest.TestCase):
 class NativeMeasurements(unittest.TestCase):
     def test_tcp_eof_and_client_pass_do_not_synthesize_lifecycle(self):
         external = EXTERNAL
-        external.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix='review-control-', dir=external) as temporary:
             attempt = Path(temporary)
             client = attempt / 'data/client'
