@@ -16,9 +16,9 @@
  *     waits for a complete body before HAProxy can continue forwarding it.
  *
  * A Phase-4 intervention discovered after response commitment is resolved
- * through the Common late-intervention policy.  This overlay currently records
- * the requested and policy-resolved actions only: a reliable HAProxy HTX
- * post-commit stream-abort integration still needs host-runtime verification.
+ * through the Common late-intervention policy. Strict discards queued HTX
+ * response data and aborts the affected frontend stream; bytes already handed
+ * to the transport cannot be recalled. Wire behavior requires host validation.
  */
 
 #include <errno.h>
@@ -30,6 +30,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/channel-t.h>
+#include <haproxy/channel.h>
 #include <haproxy/errors.h>
 #include <haproxy/filters.h>
 #include <haproxy/http_ana.h>
@@ -99,6 +100,7 @@ struct haproxy_modsecurity_htx_filter_context {
         struct haproxy_modsecurity_htx_owned_headers headers;
         char *method;
         char *uri;
+        char http_version[4];
         int headers_seen;
         int finished;
         size_t payload_bytes_seen;
@@ -187,6 +189,7 @@ static void haproxy_modsecurity_htx_request_snapshot_free(
     free(ctx->request.uri);
     ctx->request.method = NULL;
     ctx->request.uri = NULL;
+    ctx->request.http_version[0] = 0;
 }
 
 static int haproxy_modsecurity_htx_companion_enabled(
@@ -669,10 +672,25 @@ static void haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed(
     }
 }
 
-/* After response commitment a local HTTP error reply is invalid.  Requesting
- * HAProxy's supported stream-kill primitive is the only fail-closed action
- * available to this filter; exact wire-level abort behavior remains a native
- * host-runtime validation item. */
+/* Drop only bytes still owned by this stream's response queue. Bytes already
+ * passed to the frontend transport are no longer in this HTX buffer and cannot
+ * be recalled. A terminal http_end must also return an error: a positive filter
+ * return lets flt_http_end advance its pre-callback offset after this purge. */
+static void haproxy_modsecurity_htx_abort_response_stream(struct stream *s)
+{
+    if (s == NULL) {
+        return;
+    }
+    channel_htx_erase(&s->res, htxbuf(&s->res.buf));
+    stream_abort(s);
+    if (s->scf != NULL) {
+        s->scf->flags |= SC_FL_NOLINGER;
+        sc_abort(s->scf);
+        sc_shutdown(s->scf);
+    }
+    stream_shutdown(s, SF_ERR_KILLED);
+}
+
 static void haproxy_modsecurity_htx_fail_closed_postcommit(
     struct stream *s, struct haproxy_modsecurity_htx_filter_context *ctx,
     const char *stage)
@@ -689,9 +707,7 @@ static void haproxy_modsecurity_htx_fail_closed_postcommit(
         stage != NULL ? stage : "phase", ctx != NULL && ctx->lifecycle.transaction_id[0] ?
         ctx->lifecycle.transaction_id : "unavailable");
     haproxy_modsecurity_htx_abort_context(ctx);
-    if (s != NULL) {
-        stream_shutdown(s, SF_ERR_KILLED);
-    }
+    haproxy_modsecurity_htx_abort_response_stream(s);
 }
 
 /* Request callbacks can be delivered late by a host stream.  Once response
@@ -707,6 +723,23 @@ static void haproxy_modsecurity_htx_fail_closed_request_phase(
     } else {
         (void)haproxy_modsecurity_htx_fail_closed_precommit(s, ctx, stage);
     }
+}
+
+/* HTX carries the actual frontend protocol version, including HTTP/2.0.
+ * Keep an owned bare version for the synchronous native request mapper. */
+static int haproxy_modsecurity_htx_request_version(struct ist version, char output[4])
+{
+    output[0] = 0;
+    if (version.ptr == NULL || version.len != 8U ||
+        memcmp(version.ptr, "HTTP/", 5U) != 0 ||
+        (memcmp(version.ptr + 5U, "1.0", 3U) != 0 &&
+         memcmp(version.ptr + 5U, "1.1", 3U) != 0 &&
+         memcmp(version.ptr + 5U, "2.0", 3U) != 0)) {
+        return -1;
+    }
+    memcpy(output, version.ptr + 5U, 3U);
+    output[3] = 0;
+    return 0;
 }
 
 static int haproxy_modsecurity_htx_capture_request_headers(
@@ -727,6 +760,11 @@ static int haproxy_modsecurity_htx_capture_request_headers(
         return -1;
     }
     if (haproxy_modsecurity_htx_copy_headers(htx, &ctx->request.headers) != 0) {
+        return -1;
+    }
+    if (haproxy_modsecurity_htx_request_version(htx_sl_req_vsn(sl),
+            ctx->request.http_version) != 0) {
+        haproxy_modsecurity_htx_request_snapshot_free(ctx);
         return -1;
     }
     method = htx_sl_req_meth(sl);
@@ -795,7 +833,7 @@ static int haproxy_modsecurity_htx_begin_request(
     int rc;
 
     if (!ctx || !config || !config->engine || !ctx->request.method ||
-        !ctx->request.uri ||
+        !ctx->request.uri || !ctx->request.http_version[0] ||
         haproxy_modsecurity_htx_set_transaction_id(s, ctx) != 0) {
         return -1;
     }
@@ -803,6 +841,7 @@ static int haproxy_modsecurity_htx_begin_request(
     request.request_id = ctx->lifecycle.transaction_id;
     request.method = ctx->request.method;
     request.uri = ctx->request.uri;
+    request.http_version = ctx->request.http_version;
     request.headers = ctx->request.headers.items;
     request.header_count = ctx->request.headers.count;
     if (haproxy_modsecurity_htx_capture_request_endpoints(s, &request,
@@ -1345,14 +1384,14 @@ static int haproxy_modsecurity_htx_finish_companion_response(
         haproxy_modsecurity_htx_fail_closed_postcommit(s, ctx,
             "duplicate response-companion body eos");
         unregister_data_filter(s, msg->chn, filter);
-        return 1;
+        return -1;
     }
     if (!ctx->response.headers_seen ||
         !ctx->companion.client.claimed) {
         haproxy_modsecurity_htx_fail_closed_postcommit(s, ctx,
             "response-companion body eos without response phase");
         unregister_data_filter(s, msg->chn, filter);
-        return 1;
+        return -1;
     }
     ctx->response.finished = 1;
     memset(&result, 0, sizeof(result));
@@ -1363,7 +1402,7 @@ static int haproxy_modsecurity_htx_finish_companion_response(
         haproxy_modsecurity_htx_fail_closed_postcommit(s, ctx,
             "response-companion phase-4 eos");
         unregister_data_filter(s, msg->chn, filter);
-        return 1;
+        return -1;
     }
     visible_status = s != NULL && s->txn != NULL && s->txn->status > 0 ?
         s->txn->status : 200;
@@ -1405,14 +1444,14 @@ static int haproxy_modsecurity_htx_finish_companion_response(
         haproxy_modsecurity_htx_fail_closed_postcommit(s, ctx,
             "response-companion terminal failure or strict intervention");
         unregister_data_filter(s, msg->chn, filter);
-        return 1;
+        return -1;
     }
     if (!haproxy_modsecurity_htx_companion_record_terminal_outcome(ctx,
             actual_action, visible_status, 0, record_host_action)) {
         haproxy_modsecurity_htx_fail_closed_postcommit(s, ctx,
             "response-companion terminal cleanup");
         unregister_data_filter(s, msg->chn, filter);
-        return 1;
+        return -1;
     }
     unregister_data_filter(s, msg->chn, filter);
     return 1;
@@ -1777,13 +1816,13 @@ static int haproxy_modsecurity_htx_finish_response(
         haproxy_modsecurity_htx_fail_closed_postcommit(s, ctx,
             "duplicate response body eos");
         unregister_data_filter(s, msg->chn, filter);
-        return 1;
+        return -1;
     }
     if (!ctx->transaction || !ctx->response.headers_seen) {
         haproxy_modsecurity_htx_fail_closed_postcommit(s, ctx,
             "response body eos without response phase");
         unregister_data_filter(s, msg->chn, filter);
-        return 1;
+        return -1;
     }
     /* HTX http_end is the only Phase-4 evaluation point and is idempotently
      * guarded so the binding's finish primitive is called exactly once. */
@@ -1794,7 +1833,7 @@ static int haproxy_modsecurity_htx_finish_response(
         haproxy_modsecurity_htx_fail_closed_postcommit(s, ctx,
             "response body eos");
         unregister_data_filter(s, msg->chn, filter);
-        return 1;
+        return -1;
     }
     haproxy_modsecurity_htx_report_late_decision(config, ctx, &decision);
     if (decision.disruptive && (config == NULL ||
@@ -1809,9 +1848,10 @@ static int haproxy_modsecurity_htx_finish_response(
              * client-visible wire result is an explicit native-runtime test
              * obligation rather than a reason to forward the response. */
             haproxy_modsecurity_htx_abort_context(ctx);
-            stream_shutdown(s, SF_ERR_KILLED);
+            ctx->lifecycle.fail_closed = 1;
+            haproxy_modsecurity_htx_abort_response_stream(s);
             unregister_data_filter(s, msg->chn, filter);
-            return 1;
+            return -1;
         }
     }
     /* Off uses the native terminal path. Safe resolves to log-only; normal terminal cleanup
@@ -1821,7 +1861,7 @@ static int haproxy_modsecurity_htx_finish_response(
             "response terminal completion");
     }
     unregister_data_filter(s, msg->chn, filter);
-    return 1;
+    return ctx->lifecycle.fail_closed ? -1 : 1;
 }
 
 static int haproxy_modsecurity_htx_filter_http_end(

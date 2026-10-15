@@ -70,6 +70,11 @@ int haproxy_modsecurity_transaction_begin(haproxy_modsecurity_engine *engine,
     runtime_init_decision(decision, 2, "pass", 200, "original engine failure");
     return 0;
 }
+int haproxy_modsecurity_transaction_begin_request_authorization(
+        haproxy_modsecurity_engine *engine, const haproxy_modsecurity_request *request,
+        haproxy_modsecurity_decision *decision, haproxy_modsecurity_transaction **out) {
+    return haproxy_modsecurity_transaction_begin(engine, request, decision, out);
+}
 int haproxy_modsecurity_transaction_handoff_response_companion(
         haproxy_modsecurity_transaction *transaction) {
     (void)transaction; ++handoff_calls; return 0;
