@@ -5,6 +5,7 @@ These controls qualify the measurement seam, not a hosted connector lifecycle.
 import json
 import hashlib
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -100,7 +101,7 @@ _Thread_local unsigned int native_calls[8];
 Transaction *msc_new_transaction(ModSecurity *m, RulesSet *r, void *d) {
     (void)m;(void)r;(void)d; ++native_calls[5];errno = EDOM; return (Transaction *)&token;
 }
-Transaction *msc_new_transaction_with_id(ModSecurity *m, RulesSet *r, const char *id, void *d) {
+Transaction *msc_new_transaction_with_id(ModSecurity *m, RulesSet *r, msconnector_lifecycle_native_id_argument id, void *d) {
     (void)m;(void)r;(void)d; ++native_calls[0];errno = EDOM;
     return strcmp(id,"failure") == 0 ? NULL : (Transaction *)&token;
 }
@@ -134,7 +135,7 @@ int msc_intervention(Transaction *t,ModSecurityIntervention *intervention) {
     return 1;
 }
 static void *cycle(void *argument) {
-    const char *id = argument;
+    char *id = argument;
     unsigned int before[5];memcpy(before,native_calls,sizeof(before));
     msconnector_transaction_contract c;
     if (msconnector_transaction_contract_init(&c,NULL,id,"test","test",0,1) != 0) abort();
@@ -313,6 +314,7 @@ class NativeLifecycleObserverTests(unittest.TestCase):
                    str(ROOT / "common/src/transaction_state.c"),
                    str(ROOT / "common/src/decision_action.c"), "-o", str(cls.binary)]
         command.extend(f"-Wl,--wrap={symbol}" for symbol in SYMBOLS)
+        cls.compile_command = command
         result = subprocess.run(command, capture_output=True, text=True, check=False)
         (OUTPUT / "compile.json").write_text(json.dumps({"argv": command, "returncode": result.returncode,
                                                          "stdout": result.stdout, "stderr": result.stderr,
@@ -321,6 +323,38 @@ class NativeLifecycleObserverTests(unittest.TestCase):
                                                          "selected_sdk_library_sha256": hashlib.sha256(cls.library.read_bytes()).hexdigest()}), encoding="utf-8")
         if result.returncode:
             raise RuntimeError(result.stderr)
+
+    def test_public_constructor_qualification_is_exact_and_unknown_types_fail(self):
+        # These are compile-contract variants of the selected public header,
+        # not claims to execute a second SDK binary. Keep every other header
+        # declaration and the complete observer/native fixture unchanged.
+        header = (self.include / "modsecurity/transaction.h").read_text()
+        pattern = (r"(Transaction \*msc_new_transaction_with_id\(ModSecurity \*ms,"
+                   r"\s*RulesSet \*rules, )(?:const )?char \*id(, void \*logCbData\);)")
+        self.assertEqual(len(re.findall(pattern, header)), 1)
+        for qualification, accepted in (("char *", True), ("const char *", True),
+                                        ("char **", False)):
+            with self.subTest(qualification=qualification):
+                directory = tempfile.TemporaryDirectory(prefix="constructor-contract-", dir=OUTPUT)
+                self.addCleanup(directory.cleanup)
+                variant = Path(directory.name)
+                include = variant / "modsecurity"
+                include.mkdir(parents=True)
+                changed = re.sub(pattern, lambda match: match[1] + qualification + "id" + match[2], header)
+                (include / "transaction.h").write_text(changed)
+                command = list(self.compile_command)
+                command[1:1] = ["-I", str(variant)]
+                command[command.index("-o") + 1] = str(variant / "fixture")
+                result = subprocess.run(command, capture_output=True, text=True, timeout=90)
+                (variant / "compile.json").write_text(json.dumps({
+                    "argv": command, "exit": result.returncode,
+                    "stdout": result.stdout, "stderr": result.stderr,
+                    "scope": "synthetic public declaration qualification; selected SDK supporting headers"}))
+                if accepted:
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                else:
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("_Generic", result.stderr)
 
     @classmethod
     def tearDownClass(cls):
@@ -636,7 +670,11 @@ int main(int argc,char **argv) {
     ModSecurityIntervention intervention={0};
     int result=msc_intervention(transaction,&intervention);
     if((deny && (!result || intervention.status!=403 || intervention.disruptive!=1)) || (!deny && result!=0))return 9;
-    msc_intervention_cleanup(&intervention);
+    /* Both supported public SDKs transfer strdup-owned URL/log buffers. */
+    free(intervention.url);
+    free(intervention.log);
+    intervention.url = NULL;
+    intervention.log = NULL;
     msc_transaction_cleanup(transaction);msc_rules_cleanup(rules);msc_cleanup(engine);return 0;
 }
 ''', encoding="utf-8")
@@ -890,6 +928,7 @@ int main(int argc,char **argv) {
 #include <modsecurity/modsecurity.h>
 #include <modsecurity/rules_set.h>
 #include <modsecurity/transaction.h>
+#include <string.h>
 static msconnector_transaction_contract contract;
 static ModSecurity *engine;
 static RulesSet *rules;
@@ -901,8 +940,11 @@ int msconnector_runtime_transaction_begin_request_stream(msconnector_runtime *ru
     (void)runtime;(void)request;(void)decision;(void)error;
     engine=msc_init();rules=msc_create_rules_set();if(!engine || !rules)return 0;
     if(msconnector_transaction_contract_init(&contract,NULL,id,"test","test",0,1)!=0)return 0;
-    first=msc_new_transaction_with_id(engine,rules,id,NULL);
-    second=msc_new_transaction_with_id(engine,rules,id,NULL);
+    char native_id[MSCONNECTOR_MAX_TRANSACTION_ID_LENGTH];
+    if(id==NULL || strlen(id)>=sizeof(native_id))return 0;
+    memcpy(native_id,id,strlen(id)+1U);
+    first=msc_new_transaction_with_id(engine,rules,native_id,NULL);
+    second=msc_new_transaction_with_id(engine,rules,native_id,NULL);
     if(!first || !second)return 0;
     *out=(msconnector_runtime_transaction *)&token;return 1;
 }
