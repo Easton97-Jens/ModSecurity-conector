@@ -63,9 +63,9 @@ The four qualified FAIL outcomes are the body-null fixture's original P2/observe
 
 Report generation used `rtk proxy python3 ci/runtime/lifecycle/i12/nginx/report.py` with `ledger/nginx-140-final.json`, `review-suite04-v2/candidate-summary.json`, `final-provenance.json`, `verification-native/verification-summary.json` and `sdk-mime/receipt.json` from that run root. Exit 0 produced the machine artifact and both language reports. The generator fails closed unless the reviewed remaining-gap mapping covers exactly the unqualified original IDs.
 
-Final RTK-proxied AST, JSON, exact-140-ID, outcome-count and EN/DE heading/table-structure checks passed. Both missing-key and extra-key mutations of the 69-ID gap mapping were rejected. Scoped `git diff --check` passed. Final repository-wide documentation/link checks remain the integrating task's responsibility.
+Final RTK-proxied AST, JSON, exact-140-ID, outcome-count and EN/DE heading/table-structure checks passed. Both missing-key and extra-key mutations of the 69-ID gap mapping were rejected. Scoped `git diff --check` passed. Final repository-wide variable-documentation, bilingual, repository-reference, and link checks passed against the pinned Framework revision.
 
-The versioned artifact embeds only projected public summaries and original selected contracts. Full candidate lists, per-case decisions/body checks and verification environment mappings remain external, bound by input path/SHA256/size. A recursive fail-closed check rejects body hex, environment mappings and sensitive key names; commands, statuses, log digests, counts and oracle correction reasons remain inspectable.
+The versioned artifact embeds only projected public summaries and original selected contracts. Full candidate lists, per-case decisions/body checks and verification environment mappings remain external, bound by input path/SHA256/size. A recursive fail-closed check rejects body hex, environment mappings and sensitive key names; commands, statuses, log digests, counts and oracle correction reasons remain inspectable. Public command summaries replace local developer checkout paths deterministically while the referenced raw verification receipt retains the exact invocation.
 
 ## Known limitations
 

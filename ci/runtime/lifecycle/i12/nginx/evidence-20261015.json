@@ -1289,7 +1289,7 @@
               "check-nginx-common-adoption",
               "check-nginx-c-standard-wiring",
               "check-common-security-contract",
-              "PYTHON=/root/git/ModSecurity-conector/.venv/bin/python"
+              "PYTHON=python3"
             ],
             "cwd": "/var/tmp/codex/ModSecurity-conector/worktrees/i12-nginx-410-20261015",
             "parent_revision": "f27eb59b53beff6f65384fc2e5037881a3052c01",
@@ -1307,7 +1307,7 @@
             "command": [
               "rtk",
               "proxy",
-              "/root/git/ModSecurity-conector/.venv/bin/python",
+              "python3",
               "/var/tmp/codex/ModSecurity-conector/runs/i12-nginx-410-20261015/verification-native/cleanup_mutation_probe.py"
             ],
             "cwd": "/var/tmp/codex/ModSecurity-conector/worktrees/i12-nginx-410-20261015",
@@ -1334,7 +1334,7 @@
             "command": [
               "rtk",
               "proxy",
-              "/root/git/ModSecurity-conector/.venv/bin/python",
+              "python3",
               "/var/tmp/codex/ModSecurity-conector/runs/i12-nginx-410-20261015/verification-native/cleanup_mutation_probe.py"
             ],
             "cwd": "/var/tmp/codex/ModSecurity-conector/worktrees/i12-nginx-410-20261015",
@@ -1361,7 +1361,7 @@
             "command": [
               "rtk",
               "proxy",
-              "/root/git/ModSecurity-conector/.venv/bin/python",
+              "python3",
               "-m",
               "unittest",
               "-v",
@@ -1408,7 +1408,7 @@
             "command": [
               "rtk",
               "proxy",
-              "/root/git/ModSecurity-conector/.venv/bin/python",
+              "python3",
               "-m",
               "unittest",
               "-v",
@@ -1442,7 +1442,7 @@
             "command": [
               "rtk",
               "proxy",
-              "/root/git/ModSecurity-conector/.venv/bin/python",
+              "python3",
               "-m",
               "unittest",
               "-v",
@@ -1489,7 +1489,7 @@
             "command": [
               "rtk",
               "proxy",
-              "/root/git/ModSecurity-conector/.venv/bin/python",
+              "python3",
               "-m",
               "unittest",
               "-v",

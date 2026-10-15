@@ -19,6 +19,26 @@ def select(value, keys):
     return {key: value[key] for key in keys if key in value}
 
 
+def redact_local_paths(value):
+    """Keep public reports reproducible without publishing a developer checkout."""
+    if isinstance(value, dict):
+        return {key: redact_local_paths(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [redact_local_paths(item) for item in value]
+    if isinstance(value, str):
+        value = re.sub(
+            r"/root/(?:git|conecter)/ModSecurity-conector/\.venv/bin/python",
+            "python3",
+            value,
+        )
+        return re.sub(
+            r"/root/(?:git|conecter)/ModSecurity-conector",
+            "<connector-root>",
+            value,
+        )
+    return value
+
+
 def public_summary(value):
     """Project approved facts; complete receipts remain external and hash-bound."""
     if "remaining_gaps" in value:
@@ -160,8 +180,10 @@ def compact(ledger, ledger_path, observations, verification):
                        "observations": [reference(path) for path in observations],
                        "verification": [reference(path) for path in verification]},
             "summary": ledger["summary"],
-            "observations": [{"input": reference(path), "summary": public_summary(read(path))} for path in observations],
-            "verification": [{"input": reference(path), "summary": public_summary(read(path))} for path in verification],
+            "observations": [{"input": reference(path), "summary": redact_local_paths(public_summary(read(path)))}
+                             for path in observations],
+            "verification": [{"input": reference(path), "summary": redact_local_paths(public_summary(read(path)))}
+                             for path in verification],
             "rows": compact_rows}
     check_public_artifact(result)
     return result
