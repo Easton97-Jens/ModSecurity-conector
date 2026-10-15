@@ -76,7 +76,10 @@ int main(int argc, char **argv) {
     printf("matched=%d\nstatus=%d\n", intervention.disruptive != 0, intervention.status);
     result = 0;
 cleanup:
-    msc_intervention_cleanup(&intervention);
+    /* The public C ABI transfers these allocated strings to the caller.
+     * Free directly so this probe also supports SDKs without the later helper. */
+    free(intervention.url);
+    free(intervention.log);
     if (transaction != NULL) msc_transaction_cleanup(transaction);
     if (rules != NULL) msc_rules_cleanup(rules);
     if (engine != NULL) msc_cleanup(engine);
