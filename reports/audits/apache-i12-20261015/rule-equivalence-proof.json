@@ -1,0 +1,162 @@
+{
+  "sdk_path": "/usr/lib/x86_64-linux-gnu/libmodsecurity.so.3.0.14",
+  "sdk_sha256": "32257230b8f378987ba1204049dcc1e23927fd44c8778e09d41805ad705c3407",
+  "canonical_path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/sealed-common-inputs/framework/tests/rules/no-crs-baseline.conf",
+  "canonical_sha256": "0958c669b9bb15d61544ab3acdcf77635c5c2bdfc638831ac758d0d584fd70e1",
+  "scope": "exact ASCII fixture payloads and same no-SecDefaultAction directives; no universal byte identity claim",
+  "cases": [
+    {
+      "case": "phase4_body_at_limit",
+      "source_path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/sealed-common-inputs/framework/tests/cases/connector-specific/nginx/phase4_body_at_limit.yaml",
+      "source_sha256": "5ba5268bd2d5384108a2615e0b316d34ec6141b90f7cffd54443e3396353c315",
+      "local_rule": "SecRule RESPONSE_BODY \"@contains no-crs-response-body-marker\" \\\n  \"id:1100301,phase:4,deny,status:403,log,msg:'no-crs phase-4 intervention probe'\"\n",
+      "canonical_rule": "SecRule RESPONSE_BODY \"@contains no-crs-response-body-marker\" \\\n    \"id:1100301,phase:4,deny,status:403,log,t:none,msg:'no-crs phase-4 intervention probe'\"\n",
+      "comparison": {
+        "local": {
+          "rules_loaded": 10,
+          "calls": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "payload_bytes": 64,
+          "payload_sha256": "6e5adc8616a3a3b4455b6c71e8b679541816e56cb66424954227f4247fee781d",
+          "native_append_result": 1,
+          "native_p4_result": 1,
+          "intervention_present": 1,
+          "status": 403,
+          "disruptive": 1,
+          "native_log_rule_ids": [
+            "1100301"
+          ]
+        },
+        "canonical": {
+          "rules_loaded": 10,
+          "calls": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "payload_bytes": 64,
+          "payload_sha256": "6e5adc8616a3a3b4455b6c71e8b679541816e56cb66424954227f4247fee781d",
+          "native_append_result": 1,
+          "native_p4_result": 1,
+          "intervention_present": 1,
+          "status": 403,
+          "disruptive": 1,
+          "native_log_rule_ids": [
+            "1100301"
+          ]
+        }
+      },
+      "equivalent_for_exact_fixture": true
+    },
+    {
+      "case": "phase4_body_over_limit",
+      "source_path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/sealed-common-inputs/framework/tests/cases/connector-specific/nginx/phase4_body_over_limit.yaml",
+      "source_sha256": "74d2c520ae8cb338db34677ca4b6032390b892afbe275818fbe21845eee785ae",
+      "local_rule": "SecRule RESPONSE_BODY \"@contains no-crs-response-body-marker\" \\\n  \"id:1100301,phase:4,deny,status:403,log,msg:'no-crs phase-4 intervention probe'\"\n",
+      "canonical_rule": "SecRule RESPONSE_BODY \"@contains no-crs-response-body-marker\" \\\n    \"id:1100301,phase:4,deny,status:403,log,t:none,msg:'no-crs phase-4 intervention probe'\"\n",
+      "comparison": {
+        "local": {
+          "rules_loaded": 10,
+          "calls": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "payload_bytes": 65,
+          "payload_sha256": "cffbf7465f73648fda0e8e0c16489da2efaf3c55dfa67b76bb5b86f4e005af53",
+          "native_append_result": 0,
+          "native_p4_result": 1,
+          "intervention_present": 1,
+          "status": 403,
+          "disruptive": 1,
+          "native_log_rule_ids": [
+            "1100301"
+          ]
+        },
+        "canonical": {
+          "rules_loaded": 10,
+          "calls": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "payload_bytes": 65,
+          "payload_sha256": "cffbf7465f73648fda0e8e0c16489da2efaf3c55dfa67b76bb5b86f4e005af53",
+          "native_append_result": 0,
+          "native_p4_result": 1,
+          "intervention_present": 1,
+          "status": 403,
+          "disruptive": 1,
+          "native_log_rule_ids": [
+            "1100301"
+          ]
+        }
+      },
+      "equivalent_for_exact_fixture": true
+    },
+    {
+      "case": "phase4_body_reject",
+      "source_path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/sealed-common-inputs/framework/tests/cases/connector-specific/nginx/phase4_body_reject.yaml",
+      "source_sha256": "307d11102692cfe7342cfc897cf02639a25fcbba5d05fe3e2668644a82b8a90e",
+      "local_rule": "SecRule RESPONSE_BODY \"@contains no-crs-response-body-marker\" \\\n  \"id:1100301,phase:4,deny,status:403,log,msg:'no-crs phase-4 intervention probe'\"\n",
+      "canonical_rule": "SecRule RESPONSE_BODY \"@contains no-crs-response-body-marker\" \\\n    \"id:1100301,phase:4,deny,status:403,log,t:none,msg:'no-crs phase-4 intervention probe'\"\n",
+      "comparison": {
+        "local": {
+          "rules_loaded": 10,
+          "calls": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "payload_bytes": 65,
+          "payload_sha256": "cffbf7465f73648fda0e8e0c16489da2efaf3c55dfa67b76bb5b86f4e005af53",
+          "native_append_result": 1,
+          "native_p4_result": 1,
+          "intervention_present": 1,
+          "status": 403,
+          "disruptive": 1,
+          "native_log_rule_ids": []
+        },
+        "canonical": {
+          "rules_loaded": 10,
+          "calls": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "payload_bytes": 65,
+          "payload_sha256": "cffbf7465f73648fda0e8e0c16489da2efaf3c55dfa67b76bb5b86f4e005af53",
+          "native_append_result": 1,
+          "native_p4_result": 1,
+          "intervention_present": 1,
+          "status": 403,
+          "disruptive": 1,
+          "native_log_rule_ids": []
+        }
+      },
+      "equivalent_for_exact_fixture": true
+    }
+  ],
+  "all_equivalent": true
+}

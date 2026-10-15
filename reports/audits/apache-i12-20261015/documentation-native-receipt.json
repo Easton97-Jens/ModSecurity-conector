@@ -1,0 +1,188 @@
+{
+  "commands": [
+    {
+      "argv": [
+        "rtk",
+        "proxy",
+        "mount",
+        "--bind",
+        "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework",
+        "/var/tmp/codex/ModSecurity-conector/worktrees/i12-apache-410-20261015/modules/ModSecurity-test-Framework"
+      ],
+      "cwd": null,
+      "exit": 0,
+      "started_ns": 1792075320573750240,
+      "ended_ns": 1792075320864236436,
+      "outputs": [
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-apache-410-20261015/doc-namespace/0.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-apache-410-20261015/doc-namespace/0.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "argv": [
+        "rtk",
+        "proxy",
+        "mount",
+        "-o",
+        "remount,bind,ro",
+        "/var/tmp/codex/ModSecurity-conector/worktrees/i12-apache-410-20261015/modules/ModSecurity-test-Framework"
+      ],
+      "cwd": null,
+      "exit": 0,
+      "started_ns": 1792075320864395891,
+      "ended_ns": 1792075321022035407,
+      "outputs": [
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-apache-410-20261015/doc-namespace/1.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-apache-410-20261015/doc-namespace/1.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "argv": [
+        "rtk",
+        "proxy",
+        "mount",
+        "--bind",
+        "/var/tmp/codex/ModSecurity-conector/runs/i12-apache-410-20261015/doc-namespace/framework.git",
+        "/var/tmp/codex/ModSecurity-conector/worktrees/i12-apache-410-20261015/modules/ModSecurity-test-Framework/.git"
+      ],
+      "cwd": null,
+      "exit": 0,
+      "started_ns": 1792075321022258069,
+      "ended_ns": 1792075321223091759,
+      "outputs": [
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-apache-410-20261015/doc-namespace/2.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-apache-410-20261015/doc-namespace/2.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "argv": [
+        "rtk",
+        "proxy",
+        "mount",
+        "-o",
+        "remount,bind,ro",
+        "/var/tmp/codex/ModSecurity-conector/worktrees/i12-apache-410-20261015/modules/ModSecurity-test-Framework/.git"
+      ],
+      "cwd": null,
+      "exit": 0,
+      "started_ns": 1792075321223181295,
+      "ended_ns": 1792075321362159640,
+      "outputs": [
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-apache-410-20261015/doc-namespace/3.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-apache-410-20261015/doc-namespace/3.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "argv": [
+        "rtk",
+        "proxy",
+        "mount",
+        "--bind",
+        "/var/tmp/codex/ModSecurity-conector/runs/i12-apache-410-20261015/doc-namespace/mrts.git",
+        "/var/tmp/codex/ModSecurity-conector/worktrees/i12-apache-410-20261015/modules/ModSecurity-test-Framework/tools/MRTS/.git"
+      ],
+      "cwd": null,
+      "exit": 0,
+      "started_ns": 1792075321362426817,
+      "ended_ns": 1792075321583736032,
+      "outputs": [
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-apache-410-20261015/doc-namespace/4.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-apache-410-20261015/doc-namespace/4.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "argv": [
+        "rtk",
+        "proxy",
+        "mount",
+        "-o",
+        "remount,bind,ro",
+        "/var/tmp/codex/ModSecurity-conector/worktrees/i12-apache-410-20261015/modules/ModSecurity-test-Framework/tools/MRTS/.git"
+      ],
+      "cwd": null,
+      "exit": 0,
+      "started_ns": 1792075321583815359,
+      "ended_ns": 1792075321663993432,
+      "outputs": [
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-apache-410-20261015/doc-namespace/5.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-apache-410-20261015/doc-namespace/5.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "argv": [
+        "rtk",
+        "proxy",
+        "make",
+        "PYTHON=/root/git/ModSecurity-conector/.venv/bin/python",
+        "FRAMEWORK_ROOT=/var/tmp/codex/ModSecurity-conector/worktrees/i12-apache-410-20261015/modules/ModSecurity-test-Framework",
+        "check-bilingual-docs",
+        "check-doc-links"
+      ],
+      "cwd": "/var/tmp/codex/ModSecurity-conector/worktrees/i12-apache-410-20261015",
+      "exit": 0,
+      "started_ns": 1792075321664302340,
+      "ended_ns": 1792075335607796867,
+      "outputs": [
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-apache-410-20261015/doc-namespace/6.stdout",
+          "sha256": "ba4801de1326977571141c249bf052fee50deb09e9453de8f64bd2fa58ab0080",
+          "bytes": 553
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-apache-410-20261015/doc-namespace/6.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    }
+  ],
+  "namespace_only_mounts": true
+}

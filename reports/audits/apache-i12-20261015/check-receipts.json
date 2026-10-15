@@ -1,0 +1,134 @@
+[
+  {
+    "name": "focused",
+    "argv": [
+      "rtk",
+      "proxy",
+      "/root/git/ModSecurity-conector/.venv/bin/python",
+      "-B",
+      "-m",
+      "unittest",
+      "-v",
+      "tests.test_apache_header_semantics",
+      "tests.test_apache_native_lifecycle",
+      "tests.test_apache_native_response_limit",
+      "tests.test_apache_event_sink_failures",
+      "tests.test_apache_terminal_contract_failures",
+      "tests.test_apache_i12_mapper",
+      "tests.test_apache_i12_ledger",
+      "tests.test_i12_lifecycle_ledger",
+      "tests.test_i12_oracle_reconciliation"
+    ],
+    "cwd": "/var/tmp/codex/ModSecurity-conector/worktrees/i12-apache-410-20261015",
+    "exit": 0,
+    "started_unix_ns": 1792071821004896689,
+    "ended_unix_ns": 1792071839992866606,
+    "outputs": [
+      {
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-apache-410-20261015/checks/focused.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-apache-410-20261015/checks/focused.stderr",
+        "sha256": "f1765043ea74cde7dfd43be5b2ac9d24bd6fe2fb762ea93924f662ce6a67dca9",
+        "bytes": 18723
+      }
+    ]
+  },
+  {
+    "name": "native-regression",
+    "argv": [
+      "rtk",
+      "proxy",
+      "/root/git/ModSecurity-conector/.venv/bin/python",
+      "-B",
+      "-m",
+      "unittest",
+      "-v",
+      "tests.test_apache_native_security_contract",
+      "tests.test_apache_native_adoption",
+      "tests.test_apache_common_adoption",
+      "tests.test_apache_intervention_cleanup",
+      "tests.test_apache_request_transaction_cleanup",
+      "tests.test_apache_rules_set_cleanup",
+      "tests.test_apache_i09_filter_events"
+    ],
+    "cwd": "/var/tmp/codex/ModSecurity-conector/worktrees/i12-apache-410-20261015",
+    "exit": 0,
+    "started_unix_ns": 1792071839995098941,
+    "ended_unix_ns": 1792071929134309905,
+    "outputs": [
+      {
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-apache-410-20261015/checks/native-regression.stdout",
+        "sha256": "895a21ae868e459dca999528e9b55d2816b57f4e639e0ecdf851db23936a2881",
+        "bytes": 3340
+      },
+      {
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-apache-410-20261015/checks/native-regression.stderr",
+        "sha256": "45f36113df6b26e95a01bc409e816a32ec2b2e732a41a313e720dbbf035c2b9e",
+        "bytes": 14921
+      }
+    ]
+  },
+  {
+    "name": "capture-verify",
+    "argv": [
+      "rtk",
+      "proxy",
+      "/root/git/ModSecurity-conector/.venv/bin/python",
+      "-B",
+      "ci/runtime/lifecycle/i12/capture_sources.py",
+      "verify"
+    ],
+    "cwd": "/var/tmp/codex/ModSecurity-conector/worktrees/i12-apache-410-20261015",
+    "exit": 0,
+    "started_unix_ns": 1792071929134774898,
+    "ended_unix_ns": 1792071930465644881,
+    "outputs": [
+      {
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-apache-410-20261015/checks/capture-verify.stdout",
+        "sha256": "cefca65ab1654e8efdffac5ae86decdf20b9b15597fa3c35320cd52d08b8ca56",
+        "bytes": 81
+      },
+      {
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-apache-410-20261015/checks/capture-verify.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    ]
+  },
+  {
+    "name": "capture-tests",
+    "argv": [
+      "rtk",
+      "proxy",
+      "/root/git/ModSecurity-conector/.venv/bin/python",
+      "-B",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "ci/runtime/lifecycle/i12",
+      "-p",
+      "test_capture_sources.py",
+      "-v"
+    ],
+    "cwd": "/var/tmp/codex/ModSecurity-conector/worktrees/i12-apache-410-20261015",
+    "exit": 0,
+    "started_unix_ns": 1792071930466396655,
+    "ended_unix_ns": 1792071931245971865,
+    "outputs": [
+      {
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-apache-410-20261015/checks/capture-tests.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-apache-410-20261015/checks/capture-tests.stderr",
+        "sha256": "4b6bde79ca85fb9f3d103dbaf5e17cb7ac68478611c3194519ad95fdea7f4901",
+        "bytes": 2179
+      }
+    ]
+  }
+]

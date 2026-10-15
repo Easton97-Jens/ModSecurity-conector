@@ -106,7 +106,8 @@ class ApacheOracleOverrideGuardTests(unittest.TestCase):
         directory = tempfile.TemporaryDirectory(prefix="apache-oracle-guard-", dir=os.environ.get("RUNNER_TEMP"))
         self.addCleanup(directory.cleanup)
         self.directory = Path(directory.name)
-        self.case = ROOT / "modules/ModSecurity-test-Framework/tests/cases/no-crs-baseline/duplicate_header_names.yaml"
+        framework = Path(os.environ.get("FRAMEWORK_ROOT", ROOT / "modules/ModSecurity-test-Framework"))
+        self.case = framework / "tests/cases/no-crs-baseline/duplicate_header_names.yaml"
         self.framework = self.case.parents[3]
         self.rules = self.directory / "rules.conf"
         self.rules.write_text("SecRuleEngine On\n" + OVERRIDES.ORIGINAL_RULE + "\n")
