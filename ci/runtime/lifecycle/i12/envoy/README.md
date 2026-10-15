@@ -19,6 +19,7 @@ source proposals remain separate from canonical resolution and host acceptance.
 | `reconcile.py` | Revalidates original oracle sources and physical ledger; preserves all 284 exact Envoy IDs |
 | `prepare_native.py` | Git-free current source copy, unchanged capture overlays, native/CGo build, Go/race/vet and observer controls |
 | `source_inventory.py` | Reconstructs every build input from the hash-bound Git archive and explicit capture additions |
+| `evidence_io.py` | Bounds physical reads to approved owned paths; rejects symlinks, private configuration and changes during reads |
 | `validate_oracles.py` | Verifies all 125 original-ID reviews and physical references; preserves canonical results |
 | `host_scenarios.py` | Sealed independent fixtures, TLS inputs, binary/source binding and private controller; does not start hosts |
 | `bind_originals.py` | Seals fresh exact-original-ID retakes of reviewed fixtures with all inputs inside the current private run |

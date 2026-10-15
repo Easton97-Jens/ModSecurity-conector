@@ -6,7 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
-import stat
+import evidence_io
 
 REPOSITORY = Path(__file__).resolve().parents[5]
 STORAGE_ROOTS = (Path('/var/tmp/codex/ModSecurity-conector'),
@@ -40,26 +40,21 @@ class References:
             if any(part in ('.git', '.aws', '.codex', '.agents') for part in path.parts):
                 raise ValueError('reference is not a product source path')
             path = REPOSITORY / path
-        if path.resolve(strict=True) != path or not path.is_file():
-            raise ValueError('reference must be a physical regular file: ' + value)
         expected = reference.get('sha256')
         if not isinstance(expected, str) or not re.fullmatch('[a-f0-9]{64}', expected):
             raise ValueError('reference requires a lowercase SHA256: ' + value)
-        before = path.stat()
-        if not stat.S_ISREG(before.st_mode) or before.st_size > MAX_REFERENCE_BYTES:
-            raise ValueError('reference exceeds physical file bounds: ' + value)
-        identity = (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns)
-        cached = self.cache.get(path)
-        if cached is None or cached['identity'] != identity:
-            digest = hashlib.sha256()
-            with path.open('rb') as stream:
-                for block in iter(lambda: stream.read(1024 * 1024), b''):
-                    digest.update(block)
-            after = path.stat()
-            if identity != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns):
-                raise ValueError('reference changed while hashing: ' + value)
-            cached = {'identity': identity, 'sha256': digest.hexdigest(), 'bytes': before.st_size}
-            self.cache[path] = cached
+        with evidence_io.open_evidence(path, (REPOSITORY, *STORAGE_ROOTS), MAX_REFERENCE_BYTES) as (stream, before):
+            identity = evidence_io.identity(before)
+            cached = self.cache.get(path)
+            if cached is None or cached['identity'] != identity:
+                cached = {'identity': identity, 'sha256': evidence_io.digest_stream(stream, MAX_REFERENCE_BYTES),
+                          'bytes': before.st_size}
+                self.cache[path] = cached
+            if source and 'line_count' not in cached:
+                if before.st_size > MAX_SOURCE_BYTES:
+                    raise ValueError('source reference exceeds line-check bound: ' + value)
+                stream.seek(0)
+                cached['line_count'] = len(stream.read(MAX_SOURCE_BYTES + 1).splitlines())
         if expected != cached['sha256']:
             raise ValueError('reference SHA256 mismatch: ' + value)
         if 'bytes' in reference and (type(reference['bytes']) is not int or reference['bytes'] != before.st_size):
@@ -69,7 +64,7 @@ class References:
             if before.st_size > MAX_SOURCE_BYTES:
                 raise ValueError('source reference exceeds line-check bound: ' + value)
             line = reference.get('line')
-            if type(line) is not int or not 1 <= line <= len(path.read_bytes().splitlines()):
+            if type(line) is not int or not 1 <= line <= cached['line_count']:
                 raise ValueError('source reference line outside file: ' + value)
             if not isinstance(reference.get('symbol'), str) or not reference['symbol']:
                 raise ValueError('source reference requires a symbol: ' + value)
@@ -101,7 +96,7 @@ def validate(baseline, review_paths):
     """
     baseline_hash = None
     if not isinstance(baseline, dict):
-        raw = Path(baseline).read_bytes()
+        raw = evidence_io.read_bytes(baseline, (REPOSITORY, *STORAGE_ROOTS))
         baseline_hash = hashlib.sha256(raw).hexdigest()
         baseline = json.loads(raw)
     baseline_rows = baseline.get('rows')
@@ -127,7 +122,7 @@ def validate(baseline, review_paths):
     documents, normalized, by_route = [], {}, {}
     for review_path in review_paths:
         review_path = Path(review_path)
-        raw = review_path.read_bytes()
+        raw = evidence_io.read_bytes(review_path, (REPOSITORY, *STORAGE_ROOTS))
         document = json.loads(raw)
         route = document.get('route')
         if route not in ROUTES or route in by_route:
@@ -252,15 +247,15 @@ def validate(baseline, review_paths):
 
 
 def main():
+    import qualify_originals
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--baseline', type=Path, required=True)
     parser.add_argument('--review', type=Path, action='append', required=True)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
     result = validate(args.baseline, args.review)
-    with args.output.open('x') as output:
-        json.dump(result, output, indent=2)
-        output.write('\n')
+    qualify_originals.write(args.output, result)
     print(json.dumps({'original_count': result['original_count'], 'reviewed_count': result['reviewed_count'],
         'canonical_resolved': 3, 'canonical_open': 122,
         'proposed_new_source_oracles': result['proposed_new_source_oracles'], 'new_lifecycle_pass': 0}))

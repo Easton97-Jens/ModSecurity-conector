@@ -9,8 +9,10 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 import sys
 
@@ -25,6 +27,9 @@ ALLOWED = frozenset((
 ))
 sys.path.insert(0, str(HERE))
 import review_runs as REVIEW
+import evidence_io as EVIDENCE
+
+READ_ROOTS = (REPO, RUNROOT, Path('/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle'))
 
 
 def shared_validator():
@@ -40,14 +45,24 @@ def canonical(value):
 
 
 def load(path):
-    return json.loads(Path(path).read_text())
+    try:
+        return EVIDENCE.read_json(path, roots=READ_ROOTS)
+    except (OSError, ValueError):
+        raise ValueError('evidence input rejected') from None
+
+
+def read_bytes(path):
+    try:
+        return EVIDENCE.read_bytes(path, roots=READ_ROOTS)
+    except (OSError, ValueError):
+        raise ValueError('evidence input rejected') from None
 
 
 def reference(path, role=None):
-    path = Path(path)
-    if not path.is_absolute() or path.resolve(strict=True) != path or not path.is_file():
-        raise ValueError('physical regular absolute reference required')
-    result = {'path': str(path), 'sha256': REVIEW.digest(path), 'bytes': path.stat().st_size}
+    try:
+        result = EVIDENCE.reference(path, roots=READ_ROOTS)
+    except (OSError, ValueError):
+        raise ValueError('evidence reference rejected') from None
     if role:
         result['role'] = role
     return result
@@ -61,13 +76,45 @@ def verify_ref(ref):
 
 
 def write(path, value):
-    path = Path(path)
-    if RUNROOT not in path.resolve().parents or path.is_symlink():
+    target = Path(path)
+    try:
+        relative = target.relative_to(RUNROOT)
+    except ValueError:
         raise ValueError('output must be a new task-owned external file')
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open('x') as output:
-        json.dump(value, output, indent=2, sort_keys=True)
-        output.write('\n')
+    parts = relative.parts
+    if not parts or any(not re.fullmatch(r'[A-Za-z0-9._-]+', part) or part in ('.', '..') for part in parts):
+        raise ValueError('output must be a new task-owned external file')
+    payload = (json.dumps(value, indent=2, sort_keys=True) + '\n').encode()
+    directory = os.open('/', os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    try:
+        for part in RUNROOT.parts[1:]:
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=directory)
+            os.close(directory)
+            directory = child
+            if os.fstat(directory).st_uid not in (0, os.geteuid()):
+                raise ValueError('output authority rejected')
+        root_status = os.fstat(directory)
+        if root_status.st_uid != os.geteuid() or stat.S_IMODE(root_status.st_mode) & 0o077:
+            raise ValueError('private task output root required')
+        for part in parts[:-1]:
+            try:
+                os.mkdir(part, mode=0o700, dir_fd=directory)
+            except FileExistsError:
+                pass
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=directory)
+            os.close(directory)
+            directory = child
+            status = os.fstat(directory)
+            if status.st_uid != os.geteuid() or stat.S_IMODE(status.st_mode) & 0o022:
+                raise ValueError('output directory authority rejected')
+        descriptor = os.open(parts[-1], os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                             0o600, dir_fd=directory)
+        with os.fdopen(descriptor, 'wb') as output:
+            output.write(payload)
+    except OSError:
+        raise ValueError('output authority rejected') from None
+    finally:
+        os.close(directory)
 
 
 def identity(record, shape):
@@ -95,7 +142,7 @@ def identity(record, shape):
         path = Path(ref['path'])
         physical = path if path.is_absolute() else REPO / path
         verified = verify_ref(dict(ref, path=str(physical)))
-        if type(ref.get('line')) is not int or not 1 <= ref['line'] <= len(Path(verified['path']).read_bytes().splitlines()):
+        if type(ref.get('line')) is not int or not 1 <= ref['line'] <= len(read_bytes(verified['path']).splitlines()):
             raise ValueError('source reference line is not physically bounded')
     return original, route, oracle, review_ref
 
@@ -258,7 +305,7 @@ def expected_contract(oracle, shape):
 
 def fixture_probe_rules(fixture):
     result = {}
-    lines = (fixture / 'native.rules').read_text().splitlines()
+    lines = read_bytes(fixture / 'native.rules').decode().splitlines()
     for phase, variable, marker in ((2, 'REQUEST_BODY', 'request-marker'), (4, 'RESPONSE_BODY', 'response-marker')):
         matches = [re.fullmatch(r'SecRule ' + variable + r' "@contains ' + marker
                    + r'" "id:(\d+),phase:' + str(phase) + r",pass,log,t:none,msg:'I12 Envoy P" + str(phase) + r"'\"", line)
@@ -272,10 +319,17 @@ def fixture_probe_rules(fixture):
 
 def gitlinks(parent):
     def tree(cwd, revision, entry):
-        result = subprocess.run(['rtk', 'proxy', 'git', '-C', str(cwd), 'ls-tree', revision, entry],
+        match = re.fullmatch(r'[0-9a-f]{40}', revision) if isinstance(revision, str) else None
+        if match is None:
+            raise ValueError('exact lowercase Git commit SHA required')
+        if (cwd, entry) not in ((REPO, 'modules/ModSecurity-test-Framework'),
+            (Path('/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework'), 'tools/MRTS')):
+            raise ValueError('Git metadata scope rejected')
+        result = subprocess.run(['rtk', 'proxy', 'git', '-C', str(cwd), 'ls-tree', match.group(0), '--', entry],
                                 check=True, capture_output=True, text=True)
         parts = result.stdout.split()
-        if len(parts) != 4 or parts[:2] != ['160000', 'commit'] or parts[3] != entry:
+        if (len(parts) != 4 or parts[:2] != ['160000', 'commit'] or parts[3] != entry
+                or re.fullmatch(r'[0-9a-f]{40}', parts[2]) is None):
             raise ValueError('missing recorded gitlink identity')
         return parts[2]
     framework = tree(REPO, parent, 'modules/ModSecurity-test-Framework')
@@ -300,7 +354,7 @@ def stage_one(record, parent, runs_path, helpers, output):
     review_row = next(row for row in review_document.get('records', review_document.get('rows', []))
                       if row['run_scoped_case_id'] == original)
     bound_fixture_refs = verify_fixture_binding(review_row, fixture, shape, oracle)
-    native_rows = [json.loads(line) for line in (data / 'runtime/native-lifecycle.jsonl').read_text().splitlines()]
+    native_rows = [json.loads(line) for line in read_bytes(data / 'runtime/native-lifecycle.jsonl').splitlines()]
     build = load(data / 'build-manifest.json')
     if build['case'] != shape['case_id'] or any(row['case'] != shape['case_id'] or row['profile'] != route
                                             or row['run'] != build['run'] for row in native_rows):
@@ -321,7 +375,7 @@ def stage_one(record, parent, runs_path, helpers, output):
     client = summary['clients']['target']
     checks['native_selected_client_interval'] = bool(scoped) and all(
         client['started_monotonic_ns'] <= row['monotonic_ns'] <= client['completed_monotonic_ns'] for row in scoped)
-    backend = [json.loads(line) for line in (data / 'backend/receipts.jsonl').read_text().splitlines()]
+    backend = [json.loads(line) for line in read_bytes(data / 'backend/receipts.jsonl').splitlines()]
     selected = [row for row in backend if row.get('request_id') == shape['target'] and row.get('path') == '/' + shape['target']]
     checks['exact_backend_client_payload_correlation'] = len(selected) == 1 and all(
         selected[0].get(field) == expected[field] for field in ('request_bytes', 'request_sha256', 'response_bytes', 'response_sha256'))
@@ -330,7 +384,7 @@ def stage_one(record, parent, runs_path, helpers, output):
         direction = 0 if original.endswith('NEED-request-streaming') else 1
         body_calls = [row for row in callbacks if row['operation'] == 1 and row['response_direction'] == direction]
         checks['multiple_native_host_chunks'] = len([row for row in body_calls if row['body_bytes'] > 0]) >= 2
-    adapter = [json.loads(line) for line in (data / 'runtime/adapter-events.jsonl').read_text().splitlines()]
+    adapter = [json.loads(line) for line in read_bytes(data / 'runtime/adapter-events.jsonl').splitlines()]
     if route == 'envoy-ext-proc':
         selected_events = [row for row in adapter if row.get('transaction_id') == shape['target']]
         checks['physical_terminal_once'] = len(selected_events) == 1 and selected_events[0].get('event') == 'ext_proc_stream_complete'
@@ -416,7 +470,7 @@ def stage_one(record, parent, runs_path, helpers, output):
                              'shape': shape_ref, 'source_review': source_ref},
         'physical_refs': list(refs.values()) + bound_fixture_refs + [control, shape_ref, source_ref, reference(record['case']['spec'])]
             + [reference(path) for path in (Path(__file__).resolve(), HERE / 'review_runs.py', HERE / 'transport.py',
-                HERE / 'source_inventory.py', REPO / 'ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py',
+                HERE / 'source_inventory.py', HERE / 'evidence_io.py', REPO / 'ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py',
                 REPO / 'ci/evidence/reports/generate-pr382-i12-oracle-reconciliation.py',
                 helpers / 'grpc_stream_observations.py', helpers / 'host_log_observations.py', fixture / 'native.rules')],
         'reproduction': {'runs_path': str(runs_path), 'record': record, 'helpers': str(helpers)},
@@ -426,7 +480,7 @@ def stage_one(record, parent, runs_path, helpers, output):
     if output is None:
         return packet
     write(output, packet)
-    return {'path': str(output), 'sha256': REVIEW.digest(Path(output)), 'run_scoped_case_id': original,
+    return {'path': str(output), 'sha256': reference(output)['sha256'], 'run_scoped_case_id': original,
             'approval_ready': packet['approval_ready'], 'remaining_requirements': packet['remaining_requirements']}
 
 
@@ -502,14 +556,14 @@ def compare_regenerated(packet, staged, fresh):
 
 
 def approve(path, output, original_id, expected_sha256):
-    verify_ref({'path': str(Path(path).resolve()), 'sha256': expected_sha256})
+    verify_ref({'path': str(Path(path)), 'sha256': expected_sha256})
     packet = load(path)
     if (packet.get('reviewed_by') != 'pending_root_review' or packet.get('run_scoped_case_id') != original_id
             or original_id not in ALLOWED or not packet.get('approval_ready')):
         raise ValueError('staged packet is not individually eligible for approval')
     packet.update(reviewed_by='root', oracle_evaluated=True, outcome='PASS', full_lifecycle_qualified=True)
     packet['root_approval'] = {'explicit_original_id': original_id, 'staged_packet_sha256': expected_sha256,
-                               'staged_packet': reference(Path(path).resolve()),
+                               'staged_packet': reference(Path(path)),
                                'protocol': 'individual_root_command_after_physical_review'}
     write(output, packet)
     return validate_approved(output)

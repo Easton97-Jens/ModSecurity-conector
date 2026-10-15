@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Write this Envoy task's EN/DE reports; never modify the shared I12 ledger."""
 import argparse
-import hashlib
 import json
 from pathlib import Path
 import validate_oracles
 import qualify_originals
+import evidence_io
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[4]
@@ -13,14 +13,11 @@ STEM = 'i12-envoy-host-evidence-20261015'
 
 
 def reference(path):
-    data = path.read_bytes()
-    return {'path': str(path), 'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data)}
+    return evidence_io.reference(path)
 
 
 def load(path):
-    if path.resolve(strict=True) != path or not path.is_file():
-        raise ValueError('physical input required')
-    return json.loads(path.read_text())
+    return evidence_io.read_json(path)
 
 
 def encode_report(data):

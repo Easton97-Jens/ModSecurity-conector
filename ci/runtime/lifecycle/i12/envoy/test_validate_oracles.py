@@ -21,7 +21,7 @@ class OracleValidationControls(unittest.TestCase):
             prefix='envoy-oracle-controls-',
             dir=os.environ.get('TMPDIR', tempfile.gettempdir()))
         self.root = Path(self.temporary.name)
-        storage = patch.object(validator, 'STORAGE_ROOTS', (self.root.parent,))
+        storage = patch.object(validator, 'STORAGE_ROOTS', (self.root,))
         storage.start()
         self.addCleanup(storage.stop)
         self.source = self.root / 'source.txt'

@@ -20,6 +20,7 @@ Hostabnahme getrennt.
 | `reconcile.py` | Prüft ursprüngliche Oracle-Quellen und physisches Ledger erneut; erhält alle 284 exakten Envoy-IDs |
 | `prepare_native.py` | Git-freie aktuelle Quellkopie, unveränderte Capture-Overlays, native/CGo-Build, Go/Race/Vet und Observer-Kontrollen |
 | `source_inventory.py` | Rekonstruiert sämtliche Buildeingaben aus dem hashgebundenen Gitarchiv und den expliziten Capture-Ergänzungen |
+| `evidence_io.py` | Begrenzt physische Lesezugriffe auf erlaubte, besitzgeprüfte Pfade; sperrt Symlinks, private Konfiguration und Änderungen beim Lesen |
 | `validate_oracles.py` | Prüft alle 125 Original-ID-Reviews und physischen Referenzen; erhält kanonische Ergebnisse |
 | `host_scenarios.py` | Versiegelte unabhängige Fixtures, TLS-Eingaben, Binary-/Quellbindung und privater Controller; startet keine Hosts |
 | `bind_originals.py` | Versiegelt neue Retakes geprüfter Fixtures unter exakten Original-IDs mit sämtlichen Eingaben innerhalb des aktuellen privaten Laufs |

@@ -29,13 +29,16 @@ New Envoy-local files under `ci/runtime/lifecycle/i12/envoy/`: native preparatio
 
 ## Commands executed
 
-All shell entrypoints used RTK. Actual native/CGo build, full Go tests, race and vet argv/results/log hashes: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/native-v2/native-build/receipt.json`. `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B -m unittest -v tests.test_i12_envoy_evidence`: 95 PASS. Existing affected Python contracts: 79 PASS with one observer setup skip; the separately configured native observer has 32 PASS. `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B ci/runtime/lifecycle/i12/capture_sources.py verify`: PASS (150 objects/9 profiles). Existing capture-source controls: 15 PASS. `go mod verify` through RTK with the task-owned offline module cache: PASS. Host commands and nonzero exits remain in each batch runs.json; they are not normalized to PASS.
+All shell entrypoints used RTK. Actual native/CGo build, full Go tests, race and vet argv/results/log hashes: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/native-v2/native-build/receipt.json`. `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B -m unittest -v tests.test_i12_envoy_evidence`: 119 PASS. Existing affected Python contracts: 79 PASS with one observer setup skip; the separately configured native observer has 32 PASS. `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B ci/runtime/lifecycle/i12/capture_sources.py verify`: PASS (150 objects/9 profiles). Existing capture-source controls: 15 PASS. `go mod verify` through RTK with the task-owned offline module cache: PASS. Host commands and nonzero exits remain in each batch runs.json; they are not normalized to PASS.
 
 ## Security impact
 
+CI remediation closes unbounded CLI/JSON file access in the Envoy evidence readers. Approved roots are checked before filesystem access; directory descriptors, O_NOFOLLOW, owner/mode checks, byte limits and stable file identity protect the read. Outputs use private, exclusive creation; Git metadata arguments require exact SHAs and fixed scope. All 119 controls pass. The new reader is hash-bound in freshly reproduced, individually approved packets; old packets and raw host runs remain retained. The current Sonar analysis must be rerun on the new head; no rule, exclusion, disposition or Quality Gate was changed.
+
+
 Synthetic unit fixtures use independently scoped temporary storage so hosted
 runner paths do not require this machine's capture root. Three pre-fix controls
-fail when that root is absent; all 95 current controls pass with absent
+fail when that root is absent; all 95 original portability controls pass with absent
 production roots and in the normal environment. Actual capture containment and
 listener/privilege checks are unchanged. Receipts: `ci-portability-before.json`,
 `ci-portability-controls.json`, `final-envoy-controls-portable.json`.

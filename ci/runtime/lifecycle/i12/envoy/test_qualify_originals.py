@@ -120,6 +120,9 @@ class PacketMutations(unittest.TestCase):
         storage = patch.object(Q, 'RUNROOT', self.root)
         storage.start()
         self.addCleanup(storage.stop)
+        read_storage = patch.object(Q, 'READ_ROOTS', (self.root,))
+        read_storage.start()
+        self.addCleanup(read_storage.stop)
         self.proof = self.root / 'proof.json'
         self.proof.write_text('{}\n')
 
@@ -232,6 +235,91 @@ class PacketMutations(unittest.TestCase):
         (new / 'shape.json').write_text(json.dumps(shape))
         with self.assertRaisesRegex(ValueError, 'fixture stimulus differs'):
             Q.verify_fixture_binding(row, new, shape, {'visible_status': 200})
+
+    def test_git_revision_cannot_supply_options_or_expressions(self):
+        with patch.object(Q.subprocess, 'run') as command:
+            for revision in ('--help', 'HEAD', 'a' * 40 + ':path', 'a' * 39, 'A' * 40, None, ['a' * 40]):
+                with self.subTest(revision=revision), self.assertRaisesRegex(ValueError, 'exact lowercase Git commit'):
+                    Q.gitlinks(revision)
+            command.assert_not_called()
+
+    def test_gitlink_output_cannot_inject_second_revision(self):
+        with patch.object(Q.subprocess, 'run') as command:
+            command.return_value.stdout = '160000 commit --help\tmodules/ModSecurity-test-Framework\n'
+            with self.assertRaisesRegex(ValueError, 'missing recorded gitlink identity'):
+                Q.gitlinks('a' * 40)
+            self.assertEqual(command.call_count, 1)
+            self.assertEqual(command.call_args.args[0][-3:], ['a' * 40, '--', 'modules/ModSecurity-test-Framework'])
+
+    def test_output_nested_creation_is_private_and_exclusive(self):
+        destination = self.root / 'new' / 'packet.json'
+        Q.write(destination, {'safe': True})
+        self.assertEqual(json.loads(destination.read_text()), {'safe': True})
+        self.assertEqual(destination.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(destination.parent.stat().st_mode & 0o777, 0o700)
+        with self.assertRaisesRegex(ValueError, 'output authority rejected'):
+            Q.write(destination, {'replace': True})
+        self.assertEqual(json.loads(destination.read_text()), {'safe': True})
+
+    def test_output_rejects_traversal_before_open(self):
+        with patch.object(Q.os, 'open') as opened:
+            with self.assertRaisesRegex(ValueError, 'new task-owned external file'):
+                Q.write(Q.RUNROOT / '..' / 'escape.json', {})
+            opened.assert_not_called()
+
+    def test_output_rejects_symlink_parent_and_leaf(self):
+        (self.root / 'link').symlink_to(self.root, target_is_directory=True)
+        (self.root / 'leaf.json').symlink_to(self.proof)
+        for destination in (self.root / 'link' / 'new.json', self.root / 'leaf.json'):
+            with self.subTest(destination=destination), self.assertRaisesRegex(ValueError, 'output authority rejected'):
+                Q.write(destination, {})
+        self.assertEqual(self.proof.read_text(), '{}\n')
+
+    def test_output_rejects_public_writable_directory(self):
+        public = self.root / 'public'
+        public.mkdir(mode=0o777)
+        public.chmod(0o777)
+        with self.assertRaisesRegex(ValueError, 'directory authority rejected'):
+            Q.write(public / 'packet.json', {})
+
+    def test_read_rejects_outside_domain_before_any_open(self):
+        with patch.object(Q.EVIDENCE.os, 'open') as opened:
+            for value in ('/etc/passwd', '/proc/self/environ', 'https://example.test/input.json',
+                          str(Q.RUNROOT / '..' / 'other-run' / 'input.json')):
+                for reader in (Q.load, Q.read_bytes, Q.reference):
+                    with self.subTest(value=value, reader=reader.__name__), self.assertRaises(ValueError):
+                        reader(value)
+            opened.assert_not_called()
+
+    def test_read_rejects_parent_and_leaf_symlinks(self):
+        (self.root / 'directory-link').symlink_to(self.root, target_is_directory=True)
+        (self.root / 'file-link.json').symlink_to(self.proof)
+        for path in (self.root / 'directory-link' / 'proof.json', self.root / 'file-link.json'):
+            for reader in (Q.load, Q.read_bytes, Q.reference):
+                with self.subTest(path=path, reader=reader.__name__), self.assertRaises(ValueError):
+                    reader(path)
+
+    def test_read_rejects_group_writable_evidence(self):
+        self.proof.chmod(0o660)
+        for reader in (Q.load, Q.read_bytes, Q.reference):
+            with self.subTest(reader=reader.__name__), self.assertRaises(ValueError):
+                reader(self.proof)
+
+    def test_read_does_not_reveal_missing_or_inaccessible_leaf(self):
+        missing = self.root / 'absent.json'
+        self.proof.chmod(0o666)
+        for reader in (Q.load, Q.read_bytes, Q.reference):
+            messages = []
+            for path in (missing, self.proof):
+                with self.assertRaises(ValueError) as caught:
+                    reader(path)
+                messages.append(str(caught.exception))
+            self.assertEqual(messages[0], messages[1])
+
+    def test_read_retains_valid_physical_identity(self):
+        self.assertEqual(Q.load(self.proof), {})
+        self.assertEqual(Q.read_bytes(self.proof), b'{}\n')
+        self.assertEqual(Q.reference(self.proof)['bytes'], 3)
 
 
 if __name__ == '__main__':

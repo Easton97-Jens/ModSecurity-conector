@@ -28,14 +28,17 @@ Neue reine Envoy-Dateien unter `ci/runtime/lifecycle/i12/envoy/`: native Vorbere
 
 ## Ausgeführte Befehle
 
-Alle Shell-Einstiegspunkte nutzten RTK. Tatsächliche native/CGo-Build-, vollständige Go-Test-, Race- und Vet-Argv/Ergebnisse/Loghashes: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/native-v2/native-build/receipt.json`. `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B -m unittest -v tests.test_i12_envoy_evidence`: 95 PASS. Bestehende betroffene Python-Verträge: 79 PASS mit einem Observer-Setup-Skip; der separat konfigurierte native Observer hat 32 PASS. `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B ci/runtime/lifecycle/i12/capture_sources.py verify`: PASS (150 Objekte/9 Profile). Bestehende Capture-Quellkontrollen: 15 PASS. `go mod verify` über RTK mit task-eigenem Offline-Modulcache: PASS. Hostkommandos und Nicht-Null-Exits bleiben in der jeweiligen Batch-runs.json; sie werden nicht zu PASS normalisiert.
+Alle Shell-Einstiegspunkte nutzten RTK. Tatsächliche native/CGo-Build-, vollständige Go-Test-, Race- und Vet-Argv/Ergebnisse/Loghashes: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/native-v2/native-build/receipt.json`. `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B -m unittest -v tests.test_i12_envoy_evidence`: 119 PASS. Bestehende betroffene Python-Verträge: 79 PASS mit einem Observer-Setup-Skip; der separat konfigurierte native Observer hat 32 PASS. `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B ci/runtime/lifecycle/i12/capture_sources.py verify`: PASS (150 Objekte/9 Profile). Bestehende Capture-Quellkontrollen: 15 PASS. `go mod verify` über RTK mit task-eigenem Offline-Modulcache: PASS. Hostkommandos und Nicht-Null-Exits bleiben in der jeweiligen Batch-runs.json; sie werden nicht zu PASS normalisiert.
 
 ## Security-Auswirkung
 
+Die CI-Korrektur schließt unbegrenzte CLI-/JSON-Dateizugriffe in den Envoy-Evidenzlesern. Erlaubte Roots werden vor dem Dateizugriff geprüft; Verzeichnisdeskriptoren, O_NOFOLLOW, Eigentümer-/Rechteprüfung, Bytegrenzen und stabile Dateiidentität schützen das Lesen. Ausgaben werden privat und exklusiv erzeugt; Git-Metadatenargumente erfordern exakte SHAs und festen Umfang. Alle 119 Kontrollen bestehen. Der neue Leser ist in frisch reproduzierten, einzeln freigegebenen Paketen hashgebunden; alte Pakete und rohe Hostläufe bleiben erhalten. Eine neue Sonar-Analyse des neuen Heads steht aus; Regeln, Ausschlüsse, Befunddispositionen und Quality Gate bleiben unverändert.
+
+
 Synthetische Unit-Fixtures verwenden unabhängig abgegrenzten Temporärspeicher,
 damit Hosted-Runner-Pfade die Capture-Wurzel dieses Rechners nicht voraussetzen.
-Drei Kontrollen vor der Korrektur scheitern bei fehlender Wurzel; alle 95
-aktuellen Kontrollen bestehen mit fehlenden Produktionswurzeln und in der
+Drei Kontrollen vor der Korrektur scheitern bei fehlender Wurzel; alle 95 ursprünglichen
+Portabilitätskontrollen bestehen mit fehlenden Produktionswurzeln und in der
 normalen Umgebung. Echte Capture-Containment- und Listener-/Privilegienprüfungen
 bleiben unverändert. Receipts: `ci-portability-before.json`,
 `ci-portability-controls.json`, `final-envoy-controls-portable.json`.
