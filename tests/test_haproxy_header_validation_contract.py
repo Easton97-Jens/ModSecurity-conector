@@ -35,6 +35,7 @@ static int request_case(const haproxy_modsecurity_header *headers,
     char error[128];
     memset(&source, 0, sizeof(source));
     source.method = "GET";
+    source.http_version = "1.1";
     source.uri = "/";
     source.client_ip = "192.0.2.10";
     source.client_port = 12345;
@@ -73,6 +74,7 @@ static int endpoint_case(const char *client_ip, const char *server_ip,
 
     memset(&source, 0, sizeof(source));
     source.method = "GET";
+    source.http_version = "1.1";
     source.uri = "/";
     source.client_ip = client_ip;
     source.client_port = 12345;

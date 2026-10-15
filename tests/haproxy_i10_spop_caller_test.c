@@ -6,6 +6,87 @@ extern const char *native_failure;
 extern int native_failure_result;
 extern unsigned int native_calls;
 extern unsigned int native_cleanups;
+/* Semantic regression: this production caller must finish a finite request
+ * authorization without inventing response phases. The HTTP version check
+ * observes the native API boundary independently of the ACK decision. */
+extern char native_http_version[16];
+static void check_request_authorization(agent_state *state, int version_only) {
+  notify_request request = {0};
+  runtime_header headers[] = {{"Host", "example.test"}, {"Content-Length", "0"}};
+  copy_cstring(request.client_ip, sizeof(request.client_ip), "192.0.2.1");
+  copy_cstring(request.server_ip, sizeof(request.server_ip), "198.51.100.1");
+  copy_cstring(request.method, sizeof(request.method), "GET");
+  copy_cstring(request.uri, sizeof(request.uri), "/");
+  copy_cstring(request.request_id, sizeof(request.request_id), "request-authorization");
+  request.client_port = 1234; request.server_port = 443;
+  request.has_client_ip = request.has_server_ip = 1;
+  request.has_client_port = request.has_server_port = 1;
+  request.headers = headers; request.header_count = 2;
+  request.has_body = request.has_body_len_arg = request.has_headers_text = 1;
+  request.http_metadata.has_http_version = 1;
+  copy_cstring(request.http_metadata.http_version,
+      sizeof(request.http_metadata.http_version), version_only ? "2.0" : "1.1");
+  haproxy_modsecurity_decision decision;
+  int processed = 0;
+  spop_ack_decision_origin origin = SPOP_ACK_FAILURE_DECISION;
+  const char *text = "pass";
+  char handle[HAPROXY_SPOP_RESPONSE_COMPANION_HANDLE_STORAGE] = {0};
+  unsigned int before = native_cleanups;
+  native_failure = NULL;
+  process_production_request_notify(state, &request, &decision, &processed,
+      &origin, &text, handle);
+  if (version_only) {
+    assert(strcmp(native_http_version, "2.0") == 0);
+  } else {
+    assert(processed == 1 && origin == SPOP_ACK_ENGINE_DECISION);
+    assert(!decision.disruptive && decision.status == 200);
+    assert(native_cleanups == before + 1);
+    assert(handle[0] == '\0');
+  }
+}
+static void check_version_admission(agent_state *state) {
+  runtime_header headers[] = {{"Host", "example.test"}, {"Content-Length", "0"}};
+  const char *versions[] = {NULL, "0.9", "3.0", "9.9"};
+  for (size_t i = 0; i < sizeof(versions) / sizeof(versions[0]); ++i) {
+    notify_request r = {0};
+    r.has_client_ip = r.has_server_ip = r.has_client_port = r.has_server_port = 1;
+    r.client_port = 1234; r.server_port = 443;
+    strcpy(r.client_ip, "192.0.2.1"); strcpy(r.server_ip, "198.51.100.1");
+    strcpy(r.method, "GET"); strcpy(r.uri, "/"); strcpy(r.request_id, "version-reject");
+    r.headers = headers; r.header_count = 2;
+    r.has_body = r.has_body_len_arg = r.has_headers_text = 1;
+    if (versions[i]) { r.http_metadata.has_http_version = 1; strcpy(r.http_metadata.http_version, versions[i]); }
+    haproxy_modsecurity_decision d;
+    int processed = 0;
+    spop_ack_decision_origin origin = SPOP_ACK_FAILURE_DECISION;
+    const char *text = "pass";
+    char handle[HAPROXY_SPOP_RESPONSE_COMPANION_HANDLE_STORAGE] = {0};
+    unsigned int calls = native_calls, cleanups = native_cleanups;
+    process_production_request_notify(state, &r, &d, &processed, &origin, &text, handle);
+    assert(d.disruptive && d.status == 503 && processed == 0);
+    assert(origin == SPOP_ACK_FAILURE_DECISION);
+    assert(native_calls == calls && native_cleanups == cleanups);
+    haproxy_modsecurity_request mapped;
+    haproxy_modsecurity_transaction *tx = NULL;
+    build_modsecurity_request_from_notify(&r, NULL, &mapped);
+    assert(haproxy_modsecurity_transaction_begin_request_authorization(
+        state->engine, &mapped, &d, &tx) != 0);
+    assert(tx == NULL && native_calls == calls && native_cleanups == cleanups);
+  }
+  /* Two declared versions are contradictory even when one is otherwise valid.
+   * Reject identical duplicates too; no last-value-wins normalization. */
+  for (int conflict = 0; conflict < 2; ++conflict) {
+    spop_buffer frame = {0};
+    notify_request r = {0};
+    size_t pos = 0;
+    assert(append_string(&frame, "http_version") == 0);
+    assert(append_typed_string(&frame, "1.1") == 0);
+    assert(append_string(&frame, "http_version") == 0);
+    assert(append_typed_string(&frame, conflict ? "2.0" : "1.1") == 0);
+    assert(parse_notify_arguments(frame.data, frame.len, &pos, &r, 2U) != 0);
+    free_notify_request(&r);
+  }
+}
 static void check_request_failure(agent_state *state, size_t failure,
                                   const char *failure_name) {
   haproxy_modsecurity_decision d;
@@ -30,6 +111,8 @@ static void check_request_failure(agent_state *state, size_t failure,
   request.has_body_len_arg = 1;
   request.has_headers_text = 1;
   request.http_metadata.advertised_body_len = 1;
+  request.http_metadata.has_http_version = 1;
+  strcpy(request.http_metadata.http_version, "1.1");
   unsigned char body[] = "x";
   request.body = body;
   request.body_len = 1;
@@ -62,6 +145,7 @@ static void check_missing_companion(agent_state *state) {
   haproxy_modsecurity_request terminal_request = {0};
   haproxy_modsecurity_header terminal_headers[] = {{"Host", "example.test"}};
   terminal_request.method = "GET";
+  terminal_request.http_version = "1.1";
   terminal_request.uri = "/";
   terminal_request.client_ip = "192.0.2.1";
   terminal_request.server_ip = "198.51.100.1";
@@ -86,6 +170,7 @@ static void check_owner_failure(agent_state *state, int operation) {
   haproxy_modsecurity_request r = {0};
   haproxy_modsecurity_header h[] = {{"Host", "example.test"}};
   r.method = "GET";
+  r.http_version = "1.1";
   r.uri = "/";
   r.client_ip = "192.0.2.1";
   r.server_ip = "198.51.100.1";
@@ -160,7 +245,7 @@ static void check_owner_failure(agent_state *state, int operation) {
   else
     haproxy_modsecurity_transaction_abort(t);
 }
-static void check_mode(const char *mode, const char *fail_mode, int enforces) {
+static void check_mode(const char *mode, const char *fail_mode, int enforces, const char *only) {
   agent_state state;
   memset(&state, 0, sizeof(state));
   copy_cstring(state.config.mode, sizeof(state.config.mode), mode);
@@ -175,10 +260,16 @@ static void check_mode(const char *mode, const char *fail_mode, int enforces) {
   cfg.rules_file = "PRODUCT_RULES";
   haproxy_modsecurity_decision d;
   assert(haproxy_modsecurity_engine_create(&cfg, &state.engine, &d) == 0);
+  if (only != NULL) {
+    if (strcmp(only, "invalid-version") == 0) check_version_admission(&state);
+    else check_request_authorization(&state, strcmp(only, "http-version") == 0);
+    haproxy_modsecurity_engine_destroy(state.engine);
+    return;
+  }
   const char *failures[] = {
       "msc_process_connection", "msc_process_request_headers",
-      "msc_append_request_body", "msc_process_request_body"};
-  for (size_t failure = 0; failure < 4; failure++)
+      "msc_append_request_body", "msc_process_request_body", "msc_process_logging"};
+  for (size_t failure = 0; failure < 5; failure++)
     check_request_failure(&state, failure, failures[failure]);
   check_missing_companion(&state);
   for (int operation = 0; operation < 6; operation++)
@@ -235,7 +326,7 @@ int main(int argc, char **argv) {
   const char *fail_modes[] = {"closed", "open"};
   for (size_t mode = 0; mode < 2; mode++) {
     for (size_t fail_mode = 0; fail_mode < 2; fail_mode++)
-      check_mode(modes[mode], fail_modes[fail_mode], mode != 0);
+      check_mode(modes[mode], fail_modes[fail_mode], mode != 0, argc == 2 ? argv[1] : NULL);
   }
   puts("full SPOP request TU: P1/P2 native failure -> disruptive503 -> "
        "serialized blocked ACK; detect/enforce x open/closed; cleanup and "
