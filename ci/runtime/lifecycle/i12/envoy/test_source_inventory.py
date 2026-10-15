@@ -1,0 +1,74 @@
+"""Mutation controls for sources outside the capture overlay list."""
+import io
+import json
+import os
+from pathlib import Path
+import tarfile
+import tempfile
+import unittest
+
+import source_inventory as inventory
+
+
+class CompleteSourceControls(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(dir=os.environ.get('TMPDIR', '/var/tmp/codex/ModSecurity-conector'))
+        self.root = Path(self.temporary.name)
+        self.source = self.root / 'source'
+        self.source.mkdir()
+        original = {'ci/runtime/lifecycle/i12/manifest.json': json.dumps({'delivery_product_baseline': 'a' * 40}).encode(),
+                    'common/runtime/msconnector_runtime.c': b'compiled original source'}
+        output = io.BytesIO()
+        with tarfile.open(fileobj=output, mode='w') as stream:
+            for name, body in original.items():
+                item = tarfile.TarInfo(name)
+                item.size = len(body)
+                stream.addfile(item, io.BytesIO(body))
+                path = self.source / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(body)
+        (self.root / 'native-build').mkdir()
+        (self.root / 'native-build/source-archive.stdout').write_bytes(output.getvalue())
+        self.proof = {'source_copy': str(self.source), 'actual_source_commit': 'b' * 40,
+            'checks': [{'label': 'source-archive', 'exit_code': 0,
+                        'argv': ['rtk', 'proxy', 'git', 'archive', '--format=tar', 'b' * 40],
+                        'stdout_sha256': inventory.digest(output.getvalue())}],
+            'capture_application': {'exact_written_sha256': {}}}
+        (self.source / '.i12-disposable-source-copy.json').write_text(json.dumps({
+            'format': 'i12-disposable-source-copy-v1', 'path': str(self.source),
+            'disposable': True, 'parent_sha': 'a' * 40}))
+        (self.source / 'i12-source-application-receipt.json').write_text(
+            json.dumps(self.proof['capture_application'], indent=2) + '\n')
+
+    def tearDown(self):
+        self.temporary.cleanup()
+
+    def test_unoverlaid_compiled_source_mutation_is_rejected(self):
+        self.assertEqual(len(inventory.verify(self.source, self.proof)), 4)
+        path = self.source / 'common/runtime/msconnector_runtime.c'
+        path.write_bytes(b'different compiled source')
+        with self.assertRaisesRegex(ValueError, 'msconnector_runtime.c'):
+            inventory.verify(self.source, self.proof)
+
+    def test_injected_missing_and_hardlinked_inputs_are_rejected(self):
+        extra = self.source / 'injected.c'
+        extra.write_bytes(b'extra compilation unit')
+        with self.assertRaises(ValueError): inventory.verify(self.source, self.proof)
+        extra.unlink()
+        path = self.source / 'common/runtime/msconnector_runtime.c'
+        extra.hardlink_to(path)
+        with self.assertRaisesRegex(ValueError, 'hard-linked'): inventory.verify(self.source, self.proof)
+        extra.unlink()
+        path.unlink()
+        with self.assertRaises(ValueError): inventory.verify(self.source, self.proof)
+
+    def test_archive_hash_or_revision_substitution_is_rejected(self):
+        self.proof['actual_source_commit'] = 'c' * 40
+        with self.assertRaisesRegex(ValueError, 'Git archive'): inventory.verify(self.source, self.proof)
+        self.proof['actual_source_commit'] = 'b' * 40
+        (self.root / 'native-build/source-archive.stdout').write_bytes(b'substituted')
+        with self.assertRaisesRegex(ValueError, 'Git archive'): inventory.verify(self.source, self.proof)
+
+
+if __name__ == '__main__':
+    unittest.main()
