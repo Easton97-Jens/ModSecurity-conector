@@ -13,9 +13,11 @@ Collector-, Client- und Backenddateien liegen einmal vor. Nahe Varianten sind
 exakte Unified-Deltas gegen gemeinsame Objekte. Aktuelle
 `native-lifecycle-observer.c`, Header und SDK-Accessor bleiben Repository-Verweise;
 historische C52/H5-, C270/H5- und Ca4/H581-Varianten sind hashgebundene Deltas ohne
-kopierte Beobachterbäume. Die tatsächliche gemeinsame Basis ist C `ad8e5e36…`,
-H `f9f63b62…`, SDK-Accessor `89ff282b…`; vollständige Hashes stehen im Manifest.
-Produktbytes binden an `8cc32dceb06121f589150a9794f28878c5e4ba2a`. Historische,
+kopierte Beobachterbäume. Die aktuelle gemeinsame Basis ist C `0d903fc5…`,
+H `5b7d8fa7…`, SDK-Accessor `89ff282b…`; vollständige Hashes stehen im Manifest.
+Historische Profileingabehashes binden an
+`8cc32dceb06121f589150a9794f28878c5e4ba2a`; die unten beschriebene
+Revisionsbindung aktueller Kopien bleibt davon getrennt. Historische,
 im jeweiligen Umfang bytegleiche Revisionen und unterschiedliche Beobachter-ABIs
 bleiben ausdrücklich erhalten.
 Gespeicherte Deltas nutzen null Kontextzeilen; vollständige Basis- und
@@ -87,6 +89,69 @@ Marker, geänderte Basen oder Deltas, Git-Checkouts/-Metadaten, Symlinks, Hardli
 Pfadausbrüche und vorhandene Capture-Ziele werden abgelehnt. Git-Metadaten der
 ausdrücklich festgelegten externen **Speichersteuerung** liegen außerhalb des
 wegwerfbaren Teilbaums; sie erlauben keinen darin verschachtelten Checkout.
+
+## Aktuelle Revision und vollständiges Exportinventar
+
+Der v1-Marker und seine feste historische Eingabebasis bleiben unverändert
+unterstützt. Aktuelle Quellkopien verwenden **v2**. Eine aktuelle Revision darf
+niemals als diese historische Basis bezeichnet werden. Der vertrauenswürdige
+Quellproduzent exportiert den vollständigen committeten Parent-Baum mit
+`git archive` und erfasst mit `git ls-tree` Dateimodi, Baumidentität und
+Gitlink-Revisionen. Gitlink-Inhalte sind ausgeschlossen. Der Produzent bindet
+Git-Befehle und exakte Revision unabhängig; allein 40 Hexzeichen im Marker
+belegen dem Capture-Werkzeug keine authentische Commitzuordnung.
+
+Der v2-Marker enthält genau folgende Felder:
+
+```json
+{
+  "format": "i12-disposable-source-copy-v2",
+  "path": "/var/tmp/codex/ModSecurity-conector/disposable-current-copy",
+  "disposable": true,
+  "source_revision": "ad510c3b4168ff0e11fc36803e2ce4127a0689ad",
+  "snapshot_manifest": ".i12-source-export-manifest.json",
+  "snapshot_manifest_sha256": "<complete lowercase SHA256 of the frozen inventory>"
+}
+```
+
+Beispielpfad/-revision und SHA256-Platzhalter durch die tatsächlich gebundenen
+Produzentenwerte ersetzen. `.i12-source-export-manifest.json` enthält genau
+`format` (`i12-source-export-manifest-v1`), `source_revision` (gleich dem Marker),
+`git_tree` (vollständige Git-Baumidentität aus 40 kleinen Hexzeichen), `files`
+und `gitlinks`. `files` ordnet **jeder** exportierten regulären Parent-Datei genau
+`{"mode": 420, "sha256": "<complete lowercase SHA256>"}` zu; ausführbare
+Git-Dateien nutzen Modus 493 statt 420. Der Dateihash bindet alle Bytes, auch
+binäre Fixtures. `gitlinks` ordnet jedem exportierten Gitlink-Pfad seine
+vollständige Revision aus 40 Hexzeichen zu; fehlende oder leere
+Gitlink-Verzeichnisse sind erlaubt, ihre Inhalte nicht. Beide Zuordnungen nutzen
+begrenzte relative Pfade ohne Git-Metadaten oder Pfadausbrüche.
+
+Nur Marker und Inventar selbst sind vom vollständigen Dateiinventar ausgenommen.
+Doppelte Felder, unbekannte Schemafelder, abweichende Revisionen/Hashes, fehlende
+oder zusätzliche Dateien/Verzeichnisse, falsche Dateimodi, Links, spezielle
+Dateisystemobjekte und Gitlink-Inhalte werden vor Capture-Schreibzugriffen
+abgelehnt. Jeder gewählte Profilwert `before_sha256` wird weiterhin unabhängig
+geprüft; ein gültiger neuer Snapshot erlaubt keine geänderte Capture-Basis.
+Die Prüfung liest sämtliche Inventardateien und lehnt Änderungen während der
+Hashberechnung ab. Das vollständige eingefrorene Inventar bleibt nach der
+Quellanwendung erhalten und beschreibt die Quelle **vor Capture**, keine
+Buildausgaben. Nach Capture in einem getrennten Verzeichnis bauen; eine benutzte
+Kopie kann nicht erneut als unberührter Export eingereicht werden.
+
+Der Anwendungsbeleg erfasst `source_revision`, `source_git_tree`, Inventar-SHA256,
+Dateizahl und Gitlink-Metadaten getrennt von `delivery_product_baseline`. Ein
+aktueller Build erhält dadurch keine historische Basisidentität. Beleg, Inventar,
+Produzentenbefehle und Quellhashes zusammen mit Instrumentierungsdelta und
+Build-/Ladenachweisen aufbewahren. Inventar und Beleg beweisen ausschließlich die
+Quellanwendung, keinen vollständigen Build, keine geladene Modulidentität und
+keine abgenommene Hosttransaktion.
+
+Der aktuelle gemeinsame Beobachter übernimmt die `char *`- oder
+`const char *`-Qualifikation des gewählten öffentlichen SDK-Konstruktors, ohne
+Compilerwarnungen zu entfernen. Historische `ad8e5e36…`-/`f9f63b62…`-Objekte bleiben
+exakte Rückwärtsdeltas der aktuellen Repository-Bytes. Alle bisherigen Profil-
+und Objektergebnishashes bleiben unverändert; native ABI-Varianten benötigen
+weiterhin ihre eigene vollständige Buildbindung.
 
 ## Build-, ABI- und Evidenzgrenzen
 

@@ -322,6 +322,10 @@ int msconnector_transaction_contract_claim_response_companion(
 int msconnector_transaction_contract_fail(msconnector_transaction_contract *contract,
     msconnector_transaction_error_class error_class,
     uint64_t now_ms);
+/* Finish a predeclared finite request-authorization scope (direct P1/P2,
+ * no response companion). Does not synthesize P3/P4 or relax finish(). */
+int msconnector_transaction_contract_finish_request_authorization(
+    msconnector_transaction_contract *contract, uint64_t now_ms);
 int msconnector_transaction_contract_finish(msconnector_transaction_contract *contract,
     uint64_t now_ms);
 /* An incomplete non-terminal lifecycle first becomes a terminal

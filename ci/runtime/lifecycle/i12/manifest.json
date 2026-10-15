@@ -4,18 +4,22 @@
   "delivery_product_baseline": "8cc32dceb06121f589150a9794f28878c5e4ba2a",
   "authorized_storage_root": "/var/tmp/codex/ModSecurity-conector",
   "shared_observer_repository": {
-    "native-lifecycle-observer.c": "ad8e5e36a17e746cf202c685dbb529fc09717f5c25441b713fa369420aa55ac6",
-    "native-lifecycle-observer.h": "f9f63b62ba8efc555dc20e673cc02251d5ab6c2ab17d8f5efa760d0d97146dcd",
+    "native-lifecycle-observer.c": "0d903fc5e6432769a136931b7ebea16a6f87db941d28d23583ccccf4c75e6537",
+    "native-lifecycle-observer.h": "5b7d8fa7c327017cafb05b1e932f70eefe8641797751a0dc19df0337f4893b1b",
     "native-lifecycle-sdk.cpp": "89ff282b7287ab30a4194bc06c04835f104b8037442e89b35a68fd1253dcfcfc"
   },
   "objects": {
     "ad8e5e36a17e746cf202c685dbb529fc09717f5c25441b713fa369420aa55ac6": {
-      "kind": "repository",
-      "path": "ci/runtime/lifecycle/native-lifecycle-observer.c"
+      "kind": "delta",
+      "base": "0d903fc5e6432769a136931b7ebea16a6f87db941d28d23583ccccf4c75e6537",
+      "patch": "objects/deltas/ad8e5e36a17e746cf202c685dbb529fc09717f5c25441b713fa369420aa55ac6-from-0d903fc5e643.patch",
+      "patch_sha256": "e5e6eddfc223df14c41e75c954b10a83c1d47c1a76947e1dfcbc240c4c07ede7"
     },
     "f9f63b62ba8efc555dc20e673cc02251d5ab6c2ab17d8f5efa760d0d97146dcd": {
-      "kind": "repository",
-      "path": "ci/runtime/lifecycle/native-lifecycle-observer.h"
+      "kind": "delta",
+      "base": "5b7d8fa7c327017cafb05b1e932f70eefe8641797751a0dc19df0337f4893b1b",
+      "patch": "objects/deltas/f9f63b62ba8efc555dc20e673cc02251d5ab6c2ab17d8f5efa760d0d97146dcd-from-5b7d8fa7c327.patch",
+      "patch_sha256": "8331e35a09fb106730ddf657670273e6f7d4dc565ef4be4b807300e413239f66"
     },
     "89ff282b7287ab30a4194bc06c04835f104b8037442e89b35a68fd1253dcfcfc": {
       "kind": "repository",
@@ -698,6 +702,28 @@
       "base": "d9029dce4e013c34252b3b77f2311e278cf8add2c301650d2dc0434bae5ea726",
       "patch": "objects/deltas/a6afc40d6889dd7b8ce0fbad4ae2d3ad57e25ae8031980790945532afc82f57b-processor.go.patch",
       "patch_sha256": "a6afc40d6889dd7b8ce0fbad4ae2d3ad57e25ae8031980790945532afc82f57b"
+    },
+    "0d903fc5e6432769a136931b7ebea16a6f87db941d28d23583ccccf4c75e6537": {
+      "kind": "repository",
+      "path": "ci/runtime/lifecycle/native-lifecycle-observer.c"
+    },
+    "5b7d8fa7c327017cafb05b1e932f70eefe8641797751a0dc19df0337f4893b1b": {
+      "kind": "repository",
+      "path": "ci/runtime/lifecycle/native-lifecycle-observer.h"
+    },
+    "76d5319b726a8fdba12b01ccc946aac80e8442f72ad4e262ff314f3f1db838b8": {
+      "kind": "text",
+      "file": "objects/text/76d5319b726a8fdba12b01ccc946aac80e8442f72ad4e262ff314f3f1db838b8-private-runtime-v5.py"
+    },
+    "0fb071b6a993734fb35afa5f52f0be01c0c499eebccc335eca8a835df220ce7e": {
+      "kind": "delta",
+      "base": "76d5319b726a8fdba12b01ccc946aac80e8442f72ad4e262ff314f3f1db838b8",
+      "patch": "objects/deltas/1425ad8e83b59f65499420886b8cd6ecb22879461e8c2e5c038ad5fb4c5f169a-private-runtime-v5.py.patch",
+      "patch_sha256": "1425ad8e83b59f65499420886b8cd6ecb22879461e8c2e5c038ad5fb4c5f169a"
+    },
+    "99d9206e12afcc7bea684da1a6d6fc08a32be282984d81300476312c875f230f": {
+      "kind": "text",
+      "file": "objects/text/99d9206e12afcc7bea684da1a6d6fc08a32be282984d81300476312c875f230f-candidate-admission-v5.py"
     }
   },
   "profiles": {
@@ -1673,6 +1699,14 @@
         },
         "helpers/native-fixture-control.c": {
           "sha256": "a9685aeb63fc6c5faf67db43501f16ff89d0021a32a52450ed629a046003c7ce",
+          "mode": 420
+        },
+        "controller/private-runtime-v5.py": {
+          "sha256": "0fb071b6a993734fb35afa5f52f0be01c0c499eebccc335eca8a835df220ce7e",
+          "mode": 420
+        },
+        "controller/candidate-admission-v5.py": {
+          "sha256": "99d9206e12afcc7bea684da1a6d6fc08a32be282984d81300476312c875f230f",
           "mode": 420
         }
       },
