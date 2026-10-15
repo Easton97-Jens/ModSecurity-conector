@@ -44,9 +44,11 @@
 #define HAPROXY_MODSECURITY_HTX_MAX_PROTOCOL_BYTES 32U
 #define CF_ISRESP 1U
 #define SF_ERR_KILLED 9U
+#define SC_FL_NOLINGER 4U
 struct channel {
   unsigned int flags;
   int buf;
+  size_t output;
 };
 struct htx {
   int unused;
@@ -64,10 +66,16 @@ struct http_msg {
 struct http_txn {
   short status;
 };
+struct stconn { unsigned int flags, aborts, shutdowns; };
 struct stream {
   struct http_txn *txn;
   unsigned int replies;
   unsigned int kills;
+  unsigned int stream_aborts;
+  struct channel res;
+  struct stconn frontend;
+  struct stconn *scf;
+  size_t delivered_bytes;
 };
 struct filter {
   void *ctx;
@@ -94,6 +102,7 @@ static int fixture_haproxy_modsecurity_error_event_write(
 }
 /* PRODUCT_STRUCTS */
 static int native_result;
+static int native_disruptive;
 static int common_result;
 static int finish_result;
 static int commit_result;
@@ -127,6 +136,14 @@ static void http_reply_and_close(struct stream *s, short status, void *reply) {
   assert(status == s->txn->status);
   s->replies++;
 }
+void channel_htx_erase(struct channel *channel, struct htx *htx) {
+  (void)htx;
+  channel->output = 0;
+  channel->buf = 0;
+}
+void stream_abort(struct stream *s) { s->stream_aborts++; }
+void sc_abort(struct stconn *sc) { sc->aborts++; }
+void sc_shutdown(struct stconn *sc) { sc->shutdowns++; }
 static void stream_shutdown(struct stream *s, unsigned int reason) {
   assert(reason == SF_ERR_KILLED);
   s->kills++;
@@ -181,6 +198,8 @@ static int fixture_haproxy_modsecurity_transaction_finish_response_body(
     const haproxy_modsecurity_transaction *t, haproxy_modsecurity_decision *d) {
   (void)t;
   memset(d, 0, sizeof(*d));
+  d->disruptive = native_disruptive;
+  d->status = native_disruptive ? 403 : 200;
   finish_calls++;
   return native_result;
 }
@@ -410,6 +429,12 @@ static void reset(struct haproxy_modsecurity_htx_filter_context *c,
   s->txn->status = 200;
   s->replies = 0;
   s->kills = 0;
+  s->stream_aborts = 0;
+  s->res.output = 0;
+  s->delivered_bytes = 0;
+  memset(&s->frontend, 0, sizeof(s->frontend));
+  s->scf = &s->frontend;
+  native_disruptive = 0;
   native_result = 1;
   common_result = 1;
   finish_result = 0;
@@ -555,7 +580,7 @@ static void check_invalid(struct fixture_environment *e, int invalid_result) {
   e->c.companion.mode = 1;
   e->c.transaction = NULL;
   release_result = invalid_result;
-  assert(haproxy_modsecurity_htx_filter_http_end(&e->s, &e->f, &e->res) == 1);
+  assert(haproxy_modsecurity_htx_filter_http_end(&e->s, &e->f, &e->res) == -1);
   assert(e->s.kills == 1 && e->s.replies == 0 && release_calls == 1 &&
          close_calls == 1 && outcome_calls == 0);
   assert(haproxy_modsecurity_htx_filter_http_end(&e->s, &e->f, &e->res) == -1);
@@ -658,7 +683,62 @@ static void check_eos(struct fixture_environment *e) {
   assert(e->s.kills == 0 && e->s.replies == 0 && eos_calls == 1 &&
          release_calls == 1);
 }
+static void check_strict_queued_response(struct fixture_environment *e) {
+  const size_t queued[] = {0, 33, 65537};
+  for (int companion = 0; companion < 2; companion++) {
+    for (size_t n = 0; n < sizeof(queued) / sizeof(queued[0]); n++) {
+      for (int committed = 0; committed < 2; committed++) {
+        for (int strict = 0; strict < 2; strict++) {
+          reset(&e->c, &e->s);
+          e->config.common_config.phase4_mode = strict ? MSCONNECTOR_PHASE4_MODE_STRICT : MSCONNECTOR_PHASE4_MODE_SAFE;
+          e->c.companion.mode = companion;
+          if (companion) e->c.transaction = NULL;
+          e->c.response.headers_committed = 1;
+          e->s.res.output = queued[n];
+          e->s.delivered_bytes = committed ? 177 : 0;
+          native_result = 0;
+          native_disruptive = 1;
+          decision_kind = MSCONNECTOR_DECISION_KIND_DENY;
+          int result = haproxy_modsecurity_htx_filter_http_end(&e->s, &e->f, &e->res);
+          assert(e->s.delivered_bytes == (committed ? 177U : 0U));
+          if (strict) {
+            /* Positive http_end lets HAProxy advance/forward queued output. */
+            assert(result == -1);
+            assert(e->s.res.output == 0 && e->s.stream_aborts == 1);
+            assert(e->s.frontend.aborts == 1 && e->s.frontend.shutdowns == 1);
+            assert(e->s.frontend.flags & SC_FL_NOLINGER);
+            assert(outcome_calls == 0); /* shutdown is not invented wire observation */
+            int terminal_calls = abort_calls + release_calls;
+            assert(haproxy_modsecurity_htx_filter_http_end(&e->s, &e->f, &e->res) == -1);
+            assert(abort_calls + release_calls == terminal_calls);
+          } else {
+            assert(result == 1 && e->s.res.output == queued[n]);
+            assert(e->s.stream_aborts == 0);
+            assert(e->s.frontend.aborts == 0 && e->s.frontend.shutdowns == 0);
+          }
+          assert(e->neighbour.kills == 0 && e->neighbour.replies == 0);
+        }
+      }
+    }
+  }
+}
+static void check_request_version(void) {
+  char version[4];
+  const char *valid[] = {"HTTP/1.0", "HTTP/1.1", "HTTP/2.0"};
+  const char *invalid[] = {"", "HTTP/2", "HTTP/3.0", "HTTP/1.9", "http/1.1", "HTTP/1.1x"};
+  for (size_t i = 0; i < sizeof(valid) / sizeof(valid[0]); ++i) {
+    assert(haproxy_modsecurity_htx_request_version((struct ist){(char *)valid[i], strlen(valid[i])}, version) == 0);
+    assert(strcmp(version, valid[i] + 5) == 0);
+  }
+  for (size_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); ++i) {
+    assert(haproxy_modsecurity_htx_request_version((struct ist){(char *)invalid[i], strlen(invalid[i])}, version) == -1);
+    assert(version[0] == 0);
+  }
+  assert(haproxy_modsecurity_htx_request_version((struct ist){NULL, 8}, version) == -1);
+}
+
 int main(void) {
+  check_request_version();
   struct fixture_environment e;
   const int modes[] = {MSCONNECTOR_PHASE4_MODE_OFF,
                        MSCONNECTOR_PHASE4_MODE_SAFE,
@@ -678,6 +758,7 @@ int main(void) {
     check_precommit(&e);
     check_eos(&e);
   }
+  check_strict_queued_response(&e);
   puts("HAProxy HTX direct/companion: Off/Safe/Strict config x pre/header/body "
        "x terminal reentry; native, commit, EOS, close, checked "
        "OPEN/CLAIM/RELEASE and nested success");

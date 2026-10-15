@@ -53,14 +53,38 @@ class ApacheNativeHeaderSemanticsTests(unittest.TestCase):
             return shlex.split(subprocess.run(
                 [apr, *arguments], check=True,
                 capture_output=True, text=True, timeout=10).stdout)
+        cls.include = Path(include)
         command = [*compiler, "-std=c17", "-Wall", "-Wextra", "-Werror",
                    "-I", include, *flags("--includes", "--cppflags", "--cflags"),
                    str(ROOT / "tests/apache_header_semantics_probe.c"), library,
                    "-Wl,-rpath," + str(Path(library).parent), *flags("--link-ld", "--libs"), "-ldl",
                    "-o", str(cls.binary)]
+        cls.compile_command = command
+        cls.work = Path(directory.name)
         completed = subprocess.run(command, capture_output=True, text=True, timeout=90)
         if completed.returncode:
             raise AssertionError("native header probe compile failed:\n" + completed.stderr)
+
+    def test_public_legacy_header_needs_no_cleanup_symbol(self):
+        # Compile the complete APR/native probe with the selected public header
+        # minus the newer optional helper declaration. This models the legacy
+        # API boundary; execution still uses the explicitly selected SDK image.
+        include = self.work / "legacy-public-headers" / "modsecurity"
+        include.mkdir(parents=True)
+        header = (self.include / "modsecurity/transaction.h").read_text()
+        declaration = "void msc_intervention_cleanup(ModSecurityIntervention *it);"
+        (include / "transaction.h").write_text(header.replace(declaration, ""))
+        command = list(self.compile_command)
+        command[1:1] = ["-I", str(include.parent)]
+        binary = self.work / "header-semantics-legacy"
+        command[command.index("-o") + 1] = str(binary)
+        result = subprocess.run(command, capture_output=True, text=True, timeout=90)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        observation = subprocess.run([str(binary), "raw", "original",
+            "X-No-Crs-Duplicate", "one", "X-No-Crs-Duplicate", "two"],
+            capture_output=True, text=True, timeout=10)
+        self.assertEqual(observation.returncode, 0, observation.stderr)
+        self.assertIn("matched=1\nstatus=451", observation.stdout)
 
     def observe(self, values, *, original=False, raw=False, mixed_case=False):
         command = [str(self.binary), "raw" if raw else "merge",
