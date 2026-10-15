@@ -13,8 +13,9 @@ from tests.c_source_contract import function_definition
 ROOT = Path(__file__).resolve().parents[1]
 OVERLAY = ROOT / "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c"
 FUNCTIONS = (
+    "request_version",
     "companion_cancel_cause_from_error", "companion_cancel_and_close", "abort_context", "finish_context", "error_phase", "report_error", "apply_precommit_deny",
-    "fail_closed_precommit", "fail_closed_postcommit", "fail_closed_request_phase",
+    "fail_closed_precommit", "abort_response_stream", "fail_closed_postcommit", "fail_closed_request_phase",
     "companion_result_is_forwardable", "companion_record_precommit_outcome", "companion_record_terminal_outcome",
     "companion_open_and_claim", "companion_commit", "process_companion_response_headers", "send_companion_response_chunk", "finish_companion_response",
     "handle_response_headers", "filter_request_payload", "filter_response_payload",
@@ -54,6 +55,8 @@ class HAProxyI10HostCallers(unittest.TestCase):
                        "-I", str(ROOT / "connectors/haproxy/src"),
                        str(harness), *(str(ROOT / "common/src" / s) for s in sources),
                        "-o", str(binary)]
+            if os.environ.get("HAPROXY_I10_SANITIZERS") == "1":
+                command[1:1] = ["-fsanitize=address,undefined", "-fno-omit-frame-pointer"]
             compiled = subprocess.run(command, capture_output=True, text=True)
             self.assertEqual(compiled.returncode, 0, compiled.stdout + compiled.stderr)
             return subprocess.run([str(binary)], capture_output=True, text=True, cwd=temp, timeout=30)
@@ -65,6 +68,10 @@ class HAProxyI10HostCallers(unittest.TestCase):
     def test_negative_controls_detect_actual_boundary_regressions(self):
         source = OVERLAY.read_text()
         mutations = {
+            "queued-response-not-purged": ("channel_htx_erase(&s->res, htxbuf(&s->res.buf));", "(void)s->res;"),
+            "stream-not-aborted": ("stream_abort(s);", "(void)s;"),
+            "frontend-not-shutdown": ("sc_shutdown(s->scf);", "(void)s->scf;"),
+            "strict-terminal-success": ("haproxy_modsecurity_htx_abort_response_stream(s);\n            unregister_data_filter(s, msg->chn, filter);\n            return -1;", "haproxy_modsecurity_htx_abort_response_stream(s);\n            unregister_data_filter(s, msg->chn, filter);\n            return 1;"),
             "normal-deny-fabricates-cancel": (
                 "if (ok == 1) {\n        memset(&result, 0, sizeof(result));",
                 "if (0) {\n        memset(&result, 0, sizeof(result));"),

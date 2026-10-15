@@ -1062,6 +1062,43 @@ int msconnector_transaction_contract_fail(msconnector_transaction_contract *cont
     return MSCONNECTOR_TRANSACTION_TRANSITION_OK;
 }
 
+static int contract_has_request_authorization_scope(
+    const msconnector_transaction_contract *contract) {
+    return contract->direct_phase_mask ==
+        (MSCONNECTOR_TRANSACTION_PHASE_MASK_P1 | MSCONNECTOR_TRANSACTION_PHASE_MASK_P2) &&
+        contract->companion_phase_mask == 0U;
+}
+
+int msconnector_transaction_contract_finish_request_authorization(
+    msconnector_transaction_contract *contract, uint64_t now_ms) {
+    if (!contract_is_initialized(contract)) {
+        return MSCONNECTOR_TRANSACTION_TRANSITION_INVALID;
+    }
+    if (contract_is_cleaned(contract)) {
+        return MSCONNECTOR_TRANSACTION_TRANSITION_AFTER_CLEANUP;
+    }
+    now_ms = contract_timestamp(contract, now_ms);
+    if (!contract_has_request_authorization_scope(contract) ||
+            contract->status == MSCONNECTOR_TRANSACTION_STATUS_HANDED_OFF ||
+            contract->response_committed) {
+        (void)msconnector_transaction_contract_fail(contract,
+            MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL, now_ms);
+        return MSCONNECTOR_TRANSACTION_TRANSITION_SKIPPED_PHASE;
+    }
+    if (contract->status == MSCONNECTOR_TRANSACTION_STATUS_TERMINAL) {
+        return MSCONNECTOR_TRANSACTION_TRANSITION_OK;
+    }
+    if (contract->active_phase >= 0 || contract->completed_phase_mask !=
+            (MSCONNECTOR_TRANSACTION_PHASE_MASK_P1 | MSCONNECTOR_TRANSACTION_PHASE_MASK_P2)) {
+        (void)msconnector_transaction_contract_fail(contract,
+            MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE, now_ms);
+        return MSCONNECTOR_TRANSACTION_TRANSITION_SKIPPED_PHASE;
+    }
+    contract->status = MSCONNECTOR_TRANSACTION_STATUS_COMPLETED;
+    contract->completed_at_ms = now_ms;
+    return MSCONNECTOR_TRANSACTION_TRANSITION_OK;
+}
+
 int msconnector_transaction_contract_finish(msconnector_transaction_contract *contract,
     uint64_t now_ms) {
     if (!contract_is_initialized(contract)) {
@@ -1102,7 +1139,11 @@ int msconnector_transaction_contract_cleanup(msconnector_transaction_contract *c
     }
     now_ms = contract_timestamp(contract, now_ms);
     incomplete = contract->status != MSCONNECTOR_TRANSACTION_STATUS_TERMINAL &&
-        contract->completed_phase_mask != MSCONNECTOR_TRANSACTION_PHASE_MASK_ALL;
+        contract->completed_phase_mask != MSCONNECTOR_TRANSACTION_PHASE_MASK_ALL &&
+        !(contract_has_request_authorization_scope(contract) &&
+          contract->status == MSCONNECTOR_TRANSACTION_STATUS_COMPLETED &&
+          contract->completed_phase_mask ==
+            (MSCONNECTOR_TRANSACTION_PHASE_MASK_P1 | MSCONNECTOR_TRANSACTION_PHASE_MASK_P2));
     if (incomplete) {
         /* Cleanup is a lifecycle boundary, not permission to discard an
          * incomplete transaction silently. Record the canonical terminal

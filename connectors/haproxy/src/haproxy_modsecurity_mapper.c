@@ -266,6 +266,13 @@ int haproxy_modsecurity_map_owned_request(
         return 0;
     }
     haproxy_modsecurity_mapped_request_init(out);
+    if (src->http_version == 0 ||
+            (strcmp(src->http_version, "1.0") != 0 &&
+             strcmp(src->http_version, "1.1") != 0 &&
+             strcmp(src->http_version, "2.0") != 0)) {
+        haproxy_mapper_error(error, error_len, "missing or unsupported request HTTP version");
+        return 0;
+    }
     if (haproxy_validate_source_headers(src->headers, src->header_count, 1,
             error, error_len) != 1) {
         return 0;
@@ -276,7 +283,7 @@ int haproxy_modsecurity_map_owned_request(
     }
     out->request.method = src->method;
     out->request.uri = src->uri;
-    out->request.http_version = "1.1";
+    out->request.http_version = src->http_version;
     out->request.client.address = src->client_ip;
     out->request.client.port = src->client_port;
     out->request.server.address = src->server_ip;
