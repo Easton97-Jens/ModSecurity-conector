@@ -71,7 +71,17 @@ Testname, Fixture, Kommandoargument oder erwartetes Artefakt aufnehmen.
 | \`make check-framework-fixture-syntax\` | Validiert Framework-Fixture-Syntax über das Root-Target; ein Syntax-/Contract-Check, kein Runtime-Ergebnis. |
 | \`make check-test-matrix\` | Prüft Konsistenz und Ownership-Grenzen der generierten Test-Matrix. |
 | \`make quick-check\` | Führt die fokussierten schnellen Repository-Contract-Checks aus. Erzeugt keine kanonische Runtime-Evidence. |
+| `make check-native-engine-body-inspection` | Führt echte libModSecurity-Request-/Response-Limits und Companion-C-Serialisierungs-/Phasenregressionen aus. Benötigt C17-Compiler, Header und Bibliothek; läuft auch im nativen Envoy-CI-Job. Komponentenergebnisse belegen keine echte Connector-Host-Evidence. |
 | \`make lint\` | Führt breite Syntax-, Contract-, Dokumentations- und Governance-Checks aus, einschließlich Root-Test-bezogener Contracts. |
+
+Die native Suite akzeptiert die bestehende SDK-Auswahl über
+`MODSECURITY_PREFIX`, `MODSECURITY_INCLUDE_DIR`, `MODSECURITY_LIB_FILE` und
+`MODSECURITY_LIB_DIR`; ungültige explizite Pfade scheitern vor der Kompilierung.
+Bei einer externen Bibliothek verwenden Executables deren Verzeichnis als
+Runtime-Suchpfad. Inspection-Fixtures setzen native Limits/Aktionen ausdrücklich.
+Verlustfreie Byte-Escapes müssen Phase und Eventintegrität erhalten;
+Escape-Feldüberlauf darf weder schreiben noch die Hashkette fortsetzen.
+Leichtgewichtige Eventprotokolltests behalten ihre getrennte Dependency-Grenze.
 
 Für Auswahl der Testebene und korrekte Ergebnisdarstellung [Testebenen](../docs/testing-and-evidence.de.md),
 [Core-Lifecycle-Testing](../docs/testing-and-evidence.de.md) und den

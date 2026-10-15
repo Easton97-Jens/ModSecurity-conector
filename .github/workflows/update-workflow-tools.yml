@@ -382,6 +382,7 @@ jobs:
             .github/workflows/protocol-contract.yml \
             .github/workflows/quick-framework-check.yml \
             .github/workflows/reusable-five-connectors-profile.yml \
+            .github/workflows/run-protected-nginx-exact-head.yml \
             .github/workflows/run-protected-nginx-root-broker.yml \
             .github/workflows/run-trusted-lighttpd-namespace-dispatch.yml \
             .github/workflows/test-apache.yml \
@@ -398,6 +399,7 @@ jobs:
             .github/workflows/update-python-version.yml \
             .github/workflows/update-submodules.yml \
             .github/workflows/update-workflow-tools.yml \
+            .github/workflows/validate-go-candidate.yml \
             .github/workflows/verified-report-governance.yml \
             docs/security/ci-security-tooling.md \
             docs/security/ci-security-tooling.de.md

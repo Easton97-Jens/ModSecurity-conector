@@ -107,10 +107,12 @@ require_file "$CONNECTOR_ROOT/common/src/header_validation_internal.h" "Common i
 cp "$CONNECTOR_ROOT/common/src/header_validation_internal.h" "$WORKTREE/src/header_validation_internal.h"
 require_file "$CONNECTOR_ROOT/common/runtime/response_companion_client.c" "Common MRC1 client source"
 require_file "$CONNECTOR_ROOT/common/runtime/response_companion_client.h" "Common MRC1 client header"
+require_file "$CONNECTOR_ROOT/common/runtime/response_companion_protocol.h" "Common MRC1 protocol helper header"
 require_file "$CONNECTOR_ROOT/common/runtime/response_companion_transport.h" "Common MRC1 transport contract header"
 require_file "$CONNECTOR_ROOT/common/runtime/msconnector_runtime.h" "Common runtime contract header"
 cp "$CONNECTOR_ROOT/common/runtime/response_companion_client.c" "$WORKTREE/src/msconnector_response_companion_client.c"
 cp "$CONNECTOR_ROOT/common/runtime/response_companion_client.h" "$WORKTREE/src/response_companion_client.h"
+cp "$CONNECTOR_ROOT/common/runtime/response_companion_protocol.h" "$WORKTREE/src/response_companion_protocol.h"
 cp "$CONNECTOR_ROOT/common/runtime/response_companion_transport.h" "$WORKTREE/src/response_companion_transport.h"
 cp "$CONNECTOR_ROOT/common/runtime/msconnector_runtime.h" "$WORKTREE/src/msconnector_runtime.h"
 

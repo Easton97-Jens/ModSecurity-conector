@@ -34,11 +34,22 @@ int msconnector_intervention_is_request_body_limit_rejection(
     return intervention != 0 &&
         intervention->disruptive != 0 &&
         phase == MSCONNECTOR_PHASE_REQUEST_BODY &&
-        intervention->status == 403 &&
+        (intervention->status == 403 || intervention->status == 413) &&
         intervention->redirect_url == 0 &&
         intervention->log_message != 0 &&
         strcmp(intervention->log_message,
             MSCONNECTOR_REQUEST_BODY_LIMIT_REJECTION_LOG) == 0;
+}
+
+int msconnector_intervention_is_response_body_limit_rejection(
+    enum msconnector_phase phase,
+    const msconnector_intervention *intervention) {
+    return intervention != 0 && intervention->disruptive != 0 &&
+        phase == MSCONNECTOR_PHASE_RESPONSE_BODY && intervention->status == 403 &&
+        !msconnector_intervention_has_redirect_url(intervention->redirect_url) &&
+        intervention->log_message != 0 &&
+        strcmp(intervention->log_message,
+            MSCONNECTOR_RESPONSE_BODY_LIMIT_REJECTION_LOG) == 0;
 }
 
 int msconnector_intervention_normalize_status(const char *redirect_url,

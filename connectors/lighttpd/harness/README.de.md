@@ -61,18 +61,15 @@ Lieferung in der Größe des zurückgehaltenen Bodys neu rahmt. Er verlangt
 außerdem `501` ohne neue Upstream-Verbindung für `Incremental`, konfigurierte
 `server.stream-request-body` und ausdrücklich aktivierte body-tragende
 `Upgrade`- plus `gw.upgrade-with-request-body`. Er ist nur Request-Body-P2-
-Evidence; er verlangt außerdem, dass Streaming mit
-`body_limit_action=process_partial` bereits beim Laden der Konfiguration vor
-einem Listener oder einer Upstream-Verbindung abgewiesen wird. Ein terminales
+Evidence. Ein terminales
 host-seitiges `501` nutzt ausschließlich einen Logging-Abschluss: Er zeichnet
 die Audit-Phase genau einmal auf, ohne Request-Body-EOS oder eine Phase-2-
 Entscheidung zu synthetisieren. Er fördert keine Claims zu Response-Body-P4,
 CRS, HTTP/2/HTTP/3, unbeschränktem Streaming oder Production-Readiness.
 
-Die Grenze für den zurückgehaltenen Body des Streaming-Profils ergibt sich aus
-seinem positiven Common-`request_body_limit` und dem ablehnenden Lesezyklus.
-Dieser Runner konfiguriert oder belegt keine unabhängige Host-Grenze durch
-`server.max-request-size`.
+Das Modul übergibt begrenzte Memory-/File-Bereiche an die native P2 ohne eigenes
+kumuliertes Limit. Dieser Runner konfiguriert oder belegt die unabhängige
+Host-Einstellung `server.max-request-size` nicht.
 
 ## Response-Body-Backend-Close-Profil
 

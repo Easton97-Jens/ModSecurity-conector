@@ -15,6 +15,7 @@
 #include "msconnector/error.h"
 #include "msconnector/request.h"
 #include "msconnector/request_mapper_contract.h"
+#include "fixtures/http_authorization_request_stream_stubs.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -36,10 +37,6 @@ struct msconnector_runtime {
     char integration_mode[sizeof(TEST_INTEGRATION_MODE)];
     const msconnector_transaction_profile *transaction_profile;
     int placeholder;
-};
-
-struct msconnector_runtime_transaction {
-    int finished;
 };
 
 static msconnector_runtime fake_runtime = {0};
@@ -217,13 +214,9 @@ void msconnector_runtime_request_contract(
     (void)runtime;
     msconnector_request_mapper_contract_init(contract);
     contract->max_header_count = 16U;
-    contract->max_body_bytes = 1024U;
+
 }
 
-size_t msconnector_runtime_request_body_limit(const msconnector_runtime *runtime) {
-    (void)runtime;
-    return 1024U;
-}
 
 size_t msconnector_runtime_total_header_limit(const msconnector_runtime *runtime) {
     (void)runtime;
@@ -235,7 +228,7 @@ size_t msconnector_runtime_header_count_limit(const msconnector_runtime *runtime
     return 16U;
 }
 
-int msconnector_runtime_transaction_begin(
+int msconnector_runtime_transaction_begin_request_stream(
     msconnector_runtime *runtime,
     const msconnector_request *request,
     const char *host_request_id,
@@ -534,6 +527,7 @@ static int deferred_cleanup_finished(void) {
 }
 
 int main(void) {
+    msconnector_test_request_stream_stubs_smoke();
     static const char request[] = "GET /ok HTTP/1.1\r\nHost: smoke.test\r\n"
         "Connection: close\r\n\r\n";
     char oversized_host_request[sizeof("GET /ok HTTP/1.1\r\nHost: ") - 1U + 1024U +

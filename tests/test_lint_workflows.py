@@ -8,9 +8,56 @@ import unittest
 from unittest.mock import patch
 
 from ci.tools import lint_workflows
+from ci.tools import lint_installed_workflows
 
 
 class LintWorkflowsTests(unittest.TestCase):
+    def test_local_installed_tool_preserves_sources_shellcheck_and_failure(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            paths = [Path(temporary) / name for name in ("caller.yml", "second.yaml")]
+            source = "jobs:\n  call:\n    uses: $/.github/workflows/reusable.yml\n"
+            for path in paths:
+                path.write_text(source, encoding="utf-8")
+            with (
+                patch.object(lint_installed_workflows.shutil, "which", return_value="/installed/actionlint"),
+                patch.object(lint_installed_workflows, "workflow_paths", return_value=paths),
+                patch.object(lint_installed_workflows.subprocess, "run", side_effect=[
+                    subprocess.CompletedProcess([], 7),
+                    subprocess.CompletedProcess([], 0),
+                ]) as run,
+            ):
+                self.assertEqual(lint_installed_workflows.lint(), 7)
+            self.assertEqual(run.call_count, 2)
+            for path, invocation in zip(paths, run.call_args_list):
+                self.assertEqual(path.read_text(encoding="utf-8"), source)
+                self.assertEqual(invocation.args[0], ["/installed/actionlint", "-stdin-filename", str(path), "-"])
+                self.assertEqual(invocation.kwargs["input"], source.replace("uses: $/", "uses: ./"))
+                self.assertEqual(invocation.kwargs["timeout"], 120)
+
+    def test_local_missing_tool_and_unsafe_source_fail_before_execution(self):
+        with patch.object(lint_installed_workflows.shutil, "which", return_value=None):
+            with self.assertRaisesRegex(ValueError, "unavailable"):
+                lint_installed_workflows.lint()
+        with tempfile.TemporaryDirectory() as temporary:
+            workflow = Path(temporary) / "caller.yml"
+            workflow.write_text("jobs:\n  call:\n    uses: $/../escape\n", encoding="utf-8")
+            with (
+                patch.object(lint_installed_workflows.shutil, "which", return_value="/installed/actionlint"),
+                patch.object(lint_installed_workflows, "workflow_paths", return_value=[workflow]),
+                patch.object(lint_installed_workflows.subprocess, "run") as run,
+            ):
+                with self.assertRaisesRegex(ValueError, "unsafe self-repository"):
+                    lint_installed_workflows.lint()
+                run.assert_not_called()
+
+    def test_local_cli_rejects_arbitrary_tools_and_file_arguments(self):
+        for arguments in (["lint", "--actionlint", "/bin/sh"], ["lint", "../../secret.yml"]):
+            with self.subTest(arguments=arguments), patch("sys.argv", arguments), patch.object(lint_installed_workflows, "lint") as lint:
+                with self.assertRaises(SystemExit) as error:
+                    lint_installed_workflows.main()
+                self.assertEqual(error.exception.code, 2)
+                lint.assert_not_called()
+
     def test_normalizes_only_self_repository_uses_and_preserves_columns(self):
         source = (
             "jobs:\n  call:\n    uses: $/.github/workflows/reusable.yml # reviewed\n"

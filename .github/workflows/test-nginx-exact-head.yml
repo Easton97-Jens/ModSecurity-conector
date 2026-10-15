@@ -239,6 +239,8 @@ jobs:
             /bin/sh -eu -s <<'RUNTIME_FIXTURE'
           /usr/bin/python3 -I connectors/nginx/harness/run_github_hosted_functional_a.py
           /usr/bin/python3 -I tests/run_nginx_body_buffer_fixture.py \
+            --response-body-limit 1048576 \
+            --response-body-limit-action Reject \
             --connector-root "$CONNECTOR_ROOT" \
             --expected-head "$EXPECTED_PARENT_SHA" \
             --nginx-archive "$NGINX_DOWNLOAD_DIR/nginx-1.31.6.tar.gz" \

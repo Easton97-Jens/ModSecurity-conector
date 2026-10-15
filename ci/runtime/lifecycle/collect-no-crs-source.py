@@ -29,9 +29,122 @@ from runtime_path_utils import (
     runtime_artifact_path,
     write_runtime_artifact_text_atomic,
 )
+from first_byte_binding import event_digest, verify_binding
+
+_NATIVE_SPEC = importlib.util.spec_from_file_location(
+    'nginx_native_collection', Path(__file__).with_name('nginx_native_collection.py'))
+_NATIVE_COLLECTION = importlib.util.module_from_spec(_NATIVE_SPEC)
+_NATIVE_SPEC.loader.exec_module(_NATIVE_COLLECTION)
 
 
 CORE_CASES = {"allow_without_marker": 200, "deny_header_marker_403": 403}
+CONFIGTEST_RECEIPT_FIELDS = {
+    "schema_version", "case_id", "connector", "operation", "run_id", "integration_mode",
+    "parent_sha", "framework_sha", "mrts_sha", "binary_sha256", "module_sha256",
+    "config_path_identity", "directive", "value", "expected_outcome", "expected_exit_code",
+    "observed_exit_code", "observed_outcome", "error_class", "diagnostic_fragments",
+    "stdout_sha256", "stderr_sha256", "process_started", "listener_created", "timestamp",
+}
+VALID_RULES_RECEIPT_FIELDS = {
+    "request_probe", "cleanup_verified", "listen_port", "docroot_projection_parent",
+    "docroot_projection_root", "rules_sha256", "events_sha256", "request_sha256",
+    "roles_sha256", "cleanup_sha256",
+}
+VALID_RULES_RAW_FILES = (
+    "no-crs-baseline.conf", "phase1-events.jsonl", "request-result.json", "roles.json", "cleanup.json",
+)
+
+
+def _configtest_source_identity_fields(row: dict[str, Any]) -> dict[str, Any]:
+    """Retain the producer's bounded identity values without filling them."""
+    fields = {}
+    for field in ("run_id", "integration_mode", "observed_result"):
+        value = row.get(field)
+        if value is not None and (not isinstance(value, str) or len(value) > 256):
+            raise ValueError("configuration source identity is not bounded")
+        fields[field] = value
+    return fields
+
+
+def _configtest_source_artifacts(
+    artifacts: Any, allowed_source_root: Path | None, case_id: str | None = None,
+) -> dict[str, str]:
+    """Validate the closed bundle against its explicit source authority."""
+    if not isinstance(artifacts, dict) or set(artifacts) != {"configtest_dir"}:
+        raise ValueError("configuration source contains undeclared artifact references")
+    reference = artifacts["configtest_dir"]
+    if (allowed_source_root is None or not isinstance(reference, str)
+            or not reference or len(reference) > 4096):
+        raise ValueError("configuration artifact reference requires bounded path and source authority")
+    bundle = contained_source_event_path(Path(reference), allowed_source_root)
+    if not bundle.is_dir():
+        raise ValueError("configuration artifact bundle must be an existing directory")
+    for name in ("nginx-binary", "nginx-module.so", "nginx.conf", "stdout.log", "stderr.log"):
+        runtime_artifact_path(allowed_source_root, bundle / name,
+                              "configuration artifact", must_exist=True)
+    if case_id == "valid_rules_file":
+        for name in VALID_RULES_RAW_FILES:
+            runtime_artifact_path(allowed_source_root, bundle / name,
+                                  "startup/probe artifact", must_exist=True)
+    removed_api_fixtures = {
+        "phase4_invalid_scope_file": "invalid-content-type-scope.txt",
+        "phase4_wildcard_scope_rejected": "wildcard-content-type-scope.txt",
+    }
+    if case_id in removed_api_fixtures:
+        runtime_artifact_path(allowed_source_root, bundle / removed_api_fixtures[case_id],
+                              "removed-API fixture", must_exist=True)
+    return {"configtest_dir": str(bundle)}
+
+
+def _startup_probe_source_fields(row: dict[str, Any], receipt: dict[str, Any]) -> dict[str, Any]:
+    """Preserve only the exact bounded producer-native transaction and rule."""
+    if row.get("case_id") != "valid_rules_file" or receipt.get("operation") != "startup":
+        return {}
+    probe = receipt.get("request_probe")
+    transactions = row.get("transaction_ids")
+    if (not isinstance(probe, dict) or not isinstance(transactions, list)
+            or len(transactions) != 1 or not isinstance(transactions[0], str)
+            or not transactions[0] or len(transactions[0]) > 256
+            or transactions[0] != probe.get("transaction_id")):
+        raise ValueError("startup source requires its exact bounded native-probe transaction")
+    rules = row.get("observed_rule_ids")
+    if (not isinstance(rules, list) or len(rules) != 1
+            or type(rules[0]) is not int or rules[0] != 1100001):
+        raise ValueError("startup source requires its exact integer native-probe rule")
+    return {"transaction_ids": transactions, "observed_rule_ids": rules}
+
+
+def configtest_source_fields(
+    row: dict[str, Any], expected_phase: int | None,
+    allowed_source_root: Path | None = None,
+) -> dict[str, Any]:
+    """Retain only bounded producer metadata; Framework validates the contract.
+
+    This adapter never invents a receipt/event, fills missing keys, changes a
+    failing source status, or maps configtest evidence onto an HTTP case.
+    """
+    if "configtest_receipt" not in row:
+        return {}
+    receipt = row["configtest_receipt"]
+    if expected_phase != 0 or not isinstance(receipt, dict):
+        raise ValueError("configuration receipt is not a phase-0 source object")
+    allowed_fields = CONFIGTEST_RECEIPT_FIELDS
+    if row.get("case_id") in {"missing_rules_file", "unsafe_event_path"}:
+        allowed_fields = allowed_fields | {"fixture_leaf", "fixture_state"}
+    if row.get("case_id") in {"phase4_invalid_scope_file", "phase4_wildcard_scope_rejected"}:
+        allowed_fields = allowed_fields | {"fixture_leaf", "fixture_state", "fixture_sha256"}
+    if row.get("case_id") == "valid_rules_file":
+        allowed_fields = allowed_fields | VALID_RULES_RECEIPT_FIELDS
+    if set(receipt) - allowed_fields or len(json.dumps(receipt)) > 8192:
+        raise ValueError("configuration receipt contains unbounded or undeclared fields")
+    fields = {"configtest_receipt": receipt}
+    fields.update(_configtest_source_identity_fields(row))
+    # The retained phase-1 event is validated by the Framework bundle contract;
+    # this projection never creates a phase-0 event.
+    fields.update(_startup_probe_source_fields(row, receipt))
+    if "artifacts" in row:
+        fields["artifacts"] = _configtest_source_artifacts(row["artifacts"], allowed_source_root, row.get("case_id"))
+    return fields
 
 
 def verify_closed_five_connector_profile(profile_name: str, connector: str) -> None:
@@ -538,6 +651,10 @@ def load_jsonl(path: Path) -> list[dict[str, Any]]:
         if not line.strip():
             continue
         value = json.loads(line)
+        if isinstance(value, dict) and 'native_operation_receipt' in value:
+            if len(line.encode('utf-8')) > _NATIVE_COLLECTION.SOURCE.MAX_BYTES:
+                raise ValueError('native source row exceeds collection bound')
+            value = _NATIVE_COLLECTION.SOURCE.decode(line)
         if not isinstance(value, dict):
             raise ValueError(f"JSONL record is not an object: {path}:{number}")
         records.append(value)
@@ -1067,11 +1184,18 @@ def normalize_first_byte_counters(value: dict[str, Any]) -> bool:
 
 
 def merge_first_byte_evidence(
-    records: list[dict[str, Any]], evidence: dict[str, Any] | None
+    records: list[dict[str, Any]], evidence: dict[str, Any] | None,
+    binding: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Attach bounded causal metadata only to observed Phase-4 host events."""
     if evidence is None:
         return records
+    if binding is not None:
+        matches = [record for record in records
+                   if record.get("transaction_id") == binding.get("transaction_id")
+                   and event_digest(record) == binding.get("event_sha256")]
+        if len(matches) != 1:
+            raise ValueError("first-byte append identity is missing or ambiguous")
     fields = (
         "client_first_byte_received",
         "first_byte_before_response_end",
@@ -1088,7 +1212,11 @@ def merge_first_byte_evidence(
     for record in records:
         candidate = dict(record)
         phase = safe_metadata_value("phase", candidate.get("phase"))
-        if phase == 4:
+        matches_binding = binding is None or (
+            record.get("transaction_id") == binding.get("transaction_id")
+            and event_digest(record) == binding.get("event_sha256")
+        )
+        if phase == 4 and matches_binding:
             merge_first_byte_fields(candidate, evidence, fields)
         merged.append(candidate)
     return merged
@@ -1117,7 +1245,18 @@ def first_byte_counter_conflicts(
     return existing is not None and existing != evidence[field]
 
 
-def canonical_semantics(records: list[dict[str, Any]]) -> dict[str, Any]:
+def observed_technical_failure(record: dict[str, Any]) -> bool:
+    """Identify an explicit runtime fault without inventing outcome fields."""
+    return record.get("status") == "error" or record.get("transport_result") in {
+        "engine_error", "host_error", "timeout", "short_write", "upstream_reset",
+    }
+
+
+def canonical_semantics(
+    records: list[dict[str, Any]],
+    expected_rule_id: str | None = None,
+    expected_phase: int | None = None,
+) -> dict[str, Any]:
     """Project only producer-observed Phase-4 metadata.
 
     This intentionally does not fill defaults.  A missing runtime value must
@@ -1147,13 +1286,63 @@ def canonical_semantics(records: list[dict[str, Any]]) -> dict[str, Any]:
         "upstream_response_finished_at_first_byte",
         "no_full_response_buffering",
     }
+    normalized_records = [sanitized_event(record) for record in records]
+    identities = set().union(*(record_transaction_ids(record) for record in records))
+    if len(identities) > 1:
+        return {}
     output: dict[str, Any] = {}
-    for record in records:
-        normalized = sanitized_event(record)
+    for normalized in normalized_records:
         for field in fields:
             if field in normalized:
                 output[field] = normalized[field]
+    # Completion/cleanup events describe lifecycle state, not the earlier
+    # decision or the Host action. Preserve a single evidenced intervention;
+    # never assemble that decision from unrelated rule/phase observations.
+    decision_fields = fields - {
+        "body_bytes_seen", "body_bytes_inspected", "client_first_byte_received",
+        "first_chunk_size", "upstream_paused", "upstream_eos_sent_at_first_byte",
+        "first_byte_before_response_end", "upstream_response_finished_at_first_byte",
+        "no_full_response_buffering",
+    }
+    if not restore_intervention_decision(
+            output, normalized_records, decision_fields, expected_rule_id, expected_phase):
+        return {}
+    # A genuine subsequent technical fault remains authoritative. This is not
+    # a general last-event rule; retain the first evidenced technical failure.
+    for record in normalized_records:
+        if observed_technical_failure(record):
+            output.update({key: value for key, value in record.items() if key in fields})
+            break
+    snapshots = [record for record in normalized_records
+                 if record.get("client_first_byte_received") is True]
+    if len(snapshots) == 1:
+        snapshot_fields = fields - decision_fields
+        output.update({key: value for key, value in snapshots[0].items() if key in snapshot_fields})
     return output
+
+
+def restore_intervention_decision(
+    output: dict[str, Any], records: list[dict[str, Any]], decision_fields: set[str],
+    expected_rule_id: str | None, expected_phase: int | None,
+) -> bool:
+    """Restore one matching decision, rejecting contradictory observations."""
+    interventions = [
+        record for record in records
+        if record.get("event") in {"phase3_intervention", "phase4_intervention"}
+        and (expected_rule_id is None or str(record.get("rule_id")) == expected_rule_id)
+        and (expected_phase is None or record.get("phase") == expected_phase)
+    ]
+    if any(record.get("event") in {"phase3_intervention", "phase4_intervention"}
+           for record in records):
+        for key in decision_fields:
+            output.pop(key, None)
+    if interventions:
+        decisions = [{key: value for key, value in record.items() if key in decision_fields}
+                     for record in interventions]
+        if any(decision != decisions[0] for decision in decisions[1:]):
+            return False
+        output.update(decisions[0])
+    return True
 
 
 def native_runner_core_case_alias(
@@ -1347,6 +1536,7 @@ def row_runtime_records(
     decision_path: Path | None,
     allowed_source_root: Path | None,
     consumed_event_paths: list[Path] | None,
+    connector: str | None = None,
 ) -> list[dict[str, Any]]:
     """Collect raw producer events, preserving transaction and barrier binding."""
 
@@ -1360,10 +1550,21 @@ def row_runtime_records(
             for record in records
             if transaction_ids.intersection(record_transaction_ids(record))
         ]
-    return merge_first_byte_evidence(
-        records,
-        first_byte_evidence_record(row.get("first_byte_evidence_path"), allowed_source_root),
-    )
+    evidence = first_byte_evidence_record(row.get("first_byte_evidence_path"), allowed_source_root)
+    binding = None
+    if connector == "nginx" and row.get("first_byte_evidence_path"):
+        if evidence is None:
+            raise ValueError("NGINX first-byte snapshot does not satisfy the real-host contract")
+        if allowed_source_root is None:
+            raise ValueError("NGINX first-byte binding requires an authorized source root")
+        binding_path = contained_source_event_path(Path(str(row.get("first_byte_binding_path") or "")), allowed_source_root)
+        binding = load_json(binding_path)
+        log_path = contained_source_event_path(Path(str(row["connector_phase4_log_path"])), allowed_source_root)
+        evidence_path = contained_source_event_path(Path(str(row["first_byte_evidence_path"])), allowed_source_root)
+        if binding_path != Path(str(evidence_path) + ".binding.json"):
+            raise ValueError("first-byte binding belongs to another snapshot invocation")
+        verify_binding(binding, log_path, evidence_path, allowed_source_root)
+    return merge_first_byte_evidence(records, evidence, binding)
 
 
 def row_rule_ids(row: dict[str, Any], runtime_records: list[dict[str, Any]]) -> set[str]:
@@ -1425,7 +1626,16 @@ def case_passes(
     phase_matches = not structured_runtime_case or any(
         record.get("phase") == expected_phase for record in records
     )
-    return status == "PASS" and live and status_matches and rule_matches and phase_matches
+    normal_outcome_case = case_id in {
+        "phase3_deny_before_commit", "phase3_redirect_before_commit",
+        "phase4_deny_after_commit_log_only", "phase4_deny_after_commit_abort",
+        "phase4_deny_after_commit_log_only_safe", "phase4_rule_observed",
+        "phase4_no_full_response_buffering", "phase4_first_byte_before_response_end",
+    }
+    return (
+        status == "PASS" and live and status_matches and rule_matches and phase_matches
+        and not (normal_outcome_case and any(observed_technical_failure(record) for record in records))
+    )
 
 
 def default_case_expectations(expected_rule_id: str) -> dict[str, tuple[int, str | None]]:
@@ -1495,6 +1705,7 @@ def case_observation_payload(
     observed_rule_ids: set[str],
     canonical_records: list[dict[str, Any]],
     runtime_records: list[dict[str, Any]],
+    allowed_source_root: Path | None = None,
 ) -> dict[str, Any]:
     transaction_ids = {
         str(record["transaction_id"])
@@ -1535,7 +1746,8 @@ def case_observation_payload(
             )
             else "FAIL"
         ),
-        **canonical_semantics([row, *runtime_records]),
+        **canonical_semantics([row, *runtime_records], expected_rule_id, expected_phase),
+        **configtest_source_fields(row, expected_phase, allowed_source_root),
     }
 
 
@@ -1570,7 +1782,11 @@ def case_row_observations(
     allowed_source_root: Path | None,
     consumed_event_paths: list[Path] | None,
     runner_case_index: dict[Path, str] | None,
+    allowed_native_operation_root: Path | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    if 'native_operation_receipt' in row:
+        return [_NATIVE_COLLECTION.collect_native_row(
+            row, connector, expectations, allowed_native_operation_root)], []
     case_id = observed_case_id(row, expectations, runner_case_index)
     if case_id not in expectations:
         return [], []
@@ -1587,7 +1803,7 @@ def case_row_observations(
     status = str(row.get("status") or row.get("result") or "").upper()
     live = row.get("live_executed", True) is not False
     runtime_records = row_runtime_records(
-        row, decision_path, allowed_source_root, consumed_event_paths
+        row, decision_path, allowed_source_root, consumed_event_paths, connector
     )
     observed_rule_ids = row_rule_ids(row, runtime_records)
     canonical_records = [sanitized_event(record) for record in runtime_records]
@@ -1612,6 +1828,7 @@ def case_row_observations(
         observed_rule_ids,
         canonical_records,
         runtime_records,
+        allowed_source_root,
     )
     aliases = case_alias_observations(
         connector, case_id, canonical_records, expectations, observation
@@ -1627,11 +1844,23 @@ def case_observations(
     allowed_source_root: Path | None = None,
     consumed_event_paths: list[Path] | None = None,
     runner_case_index: dict[Path, str] | None = None,
+    allowed_native_operation_root: Path | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     expectations = expectations or default_case_expectations(expected_rule_id)
     observations: list[dict[str, Any]] = []
     derived_events: list[dict[str, Any]] = []
+    native_case_ids: set[str] = set()
+    seen_case_ids: set[str] = set()
     for row in source_case_rows(paths):
+        row_case_id = observed_case_id(row, expectations, runner_case_index)
+        if row_case_id in native_case_ids:
+            raise ValueError('duplicate native source case identity')
+        if 'native_operation_receipt' in row:
+            native_case_id = row.get('case_id')
+            if not isinstance(native_case_id, str) or native_case_id in seen_case_ids:
+                raise ValueError('duplicate or invalid native source case identity')
+            native_case_ids.add(native_case_id)
+        seen_case_ids.add(row_case_id)
         row_observations, row_events = case_row_observations(
             row,
             connector,
@@ -1639,6 +1868,7 @@ def case_observations(
             allowed_source_root,
             consumed_event_paths,
             runner_case_index,
+            allowed_native_operation_root,
         )
         observations.extend(row_observations)
         derived_events.extend(row_events)
@@ -1769,6 +1999,7 @@ def collector_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--source-results-jsonl", action="append", type=Path, default=[])
     parser.add_argument("--source-events", action="append", type=Path, default=[])
     parser.add_argument("--allowed-source-root", type=Path)
+    parser.add_argument("--allowed-native-operation-root", type=Path)
     parser.add_argument("--allowed-log-root", type=Path)
     parser.add_argument("--scrub-source-events", action="store_true")
     parser.add_argument("--source-event-scrub-log", type=Path)
@@ -1822,6 +2053,9 @@ def prepare_collector_arguments(
         parser.error("--allowed-log-root is required to confine lifecycle logs")
     try:
         source_root = prepare_verified_runtime_artifact_root(args.allowed_source_root)
+        if getattr(args, 'allowed_native_operation_root', None) is not None:
+            args.allowed_native_operation_root = _NATIVE_COLLECTION.authority_directory(
+                args.allowed_native_operation_root)
         log_root = prepare_diagnostic_log_root(parser, args, source_root)
         if log_root is None:
             raise ValueError("allowed log root is required to confine lifecycle logs")
@@ -1877,6 +2111,7 @@ def collector_cases_and_events(
         source_root,
         consumed_event_paths,
         runner_case_index,
+        getattr(args, 'allowed_native_operation_root', None),
     )
     observed_case_ids = {
         str(case.get("case_id") or "") for case in cases if isinstance(case, dict)
@@ -1886,6 +2121,12 @@ def collector_cases_and_events(
         for record in native_host_summary_cases(objects)
         if record["case_id"] not in observed_case_ids
     )
+    native_root = getattr(args, 'allowed_native_operation_root', None)
+    if native_root is not None:
+        native_root = _NATIVE_COLLECTION.authority_directory(native_root)
+        if any(path == native_root or native_root in path.parents
+               for path in [*source_events, *consumed_event_paths]):
+            raise ValueError('native bundle raw events cannot enter generic collection or scrubbing')
     return (
         cases,
         event_evidence(source_events, args.expected_rule_id, derived_events),
@@ -1979,6 +2220,26 @@ def collector_status(
     return "FAIL"
 
 
+def request_runtime_observed(
+    allowed: int | None, blocked: int | None,
+    cases: list[dict[str, Any]], nonpromoted_host: bool,
+) -> bool:
+    return allowed is not None or blocked is not None or nonpromoted_host or any(
+        "configtest_receipt" not in case or (
+            case.get("case_id") == "valid_rules_file"
+            and case.get("live_executed") is True
+            and isinstance(case.get("configtest_receipt"), dict)
+            and case["configtest_receipt"].get("case_id") == "valid_rules_file"
+            and case["configtest_receipt"].get("operation") == "startup"
+            and case["configtest_receipt"].get("process_started") is True
+            and case["configtest_receipt"].get("listener_created") is True
+            and isinstance(case["configtest_receipt"].get("request_probe"), dict)
+            and case["configtest_receipt"]["request_probe"].get("client_exit_code") == 0
+            and case["configtest_receipt"]["request_probe"].get("observed_http_status") == 403
+        ) for case in cases
+    )
+
+
 def collector_payload(
     args: argparse.Namespace,
     status: str,
@@ -2065,7 +2326,7 @@ def main() -> int:
     allowed, blocked = core_response_statuses(objects, cases)
     observed_rule_ids = collector_observed_rule_ids(objects, events)
     nonpromoted_host = nonpromoted_host_success(objects)
-    explicit_runtime = allowed is not None or blocked is not None or bool(cases) or nonpromoted_host
+    explicit_runtime = request_runtime_observed(allowed, blocked, cases, nonpromoted_host)
     core_status_ok = allowed == 200 and blocked == 403
     status = collector_status(
         args.stage_rc,

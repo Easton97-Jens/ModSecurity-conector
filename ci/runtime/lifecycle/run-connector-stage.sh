@@ -134,6 +134,15 @@ run_framework_host() {
     framework_script=$1
     smoke_stage=$2
     shift 2
+    host_script=$FRAMEWORK_ROOT/ci/runtime/$framework_script
+    if [ "$connector:$stage" = nginx:no_crs_baseline ]; then
+        host_script=$CONNECTOR_ROOT/ci/runtime/lifecycle/run-nginx-selected-host.sh
+        # Reassert an explicit caller prefix after component provisioning. If
+        # absent, retain the real prefix exported by the component snapshot.
+        if [ "${NGINX_PREFIX+x}" = x ]; then
+            set -- "NGINX_PREFIX=$NGINX_PREFIX" "$@"
+        fi
+    fi
     exec "$CONNECTOR_ROOT/ci/provisioning/cache/with-runtime-components.sh" env \
         CONNECTOR_ROOT="$CONNECTOR_ROOT" \
         FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
@@ -150,11 +159,21 @@ run_framework_host() {
         RUNTIME_COMPONENT_ENV_SNAPSHOT="${RUNTIME_COMPONENT_ENV_SNAPSHOT:-}" \
         NO_CRS_BASELINE=1 \
         NO_CRS_SELECTED_CASE_IDS="${NO_CRS_SELECTED_CASE_IDS:-}" \
+        NO_CRS_SELECTED_CASES="${NO_CRS_SELECTED_CASES:-}" \
+        NO_CRS_RUN_ID="${NO_CRS_RUN_ID:-}" \
+        NGINX_DOCROOT_PROJECTION_PARENT="${NGINX_DOCROOT_PROJECTION_PARENT:-}" \
+        FIVE_CONNECTOR_PARENT_COMMIT="${FIVE_CONNECTOR_PARENT_COMMIT:-}" \
+        FIVE_CONNECTOR_FRAMEWORK_COMMIT="${FIVE_CONNECTOR_FRAMEWORK_COMMIT:-}" \
+        NGX_NATIVE_INPUT_FAULT_LIBRARY="${NGX_NATIVE_INPUT_FAULT_LIBRARY:-}" \
+        NGX_NATIVE_BEGIN_FAULT_LIBRARY="${NGX_NATIVE_BEGIN_FAULT_LIBRARY:-}" \
+        NGX_NATIVE_WRITE_FAULT_LIBRARY="${NGX_NATIVE_WRITE_FAULT_LIBRARY:-}" \
+        NGX_NATIVE_FINISH_FAULT_LIBRARY="${NGX_NATIVE_FINISH_FAULT_LIBRARY:-}" \
+        NGX_NATIVE_ENGINE_BUDGET_FAULT_LIBRARY="${NGX_NATIVE_ENGINE_BUDGET_FAULT_LIBRARY:-}" \
         MODSECURITY_TEST_VARIANT=no-crs \
         MODSECURITY_MRTS_VARIANT=no-mrts \
         MODSECURITY_RULE_PREAMBLE_FILE="${NO_CRS_RULES_FILE:-}" \
         MSCONNECTOR_SMOKE_STAGE="$smoke_stage" \
-        "$@" sh "$FRAMEWORK_ROOT/ci/runtime/$framework_script"
+        "$@" sh "$host_script"
 }
 
 run_remaining_connector() {
@@ -245,7 +264,16 @@ case "$connector:$stage" in
                 RUN_ONE_CASE=0 SMOKE_CASES="$NO_CRS_SELECTED_CASES"
         fi
         ;;
-    apache:no_crs_baseline|nginx:no_crs_baseline)
+    nginx:no_crs_baseline)
+        [ -n "${NO_CRS_SELECTED_CASES:-}" ] || {
+            echo "$NO_CRS_SELECTED_CASES_MISSING_MESSAGE" >&2
+            exit 1
+        }
+        run_framework_host "run-nginx-smoke.sh" minimal_runtime_smoke \
+            RUN_ONE_CASE=0 SMOKE_CASES="$NO_CRS_SELECTED_CASES" \
+            NGINX_PHASE4_LOG_SCOPE=location_if_missing
+        ;;
+    apache:no_crs_baseline)
         [ -n "${NO_CRS_SELECTED_CASES:-}" ] || {
             echo "$NO_CRS_SELECTED_CASES_MISSING_MESSAGE" >&2
             exit 1

@@ -32,6 +32,125 @@ FULL_LIFECYCLE_HOST_PROFILE=${FULL_LIFECYCLE_HOST_PROFILE:-}
 FULL_LIFECYCLE_EXECUTED_TARGET=${FULL_LIFECYCLE_EXECUTED_TARGET:-}
 EXPECTED_RULE_ID=1100001
 
+# Native operation authority is a separate explicit source/build boundary.
+# This helper runs only after canonical init has preserved the required rows.
+prepare_nginx_native_authority() {
+    NGINX_NATIVE_AUTHORITY_ENABLED=0
+    NGINX_NATIVE_AUTHORITY=
+    NGINX_NATIVE_AUTHORITY_PREFIX=
+    if [ "$connector:$NO_CRS_ARTIFACT_PROFILE" != nginx:full_lifecycle ]; then
+        return 0
+    fi
+    native_selected=$("$PYTHON" - "$FRAMEWORK_ROOT" "$NO_CRS_SELECTED_CASE_IDS" <<'PY'
+import importlib.util
+import json
+import sys
+from pathlib import Path
+
+framework = Path(sys.argv[1])
+reader_path = framework / "tests/runners/nginx_native_operation_bundle.py"
+spec = importlib.util.spec_from_file_location("native_authority_selection", reader_path)
+reader = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(reader)
+catalog = json.loads((framework / "tests/cases/no-crs-baseline/catalog.json").read_text(encoding="utf-8"))
+selected = set(sys.argv[2].split())
+cases = catalog["cases"]
+if len({case["case_id"] for case in cases}) != len(cases):
+    raise SystemExit("duplicate native catalog case identity")
+native = selected & reader.CASE_IDS
+found = set()
+for case in cases:
+    case_id = case["case_id"]
+    if case_id not in selected:
+        continue
+    descriptor = case.get("native_invocations", {}).get("nginx")
+    if case_id in native and not isinstance(descriptor, dict):
+        raise SystemExit("selected required native case has no descriptor")
+    if descriptor is not None:
+        if case_id not in reader.CASE_IDS:
+            raise SystemExit("native descriptor outside closed operation registry")
+        found.add(case_id)
+if native != found:
+    raise SystemExit("selected required native case absent from catalog")
+print("1" if native else "0")
+PY
+    ) || {
+        echo "FAIL: unable to bind selected native authority descriptors" >&2
+        return 1
+    }
+    if [ "$native_selected" = 0 ]; then
+        return 0
+    fi
+    NGINX_NATIVE_AUTHORITY_ENABLED=1
+    NGINX_NATIVE_AUTHORITY_PREFIX=${NGINX_PREFIX:-}
+    if [ -z "$NGINX_NATIVE_AUTHORITY_PREFIX" ]; then
+        echo "BLOCKED: selected native operations require explicit prepared NGINX_PREFIX" >&2
+        return 77
+    fi
+    for native_library in \
+        "${NGX_NATIVE_INPUT_FAULT_LIBRARY:-}" \
+        "${NGX_NATIVE_BEGIN_FAULT_LIBRARY:-}" \
+        "${NGX_NATIVE_FINISH_FAULT_LIBRARY:-}" \
+        "${NGX_NATIVE_WRITE_FAULT_LIBRARY:-}" \
+        "${NGX_NATIVE_ENGINE_BUDGET_FAULT_LIBRARY:-}"; do
+        if [ -z "$native_library" ] || [ ! -f "$native_library" ]; then
+            echo "BLOCKED: selected native operations require all five explicit compiled fault libraries" >&2
+            return 77
+        fi
+    done
+    native_authority_producer=$CONNECTOR_ROOT/ci/runtime/lifecycle/nginx_native_authority.py
+    if [ ! -f "$native_authority_producer" ]; then
+        echo "BLOCKED: explicit native authority producer is missing" >&2
+        return 77
+    fi
+    native_authority_parent=$("$PYTHON" - "$CONNECTOR_ROOT" "$STAGE_BUILD_ROOT" "$NO_CRS_RUN_ID" <<'PY'
+import os
+import re
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(sys.argv[1]) / "ci/lib"))
+from runtime_path_utils import ensure_safe_runtime_directory
+
+stage = Path(sys.argv[2])
+run_id = sys.argv[3]
+if not stage.is_absolute() or ".." in stage.parts or not stage.is_relative_to(Path("/var/tmp/codex/ModSecurity-conector")):
+    raise SystemExit("native authority requires explicit external stage build root")
+if re.fullmatch(r"[A-Za-z0-9_-]{1,128}", run_id) is None:
+    raise SystemExit("native authority requires bounded run identity")
+host = ensure_safe_runtime_directory(stage / "host-runtime")
+descriptor = os.open(host, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+try:
+    leaf = "native-authority-" + run_id
+    os.mkdir(leaf, 0o700, dir_fd=descriptor)
+finally:
+    os.close(descriptor)
+print(host / leaf)
+PY
+    ) || {
+        echo "FAIL: unable to reserve fresh private native authority parent" >&2
+        return 1
+    }
+    "$PYTHON" "$native_authority_producer" \
+        --parent-root "$CONNECTOR_ROOT" \
+        --framework-root "$FRAMEWORK_ROOT" \
+        --mrts-root "${MRTS_ROOT:-$FRAMEWORK_ROOT/tools/MRTS}" \
+        --run-id "$NO_CRS_RUN_ID" \
+        --artifact-root "$STAGE_BUILD_ROOT" \
+        --binary-path "$NGINX_NATIVE_AUTHORITY_PREFIX/sbin/nginx" \
+        --module-path "$NGINX_NATIVE_AUTHORITY_PREFIX/modules/ngx_http_modsecurity_module.so" \
+        --input-fault-library "$NGX_NATIVE_INPUT_FAULT_LIBRARY" \
+        --begin-fault-library "$NGX_NATIVE_BEGIN_FAULT_LIBRARY" \
+        --finish-fault-library "$NGX_NATIVE_FINISH_FAULT_LIBRARY" \
+        --write-fault-library "$NGX_NATIVE_WRITE_FAULT_LIBRARY" \
+        --budget-fault-library "$NGX_NATIVE_ENGINE_BUDGET_FAULT_LIBRARY" \
+        --output-parent "$native_authority_parent" || {
+            echo "FAIL: explicit native operation authority could not be sealed" >&2
+            return 1
+        }
+    NGINX_NATIVE_AUTHORITY=$native_authority_parent/native-operation-authority.json
+}
+
 case "$connector" in
     apache|nginx|haproxy|envoy|traefik|lighttpd) ;;
     *) echo "usage: $0 apache|nginx|haproxy|envoy|traefik|lighttpd" >&2; exit 2 ;;
@@ -223,6 +342,28 @@ elif [ -n "$FULL_LIFECYCLE_HOST_PROFILE$FULL_LIFECYCLE_EXECUTED_TARGET" ]; then
     exit 1
 fi
 
+# Selection must describe the same downstream the NGINX harness will use.
+# Preserve its existing HTTP/1 default; an enhanced build profile alone does
+# not select H2/H3. Other connectors and generic plans retain "any".
+selection_downstream_protocol=any
+if [ "$connector" = nginx ] && [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
+    NGINX_DOWNSTREAM_PROTOCOL=${NGINX_DOWNSTREAM_PROTOCOL:-http1}
+    nginx_protocol_profile=${NGINX_PROTOCOL_PROFILE:-h1}
+    case "$nginx_protocol_profile" in
+        h1|h1-h2|h1-h2-h3-quic) ;;
+        *) echo "FAIL: unsupported NGINX_PROTOCOL_PROFILE: $nginx_protocol_profile" >&2; exit 1 ;;
+    esac
+    case "$NGINX_DOWNSTREAM_PROTOCOL:$nginx_protocol_profile" in
+        http1:*|h2:h1-h2|h2:h1-h2-h3-quic|h3:h1-h2-h3-quic) ;;
+        *)
+            echo "FAIL: incompatible NGINX_DOWNSTREAM_PROTOCOL=$NGINX_DOWNSTREAM_PROTOCOL and NGINX_PROTOCOL_PROFILE=$nginx_protocol_profile" >&2
+            exit 1
+            ;;
+    esac
+    selection_downstream_protocol=$NGINX_DOWNSTREAM_PROTOCOL
+    export NGINX_DOWNSTREAM_PROTOCOL
+fi
+
 # One resolver owns every connector-local path.  It deliberately does not use
 # legacy connector-specific environment variables, which prevents a later
 # stage from inheriting another connector's build or run root.
@@ -260,12 +401,19 @@ STAGE_TMP_ROOT=$HOST_TMP_ROOT
 STAGE_LOG_ROOT=$HOST_LOG_ROOT
 STAGE_RESULTS_DIR=$RESULTS_DIR
 STAGE_RUNTIME_ROOT=$HOST_RUNTIME_ROOT
-# The Framework HAProxy smoke contract requires its build, temporary, log,
+# The Framework host smoke contract requires its build, temporary, log,
 # and result roots to be nested together. This is a disposable *host work*
 # directory inside the already-isolated raw run, not the connector build root
 # resolved above; shared component artifacts still remain under
 # CONNECTOR_BUILD_ROOT and Cache-v2.
 case "$connector" in
+    nginx)
+        STAGE_BUILD_ROOT=$CONNECTOR_RUN_ROOT/nginx-host-work
+        STAGE_TMP_ROOT=$STAGE_BUILD_ROOT/tmp
+        STAGE_LOG_ROOT=$STAGE_BUILD_ROOT/logs
+        STAGE_RESULTS_DIR=$STAGE_BUILD_ROOT/results
+        STAGE_RUNTIME_ROOT=$STAGE_BUILD_ROOT/runtime
+        ;;
     haproxy)
         STAGE_BUILD_ROOT=$CONNECTOR_RUN_ROOT/haproxy-host-work
         STAGE_TMP_ROOT=$STAGE_BUILD_ROOT/tmp
@@ -276,8 +424,11 @@ case "$connector" in
     *) ;;
 esac
 NGINX_RUN_ROOT=$CONNECTOR_RUN_ROOT/nginx-harness
+STAGE_NGINX_HARNESS_PARENT=$RAW_DIR
 NGINX_DOCROOT_PROJECTION=0
 if [ "$connector" = nginx ]; then
+    NGINX_RUN_ROOT=$STAGE_BUILD_ROOT/nginx-harness
+    STAGE_NGINX_HARNESS_PARENT=$STAGE_BUILD_ROOT
     # Keep Framework case materialization private.  The NGINX harness creates
     # a separate, validated worker-visible static docroot only for this
     # canonical lifecycle route.
@@ -437,7 +588,16 @@ if [ -e "$RAW_DIR" ] || [ -L "$RAW_DIR" ]; then
     exit 1
 fi
 
-mkdir -p "$RAW_DIR" "$LOG_DIR" "$RESULTS_DIR"
+if [ "$connector:$NO_CRS_ARTIFACT_PROFILE" = nginx:full_lifecycle ]; then
+    # The root master creates this fresh run; its unprivileged worker must
+    # traverse it to reach harness-owned state. Keep results/logs private and
+    # use an exclusive leaf mkdir so an existing run is never reused/chmodded.
+    mkdir -p "$(dirname "$RAW_DIR")"
+    mkdir -m 0711 "$RAW_DIR"
+    mkdir -p "$LOG_DIR" "$RESULTS_DIR"
+else
+    mkdir -p "$RAW_DIR" "$LOG_DIR" "$RESULTS_DIR"
+fi
 
 # Reserve one exact local runtime-env destination before entering the stage.
 # The stage receives this path unchanged, and this canonical runner later
@@ -474,6 +634,7 @@ export RUNTIME_COMPONENT_ENV_SNAPSHOT
     --capabilities "$CAPABILITIES_FILE" \
     --evidence-stage "$evidence_stage" \
     --artifact-profile "$NO_CRS_ARTIFACT_PROFILE" \
+    --downstream-protocol "$selection_downstream_protocol" \
     --output "$PLAN"
 NO_CRS_SELECTED_CASES=$("$PYTHON" -c '
 import json, sys
@@ -529,20 +690,24 @@ fi
     --run-id "$NO_CRS_RUN_ID" \
     --evidence-stage "$evidence_stage" \
     --artifact-profile "$NO_CRS_ARTIFACT_PROFILE" \
+    --downstream-protocol "$selection_downstream_protocol" \
     --host-profile "${FULL_LIFECYCLE_HOST_PROFILE:-default}" \
     --executed-target "$executed_target" \
     --host-version not_provisioned \
     --libmodsecurity-version not_provisioned
 
+prepare_nginx_native_authority
+
 started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 set +e
+env \
 CONNECTOR_ROOT="$CONNECTOR_ROOT" \
 FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
 VERIFIED_RUN_ROOT="$CANONICAL_VERIFIED_RUN_ROOT" \
 VERIFIED_BUILD_ROOT="$STAGE_BUILD_ROOT" \
 VERIFIED_TMP_ROOT="$STAGE_TMP_ROOT" \
 VERIFIED_LOG_ROOT="$STAGE_LOG_ROOT" \
-VERIFIED_COMPONENT_CACHE="$SHARED_COMPONENT_CACHE" \
+VERIFIED_COMPONENT_CACHE="$VERIFIED_COMPONENT_CACHE" \
 CACHE_ROOT="$CACHE_ROOT" \
 CONNECTOR_COMPONENT_CACHE="$SHARED_COMPONENT_CACHE" \
 BUILD_ROOT="$STAGE_BUILD_ROOT" \
@@ -556,7 +721,7 @@ RUNTIME_COMPONENT_TARGET="$canonical_runtime_component_target" \
 RUNTIME_COMPONENT_ENV_SNAPSHOT="$RUNTIME_COMPONENT_ENV_SNAPSHOT" \
 APACHE_RUNTIME_LOG_DIR="$HOST_RUNTIME_ROOT/apache-runtime" \
 APACHE_CASE_OUTPUT_ROOT="$HOST_RUNTIME_ROOT" \
-NGINX_HARNESS_PARENT="$RAW_DIR" \
+NGINX_HARNESS_PARENT="$STAGE_NGINX_HARNESS_PARENT" \
 NGINX_HARNESS_WORK_ROOT="$NGINX_RUN_ROOT" \
 NGINX_DOCROOT_PROJECTION="$NGINX_DOCROOT_PROJECTION" \
 NGINX_DOCROOT_PROJECTION_PARENT="${NGINX_DOCROOT_PROJECTION_PARENT:-}" \
@@ -648,12 +813,17 @@ if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
             fi
             if [ "$run_native_first_byte" -eq 1 ]; then
                 native_first_byte_rc=0
+                env \
                 CONNECTOR_ROOT="$CONNECTOR_ROOT" \
                 FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
-                BUILD_ROOT="$BUILD_ROOT" \
-                RESULTS_DIR="$RESULTS_DIR" \
-                HOST_RUNTIME_ROOT="$HOST_RUNTIME_ROOT" \
+                VERIFIED_RUN_ROOT="$CANONICAL_VERIFIED_RUN_ROOT" \
+                BUILD_ROOT="$STAGE_BUILD_ROOT" \
+                VERIFIED_BUILD_ROOT="$STAGE_BUILD_ROOT" \
+                RUNTIME_REPORT_OUTPUT_ROOT="$RUNTIME_REPORT_OUTPUT_ROOT" \
+                RESULTS_DIR="$STAGE_RESULTS_DIR" \
+                HOST_RUNTIME_ROOT="$STAGE_RUNTIME_ROOT" \
                 HOST_LOG_ROOT="$HOST_LOG_ROOT" \
+                SYNCHRONIZED_UPSTREAM_CONTROL_ROOT="$CONNECTOR_RUN_ROOT" \
                 NO_CRS_RULES_FILE="$NO_CRS_RULES_FILE" \
                 FULL_LIFECYCLE_EVIDENCE_OUTPUT="$FIRST_BYTE_EVIDENCE" \
                 SKIP_RUNTIME_COMPONENT_PREPARE=1 \
@@ -732,6 +902,11 @@ set -- \
     --output "$SOURCE_RESULT"
 if [ "$five_connector_profile_enabled" -eq 1 ]; then
     set -- "$@" --five-connector-profile "$FIVE_CONNECTOR_PROFILE"
+fi
+if [ "$NGINX_NATIVE_AUTHORITY_ENABLED" -eq 1 ]; then
+    # Keep generic harness and first-byte logs outside the native bundle
+    # authority so their normal collection/scrubbing cannot touch originals.
+    set -- "$@" --allowed-native-operation-root "$STAGE_BUILD_ROOT/host-runtime/native-operations-$NO_CRS_RUN_ID"
 fi
 if [ -n "$source_result" ] && [ -f "$source_result" ]; then
     set -- "$@" --source-result "$source_result"
@@ -898,8 +1073,12 @@ fi
 # A snapshot may supply toolchain paths, but never gets to redirect the
 # resolver-selected cache or the connector-local build root used for inventory.
 CONNECTOR_COMPONENT_CACHE=$SHARED_COMPONENT_CACHE
-VERIFIED_COMPONENT_CACHE=$SHARED_COMPONENT_CACHE
 RUNTIME_COMPONENT_ENV_SNAPSHOT=$runtime_env
+if [ "$NGINX_NATIVE_AUTHORITY_ENABLED" -eq 1 ] && \
+   [ "${NGINX_PREFIX:-}" != "$NGINX_NATIVE_AUTHORITY_PREFIX" ]; then
+    echo "FAIL: runtime snapshot NGINX_PREFIX differs from sealed native authority prefix" >&2
+    stage_rc=1
+fi
 # Store only an allowlisted hash inventory for effective configuration.  Raw
 # rules and host configuration can contain fixture payloads or credentials and
 # must remain in the disposable run root.
@@ -1104,6 +1283,9 @@ set -- \
     --ended-at "$ended_at"
 if [ "$five_connector_profile_enabled" -eq 1 ]; then
     set -- "$@" --source-log "five_connector_profile_receipt=$FIVE_CONNECTOR_PROFILE_RECEIPT"
+fi
+if [ "$NGINX_NATIVE_AUTHORITY_ENABLED" -eq 1 ]; then
+    set -- "$@" --native-operation-authority "$NGINX_NATIVE_AUTHORITY"
 fi
 if [ -n "$FULL_LIFECYCLE_STAGE_REASON" ]; then
     set -- "$@" --stage-reason "$FULL_LIFECYCLE_STAGE_REASON"

@@ -227,7 +227,7 @@ spoe-group request-check
     messages check-request
 
 spoe-message check-request
-    args request_id=unique-id client_ip=src client_port=src_port server_ip=dst server_port=dst_port method=method path=path uri=url host=req.hdr(host) headers_bin=req.hdrs_bin headers=req.hdrs body=req.body body_len=req.body_len
+    args request_id=unique-id client_ip=src client_port=src_port server_ip=dst server_port=dst_port method=method path=path uri=url host=req.hdr(host) headers_bin=req.hdrs_bin headers=req.hdrs body=req.body body_len=req.body_size http_version=req.ver
 EOF
 }
 
@@ -246,10 +246,10 @@ mode=block
 fail-mode=closed
 runtime-mode=production
 response-companion=native-htx
+response-phases=true
 response-companion-socket=$SOCKET_PATH
 response-companion-uid=$SERVICE_UID
 response-companion-gid=$SERVICE_GID
-response-body-limit=65532
 response-body-timeout=$body_timeout_ms
 spoe-timeout=2000
 max-transactions=64

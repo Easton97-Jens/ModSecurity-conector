@@ -9,6 +9,7 @@ import importlib.util
 import io
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -1148,6 +1149,15 @@ jobs:
                 )
                 self.assertTrue(
                     (proposed_root / "tests/test_update_framework_versions.py").is_file()
+                )
+                candidate_workflow = ".github/workflows/validate-go-candidate.yml"
+                self.assertEqual(
+                    (proposed_root / candidate_workflow).read_bytes(),
+                    re.sub(
+                        rb"actions/checkout@[0-9a-f]{40} #[^\r\n]+",
+                        b"actions/checkout@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa # v9.9.9",
+                        (root / candidate_workflow).read_bytes(),
+                    ),
                 )
                 self.assert_connector_lock_unchanged(root, source_lock)
                 return subprocess.CompletedProcess(arguments, 0, "", "")

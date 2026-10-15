@@ -35,8 +35,6 @@ static const char *msc_config_phase4_mode(cmd_parms *cmd, void *_dcfg,
     const char *p1);
 static const char *msc_config_phase4_log(cmd_parms *cmd, void *_dcfg,
     const char *p1);
-static const char *msc_config_phase4_body_limit(cmd_parms *cmd, void *_dcfg,
-    const char *p1);
 
 const command_rec module_directives[] =
 {
@@ -111,14 +109,6 @@ const command_rec module_directives[] =
         NULL,
         RSRC_CONF | ACCESS_CONF,
         "Write Phase 4 connector decisions as JSON lines"
-    ),
-
-    AP_INIT_TAKE1(
-        MSCONNECTOR_DIRECTIVE_PHASE4_BODY_LIMIT,
-        msc_config_phase4_body_limit,
-        NULL,
-        RSRC_CONF | ACCESS_CONF,
-        "Bound Apache connector response-body buffering for Phase 4"
     ),
 
     { .name = NULL }
@@ -292,23 +282,6 @@ static const char *msc_config_phase4_log(cmd_parms *cmd, void *_cnf,
     }
 
     cnf->common_config.phase4_log_path = apr_pstrdup(cmd->pool, p1);
-    return NULL;
-}
-
-
-static const char *msc_config_phase4_body_limit(cmd_parms *cmd, void *_cnf,
-    const char *p1)
-{
-    msc_conf_t *cnf = (msc_conf_t *) _cnf;
-    (void)cmd;
-    size_t value;
-
-    if (!msconnector_parse_size(p1, &value) || value == 0U)
-    {
-        return "modsecurity_phase4_body_limit must be a positive integer";
-    }
-
-    cnf->common_config.phase4_body_limit = value;
     return NULL;
 }
 

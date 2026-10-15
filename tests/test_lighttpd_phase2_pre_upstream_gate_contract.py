@@ -83,14 +83,8 @@ class LighttpdPhase2PreUpstreamGateContractTest(unittest.TestCase):
             self.prepare.count("mod_msconnector_reject_request_body_gate_conflict("),
             3,
         )
-        self.assertIn(
-            "msconnector_runtime_body_limit_action(p->runtime)", self.source
-        )
-        self.assertIn("MSCONNECTOR_BODY_LIMIT_ACTION_REJECT", self.source)
-        self.assertIn(
-            "requires body_limit_action=reject to retain a bounded pre-upstream request-body buffer",
-            self.source,
-        )
+        self.assertNotIn("msconnector_runtime_body_limit_action", self.source)
+        self.assertNotIn("MSCONNECTOR_BODY_LIMIT_ACTION_REJECT", self.source)
 
     def test_body_hook_fails_closed_if_streaming_is_reactivated_before_eos(self) -> None:
         active_streaming = "FDEVENT_STREAM_REQUEST | FDEVENT_STREAM_REQUEST_BUFMIN"
@@ -121,25 +115,14 @@ class LighttpdPhase2PreUpstreamGateContractTest(unittest.TestCase):
             self.source,
         )
 
-    def test_body_limit_rejections_mark_the_host_rejected_p2_cleanup_path(self) -> None:
-        declared_start = self.prepare.index("if (p->request_body_limit == 0U")
-        declared_end = self.prepare.index("if (r->conf.stream_request_body", declared_start)
-        declared = self.prepare[declared_start:declared_end]
-        streamed_start = self.request_body_hook.index("if (length < 0 ||")
-        streamed_end = self.request_body_hook.index("append.ctx = ctx;", streamed_start)
-        streamed = self.request_body_hook[streamed_start:streamed_end]
-
-        for limit_path in (declared, streamed):
-            with self.subTest(limit_path=limit_path[:32]):
-                marker = limit_path.index("ctx->request_body_gate_rejected = 1;")
-                error_response = limit_path.index("mod_msconnector_error_response(")
-                self.assertLess(marker, error_response)
-                self.assertIn("MSCONNECTOR_ERROR_BODY_TOO_LARGE", limit_path)
+    def test_native_policy_has_no_connector_size_gate_and_offset_overflow_is_technical(self) -> None:
+        self.assertNotIn("request_body_limit", self.source)
+        self.assertNotIn("MSCONNECTOR_ERROR_BODY_TOO_LARGE", self.source)
+        self.assertIn("INT64_MAX - (uintmax_t)stream_offset", self.request_body_hook)
+        self.assertIn("MSCONNECTOR_ERROR_HOST_API_FAILURE", self.request_body_hook)
+        self.assertIn("msconnector_runtime_transaction_begin_request_stream(", self.source)
         self.assertIn("if (ctx->request_body_gate_rejected) {", self.source)
-        self.assertIn(
-            "msconnector_runtime_transaction_finish_host_rejected_request_body(",
-            self.source,
-        )
+        self.assertIn("msconnector_runtime_transaction_finish_host_rejected_request_body(", self.source)
 
     def test_gate_rejection_logs_without_synthesizing_request_body_eos(self) -> None:
         logging_start = self.runtime_source.index(
@@ -157,8 +140,8 @@ class LighttpdPhase2PreUpstreamGateContractTest(unittest.TestCase):
             "msconnector_modsecurity_process_logging(&transaction->modsecurity, error)",
             logging_finish,
         )
-        self.assertIn("transaction->finish_attempted = 1;", logging_finish)
-        self.assertIn("transaction->finished = 1;", logging_finish)
+        self.assertIn("transaction->completion.finish_attempted = 1;", logging_finish)
+        self.assertIn("transaction->completion.finished = 1;", logging_finish)
         self.assertIn("return finish_transaction_with_logging(transaction, error);", rejected_finish)
         self.assertNotIn(
             "msconnector_runtime_transaction_finish_request_body(", rejected_finish
@@ -202,8 +185,8 @@ class LighttpdPhase2PreUpstreamGateContractTest(unittest.TestCase):
         self.assertIn('"configured-request-stream"', self.harness)
         self.assertIn('"gw.upgrade-with-request-body" => "enable"', self.harness)
         self.assertIn('"upgrade" => "enable"', self.harness)
-        self.assertIn('"process_partial_body_limit_action"', self.harness)
-        self.assertIn('body_limit_action="process_partial"', self.harness)
+        self.assertNotIn("body_limit_action=", self.harness)
+        self.assertNotIn("request_body_limit=", self.harness)
         self.assertIn('"body_payload_persisted": False', self.harness)
 
     def test_delayed_allow_requires_content_length_reframing(self) -> None:

@@ -257,6 +257,26 @@ class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
                 self.assertIn("fail-mode=closed", agent_config)
                 self.assertNotIn("option continue-on-error", spoe_config)
 
+    def test_spoe_samples_use_total_framing_metadata(self) -> None:
+        producers = list((ROOT / "examples/haproxy/spoe-spop").glob("*/spoe.cfg"))
+        producers.extend(
+            ROOT / name
+            for name in (
+                "examples/haproxy/compatibility-spoe/spoe-modsecurity.conf",
+                "connectors/haproxy/harness/run_haproxy_smoke.sh",
+                "connectors/haproxy/harness/combined_spop_htx/run_combined_spop_htx.sh",
+            )
+        )
+        for producer in producers:
+            with self.subTest(producer=producer):
+                text = producer.read_text(encoding="utf-8")
+                # req.body_len is the buffered prefix, not the total. The
+                # protocol version disambiguates unframed HTTP/1 empty input
+                # from HTTP/2 and /3 samples without a trusted HTTP EOM.
+                self.assertIn("body_len=req.body_size", text)
+                self.assertIn("http_version=req.ver", text)
+                self.assertNotIn("body_len=req.body_len", text)
+
     def test_closed_defaults_preserve_explicit_error_status_mapping(self) -> None:
         self.assertNotIn("option continue-on-error", EXAMPLE)
         self.assertIn("fail-mode=closed", EXAMPLE)

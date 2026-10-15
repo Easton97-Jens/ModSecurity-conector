@@ -211,27 +211,35 @@ func (transaction *unixSocketTransaction) AcknowledgeLateLogOnly(ctx context.Con
 	return err
 }
 
-func (transaction *unixSocketTransaction) Close(ctx context.Context, _ Summary) {
+func (transaction *unixSocketTransaction) Close(ctx context.Context, summary Summary) {
+	_ = transaction.CloseChecked(ctx, summary)
+}
+
+// CloseChecked preserves FINISH/DESTROY failures for the productive middleware.
+// The legacy void callback remains available to existing seam implementations.
+func (transaction *unixSocketTransaction) CloseChecked(ctx context.Context, _ Summary) error {
 	transaction.mu.Lock()
 	defer transaction.mu.Unlock()
 	if transaction.closed {
-		return
+		return nil
 	}
 	transaction.closed = true
 	if transaction.connection == nil {
-		return
+		return nil
 	}
 	connection := transaction.connection
+	var closeErr error
 	if transaction.begun {
-		if _, err := transaction.exchangeLocked(ctx, udsOpcodeFinish, nil); err == nil {
-			_, _ = transaction.exchangeLocked(ctx, udsOpcodeDestroy, nil)
+		_, closeErr = transaction.exchangeLocked(ctx, udsOpcodeFinish, nil)
+		if closeErr == nil {
+			_, closeErr = transaction.exchangeLocked(ctx, udsOpcodeDestroy, nil)
 		}
 	}
-	// exchangeLocked may discard a canceled or failed connection. Retain the
-	// local reference so Close remains panic-free and deterministic after that
-	// terminal transition.
-	_ = connection.Close()
+	if err := connection.Close(); closeErr == nil {
+		closeErr = err
+	}
 	transaction.connection = nil
+	return closeErr
 }
 
 func (transaction *unixSocketTransaction) exchangeLocked(ctx context.Context, opcode byte, payload []byte) (udsResult, error) {

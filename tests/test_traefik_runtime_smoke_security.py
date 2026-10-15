@@ -431,9 +431,10 @@ class TraefikRuntimeSmokeSecurityTest(unittest.TestCase):
         self.assertIn(
             "msconnector_traefik_forwardauth_response_companion_set_limits(companion,"
             "msconnector_runtime_header_count_limit(runtime),"
-            "msconnector_runtime_total_header_limit(runtime),",
+            "msconnector_runtime_total_header_limit(runtime))",
             compact,
         )
+        self.assertNotIn("max_response_body_bytes", service)
         self.assertRegex(observer, r"maxHeaderCount\s*=\s*256")
         self.assertRegex(
             observer,

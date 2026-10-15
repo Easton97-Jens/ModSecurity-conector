@@ -1,5 +1,5 @@
 name: apache_phase4_response_limit_reject
-title: Apache Phase-4 response budget rejection control
+title: Apache native response inspection limit rejection control
 category: apache-phase4-response
 portable: false
 connector: apache
@@ -8,6 +8,8 @@ phase: 4
 rules: |
   SecRuleEngine On
   SecResponseBodyAccess On
+  SecResponseBodyLimit 8
+  SecResponseBodyLimitAction Reject
   SecResponseBodyMimeType text/plain
 request:
   method: GET
@@ -18,6 +20,6 @@ response:
 expect:
   status: 500
   transport: http_status
-  # The Apache gate itself fails closed before the response commits; this is
-  # a connector block rather than a libModSecurity rule intervention.
+  # libModSecurity Reject produces the native response limit intervention;
+  # the host retains its established pre-commit failure handling.
   intervention: block

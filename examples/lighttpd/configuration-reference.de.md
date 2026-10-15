@@ -11,6 +11,9 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 
 | Option | Layer | Type | Required | Default | Context | Short description |
 | --- | --- | --- | --- | --- | --- | --- |
+| [`--spool-capacity-bytes`](#spool-capacity-bytes) | Umgebung / Laufzeit | Ganzzahl | nein | 268435456 | Start des Sidecars für ungepatchtes lighttpd | Gemeinsame technische Kapazität aktiver Request-Spools einschließlich Blockrundung. |
+| [`--spool-directory`](#spool-directory) | Umgebung / Laufzeit | Pfad | nein | geprüftes privates Elternverzeichnis von --config | Start des Sidecars für ungepatchtes lighttpd | Optionales privates Request-Spool-Verzeichnis; angeben, wenn das Konfigurations-Elternverzeichnis keinen geeigneten Speicher bereitstellt. |
+| [`--spool-free-reserve-bytes`](#spool-free-reserve-bytes) | Umgebung / Laufzeit | Ganzzahl | nein | 67108864 | Start des Sidecars für ungepatchtes lighttpd | Freier Dateisystemspeicher, der bei Zulassung und Vorallokation eines Request-Spools erhalten bleibt. |
 | [`msconnector.config-file`](#msconnector-config-file) | Host / Connector | Pfad | ja | none | T_CONFIG_SCOPE_SERVER | Pfad zur Common-Runtime-Konfiguration, die das native Plugin verwendet. |
 | [`msconnector.enabled`](#msconnector-enabled) | Host / Connector | lighttpd-Boolean | nein | off | T_CONFIG_SCOPE_SERVER | Aktiviert das native lighttpd-Plugin. |
 | [`msconnector.expose-host-transaction-id`](#msconnector-expose-host-transaction-id) | Host / Connector | lighttpd-Boolean | nein | off | T_CONFIG_SCOPE_SERVER | Opt-in-Response-Header-Nachweis für die servergenerierte Host-Transaktions-ID. |
@@ -58,9 +61,6 @@ Host-/Connector-Schalter binden oder konfigurieren die Hostintegration. Sie sind
 | `phase4_event_log` | Schlüssel des ausgewählten Runtime-Profils | [phase4_event_log](../common/common-connector-configuration.de.md#phase4-event-log) |
 | `request_body_mode` | Schlüssel des ausgewählten Runtime-Profils | [request_body_mode](../common/common-connector-configuration.de.md#request-body-mode) |
 | `response_body_mode` | Schlüssel des ausgewählten Runtime-Profils | [response_body_mode](../common/common-connector-configuration.de.md#response-body-mode) |
-| `request_body_limit` | Schlüssel des ausgewählten Runtime-Profils | [request_body_limit](../common/common-connector-configuration.de.md#request-body-limit) |
-| `response_body_limit` | Schlüssel des ausgewählten Runtime-Profils | [response_body_limit](../common/common-connector-configuration.de.md#response-body-limit) |
-| `body_limit_action` | Schlüssel des ausgewählten Runtime-Profils | [body_limit_action](../common/common-connector-configuration.de.md#body-limit-action) |
 | `late_intervention_timeout` | Schlüssel des ausgewählten Runtime-Profils | [late_intervention_timeout](../common/common-connector-configuration.de.md#late-intervention-timeout) |
 | `default_block_status` | Schlüssel des ausgewählten Runtime-Profils | [default_block_status](../common/common-connector-configuration.de.md#default-block-status) |
 | `default_error_status` | Schlüssel des ausgewählten Runtime-Profils | [default_error_status](../common/common-connector-configuration.de.md#default-error-status) |
@@ -108,6 +108,171 @@ lighttpd -tt -f <config>
 Repository-Ziele: `make check-config-lighttpd` und `make check-config-all-connectors`.
 
 ## Optionsdetails
+
+<a id="spool-capacity-bytes"></a>
+## `--spool-capacity-bytes`
+
+### Kurzbeschreibung
+
+Gemeinsame technische Kapazität aktiver Request-Spools einschließlich Blockrundung.
+
+### Syntax
+
+```text
+--spool-capacity-bytes 268435456
+```
+
+### Gültige Kontexte
+
+- Start des Sidecars für ungepatchtes lighttpd
+
+### Werte
+
+| Typ | Zulässige Werte | Erforderlich |
+| --- | --- | --- |
+| Ganzzahl | positive dezimale Bytezahl, die durch size_t darstellbar ist | nein |
+
+### Standardwert
+
+268435456
+
+Quelle: `SIDECAR_DEFAULT_SPOOL_CAPACITY`.
+
+### Vererbung und Zusammenführung
+
+nicht anwendbar
+
+Zusammenführung: Ein Wert beim Start; kein Überschreiben während eines Requests.
+
+### Phasen und Laufzeitwirkung
+
+P1–P4-Relevanz: Vor dem nativen Einlesen des Request-Bodys; Reservierungen bleiben bis zur Descriptor-Freigabe bestehen.
+
+Gemeinsame technische Kapazität aktiver Request-Spools einschließlich Blockrundung.
+
+### Validierung und Fehler
+
+Geprüfte Blockrundung, gemeinsame Reservierungen und Prüfungen des verfügbaren Speichers erfolgen vor der echten Datenträgerallokation; Zulassungsfehler liefern HTTP 503.
+
+### Beispiel
+
+Ausgewählter Beispielwert: `--spool-capacity-bytes 268435456`.
+
+Quellenbasiertes Beispiel: [examples/lighttpd/stock/safe/stock-sidecar.args](../../examples/lighttpd/stock/safe/stock-sidecar.args).
+
+### Sicherheit und Betrieb
+
+Technische Speicherzulassung und Inspection-Limits der Engine sind getrennt. Dedizierte Dateisysteme oder Quotas isolieren fremde Schreiber; synchrone Dateisystemaufrufe können durch Socket-Deadlines nicht abgebrochen werden.
+
+<a id="spool-directory"></a>
+## `--spool-directory`
+
+### Kurzbeschreibung
+
+Optionales privates Request-Spool-Verzeichnis; angeben, wenn das Konfigurations-Elternverzeichnis keinen geeigneten Speicher bereitstellt.
+
+### Syntax
+
+```text
+--spool-directory /var/lib/msconnector/lighttpd-stock/safe
+```
+
+### Gültige Kontexte
+
+- Start des Sidecars für ungepatchtes lighttpd
+
+### Werte
+
+| Typ | Zulässige Werte | Erforderlich |
+| --- | --- | --- |
+| Pfad | vorhandenes kanonisches, beschreibbares Verzeichnis mit Eigentümer entsprechend der effektiven UID und Modus 0700 | nein |
+
+### Standardwert
+
+geprüftes privates Elternverzeichnis von --config
+
+Quelle: `sidecar_prepare_spool_directory`.
+
+### Vererbung und Zusammenführung
+
+nicht anwendbar
+
+Zusammenführung: Ein Wert beim Start; kein Überschreiben während eines Requests.
+
+### Phasen und Laufzeitwirkung
+
+P1–P4-Relevanz: P2-Request-Einlesen und Wiedergabe nach nativem Allow.
+
+Wählt den Spool-Speicher auf Datenträger mit begrenzten IO-Puffern; setzt kein Gesamtbody-Limit und keine Engine-Aktion.
+
+### Validierung und Fehler
+
+Beim Start werden die Vorfahren geprüft, Verzeichnis-Descriptoren ohne Symlink-Folgen fixiert und die Dateierstellung getestet; bei ungeeignetem Speicher ist ein explizites privates Verzeichnis erforderlich.
+
+### Beispiel
+
+Ausgewählter Beispielwert: `--spool-directory /var/lib/msconnector/lighttpd-stock/safe`.
+
+Quellenbasiertes Beispiel: [examples/lighttpd/stock/safe/stock-sidecar.args](../../examples/lighttpd/stock/safe/stock-sidecar.args).
+
+### Sicherheit und Betrieb
+
+Request-Dateien werden exklusiv mit Modus 0600 unter dem fixierten privaten Verzeichnis erstellt und sofort aus dem Verzeichnis entfernt; es gibt keinen Fallback über die Umgebung oder ein öffentliches temporäres Verzeichnis.
+
+<a id="spool-free-reserve-bytes"></a>
+## `--spool-free-reserve-bytes`
+
+### Kurzbeschreibung
+
+Freier Dateisystemspeicher, der bei Zulassung und Vorallokation eines Request-Spools erhalten bleibt.
+
+### Syntax
+
+```text
+--spool-free-reserve-bytes 67108864
+```
+
+### Gültige Kontexte
+
+- Start des Sidecars für ungepatchtes lighttpd
+
+### Werte
+
+| Typ | Zulässige Werte | Erforderlich |
+| --- | --- | --- |
+| Ganzzahl | positive dezimale Bytezahl, die durch size_t darstellbar ist | nein |
+
+### Standardwert
+
+67108864
+
+Quelle: `SIDECAR_DEFAULT_SPOOL_FREE_RESERVE`.
+
+### Vererbung und Zusammenführung
+
+nicht anwendbar
+
+Zusammenführung: Ein Wert beim Start; kein Überschreiben während eines Requests.
+
+### Phasen und Laufzeitwirkung
+
+P1–P4-Relevanz: Vor dem nativen Einlesen des Request-Bodys; Reservierungen bleiben bis zur Descriptor-Freigabe bestehen.
+
+Freier Dateisystemspeicher, der bei Zulassung und Vorallokation eines Request-Spools erhalten bleibt.
+
+### Validierung und Fehler
+
+Geprüfte Blockrundung, gemeinsame Reservierungen und Prüfungen des verfügbaren Speichers erfolgen vor der echten Datenträgerallokation; Zulassungsfehler liefern HTTP 503.
+
+### Beispiel
+
+Ausgewählter Beispielwert: `--spool-free-reserve-bytes 67108864`.
+
+Quellenbasiertes Beispiel: [examples/lighttpd/stock/safe/stock-sidecar.args](../../examples/lighttpd/stock/safe/stock-sidecar.args).
+
+### Sicherheit und Betrieb
+
+Technische Speicherzulassung und Inspection-Limits der Engine sind getrennt. Dedizierte Dateisysteme oder Quotas isolieren fremde Schreiber; synchrone Dateisystemaufrufe können durch Socket-Deadlines nicht abgebrochen werden.
 
 <a id="msconnector-config-file"></a>
 ## `msconnector.config-file`

@@ -56,11 +56,16 @@ Konfigurationsfehler; Observer- oder Korrelationsfehler sind fail-closed. Dies
 ist Source-/Component-Wiring mit Status `implemented_not_asserted`, kein
 Live-Host-Nachweis.
 
+Die forwardAuth-Vorlagen setzen `preserveRequestMethod: true` und
+`trustForwardHeader: false`. Traefik sendet die Originalmethode und erzeugt
+Forwarding-Metadaten aus dem eingehenden Request neu; vom Client gelieferte
+Forwarding-Header werden nicht maßgeblich. Diese Option wird mit Traefik
+3.7.13 geprüft; ältere Hostversionen benötigen eine separate Kompatibilitätsprüfung.
+
 Die eingecheckte forwardAuth-Konfiguration aktiviert Request-seitiges P2
 ausdrücklich mit `forwardBody: true` und `maxBodySize: 4096`. Die
-C-Dienstkonfiguration muss `request_body_mode=buffered` mit demselben
-4096-Byte-Common-Limit verwenden; das Start-Harness lehnt Templates ohne eine
-Einstellung oder mit einem anderen Dienstmodus ab. Dies ist begrenzte,
+Der C-Dienst übergibt den Authorization-Body inkrementell an native P2;
+das Start-Harness lehnt Host-Templates ohne die beiden Einstellungen ab. Dies ist begrenzte,
 gepufferte Host-Semantik und kein inkrementelles Request-Body-Streaming; bis
 frische echte Host-Evidence vorliegt, bleibt der Status
 `configured_not_exercised`.
@@ -586,10 +591,9 @@ Runtime. Eine reine Request-Route benötigt für Phase 4 weiterhin den
 unterstützten Response-Observer beziehungsweise Companion; die Wahl eines
 Modus erzeugt keinen fehlenden Response-Pfad.
 
-Alte Connector-/Runtime-Budget-Einstellungen dürfen aus
-Kompatibilitätsgründen weiter parsebar bleiben, dürfen eine Response aber nicht
-allein deshalb abweisen oder abbrechen, weil eine alte Inspection-Bytezahl
-überschritten wurde. Unabhängige Allokations-, Pufferspeicher-,
+Kumulierte Connector-/Runtime-Response-Größeneinstellungen wurden entfernt;
+unbekannte alte Schlüssel werden beim Konfigurationsladen abgewiesen.
+Unabhängige Allokations-, Pufferspeicher-,
 Chunk-/Message-/Frame-, Timeout-, Überlauf- und Transportlimits bleiben in
 jedem Modus aktiv. Ein puffernder Sidecar darf deshalb weiterhin eine Response
 ablehnen, die nicht in seinen begrenzten Host-Speicher passt; das ist
@@ -598,3 +602,16 @@ Host-Kapazität und keine WAF-Inspection-Policy.
 Der [connectorübergreifende Vertrag zur Eigentümerschaft von Response-Limits](../../docs/phase4-mode-budget.de.md)
 beschreibt den genauen Geltungsbereich, die Kompatibilitätsgrenze und die
 Grenzen der Validierung.
+
+## Native Body-Policy und verbleibende Hostgrenzen
+
+Request-Limit/-Aktion gehören ausschließlich zu `SecRequestBodyLimit` und
+`SecRequestBodyLimitAction`, Response-Limit/-Aktion ausschließlich zu
+`SecResponseBodyLimit` und `SecResponseBodyLimitAction`. Der Connector ergänzt
+keine Body-Größenoption, keinen Default und keine kumulierte Durchsetzung.
+Begrenzte IO-Blöcke und geprüfte Zähler wählen kein Engine-Limit und keine Aktion.
+
+Der forwardAuth-Host puffert weiterhin den Authorization-Body: Smoke
+`maxBodySize=4096`, Composite `maxBodySize=33`; Composite `maxResponseBodySize=32768`
+begrenzt außerdem die Authorization-Response. Diese Einschränkungen bleiben;
+native UDS-Middleware ist ein getrenntes Streaming-Profil.

@@ -70,7 +70,17 @@ argument, or expected artifact.
 | \`make check-framework-fixture-syntax\` | Validates Framework fixture syntax from the root target; it is a syntax/contract check, not a runtime result. |
 | \`make check-test-matrix\` | Checks generated test-matrix consistency and ownership boundaries. |
 | \`make quick-check\` | Runs the repository's focused quick contract checks. It does not create canonical runtime evidence. |
+| `make check-native-engine-body-inspection` | Runs genuine libModSecurity request/response limits and Companion C serialization/phase regressions. Requires a C17 compiler, headers and library; the Envoy native CI job also runs it. Component results do not establish live connector host evidence. |
 | \`make lint\` | Runs broad syntax, contract, documentation, and governance checks, including root test-related contracts. |
+
+The native suite accepts the existing `MODSECURITY_PREFIX`,
+`MODSECURITY_INCLUDE_DIR`, `MODSECURITY_LIB_FILE` and `MODSECURITY_LIB_DIR`
+SDK selection; invalid explicit paths fail before compilation. With an external
+library, executables use its directory as their runtime search path. Inspection
+fixtures set native limits/actions explicitly. Lossless byte escapes must retain
+phase and event integrity; escaped-field overflow must neither write nor advance
+the hash chain. Lightweight event-protocol tests retain their separate dependency
+boundary.
 
 Use [test levels](../docs/testing-and-evidence.md),
 [core lifecycle testing](../docs/testing-and-evidence.md), and the

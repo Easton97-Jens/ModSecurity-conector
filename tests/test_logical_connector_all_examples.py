@@ -96,7 +96,6 @@ PROFILE_MATRIX = {
             "modsecurity_use_error_log on",
             "modsecurity_phase4_mode strict",
             "modsecurity_phase4_log",
-            "modsecurity_phase4_body_limit",
             "modsecurity_transaction_id_expr",
             "modsecurity_transaction_id example-apache-transaction",
             "modsecurity_rules_remote key",
@@ -111,7 +110,6 @@ PROFILE_MATRIX = {
             "modsecurity_rules_file",
             "modsecurity_phase4_mode strict",
             "modsecurity_phase4_log",
-            "modsecurity_phase4_body_limit",
             "modsecurity_use_error_log on",
             "modsecurity_transaction_id",
             "modsecurity_rules_remote key",
@@ -268,6 +266,16 @@ def all_example_errors(root: Path) -> list[str]:
 
 
 class LogicalConnectorAllExamplesTests(unittest.TestCase):
+    def test_removed_phase4_body_limit_is_absent_from_host_examples(self) -> None:
+        for connector, filename in (("apache", "httpd.conf"), ("nginx", "nginx.conf")):
+            for variant in (*THREE_VARIANTS, "all"):
+                path = ROOT / "examples" / connector / variant / filename
+                with self.subTest(path=path):
+                    text = path.read_text()
+                    self.assertNotIn("modsecurity_phase4_body_limit", text)
+                    self.assertNotIn("configurable 1 MiB byte cap", text)
+                    self.assertNotIn("explicit response bound", text)
+
     def test_connector_navigation_docs_preserve_all_ten_logical_profiles(self) -> None:
         for path, host_navigation_text, inventory_heading in CONNECTOR_NAVIGATION_DOCS:
             with self.subTest(path=path.name):

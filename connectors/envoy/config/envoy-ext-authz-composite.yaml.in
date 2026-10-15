@@ -54,10 +54,10 @@ static_resources:
                 request_mutations:
                 - remove: x-msconnector-composite-lease
           # P1/P2: this gRPC check is the only owner of the retained Common
-          # transaction's request phase.  The service enforces the 32-byte
-          # policy and uses one bounded overflow byte to correlate a P2-limit
-          # decision; at most 33 bytes are buffered/inspected and no body over
-          # 32 bytes is ever forwarded upstream.
+          # transaction's request phase. This fixture's 33-byte host buffer
+          # is a bounded admission limitation, not an Engine body policy.
+          # Envoy rejects bodies beyond its buffer before authorization;
+          # only complete samples may reach the retained transaction's EOS.
           - name: envoy.filters.http.ext_authz
             typed_config:
               "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
@@ -68,7 +68,7 @@ static_resources:
                 timeout: 0.2s
               with_request_body:
                 max_request_bytes: 33
-                allow_partial_message: true
+                allow_partial_message: false
                 pack_as_bytes: true
           # P3/P4: this companion receives only the untyped ext_authz dynamic
           # metadata namespace below (CheckResponse.dynamic_metadata is a
@@ -88,6 +88,11 @@ static_resources:
                 request_body_mode: NONE
                 response_header_mode: SEND
                 response_body_mode: STREAMED
+              # Internal host attributes authenticate its pre-authorization
+              # buffer rejection; client/upstream headers cannot supply them.
+              response_attributes:
+              - response.code_details
+              - response.code
               metadata_options:
                 forwarding_namespaces:
                   untyped:

@@ -99,6 +99,9 @@ NGINX_WORKER_USER="${NGINX_WORKER_USER:-nobody}"
 NGINX_WORKER_GROUP="${NGINX_WORKER_GROUP:-}"
 PERMISSIONS_LOG="${PERMISSIONS_LOG:-}"
 MSCONNECTOR_FULL_LIFECYCLE_SYNC="${MSCONNECTOR_FULL_LIFECYCLE_SYNC:-0}"
+# Preserve only this explicit Parent route policy across portable case.env.
+NGINX_TRUSTED_SYNCHRONIZED_PHASE4_MODE="${NGINX_SYNCHRONIZED_PHASE4_MODE:-}"
+readonly NGINX_TRUSTED_SYNCHRONIZED_PHASE4_MODE
 FULL_LIFECYCLE_EVIDENCE_OUTPUT="${FULL_LIFECYCLE_EVIDENCE_OUTPUT:-}"
 SYNCHRONIZED_UPSTREAM_CONTROL_ROOT="${SYNCHRONIZED_UPSTREAM_CONTROL_ROOT:-}"
 SYNCHRONIZED_UPSTREAM="$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py"
@@ -166,7 +169,7 @@ case "$NGINX_PHASE4_LOG_TARGET_MODE" in
         ;;
 esac
 case "$NGINX_PHASE4_LOG_SCOPE" in
-    location|server|server_with_location_override) ;;
+    location|location_if_missing|server|server_with_location_override) ;;
     *)
         echo "nginx_smoke: blocked unsupported NGINX_PHASE4_LOG_SCOPE"
         exit 77
@@ -993,7 +996,7 @@ write_case_result() {
             --observed-transport-result "$observed_transport" \
             --reason "$reason" \
             --response-body-file "$output_dir/response-body.txt" \
-            --audit-log-file "$output_dir/audit.log" \
+            --audit-log-file "${AUDIT_LOG_FILE:-$output_dir/audit.log}" \
             --access-log-file "$output_dir/access.log" \
             --error-log-file "$output_dir/error.log" \
             --phase4-log-file "$output_dir/phase4.log" \
@@ -1007,7 +1010,7 @@ write_case_result() {
             --observed-transport-result "$observed_transport" \
             --reason "$reason" \
             --response-body-file "$output_dir/response-body.txt" \
-            --audit-log-file "$output_dir/audit.log" \
+            --audit-log-file "${AUDIT_LOG_FILE:-$output_dir/audit.log}" \
             --access-log-file "$output_dir/access.log" \
             --error-log-file "$output_dir/error.log" \
             --phase4-log-file "$output_dir/phase4.log" \
@@ -1151,6 +1154,10 @@ prepare_bounded_soak_selection() {
 }
 
 run_all_cases() {
+    # Validate the caller's exact namespace seed before deriving fresh sibling
+    # children. Only the projection helper creates each selected child.
+    validate_nginx_docroot_projection_mode
+    validate_nginx_external_projection_authority
     require_absolute_generated_path "$BUILD_ROOT" "BUILD_ROOT"
     require_absolute_generated_path "$LOG_DIR" "LOG_DIR"
     require_absolute_generated_path "$RESULTS_DIR" "RESULTS_DIR"
@@ -1184,12 +1191,17 @@ run_all_cases() {
         case_log_dir="$LOG_DIR/$case_name"
         case_runtime="$RUNTIME_BASE/$case_name"
         case_port=$((BASE_PORT + index))
+        case_projection_root=$NGINX_DOCROOT_PROJECTION_ROOT
+        if [ "$NGINX_DOCROOT_PROJECTION" = "1" ]; then
+            case_projection_root=$("$PYTHON_BIN" -c 'import pathlib, re, sys, uuid; seed = pathlib.Path(sys.argv[1]); re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", seed.name) or sys.exit("unsafe projection root name"); print(seed.with_name("nginx-case-" + uuid.uuid4().hex))' "$NGINX_DOCROOT_PROJECTION_ROOT") || exit 1
+        fi
         echo "nginx_smoke: running case=$case_name port=$case_port"
         set +e
         RUN_ONE_CASE=1 \
             TEST_CASE="$case_path" \
             LOG_DIR="$case_log_dir" \
             RUNTIME_ROOT="$case_runtime" \
+            NGINX_DOCROOT_PROJECTION_ROOT="$case_projection_root" \
             PORT="$case_port" \
             sh "$0"
         rc=$?
@@ -1648,6 +1660,23 @@ phase4_reload_overlap_sync_enabled() {
         [ "$NGINX_PHASE4_LOG_LIFECYCLE_PROBE" = "1" ]
 }
 
+apply_synchronized_phase4_policy() {
+    case "$MSCONNECTOR_FULL_LIFECYCLE_SYNC:$NGINX_TRUSTED_SYNCHRONIZED_PHASE4_MODE" in
+        1:safe)
+            NGINX_PHASE4_MODE=$NGINX_TRUSTED_SYNCHRONIZED_PHASE4_MODE
+            ;;
+        0:)
+            # Ordinary smoke cases retain their generated mode and default Off.
+            ;;
+        1:*)
+            blocked "synchronized First-Byte proof requires NGINX_SYNCHRONIZED_PHASE4_MODE=safe"
+            ;;
+        *)
+            blocked "NGINX_SYNCHRONIZED_PHASE4_MODE is only valid for synchronized First-Byte proof"
+            ;;
+    esac
+}
+
 render_config() {
     NGINX_PHASE4_MODE_DIRECTIVE=""
     NGINX_PHASE4_LOG_SERVER_DIRECTIVE=""
@@ -1680,6 +1709,16 @@ render_config() {
         location)
             # Connector-specific Framework cases own their one location
             # directive through the generated include below.
+            ;;
+        location_if_missing)
+            # Generic no-CRS cases need the same case-local native sink that
+            # connector-specific fixtures already provide in their include.
+            [ -r "$NGINX_LOCATION_DIRECTIVES_FILE" ] || \
+                fail "missing generated NGINX location directives"
+            if ! grep -Eq '^[[:space:]]*modsecurity_phase4_log[[:space:]]' \
+                "$NGINX_LOCATION_DIRECTIVES_FILE"; then
+                NGINX_PHASE4_LOG_LOCATION_DIRECTIVE="modsecurity_phase4_log \"$NGINX_PHASE4_LOG_FILE\";"
+            fi
             ;;
         server)
             NGINX_PHASE4_LOG_SERVER_DIRECTIVE="modsecurity_phase4_log \"$NGINX_PHASE4_LOG_SERVER_FILE\";"
@@ -2086,7 +2125,7 @@ record_nginx_cleanup_state() {
     else
         write_nginx_lifecycle_event "phase=cleanup children=none result=passed"
     fi
-    if port_is_free "$PORT"; then
+    if cleanup_port_is_free "$PORT"; then
         write_nginx_lifecycle_event "phase=cleanup port=$PORT result=freed"
     else
         nginx_cleanup_check_status=1
@@ -2231,6 +2270,108 @@ cleanup() {
         fi
     done
     return "$nginx_cleanup_return"
+}
+
+cleanup_port_is_free() {
+    port_to_probe=$1
+    if nginx_port_probe_output=$("$PYTHON_BIN" - "$port_to_probe" "$NGINX_DOWNSTREAM_PROTOCOL" <<'PY'
+import json
+import os
+import socket
+import sys
+
+port = int(sys.argv[1])
+protocol = sys.argv[2]
+diagnostic = {
+    "address": "127.0.0.1",
+    "family": "AF_INET",
+    "netns": None,
+    "port": port,
+    "tcp_bind": "skipped",
+    "tcp_bind_errno": None,
+    "tcp_listeners": 0,
+    "tcp_reuseaddr": True,
+    "tcp_time_wait": 0,
+    "udp_bind": "not_applicable",
+    "udp_bind_errno": None,
+}
+
+
+def finish(result, status):
+    diagnostic["result"] = result
+    print(json.dumps(diagnostic, sort_keys=True, separators=(",", ":")))
+    return status
+
+
+try:
+    if not 1 <= port <= 65535 or protocol not in ("http1", "h2", "h3"):
+        raise ValueError("invalid probe arguments")
+    diagnostic["netns"] = os.readlink("/proc/self/ns/net")
+    with open("/proc/net/tcp", encoding="ascii") as table:
+        table_header = next(table).split()
+        if "local_address" not in table_header or "st" not in table_header:
+            raise ValueError("invalid TCP table header")
+        for line in table:
+            fields = line.split()
+            if len(fields) < 4:
+                raise ValueError("incomplete TCP table row")
+            address, hex_port = fields[1].split(":")
+            if len(address) != 8 or len(hex_port) != 4:
+                raise ValueError("invalid TCP local address")
+            int(address, 16)
+            local_port = int(hex_port, 16)
+            state = fields[3]
+            if len(state) != 2 or int(state, 16) not in range(1, 13):
+                raise ValueError("unknown TCP state")
+            if local_port == port and address in ("0100007F", "00000000"):
+                if state == "0A":
+                    diagnostic["tcp_listeners"] += 1
+                elif state == "06":
+                    diagnostic["tcp_time_wait"] += 1
+except (OSError, ValueError, IndexError, StopIteration) as error:
+    diagnostic["inspection_error"] = type(error).__name__
+    diagnostic["inspection_errno"] = getattr(error, "errno", None)
+    raise SystemExit(finish("inspection_failed", 1))
+
+if diagnostic["tcp_listeners"]:
+    raise SystemExit(finish("listener_present", 1))
+
+try:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as tcp:
+        tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        tcp.bind(("127.0.0.1", port))
+except OSError as error:
+    diagnostic["tcp_bind"] = "failed"
+    diagnostic["tcp_bind_errno"] = error.errno
+    raise SystemExit(finish("tcp_bind_failed", 1))
+diagnostic["tcp_bind"] = "ok"
+
+if protocol == "h3":
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp:
+            udp.bind(("127.0.0.1", port))
+    except OSError as error:
+        diagnostic["udp_bind"] = "failed"
+        diagnostic["udp_bind_errno"] = error.errno
+        raise SystemExit(finish("udp_bind_failed", 1))
+    diagnostic["udp_bind"] = "ok"
+
+raise SystemExit(finish("freed", 0))
+PY
+    ); then
+        nginx_port_probe_status=0
+    else
+        nginx_port_probe_status=$?
+    fi
+    if [ -z "$nginx_port_probe_output" ]; then
+        nginx_port_probe_output='{"result":"probe_execution_failed"}'
+        nginx_port_probe_status=1
+    fi
+    printf 'nginx_port_cleanup_probe %s\n' "$nginx_port_probe_output" >&2
+    if [ -n "${NGINX_LIFECYCLE_FILE:-}" ]; then
+        write_nginx_lifecycle_event "phase=cleanup port_probe=$nginx_port_probe_output"
+    fi
+    return "$nginx_port_probe_status"
 }
 
 port_is_free() {
@@ -2383,19 +2524,12 @@ send_synchronized_first_byte_request() {
         i=$((i + 1))
         sleep 0.1
     done
-    : > "$SYNCHRONIZED_RELEASE_FILE"
-    set +e
-    wait "$FIRST_BYTE_CLIENT_PID"
-    client_rc=$?
-    set -e
     [ "$observed_first_byte" -eq 1 ] || fail "client did not receive a first response byte while upstream was paused"
-    [ "$client_rc" -eq 0 ] || fail "synchronized client failed after upstream release rc=$client_rc"
-    http_status=$(cat "$LOG_DIR/first-byte-status.txt" 2>/dev/null || true)
-    [ "$http_status" = "200" ] || fail "synchronized safe response status was not 200: $http_status"
-    [ -s "$NGINX_PHASE4_LOG_FILE" ] || fail "Phase-4 host log is missing after synchronized response"
+    [ -s "$NGINX_PHASE4_LOG_FILE" ] || fail "Phase-4 append log is missing at first byte"
     FIRST_BYTE_HOST_METADATA="$SYNCHRONIZED_DIR/host-metadata.json"
     "$PYTHON_BIN" "$REPO_ROOT/ci/runtime/lifecycle/write-first-byte-host-metadata.py" \
-        --phase4-log "$NGINX_PHASE4_LOG_FILE" --output "$FIRST_BYTE_HOST_METADATA" || \
+        --phase4-log "$NGINX_PHASE4_LOG_FILE" --output "$FIRST_BYTE_HOST_METADATA" \
+        --paused-file "$SYNCHRONIZED_PAUSED_FILE" --release-file "$SYNCHRONIZED_RELEASE_FILE" || \
         fail "could not derive bounded host metadata from the Phase-4 event"
     "$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --merge-evidence \
         --control-root "$SYNCHRONIZED_CONTROL_ROOT" \
@@ -2405,6 +2539,20 @@ send_synchronized_first_byte_request() {
         --evidence-origin real_host \
         --output "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" || \
         fail "could not write synchronized first-byte evidence"
+    "$PYTHON_BIN" "$REPO_ROOT/ci/runtime/lifecycle/write-first-byte-host-metadata.py" \
+        --phase4-log "$NGINX_PHASE4_LOG_FILE" --output "$FIRST_BYTE_HOST_METADATA" \
+        --paused-file "$SYNCHRONIZED_PAUSED_FILE" --release-file "$SYNCHRONIZED_RELEASE_FILE" \
+        --evidence "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" \
+        --binding-output "$FULL_LIFECYCLE_EVIDENCE_OUTPUT.binding.json" || \
+        fail "could not bind first-byte snapshot to the paused native append"
+    : > "$SYNCHRONIZED_RELEASE_FILE"
+    set +e
+    wait "$FIRST_BYTE_CLIENT_PID"
+    client_rc=$?
+    set -e
+    [ "$client_rc" -eq 0 ] || fail "synchronized client failed after upstream release rc=$client_rc"
+    http_status=$(cat "$LOG_DIR/first-byte-status.txt" 2>/dev/null || true)
+    [ "$http_status" = "200" ] || fail "synchronized safe response status was not 200: $http_status"
     printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
     printf '%s\n' "http_status" > "$LOG_DIR/observed-transport-result.txt"
     return 0
@@ -2629,17 +2777,29 @@ start_server() {
 }
 
 send_case_request() {
+    [ "${NGINX_DOWNSTREAM_PROTOCOL:-http1}" = http1 ] || \
+        blocked "legacy case request requires NGINX_DOWNSTREAM_PROTOCOL=http1"
     response_output="${SEND_CASE_RESPONSE_BODY:-$RESPONSE_BODY}"
     curl_error_output="${SEND_CASE_CURL_ERROR_LOG:-$LOG_DIR/curl-attack.err}"
     validate_nginx_request_output_path SEND_CASE_RESPONSE_BODY "$response_output"
     validate_nginx_request_output_path SEND_CASE_CURL_ERROR_LOG "$curl_error_output"
-    set -- "$CURL_BIN" -sS -X "$REQUEST_METHOD" -o "$response_output" -w "%{http_code}"
+    set -- "$CURL_BIN" -q --http1.1 -sS -X "$REQUEST_METHOD" -o "$response_output" -w "%{http_code}"
     if [ -n "${SEND_CASE_MAX_TIME_SECONDS:-}" ]; then
         set -- "$@" --max-time "$SEND_CASE_MAX_TIME_SECONDS"
     fi
     if [ -n "${REQUEST_HEADERS_FILE:-}" ] && [ -s "$REQUEST_HEADERS_FILE" ]; then
         while IFS= read -r header_line || [ -n "$header_line" ]; do
             [ -n "$header_line" ] || continue
+            case "$header_line" in
+                *:*)
+                    header_value=${header_line#*:}
+                    case "$header_value" in
+                        ''|' ') header_line="${header_line%%:*};" ;;
+                        *) : ;;
+                    esac
+                    ;;
+                *) : ;;
+            esac
             set -- "$@" -H "$header_line"
         done < "$REQUEST_HEADERS_FILE"
     fi
@@ -3281,8 +3441,9 @@ chmod 711 "$NGINX_HARNESS_WORK_ROOT" \
     "$NGINX_HARNESS_WORK_ROOT/server-logs" \
     "$NGINX_HARNESS_WORK_ROOT/memcheck-evidence"
 ensure_private_dir "$LOG_DIR" "$RUNTIME_ROOT" "$RUNTIME_ROOT/conf" \
-    "$RUNTIME_ROOT/htdocs" "$NGINX_MEMCHECK_EVIDENCE_DIR"
-prepare_nginx_worker_paths
+    "$RUNTIME_ROOT/htdocs" "$NGINX_MEMCHECK_EVIDENCE_DIR" \
+    "$NGINX_SERVER_LOG_ROOT" "$NGINX_SERVER_LOG_ROOT/audit"
+# Keep audit targets root-private until CASE_CLI materialize succeeds below.
 : > "$STATUS_FILE"
 stop_stale_runtime_pid "$RUNTIME_PID_FILE"
 rm -f "$LOG_DIR/configtest.log" \
@@ -3403,6 +3564,7 @@ if [ "$NGINX_HOSTED_FUNCTIONAL_A" = "1" ]; then
 else
     . "$CASE_ENV_FILE"
 fi
+apply_synchronized_phase4_policy
 if [ "$NGINX_HOSTED_FUNCTIONAL_A" = "1" ] && \
    [ "$NGINX_FUNCTIONAL_A_QUERY_CANARY" = "1" ]; then
     case "$REQUEST_PATH" in
