@@ -36,6 +36,12 @@ Omitting the observer is a configuration error, and observer or correlation
 failure is fail-closed. This source/component wiring is
 `implemented_not_asserted`, not a live-host claim.
 
+The forwardAuth templates set `preserveRequestMethod: true` and
+`trustForwardHeader: false`. Traefik sends the original method and regenerates
+forwarding metadata from the incoming request; client-supplied forwarding
+headers do not become authoritative. This option is exercised with Traefik
+3.7.13; older host versions require a separate compatibility check.
+
 The checked-in forwardAuth configuration explicitly enables request-side P2
 with `forwardBody: true` and `maxBodySize: 4096`. The C service streams the authorization body to native P2; the
 start-smoke harness rejects a template that omits either setting or changes
