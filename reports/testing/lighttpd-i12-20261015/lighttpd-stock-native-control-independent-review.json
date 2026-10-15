@@ -1,0 +1,277 @@
+{
+  "schema": "lighttpd-stock-native-independent-diagnostic-review-v1",
+  "route": "lighttpd-stock-native-control",
+  "reviewed_original_oracles": 23,
+  "resolved_original_oracles": 0,
+  "unresolved_original_oracles": 23,
+  "new_host_execution": false,
+  "original_status_changed": false,
+  "current_source_hashes": {
+    "connectors/lighttpd/module/mod_msconnector.c": "a3c797390a78100a2b4488dd308cc39542778113102053fb2e0f8e6fb77a0bdd",
+    "connectors/lighttpd/src/lighttpd_modsecurity_mapper.c": "0acb9b1c002e198c03454b811c89670e67c93d5ef8357ca35a1037478c33a891",
+    "connectors/lighttpd/capabilities.json": "e192a971e12a849b7f99736f8cbc86fe09bf9ccb89f8bd6348f578406fc5b80d",
+    "connectors/lighttpd/harness/runtime_lighttpd_smoke.sh": "a4fa5880b0368d91c53063a8522768f157ace465957b21fa946bc9a99a387359"
+  },
+  "source_seams": {
+    "registration": "module/mod_msconnector.c:115-129",
+    "body_mode_rejection": "module/mod_msconnector.c:338-351",
+    "header_callback": "module/mod_msconnector.c:1140",
+    "request_reset_cleanup": "module/mod_msconnector.c:1223",
+    "P1_smoke": "harness/runtime_lighttpd_smoke.sh:80-107"
+  },
+  "rows": [
+    {
+      "run_scoped_case_id": "I12::lighttpd-stock-native-control::NEED-p3-redirect",
+      "original_row_sha256": "9323fe9cf2d4f3d215f1df0fedefb23c85f17ba3c60f014c4629d0e348daad50",
+      "original_source_binding_sha256": "a398da9134e4178b2724c1877a9447a6b5e1025d3d20e9ad50c1c8e38997283d",
+      "original_category": "UNRESOLVED_ORACLE",
+      "original_resolved": false,
+      "review_scope": "source-only independent diagnostic disposition; no fixture or oracle rewrite",
+      "observation": "Stock response-header callback exists; no exact redirect fixture or header/action/client oracle is bound.",
+      "disposition": "UNRESOLVED_ORACLE",
+      "full_lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::lighttpd-stock-native-control::NEED-precommit-error",
+      "original_row_sha256": "ade7469446b89c6de9628181f0ca081190c0e1a8071e1f94c4d44522c43c3666",
+      "original_source_binding_sha256": "a398da9134e4178b2724c1877a9447a6b5e1025d3d20e9ad50c1c8e38997283d",
+      "original_category": "UNRESOLVED_ORACLE",
+      "original_resolved": false,
+      "review_scope": "source-only independent diagnostic disposition; no fixture or oracle rewrite",
+      "observation": "Stock error mapping exists; first-fault injection and independent precommit timing are absent.",
+      "disposition": "UNRESOLVED_ORACLE",
+      "full_lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::lighttpd-stock-native-control::NEED-postcommit-error",
+      "original_row_sha256": "f449ebaf856fc0b23015cf26c67e00d79bae09ab9bb2249b3eba1941dc7310ae",
+      "original_source_binding_sha256": "a398da9134e4178b2724c1877a9447a6b5e1025d3d20e9ad50c1c8e38997283d",
+      "original_category": "UNRESOLVED_ORACLE",
+      "original_resolved": false,
+      "review_scope": "source-only independent diagnostic disposition; no fixture or oracle rewrite",
+      "observation": "Callback error return does not prove client transport termination after commit.",
+      "disposition": "UNRESOLVED_ORACLE",
+      "full_lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::lighttpd-stock-native-control::NEED-invalid-native-return",
+      "original_row_sha256": "5c2a59c4ce2087bf8d41c6c11371528b3e493fbf57178ff43186dd91b1a26612",
+      "original_source_binding_sha256": "a398da9134e4178b2724c1877a9447a6b5e1025d3d20e9ad50c1c8e38997283d",
+      "original_category": "UNRESOLVED_ORACLE",
+      "original_resolved": false,
+      "review_scope": "source-only independent diagnostic disposition; no fixture or oracle rewrite",
+      "observation": "Native API error handling exists; no exact invalid-return injection and first-cause oracle is bound.",
+      "disposition": "UNRESOLVED_ORACLE",
+      "full_lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::lighttpd-stock-native-control::NEED-missing-eos",
+      "original_row_sha256": "64392ec7c351b5b997cbeb423c651a8e41996c1bfb3c3de3b752f9a38d14c498",
+      "original_source_binding_sha256": "a398da9134e4178b2724c1877a9447a6b5e1025d3d20e9ad50c1c8e38997283d",
+      "original_category": "UNRESOLVED_ORACLE",
+      "original_resolved": false,
+      "review_scope": "source-only independent diagnostic disposition; no fixture or oracle rewrite",
+      "observation": "Stock has no entity-body EOS callback; request-reset cleanup cannot be promoted to body EOS evidence.",
+      "disposition": "UNRESOLVED_ORACLE",
+      "full_lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::lighttpd-stock-native-control::NEED-invalid-metadata",
+      "original_row_sha256": "4ddf11f23d7ca531abdc9121f7ddc4e912b4548b2faf86657e746c54730b4ec5",
+      "original_source_binding_sha256": "a398da9134e4178b2724c1877a9447a6b5e1025d3d20e9ad50c1c8e38997283d",
+      "original_category": "UNRESOLVED_ORACLE",
+      "original_resolved": false,
+      "review_scope": "source-only independent diagnostic disposition; no fixture or oracle rewrite",
+      "observation": "Stock header mapper exists; no exact malformed-input host fixture is bound.",
+      "disposition": "UNRESOLVED_ORACLE",
+      "full_lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::lighttpd-stock-native-control::NEED-physical-event-sink-open",
+      "original_row_sha256": "aa041c1853cf93131762e92352c0133d1615fb61edf20998b8e0c835dcf19d47",
+      "original_source_binding_sha256": "a398da9134e4178b2724c1877a9447a6b5e1025d3d20e9ad50c1c8e38997283d",
+      "original_category": "UNRESOLVED_ORACLE",
+      "original_resolved": false,
+      "review_scope": "source-only independent diagnostic disposition; no fixture or oracle rewrite",
+      "observation": "A parser pass cannot prove runtime sink open behavior; exact failing sink fixture is missing.",
+      "disposition": "UNRESOLVED_ORACLE",
+      "full_lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::lighttpd-stock-native-control::NEED-physical-event-sink-write",
+      "original_row_sha256": "b30674686b46a1b3b757f7c216bcfd82606b23f98262455e481be1b91b45decc",
+      "original_source_binding_sha256": "a398da9134e4178b2724c1877a9447a6b5e1025d3d20e9ad50c1c8e38997283d",
+      "original_category": "UNRESOLVED_ORACLE",
+      "original_resolved": false,
+      "review_scope": "source-only independent diagnostic disposition; no fixture or oracle rewrite",
+      "observation": "Physical terminal-event writer needs a bound failing write fixture and client effect.",
+      "disposition": "UNRESOLVED_ORACLE",
+      "full_lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::lighttpd-stock-native-control::NEED-physical-event-sink-short-write",
+      "original_row_sha256": "197b384b259545bbc8f758e0f6d25819602f634501855a27760530c1e299891a",
+      "original_source_binding_sha256": "a398da9134e4178b2724c1877a9447a6b5e1025d3d20e9ad50c1c8e38997283d",
+      "original_category": "UNRESOLVED_ORACLE",
+      "original_resolved": false,
+      "review_scope": "source-only independent diagnostic disposition; no fixture or oracle rewrite",
+      "observation": "No stock-specific short-write injection or physical write sequence is bound.",
+      "disposition": "UNRESOLVED_ORACLE",
+      "full_lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::lighttpd-stock-native-control::NEED-physical-event-sink-flush",
+      "original_row_sha256": "67a7cc9a35700dcb40ed9bf133db809fcb8f01d3e733d02b03271dcb541b3835",
+      "original_source_binding_sha256": "a398da9134e4178b2724c1877a9447a6b5e1025d3d20e9ad50c1c8e38997283d",
+      "original_category": "UNRESOLVED_ORACLE",
+      "original_resolved": false,
+      "review_scope": "source-only independent diagnostic disposition; no fixture or oracle rewrite",
+      "observation": "No stock-specific flush-failure fixture or ordered first-cause packet is bound.",
+      "disposition": "UNRESOLVED_ORACLE",
+      "full_lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::lighttpd-stock-native-control::NEED-physical-event-sink-close",
+      "original_row_sha256": "428b3d230a8bef7c4c88dc211abaff74e2790ee79bddd035fbf38ddb282fad04",
+      "original_source_binding_sha256": "a398da9134e4178b2724c1877a9447a6b5e1025d3d20e9ad50c1c8e38997283d",
+      "original_category": "UNRESOLVED_ORACLE",
+      "original_resolved": false,
+      "review_scope": "source-only independent diagnostic disposition; no fixture or oracle rewrite",
+      "observation": "No stock-specific close-failure fixture or ordered first-cause packet is bound.",
+      "disposition": "UNRESOLVED_ORACLE",
+      "full_lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::lighttpd-stock-native-control::NEED-timeout",
+      "original_row_sha256": "720d0824fdf97430714b670b210283e8a6e9babd3c4eb73b69f784ee7209609c",
+      "original_source_binding_sha256": "a398da9134e4178b2724c1877a9447a6b5e1025d3d20e9ad50c1c8e38997283d",
+      "original_category": "UNRESOLVED_ORACLE",
+      "original_resolved": false,
+      "review_scope": "source-only independent diagnostic disposition; no fixture or oracle rewrite",
+      "observation": "No exact stock timeout trigger and timeout/client/backend oracle is bound.",
+      "disposition": "UNRESOLVED_ORACLE",
+      "full_lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::lighttpd-stock-native-control::NEED-cancel",
+      "original_row_sha256": "4f0aec6733b9f9363cd4dbaa5fad55cc4cd3face06bf08063caddee02fc64397",
+      "original_source_binding_sha256": "a398da9134e4178b2724c1877a9447a6b5e1025d3d20e9ad50c1c8e38997283d",
+      "original_category": "UNRESOLVED_ORACLE",
+      "original_resolved": false,
+      "review_scope": "source-only independent diagnostic disposition; no fixture or oracle rewrite",
+      "observation": "Request reset/destruction exists; no exact cancellation fixture and once-free packet is bound.",
+      "disposition": "UNRESOLVED_ORACLE",
+      "full_lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::lighttpd-stock-native-control::NEED-budget-precommit",
+      "original_row_sha256": "ca758a567a7de1269b4c42d05718521923dff17e556f52ac85e9185b96054d27",
+      "original_source_binding_sha256": "a398da9134e4178b2724c1877a9447a6b5e1025d3d20e9ad50c1c8e38997283d",
+      "original_category": "UNRESOLVED_ORACLE",
+      "original_resolved": false,
+      "review_scope": "source-only independent diagnostic disposition; no fixture or oracle rewrite",
+      "observation": "No exact technical budget exhaustion fixture with independently observed precommit point is bound.",
+      "disposition": "UNRESOLVED_ORACLE",
+      "full_lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::lighttpd-stock-native-control::NEED-budget-postcommit",
+      "original_row_sha256": "9a3c2fbe173fde944a546b28c3fcfebd4297306a9e3dcb97a4c11c40df423187",
+      "original_source_binding_sha256": "a398da9134e4178b2724c1877a9447a6b5e1025d3d20e9ad50c1c8e38997283d",
+      "original_category": "UNRESOLVED_ORACLE",
+      "original_resolved": false,
+      "review_scope": "source-only independent diagnostic disposition; no fixture or oracle rewrite",
+      "observation": "No exact technical budget exhaustion fixture with independently observed committed bytes is bound.",
+      "disposition": "UNRESOLVED_ORACLE",
+      "full_lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::lighttpd-stock-native-control::NEED-client-response-bytes",
+      "original_row_sha256": "2ce3d6272e76a536e3aa52b7205e24cc1587866e0185ae9438fee73d8109c050",
+      "original_source_binding_sha256": "a398da9134e4178b2724c1877a9447a6b5e1025d3d20e9ad50c1c8e38997283d",
+      "original_category": "UNRESOLVED_ORACLE",
+      "original_resolved": false,
+      "review_scope": "source-only independent diagnostic disposition; no fixture or oracle rewrite",
+      "observation": "Stock sends host response bytes, but has no body-streaming hook. Exact diagnostic wire oracle remains unbound.",
+      "disposition": "UNRESOLVED_ORACLE",
+      "full_lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::lighttpd-stock-native-control::NEED-client-exit-signal",
+      "original_row_sha256": "0dcb5cd6254e29f8bd2c5152458c6f3eaa71e1cc8f6199ed5bcd31e563f8c8ec",
+      "original_source_binding_sha256": "a398da9134e4178b2724c1877a9447a6b5e1025d3d20e9ad50c1c8e38997283d",
+      "original_category": "UNRESOLVED_ORACLE",
+      "original_resolved": false,
+      "review_scope": "source-only independent diagnostic disposition; no fixture or oracle rewrite",
+      "observation": "No exact client process/exit/signal fixture is bound; HTTP status alone would not resolve it.",
+      "disposition": "UNRESOLVED_ORACLE",
+      "full_lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::lighttpd-stock-native-control::NEED-incomplete-framing",
+      "original_row_sha256": "09aab40bb9e35877676e1462649e55d010508a9e36a712667b8aeb5d88f3f273",
+      "original_source_binding_sha256": "a398da9134e4178b2724c1877a9447a6b5e1025d3d20e9ad50c1c8e38997283d",
+      "original_category": "UNRESOLVED_ORACLE",
+      "original_resolved": false,
+      "review_scope": "source-only independent diagnostic disposition; no fixture or oracle rewrite",
+      "observation": "No stock diagnostic incomplete-framing fixture or independent peer-wire oracle is bound.",
+      "disposition": "UNRESOLVED_ORACLE",
+      "full_lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::lighttpd-stock-native-control::NEED-abort-reset-observation",
+      "original_row_sha256": "2c843224b3cb111d58b40b1cd14142ecd08354572c7c660db15476842b6bb032",
+      "original_source_binding_sha256": "a398da9134e4178b2724c1877a9447a6b5e1025d3d20e9ad50c1c8e38997283d",
+      "original_category": "UNRESOLVED_ORACLE",
+      "original_resolved": false,
+      "review_scope": "source-only independent diagnostic disposition; no fixture or oracle rewrite",
+      "observation": "Request reset callback exists; that name cannot establish RST versus peer EOF.",
+      "disposition": "UNRESOLVED_ORACLE",
+      "full_lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::lighttpd-stock-native-control::NEED-first-byte-before-late-error",
+      "original_row_sha256": "3dd5b0236c2acdacaeeeffe182520ba6b3a948cb1dcd55976251328c4b92e4bc",
+      "original_source_binding_sha256": "a398da9134e4178b2724c1877a9447a6b5e1025d3d20e9ad50c1c8e38997283d",
+      "original_category": "UNRESOLVED_ORACLE",
+      "original_resolved": false,
+      "review_scope": "source-only independent diagnostic disposition; no fixture or oracle rewrite",
+      "observation": "No exact barrier fixture binds measured first byte to a later technical error.",
+      "disposition": "UNRESOLVED_ORACLE",
+      "full_lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::lighttpd-stock-native-control::NEED-neighbor-connection-stream",
+      "original_row_sha256": "2c056ade7edcd9863a7b2c70d632312abaa68a8876528429f3c1d2a70486969c",
+      "original_source_binding_sha256": "a398da9134e4178b2724c1877a9447a6b5e1025d3d20e9ad50c1c8e38997283d",
+      "original_category": "UNRESOLVED_ORACLE",
+      "original_resolved": false,
+      "review_scope": "source-only independent diagnostic disposition; no fixture or oracle rewrite",
+      "observation": "No exact failed connection plus independent neighbor-scope transport fixture is bound.",
+      "disposition": "UNRESOLVED_ORACLE",
+      "full_lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::lighttpd-stock-native-control::NEED-independent-noncanonical-control",
+      "original_row_sha256": "d7f57d42cbe8830f6c7942355670eca43ba842cc33ffad4a4c8a642f22121cd7",
+      "original_source_binding_sha256": "a398da9134e4178b2724c1877a9447a6b5e1025d3d20e9ad50c1c8e38997283d",
+      "original_category": "UNRESOLVED_ORACLE",
+      "original_resolved": false,
+      "review_scope": "source-only independent diagnostic disposition; no fixture or oracle rewrite",
+      "observation": "Bound independent noncanonical selected control remains unspecified; no default response is invented.",
+      "disposition": "UNRESOLVED_ORACLE",
+      "full_lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::lighttpd-stock-native-control::NEED-unsupported-body-hooks-not-promoted",
+      "original_row_sha256": "2734f876a129f3e16838c50e48109db25a85db10649e5e38cfe74ee36ff9e47a",
+      "original_source_binding_sha256": "a398da9134e4178b2724c1877a9447a6b5e1025d3d20e9ad50c1c8e38997283d",
+      "original_category": "UNRESOLVED_ORACLE",
+      "original_resolved": false,
+      "review_scope": "source-only independent diagnostic disposition; no fixture or oracle rewrite",
+      "observation": "Stock plugin registration excludes all three patched entity-body hooks and rejects non-none body modes. This proves capability separation, not the unspecified original selected diagnostic oracle.",
+      "disposition": "UNRESOLVED_ORACLE",
+      "full_lifecycle_qualified": false
+    }
+  ]
+}
