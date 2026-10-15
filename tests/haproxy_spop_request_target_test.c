@@ -86,7 +86,7 @@ static int assert_marker_reaches_mapper(const char *key) {
     if (parse_notify_payload(payload, payload_len, &request) != 0) {
         return -1;
     }
-    build_modsecurity_request_from_notify(&request, 0U, 0, NULL, &mapped);
+    build_modsecurity_request_from_notify(&request, NULL, &mapped);
     if (mapped.uri == NULL || strlen(mapped.uri) != sizeof(value) ||
         memcmp(mapped.uri, value, sizeof(value)) != 0 ||
         mapped.uri[1023U] != 'Z') {
