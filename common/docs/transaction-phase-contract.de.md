@@ -193,6 +193,20 @@ ein fehlgeschlossener Connector-Fehler: Es wird kein opakes Handle ausgegeben,
 keine Transaktion übergeben und kein Transport-, Versions- oder Capability-
 Fallback erlaubt.
 
+## Begrenzte Request-Autorisierung
+
+Ein ausdrücklich auf Requests begrenzter Adapter darf vor dem Anlegen der
+nativen Transaktion direkte P1/P2-Phasen (Maske `3`) und keine Companion-Phasen
+deklarieren. Seine eigene Operation
+`msconnector_transaction_contract_finish_request_authorization` akzeptiert
+genau abgeschlossene P1/P2 ohne aktive Phase, Response-Commit oder Handoff.
+Sie erzeugt keine P3/P4. Abgebrochene, abgelehnte und technisch fehlgeschlagene
+terminale Transaktionen behalten ihre Ursache und dieselbe Cleanup-Ownership.
+Das allgemeine `finish` verlangt weiterhin alle vier Phasen (Maske `15`).
+Dieser begrenzte Autorisierungsvertrag qualifiziert weder einen
+Response-Companion noch einen unbegrenzten Requeststream. Das Layout der
+Common-Struktur bleibt unverändert.
+
 ## Einheitliche Entscheidungen
 
 | Entscheidung | Hostaktion | Eventtyp | Regel-ID | Fehlerrichtlinie | Cleanup |

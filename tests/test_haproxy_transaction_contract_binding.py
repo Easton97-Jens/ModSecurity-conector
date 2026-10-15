@@ -172,7 +172,7 @@ def test_htx_selects_its_own_canonical_profile() -> None:
 
 
 def test_spop_uses_direct_request_routes_and_owned_companion_response_routes() -> None:
-    start = SOURCE.index("int haproxy_modsecurity_transaction_begin_request_with_profile(")
+    start = SOURCE.index("static int begin_request_with_scope(")
     end = SOURCE.index("int haproxy_modsecurity_transaction_begin_request(", start)
     profile_validation = SOURCE[start:end]
     assert "MSCONNECTOR_TRANSACTION_PHASE_ROUTE_DIRECT" in profile_validation
@@ -702,9 +702,7 @@ def test_binding_keeps_one_validated_transaction_id_for_common_and_native() -> N
     assert "bounded_cstring_length(value, out_size, &length)" in helper
     assert "msconnector_transaction_contract_validate_transaction_id_bytes(value," in helper
 
-    begin_start = SOURCE.index(
-        "int haproxy_modsecurity_transaction_begin_request_with_profile("
-    )
+    begin_start = SOURCE.index("static int begin_request_with_scope(")
     begin_end = SOURCE.index("int haproxy_modsecurity_transaction_begin_request(", begin_start)
     begin = SOURCE[begin_start:begin_end]
     assert "invalid HAProxy transaction id" in begin

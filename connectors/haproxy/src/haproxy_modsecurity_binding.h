@@ -37,6 +37,8 @@ typedef struct haproxy_modsecurity_request {
     int server_port;
     const char *method;
     const char *uri;
+    /* Native API token: 1.0, 1.1 or 2.0; absent/unsupported fails admission. */
+    const char *http_version;
     const haproxy_modsecurity_header *headers;
     unsigned int header_count;
     const unsigned char *body;
@@ -73,6 +75,13 @@ int haproxy_modsecurity_engine_create(
     haproxy_modsecurity_decision *decision);
 void haproxy_modsecurity_engine_destroy(haproxy_modsecurity_engine *engine);
 int haproxy_modsecurity_transaction_begin(
+    haproxy_modsecurity_engine *engine,
+    const haproxy_modsecurity_request *request,
+    haproxy_modsecurity_decision *decision,
+    haproxy_modsecurity_transaction **transaction);
+/* Atomic P1/P2 finite authorization. Response phases and companion handoff
+ * are deliberately unavailable; finish consumes the transaction exactly once. */
+int haproxy_modsecurity_transaction_begin_request_authorization(
     haproxy_modsecurity_engine *engine,
     const haproxy_modsecurity_request *request,
     haproxy_modsecurity_decision *decision,
@@ -144,8 +153,9 @@ int haproxy_modsecurity_transaction_append_response_body_chunk(
 int haproxy_modsecurity_transaction_finish_response_body(
     haproxy_modsecurity_transaction *transaction,
     haproxy_modsecurity_decision *decision);
-/* Returns zero only when P1--P4 completed normally.  An incomplete, missing,
- * or unclaimed companion phase is recorded as a terminal Common failure
+/* Returns zero when the declared scope completed normally: P1--P4 for the
+ * full lifecycle, P1/P2 only for explicit finite request authorization.
+ * An incomplete, missing, or unclaimed companion phase is a terminal Common failure
  * before deterministic cleanup.  Existing callers may safely ignore the
  * return value, but new bridge code must propagate it as a fail-closed host
  * action. */
