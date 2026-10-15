@@ -79,7 +79,7 @@ typedef int handler_t;
 enum {HANDLER_GO_ON=0,HANDLER_ERROR=-1,HANDLER_FINISHED=1};
 typedef struct {void *plugin_ctx[1];struct {void *errh;} conf;struct {off_t bytes_out;} write_queue;size_t resp_header_len;int http_status;} request_st;
 typedef struct {int id;struct {int enabled;} defaults;msconnector_runtime *runtime;size_t header_count_limit,total_header_limit;} plugin_data;
-typedef struct {msconnector_runtime_transaction *transaction;msconnector_request request;int request_storage;char host_request_id[96];int request_intervened,api_failed,technical_failed,request_body_gate_rejected,host_response_attempted;} handler_ctx;
+typedef struct {msconnector_runtime_transaction *transaction;msconnector_request request;int request_storage;char host_request_id[96];int request_intervened,api_failed,technical_failed,failure_response_selected,request_body_gate_rejected,host_response_attempted;} handler_ctx;
 static handler_ctx mod_msconnector_failed_context={.technical_failed=1};
 static int begins,cleanups;
 #define log_error(...) ((void)0)
@@ -184,7 +184,7 @@ enum {PLUGIN_RESPONSE_ABORT_UPSTREAM_EOF=1};
 enum {HANDLER_GO_ON=0,HANDLER_ERROR=-1,PLUGIN_BODY_HOOK_CONTINUE=0,PLUGIN_BODY_HOOK_ERROR=-1,PLUGIN_BODY_HOOK_ABORT=1};
 typedef struct { void *plugin_ctx[1]; struct {void *errh;} conf; int http_status;struct {off_t bytes_out;} write_queue;size_t resp_header_len; } request_st;
 typedef struct {int id,response_body_hooks_enabled; msconnector_runtime *runtime;} plugin_data;
-typedef struct {msconnector_runtime_transaction *transaction; int request_intervened,response_body_finished,response_processed,api_failed,response_body_aborted,technical_failed,host_response_attempted; off_t response_body_next_offset;} handler_ctx;
+typedef struct {msconnector_runtime_transaction *transaction; int request_intervened,response_body_finished,response_processed,api_failed,response_body_aborted,technical_failed,failure_response_selected,host_response_attempted; off_t response_body_next_offset;} handler_ctx;
 static int commit_result=1,appends,finishes,commits,failures,disruptive,outcome_result=1,cancellations;
 int msconnector_runtime_error_http_status(const msconnector_runtime *r,msconnector_error_code c) {(void)r;(void)c;return 500;}
 int msconnector_runtime_transaction_record_failure_host_action(msconnector_runtime_transaction *t,int h,int b,msconnector_error *e) {(void)t;(void)e;assert(h==500 && b==0);return 1;}
