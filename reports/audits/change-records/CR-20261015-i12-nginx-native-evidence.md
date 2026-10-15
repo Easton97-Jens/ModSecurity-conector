@@ -65,6 +65,8 @@ Report generation used `rtk proxy python3 ci/runtime/lifecycle/i12/nginx/report.
 
 Final RTK-proxied AST, JSON, exact-140-ID, outcome-count and EN/DE heading/table-structure checks passed. Both missing-key and extra-key mutations of the 69-ID gap mapping were rejected. Scoped `git diff --check` passed. Final repository-wide documentation/link checks remain the integrating task's responsibility.
 
+The versioned artifact embeds only projected public summaries and original selected contracts. Full candidate lists, per-case decisions/body checks and verification environment mappings remain external, bound by input path/SHA256/size. A recursive fail-closed check rejects body hex, environment mappings and sensitive key names; commands, statuses, log digests, counts and oracle correction reasons remain inspectable.
+
 ## Known limitations
 
 A selected case requires its own reviewed complete lifecycle packet. Candidate observations, builds, configuration checks and native tests alone cannot qualify it. Client EOF and zero-byte append cannot substitute for native EOS. HTTP/1 evidence makes no HTTP/2 reset claim. SDK 3.0.14 MIME fixture09 is not silently replaced by fixture08 or an invented Clear reset.

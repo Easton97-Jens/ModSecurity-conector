@@ -65,6 +65,8 @@ Die Berichtsgenerierung verwendete `rtk proxy python3 ci/runtime/lifecycle/i12/n
 
 Finale RTK-vermittelte AST-, JSON-, Exakt-140-ID-, Ergebniszählungs- und EN/DE-Überschriften-/Tabellenstrukturprüfungen bestanden. Mutationen mit fehlendem beziehungsweise zusätzlichem Schlüssel der 69-ID-Lückenzuordnung wurden abgewiesen. Die begrenzte Prüfung `git diff --check` bestand. Finale repositoryweite Dokumentations-/Linkprüfungen verantwortet weiterhin die integrierende Aufgabe.
 
+Das versionierte Artefakt bettet nur projizierte öffentliche Zusammenfassungen und ursprüngliche ausgewählte Verträge ein. Vollständige Kandidatenlisten, fallbezogene Entscheidungen/Bodyprüfungen und Verifikations-Umgebungszuordnungen bleiben extern und sind durch Eingabepfad/SHA256/Größe gebunden. Eine rekursive Prüfung bricht bei Body-Hexwerten, Umgebungszuordnungen und sensiblen Schlüsselnamen ab; Befehle, Status, Logdigests, Zähler und Oracle-Korrekturgründe bleiben prüfbar.
+
 ## Bekannte Einschränkungen
 
 Ein ausgewählter Fall benötigt sein eigenes geprüftes vollständiges Lifecycle-Paket. Kandidatenbeobachtungen, Builds, Konfigurationsprüfungen und native Tests allein können ihn nicht qualifizieren. Client-EOF und Nullbyte-Append ersetzen kein natives EOS. HTTP/1-Nachweise behaupten kein HTTP/2-Resetverhalten. SDK-3.0.14-MIME-Fixture09 wird nicht stillschweigend durch Fixture08 oder erfundenen Clear-Reset ersetzt.

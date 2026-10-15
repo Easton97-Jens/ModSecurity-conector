@@ -8,10 +8,80 @@ candidates never change statuses, approve an oracle, or qualify a request here.
 import argparse
 import hashlib
 import json
+import re
 from pathlib import Path
 
 
 BASELINE_SHA256 = "a3a901db7d70884d2f491c95246629071cd55280ad94ee0fd86049c2e954c7ff"
+
+
+def select(value, keys):
+    return {key: value[key] for key in keys if key in value}
+
+
+def public_summary(value):
+    """Project approved facts; complete receipts remain external and hash-bound."""
+    if "remaining_gaps" in value:
+        result = select(value, ("schema_version", "scope", "source_head", "base", "branch",
+                               "baseline_catalog_identity", "ledger_summary", "remaining_gaps",
+                               "remaining_original_open_oracle_ids", "references", "sdk_mime",
+                               "product_defect", "configuration_controls"))
+        build = value["build_identity"]
+        result["build_identity"] = {key: item for key, item in build.items()
+                                    if key.endswith("sha256") or key == "sdk_version"}
+        result["build_identity"]["compiled_parent_units"] = len(build["compiled_parent_units"])
+        result["build_identity"]["compiled_nginx_generated_units"] = len(build["compiled_nginx_generated_units"])
+        result["suite"] = {key: item for key, item in value["suite"].items()
+                           if key != "receipt_references"}
+        result["controllers"] = [{"reference": item["reference"], "result": select(item["result"], (
+            "controller_exitcode", "exitcode", "signal", "timeout", "errors", "resource_violation",
+            "supervisor_reaped", "surviving_namespace_pids", "outside_mount_leaks", "spec_sha256",
+            "controller_sha256", "admission_sha256"))} for item in value["controllers"]]
+        result["ordinary_regressions"] = [{**select(item, ("selected_id", "reference", "module_sha256", "cleanup")),
+            "clients": [{**select(client, ("label", "pid", "exit_code", "signal", "direct_child_wait")),
+                         "observation": select(client["observation"], ("pid", "uid", "status", "error",
+                             "body_bytes", "body_sha256", "request_sha256", "response_sha256", "framing",
+                             "framing_complete", "socket_eof", "socket_reset"))}
+                        for client in item["clients"]]} for item in value["ordinary_regressions"]]
+        result["oracle_corrections"] = [select(item, ("run_scoped_case_id", "original_oracle",
+            "effective_oracle", "outcome", "retained_original_event_fields")) for item in value["oracle_corrections"]]
+        result["qualified_failures"] = [select(item, ("run_scoped_case_id", "cause"))
+                                         for item in value["qualified_failures"]]
+        return result
+    if "checks" in value:
+        result = select(value, ("generated", "input_sha256", "cleanup_fixture_patch_sha256", "tools", "limitations"))
+        result["checks"] = [select(check, ("name", "command", "cwd", "parent_revision", "scope",
+            "exit_code", "status", "elapsed_seconds", "raw_log_sha256", "raw_log_bytes",
+            "unittest_counts", "unittest_verdicts", "interpretation", "explicit_native_inputs"))
+                            for check in value["checks"]]
+        return result
+    if "cases" in value:
+        return {key: item for key, item in value.items() if key != "cases"}
+    return select(value, ("scope", "source_sha256", "sdk_sha256", "steps", "passed"))
+
+
+def check_public_artifact(value):
+    """Fail closed if a future input adds private mappings or body material."""
+    forbidden = {"environment", "exact_hex", "body_hex", "decision", "checks",
+                 "request_body", "response_body", "raw_body"}
+    sensitive = re.compile(r"(?:password|secret|credential|authorization|cookie|api_key|access_token|private_key)", re.I)
+    def walk(item):
+        if isinstance(item, dict):
+            for key, child in item.items():
+                if key in forbidden or sensitive.search(key):
+                    raise ValueError(f"Private artifact key rejected: {key}")
+                walk(child)
+        elif isinstance(item, list):
+            for child in item:
+                walk(child)
+    # Verification's public check list is intentional; per-case decisions are not.
+    for section in value.get("verification", []):
+        for check in section["summary"].get("checks", []):
+            walk(check)
+    without_checks = {**value, "verification": [{**section, "summary": {
+        key: child for key, child in section["summary"].items() if key != "checks"}}
+        for section in value.get("verification", [])]}
+    walk(without_checks)
 
 
 def read(path):
@@ -84,15 +154,17 @@ def compact(ledger, ledger_path, observations, verification):
                 "unresolved_expected_value_reason")),
             "remaining_gap": None if row["full_lifecycle_qualified"] else gaps[case_id],
         })
-    return {"schema_version": 1, "profile": "nginx-native", "date": "2026-10-15",
+    result = {"schema_version": 1, "profile": "nginx-native", "date": "2026-10-15",
             "canonical_hash_format": "UTF-8 JSON, sorted keys, separators=(',', ':'), ensure_ascii=False",
             "inputs": {"baseline": baseline_ref, "full_ledger": reference(ledger_path),
                        "observations": [reference(path) for path in observations],
                        "verification": [reference(path) for path in verification]},
             "summary": ledger["summary"],
-            "observations": [{"input": reference(path), "summary": read(path)} for path in observations],
-            "verification": [{"input": reference(path), "summary": read(path)} for path in verification],
+            "observations": [{"input": reference(path), "summary": public_summary(read(path))} for path in observations],
+            "verification": [{"input": reference(path), "summary": public_summary(read(path))} for path in verification],
             "rows": compact_rows}
+    check_public_artifact(result)
+    return result
 
 
 def report(data, machine_path, german=False):
@@ -140,8 +212,8 @@ def report(data, machine_path, german=False):
                 "remaining_original_open_oracle_ids")}
             header["build_identity"] = {key: value for key, value in summary["build_identity"].items()
                                         if key.endswith("sha256") or key == "sdk_version"}
-            header["compiled_parent_unit_count"] = len(summary["build_identity"]["compiled_parent_units"])
-            header["compiled_nginx_generated_unit_count"] = len(summary["build_identity"]["compiled_nginx_generated_units"])
+            header["compiled_parent_unit_count"] = summary["build_identity"]["compiled_parent_units"]
+            header["compiled_nginx_generated_unit_count"] = summary["build_identity"]["compiled_nginx_generated_units"]
             header["suite"] = {key: value for key, value in summary["suite"].items()
                                if key != "receipt_references"}
             header["qualified_failures"] = [{"case_id": failure["run_scoped_case_id"],
