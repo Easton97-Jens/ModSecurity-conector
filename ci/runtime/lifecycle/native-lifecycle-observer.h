@@ -5,6 +5,15 @@
 #include <stddef.h>
 #include "msconnector/transaction_contract.h"
 #include <modsecurity/transaction.h>
+/* Match the selected public SDK declaration without casting away const.
+ * Supported SDKs expose either mutable or const transaction IDs. A different
+ * function type is deliberately rejected by C17's generic selection. */
+#ifndef __cplusplus
+typedef __typeof__(_Generic(&msc_new_transaction_with_id,
+    Transaction *(*)(ModSecurity *, RulesSet *, char *, void *): (char *)0,
+    Transaction *(*)(ModSecurity *, RulesSet *, const char *, void *): (const char *)0))
+    msconnector_lifecycle_native_id_argument;
+#endif
 typedef struct msconnector_runtime_transaction msconnector_runtime_transaction;
 typedef struct msconnector_runtime_response_companion_session
     msconnector_runtime_response_companion_session;

@@ -11,6 +11,19 @@
 #include <modsecurity/rules_set.h>
 #include <modsecurity/transaction.h>
 
+/* The legacy public intervention contract transfers malloc-owned strings.
+ * SDK 3.0.12 has no msc_intervention_cleanup API; release the same resources
+ * and reset all fields explicitly, as the newer SDK helper does. */
+static void release_intervention(ModSecurityIntervention *intervention) {
+    free(intervention->url);
+    free(intervention->log);
+    intervention->url = NULL;
+    intervention->log = NULL;
+    intervention->status = 200;
+    intervention->pause = 0;
+    intervention->disruptive = 0;
+}
+
 int main(int argc, char **argv) {
     apr_pool_t *pool = NULL;
     ModSecurity *engine = NULL;
@@ -76,10 +89,7 @@ int main(int argc, char **argv) {
     printf("matched=%d\nstatus=%d\n", intervention.disruptive != 0, intervention.status);
     result = 0;
 cleanup:
-    /* The public C ABI transfers these allocated strings to the caller.
-     * Free directly so this probe also supports SDKs without the later helper. */
-    free(intervention.url);
-    free(intervention.log);
+    release_intervention(&intervention);
     if (transaction != NULL) msc_transaction_cleanup(transaction);
     if (rules != NULL) msc_rules_cleanup(rules);
     if (engine != NULL) msc_cleanup(engine);
