@@ -476,7 +476,7 @@ int __wrap_msconnector_transaction_contract_record_response_metadata(msconnector
 }
 
 extern Transaction *__real_msc_new_transaction(ModSecurity *, RulesSet *, void *);
-extern Transaction *__real_msc_new_transaction_with_id(ModSecurity *, RulesSet *, const char *, void *);
+extern __typeof__(msc_new_transaction_with_id) __real_msc_new_transaction_with_id;
 static Transaction *constructed(Transaction *transaction, const char *id, uint64_t call, const char *name, ModSecurity *engine) {
     int saved = errno;
     char actual_id[MSCONNECTOR_MAX_TRANSACTION_ID_LENGTH];
@@ -510,7 +510,7 @@ Transaction *__wrap_msc_new_transaction(ModSecurity *m, RulesSet *r, void *data)
     Transaction *transaction = __real_msc_new_transaction(m, r, data);
     return constructed(transaction, NULL, call, "native_new", m);
 }
-Transaction *__wrap_msc_new_transaction_with_id(ModSecurity *m, RulesSet *r, const char *id, void *data) {
+Transaction *__wrap_msc_new_transaction_with_id(ModSecurity *m, RulesSet *r, msconnector_lifecycle_native_id_argument id, void *data) {
     uint64_t call = enter("native_new_with_id", NULL, 1, 0);
     Transaction *transaction = __real_msc_new_transaction_with_id(m, r, id, data);
     return constructed(transaction, id, call, "native_new_with_id", m);

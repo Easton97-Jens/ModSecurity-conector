@@ -44,7 +44,7 @@ ROLES = {
     "host_eos": {"host_callback"},
     "native_eos": {"native_api", "host_callback"},
     "commit_order": {"host_callback", "client_process"},
-    "mime_gate": {"native_debug", "physical_event_sink"},
+    "mime_gate": {"native_debug", "physical_event_sink", "native_api"},
     "finish_calls": {"native_api"},
     "finish_transitions": {"native_api"},
     "native_free_calls": {"native_api"},
@@ -147,6 +147,71 @@ def reviewed_packet(supplied, row, effective_oracle):
             "full_lifecycle_qualified": full, "outcome": verdict if full else None,
             "unknown_fields": [name for name, item in values.items()
                                if item.get("applicable", True) and item.get("value") is None]}
+
+
+def validate_configuration_identity(packet, row, effective_oracle):
+    selected = row["selected_requirement"]
+    if selected.get("execution_kind") != "actual_configtest":
+        raise ValueError("Only an original actual_configtest contract permits parser qualification")
+    if (packet.get("reviewed_by") != "root"
+            or packet.get("run_scoped_case_id") != row["run_scoped_case_id"]
+            or packet.get("leg_id") != row["leg_id"]):
+        raise ValueError("Configuration packet requires Root review of the exact original ID")
+    if packet.get("execution_kind") != "configuration_parser" or packet.get("execution_observed") is not True:
+        raise ValueError("Configuration qualification requires an observed parser process")
+    for name in ("run_id", "parent_sha", "effective_config_sha256", "rules_sha256"):
+        if not packet.get(name):
+            raise ValueError(f"Missing parser identity: {name}")
+    if (packet.get("oracle_evaluated") is not True or effective_oracle is None
+            or packet.get("oracle_sha256") != ORACLES.canonical_digest(effective_oracle)):
+        raise ValueError("Parser evaluation must bind the independently reviewed effective oracle")
+
+
+def configuration_measurements(packet, ref):
+    roles = {"parser_process", "source_manifest", "effective_configuration", "invoked_image",
+             "cleanup_observer", "isolation_receipt"}
+    evidence = [ORACLES.verify_reference(item) for item in packet.get("measurement_evidence", [])]
+    if not roles <= {item.get("role") for item in evidence}:
+        raise ValueError("Parser packet lacks independent process, image, source/config or cleanup producers")
+    if any(item["path"] == ref["path"] for item in evidence):
+        raise ValueError("Parser packet cannot be its own measurement")
+    observed = packet.get("actual_observations", {})
+    process = observed.get("parser_process", {})
+    if (not process.get("argv") or not process.get("cwd")
+            or type(process.get("waited_exit")) is not int
+            or "waited_signal" not in process or "stdout" not in process or "stderr" not in process):
+        raise ValueError("Parser packet needs actual argv/cwd/exit/signal/stdout/stderr")
+    for name in ("invocation_identity", "source_config_binding", "cleanup"):
+        if not observed.get(name):
+            raise ValueError(f"Parser packet lacks actual {name}")
+    return observed
+
+
+def reviewed_configuration_packet(supplied, row, effective_oracle):
+    """Qualify an original parser contract without fabricating an HTTP lifecycle.
+
+    This separate scope can only cover an original actual_configtest selection.
+    It never contributes a full_host_lifecycle result or substitutes for body,
+    transport, native transaction, finish or free measurements.
+    """
+    ref = ORACLES.verify_reference(supplied)
+    packet = json.loads(Path(ref["path"]).read_text())
+    validate_configuration_identity(packet, row, effective_oracle)
+    observed = configuration_measurements(packet, ref)
+    verdict = packet.get("outcome")
+    if verdict not in ("PASS", "FAIL"):
+        raise ValueError("Parser exit alone is not an evaluated configuration verdict")
+    expected = effective_oracle.get("native_result")
+    if expected not in ("config_accepted", "config_rejected"):
+        raise ValueError("Parser scope requires an explicit acceptance or rejection oracle")
+    process = observed["parser_process"]
+    matched = (process["waited_signal"] is None and process["waited_exit"] >= 0
+               and ((process["waited_exit"] == 0) == (expected == "config_accepted")))
+    if verdict != ("PASS" if matched else "FAIL"):
+        raise ValueError("Parser verdict contradicts actual exit/signal and independent oracle")
+    return {"receipt": ref, "observations": observed, "execution_observed": True,
+            "qualification_scope": "configuration_control", "full_case_qualified": True,
+            "full_lifecycle_qualified": False, "outcome": verdict, "unknown_fields": []}
 
 
 def build_ledger(requirements, selection, reconciliation, packets):
