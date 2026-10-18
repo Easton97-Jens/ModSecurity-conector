@@ -34,12 +34,14 @@ normalisiert.
 | `haproxy-companion-host` | Separate Response-Companion-Hostvariante |
 | `haproxy-spop-agent` | Separater diagnostischer Request-Agent/Backend |
 | `envoy` | Gemeinsame ext_proc-/authz-Capture-Quelle; tatsächliches authz-Backend und eigenes ext_proc-Backend getrennt erhalten |
-| `apache` | Exakte Overlays für drei Produktdateien sowie APR-/Native-/Hosthelper |
+| `apache` | Historische exakte Overlays für drei Produktdateien sowie APR-/Native-/Hosthelper |
+| `apache-current` | Gleiche Apache-Capture-Ergebnisbytes; aktuelle native C-/H-Basishashes und verpflichtender vollständiger v2-Export |
 | `lighttpd` | Getrennte Stock-Sidecar-/patched-native-Fixtures einschließlich ursprünglicher und leerer Fälle |
 | `traefik-native` | Tatsächliche native-UDS-Middleware-/Engine-/Runtime-Beobachtungsvariante |
 | `traefik-forwardauth` | Separate Autorisierungs-/Response-Observer-Quellvariante |
 
-Diese neun **Quellvarianten** sind keine neun abgenommenen Runtime-Routen.
+Die zehn **Quellanwendungsprofile** umfassen neun historische Varianten plus
+`apache-current`. Die Zahl der Runtime-Routen bleibt davon unabhängig.
 Gemeinsame Quellen übertragen niemals Ausführung, EOS, Identität oder Ergebnis
 auf Geschwisterrouten. Framework-/MRTS-Repositories und Gitlinks bleiben außerhalb
 dieses Vertrags. Private Fixturedefinitionen sind laufbezogene Capture-Eingaben,
@@ -108,7 +110,7 @@ Der v2-Marker enthält genau folgende Felder:
   "format": "i12-disposable-source-copy-v2",
   "path": "/var/tmp/codex/ModSecurity-conector/disposable-current-copy",
   "disposable": true,
-  "source_revision": "ad510c3b4168ff0e11fc36803e2ce4127a0689ad",
+  "source_revision": "850879e82ea729f274cb383507b05938df06027a",
   "snapshot_manifest": ".i12-source-export-manifest.json",
   "snapshot_manifest_sha256": "<complete lowercase SHA256 of the frozen inventory>"
 }
@@ -137,6 +139,23 @@ Hashberechnung ab. Das vollständige eingefrorene Inventar bleibt nach der
 Quellanwendung erhalten und beschreibt die Quelle **vor Capture**, keine
 Buildausgaben. Nach Capture in einem getrennten Verzeichnis bauen; eine benutzte
 Kopie kann nicht erneut als unberührter Export eingereicht werden.
+
+Für den vollständigen v2-Export des aktuellen committeten Checkouts
+`--profile apache-current` verwenden. Dieses zusätzliche Profil ändert nur die
+nativen C-/H-Werte `before_sha256` von `ad8e5e36…`/`f9f63b62…` auf
+`0d903fc5…`/`5b7d8fa7…`; sämtliche Capture-Ergebnisbytes, Produkt-Overlays,
+SDK3.0.14-ABI und das historische Profil `apache` bleiben unverändert. Sein
+`required_source_identity_format` lehnt v1-Marker vor jedem Schreiben ab, auch
+wenn die Quellbytes ansonsten passen. Die Registry-Prüfung lehnt unbekannte
+Pflichtformate ab. Der Quellanwendungsname erzeugt keinen neuen Lauf, keine
+Transaktion und keine Runtime-Route: Das native Profil bleibt `apache-native`.
+Historische Paket-/Buildherkunft bleibt als historisch gekennzeichnet; ein neuer
+Vollbuild und tatsächlich geladene Images benötigen eigene Nachweise.
+
+Die integrierte gemeinsame Korrektur erhält fünf historische HAProxy-/lighttpd-
+Objekte als verlustfreie Textzeilenobjekte. Inhalts-Hashes und historische Ergebnis-
+Hashes bleiben unverändert. Die Registry prüft 155 Objekte; diese Zahl zählt weder
+Hostausführungen noch qualifizierte Anforderungen.
 
 Der Anwendungsbeleg erfasst `source_revision`, `source_git_tree`, Inventar-SHA256,
 Dateizahl und Gitlink-Metadaten getrennt von `delivery_product_baseline`. Ein

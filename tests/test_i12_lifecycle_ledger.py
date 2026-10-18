@@ -266,6 +266,29 @@ class ConfigurationLedgerTests(unittest.TestCase):
         self.packet["outcome"] = "FAIL"
         self.assertEqual(self.review()["outcome"], "FAIL")
 
+    def test_exact_source_reviewed_rejection_exit_255_is_not_normalized(self):
+        self.oracle.update(native_result="config_rejected", visible_status=255, rule_id=None)
+        self.packet["oracle_sha256"] = LEDGER.ORACLES.canonical_digest(self.oracle)
+        self.process()["waited_exit"] = 255
+        self.rebind_process()
+        self.assertEqual(self.review()["outcome"], "PASS")
+        self.process()["waited_exit"] = 1
+        self.rebind_process()
+        with self.assertRaisesRegex(ValueError, "contradicts actual exit"):
+            self.review()
+        self.packet["outcome"] = "FAIL"
+        self.assertEqual(self.review()["outcome"], "FAIL")
+
+    def test_parser_expected_exit_must_be_an_exact_posix_code(self):
+        for result, code in (("config_rejected", 0), ("config_rejected", -1),
+                             ("config_rejected", 256), ("config_rejected", True),
+                             ("config_rejected", 1.0), ("config_accepted", 255)):
+            with self.subTest(result=result, code=code):
+                self.oracle.update(native_result=result, visible_status=code)
+                self.packet["oracle_sha256"] = LEDGER.ORACLES.canonical_digest(self.oracle)
+                with self.assertRaisesRegex(ValueError, "explicit acceptance or rejection oracle"):
+                    self.review()
+
     def test_missing_rules_file_binds_absence_without_inventing_file_hash(self):
         identity = "I12::haproxy-spop-request::missing_rules_file"
         self.row["run_scoped_case_id"] = identity

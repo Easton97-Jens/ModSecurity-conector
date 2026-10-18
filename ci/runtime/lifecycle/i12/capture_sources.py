@@ -119,6 +119,9 @@ class Registry:
         for identity in self.manifest["objects"]:
             self.content(identity)
         for profile in self.manifest["profiles"].values():
+            if ("required_source_identity_format" in profile and profile["required_source_identity_format"] not in
+                    ("i12-disposable-source-copy-v1", "i12-disposable-source-copy-v2")):
+                raise ValueError("Unknown required source identity format")
             for mapping in (profile["source_targets"], profile["capture_files"]):
                 for name, entry in mapping.items():
                     relative(name)
@@ -275,6 +278,9 @@ def disposable(path, parent_sha, storage_root):
 def apply(registry, profile_name, target):
     profile = registry.manifest["profiles"][profile_name]
     identity = disposable(target, registry.manifest["delivery_product_baseline"], Path(registry.manifest["authorized_storage_root"]))
+    required_format = profile.get("required_source_identity_format")
+    if required_format is not None and identity["source_identity_format"] != required_format:
+        raise ValueError("Selected profile requires its declared source identity format")
     receipt_path = target / RECEIPT
     if receipt_path.exists():
         raise ValueError("Source application receipt already exists")
