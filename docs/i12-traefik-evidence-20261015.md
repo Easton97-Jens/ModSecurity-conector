@@ -1,3 +1,71 @@
+## I12 Traefik evidence — continuation of 18 October 2026
+
+**Language:** English | [Deutsch](i12-traefik-evidence-20261015.de.md)
+
+## Current review status — 18 October 2026
+
+Status remains **I12_PARTIAL**: **6 historical lifecycle PASS, 1 historical qualified FAIL and 273 unqualified required IDs**. No new host lifecycle has been promoted by Root. Independent source review now resolves **56 of the original 124 expectations;68 remain open**. A source-resolved expectation establishes an oracle, not a host execution or lifecycle PASS.
+
+| Route | Required IDs | Historical lifecycle PASS | Historical qualified FAIL | Unqualified IDs | Original oracles resolved | Original oracles open |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `traefik-native-uds` | 118 | 2 | 0 | 116 | 30 of 55 | 25 |
+| `traefik-forwardauth-request` | 93 | 2 | 0 | 91 | 15 of 39 | 24 |
+| `traefik-forwardauth-response-companion` | 69 | 2 | 1 | 66 | 11 of 30 | 19 |
+| Total | 280 | 6 | 1 | 273 | 56 of 124 | 68 |
+
+The same 273 lifecycle-unqualified IDs are listed in the historical appendix preserved below. The current per-ID reconciliation is retained under `R18/root-source52-reconciliation-20261018/summary.json` and `ledger.json`, where `R18` is `/var/tmp/codex/ModSecurity-conector/runs/i12-traefik-acceptance-20261015`. These are local retained artifacts; a durable published evidence package is still outstanding.
+
+## Current source and oracle boundaries
+
+The telemetry and original-method product corrections were integrated from #382 through #410 (`f8ce4c1342e29a20070029738663f86716488ccf` integration) into the published #413 revision `782f31ed78353b59a0dcd63978638ae5b107f8cf`. Corrected host telemetry has been observed, but the historical qualified FAIL remains unchanged until a separately reviewed lifecycle retest is qualified. The statements about unchanged product source and the old 4-resolved/120-open count in the 15 October report describe that historical snapshot.
+
+`R18/root-sdk-review-20261018-v3` supersedes only ten unsupported native P2 `backend_request_count=0` expectations from v2. Pinned Go transport source permits backend headers before native request-body inspection completes; the actual independent early-header backend count remains mandatory. No replacement count is inferred from the host result. Named forwardAuth backend-exclusion obligations are unchanged. The v2 records and original contracts remain immutable; source review never manufactures missing client bytes, native EOS, Finish/Free or cleanup evidence.
+
+## Retained continuation runs
+
+| Capture | Actual retained extent | Qualification boundary |
+| --- | --- | --- |
+| Native v4 | 118 original attempt rows completed | Older sealed product source and explicit staged instrumentation; Root 35-field packet review pending |
+| Auth v12 request / companion | 93 +69 original IDs;179 physical directories including controls | Two companion producer client timeouts; canonical fixture-variant and File/API gaps remain |
+| Native v5 | Selected41 IDs,54 executions; controller exit0, timeoutfalse | Root's 12 pre-host SDK controls pass and sink expectations match physical evidence; full Root review pending |
+| Native v7 kernel transport | Two IDs; two producer failures | First before-neighbor receives404 during startup, first target times out after30seconds, second before-neighbor times out; zero observed short-write/EAGAIN/resume proofs |
+
+Native v7 has **no qualified PASS and no product-failure claim**. Its retained physical review is `R18/native-current/v7-physical-review-v1/review.json`; controller completion does not repair failed client production. Every v4/v5/v7 result stays bound to its actual older sealed source revision, staged delta, executable/configuration and run. None is relabeled as a capture of `782f31ed78353b59a0dcd63978638ae5b107f8cf`.
+
+The export manifests bind Native v4/v5/v7 to `770dd71b76bad4cf8ce9e98880e3028b76945892` and Auth v12 to `a29019558678222b88913be0e202db3c9d14323a`, each with its retained explicit instrumentation delta.
+
+The independent Auth v12 audit is under `R18/auth-v12-root-audit-20261018`. All 179 pending packets contain 35 observation fields and retain their original expectations, but are still `pending_root`. In both routes, `finish_failure_propagation` has zero actual client bytes/no HTTP status despite writer200/body33 and Common visible200/committed telemetry. Writer/Common commit state is not a TCP delivery proof. Native API returns, injected returns, native EOS, once-only logging/Free and actual client framing require separate reconciliation. All 179 MIME-gate observations remain null; absence is not zero or an inspection PASS.
+
+The same audit separates host request 4097 rejection401 with no target authorization/native/backend request from the delivered4096-byte sample. A delivered sample does not prove inspection beyond the native body policy. Authorization response 32768 reaches client200/backend1;32769 yields host401/backend0 despite authorizer200. The companion application separately delivers40019 bytes. `maxResponseBodySize=32768` remains exclusively authorization-response capacity.
+
+The original four File obligations across the three routes remain mandatory gaps. Supported native File calls and missing native/MRC1 contracts cannot be replaced with an unsupported or not-applicable disposition. Original canonical fixture variants, strict admission, error-phase boundaries and complete per-allocation EOS/Finish/Free/cleanup still need the exact required proof.
+
+## Verified-TLS baseline and delivery still pending
+
+The corrected TLS source at `782f31ed78353b59a0dcd63978638ae5b107f8cf` passed 31 TLS/Auth controls and 42 documentation checks. Actual host attempt `R18/relay-tls-host-current/isolation/attempt-1792321692553561516` now completed with controller exit0, timeoutfalse, no namespace survivors/mount leaks and all five processes exiting0. Its real effective configuration uses HTTPS, the fresh private CA/IP-SAN leaf, `insecureSkipVerify: false`, `preserveRequestMethod: true` and the unchanged 32768 capacity. All15 delivered authorization sample hashes/lengths match their physical receipts.
+
+| Existing TLS baseline cases | Actual client status/entity bytes | Backend requests |
+| --- | --- | ---: |
+| allow | 200/26 | 1 |
+| p1-deny, p2-deny, engine-limit, limit-boundary | 403/15 each | 0 each |
+| host-limit | 401/0 | 0 |
+| p3-deny | 403/0 | 1 |
+| p4-safe | 200/19 | 1 |
+| large-response | 200/40019 | 1 |
+| observer-abort | No HTTP status/0; client command exit1 | 1 |
+| observer-no-handle, observer-invalid-handle | 503/34 each | 0 each |
+| mrc1-error | 503/30 | 0 |
+| auth-cap-boundary | 200/38 | 1 |
+| auth-cap-overlimit | 401/0 | 0 |
+| neighbor | 200/29 | 1 |
+
+This exercises actual Traefik HTTPS authorization and physical failure paths; it is **not16 client PASS**. Fifteen client commands exit0, while observer-abort retains EOF/zero client bytes and its parsing error/exit1. Native allocation/logging/Free are15 each, request EOS14 and response EOS5; final pending/live mappings are0. The abort has response EOS0. The companion socket is removed and the socket directory is empty. The actual P4 event now has `late_intervention=true`, `late_intervention_mode=safe`, requested deny and actual log_only, without promoting the historical FAIL. Actual public CA/leaf/receipt hashes match the three public build-manifest entries; separate public-certificate chain/IP-SAN/server-purpose verification passes. Only private-key presence/mode metadata was inspected: leaf0600 under0700. Key bytes/hashes remain excluded from public artifacts/manifests.
+
+At the exact 782f head, Sonar Quality Gate is OK with security rating A, but the stricter zero-findings requirement still has **five S1192 findings** for duplicated TLS filename literals. Accepted findings, hotspots and duplication are0. The local source correction passes31 existing TLS/Auth controls; hosted resolution on the next published head remains pending. The retained hosted readback contains28 checks: Sonar success1, skipped2, pending25. These time/head-bound observations establish no all-green, complete I12 acceptance, `verified_pr` or durable artifact publication. This continuation documents functional tests and evidence review; no additional deep security assessment is included.
+
+## Historical report and appendix — 15 October 2026, preserved verbatim
+
+
 # I12 Traefik evidence — 15 October 2026
 
 **Language:** English | [Deutsch](i12-traefik-evidence-20261015.de.md)

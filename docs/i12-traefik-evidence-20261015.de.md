@@ -1,3 +1,71 @@
+## I12-Traefik-Nachweise — Fortsetzung vom 18. Oktober 2026
+
+**Sprache:** [English](i12-traefik-evidence-20261015.md) | Deutsch
+
+## Aktueller Prüfstand — 18. Oktober 2026
+
+Status bleibt **I12_PARTIAL**: **6 historische Lifecycle-PASS, 1 historischer qualifizierter FAIL und273 unqualifizierte Pflicht-IDs**. Root hat keinen neuen Host-Lifecycle qualifiziert. Unabhängiger Quellreview löst jetzt **56 der ursprünglichen124 Erwartungen auf;68 bleiben offen**. Eine quellseitig aufgelöste Erwartung begründet ein Oracle, keine Hostausführung oder einen Lifecycle-PASS.
+
+| Route | Pflicht-IDs | Historische Lifecycle-PASS | Historischer qualifizierter FAIL | Unqualifizierte IDs | Original-Oracles aufgelöst | Original-Oracles offen |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `traefik-native-uds` | 118 | 2 | 0 | 116 | 30 von 55 | 25 |
+| `traefik-forwardauth-request` | 93 | 2 | 0 | 91 | 15 von 39 | 24 |
+| `traefik-forwardauth-response-companion` | 69 | 2 | 1 | 66 | 11 von 30 | 19 |
+| Gesamt | 280 | 6 | 1 | 273 | 56 von 124 | 68 |
+
+Dieselben 273 Lifecycle-unqualifizierten IDs stehen im unten unverändert erhaltenen historischen Anhang. Die aktuelle Einzel-ID-Abstimmung liegt unter `R18/root-source52-reconciliation-20261018/summary.json` und `ledger.json`; `R18` bezeichnet `/var/tmp/codex/ModSecurity-conector/runs/i12-traefik-acceptance-20261015`. Dies sind lokal erhaltene Artefakte; ein dauerhaft veröffentlichtes Evidence-Paket steht noch aus.
+
+## Aktuelle Quell- und Oracle-Grenzen
+
+Die Produktkorrekturen für Telemetrie und Originalmethode wurden von #382 über #410 (`f8ce4c1342e29a20070029738663f86716488ccf`-Integration) in die veröffentlichte #413-Revision `782f31ed78353b59a0dcd63978638ae5b107f8cf` integriert. Korrigierte Hosttelemetrie wurde beobachtet; der historische qualifizierte FAIL bleibt bis zu einem separat geprüften und qualifizierten Lifecycle-Retest unverändert. Aussagen des 15-Oktober-Berichts über unveränderte Produktquellen und4aufgelöste/120offene Oracles beschreiben diesen historischen Stand.
+
+`R18/root-sdk-review-20261018-v3` ersetzt ausschließlich zehn unbegründete native P2-Erwartungen `backend_request_count=0` aus v2. Gepinnte Go-Transportquellen erlauben Backendheader vor Abschluss der nativen Request-Body-Inspection; die tatsächliche unabhängige Messung früher Backendheader bleibt verpflichtend. Aus dem Hostresultat wird kein Ersatzcount abgeleitet. Benannte forwardAuth-Backend-Ausschlusspflichten bleiben unverändert. V2-Datensätze und Originalverträge bleiben unveränderlich; Quellreview erzeugt keine fehlenden Clientbytes, nativen EOS-, Finish-/Free- oder Cleanup-Belege.
+
+## Erhaltene Fortsetzungsläufe
+
+| Capture | Tatsächlich erhaltener Umfang | Qualifikationsgrenze |
+| --- | --- | --- |
+| Native v4 | 118 ursprüngliche Versuchszeilen abgeschlossen | Ältere versiegelte Produktquelle mit expliziter Instrumentierung; Root-Prüfung der35-Felder-Pakete offen |
+| Auth v12 Request / Companion | 93 +69 Original-IDs;179 physische Verzeichnisse einschließlich Kontrollen | Zwei Companion-Producer-Client-Timeouts; kanonische Fixture-Varianten und File-/API-Lücken bleiben |
+| Native v5 | Ausgewählte41 IDs,54 Ausführungen; Controller-Exit0, timeoutfalse | Roots 12 SDK-Kontrollen vor Hoststart bestehen; Sink-Erwartungen stimmen mit physischen Belegen überein; vollständiger Root-Review offen |
+| Native v7 Kerneltransport | Zwei IDs; zwei Producerfehler | Erster vorheriger Nachbar erhält beim Start404, erstes Target nach30Sekunden im Timeout, zweiter vorheriger Nachbar im Timeout; keine Short-write-/EAGAIN-/Resume-Belege |
+
+Native v7 hat **keinen qualifizierten PASS und keine Produktfehlerbehauptung**. Die physische Gegenprüfung liegt unter `R18/native-current/v7-physical-review-v1/review.json`; Controllerabschluss korrigiert keine fehlgeschlagene Clientproduktion. Jedes v4-/v5-/v7-Resultat bleibt an seine tatsächliche ältere versiegelte Quellrevision, Staging-Differenz, Programm-/Konfigurationsidentität und den Lauf gebunden. Keines wird als Capture von `782f31ed78353b59a0dcd63978638ae5b107f8cf` umetikettiert.
+
+Die Exportmanifeste binden Native v4/v5/v7 an `770dd71b76bad4cf8ce9e98880e3028b76945892` und Auth v12 an `a29019558678222b88913be0e202db3c9d14323a`, jeweils mit der aufbewahrten ausdrücklichen Instrumentierungsdifferenz.
+
+Der unabhängige Auth-v12-Audit liegt unter `R18/auth-v12-root-audit-20261018`. Alle 179 Pending-Pakete enthalten 35 Beobachtungsfelder und ihre Originalerwartungen, bleiben aber `pending_root`. In beiden Routen zeigt `finish_failure_propagation` tatsächlich null Clientbytes/keinen HTTP-Status trotz Writer200/Body33 und Common-visible200-/Commit-Telemetrie. Writer-/Common-Commitzustand beweist keine TCP-Auslieferung. Native API-Rückgaben, injizierte Rückgaben, natives EOS, einmaliges Logging/Free und tatsächliches Client-Framing benötigen getrennte Abstimmung. Alle 179 MIME-Gate-Beobachtungen bleiben null; Abwesenheit ist weder0 noch Inspection-PASS.
+
+Derselbe Audit trennt Hostablehnung401 bei Request 4097 ohne Target-Authorization-/Native-/Backendrequest vom gelieferten 4096-Byte-Sample. Ein geliefertes Sample beweist keine Inspection über die native Bodypolicy hinaus. Authorization-Response 32768 erreicht Client200/Backend1;32769 ergibt Host401/Backend0 trotz Authorizer200. Die Companion-Anwendung liefert separat40019 Bytes. `maxResponseBodySize=32768` bleibt ausschließlich Authorization-Response-Kapazität.
+
+Die ursprünglichen vier File-Pflichten über alle drei Routen bleiben verpflichtende Lücken. Unterstützte native File-Aufrufe und fehlende Native-/MRC1-Verträge dürfen nicht durch unbegründete Unsupported-/Nichtanwendbarkeitsbewertungen ersetzt werden. Ursprüngliche kanonische Fixture-Varianten, Strict-Zulassung, Fehlerphasengrenzen und vollständige EOS-/Finish-/Free-/Cleanup-Belege pro Allokation bleiben exakt nachzuweisen.
+
+## Verifizierte TLS-Baseline und Delivery weiterhin offen
+
+Die korrigierte TLS-Quelle `782f31ed78353b59a0dcd63978638ae5b107f8cf` bestand 31 TLS-/Auth-Kontrollen und 42 Dokumentationsprüfungen. Der tatsächliche Hostversuch `R18/relay-tls-host-current/isolation/attempt-1792321692553561516` schloss jetzt mit Controller-Exit0, timeoutfalse, keinen Namespace-Überlebenden/Mount-Leaks und fünf Prozess-Exits0 ab. Seine wirksame Konfiguration verwendet HTTPS, die frische private CA mit IP-SAN-Leaf, `insecureSkipVerify: false`, `preserveRequestMethod: true` und die unveränderte 32768-Kapazität. Hashes/Längen aller15 gelieferten Authorization-Samples stimmen mit den physischen Receipts überein.
+
+| Bestehende TLS-Baseline-Fälle | Tatsächlicher Clientstatus/Entitybytes | Backendrequests |
+| --- | --- | ---: |
+| allow | 200/26 | 1 |
+| p1-deny, p2-deny, engine-limit, limit-boundary | jeweils403/15 | jeweils0 |
+| host-limit | 401/0 | 0 |
+| p3-deny | 403/0 | 1 |
+| p4-safe | 200/19 | 1 |
+| large-response | 200/40019 | 1 |
+| observer-abort | Kein HTTP-Status/0; Clientbefehl Exit1 | 1 |
+| observer-no-handle, observer-invalid-handle | jeweils503/34 | jeweils0 |
+| mrc1-error | 503/30 | 0 |
+| auth-cap-boundary | 200/38 | 1 |
+| auth-cap-overlimit | 401/0 | 0 |
+| neighbor | 200/29 | 1 |
+
+Dies prüft tatsächliche Traefik-HTTPS-Autorisierung und physische Fehlerpfade; es sind **keine16 Client-PASS**. Fünfzehn Clientbefehle liefern Exit0; Observer-Abbruch behält EOF/null Clientbytes und Parserfehler/Exit1. Native Allokation/Logging/Free betragen jeweils15, Request-EOS14 und Response-EOS5; finale Pending-/Live-Mappings0. Beim Abbruch ist Response-EOS0. Companion-Socket entfernt, Socketverzeichnis leer. Der tatsächliche P4-Event besitzt jetzt `late_intervention=true`, `late_intervention_mode=safe`, requested deny und actual log_only, ohne den historischen FAIL zu qualifizieren. Öffentliche CA-/Leaf-/Receipt-Hashes stimmen mit den drei öffentlichen Build-Manifest-Einträgen überein; separate öffentliche Zertifikatsketten-/IP-SAN-/Serverzweck-Prüfung besteht. Vom privaten Schlüssel wurden ausschließlich Vorhandensein/Modus geprüft: Leaf0600 unter0700. Schlüsselbytes/-hashes bleiben aus öffentlichen Artefakten/Manifesten ausgeschlossen.
+
+Am exakten 782f-Head ist Sonar Quality Gate OK mit Security-Rating A; die strengere Nullbefundforderung hat jedoch weiterhin **fünf S1192-Befunde** zu mehrfachen TLS-Dateinamenliteralen. Akzeptierte Befunde, Hotspots und Duplikation sind0. Die lokale Quellkorrektur besteht31 vorhandene TLS-/Auth-Kontrollen; die gehostete Auflösung am nächsten veröffentlichten Head bleibt offen. Der aufbewahrte Hosted-Readback enthält28 Checks: Sonar erfolgreich1, übersprungen2, offen25. Diese zeit-/headgebundenen Beobachtungen begründen weder All-green noch vollständigen I12-Abschluss, `verified_pr` oder dauerhafte Artefaktveröffentlichung. Diese Fortsetzung dokumentiert funktionale Tests und Evidence-Review; sie enthält keine zusätzliche tiefe Sicherheitsprüfung.
+
+## Historischer Bericht und Anhang — 15. Oktober 2026, wortgetreu erhalten
+
+
 # I12-Traefik-Nachweise — 15. Oktober 2026
 
 **Sprache:** [English](i12-traefik-evidence-20261015.md) | Deutsch

@@ -1,3 +1,24 @@
+## Change Record: CR-20261015-i12-traefik-host-evidence — follow-up of 18 October 2026
+
+**Language:** English | [Deutsch](CR-20261015-i12-traefik-host-evidence.de.md)
+
+## Current follow-up — 18 October 2026
+
+The current [Traefik evidence report](../../../docs/i12-traefik-evidence-20261015.md) and its German companion now lead with the 18 October continuation. The complete 15 October reports/appendices and this original Change Record are preserved verbatim below their historical headings. Original Change ID/date/base identity remains historical.
+
+Current qualification remains **6 historical lifecycle PASS,1 historical qualified FAIL,273 unqualified required IDs**; there are no Root runtime promotions. Source-only review resolves 56/124 original expectations: native 30/55, request 15/39, companion 11/30; open 25/24/19 totals 68. The current reconciliation is retained at `R18/root-source52-reconciliation-20261018`, with `R18=/var/tmp/codex/ModSecurity-conector/runs/i12-traefik-acceptance-20261015`. Source review and lifecycle qualification remain distinct.
+
+The product telemetry/original-method corrections now come through #382 → #410 (`f8ce4c1342e29a20070029738663f86716488ccf`) → #413 revision `782f31ed78353b59a0dcd63978638ae5b107f8cf`; corrected telemetry observations do not erase the historical FAIL. `root-sdk-review-20261018-v3` supersedes only ten unsupported native P2 backend0 expectations while preserving independent actual backend measurement and named Auth exclusions. V2/original records remain immutable.
+
+The reports distinguish older sealed Native v4/v5/v7 and Auth v12 sources/deltas from the published 782f revision. Native v4 retains 118 attempt rows; Auth v12 retains 93+69 original IDs/179 physical directories with two companion producer timeouts. Native v5 selected 41 IDs/54 executions completed exit0/timeoutfalse;12 pre-host SDK controls pass, sink expectations match physical evidence, full Root review remains pending. Native v7 has two producer failures, zero short-write/EAGAIN/resume proofs and no product-failure claim. Root 35-field packet review, canonical fixture variants and original File/API obligations remain open.
+
+TLS source31 controls and42 documentation checks pass. Actual 782f host attempt1792321692553561516 completed controller0/timeoutfalse with 15 client exits0 and observer-abort exit1/zero bytes; allocation/logging/Free15each, finalpending/live0 and socket/process cleanup are observed. Actual HTTPS+CA/hostname verification and capacity32768/32769 paths are exercised; no16-case all-PASS or lifecycle promotion is claimed. `maxResponseBodySize=32768` remains authorization-response capacity; private keys stay out of public artifacts/manifests. Exact782f Sonar gateOK/securityA is separate from five remaining strict-zero S1192 findings. The local correction passes31 existing TLS/Auth controls; hosted resolution on the next published head remains pending. Retained hosted readback:28checks,1Sonar success,2skipped,25pending. Durable publication remains pending; no all-green or complete acceptance.
+
+This bounded follow-up changes only the paired evidence reports and this paired Change Record. Validation uses existing EN/DE structure, Change Record and diff checks; no new prose-only tests, host launch, Git delivery, product edit or additional deep security assessment belongs to this documentation change. The retained historical commands/results below do not imply fresh execution against the latest head.
+
+## Historical Change Record — 15 October 2026, preserved verbatim
+
+
 # Change Record: CR-20261015-i12-traefik-host-evidence
 
 **Language:** English | [Deutsch](CR-20261015-i12-traefik-host-evidence.de.md)

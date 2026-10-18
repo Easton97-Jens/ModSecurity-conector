@@ -1,3 +1,24 @@
+## Change Record: CR-20261015-i12-traefik-host-evidence — Fortschreibung vom 18. Oktober 2026
+
+**Sprache:** [English](CR-20261015-i12-traefik-host-evidence.md) | Deutsch
+
+## Aktuelle Fortschreibung — 18. Oktober 2026
+
+Der aktuelle [Traefik-Evidence-Bericht](../../../docs/i12-traefik-evidence-20261015.de.md) und sein englischer Partner beginnen jetzt mit der Fortsetzung vom 18. Oktober. Die vollständigen Berichte/Anhänge vom 15. Oktober und dieser ursprüngliche Change Record bleiben unter historischen Überschriften wortgetreu erhalten. Ursprüngliche Change-ID/Datum/Basis bleiben historische Identität.
+
+Die aktuelle Qualifikation bleibt **6 historische Lifecycle-PASS,1 historischer qualifizierter FAIL,273 unqualifizierte Pflicht-IDs**; Root hat keine Runtime-Promotions vorgenommen. Quellreview löst 56/124 Originalerwartungen auf: Native 30/55, Request 15/39, Companion 11/30; offen 25/24/19 ergeben 68. Die aktuelle Abstimmung liegt unter `R18/root-source52-reconciliation-20261018`, mit `R18=/var/tmp/codex/ModSecurity-conector/runs/i12-traefik-acceptance-20261015`. Quellreview und Lifecycle-Qualifikation bleiben getrennt.
+
+Die Produktkorrekturen für Telemetrie/Originalmethode kommen jetzt über #382 → #410 (`f8ce4c1342e29a20070029738663f86716488ccf`) → #413-Revision `782f31ed78353b59a0dcd63978638ae5b107f8cf`; korrigierte Telemetriebeobachtungen löschen den historischen FAIL nicht. `root-sdk-review-20261018-v3` ersetzt ausschließlich zehn unbegründete native P2-Backend0-Erwartungen, bei weiterhin verpflichtender unabhängiger Backendmessung und unveränderten benannten Auth-Ausschlusspflichten. V2-/Originaldatensätze bleiben unveränderlich.
+
+Die Berichte trennen ältere versiegelte Native-v4-/v5-/v7- und Auth-v12-Quellen/Deltas von der veröffentlichten 782f-Revision. Native v4 enthält 118 Versuchszeilen; Auth v12 enthält 93+69 Original-IDs/179 physische Verzeichnisse mit zwei Companion-Producer-Timeouts. Native v5 schloss ausgewählte 41 IDs/54 Ausführungen mit Exit0/timeoutfalse ab;12 SDK-Kontrollen vor Hoststart bestehen, Sink-Erwartungen entsprechen physischen Belegen, vollständiger Root-Review bleibt offen. Native v7 hat zwei Producerfehler, keine Short-write-/EAGAIN-/Resume-Belege und keine Produktfehlerbehauptung. Root-Prüfung der35-Felder-Pakete, kanonische Fixture-Varianten und ursprüngliche File-/API-Pflichten bleiben offen.
+
+TLS-Quelle31 Kontrollen und42 Dokumentationsprüfungen bestehen. Tatsächlicher 782f-Hostversuch1792321692553561516 endete mit Controller0/timeoutfalse,15 Client-Exits0 und Observer-Abbruch Exit1/null Bytes; Allokation/Logging/Free jeweils15, finale Pending-/Live-Mappings0 sowie Socket-/Prozess-Cleanup sind beobachtet. Tatsächliche HTTPS-/CA-/Hostnamenprüfung und 32768-/32769-Kapazitätspfade sind geprüft; kein16-Fall-All-PASS oder Lifecycle-Aufstieg wird behauptet. `maxResponseBodySize=32768` bleibt Authorization-Response-Kapazität; private Schlüssel bleiben aus öffentlichen Artefakten/Manifesten ausgeschlossen. Exakter782f-Sonar-GateOK/SecurityA ist von fünf offenen Strict-zero-S1192-Befunden getrennt. Die lokale Korrektur besteht31 vorhandene TLS-/Auth-Kontrollen; die gehostete Auflösung am nächsten veröffentlichten Head bleibt offen. Aufbewahrter Hosted-Readback:28Checks,1Sonar erfolgreich,2übersprungen,25offen. Dauerhafte Veröffentlichung bleibt offen; kein All-green oder vollständiger Abschluss.
+
+Diese begrenzte Fortschreibung ändert ausschließlich das Evidence-Berichtspaar und dieses Change-Record-Paar. Die Validierung verwendet bestehende EN-/DE-Struktur-, Change-Record- und Diffprüfungen; keine neuen Tests nur für Prosa, Hoststarts, Git-Delivery, Produktänderung oder zusätzliche tiefe Sicherheitsprüfung gehören dazu. Die unten erhaltenen historischen Befehle/Ergebnisse behaupten keine frische Ausführung am neuesten Head.
+
+## Historischer Change Record — 15. Oktober 2026, wortgetreu erhalten
+
+
 # Change Record: CR-20261015-i12-traefik-host-evidence
 
 **Sprache:** [English](CR-20261015-i12-traefik-host-evidence.md) | Deutsch
