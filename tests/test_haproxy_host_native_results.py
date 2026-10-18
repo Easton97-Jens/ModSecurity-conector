@@ -35,6 +35,9 @@ static void http_set_term_flags(struct stream *s){(void)s;}
 static void *http_error_message(struct stream *s){(void)s;return NULL;}
 static void http_reply_and_close(struct stream *s,short status,void *m){(void)s;(void)status;(void)m;replies++;}
 static void stream_shutdown(struct stream *s,int flag){(void)s;(void)flag;shutdowns++;}
+/* This evaluation fixture models the transport dependency; HTX queue/stream
+ * abort internals have their own compiled and real-host coverage. */
+static void haproxy_modsecurity_htx_abort_response_stream(struct stream *s){stream_shutdown(s,SF_ERR_KILLED);}
 static void haproxy_modsecurity_htx_companion_cancel_and_close(struct haproxy_modsecurity_htx_filter_context *ctx,const msconnector_error *e){(void)ctx;(void)e;}
 static void haproxy_modsecurity_htx_request_snapshot_free(struct haproxy_modsecurity_htx_filter_context *ctx){(void)ctx;}
 void haproxy_modsecurity_transaction_abort(haproxy_modsecurity_transaction *t){(void)t;cleanups++;}
