@@ -14,13 +14,15 @@ Die JSON-Begleitdatei erhält alle 284 exakten Original-IDs und ihre Baseline-Er
 
 | Route | Original IDs | Lifecycle PASS | Config PASS | Without lifecycle | Original oracles | Open |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| envoy-ext-proc | 117 | 3 | 0 | 114 | 51 | 48 |
+| envoy-ext-proc | 117 | 5 | 0 | 112 | 51 | 46 |
 | envoy-ext-authz-request | 94 | 2 | 8 | 92 | 40 | 38 |
 | envoy-ext-authz-response-companion | 73 | 2 | 0 | 71 | 34 | 32 |
 
 Exakt qualifizierte IDs:
 
 - `I12::envoy-ext-proc::NEED-request-eos-once`
+- `I12::envoy-ext-proc::NEED-client-exit-signal`
+- `I12::envoy-ext-proc::NEED-client-response-bytes`
 - `I12::envoy-ext-proc::NEED-request-streaming`
 - `I12::envoy-ext-proc::NEED-response-streaming`
 - `I12::envoy-ext-authz-request::NEED-request-eos-once`
@@ -34,7 +36,7 @@ Die Baseline enthielt 281 IDs ohne vollständige Hostabnahme: 8 reine Konfigurat
 
 Jede Zeile ist eine gemessene Probe, kein Lifecycle-Verdikt. HTTP/Framing, Transportabschluss, native Phasen und Cleanup bleiben getrennt. Frühere Fehlversuche und Wiederholungen bleiben sichtbar. Bei Envoy ext_proc kann bereits vor einem P2-Deny ein unvollständiger Backendrequest beginnen.
 
-| Batch / probe | Route | Controller exit | Target HTTP | Neighbor HTTP | Backend starts | Overlap |
+| Batch / probe | Route | Runner exit | Target HTTP | Neighbor HTTP | Backend starts | Overlap |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
 | host-v2/ext-proc-p1-deny | envoy-ext-proc | 77 | 403 | None | 0 | None |
 | host-v2/ext-proc-streaming | envoy-ext-proc | 77 | 200 | 200 | 2 | False |
@@ -121,8 +123,14 @@ Jede Zeile ist eine gemessene Probe, kein Lifecycle-Verdikt. HTTP/Framing, Trans
 | host-originals/original-envoy-ext-authz-response-companion-need-missing-correlation-34 | envoy-ext-authz-response-companion | 0 | 503 | 503 | 2 | False |
 | host-originals/original-envoy-ext-authz-response-companion-need-lease-expiry-35 | envoy-ext-authz-response-companion | 0 | 503 | 200 | 2 | False |
 | companion-retake-original-v1/original-envoy-ext-authz-response-companion-need-allow-0 | envoy-ext-authz-response-companion | 0 | 200 | 200 | 2 | False |
+| fault-host-v1/ext-proc-drop-response-eos | envoy-ext-proc | 77 | 200 | 200 | 2 | False |
 
-`None` bezeichnet fehlende Messung. Ein unterer Backend-Zähler bleibt in JSON ausdrücklich als `request_count_is_lower_bound` gekennzeichnet. Controller-Exit 0 ist keine Oracle-Abnahme; Exit 77 bleibt Nicht-PASS.
+## Gerichtete Response-EOS-Fehlerprobe
+
+Die gerichtete echte `envoy-ext-proc`-Probe entfernt ausschließlich das leere Response-EOS des Zielstreams und führt danach den tatsächlichen gRPC-Half-Close aus. Die Engine liefert API-Status 14. Envoys eigener Trace bindet den empfangenen Trailer, Remote-Close und Fehlercallback mit Status 14 über Ziel-Nonce, Connection-ID und Stream-ID an denselben HTTP-Stream; danach folgt ein Reset, nachdem HTTP-200-Header bereits gesendet waren. Der Proxy beobachtet weiterhin keinen Wire-Status und erfindet daraus keinen Erfolg. Der Zielclient erhält den exakten 96-Byte-Prefix in Chunks 64+32, aber keinen terminalen Nullchunk, und endet mit Fehler. Nativ laufen P1–P3; P4 und Response-EOS fehlen, `runtime_finish` wird einmal versucht und liefert 0, während Logging, Free und Cleanup je einmal beobachtet werden. Der Nachbarstream schließt mit P1–P4 und erfolgreichem Finish. Runner-Exit 77, Controller-Exit 1, Client-Exit 1 und `new_lifecycle_pass=0` bleiben erhalten.
+
+
+`None` bezeichnet fehlende Messung. Ein unterer Backend-Zähler bleibt in JSON ausdrücklich als `request_count_is_lower_bound` gekennzeichnet. Runner-Exit 0 ist keine Oracle-Abnahme; Exit 77 bleibt Nicht-PASS.
 
 ## Native Identität und Nachweiskette
 
@@ -148,7 +156,7 @@ UID/GID 65534, Capabilities 0, NoNewPrivs 1 sowie private Netzwerk-/PID-/Mount-N
 
 ## Verifikation und Grenzen
 
-Native/CGo Go `./...`, Race `./...`, Vet `./...` und 32 gemeinsame native Observer-Kontrollen: PASS. 79 bestehende Vertragskontrollen: PASS mit einem Setup-Skip des separat erfolgreich ausgeführten Observers. Neue Kontrollen prüfen unveränderte IDs/Oracles, physische Hashes, fehlende gRPC-Trailer, Quell-/Binary-Austausch, Backend-Framing und Namespace-Ownership-Rennen. Exakte Kommandos, Ergebnisse und Loghashes stehen in den referenzierten Receipts.
+Native/CGo Go `./...`, Race `./...`, Vet `./...` und 32 gemeinsame native Observer-Kontrollen: PASS. Die aktuelle vollständige Envoy-Evidenzsuite hat 175 PASS ohne Skip. Neue Kontrollen prüfen unveränderte IDs/Oracles, physische Hashes, fehlende gRPC-Trailer, geordnete Streamweiterleitung, versiegelte Fault-Fixtures, Quell-/Binary-Austausch, Backend-Framing und Namespace-Ownership-Rennen. Exakte Kommandos, Ergebnisse und Loghashes stehen in den referenzierten Receipts.
 
 Offen bleiben die vollständige unabhängige Oracle-/Original-ID-Abnahme, direkte native MIME-/Charset-Auswahl, vollständig korrelierte parallele gRPC-Terminalstatus, gezielt fehlende/wiederholte Hostcallbacks, alle physischen Event-Sink-Fehler und der vollständige Observer-Stop/Restart-Vertrag. P4 Strict wird nicht als unterstützt oder abgenommen behauptet. Unit-, Native- und Race-Erfolg ersetzen diese Hostnachweise nicht.
 
@@ -164,12 +172,14 @@ Alle 125 Original-Oracles wurden einzeln gegen Quell-, SDK- und Hostsemantik gep
 
 Neue individuell geprüfte Lifecycle-PASS:
 
-- `I12::envoy-ext-proc::NEED-request-streaming` — `5c854e64557baa969e1354272344af9ce17cffb9ceab66408b3e9ceb922b8205`.
-- `I12::envoy-ext-proc::NEED-response-streaming` — `e5bc677ff3faff31362717199228b9aa2749ddb01721ff08e1476678b69479d0`.
-- `I12::envoy-ext-authz-request::NEED-complete-sample` — `fd19b0d3b05e8b816f91fc2416d7ec8805da17c443cf2bc63209fb63973c8aa4`.
-- `I12::envoy-ext-authz-response-companion::NEED-allow` — `d1a9d6107131bbd185608a469a6661b80e3b4e2547ddac6d15694c4bce8e3bb9`.
+- `I12::envoy-ext-authz-request::NEED-complete-sample` — `afbadd7c545220f5196bee34631753fd46614ca1df4c943b8c95971cebb1b732`.
+- `I12::envoy-ext-authz-response-companion::NEED-allow` — `a071c9cac4b6e1f1b79161b6eee1233f890c24ee0becff1fb10a249c5ea93724`.
+- `I12::envoy-ext-proc::NEED-client-exit-signal` — `3802fc9977ae8c52b9b30c76ba9e80bb3089435fab9c1a27a44552efee0ee453`.
+- `I12::envoy-ext-proc::NEED-client-response-bytes` — `1d17f6a7c6f8328e537581ab0f386a808d79eed88bf361f9e16ee4b4f842b329`.
+- `I12::envoy-ext-proc::NEED-request-streaming` — `bc836bed09ae4b6bbb26d2b422005304b68116e7f5691b015a28c02f18f92b76`.
+- `I12::envoy-ext-proc::NEED-response-streaming` — `5879ae735ca5f2050c1a35ab0a5fe36d514b2cf29640c12308c06e126ea5adb8`.
 
-Der eigene aktuelle Abnahmestand hat 7 aufgelöste und 118 offene Original-Oracles. Der zentrale Baseline-Bestand bleibt unverändert.
+Der eigene aktuelle Abnahmestand hat 9 aufgelöste und 116 offene Original-Oracles. Der zentrale Baseline-Bestand bleibt unverändert.
 
 Jeder neue Vorschlag hat eine explizite Original-ID-/Fixture-Bindung und physische Quellreferenzen. Die zugehörigen Retakes bleiben bis zur vollständigen Prüfung aller fallbezogenen Nachweise unqualifiziert; auch ein passendes HTTP-Ergebnis löst kein Original-Oracle automatisch auf.
 
@@ -181,10 +191,13 @@ Die vollständige Bilingual-Prüfung endet mit Exit 2 wegen 22 unveränderter Li
 
 - `baseline`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/baseline-envoy-reconciliation.json` — SHA256 `e5bc09638b139351aa9816df79faffcb8923117f1bd74ca59fdd7b21021ac469`.
 - `native`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/native-v2/native-build/receipt.json` — SHA256 `fd429f2d49a76c71233eb581992a24fc81ac47b1ca8662fd3892be046eee16b0`.
-- `I12__envoy-ext-proc__NEED-request-streaming`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v7/I12__envoy-ext-proc__NEED-request-streaming.json` — SHA256 `5c854e64557baa969e1354272344af9ce17cffb9ceab66408b3e9ceb922b8205`.
-- `I12__envoy-ext-proc__NEED-response-streaming`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v7/I12__envoy-ext-proc__NEED-response-streaming.json` — SHA256 `e5bc677ff3faff31362717199228b9aa2749ddb01721ff08e1476678b69479d0`.
-- `I12__envoy-ext-authz-request__NEED-complete-sample`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v7/I12__envoy-ext-authz-request__NEED-complete-sample.json` — SHA256 `fd19b0d3b05e8b816f91fc2416d7ec8805da17c443cf2bc63209fb63973c8aa4`.
-- `I12__envoy-ext-authz-response-companion__NEED-allow`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v7/I12__envoy-ext-authz-response-companion__NEED-allow.json` — SHA256 `d1a9d6107131bbd185608a469a6661b80e3b4e2547ddac6d15694c4bce8e3bb9`.
+- `validation`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/ci/final-envoy-controls-175.json` — SHA256 `c6ba4875e3a17df190f93cb83f9f8421a4912831010b487599b13428c1b18db2`.
+- `I12__envoy-ext-authz-request__NEED-complete-sample`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v8/I12__envoy-ext-authz-request__NEED-complete-sample.json` — SHA256 `afbadd7c545220f5196bee34631753fd46614ca1df4c943b8c95971cebb1b732`.
+- `I12__envoy-ext-authz-response-companion__NEED-allow`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v8/I12__envoy-ext-authz-response-companion__NEED-allow.json` — SHA256 `a071c9cac4b6e1f1b79161b6eee1233f890c24ee0becff1fb10a249c5ea93724`.
+- `I12__envoy-ext-proc__NEED-client-exit-signal`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v8/I12__envoy-ext-proc__NEED-client-exit-signal.json` — SHA256 `3802fc9977ae8c52b9b30c76ba9e80bb3089435fab9c1a27a44552efee0ee453`.
+- `I12__envoy-ext-proc__NEED-client-response-bytes`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v8/I12__envoy-ext-proc__NEED-client-response-bytes.json` — SHA256 `1d17f6a7c6f8328e537581ab0f386a808d79eed88bf361f9e16ee4b4f842b329`.
+- `I12__envoy-ext-proc__NEED-request-streaming`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v8/I12__envoy-ext-proc__NEED-request-streaming.json` — SHA256 `bc836bed09ae4b6bbb26d2b422005304b68116e7f5691b015a28c02f18f92b76`.
+- `I12__envoy-ext-proc__NEED-response-streaming`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v8/I12__envoy-ext-proc__NEED-response-streaming.json` — SHA256 `5879ae735ca5f2050c1a35ab0a5fe36d514b2cf29640c12308c06e126ea5adb8`.
 - `oracles-ext-proc`: `/var/tmp/codex/ModSecurity-conector/worktrees/i12-envoy-410-20261015/ci/runtime/lifecycle/i12/envoy/oracles-ext-proc.json` — SHA256 `a25fe9a5808df508a5182cedf343166ccafebefabaeaa7d7898a4eb6d2c61a2f`.
 - `oracles-authz-request`: `/var/tmp/codex/ModSecurity-conector/worktrees/i12-envoy-410-20261015/ci/runtime/lifecycle/i12/envoy/oracles-authz-request.json` — SHA256 `00299799b27918783dff71e44720059d23bc539570f71c4e37a4b6d91ac08ddf`.
 - `oracles-companion`: `/var/tmp/codex/ModSecurity-conector/worktrees/i12-envoy-410-20261015/ci/runtime/lifecycle/i12/envoy/oracles-companion.json` — SHA256 `fe98c20ebd63ad455a34e2a65dbced229d43cab63755d70e743a18abdaf9f1b3`.
@@ -196,5 +209,6 @@ Die vollständige Bilingual-Prüfung endet mit Exit 2 wegen 22 unveränderter Li
 - `review-release-host-postcommit`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/review-release-host-postcommit.json` — SHA256 `6add24def432637fb8d701fe98f8b2890d473992a38939a2f27bdb21d672f27e`.
 - `review-release-host-originals`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/review-release-host-originals.json` — SHA256 `2de58afa0962ac01258a7fd1a9fac9553eb97f54543c0e5d303668477101d7fd`.
 - `review-companion-retake-v1`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/review-companion-retake-v1.json` — SHA256 `8e343b65be316565c222163d95c812a337b3e3de66d2544bdb8520bbffe79869`.
+- `review-fault-host-v2`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/review-fault-host-v2.json` — SHA256 `862c108d07b69ccfdaa6c8dd51493a03361c8ad1f3c85b6d4a704b56c077dc3e`.
 
 Die Referenzen liegen im task-eigenen externen Speicher; der PR enthält nur Quellcode und bereinigte Metadaten, keine Binaries, Caches, privaten Schlüssel oder Rohpayloads.

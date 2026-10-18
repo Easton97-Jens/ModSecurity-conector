@@ -214,7 +214,6 @@ def validate_existing(args, source, out, receipt, env, run):
     receipt["status"] = "pass"
     receipt.pop("failure", None)
     run.save()
-    return
 
 
 def extract_source_archive(source, archive):
@@ -227,7 +226,7 @@ def extract_source_archive(source, archive):
         stream.extractall(source, filter="data")
 
 
-def prepare_source(root, source, receipt, run):
+def prepare_source(source, receipt, run):
     head = run("source-head", ["git", "rev-parse", "HEAD"]).decode().strip()
     archive = run("source-archive", ["git", "archive", "--format=tar", head])
     source.mkdir()
@@ -328,7 +327,7 @@ def main():
         if args.validate_existing:
             validate_existing(args, source, out, receipt, env, run)
             return
-        profile, dependency_hashes = prepare_source(root, source, receipt, run)
+        profile, dependency_hashes = prepare_source(source, receipt, run)
         configure_native_environment(args, root, out, receipt, env)
         compile_native(args, source, out, env, receipt, run, profile)
         validate(source, out, env, run, args.go, args.sdk_include, args.sdk_library)

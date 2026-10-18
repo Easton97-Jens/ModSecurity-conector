@@ -49,12 +49,12 @@ def expected_inventory(proof):
     expected, manifest = archive_inventory(data)
     expected.update(proof['capture_application']['exact_written_sha256'])
     prefix = '.i12-capture/envoy/source-copy-tests/'
-    for path, value in list(expected.items()):
-        if path.startswith(prefix):
-            relative = path.removeprefix(prefix)
-            if relative in expected:
-                raise ValueError('capture test overwrites original source')
-            expected[relative] = value
+    copies = {path.removeprefix(prefix): value for path, value in expected.items()
+              if path.startswith(prefix)}
+    for relative, value in copies.items():
+        if relative in expected:
+            raise ValueError('capture test overwrites original source')
+        expected[relative] = value
     marker = {'format': 'i12-disposable-source-copy-v1', 'path': proof['source_copy'],
               'disposable': True, 'parent_sha': manifest['delivery_product_baseline']}
     expected['.i12-disposable-source-copy.json'] = digest(json.dumps(marker).encode())

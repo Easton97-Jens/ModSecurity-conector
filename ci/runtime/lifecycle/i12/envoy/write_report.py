@@ -20,6 +20,30 @@ def load(path):
     return evidence_io.read_json(path)
 
 
+def validate_controls_receipt(path):
+    receipt = load(path)
+    expected_argv = [
+        'rtk', 'proxy', '/root/git/ModSecurity-conector/.venv/bin/python', '-B',
+        '-m', 'unittest', '-v', 'tests.test_i12_envoy_evidence'
+    ]
+    if (receipt.get('schema_version') != 1 or receipt.get('argv') != expected_argv or
+            receipt.get('cwd') != str(ROOT) or receipt.get('exit_code') != 0 or
+            receipt.get('tests') != 175 or receipt.get('skips') != 0):
+        raise ValueError('current complete Envoy control receipt is not a 175-test PASS')
+    if set(receipt.get('logs', {})) != {'stdout', 'stderr'}:
+        raise ValueError('control receipt must retain both raw logs')
+    for log in receipt['logs'].values():
+        if reference(Path(log['path'])) != log:
+            raise ValueError('control receipt raw log changed')
+    sources = sorted((ROOT / 'ci/runtime/lifecycle/i12/envoy').glob('*.py'))
+    sources.append(ROOT / 'tests/test_i12_envoy_evidence.py')
+    expected_sources = {str(source.relative_to(ROOT)): reference(source)['sha256']
+                        for source in sources}
+    if receipt.get('source_sha256') != expected_sources:
+        raise ValueError('control receipt source hashes are stale')
+    return receipt
+
+
 def encode_report(data):
     """Keep one inspectable record per original ID or host run in large arrays."""
     lines = ['{']
@@ -88,15 +112,15 @@ def host_intro(german):
         'Jede Zeile ist eine gemessene Probe, kein Lifecycle-Verdikt. HTTP/Framing, Transportabschluss, native Phasen und Cleanup bleiben getrennt. Frühere Fehlversuche und Wiederholungen bleiben sichtbar. Bei Envoy ext_proc kann bereits vor einem P2-Deny ein unvollständiger Backendrequest beginnen.' if german else
          'Each row is a measured probe, not a lifecycle verdict. HTTP/framing, transport closure, native phases and cleanup remain separate. Earlier failed attempts and retakes remain visible. Envoy ext_proc can begin an incomplete backend request before a P2 deny.',
         '',
-        '| Batch / probe | Route | Controller exit | Target HTTP | Neighbor HTTP | Backend starts | Overlap |'
+        '| Batch / probe | Route | Runner exit | Target HTTP | Neighbor HTTP | Backend starts | Overlap |'
     ]
 
 
 def native_identity(data, german):
     return [
         '',
-        '`None` bezeichnet fehlende Messung. Ein unterer Backend-Zähler bleibt in JSON ausdrücklich als `request_count_is_lower_bound` gekennzeichnet. Controller-Exit 0 ist keine Oracle-Abnahme; Exit 77 bleibt Nicht-PASS.' if german else
-                   '`None` denotes a missing measurement. A lower-bound backend count remains explicitly marked `request_count_is_lower_bound` in JSON. Controller exit 0 is not oracle acceptance; exit 77 remains non-PASS.',
+        '`None` bezeichnet fehlende Messung. Ein unterer Backend-Zähler bleibt in JSON ausdrücklich als `request_count_is_lower_bound` gekennzeichnet. Runner-Exit 0 ist keine Oracle-Abnahme; Exit 77 bleibt Nicht-PASS.' if german else
+                   '`None` denotes a missing measurement. A lower-bound backend count remains explicitly marked `request_count_is_lower_bound` in JSON. Runner exit 0 is not oracle acceptance; exit 77 remains non-PASS.',
         '',
         '## Native Identität und Nachweiskette' if german else '## Native identity and evidence chain',
         '',
@@ -104,6 +128,90 @@ def native_identity(data, german):
         '- Envoy: `b579d07d3ad7ee11d32b105e91a5a39ad24718d7/1.39.1/Clean/RELEASE/BoringSSL`.',
         '- Envoy image SHA256: `002c6e1c69ed0fa0ea381887247cadadfaec9481375fa8d8d2b1731eeabf40b8`.'
     ]
+
+
+def fault_probe_findings(data, german):
+    probes = [item for item in data['host_measurements'] if 'fault_proxy' in item]
+    if not probes:
+        return []
+    if len(probes) != 1:
+        raise ValueError('exactly one independently reviewed fault probe expected')
+    item = probes[0]
+    fault = item['fault_proxy']
+    status = fault['envoy_received_status']
+    client = fault['target_client_incomplete_response']
+    target_client = item['clients']['target']
+    neighbor_client = item['clients']['neighbor']
+    target_scopes = [scope for scope in item['native']['scopes']
+                     if scope['completed_transition_count'] == 0]
+    neighbor_scopes = [scope for scope in item['native']['scopes']
+                       if scope['completed_transition_count'] == 1]
+    if len(target_scopes) != 1 or len(neighbor_scopes) != 1:
+        raise ValueError('fault target and healthy neighbor native scopes must remain distinct')
+    target, neighbor = target_scopes[0], neighbor_scopes[0]
+    target_counts = target['observed_return_counts']
+    neighbor_counts = neighbor['observed_return_counts']
+    target_chunks = [row['body_bytes'] for row in target['typed_body_callbacks']
+                     if row.get('operation') == 1 and row.get('response_direction') == 1]
+    required = [
+        fault['host_lifecycle_qualified'] is False,
+        fault['new_lifecycle_pass'] == 0,
+        all(fault['source_contract_checks'].values()),
+        status['grpc_status'] == 14 and status['successful_grpc_completion'] is False,
+        fault['target']['remote_wire_status_observed'] is False,
+        client['framing_complete'] is False and client['terminal_zero_chunk_observed'] is False,
+        client['entity_prefix_bytes'] == 96 and client['complete_chunk_sizes'] == [64, 32],
+        target_client['raw_http_status'] == 200 and target_client['process_exit'] == 1,
+        neighbor_client['raw_http_status'] == 200 and neighbor_client['process_exit'] == 0,
+        item['runner_exit_code'] == 77 and item['controller']['exitcode'] == 1,
+        item['controller']['surviving_namespace_pid_count'] == 0,
+        item['controller']['outside_mount_leak_count'] == 0,
+        item['driver']['remaining_owned_process_count'] == 0,
+        target_chunks == [64, 32],
+        target_counts.get('native_process_request_headers') == 1,
+        target_counts.get('native_process_request_body') == 1,
+        target_counts.get('native_process_response_headers') == 1,
+        target_counts.get('native_process_response_body', 0) == 0,
+        target['return_result_counts']['runtime_finish'] == {'0': 1},
+        target_counts.get('native_process_logging') == 1,
+        target_counts.get('native_cleanup') == 1,
+        target_counts.get('common_cleanup') == 1,
+        neighbor_counts.get('native_process_response_body') == 1,
+        neighbor['return_result_counts']['runtime_finish'] == {'1': 1},
+    ]
+    if not all(required):
+        raise ValueError('fault probe lost a required independent physical observation')
+    if german:
+        text = (
+            'Die gerichtete echte `envoy-ext-proc`-Probe entfernt ausschließlich das leere '
+            'Response-EOS des Zielstreams und führt danach den tatsächlichen gRPC-Half-Close aus. '
+            'Die Engine liefert API-Status 14. Envoys eigener Trace bindet den empfangenen Trailer, '
+            'Remote-Close und Fehlercallback mit Status 14 über Ziel-Nonce, Connection-ID und Stream-ID '
+            'an denselben HTTP-Stream; danach folgt ein Reset, nachdem HTTP-200-Header bereits gesendet '
+            'waren. Der Proxy beobachtet weiterhin keinen Wire-Status und erfindet daraus keinen Erfolg. '
+            'Der Zielclient erhält den exakten 96-Byte-Prefix in Chunks 64+32, aber keinen terminalen '
+            'Nullchunk, und endet mit Fehler. Nativ laufen P1–P3; P4 und Response-EOS fehlen, '
+            '`runtime_finish` wird einmal versucht und liefert 0, während Logging, Free und Cleanup je '
+            'einmal beobachtet werden. Der Nachbarstream schließt mit P1–P4 und erfolgreichem Finish. '
+            'Runner-Exit 77, Controller-Exit 1, Client-Exit 1 und `new_lifecycle_pass=0` bleiben erhalten.'
+        )
+        heading = '## Gerichtete Response-EOS-Fehlerprobe'
+    else:
+        text = (
+            'The directed real `envoy-ext-proc` probe removes only the target stream’s empty response '
+            'EOS and then performs the actual gRPC half-close. The engine returns API status 14. '
+            'Envoy’s own trace binds the received status-14 trailer, remote close and error callback to '
+            'the same HTTP stream through the target nonce, connection ID and stream ID; a reset follows '
+            'after HTTP 200 headers were already sent. The proxy still observes no wire status and does '
+            'not turn that absence into success. The target client receives the exact 96-byte prefix in '
+            '64+32 chunks but no terminal zero chunk, then exits with an error. Native P1–P3 run; P4 and '
+            'response EOS are absent, `runtime_finish` is attempted once and returns 0, while logging, '
+            'free and cleanup are each observed once. The neighbor stream completes P1–P4 with a '
+            'successful finish. Runner exit 77, controller exit 1, client exit 1 and '
+            '`new_lifecycle_pass=0` are retained.'
+        )
+        heading = '## Directed response-EOS fault probe'
+    return ['', heading, '', text, '']
 
 
 def native_capture(german):
@@ -142,8 +250,8 @@ def verification_limits(german):
         '',
         '## Verifikation und Grenzen' if german else '## Verification and limits',
         '',
-        'Native/CGo Go `./...`, Race `./...`, Vet `./...` und 32 gemeinsame native Observer-Kontrollen: PASS. 79 bestehende Vertragskontrollen: PASS mit einem Setup-Skip des separat erfolgreich ausgeführten Observers. Neue Kontrollen prüfen unveränderte IDs/Oracles, physische Hashes, fehlende gRPC-Trailer, Quell-/Binary-Austausch, Backend-Framing und Namespace-Ownership-Rennen. Exakte Kommandos, Ergebnisse und Loghashes stehen in den referenzierten Receipts.' if german else
-         'Native/CGo Go `./...`, race `./...`, vet `./...` and 32 common native observer controls: PASS. 79 existing contract controls: PASS with one setup skip for the observer run successfully separately. New controls cover unchanged IDs/oracles, physical hashes, absent gRPC trailers, substituted source/binaries, backend framing and namespace ownership races. Exact commands, outcomes and log hashes are in the referenced receipts.',
+        'Native/CGo Go `./...`, Race `./...`, Vet `./...` und 32 gemeinsame native Observer-Kontrollen: PASS. Die aktuelle vollständige Envoy-Evidenzsuite hat 175 PASS ohne Skip. Neue Kontrollen prüfen unveränderte IDs/Oracles, physische Hashes, fehlende gRPC-Trailer, geordnete Streamweiterleitung, versiegelte Fault-Fixtures, Quell-/Binary-Austausch, Backend-Framing und Namespace-Ownership-Rennen. Exakte Kommandos, Ergebnisse und Loghashes stehen in den referenzierten Receipts.' if german else
+         'Native/CGo Go `./...`, race `./...`, vet `./...` and 32 common native observer controls: PASS. The current complete Envoy evidence suite has 175 PASS with no skips. New controls cover unchanged IDs/oracles, physical hashes, absent gRPC trailers, ordered stream forwarding, sealed fault fixtures, substituted source/binaries, backend framing and namespace ownership races. Exact commands, outcomes and log hashes are in the referenced receipts.',
         '',
         'Offen bleiben die vollständige unabhängige Oracle-/Original-ID-Abnahme, direkte native MIME-/Charset-Auswahl, vollständig korrelierte parallele gRPC-Terminalstatus, gezielt fehlende/wiederholte Hostcallbacks, alle physischen Event-Sink-Fehler und der vollständige Observer-Stop/Restart-Vertrag. P4 Strict wird nicht als unterstützt oder abgenommen behauptet. Unit-, Native- und Race-Erfolg ersetzen diese Hostnachweise nicht.' if german else
          'Still open: complete independent oracle/original-ID acceptance, direct native MIME/charset selection, fully correlated concurrent gRPC terminal status, deliberate missing/repeated host callbacks, all physical event-sink failures and the complete observer stop/restart contract. P4 Strict is not claimed supported or accepted. Unit, native and race success do not replace these host proofs.',
@@ -193,6 +301,7 @@ def report(data, german):
         status = lambda who: clients.get(who, {}).get('raw_http_status')
         lines.append('| ' + ' | '.join(map(str, [item['batch'] + '/' + item['scenario'], item['route'], item['runner_exit_code'],
             status('target'), status('neighbor'), item.get('backend', {}).get('request_count'), item.get('client_time_overlap_observed')])) + ' |')
+    lines += fault_probe_findings(data, german)
     lines += native_identity(data, german)
     lines += native_capture(german)
     lines += sample_companion_cleanup(german)
@@ -245,7 +354,7 @@ def add_host_measurements(data, paths):
                 'attempt', 'controller', 'observation_state', 'clients', 'backend', 'native', 'events',
                 'grpc_transport', 'client_time_overlap_observed', 'artifact_integrity_issues', 'unknown',
                 'original_oracle_case_ids', 'oracle_review_sha256', 'loaded_images', 'source_equality', 'build',
-                'native_logs', 'command_exit_codes', 'driver', 'versions') if key in item}
+                'native_logs', 'command_exit_codes', 'driver', 'versions', 'fault_proxy') if key in item}
             kept['batch'] = Path(item['attempt']).parents[1].name
             kept['physical_file_hashes'] = item.get('physical_files', {})
             data['host_measurements'].append(kept)
@@ -320,12 +429,14 @@ def main():
     parser.add_argument('--baseline', type=Path, required=True)
     parser.add_argument('--review', type=Path, action='append', default=[])
     parser.add_argument('--native', type=Path, required=True)
+    parser.add_argument('--validation', type=Path, required=True)
     parser.add_argument('--oracle-review', type=Path, action='append', required=True)
     parser.add_argument('--qualified', type=Path, action='append', default=[])
     parser.add_argument('--oracle-supplement', type=Path, action='append', default=[])
     args = parser.parse_args()
     baseline = load(args.baseline)
     native = load(args.native)
+    validate_controls_receipt(args.validation)
     source_review = validate_oracles.validate(args.baseline, args.oracle_review)
     qualified = [qualify_originals.validate_approved(path) for path in args.qualified]
     if len({row['run_scoped_case_id'] for row in qualified}) != len(qualified):
@@ -334,7 +445,8 @@ def main():
         raise ValueError('validated baseline and passing native receipt required')
     data = {'schema': 'i12.envoy.task-report.v1', 'status': 'PARTIAL', 'parent_sha': native['actual_source_commit'],
             'routes': baseline['routes'], 'summary': baseline['summary'], 'new_original_id_qualifications': len(qualified),
-            'physical_inputs': {'baseline': reference(args.baseline), 'native': reference(args.native)},
+            'physical_inputs': {'baseline': reference(args.baseline), 'native': reference(args.native),
+                                'validation': reference(args.validation)},
             'original_ids': [{key: row[key] for key in ('run_scoped_case_id', 'leg_id', 'status', 'qualification_scope',
                 'original_oracle_member', 'original_oracle', 'residual', 'existing_host_packet')} for row in baseline['rows']],
             'host_measurements': []}

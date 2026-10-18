@@ -4,13 +4,32 @@
 
 This Envoy-only test extension reuses the existing `envoy` capture variant and
 common native observer. The [task report](../../../../../reports/testing/i12-envoy-host-evidence-20261015.md)
-is **PARTIAL**: 284 original IDs are preserved. Four newly approved packets
-raise the current lifecycle PASS to seven; 118 original oracles remain open.
+is **PARTIAL**: 284 original IDs are preserved. Six newly approved packets
+raise the current lifecycle PASS to nine; 116 original oracles remain open.
 The central baseline stays unchanged. Synthetic host scenarios do not
 automatically qualify original IDs.
 
 All 125 original oracles have individual source reviews. The 33 new fixture-bound
 source proposals remain separate from canonical resolution and host acceptance.
+
+## Current acceptance state
+
+| Route | Lifecycle PASS / original IDs | Open original oracles |
+| --- | ---: | ---: |
+| `envoy-ext-proc` | 5 / 117 | 46 |
+| `envoy-ext-authz-request` | 2 / 94 | 38 |
+| `envoy-ext-authz-response-companion` | 2 / 73 | 32 |
+
+Of 275 IDs without full lifecycle acceptance, 8 are configuration-only PASS
+and 267 are unqualified. The 86 real host measurements include 37 retakes under
+33 exact original IDs. The six new individual approvals are:
+
+- `I12::envoy-ext-proc::NEED-request-streaming`
+- `I12::envoy-ext-proc::NEED-response-streaming`
+- `I12::envoy-ext-proc::NEED-client-response-bytes`
+- `I12::envoy-ext-proc::NEED-client-exit-signal`
+- `I12::envoy-ext-authz-request::NEED-complete-sample`
+- `I12::envoy-ext-authz-response-companion::NEED-allow`
 
 ## Producers
 
@@ -22,11 +41,12 @@ source proposals remain separate from canonical resolution and host acceptance.
 | `evidence_io.py` | Bounds physical reads to approved owned paths; rejects symlinks, private configuration and changes during reads |
 | `validate_oracles.py` | Verifies all 125 original-ID reviews and physical references; preserves canonical results |
 | `host_scenarios.py` | Sealed independent fixtures, TLS inputs, binary/source binding and private controller; does not start hosts |
+| `fault_scenarios.py` | Sealed Response-EOS fault fixture with a separate test proxy; real run `fault-host-v1` remains runner77/controller1/client1, unqualified and without new PASS |
 | `bind_originals.py` | Seals fresh exact-original-ID retakes of reviewed fixtures with all inputs inside the current private run |
 | `run_host.py` | Bounded launches using the existing nonroot controller; exit codes remain observations |
 | `review_runs.py` | Physical hashes, loaded images, client/backend bytes, native/host callbacks, cleanup and transport facts |
 | `transport.py` | Distinguishes actual local HTTP/2 reset from explicit remote gRPC success |
-| `qualify_originals.py` | Stages four selected original cases; individual approval requires exact fixture equality, fresh reproduction of all 35 proof fields and the shared validator |
+| `qualify_originals.py` | Stages selected original cases; individual approval requires exact fixture equality, fresh reproduction of all 35 proof fields and the shared validator |
 | `write_report.py` | Generates only this task's EN/DE report and exact-ID JSON; does not update shared generators or ledger |
 
 A fresh companion NEED-allow retake binds a separate supplemental source review before execution. Its early backend request-line capture proves exactly one target and one neighbor request; old lower-bound receipts remain unchanged.
@@ -39,6 +59,8 @@ Run from the Parent worktree, with the repository-owned Python interpreter:
 rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B -m unittest discover -s ci/runtime/lifecycle/i12/envoy -p 'test_*.py' -v
 rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B ci/runtime/lifecycle/i12/capture_sources.py verify
 ```
+
+The current complete Envoy suite has 175 PASS and 0 skips. Focused fault controls have 16 PASS; separate Go test-proxy controls have 10 PASS. These controls do not automatically qualify the host run.
 
 Each producer exposes `--help`. Native preparation requires a fresh registered
 external run root, the current checkout, the existing offline module cache,
@@ -54,6 +76,16 @@ UID/GID 65534 with NoNewPrivs before running capture programs. The Envoy copy
 pins its positively identified PID namespace until after cleanup to prevent
 inode reuse from misattributing another run's processes. All original gates
 remain active; failed ownership checks remain errors.
+
+
+The demonstrated native source is exclusively
+`f27eb59b53beff6f65384fc2e5037881a3052c01`. Envoy product sources and Envoy Go module inputs
+are unchanged in the advanced Base head
+`2619a31777a3a9fffe3e3d4656feb7e57404ca03`; however, an observer-hash mismatch
+with the current capture manifest prevents a fresh capture of that head. The
+retained native and host receipts do not qualify this Base head.
+
+The real ext_proc fault probe `fault-host-v1` drops only the empty Response-EOS callback and performs an actual half-close. The engine API and Envoy trace unambiguously correlated to the target stream report gRPC status14. The client receives an HTTP200 prefix with 96 body bytes in 64+32, but no zero chunk. Runner77/controller1/client1 remain unqualified; new PASS: 0. The target records P1–P3 and P4=0, a `runtime_finish` attempt with result0 and one logging/free/cleanup each. The healthy neighbor has P1–P4/Finish once each; no survivors or mount leaks remain. Proxy wire status remains unobserved. Missing status is not interpreted as successful completion.
 
 ## Claim limits
 

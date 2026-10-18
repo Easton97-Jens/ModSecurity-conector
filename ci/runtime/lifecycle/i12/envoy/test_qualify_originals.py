@@ -1,5 +1,6 @@
 """Mutation controls for exact-original packet qualification; no host verdicts."""
 import copy
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -14,6 +15,10 @@ ORIGINAL = 'I12::envoy-ext-proc::NEED-request-streaming'
 ORACLE = {'native_result': 'allow', 'visible_status': 200, 'rule_id': 1900032,
           'request_bytes': 95, 'response_bytes': 96, 'response_sha256': 'response',
           'request_eos_count': 1, 'response_eos_count': 1}
+CLIENT_EXIT_CHECK = 'original_client_exit'
+CLIENT_SIGNAL_CHECK = 'original_client_unix_signal'
+CLIENT_RESPONSE_BYTES_CHECK = 'original_client_response_bytes'
+CLIENT_RESPONSE_SHA_CHECK = 'original_client_response_sha256'
 
 
 def summary():
@@ -138,7 +143,7 @@ class PacketMutations(unittest.TestCase):
                        {'original_case_ids': [ORIGINAL], 'leg': 'envoy-ext-proc', 'case_id': 'I12-ENVOY-HOST::fixture'})
 
     def test_unknown_original_fails(self):
-        with self.assertRaisesRegex(ValueError, 'four explicitly selected'):
+        with self.assertRaisesRegex(ValueError, 'explicitly selected singleton original IDs'):
             Q.identity({'case': {'original_case_ids': ['I12::envoy-ext-proc::NEED-allow']}}, {})
 
     def test_source_expected_body_disagreement(self):
@@ -353,6 +358,93 @@ class PacketMutations(unittest.TestCase):
         self.assertEqual(module.READ_ROOTS, (module.REPO, module.RUNROOT,
             self.root / 'runs/e2e/20261014T182400Z-pr410-oracle-lifecycle'))
         self.assertNotIn(self.root, module.READ_ROOTS)
+
+    def client_original_fixture(self):
+        body = b'response'
+        digest = hashlib.sha256(body).hexdigest()
+        client = self.root / 'client'
+        client.mkdir()
+        (client / 'target.response.raw').write_bytes(b'HTTP/1.1 200 OK\r\nContent-Length: 8\r\n\r\n' + body)
+        (client / 'target.body.raw').write_bytes(body)
+        (client / 'target.receipt.json').write_text(json.dumps({
+            'bytes': len(body), 'sha256': digest, 'proposed_process_exit': 0}))
+        self.command = self.root / 'selected-target-client.command.json'
+        self.command.write_text(json.dumps({'exit_code': 0}))
+        value = summary()
+        value['clients']['target']['response_body_bytes'] = len(body)
+        value['clients']['target']['independent_raw_response']['entity_sha256'] = digest
+        expected = dict(ORACLE, response_bytes=len(body), response_sha256=digest, client_exit=0, client_signal=None)
+        return value, expected
+
+    def client_original_results(self, original, value, expected):
+        checks = {}
+        Q.client_original_checks(original, value, expected, self.root, checks)
+        return checks
+
+    def test_selected_client_response_bytes_uses_both_raw_http_and_entity_file(self):
+        value, expected = self.client_original_fixture()
+        self.assertTrue(all(self.client_original_results(Q.CLIENT_RESPONSE_BYTES_ID, value, expected).values()))
+        (self.root / 'client/target.body.raw').write_bytes(b'short')
+        checks = self.client_original_results(Q.CLIENT_RESPONSE_BYTES_ID, value, expected)
+        self.assertFalse(checks[CLIENT_RESPONSE_BYTES_CHECK])
+        self.assertFalse(checks[CLIENT_RESPONSE_SHA_CHECK])
+
+    def test_selected_client_response_cannot_substitute_receipt_for_raw_http(self):
+        value, expected = self.client_original_fixture()
+        (self.root / 'client/target.response.raw').write_bytes(b'HTTP/1.1 200 OK\r\nContent-Length: 9\r\n\r\nresponse')
+        checks = self.client_original_results(Q.CLIENT_RESPONSE_BYTES_ID, value, expected)
+        self.assertFalse(checks[CLIENT_RESPONSE_BYTES_CHECK])
+        self.assertFalse(checks[CLIENT_RESPONSE_SHA_CHECK])
+
+    def test_selected_client_response_source_hash_cannot_be_replaced(self):
+        value, expected = self.client_original_fixture()
+        expected['response_sha256'] = '0' * 64
+        checks = self.client_original_results(Q.CLIENT_RESPONSE_BYTES_ID, value, expected)
+        self.assertFalse(checks[CLIENT_RESPONSE_SHA_CHECK])
+
+    def test_selected_client_exit_signal_requires_actual_command_and_receipt(self):
+        value, expected = self.client_original_fixture()
+        self.assertTrue(all(self.client_original_results(Q.CLIENT_EXIT_SIGNAL_ID, value, expected).values()))
+        self.command.write_text(json.dumps({'exit_code': -9}))
+        checks = self.client_original_results(Q.CLIENT_EXIT_SIGNAL_ID, value, expected)
+        self.assertFalse(checks[CLIENT_EXIT_CHECK])
+        self.assertFalse(checks[CLIENT_SIGNAL_CHECK])
+        self.assertEqual(Q.client_termination_evidence(self.root)['unix_signal'], 9)
+
+    def test_selected_client_receipt_cannot_hide_failed_or_unknown_command(self):
+        value, expected = self.client_original_fixture()
+        for code in (1, 137, '0', False, None):
+            with self.subTest(code=code):
+                self.command.write_text(json.dumps({'exit_code': code}))
+                checks = self.client_original_results(Q.CLIENT_EXIT_SIGNAL_ID, value, expected)
+                self.assertFalse(checks[CLIENT_EXIT_CHECK])
+                self.assertFalse(checks[CLIENT_SIGNAL_CHECK])
+
+    def test_selected_client_command_cannot_hide_failed_receipt(self):
+        value, expected = self.client_original_fixture()
+        receipt = self.root / 'client/target.receipt.json'
+        document = json.loads(receipt.read_text())
+        document['proposed_process_exit'] = -15
+        receipt.write_text(json.dumps(document))
+        checks = self.client_original_results(Q.CLIENT_EXIT_SIGNAL_ID, value, expected)
+        self.assertFalse(checks[CLIENT_EXIT_CHECK])
+        self.assertFalse(checks[CLIENT_SIGNAL_CHECK])
+
+    def test_selected_client_oracle_exit_and_signal_are_not_generic_allow(self):
+        value, expected = self.client_original_fixture()
+        expected['client_exit'] = 1
+        self.assertFalse(self.client_original_results(Q.CLIENT_EXIT_SIGNAL_ID, value, expected)[CLIENT_EXIT_CHECK])
+        expected['client_exit'] = 0
+        expected['client_signal'] = 9
+        self.assertFalse(self.client_original_results(Q.CLIENT_EXIT_SIGNAL_ID, value, expected)[CLIENT_SIGNAL_CHECK])
+        expected.pop('client_signal')
+        self.assertFalse(self.client_original_results(Q.CLIENT_EXIT_SIGNAL_ID, value, expected)[CLIENT_SIGNAL_CHECK])
+
+    def test_selected_client_checks_do_not_expand_other_original_contracts(self):
+        for original in Q.ALLOWED - {Q.CLIENT_EXIT_SIGNAL_ID, Q.CLIENT_RESPONSE_BYTES_ID}:
+            with self.subTest(original=original):
+                checks = self.client_original_results(original, {}, {})
+                self.assertEqual(checks, {})
 
 
 if __name__ == '__main__':

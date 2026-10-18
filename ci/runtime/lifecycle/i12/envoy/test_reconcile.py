@@ -102,8 +102,8 @@ class ReconciliationTests(unittest.TestCase):
                          "configuration_only_pass": 8, "unqualified_ids": 273, "original_oracles": 125,
                          "resolved_original_oracles": 3, "open_original_oracles": 122}, result["summary"])
         self.assertEqual(0, result["new_host_runs"])
-        self.assertEqual([row["run_scoped_case_id"] for row in self.ledger["rows"] if row["leg_id"] in MODULE.ROUTES],
-                         [row["run_scoped_case_id"] for row in result["rows"]])
+        expected_ids = [row["run_scoped_case_id"] for row in self.ledger["rows"] if row["leg_id"] in MODULE.ROUTES]
+        self.assertEqual(expected_ids, [row["run_scoped_case_id"] for row in result["rows"]])
         for route, expected in zip(MODULE.ROUTES, (116, 85, 72)):
             self.assertEqual(expected, result["routes"][route]["unqualified_ids"])
         self.assertEqual(before, (self.ledger, self.oracles))

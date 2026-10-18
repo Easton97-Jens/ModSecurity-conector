@@ -17,7 +17,7 @@ The original Envoy ledger has 284 IDs across ext_proc, request authorization and
 
 ## Acceptance criteria
 
-Preserve all original IDs/oracles and patched Go/x/net inputs; execute real isolated host probes and native/Go/race/vet controls; bind physical evidence and report each route separately. Full original-case acceptance remains unmet: 118 original oracles remain open after four newly qualified original IDs; the retained central baseline remains unchanged.
+Preserve all original IDs/oracles and patched Go/x/net inputs; execute real isolated host probes and native/Go/race/vet controls; bind physical evidence and report each route separately. Full original-case acceptance remains unmet: 116 original oracles remain open after six newly qualified original IDs; the retained central baseline remains unchanged.
 
 ## Implementation decision and rationale
 
@@ -29,11 +29,11 @@ New Envoy-local files under `ci/runtime/lifecycle/i12/envoy/`: native preparatio
 
 ## Commands executed
 
-All shell entrypoints used RTK. Actual native/CGo build, full Go tests, race and vet argv/results/log hashes: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/native-v2/native-build/receipt.json`. `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B -m unittest -v tests.test_i12_envoy_evidence`: 150 PASS. Existing affected Python contracts: 79 PASS with one observer setup skip; the separately configured native observer has 32 PASS. `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B ci/runtime/lifecycle/i12/capture_sources.py verify`: PASS (150 objects/9 profiles). Existing capture-source controls: 15 PASS. `go mod verify` through RTK with the task-owned offline module cache: PASS. Host commands and nonzero exits remain in each batch runs.json; they are not normalized to PASS.
+All shell entrypoints used RTK. Actual native/CGo build, full Go tests, race and vet argv/results/log hashes: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/native-v2/native-build/receipt.json`. `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B -m unittest -v tests.test_i12_envoy_evidence`: 175 PASS, 0 skips; current raw logs and all 26 Envoy Python source hashes are bound in `ci/final-envoy-controls-175.json`. Focused fault controls have 16 PASS; separate Go test-proxy controls have 10 PASS. Existing affected Python contracts: 79 PASS with one observer setup skip; the separately configured native observer has 32 PASS. `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B ci/runtime/lifecycle/i12/capture_sources.py verify`: PASS (150 objects/9 profiles). Existing capture-source controls: 15 PASS. `go mod verify` through RTK with the task-owned offline module cache: PASS. Host commands and nonzero exits remain in each batch runs.json; they are not normalized to PASS.
 
 ## Security impact
 
-CI remediation closes unbounded CLI/JSON file access in the Envoy evidence readers. Approved roots are checked before filesystem access; directory descriptors, O_NOFOLLOW, owner/mode checks, byte limits and stable file identity protect the read. Outputs use private, exclusive creation; Git metadata arguments require exact SHAs and fixed scope. All 150 controls pass. The new reader is hash-bound in freshly reproduced, individually approved packets; old packets and raw host runs remain retained. The current Sonar analysis must be rerun on the new head; no rule, exclusion, disposition or Quality Gate was changed.
+CI remediation closes unbounded CLI/JSON file access in the Envoy evidence readers. Approved roots are checked before filesystem access; directory descriptors, O_NOFOLLOW, owner/mode checks, byte limits and stable file identity protect the read. Outputs use private, exclusive creation; Git metadata arguments require exact SHAs and fixed scope. The current complete Envoy suite has 175 PASS and 0 skips. The new reader is hash-bound in freshly reproduced, individually approved packets; old packets and raw host runs remain retained. Sonar analyzed head `c105a4db48cf7dc796e4ee0ccdbcfcd1b0247237` with Quality Gate OK, zero security issues and five code smells. The five corrections still require a new analyzed head; that earlier gate does not verify later changes. No rule, exclusion, disposition or Quality Gate was changed.
 
 
 Synthetic unit fixtures use independently scoped temporary storage so hosted
@@ -53,13 +53,27 @@ The new companion supplement received physical validation of all 17 references b
 
 ## Runtime evidence
 
-Actual Envoy1.39.1, SDK3.0.14 and Go1.27.2 loaded/built identities, client/backend wire/body hashes, P1–P4, body chunks/EOS, native logging/free, runtime/Common Finish counts, physical events and cleanup receipts reside under `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015`. Own EN/DE report and exact-ID JSON preserve every measured batch and original case. Controller exit0 is not lifecycle qualification; exit77 and unknown observations remain explicit.
+Actual Envoy1.39.1, SDK3.0.14 and Go1.27.2 loaded/built identities, client/backend wire/body hashes, P1–P4, body chunks/EOS, native logging/free, runtime/Common Finish counts, physical events and cleanup receipts reside under `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015`. Own EN/DE report and exact-ID JSON preserve every measured batch and original case. Runner exit0 is not lifecycle qualification; exit77 and unknown observations remain explicit.
 
-85 real host measurements include 37 retakes under 33 exact original IDs. Individual Root approvals after fresh reproduction of all 35 proof categories qualify NEED-request-streaming and NEED-response-streaming for ext_proc, NEED-complete-sample for ext_authz-request and NEED-allow for the response companion. The additional companion retake proves two early captured backend requests, target 1 / neighbor 1, request 95 / response 96 and response callbacks 64+32+0/EOS. Lease claim, P1–P4, logging, RuntimeFinish, NativeFree and cleanup are physical observations; the separate request leg gains no further PASS. Observed local HTTP2 reset 2 remains separate from unknown remote gRPC status.
+86 real host measurements include 37 retakes under 33 exact original IDs. Six individual Root approvals after fresh reproduction of all 35 proof categories qualify these exact original IDs; the three previous lifecycle PASS remain preserved:
+
+- `I12::envoy-ext-proc::NEED-request-streaming`
+- `I12::envoy-ext-proc::NEED-response-streaming`
+- `I12::envoy-ext-proc::NEED-client-response-bytes`
+- `I12::envoy-ext-proc::NEED-client-exit-signal`
+- `I12::envoy-ext-authz-request::NEED-complete-sample`
+- `I12::envoy-ext-authz-response-companion::NEED-allow`
+
+The additional companion retake proves two early captured backend requests, target 1 / neighbor 1, request 95 / response 96 and response callbacks 64+32+0/EOS. Lease claim, P1–P4, logging, RuntimeFinish, NativeFree and cleanup are physical observations; the separate request leg gains no further PASS. Observed local HTTP2 reset 2 remains separate from unknown remote gRPC status.
+
+
+Advanced Base head `2619a31777a3a9fffe3e3d4656feb7e57404ca03` retains the Envoy product sources and Envoy Go module inputs. An observer-hash mismatch with the current capture manifest nevertheless prevents a fresh capture of that head. Existing native evidence remains limited to `f27eb59…`. The fixture from `fault_scenarios.py` and separate Go test proxy were used in the real, bounded ext_proc Response-EOS fault probe `fault-host-v1`. Its runner77/controller1/client1 remains unqualified; new PASS: 0.
+The probe drops only the empty Response-EOS callback and performs an actual half-close. The engine API and unambiguously correlated Envoy target stream report gRPC status14. The target client receives HTTP200 with a prefix of 96 body bytes in 64+32 without a terminating zero chunk. P1–P3 are observed, P4=0; the `runtime_finish` attempt has result0 and is not counted as successful Finish. Logging/free/cleanup are one each. The healthy neighbor reaches P1–P4/Finish once each. No survivors or mount leaks remain. Proxy wire status is unobserved; no successful stream completion is inferred from its absence.
+
 
 ## Known limitations
 
-Outcome PARTIAL. Required full host acceptance of all 284 original cases is not established. Current lifecycle PASS is 3/2/2; configuration PASS 0/8/0; original open oracles 48/38/32. Of 277 IDs without full lifecycle acceptance, 8 are configuration-only PASS and 269 are unqualified. Direct native MIME/charset selection, fully correlated concurrent terminal gRPC status, deliberate missing/repeated callbacks, all physical event-sink failures, full observer stop/restart and Strict-P4 capability qualification remain incomplete.
+Outcome PARTIAL. Required full host acceptance of all 284 original cases is not established. Current lifecycle PASS is 5/2/2 for 117/94/73 original IDs; configuration PASS 0/8/0; original open oracles 46/38/32, totaling 116. Of 275 IDs without full lifecycle acceptance, 8 are configuration-only PASS and 267 are unqualified. Direct native MIME/charset selection, fully correlated concurrent terminal gRPC status, complete acceptance of deliberate missing/repeated callbacks beyond the single Response-EOS fault probe, all physical event-sink failures, full observer stop/restart and Strict-P4 capability qualification remain incomplete.
 
 ## Remaining risks
 

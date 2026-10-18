@@ -18,6 +18,41 @@ class ReportControls(unittest.TestCase):
                 'qualified_originals': [], 'counts': {'open': 119}}
         self.assertEqual(json.loads(writer.encode_report(data)), data)
 
+    def test_fault_probe_report_retains_failed_client_finish_and_nonqualification(self):
+        target_counts = {'native_process_request_headers': 1, 'native_process_request_body': 1,
+            'native_process_response_headers': 1, 'native_process_logging': 1,
+            'native_cleanup': 1, 'common_cleanup': 1}
+        target = {'completed_transition_count': 0, 'observed_return_counts': target_counts,
+            'return_result_counts': {'runtime_finish': {'0': 1}},
+            'typed_body_callbacks': [
+                {'operation': 1, 'response_direction': 1, 'body_bytes': 64},
+                {'operation': 1, 'response_direction': 1, 'body_bytes': 32}]}
+        neighbor = {'completed_transition_count': 1,
+            'observed_return_counts': {'native_process_response_body': 1},
+            'return_result_counts': {'runtime_finish': {'1': 1}}, 'typed_body_callbacks': []}
+        fault = {'host_lifecycle_qualified': False, 'new_lifecycle_pass': 0,
+            'source_contract_checks': {'drop': True},
+            'envoy_received_status': {'grpc_status': 14, 'successful_grpc_completion': False},
+            'target': {'remote_wire_status_observed': False},
+            'target_client_incomplete_response': {'framing_complete': False,
+                'terminal_zero_chunk_observed': False, 'entity_prefix_bytes': 96,
+                'complete_chunk_sizes': [64, 32]}}
+        probe = {'fault_proxy': fault, 'clients': {
+                'target': {'raw_http_status': 200, 'process_exit': 1},
+                'neighbor': {'raw_http_status': 200, 'process_exit': 0}},
+            'runner_exit_code': 77,
+            'controller': {'exitcode': 1, 'surviving_namespace_pid_count': 0,
+                'outside_mount_leak_count': 0},
+            'driver': {'remaining_owned_process_count': 0},
+            'native': {'scopes': [target, neighbor]}}
+        lines = writer.fault_probe_findings({'host_measurements': [probe]}, False)
+        self.assertIn('`new_lifecycle_pass=0`', '\n'.join(lines))
+        self.assertIn('client exit 1', '\n'.join(lines))
+        self.assertIn('Runner exit 77, controller exit 1', '\n'.join(lines))
+        fault['new_lifecycle_pass'] = 1
+        with self.assertRaisesRegex(ValueError, 'lost a required independent physical observation'):
+            writer.fault_probe_findings({'host_measurements': [probe]}, False)
+
     def test_existing_qualification_cannot_be_counted_as_new(self):
         baseline = {'routes': {'request': {'existing_pass_ids': ['same']}}}
         with self.assertRaisesRegex(ValueError, 'existing qualification'):

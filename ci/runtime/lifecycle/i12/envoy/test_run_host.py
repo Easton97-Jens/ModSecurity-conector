@@ -53,8 +53,8 @@ class CommunicationControls(unittest.TestCase):
         self.assertTrue(state["term_sent_to_owned_group"])
         self.assertFalse(state["cleanup_grace_timeout"])
         self.assertEqual(0, process.returncode)
-        self.assertEqual([mock.call(timeout=300), mock.call(timeout=30)],
-                         process.communicate.call_args_list)
+        expected_calls = [mock.call(timeout=300), mock.call(timeout=30)]
+        self.assertEqual(expected_calls, process.communicate.call_args_list)
         process.wait.assert_not_called()
         send.assert_called_once_with(process, "owned-start", signal.SIGTERM)
 
@@ -68,8 +68,9 @@ class CommunicationControls(unittest.TestCase):
         self.assertTrue(state["cleanup_grace_timeout"])
         self.assertTrue(state["cleanup_requires_review"])
         self.assertTrue(state["direct_child_reaped"])
-        self.assertEqual([mock.call(process, "owned-start", signal.SIGTERM),
-                                               mock.call(process, "owned-start", signal.SIGKILL)], send.call_args_list)
+        expected_signals = [mock.call(process, "owned-start", signal.SIGTERM),
+                            mock.call(process, "owned-start", signal.SIGKILL)]
+        self.assertEqual(expected_signals, send.call_args_list)
         process.wait.assert_called_once_with(timeout=5)
         self.assertEqual(2, process.communicate.call_count)
         self.assertTrue(process.stdout.closed)

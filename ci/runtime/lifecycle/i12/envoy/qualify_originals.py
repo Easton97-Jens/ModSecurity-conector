@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stage four exact-original Envoy packets; qualification needs individual Root approval.
+"""Stage selected exact-original Envoy packets; qualification needs individual Root approval.
 
 Remote Process status remains unknown when the physical trace only proves local
 HTTP/2 reset 2. That limited closure contract is the previously reviewed scope,
@@ -18,11 +18,15 @@ import sys
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[4]
+CLIENT_RESPONSE_BYTES_ID = 'I12::envoy-ext-proc::NEED-client-response-bytes'
+CLIENT_EXIT_SIGNAL_ID = 'I12::envoy-ext-proc::NEED-client-exit-signal'
 ALLOWED = frozenset((
     'I12::envoy-ext-proc::NEED-request-streaming',
     'I12::envoy-ext-proc::NEED-response-streaming',
     'I12::envoy-ext-authz-request::NEED-complete-sample',
     'I12::envoy-ext-authz-response-companion::NEED-allow',
+    CLIENT_RESPONSE_BYTES_ID,
+    CLIENT_EXIT_SIGNAL_ID,
 ))
 sys.path.insert(0, str(HERE))
 import review_runs as REVIEW
@@ -30,6 +34,7 @@ import evidence_io as EVIDENCE
 
 SHAPE_FILE = 'shape.json'
 BACKEND_RECEIPTS = 'backend/receipts.jsonl'
+TARGET_CLIENT_RECEIPT = 'client/target.receipt.json'
 STORAGE = EVIDENCE.configured_storage(required=False)
 RUNROOT = STORAGE / 'runs/i12-envoy-410-20261015' if STORAGE is not None else None
 READ_ROOTS = (REPO,) + ((RUNROOT, STORAGE / 'runs/e2e/20261014T182400Z-pr410-oracle-lifecycle')
@@ -139,7 +144,7 @@ def write(path, value):
 def identity(record, shape):
     ids = record['case'].get('original_case_ids')
     if not isinstance(ids, list) or len(ids) != 1 or ids[0] not in ALLOWED:
-        raise ValueError('only the four explicitly selected singleton original IDs are supported')
+        raise ValueError('only the explicitly selected singleton original IDs are supported')
     original = ids[0]
     route = original.split('::')[1]
     if (shape.get('original_case_ids') != ids or record['case']['route'] != route
@@ -403,8 +408,61 @@ def event_checks(route, adapter, shape, tids, checks):
     return event_meta
 
 
+def client_response_original_checks(summary, expected, data, checks):
+    """Bind this exact byte oracle to raw HTTP framing and independently stored entity bytes."""
+    raw = REVIEW.raw_response_summary(read_bytes(data / 'client/target.response.raw'))
+    body = read_bytes(data / 'client/target.body.raw')
+    receipt = load(data / TARGET_CLIENT_RECEIPT)
+    client = summary.get('clients', {}).get('target', {})
+    size, digest = expected.get('response_bytes'), expected.get('response_sha256')
+    checks['original_client_response_bytes'] = (type(size) is int and size >= 0
+        and raw.get('framing_complete') is True and raw.get('entity_bytes') == size
+        and len(body) == size and receipt.get('bytes') == size and client.get('response_body_bytes') == size)
+    checks['original_client_response_sha256'] = (isinstance(digest, str)
+        and re.fullmatch(r'[0-9a-f]{64}', digest) is not None
+        and raw.get('entity_sha256') == digest and hashlib.sha256(body).hexdigest() == digest
+        and receipt.get('sha256') == digest
+        and client.get('independent_raw_response', {}).get('entity_sha256') == digest)
+
+
+def unix_signal(returncode):
+    """Decode subprocess.run's negative POSIX returncode; malformed evidence stays unknown."""
+    if type(returncode) is not int:
+        return 'unknown'
+    return -returncode if returncode < 0 else None
+
+
+def client_termination_evidence(data):
+    command = load(data / 'selected-target-client.command.json')
+    receipt = load(data / TARGET_CLIENT_RECEIPT)
+    actual, proposed = command.get('exit_code'), receipt.get('proposed_process_exit')
+    return {'actual_subprocess_exit': actual, 'receipt_proposed_exit': proposed,
+            'unix_signal': unix_signal(actual),
+            'scope': 'actual subprocess.run returncode; receipt independently records proposed exit'}
+
+
+def client_termination_original_checks(summary, expected, data, checks):
+    evidence = client_termination_evidence(data)
+    actual, proposed = evidence['actual_subprocess_exit'], evidence['receipt_proposed_exit']
+    success = type(actual) is int and actual == 0 and type(proposed) is int and proposed == 0
+    checks['original_client_exit'] = (type(expected.get('client_exit')) is int
+        and expected['client_exit'] == 0 and success
+        and summary.get('command_exit_codes', {}).get('selected-target-client') == actual
+        and summary.get('clients', {}).get('target', {}).get('process_exit') == proposed)
+    checks['original_client_unix_signal'] = ('client_signal' in expected and expected['client_signal'] is None
+        and success and evidence['unix_signal'] is None)
+
+
+def client_original_checks(original, summary, expected, data, checks):
+    if original == CLIENT_RESPONSE_BYTES_ID:
+        client_response_original_checks(summary, expected, data, checks)
+    elif original == CLIENT_EXIT_SIGNAL_ID:
+        client_termination_original_checks(summary, expected, data, checks)
+
+
 def scoped_checks(summary, record, expected, original, shape, native_rows, data):
     checks = predicates(summary, expected)
+    client_original_checks(original, summary, expected, data, checks)
     checks['actual_outer_process_terminal'] = (record.get('process_exit_code') == 0
         and type(record.get('started_ns')) is int and type(record.get('finished_ns')) is int
         and record['finished_ns'] >= record['started_ns'] and all(
@@ -434,7 +492,7 @@ def scoped_checks(summary, record, expected, original, shape, native_rows, data)
     return checks, tids, cids, event_meta
 
 
-def observation_values(summary, checks, tids, cids, event_meta, expected):
+def observation_values(summary, checks, tids, cids, event_meta, expected, original=None, data=None):
     scope = summary['native']['scopes'][0]
     route = summary['route']
     client = summary['clients']['target']
@@ -472,6 +530,12 @@ def observation_values(summary, checks, tids, cids, event_meta, expected):
         'host_action': {'visible_status': client['http_status'], 'typed_callbacks': callbacks},
         'physical_event_order': event_meta, 'terminal_event_count': event_meta,
     }
+    if original == CLIENT_EXIT_SIGNAL_ID:
+        if data is None:
+            raise ValueError('client exit/signal observation requires the physical command and receipt')
+        termination = client_termination_evidence(data)
+        values['client_exit'] = termination['actual_subprocess_exit']
+        values['client_signal'] = termination
     return values
 
 
@@ -481,7 +545,7 @@ def make_observations(shared, data, fixture, source_ref, values, refs, checks):
         'loaded_image': data / 'before-request.json', 'isolation_receipt': attempt / 'controller-result.json',
         'source_manifest': data / 'build-manifest.json', 'effective_configuration': fixture / SHAPE_FILE,
         'host_callback': data / 'runtime/host-lifecycle.jsonl', 'source_contract': Path(source_ref['path']),
-        'client_process': data / 'client/target.receipt.json', 'backend_process': data / BACKEND_RECEIPTS,
+        'client_process': data / TARGET_CLIENT_RECEIPT, 'backend_process': data / BACKEND_RECEIPTS,
         'physical_event_sink': data / 'runtime/adapter-events.jsonl', 'native_api': data / 'runtime/native-lifecycle.jsonl',
         'native_debug': data / 'runtime/native-debug.log', 'cleanup_observer': data / 'result.json',
     }
@@ -533,7 +597,7 @@ def stage_one(record, parent, runs_path, helpers, output):
     refs = {name: reference(data / name) for name in summary['physical_files']}
     control = reference(attempt / 'controller-result.json')
     shape_ref = reference(fixture / SHAPE_FILE)
-    values = observation_values(summary, checks, tids, cids, event_meta, expected)
+    values = observation_values(summary, checks, tids, cids, event_meta, expected, original, data)
     observations = make_observations(shared, data, fixture, source_ref, values, refs, checks)
     packet = {'schema': 'i12.envoy.original-packet.v1', 'reviewed_by': 'pending_root_review',
         'run_scoped_case_id': original, 'leg_id': route, 'run_id': build['run'], 'parent_sha': parent,
