@@ -288,7 +288,7 @@
  
  __attribute_cold__
  int plugins_load(server *srv);
-@@ -17,6 +18,15 @@
+@@ -17,6 +18,16 @@
  handler_t plugins_call_handle_subrequest_start(request_st *r);
  #endif
  handler_t plugins_call_handle_response_start(request_st *r);
@@ -296,6 +296,7 @@
 +                                           const struct chunkqueue *cq,
 +                                           off_t queue_offset, off_t length,
 +                                           off_t stream_offset, int eos);
++int plugins_response_body_hook_registered(const request_st *r);
 +plugin_body_hook_result plugins_call_handle_response_body(request_st *r,
 +                                           const unsigned char *data, size_t length,
 +                                           off_t stream_offset, int eos);
@@ -355,7 +356,7 @@
  __attribute_hot__
  static handler_t plugins_call_fn_req_data(request_st * const r, const int e) {
      const void * const plugin_slots = r->con->plugin_slots;
-@@ -402,1 +402,60 @@
+@@ -402,1 +402,67 @@
 +handler_t
 +plugins_call_handle_request_body (request_st * const r,
 +                                  const struct chunkqueue * const cq,
@@ -376,6 +377,13 @@
 +	                          plfd->data)) == HANDLER_GO_ON)
 +		++plfd;
 +	return rc;
++}
++
++int
++plugins_response_body_hook_registered (const request_st * const r)
++{
++	return 0 != ((const uint16_t *)r->con->plugin_slots)
++	  [PLUGIN_FUNC_HANDLE_RESPONSE_BODY];
 +}
 +
 +plugin_body_hook_result
@@ -416,7 +424,7 @@
 +	return rc;
 +}
  handler_t plugins_call_set_defaults(server *srv) {
-@@ -462,6 +524,54 @@
+@@ -462,6 +531,54 @@
      }
  }
  
@@ -471,7 +479,7 @@
  handler_t plugins_call_init(server *srv) {
  	/* note: p->init() is called during plugins_load() -> plugin_data_init()
  	 * but the historical name of this function remains */
-@@ -501,6 +595,12 @@
+@@ -501,6 +602,12 @@
  			++offsets[PLUGIN_FUNC_HANDLE_SUBREQUEST_START];
  		if (p->handle_response_start)
  			++offsets[PLUGIN_FUNC_HANDLE_RESPONSE_START];
@@ -484,7 +492,7 @@
  		if (p->handle_docroot)
  			++offsets[PLUGIN_FUNC_HANDLE_DOCROOT];
  		if (p->handle_physical)
-@@ -577,5 +675,11 @@
+@@ -577,5 +682,11 @@
  					offsets[PLUGIN_FUNC_HANDLE_SUBREQUEST_START]);
  		plugins_call_init_slot(srv, (pl_cb_t)p->handle_response_start, pd,
  					offsets[PLUGIN_FUNC_HANDLE_RESPONSE_START]);
@@ -521,7 +529,15 @@
      buffer *tmp_buf;                    /* shared; same as srv->tmp_buf */
 --- a/src/http-header-glue.c
 +++ b/src/http-header-glue.c
-@@ -320,8 +320,11 @@
+@@ -15,6 +15,7 @@
+ #include "http_etag.h"
+ #include "http_header.h"
+ #include "http_status.h"
++#include "plugins.h"
+ #include "plugin_config.h" /* config_feature_bool */
+ #include "sock_addr.h"
+ #include "stat_cache.h"
+@@ -320,8 +321,11 @@
  void http_response_body_clear (request_st * const r, int preserve_length) {
      r->resp_body_finished = 0;
      r->resp_body_started = 0;
@@ -535,7 +551,7 @@
      if (light_btst(r->resp_htags, HTTP_HEADER_TRANSFER_ENCODING)) {
          http_header_response_unset(r, HTTP_HEADER_TRANSFER_ENCODING,
                                     CONST_STR_LEN("Transfer-Encoding"));
-@@ -783,6 +786,8 @@
+@@ -783,6 +787,8 @@
  static int http_response_append_buffer(request_st * const r, buffer * const mem, const int simple_accum) {
      /* Note: this routine is separate from http_response_append_mem() to
       * potentially avoid copying buffer by using http_chunk_append_buffer(). */
@@ -544,7 +560,7 @@
  
      if (r->resp_decode_chunked)
          return http_chunk_decode_append_buffer(r, mem);
-@@ -799,6 +804,7 @@
+@@ -799,6 +805,7 @@
          }
          else { /* (r->resp_body_scratchpad <= 0) */
              r->resp_body_finished = 1;
@@ -552,7 +568,7 @@
              if (__builtin_expect( (r->resp_body_scratchpad < 0), 0)) {
                  /*(silently truncate if data exceeds Content-Length)*/
                  len += r->resp_body_scratchpad;
-@@ -816,7 +822,10 @@
+@@ -816,7 +823,10 @@
               && http_response_append_buffer_simple_accum(r, buffer_clen(mem))) {
          return 0; /*(accumulate small reads in buffer)*/
      }
@@ -564,7 +580,43 @@
  }
  
  
-@@ -857,6 +866,9 @@
+@@ -824,32 +834,35 @@
+ static int http_response_append_splice(request_st * const r, http_response_opts * const opts, buffer * const b, const int fd, unsigned int toread) {
++    /* Splice bypasses userspace entity callbacks; keep consumers observable. */
++    if (plugins_response_body_hook_registered(r))
++        return 0;
+     /* check if worthwhile to splice() to avoid copying through userspace */
+     /*assert(opts->simple_accum);*//*(checked in caller)*/
+     if (r->resp_body_scratchpad >= toread
+         && (toread > 32768
+             || (toread >= 8192 /*(!http_response_append_buffer_simple_accum())*/
+                 && r->write_queue.last && r->write_queue.last->file.is_temp))) {
+ 
+         if (!buffer_is_blank(b)) {
+             /*(flush small reads previously accumulated in b)*/
+             int rc = http_response_append_buffer(r, b, 0); /*(0 to flush)*/
+             chunk_buffer_yield(b); /*(improve large buf reuse)*/
+             if (__builtin_expect( (0 != rc), 0)) return -1; /* error */
+         }
+ 
+         /*assert(opts->fdfmt == S_IFSOCK || opts->fdfmt == S_IFIFO);*/
+         ssize_t n = (opts->fdfmt == S_IFSOCK)
+           ? chunkqueue_append_splice_sock_tempfile(
+               &r->write_queue, fd, toread, r->conf.errh)
+           : chunkqueue_append_splice_pipe_tempfile(
+               &r->write_queue, fd, toread, r->conf.errh);
+         if (__builtin_expect( (n >= 0), 1)) {
+             if (0 == (r->resp_body_scratchpad -= n))
+                 r->resp_body_finished = 1;
+             return 1; /* success */
+         }
+         else if (n != -EINVAL)
+             return -1; /* error */
+         /*(fall through; target filesystem w/o splice() support)*/
+     }
+     return 0; /* not handled */
+ }
+@@ -857,6 +870,9 @@
  
  
  static int http_response_append_mem(request_st * const r, const char * const mem, uint32_t len) {
@@ -574,7 +626,7 @@
      if (r->resp_decode_chunked)
          return http_chunk_decode_append_mem(r, mem, len);
  
-@@ -864,6 +876,7 @@
+@@ -864,6 +880,7 @@
          r->resp_body_scratchpad -= (off_t)len;
          if (r->resp_body_scratchpad <= 0) {
              r->resp_body_finished = 1;
@@ -582,7 +634,7 @@
              if (__builtin_expect( (r->resp_body_scratchpad < 0), 0)) {
                  /*(silently truncate if data exceeds Content-Length)*/
                  len = (size_t)(r->resp_body_scratchpad + (off_t)len);
-@@ -875,7 +888,10 @@
+@@ -875,7 +892,10 @@
          /*(silently truncate if data exceeds Content-Length)*/
          return 0;
      }
@@ -594,7 +646,7 @@
  }
  
  
-@@ -1501,8 +1517,13 @@
+@@ -1501,8 +1521,13 @@
                  /* check if Content-Length provided and response body received
                   * (done here instead of http_response_process_headers() since
                   *  backends which set opts->parse() might handle differently)*/
