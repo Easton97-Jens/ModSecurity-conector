@@ -21,7 +21,7 @@ def body_for(fixture, neighbor=False):
     marker = fixture.get("marker", "companion-physical").encode()
     single = marker + b"-response-body\n" if marker == b"companion-physical" else marker
     bodies = {"empty": b"", "single": single, "csv": b"id,value\n1,companion-physical\n",
-              "large": b"x" * (1024 * 1024) + single, "at-limit": b"0123456789abcdef", 
+              "large": b"x" * (1024 * 1024) + single, "at-limit": b"0123456789abcdef",
               "over-limit": b"0123456789abcdef ", "marker-end": b"x" * 65536 + marker}
     if kind not in bodies:
         raise ValueError("unknown source body fixture")
