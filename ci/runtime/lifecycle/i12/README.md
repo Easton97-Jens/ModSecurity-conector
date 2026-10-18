@@ -206,6 +206,23 @@ Any new execution still requires independently bound loaded images, effective
 configuration, real clients/backend, native phases/EOS/finish/free, physical logs,
 cleanup, neighbor health and Root review.
 
+## Intentional original oracle nulls
+
+The oracle reconciler accepts `intentional_null_fields.visible_status` only for
+an original, explicitly present `visible_status: null` without an unresolved
+expectation reason. Root must separately interpret that field and supply physical,
+versioned primary proof bound to the record's independent sources. The complete
+effective oracle must remain byte-semantically identical to the original; this
+declaration cannot accompany a correction or replacement expectation. Missing
+`native_result`, `phase` or `visible_status` is still rejected. For example, the
+original `phase2_over_limit` contract leaves the client status configuration
+dependent; its null is distinct from an unknown fixture or missing measurement.
+
+This source-only disposition preserves the original null and awards no lifecycle
+qualification. Client/host observations, all applicable lifecycle fields, fresh
+execution and separate Root packet review remain mandatory. Other null fields
+and unresolved original oracles cannot use this exception.
+
 ## Reviewed current Traefik input bases
 
 The existing `traefik-native` and `traefik-forwardauth` variants also accept

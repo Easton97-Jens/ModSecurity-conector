@@ -2,13 +2,25 @@
 #define MSCONNECTOR_EVENT_JSONL_H
 
 #include "msconnector/event.h"
+#include "msconnector/error.h"
 #include <stddef.h>
+#include <stdio.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 int msconnector_event_write_jsonl_line(const msconnector_event *event, char *dst, size_t dst_size, int *truncated);
+
+/* Serialized, bounded metadata only. The owner holds its stream lock. A
+ * supplied first error is sticky: writes never retry an already failed sink.
+ * close always consumes the owned stream, including when an earlier error
+ * must be retained. These helpers do not claim delivery or durability. */
+int msconnector_event_file_write(FILE *file, const char *serialized,
+    msconnector_error *error);
+int msconnector_event_file_close(FILE **file, msconnector_error *error);
+int msconnector_event_write_jsonl_stream(const msconnector_event *event,
+    FILE *file, char *scratch, size_t scratch_size, msconnector_error *error);
 
 /*
  * Open a metadata-event sink without following a symlink in any path

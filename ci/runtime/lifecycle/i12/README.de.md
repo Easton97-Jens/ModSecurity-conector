@@ -218,6 +218,25 @@ Rohdaten aus. Jeder neue Lauf benötigt weiterhin unabhängig gebundene geladene
 Images, effektive Konfiguration, echte Clients/Backend, native Phasen/EOS/Finish/Free,
 physische Logs, Cleanup, Nachbargesundheit und Root-Review.
 
+## Beabsichtigte null-Werte ursprünglicher Oracles
+
+Der Oracle-Reconciler akzeptiert `intentional_null_fields.visible_status` nur
+bei einem ursprünglich ausdrücklich vorhandenen `visible_status: null` ohne
+Unresolved-Grund der Erwartung. Root muss dieses Feld separat interpretieren
+und physische, versionierte Primärbelege liefern, die an die unabhängigen Quellen
+des Records gebunden sind. Das vollständige effektive Oracle muss semantisch
+bytegleich zum Original bleiben; die Erklärung darf keine Korrektur oder
+Ersatzerwartung begleiten. Fehlende Felder `native_result`, `phase` oder
+`visible_status` werden weiterhin abgelehnt. Beispielsweise bleibt der Clientstatus
+im ursprünglichen Vertrag `phase2_over_limit` konfigurationsabhängig; dessen null
+ist von einer unbekannten Fixture oder einer fehlenden Messung zu unterscheiden.
+
+Diese reine Quelldisposition erhält den ursprünglichen null-Wert und vergibt keine
+Lifecycle-Qualifikation. Client-/Hostbeobachtungen, sämtliche anwendbaren
+Lifecycle-Felder, frische Ausführung und getrennte Root-Paketprüfung bleiben
+verpflichtend. Andere null-Felder und ursprünglich unaufgelöste Oracles dürfen
+diese Ausnahme nicht verwenden.
+
 ## Geprüfte aktuelle Traefik-Eingabebasen
 
 Die vorhandenen Varianten `traefik-native` und `traefik-forwardauth` akzeptieren
