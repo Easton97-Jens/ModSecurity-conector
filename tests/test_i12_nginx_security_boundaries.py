@@ -171,6 +171,33 @@ class EvidenceBoundaryTests(unittest.TestCase):
             self.assertEqual(BUILD.create_private_output(target), target)
             self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o700)
 
+    def test_build_hash_reads_only_protected_regular_project_files(self):
+        expected = hashlib.sha256(self.image.read_bytes()).hexdigest()
+        self.assertEqual(BUILD.sha(self.image), expected)
+        self.assertEqual(BUILD.command_path(self.image, self.scratch, regular=True), str(self.image))
+        stage = self.scratch / "stage"
+        stage.mkdir(mode=0o700)
+        self.assertEqual(BUILD.command_path(stage, self.scratch, directory=True), str(stage))
+
+        link = self.scratch / "linked-image"
+        link.symlink_to(self.image)
+        fifo = self.scratch / "image-fifo"
+        os.mkfifo(fifo, mode=0o600)
+        outside = Path("/etc/passwd")
+        noncanonical = self.scratch / ".." / self.scratch.name / self.image.name
+        for rejected in (link, fifo, outside, noncanonical, Path("relative-image")):
+            with self.subTest(rejected=rejected), self.assertRaises(ValueError):
+                BUILD.sha(rejected)
+        with self.assertRaises(ValueError):
+            BUILD.command_path(link, self.scratch, regular=True)
+
+        self.image.chmod(0o666)
+        try:
+            with self.assertRaises(ValueError):
+                BUILD.sha(self.image)
+        finally:
+            self.image.chmod(0o500)
+
     def test_configured_storage_anchor_cannot_itself_be_shared_sticky_transit(self):
         self.scratch.chmod(0o1777)
         self.addCleanup(self.scratch.chmod, 0o700)

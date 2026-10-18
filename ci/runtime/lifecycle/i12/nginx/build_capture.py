@@ -6,7 +6,68 @@ import tarfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-def sha(path): return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[5]
+SAFE_ABSOLUTE_PATH = re.compile(r"/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*")
+
+
+def lexical_absolute_path(value):
+    """Return only an absolute path assembled from a conservative alphabet."""
+    match = SAFE_ABSOLUTE_PATH.fullmatch(str(value))
+    if match is None or any(part in ("", ".", "..") for part in match.group(0).split("/")[1:]):
+        raise ValueError("canonical absolute artifact path required")
+    return Path(match.group(0))
+
+
+def trusted_path(value, roots, *, regular=False, directory=False):
+    """Confine a canonical path to protected project-owned roots."""
+    path = lexical_absolute_path(value)
+    approved = []
+    for value_root in roots:
+        root = lexical_absolute_path(value_root)
+        if root.resolve(strict=True) != root or not root.is_dir():
+            raise ValueError("canonical existing artifact root required")
+        approved.append(root)
+    if not any(path.is_relative_to(root) for root in approved):
+        raise ValueError("artifact path is outside approved roots")
+    if path.resolve(strict=True) != path:
+        raise ValueError("artifact path must not traverse links")
+    for component in reversed((path, *path.parents)):
+        info = component.lstat()
+        if info.st_uid not in (0, os.geteuid()) or stat.S_ISLNK(info.st_mode):
+            raise ValueError("artifact path requires root/operator ownership without symlinks")
+        inside = any(component == root or component.is_relative_to(root) for root in approved)
+        shared_transit = (not inside and info.st_uid == 0 and stat.S_ISDIR(info.st_mode)
+                          and info.st_mode & stat.S_ISVTX)
+        if info.st_mode & 0o022 and not shared_transit:
+            raise ValueError("artifact path has a group/world-writable component")
+        if component != path and not stat.S_ISDIR(info.st_mode):
+            raise ValueError("artifact path ancestor must be a directory")
+    info = path.lstat()
+    if regular and not stat.S_ISREG(info.st_mode):
+        raise ValueError("artifact input must be a regular file")
+    if directory and not stat.S_ISDIR(info.st_mode):
+        raise ValueError("artifact input must be a directory")
+    return path
+
+
+def sha(path):
+    """Hash one protected project file without following links or special files."""
+    path = trusted_path(path, (storage_root(), REPOSITORY_ROOT), regular=True)
+    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK
+    descriptor = os.open(path, flags)
+    try:
+        before = path.lstat()
+        opened = os.fstat(descriptor)
+        if (not stat.S_ISREG(opened.st_mode) or
+                (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino)):
+            raise ValueError("artifact input changed before hashing")
+        digest = hashlib.sha256()
+        while chunk := os.read(descriptor, 1024 * 1024):
+            digest.update(chunk)
+        return digest.hexdigest()
+    finally:
+        os.close(descriptor)
 
 
 def storage_root():
@@ -17,6 +78,11 @@ def storage_root():
             ".." in root.parts or root == Path("/")):
         raise ValueError("canonical project CODEX_TEMP_ROOT required")
     return root
+
+
+def command_path(value, root, *, regular=False, directory=False):
+    """Produce a validated argv path below one private output root."""
+    return str(trusted_path(value, (root,), regular=regular, directory=directory))
 
 
 OBSERVER_COMPATIBILITY = {
@@ -245,9 +311,11 @@ def apply_historical_adapter(checkout, output, snapshot, capture, source_identit
     marker = {"format": "i12-disposable-source-copy-v1", "path": str(stage), "disposable": True,
               "parent_sha": registry.manifest["delivery_product_baseline"]}
     (stage / capture.MARKER).write_text(json.dumps(marker) + "\n")
-    command = ["rtk", "proxy", "python3", str(helper),
-               "apply", "--profile", "nginx", "--source-copy", str(stage)]
-    applied = subprocess.run(command, capture_output=True)
+    helper_argument = command_path(helper, output, regular=True)
+    stage_argument = command_path(stage, output, directory=True)
+    command = ["rtk", "proxy", "python3", helper_argument,
+               "apply", "--profile", "nginx", "--source-copy", stage_argument]
+    applied = subprocess.run(command, capture_output=True, shell=False)
     (output / "source-application.stdout").write_bytes(applied.stdout)
     (output / "source-application.stderr").write_bytes(applied.stderr)
     if applied.returncode:
@@ -333,7 +401,7 @@ def create_private_output(output):
 def build(a):
     w=Path(a.source); base=Path(a.base); out=Path(a.output)
     out.mkdir(mode=0o700); steps=[]; receipt_lock=threading.Lock()
-    receipt={"scope":"fresh current Parent33TU module, no host/runtime qualification", "source_snapshot": str(w), "build_recipe_sha256": sha(__file__), "parent_sha":a.parent_sha,"instrumented":a.instrumented,"steps":steps}
+    receipt={"scope":"fresh current Parent33TU module, no host/runtime qualification", "source_snapshot": str(w), "build_recipe_sha256": sha(Path(__file__).resolve()), "parent_sha":a.parent_sha,"instrumented":a.instrumented,"steps":steps}
     def run(label,argv,cwd=out):
         cmd=["rtk","proxy",*map(str,argv)]; r=subprocess.run(cmd,cwd=cwd,capture_output=True)
         (out/(label+".stdout")).write_bytes(r.stdout);(out/(label+".stderr")).write_bytes(r.stderr)
@@ -475,7 +543,9 @@ def main():
         parser.add_argument("--" + name, required=True)
     parser.add_argument("--jobs", type=int, default=8)
     args = parser.parse_args()
-    checkout = Path(args.source).resolve(strict=True)
+    configured_storage = storage_root()
+    checkout = trusted_path(args.source, (configured_storage, REPOSITORY_ROOT), directory=True)
+    base = trusted_path(args.base, (configured_storage,), directory=True)
     if not 1 <= args.jobs <= 8:
         parser.error("fresh external output and 1..8 jobs required")
     output = create_private_output(args.output)
@@ -564,7 +634,7 @@ def main():
     (fixtures / "receipt.json").write_text(json.dumps(fixture_receipt, indent=2) + "\n")
     for variant in ("ordinary", "observed"):
         build(argparse.Namespace(source=snapshots[variant], checkout=str(checkout),
-                                 base=args.base, output=str(output / variant),
+                                 base=str(base), output=str(output / variant),
                                  parent_sha=args.parent_sha, instrumented=variant == "observed",
                                  observer_source=None, jobs=args.jobs))
     if git("diff", "HEAD", "--", *scope) != diff:

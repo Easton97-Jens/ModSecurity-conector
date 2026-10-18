@@ -11,17 +11,86 @@ import argparse
 import copy
 import importlib.util
 import json
+import os
 from pathlib import Path
+import re
+import stat
 
 
 BASELINE_SHA256 = "a3a901db7d70884d2f491c95246629071cd55280ad94ee0fd86049c2e954c7ff"
 ROOT = Path(__file__).resolve().parents[5]
+SAFE_ABSOLUTE_PATH = re.compile(r"/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*")
 SPEC = importlib.util.spec_from_file_location(
     "i12_shared_ledger", ROOT / "ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py"
 )
 SHARED = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(SHARED)
 ORACLES = SHARED.ORACLES
+
+
+def lexical_absolute_path(value):
+    """Return a conservative absolute path reconstructed from a regex match."""
+    match = SAFE_ABSOLUTE_PATH.fullmatch(str(value))
+    if match is None or any(part in ("", ".", "..") for part in match.group(0).split("/")[1:]):
+        raise ValueError("canonical absolute evidence path required")
+    return Path(match.group(0))
+
+
+def evidence_root():
+    """Require the operator's existing protected run root."""
+    value = os.environ.get("CODEX_RUN_ROOT", "")
+    root = lexical_absolute_path(value)
+    if root.parent == root or root.resolve(strict=True) != root or not root.is_dir():
+        raise ValueError("canonical existing CODEX_RUN_ROOT required")
+    info = root.lstat()
+    if info.st_uid not in (0, os.geteuid()) or info.st_mode & 0o022:
+        raise ValueError("CODEX_RUN_ROOT must be operator-owned and protected")
+    return root
+
+
+def trusted_ancestry(path, *, regular=False, directory=False):
+    """Reject links, special files, foreign owners and writable path components."""
+    root = evidence_root()
+    for component in reversed((path, *path.parents)):
+        info = component.lstat()
+        if info.st_uid not in (0, os.geteuid()) or stat.S_ISLNK(info.st_mode):
+            raise ValueError("evidence path requires root/operator ownership without symlinks")
+        transit = (component != path and not component.is_relative_to(root) and
+                   info.st_uid == 0 and stat.S_ISDIR(info.st_mode) and
+                   info.st_mode & stat.S_ISVTX)
+        if info.st_mode & 0o022 and not transit:
+            raise ValueError("evidence path has a group/world-writable component")
+        if component != path and not stat.S_ISDIR(info.st_mode):
+            raise ValueError("evidence path ancestor must be a directory")
+    info = path.lstat()
+    if regular and not stat.S_ISREG(info.st_mode):
+        raise ValueError("evidence input must be a regular file")
+    if directory and not stat.S_ISDIR(info.st_mode):
+        raise ValueError("evidence output parent must be a directory")
+
+
+def evidence_path(value):
+    """Admit one canonical existing evidence file within CODEX_RUN_ROOT."""
+    path = lexical_absolute_path(value)
+    root = evidence_root()
+    if path == root or not path.is_relative_to(root) or path.resolve(strict=True) != path:
+        raise ValueError("evidence input must remain inside CODEX_RUN_ROOT")
+    trusted_ancestry(path, regular=True)
+    return path
+
+
+def publication_path(value):
+    """Admit one fresh output file below a protected existing run directory."""
+    path = lexical_absolute_path(value)
+    root = evidence_root()
+    if path == root or not path.is_relative_to(root):
+        raise ValueError("ledger output must remain inside CODEX_RUN_ROOT")
+    if path.exists() or path.is_symlink():
+        raise ValueError("ledger output must be fresh")
+    if path.parent.resolve(strict=True) != path.parent:
+        raise ValueError("ledger output parent must not traverse links")
+    trusted_ancestry(path.parent, directory=True)
+    return path
 
 
 def selected_rows(baseline):
@@ -207,18 +276,21 @@ def build_ledger(baseline, packets):
             "rows": rows}
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("baseline", "packets", "output"):
-        parser.add_argument("--" + name, type=Path, required=True)
-    args = parser.parse_args()
-    baseline_ref = ORACLES.reference(args.baseline)
+        parser.add_argument("--" + name, required=True)
+    args = parser.parse_args(argv)
+    baseline = evidence_path(args.baseline)
+    packets = evidence_path(args.packets)
+    output_path = publication_path(args.output)
+    baseline_ref = ORACLES.reference(baseline)
     if baseline_ref["sha256"] != BASELINE_SHA256:
         raise ValueError("Immutable PR410 baseline SHA256 changed")
-    packets_ref = ORACLES.reference(args.packets)
-    result = build_ledger(json.loads(args.baseline.read_text()), json.loads(args.packets.read_text()))
+    packets_ref = ORACLES.reference(packets)
+    result = build_ledger(json.loads(baseline.read_text()), json.loads(packets.read_text()))
     result["inputs"] = {"baseline": baseline_ref, "packets": packets_ref}
-    with args.output.open("x", encoding="utf-8") as output:
+    with output_path.open("x", encoding="utf-8") as output:
         json.dump(result, output, indent=2, ensure_ascii=False)
         output.write("\n")
 

@@ -1,12 +1,14 @@
 """NGINX evidence identity regressions, using synthetic measurements only."""
 
 import copy
+import hashlib
 import importlib.util
 import json
 import os
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -236,6 +238,52 @@ class NginxLedgerTests(unittest.TestCase):
         packet["effective_oracle"] = self.oracle
         with self.assertRaisesRegex(ValueError, "Oracle review must bind"):
             LEDGER.build_ledger(self.baseline, [packet])
+
+    def test_cli_confines_inputs_and_fresh_output_to_protected_run_root(self):
+        baseline = self.path / "baseline.json"
+        packets = self.path / "packets.json"
+        output = self.path / "ledger.json"
+        baseline.write_text(json.dumps(self.baseline))
+        packets.write_text("[]")
+        digest = hashlib.sha256(baseline.read_bytes()).hexdigest()
+        environment = patch.dict(os.environ, {"CODEX_RUN_ROOT": str(self.path)})
+        with environment, patch.object(LEDGER, "BASELINE_SHA256", digest):
+            LEDGER.main(["--baseline", str(baseline), "--packets", str(packets),
+                         "--output", str(output)])
+        result = json.loads(output.read_text())
+        self.assertEqual(result["summary"]["original_ids"], 140)
+        self.assertEqual(result["inputs"]["baseline"]["sha256"], digest)
+
+    def test_cli_rejects_escape_links_writable_ancestry_and_existing_output(self):
+        baseline = self.path / "baseline.json"
+        packets = self.path / "packets.json"
+        baseline.write_text(json.dumps(self.baseline))
+        packets.write_text("[]")
+        digest = hashlib.sha256(baseline.read_bytes()).hexdigest()
+        link = self.path / "baseline-link.json"
+        link.symlink_to(baseline)
+        writable = self.path / "writable"
+        writable.mkdir(mode=0o777)
+        writable.chmod(0o777)
+        writable_packets = writable / "packets.json"
+        writable_packets.write_text("[]")
+        existing = self.path / "existing.json"
+        existing.write_text("sentinel\n")
+        outside = self.path.parent / "outside-ledger.json"
+        noncanonical = self.path / ".." / self.path.name / "ledger.json"
+        environment = patch.dict(os.environ, {"CODEX_RUN_ROOT": str(self.path)})
+        with environment, patch.object(LEDGER, "BASELINE_SHA256", digest):
+            for candidate_baseline, candidate_packets, candidate_output in (
+                    (link, packets, self.path / "from-link.json"),
+                    (baseline, writable_packets, self.path / "from-writable.json"),
+                    (baseline, packets, existing),
+                    (baseline, packets, outside),
+                    (baseline, packets, noncanonical)):
+                with self.subTest(output=candidate_output), self.assertRaises(ValueError):
+                    LEDGER.main(["--baseline", str(candidate_baseline),
+                                 "--packets", str(candidate_packets),
+                                 "--output", str(candidate_output)])
+        self.assertEqual(existing.read_text(), "sentinel\n")
 
 
 if __name__ == "__main__":
