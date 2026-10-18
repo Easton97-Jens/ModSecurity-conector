@@ -4756,14 +4756,18 @@ static int copy_spop_bridge_decision(msconnector_decision *destination,
     if (storage == NULL || source->rule_id != NULL || source->reason == NULL ||
             source->log_message != NULL || !source->intervention.disruptive ||
             source->intervention.status != source->http_status ||
-            source->intervention.log_message != source->reason) {
+            source->intervention.log_message == NULL) {
         msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
             "SPOP response decision has an unsupported borrowed-text shape",
             "haproxy-spoe-spop");
         return 0;
     }
+    /* Common owns each decision text field independently. Equal native
+     * metadata need not retain pointer aliases across that boundary. */
     if (!copy_bridge_native_decision_text(storage->log_message,
-            sizeof(storage->log_message), source->reason)) {
+            sizeof(storage->log_message), source->reason) ||
+            strncmp(source->intervention.log_message, storage->log_message,
+                sizeof(storage->log_message)) != 0) {
         msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
             "SPOP response decision log text exceeds bounded storage",
             "haproxy-spoe-spop");
@@ -4771,9 +4775,11 @@ static int copy_spop_bridge_decision(msconnector_decision *destination,
     }
     if (source->kind == MSCONNECTOR_DECISION_KIND_REDIRECT) {
         if (source->redirect_url == NULL ||
-                source->intervention.redirect_url != source->redirect_url ||
+                source->intervention.redirect_url == NULL ||
                 !copy_bridge_native_decision_text(storage->redirect_url,
-                    sizeof(storage->redirect_url), source->redirect_url)) {
+                    sizeof(storage->redirect_url), source->redirect_url) ||
+                strncmp(source->intervention.redirect_url, storage->redirect_url,
+                    sizeof(storage->redirect_url)) != 0) {
             msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
                 "SPOP response redirect exceeds bounded storage",
                 "haproxy-spoe-spop");

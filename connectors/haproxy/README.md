@@ -373,3 +373,10 @@ remain necessary for I12. See the
 [physical sink Change Record](../../reports/audits/change-records/CR-20261018-haproxy-physical-common-sinks.md).
 
 For Strict postcommit H1, the native filter now erases queued response bytes and invokes the ready frontend transport hard-shutdown API before the H1 mux can send a clean TLS close_notify. H2 keeps its per-stream shutdown. Component/API/mutation controls and compilation passed; fresh integrated transport qualification remains required. See the [H1 transport Change Record](../../reports/audits/change-records/CR-20261018-haproxy-strict-h1-transport-abort.md).
+
+Native precommit P1/P2/P3 redirects use HAProxy's literal `Location` reply API
+with the original supported status. The connector owns the URL before native
+cleanup and rejects truncated or control-character values. The companion
+records the actual redirect OUTCOME before RELEASE. Source, native SDK and
+host API regressions passed; independent integrated client retests remain
+required. See the [redirect Change Record](../../reports/audits/change-records/CR-20261018-haproxy-precommit-redirect.md).

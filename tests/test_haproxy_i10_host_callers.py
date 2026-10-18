@@ -16,8 +16,8 @@ ROOT = Path(__file__).resolve().parents[1]
 OVERLAY = ROOT / "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c"
 FUNCTIONS = (
     "request_version", "event_sink_failed", "write_event",
-    "companion_cancel_cause_from_error", "companion_cancel_and_close", "abort_context", "finish_context", "error_phase", "report_error", "apply_precommit_deny",
-    "fail_closed_precommit", "abort_response_stream", "fail_closed_postcommit", "fail_closed_request_phase",
+    "companion_cancel_cause_from_error", "companion_cancel_and_close", "abort_context", "finish_context", "error_phase", "report_error", "apply_precommit_deny", "apply_precommit_redirect", "apply_precommit_decision",
+    "fail_closed_precommit", "abort_response_stream", "fail_closed_postcommit", "fail_closed_request_phase", "apply_precommit_decision_or_fail_closed",
     "companion_result_is_forwardable", "companion_record_precommit_outcome", "companion_record_terminal_outcome",
     "companion_open_and_claim", "companion_commit", "process_companion_response_headers", "send_companion_response_chunk", "finish_companion_response",
     "handle_response_headers", "filter_request_payload", "filter_response_payload",
@@ -97,6 +97,23 @@ class HAProxyI10HostCallers(unittest.TestCase):
     def test_productive_host_callers_mode_commit_reentry_matrix(self):
         result = self.compile_and_run(OVERLAY.read_text())
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_redirect_boundary_negative_controls(self):
+        source = OVERLAY.read_text()
+        mutations = {
+            "wrong-location": ("rule.rdr_str = location;", "location[0]='X'; rule.rdr_str = location;"),
+            "redirect-coerced-to-deny": ("rule.code = decision->status;", "rule.code = 403;"),
+            "skipped-reply-accepted": ("http_apply_redirect_rule(&rule, s, s->txn) == 1", "http_apply_redirect_rule(&rule, s, s->txn) != 0"),
+            "redirect-native-finish-ignored": ("if (haproxy_modsecurity_htx_finish_context(ctx) != 0) { return 0; }", "(void)ctx;"),
+            "redirect-result-lifetime-copy-omitted": ("memcpy(host_decision.redirect_url, result.redirect_url, length + 1U);", "host_decision.redirect_url[0]=0;"),
+            "redirect-outcome-coerced-to-deny": ("host_action = MSCONNECTOR_DECISION_ACTION_REDIRECT;", "host_action = MSCONNECTOR_DECISION_ACTION_DENY;"),
+            "earlier-error-ignored": ("ctx != NULL && !ctx->lifecycle.fail_closed &&", "ctx != NULL &&"),
+        }
+        for name, (old,new) in mutations.items():
+            with self.subTest(mutation=name):
+                self.assertIn(old,source)
+                result=self.compile_and_run(source.replace(old,new,1))
+                self.assertNotEqual(result.returncode,0,name + " unexpectedly survived")
 
     def test_strict_transport_negative_controls(self):
         source = OVERLAY.read_text()
