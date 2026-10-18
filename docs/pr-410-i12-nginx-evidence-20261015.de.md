@@ -8,7 +8,7 @@ Generiert durch `ci/runtime/lifecycle/i12/nginx/report.py`; Eingaben oder Genera
 
 Die 140 ausgewählten ursprünglichen IDs bleiben maßgeblich. Nur ein freigegebenes vollständiges ausgewähltes Hostpaket qualifiziert einen Lifecycle-PASS. Kandidatenbeobachtungen, native Unit-Tests, Konfigurationsprüfungen und Aliase qualifizieren keine zusätzlichen Requests.
 
-Die aktuelle vollständige Qualifikation umfasst **71/140 ursprüngliche IDs**: **67 PASS** und **4 FAIL**. **69 IDs** haben weiterhin keine vollständige Lifecycle-Qualifikation. Von den ursprünglich 43 offenen Oracle-Erwartungen waren 1 an der Basis aufgelöst und 33 sind neu aufgelöst; **9 bleiben offen**.
+Die aktuelle vollständige Qualifikation umfasst **71/140 ursprüngliche IDs**: **67 PASS** und **4 FAIL**. **69 IDs** haben weiterhin keine vollständige Lifecycle-Qualifikation. Die Basisqualifikation löste 1 der ursprünglich 43 offenen Oracle-Erwartungen auf, und neue Nachweise lösen 33 auf; **9 bleiben offen**.
 
 ```json
 {
