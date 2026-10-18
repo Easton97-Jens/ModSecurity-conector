@@ -18,6 +18,7 @@ PREFIX = "I12::haproxy-native-htx::"
 ALLOW_BODY = b"ordinary-native-response\n"
 DENY_BODY = b"I12 sequence denied\n"
 LIMIT = 1024 * 1024
+LEDGER_SUFFIX = "-ledger.json"
 
 
 def sha(data):
@@ -86,6 +87,40 @@ def socket_identity(connection, serial):
             "tls_version": connection.version()}
 
 
+def drive_item(name, root, item, connection, pending, same_socket, result):
+    started = time.time_ns()
+    identity = socket_identity(connection, result["connections_opened"])
+    request = (f'GET {item["path"]} HTTP/1.1\r\nHost: 127.0.0.1\r\n'
+               f'X-Modsec-Smoke: {item["smoke"]}\r\nContent-Length: 0\r\n'
+               f'Connection: {"keep-alive" if same_socket else "close"}\r\n\r\n').encode()
+    connection.sendall(request)
+    observed, pending = read_response(connection, pending)
+    wire = observed.pop("wire")
+    (root / f'{name}-wire-{item["index"]}.bin').write_bytes(wire)
+    observed.update(index=item["index"], path=item["path"],
+                    started_wall_ns=started, completed_wall_ns=time.time_ns(),
+                    socket=identity, request_wire_sha256=sha(request),
+                    expected=item)
+    # Explicit field mapping: expected payload identity is not a measurement.
+    observed["matches_expected"] = (observed["status"] == item["status"] and
+        observed["response_bytes"] == item["body_bytes"] and
+        observed["response_sha256"] == item["body_sha256"])
+    result["requests"].append(observed)
+    return connection, pending
+
+
+def release_independent_connection(connection, same_socket):
+    if not same_socket:
+        connection.close()
+        return None
+    return connection
+
+
+def reject_independent_surplus(pending, same_socket):
+    if not same_socket and pending:
+        raise ValueError("unexpected bytes after independently closed response")
+
+
 def drive(name, root=Path("/task"), contract=None):
     if contract is None:
         contract = json.loads(Path("/mnt/fixtures/case-contract.json").read_text())
@@ -105,29 +140,9 @@ def drive(name, root=Path("/task"), contract=None):
             if connection is None:
                 connection = connect(context)
                 result["connections_opened"] += 1
-            started = time.time_ns()
-            identity = socket_identity(connection, result["connections_opened"])
-            request = (f'GET {item["path"]} HTTP/1.1\r\nHost: 127.0.0.1\r\n'
-                       f'X-Modsec-Smoke: {item["smoke"]}\r\nContent-Length: 0\r\n'
-                       f'Connection: {"keep-alive" if same_socket else "close"}\r\n\r\n').encode()
-            connection.sendall(request)
-            observed, pending = read_response(connection, pending)
-            wire = observed.pop("wire")
-            (root / f'{name}-wire-{item["index"]}.bin').write_bytes(wire)
-            observed.update(index=item["index"], path=item["path"],
-                            started_wall_ns=started, completed_wall_ns=time.time_ns(),
-                            socket=identity, request_wire_sha256=sha(request),
-                            expected=item)
-            # Explicit field mapping: expected payload identity is not a measurement.
-            observed["matches_expected"] = (observed["status"] == item["status"] and
-                observed["response_bytes"] == item["body_bytes"] and
-                observed["response_sha256"] == item["body_sha256"])
-            result["requests"].append(observed)
-            if not same_socket:
-                connection.close()
-                connection = None
-                if pending:
-                    raise ValueError("unexpected bytes after independently closed response")
+            connection, pending = drive_item(name, root, item, connection, pending, same_socket, result)
+            connection = release_independent_connection(connection, same_socket)
+            reject_independent_surplus(pending, same_socket)
         if pending:
             raise ValueError("unexpected bytes beyond final HTTP response")
     except (OSError, EOFError, ValueError) as error:
@@ -144,6 +159,20 @@ def drive(name, root=Path("/task"), contract=None):
     return 0 if result["http_sequence_matches"] else 1
 
 
+def request_allocation(request, allocations, seen):
+    candidates = [row for row in allocations
+                  if request["started_wall_ns"] <= row["wall_ns"] <= request["completed_wall_ns"]]
+    if len(candidates) > 1:
+        raise ValueError("ambiguous native allocation within actual client interval")
+    allocation = candidates[0] if candidates else None
+    scope = allocation["allocation_scope_call"] if allocation else None
+    if scope is not None and scope in seen:
+        raise ValueError("native allocation reused across sequence requests")
+    if scope is not None:
+        seen.add(scope)
+    return allocation
+
+
 def join_native(client, native):
     """Bind only actual unambiguous allocations; retain absent/extra calls."""
     allocations = [row for row in native if row.get("function") == "host_allocation"
@@ -151,16 +180,8 @@ def join_native(client, native):
     joined = []
     seen = set()
     for request in client["requests"]:
-        candidates = [row for row in allocations
-                      if request["started_wall_ns"] <= row["wall_ns"] <= request["completed_wall_ns"]]
-        if len(candidates) > 1:
-            raise ValueError("ambiguous native allocation within actual client interval")
-        allocation = candidates[0] if candidates else None
+        allocation = request_allocation(request, allocations, seen)
         scope = allocation["allocation_scope_call"] if allocation else None
-        if scope is not None and scope in seen:
-            raise ValueError("native allocation reused across sequence requests")
-        if scope is not None:
-            seen.add(scope)
         rows = [row for row in native if row.get("allocation_scope_call") == scope] if allocation else []
         joined.append({"index": request["index"], "observed_client": request,
                        "actual_allocation": allocation, "actual_native_rows": rows,
@@ -176,7 +197,7 @@ def prepare(base, plans_path, output):
     from i12_native_cases import replace_once
 
     plans = json.loads(plans_path.read_text())["plans"]
-    ledger = json.loads(base.with_name(base.name + "-ledger.json").read_text())
+    ledger = json.loads(base.with_name(base.name + LEDGER_SUFFIX).read_text())
     sources = {}
     for filename, expected in ledger["files"].items():
         path = base / filename
@@ -204,7 +225,7 @@ def prepare(base, plans_path, output):
                     "same_tls_socket_required": name == CASE_NAMES[1],
                     "sequence": expected_sequence(), "full_lifecycle_pass": None,
                     "host_runs": 0, "independent_native_join_required": True,
-                    "base_capture_ledger_sha256": sha(base.with_name(base.name + "-ledger.json").read_bytes())}
+                    "base_capture_ledger_sha256": sha(base.with_name(base.name + LEDGER_SUFFIX).read_bytes())}
         denied = (f"HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\nContent-Length: {len(DENY_BODY)}\r\n\r\n").encode() + DENY_BODY
         files = {"launch.py": launch.encode(), "backend.py": backend.encode(),
                  "client.py": Path(__file__).read_bytes(),
@@ -217,7 +238,7 @@ def prepare(base, plans_path, output):
             (case / filename).chmod(0o444)
         case.chmod(0o555)
         record = {"files": {key: sha(value) for key, value in files.items()}, "symlinks": {}}
-        receipt = case.with_name(name + "-ledger.json")
+        receipt = case.with_name(name + LEDGER_SUFFIX)
         receipt.write_text(json.dumps(record, indent=2) + "\n")
         receipt.chmod(0o444)
         records.append({"id": PREFIX + name, "fixture": str(case), "ledger": str(receipt),

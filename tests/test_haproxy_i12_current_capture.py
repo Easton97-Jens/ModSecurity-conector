@@ -6,6 +6,7 @@ from pathlib import Path
 import tarfile
 import tempfile
 import unittest
+from unittest.mock import patch
 
 SOURCE = Path(__file__).resolve().parents[1] / "connectors/haproxy/harness/i12_current_capture.py"
 SPEC = importlib.util.spec_from_file_location("i12_current_capture", SOURCE)
@@ -87,8 +88,102 @@ class CurrentCaptureTests(unittest.TestCase):
         self.assertEqual(result.count(call), 1)
         self.assertLess(result.index('"spop_complete_request_sample_accepted"'), result.index(call))
         self.assertGreater(result.index('"spop_atomic_request_evaluated"'), result.index(call))
+        before_bytes, observed_bytes = old.encode(), observed.encode()
+        changed_call = call.replace("response_phases_enabled", "changed").encode()
         with self.assertRaisesRegex(ValueError, "anchor changed or is ambiguous"):
-            CAPTURE.port_spop(old.encode(), observed.encode(), call.replace("response_phases_enabled", "changed").encode())
+            CAPTURE.port_spop(before_bytes, observed_bytes, changed_call)
+
+    @staticmethod
+    def release_archive_bytes(payload):
+        buffer = io.BytesIO()
+        with tarfile.open(fileobj=buffer, mode="w") as out:
+            for name, content in (("VERSION", b"3.2.25\n"), ("payload.txt", payload)):
+                member = tarfile.TarInfo("haproxy-3.2.25/" + name)
+                member.size = len(content)
+                out.addfile(member, io.BytesIO(content))
+        return buffer.getvalue()
+
+    def test_archive_replacement_after_hash_never_changes_parsed_bytes(self):
+        with tempfile.TemporaryDirectory(dir=CAPTURE.STORAGE) as directory:
+            root = Path(directory)
+            archive = root / "release.tar"
+            original = self.release_archive_bytes(b"verified source")
+            replacement = self.release_archive_bytes(b"unverified replacement")
+            archive.write_bytes(original)
+            contract = {"version": "3.2.25", "sha256": hashlib.sha256(original).hexdigest()}
+            original_sha = CAPTURE.sha
+            changed = False
+
+            def replace_after_hash(data):
+                nonlocal changed
+                if data == original and not changed:
+                    changed = True
+                    archive.write_bytes(replacement)
+                return original_sha(data)
+
+            with patch.object(CAPTURE, "sha", side_effect=replace_after_hash):
+                receipt = CAPTURE.unpack_upstream(archive, root / "source", contract)
+            self.assertTrue(changed)
+            self.assertEqual((root / "source/payload.txt").read_bytes(), b"verified source")
+            self.assertEqual(receipt["archive_sha256"], contract["sha256"])
+
+    def test_archive_and_output_symlink_paths_are_rejected(self):
+        with tempfile.TemporaryDirectory(dir=CAPTURE.STORAGE) as directory:
+            root = Path(directory)
+            data = self.release_archive_bytes(b"verified")
+            archive = root / "release.tar"
+            archive.write_bytes(data)
+            contract = {"version": "3.2.25", "sha256": hashlib.sha256(data).hexdigest()}
+            alias = root / "alias.tar"
+            alias.symlink_to(archive)
+            with self.assertRaises(OSError):
+                CAPTURE.unpack_upstream(alias, root / "source", contract)
+            parent = root / "linked-parent"
+            parent.symlink_to(root, target_is_directory=True)
+            output = parent / "source"
+            with self.assertRaises(OSError):
+                CAPTURE.unpack_upstream(archive, output, contract)
+            self.assertFalse((root / "source").exists())
+
+    def test_materialization_parent_swap_cannot_redirect_file(self):
+        with tempfile.TemporaryDirectory(dir=CAPTURE.STORAGE) as directory:
+            root = Path(directory)
+            outside, source = root / "outside", root / "source"
+            outside.mkdir()
+            data = self.release_archive_bytes(b"verified")
+            archive = root / "release.tar"
+            archive.write_bytes(data)
+            contract = {"version": "3.2.25", "sha256": hashlib.sha256(data).hexdigest()}
+            original_write = CAPTURE.write_upstream_member
+            changed = False
+
+            def replace_source(descriptor, parts, content, mode):
+                nonlocal changed
+                if not changed:
+                    changed = True
+                    source.rename(root / "held-source")
+                    source.symlink_to(outside, target_is_directory=True)
+                return original_write(descriptor, parts, content, mode)
+
+            with patch.object(CAPTURE, "write_upstream_member", side_effect=replace_source):
+                with self.assertRaisesRegex(ValueError, "directory changed"):
+                    CAPTURE.unpack_upstream(archive, source, contract)
+            self.assertEqual(list(outside.iterdir()), [])
+            self.assertEqual((root / "held-source/payload.txt").read_bytes(), b"verified")
+
+    def test_storage_anchor_must_be_private(self):
+        with tempfile.TemporaryDirectory(dir=CAPTURE.STORAGE) as directory:
+            root = Path(directory)
+            archive = root / "release.tar"
+            archive.write_bytes(self.release_archive_bytes(b"verified"))
+            root.chmod(0o777)
+            try:
+                with patch.object(CAPTURE, "STORAGE", root):
+                    with self.assertRaisesRegex(ValueError, "privately owned"):
+                        with CAPTURE.storage_parent(archive):
+                            pass
+            finally:
+                root.chmod(0o700)
 
     def test_current_runtime_owned_feature_macro_is_not_redefined(self):
         CAPTURE.STORAGE.mkdir(parents=True, exist_ok=True)

@@ -5,10 +5,12 @@ Historical objects remain unchanged. This consumer retains complete v2 export
 inventories and current before/after deltas; compilation never qualifies a host.
 """
 import argparse
+from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor
 import difflib
 import hashlib
 import importlib.util
+import io
 import json
 import os
 import posixpath
@@ -16,6 +18,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import stat
 import tarfile
 import threading
 
@@ -25,6 +28,11 @@ BINDING = "connectors/haproxy/src/haproxy_modsecurity_binding.c"
 SPOP = "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c"
 MARKER = ".i12-disposable-source-copy.json"
 SNAPSHOT = ".i12-source-export-manifest.json"
+MANIFEST = "manifest.json"
+COMMON_RUNTIME = "common/runtime"
+LIFECYCLE = "ci/runtime/lifecycle"
+HAPROXY_SRC = "connectors/haproxy/src"
+DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
 
 
 def sha(data):
@@ -75,14 +83,7 @@ class Commands:
         return stdout
 
 
-def export_archive(repo, revision, target, commands, label):
-    if re.fullmatch("[0-9a-f]{40}", revision) is None:
-        raise ValueError("complete source revision required")
-    archive = commands.run(["git", "archive", "--format=tar", revision], label + "-archive", repo)
-    tree = commands.run(["git", "rev-parse", revision + "^{tree}"], label + "-tree", repo).read_text().strip()
-    listing = commands.run(["git", "ls-tree", "-r", "-z", revision], label + "-files", repo).read_bytes()
-    target.mkdir(mode=0o700, exist_ok=False)
-    files, gitlinks = {}, {}
+def extract_git_archive(archive, target):
     with tarfile.open(archive) as source:
         for member in source:
             relative = Path(member.name)
@@ -98,6 +99,17 @@ def export_archive(repo, revision, target, commands, label):
                 path.chmod(member.mode & 0o777)
             else:
                 raise ValueError("Git export must contain only physical regular files/directories")
+
+
+def export_archive(repo, revision, target, commands, label):
+    if re.fullmatch("[0-9a-f]{40}", revision) is None:
+        raise ValueError("complete source revision required")
+    archive = commands.run(["git", "archive", "--format=tar", revision], label + "-archive", repo)
+    tree = commands.run(["git", "rev-parse", revision + "^{tree}"], label + "-tree", repo).read_text().strip()
+    listing = commands.run(["git", "ls-tree", "-r", "-z", revision], label + "-files", repo).read_bytes()
+    target.mkdir(mode=0o700, exist_ok=False)
+    files, gitlinks = {}, {}
+    extract_git_archive(archive, target)
     for entry in listing.split(b"\0"):
         if not entry:
             continue
@@ -216,6 +228,18 @@ def copy_current(source, target):
     (target / MARKER).write_text(json.dumps(marker, indent=2) + "\n")
 
 
+def port_target(name, before, after, current):
+    if before is None:
+        if current is not None:
+            raise ValueError("capture addition collides with current product")
+        return after
+    if name == BINDING:
+        return port_binding(before, after, current)
+    if name == SPOP:
+        return port_spop(before, after, current)
+    return relocate_delta(before, after, current)
+
+
 def port_profile(tool, registry, source, target, profile, output):
     copy_current(source, target)
     identity = tool.disposable(target, registry.manifest["delivery_product_baseline"], STORAGE)
@@ -225,16 +249,7 @@ def port_profile(tool, registry, source, target, profile, output):
         current = tool.plain(path) if path.exists() else None
         before = registry.content(entry["before_sha256"]) if entry["before_sha256"] else None
         after = registry.content(entry["sha256"])
-        if before is None:
-            if current is not None:
-                raise ValueError("capture addition collides with current product")
-            result = after
-        elif name == BINDING:
-            result = port_binding(before, after, current)
-        elif name == SPOP:
-            result = port_spop(before, after, current)
-        else:
-            result = relocate_delta(before, after, current)
+        result = port_target(name, before, after, current)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(result)
         path.chmod(entry.get("mode", 420))
@@ -246,7 +261,7 @@ def port_profile(tool, registry, source, target, profile, output):
                         "historical_after_sha256": entry["sha256"], "delta": str(delta_path), "delta_sha256": sha(delta.encode()),
                         "reviewed_scope_port": name in (BINDING, SPOP)})
     receipt = {"profile": profile, "current_export": identity, "source_copy": str(target), "source_targets": records,
-               "historical_registry_manifest_sha256": sha((registry.root / "manifest.json").read_bytes()),
+               "historical_registry_manifest_sha256": sha((registry.root / MANIFEST).read_bytes()),
                "historical_objects_modified": False, "runtime_qualified": False}
     (target / "i12-current-source-application-receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
     return receipt
@@ -256,7 +271,7 @@ def registry_repository(tool, output):
     """Resolve immutable repository objects from their exact archived bytes."""
     repository = output / "registry-repository"
     repository.mkdir(exist_ok=False)
-    manifest = json.loads((tool.HERE / "manifest.json").read_text())
+    manifest = json.loads((tool.HERE / MANIFEST).read_text())
     provenance = []
     for identity, item in manifest["objects"].items():
         if item["kind"] != "repository":
@@ -281,7 +296,7 @@ def prepare(repo, revision, tool_path, output):
     output = fresh(output)
     commands = Commands(output)
     tool = load_tool(tool_path)
-    baseline = json.loads((tool.HERE / "manifest.json").read_text())["delivery_product_baseline"]
+    baseline = json.loads((tool.HERE / MANIFEST).read_text())["delivery_product_baseline"]
     export_archive(repo, baseline, output / "historical-base", commands, "historical")
     export_archive(repo, revision, output / "current-base", commands, "current")
     registry = tool.Registry(repository=registry_repository(tool, output))
@@ -307,6 +322,8 @@ def upstream_members(package, prefix):
         path = Path(member.name)
         if not path.parts or path.parts[0] != prefix or ".." in path.parts or path.is_absolute():
             raise ValueError("unexpected upstream archive path")
+        if len(path.parts) == 1 and not member.isdir():
+            raise ValueError("upstream release root must be a directory")
         if member.name in members:
             raise ValueError("duplicate upstream archive member")
         if not (member.isdir() or member.isfile() or member.issym()):
@@ -329,36 +346,126 @@ def upstream_regular_target(member, members, prefix):
     return target
 
 
+def storage_parts(path):
+    if not path.is_absolute() or ".." in path.parts:
+        raise ValueError("absolute storage child required")
+    parts = path.relative_to(STORAGE).parts
+    if not parts or any(part in ("", ".", "..") or "/" in part for part in parts):
+        raise ValueError("storage child required")
+    return parts
+
+
+def descend_directory(parent, parts, create=False):
+    descriptor = os.dup(parent)
+    try:
+        for part in parts:
+            if create:
+                try:
+                    os.mkdir(part, dir_fd=descriptor)
+                except FileExistsError:
+                    pass
+            child = os.open(part, DIRECTORY_FLAGS, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+        return descriptor
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+@contextmanager
+def storage_parent(path):
+    parts = storage_parts(path)
+    root = os.open("/", DIRECTORY_FLAGS)
+    try:
+        anchor = descend_directory(root, STORAGE.parts[1:])
+    finally:
+        os.close(root)
+    try:
+        status = os.fstat(anchor)
+        if status.st_uid != os.getuid() or status.st_mode & 0o022:
+            raise ValueError("storage anchor must be privately owned")
+        parent = descend_directory(anchor, parts[:-1])
+        try:
+            yield parent, parts[-1]
+        finally:
+            os.close(parent)
+    finally:
+        os.close(anchor)
+
+
+def regular_bytes(parent, name):
+    descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise ValueError("physical regular input required")
+        with os.fdopen(descriptor, "rb", closefd=False) as source:
+            return source.read()
+    finally:
+        os.close(descriptor)
+
+
+@contextmanager
+def upstream_directory(source):
+    with storage_parent(source) as (parent, name):
+        os.mkdir(name, mode=0o700, dir_fd=parent)
+        directory = os.open(name, DIRECTORY_FLAGS, dir_fd=parent)
+        try:
+            yield directory
+            held, visible = os.fstat(directory), os.stat(name, dir_fd=parent, follow_symlinks=False)
+            if (held.st_dev, held.st_ino) != (visible.st_dev, visible.st_ino):
+                raise ValueError("upstream source directory changed during materialization")
+        finally:
+            os.close(directory)
+
+
+def write_upstream_member(directory, parts, content, mode):
+    parent = descend_directory(directory, parts[:-1], create=True)
+    try:
+        descriptor = os.open(parts[-1], os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                             mode, dir_fd=parent)
+        with os.fdopen(descriptor, "wb") as output:
+            output.write(content)
+            os.fchmod(output.fileno(), mode)
+    finally:
+        os.close(parent)
+
+
+def materialize_upstream(package, members, regular, directory):
+    normalizations = []
+    for name, member in members.items():
+        parts = Path(name).parts[1:]
+        if member.isdir():
+            os.close(descend_directory(directory, parts, create=True))
+            continue
+        original = regular[name]
+        with package.extractfile(original) as data:
+            content = data.read()
+        mode = original.mode & 0o777
+        write_upstream_member(directory, parts, content, mode)
+        if member.issym():
+            normalizations.append({"archive_member": name, "original_linkname": member.linkname,
+                                   "resolved_regular_member": original.name, "content_sha256": sha(content),
+                                   "mode": oct(mode), "materialized_as": "physical_regular_file"})
+    return normalizations
+
+
 def unpack_upstream(archive, source, contract):
-    if sha(archive.read_bytes()) != contract["sha256"]:
+    with storage_parent(archive) as (parent, name):
+        archive_bytes = regular_bytes(parent, name)
+    if sha(archive_bytes) != contract["sha256"]:
         raise ValueError("HAProxy release archive hash differs")
     prefix = "haproxy-" + contract["version"]
-    normalizations = []
-    with tarfile.open(archive) as package:
+    # Parse the exact admitted bytes whose digest was checked; never reopen the
+    # pathname after authentication. All output accesses stay below a held FD.
+    with tarfile.open(fileobj=io.BytesIO(archive_bytes)) as package:
         members = upstream_members(package, prefix)
-        # Validate every link before writing any source bytes. Never create or
-        # follow a filesystem link; bytes come only from this pinned archive.
         regular = {name: upstream_regular_target(member, members, prefix)
                    for name, member in members.items() if not member.isdir()}
-        source.mkdir(mode=0o700, exist_ok=False)
-        for name, member in members.items():
-            target = source.joinpath(*Path(name).parts[1:])
-            if member.isdir():
-                target.mkdir(parents=True, exist_ok=True)
-                continue
-            original = regular[name]
-            content = package.extractfile(original).read()
-            target.parent.mkdir(parents=True, exist_ok=True)
-            with target.open("xb") as out:
-                out.write(content)
-            mode = original.mode & 0o777
-            target.chmod(mode)
-            if member.issym():
-                normalizations.append({"archive_member": name, "original_linkname": member.linkname,
-                                       "resolved_regular_member": original.name, "content_sha256": sha(content),
-                                       "mode": oct(mode), "materialized_as": "physical_regular_file"})
-    if (source / "VERSION").read_text().strip() != contract["version"]:
-        raise ValueError("upstream HAProxy version differs")
+        with upstream_directory(source) as directory:
+            normalizations = materialize_upstream(package, members, regular, directory)
+            if regular_bytes(directory, "VERSION").decode().strip() != contract["version"]:
+                raise ValueError("upstream HAProxy version differs")
     return {"archive_sha256": contract["sha256"], "version": contract["version"],
             "filesystem_symlinks_created": 0, "normalizations": normalizations}
 
@@ -389,9 +496,9 @@ def stage_host(source, upstream, build, sdk, commands, label):
 
 def compile_observers(source, host, sdk, output, commands, label):
     output.mkdir(exist_ok=False)
-    include = ["-I" + str(source / "common/include"), "-I" + str(source / "common/runtime"), "-I" + str(host / "src")]
+    include = ["-I" + str(source / "common/include"), "-I" + str(source / COMMON_RUNTIME), "-I" + str(host / "src")]
     sources = {"request-scope-observer": source / "connectors/haproxy/harness/i12_request_scope_observer.c"}
-    sources.update({name: source / "ci/runtime/lifecycle" / (name + ".c") for name in ("companion-observer", "tls-write-observer")})
+    sources.update({name: source / LIFECYCLE / (name + ".c") for name in ("companion-observer", "tls-write-observer")})
     objects = {}
     for name, path in sources.items():
         obj = output / (name + ".o")
@@ -405,7 +512,7 @@ def compile_observers(source, host, sdk, output, commands, label):
 
 
 def product_input_binding(source, host):
-    pairs = [(source / "connectors/haproxy/src" / name, host / "src" / name)
+    pairs = [(source / HAPROXY_SRC / name, host / "src" / name)
              for name in ("haproxy_modsecurity_binding.c", "haproxy_modsecurity_binding.h", "haproxy_modsecurity_mapper.c", "haproxy_modsecurity_mapper.h")]
     pairs.append((source / "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c", host / "src/haproxy_modsecurity_htx_filter.c"))
     pairs.extend((path, host / "include/msconnector" / path.relative_to(source / "common/include/msconnector"))
@@ -433,7 +540,7 @@ def build_host(source, upstream, sdk, build, symbols, commands, label, jobs):
     wraps = ["-Wl,--wrap=" + symbol for symbol in [*symbols, "msconnector_transaction_contract_finish_request_authorization", "SSL_write"]]
     libraries = [*map(str, objects.values()), image, "-Wl,-rpath,'$$ORIGIN'", "-Wl,-rpath," + str(sdk / "lib"), "-lstdc++", "-pthread", "-lcrypto", *wraps]
     commands.run(["make", "-C", host, "TARGET=linux-glibc", "-j" + str(jobs), "USE_OPENSSL=1",
-                  "CFLAGS=-I" + str(host / "src/connectors") + " -I" + str(sdk / "include") + " -I" + str(source / "ci/runtime/lifecycle"), "ADDLIB=" + " ".join(libraries), "haproxy"], label + "-build")
+                  "CFLAGS=-I" + str(host / "src/connectors") + " -I" + str(sdk / "include") + " -I" + str(source / LIFECYCLE), "ADDLIB=" + " ".join(libraries), "haproxy"], label + "-build")
     return {"binary": str(host / "haproxy"), "sha256": sha((host / "haproxy").read_bytes()), "current_product_inputs": binding,
             "all_host_objects_fresh": True, "observer_objects": {name: str(path) for name, path in objects.items()}}
 
@@ -442,9 +549,9 @@ def agent_sources(source):
     makefile = (source / "connectors/haproxy/Makefile").read_text()
     line = next(row for row in makefile.splitlines() if row.startswith("COMMON_SDK_SRCS :="))
     paths = [Path(value.replace("$(COMMON_SRC)", str(source / "common/src"))) for value in line.split(":=", 1)[1].split()]
-    paths += [source / "common/runtime" / name for name in ("msconnector_runtime.c", "response_companion_transport.c", "response_companion_client.c")]
+    paths += [source / COMMON_RUNTIME / name for name in ("msconnector_runtime.c", "response_companion_transport.c", "response_companion_client.c")]
     paths += [source / "connectors/profile_registry.c"]
-    paths += [source / "connectors/haproxy/src" / name for name in ("haproxy_spop_diagnostic_runtime.c", "haproxy_modsecurity_binding.c", "haproxy_modsecurity_mapper.c", "haproxy_spop_response_companion_backend.c")]
+    paths += [source / HAPROXY_SRC / name for name in ("haproxy_spop_diagnostic_runtime.c", "haproxy_modsecurity_binding.c", "haproxy_modsecurity_mapper.c", "haproxy_spop_response_companion_backend.c")]
     return paths
 
 
@@ -459,8 +566,8 @@ def build_agent(source, sdk, build, observers, symbols, commands, jobs):
     build.mkdir(exist_ok=False)
     inputs = agent_sources(source)
     objects = [build / (str(index) + "-" + path.stem + ".o") for index, path in enumerate(inputs)]
-    include = ["-I" + str(source), "-I" + str(source / "common/include"), "-I" + str(source / "common/runtime"),
-               "-I" + str(source / "connectors/haproxy/src"), "-I" + str(source / "ci/runtime/lifecycle"), "-I" + str(sdk / "include")]
+    include = ["-I" + str(source), "-I" + str(source / "common/include"), "-I" + str(source / COMMON_RUNTIME),
+               "-I" + str(source / HAPROXY_SRC), "-I" + str(source / LIFECYCLE), "-I" + str(sdk / "include")]
     def compile_one(item):
         index, path = item
         commands.run(["cc", "-std=c17", *agent_feature_flags(path), "-Wall", "-Wextra", "-Werror", *include, "-c", path, "-o", objects[index]], "agent-" + str(index))
@@ -498,7 +605,7 @@ def build_all(output, sdk, archive, tool_path, jobs):
              "host_runs": 0, "runtime_qualified": False}
     (output / "first-regression-builds.json").write_text(json.dumps(early, indent=2) + "\n")
     direct = build_host(output / "haproxy-direct", upstream, sdk, output / "direct-build", symbols, commands, "direct", jobs)
-    result = {**early, "direct": direct, "upstream_archive": str(archive), "upstream_archive_sha256": sha(archive.read_bytes())}
+    result = {**early, "direct": direct, "upstream_archive": str(archive), "upstream_archive_sha256": normalization["archive_sha256"]}
     (output / "current-builds.json").write_text(json.dumps(result, indent=2) + "\n")
     return result
 

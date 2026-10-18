@@ -64,15 +64,24 @@ def source_descriptor(path):
     """Pin each directory without ever reopening an untrusted full path."""
     if not path.is_absolute() or ".." in path.parts:
         raise ValueError("physical absolute source path required")
-    path.relative_to(SOURCE_ROOT)
+    relative = path.relative_to(SOURCE_ROOT)
+    if not relative.parts:
+        raise ValueError("source file beneath storage required")
     directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
     parent = os.open("/", directory_flags)
     try:
-        for component in path.parts[1:-1]:
+        for component in SOURCE_ROOT.parts[1:]:
             child = os.open(component, directory_flags, dir_fd=parent)
             os.close(parent)
             parent = child
-        return os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+        status = os.fstat(parent)
+        if status.st_uid != os.getuid() or status.st_mode & 0o022:
+            raise ValueError("source storage anchor must be privately owned")
+        for component in relative.parts[:-1]:
+            child = os.open(component, directory_flags, dir_fd=parent)
+            os.close(parent)
+            parent = child
+        return os.open(relative.parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
     finally:
         os.close(parent)
 

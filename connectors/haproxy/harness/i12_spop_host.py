@@ -25,6 +25,9 @@ from i12_spop_wire import decode_frame, MAX_FRAME
 import i12_spop_cases as cases
 
 ROOT = Path("/task")
+CLIENT_FILE = 'client.jsonl'
+COMMANDS_FILE = 'commands.jsonl'
+SPOE_CONFIG_FILE = 'spoe.cfg'
 FRAMES_FILE = 'frames.jsonl'
 BACKEND_FILE = 'backend.jsonl'
 HOST_BINARY = '/mnt/artifacts/haproxy'
@@ -95,7 +98,7 @@ def evaluate(selected):
     frames = read_rows(FRAMES_FILE)
     acks = [{action["name"]: action["value"] for action in frame["decoded"].get("actions", [])}
             for frame in frames if frame["decoded"].get("kind") == 103]
-    clients = [json.loads(line) for line in (ROOT / "client.jsonl").read_text().splitlines()]
+    clients = [json.loads(line) for line in (ROOT / CLIENT_FILE).read_text().splitlines()]
     observed = {"ack_status": acks[-1].get("status") if acks else None,
                 "ack_blocked": acks[-1].get("blocked") if acks else None,
                 "backend_requests": len(read_rows(BACKEND_FILE)),
@@ -336,7 +339,7 @@ def capture_response(case, request, h2):
         except OSError as error:
             terminal = type(error).__name__
         (ROOT / "response.raw").write_bytes(response)
-        record("client.jsonl", {"case": case, "started_ns": started,
+        record(CLIENT_FILE, {"case": case, "started_ns": started,
                "finished_ns": time.time_ns(), "terminal": terminal,
                "response_hex": response.hex(), "http2": h2,
                "status_line": None if h2 else bytes(response).split(b"\r\n", 1)[0].decode("ascii", "replace")})
@@ -351,7 +354,7 @@ def cleanup_host(children, observer, stop, worker, with_companion):
         except subprocess.TimeoutExpired:
             process.kill()
             code = process.wait(timeout=5)
-        record("commands.jsonl", {"argv": argv, "launcher_rtk_proxied": True, "cwd": os.getcwd(),
+        record(COMMANDS_FILE, {"argv": argv, "launcher_rtk_proxied": True, "cwd": os.getcwd(),
                "exit": code, "reaped": True, "pid": process.pid})
     if observer is not None:
         observer.close()
@@ -366,7 +369,7 @@ def verify_host_configuration():
                        ("config", [HOST_BINARY, "-c", "-f", "/task/haproxy.cfg"])):
         with (ROOT / (name + ".stdout")).open("wb") as out, (ROOT / (name + ".stderr")).open("wb") as err:
             result = subprocess.run(["rtk", "proxy", *argv], stdout=out, stderr=err, timeout=10)
-        record("commands.jsonl", {"argv": ["rtk", "proxy", *argv], "cwd": os.getcwd(), "exit": result.returncode})
+        record(COMMANDS_FILE, {"argv": ["rtk", "proxy", *argv], "cwd": os.getcwd(), "exit": result.returncode})
         if result.returncode:
             raise RuntimeError(name + " failed")
 
@@ -480,7 +483,7 @@ def capture_original_request(client, profile, index, neighbor, connection):
         terminal = type(error).__name__
     raw = bytes(response)
     (ROOT / f'response-{index}.raw').write_bytes(raw)
-    record("client.jsonl", {"case": profile["case"], "index": index, "neighbor": neighbor,
+    record(CLIENT_FILE, {"case": profile["case"], "index": index, "neighbor": neighbor,
            "connection": connection, "socket_fd": client.fileno(), "terminal": terminal,
            "request_sha256": hashlib.sha256(request).hexdigest(), "response_sha256": hashlib.sha256(raw).hexdigest(),
            "http2": False, "measurement": response_measurement(raw)})
@@ -512,18 +515,18 @@ def original_client(selected):
         capture_original_request(neighbor, cases.neighbor_profile(), "neighbor", True, connection + 1)
 
 
-def run_original_client(selected):
+def run_original_client():
     argv = [sys.executable, str(Path(__file__).resolve()), "--original-client"]
     with (ROOT / "client.stdout").open("wb") as out, (ROOT / "client.stderr").open("wb") as err:
         result = subprocess.run(argv, stdout=out, stderr=err, timeout=40)
-    record("commands.jsonl", {"argv": argv, "exit": result.returncode, "reaped": True,
+    record(COMMANDS_FILE, {"argv": argv, "exit": result.returncode, "reaped": True,
            "role": "independent-client", "launcher_rtk_proxied": True})
     if result.returncode:
         raise RuntimeError("independent original client failed")
 
 
 def evaluate_original(selected):
-    clients = read_rows("client.jsonl")
+    clients = read_rows(CLIENT_FILE)
     main = [row for row in clients if not row["neighbor"]]
     neighbors = [row for row in clients if row["neighbor"]]
     frames = read_rows(FRAMES_FILE)
@@ -533,39 +536,78 @@ def evaluate_original(selected):
     expected_rows = expected.get("requests", [expected])
     mismatches = ack_integrity_violations(frames, expected_rows)
     mismatches.extend(sample_claim_violations(frames, expected_rows))
-    if len(main) != len(expected_rows):
-        mismatches.append("main-client-count")
-    for index, (client, oracle) in enumerate(zip(main, expected_rows)):
-        status = oracle.get("client_status")
-        if status is not None and client["measurement"]["status"] != status:
-            mismatches.append(f'client-status-{index}')
-        if status == 200 and (client["measurement"]["body_sha256"] != hashlib.sha256(b"BACKEND").hexdigest()
-                              or not client["measurement"]["complete_length_framing"]):
-            mismatches.append(f'client-body-framing-{index}')
-        ack = oracle.get("ack_status")
-        if ack is not None and (len(actions) <= index or actions[index].get("status") != ack):
-            mismatches.append(f'ack-status-{index}')
-        blocked = oracle.get("ack_blocked")
-        if blocked is not None and (len(actions) <= index or actions[index].get("blocked") != blocked):
-            mismatches.append(f'ack-blocked-{index}')
+    mismatches.extend(original_request_violations(main, expected_rows, actions))
     count = sum(not row["neighbor"] for row in backend_rows)
     if expected.get("backend_requests") is not None and count != expected["backend_requests"]:
         mismatches.append("main-backend-count")
-    neighbor_ok = len(neighbors) == 1 and neighbors[0]["measurement"]["status"] == 200 and neighbors[0]["measurement"]["complete_length_framing"] and neighbors[0]["measurement"]["body_sha256"] == selected["neighbor_expected"]["body_sha256"] and sum(row["neighbor"] for row in backend_rows) == 1
+    neighbor_ok = healthy_neighbor_matches(neighbors, backend_rows, selected["neighbor_expected"])
+    mismatches.extend(neighbor_violations(neighbor_ok, neighbor_actions))
+    mismatches.extend(original_scope_violations(selected, expected_rows, actions, main))
+    record("expectations.jsonl", {**case_identity(selected), "expected": expected,
+           "main_clients": main, "main_backend_requests": count, "healthy_neighbor": neighbor_ok,
+           "ack_actions": actions, "mismatches": mismatches,
+           "observation_result": observation_result(mismatches, expected),
+           "full_lifecycle_pass": None, "native_physical_evidence_requires_independent_review": True,
+           "companion_profile_qualified": False})
+
+
+def original_request_violations(main, expected_rows, actions):
+    mismatches = []
+    if len(main) != len(expected_rows):
+        mismatches.append("main-client-count")
+    for index, (client, oracle) in enumerate(zip(main, expected_rows)):
+        mismatches.extend(original_request_mismatches(index, client, oracle, actions))
+    return mismatches
+
+
+def original_request_mismatches(index, client, oracle, actions):
+    mismatches = []
+    status = oracle.get("client_status")
+    if status is not None and client["measurement"]["status"] != status:
+        mismatches.append(f'client-status-{index}')
+    if status == 200 and (client["measurement"]["body_sha256"] != hashlib.sha256(b"BACKEND").hexdigest()
+                          or not client["measurement"]["complete_length_framing"]):
+        mismatches.append(f'client-body-framing-{index}')
+    ack = oracle.get("ack_status")
+    if ack is not None and (len(actions) <= index or actions[index].get("status") != ack):
+        mismatches.append(f'ack-status-{index}')
+    blocked = oracle.get("ack_blocked")
+    if blocked is not None and (len(actions) <= index or actions[index].get("blocked") != blocked):
+        mismatches.append(f'ack-blocked-{index}')
+    return mismatches
+
+
+def healthy_neighbor_matches(neighbors, backend_rows, expected):
+    return (len(neighbors) == 1 and neighbors[0]["measurement"]["status"] == 200
+            and neighbors[0]["measurement"]["complete_length_framing"]
+            and neighbors[0]["measurement"]["body_sha256"] == expected["body_sha256"]
+            and sum(row["neighbor"] for row in backend_rows) == 1)
+
+
+def neighbor_violations(neighbor_ok, neighbor_actions):
+    mismatches = []
     if not neighbor_ok:
         mismatches.append("healthy-neighbor")
     if len(neighbor_actions) != 1 or neighbor_actions[0].get("status") != 200 or neighbor_actions[0].get("blocked") is not False:
         mismatches.append("healthy-neighbor-ack")
-    if all(row.get("ack_status") is None for row in expected_rows) and not expected.get("unresolved_expected_fields") and actions:
+    return mismatches
+
+
+def original_scope_violations(selected, expected_rows, actions, main):
+    mismatches = []
+    if all(row.get("ack_status") is None for row in expected_rows) and not selected["effective_oracle"].get("unresolved_expected_fields") and actions:
         mismatches.append("unexpected-main-ack")
     if selected["runtime"].get("connection_reuse") and len({row["connection"] for row in main}) != 1:
         mismatches.append("connection-reuse")
-    record("expectations.jsonl", {**case_identity(selected), "expected": expected,
-           "main_clients": main, "main_backend_requests": count, "healthy_neighbor": neighbor_ok,
-           "ack_actions": actions, "mismatches": mismatches,
-           "observation_result": "failed" if mismatches else "unproved" if expected.get("unresolved_expected_fields") else "passed",
-           "full_lifecycle_pass": None, "native_physical_evidence_requires_independent_review": True,
-           "companion_profile_qualified": False})
+    return mismatches
+
+
+def observation_result(mismatches, expected):
+    if mismatches:
+        return "failed"
+    if expected.get("unresolved_expected_fields"):
+        return "unproved"
+    return "passed"
 
 
 def correlated_actions(frames):
@@ -668,8 +710,7 @@ def ack_frame_violations(row, notified, acknowledged):
     return errors
 
 
-def main():
-    selected = json.loads(Path("/mnt/fixtures/selected.json").read_text())
+def prepare_host_inputs(selected):
     case = selected["case"]
     original = selected.get("schema") == cases.SCHEMA
     profile = cases.validate_runtime(selected) if original else None
@@ -692,7 +733,7 @@ SecDebugLogLevel 9
 SecRule REQUEST_HEADERS:X-I12-Block "@streq yes" "id:1999501,phase:1,deny,status:403,log"
 SecRule ARGS:alpha "@streq I12_BLOCK_BODY" "id:1999502,phase:2,deny,status:403,log"
 ''')
-    (ROOT / "spoe.cfg").write_text(f'''[modsecurity]
+    (ROOT / SPOE_CONFIG_FILE).write_text(f'''[modsecurity]
 spoe-agent modsecurity-agent
     groups request-check
     option var-prefix modsec
@@ -759,11 +800,38 @@ backend be_spoa
         anchor = "    http-request set-var(txn.modsec.blocked) bool(true)"
         config = config.replace(anchor, f"    filter modsecurity-htx response-companion-socket /task/companion.sock response-companion-timeout-ms 2000 response-companion-uid {os.geteuid()} response-companion-gid {os.getegid()} phase4-mode safe\n" + anchor)
     if original:
-        config, spoe, agent_config = original_configuration(selected, config, (ROOT / "spoe.cfg").read_text(), agent_config)
-        (ROOT / "spoe.cfg").write_text(spoe)
+        config, spoe, agent_config = original_configuration(selected, config, (ROOT / SPOE_CONFIG_FILE).read_text(), agent_config)
+        (ROOT / SPOE_CONFIG_FILE).write_text(spoe)
         (ROOT / "agent.conf").write_text(agent_config)
         (ROOT / "rules.conf").write_text(original_rules(selected))
     (ROOT / "haproxy.cfg").write_text(config)
+    return case, original, with_companion, request, h2
+
+
+def start_native_hosts(selected, children):
+    for name, argv in (("agent", ["/mnt/artifacts/haproxy-spop", "--config", "/task/agent.conf"]),
+                       ("host", [HOST_BINARY, "-db", "-f", "/task/haproxy.cfg"])):
+        fd = os.open(ROOT / (name + "-native-api.jsonl"), os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_APPEND, 0o600)
+        env = dict(os.environ, MSCONNECTOR_LIFECYCLE_FD=str(fd),
+                   MSCONNECTOR_LIFECYCLE_RUN=selected["run"],
+                   MSCONNECTOR_LIFECYCLE_PROFILE="haproxy-spop-request",
+                   MSCONNECTOR_LIFECYCLE_CASE=case_identity(selected)["diagnostic_id"])
+        with (ROOT / (name + ".stdout")).open("wb") as out, (ROOT / (name + ".stderr")).open("wb") as err:
+            # The admitted Python launcher is itself executed through
+            # RTK. Retain the actual native PID here for /proc identity,
+            # terminal wait status and inherited observer-fd ownership.
+            process = subprocess.Popen(argv, stdout=out, stderr=err, env=env, pass_fds=(fd,))
+        os.close(fd)
+        children.append((name, process, argv))
+        time.sleep(.4)
+        if process.poll() is not None:
+            raise RuntimeError(name + " startup failed")
+        snapshot(process, name + "-before")
+
+
+def main():
+    selected = json.loads(Path("/mnt/fixtures/selected.json").read_text())
+    case, original, with_companion, request, h2 = prepare_host_inputs(selected)
     children = []
     stop = threading.Event()
     worker = threading.Thread(target=backend, args=(stop,), daemon=True)
@@ -777,24 +845,7 @@ backend be_spoa
             time.sleep(.01)
         observer = Observer(corrupt_notify=case == "corrupt-notify")
         verify_host_configuration()
-        for name, argv in (("agent", ["/mnt/artifacts/haproxy-spop", "--config", "/task/agent.conf"]),
-                           ("host", [HOST_BINARY, "-db", "-f", "/task/haproxy.cfg"])):
-            fd = os.open(ROOT / (name + "-native-api.jsonl"), os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_APPEND, 0o600)
-            env = dict(os.environ, MSCONNECTOR_LIFECYCLE_FD=str(fd),
-                       MSCONNECTOR_LIFECYCLE_RUN=selected["run"],
-                       MSCONNECTOR_LIFECYCLE_PROFILE="haproxy-spop-request",
-                       MSCONNECTOR_LIFECYCLE_CASE=case_identity(selected)["diagnostic_id"])
-            with (ROOT / (name + ".stdout")).open("wb") as out, (ROOT / (name + ".stderr")).open("wb") as err:
-                # The admitted Python launcher is itself executed through
-                # RTK. Retain the actual native PID here for /proc identity,
-                # terminal wait status and inherited observer-fd ownership.
-                process = subprocess.Popen(argv, stdout=out, stderr=err, env=env, pass_fds=(fd,))
-            os.close(fd)
-            children.append((name, process, argv))
-            time.sleep(.4)
-            if process.poll() is not None:
-                raise RuntimeError(name + " startup failed")
-            snapshot(process, name + "-before")
+        start_native_hosts(selected, children)
         if case == "technical-agent-loss":
             # This is an independent transport failure, not an invented
             # native Engine result. The host's configured default stays deny.
@@ -803,7 +854,7 @@ backend be_spoa
             code = agent.wait(timeout=5)
             record("faults.jsonl", {"kind": "agent-stop-before-request", "exit": code})
         if original:
-            run_original_client(selected)
+            run_original_client()
         else:
             capture_response(case, request, h2)
         time.sleep(.2)

@@ -22,6 +22,10 @@ ORIGINAL_IDS_SHA256 = "bb34ce6c26063b1c13df6087b0a3cc5034f227216720aeaca2f195fba
 ORIGINAL_CONTRACTS_SHA256 = "f4ca4e4b97cf3cf5dd267684afdfa39a8fd5b9e8b88b71bf6470cb184ce7ea3b"
 REQUEST_MARKER = b"no-crs-request-body-marker"
 BACKEND_RESPONSE = b"HTTP/1.1 200 OK\r\nContent-Length: 7\r\nConnection: close\r\n\r\nBACKEND"
+REQUEST_BODY_FETCH = "req.body"
+REQUEST_BODY_SIZE_FETCH = "req.body_size"
+PARTIAL_BODY_FETCH = "req.body,bytes(0,4)"
+MISMATCHED_BODY_SIZE_FETCH = "int(99)"
 CONFIG_NAMES = ("valid_rules_file", "missing_rules_file", "unsafe_event_path")
 ORIGINAL_HASHES = {'HIST-SPOP-FIRST-CAUSE-SINK-FAILURE': '3da69f02d20fb781a5aa9fddc27cd246e5d259f650ca92e6b18497f73c1fec06',
  'NEED-503-error': 'f6fc9806759850fbf76e098a605ee024d3fc5664abf1c6495d3472fa3ebd7102',
@@ -313,16 +317,22 @@ def validate_endpoint_metadata(arguments):
         if value.get("tag") != 8 or not value.get("value") or "\x00" in value["value"]:
             raise InvalidFrame("missing concrete metadata: " + name)
     for name in ("client_ip", "server_ip"):
-        value = arguments[name]
-        if value.get("tag") not in (6, 7) or not isinstance(value.get("value"), str):
-            raise InvalidFrame("endpoint requires actual typed IPv4 or IPv6: " + name)
-        address = ipaddress.ip_address(value["value"])
-        if address.version != (4 if value["tag"] == 6 else 6):
-            raise InvalidFrame("endpoint address family and tag disagree: " + name)
+        validate_endpoint_ip(name, arguments[name])
     for name in ("client_port", "server_port"):
-        value = arguments[name]
-        if value.get("tag") not in (2, 3, 4, 5) or type(value.get("value")) is not int or not 0 <= value["value"] <= 65535:
-            raise InvalidFrame("invalid endpoint port: " + name)
+        validate_endpoint_port(name, arguments[name])
+
+
+def validate_endpoint_ip(name, value):
+    if value.get("tag") not in (6, 7) or not isinstance(value.get("value"), str):
+        raise InvalidFrame("endpoint requires actual typed IPv4 or IPv6: " + name)
+    address = ipaddress.ip_address(value["value"])
+    if address.version != (4 if value["tag"] == 6 else 6):
+        raise InvalidFrame("endpoint address family and tag disagree: " + name)
+
+
+def validate_endpoint_port(name, value):
+    if value.get("tag") not in (2, 3, 4, 5) or type(value.get("value")) is not int or not 0 <= value["value"] <= 65535:
+        raise InvalidFrame("invalid endpoint port: " + name)
 
 
 def request_headers(document):
@@ -416,7 +426,7 @@ def wire_http(method, path, headers, body, version="1.1"):
 def ordinary_profile(name):
     return {"case": name, "http2": False, "request_method": "POST", "request_path": "/i12/" + name,
             "request_body_hex": b"abcdefgh".hex(), "request_headers": [("Content-Type", "text/plain")],
-            "request_version": "1.1", "body_fetch": "req.body", "body_size_fetch": "req.body_size",
+            "request_version": "1.1", "body_fetch": REQUEST_BODY_FETCH, "body_size_fetch": REQUEST_BODY_SIZE_FETCH,
             "version_fetch": "req.ver", "sample_mutation": None, "request_chunk_sizes": [],
             "native_request_limit": 1048576, "native_request_limit_action": "Reject",
             "with_companion": False, "companion_export_only": False, "settle_seconds": .2,
@@ -473,8 +483,8 @@ NAMED_OVERRIDES = (
     (("NEED-request-mime-scope-out",), {"request_headers": [("Content-Type", "application/octet-stream")]}),
     (("NEED-request-csv",), {"request_headers": [("Content-Type", "text/csv")], "request_body_hex": b"id,value\n1,clean\n".hex()}),
     (("NEED-request-multiple-chunks",), {"request_chunk_sizes": [4, 4]}),
-    (("NEED-incomplete-sample",), {"body_fetch": "req.body,bytes(0,4)"}),
-    (("NEED-invalid-metadata", "NEED-precommit-error", "NEED-503-error"), {"body_size_fetch": "int(99)"}),
+    (("NEED-incomplete-sample",), {"body_fetch": PARTIAL_BODY_FETCH}),
+    (("NEED-invalid-metadata", "NEED-precommit-error", "NEED-503-error"), {"body_size_fetch": MISMATCHED_BODY_SIZE_FETCH}),
     (("NEED-request-marker-at-payload-end",), {"request_body_hex": (b"x" * 240 + REQUEST_MARKER).hex()}),
     (("NEED-frame-boundary-not-engine-limit",), {"request_body_hex": (b"x" * 66000).hex()}),
     (("NEED-ttl", "NEED-response-companion-binding"), {"with_companion": True, "companion_export_only": True, "companion_ttl_ms": 100, "settle_seconds": .8}),
@@ -513,8 +523,8 @@ def constructed_notify(profile):
         headers.append(("content-length", str(declared)))
     binary_headers = encode_headers(headers)
     text_headers = ("".join(name + ": " + value + "\r\n" for name, value in headers) + "\r\n").encode()
-    sample_body = body[:4] if profile["body_fetch"] == "req.body,bytes(0,4)" else body
-    advertised = 99 if profile["body_size_fetch"] == "int(99)" else declared
+    sample_body = body[:4] if profile["body_fetch"] == PARTIAL_BODY_FETCH else body
+    advertised = 99 if profile["body_size_fetch"] == MISMATCHED_BODY_SIZE_FETCH else declared
     arguments = [("request_id", 8, "source-fixture-0001"), ("client_ip", 6, "127.0.0.1"), ("client_port", 4, 45000),
                  ("server_ip", 6, "127.0.0.1"), ("server_port", 4, 18540), ("method", 8, profile["request_method"]),
                  ("path", 8, profile["request_path"]), ("uri", 8, profile["request_path"]), ("host", 8, "localhost"),
@@ -534,7 +544,7 @@ def expected_observations(profile, original):
                 "native_transaction_allocations": 0, "sample_inspection_claim": False,
                 "source": "finite SPOP frame bound or incomplete sample guard before native allocation",
                 "unresolved_expected_fields": ["ack_status", "ack_blocked", "first_cause"]}
-    if profile["body_fetch"] != "req.body" or profile["body_size_fetch"] != "req.body_size":
+    if profile["body_fetch"] != REQUEST_BODY_FETCH or profile["body_size_fetch"] != REQUEST_BODY_SIZE_FETCH:
         return {"ack_status": 503, "ack_blocked": True, "client_status": 503, "backend_requests": 0,
                 "native_transaction_allocations": 0, "sample_inspection_claim": False,
                 "source": "notify_request_has_complete_body_sample and pre-native admission", "unresolved_expected_fields": []}
@@ -628,7 +638,7 @@ def validate_runtime(selected):
         raise ValueError("original HTTP1 driver cannot qualify an unimplemented HTTP2 transport mapping")
     if len(bytes.fromhex(profile["request_body_hex"])) > 2 * 1024 * 1024:
         raise ValueError("request fixture exceeds bounded storage")
-    if profile["body_fetch"] not in ("req.body", "req.body,bytes(0,4)") or profile["body_size_fetch"] not in ("req.body_size", "int(99)"):
+    if profile["body_fetch"] not in (REQUEST_BODY_FETCH, PARTIAL_BODY_FETCH) or profile["body_size_fetch"] not in (REQUEST_BODY_SIZE_FETCH, MISMATCHED_BODY_SIZE_FETCH):
         raise ValueError("unsupported source sample fetch")
     return profile
 

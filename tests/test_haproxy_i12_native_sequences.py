@@ -23,6 +23,7 @@ class Socket:
         self.chunks = iter(chunks)
         self.writes = []
         self.closed = False
+        self.close_calls = 0
 
     def recv(self, unused):
         return next(self.chunks, b"")
@@ -32,6 +33,7 @@ class Socket:
 
     def close(self):
         self.closed = True
+        self.close_calls += 1
 
     def fileno(self):
         return 12
@@ -68,8 +70,9 @@ def test_fragmented_body_and_surplus_are_distinct_responses():
     b"HTTP/1.1 200 OK\r\nContent-Length: 1048577\r\n\r\n",
 ])
 def test_incomplete_ambiguous_or_unbounded_framing_rejected(raw):
+    connection = Socket([raw])
     with pytest.raises((ValueError, EOFError)):
-        sequences.read_response(Socket([raw]))
+        sequences.read_response(connection)
 
 
 def test_keepalive_uses_one_socket_for_three_distinct_responses(tmp_path):
@@ -103,6 +106,24 @@ def test_closed_keepalive_is_retained_without_reconnect(tmp_path):
     assert actual["error"]["type"] == "EOFError"
     assert actual["error"]["no_reconnect_attempted"] is True
     assert actual["full_lifecycle_pass"] is None
+    assert connection.close_calls == 1
+
+
+def test_independent_surplus_rejects_after_exactly_one_socket_close(tmp_path):
+    expected = sequences.expected_sequence()
+    connection = Socket([wire(200, sequences.ALLOW_BODY) + b"unexpected"])
+    with mock.patch.object(sequences.ssl, "create_default_context"), \
+            mock.patch.object(sequences, "connect", return_value=connection) as connect:
+        result = sequences.drive("main", tmp_path, {"same_tls_socket_required": False,
+                                                    "sequence": expected})
+    assert result == 1
+    assert connect.call_count == 1
+    assert connection.close_calls == 1
+    actual = json.loads((tmp_path / "main-client.json").read_text())
+    assert actual["error"]["type"] == "ValueError"
+    assert actual["error"]["message"] == "unexpected bytes after independently closed response"
+    assert len(actual["requests"]) == 1
+    assert actual["full_lifecycle_pass"] is None
 
 
 def test_sequential_independent_connections(tmp_path):
@@ -114,6 +135,7 @@ def test_sequential_independent_connections(tmp_path):
                                                    "sequence": sequences.expected_sequence()}) == 0
     assert connect.call_count == 3
     assert all(item.closed for item in sockets)
+    assert all(item.close_calls == 1 for item in sockets)
 
 
 def test_native_join_retains_actual_extra_free_and_missing_finish():
