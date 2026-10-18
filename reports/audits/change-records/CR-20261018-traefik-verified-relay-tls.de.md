@@ -25,6 +25,8 @@ Python 3.14 HTTPSServer verwendet mindestens TLS 1.2 und HTTP/1.1-ALPN. Vorhande
 
 Beide synthetischen `openssl req`-Aufrufe verwenden ausdrücklich `-config /dev/null`. Subjekt und Zertifikatserweiterungen werden vollständig vom Fixture vorgegeben. Die Erzeugung benötigt dadurch keine Host-OpenSSL-Konfiguration, die im privaten Controller fehlt. Die Dateisystemsicht des Controllers bleibt unverändert.
 
+Die an Head 782f31ed gebundene Analyse meldet fünf S1192-Meldungen zu mehrfach verwendeten Dateinamen. Benannte Konstanten binden nun dieselben Artefaktnamen bei Erzeugung, Verifikation, öffentlichen Receipts und Cleanup. OpenSSL-Argumentwerte, öffentliche Zertifikatsnamen und die Löschung privater Schlüssel bleiben unverändert; nach der Extraktion bestehen 31 TLS-/Quality-/Authorization-Regressionen. Das strenge gehostete Zero-Gate benötigt weiterhin eine neue Analyse der veröffentlichten Korrektur.
+
 ## Geänderte Dateien
 
 Traefik-spezifisch: i12_auth/auth_proxy.py bindet HTTPS; i12_auth/tls_fixture.py erzeugt begrenztes privates Zertifikatsmaterial und konfiguriert Vertrauen; i12_auth/prepare.py staged den Helper und erfasst nur öffentliche Zertifikatshashes. tests/test_traefik_i12_tls.py und tests/test_traefik_i12_quality_controls.py prüfen echte TLS-Verbindungen und Ablehnungsgrenzen. Dieser zweisprachige Change Record dokumentiert das Ergebnis.

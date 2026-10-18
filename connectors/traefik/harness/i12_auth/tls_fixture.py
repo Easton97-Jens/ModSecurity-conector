@@ -8,6 +8,11 @@ import subprocess
 
 TLS_ROOT = Path('/task/authorization-tls')
 CONFIG_FILE = Path('/task/runtime/effective-config/traefik-forwardauth-dynamic.yaml')
+LEAF_EXTENSIONS = 'leaf.ext'
+CA_PRIVATE_KEY = 'ca.key'
+CA_CERTIFICATE = 'ca.crt'
+SERVER_REQUEST = 'server.csr'
+SERVER_CERTIFICATE = 'server.crt'
 
 
 def validate_tls_ancestor(parent, anchor):
@@ -51,31 +56,31 @@ def openssl(directory, *arguments):
 def generate(directory=TLS_ROOT):
     directory = validate_directory(directory)
     directory.mkdir(mode=0o700)
-    extensions = directory / 'leaf.ext'
+    extensions = directory / LEAF_EXTENSIONS
     extensions.write_text('basicConstraints=critical,CA:FALSE\n'
                           'keyUsage=critical,digitalSignature,keyEncipherment\n'
                           'extendedKeyUsage=serverAuth\nsubjectAltName=IP:127.0.0.1\n')
     try:
         openssl(directory, 'req', '-config', '/dev/null', '-x509', '-newkey', 'rsa:2048', '-noenc', '-sha256', '-days', '1',
-                '-subj', '/CN=Traefik I12 synthetic fixture CA', '-keyout', 'ca.key', '-out', 'ca.crt',
+                '-subj', '/CN=Traefik I12 synthetic fixture CA', '-keyout', CA_PRIVATE_KEY, '-out', CA_CERTIFICATE,
                 '-addext', 'basicConstraints=critical,CA:TRUE,pathlen:0',
                 '-addext', 'keyUsage=critical,keyCertSign,cRLSign')
         openssl(directory, 'req', '-config', '/dev/null', '-new', '-newkey', 'rsa:2048', '-noenc',
-                '-subj', '/CN=127.0.0.1', '-keyout', 'server.key', '-out', 'server.csr')
-        openssl(directory, 'x509', '-req', '-in', 'server.csr', '-CA', 'ca.crt', '-CAkey', 'ca.key',
-                '-CAcreateserial', '-out', 'server.crt', '-days', '1', '-sha256', '-extfile', 'leaf.ext')
+                '-subj', '/CN=127.0.0.1', '-keyout', 'server.key', '-out', SERVER_REQUEST)
+        openssl(directory, 'x509', '-req', '-in', SERVER_REQUEST, '-CA', CA_CERTIFICATE, '-CAkey', CA_PRIVATE_KEY,
+                '-CAcreateserial', '-out', SERVER_CERTIFICATE, '-days', '1', '-sha256', '-extfile', LEAF_EXTENSIONS)
         (directory / 'server.key').chmod(0o600)
-        openssl(directory, 'verify', '-CAfile', 'ca.crt', '-verify_ip', '127.0.0.1',
-                '-purpose', 'sslserver', 'server.crt')
+        openssl(directory, 'verify', '-CAfile', CA_CERTIFICATE, '-verify_ip', '127.0.0.1',
+                '-purpose', 'sslserver', SERVER_CERTIFICATE)
         receipt = {'synthetic_fixture_only': True, 'openssl': openssl(directory, 'version').strip(),
                    'san': {'type': 'IP', 'value': '127.0.0.1'}, 'validity_days': 1,
                    'private_key_mode': '0600', 'ca_private_key_retained': False,
                    'public_certificates': {name: hashlib.sha256((directory / name).read_bytes()).hexdigest()
-                                           for name in ('ca.crt', 'server.crt')}}
+                                           for name in (CA_CERTIFICATE, SERVER_CERTIFICATE)}}
         (directory / 'tls-receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
         return receipt
     finally:
-        for name in ('ca.key', 'ca.srl', 'server.csr', 'leaf.ext'):
+        for name in (CA_PRIVATE_KEY, 'ca.srl', SERVER_REQUEST, LEAF_EXTENSIONS):
             (directory / name).unlink(missing_ok=True)
 
 

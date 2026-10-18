@@ -25,6 +25,8 @@ Use Python 3.14 HTTPSServer with TLS 1.2 minimum and HTTP/1.1 ALPN. Generate one
 
 Both synthetic `openssl req` operations explicitly use `-config /dev/null`. Every subject and certificate extension is supplied by the fixture, so certificate generation does not depend on the host OpenSSL configuration, which is absent in the private controller. The controller's filesystem exposure stays unchanged.
 
+The exact-head 782f31ed analysis reports five S1192 duplicated filename literals. Named constants now bind those same artifact names across generation, verification, public receipts and cleanup. The OpenSSL argument values, public certificate names and private-key deletion behavior are unchanged; 31 TLS/quality/authorization regressions pass after this extraction. The strict hosted zero gate still requires a new analysis of the published correction.
+
 ## Changed files
 
 The Traefik-specific i12_auth/auth_proxy.py binds HTTPS; i12_auth/tls_fixture.py creates bounded private certificates and configures trust; i12_auth/prepare.py stages that helper and records public certificate hashes only. tests/test_traefik_i12_tls.py and tests/test_traefik_i12_quality_controls.py verify real TLS and rejection boundaries. This paired Change Record documents the result.
