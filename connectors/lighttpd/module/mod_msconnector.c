@@ -15,6 +15,7 @@
 #include "log.h"
 #include "plugin.h"
 #include "request.h"
+#include "response.h"
 
 #include "common/runtime/msconnector_runtime.h"
 #include "connectors/lighttpd/src/lighttpd_modsecurity_mapper.h"
@@ -442,6 +443,9 @@ static handler_t mod_msconnector_fail_request(
     return result;
 }
 
+static int mod_msconnector_emit_host_transaction_id(
+    request_st *r, const plugin_data *p, const handler_ctx *ctx);
+
 static handler_t mod_msconnector_apply_decision(
         request_st * const r,
         plugin_data * const p,
@@ -460,7 +464,26 @@ static handler_t mod_msconnector_apply_decision(
     if (status < 400 || status > 599) {
         status = 403;
     }
-    result = http_status_set_err(r, status);
+    /* A parsed backend response still owns framing and queued entity bytes.
+     * Replace that uncommitted response before selecting our error document;
+     * selecting a status alone can leave Lighttpd waiting on the old body. */
+    if (r->write_queue.bytes_out > 0) {
+        return mod_msconnector_fail_request(r, p->runtime, ctx,
+            MSCONNECTOR_ERROR_HOST_API_FAILURE);
+    }
+    if (ctx != NULL && ctx->response_processed) {
+        http_response_reset(r);
+        if (!mod_msconnector_emit_host_transaction_id(r, p, ctx)) {
+            return mod_msconnector_fail_request(r, p->runtime, ctx,
+                MSCONNECTOR_ERROR_HOST_API_FAILURE);
+        }
+    }
+    /* Response-start filters run after Lighttpd's error-document preparation.
+     * Explicitly finish this empty replacement instead of awaiting the old
+     * upstream Content-Length or an error-document pass that already ran. */
+    result = ctx != NULL && ctx->response_processed
+        ? http_status_set_err_fin(r, status)
+        : http_status_set_err(r, status);
     if (ctx != NULL) ctx->host_response_attempted = 1;
     if (result == HANDLER_ERROR) {
         return mod_msconnector_fail_request(r, p->runtime, ctx,

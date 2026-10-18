@@ -225,6 +225,192 @@ class OracleReconciliationTests(unittest.TestCase):
                 self.run_ledger([modified_review])
 
 
+# Exact original selected contract and primary YAML from Framework99a7985c.
+# Kept inline so Parent validator tests do not depend on a materialized submodule.
+CANONICAL_OVER_LIMIT = {'case_id': 'phase2_over_limit',
+ 'run_scoped_case_id': 'I12::haproxy-spop-request::phase2_over_limit',
+ 'status': 'PLANNED',
+ 'origin': 'canonical_selector',
+ 'canonical_source_case_id': 'phase2_over_limit',
+ 'requirement_mapping': ['phase2_over_limit',
+                         'I12::haproxy-spop-request::obligation::request-reject'],
+ 'runner_case': None,
+ 'native_invocation': None,
+ 'config_invocation': None,
+ 'derived_invocation': None,
+ 'execution_kind': 'host_case_or_missing_fixture',
+ 'harness_path': 'connectors/haproxy/harness/combined_spop_htx/run_combined_spop_htx.sh',
+ 'missing_harness_reason': None,
+ 'expected_oracle': {'native_result': 'request_body_over_limit',
+                     'visible_status': None,
+                     'rule_id': None,
+                     'phase': 2,
+                     'event_fields': ['body_limit_outcome',
+                                      'body_bytes_seen',
+                                      'body_bytes_inspected',
+                                      'truncated'],
+                     'physical_evidence_not_projection': True,
+                     'unresolved_expected_value_reason': None},
+ 'mandatory_missing_observations': ['client-exit-signal-headers-bytes-sha256',
+                                    'independent-backend-request-count',
+                                    'original-physical-native-events-first-cause',
+                                    'commit-eos-order',
+                                    'transport-framing-reset-scope',
+                                    'once-finish-and-resource-release',
+                                    'uid-isolation-and-exact-source-host-config-run-binding'],
+ 'historical_alias_ids': [],
+ 'source_fixture_paths': ['tests/cases/no-crs-baseline/full-lifecycle/phase2_body_limits.yaml']}
+CANONICAL_LIMIT_YAML = """name: phase2_body_limits_fixture
+title: Declarative phase-2 request body limit boundaries
+category: no-crs-full-lifecycle
+portable: true
+status: future
+no_crs_baseline: true
+phase: 2
+capabilities:
+  request_body: true
+  phase2: true
+rules: |
+  SecRuleEngine On
+request:
+  method: POST
+  path: /no-crs/full-lifecycle/request-limit
+  headers:
+    Content-Type: text/plain
+  body: 0123456789abcdef
+expect:
+  status: 200
+  intervention: none
+full_lifecycle:
+  limit_bytes: 16
+  variants:
+    at_limit: 16
+    over_limit: 17
+    process_partial: 17
+  requires_payload_free_limit_event: true
+  evidence_status: not_executed_until_real_host
+known_limitations:
+  - Limit policy and host-visible status are connector configuration dependent; the canonical event must carry only bounded count and truncation metadata.
+"""
+
+
+class IntentionalNullContractTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="i12-intentional-null-")
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name).resolve()
+        self.row = {"run_scoped_case_id": CANONICAL_OVER_LIMIT["run_scoped_case_id"],
+                    "leg_id": "haproxy-spop-request", "selected_requirement": copy.deepcopy(CANONICAL_OVER_LIMIT)}
+        self.assertEqual(LEDGER.canonical_digest(CANONICAL_OVER_LIMIT),
+                         "98f5423f9cf2a019997a8c751429c43956d3211488452b1e323b6099d10f847d")
+        path = self.root / "phase2_body_limits.yaml"
+        path.write_text(CANONICAL_LIMIT_YAML)
+        self.proof = {**LEDGER.reference(path), "kind": "protocol_contract",
+                      "revision": "99a7985c1be92a2297b1b59208f64df6768f2cbf"}
+        self.assertEqual(self.proof["sha256"], "83e1bc8c6292e90f01acc84617f05113d2dbe625c88d7c4278f5327a6c121cfd")
+        self.record = {"run_scoped_case_id": self.row["run_scoped_case_id"], "leg_id": self.row["leg_id"],
+                       "reviewed_by": "root", "category": "SOURCE_CONFIRMED_EXPECTATION",
+                       "scope": "Exact original canonical body-limit contract; no host execution.",
+                       "interpretation": "Canonical visible status is host/config dependent, not unresolved.",
+                       "independent_sources": [copy.deepcopy(self.proof)],
+                       "intentional_null_fields": {"visible_status": {
+                           "reviewed_by": "root", "interpretation": "Preserve the original intentionally unspecified status.",
+                           "proof": [copy.deepcopy(self.proof)]}}}
+
+    def review(self):
+        return LEDGER.review_record(self.record, self.row)
+
+    def test_real_canonical_original_null_is_preserved_without_execution_credit(self):
+        original = copy.deepcopy(self.row)
+        result = self.review()
+        self.assertEqual(self.row, original)
+        self.assertEqual(result["effective_oracle"], CANONICAL_OVER_LIMIT["expected_oracle"])
+        self.assertIsNone(result["effective_oracle"]["visible_status"])
+        self.assertTrue(result["resolved"])
+        self.assertFalse(result["full_lifecycle_qualified"])
+        self.assertIsNone(result["retest"])
+        self.assertEqual(result["intentional_null_fields"]["visible_status"]["proof"][0]["sha256"], self.proof["sha256"])
+
+    def test_canonical_null_still_fails_without_explicit_root_proof(self):
+        self.record.pop("intentional_null_fields")
+        with self.assertRaisesRegex(ValueError, "visible_status"):
+            self.review()
+
+    def test_missing_changed_or_unresolved_original_values_cannot_be_hidden(self):
+        for field, mutation in (("visible_status", "missing"), ("visible_status", "changed"),
+                                ("native_result", "missing"), ("native_result", "null"),
+                                ("phase", "missing"), ("phase", "null"),
+                                ("unresolved_expected_value_reason", "unresolved")):
+            with self.subTest(field=field, mutation=mutation):
+                original = copy.deepcopy(self.row)
+                oracle = self.row["selected_requirement"]["expected_oracle"]
+                if mutation == "missing":
+                    del oracle[field]
+                else:
+                    oracle[field] = {"changed": 503, "null": None, "unresolved": "Missing fixture"}[mutation]
+                with self.assertRaises(ValueError):
+                    self.review()
+                self.row = original
+
+    def test_null_proof_never_combines_with_resolution_or_correction(self):
+        for field in ("resolved_expectation", "approved_correction"):
+            with self.subTest(field=field):
+                original = copy.deepcopy(self.record)
+                self.record[field] = copy.deepcopy(CANONICAL_OVER_LIMIT["expected_oracle"])
+                with self.assertRaises(ValueError):
+                    self.review()
+                self.record = original
+
+    def test_only_visible_status_and_source_confirmation_categories_permitted(self):
+        for field, value in (("intentional_null_fields", {"native_result": {}}),
+                             ("intentional_null_fields", {}), ("category", "UNRESOLVED_ORACLE"),
+                             ("category", "PRODUCT_DEFECT_CONFIRMED")):
+            with self.subTest(field=field, value=value):
+                original = copy.deepcopy(self.record)
+                self.record[field] = value
+                with self.assertRaises(ValueError):
+                    self.review()
+                self.record = original
+
+    def test_separate_root_interpretation_and_primary_proof_required(self):
+        for mutation in ("root", "interpretation", "no-proof", "revision", "kind", "hash"):
+            with self.subTest(mutation=mutation):
+                original = copy.deepcopy(self.record)
+                field = self.record["intentional_null_fields"]["visible_status"]
+                if mutation == "root": field["reviewed_by"] = "worker"
+                elif mutation == "interpretation": field["interpretation"] = ""
+                elif mutation == "no-proof": field["proof"] = []
+                elif mutation == "revision": field["proof"][0]["revision"] = "other-revision"
+                elif mutation == "kind": field["proof"][0]["kind"] = "independent_host_probe"
+                else: field["proof"][0]["sha256"] = "0" * 64
+                with self.assertRaises(ValueError):
+                    self.review()
+                self.record = original
+
+    def test_implementation_bytes_and_unbound_primary_sources_rejected(self):
+        self.record["implementation_sources"] = [copy.deepcopy(self.proof)]
+        with self.assertRaises(ValueError):
+            self.review()
+        self.record.pop("implementation_sources")
+        path = self.root / "other-independent.txt"
+        path.write_text("Another primary contract, not the declared independent source.")
+        self.record["intentional_null_fields"]["visible_status"]["proof"][0].update(LEDGER.reference(path))
+        with self.assertRaises(ValueError):
+            self.review()
+
+    def test_intentional_null_cannot_claim_typed_transport_absence(self):
+        self.row["selected_requirement"]["expected_oracle"]["expected_absence"] = {
+            "visible_status": {"kind": "no_complete_http_status_line"}}
+        with self.assertRaisesRegex(ValueError, "Expected absence must describe"):
+            self.review()
+
+    def test_intentional_null_requires_the_complete_unchanged_effective_oracle(self):
+        original = self.row["selected_requirement"]["expected_oracle"]
+        changed = {**original, "fixture_status": 503}
+        with self.assertRaises(ValueError):
+            LEDGER.intentional_null_fields(self.record, original, changed, [self.proof], [])
+
+
 class ApacheStatusAbsenceTests(unittest.TestCase):
     """Physical synthetic validator controls; none are exported as runtime evidence."""
 
@@ -353,6 +539,22 @@ class ApacheStatusAbsenceTests(unittest.TestCase):
         self.raw = b"HTTP/1.1 20"  # An incomplete prefix is not a complete status line.
         self.bind()
         self.result()
+
+    def test_intentional_null_cannot_waive_unresolved_absence_physical_proof(self):
+        self.bind()
+        self.review["intentional_null_fields"] = {"visible_status": {
+            "reviewed_by": "root", "interpretation": "Cannot turn physical absence into source-only null.",
+            "proof": copy.deepcopy(self.review["independent_sources"])}}
+        # Even otherwise complete physical evidence cannot mix the two contracts.
+        with self.assertRaisesRegex(ValueError, "unchanged original visible_status"):
+            self.result()
+        self.review.pop("retest")
+        with self.assertRaisesRegex(ValueError, "unchanged original visible_status"):
+            self.result()
+        # Removing the replacement does not permit the original unresolved null either.
+        self.review.pop("resolved_expectation")
+        with self.assertRaisesRegex(ValueError, "unresolved, missing or changed"):
+            self.result()
 
     def test_absence_shape_and_native_phase_expectations_remain_strict(self):
         for field, value in (("expected_absence", {"visible_status": "no_complete_http_status_line"}),

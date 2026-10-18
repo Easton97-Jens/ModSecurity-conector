@@ -143,6 +143,38 @@ def validate_unsupported_applicability(supplied, row, independent):
     return {"receipt": receipt_ref, "capability_evidence": proof}
 
 
+def intentional_null_fields(record, original, effective, independent, implementation):
+    """Preserve an explicitly unspecified original status, never missing evidence."""
+    supplied = record.get("intentional_null_fields")
+    if supplied is None:
+        return {}
+    if (not isinstance(supplied, dict) or set(supplied) != {"visible_status"} or
+            record.get("category") not in ("SOURCE_CONFIRMED_EXPECTATION", "HOST_SEMANTICS_CONFIRMED") or
+            record.get("approved_correction") is not None or record.get("resolved_expectation") is not None):
+        raise ValueError("Intentional null permits only the unchanged original visible_status contract")
+    if (original.get("unresolved_expected_value_reason") or "visible_status" not in original or
+            original["visible_status"] is not None or "visible_status" not in effective or
+            effective["visible_status"] is not None or canonical_digest(original) != canonical_digest(effective) or
+            any(field not in original or original[field] is None for field in ("native_result", "phase"))):
+        raise ValueError("Intentional null cannot replace an unresolved, missing or changed original expectation")
+    item = copy.deepcopy(supplied["visible_status"])
+    if not isinstance(item, dict) or item.get("reviewed_by") != "root" or not item.get("interpretation"):
+        raise ValueError("Intentional null needs a separate Root interpretation")
+    proofs = [verify_reference(ref) for ref in item.get("proof", [])]
+    independent_bindings = {(ref["path"], ref["sha256"], ref.get("kind"), ref.get("revision")) for ref in independent}
+    implementation_hashes = {ref["sha256"] for ref in implementation}
+    for proof in proofs:
+        binding = (proof["path"], proof["sha256"], proof.get("kind"), proof.get("revision"))
+        if (proof.get("kind") not in ("official_host_contract", "native_engine_contract", "protocol_contract") or
+                not proof.get("revision") or binding not in independent_bindings or
+                proof["sha256"] in implementation_hashes):
+            raise ValueError("Intentional null proof must bind the same independent primary source and revision")
+    if not proofs:
+        raise ValueError("Intentional null needs independently verified primary proof")
+    item["proof"] = proofs
+    return {"visible_status": item}
+
+
 APACHE_ABSENCE_CASES = frozenset(("NEED-missing-eos", "NEED-cancel", "NEED-client-exit-signal",
                                  "NEED-incomplete-framing", "NEED-abort-reset-observation"))
 
@@ -398,6 +430,7 @@ def review_record(record, row):
             raise ValueError("An existing oracle requires explicit correction rather than replacement")
         effective = copy.deepcopy(resolution)
     resolved = category not in UNRESOLVED
+    null_fields = intentional_null_fields(record, original, effective, independent, implementation)
     absence = None
     if resolved and category != "UNSUPPORTED_CAPABILITY":
         if effective.get("unresolved_expected_value_reason"):
@@ -406,7 +439,9 @@ def review_record(record, row):
             raise ValueError("Effective oracle must preserve physical evidence requirement")
         for field in ("native_result", "visible_status", "phase"):
             if effective.get(field) is None:
-                if field == "visible_status":
+                if field in null_fields:
+                    continue
+                if field == "visible_status" and effective.get("expected_absence") is not None:
                     absence = validate_visible_status_absence(record, row, effective, independent)
                     continue
                 raise ValueError(f"Effective oracle still lacks an applicable expectation: {field}")
@@ -424,6 +459,7 @@ def review_record(record, row):
             "independent_sources": independent, "implementation_sources": implementation,
             "unsupported_applicability": applicability, "expected_absence_approval": absence,
             "approved_correction": copy.deepcopy(correction), "effective_oracle": effective,
+            "intentional_null_fields": null_fields,
             "retest": retest, "full_lifecycle_qualified": False}
 
 
