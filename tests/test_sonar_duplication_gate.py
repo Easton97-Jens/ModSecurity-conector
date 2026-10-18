@@ -1,20 +1,31 @@
 """The duplication guard must not treat missing or rounded evidence as zero."""
 from decimal import Decimal
+from contextlib import redirect_stdout
+import io
 from pathlib import Path
 import runpy
 import unittest
+from tests.test_sonar_zero_gate import Evidence, HEAD, REPOSITORY, PR
 
 MODULE = runpy.run_path(str(Path(__file__).resolve().parents[1] / "ci/checks/common/check-sonar-duplication.py"))
 
 
 class SonarDuplicationGateTests(unittest.TestCase):
-    def test_summary_requires_explicit_single_density(self):
-        parse = MODULE["summary_density"]
-        self.assertEqual(parse("[0.0% Duplication on New Code](example)"), Decimal("0"))
-        self.assertEqual(parse("[0.1% Duplication on New Code](example)"), Decimal("0.1"))
-        for value in ("", "0% Coverage on New Code", "0.0% Duplication on New Code 1% Duplication on New Code"):
-            with self.subTest(value=value), self.assertRaises(MODULE["GateError"]):
-                parse(value)
+    def test_absent_summary_density_requires_all_structured_metrics(self):
+        evidence = Evidence()
+        with redirect_stdout(io.StringIO()):
+            result = MODULE['verify_duplication'](REPOSITORY, HEAD, PR, evidence.fetch, evidence.sonar)
+        for metric in MODULE['METRICS']:
+            self.assertEqual(result[metric], '0')
+
+    def test_each_nonzero_duplication_metric_fails_despite_rounded_summary(self):
+        for metric in MODULE['METRICS']:
+            with self.subTest(metric=metric):
+                evidence = Evidence()
+                evidence.set_measure(metric, '1')
+                evidence.checks[0]['output']['summary'] = '0.0% Duplication on New Code'
+                with redirect_stdout(io.StringIO()), self.assertRaises(MODULE['GateError']):
+                    MODULE['verify_duplication'](REPOSITORY, HEAD, PR, evidence.fetch, evidence.sonar)
 
     def test_all_three_exact_measures_are_required(self):
         entries = [{"metric": key, "period": {"value": "0"}} for key in MODULE["METRICS"]]

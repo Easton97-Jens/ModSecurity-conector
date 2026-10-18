@@ -198,8 +198,8 @@
       "file": "objects/text/ba371bdbdc0a6dcf064a309a3d0ff133cf44b1949e21e97b9829f6369ba79506-selected.json"
     },
     "ba8fe2b69ace0e6dae345b59bc20ddc09594a5e2426a16209ee4d0e72b19baa6": {
-      "kind": "repository",
-      "path": "connectors/haproxy/src/haproxy_modsecurity_binding.c"
+      "kind": "text_lines",
+      "file": "objects/ba8fe2b69ace0e6dae345b59bc20ddc09594a5e2426a16209ee4d0e72b19baa6.lines.json"
     },
     "82b10f2d2e6f8b725d7d76aed30ad2612f7f6b361278b76997e0d7f4d9612f21": {
       "kind": "delta",
@@ -208,8 +208,8 @@
       "patch_sha256": "d6b2ad2b536be1cf36ed7d9c51692eff4914570d6d825770b205f66bc3bf1047"
     },
     "e5710897d12044e7934aca931a6067c96be5dc9ef94f1cc63dd758ed1ff1b0d6": {
-      "kind": "repository",
-      "path": "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c"
+      "kind": "text_lines",
+      "file": "objects/e5710897d12044e7934aca931a6067c96be5dc9ef94f1cc63dd758ed1ff1b0d6.lines.json"
     },
     "eb76f9d864b8838e2f8e48f908bee731c5893a430eba8e6674a8e1e49a3462c6": {
       "kind": "delta",
@@ -238,8 +238,8 @@
       "patch_sha256": "6e0b8f4b90b0696e1312a9af7ecf130df7a502d1b43e03acb27d482f4ed91f80"
     },
     "70ae3f3497d3555ab062d6e69d7c93f7730bc19ad746fefaf81c2cbf94c3333e": {
-      "kind": "repository",
-      "path": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c"
+      "kind": "text_lines",
+      "file": "objects/70ae3f3497d3555ab062d6e69d7c93f7730bc19ad746fefaf81c2cbf94c3333e.lines.json"
     },
     "a3995a18d98e84ca65ae0db61413cfcc8b6541943f3d973fe04e23a07349e29b": {
       "kind": "delta",
@@ -2053,12 +2053,14 @@
         "ci/runtime/lifecycle/native-lifecycle-observer.c": {
           "before_sha256": "ad8e5e36a17e746cf202c685dbb529fc09717f5c25441b713fa369420aa55ac6",
           "sha256": "a4ce3e2513bc3a9300781873119c256fe12f384427d4a4bb3b49578afd6a1df8",
-          "mode": 420
+          "mode": 420,
+          "current_before_sha256": "0d903fc5e6432769a136931b7ebea16a6f87db941d28d23583ccccf4c75e6537"
         },
         "ci/runtime/lifecycle/native-lifecycle-observer.h": {
           "before_sha256": "f9f63b62ba8efc555dc20e673cc02251d5ab6c2ab17d8f5efa760d0d97146dcd",
           "sha256": "5818303be9b9ed113d5b02605c223a77b45b2d587c409636bd4dd2c185ed2508",
-          "mode": 420
+          "mode": 420,
+          "current_before_sha256": "5b7d8fa7c327017cafb05b1e932f70eefe8641797751a0dc19df0337f4893b1b"
         },
         "ci/runtime/lifecycle/native-lifecycle-sdk.cpp": {
           "before_sha256": "89ff282b7287ab30a4194bc06c04835f104b8037442e89b35a68fd1253dcfcfc",
@@ -2216,12 +2218,14 @@
         "ci/runtime/lifecycle/native-lifecycle-observer.c": {
           "before_sha256": "ad8e5e36a17e746cf202c685dbb529fc09717f5c25441b713fa369420aa55ac6",
           "sha256": "52aba91c92a8d1a3b1f2b4acf50db6acb103d6d0cd63c45a0e75bcf5fa8553e6",
-          "mode": 420
+          "mode": 420,
+          "current_before_sha256": "0d903fc5e6432769a136931b7ebea16a6f87db941d28d23583ccccf4c75e6537"
         },
         "ci/runtime/lifecycle/native-lifecycle-observer.h": {
           "before_sha256": "f9f63b62ba8efc555dc20e673cc02251d5ab6c2ab17d8f5efa760d0d97146dcd",
           "sha256": "5a34307b4d52927f36573fcf1caf4f63e3e0ce7adffc522e462128148bec7060",
-          "mode": 420
+          "mode": 420,
+          "current_before_sha256": "5b7d8fa7c327017cafb05b1e932f70eefe8641797751a0dc19df0337f4893b1b"
         },
         "ci/runtime/lifecycle/native-lifecycle-sdk.cpp": {
           "before_sha256": "89ff282b7287ab30a4194bc06c04835f104b8037442e89b35a68fd1253dcfcfc",
