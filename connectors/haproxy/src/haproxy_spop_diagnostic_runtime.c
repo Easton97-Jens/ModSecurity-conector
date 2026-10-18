@@ -3939,6 +3939,8 @@ static void build_modsecurity_request_from_notify(
     modsec_request->server_port = request->has_server_port ? (int)request->server_port : 0;
     modsec_request->method = notify_request_method(request);
     modsec_request->uri = notify_request_uri(request);
+    modsec_request->http_version = request->http_metadata.has_http_version ?
+        request->http_metadata.http_version : NULL;
     modsec_request->headers = (const haproxy_modsecurity_header *)request->headers;
     modsec_request->header_count = request->header_count;
     modsec_request->body = request->body;
@@ -3999,7 +4001,11 @@ static int notify_request_has_complete_body_sample(const notify_request *request
     size_t declared_length = 0U;
     int has_content_length = 0;
 
-    if (!request->has_body || !request->has_body_len_arg ||
+    if (!request->http_metadata.has_http_version ||
+            (strcmp(request->http_metadata.http_version, "1.0") != 0 &&
+             strcmp(request->http_metadata.http_version, "1.1") != 0 &&
+             strcmp(request->http_metadata.http_version, "2.0") != 0) ||
+            !request->has_body || !request->has_body_len_arg ||
             (!request->has_headers_bin && !request->has_headers_text) ||
             request->body_len > UINT_MAX ||
             request->body_len != (size_t)request->http_metadata.advertised_body_len) {
@@ -4057,8 +4063,11 @@ static void process_production_request_notify(
         return;
     }
     build_modsecurity_request_from_notify(request, 0, &modsec_request);
-    modsec_rc = haproxy_modsecurity_transaction_begin(
-        state->engine, &modsec_request, decision, &transaction);
+    modsec_rc = state->config.response_phases_enabled ?
+        haproxy_modsecurity_transaction_begin(
+            state->engine, &modsec_request, decision, &transaction) :
+        haproxy_modsecurity_transaction_begin_request_authorization(
+            state->engine, &modsec_request, decision, &transaction);
     if (modsec_rc != 0) {
         const char *reason = decision->log_message[0] != '\0' ?
             decision->log_message : "ModSecurity request processing failed";

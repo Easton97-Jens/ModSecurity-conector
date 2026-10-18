@@ -415,6 +415,7 @@ static int run_body_wrapper_lifecycle_self_test(
     request_headers[3].value = "block";
     memset(&request, 0, sizeof(request));
     request.method = "POST";
+    request.http_version = "1.1";
     request.uri = "/haproxy-binding-lifecycle-self-test";
     request.headers = request_headers;
     request.header_count = 4U;

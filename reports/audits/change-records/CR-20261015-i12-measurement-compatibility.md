@@ -22,7 +22,7 @@ Preserve strict compiler warnings and all existing negative controls. Select the
 
 ## Implementation decision and rationale
 
-The lint workflow uses `prepare-runtime-components` with target `shared` and consumes that producer's exact environment snapshot. Existing Framework pins remain authoritative. The constructor probes retain their input, compiler argv and diagnostics. The MIME observation admits role `native_api`, while transport evidence remains invalid. `reviewed_configuration_packet` only accepts original `actual_configtest` contracts with independently bound parser/image/config/source/cleanup evidence; it always returns `full_lifecycle_qualified: false`.
+The lint workflow uses `prepare-runtime-components` with target `shared` and consumes that producer's exact environment snapshot through the existing guarded `with-runtime-components.sh` wrapper. This preserves target/cache validation and avoids a new dynamically sourced workflow fragment. Existing Framework pins remain authoritative. The constructor probes retain their input, compiler argv and diagnostics. The MIME observation admits role `native_api`, while transport evidence remains invalid. `reviewed_configuration_packet` only accepts original `actual_configtest` contracts with independently bound parser/image/config/source/cleanup evidence; it always returns `full_lifecycle_qualified: false`.
 
 ## Changed files
 

@@ -21,11 +21,12 @@ class HAProxyI10BindingCallers(unittest.TestCase):
             include, _ = fixture.write_fake_installation(temp / "native",
                 optional_declaration=False, optional_symbol=False)
             native_path = temp / "native/fake_modsecurity.c"
-            native = native_path.read_text()
+            native = "#include <stdio.h>\n" + native_path.read_text()
             control = """
 const char *native_failure;
 int native_failure_result;
 unsigned int native_calls, native_cleanups;
+char native_http_version[16];
 int native_intervention;
 static int test_native(const char *name) {
     native_calls++;
@@ -40,6 +41,8 @@ static int test_native(const char *name) {
                 'intervention->log = native_intervention == 2 ? '
                 '"Response body limit is marked to reject the request" : "[id \\\"123\\\"]"; '
                 'return 1; } } return 0;')
+            native = native.replace('(void)version; return 1;',
+                'snprintf(native_http_version, sizeof(native_http_version), "%s", version); return 1;')
             native = re.sub(r"(int msc_(?:process|append|add)[^\n]+)return 1;", r"\1return test_native(__func__);", native)
             native = native.replace("void msc_transaction_cleanup(Transaction *value) { (void)value; }",
                 "void msc_transaction_cleanup(Transaction *value) { (void)value; native_cleanups++; }")
@@ -81,6 +84,31 @@ static int test_native(const char *name) {
             compiled = subprocess.run(command, capture_output=True, text=True)
             self.assertEqual(compiled.returncode, 0, compiled.stdout + compiled.stderr)
             return subprocess.run([str(temp / "caller"), *arguments], capture_output=True, text=True, cwd=temp, timeout=30)
+
+    def test_request_only_authorization_finishes_without_response(self):
+        result = self.run_caller(BINDING.read_text(), spop=True, arguments=("request-authorization",))
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_spop_http_version_reaches_native_api(self):
+        result = self.run_caller(BINDING.read_text(), spop=True, arguments=("http-version",))
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_spop_missing_unknown_and_conflicting_version_fail_closed(self):
+        result = self.run_caller(BINDING.read_text(), spop=True, arguments=("invalid-version",))
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_request_authorization_and_native_version_negative_controls(self):
+        runtime = (ROOT / "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c").read_text()
+        old = "haproxy_modsecurity_transaction_begin_request_authorization("
+        self.assertIn(old, runtime)
+        result = self.run_caller(BINDING.read_text(), spop=True,
+            runtime_source=runtime.replace(old, "haproxy_modsecurity_transaction_begin("),
+            arguments=("request-authorization",))
+        self.assertNotEqual(result.returncode, 0, "request scope selection mutation survived")
+        result = self.run_caller(BINDING.read_text().replace(
+            "safe_uri, safe_method, request->http_version)", 'safe_uri, safe_method, "1.1")'),
+            spop=True, arguments=("http-version",))
+        self.assertNotEqual(result.returncode, 0, "hardcoded native version mutation survived")
 
     def test_native_response_decisions_accept_host_outcome(self):
         for phase in ("3", "4", "body-limit", "body-limit-logging-failure"):
