@@ -155,8 +155,9 @@ class PacketMutations(unittest.TestCase):
         packet = self.root / 'staged.json'
         packet.write_text(json.dumps({'reviewed_by': 'pending_root_review', 'run_scoped_case_id': ORIGINAL,
                                      'approval_ready': False}))
+        expected_sha = Q.reference(packet)['sha256']
         with self.assertRaisesRegex(ValueError, 'not individually eligible'):
-            Q.approve(packet, self.root / 'approved.json', ORIGINAL, Q.reference(packet)['sha256'])
+            Q.approve(packet, self.root / 'approved.json', ORIGINAL, expected_sha)
 
     def test_all_35_shared_roles_are_checked(self):
         shared = Q.shared_validator()
@@ -164,8 +165,9 @@ class PacketMutations(unittest.TestCase):
         for field, roles in shared.ROLES.items():
             supplied = {'value': 1, 'evidence': [Q.reference(self.proof, role) for role in roles]}
             self.assertTrue(shared.measurement(field, supplied, self.root / 'packet.json')[1])
+        incomplete = {'value': 1, 'evidence': [Q.reference(self.proof, 'native_api')]}
         with self.assertRaisesRegex(ValueError, 'Independent producers'):
-            shared.measurement('native_eos', {'value': 1, 'evidence': [Q.reference(self.proof, 'native_api')]},
+            shared.measurement('native_eos', incomplete,
                                self.root / 'packet.json')
 
     def test_each_measurement_value_must_match_fresh_capture(self):
@@ -320,6 +322,37 @@ class PacketMutations(unittest.TestCase):
         self.assertEqual(Q.load(self.proof), {})
         self.assertEqual(Q.read_bytes(self.proof), b'{}\n')
         self.assertEqual(Q.reference(self.proof)['bytes'], 3)
+
+    def test_missing_storage_configuration_fails_before_write_or_stage(self):
+        with patch.object(Q, 'RUNROOT', None), patch.object(Q.os, 'open') as opened:
+            for operation in (lambda: Q.write(self.root / 'packet.json', {}),
+                              lambda: Q.prepare(self.root / 'runs.json', self.root / 'packets'),
+                              lambda: Q.stage_one({}, 'a' * 40, self.root / 'runs.json', self.root, None)):
+                with self.assertRaisesRegex(ValueError, 'CODEX_PROJECT_STATE configuration required'):
+                    operation()
+            opened.assert_not_called()
+
+    def test_import_without_storage_configuration_stays_read_only(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('qualifier_without_storage', Q.__file__)
+        module = importlib.util.module_from_spec(spec)
+        with patch.object(Q.EVIDENCE, 'configured_storage', return_value=None):
+            spec.loader.exec_module(module)
+        self.assertIsNone(module.RUNROOT)
+        self.assertEqual(module.READ_ROOTS, (module.REPO,))
+        with self.assertRaisesRegex(ValueError, 'CODEX_PROJECT_STATE configuration required'):
+            module.write(self.root / 'packet.json', {})
+
+    def test_configured_storage_keeps_exact_run_domains(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('qualifier_configured_storage', Q.__file__)
+        module = importlib.util.module_from_spec(spec)
+        with patch.object(Q.EVIDENCE, 'configured_storage', return_value=self.root):
+            spec.loader.exec_module(module)
+        self.assertEqual(module.RUNROOT, self.root / 'runs/i12-envoy-410-20261015')
+        self.assertEqual(module.READ_ROOTS, (module.REPO, module.RUNROOT,
+            self.root / 'runs/e2e/20261014T182400Z-pr410-oracle-lifecycle'))
+        self.assertNotIn(self.root, module.READ_ROOTS)
 
 
 if __name__ == '__main__':

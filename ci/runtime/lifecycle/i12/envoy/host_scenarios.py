@@ -16,9 +16,14 @@ import re
 import shutil
 import subprocess
 import source_inventory
+import evidence_io
 
 HERE = Path(__file__).resolve().parent
-STORAGE = Path('/var/tmp/codex/ModSecurity-conector')
+STORAGE = evidence_io.STORAGE
+CLIENT_FILE = 'client.py'
+BACKEND_FILE = 'backend.py'
+DRIVER_FILE = 'driver.py'
+ENVOY_CONFIG = 'envoy.yaml'
 OLD_CONTROLLER_SHA = '76d5319b726a8fdba12b01ccc946aac80e8442f72ad4e262ff314f3f1db838b8'
 ADMISSION_SHA = '99d9206e12afcc7bea684da1a6d6fc08a32be282984d81300476312c875f230f'
 HOST_SHA = '002c6e1c69ed0fa0ea381887247cadadfaec9481375fa8d8d2b1731eeabf40b8'
@@ -127,7 +132,7 @@ def client_source(original):
                 receipt['tcp_close_error'] = {'type':type(error).__name__, 'errno':error.errno}
                 # Preserve the reset and validate the actual HTTP framing below.
                 # A complete HTTP entity does not imply graceful TCP/gRPC EOF.''')
-    compile(text, 'client.py', 'exec')
+    compile(text, CLIENT_FILE, 'exec')
     return text
 
 
@@ -163,7 +168,7 @@ def backend_source(original):
         (root / f'{own_sequence}.parsed-headers.json').write_text(json.dumps(list(self.headers.items())))''')
     text = text.replace("f'{sequence}", "f'{own_sequence}").replace("'sequence': sequence", "'sequence': own_sequence")
     text = replace_once(text, 'server = http.server.HTTPServer(', 'server = (http.server.ThreadingHTTPServer if shape.get("concurrent") else http.server.HTTPServer)(')
-    compile(text, 'backend.py', 'exec')
+    compile(text, BACKEND_FILE, 'exec')
     return text
 
 
@@ -188,7 +193,7 @@ def driver_source(original):
         else:
 ''' + '\n'.join('    ' + line for line in start.splitlines()))
     text = replace_once(text, "        if len(receipts)!=2 or [row['path'] for row in receipts]!=['/'+TARGET,'/'+NEIGHBOR]:raise RuntimeError('independent backend count/nonces differ')", "        expected = (['/' + TARGET] if SHAPE.get('target_backend', True) else []) + (['/' + NEIGHBOR] if SHAPE.get('neighbor_backend', True) else [])\n        if sorted(row['path'] for row in receipts) != sorted(expected): raise RuntimeError('independent backend count/nonces differ')")
-    compile(text, 'driver.py', 'exec')
+    compile(text, DRIVER_FILE, 'exec')
     return text
 
 
@@ -251,39 +256,52 @@ def check_rules(rules):
         library.msc_rules_cleanup(native)
 
 
-def verify_build(source, binaries, proof, parent_sha):
-    if (not proof.get('build_ready') or proof.get('actual_source_commit') != parent_sha
-            or Path(proof['source_copy']) != source):
-        raise ValueError('fresh build/source/Parent correspondence missing')
-    source_inventory.verify(source, proof)
+def verify_hashes(root, expected, error):
+    for relative, value in expected.items():
+        if sha(root / relative) != value:
+            raise ValueError(error)
+
+
+def verify_physical_source(source):
     for path in source.rglob('*'):
         if path.is_symlink() or not (path.is_file() or path.is_dir()):
             raise ValueError('source copy contains nonphysical input')
         if path.is_file() and path.stat().st_nlink != 1:
             raise ValueError('source copy contains hard-linked input')
+
+
+def verify_build(source, binaries, proof, parent_sha):
+    if (not proof.get('build_ready') or proof.get('actual_source_commit') != parent_sha
+            or Path(proof['source_copy']) != source):
+        raise ValueError('fresh build/source/Parent correspondence missing')
+    source_inventory.verify(source, proof)
+    verify_physical_source(source)
     for relative, expected in proof['binaries'].items():
-        if sha(binaries / Path(relative).name) != expected:
-            raise ValueError('binary differs from actual native build receipt')
-    for relative, expected in proof['capture_application']['exact_written_sha256'].items():
-        if sha(source / relative) != expected:
-            raise ValueError('source differs from exact capture application')
-    for filename, expected in proof['module_inputs'].items():
-        if sha(source / 'connectors/envoy/ext_proc' / filename) != expected:
-            raise ValueError('patched module inputs differ from build')
+        verify_hashes(binaries, {Path(relative).name: expected},
+                      'binary differs from actual native build receipt')
+    verify_hashes(source, proof['capture_application']['exact_written_sha256'],
+                  'source differs from exact capture application')
+    verify_hashes(source / 'connectors/envoy/ext_proc', proof['module_inputs'],
+                  'patched module inputs differ from build')
 
 
-def prepare(args):
+def preparation_inputs(args):
+    storage = evidence_io.configured_storage(required=True)
     if set(args.only) - {route + '-' + name for route, name, _, _ in scenarios()}:
         raise ValueError('unknown scenario selection')
     run = args.run_root.resolve(strict=True)
-    if STORAGE not in run.parents or not (run / '.codex-storage-budget.json').is_file():
+    if storage not in run.parents or not (run / '.codex-storage-budget.json').is_file():
         raise ValueError('registered external task run required')
     old = args.historical.resolve(strict=True)
     source = args.source.resolve(strict=True)
-    if (source / '.git').exists() or STORAGE not in source.parents:
+    if (source / '.git').exists() or storage not in source.parents:
         raise ValueError('external disposable source required')
     build_proof = json.loads(args.build_receipt.read_text())
     verify_build(source, args.binaries, build_proof, args.parent_sha)
+    return run, old, source, build_proof
+
+
+def capture_content():
     spec = importlib.util.spec_from_file_location('envoy_capture', HERE.parent / 'capture_sources.py')
     capture = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(capture)
@@ -292,6 +310,10 @@ def prepare(args):
     variant = registry.manifest['profiles']['envoy']
     def content(name):
         return registry.content(variant['capture_files'][name]['sha256']).decode()
+    return content
+
+
+def prepare_controller(run, old):
     controller = old / 'isolation/private-runtime-v5.py'
     admission = old / 'isolation/candidate-admission-v5.py'
     if sha(controller) != OLD_CONTROLLER_SHA or sha(admission) != ADMISSION_SHA:
@@ -302,6 +324,10 @@ def prepare(args):
     (isolated / controller.name).write_text(text)
     shutil.copyfile(admission, isolated / admission.name)
     for path in isolated.iterdir(): path.chmod(0o444)
+    return isolated, controller
+
+
+def prepare_shared_inputs(run, old, source, binaries):
     host_source = run / 'host-source'
     shutil.copytree(source, host_source)
     source_binding = seal_tree(host_source) | {'target': '/mnt/src'}
@@ -311,55 +337,61 @@ def prepare(args):
     if sha(host) != HOST_SHA: raise ValueError('unknown actual Envoy image')
     shutil.copyfile(host, artifacts / 'envoy')
     for name in ('msconnector_envoy_ext_proc', 'msconnector_composite'):
-        shutil.copyfile(args.binaries / name, artifacts / name)
+        shutil.copyfile(binaries / name, artifacts / name)
     for path in artifacts.iterdir(): path.chmod(0o700)
     artifact_binding = seal_tree(artifacts) | {'target': '/mnt/artifacts'}
+    return source_binding, artifact_binding
+
+
+def source_binding_proof(source, build_proof, parent_sha):
     inputs = {str(p.relative_to(source)): sha(p) for p in source.rglob('*') if p.is_file()}
     overlays = {}
     for relative, baseline in build_proof['source_before_overlay'].items():
         if inputs[relative] != baseline:
             overlays[relative] = {'baseline_a9_sha256': baseline, 'instrumented_sha256': inputs[relative],
-                                  'baseline_parent_sha': args.parent_sha}
+                                  'baseline_parent_sha': parent_sha}
         inputs[relative] = baseline
-    source_proof = {'source_inputs': inputs, 'approved_test_overlays': overlays, 'parent_sha': args.parent_sha,
+    source_proof = {'source_inputs': inputs, 'approved_test_overlays': overlays, 'parent_sha': parent_sha,
                     'legacy_field_names': 'baseline_a9_sha256 is retained driver ABI; baseline_parent_sha is current'}
-    matrix = []
-    for index, (route, name, status, backend) in enumerate(scenarios()):
-        label = route + '-' + name
-        if args.only and label not in args.only: continue
-        fixture = run / 'host-fixtures' / label
-        fixture.mkdir(parents=True)
-        historical_profile = 'extproc-v3' if route == 'ext-proc' else ('request-v2' if route == 'ext-authz-request' else 'companion-v2')
-        template = old / 'envoy-authz-lifecycle' / historical_profile / 'fixtures'
-        for filename in ('envoy.yaml', 'native.conf', 'extproc-service.json'):
-            if (template / filename).is_file(): shutil.copyfile(template / filename, fixture / filename)
-        nonce = hashlib.sha256((args.parent_sha + label).encode()).hexdigest()[:12]
-        target, neighbor = 'e-' + nonce, 'n-' + nonce
-        shape = json.loads((template / 'shape.json').read_text())
-        # Historical proposals are not effective configuration or approved oracles.
-        shape.pop('expected_source_oracle_proposal_only', None)
-        shape.pop('host_request_buffer_max_bytes', None)
-        shape.update(case_id='I12-ENVOY-HOST::' + label, parent_sha=args.parent_sha,
-                     target=target, neighbor=neighbor, expected_status=status, target_backend=backend,
-                     request_parts=3, response_parts=3, request_mime='text/plain; charset=utf-8',
-                     response_mime='text/plain; charset=utf-8', concurrent=name in ('concurrent', 'cancel'),
-                     cancel=name == 'cancel', grpc_unavailable=name == 'grpc-unavailable',
-                     response_header_delay=6 if name == 'expired-lease' else 0,
-                     truncate_response=name == 'incomplete-response')
-        if name in ('host-reject', 'host-partial'): shape['request_parts'] = 1
-        if name in ('grpc-unavailable', 'missing-lease'):
-            shape['neighbor_expected_status'] = status
-        if name == 'grpc-unavailable': shape['neighbor_backend'] = False
-        request, response = b'request-marker-' + b'a' * 80, b'response-marker-' + b'b' * 80
-        if name.startswith('request-'): request = b'request-marker-' + b'a' * 2034
-        if name.startswith('response-'): response = b'response-marker-' + b'b' * 2033
-        if name in ('host-reject', 'host-partial'): request = b'a' * 96
-        for key, payload in [('request', request), ('response', response), ('neighbor_request', b'health'), ('neighbor_response', b'healthy')]:
-            shape[key + '_hex'] = payload.hex()
-        shape['request_bytes'], shape['response_bytes'] = len(request), len(response)
-        if name == 'mime-out': shape['response_mime'] = 'application/octet-stream'
-        write(fixture / 'shape.json', shape)
-        rules = '''SecRuleEngine On
+    return source_proof
+
+
+def fixture_template(old, route):
+    profiles = {'ext-proc': 'extproc-v3', 'ext-authz-request': 'request-v2'}
+    return old / 'envoy-authz-lifecycle' / profiles.get(route, 'companion-v2') / 'fixtures'
+
+
+def scenario_shape(template, parent_sha, label, name, status, backend):
+    nonce = hashlib.sha256((parent_sha + label).encode()).hexdigest()[:12]
+    target, neighbor = 'e-' + nonce, 'n-' + nonce
+    shape = json.loads((template / 'shape.json').read_text())
+    # Historical proposals are not effective configuration or approved oracles.
+    shape.pop('expected_source_oracle_proposal_only', None)
+    shape.pop('host_request_buffer_max_bytes', None)
+    shape.update(case_id='I12-ENVOY-HOST::' + label, parent_sha=parent_sha,
+                 target=target, neighbor=neighbor, expected_status=status, target_backend=backend,
+                 request_parts=3, response_parts=3, request_mime='text/plain; charset=utf-8',
+                 response_mime='text/plain; charset=utf-8', concurrent=name in ('concurrent', 'cancel'),
+                 cancel=name == 'cancel', grpc_unavailable=name == 'grpc-unavailable',
+                 response_header_delay=6 if name == 'expired-lease' else 0,
+                 truncate_response=name == 'incomplete-response')
+    if name in ('host-reject', 'host-partial'): shape['request_parts'] = 1
+    if name in ('grpc-unavailable', 'missing-lease'):
+        shape['neighbor_expected_status'] = status
+    if name == 'grpc-unavailable': shape['neighbor_backend'] = False
+    request, response = b'request-marker-' + b'a' * 80, b'response-marker-' + b'b' * 80
+    if name.startswith('request-'): request = b'request-marker-' + b'a' * 2034
+    if name.startswith('response-'): response = b'response-marker-' + b'b' * 2033
+    if name in ('host-reject', 'host-partial'): request = b'a' * 96
+    for key, payload in [('request', request), ('response', response), ('neighbor_request', b'health'), ('neighbor_response', b'healthy')]:
+        shape[key + '_hex'] = payload.hex()
+    shape['request_bytes'], shape['response_bytes'] = len(request), len(response)
+    if name == 'mime-out': shape['response_mime'] = 'application/octet-stream'
+    return shape
+
+
+def scenario_rules(name, index, target):
+    rules = '''SecRuleEngine On
 SecRequestBodyAccess On
 SecResponseBodyAccess On
 SecRequestBodyLimit 1024
@@ -375,43 +407,90 @@ SecAuditLog /task/runtime/native-audit.log
 SecDebugLogLevel 9
 SecDebugLog /task/runtime/native-debug.log
 '''
-        if name == 'request-partial': rules = rules.replace('SecRequestBodyLimitAction Reject', 'SecRequestBodyLimitAction ProcessPartial')
-        if name == 'response-partial': rules = rules.replace('SecResponseBodyLimitAction Reject', 'SecResponseBodyLimitAction ProcessPartial')
-        for phase, variable, marker in [(1, 'REQUEST_URI', target), (2, 'REQUEST_BODY', 'request-marker'), (3, 'RESPONSE_HEADERS:Content-Type', 'text/plain'), (4, 'RESPONSE_BODY', 'response-marker')]:
-            action = 'deny,status:403' if name == f'p{phase}-deny' or phase == 4 and name == 'p4-deny-safe' else 'pass'
-            if phase == 3:
-                rules += f'SecRule REQUEST_URI "@streq /{target}" "id:{1900000+index*10+phase},phase:3,{action},log,t:none,chain,msg:\'I12 Envoy P3\'"\n'
-                rules += f'SecRule {variable} "@contains {marker}" "t:none"\n'
-            else:
-                rules += f'SecRule {variable} "@contains {marker}" "id:{1900000+index*10+phase},phase:{phase},{action},log,t:none,msg:\'I12 Envoy P{phase}\'"\n'
-        check_rules(rules)
-        (fixture / 'native.rules').write_text(rules)
-        yaml = (fixture / 'envoy.yaml').read_text()
-        if route != 'ext-proc':
-            yaml = yaml.replace('max_request_bytes: 33', 'max_request_bytes: ' + ('32' if name.startswith('host-') else '4096'))
-            if name == 'host-partial': yaml = yaml.replace('allow_partial_message: false', 'allow_partial_message: true')
-            if name == 'missing-lease':
-                yaml = replace_once(yaml, '              metadata_options:\n                forwarding_namespaces:\n                  untyped:\n                  - envoy.filters.http.ext_authz\n', '')
-        (fixture / 'envoy.yaml').write_text(yaml)
-        for filename, value in [('driver.py', driver_source(content('driver.py'))), ('client.py', client_source(content('client.py'))), ('backend.py', backend_source(content('backend-extproc.py' if route == 'ext-proc' else 'backend.py'))), ('sdk-who.c', content('sdk-who.c')), ('cc-wrapper.sh', content('cc-wrapper.sh')), ('cxx-wrapper.sh', content('cxx-wrapper.sh'))]:
-            (fixture / filename).write_text(value)
-            if filename.endswith('.sh'): (fixture / filename).chmod(0o700)
-        write(fixture / 'scoped-product-source-a9.json', source_proof)
-        write(fixture / 'actual-build-provenance-v1.json', build_proof)
-        command = ['rtk', 'proxy', 'openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '2', '-subj', '/CN=127.0.0.1', '-addext', 'subjectAltName=IP:127.0.0.1', '-keyout', str(fixture / 'loopback.key'), '-out', str(fixture / 'loopback.crt')]
-        result = subprocess.run(command, capture_output=True, timeout=30, check=False)
-        if result.returncode: raise RuntimeError('synthetic TLS generation failed')
-        fixture_binding = seal_tree(fixture) | {'target': '/mnt/fixtures'}
-        admission_spec = {'mode': 'nonroot', 'timeout_seconds': 120, 'setup_timeout_seconds': 120,
-                          'resource_limits': {'memory_bytes': 3221225472, 'processes': 384, 'output_bytes': 2147483648},
-                          'argv': ['/usr/local/bin/python3', '-P', '/mnt/fixtures/driver.py'],
-                          'bindings': [source_binding, artifact_binding, fixture_binding],
-                          'environment': {'CONNECTOR_ROOT': '/mnt/src'}}
-        spec_path = fixture.parent / (label + '-admission.json')
-        write(spec_path, admission_spec)
-        spec_path.chmod(0o444)
-        matrix.append({'label': label, 'route': shape['leg'], 'spec': str(spec_path), 'expected_http_status': status,
-                       'expected_target_backend': backend, 'qualification': 'unreviewed_capture_input'})
+    if name == 'request-partial': rules = rules.replace('SecRequestBodyLimitAction Reject', 'SecRequestBodyLimitAction ProcessPartial')
+    if name == 'response-partial': rules = rules.replace('SecResponseBodyLimitAction Reject', 'SecResponseBodyLimitAction ProcessPartial')
+    for phase, variable, marker in [(1, 'REQUEST_URI', target), (2, 'REQUEST_BODY', 'request-marker'), (3, 'RESPONSE_HEADERS:Content-Type', 'text/plain'), (4, 'RESPONSE_BODY', 'response-marker')]:
+        action = 'deny,status:403' if name == f'p{phase}-deny' or phase == 4 and name == 'p4-deny-safe' else 'pass'
+        if phase == 3:
+            rules += f'SecRule REQUEST_URI "@streq /{target}" "id:{1900000+index*10+phase},phase:3,{action},log,t:none,chain,msg:\'I12 Envoy P3\'"\n'
+            rules += f'SecRule {variable} "@contains {marker}" "t:none"\n'
+        else:
+            rules += f'SecRule {variable} "@contains {marker}" "id:{1900000+index*10+phase},phase:{phase},{action},log,t:none,msg:\'I12 Envoy P{phase}\'"\n'
+    check_rules(rules)
+    return rules
+
+
+def configure_fixture(fixture, route, name):
+    yaml = (fixture / ENVOY_CONFIG).read_text()
+    if route != 'ext-proc':
+        yaml = yaml.replace('max_request_bytes: 33', 'max_request_bytes: ' + ('32' if name.startswith('host-') else '4096'))
+        if name == 'host-partial': yaml = yaml.replace('allow_partial_message: false', 'allow_partial_message: true')
+        if name == 'missing-lease':
+            yaml = replace_once(yaml, '              metadata_options:\n                forwarding_namespaces:\n                  untyped:\n                  - envoy.filters.http.ext_authz\n', '')
+    (fixture / ENVOY_CONFIG).write_text(yaml)
+
+
+def write_fixture_sources(fixture, content, route, source_proof, build_proof):
+    for filename, value in [(DRIVER_FILE, driver_source(content(DRIVER_FILE))), (CLIENT_FILE, client_source(content(CLIENT_FILE))), (BACKEND_FILE, backend_source(content('backend-extproc.py' if route == 'ext-proc' else BACKEND_FILE))), ('sdk-who.c', content('sdk-who.c')), ('cc-wrapper.sh', content('cc-wrapper.sh')), ('cxx-wrapper.sh', content('cxx-wrapper.sh'))]:
+        (fixture / filename).write_text(value)
+        if filename.endswith('.sh'): (fixture / filename).chmod(0o700)
+    write(fixture / 'scoped-product-source-a9.json', source_proof)
+    write(fixture / 'actual-build-provenance-v1.json', build_proof)
+
+
+def generate_tls(fixture):
+    command = ['rtk', 'proxy', 'openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '2', '-subj', '/CN=127.0.0.1', '-addext', 'subjectAltName=IP:127.0.0.1', '-keyout', str(fixture / 'loopback.key'), '-out', str(fixture / 'loopback.crt')]
+    result = subprocess.run(command, capture_output=True, timeout=30, check=False)
+    if result.returncode: raise RuntimeError('synthetic TLS generation failed')
+
+
+def fixture_admission(fixture, label, shape, status, backend, bindings):
+    source_binding, artifact_binding = bindings
+    fixture_binding = seal_tree(fixture) | {'target': '/mnt/fixtures'}
+    admission_spec = {'mode': 'nonroot', 'timeout_seconds': 120, 'setup_timeout_seconds': 120,
+                      'resource_limits': {'memory_bytes': 3221225472, 'processes': 384, 'output_bytes': 2147483648},
+                      'argv': ['/usr/local/bin/python3', '-P', '/mnt/fixtures/driver.py'],
+                      'bindings': [source_binding, artifact_binding, fixture_binding],
+                      'environment': {'CONNECTOR_ROOT': '/mnt/src'}}
+    spec_path = fixture.parent / (label + '-admission.json')
+    write(spec_path, admission_spec)
+    spec_path.chmod(0o444)
+    return {'label': label, 'route': shape['leg'], 'spec': str(spec_path), 'expected_http_status': status,
+            'expected_target_backend': backend, 'qualification': 'unreviewed_capture_input'}
+
+
+def prepare_fixture(args, context, index, scenario):
+    run, old, content, source_proof, build_proof, bindings = context
+    route, name, status, backend = scenario
+    label = route + '-' + name
+    fixture = run / 'host-fixtures' / label
+    fixture.mkdir(parents=True)
+    template = fixture_template(old, route)
+    for filename in (ENVOY_CONFIG, 'native.conf', 'extproc-service.json'):
+        if (template / filename).is_file():
+            shutil.copyfile(template / filename, fixture / filename)
+    shape = scenario_shape(template, args.parent_sha, label, name, status, backend)
+    write(fixture / 'shape.json', shape)
+    (fixture / 'native.rules').write_text(scenario_rules(name, index, shape['target']))
+    configure_fixture(fixture, route, name)
+    write_fixture_sources(fixture, content, route, source_proof, build_proof)
+    generate_tls(fixture)
+    return fixture_admission(fixture, label, shape, status, backend, bindings)
+
+
+def prepare(args):
+    run, old, source, build_proof = preparation_inputs(args)
+    content = capture_content()
+    isolated, controller = prepare_controller(run, old)
+    bindings = prepare_shared_inputs(run, old, source, args.binaries)
+    source_proof = source_binding_proof(source, build_proof, args.parent_sha)
+    context = run, old, content, source_proof, build_proof, bindings
+    matrix = []
+    for index, scenario in enumerate(scenarios()):
+        label = scenario[0] + '-' + scenario[1]
+        if args.only and label not in args.only:
+            continue
+        matrix.append(prepare_fixture(args, context, index, scenario))
     write(run / 'host-scenarios.json', {'parent_sha': args.parent_sha, 'controller': str(isolated / controller.name),
           'controller_original_sha256': OLD_CONTROLLER_SHA, 'controller_sha256': sha(isolated / controller.name),
           'only_controller_change': 'task run root relocation and verified PID namespace FD lifetime pin until cleanup; all admission, UID, caps, namespaces, containment, budgets and cleanup checks unchanged',

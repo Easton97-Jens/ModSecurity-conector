@@ -20,9 +20,9 @@ class OriginalBindingControls(unittest.TestCase):
         return path
 
     def setUp(self):
-        external = Path("/var/tmp/codex/ModSecurity-conector")
+        external = BIND.STORAGE
         temp = tempfile.TemporaryDirectory(prefix="envoy-original-binding-control-",
-                                           dir=external if external.is_dir() else None)
+                                           dir=external if external is not None and external.is_dir() else None)
         self.addCleanup(temp.cleanup)
         self.root = Path(temp.name).resolve()
         patch = mock.patch.object(BIND, "STORAGE", self.root)
@@ -186,8 +186,9 @@ class OriginalBindingControls(unittest.TestCase):
         selected, _ = BIND.selected_reviews([self.review_path], self.baseline, BIND.reference(self.baseline_path))
         self.assertEqual(len(selected), 1)
         self.write(self.review_path, {"records": [row, row]})
+        baseline_ref = BIND.reference(self.baseline_path)
         with self.assertRaisesRegex(ValueError, "duplicate"):
-            BIND.selected_reviews([self.review_path], self.baseline, BIND.reference(self.baseline_path))
+            BIND.selected_reviews([self.review_path], self.baseline, baseline_ref)
 
     def test_extra_unreviewed_source_file_is_not_hidden_by_capture_overlay_hashes(self):
         self.source.chmod(0o700)

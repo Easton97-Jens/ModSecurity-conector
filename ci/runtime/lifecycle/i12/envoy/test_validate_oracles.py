@@ -155,6 +155,133 @@ class OracleValidationControls(unittest.TestCase):
         self.rows()[1]['fixture_binding'] = None
         self.reject('lacks an explicit new fixture binding')
 
+    def physical_ref(self, path):
+        raw = path.read_bytes()
+        return {'path': str(path), 'sha256': hashlib.sha256(raw).hexdigest(), 'bytes': len(raw)}
+
+    def supplement_fixture(self):
+        fixture = self.root / 'new-fixture'
+        fixture.mkdir()
+        shape = fixture / 'shape.json'
+        shape.write_text(json.dumps({'leg': validator.SUPPLEMENT_ROUTE}))
+        rules = fixture / 'native.rules'
+        rules.write_text('SecRuleEngine On\n')
+        ledger = self.root / 'new-fixture-ledger.json'
+        ledger.write_text(json.dumps({'files': {path.name: self.physical_ref(path)['sha256']
+                                               for path in (shape, rules)}}))
+        admission = self.root / 'new-fixture-admission.json'
+        admission.write_text(json.dumps({'bindings': [{'target': '/mnt/fixtures', 'source': str(fixture),
+            'ledger': str(ledger), 'ledger_sha256': self.physical_ref(ledger)['sha256']}]}))
+        return [self.physical_ref(path) for path in (shape, rules, ledger, admission)]
+
+    def prepare_supplement(self):
+        original_row = self.rows(2)[1]
+        old_id = original_row['run_scoped_case_id']
+        original_row['run_scoped_case_id'] = validator.SUPPLEMENT_ID
+        original_row['fixture_binding']['original_id'] = validator.SUPPLEMENT_ID
+        for row in self.baseline['rows']:
+            if row['run_scoped_case_id'] == old_id:
+                row['run_scoped_case_id'] = validator.SUPPLEMENT_ID
+        self.write_reviews()
+        self.validated = validator.validate(self.baseline, self.paths)
+        row = copy.deepcopy(original_row)
+        row['fixture_binding'] = {'origin': 'new_task_fixture_binding', 'original_id': validator.SUPPLEMENT_ID,
+                                 'files': self.supplement_fixture()}
+        self.supplement = {'schema': validator.SUPPLEMENT_SCHEMA, 'route': validator.SUPPLEMENT_ROUTE,
+                           'origin_review': self.physical_ref(self.paths[2]), 'rows': [row]}
+        self.supplement_path = self.root / 'supplement.json'
+        return row
+
+    def write_supplement(self):
+        self.supplement_path.write_text(json.dumps(self.supplement))
+
+    def reject_supplement(self, message):
+        self.write_supplement()
+        with self.assertRaisesRegex(ValueError, message):
+            validator.validate_supplement(self.supplement_path, self.validated)
+
+    def test_supplement_preserves_source_and_only_rebinds_physical_fixture(self):
+        self.prepare_supplement()
+        self.write_supplement()
+        result = validator.validate_supplement(self.supplement_path, self.validated)
+        self.assertEqual(result['original_id'], validator.SUPPLEMENT_ID)
+        self.assertEqual(result['new_lifecycle_pass'], 0)
+        self.assertIs(result['canonical_resolution_changed'], False)
+        self.assertEqual(result['review_file'], self.physical_ref(self.supplement_path))
+        self.assertEqual(result['origin_review'], self.physical_ref(self.paths[2]))
+        self.assertEqual(len(result['normalized_rows']), 1)
+        self.assertTrue(result['normalized_rows'][0]['source_refs'][0]['verified'])
+        self.assertEqual(result['normalized_rows'][0]['source_refs'][0]['bytes'], self.source.stat().st_size)
+
+    def test_supplement_rejects_unknown_original_and_duplicate_rows(self):
+        row = self.prepare_supplement()
+        row['run_scoped_case_id'] += '-unknown'
+        self.reject_supplement('original ID or route is not selected')
+        row['run_scoped_case_id'] = validator.SUPPLEMENT_ID
+        self.supplement['rows'].append(copy.deepcopy(row))
+        self.reject_supplement('exactly one original row')
+
+    def test_supplement_rejects_changed_original(self):
+        row = self.prepare_supplement()
+        row['original_oracle']['visible_status'] = 403
+        self.reject_supplement('original oracle changed')
+
+    def test_supplement_rejects_changed_effective_source_oracle(self):
+        row = self.prepare_supplement()
+        row['effective_oracle']['visible_status'] = 403
+        self.reject_supplement('changed source semantics: effective_source_proposal')
+
+    def test_supplement_rejects_changed_source_claim_and_reference_size(self):
+        row = self.prepare_supplement()
+        row['source_refs'][0]['claim'] += ' changed'
+        self.reject_supplement('changed source semantics: source_refs')
+        row['source_refs'][0] = copy.deepcopy(self.reference)
+        row['source_refs'][0]['bytes'] = self.source.stat().st_size + 1
+        self.reject_supplement('reference byte size mismatch')
+
+    def test_supplement_origin_must_match_normalized_and_physical_review(self):
+        self.prepare_supplement()
+        self.supplement['origin_review']['path'] = str(self.paths[0])
+        self.reject_supplement('origin differs from normalized')
+        self.supplement['origin_review'] = self.physical_ref(self.paths[2])
+        self.supplement['origin_review']['sha256'] = '0' * 64
+        self.reject_supplement('origin differs from validated input')
+        self.supplement['origin_review'] = self.physical_ref(self.paths[2])
+        self.supplement['origin_review']['bytes'] += 1
+        self.reject_supplement('origin physical identity mismatch')
+
+    def test_supplement_cannot_invent_row_or_document_host_pass(self):
+        row = self.prepare_supplement()
+        row['outcome'] = 'PASS'
+        self.reject_supplement('source row cannot assign host PASS')
+        row.pop('outcome')
+        self.supplement['new_lifecycle_pass'] = 1
+        self.reject_supplement('cannot invent lifecycle PASS')
+
+    def test_supplement_rejects_bad_fixture_hash(self):
+        row = self.prepare_supplement()
+        row['fixture_binding']['files'][0]['sha256'] = '0' * 64
+        self.reject_supplement('reference SHA256 mismatch')
+
+    def test_supplement_rejects_incomplete_fixture_inventory(self):
+        row = self.prepare_supplement()
+        row['fixture_binding']['files'].pop(1)
+        self.reject_supplement('ledger member missing or changed')
+
+    def test_supplement_rejects_admission_rebinding_after_validated_hash(self):
+        row = self.prepare_supplement()
+        admission = self.root / 'new-fixture-admission.json'
+        document = json.loads(admission.read_text())
+        document['bindings'][0]['source'] = str(self.root / 'other-fixture')
+        admission.write_text(json.dumps(document))
+        row['fixture_binding']['files'][-1] = self.physical_ref(admission)
+        self.reject_supplement('admission fixture binding differs')
+
+    def test_supplement_requires_fresh_validated_origin(self):
+        self.prepare_supplement()
+        self.paths[2].write_text(self.paths[2].read_text() + '\n')
+        self.reject_supplement('origin physical identity mismatch')
+
 
 if __name__ == '__main__':
     unittest.main()

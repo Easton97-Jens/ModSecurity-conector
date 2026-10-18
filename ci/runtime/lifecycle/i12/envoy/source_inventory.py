@@ -22,15 +22,7 @@ def tree_inventory(source):
     return result
 
 
-def expected_inventory(proof):
-    """Reconstruct old receipts too; never bless the current source by hashing it."""
-    archive = Path(proof['source_copy']).parent / 'native-build/source-archive.stdout'
-    data = archive.read_bytes()
-    checks = [check for check in proof['checks'] if check['label'] == 'source-archive'
-              and check['exit_code'] == 0
-              and check['argv'][-3:] == ['archive', '--format=tar', proof['actual_source_commit']]]
-    if len(checks) != 1 or checks[0]['stdout_sha256'] != digest(data):
-        raise ValueError('hash-bound original Git archive unavailable')
+def archive_inventory(data):
     expected = {}
     with tarfile.open(fileobj=io.BytesIO(data)) as stream:
         for member in stream:
@@ -42,6 +34,19 @@ def expected_inventory(proof):
                 expected[member.name] = digest(body)
                 if member.name == 'ci/runtime/lifecycle/i12/manifest.json':
                     manifest = json.loads(body)
+    return expected, manifest
+
+
+def expected_inventory(proof):
+    """Reconstruct old receipts too; never bless the current source by hashing it."""
+    archive = Path(proof['source_copy']).parent / 'native-build/source-archive.stdout'
+    data = archive.read_bytes()
+    checks = [check for check in proof['checks'] if check['label'] == 'source-archive'
+              and check['exit_code'] == 0
+              and check['argv'][-3:] == ['archive', '--format=tar', proof['actual_source_commit']]]
+    if len(checks) != 1 or checks[0]['stdout_sha256'] != digest(data):
+        raise ValueError('hash-bound original Git archive unavailable')
+    expected, manifest = archive_inventory(data)
     expected.update(proof['capture_application']['exact_written_sha256'])
     prefix = '.i12-capture/envoy/source-copy-tests/'
     for path, value in list(expected.items()):

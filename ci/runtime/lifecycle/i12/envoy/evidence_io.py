@@ -7,9 +7,7 @@ from pathlib import Path
 import stat
 
 REPOSITORY = Path(__file__).resolve().parents[5]
-STORAGE = Path('/var/tmp/codex/ModSecurity-conector')
 ARCHIVES = Path('/root/git/codex-storage-archives')
-DEFAULT_ROOTS = (REPOSITORY, STORAGE, ARCHIVES)
 MAX_BYTES = 128 * 1024 * 1024
 DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
 
@@ -34,6 +32,32 @@ def approved_path(value, roots):
 def trusted_metadata(metadata):
     if metadata.st_uid not in (0, os.geteuid()) or metadata.st_mode & 0o022:
         raise ValueError('evidence must be owned and not group/other writable')
+
+
+def configured_storage(required=True):
+    """Use the trusted project configuration export; never invent a temp root."""
+    value = os.environ.get('CODEX_PROJECT_STATE')
+    if not value:
+        if required:
+            raise ValueError('CODEX_PROJECT_STATE must name the configured evidence root')
+        return None
+    path = Path(value)
+    if not path.is_absolute() or len(path.parts) < 3 or '..' in path.parts:
+        raise ValueError('configured evidence root requires a physical absolute directory')
+    directory = os.open('/', DIRECTORY_FLAGS)
+    try:
+        for component in path.parts[1:]:
+            child = os.open(component, DIRECTORY_FLAGS, dir_fd=directory)
+            os.close(directory)
+            directory = child
+        trusted_metadata(os.fstat(directory))
+    finally:
+        os.close(directory)
+    return path
+
+
+STORAGE = configured_storage(required=False)
+DEFAULT_ROOTS = (REPOSITORY, ARCHIVES) + ((STORAGE,) if STORAGE is not None else ())
 
 
 @contextmanager

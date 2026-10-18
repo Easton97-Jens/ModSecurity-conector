@@ -31,6 +31,27 @@ class ReviewControls(unittest.TestCase):
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(value if isinstance(value, bytes) else json.dumps(value).encode())
 
+    def test_adjacent_symlink_directories_are_all_pruned(self):
+        outside = self.root / 'outside'
+        outside.mkdir()
+        (outside / 'secret.raw').write_bytes(b'never-follow')
+        data = self.root / 'data'
+        data.mkdir()
+        for name in ('first', 'second'):
+            (data / name).symlink_to(outside, target_is_directory=True)
+        artifacts = review.Artifacts(data)
+        self.assertEqual(artifacts.files, {})
+        self.assertEqual({issue['path'] for issue in artifacts.issues}, {'first', 'second'})
+        self.assertTrue(all(issue['kind'] == 'symlink_directory' for issue in artifacts.issues))
+
+    def test_native_scope_join_requires_pid_as_well_as_allocation(self):
+        rows = [{'pid': pid, 'allocation_scope_call': 1, 'allocation_join_verified': True,
+                 'call': 5, 'sequence': pid, 'edge': 'return', 'function': function}
+                for pid, function in ((1, 'native_cleanup'), (2, 'native_logging'))]
+        scopes = review.native_summary(rows, [])['scopes']
+        self.assertEqual(scopes[0]['observed_return_counts'], {'native_cleanup': 1})
+        self.assertEqual(scopes[1]['observed_return_counts'], {'native_logging': 1})
+
     def test_partial_backend_request_is_counted_without_completed_receipt(self):
         self.write('backend/1.request-line.raw', b'POST /target HTTP/1.1\r\n')
         self.write('backend/1.parsed-headers.json', [])

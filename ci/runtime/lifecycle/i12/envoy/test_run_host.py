@@ -37,7 +37,7 @@ class CommunicationControls(unittest.TestCase):
         process = process_control((b"finished", b"diagnostic"))
         with mock.patch.object(HOST, "signal_owned_group") as send:
             out, err, state = HOST.communicate_bounded(process, "start-control")
-        self.assertEqual((out, err), (b"finished", b"diagnostic"))
+        self.assertEqual((b"finished", b"diagnostic"), (out, err))
         self.assertFalse(state["outer_timeout"])
         self.assertFalse(state["cleanup_requires_review"])
         process.communicate.assert_called_once_with(timeout=300)
@@ -48,13 +48,13 @@ class CommunicationControls(unittest.TestCase):
         process = process_control(timeout(300, b"partial", b"initial"), (b"complete", b"final"))
         with mock.patch.object(HOST, "signal_owned_group", return_value=True) as send:
             out, err, state = HOST.communicate_bounded(process, "owned-start")
-        self.assertEqual((out, err), (b"complete", b"final"))
+        self.assertEqual((b"complete", b"final"), (out, err))
         self.assertTrue(state["outer_timeout"])
         self.assertTrue(state["term_sent_to_owned_group"])
         self.assertFalse(state["cleanup_grace_timeout"])
-        self.assertEqual(process.returncode, 0)
-        self.assertEqual(process.communicate.call_args_list,
-                         [mock.call(timeout=300), mock.call(timeout=30)])
+        self.assertEqual(0, process.returncode)
+        self.assertEqual([mock.call(timeout=300), mock.call(timeout=30)],
+                         process.communicate.call_args_list)
         process.wait.assert_not_called()
         send.assert_called_once_with(process, "owned-start", signal.SIGTERM)
 
@@ -63,15 +63,15 @@ class CommunicationControls(unittest.TestCase):
                                   timeout(30, b"first-out\nlast-out", b"first-err\nlast-err"), returncode=-9)
         with mock.patch.object(HOST, "signal_owned_group", return_value=True) as send:
             out, err, state = HOST.communicate_bounded(process, "owned-start")
-        self.assertEqual((out, err), (b"first-out\nlast-out", b"first-err\nlast-err"))
+        self.assertEqual((b"first-out\nlast-out", b"first-err\nlast-err"), (out, err))
         self.assertTrue(state["outer_timeout"])
         self.assertTrue(state["cleanup_grace_timeout"])
         self.assertTrue(state["cleanup_requires_review"])
         self.assertTrue(state["direct_child_reaped"])
-        self.assertEqual(send.call_args_list, [mock.call(process, "owned-start", signal.SIGTERM),
-                                               mock.call(process, "owned-start", signal.SIGKILL)])
+        self.assertEqual([mock.call(process, "owned-start", signal.SIGTERM),
+                                               mock.call(process, "owned-start", signal.SIGKILL)], send.call_args_list)
         process.wait.assert_called_once_with(timeout=5)
-        self.assertEqual(process.communicate.call_count, 2)
+        self.assertEqual(2, process.communicate.call_count)
         self.assertTrue(process.stdout.closed)
         self.assertTrue(process.stderr.closed)
 
@@ -84,7 +84,7 @@ class CommunicationControls(unittest.TestCase):
                                           timeout(30, second_out, second_err))
                 with mock.patch.object(HOST, "signal_owned_group", return_value=False):
                     out, err, state = HOST.communicate_bounded(process, None)
-                self.assertEqual((out, err), expected)
+                self.assertEqual(expected, (out, err))
                 self.assertFalse(state["kill_sent_to_owned_group"])
                 self.assertTrue(state["cleanup_requires_review"])
 
@@ -93,12 +93,12 @@ class CommunicationControls(unittest.TestCase):
                                   wait_error=timeout(5))
         with mock.patch.object(HOST, "signal_owned_group", return_value=False):
             out, err, state = HOST.communicate_bounded(process, None)
-        self.assertEqual((out, err), (b"", b""))
+        self.assertEqual((b"", b""), (out, err))
         self.assertFalse(state["direct_child_reaped"])
         self.assertTrue(state["cleanup_requires_review"])
         self.assertIsNone(process.returncode)
         process.wait.assert_called_once_with(timeout=5)
-        self.assertEqual(process.communicate.call_count, 2)
+        self.assertEqual(2, process.communicate.call_count)
         self.assertTrue(process.stdout.closed)
         self.assertTrue(process.stderr.closed)
 
@@ -151,11 +151,11 @@ class ControllerPacketControls(unittest.TestCase):
         lines = ["ordinary diagnostic", json.dumps(first, separators=(",", ":")),
                  '{"attempt":"truncated', json.dumps(last, separators=(",", ":"))]
         packets, errors = HOST.controller_packets("\n".join(lines))
-        self.assertEqual(packets, [first, last])
-        self.assertEqual(errors, 1)
+        self.assertEqual([first, last], packets)
+        self.assertEqual(1, errors)
 
     def test_ordinary_diagnostics_never_become_controller_packets(self):
-        self.assertEqual(HOST.controller_packets("diagnostic\nnot JSON\n"), ([], 0))
+        self.assertEqual(([], 0), HOST.controller_packets("diagnostic\nnot JSON\n"))
 
 
 class TimeoutRecordControls(unittest.TestCase):
@@ -180,19 +180,19 @@ class TimeoutRecordControls(unittest.TestCase):
              mock.patch.object(HOST, "signal_owned_group", return_value=False), \
              contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as stopped:
             HOST.main()
-        self.assertEqual(stopped.exception.code, 1)
+        self.assertEqual(1, stopped.exception.code)
         result = json.loads(self.output.read_text())
-        self.assertEqual(result["qualification"], "unreviewed_host_measurements")
-        self.assertEqual(len(result["runs"]), 1)
+        self.assertEqual("unreviewed_host_measurements", result["qualification"])
+        self.assertEqual(1, len(result["runs"]))
         return result["runs"][0]
 
     def test_outer_timeout_cannot_be_pass_even_with_zero_child_and_controller_results(self):
         complete = b'{"attempt":"control-attempt","exitcode":0,"timeout":false}\n'
         process = process_control(timeout(300), (complete, b"diagnostic"), returncode=0)
         record = self.run_main(process)
-        self.assertEqual(record["exit_code"], 124)
-        self.assertEqual(record["process_exit_code"], 0)
-        self.assertEqual(record["controller_result"]["exitcode"], 0)
+        self.assertEqual(124, record["exit_code"])
+        self.assertEqual(0, record["process_exit_code"])
+        self.assertEqual(0, record["controller_result"]["exitcode"])
         self.assertTrue(record["timeout_state"]["outer_timeout"])
         self.assertNotIn("PASS", json.dumps(record))
 
@@ -201,24 +201,24 @@ class TimeoutRecordControls(unittest.TestCase):
         process = process_control(timeout(300, out, err), timeout(30), returncode=None,
                                   wait_error=timeout(5))
         record = self.run_main(process)
-        self.assertEqual(record["exit_code"], 124)
+        self.assertEqual(124, record["exit_code"])
         self.assertIsNone(record["process_exit_code"])
         self.assertIsNone(record["controller_result"])
         self.assertTrue(record["timeout_state"]["cleanup_requires_review"])
         self.assertFalse(record["timeout_state"]["direct_child_reaped"])
-        self.assertEqual(record["stdout_sha256"], hashlib.sha256(out).hexdigest())
-        self.assertEqual(record["stderr_sha256"], hashlib.sha256(err).hexdigest())
-        self.assertEqual((self.root / "result-bounded-control.stdout").read_bytes(), out)
-        self.assertEqual((self.root / "result-bounded-control.stderr").read_bytes(), err)
+        self.assertEqual(hashlib.sha256(out).hexdigest(), record["stdout_sha256"])
+        self.assertEqual(hashlib.sha256(err).hexdigest(), record["stderr_sha256"])
+        self.assertEqual(out, (self.root / "result-bounded-control.stdout").read_bytes())
+        self.assertEqual(err, (self.root / "result-bounded-control.stderr").read_bytes())
         process.wait.assert_called_once_with(timeout=5)
 
     def test_malformed_packet_with_zero_process_exit_is_nonzero125(self):
         out = b'{"attempt":"unfinished-controller'
         record = self.run_main(process_control((out, b"diagnostic"), returncode=0))
-        self.assertEqual(record["exit_code"], 125)
-        self.assertEqual(record["process_exit_code"], 0)
+        self.assertEqual(125, record["exit_code"])
+        self.assertEqual(0, record["process_exit_code"])
         self.assertFalse(record["timeout_state"]["outer_timeout"])
-        self.assertEqual(record["controller_packet_parse_errors"], 1)
+        self.assertEqual(1, record["controller_packet_parse_errors"])
         self.assertIsNone(record["controller_result"])
 
     def test_partial_non_utf8_output_is_retained_byte_exact_with_matching_hash(self):
@@ -226,24 +226,24 @@ class TimeoutRecordControls(unittest.TestCase):
         process = process_control(timeout(300, out, err), timeout(30), returncode=None,
                                   wait_error=timeout(5))
         record = self.run_main(process)
-        self.assertEqual(record["exit_code"], 124)
+        self.assertEqual(124, record["exit_code"])
         stdout = (self.root / "result-bounded-control.stdout").read_bytes()
         stderr = (self.root / "result-bounded-control.stderr").read_bytes()
-        self.assertEqual(stdout, out)
-        self.assertEqual(stderr, err)
-        self.assertEqual(record["stdout_sha256"], hashlib.sha256(stdout).hexdigest())
-        self.assertEqual(record["stderr_sha256"], hashlib.sha256(stderr).hexdigest())
+        self.assertEqual(out, stdout)
+        self.assertEqual(err, stderr)
+        self.assertEqual(hashlib.sha256(stdout).hexdigest(), record["stdout_sha256"])
+        self.assertEqual(hashlib.sha256(stderr).hexdigest(), record["stderr_sha256"])
 
     def test_truncated_controller_json_keeps_timeout_record_and_raw_output(self):
         out = b'{"attempt":"unfinished-controller'
         process = process_control(timeout(300, out, b"diagnostic"), timeout(30), returncode=None,
                                   wait_error=timeout(5))
         record = self.run_main(process)
-        self.assertEqual(record["exit_code"], 124)
+        self.assertEqual(124, record["exit_code"])
         self.assertIsNone(record["controller_result"])
-        self.assertEqual(record["controller_packet_parse_errors"], 1)
+        self.assertEqual(1, record["controller_packet_parse_errors"])
         self.assertTrue(record["timeout_state"]["cleanup_requires_review"])
-        self.assertEqual((self.root / "result-bounded-control.stdout").read_bytes(), out)
+        self.assertEqual(out, (self.root / "result-bounded-control.stdout").read_bytes())
 
 
 if __name__ == "__main__":

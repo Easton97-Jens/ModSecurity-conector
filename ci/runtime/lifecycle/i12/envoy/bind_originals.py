@@ -18,6 +18,8 @@ import source_inventory
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[4]
 STORAGE = host.STORAGE
+SOURCE_TARGET = "/mnt/src"
+FIXTURE_TARGET = "/mnt/fixtures"
 LIMITS = {"memory_bytes": 3221225472, "processes": 384, "output_bytes": 2147483648}
 
 
@@ -54,6 +56,49 @@ def validate_baseline(path):
     return baseline
 
 
+def validate_review_identity(row, binding, originals, seen):
+    identity, route = row.get("run_scoped_case_id"), row.get("route")
+    if identity not in originals or identity in seen:
+        raise ValueError("Unknown or duplicate original case identity")
+    seen.add(identity)
+    original = originals[identity]
+    if (route != original["leg_id"] or identity.split("::")[1] != route
+            or row.get("original_oracle") != original["original_oracle"]):
+        raise ValueError("Original route or oracle was substituted")
+    bound_id = binding.get("run_scoped_case_id", binding.get("original_id"))
+    if bound_id != identity or binding.get("route", route) != route:
+        raise ValueError("Fixture binding lacks the exact original identity")
+    if row.get("lifecycle_qualified") is not False:
+        raise ValueError("A source proposal cannot qualify a lifecycle PASS")
+
+
+def selected_review_shapes(row, originals, seen):
+    binding = row.get("fixture_binding") or {}
+    if row.get("category") != "SOURCE_SEMANTICS_CONFIRMED" or binding.get("origin") != "new_task_fixture_binding":
+        return None
+    validate_review_identity(row, binding, originals, seen)
+    refs = binding.get("physical_inputs", binding.get("files", []))
+    if not row.get("source_refs"):
+        raise ValueError("Independent source review references are required")
+    for ref in row.get("source_refs", []) + refs:
+        check_reference(ref)
+    shapes = [check_reference(ref) for ref in refs if Path(ref["path"]).name == "shape.json"]
+    if not shapes or len(shapes) != len(set(shapes)):
+        raise ValueError("An exact distinct physical shape is required")
+    return shapes
+
+
+def select_document_rows(document, originals, seen, review_ref, selected, skipped):
+    for row in document.get("rows", document.get("records", [])):
+        shapes = selected_review_shapes(row, originals, seen)
+        if shapes is None:
+            continue
+        if not isinstance(row.get("effective_oracle"), dict):
+            skipped.append({"run_scoped_case_id": row["run_scoped_case_id"], "reason": "effective_oracle_unknown"})
+            continue
+        selected.append((row, shapes, review_ref))
+
+
 def selected_reviews(documents, baseline, baseline_ref):
     originals = {row["run_scoped_case_id"]: row for row in baseline["rows"]}
     seen, selected, skipped = set(), [], []
@@ -64,35 +109,7 @@ def selected_reviews(documents, baseline, baseline_ref):
         if input_ref is not None and (input_ref.get("sha256") != baseline_ref["sha256"]
                                      or check_reference(input_ref) != Path(baseline_ref["path"])):
             raise ValueError("Oracle review refers to a different baseline")
-        for row in document.get("rows", document.get("records", [])):
-            binding = row.get("fixture_binding") or {}
-            if row.get("category") != "SOURCE_SEMANTICS_CONFIRMED" or binding.get("origin") != "new_task_fixture_binding":
-                continue
-            identity, route = row.get("run_scoped_case_id"), row.get("route")
-            if identity not in originals or identity in seen:
-                raise ValueError("Unknown or duplicate original case identity")
-            seen.add(identity)
-            original = originals[identity]
-            if (route != original["leg_id"] or identity.split("::")[1] != route
-                    or row.get("original_oracle") != original["original_oracle"]):
-                raise ValueError("Original route or oracle was substituted")
-            bound_id = binding.get("run_scoped_case_id", binding.get("original_id"))
-            if bound_id != identity or binding.get("route", route) != route:
-                raise ValueError("Fixture binding lacks the exact original identity")
-            if row.get("lifecycle_qualified") is not False:
-                raise ValueError("A source proposal cannot qualify a lifecycle PASS")
-            refs = binding.get("physical_inputs", binding.get("files", []))
-            if not row.get("source_refs"):
-                raise ValueError("Independent source review references are required")
-            for ref in row.get("source_refs", []) + refs:
-                check_reference(ref)
-            shapes = [check_reference(ref) for ref in refs if Path(ref["path"]).name == "shape.json"]
-            if not shapes or len(shapes) != len(set(shapes)):
-                raise ValueError("An exact distinct physical shape is required")
-            if not isinstance(row.get("effective_oracle"), dict):
-                skipped.append({"run_scoped_case_id": identity, "reason": "effective_oracle_unknown"})
-                continue
-            selected.append((row, shapes, review_ref))
+        select_document_rows(document, originals, seen, review_ref, selected, skipped)
     if not selected:
         raise ValueError("No fixture-bound original oracle proposals selected")
     return selected, skipped
@@ -114,42 +131,51 @@ def verify_binding(binding):
     return source
 
 
-def verified_admission(shape_path, parent_sha, cache):
-    fixture = physical(shape_path.parent, True)
-    spec_path = physical(fixture.parent / (fixture.name + "-admission.json"))
-    spec = json.loads(spec_path.read_text())
+def admission_bindings(spec):
     if (set(spec) != {"mode", "timeout_seconds", "setup_timeout_seconds", "resource_limits", "argv", "bindings", "environment"}
             or spec["mode"] != "nonroot" or spec["timeout_seconds"] != 120
             or spec["setup_timeout_seconds"] != 120 or spec["resource_limits"] != LIMITS
             or spec["argv"] != ["/usr/local/bin/python3", "-P", "/mnt/fixtures/driver.py"]
-            or spec["environment"] != {"CONNECTOR_ROOT": "/mnt/src"}):
+            or spec["environment"] != {"CONNECTOR_ROOT": SOURCE_TARGET}):
         raise ValueError("Original admission or privilege boundary differs")
     bindings = {item["target"]: item for item in spec["bindings"]}
-    if len(spec["bindings"]) != 3 or set(bindings) != {"/mnt/src", "/mnt/artifacts", "/mnt/fixtures"}:
+    if len(spec["bindings"]) != 3 or set(bindings) != {SOURCE_TARGET, "/mnt/artifacts", FIXTURE_TARGET}:
         raise ValueError("Exactly three approved private bindings are required")
+    return bindings
+
+
+def verify_native_build_inputs(proof, source, artifacts, parent_sha):
+    if proof.get("build_ready") is not True or proof.get("actual_source_commit") != parent_sha:
+        raise ValueError("Actual native build does not match the selected Parent")
+    # The source is a sealed copy; proof.source_copy keeps the original build
+    # location so its retained Git archive and exact overlays remain checkable.
+    source_inventory.verify(source, proof)
+    for relative, expected in proof["binaries"].items():
+        if host.sha(artifacts / Path(relative).name) != expected:
+            raise ValueError("Actual binary differs from native build")
+    if host.sha(artifacts / "envoy") != host.HOST_SHA:
+        raise ValueError("Actual Envoy image identity changed")
+    for filename, expected in proof["module_inputs"].items():
+        if host.sha(source / "connectors/envoy/ext_proc" / filename) != expected:
+            raise ValueError("Patched Go module inputs changed")
+
+
+def verified_admission(shape_path, parent_sha, cache):
+    fixture = physical(shape_path.parent, True)
+    spec_path = physical(fixture.parent / (fixture.name + "-admission.json"))
+    spec = json.loads(spec_path.read_text())
+    bindings = admission_bindings(spec)
     for item in bindings.values():
         key = (item["source"], item["ledger"], item["ledger_sha256"])
         if key not in cache:
             cache[key] = verify_binding(item)
-    if Path(bindings["/mnt/fixtures"]["source"]) != fixture:
+    if Path(bindings[FIXTURE_TARGET]["source"]) != fixture:
         raise ValueError("Admission fixture was substituted")
     proof = json.loads((fixture / "actual-build-provenance-v1.json").read_text())
-    source, artifacts = Path(bindings["/mnt/src"]["source"]), Path(bindings["/mnt/artifacts"]["source"])
+    source, artifacts = Path(bindings[SOURCE_TARGET]["source"]), Path(bindings["/mnt/artifacts"]["source"])
     build_key = (str(source), str(artifacts), host.sha(fixture / "actual-build-provenance-v1.json"), parent_sha)
     if build_key not in cache:
-        if proof.get("build_ready") is not True or proof.get("actual_source_commit") != parent_sha:
-            raise ValueError("Actual native build does not match the selected Parent")
-        # The source is a sealed copy; proof.source_copy keeps the original build
-        # location so its retained Git archive and exact overlays remain checkable.
-        source_inventory.verify(source, proof)
-        for relative, expected in proof["binaries"].items():
-            if host.sha(artifacts / Path(relative).name) != expected:
-                raise ValueError("Actual binary differs from native build")
-        if host.sha(artifacts / "envoy") != host.HOST_SHA:
-            raise ValueError("Actual Envoy image identity changed")
-        for filename, expected in proof["module_inputs"].items():
-            if host.sha(source / "connectors/envoy/ext_proc" / filename) != expected:
-                raise ValueError("Patched Go module inputs changed")
+        verify_native_build_inputs(proof, source, artifacts, parent_sha)
         cache[build_key] = True
     shape = json.loads(shape_path.read_text())
     if shape.get("parent_sha") != parent_sha or not re.fullmatch("[a-f0-9]{40}", parent_sha):
@@ -168,22 +194,27 @@ def fixture_oracle(row, shape):
     return copy.deepcopy(comparison) if comparison is not None else oracle
 
 
-def prepare(args):
-    run = physical(args.run_root, True)
+def require_storage():
+    if STORAGE is None:
+        raise ValueError("CODEX_PROJECT_STATE configuration required for original-ID preparation")
+    return STORAGE
+
+
+def registered_run(run_root):
+    require_storage()
+    run = physical(run_root, True)
     budget_path = run / ".codex-storage-budget.json"
     if STORAGE not in run.parents or not budget_path.is_file():
         raise ValueError("Registered external task run required")
     budget = json.loads(physical(budget_path).read_text())
     if budget.get("status") != "registered" or budget.get("run_root") != str(run):
         raise ValueError("Run registration identity differs")
-    if set(path.name for path in run.iterdir()) != {".codex-storage-budget.json"}:
+    if {path.name for path in run.iterdir()} != {".codex-storage-budget.json"}:
         raise ValueError("Fresh registered output root required")
-    old = physical(args.historical, True)
-    controller, admission = old / "isolation/private-runtime-v5.py", old / "isolation/candidate-admission-v5.py"
-    if host.sha(physical(controller)) != host.OLD_CONTROLLER_SHA or host.sha(physical(admission)) != host.ADMISSION_SHA:
-        raise ValueError("Original controller/admission hash changed")
-    baseline = validate_baseline(args.baseline)
-    selected, skipped = selected_reviews(args.oracle_review, baseline, reference(args.baseline))
+    return run
+
+
+def prepare_inputs(selected):
     prepared, cache, parents = [], {}, set()
     # Validate every input before producing any fixture output.
     for row, shapes, review_ref in selected:
@@ -198,6 +229,77 @@ def prepare(args):
             prepared.append((row, shape_path, shape, spec, oracle, review_ref, admission_ref))
     if len(parents) != 1:
         raise ValueError("One exact Parent revision is required for the matrix")
+    return prepared, next(iter(parents))
+
+
+def copy_binding(binding, run, copied_bindings):
+    key = (binding["target"], binding["ledger_sha256"])
+    if key not in copied_bindings:
+        label = "source" if binding["target"] == SOURCE_TARGET else "artifacts"
+        destination = run / "reused-inputs" / (label + "-" + binding["ledger_sha256"])
+        destination.parent.mkdir(mode=0o700, exist_ok=True)
+        shutil.copytree(Path(binding["source"]), destination, copy_function=shutil.copy2)
+        copied_bindings[key] = host.seal_tree(destination) | {"target": binding["target"]}
+        if copied_bindings[key]["ledger_sha256"] != binding["ledger_sha256"]:
+            raise ValueError("Copied source or artifact bytes changed")
+    return copied_bindings[key]
+
+
+
+def bound_shape(shape, identity, label, oracle, review_ref):
+    shape = copy.deepcopy(shape)
+    shape.update(case_id="I12-ENVOY-HOST::" + label, original_case_ids=[identity],
+                 review_sha256=review_ref["sha256"], oracle_review_sha256=review_ref["sha256"],
+                 approved_source_oracle=oracle)
+    for stale in ("expected_source_oracle_proposal_only", "host_request_buffer_max_bytes"):
+        shape.pop(stale, None)
+    status = oracle.get("visible_status")
+    if type(status) is int and 100 <= status <= 599:
+        shape["expected_status"] = status
+    else:
+        # Unknown expectations cannot be replaced with a measured HTTP result.
+        # Existing client behavior is preserved but explicitly remains unqualified.
+        shape["expected_status_source"] = "inherited_client_check_not_oracle"
+    return shape, status
+
+
+def materialize_case(run, index, prepared_row, copied_bindings, controller_module):
+    row, shape_path, shape, spec, oracle, review_ref, admission_ref = prepared_row
+    identity = row["run_scoped_case_id"]
+    suffix = re.sub("[^a-z0-9]+", "-", identity.split("::")[-1].lower()).strip("-")
+    label = "original-" + row["route"] + "-" + suffix + "-" + str(index)
+    destination = run / "host-fixtures" / label
+    shutil.copytree(shape_path.parent, destination, copy_function=shutil.copy2)
+    for path in [destination, *destination.rglob("*")]:
+        path.chmod(0o700 if path.is_dir() or path.stat().st_mode & 0o111 else 0o600)
+    shape, status = bound_shape(shape, identity, label, oracle, review_ref)
+    host.write(destination / "shape.json", shape)
+    fixture_binding = host.seal_tree(destination) | {"target": FIXTURE_TARGET}
+    updated = copy.deepcopy(spec)
+    updated["bindings"] = [fixture_binding if item["target"] == FIXTURE_TARGET else copy_binding(item, run, copied_bindings)
+                           for item in spec["bindings"]]
+    spec_path = destination.parent / (label + "-admission.json")
+    host.write(spec_path, updated)
+    spec_path.chmod(0o444)
+    controller_module.read_spec(spec_path)
+    return {"label": label, "route": row["route"], "spec": str(spec_path),
+                   "original_case_ids": [identity], "expected_http_status": status,
+                   "expected_target_backend": shape.get("target_backend", True),
+                   "qualification": "unreviewed_capture_input", "source_review": review_ref,
+                   "oracle_review_sha256": review_ref["sha256"],
+                   "approved_source_oracle": oracle, "original_shape": reference(shape_path),
+                   "original_admission": admission_ref}
+
+
+def prepare(args):
+    run = registered_run(args.run_root)
+    old = physical(args.historical, True)
+    controller, admission = old / "isolation/private-runtime-v5.py", old / "isolation/candidate-admission-v5.py"
+    if host.sha(physical(controller)) != host.OLD_CONTROLLER_SHA or host.sha(physical(admission)) != host.ADMISSION_SHA:
+        raise ValueError("Original controller/admission hash changed")
+    baseline = validate_baseline(args.baseline)
+    selected, skipped = selected_reviews(args.oracle_review, baseline, reference(args.baseline))
+    prepared, parent_sha = prepare_inputs(selected)
     isolated = run / "isolation"
     isolated.mkdir(mode=0o700)
     new_controller = isolated / controller.name
@@ -211,56 +313,9 @@ def prepare(args):
     matrix = []
     copied_bindings = {}
 
-    def copy_binding(binding):
-        key = (binding["target"], binding["ledger_sha256"])
-        if key not in copied_bindings:
-            label = "source" if binding["target"] == "/mnt/src" else "artifacts"
-            destination = run / "reused-inputs" / (label + "-" + binding["ledger_sha256"])
-            destination.parent.mkdir(mode=0o700, exist_ok=True)
-            shutil.copytree(Path(binding["source"]), destination, copy_function=shutil.copy2)
-            copied_bindings[key] = host.seal_tree(destination) | {"target": binding["target"]}
-            if copied_bindings[key]["ledger_sha256"] != binding["ledger_sha256"]:
-                raise ValueError("Copied source or artifact bytes changed")
-        return copied_bindings[key]
-
-    for index, (row, shape_path, shape, spec, oracle, review_ref, admission_ref) in enumerate(prepared):
-        identity = row["run_scoped_case_id"]
-        suffix = re.sub("[^a-z0-9]+", "-", identity.split("::")[-1].lower()).strip("-")
-        label = "original-" + row["route"] + "-" + suffix + "-" + str(index)
-        destination = run / "host-fixtures" / label
-        shutil.copytree(shape_path.parent, destination, copy_function=shutil.copy2)
-        for path in [destination, *destination.rglob("*")]:
-            path.chmod(0o700 if path.is_dir() or path.stat().st_mode & 0o111 else 0o600)
-        shape = copy.deepcopy(shape)
-        shape.update(case_id="I12-ENVOY-HOST::" + label, original_case_ids=[identity],
-                     review_sha256=review_ref["sha256"], oracle_review_sha256=review_ref["sha256"],
-                     approved_source_oracle=oracle)
-        for stale in ("expected_source_oracle_proposal_only", "host_request_buffer_max_bytes"):
-            shape.pop(stale, None)
-        status = oracle.get("visible_status")
-        if type(status) is int and 100 <= status <= 599:
-            shape["expected_status"] = status
-        else:
-            # Unknown expectations cannot be replaced with a measured HTTP result.
-            # Existing client behavior is preserved but explicitly remains unqualified.
-            shape["expected_status_source"] = "inherited_client_check_not_oracle"
-        host.write(destination / "shape.json", shape)
-        fixture_binding = host.seal_tree(destination) | {"target": "/mnt/fixtures"}
-        updated = copy.deepcopy(spec)
-        updated["bindings"] = [fixture_binding if item["target"] == "/mnt/fixtures" else copy_binding(item)
-                               for item in spec["bindings"]]
-        spec_path = destination.parent / (label + "-admission.json")
-        host.write(spec_path, updated)
-        spec_path.chmod(0o444)
-        controller_module.read_spec(spec_path)
-        matrix.append({"label": label, "route": row["route"], "spec": str(spec_path),
-                       "original_case_ids": [identity], "expected_http_status": status,
-                       "expected_target_backend": shape.get("target_backend", True),
-                       "qualification": "unreviewed_capture_input", "source_review": review_ref,
-                       "oracle_review_sha256": review_ref["sha256"],
-                       "approved_source_oracle": oracle, "original_shape": reference(shape_path),
-                       "original_admission": admission_ref})
-    result = {"parent_sha": next(iter(parents)), "controller": str(new_controller),
+    for index, prepared_row in enumerate(prepared):
+        matrix.append(materialize_case(run, index, prepared_row, copied_bindings, controller_module))
+    result = {"parent_sha": parent_sha, "controller": str(new_controller),
               "controller_sha256": host.sha(new_controller), "controller_original_sha256": host.OLD_CONTROLLER_SHA,
               "admission_sha256": host.ADMISSION_SHA, "baseline": reference(args.baseline),
               "qualification": "unreviewed_original_id_capture_inputs", "host_launched": False,

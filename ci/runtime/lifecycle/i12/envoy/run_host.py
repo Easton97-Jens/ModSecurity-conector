@@ -71,6 +71,14 @@ def controller_packets(stdout):
     return packets, errors
 
 
+def result_exit_code(process_code, timeout_state, packet_errors):
+    if timeout_state['outer_timeout']:
+        return 124
+    if packet_errors:
+        return 125
+    return process_code
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--matrix', type=Path, required=True)
@@ -96,13 +104,14 @@ def main():
         # Outer timeout leaves that normal controller cleanup time to finish.
         process = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
         out, err, timeout_state = communicate_bounded(process, identity(process.pid))
-        stdout, stderr = out.decode(errors='replace'), err.decode(errors='replace')
+        stdout = out.decode(errors='replace')
         output = args.output.parent / (args.output.stem + '-' + case['label'])
         output.with_suffix('.stdout').write_bytes(out)
         output.with_suffix('.stderr').write_bytes(err)
         packets, packet_errors = controller_packets(stdout)
+        exit_code = result_exit_code(process.returncode, timeout_state, packet_errors)
         record = {'case': case, 'argv': argv, 'started_ns': started, 'finished_ns': time.time_ns(),
-                  'exit_code': 124 if timeout_state['outer_timeout'] else (125 if packet_errors else process.returncode),
+                  'exit_code': exit_code,
                   'process_exit_code': process.returncode, 'timeout_state': timeout_state,
                   'controller_packet_parse_errors': packet_errors,
                   'controller_result': packets[-1] if packets else None,

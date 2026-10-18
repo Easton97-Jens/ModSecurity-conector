@@ -18,7 +18,6 @@ import sys
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[4]
-RUNROOT = Path('/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015')
 ALLOWED = frozenset((
     'I12::envoy-ext-proc::NEED-request-streaming',
     'I12::envoy-ext-proc::NEED-response-streaming',
@@ -29,7 +28,18 @@ sys.path.insert(0, str(HERE))
 import review_runs as REVIEW
 import evidence_io as EVIDENCE
 
-READ_ROOTS = (REPO, RUNROOT, Path('/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle'))
+SHAPE_FILE = 'shape.json'
+BACKEND_RECEIPTS = 'backend/receipts.jsonl'
+STORAGE = EVIDENCE.configured_storage(required=False)
+RUNROOT = STORAGE / 'runs/i12-envoy-410-20261015' if STORAGE is not None else None
+READ_ROOTS = (REPO,) + ((RUNROOT, STORAGE / 'runs/e2e/20261014T182400Z-pr410-oracle-lifecycle')
+                        if STORAGE is not None else ())
+
+
+def require_runroot():
+    if RUNROOT is None:
+        raise ValueError('CODEX_PROJECT_STATE configuration required for Envoy evidence operations')
+    return RUNROOT
 
 
 def shared_validator():
@@ -75,10 +85,24 @@ def verify_ref(ref):
     return actual
 
 
+def require_ancestor_owner(directory):
+    if os.fstat(directory).st_uid not in (0, os.geteuid()):
+        raise ValueError('output authority rejected')
+
+
+def require_output_directory(directory, private=False):
+    status = os.fstat(directory)
+    mask = 0o077 if private else 0o022
+    if status.st_uid != os.geteuid() or stat.S_IMODE(status.st_mode) & mask:
+        message = 'private task output root required' if private else 'output directory authority rejected'
+        raise ValueError(message)
+
+
 def write(path, value):
+    runroot = require_runroot()
     target = Path(path)
     try:
-        relative = target.relative_to(RUNROOT)
+        relative = target.relative_to(runroot)
     except ValueError:
         raise ValueError('output must be a new task-owned external file')
     parts = relative.parts
@@ -87,15 +111,12 @@ def write(path, value):
     payload = (json.dumps(value, indent=2, sort_keys=True) + '\n').encode()
     directory = os.open('/', os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
     try:
-        for part in RUNROOT.parts[1:]:
+        for part in runroot.parts[1:]:
             child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=directory)
             os.close(directory)
             directory = child
-            if os.fstat(directory).st_uid not in (0, os.geteuid()):
-                raise ValueError('output authority rejected')
-        root_status = os.fstat(directory)
-        if root_status.st_uid != os.geteuid() or stat.S_IMODE(root_status.st_mode) & 0o077:
-            raise ValueError('private task output root required')
+            require_ancestor_owner(directory)
+        require_output_directory(directory, private=True)
         for part in parts[:-1]:
             try:
                 os.mkdir(part, mode=0o700, dir_fd=directory)
@@ -104,9 +125,7 @@ def write(path, value):
             child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=directory)
             os.close(directory)
             directory = child
-            status = os.fstat(directory)
-            if status.st_uid != os.geteuid() or stat.S_IMODE(status.st_mode) & 0o022:
-                raise ValueError('output directory authority rejected')
+            require_output_directory(directory)
         descriptor = os.open(parts[-1], os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
                              0o600, dir_fd=directory)
         with os.fdopen(descriptor, 'wb') as output:
@@ -138,13 +157,17 @@ def identity(record, shape):
     if (oracle is None or canonical(oracle) != canonical(shape.get('approved_source_oracle'))
             or canonical(oracle) != canonical(record['case'].get('approved_source_oracle'))):
         raise ValueError('independently specified source oracle differs from executed fixture')
-    for ref in matches[0].get('source_refs', []):
+    verify_source_refs(matches[0].get('source_refs', []))
+    return original, route, oracle, review_ref
+
+
+def verify_source_refs(refs):
+    for ref in refs:
         path = Path(ref['path'])
         physical = path if path.is_absolute() else REPO / path
         verified = verify_ref(dict(ref, path=str(physical)))
         if type(ref.get('line')) is not int or not 1 <= ref['line'] <= len(read_bytes(verified['path']).splitlines()):
             raise ValueError('source reference line is not physically bounded')
-    return original, route, oracle, review_ref
 
 
 def verify_fixture_binding(row, fixture, shape, oracle):
@@ -155,7 +178,7 @@ def verify_fixture_binding(row, fixture, shape, oracle):
         raise ValueError('original source oracle lacks physical fixture binding')
     for item in inputs:
         verify_ref(item)
-    bound_shapes = [Path(item['path']) for item in inputs if Path(item['path']).name == 'shape.json']
+    bound_shapes = [Path(item['path']) for item in inputs if Path(item['path']).name == SHAPE_FILE]
     if len(bound_shapes) != 1:
         raise ValueError('selected original needs exactly one bound fixture shape')
     old_root = bound_shapes[0].parent
@@ -179,7 +202,7 @@ def verify_fixture_binding(row, fixture, shape, oracle):
     verified = []
     for name, path in old_files.items():
         old_ref, new_ref = reference(path), reference(new_files[name])
-        if str(name) != 'shape.json' and old_ref['sha256'] != new_ref['sha256']:
+        if str(name) != SHAPE_FILE and old_ref['sha256'] != new_ref['sha256']:
             raise ValueError('executed bound fixture bytes differ: ' + str(name))
         verified.extend((old_ref, new_ref))
     return verified
@@ -190,6 +213,15 @@ def predicates(summary, oracle):
     checks = {}
     def check(name, value):
         checks[name] = value is True
+    identity_predicates(summary, check)
+    client_predicates(summary, oracle, check)
+    body_backend_predicates(summary, oracle, check)
+    native_predicates(summary, oracle, check)
+    terminal_predicates(summary, oracle, check)
+    return checks
+
+
+def identity_predicates(summary, check):
     check('physical_integrity', summary.get('artifact_integrity_issues') == [])
     check('terminal_runner', summary.get('runner_exit_code') == 0)
     commands = summary.get('command_exit_codes', {})
@@ -216,6 +248,9 @@ def predicates(summary, oracle):
         snapshot is not None and all(snapshot.get(name, {}).get('matches_build_manifest') is True for name in ('engine', 'envoy'))
         and snapshot['engine'].get('sdk_matches_native_build') is True
         for snapshot in summary.get('loaded_images', {}).values()) and len(summary.get('loaded_images', {})) == 3)
+
+
+def client_predicates(summary, oracle, check):
     for role in ('target', 'neighbor'):
         client = summary.get('clients', {}).get(role, {})
         check(role + '_client', client.get('process_exit') == 0 and client.get('error_type') is None
@@ -231,6 +266,9 @@ def predicates(summary, oracle):
             auth = summary.get('grpc_transport', {}).get(role, {}).get('authorization', {})
             check(role + '_explicit_authorization_status', auth.get('remote_grpc_status') == 0
                   and auth.get('successful_grpc_completion') is True)
+
+
+def body_backend_predicates(summary, oracle, check):
     target = summary.get('clients', {}).get('target', {})
     check('client_exact_body', target.get('actual_request_send_bytes') == oracle['request_bytes']
           and target.get('response_body_bytes') == oracle['response_bytes']
@@ -241,6 +279,9 @@ def predicates(summary, oracle):
     check('backend_payloads', len(backend.get('requests', [])) == 2
           and all(row.get('request_body_hash_verified') is True and row.get('response_body_hash_verified') is True
                   for row in backend.get('requests', [])))
+
+
+def native_predicates(summary, oracle, check):
     native = summary.get('native', {})
     scopes = native.get('scopes', [])
     check('independent_native_scopes', native.get('verified_allocation_scope_count') == 2 and len(scopes) == 2)
@@ -248,35 +289,46 @@ def predicates(summary, oracle):
         row.get('invalid') is False and row.get('pending_calls') == 0 and row.get('live_mappings') == 0
         for row in native.get('observer_states', [])))
     if scopes:
-        scope = scopes[0]
-        counts = scope['observed_return_counts']
-        check('native_phases_once', all(counts.get('native_process_' + phase) == 1
-              for phase in ('request_headers', 'request_body', 'response_headers', 'response_body')))
-        check('native_finish_free', all(counts.get(name) == 1 for name in (
-            'native_cleanup', 'native_process_logging', 'runtime_destroy', 'runtime_finish', 'common_cleanup'))
-              and scope.get('completed_transition_count') == 1 and counts.get('common_finish') == 2)
-        returns = scope.get('return_result_counts', {})
-        check('no_native_intervention', returns.get('native_intervention') == {'0': counts.get('native_intervention')}
-              and isinstance(counts.get('native_intervention'), int) and counts['native_intervention'] > 0)
-        for direction, label in ((0, 'request'), (1, 'response')):
-            calls = [row for row in scope.get('typed_body_callbacks', [])
-                     if row['operation'] == 1 and row['response_direction'] == direction]
-            check(label + '_callbacks_bytes_eos', bool(calls)
-                  and sum(row['body_bytes'] for row in calls) == oracle[label + '_bytes']
-                  and sum(row['eos_argument'] is True for row in calls) == oracle[label + '_eos_count']
-                  and calls[-1]['eos_argument'] is True)
-            expected_calls = 3 if direction == 1 or summary.get('route') == 'envoy-ext-proc' else 1
-            check(label + '_exact_callback_count', len(calls) == expected_calls
-                  and counts.get('runtime_append_' + label + '_body_chunk') == expected_calls
-                  and counts.get('native_append_' + label + '_body') == (2 if expected_calls == 3 else 1)
-                  and all(sum(row['operation'] == operation and row['response_direction'] == direction
-                              for row in scope.get('typed_body_callbacks', [])) == 1 for operation in (3, 4)))
-            check(label + '_runtime_eos', scope.get('explicit_runtime_eos_handoff_counts', {}).get(label + '_body_finish') == 1)
-        check('commit_recorded', any(row['state'].get('response_committed') == 1
-                                    for row in scope.get('contract_state_samples', [])))
-        if summary.get('route') != 'envoy-ext-proc':
-            check('single_successful_companion_claim', sum(row['operation'] == 12 and row['claim_succeeded'] is True
-                  for row in scope.get('typed_body_callbacks', [])) == 1)
+        native_scope_predicates(scopes[0], summary.get('route'), oracle, check)
+
+
+def native_scope_predicates(scope, route, oracle, check):
+    counts = scope['observed_return_counts']
+    check('native_phases_once', all(counts.get('native_process_' + phase) == 1
+          for phase in ('request_headers', 'request_body', 'response_headers', 'response_body')))
+    check('native_finish_free', all(counts.get(name) == 1 for name in (
+        'native_cleanup', 'native_process_logging', 'runtime_destroy', 'runtime_finish', 'common_cleanup'))
+          and scope.get('completed_transition_count') == 1 and counts.get('common_finish') == 2)
+    returns = scope.get('return_result_counts', {})
+    check('no_native_intervention', returns.get('native_intervention') == {'0': counts.get('native_intervention')}
+          and isinstance(counts.get('native_intervention'), int) and counts['native_intervention'] > 0)
+    for direction, label in ((0, 'request'), (1, 'response')):
+        direction_predicates(scope, route, oracle, check, direction, label)
+    check('commit_recorded', any(row['state'].get('response_committed') == 1
+                                for row in scope.get('contract_state_samples', [])))
+    if route != 'envoy-ext-proc':
+        check('single_successful_companion_claim', sum(row['operation'] == 12 and row['claim_succeeded'] is True
+              for row in scope.get('typed_body_callbacks', [])) == 1)
+
+
+def direction_predicates(scope, route, oracle, check, direction, label):
+    counts = scope['observed_return_counts']
+    calls = [row for row in scope.get('typed_body_callbacks', [])
+             if row['operation'] == 1 and row['response_direction'] == direction]
+    check(label + '_callbacks_bytes_eos', bool(calls)
+          and sum(row['body_bytes'] for row in calls) == oracle[label + '_bytes']
+          and sum(row['eos_argument'] is True for row in calls) == oracle[label + '_eos_count']
+          and calls[-1]['eos_argument'] is True)
+    expected_calls = 3 if direction == 1 or route == 'envoy-ext-proc' else 1
+    check(label + '_exact_callback_count', len(calls) == expected_calls
+          and counts.get('runtime_append_' + label + '_body_chunk') == expected_calls
+          and counts.get('native_append_' + label + '_body') == (2 if expected_calls == 3 else 1)
+          and all(sum(row['operation'] == operation and row['response_direction'] == direction
+                      for row in scope.get('typed_body_callbacks', [])) == 1 for operation in (3, 4)))
+    check(label + '_runtime_eos', scope.get('explicit_runtime_eos_handoff_counts', {}).get(label + '_body_finish') == 1)
+
+
+def terminal_predicates(summary, oracle, check):
     check('positive_source_rule', summary.get('native_logs', {}).get('native-audit', {}).get(
         'logged_numeric_rule_id_counts', {}).get(str(oracle.get('rule_id') or oracle.get('fixture_p2_probe_rule', 1900032))) == 1)
     check('positive_mime_p4_body_rule', summary.get('native_logs', {}).get('native-audit', {}).get(
@@ -285,7 +337,6 @@ def predicates(summary, oracle):
     check('neighbor_stable_descriptors', bool(after.get('after-target')) and bool(after.get('after-neighbor'))
           and all(after['after-target'][name]['fd_count'] == after['after-neighbor'][name]['fd_count']
                   for name in ('backend', 'engine', 'envoy')))
-    return checks
 
 
 def expected_contract(oracle, shape):
@@ -337,30 +388,22 @@ def gitlinks(parent):
     return framework, mrts
 
 
-def stage_one(record, parent, runs_path, helpers, output):
-    shared = shared_validator()
-    REVIEW.BINDING_CACHE.clear()
-    transport, capture, _ = REVIEW.parser_modules(helpers)
-    summary = REVIEW.review_run(record, transport, capture, parent)
-    if summary.get('observation_state') != 'driver_result_observed':
-        raise ValueError('physical run is not terminal and safely handed back')
-    attempt = Path(summary['attempt'])
-    data = attempt / 'data'
-    spec = load(record['case']['spec'])
-    fixture = Path(next(row['source'] for row in spec['bindings'] if row['target'] == '/mnt/fixtures'))
-    shape = load(fixture / 'shape.json')
-    original, route, oracle, source_ref = identity(record, shape)
-    review_document = load(source_ref['path'])
-    review_row = next(row for row in review_document.get('records', review_document.get('rows', []))
-                      if row['run_scoped_case_id'] == original)
-    bound_fixture_refs = verify_fixture_binding(review_row, fixture, shape, oracle)
-    native_rows = [json.loads(line) for line in read_bytes(data / 'runtime/native-lifecycle.jsonl').splitlines()]
-    build = load(data / 'build-manifest.json')
-    if build['case'] != shape['case_id'] or any(row['case'] != shape['case_id'] or row['profile'] != route
-                                            or row['run'] != build['run'] for row in native_rows):
-        raise ValueError('native alias does not match the sealed singleton original mapping')
-    expected = expected_contract(oracle, shape)
-    expected.update(fixture_probe_rules(fixture))
+def event_checks(route, adapter, shape, tids, checks):
+    if route == 'envoy-ext-proc':
+        selected_events = [row for row in adapter if row.get('transaction_id') == shape['target']]
+        checks['physical_terminal_once'] = len(selected_events) == 1 and selected_events[0].get('event') == 'ext_proc_stream_complete'
+        event_meta = {'selected_terminal_count': len(selected_events), 'kind': 'ext_proc_stream_complete'}
+    else:
+        selected_events = [row for row in adapter if row.get('decision_id') in tids]
+        checks['physical_terminal_once'] = sum(row.get('phase') == 'terminal' for row in selected_events) == 1
+        checks['physical_lease_order'] = [row.get('phase') for row in selected_events] == [
+            'P1', 'P2', 'lease', 'claim', 'P3', 'P4', 'neutral_outcome', 'terminal']
+        event_meta = {'selected_terminal_count': sum(row.get('phase') == 'terminal' for row in selected_events),
+                      'phases': [row.get('phase') for row in selected_events]}
+    return event_meta
+
+
+def scoped_checks(summary, record, expected, original, shape, native_rows, data):
     checks = predicates(summary, expected)
     checks['actual_outer_process_terminal'] = (record.get('process_exit_code') == 0
         and type(record.get('started_ns')) is int and type(record.get('finished_ns')) is int
@@ -375,41 +418,27 @@ def stage_one(record, parent, runs_path, helpers, output):
     client = summary['clients']['target']
     checks['native_selected_client_interval'] = bool(scoped) and all(
         client['started_monotonic_ns'] <= row['monotonic_ns'] <= client['completed_monotonic_ns'] for row in scoped)
-    backend = [json.loads(line) for line in read_bytes(data / 'backend/receipts.jsonl').splitlines()]
+    backend = [json.loads(line) for line in read_bytes(data / BACKEND_RECEIPTS).splitlines()]
     selected = [row for row in backend if row.get('request_id') == shape['target'] and row.get('path') == '/' + shape['target']]
     checks['exact_backend_client_payload_correlation'] = len(selected) == 1 and all(
         selected[0].get(field) == expected[field] for field in ('request_bytes', 'request_sha256', 'response_bytes', 'response_sha256'))
     callbacks = scope['typed_body_callbacks']
-    if original.endswith('NEED-request-streaming') or original.endswith('NEED-response-streaming'):
+    if original.endswith(('NEED-request-streaming', 'NEED-response-streaming')):
         direction = 0 if original.endswith('NEED-request-streaming') else 1
         body_calls = [row for row in callbacks if row['operation'] == 1 and row['response_direction'] == direction]
         checks['multiple_native_host_chunks'] = len([row for row in body_calls if row['body_bytes'] > 0]) >= 2
     adapter = [json.loads(line) for line in read_bytes(data / 'runtime/adapter-events.jsonl').splitlines()]
-    if route == 'envoy-ext-proc':
-        selected_events = [row for row in adapter if row.get('transaction_id') == shape['target']]
-        checks['physical_terminal_once'] = len(selected_events) == 1 and selected_events[0].get('event') == 'ext_proc_stream_complete'
-        event_meta = {'selected_terminal_count': len(selected_events), 'kind': 'ext_proc_stream_complete'}
-    else:
-        selected_events = [row for row in adapter if row.get('decision_id') in tids]
-        checks['physical_terminal_once'] = sum(row.get('phase') == 'terminal' for row in selected_events) == 1
-        checks['physical_lease_order'] = [row.get('phase') for row in selected_events] == [
-            'P1', 'P2', 'lease', 'claim', 'P3', 'P4', 'neutral_outcome', 'terminal']
-        event_meta = {'selected_terminal_count': sum(row.get('phase') == 'terminal' for row in selected_events),
-                      'phases': [row.get('phase') for row in selected_events]}
+    event_meta = event_checks(summary['route'], adapter, shape, tids, checks)
     checks['no_physical_first_technical_cause'] = all(value.get('first_physical_technical_error') is None
                                                     for value in summary['events'].values())
-    framework, mrts = gitlinks(parent)
-    refs = {name: reference(data / name) for name in summary['physical_files']}
-    control = reference(attempt / 'controller-result.json')
-    shape_ref = reference(fixture / 'shape.json')
-    proof_paths = {
-        'loaded_image': data / 'before-request.json', 'isolation_receipt': attempt / 'controller-result.json',
-        'source_manifest': data / 'build-manifest.json', 'effective_configuration': fixture / 'shape.json',
-        'host_callback': data / 'runtime/host-lifecycle.jsonl', 'source_contract': Path(source_ref['path']),
-        'client_process': data / 'client/target.receipt.json', 'backend_process': data / 'backend/receipts.jsonl',
-        'physical_event_sink': data / 'runtime/adapter-events.jsonl', 'native_api': data / 'runtime/native-lifecycle.jsonl',
-        'native_debug': data / 'runtime/native-debug.log', 'cleanup_observer': data / 'result.json',
-    }
+    return checks, tids, cids, event_meta
+
+
+def observation_values(summary, checks, tids, cids, event_meta, expected):
+    scope = summary['native']['scopes'][0]
+    route = summary['route']
+    client = summary['clients']['target']
+    callbacks = scope['typed_body_callbacks']
     values = {
         'product_host_identity': summary['loaded_images'], 'source_config_binding': summary['source_equality'],
         'capability': {'route': route, 'typed_callbacks': scope['typed_host_operation_counts'], 'strict_p4_claimed': False},
@@ -443,6 +472,19 @@ def stage_one(record, parent, runs_path, helpers, output):
         'host_action': {'visible_status': client['http_status'], 'typed_callbacks': callbacks},
         'physical_event_order': event_meta, 'terminal_event_count': event_meta,
     }
+    return values
+
+
+def make_observations(shared, data, fixture, source_ref, values, refs, checks):
+    attempt = data.parent
+    proof_paths = {
+        'loaded_image': data / 'before-request.json', 'isolation_receipt': attempt / 'controller-result.json',
+        'source_manifest': data / 'build-manifest.json', 'effective_configuration': fixture / SHAPE_FILE,
+        'host_callback': data / 'runtime/host-lifecycle.jsonl', 'source_contract': Path(source_ref['path']),
+        'client_process': data / 'client/target.receipt.json', 'backend_process': data / BACKEND_RECEIPTS,
+        'physical_event_sink': data / 'runtime/adapter-events.jsonl', 'native_api': data / 'runtime/native-lifecycle.jsonl',
+        'native_debug': data / 'runtime/native-debug.log', 'cleanup_observer': data / 'result.json',
+    }
     observations = {name: {'applicable': True, 'value': values[name],
         'evidence': [reference(proof_paths[role], role) for role in sorted(roles)]}
         for name, roles in shared.ROLES.items()}
@@ -452,12 +494,47 @@ def stage_one(record, parent, runs_path, helpers, output):
                 'selected-target-client.command.json', 'separate-neighbor-client.command.json', 'client/neighbor.receipt.json'))
         if 'backend_process' in roles:
             observations[name]['evidence'].extend(reference(data / relative, 'backend_process') for relative in refs
-                if relative.startswith('backend/') and relative != 'backend/receipts.jsonl')
+                if relative.startswith('backend/') and relative != BACKEND_RECEIPTS)
         if 'host_callback' in roles:
             observations[name]['evidence'].append(reference(data / 'envoy.stderr', 'host_callback'))
     if not checks['exact_backend_request_count']:
         observations['backend_request_count'] = {'applicable': True, 'value': None,
             'reason': 'Only completed backend receipts exist; absent early request-line capture cannot exclude partial upstream requests.'}
+    return observations
+
+
+def stage_one(record, parent, runs_path, helpers, output):
+    runroot = require_runroot()
+    shared = shared_validator()
+    REVIEW.BINDING_CACHE.clear()
+    transport, capture, _ = REVIEW.parser_modules(helpers)
+    summary = REVIEW.review_run(record, transport, capture, parent)
+    if summary.get('observation_state') != 'driver_result_observed':
+        raise ValueError('physical run is not terminal and safely handed back')
+    attempt = Path(summary['attempt'])
+    data = attempt / 'data'
+    spec = load(record['case']['spec'])
+    fixture = Path(next(row['source'] for row in spec['bindings'] if row['target'] == '/mnt/fixtures'))
+    shape = load(fixture / SHAPE_FILE)
+    original, route, oracle, source_ref = identity(record, shape)
+    review_document = load(source_ref['path'])
+    review_row = next(row for row in review_document.get('records', review_document.get('rows', []))
+                      if row['run_scoped_case_id'] == original)
+    bound_fixture_refs = verify_fixture_binding(review_row, fixture, shape, oracle)
+    native_rows = [json.loads(line) for line in read_bytes(data / 'runtime/native-lifecycle.jsonl').splitlines()]
+    build = load(data / 'build-manifest.json')
+    if build['case'] != shape['case_id'] or any(row['case'] != shape['case_id'] or row['profile'] != route
+                                            or row['run'] != build['run'] for row in native_rows):
+        raise ValueError('native alias does not match the sealed singleton original mapping')
+    expected = expected_contract(oracle, shape)
+    expected.update(fixture_probe_rules(fixture))
+    checks, tids, cids, event_meta = scoped_checks(summary, record, expected, original, shape, native_rows, data)
+    framework, mrts = gitlinks(parent)
+    refs = {name: reference(data / name) for name in summary['physical_files']}
+    control = reference(attempt / 'controller-result.json')
+    shape_ref = reference(fixture / SHAPE_FILE)
+    values = observation_values(summary, checks, tids, cids, event_meta, expected)
+    observations = make_observations(shared, data, fixture, source_ref, values, refs, checks)
     packet = {'schema': 'i12.envoy.original-packet.v1', 'reviewed_by': 'pending_root_review',
         'run_scoped_case_id': original, 'leg_id': route, 'run_id': build['run'], 'parent_sha': parent,
         'framework_sha': framework, 'mrts_sha': mrts, 'effective_config_sha256': shape_ref['sha256'],
@@ -476,7 +553,7 @@ def stage_one(record, parent, runs_path, helpers, output):
         'reproduction': {'runs_path': str(runs_path), 'record': record, 'helpers': str(helpers)},
         'closure_contract': 'observed scoped local HTTP2 reset2; remote Process grpcstatus unknown; never remote OK'}
     for name, observation in observations.items():
-        shared.measurement(name, observation, Path(output) if output is not None else RUNROOT / 'unwritten-packet.json')
+        shared.measurement(name, observation, Path(output) if output is not None else runroot / 'unwritten-packet.json')
     if output is None:
         return packet
     write(output, packet)
@@ -485,9 +562,10 @@ def stage_one(record, parent, runs_path, helpers, output):
 
 
 def prepare(runs_path, output_root, original_ids=None, helpers=None):
+    runroot = require_runroot()
     document = load(runs_path)
     selected = ALLOWED if original_ids is None else frozenset(original_ids)
-    if not selected <= ALLOWED:
+    if selected - ALLOWED:
         raise ValueError('unapproved original ID scope')
     outputs = []
     seen = set()
@@ -500,7 +578,7 @@ def prepare(runs_path, output_root, original_ids=None, helpers=None):
         seen.add(ids[0])
         output = Path(output_root) / (ids[0].replace('::', '__') + '.json')
         outputs.append(stage_one(record, document['parent_sha'], Path(runs_path),
-                                 Path(helpers or RUNROOT / 'native-v2/source/.i12-capture/envoy'), output))
+                                 Path(helpers or runroot / 'native-v2/source/.i12-capture/envoy'), output))
     return {'packets': outputs, 'missing_original_ids': sorted(selected - seen), 'new_lifecycle_pass': 0}
 
 

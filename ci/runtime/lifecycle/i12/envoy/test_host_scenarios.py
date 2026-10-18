@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 import host_scenarios as HOST
+import prepare_native as NATIVE
 from transport import terminal
 
 
@@ -41,12 +42,13 @@ class CaptureControls(unittest.TestCase):
             self.assertIn("body != bytes.fromhex(shapes[self.path][0])", backend)
 
     def test_changed_capture_anchor_refused(self):
+        changed = self.content('client.py').replace('connection.sendall(request)', 'connection.send(request)')
         with self.assertRaises(ValueError):
-            HOST.client_source(self.content('client.py').replace('connection.sendall(request)', 'connection.send(request)'))
+            HOST.client_source(changed)
 
     @patch.object(HOST.source_inventory, 'verify')
     def test_substituted_build_source_and_binary_refused(self, inventory):
-        root = HOST.STORAGE if HOST.STORAGE.is_dir() else None
+        root = HOST.STORAGE if HOST.STORAGE is not None and HOST.STORAGE.is_dir() else None
         with tempfile.TemporaryDirectory(prefix='envoy-binding-', dir=root) as name:
             directory = Path(name)
             source = directory / 'source'
@@ -60,6 +62,11 @@ class CaptureControls(unittest.TestCase):
                 'capture_application': {'exact_written_sha256': {'capture.c': HOST.sha(native)}}}
             HOST.verify_build(source, directory, proof, 'a' * 40)
             inventory.assert_called_once_with(source, proof)
+            proof['binaries']['other/engine'] = proof['binaries']['build/engine']
+            proof['binaries']['build/engine'] = '0' * 64
+            with self.assertRaisesRegex(ValueError, 'binary differs'):
+                HOST.verify_build(source, directory, proof, 'a' * 40)
+            proof['binaries'] = {'build/engine': HOST.sha(binary)}
             with self.assertRaises(ValueError):
                 HOST.verify_build(source, directory, proof, 'b' * 40)
             binary.write_bytes(b'substituted')
@@ -80,19 +87,21 @@ class CaptureControls(unittest.TestCase):
                 with self.assertRaises(ValueError): HOST.pin_namespace(boot, matcher)
             close.assert_called_once_with(7)
             opening.assert_called_with('/proc/123/ns/pid', HOST.os.O_RDONLY)
+        matcher = Mock(return_value=True)
         with patch.object(HOST.os, 'open', return_value=7), patch.object(HOST.os, 'fstat', return_value=SimpleNamespace(st_ino=999)), patch.object(HOST.os, 'close') as close:
-            with self.assertRaises(ValueError): HOST.pin_namespace(boot, Mock(return_value=True))
+            with self.assertRaises(ValueError): HOST.pin_namespace(boot, matcher)
             close.assert_called_once_with(7)
         with patch.object(HOST.os, 'open', side_effect=FileNotFoundError), patch.object(HOST.os, 'close') as close:
-            with self.assertRaises(FileNotFoundError): HOST.pin_namespace(boot, Mock(return_value=True))
+            with self.assertRaises(FileNotFoundError): HOST.pin_namespace(boot, matcher)
             close.assert_not_called()
 
     @unittest.skipUnless(Path('/usr/lib/x86_64-linux-gnu/libmodsecurity.so').is_file(), 'native SDK unavailable')
     def test_actual_sdk_rejects_incomplete_chained_rule(self):
         good = 'SecRule REQUEST_URI "@streq /target" "id:1900001,phase:3,pass,chain"\nSecRule RESPONSE_HEADERS:Content-Type "@contains text/plain" "t:none"\nSecRule RESPONSE_BODY "@contains marker" "id:1900002,phase:4,pass"\n'
         HOST.check_rules(good)
+        incomplete = good.replace(' "t:none"', '')
         with self.assertRaises(ValueError):
-            HOST.check_rules(good.replace(' "t:none"', ''))
+            HOST.check_rules(incomplete)
 
     def test_explicit_status_is_required_even_with_local_close_zero(self):
         for code in (0, 2, None):

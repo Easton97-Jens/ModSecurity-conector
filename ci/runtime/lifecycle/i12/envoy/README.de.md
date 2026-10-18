@@ -4,9 +4,9 @@
 
 Diese reine Envoy-Testerweiterung nutzt die vorhandene Capture-Variante `envoy`
 und den gemeinsamen nativen Observer. Der [Taskbericht](../../../../../reports/testing/i12-envoy-host-evidence-20261015.de.md)
-ist **PARTIAL**: 284 Original-IDs bleiben erhalten. Drei neu freigegebene
-Nachweispakete erhöhen den aktuellen Lifecycle-PASS-Bestand auf sechs;
-119 ursprüngliche Oracles bleiben offen. Die zentrale Baseline bleibt
+ist **PARTIAL**: 284 Original-IDs bleiben erhalten. Vier neu freigegebene
+Nachweispakete erhöhen den aktuellen Lifecycle-PASS-Bestand auf sieben;
+118 ursprüngliche Oracles bleiben offen. Die zentrale Baseline bleibt
 unverändert. Synthetische Hostproben qualifizieren Original-IDs nicht automatisch.
 
 Alle 125 Original-Oracles haben einzelne Quellreviews. Die 33 neuen
@@ -29,6 +29,8 @@ Hostabnahme getrennt.
 | `transport.py` | Unterscheidet tatsächlichen lokalen HTTP/2-Reset von explizitem Remote-gRPC-Erfolg |
 | `qualify_originals.py` | Bereitet vier ausgewählte Originalfälle vor; Einzelfreigabe verlangt exakte Fixturegleichheit, frische Reproduktion aller 35 Nachweisfelder und den gemeinsamen Validator |
 | `write_report.py` | Erzeugt nur den eigenen EN/DE-Taskbericht und das exakte ID-JSON; ändert keine gemeinsamen Generatoren oder Ledger |
+
+Ein neuer Companion-NEED-allow-Retake bindet vor Ausführung ein separates ergänzendes Quellreview. Seine frühe Backend-Request-Line-Erfassung belegt genau einen Ziel- und einen Nachbarrequest; alte Receipts mit unterer Zählgrenze bleiben unverändert.
 
 ## Validierung
 

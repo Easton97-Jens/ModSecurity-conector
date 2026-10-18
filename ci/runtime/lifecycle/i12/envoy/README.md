@@ -4,8 +4,8 @@
 
 This Envoy-only test extension reuses the existing `envoy` capture variant and
 common native observer. The [task report](../../../../../reports/testing/i12-envoy-host-evidence-20261015.md)
-is **PARTIAL**: 284 original IDs are preserved. Three newly approved packets
-raise the current lifecycle PASS to six; 119 original oracles remain open.
+is **PARTIAL**: 284 original IDs are preserved. Four newly approved packets
+raise the current lifecycle PASS to seven; 118 original oracles remain open.
 The central baseline stays unchanged. Synthetic host scenarios do not
 automatically qualify original IDs.
 
@@ -28,6 +28,8 @@ source proposals remain separate from canonical resolution and host acceptance.
 | `transport.py` | Distinguishes actual local HTTP/2 reset from explicit remote gRPC success |
 | `qualify_originals.py` | Stages four selected original cases; individual approval requires exact fixture equality, fresh reproduction of all 35 proof fields and the shared validator |
 | `write_report.py` | Generates only this task's EN/DE report and exact-ID JSON; does not update shared generators or ledger |
+
+A fresh companion NEED-allow retake binds a separate supplemental source review before execution. Its early backend request-line capture proves exactly one target and one neighbor request; old lower-bound receipts remain unchanged.
 
 ## Validation
 

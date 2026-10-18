@@ -69,6 +69,104 @@ def additional_findings(data, german):
     return lines
 
 
+def qualified_heading(german):
+    return [
+        '',
+        'Exakt qualifizierte IDs:' if german else 'Exact qualified IDs:',
+        ''
+    ]
+
+
+def host_intro(german):
+    return [
+        '',
+        'Die Baseline enthielt 281 IDs ohne vollständige Hostabnahme: 8 reine Konfigurations-PASS und 273 unqualifizierte Fälle. Von den ursprünglichen 125 offenen Oracles waren 3 aufgelöst und 122 offen. Diese Eingaben wurden mit den unveränderten zentralen Validatoren und physischen Quellen erneut geprüft. Neue Qualifikationen stehen separat mit ihren vollständigen Receipts im aktuellen Stand oben.' if german else
+                   'The baseline contained 281 IDs without full host acceptance: 8 configuration-only PASS and 273 unqualified cases. Of the original 125 open oracles, 3 were resolved and 122 open. These inputs were revalidated with the unchanged central validators and physical sources. New qualifications are recorded separately with full receipts in the current state above.',
+        '',
+        '## Neue physische Hostmessungen' if german else '## New physical host measurements',
+        '',
+        'Jede Zeile ist eine gemessene Probe, kein Lifecycle-Verdikt. HTTP/Framing, Transportabschluss, native Phasen und Cleanup bleiben getrennt. Frühere Fehlversuche und Wiederholungen bleiben sichtbar. Bei Envoy ext_proc kann bereits vor einem P2-Deny ein unvollständiger Backendrequest beginnen.' if german else
+         'Each row is a measured probe, not a lifecycle verdict. HTTP/framing, transport closure, native phases and cleanup remain separate. Earlier failed attempts and retakes remain visible. Envoy ext_proc can begin an incomplete backend request before a P2 deny.',
+        '',
+        '| Batch / probe | Route | Controller exit | Target HTTP | Neighbor HTTP | Backend starts | Overlap |'
+    ]
+
+
+def native_identity(data, german):
+    return [
+        '',
+        '`None` bezeichnet fehlende Messung. Ein unterer Backend-Zähler bleibt in JSON ausdrücklich als `request_count_is_lower_bound` gekennzeichnet. Controller-Exit 0 ist keine Oracle-Abnahme; Exit 77 bleibt Nicht-PASS.' if german else
+                   '`None` denotes a missing measurement. A lower-bound backend count remains explicitly marked `request_count_is_lower_bound` in JSON. Controller exit 0 is not oracle acceptance; exit 77 remains non-PASS.',
+        '',
+        '## Native Identität und Nachweiskette' if german else '## Native identity and evidence chain',
+        '',
+        '- Parent: `' + data['parent_sha'] + '`.',
+        '- Envoy: `b579d07d3ad7ee11d32b105e91a5a39ad24718d7/1.39.1/Clean/RELEASE/BoringSSL`.',
+        '- Envoy image SHA256: `002c6e1c69ed0fa0ea381887247cadadfaec9481375fa8d8d2b1731eeabf40b8`.'
+    ]
+
+
+def native_capture(german):
+    return [
+        '- SDK: `ModSecurity v3.0.14 (Linux)`; SHA256 `32257230b8f378987ba1204049dcc1e23927fd44c8778e09d41805ad705c3407`.',
+        '- Go: `go1.27.2`; `go.mod`: `go 1.26.9`; `golang.org/x/net v0.61.0`.',
+        '',
+        'Die frische C17-/C++17-/CGo-Erzeugung nutzt dieselbe Envoy-Capture-Variante und den gemeinsamen Observer. Quellkopie, acht Overlays, geladene Images, effektive Konfiguration, getrennte echte Clients/Backend, native Scopes, tatsächliche EOS-Argumente, P1–P4, Logging/Free, Finish-Aufrufe und physische Eventlogs sind hashgebunden. Pro normaler Transaktion sind native Logging/Free und logischer Finish-Übergang jeweils einmal zu prüfen; zwei idempotente Common-Finish-Aufrufe sind kein doppelter Übergang.' if german else
+         'The fresh C17/C++17/CGo build uses the same Envoy capture variant and common observer. Source copy, eight overlays, loaded images, effective configuration, separate real clients/backend, native scopes, actual EOS arguments, P1–P4, logging/free, Finish calls and physical event logs are hash-bound. A normal transaction needs one native logging/free and one logical Finish transition; two idempotent Common Finish calls are not two transitions.',
+        '',
+        'Eine abgeschlossene HTTP-Entity kann von einem TCP-Reset gefolgt werden. Ein beobachteter lokaler HTTP/2-Reset belegt keinen Remote-`grpc-status`. Fehlt dieser Status, bleibt erfolgreicher gRPC-Abschluss false/unknown. Authorization-Erfolg braucht explizite Trailer und den zugehörigen Streamabschluss.' if german else
+         'A complete HTTP entity can be followed by a TCP reset. An observed local HTTP/2 reset does not prove remote `grpc-status`. With that status absent, successful gRPC completion remains false/unknown. Authorization success requires explicit trailers and the associated stream close.',
+        '',
+        '## Request-Sample und Response-Companion' if german else '## Request sample and response companion'
+    ]
+
+
+def sample_companion_cleanup(german):
+    return [
+        '',
+        '`max_request_bytes` ist die Hostbuffer-Grenze. Die nativen Limitproben verwenden eine vollständige Probe unterhalb der größeren Hostkapazität. Host-413 vor der Engine, verworfene Partial-Metadaten mit technischem gRPC-Fehler, native 403-Intervention und echte Backendwirkung werden getrennt erfasst. Mehrere Client-Schreibvorgänge sind bei Authorization/Check keine mehreren Engine-Bodycallbacks.' if german else
+         '`max_request_bytes` is the host buffer boundary. Native limit probes use a complete sample below the larger host capacity. Host 413 before the engine, rejected partial metadata with a technical gRPC error, native 403 intervention and actual backend effects are recorded separately. Multiple client writes are not multiple engine body callbacks for Authorization/Check.',
+        '',
+        'Der Companion hat eigene Läufe für P3/P4, Streaming, native Response-Limits, fehlende/abgelaufene Leases und Cancellation. Die gleiche HTTP-Receipt qualifiziert Request und Response nicht automatisch gemeinsam. Zeitliche Client-Überlappung belegt nur die beobachtete Parallelität; eine mehrdeutige gRPC-Zuordnung bleibt unbekannt.' if german else
+         'The companion has its own runs for P3/P4, streaming, native response limits, missing/expired leases and cancellation. One shared HTTP receipt does not automatically qualify request and response together. Client timing overlap proves only the observed concurrency; ambiguous gRPC correlation remains unknown.',
+        '',
+        '## Cleanup und Isolation' if german else '## Cleanup and isolation',
+        '',
+        'UID/GID 65534, Capabilities 0, NoNewPrivs 1 sowie private Netzwerk-/PID-/Mount-Namespaces und die Listenergrenzen bleiben erhalten. Ein alter v5-Lauf meldete einen fremden Traefik-Prozess als Survivor; dessen Identität und Namespace-ID sprechen für eine Wiederverwendung der Namespace-ID nach Ende des Envoy-Laufs. Dieser Prozess wurde nicht signalisiert; der ursprüngliche Exit 77 bleibt erhalten. Die Envoy-spezifische Controllerkopie hält jetzt einen positiv an die eigene Init-Identität gebundenen Namespace-FD bis nach Cleanup offen, validiert die Identität vor/nach Open und behandelt nicht belegbare Ownership als Fehler.' if german else
+         'UID/GID 65534, zero capabilities, NoNewPrivs 1, private network/PID/mount namespaces and listener boundaries are preserved. An old v5 run misclassified a foreign Traefik process as a survivor; its identity and namespace inode support inferred namespace-ID reuse after the Envoy run ended. It was not signalled; original exit 77 is retained. The Envoy-specific controller copy now holds a namespace FD positively bound to its own init through cleanup, revalidates identity before/after open and treats unprovable ownership as an error.'
+    ]
+
+
+def verification_limits(german):
+    return [
+        '',
+        '## Verifikation und Grenzen' if german else '## Verification and limits',
+        '',
+        'Native/CGo Go `./...`, Race `./...`, Vet `./...` und 32 gemeinsame native Observer-Kontrollen: PASS. 79 bestehende Vertragskontrollen: PASS mit einem Setup-Skip des separat erfolgreich ausgeführten Observers. Neue Kontrollen prüfen unveränderte IDs/Oracles, physische Hashes, fehlende gRPC-Trailer, Quell-/Binary-Austausch, Backend-Framing und Namespace-Ownership-Rennen. Exakte Kommandos, Ergebnisse und Loghashes stehen in den referenzierten Receipts.' if german else
+         'Native/CGo Go `./...`, race `./...`, vet `./...` and 32 common native observer controls: PASS. 79 existing contract controls: PASS with one setup skip for the observer run successfully separately. New controls cover unchanged IDs/oracles, physical hashes, absent gRPC trailers, substituted source/binaries, backend framing and namespace ownership races. Exact commands, outcomes and log hashes are in the referenced receipts.',
+        '',
+        'Offen bleiben die vollständige unabhängige Oracle-/Original-ID-Abnahme, direkte native MIME-/Charset-Auswahl, vollständig korrelierte parallele gRPC-Terminalstatus, gezielt fehlende/wiederholte Hostcallbacks, alle physischen Event-Sink-Fehler und der vollständige Observer-Stop/Restart-Vertrag. P4 Strict wird nicht als unterstützt oder abgenommen behauptet. Unit-, Native- und Race-Erfolg ersetzen diese Hostnachweise nicht.' if german else
+         'Still open: complete independent oracle/original-ID acceptance, direct native MIME/charset selection, fully correlated concurrent gRPC terminal status, deliberate missing/repeated host callbacks, all physical event-sink failures and the complete observer stop/restart contract. P4 Strict is not claimed supported or accepted. Unit, native and race success do not replace these host proofs.',
+        ''
+    ]
+
+
+def references_heading(german):
+    return [
+        '## Physische Referenzen' if german else '## Physical references',
+        ''
+    ]
+
+
+def storage_footer(german):
+    return [
+        '',
+        'Die Referenzen liegen im task-eigenen externen Speicher; der PR enthält nur Quellcode und bereinigte Metadaten, keine Binaries, Caches, privaten Schlüssel oder Rohpayloads.' if german else
+                   'References reside in task-owned external storage; the PR contains source and sanitized metadata, not binaries, caches, private keys or raw payloads.',
+        ''
+    ]
+
+
 def report(data, german):
     language = f'**Sprache:** [English]({STEM}.md) | Deutsch' if german else f'**Language:** English | [Deutsch]({STEM}.de.md)'
     lines = [('# I12 Envoy: Hostmessungen und verbleibende Abnahme' if german else '# I12 Envoy: host measurements and remaining acceptance'), '', language, '',
@@ -85,54 +183,136 @@ def report(data, german):
         values = [counts['original_ids'], counts['lifecycle_pass'], counts['configuration_only_pass'],
                   counts['without_lifecycle'], counts['original_oracles'], counts['open_oracles']]
         lines.append('| ' + route + ' | ' + ' | '.join(map(str, values)) + ' |')
-    lines += ['', ('Exakt qualifizierte IDs:' if german else 'Exact qualified IDs:'), '']
+    lines += qualified_heading(german)
     for counts in data['current_route_results'].values():
         lines.extend('- `' + identity + '`' for identity in counts['qualified_case_ids'])
-    lines += ['', ('Die Baseline enthielt 281 IDs ohne vollständige Hostabnahme: 8 reine Konfigurations-PASS und 273 unqualifizierte Fälle. Von den ursprünglichen 125 offenen Oracles waren 3 aufgelöst und 122 offen. Diese Eingaben wurden mit den unveränderten zentralen Validatoren und physischen Quellen erneut geprüft. Neue Qualifikationen stehen separat mit ihren vollständigen Receipts im aktuellen Stand oben.' if german else
-                   'The baseline contained 281 IDs without full host acceptance: 8 configuration-only PASS and 273 unqualified cases. Of the original 125 open oracles, 3 were resolved and 122 open. These inputs were revalidated with the unchanged central validators and physical sources. New qualifications are recorded separately with full receipts in the current state above.'), '',
-        ('## Neue physische Hostmessungen' if german else '## New physical host measurements'), '',
-        ('Jede Zeile ist eine gemessene Probe, kein Lifecycle-Verdikt. HTTP/Framing, Transportabschluss, native Phasen und Cleanup bleiben getrennt. Frühere Fehlversuche und Wiederholungen bleiben sichtbar. Bei Envoy ext_proc kann bereits vor einem P2-Deny ein unvollständiger Backendrequest beginnen.' if german else
-         'Each row is a measured probe, not a lifecycle verdict. HTTP/framing, transport closure, native phases and cleanup remain separate. Earlier failed attempts and retakes remain visible. Envoy ext_proc can begin an incomplete backend request before a P2 deny.'), '',
-        '| Batch / probe | Route | Controller exit | Target HTTP | Neighbor HTTP | Backend starts | Overlap |',
-        '| --- | --- | ---: | ---: | ---: | ---: | --- |']
+    lines += host_intro(german)
+    lines.append('| --- | --- | ---: | ---: | ---: | ---: | --- |')
     for item in data['host_measurements']:
         clients = item.get('clients', {})
         status = lambda who: clients.get(who, {}).get('raw_http_status')
         lines.append('| ' + ' | '.join(map(str, [item['batch'] + '/' + item['scenario'], item['route'], item['runner_exit_code'],
             status('target'), status('neighbor'), item.get('backend', {}).get('request_count'), item.get('client_time_overlap_observed')])) + ' |')
-    lines += ['', ('`None` bezeichnet fehlende Messung. Ein unterer Backend-Zähler bleibt in JSON ausdrücklich als `request_count_is_lower_bound` gekennzeichnet. Controller-Exit 0 ist keine Oracle-Abnahme; Exit 77 bleibt Nicht-PASS.' if german else
-                   '`None` denotes a missing measurement. A lower-bound backend count remains explicitly marked `request_count_is_lower_bound` in JSON. Controller exit 0 is not oracle acceptance; exit 77 remains non-PASS.'), '',
-        ('## Native Identität und Nachweiskette' if german else '## Native identity and evidence chain'), '',
-        '- Parent: `' + data['parent_sha'] + '`.',
-        '- Envoy: `b579d07d3ad7ee11d32b105e91a5a39ad24718d7/1.39.1/Clean/RELEASE/BoringSSL`.',
-        '- Envoy image SHA256: `002c6e1c69ed0fa0ea381887247cadadfaec9481375fa8d8d2b1731eeabf40b8`.',
-        '- SDK: `ModSecurity v3.0.14 (Linux)`; SHA256 `32257230b8f378987ba1204049dcc1e23927fd44c8778e09d41805ad705c3407`.',
-        '- Go: `go1.27.2`; `go.mod`: `go 1.26.9`; `golang.org/x/net v0.61.0`.', '',
-        ('Die frische C17-/C++17-/CGo-Erzeugung nutzt dieselbe Envoy-Capture-Variante und den gemeinsamen Observer. Quellkopie, acht Overlays, geladene Images, effektive Konfiguration, getrennte echte Clients/Backend, native Scopes, tatsächliche EOS-Argumente, P1–P4, Logging/Free, Finish-Aufrufe und physische Eventlogs sind hashgebunden. Pro normaler Transaktion sind native Logging/Free und logischer Finish-Übergang jeweils einmal zu prüfen; zwei idempotente Common-Finish-Aufrufe sind kein doppelter Übergang.' if german else
-         'The fresh C17/C++17/CGo build uses the same Envoy capture variant and common observer. Source copy, eight overlays, loaded images, effective configuration, separate real clients/backend, native scopes, actual EOS arguments, P1–P4, logging/free, Finish calls and physical event logs are hash-bound. A normal transaction needs one native logging/free and one logical Finish transition; two idempotent Common Finish calls are not two transitions.'), '',
-        ('Eine abgeschlossene HTTP-Entity kann von einem TCP-Reset gefolgt werden. Ein beobachteter lokaler HTTP/2-Reset belegt keinen Remote-`grpc-status`. Fehlt dieser Status, bleibt erfolgreicher gRPC-Abschluss false/unknown. Authorization-Erfolg braucht explizite Trailer und den zugehörigen Streamabschluss.' if german else
-         'A complete HTTP entity can be followed by a TCP reset. An observed local HTTP/2 reset does not prove remote `grpc-status`. With that status absent, successful gRPC completion remains false/unknown. Authorization success requires explicit trailers and the associated stream close.'), '',
-        ('## Request-Sample und Response-Companion' if german else '## Request sample and response companion'), '',
-        ('`max_request_bytes` ist die Hostbuffer-Grenze. Die nativen Limitproben verwenden eine vollständige Probe unterhalb der größeren Hostkapazität. Host-413 vor der Engine, verworfene Partial-Metadaten mit technischem gRPC-Fehler, native 403-Intervention und echte Backendwirkung werden getrennt erfasst. Mehrere Client-Schreibvorgänge sind bei Authorization/Check keine mehreren Engine-Bodycallbacks.' if german else
-         '`max_request_bytes` is the host buffer boundary. Native limit probes use a complete sample below the larger host capacity. Host 413 before the engine, rejected partial metadata with a technical gRPC error, native 403 intervention and actual backend effects are recorded separately. Multiple client writes are not multiple engine body callbacks for Authorization/Check.'), '',
-        ('Der Companion hat eigene Läufe für P3/P4, Streaming, native Response-Limits, fehlende/abgelaufene Leases und Cancellation. Die gleiche HTTP-Receipt qualifiziert Request und Response nicht automatisch gemeinsam. Zeitliche Client-Überlappung belegt nur die beobachtete Parallelität; eine mehrdeutige gRPC-Zuordnung bleibt unbekannt.' if german else
-         'The companion has its own runs for P3/P4, streaming, native response limits, missing/expired leases and cancellation. One shared HTTP receipt does not automatically qualify request and response together. Client timing overlap proves only the observed concurrency; ambiguous gRPC correlation remains unknown.'), '',
-        ('## Cleanup und Isolation' if german else '## Cleanup and isolation'), '',
-        ('UID/GID 65534, Capabilities 0, NoNewPrivs 1 sowie private Netzwerk-/PID-/Mount-Namespaces und die Listenergrenzen bleiben erhalten. Ein alter v5-Lauf meldete einen fremden Traefik-Prozess als Survivor; dessen Identität und Namespace-ID sprechen für eine Wiederverwendung der Namespace-ID nach Ende des Envoy-Laufs. Dieser Prozess wurde nicht signalisiert; der ursprüngliche Exit 77 bleibt erhalten. Die Envoy-spezifische Controllerkopie hält jetzt einen positiv an die eigene Init-Identität gebundenen Namespace-FD bis nach Cleanup offen, validiert die Identität vor/nach Open und behandelt nicht belegbare Ownership als Fehler.' if german else
-         'UID/GID 65534, zero capabilities, NoNewPrivs 1, private network/PID/mount namespaces and listener boundaries are preserved. An old v5 run misclassified a foreign Traefik process as a survivor; its identity and namespace inode support inferred namespace-ID reuse after the Envoy run ended. It was not signalled; original exit 77 is retained. The Envoy-specific controller copy now holds a namespace FD positively bound to its own init through cleanup, revalidates identity before/after open and treats unprovable ownership as an error.'), '',
-        ('## Verifikation und Grenzen' if german else '## Verification and limits'), '',
-        ('Native/CGo Go `./...`, Race `./...`, Vet `./...` und 32 gemeinsame native Observer-Kontrollen: PASS. 79 bestehende Vertragskontrollen: PASS mit einem Setup-Skip des separat erfolgreich ausgeführten Observers. Neue Kontrollen prüfen unveränderte IDs/Oracles, physische Hashes, fehlende gRPC-Trailer, Quell-/Binary-Austausch, Backend-Framing und Namespace-Ownership-Rennen. Exakte Kommandos, Ergebnisse und Loghashes stehen in den referenzierten Receipts.' if german else
-         'Native/CGo Go `./...`, race `./...`, vet `./...` and 32 common native observer controls: PASS. 79 existing contract controls: PASS with one setup skip for the observer run successfully separately. New controls cover unchanged IDs/oracles, physical hashes, absent gRPC trailers, substituted source/binaries, backend framing and namespace ownership races. Exact commands, outcomes and log hashes are in the referenced receipts.'), '',
-        ('Offen bleiben die vollständige unabhängige Oracle-/Original-ID-Abnahme, direkte native MIME-/Charset-Auswahl, vollständig korrelierte parallele gRPC-Terminalstatus, gezielt fehlende/wiederholte Hostcallbacks, alle physischen Event-Sink-Fehler und der vollständige Observer-Stop/Restart-Vertrag. P4 Strict wird nicht als unterstützt oder abgenommen behauptet. Unit-, Native- und Race-Erfolg ersetzen diese Hostnachweise nicht.' if german else
-         'Still open: complete independent oracle/original-ID acceptance, direct native MIME/charset selection, fully correlated concurrent gRPC terminal status, deliberate missing/repeated host callbacks, all physical event-sink failures and the complete observer stop/restart contract. P4 Strict is not claimed supported or accepted. Unit, native and race success do not replace these host proofs.'), '',
-    ]
+    lines += native_identity(data, german)
+    lines += native_capture(german)
+    lines += sample_companion_cleanup(german)
+    lines += verification_limits(german)
     lines += additional_findings(data, german)
-    lines += [('## Physische Referenzen' if german else '## Physical references'), '']
+    lines += references_heading(german)
     for label, value in data['physical_inputs'].items():
         lines.append('- `' + label + '`: `' + value['path'] + '` — SHA256 `' + value['sha256'] + '`.')
-    lines += ['', ('Die Referenzen liegen im task-eigenen externen Speicher; der PR enthält nur Quellcode und bereinigte Metadaten, keine Binaries, Caches, privaten Schlüssel oder Rohpayloads.' if german else
-                   'References reside in task-owned external storage; the PR contains source and sanitized metadata, not binaries, caches, private keys or raw payloads.'), '']
+    lines += storage_footer(german)
     return '\n'.join(lines)
+
+
+def add_route_results(data, baseline, qualified):
+    data['current_route_results'] = {}
+    for route, previous in baseline['routes'].items():
+        added = [item['run_scoped_case_id'] for item in qualified if item['route'] == route]
+        existing = previous['existing_pass_ids']
+        if set(added) & set(existing):
+            raise ValueError('existing qualification cannot count as new')
+        data['current_route_results'][route] = {
+            'original_ids': previous['original_ids'], 'baseline_lifecycle_pass': previous['existing_lifecycle_pass'],
+            'new_lifecycle_pass': len(added), 'lifecycle_pass': previous['existing_lifecycle_pass'] + len(added),
+            'configuration_only_pass': previous['configuration_only_pass'],
+            'without_lifecycle': previous['original_ids'] - previous['existing_lifecycle_pass'] - len(added),
+            'original_oracles': previous['original_oracles'], 'open_oracles': previous['open_original_oracles'] - len(added),
+            'qualified_case_ids': existing + added}
+
+
+def add_source_reviews(data, source_review, args):
+    data['source_oracle_progress'] = {key: value for key, value in source_review.items() if key != 'normalized_rows'}
+    source_rows = {row['run_scoped_case_id']: row for row in source_review['normalized_rows']}
+    for row in data['original_ids']:
+        if row['run_scoped_case_id'] in source_rows:
+            reviewed = source_rows[row['run_scoped_case_id']]
+            row['task_source_review'] = {key: reviewed[key] for key in ('category', 'proposed_new_source_oracle',
+                'effective_source_proposal', 'remaining_requirements', 'lifecycle_qualified', 'review_file')}
+    for path in args.oracle_review:
+        data['physical_inputs'][path.stem] = reference(path)
+    return source_rows
+
+
+def add_host_measurements(data, paths):
+    for path in paths:
+        review = load(path)
+        if review['parent_sha'] != data['parent_sha'] or review['host_lifecycle_qualified'] is not False:
+            raise ValueError('review scope or source mismatch')
+        data['physical_inputs'][path.stem] = reference(path)
+        for item in review['scenarios']:
+            kept = {key: item[key] for key in ('scenario', 'route', 'runner_exit_code', 'expected_http_status',
+                'attempt', 'controller', 'observation_state', 'clients', 'backend', 'native', 'events',
+                'grpc_transport', 'client_time_overlap_observed', 'artifact_integrity_issues', 'unknown',
+                'original_oracle_case_ids', 'oracle_review_sha256', 'loaded_images', 'source_equality', 'build',
+                'native_logs', 'command_exit_codes', 'driver', 'versions') if key in item}
+            kept['batch'] = Path(item['attempt']).parents[1].name
+            kept['physical_file_hashes'] = item.get('physical_files', {})
+            data['host_measurements'].append(kept)
+
+
+def supplement_binding(supplement, path, source_rows):
+    identity = supplement['original_id']
+    original = source_rows.get(identity)
+    rows = supplement.get('normalized_rows', [])
+    if original is None or supplement['route'] != original['route']:
+        raise ValueError('supplement claims an unreviewed or sibling original ID')
+    if len(rows) != 1 or rows[0]['run_scoped_case_id'] != identity or rows[0]['route'] != original['route']:
+        raise ValueError('supplement normalized row differs from exact original ID')
+    if supplement['origin_review'] != reference(Path(original['review_file'])):
+        raise ValueError('supplement origin differs from independently validated source review')
+    if supplement['review_file'] != reference(path):
+        raise ValueError('supplement differs from freshly validated physical review')
+    if supplement['canonical_resolution_changed'] is not False or supplement['new_lifecycle_pass'] != 0:
+        raise ValueError('supplement cannot assign canonical resolution or lifecycle PASS')
+    return identity, supplement['review_file']['sha256']
+
+
+def add_oracle_supplements(data, paths, source_review, source_rows):
+    allowed, supplements = {}, []
+    for path in paths:
+        supplement = validate_oracles.validate_supplement(path, source_review)
+        identity, sha = supplement_binding(supplement, path, source_rows)
+        if identity in allowed or path.stem in data['physical_inputs']:
+            raise ValueError('duplicate oracle supplement identity or physical input')
+        allowed[identity] = {sha}
+        supplements.append({key: value for key, value in supplement.items() if key != 'normalized_rows'})
+        data['physical_inputs'][path.stem] = reference(path)
+    if supplements:
+        data['oracles_supplements'] = supplements
+    return allowed
+
+
+def add_retaken_ids(item, ids, source_rows, by_id, allowed_review_hashes=None):
+    for identity in ids:
+        if identity not in source_rows or source_rows[identity]['route'] != item['route']:
+            raise ValueError('host observation claims an unreviewed or sibling original ID')
+        review_path = Path(source_rows[identity]['review_file'])
+        hashes = {reference(review_path)['sha256']}
+        hashes.update((allowed_review_hashes or {}).get(identity, set()))
+        if item.get('oracle_review_sha256') not in hashes:
+            raise ValueError('host original-ID binding differs from independently verified review')
+        by_id.setdefault(identity, []).append({key: item[key] for key in (
+            'batch', 'scenario', 'runner_exit_code', 'attempt', 'observation_state')})
+
+
+def add_original_retakes(data, source_rows, allowed_review_hashes=None):
+    by_id = {}
+    route_ids, route_runs = {}, {}
+    for item in data['host_measurements']:
+        ids = item.get('original_oracle_case_ids', [])
+        if not ids:
+            continue
+        route_runs[item['route']] = route_runs.get(item['route'], 0) + 1
+        route_ids.setdefault(item['route'], set()).update(ids)
+        add_retaken_ids(item, ids, source_rows, by_id, allowed_review_hashes)
+    for row in data['original_ids']:
+        row['current_task_execution_observed'] = row['run_scoped_case_id'] in by_id
+        row['current_task_unqualified_host_runs'] = by_id.get(row['run_scoped_case_id'], [])
+    data['original_id_retakes'] = {'unique_original_ids': len(by_id), 'host_runs': sum(route_runs.values()),
+        'full_lifecycle_qualified': False,
+        'routes': {route: {'unique_original_ids': len(ids), 'host_runs': route_runs[route],
+                          'exact_original_ids': sorted(ids)} for route, ids in route_ids.items()}}
 
 
 def main():
@@ -142,6 +322,7 @@ def main():
     parser.add_argument('--native', type=Path, required=True)
     parser.add_argument('--oracle-review', type=Path, action='append', required=True)
     parser.add_argument('--qualified', type=Path, action='append', default=[])
+    parser.add_argument('--oracle-supplement', type=Path, action='append', default=[])
     args = parser.parse_args()
     baseline = load(args.baseline)
     native = load(args.native)
@@ -158,19 +339,7 @@ def main():
                 'original_oracle_member', 'original_oracle', 'residual', 'existing_host_packet')} for row in baseline['rows']],
             'host_measurements': []}
     data['qualified_originals'] = qualified
-    data['current_route_results'] = {}
-    for route, previous in baseline['routes'].items():
-        added = [item['run_scoped_case_id'] for item in qualified if item['route'] == route]
-        existing = previous['existing_pass_ids']
-        if set(added) & set(existing):
-            raise ValueError('existing qualification cannot count as new')
-        data['current_route_results'][route] = {
-            'original_ids': previous['original_ids'], 'baseline_lifecycle_pass': previous['existing_lifecycle_pass'],
-            'new_lifecycle_pass': len(added), 'lifecycle_pass': previous['existing_lifecycle_pass'] + len(added),
-            'configuration_only_pass': previous['configuration_only_pass'],
-            'without_lifecycle': previous['original_ids'] - previous['existing_lifecycle_pass'] - len(added),
-            'original_oracles': previous['original_oracles'], 'open_oracles': previous['open_original_oracles'] - len(added),
-            'qualified_case_ids': existing + added}
+    add_route_results(data, baseline, qualified)
     data['current_oracle_result'] = {'resolved': 3 + len(qualified), 'open': 122 - len(qualified),
                                      'baseline_unchanged': True}
     data['baseline_summary'] = data.pop('summary')
@@ -185,52 +354,10 @@ def main():
         row['current_task_qualification'] = item
     for path in args.qualified:
         data['physical_inputs'][path.stem] = reference(path)
-    data['source_oracle_progress'] = {key: value for key, value in source_review.items() if key != 'normalized_rows'}
-    source_rows = {row['run_scoped_case_id']: row for row in source_review['normalized_rows']}
-    for row in data['original_ids']:
-        if row['run_scoped_case_id'] in source_rows:
-            reviewed = source_rows[row['run_scoped_case_id']]
-            row['task_source_review'] = {key: reviewed[key] for key in ('category', 'proposed_new_source_oracle',
-                'effective_source_proposal', 'remaining_requirements', 'lifecycle_qualified', 'review_file')}
-    for path in args.oracle_review:
-        data['physical_inputs'][path.stem] = reference(path)
-    for path in args.review:
-        review = load(path)
-        if review['parent_sha'] != data['parent_sha'] or review['host_lifecycle_qualified'] is not False:
-            raise ValueError('review scope or source mismatch')
-        data['physical_inputs'][path.stem] = reference(path)
-        for item in review['scenarios']:
-            kept = {key: item[key] for key in ('scenario', 'route', 'runner_exit_code', 'expected_http_status',
-                'attempt', 'controller', 'observation_state', 'clients', 'backend', 'native', 'events',
-                'grpc_transport', 'client_time_overlap_observed', 'artifact_integrity_issues', 'unknown',
-                'original_oracle_case_ids', 'oracle_review_sha256', 'loaded_images', 'source_equality', 'build',
-                'native_logs', 'command_exit_codes', 'driver', 'versions') if key in item}
-            kept['batch'] = Path(item['attempt']).parents[1].name
-            kept['physical_file_hashes'] = item.get('physical_files', {})
-            data['host_measurements'].append(kept)
-    by_id = {}
-    route_ids, route_runs = {}, {}
-    for item in data['host_measurements']:
-        ids = item.get('original_oracle_case_ids', [])
-        if not ids:
-            continue
-        route_runs[item['route']] = route_runs.get(item['route'], 0) + 1
-        route_ids.setdefault(item['route'], set()).update(ids)
-        for identity in ids:
-            if identity not in source_rows or source_rows[identity]['route'] != item['route']:
-                raise ValueError('host observation claims an unreviewed or sibling original ID')
-            review_path = Path(source_rows[identity]['review_file'])
-            if item.get('oracle_review_sha256') != reference(review_path)['sha256']:
-                raise ValueError('host original-ID binding differs from independently verified review')
-            by_id.setdefault(identity, []).append({key: item[key] for key in (
-                'batch', 'scenario', 'runner_exit_code', 'attempt', 'observation_state')})
-    for row in data['original_ids']:
-        row['current_task_execution_observed'] = row['run_scoped_case_id'] in by_id
-        row['current_task_unqualified_host_runs'] = by_id.get(row['run_scoped_case_id'], [])
-    data['original_id_retakes'] = {'unique_original_ids': len(by_id), 'host_runs': sum(route_runs.values()),
-        'full_lifecycle_qualified': False,
-        'routes': {route: {'unique_original_ids': len(ids), 'host_runs': route_runs[route],
-                          'exact_original_ids': sorted(ids)} for route, ids in route_ids.items()}}
+    source_rows = add_source_reviews(data, source_review, args)
+    allowed_review_hashes = add_oracle_supplements(data, args.oracle_supplement, source_review, source_rows)
+    add_host_measurements(data, args.review)
+    add_original_retakes(data, source_rows, allowed_review_hashes)
     directory = ROOT / 'reports/testing'
     (directory / (STEM + '.json')).write_text(encode_report(data))
     for german in (False, True):

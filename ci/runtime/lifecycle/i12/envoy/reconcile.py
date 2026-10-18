@@ -62,6 +62,38 @@ def physical_references(value):
     return list(found.values())
 
 
+def reconciled_row(row):
+    review = row["oracle_reconciliation"]
+    packet = row["current_lifecycle_packet"]
+    original = row["selected_requirement"]["expected_oracle"]
+    is_original_oracle = bool(original.get("unresolved_expected_value_reason"))
+    resolved = bool(review and review["resolved"])
+    residual = []
+    if row["qualification_scope"] is None:
+        residual.append("full_host_lifecycle_not_qualified")
+    elif row["qualification_scope"] == "historical_configuration_only":
+        residual.append("configuration_only_requires_host_lifecycle")
+    if is_original_oracle and not resolved:
+        residual.append("original_oracle_unresolved")
+    if packet:
+        residual.extend("unknown_observation:" + field for field in packet["unknown_fields"])
+    return {
+        "run_scoped_case_id": row["run_scoped_case_id"],
+        "leg_id": row["leg_id"],
+        "status": row["status"],
+        "execution_observed": row["execution_observed"],
+        "qualification_scope": row["qualification_scope"],
+        "qualified_host_lifecycle_pass": row["qualified_host_lifecycle_pass"],
+        "original_oracle_member": is_original_oracle,
+        "original_oracle": copy.deepcopy(original),
+        "oracle_review": copy.deepcopy(review),
+        "existing_host_packet": copy.deepcopy(packet["receipt"]) if packet else None,
+        "unknown_observations": copy.deepcopy(packet["unknown_fields"]) if packet else None,
+        "physical_evidence": physical_references({"packet": packet, "review": review}),
+        "residual": residual,
+    }
+
+
 def reconcile(ledger, oracles):
     """Return all284 exact IDs; source confirmation never supplies a host PASS."""
     validate(ledger, oracles)
@@ -77,35 +109,7 @@ def reconcile(ledger, oracles):
     for row in ledger["rows"]:
         if row["leg_id"] not in ROUTES:
             continue
-        review = row["oracle_reconciliation"]
-        packet = row["current_lifecycle_packet"]
-        original = row["selected_requirement"]["expected_oracle"]
-        is_original_oracle = bool(original.get("unresolved_expected_value_reason"))
-        resolved = bool(review and review["resolved"])
-        residual = []
-        if row["qualification_scope"] is None:
-            residual.append("full_host_lifecycle_not_qualified")
-        elif row["qualification_scope"] == "historical_configuration_only":
-            residual.append("configuration_only_requires_host_lifecycle")
-        if is_original_oracle and not resolved:
-            residual.append("original_oracle_unresolved")
-        if packet:
-            residual.extend("unknown_observation:" + field for field in packet["unknown_fields"])
-        result["rows"].append({
-            "run_scoped_case_id": row["run_scoped_case_id"],
-            "leg_id": row["leg_id"],
-            "status": row["status"],
-            "execution_observed": row["execution_observed"],
-            "qualification_scope": row["qualification_scope"],
-            "qualified_host_lifecycle_pass": row["qualified_host_lifecycle_pass"],
-            "original_oracle_member": is_original_oracle,
-            "original_oracle": copy.deepcopy(original),
-            "oracle_review": copy.deepcopy(review),
-            "existing_host_packet": copy.deepcopy(packet["receipt"]) if packet else None,
-            "unknown_observations": copy.deepcopy(packet["unknown_fields"]) if packet else None,
-            "physical_evidence": physical_references({"packet": packet, "review": review}),
-            "residual": residual,
-        })
+        result["rows"].append(reconciled_row(row))
     for route in ROUTES:
         rows = [row for row in result["rows"] if row["leg_id"] == route]
         original = [row for row in rows if row["original_oracle_member"]]

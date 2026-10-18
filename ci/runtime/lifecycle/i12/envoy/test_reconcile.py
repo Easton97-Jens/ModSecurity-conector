@@ -98,15 +98,15 @@ class ReconciliationTests(unittest.TestCase):
     def test_exact_ids_separate_routes_and_inputs_untouched(self):
         before = copy.deepcopy((self.ledger, self.oracles))
         result = self.reconcile()
-        self.assertEqual(result["summary"], {"original_ids": 284, "existing_lifecycle_pass": 3,
+        self.assertEqual({"original_ids": 284, "existing_lifecycle_pass": 3,
                          "configuration_only_pass": 8, "unqualified_ids": 273, "original_oracles": 125,
-                         "resolved_original_oracles": 3, "open_original_oracles": 122})
-        self.assertEqual(result["new_host_runs"], 0)
-        self.assertEqual([row["run_scoped_case_id"] for row in result["rows"]],
-                         [row["run_scoped_case_id"] for row in self.ledger["rows"] if row["leg_id"] in MODULE.ROUTES])
+                         "resolved_original_oracles": 3, "open_original_oracles": 122}, result["summary"])
+        self.assertEqual(0, result["new_host_runs"])
+        self.assertEqual([row["run_scoped_case_id"] for row in self.ledger["rows"] if row["leg_id"] in MODULE.ROUTES],
+                         [row["run_scoped_case_id"] for row in result["rows"]])
         for route, expected in zip(MODULE.ROUTES, (116, 85, 72)):
-            self.assertEqual(result["routes"][route]["unqualified_ids"], expected)
-        self.assertEqual((self.ledger, self.oracles), before)
+            self.assertEqual(expected, result["routes"][route]["unqualified_ids"])
+        self.assertEqual(before, (self.ledger, self.oracles))
         self.assertTrue(all(row["physical_evidence"] for row in result["rows"] if row["existing_host_packet"]))
 
     def test_case_route_and_contract_mutations_rejected(self):
@@ -166,8 +166,8 @@ class ReconciliationTests(unittest.TestCase):
         self.packets[0] = self.write(path.name, packet)
         self.ledger = HOST.build_ledger(self.requirements, self.selection, self.oracles, self.packets)
         result = self.reconcile()
-        self.assertEqual(result["summary"]["existing_lifecycle_pass"], 2)
-        self.assertEqual(result["rows"][0]["unknown_observations"], ["native_eos"])
+        self.assertEqual(2, result["summary"]["existing_lifecycle_pass"])
+        self.assertEqual(["native_eos"], result["rows"][0]["unknown_observations"])
 
     def test_cli_exclusive_output_preserves_inputs(self):
         ledger = self.write("ledger.json", self.ledger)
@@ -176,7 +176,7 @@ class ReconciliationTests(unittest.TestCase):
         argv = ["reconcile", "--ledger", ledger["path"], "--oracles", oracles["path"], "--output", str(output)]
         with mock.patch("sys.argv", argv):
             MODULE.main()
-        self.assertEqual(json.loads(output.read_text())["summary"]["original_ids"], 284)
+        self.assertEqual(284, json.loads(output.read_text())["summary"]["original_ids"])
         ORACLES.verify_reference(ledger)
         ORACLES.verify_reference(oracles)
         with mock.patch("sys.argv", argv), self.assertRaises(FileExistsError):

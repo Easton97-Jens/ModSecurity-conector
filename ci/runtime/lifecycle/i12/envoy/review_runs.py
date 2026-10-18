@@ -15,11 +15,14 @@ import re
 import stat
 import sys
 import source_inventory
+import evidence_io
 
 HERE = Path(__file__).resolve().parent
-STORAGE = Path('/var/tmp/codex/ModSecurity-conector')
+STORAGE = evidence_io.STORAGE
 MAX_PARSE_BYTES = 32 * 1024 * 1024
 BINDING_CACHE = {}
+CLIENT_PREFIX = 'client/'
+COMMAND_SUFFIX = '.command.json'
 
 
 def digest(path):
@@ -62,7 +65,7 @@ class Artifacts:
     def __init__(self, root):
         self.root, self.files, self.issues = root, {}, []
         for directory, directories, names in os.walk(root, followlinks=False):
-            for name in list(directories):
+            for name in tuple(directories):
                 path = Path(directory) / name
                 if path.is_symlink():
                     directories.remove(name)
@@ -101,7 +104,7 @@ class Artifacts:
             return None
         try:
             return json.loads(raw)
-        except (ValueError, UnicodeError) as error:
+        except ValueError as error:
             self.issues.append({'path': relative, 'kind': error_kind(error)})
             return None
 
@@ -114,7 +117,7 @@ class Artifacts:
             if any(not isinstance(row, dict) for row in rows):
                 raise ValueError('nonobject observation')
             return rows
-        except (ValueError, UnicodeError) as error:
+        except ValueError as error:
             self.issues.append({'path': relative, 'kind': error_kind(error)})
             return None
 
@@ -124,6 +127,26 @@ class Artifacts:
         if not match:
             self.issues.append({'path': relative, 'kind': 'receipt_hash_mismatch'})
         return match
+
+
+def chunked_entity(wire):
+    """Return entity bytes only for complete bounded chunk framing."""
+    body, remainder = bytearray(), wire
+    try:
+        for _ in range(4096):
+            token, remainder = remainder.split(b'\r\n', 1)
+            if not re.fullmatch(rb'[0-9a-fA-F]+', token):
+                return None
+            size = int(token, 16)
+            if size == 0:
+                return body if remainder == b'\r\n' else None
+            if size > 65536 - len(body) or len(remainder) < size + 2 or remainder[size:size+2] != b'\r\n':
+                return None
+            body.extend(remainder[:size])
+            remainder = remainder[size+2:]
+    except ValueError:
+        return None
+    return None
 
 
 def raw_response_summary(raw):
@@ -139,24 +162,10 @@ def raw_response_summary(raw):
         result['framing_complete'] = False
         if transfer != [b'chunked'] or lengths:
             return result
-        body, remainder = bytearray(), wire
-        try:
-            for _ in range(4096):
-                token, remainder = remainder.split(b'\r\n', 1)
-                if not re.fullmatch(rb'[0-9a-fA-F]+', token):
-                    return result
-                size = int(token, 16)
-                if size == 0:
-                    if remainder == b'\r\n':
-                        result.update(framing_complete=True, entity_bytes=len(body),
-                                      entity_sha256=hashlib.sha256(body).hexdigest())
-                    return result
-                if size > 65536 - len(body) or len(remainder) < size + 2 or remainder[size:size+2] != b'\r\n':
-                    return result
-                body.extend(remainder[:size])
-                remainder = remainder[size+2:]
-        except ValueError:
-            return result
+        body = chunked_entity(wire)
+        if body is not None:
+            result.update(framing_complete=True, entity_bytes=len(body),
+                          entity_sha256=hashlib.sha256(body).hexdigest())
     elif len(lengths) == 1 and lengths[0].isdigit():
         complete = int(lengths[0]) == len(wire)
         result['framing_complete'] = complete
@@ -165,34 +174,46 @@ def raw_response_summary(raw):
     return result
 
 
-def client_summary(artifacts, label):
-    receipt = artifacts.json('client/' + label + '.receipt.json')
-    if not isinstance(receipt, dict):
-        return {'observed': False, 'http_status': None, 'unknown': ['client_receipt']}
-    body = artifacts.files.get('client/' + label + '.body.raw')
-    request = artifacts.raw('client/' + label + '.request.raw')
+def content_type(raw):
+    if raw is None:
+        return None
+    header = raw.split(b'\r\n\r\n', 1)[0]
+    values = [line.split(b':', 1)[1].strip().decode('ascii', errors='replace')
+              for line in header.split(b'\r\n')[1:] if line.lower().startswith(b'content-type:')]
+    allowed = {'text/plain', 'text/plain; charset=utf-8', 'application/octet-stream'}
+    return values[0] if len(values) == 1 and values[0] in allowed else 'unknown_or_unclassified'
+
+
+def client_barrier(artifacts, label):
+    raw = artifacts.json(CLIENT_PREFIX + label + '.first-entity.json')
+    if not isinstance(raw, dict):
+        return None
+    return {key: raw[key] for key in ('monotonic_ns', 'wall_ns') if type(raw.get(key)) is int}
+
+
+def client_body_matches(artifacts, label, receipt, body, request):
     request_body = request.split(b'\r\n\r\n', 1)[1] if request and b'\r\n\r\n' in request else None
     request_match = (request_body is not None and len(request_body) == receipt.get('request_bytes')
                      and hashlib.sha256(request_body).hexdigest() == receipt.get('request_sha256'))
     response_match = (body is not None and body['bytes'] == receipt.get('bytes')
-                      and artifacts.compare('client/' + label + '.body.raw', receipt.get('sha256')))
+                      and artifacts.compare(CLIENT_PREFIX + label + '.body.raw', receipt.get('sha256')))
     if not request_match:
-        artifacts.issues.append({'path': 'client/' + label + '.request.raw', 'kind': 'request_body_receipt_mismatch'})
-    response = artifacts.raw('client/' + label + '.response.raw')
-    def content_type(raw):
-        if raw is None:
-            return None
-        header = raw.split(b'\r\n\r\n', 1)[0]
-        values = [line.split(b':', 1)[1].strip().decode('ascii', errors='replace')
-                  for line in header.split(b'\r\n')[1:] if line.lower().startswith(b'content-type:')]
-        allowed = {'text/plain', 'text/plain; charset=utf-8', 'application/octet-stream'}
-        return values[0] if len(values) == 1 and values[0] in allowed else 'unknown_or_unclassified'
-    status_match = re.match(rb'HTTP/\d(?:\.\d)? (\d{3})(?: |\r)', response or b'')
+        artifacts.issues.append({'path': CLIENT_PREFIX + label + '.request.raw', 'kind': 'request_body_receipt_mismatch'})
+    return request_match, response_match
+
+
+def client_summary(artifacts, label):
+    receipt = artifacts.json(CLIENT_PREFIX + label + '.receipt.json')
+    if not isinstance(receipt, dict):
+        return {'observed': False, 'http_status': None, 'unknown': ['client_receipt']}
+    body = artifacts.files.get(CLIENT_PREFIX + label + '.body.raw')
+    request = artifacts.raw(CLIENT_PREFIX + label + '.request.raw')
+    request_match, response_match = client_body_matches(artifacts, label, receipt, body, request)
+    response = artifacts.raw(CLIENT_PREFIX + label + '.response.raw')
+    status_match = re.match(rb'HTTP/\d(?:\.\d)? (\d{3})[ \r]', response or b'')
     raw_status = int(status_match[1]) if status_match else None
     sent = receipt.get('actual_send_calls')
-    raw_barrier = artifacts.json('client/' + label + '.first-entity.json')
-    barrier = ({key: raw_barrier[key] for key in ('monotonic_ns', 'wall_ns')
-                if type(raw_barrier.get(key)) is int} if isinstance(raw_barrier, dict) else None)
+    barrier = client_barrier(artifacts, label)
     return {'observed': True, 'http_status': receipt.get('status'), 'raw_http_status': raw_status,
             'status_agrees_with_raw': raw_status is not None and raw_status == receipt.get('status'),
             'request_body_bytes': receipt.get('request_bytes'), 'request_body_hash_verified': request_match,
@@ -219,8 +240,7 @@ def client_summary(artifacts, label):
             'error_type': (receipt.get('error') or {}).get('type')}
 
 
-def backend_summary(artifacts, shape, line_capture_supported=None):
-    rows = artifacts.rows('backend/receipts.jsonl')
+def backend_raw_requests(artifacts, shape, rows):
     raw_requests = []
     for name in sorted(artifacts.files):
         match = re.fullmatch(r'backend/(\d+)\.request-line\.raw', name)
@@ -236,6 +256,10 @@ def backend_summary(artifacts, shape, line_capture_supported=None):
             'framing_error_retained': f'backend/{sequence}.framing-error.json' in artifacts.files,
             'completed_receipt_retained': any(row.get('sequence') == sequence for row in rows or []),
             'captured_request_body_bytes': (artifacts.files.get(f'backend/{sequence}.request-body.raw') or {}).get('bytes')})
+    return raw_requests
+
+
+def backend_completed_requests(artifacts, shape, rows):
     requests = []
     for row in rows or []:
         sequence = row.get('sequence')
@@ -259,11 +283,26 @@ def backend_summary(artifacts, shape, line_capture_supported=None):
             'response_written_monotonic_ns': row.get('response_written_ns'),
             'actual_response_send_calls': len(sends) if isinstance(sends, list) else None,
             'actual_response_send_bytes': sum(value['bytes'] for value in sends) if isinstance(sends, list) else None})
-    capture_directory = (artifacts.root / 'backend').is_dir()
+    return requests
+
+
+def backend_sequences(artifacts, raw_requests, rows):
     sequences = {row['sequence'] for row in raw_requests}
     sequences.update(row.get('sequence') for row in rows or [] if isinstance(row.get('sequence'), int))
     sequences.update(int(match[1]) for name in artifacts.files
                      if (match := re.fullmatch(r'backend/(\d+)\.(?:request-body\.raw|parsed-headers\.json)', name)))
+    return sequences
+
+
+def backend_summary(artifacts, shape, line_capture_supported=None):
+    rows = artifacts.rows('backend/receipts.jsonl')
+    raw_requests = backend_raw_requests(artifacts, shape, rows)
+    requests = backend_completed_requests(artifacts, shape, rows)
+    capture_directory = (artifacts.root / 'backend').is_dir()
+    sequences = backend_sequences(artifacts, raw_requests, rows)
+    completed_count = 0 if capture_directory else None
+    if rows is not None:
+        completed_count = len(rows)
     return {'request_count': len(sequences) if capture_directory else None,
             'retained_request_sequences': sorted(sequences),
             'request_count_is_lower_bound': line_capture_supported is not True,
@@ -272,65 +311,84 @@ def backend_summary(artifacts, shape, line_capture_supported=None):
             'backend_capture_directory_present': capture_directory,
             'raw_request_role_counts': counter(row['role'] for row in raw_requests),
             'raw_request_lines': raw_requests,
-            'completed_receipt_count': len(rows) if rows is not None else (0 if capture_directory else None),
+            'completed_receipt_count': completed_count,
             'completed_receipt_file_present': rows is not None,
             'completed_receipt_role_counts': counter(row['role'] for row in requests), 'requests': requests,
             'unknown': ['completed_backend_receipts'] if rows is None else []}
+
+
+def native_finish_spans(actual, returned):
+    spans = []
+    for start in actual:
+        if start.get('edge') != 'enter' or start.get('function') not in (
+                'runtime_finish_request_body', 'runtime_finish_response_body', 'companion_finish_response_body'):
+            continue
+        ends = [row for row in returned if row.get('call') == start.get('call')]
+        if len(ends) == 1:
+            end = ends[0]
+            spans.append({'function': start['function'], 'call': start['call'],
+                'result': end.get('result'), 'native_body_returns_inside_span': counter(
+                    row.get('function') for row in returned if row.get('function') in (
+                        'native_process_request_body', 'native_process_response_body') and
+                    start['sequence'] < row['sequence'] < end['sequence'])})
+    return spans
+
+
+def completed_transitions(returned, actual):
+    return sum(
+                row.get('contract_state', {}).get('status') == 3 and before.get('contract_state', {}).get('status') != 3
+                for row in returned if isinstance(row.get('contract_state'), dict)
+                and row.get('function') in ('common_complete_phase', 'common_finish')
+                for before in actual if before.get('edge') == 'enter' and before.get('call') == row.get('call')
+                and isinstance(before.get('contract_state'), dict))
+
+
+def contract_state_samples(returned):
+    return [{'function': row['function'], 'call': row.get('call'),
+            'sequence': row.get('sequence'), 'monotonic_ns': row.get('monotonic_ns'),
+            'result': row.get('result'), 'state': {key: value for key, value in (row.get('contract_state') or {}).items()
+                if key in ('status', 'response_committed', 'active_phase', 'last_completed_phase', 'completed_phase_mask',
+                           'cleanup_started', 'cleanup_complete', 'completed_at_ms', 'cleanup_at_ms') and type(value) is int}}
+            for row in returned if row.get('function') in ('common_set_response_committed', 'common_finish', 'common_cleanup')]
+
+
+def return_result_counts(returned):
+    return {name: counter(row.get('result') for row in returned if row.get('function') == name)
+                                 for name in sorted({row.get('function') for row in returned})}
+
+
+def native_scope_summary(rows, host, pid, scope):
+    scoped = [row for row in rows if (row.get('pid'), row.get('allocation_scope_call')) == (pid, scope)]
+    calls = {row.get('call') for row in scoped if row.get('edge') == 'enter'}
+    actual = [row for row in rows if row.get('pid') == pid and
+              (row.get('allocation_scope_call') == scope or row.get('call') in calls)]
+    returned = [row for row in actual if row.get('edge') == 'return']
+    typed = [row for row in host if (row.get('pid'), row.get('allocation_scope_call')) == (pid, scope)]
+    spans = native_finish_spans(actual, returned)
+    return {'pid': pid, 'allocation_scope_call': scope,
+        'observed_return_counts': counter(row.get('function') for row in returned),
+        'return_result_counts': return_result_counts(returned),
+        'explicit_runtime_eos_handoff_counts': counter(row.get('runtime_eos_handoff') for row in returned
+                                                     if row.get('runtime_eos_handoff') is not None),
+        'explicit_host_eos_counts': counter(row.get('host_eos') for row in actual if row.get('host_eos') is not None),
+        'typed_host_operation_counts': counter(row.get('operation') for row in typed),
+        'typed_body_callbacks': [{'operation': row.get('operation'), 'response_direction': row.get('response_direction'),
+            'eos_argument': row.get('body_end_of_stream_argument'), 'body_bytes': row.get('body_size'),
+            'declared_bytes': row.get('declared_size'), 'result': row.get('actual_result'),
+            'claim_succeeded': row.get('companion_claim_succeeded')} for row in typed],
+        'native_finish_spans': spans,
+        'contract_state_samples': contract_state_samples(returned),
+        'completed_transition_count': completed_transitions(returned, actual),
+        'native_mime_selection': None, 'native_charset_selection': None}
 
 
 def native_summary(rows, host):
     if rows is None:
         return {'row_count': None, 'scopes': [], 'unknown': ['native_observer']}
     host = host or []
-    scopes = []
     keys = {(row.get('pid'), row.get('allocation_scope_call')) for row in rows
             if row.get('allocation_join_verified') is True and row.get('allocation_scope_call') is not None}
-    for pid, scope in sorted(keys):
-        scoped = [row for row in rows if (row.get('pid'), row.get('allocation_scope_call')) == (pid, scope)]
-        calls = {row.get('call') for row in scoped if row.get('edge') == 'enter'}
-        actual = [row for row in rows if row.get('pid') == pid and
-                  (row.get('allocation_scope_call') == scope or row.get('call') in calls)]
-        returned = [row for row in actual if row.get('edge') == 'return']
-        typed = [row for row in host if (row.get('pid'), row.get('allocation_scope_call')) == (pid, scope)]
-        spans = []
-        for start in actual:
-            if start.get('edge') != 'enter' or start.get('function') not in (
-                    'runtime_finish_request_body', 'runtime_finish_response_body', 'companion_finish_response_body'):
-                continue
-            ends = [row for row in returned if row.get('call') == start.get('call')]
-            if len(ends) == 1:
-                end = ends[0]
-                spans.append({'function': start['function'], 'call': start['call'],
-                    'result': end.get('result'), 'native_body_returns_inside_span': counter(
-                        row.get('function') for row in returned if row.get('function') in (
-                            'native_process_request_body', 'native_process_response_body') and
-                        start['sequence'] < row['sequence'] < end['sequence'])})
-        scopes.append({'pid': pid, 'allocation_scope_call': scope,
-            'observed_return_counts': counter(row.get('function') for row in returned),
-            'return_result_counts': {name: counter(row.get('result') for row in returned if row.get('function') == name)
-                                     for name in sorted({row.get('function') for row in returned})},
-            'explicit_runtime_eos_handoff_counts': counter(row.get('runtime_eos_handoff') for row in returned
-                                                         if row.get('runtime_eos_handoff') is not None),
-            'explicit_host_eos_counts': counter(row.get('host_eos') for row in actual if row.get('host_eos') is not None),
-            'typed_host_operation_counts': counter(row.get('operation') for row in typed),
-            'typed_body_callbacks': [{'operation': row.get('operation'), 'response_direction': row.get('response_direction'),
-                'eos_argument': row.get('body_end_of_stream_argument'), 'body_bytes': row.get('body_size'),
-                'declared_bytes': row.get('declared_size'), 'result': row.get('actual_result'),
-                'claim_succeeded': row.get('companion_claim_succeeded')} for row in typed],
-            'native_finish_spans': spans,
-            'contract_state_samples': [{'function': row['function'], 'call': row.get('call'),
-                'sequence': row.get('sequence'), 'monotonic_ns': row.get('monotonic_ns'),
-                'result': row.get('result'), 'state': {key: value for key, value in (row.get('contract_state') or {}).items()
-                    if key in ('status', 'response_committed', 'active_phase', 'last_completed_phase', 'completed_phase_mask',
-                               'cleanup_started', 'cleanup_complete', 'completed_at_ms', 'cleanup_at_ms') and type(value) is int}}
-                for row in returned if row.get('function') in ('common_set_response_committed', 'common_finish', 'common_cleanup')],
-            'completed_transition_count': sum(
-                row.get('contract_state', {}).get('status') == 3 and before.get('contract_state', {}).get('status') != 3
-                for row in returned if isinstance(row.get('contract_state'), dict)
-                and row.get('function') in ('common_complete_phase', 'common_finish')
-                for before in actual if before.get('edge') == 'enter' and before.get('call') == row.get('call')
-                and isinstance(before.get('contract_state'), dict)),
-            'native_mime_selection': None, 'native_charset_selection': None})
+    scopes = [native_scope_summary(rows, host, pid, scope) for pid, scope in sorted(keys)]
     states = [{name: row.get(name) for name in ('pid', 'edge', 'invalid', 'pending_calls', 'live_mappings')}
               for row in rows if row.get('function') == 'observer']
     return {'row_count': len(rows), 'verified_allocation_scope_count': len(scopes), 'scopes': scopes,
@@ -394,7 +452,7 @@ def text_log_summary(artifacts, relative):
 def versions_summary(artifacts):
     result = {}
     for label in ('host-version', 'go-version', 'sdk-who'):
-        receipt = artifacts.json(label + '.command.json')
+        receipt = artifacts.json(label + COMMAND_SUFFIX)
         raw = artifacts.raw(label + '.stdout')
         text = raw.decode('ascii', errors='replace').strip() if raw is not None else None
         # Identities are closed printable version strings, never arbitrary logs.
@@ -445,23 +503,7 @@ def transport_summary(artifacts, shape, transport, capture):
     return result
 
 
-def review_run(record, transport, capture, parent_sha=None):
-    case = record['case']
-    result = {'scenario': case['label'], 'route': case['route'], 'runner_exit_code': record.get('exit_code'),
-        'expected_http_status': case.get('expected_http_status'),
-        'host_lifecycle_qualified': False, 'original_oracle_case_ids': [],
-        'qualification': 'physical_observation_only_no_original_id_oracle_verdict'}
-    packet = record.get('controller_result')
-    if not packet or not packet.get('attempt'):
-        return result | {'observation_state': 'controller_admission_failed_or_unknown', 'unknown': ['attempt', 'host_execution']}
-    attempt = Path(packet['attempt'])
-    if not attempt.is_absolute() or attempt.resolve() != attempt or STORAGE not in attempt.parents:
-        raise ValueError('attempt is not a physical external project path')
-    result['attempt'] = str(attempt)
-    controller_path = attempt / 'controller-result.json'
-    if not controller_path.is_file():
-        return result | {'observation_state': 'controller_not_completed', 'unknown': ['cleanup_handoff', 'host_execution']}
-    controller = json.loads(controller_path.read_text())
+def add_controller_summary(controller, result):
     result['controller'] = {name: controller.get(name) for name in (
         'exitcode', 'controller_exitcode', 'timeout', 'supervisor_reaped', 'resource_violation', 'namespace_pin_verified')}
     result['controller']['error_count'] = len(controller.get('errors', []))
@@ -472,61 +514,63 @@ def review_run(record, transport, capture, parent_sha=None):
     result['controller']['executed_input_hashes_unchanged'] = (
         bool(controller.get('executed_input_hashes_before')) and
         controller['executed_input_hashes_before'] == controller.get('executed_input_hashes_after'))
-    result['controller_result_sha256'] = digest(controller_path)
-    data = attempt / 'data'
-    handoff = attempt / 'retained-original-ownership.json'
-    if (not handoff.is_file() or not data.is_dir() or data.resolve() != data
-            or data.stat().st_uid != os.getuid()):
-        return result | {'observation_state': 'no_safe_completed_data_handoff', 'unknown': ['physical_host_artifacts']}
-    result['handoff_receipt_sha256'] = digest(handoff)
-    artifacts = Artifacts(data)
-    spec_path = Path(case['spec'])
-    if not spec_path.is_absolute() or spec_path.resolve(strict=True) != spec_path or STORAGE not in spec_path.parents:
-        raise ValueError('nonphysical admission specification')
-    spec = json.loads(spec_path.read_text())
-    bindings = {binding.get('target'): binding for binding in spec.get('bindings', [])}
-    result['admission_spec_hash_verified'] = digest(spec_path) == controller.get('spec_sha256')
-    if not result['admission_spec_hash_verified'] or set(bindings) != {'/mnt/src', '/mnt/artifacts', '/mnt/fixtures'}:
-        return result | {'declared_route': result['route'], 'route': None,
-                         'observation_state': 'admission_scope_mismatch', 'unknown': ['scoped_host_execution']}
-    result['sealed_inputs'] = {name: binding_summary(binding) for name, binding in bindings.items()}
-    if any(not item.get('ledger_hash_verified') or not item.get('all_file_hashes_verified')
-           for item in result['sealed_inputs'].values()):
-        return result | {'declared_route': result['route'], 'route': None,
-                         'observation_state': 'sealed_input_mismatch', 'unknown': ['scoped_host_execution']}
-    fixture = Path(bindings['/mnt/fixtures']['source'])
-    shape = json.loads((fixture / 'shape.json').read_text())
-    result['fixture_shape_sha256'] = digest(fixture / 'shape.json')
-    if (shape.get('case_id') != 'I12-ENVOY-HOST::' + case['label'] or shape.get('leg') != case['route']
-            or parent_sha is None or shape.get('parent_sha') != parent_sha
-            or shape.get('original_case_ids', []) != case.get('original_case_ids', [])
-            or shape.get('oracle_review_sha256') != case.get('oracle_review_sha256')):
-        return result | {'declared_route': result['route'], 'route': None,
-                         'observation_state': 'fixture_identity_mismatch', 'unknown': ['scoped_host_execution']}
-    result['original_oracle_case_ids'] = shape.get('original_case_ids', [])
-    result['oracle_review_sha256'] = shape.get('oracle_review_sha256')
+
+
+def add_driver_summary(artifacts, result):
     driver = artifacts.json('result.json')
     result['observation_state'] = 'driver_result_observed' if isinstance(driver, dict) else 'driver_result_missing'
-    result['driver'] = None if not isinstance(driver, dict) else {
+    result['driver'] = driver_summary(driver)
+    if isinstance(driver, dict):
+        for relative, expected in driver.get('actual_runtime_copies_hashes', {}).items():
+            artifacts.compare(relative, expected)
+
+
+def driver_summary(driver):
+    if not isinstance(driver, dict):
+        return None
+    return {
         'failure_type': (driver.get('failure') or {}).get('type'),
         'remaining_owned_process_count': len(driver['remaining_owned_processes']) if 'remaining_owned_processes' in driver else None,
         'processes': {name: {key: value.get(key) for key in ('waited_exit_code', 'forced_kill', 'signal_sent')}
                       for name, value in driver.get('processes', {}).items()}}
-    if isinstance(driver, dict):
-        for relative, expected in driver.get('actual_runtime_copies_hashes', {}).items():
-            artifacts.compare(relative, expected)
+
+
+def verify_fixture_configuration(artifacts, fixture, build):
+    for path, expected in build.get('fixture_configuration', {}).items():
+        if path.startswith('/task/'):
+            artifacts.compare(path.removeprefix('/task/'), expected)
+        elif path.startswith('/mnt/fixtures/'):
+            actual = fixture / path.removeprefix('/mnt/fixtures/')
+            if not actual.is_file() or digest(actual) != expected:
+                artifacts.issues.append({'path': 'fixture/' + actual.name, 'kind': 'receipt_hash_mismatch'})
+
+
+def verify_build_artifacts(artifacts, fixture, shape):
     build = artifacts.json('build-manifest.json')
     if isinstance(build, dict):
         for name, field in (('envoy', 'host_sha256'),
                             ('msconnector_envoy_ext_proc' if shape.get('leg') == 'envoy-ext-proc' else 'msconnector_composite', 'engine_sha256')):
             artifacts.compare('cache/' + name, build.get(field))
-        for path, expected in build.get('fixture_configuration', {}).items():
-            if path.startswith('/task/'):
-                artifacts.compare(path.removeprefix('/task/'), expected)
-            elif path.startswith('/mnt/fixtures/'):
-                actual = fixture / path.removeprefix('/mnt/fixtures/')
-                if not actual.is_file() or digest(actual) != expected:
-                    artifacts.issues.append({'path': 'fixture/' + actual.name, 'kind': 'receipt_hash_mismatch'})
+        verify_fixture_configuration(artifacts, fixture, build)
+    return build
+
+
+def loaded_image(name, process, build):
+    record_image = {'pid': process.get('pid'), 'executable_sha256': process.get('executable_sha256'),
+        'identity': process.get('identity'), 'fd_count': process.get('fd_count'),
+        'native_libraries': [{'sha256': value.get('sha256')} for value in process.get('native_libraries', [])]}
+    if isinstance(build, dict) and name in ('engine', 'envoy'):
+        record_image['matches_build_manifest'] = process.get('executable_sha256') == build.get(
+            'engine_sha256' if name == 'engine' else 'host_sha256')
+        if name == 'engine':
+            sdk_hash = build.get('actual_external_build_provenance', {}).get('sdk_library', {}).get('sha256')
+            record_image['sdk_matches_native_build'] = (
+                len(record_image['native_libraries']) == 1 and sdk_hash is not None and
+                record_image['native_libraries'][0]['sha256'] == sdk_hash)
+    return record_image
+
+
+def loaded_images(artifacts, build):
     snapshots = {}
     for label in ('before-request', 'after-target', 'after-neighbor'):
         snapshot = artifacts.json(label + '.json')
@@ -535,19 +579,22 @@ def review_run(record, transport, capture, parent_sha=None):
             continue
         snapshots[label] = {}
         for name, process in snapshot.get('processes', {}).items():
-            record_image = {'pid': process.get('pid'), 'executable_sha256': process.get('executable_sha256'),
-                'identity': process.get('identity'), 'fd_count': process.get('fd_count'),
-                'native_libraries': [{'sha256': value.get('sha256')} for value in process.get('native_libraries', [])]}
-            if isinstance(build, dict) and name in ('engine', 'envoy'):
-                record_image['matches_build_manifest'] = process.get('executable_sha256') == build.get(
-                    'engine_sha256' if name == 'engine' else 'host_sha256')
-                if name == 'engine':
-                    sdk_hash = build.get('actual_external_build_provenance', {}).get('sdk_library', {}).get('sha256')
-                    record_image['sdk_matches_native_build'] = (
-                        len(record_image['native_libraries']) == 1 and sdk_hash is not None and
-                        record_image['native_libraries'][0]['sha256'] == sdk_hash)
-            snapshots[label][name] = record_image
-    result['loaded_images'] = snapshots
+            snapshots[label][name] = loaded_image(name, process, build)
+    return snapshots
+
+
+def source_row_valid(row, source_contract, source_ledger):
+    relative = row.get('path')
+    baseline = source_contract.get('source_inputs', {}).get(relative)
+    actual = row.get('actual_source_sha256')
+    overlay = source_contract.get('approved_test_overlays', {}).get(relative) or {}
+    return (baseline is not None and row.get('baseline_a9_sha256') == baseline
+        and source_ledger.get(relative) == actual and
+        (baseline == actual or overlay.get('baseline_a9_sha256') == baseline
+         and overlay.get('instrumented_sha256') == actual))
+
+
+def add_source_equality(artifacts, fixture, bindings, result):
     source_proof = artifacts.json('scoped-product-source-equality.json')
     source_contract = json.loads((fixture / 'scoped-product-source-a9.json').read_text())
     source_ledger = json.loads(Path(bindings['/mnt/src']['ledger']).read_text())['files']
@@ -555,24 +602,16 @@ def review_run(record, transport, capture, parent_sha=None):
     complete_source_bound = source_ledger == source_inventory.expected_inventory(native_proof)
     independently_valid = []
     for row in source_proof if isinstance(source_proof, list) else []:
-        relative = row.get('path')
-        baseline = source_contract.get('source_inputs', {}).get(relative)
-        actual = row.get('actual_source_sha256')
-        overlay = source_contract.get('approved_test_overlays', {}).get(relative) or {}
-        independently_valid.append(baseline is not None and row.get('baseline_a9_sha256') == baseline
-            and source_ledger.get(relative) == actual and
-            (baseline == actual or overlay.get('baseline_a9_sha256') == baseline
-             and overlay.get('instrumented_sha256') == actual))
+        independently_valid.append(source_row_valid(row, source_contract, source_ledger))
     result['source_equality'] = {'row_count': len(source_proof) if isinstance(source_proof, list) else None,
         'all_rows_verified': all(row.get('verified') is True for row in source_proof) if isinstance(source_proof, list) and source_proof else None,
         'independent_sealed_baseline_overlay_contract_verified': all(independently_valid) if independently_valid else None,
         'source_contract_parent_sha': source_contract.get('parent_sha')}
     result['source_equality']['complete_archived_build_inventory_verified'] = complete_source_bound
-    if not complete_source_bound:
-        return result | {'declared_route': result['route'], 'route': None,
-                         'observation_state': 'complete_build_source_mismatch', 'unknown': ['scoped_host_execution']}
-    result['build'] = None if not isinstance(build, dict) else {name: build.get(name) for name in (
-        'source_git_baseline', 'product_contract', 'source_scope_count', 'host_sha256', 'engine_sha256')}
+    return complete_source_bound
+
+
+def add_clients(artifacts, result):
     result['clients'] = {label: client_summary(artifacts, label) for label in ('target', 'neighbor')}
     target, neighbor = (result['clients'][label] for label in ('target', 'neighbor'))
     intervals = [value.get(field) for value in (target, neighbor)
@@ -581,6 +620,96 @@ def review_run(record, transport, capture, parent_sha=None):
         max(intervals[0], intervals[2]) < min(intervals[1], intervals[3])
         if all(isinstance(value, int) for value in intervals)
         and intervals[0] <= intervals[1] and intervals[2] <= intervals[3] else None)
+
+
+def add_command_exits(artifacts, result):
+    result['command_exit_codes'] = {}
+    for relative in artifacts.files:
+        if '/' not in relative and relative.endswith(COMMAND_SUFFIX):
+            command = artifacts.json(relative)
+            if isinstance(command, dict):
+                label = relative.removesuffix(COMMAND_SUFFIX)
+                result['command_exit_codes'][label] = command.get('exit_code')
+                for channel in ('stdout', 'stderr'):
+                    artifacts.compare(label + '.' + channel, command.get(channel + '_sha256'))
+
+
+def fixture_identity_mismatch(shape, case, parent_sha):
+    return (shape.get('case_id') != 'I12-ENVOY-HOST::' + case['label'] or shape.get('leg') != case['route']
+            or parent_sha is None or shape.get('parent_sha') != parent_sha
+            or shape.get('original_case_ids', []) != case.get('original_case_ids', [])
+            or shape.get('oracle_review_sha256') != case.get('oracle_review_sha256'))
+
+
+def admission_context(case, controller, result, parent_sha):
+    spec_path = Path(case['spec'])
+    if STORAGE is None or not spec_path.is_absolute() or spec_path.resolve(strict=True) != spec_path or STORAGE not in spec_path.parents:
+        raise ValueError('nonphysical admission specification')
+    spec = json.loads(spec_path.read_text())
+    bindings = {binding.get('target'): binding for binding in spec.get('bindings', [])}
+    result['admission_spec_hash_verified'] = digest(spec_path) == controller.get('spec_sha256')
+    if not result['admission_spec_hash_verified'] or set(bindings) != {'/mnt/src', '/mnt/artifacts', '/mnt/fixtures'}:
+        result.update({'declared_route': result['route'], 'route': None,
+                         'observation_state': 'admission_scope_mismatch', 'unknown': ['scoped_host_execution']})
+        return None
+    result['sealed_inputs'] = {name: binding_summary(binding) for name, binding in bindings.items()}
+    if any(not item.get('ledger_hash_verified') or not item.get('all_file_hashes_verified')
+           for item in result['sealed_inputs'].values()):
+        result.update({'declared_route': result['route'], 'route': None,
+                         'observation_state': 'sealed_input_mismatch', 'unknown': ['scoped_host_execution']})
+        return None
+    fixture = Path(bindings['/mnt/fixtures']['source'])
+    shape = json.loads((fixture / 'shape.json').read_text())
+    result['fixture_shape_sha256'] = digest(fixture / 'shape.json')
+    if fixture_identity_mismatch(shape, case, parent_sha):
+        result.update({'declared_route': result['route'], 'route': None,
+                         'observation_state': 'fixture_identity_mismatch', 'unknown': ['scoped_host_execution']})
+        return None
+    result['original_oracle_case_ids'] = shape.get('original_case_ids', [])
+    result['oracle_review_sha256'] = shape.get('oracle_review_sha256')
+    return fixture, bindings, shape
+
+
+def review_run(record, transport, capture, parent_sha=None):
+    case = record['case']
+    result = {'scenario': case['label'], 'route': case['route'], 'runner_exit_code': record.get('exit_code'),
+        'expected_http_status': case.get('expected_http_status'),
+        'host_lifecycle_qualified': False, 'original_oracle_case_ids': [],
+        'qualification': 'physical_observation_only_no_original_id_oracle_verdict'}
+    packet = record.get('controller_result')
+    if not packet or not packet.get('attempt'):
+        return result | {'observation_state': 'controller_admission_failed_or_unknown', 'unknown': ['attempt', 'host_execution']}
+    attempt = Path(packet['attempt'])
+    if STORAGE is None or not attempt.is_absolute() or attempt.resolve() != attempt or STORAGE not in attempt.parents:
+        raise ValueError('attempt is not a physical external project path')
+    result['attempt'] = str(attempt)
+    controller_path = attempt / 'controller-result.json'
+    if not controller_path.is_file():
+        return result | {'observation_state': 'controller_not_completed', 'unknown': ['cleanup_handoff', 'host_execution']}
+    controller = json.loads(controller_path.read_text())
+    add_controller_summary(controller, result)
+    result['controller_result_sha256'] = digest(controller_path)
+    data = attempt / 'data'
+    handoff = attempt / 'retained-original-ownership.json'
+    if (not handoff.is_file() or not data.is_dir() or data.resolve() != data
+            or data.stat().st_uid != os.getuid()):
+        return result | {'observation_state': 'no_safe_completed_data_handoff', 'unknown': ['physical_host_artifacts']}
+    result['handoff_receipt_sha256'] = digest(handoff)
+    artifacts = Artifacts(data)
+    context = admission_context(case, controller, result, parent_sha)
+    if context is None:
+        return result
+    fixture, bindings, shape = context
+    add_driver_summary(artifacts, result)
+    build = verify_build_artifacts(artifacts, fixture, shape)
+    result['loaded_images'] = loaded_images(artifacts, build)
+    complete_source_bound = add_source_equality(artifacts, fixture, bindings, result)
+    if not complete_source_bound:
+        return result | {'declared_route': result['route'], 'route': None,
+                         'observation_state': 'complete_build_source_mismatch', 'unknown': ['scoped_host_execution']}
+    result['build'] = None if not isinstance(build, dict) else {name: build.get(name) for name in (
+        'source_git_baseline', 'product_contract', 'source_scope_count', 'host_sha256', 'engine_sha256')}
+    add_clients(artifacts, result)
     backend_source = (fixture / 'backend.py').read_bytes()
     result['backend'] = backend_summary(artifacts, shape, b'.request-line.raw' in backend_source)
     result['native'] = native_summary(artifacts.rows('runtime/native-lifecycle.jsonl'), artifacts.rows('runtime/host-lifecycle.jsonl'))
@@ -589,15 +718,7 @@ def review_run(record, transport, capture, parent_sha=None):
     result['native_logs'] = {name: text_log_summary(artifacts, 'runtime/' + name + '.log')
                               for name in ('native-debug', 'native-audit')}
     result['versions'] = versions_summary(artifacts)
-    result['command_exit_codes'] = {}
-    for relative in list(artifacts.files):
-        if '/' not in relative and relative.endswith('.command.json'):
-            command = artifacts.json(relative)
-            if isinstance(command, dict):
-                label = relative.removesuffix('.command.json')
-                result['command_exit_codes'][label] = command.get('exit_code')
-                for channel in ('stdout', 'stderr'):
-                    artifacts.compare(label + '.' + channel, command.get(channel + '_sha256'))
+    add_command_exits(artifacts, result)
     result['grpc_transport'] = transport_summary(artifacts, shape, transport, capture)
     result['physical_files'] = artifacts.files
     result['artifact_integrity_issues'] = artifacts.issues

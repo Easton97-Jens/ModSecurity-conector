@@ -25,6 +25,30 @@ class EvidenceIOControls(unittest.TestCase):
                           'sha256': hashlib.sha256(self.file.read_bytes()).hexdigest()},
                          evidence_io.reference(self.file, self.roots))
 
+    def test_missing_config_has_no_fallback_and_never_probes_filesystem(self):
+        with patch.dict(os.environ, {}, clear=True), patch.object(evidence_io.os, 'open') as opened:
+            self.assertIsNone(evidence_io.configured_storage(required=False))
+            with self.assertRaisesRegex(ValueError, 'CODEX_PROJECT_STATE'):
+                evidence_io.configured_storage()
+            opened.assert_not_called()
+
+    def test_configured_owned_physical_root_is_used_exactly(self):
+        with patch.dict(os.environ, {'CODEX_PROJECT_STATE': str(self.root)}):
+            self.assertEqual(self.root, evidence_io.configured_storage())
+
+    def test_configured_writable_root_is_rejected(self):
+        self.root.chmod(0o777)
+        with patch.dict(os.environ, {'CODEX_PROJECT_STATE': str(self.root)}):
+            with self.assertRaisesRegex(ValueError, 'not group/other writable'):
+                evidence_io.configured_storage()
+
+    def test_configured_symlink_is_rejected(self):
+        alias = self.root / 'alias'
+        alias.symlink_to(self.root, target_is_directory=True)
+        with patch.dict(os.environ, {'CODEX_PROJECT_STATE': str(alias)}):
+            with self.assertRaises(OSError):
+                evidence_io.configured_storage()
+
     def test_outside_path_is_rejected_before_any_filesystem_probe(self):
         with patch.object(evidence_io.os, 'open') as opened:
             with self.assertRaisesRegex(ValueError, 'outside approved'):
@@ -85,18 +109,24 @@ class EvidenceIOControls(unittest.TestCase):
             evidence_io.read_bytes(fifo, self.roots)
 
     def test_in_place_change_is_detected_on_same_descriptor(self):
-        with self.assertRaisesRegex(ValueError, 'changed while reading'):
+        def read_while_changed():
             with evidence_io.open_evidence(self.file, self.roots) as (stream, _):
                 stream.read()
                 self.file.write_bytes(b'changed')
 
-    def test_rename_does_not_redirect_an_open_descriptor(self):
         with self.assertRaisesRegex(ValueError, 'changed while reading'):
+            read_while_changed()
+
+    def test_rename_does_not_redirect_an_open_descriptor(self):
+        def read_while_renamed():
             with evidence_io.open_evidence(self.file, self.roots) as (stream, _):
                 moved = self.root / 'moved.json'
                 self.file.rename(moved)
                 self.file.write_bytes(b'other')
                 self.assertEqual(b'{"status":"measured"}\n', stream.read())
+
+        with self.assertRaisesRegex(ValueError, 'changed while reading'):
+            read_while_renamed()
 
 
 if __name__ == '__main__':
