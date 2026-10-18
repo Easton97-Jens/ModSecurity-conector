@@ -203,6 +203,9 @@ int msconnector_runtime_transaction_finish_response_body(msconnector_runtime_tra
 int msconnector_decision_is_disruptive(const msconnector_decision *d) {(void)d;return disruptive;}
 int msconnector_decision_http_status(const msconnector_decision *d) {(void)d;return 403;}
 static handler_t http_status_set_err(request_st *r,int status) {r->http_status=status;return HANDLER_GO_ON;}
+static handler_t http_status_set_err_fin(request_st *r,int status) {return http_status_set_err(r,status);}
+static void http_response_reset(request_st *r) {r->http_status=0;}
+static int mod_msconnector_emit_host_transaction_id(request_st *r,const plugin_data *p,const handler_ctx *c) {(void)r;(void)p;(void)c;return 1;}
 void msconnector_late_intervention_policy_init(msconnector_late_intervention_policy *p) {memset(p,0,sizeof(*p));}
 msconnector_late_intervention_action msconnector_late_intervention_resolve(const msconnector_late_intervention_policy *p,int h,int b,int s) {(void)p;(void)h;(void)b;(void)s;return MSCONNECTOR_LATE_INTERVENTION_LOG_ONLY;}
 int msconnector_runtime_transaction_record_host_action(msconnector_runtime_transaction *t,const msconnector_decision *d,msconnector_decision_action a,int h,const char *s,int b,msconnector_error *e) {(void)t;(void)d;(void)a;(void)h;(void)s;(void)b;(void)e;return outcome_result;}
