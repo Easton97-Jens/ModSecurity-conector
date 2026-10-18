@@ -1,9 +1,272 @@
 """Fresh ordinary or source-observed NGX module; no hosts or old-output writes."""
 import argparse, ast, hashlib, json, re, shlex, subprocess, shutil, os, stat, threading
+import importlib.util
+import io
+import tarfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 def sha(path): return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+OBSERVER_COMPATIBILITY = {
+    "ci/runtime/lifecycle/native-lifecycle-observer.c": (
+        "0d903fc5e6432769a136931b7ebea16a6f87db941d28d23583ccccf4c75e6537",
+        "ad8e5e36a17e746cf202c685dbb529fc09717f5c25441b713fa369420aa55ac6",
+        "52aba91c92a8d1a3b1f2b4acf50db6acb103d6d0cd63c45a0e75bcf5fa8553e6"),
+    "ci/runtime/lifecycle/native-lifecycle-observer.h": (
+        "5b7d8fa7c327017cafb05b1e932f70eefe8641797751a0dc19df0337f4893b1b",
+        "f9f63b62ba8efc555dc20e673cc02251d5ab6c2ab17d8f5efa760d0d97146dcd",
+        "5a34307b4d52927f36573fcf1caf4f63e3e0ce7adffc522e462128148bec7060"),
+}
+
+
+def identity(value):
+    if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{40}", value) is None:
+        raise ValueError("complete lowercase Git identity required")
+    return value
+
+
+def source_name(value):
+    if (not value or value.startswith("/") or "\\" in value or
+            any(part in ("", ".", "..", ".git") for part in value.split("/"))):
+        raise ValueError("unsafe Git export path")
+    return value
+
+
+def tree_inventory(raw):
+    files, gitlinks = {}, {}
+    for row in raw.split(b"\0"):
+        if not row:
+            continue
+        header, name = row.split(b"\t", 1)
+        mode, kind, oid = header.decode("ascii").split(" ")
+        name = source_name(name.decode("utf-8"))
+        identity(oid)
+        if name in files or name in gitlinks:
+            raise ValueError("duplicate Git inventory path")
+        if (mode, kind) == ("160000", "commit"):
+            gitlinks[name] = oid
+        elif kind == "blob" and mode in ("100644", "100755"):
+            files[name] = {"mode": int(mode[-3:], 8), "git_blob": oid}
+        else:
+            raise ValueError("only regular Git files and gitlinks permitted")
+    if not files:
+        raise ValueError("empty Git export")
+    for name in (*files, *gitlinks):
+        if any(str(parent) in files or str(parent) in gitlinks
+               for parent in Path(name).parents if str(parent) != "."):
+            raise ValueError("Git inventory path collision")
+    return files, gitlinks
+
+
+def export_archive(data, target, files, gitlinks):
+    """Extract only exact ls-tree blobs; tar extraction never selects paths."""
+    directories = set(gitlinks)
+    for name in (*files, *gitlinks):
+        directories.update(str(p) for p in Path(name).parents if str(p) != ".")
+    seen, seen_directories, inventory = set(), set(), {}
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:") as archive:
+        for member in archive:
+            name = source_name(member.name.rstrip("/") if member.isdir() else member.name)
+            if member.isdir():
+                if name not in directories or name in seen_directories or member.mode != 0o755:
+                    raise ValueError("unexpected archive directory/mode/duplicate")
+                seen_directories.add(name)
+                (target / name).mkdir(parents=True, exist_ok=True)
+                continue
+            if not member.isfile() or name not in files or name in seen:
+                raise ValueError("unexpected archive object/path/duplicate")
+            expected = files[name]
+            if member.mode != expected["mode"]:
+                raise ValueError("archive Git mode differs")
+            stream = archive.extractfile(member)
+            if stream is None:
+                raise ValueError("archive regular-file payload absent")
+            payload = stream.read()
+            blob = hashlib.sha1(b"blob " + str(len(payload)).encode() + b"\0" + payload).hexdigest()
+            if len(payload) != member.size or blob != expected["git_blob"]:
+                raise ValueError("archive blob differs from Git tree")
+            destination = target / name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            with destination.open("xb") as output:
+                output.write(payload)
+            destination.chmod(expected["mode"])
+            inventory[name] = {"mode": expected["mode"], "sha256": hashlib.sha256(payload).hexdigest()}
+            seen.add(name)
+    if seen != set(files):
+        raise ValueError("missing archive files")
+    for name in gitlinks:
+        (target / name).mkdir(parents=True, exist_ok=True)
+    return inventory
+
+
+def export_current(git, target, revision, capture):
+    identity(revision)
+    tree = identity(git("rev-parse", revision + "^{tree}").decode().strip())
+    files, gitlinks = tree_inventory(git("ls-tree", "-rz", "--full-tree", revision))
+    inventory = export_archive(git("-c", "tar.umask=0022", "archive", "--format=tar", revision),
+                               target, files, gitlinks)
+    snapshot = {"format": "i12-source-export-manifest-v1", "source_revision": revision,
+                "git_tree": tree, "files": inventory, "gitlinks": gitlinks}
+    data = (json.dumps(snapshot, sort_keys=True, indent=2) + "\n").encode()
+    (target / capture.SNAPSHOT).write_bytes(data)
+    marker = {"format": "i12-disposable-source-copy-v2", "path": str(target), "disposable": True,
+              "source_revision": revision, "snapshot_manifest": capture.SNAPSHOT,
+              "snapshot_manifest_sha256": hashlib.sha256(data).hexdigest()}
+    (target / capture.MARKER).write_text(json.dumps(marker) + "\n")
+    return capture.disposable(target, "unused-v2", Path("/var/tmp/codex/ModSecurity-conector"))
+
+
+def permitted_transition(name, current, entry):
+    before, after = entry["before_sha256"], entry["sha256"]
+    if current == before or (current is None and before is None):
+        return "exact-profile-before"
+    if OBSERVER_COMPATIBILITY.get(name) == (current, before, after):
+        return "explicit-historical-observer-compatibility"
+    raise ValueError("unapproved capture transition: " + name)
+
+
+def frozen_registry(checkout, output, capture, source_identity, git):
+    """Reconstruct exact manifest repository objects without changing shared data."""
+    replica = output / "historical-capture-control-plane"
+    root = replica / "ci/runtime/lifecycle/i12"
+    root.mkdir(parents=True, mode=0o700)
+    manifest_bytes = capture.plain(checkout / "ci/runtime/lifecycle/i12/manifest.json")
+    manifest = json.loads(manifest_bytes)
+    frozen = {}
+    names = {"capture_sources.py", "manifest.json"}
+    for entry in manifest["objects"].values():
+        for field in ("file", "patch"):
+            if field in entry:
+                names.add(str(capture.relative(entry[field])))
+    for name in sorted(names):
+        payload = capture.plain(checkout / "ci/runtime/lifecycle/i12" / name)
+        target = root / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open("xb") as destination:
+            destination.write(payload)
+        target.chmod(0o644)
+        frozen[name] = hashlib.sha256(payload).hexdigest()
+    resolutions, demanded = {}, {}
+    for expected, entry in manifest["objects"].items():
+        if entry["kind"] != "repository":
+            continue
+        name = str(capture.relative(entry["path"]))
+        if name in demanded:
+            if demanded[name] != expected:
+                raise ValueError("conflicting repository object identities: " + name)
+            continue
+        demanded[name] = expected
+        history = git("log", "-n", "513", "--format=%H", source_identity["source_revision"], "--", name).decode().splitlines()
+        candidates = dict.fromkeys([source_identity["source_revision"], *history[:512]])
+        found = None
+        for revision in candidates:
+            identity(revision)
+            row = git("ls-tree", "-z", revision, "--", name)
+            if not row:
+                continue
+            files, links = tree_inventory(row)
+            if links or set(files) != {name}:
+                raise ValueError("non-regular historical repository object: " + name)
+            blob = files[name]["git_blob"]
+            size = int(git("cat-file", "-s", blob).decode().strip())
+            if size > 2 * 1024 * 1024:
+                continue
+            payload = git("cat-file", "blob", blob)
+            if hashlib.sha256(payload).hexdigest() != expected:
+                continue
+            if len(payload) != size or b"\0" in payload:
+                raise ValueError("invalid exact historical text object")
+            payload.decode("utf-8")
+            found = (revision, blob, payload, files[name]["mode"])
+            break
+        if found is None:
+            raise ValueError("exact repository object absent from bounded 512-commit path history: " + name)
+        revision, blob, payload, mode = found
+        target = replica / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open("xb") as destination:
+            destination.write(payload)
+        target.chmod(mode)
+        resolutions[name] = {"expected_sha256": expected, "source_commit": revision,
+                             "source_git_blob": blob, "mode": mode,
+                             "history_search_limit": 512, "current_revision": source_identity["source_revision"]}
+    replica_registry = capture.Registry(root=root, repository=replica)
+    replica_registry.verify()
+    helper = root / "capture_sources.py"
+    verified = subprocess.run(["rtk", "proxy", "python3", str(helper), "verify"], capture_output=True)
+    (output / "historical-registry-verify.stdout").write_bytes(verified.stdout)
+    (output / "historical-registry-verify.stderr").write_bytes(verified.stderr)
+    if verified.returncode:
+        raise RuntimeError("unchanged frozen shared Registry verify failed")
+    receipt = {"format": "nginx-i12-frozen-shared-registry-v1", "replica": str(replica),
+               "exact_control_plane_sha256": frozen, "repository_resolution": resolutions,
+               "shared_verify_stdout_sha256": hashlib.sha256(verified.stdout).hexdigest(),
+               "shared_verify_stderr_sha256": hashlib.sha256(verified.stderr).hexdigest(),
+               "shared_verify_exit": verified.returncode,
+               "scope": "Historical exact object reconstruction; not a current product checkout or runtime qualification"}
+    path = output / "historical-registry-reconstruction-receipt.json"
+    path.write_text(json.dumps(receipt, indent=2) + "\n")
+    return replica_registry, helper, receipt, sha(path)
+
+
+def apply_historical_adapter(checkout, output, snapshot, capture, source_identity, git):
+    registry, helper, reconstruction, reconstruction_sha = frozen_registry(
+        checkout, output, capture, source_identity, git)
+    profile = registry.manifest["profiles"]["nginx"]
+    stage = output / "historical-nginx-profile-stage"
+    stage.mkdir(mode=0o700)
+    transitions = {}
+    for name, entry in profile["source_targets"].items():
+        target = snapshot / capture.relative(name)
+        current = sha(target) if target.exists() else None
+        reason = permitted_transition(name, current, entry)
+        transitions[name] = {"current_before_sha256": current, "historical_before_sha256": entry["before_sha256"],
+                             "profile_after_sha256": entry["sha256"], "transition": reason}
+        if entry["before_sha256"] is not None:
+            historical = stage / name
+            historical.parent.mkdir(parents=True, exist_ok=True)
+            historical.write_bytes(registry.content(entry["before_sha256"]))
+            historical.chmod(entry.get("mode", 420))
+    marker = {"format": "i12-disposable-source-copy-v1", "path": str(stage), "disposable": True,
+              "parent_sha": registry.manifest["delivery_product_baseline"]}
+    (stage / capture.MARKER).write_text(json.dumps(marker) + "\n")
+    command = ["rtk", "proxy", "python3", str(helper),
+               "apply", "--profile", "nginx", "--source-copy", str(stage)]
+    applied = subprocess.run(command, capture_output=True)
+    (output / "source-application.stdout").write_bytes(applied.stdout)
+    (output / "source-application.stderr").write_bytes(applied.stderr)
+    if applied.returncode:
+        raise RuntimeError("historical compatibility capture failed; retained logs")
+    receipt = json.loads(capture.plain(stage / capture.RECEIPT))
+    expected = {name: entry["sha256"] for name, entry in profile["source_targets"].items()}
+    expected.update({".i12-capture/nginx/" + name: entry["sha256"]
+                     for name, entry in profile["capture_files"].items()})
+    if receipt["exact_written_sha256"] != expected or receipt["source_revision"] != marker["parent_sha"]:
+        raise ValueError("historical shared receipt differs")
+    for name, digest in expected.items():
+        source = stage / capture.relative(name)
+        payload = capture.plain(source)
+        if hashlib.sha256(payload).hexdigest() != digest:
+            raise ValueError("historical profile output differs")
+        target = snapshot / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(payload)
+        target.chmod(stat.S_IMODE(source.stat().st_mode))
+    adapter = {"format": "nginx-i12-current-source-adapter-v1", **source_identity,
+               "historical_stage": str(stage), "historical_stage_identity": marker,
+               "historical_shared_receipt_sha256": sha(stage / capture.RECEIPT),
+               "historical_registry_reconstruction_receipt_sha256": reconstruction_sha,
+               "historical_registry_reconstruction": reconstruction,
+               "shared_apply_stdout_sha256": hashlib.sha256(applied.stdout).hexdigest(),
+               "shared_apply_stderr_sha256": hashlib.sha256(applied.stderr).hexdigest(),
+               "shared_apply_exit": applied.returncode,
+               "historical_shared_receipt": receipt, "transitions": transitions,
+               "exact_written_sha256": expected, "runtime_qualified": False,
+               "scope": "Current v2 export with explicitly historical nginx profile outputs; stage is not current source"}
+    (snapshot / capture.RECEIPT).write_text(json.dumps(adapter, indent=2) + "\n")
+    (output / "nginx-current-source-adapter-receipt.json").write_text(json.dumps(adapter, indent=2) + "\n")
 
 
 def create_private_output(output):
@@ -207,6 +470,7 @@ def main():
         result = subprocess.run(["rtk", "proxy", "git", *argv], cwd=checkout,
                                 check=True, capture_output=True)
         return result.stdout
+    identity(args.parent_sha)
     if git("rev-parse", "HEAD").decode().strip() != args.parent_sha:
         raise ValueError("checkout HEAD differs from required exact head")
     scope = ["common", "connectors/nginx", "connectors/profile_registry.h", "connectors/profile_registry.c",
@@ -214,7 +478,6 @@ def main():
              "tests/fixtures/nginx_common_input_fault.c", "tests/fixtures/nginx_engine_budget_fault.c",
              "tests/fixtures/nginx_transaction_fault.c"]
     # Evidence records the real checkout state; source scopes must remain clean.
-    tracked = git("ls-files", "-z", "--", *scope).decode().split("\0")
     diff = git("diff", "HEAD", "--", *scope)
     (output / "checkout-source.diff").write_bytes(diff)
     (output / "checkout-status.txt").write_bytes(git("status", "--porcelain=v1"))
@@ -223,28 +486,17 @@ def main():
         raise ValueError("tracked build inputs differ from exact checkout HEAD")
     manifest = checkout / "ci/runtime/lifecycle/i12/manifest.json"
     baseline = json.loads(manifest.read_text())["delivery_product_baseline"]
+    spec = importlib.util.spec_from_file_location("nginx_shared_capture", checkout / "ci/runtime/lifecycle/i12/capture_sources.py")
+    capture = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(capture)
     snapshots = {}
+    export_identities = {}
     for variant in ("ordinary", "observed"):
         snapshot = output / ("source-" + variant)
-        snapshot.mkdir()
-        for name in filter(None, tracked):
-            source = checkout / name
-            if source.is_symlink() or not source.is_file():
-                raise ValueError("source must be a physical regular file: " + name)
-            target = snapshot / name
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(source, target)
-        marker = {"format": "i12-disposable-source-copy-v1", "path": str(snapshot),
-                  "disposable": True, "parent_sha": baseline}
-        (snapshot / ".i12-disposable-source-copy.json").write_text(json.dumps(marker) + "\n")
+        snapshot.mkdir(mode=0o700)
+        export_identities[variant] = export_current(git, snapshot, args.parent_sha, capture)
         if variant == "observed":
-            command = ["rtk", "proxy", "python3", str(checkout / "ci/runtime/lifecycle/i12/capture_sources.py"),
-                       "apply", "--profile", "nginx", "--source-copy", str(snapshot)]
-            applied = subprocess.run(command, capture_output=True)
-            (output / "source-application.stdout").write_bytes(applied.stdout)
-            (output / "source-application.stderr").write_bytes(applied.stderr)
-            if applied.returncode:
-                raise RuntimeError("source capture failed; retained logs")
+            apply_historical_adapter(checkout, output, snapshot, capture, export_identities[variant], git)
             # Additional NGINX-only state capture is separate from shared capture.
             extra = {"shared_capture_receipt_sha256": sha(snapshot / "i12-source-application-receipt.json"),
                      "header_sha256": sha(checkout / "ci/runtime/lifecycle/i12/nginx/host_state.h"), "files": {}}
@@ -276,6 +528,7 @@ def main():
     provenance = {"checkout_sha": args.parent_sha, "manifest_sha256": sha(manifest),
                   "capture_helper_sha256": sha(checkout / "ci/runtime/lifecycle/i12/capture_sources.py"),
                   "capture_product_baseline": baseline, "source_snapshots": snapshots,
+                  "validated_current_exports": export_identities,
                   "checkout_source_diff_sha256": sha(output / "checkout-source.diff")}
     (output / "provenance.json").write_text(json.dumps(provenance, indent=2) + "\n")
     fixtures = output / "fixtures"

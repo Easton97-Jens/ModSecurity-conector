@@ -1,12 +1,14 @@
 """NGINX evidence file boundaries; synthetic tests, never host qualification."""
 
 import hashlib
+import io
 import importlib.util
 import json
 import os
 from pathlib import Path
 import stat
 import tempfile
+import tarfile
 import unittest
 
 
@@ -40,6 +42,101 @@ class EvidenceBoundaryTests(unittest.TestCase):
         self.image = self.scratch / "nginx"
         self.image.write_bytes(b"synthetic pinned native image\n")
         self.image.chmod(0o500)
+
+    def archive(self, members):
+        stream = io.BytesIO()
+        with tarfile.open(fileobj=stream, mode="w") as archive:
+            for name, data, kind, mode in members:
+                item = tarfile.TarInfo(name)
+                item.type, item.mode, item.size = kind, mode, len(data)
+                archive.addfile(item, io.BytesIO(data) if kind == tarfile.REGTYPE else None)
+        return stream.getvalue()
+
+    def synthetic_inventory(self):
+        payload = b"synthetic source\n"
+        blob = hashlib.sha1(b"blob " + str(len(payload)).encode() + b"\0" + payload).hexdigest()
+        return payload, {"src/main.c": {"mode": 0o644, "git_blob": blob}}
+
+    def test_git_inventory_requires_exact_ids_modes_paths_and_no_collisions(self):
+        good = b"100644 blob " + b"a" * 40 + b"\tsrc/main.c\0"
+        files, links = BUILD.tree_inventory(good + b"160000 commit " + b"b" * 40 + b"\tmodule\0")
+        self.assertEqual(files["src/main.c"]["mode"], 0o644)
+        self.assertEqual(links, {"module": "b" * 40})
+        for invalid in (good + good, good.replace(b"100644", b"120000"),
+                        good.replace(b"src/main.c", b"../escape"),
+                        good.replace(b"a" * 40, b"a" * 39),
+                        good + good.replace(b"src/main.c", b"src/main.c/child")):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(ValueError):
+                    BUILD.tree_inventory(invalid)
+
+    def test_archive_export_binds_exact_blobs_modes_and_gitlink_inventory(self):
+        payload, files = self.synthetic_inventory()
+        target = self.scratch / "export"
+        target.mkdir()
+        raw = self.archive([("src/", b"", tarfile.DIRTYPE, 0o755),
+                            ("src/main.c", payload, tarfile.REGTYPE, 0o644)])
+        inventory = BUILD.export_archive(raw, target, files, {"module": "b" * 40})
+        self.assertEqual(inventory["src/main.c"], {"mode": 0o644, "sha256": hashlib.sha256(payload).hexdigest()})
+        self.assertTrue((target / "module").is_dir())
+        self.assertEqual(stat.S_IMODE((target / "src/main.c").stat().st_mode), 0o644)
+
+    def test_archive_rejects_missing_extra_duplicate_link_special_mode_and_blob_changes(self):
+        payload, files = self.synthetic_inventory()
+        valid = ("src/main.c", payload, tarfile.REGTYPE, 0o644)
+        cases = [[], [valid, valid], [("extra", payload, tarfile.REGTYPE, 0o644)],
+                 [("../escape", payload, tarfile.REGTYPE, 0o644)]]
+        # Each unsupported member is checked before any payload extraction.
+        cases += [[("src/main.c", b"", kind, 0o644)] for kind in
+                  (tarfile.SYMTYPE, tarfile.LNKTYPE, tarfile.FIFOTYPE, tarfile.CHRTYPE)]
+        cases += [[("src/main.c", payload, tarfile.REGTYPE, 0o666)],
+                  [("src/main.c", b"different", tarfile.REGTYPE, 0o644)]]
+        for index, members in enumerate(cases):
+            target = self.scratch / ("rejected-" + str(index))
+            target.mkdir()
+            with self.subTest(members=members):
+                with self.assertRaises(ValueError):
+                    BUILD.export_archive(self.archive(members), target, files, {})
+
+    def test_v2_export_is_validated_by_unchanged_shared_snapshot_contract(self):
+        spec = importlib.util.spec_from_file_location("nginx_boundary_shared_capture",
+                                                     HARNESS.parent / "capture_sources.py")
+        capture = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(capture)
+        payload, files = self.synthetic_inventory()
+        archive = self.archive([("src/main.c", payload, tarfile.REGTYPE, 0o644)])
+        def git(*args):
+            if args[0] == "rev-parse":
+                return ("b" * 40 + "\n").encode()
+            if args[0] == "ls-tree":
+                return ("100644 blob " + files["src/main.c"]["git_blob"] + "\tsrc/main.c\0").encode()
+            if args == ("-c", "tar.umask=0022", "archive", "--format=tar", "a" * 40):
+                return archive
+            raise AssertionError(args)
+        target = self.scratch / "v2"
+        target.mkdir()
+        result = BUILD.export_current(git, target, "a" * 40, capture)
+        self.assertEqual(result["source_revision"], "a" * 40)
+        self.assertEqual(result["source_git_tree"], "b" * 40)
+        self.assertEqual(result["snapshot_file_count"], 1)
+        self.assertEqual(result["source_identity_format"], "i12-disposable-source-copy-v2")
+        (target / "src/main.c").write_bytes(b"tampered")
+        with self.assertRaises(ValueError):
+            capture.disposable(target, "irrelevant", Path("/var/tmp/codex/ModSecurity-conector"))
+
+    def test_only_exact_observer_compatibility_transitions_are_permitted(self):
+        for name, (current, before, after) in BUILD.OBSERVER_COMPATIBILITY.items():
+            entry = {"before_sha256": before, "sha256": after}
+            self.assertEqual(BUILD.permitted_transition(name, current, entry),
+                             "explicit-historical-observer-compatibility")
+            self.assertEqual(BUILD.permitted_transition(name, before, entry), "exact-profile-before")
+            for changed_name, changed_current, changed_entry in (
+                    ("other.c", current, entry), (name, "0" * 64, entry),
+                    (name, current, {**entry, "sha256": "0" * 64})):
+                with self.assertRaises(ValueError):
+                    BUILD.permitted_transition(changed_name, changed_current, changed_entry)
+        self.assertEqual(BUILD.permitted_transition("new.h", None,
+                         {"before_sha256": None, "sha256": "a" * 64}), "exact-profile-before")
 
     def test_fresh_build_output_is_private_and_never_reuses_existing_directory(self):
         target = self.scratch / "build" / "fresh"
