@@ -36,6 +36,7 @@
 #include <haproxy/filters.h>
 #include <haproxy/http_ana.h>
 #include <haproxy/http_ana-t.h>
+#include <haproxy/proxy-t.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
 #include <haproxy/init.h>
@@ -743,10 +744,9 @@ static void haproxy_modsecurity_htx_report_error(
  * path must not be reclassified as observer-only.  Latch the filter into its
  * fail-closed error state instead; this preserves the enforcement boundary
  * without claiming an unverified redirect or status mapping.
- * HAProxy's selected API has no supported dynamic redirect/rate-limit reply
- * builder.  Callers therefore use this helper for a validated deny and map
- * every other disruptive precommit decision to the deterministic 503 path;
- * none of them may become an observer-only fail-open.
+ * This helper handles validated deny replies; the separate redirect helper
+ * uses HAProxy's public literal-Location API. Other disruptive shapes remain
+ * fail-closed rather than becoming observer-only fail-open.
  */
 static int haproxy_modsecurity_htx_apply_precommit_deny(
     struct stream *s, struct haproxy_modsecurity_htx_filter_context *ctx,
@@ -781,6 +781,52 @@ static int haproxy_modsecurity_htx_apply_precommit_deny(
     return 1;
 }
 
+/* HAProxy copies the literal Location into HTX during this synchronous call.
+ * No log-format parser, native borrowed URL, or status normalization is used. */
+static int haproxy_modsecurity_htx_apply_precommit_redirect(
+    struct stream *s, struct haproxy_modsecurity_htx_filter_context *ctx,
+    const haproxy_modsecurity_decision *decision)
+{
+    struct redirect_rule rule;
+    size_t length = 0U;
+    char location[sizeof(decision->redirect_url)];
+
+    if (s == NULL || s->txn == NULL || ctx == NULL || decision == NULL ||
+            !decision->disruptive || strcmp(decision->action, "redirect") != 0 ||
+            decision->error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE ||
+            decision->phase < 1 || decision->phase > 3 ||
+            ctx->response.headers_committed ||
+            !haproxy_modsecurity_redirect_url_length(decision->redirect_url,
+                sizeof(decision->redirect_url), &length)) {
+        return 0;
+    }
+    switch (decision->status) {
+    case 301: case 302: case 303: case 307: case 308: break;
+    default: return 0;
+    }
+    memcpy(location, decision->redirect_url, length + 1U);
+    if (haproxy_modsecurity_htx_finish_context(ctx) != 0) { return 0; }
+    ctx->lifecycle.disabled = 1;
+    memset(&rule, 0, sizeof(rule));
+    rule.type = REDIRECT_TYPE_LOCATION;
+    rule.rdr_str = location;
+    rule.rdr_len = (int)length;
+    rule.code = decision->status;
+    rule.flags = decision->phase <= 2 ? REDIRECT_FLAG_FROM_REQ : 0U;
+    return http_apply_redirect_rule(&rule, s, s->txn) == 1;
+}
+
+static int haproxy_modsecurity_htx_apply_precommit_decision(
+    struct stream *s, struct haproxy_modsecurity_htx_filter_context *ctx,
+    const haproxy_modsecurity_decision *decision)
+{
+    if (ctx == NULL || ctx->response.headers_committed) { return 0; }
+    if (decision != NULL && strcmp(decision->action, "redirect") == 0) {
+        return haproxy_modsecurity_htx_apply_precommit_redirect(s, ctx, decision);
+    }
+    return haproxy_modsecurity_htx_apply_precommit_deny(s, ctx, decision);
+}
+
 /* A Common/body/engine failure is not a Safe/log-only decision.  Before
  * response commitment HAProxy can still deliver a deterministic 503. */
 static int haproxy_modsecurity_htx_fail_closed_precommit(
@@ -808,17 +854,6 @@ static int haproxy_modsecurity_htx_fail_closed_precommit(
     return -1;
 }
 
-static void haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed(
-    struct stream *s, struct haproxy_modsecurity_htx_filter_context *ctx,
-    const haproxy_modsecurity_decision *decision, const char *stage)
-{
-    if (ctx != NULL && ctx->lifecycle.disabled) {
-        return;
-    }
-    if (!haproxy_modsecurity_htx_apply_precommit_deny(s, ctx, decision)) {
-        (void)haproxy_modsecurity_htx_fail_closed_precommit(s, ctx, stage);
-    }
-}
 
 /* Drop only bytes still owned by this stream's response queue. Bytes already
  * passed to the frontend transport are no longer in this HTX buffer and cannot
@@ -882,6 +917,25 @@ static void haproxy_modsecurity_htx_fail_closed_request_phase(
     } else {
         (void)haproxy_modsecurity_htx_fail_closed_precommit(s, ctx, stage);
     }
+}
+
+static int haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed(
+    struct stream *s, struct haproxy_modsecurity_htx_filter_context *ctx,
+    const haproxy_modsecurity_decision *decision, const char *stage)
+{
+    if (ctx != NULL && ctx->lifecycle.disabled) { return 0; }
+    if (ctx != NULL && !ctx->lifecycle.fail_closed &&
+            haproxy_modsecurity_htx_apply_precommit_decision(s, ctx, decision)) { return 1; }
+    if (ctx != NULL && ctx->lifecycle.error.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+        ctx->lifecycle.error.error_class = MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
+        ctx->lifecycle.error.phase = decision != NULL ? decision->phase :
+            haproxy_modsecurity_htx_error_phase(ctx);
+        ctx->lifecycle.error.status = 503;
+        ctx->lifecycle.error.disruptive = 1;
+        (void)snprintf(ctx->lifecycle.error.action, sizeof(ctx->lifecycle.error.action), "deny");
+    }
+    haproxy_modsecurity_htx_fail_closed_request_phase(s, ctx, stage);
+    return 0;
 }
 
 /* HTX carries the actual frontend protocol version, including HTTP/2.0.
@@ -1018,14 +1072,10 @@ static int haproxy_modsecurity_htx_begin_request(
     haproxy_modsecurity_htx_report_decision("request", ctx, &decision);
     if (ctx->lifecycle.fail_closed) { return -1; }
     if (decision.disruptive) {
-        /* P1 is still before the request is committed.  Translate a valid
-         * deny through HAProxy's native reply path; every other disruptive
-         * common decision has no safe dynamic reply representation here and
-         * therefore fails closed rather than being silently downgraded. */
-        if (!haproxy_modsecurity_htx_apply_precommit_deny(s, ctx, &decision)) {
-            (void)haproxy_modsecurity_htx_fail_closed_precommit(s, ctx,
-                "request disruptive decision");
-        }
+        /* P1 is precommit. Translate validated deny and redirect decisions;
+         * unsupported disruptive shapes fail closed. */
+        if (!haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed(s, ctx,
+                &decision, "request disruptive decision")) { return -1; }
     }
     return 0;
 }
@@ -1163,13 +1213,10 @@ static int haproxy_modsecurity_htx_process_response_headers(
     haproxy_modsecurity_htx_report_decision("response-header", ctx, &decision);
     if (ctx->lifecycle.fail_closed) { return -1; }
     if (decision.disruptive) {
-        /* P3 remains pre-commit.  Only a validated deny has a native
-         * HAProxy response translation; all other disruptive decisions use
-         * the deterministic fail-closed reply. */
-        if (!haproxy_modsecurity_htx_apply_precommit_deny(s, ctx, &decision)) {
-            (void)haproxy_modsecurity_htx_fail_closed_precommit(s, ctx,
-                "response-header disruptive decision");
-        }
+        /* P3 remains precommit: translate validated deny or redirect replies,
+         * and fail closed for unsupported disruptive shapes. */
+        if (!haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed(s, ctx,
+                &decision, "response-header disruptive decision")) { return -1; }
     }
     return 0;
 }
@@ -1334,6 +1381,7 @@ static int haproxy_modsecurity_htx_process_companion_response_headers(
     msconnector_response_companion_result result;
     msconnector_error error;
     haproxy_modsecurity_decision host_decision;
+    msconnector_decision_action host_action;
     int status;
     int ok;
 
@@ -1386,38 +1434,46 @@ static int haproxy_modsecurity_htx_process_companion_response_headers(
         return 0;
     }
 
-    /* HAProxy's selected HTX API has a concrete deny reply, but no supported
-     * dynamic redirect reply builder.  Preserve a deny status where valid and
-     * otherwise fail closed with 503 rather than forwarding a disruptive P3. */
-    status = result.decision == MSCONNECTOR_DECISION_KIND_DENY &&
-        msconnector_block_status_is_allowed((int)result.status) ?
-        (int)result.status : 503;
     if (result.decision == MSCONNECTOR_DECISION_KIND_ERROR ||
             result.decision == MSCONNECTOR_DECISION_KIND_UNSUPPORTED) {
         haproxy_modsecurity_htx_companion_result_reset(&result);
         return haproxy_modsecurity_htx_fail_closed_precommit(s, ctx,
             "response-companion technical phase-3 failure");
     }
-    haproxy_modsecurity_htx_companion_result_reset(&result);
     memset(&host_decision, 0, sizeof(host_decision));
     host_decision.disruptive = 1;
     host_decision.phase = 3;
-    host_decision.status = status;
-    snprintf(host_decision.action, sizeof(host_decision.action), "%s", "deny");
-    if (haproxy_modsecurity_htx_apply_precommit_deny(s, ctx, &host_decision)) {
-        /* The concrete reply API has now been invoked. A failed OUTCOME
-         * acknowledgement cannot generate a second HTTP reply. */
+    if (result.decision == MSCONNECTOR_DECISION_KIND_REDIRECT) {
+        size_t length = 0U;
+        host_decision.status = (int)result.status;
+        (void)snprintf(host_decision.action, sizeof(host_decision.action), "redirect");
+        if (haproxy_modsecurity_redirect_url_length(result.redirect_url,
+                sizeof(host_decision.redirect_url), &length)) {
+            memcpy(host_decision.redirect_url, result.redirect_url, length + 1U);
+        }
+        host_action = MSCONNECTOR_DECISION_ACTION_REDIRECT;
+    } else {
+        host_decision.status = result.decision == MSCONNECTOR_DECISION_KIND_DENY &&
+            msconnector_block_status_is_allowed((int)result.status) ? (int)result.status : 503;
+        (void)snprintf(host_decision.action, sizeof(host_decision.action), "deny");
+        host_action = MSCONNECTOR_DECISION_ACTION_DENY;
+    }
+    status = host_decision.status;
+    /* The result owns its URL. The local native-shaped decision owns the copy
+     * through host translation and only then records OUTCOME before RELEASE. */
+    haproxy_modsecurity_htx_companion_result_reset(&result);
+    if (haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed(s, ctx,
+            &host_decision, "response-companion disruptive phase-3")) {
         ctx->response.headers_committed = 1;
         if (!haproxy_modsecurity_htx_companion_record_precommit_outcome(ctx,
-                MSCONNECTOR_DECISION_ACTION_DENY, status)) {
+                host_action, status)) {
             haproxy_modsecurity_htx_fail_closed_postcommit(s, ctx,
                 "response-companion precommit outcome acknowledgement");
             return -1;
         }
         return 1;
     }
-    return haproxy_modsecurity_htx_fail_closed_precommit(s, ctx,
-        "response-companion disruptive phase-3");
+    return -1;
 }
 
 static int haproxy_modsecurity_htx_send_companion_response_chunk(
@@ -1978,11 +2034,8 @@ static int haproxy_modsecurity_htx_finish_request(
          * body decision cannot be converted into a fabricated HTTP reply and
          * must instead terminate the stream. */
         if (!ctx->response.headers_seen) {
-            if (!haproxy_modsecurity_htx_apply_precommit_deny(s, ctx,
-                    &decision)) {
-                (void)haproxy_modsecurity_htx_fail_closed_precommit(s, ctx,
-                    "request-body disruptive decision");
-            }
+            (void)haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed(s, ctx,
+                &decision, "request-body disruptive decision");
         } else {
             haproxy_modsecurity_htx_fail_closed_postcommit(s, ctx,
                 "request-body disruptive decision after response phase");

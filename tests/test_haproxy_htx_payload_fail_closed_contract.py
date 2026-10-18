@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import unittest
 from pathlib import Path
+from tests.c_source_contract import function_definition
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,11 +18,7 @@ class HAProxyHTXPayloadFailClosedContractTest(unittest.TestCase):
         request_branch = SOURCE.split(
             "static int haproxy_modsecurity_htx_filter_request_payload(", 1
         )[1].split("static int haproxy_modsecurity_htx_filter_response_payload(", 1)[0]
-        precommit = SOURCE.split(
-            "static int haproxy_modsecurity_htx_fail_closed_precommit(", 1
-        )[1].split(
-            "static void haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed(", 1
-        )[0]
+        precommit = function_definition(SOURCE, "haproxy_modsecurity_htx_fail_closed_precommit")
 
         self.assertIn("haproxy_modsecurity_htx_append_request_payload", request_branch)
         self.assertIn(
