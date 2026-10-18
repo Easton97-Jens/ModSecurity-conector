@@ -231,6 +231,20 @@ class ConfigurationLedgerTests(unittest.TestCase):
         path.write_text(json.dumps(actual))
         ref.update(LEDGER.ORACLES.reference(path))
 
+    def bind_rejection_expectation(self):
+        process = self.process()
+        process.update(first_cause="rules_rejected", stderr="source-bound rules rejection")
+        stream = next(item for item in self.packet["measurement_evidence"] if item["role"] == "parser_stderr")
+        Path(stream["path"]).write_text(process["stderr"])
+        stream.update(LEDGER.ORACLES.reference(Path(stream["path"])))
+        ref = next(item for item in self.packet["measurement_evidence"] if item["role"] == "expectation_source")
+        Path(ref["path"]).write_text(json.dumps({"reviewed_by": "root", "expected_parser_rejection": {
+            "original_contract_sha256": LEDGER.ORACLES.canonical_digest(self.row["selected_requirement"]),
+            "oracle_sha256": self.packet["oracle_sha256"], "diagnostic_stream": "stderr",
+            "diagnostic_contains": "source-bound rules rejection", "first_cause": "rules_rejected"}}))
+        ref.update(LEDGER.ORACLES.reference(Path(ref["path"])))
+        self.rebind_process()
+
     def test_exact_three_original_observations_without_lifecycle_fabrication(self):
         result = self.review()
         self.assertEqual(set(result["mandatory_observations"]), set(LEDGER.CONFIGURATION_FIELDS))
@@ -241,6 +255,7 @@ class ConfigurationLedgerTests(unittest.TestCase):
     def test_exact_rejection_exit_and_truthful_failure(self):
         self.oracle.update(native_result="config_rejected", visible_status=1, rule_id=None)
         self.packet["oracle_sha256"] = LEDGER.ORACLES.canonical_digest(self.oracle)
+        self.bind_rejection_expectation()
         self.process()["waited_exit"] = 1
         self.rebind_process()
         self.assertEqual(self.review()["outcome"], "PASS")
@@ -254,6 +269,7 @@ class ConfigurationLedgerTests(unittest.TestCase):
     def test_exact_source_reviewed_rejection_exit_255_is_not_normalized(self):
         self.oracle.update(native_result="config_rejected", visible_status=255, rule_id=None)
         self.packet["oracle_sha256"] = LEDGER.ORACLES.canonical_digest(self.oracle)
+        self.bind_rejection_expectation()
         self.process()["waited_exit"] = 255
         self.rebind_process()
         self.assertEqual(self.review()["outcome"], "PASS")
@@ -300,6 +316,7 @@ class ConfigurationLedgerTests(unittest.TestCase):
         actual.update(self.process())
         actual_path.write_text(json.dumps(actual))
         process_ref.update(LEDGER.ORACLES.reference(actual_path))
+        self.bind_rejection_expectation()
         self.assertEqual(self.review()["outcome"], "PASS")
         self.packet["rules_sha256"] = "0" * 64
         with self.assertRaises(ValueError):
