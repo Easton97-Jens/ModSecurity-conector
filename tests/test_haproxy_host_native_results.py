@@ -14,6 +14,7 @@ PREAMBLE = r'''
 #include "connectors/haproxy/src/haproxy_spop_response_companion_backend.h"
 #include "msconnector/event_jsonl.h"
 #include "msconnector/error.h"
+#include <assert.h>
 #include <pthread.h>
 #include <unistd.h>
 #include <stdarg.h>
@@ -21,6 +22,7 @@ PREAMBLE = r'''
 #include <stdlib.h>
 #include <string.h>
 static int replies,shutdowns,cleanups,events,phase_result,decisions,native_calls;
+static int native_event_calls,outcome_events,outcome_records;
 static msconnector_transaction_error_class failure=MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE;
 struct stream {struct {short status;} *txn;};
 struct haproxy_modsecurity_htx_filter_context {
@@ -34,7 +36,17 @@ static void ha_warning(const char *format,...) {if(strcmp(format,"%s")==0){event
 static void http_set_term_flags(struct stream *s){(void)s;}
 static void *http_error_message(struct stream *s){(void)s;return NULL;}
 static void http_reply_and_close(struct stream *s,short status,void *m){(void)s;(void)status;(void)m;replies++;}
-static void stream_shutdown(struct stream *s,int flag){(void)s;(void)flag;shutdowns++;}
+static void stream_shutdown(struct stream *s,int flag){assert(s && flag==SF_ERR_KILLED);shutdowns++;}
+/* Controlled sink/transport boundaries for this classification/reentry fixture.
+ * Physical bytes and real host APIs are verified by the native physical event
+ * and productive HTX host-caller fixtures, rather than claimed here. */
+static int haproxy_modsecurity_htx_write_event(struct haproxy_modsecurity_htx_filter_context *ctx,const haproxy_modsecurity_decision *d){
+ assert(ctx && d==&ctx->lifecycle.error && d->error_class!=MSCONNECTOR_TRANSACTION_ERROR_NONE);
+ native_event_calls++;return 1;
+}
+static void haproxy_modsecurity_htx_abort_response_stream(struct stream *s){
+ stream_shutdown(s,SF_ERR_KILLED);
+}
 static void haproxy_modsecurity_htx_companion_cancel_and_close(struct haproxy_modsecurity_htx_filter_context *ctx,const msconnector_error *e){(void)ctx;(void)e;}
 static void haproxy_modsecurity_htx_request_snapshot_free(struct haproxy_modsecurity_htx_filter_context *ctx){(void)ctx;}
 void haproxy_modsecurity_transaction_abort(haproxy_modsecurity_transaction *t){(void)t;cleanups++;}
@@ -48,7 +60,7 @@ int haproxy_modsecurity_transaction_process_response_headers(haproxy_modsecurity
 int haproxy_modsecurity_transaction_append_response_body_chunk(haproxy_modsecurity_transaction *t,const unsigned char *b,unsigned int n,haproxy_modsecurity_decision *d){(void)t;(void)b;(void)n;native_calls++;d->error_class=failure;return phase_result;}
 int haproxy_modsecurity_transaction_finish_response_body(haproxy_modsecurity_transaction *t,haproxy_modsecurity_decision *d){(void)t;native_calls++;d->error_class=failure;return phase_result;}
 int haproxy_modsecurity_transaction_set_response_commit_state(haproxy_modsecurity_transaction *t,int h,int b){(void)t;(void)h;(void)b;native_calls++;return phase_result;}
-int haproxy_modsecurity_transaction_record_response_companion_outcome(haproxy_modsecurity_transaction *t,msconnector_decision_action a,const char *r,int s,int b){(void)t;(void)a;(void)r;(void)s;(void)b;native_calls++;return phase_result;}
+int haproxy_modsecurity_transaction_record_response_companion_outcome(haproxy_modsecurity_transaction *t,msconnector_decision_action a,const char *r,int s,int b){(void)t;(void)a;(void)r;(void)s;(void)b;native_calls++;if(phase_result==0)outcome_records++;return phase_result;}
 #define SPOP_BRIDGE_MAX_HEADERS 4
 typedef struct {FILE *decision_log;pthread_mutex_t decision_log_lock;int decision_log_lock_initialized;msconnector_error decision_log_error;struct {char decision_log[128];} config;} agent_state;
 typedef struct {
@@ -62,6 +74,12 @@ typedef struct {
  char transaction_id[128];
 } spop_bridge_task_context;
 
+static int spop_bridge_outcome_event_write(spop_bridge_task_context *c){
+ assert(c && c->transaction && c->command.decision && !c->transaction_consumed);
+ assert(c->command.decision->phase==MSCONNECTOR_PHASE_RESPONSE_HEADERS);
+ assert(outcome_records==outcome_events+1);
+ outcome_events++;return 1;
+}
 static int set_bridge_native_decision(spop_bridge_task_context *c,const haproxy_modsecurity_decision *d){(void)c;(void)d;decisions++;return 1;}
 '''
 MAIN = r'''
@@ -73,11 +91,11 @@ int main(int argc,char **argv) {
  ctx.transaction=(void *)1;ctx.lifecycle.error.error_class=failure;
  CHECK(haproxy_modsecurity_htx_fail_closed_precommit(&stream,&ctx,"native")==-1);
  CHECK(haproxy_modsecurity_htx_fail_closed_precommit(&stream,&ctx,"native")==-1);
- CHECK(replies==1 && events==1 && cleanups==1);
+ CHECK(replies==1 && events==1 && native_event_calls==1 && cleanups==1);
  ctx=(struct haproxy_modsecurity_htx_filter_context){0};ctx.transaction=(void *)1;
  haproxy_modsecurity_htx_fail_closed_postcommit(&stream,&ctx,"native");
  haproxy_modsecurity_htx_fail_closed_postcommit(&stream,&ctx,"native");
- CHECK(shutdowns==1 && events==2 && cleanups==2);
+ CHECK(shutdowns==1 && events==2 && native_event_calls==2 && cleanups==2);
  ctx=(struct haproxy_modsecurity_htx_filter_context){0};ctx.transaction=(void *)1;phase_result=1;
  CHECK(haproxy_modsecurity_htx_finish_context(&ctx)==1 && ctx.transaction==NULL && ctx.lifecycle.error.phase==5);
  agent_state state={0};state.decision_log=fopen(argv[1],"w+");CHECK(state.decision_log);CHECK(pthread_mutex_init(&state.decision_log_lock,NULL)==0);state.decision_log_lock_initialized=1;
@@ -95,6 +113,17 @@ int main(int argc,char **argv) {
  run_spop_bridge_task(&context);CHECK(context.success && context.transaction_consumed && failure==MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL);
  phase_result=0;context=(spop_bridge_task_context){0};context.state=&state;context.transaction=(void *)1;context.command.operation=HAPROXY_SPOP_RESPONSE_COMPANION_RESPONSE_HEADERS;context.command.response=&response;
  run_spop_bridge_task(&context);CHECK(context.success && decisions==2);
+ /* OUTCOME must cross its controlled event boundary while the native owner
+  * remains held, after recording the native outcome and before RELEASE. */
+ msconnector_decision outcome_decision;msconnector_decision_set_deny(&outcome_decision,403,NULL,"controlled");
+ outcome_decision.phase=MSCONNECTOR_PHASE_RESPONSE_HEADERS;
+ context=(spop_bridge_task_context){0};context.state=&state;context.transaction=(void *)1;
+ context.command.operation=HAPROXY_SPOP_RESPONSE_COMPANION_OUTCOME;
+ context.command.decision=&outcome_decision;
+ int before_outcome_native=native_calls,before_outcome_decisions=decisions;
+ run_spop_bridge_task(&context);
+ CHECK(context.success && !context.transaction_consumed && outcome_events==1);
+ CHECK(native_calls==before_outcome_native+1 && decisions==before_outcome_decisions+1);
  /* Real terminal caller must propagate a real buffered flush failure once. */
  int descriptor=fileno(state.decision_log),saved=dup(descriptor);CHECK(saved>=0);
  CHECK(close(descriptor)==0);context=(spop_bridge_task_context){0};context.state=&state;context.transaction=(void *)1;
@@ -123,7 +152,9 @@ int main(int argc,char **argv) {
 
 class HaproxyHostNativeResultsTests(unittest.TestCase):
     def test_host_error_reentry_and_bridge_error_classification(self):
-        with tempfile.TemporaryDirectory(prefix="haproxy-host-native-", dir=os.environ.get("TMPDIR") or os.environ.get("RUNNER_TEMP")) as temporary:
+        parent = Path(os.environ.get("TMPDIR") or os.environ.get("RUNNER_TEMP") or "/var/tmp/codex/ModSecurity-conector/tmp")
+        parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="haproxy-host-native-", dir=parent) as temporary:
             directory = Path(temporary)
             htx = (ROOT / "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c").read_text()
             spop = (ROOT / "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c").read_text()
@@ -134,7 +165,7 @@ class HaproxyHostNativeResultsTests(unittest.TestCase):
             fixture = directory / "fixture.c"
             fixture.write_text(PREAMBLE + "\n".join(functions) + MAIN)
             binary = directory / "fixture"
-            args = shlex.split(os.environ.get("CC", "cc")) + ["-D_POSIX_C_SOURCE=200809L", "-pthread", "-std=c17", "-Wall", "-Wextra", "-Werror", "-ffunction-sections", "-Wl,--gc-sections", "-I", str(ROOT), "-I", str(ROOT / "common/include"), "-I", str(ROOT / "common/runtime"), str(fixture)] + [str(ROOT / "common/src" / name) for name in ("error.c", "decision.c", "intervention.c", "event.c", "event_jsonl.c", "json_escape.c", "http_status.c", "status.c", "transaction_state.c")] + ["-o", str(binary)]
+            args = shlex.split(os.environ.get("CC", "cc")) + ["-D_POSIX_C_SOURCE=200809L", "-pthread", "-std=c17", "-Wall", "-Wextra", "-Werror", "-ffunction-sections", "-Wl,--gc-sections", "-I", str(ROOT), "-I", str(ROOT / "common/include"), "-I", str(ROOT / "common/runtime"), str(fixture)] + [str(ROOT / "common/src" / name) for name in ("block_statuses.c", "error.c", "decision.c", "intervention.c", "event.c", "event_jsonl.c", "json_escape.c", "http_status.c", "status.c", "transaction_state.c")] + ["-o", str(binary)]
             compiled = subprocess.run(args, capture_output=True, text=True, timeout=90)
             self.assertEqual(compiled.returncode, 0, compiled.stderr)
             observed = subprocess.run([str(binary), str(directory / "events.jsonl")], capture_output=True, text=True, timeout=10)

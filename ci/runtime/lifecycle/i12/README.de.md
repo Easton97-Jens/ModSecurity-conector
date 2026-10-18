@@ -34,12 +34,14 @@ normalisiert.
 | `haproxy-companion-host` | Separate Response-Companion-Hostvariante |
 | `haproxy-spop-agent` | Separater diagnostischer Request-Agent/Backend |
 | `envoy` | Gemeinsame ext_proc-/authz-Capture-Quelle; tatsächliches authz-Backend und eigenes ext_proc-Backend getrennt erhalten |
-| `apache` | Exakte Overlays für drei Produktdateien sowie APR-/Native-/Hosthelper |
+| `apache` | Historische exakte Overlays für drei Produktdateien sowie APR-/Native-/Hosthelper |
+| `apache-current` | Gleiche Apache-Capture-Ergebnisbytes; aktuelle native C-/H-Basishashes und verpflichtender vollständiger v2-Export |
 | `lighttpd` | Getrennte Stock-Sidecar-/patched-native-Fixtures einschließlich ursprünglicher und leerer Fälle |
 | `traefik-native` | Tatsächliche native-UDS-Middleware-/Engine-/Runtime-Beobachtungsvariante |
 | `traefik-forwardauth` | Separate Autorisierungs-/Response-Observer-Quellvariante |
 
-Diese neun **Quellvarianten** sind keine neun abgenommenen Runtime-Routen.
+Die zehn **Quellanwendungsprofile** umfassen neun historische Varianten plus
+`apache-current`. Die Zahl der Runtime-Routen bleibt davon unabhängig.
 Gemeinsame Quellen übertragen niemals Ausführung, EOS, Identität oder Ergebnis
 auf Geschwisterrouten. Framework-/MRTS-Repositories und Gitlinks bleiben außerhalb
 dieses Vertrags. Private Fixturedefinitionen sind laufbezogene Capture-Eingaben,
@@ -108,7 +110,7 @@ Der v2-Marker enthält genau folgende Felder:
   "format": "i12-disposable-source-copy-v2",
   "path": "/var/tmp/codex/ModSecurity-conector/disposable-current-copy",
   "disposable": true,
-  "source_revision": "ad510c3b4168ff0e11fc36803e2ce4127a0689ad",
+  "source_revision": "850879e82ea729f274cb383507b05938df06027a",
   "snapshot_manifest": ".i12-source-export-manifest.json",
   "snapshot_manifest_sha256": "<complete lowercase SHA256 of the frozen inventory>"
 }
@@ -137,6 +139,23 @@ Hashberechnung ab. Das vollständige eingefrorene Inventar bleibt nach der
 Quellanwendung erhalten und beschreibt die Quelle **vor Capture**, keine
 Buildausgaben. Nach Capture in einem getrennten Verzeichnis bauen; eine benutzte
 Kopie kann nicht erneut als unberührter Export eingereicht werden.
+
+Für den vollständigen v2-Export des aktuellen committeten Checkouts
+`--profile apache-current` verwenden. Dieses zusätzliche Profil ändert nur die
+nativen C-/H-Werte `before_sha256` von `ad8e5e36…`/`f9f63b62…` auf
+`0d903fc5…`/`5b7d8fa7…`; sämtliche Capture-Ergebnisbytes, Produkt-Overlays,
+SDK3.0.14-ABI und das historische Profil `apache` bleiben unverändert. Sein
+`required_source_identity_format` lehnt v1-Marker vor jedem Schreiben ab, auch
+wenn die Quellbytes ansonsten passen. Die Registry-Prüfung lehnt unbekannte
+Pflichtformate ab. Der Quellanwendungsname erzeugt keinen neuen Lauf, keine
+Transaktion und keine Runtime-Route: Das native Profil bleibt `apache-native`.
+Historische Paket-/Buildherkunft bleibt als historisch gekennzeichnet; ein neuer
+Vollbuild und tatsächlich geladene Images benötigen eigene Nachweise.
+
+Die integrierte gemeinsame Korrektur erhält fünf historische HAProxy-/lighttpd-
+Objekte als verlustfreie Textzeilenobjekte. Inhalts-Hashes und historische Ergebnis-
+Hashes bleiben unverändert. Die Registry prüft 155 Objekte; diese Zahl zählt weder
+Hostausführungen noch qualifizierte Anforderungen.
 
 Der Anwendungsbeleg erfasst `source_revision`, `source_git_tree`, Inventar-SHA256,
 Dateizahl und Gitlink-Metadaten getrennt von `delivery_product_baseline`. Ein
@@ -198,3 +217,42 @@ Schlüssel, Zertifikate, Binärdateien, Archive, Caches, Git-Metadaten und schwe
 Rohdaten aus. Jeder neue Lauf benötigt weiterhin unabhängig gebundene geladene
 Images, effektive Konfiguration, echte Clients/Backend, native Phasen/EOS/Finish/Free,
 physische Logs, Cleanup, Nachbargesundheit und Root-Review.
+
+## Beabsichtigte null-Werte ursprünglicher Oracles
+
+Der Oracle-Reconciler akzeptiert `intentional_null_fields.visible_status` nur
+bei einem ursprünglich ausdrücklich vorhandenen `visible_status: null` ohne
+Unresolved-Grund der Erwartung. Root muss dieses Feld separat interpretieren
+und physische, versionierte Primärbelege liefern, die an die unabhängigen Quellen
+des Records gebunden sind. Das vollständige effektive Oracle muss semantisch
+bytegleich zum Original bleiben; die Erklärung darf keine Korrektur oder
+Ersatzerwartung begleiten. Fehlende Felder `native_result`, `phase` oder
+`visible_status` werden weiterhin abgelehnt. Beispielsweise bleibt der Clientstatus
+im ursprünglichen Vertrag `phase2_over_limit` konfigurationsabhängig; dessen null
+ist von einer unbekannten Fixture oder einer fehlenden Messung zu unterscheiden.
+
+Diese reine Quelldisposition erhält den ursprünglichen null-Wert und vergibt keine
+Lifecycle-Qualifikation. Client-/Hostbeobachtungen, sämtliche anwendbaren
+Lifecycle-Felder, frische Ausführung und getrennte Root-Paketprüfung bleiben
+verpflichtend. Andere null-Felder und ursprünglich unaufgelöste Oracles dürfen
+diese Ausnahme nicht verwenden.
+
+## Geprüfte aktuelle Traefik-Eingabebasen
+
+Die vorhandenen Varianten `traefik-native` und `traefik-forwardauth` akzeptieren
+für ihre beiden gemeinsamen Observer-Eingabedateien auch
+`current_before_sha256`, ausschließlich nach erfolgreicher vollständiger
+v2-Inventarprüfung. Dies sind explizite, geprüfte Manifest-Hashes, niemals aus
+der gelieferten Kopie abgeleitete Werte. Der ursprüngliche `before_sha256` und
+sämtliche instrumentierten Ergebnis-Hashes bleiben unverändert. Ein v1-Marker
+kann die aktuelle Alternative nicht wählen. Der Anwendungsbeleg erfasst
+`actual_before_sha256` für jedes Quellziel, einschließlich `null` für neue Dateien.
+Unbekannte Quellbytes und Änderungen außerhalb der ausgewählten Ziele werden
+weiterhin zurückgewiesen.
+
+Drei historische HAProxy-Repository-Objekte sind als verlustfreie `text_lines`
+gegen Commit `8cc32dceb06121f589150a9794f28878c5e4ba2a` authentifiziert eingefroren.
+Ihre Identitäten und sämtliche abhängigen Delta-/Ergebnisidentitäten bleiben
+unverändert. Dadurch bleibt historische Quellprüfung bei fortgeschriebenen
+unabhängigen Produktdateien möglich; daraus entsteht weder ein neuer
+HAProxy-Runtime-Nachweis noch eine Profilerweiterung.

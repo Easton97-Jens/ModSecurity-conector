@@ -32,13 +32,15 @@ pass whitespace checks.
 | `haproxy-companion-host` | Separate response-companion host variant |
 | `haproxy-spop-agent` | Separate diagnostic request-agent/backend variant |
 | `envoy` | Shared ext_proc/authz capture source; actual authz backend and distinct ext_proc backend retained separately |
-| `apache` | Exact three product-TU overlays and APR/native/host helpers |
+| `apache` | Historical exact three product-TU overlays and APR/native/host helpers |
+| `apache-current` | Same Apache capture after-bytes; current native C/H before-pins and mandatory complete v2 export |
 | `lighttpd` | Separate stock-sidecar and patched-native fixtures, including original and empty cases |
 | `traefik-native` | Actual native-UDS middleware/engine/runtime observation variant |
 | `traefik-forwardauth` | Separate authorization/response-observer source variant |
 
-These nine **source variants** are not nine qualified runtime routes. Shared
-source never transfers execution, EOS, identity or outcome between logical routes.
+The ten **source-application profiles** comprise nine historical variants plus
+`apache-current`. Runtime route counts remain independent. Shared source never
+transfers execution, EOS, identity or outcome between logical routes.
 Framework and MRTS repositories/gitlinks remain outside this contract. Private
 fixture definitions are run-scoped capture inputs, not reusable catalog additions.
 
@@ -102,7 +104,7 @@ The v2 marker has exactly these fields:
   "format": "i12-disposable-source-copy-v2",
   "path": "/var/tmp/codex/ModSecurity-conector/disposable-current-copy",
   "disposable": true,
-  "source_revision": "ad510c3b4168ff0e11fc36803e2ce4127a0689ad",
+  "source_revision": "850879e82ea729f274cb383507b05938df06027a",
   "snapshot_manifest": ".i12-source-export-manifest.json",
   "snapshot_manifest_sha256": "<complete lowercase SHA256 of the frozen inventory>"
 }
@@ -129,6 +131,23 @@ refuses files that change while being hashed. The full frozen inventory remains
 in the copy after capture and describes the **pre-capture** source, not build
 outputs. Build in a separate directory after applying capture; a used copy cannot
 be submitted as an untouched export again.
+
+Use `--profile apache-current` for the current committed checkout's complete
+v2 export. This additive profile changes only the native observer C/H
+`before_sha256` pins from `ad8e5e36…`/`f9f63b62…` to
+`0d903fc5…`/`5b7d8fa7…`; all capture after-bytes, product overlays, SDK3.0.14 ABI
+and historical `apache` profile remain unchanged. Its declared
+`required_source_identity_format` rejects a v1 marker before any writes, even
+when the source bytes otherwise match. Registry verification rejects unknown
+required formats. The source-application name does not create a new run,
+transaction or runtime route: the native profile remains `apache-native`.
+Historical package/build provenance stays labelled historical; a new full build
+and actual loaded images need their own evidence.
+
+The integrated shared repair preserves five historical HAProxy/lighttpd objects
+as lossless text-line objects. Their content hashes and historical output hashes
+remain unchanged. Registry verification covers 155 objects; this count does not
+count host executions or qualified requirements.
 
 The application receipt records `source_revision`, `source_git_tree`, inventory
 SHA256, file count and gitlink metadata separately from
@@ -186,3 +205,37 @@ certificates, binaries, archives, caches, Git metadata and heavy raw evidence.
 Any new execution still requires independently bound loaded images, effective
 configuration, real clients/backend, native phases/EOS/finish/free, physical logs,
 cleanup, neighbor health and Root review.
+
+## Intentional original oracle nulls
+
+The oracle reconciler accepts `intentional_null_fields.visible_status` only for
+an original, explicitly present `visible_status: null` without an unresolved
+expectation reason. Root must separately interpret that field and supply physical,
+versioned primary proof bound to the record's independent sources. The complete
+effective oracle must remain byte-semantically identical to the original; this
+declaration cannot accompany a correction or replacement expectation. Missing
+`native_result`, `phase` or `visible_status` is still rejected. For example, the
+original `phase2_over_limit` contract leaves the client status configuration
+dependent; its null is distinct from an unknown fixture or missing measurement.
+
+This source-only disposition preserves the original null and awards no lifecycle
+qualification. Client/host observations, all applicable lifecycle fields, fresh
+execution and separate Root packet review remain mandatory. Other null fields
+and unresolved original oracles cannot use this exception.
+
+## Reviewed current Traefik input bases
+
+The existing `traefik-native` and `traefik-forwardauth` variants also accept
+`current_before_sha256` for their two shared observer input files, exclusively
+following successful complete v2 inventory validation. These are explicit,
+reviewed hashes in the manifest, never values inferred from the supplied copy.
+The original `before_sha256` and all instrumented result hashes remain unchanged.
+A v1 marker cannot select the current alternative. The application receipt records
+`actual_before_sha256` for every source target, including `null` for new files.
+Unknown source bytes and changes outside the selected targets remain rejected.
+
+Three historical HAProxy repository objects are frozen as lossless `text_lines`
+objects authenticated against commit `8cc32dceb06121f589150a9794f28878c5e4ba2a`.
+Their identities and all dependent delta/result identities are unchanged. This
+preserves historical source verification after unrelated product files advance;
+it adds no HAProxy runtime claim or profile extension.
