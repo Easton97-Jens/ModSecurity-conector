@@ -396,3 +396,5 @@ Native SDK-, stdio-Fehler-, Parallelitäts-, Sanitizer- und Mutationskontrollen
 sind Komponentenbelege. Frische integrierte Hostläufe und unabhängige
 Qualifikation bleiben für I12 erforderlich. Siehe den
 [Change Record zum physischen Sink](../../reports/audits/change-records/CR-20261018-haproxy-physical-common-sinks.de.md).
+
+Für Strict nach Commit bei H1 löscht der native Filter jetzt wartende Responsebytes und ruft die Hard-Shutdown-API des bereiten Frontendtransports auf, bevor der H1-Mux ein sauberes TLS close_notify senden kann. H2 behält seinen Shutdown pro Stream. Komponenten-/API-/Mutationskontrollen und Kompilierung bestanden; frische integrierte Transportqualifikation bleibt erforderlich. Siehe den [H1-Transport-Change-Record](../../reports/audits/change-records/CR-20261018-haproxy-strict-h1-transport-abort.de.md).
