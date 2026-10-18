@@ -40,7 +40,39 @@ def load_module(name, path):
 
 
 def digest(path):
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    """Hash only canonical files in sealed inputs or the private task root."""
+    supplied = Path(path)
+    if not supplied.is_absolute() or ".." in supplied.parts:
+        raise ValueError("digest input must be a canonical absolute path")
+    resolved = supplied.resolve(strict=True)
+    if supplied != resolved or not resolved.is_file():
+        raise ValueError("digest input must be a regular nonsymlink file")
+    roots = []
+    for candidate in (Path("/mnt/artifacts"), Path("/mnt/fixtures"),
+                      Path("/mnt/framework/tests/rules")):
+        if candidate.is_dir() and candidate.resolve(strict=True) == candidate:
+            roots.append(candidate)
+    roots.append(paths.storage_root())
+    if not any(resolved.is_relative_to(root) for root in roots):
+        raise ValueError("digest input escapes admitted Apache evidence roots")
+    return hashlib.sha256(resolved.read_bytes()).hexdigest()
+
+
+def admitted_mount_path(value, root, file=True):
+    """Canonicalize one CLI path below an exact sealed read-only mount."""
+    root = Path(root)
+    supplied = Path(value)
+    if (not supplied.is_absolute() or ".." in supplied.parts or not root.is_absolute()
+            or root.resolve(strict=True) != root or not root.is_dir()):
+        raise ValueError("invalid sealed Apache input mount")
+    resolved = supplied.resolve(strict=True)
+    if supplied != resolved or not resolved.is_relative_to(root):
+        raise ValueError("CLI input escapes its sealed Apache mount or follows a symlink")
+    if file and not resolved.is_file():
+        raise ValueError("expected a regular sealed Apache input")
+    if not file and not resolved.is_dir():
+        raise ValueError("expected a sealed Apache input directory")
+    return resolved
 
 
 def body_bytes(value):
@@ -758,14 +790,15 @@ def execute(plan, ordinal, base, module, direct, owned, sink_helper, io_helper, 
     return observation
 
 
-def private_admission(direct, module, helper_dir, helper_artifacts=None):
+def private_admission(direct, module, helper_dir, helper_artifacts=None, runtime_helpers=None):
     admission = json.loads(Path("/opt/controller/admission.json").read_text())
     binding_file = helper_dir / "batch-binding.json"
     if not binding_file.is_file():
         raise ValueError("Root-reviewed batch-binding.json is required")
     binding = json.loads(binding_file.read_text())
     required_inputs = (str(module), "/usr/sbin/apache2", "/usr/lib/x86_64-linux-gnu/libmodsecurity.so.3.0.14",
-                       *(str(path) for path in (helper_artifacts or {}).values()))
+                       *(str(path) for path in (helper_artifacts or {}).values()),
+                       *(str(path) for path in (runtime_helpers or {}).values()))
     for required in required_inputs:
         if required not in binding.get("input_sha256", {}):
             raise ValueError("reviewed binding omits actual host/module/SDK")
@@ -816,10 +849,19 @@ def main():
         parser.error("batch execution needs --plan --module --helper-dir")
     if any(getattr(args, name) is None for name in LINK_ARTIFACTS):
         parser.error("batch execution needs explicit --host-bucket-object --multipart-object --fault-boundary-object --fault-boundary-header")
+    args.plan = admitted_mount_path(args.plan, "/mnt/fixtures")
+    args.module = admitted_mount_path(args.module, "/mnt/artifacts")
+    args.helper_dir = admitted_mount_path(args.helper_dir, "/mnt/fixtures", file=False)
+    args.sink_helper = admitted_mount_path(args.sink_helper, "/mnt/artifacts")
+    args.io_helper = admitted_mount_path(args.io_helper, "/mnt/artifacts")
+    for name in LINK_ARTIFACTS:
+        setattr(args, name, admitted_mount_path(getattr(args, name), "/mnt/artifacts"))
     helper_artifacts = {name: getattr(args, name) for name in LINK_ARTIFACTS}
     helper_identities = {name: artifact_identity(path) for name, path in helper_artifacts.items()}
+    runtime_helpers = {"sink_helper": args.sink_helper, "io_helper": args.io_helper}
+    runtime_helper_identities = {name: artifact_identity(path) for name, path in runtime_helpers.items()}
     direct = load_module("apache_original_direct", args.helper_dir / "direct-runner.py")
-    admission = private_admission(direct, args.module, args.helper_dir, helper_artifacts)
+    admission = private_admission(direct, args.module, args.helper_dir, helper_artifacts, runtime_helpers)
     base = paths.private_directory(args.output)
     save(base / "admission.json", admission)
     payload = json.loads(args.plan.read_text())
@@ -833,6 +875,7 @@ def main():
     save(base / "binary-identity.json", {"owned_host": str(owned), "owned_host_sha256": digest(owned),
         "module": str(args.module), "module_sha256": digest(args.module),
         "host_helper_link_artifacts": helper_identities,
+        "runtime_preload_artifacts": runtime_helper_identities,
         "plan_sha256": digest(args.plan), "direct_helper_sha256": digest(args.helper_dir / "direct-runner.py")})
     results = []
     for ordinal, plan in enumerate(payload["rows"]):

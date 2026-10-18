@@ -88,6 +88,14 @@ class CanonicalCommandTests(unittest.TestCase):
 
 
 class ElfValidationTests(unittest.TestCase):
+    def test_apache_wrapper_scope_is_explicit_and_implemented(self):
+        symbols = builder.apache_wrapped_symbols(
+            Path(__file__).resolve().parents[1] / "tests/test_native_lifecycle_observer.py")
+        self.assertEqual(symbols, list(
+            builder.APACHE_NATIVE_WRAPPED_SYMBOLS + builder.APACHE_HOST_WRAPPED_SYMBOLS))
+        self.assertEqual(len(symbols), 28)
+        self.assertTrue(set(symbols).isdisjoint(builder.SHARED_NON_APACHE_WRAPPED_SYMBOLS))
+
     def test_defined_wrapper_and_legitimate_host_import(self):
         builder.validate_wrapper_definitions(
             "1: 0000 16 FUNC GLOBAL DEFAULT 12 __wrap_msc_example\n"
@@ -137,10 +145,13 @@ class IdentityTests(unittest.TestCase):
 
     def fixture(self):
         revision = "a" * 40
-        symbols = ["msc_example", "msconnector_open_private_event_file", "apache_lifecycle_observe"]
+        symbols = list(builder.APACHE_NATIVE_WRAPPED_SYMBOLS + builder.APACHE_HOST_WRAPPED_SYMBOLS)
         paths = list(builder.SOURCE_FILES) + ["tests/test_native_lifecycle_observer.py", "ci/runtime/lifecycle/i12/manifest.json"]
         for name in paths:
-            self.file("export/" + name, "SYMBOLS = ('msc_example',)\n" if name.startswith("tests/") else "fixture\n")
+            content = "SYMBOLS = " + repr(
+                builder.APACHE_NATIVE_WRAPPED_SYMBOLS + builder.SHARED_NON_APACHE_WRAPPED_SYMBOLS
+            ) + "\n" if name.startswith("tests/") else "fixture\n"
+            self.file("export/" + name, content)
         files = {name: {"sha256": builder.sha(self.root / name)} for name in paths}
         inventory = self.file("export/inventory.json", {"files": files})
         self.file("export/.i12-disposable-source-copy.json", {"format": "i12-disposable-source-copy-v2",
@@ -218,6 +229,34 @@ class IdentityTests(unittest.TestCase):
         spec = self.fixture()
         spec["wrapped_symbols"].pop()
         with self.assertRaisesRegex(ValueError, "Wrapper list"):
+            builder.validate_inputs(spec)
+
+    def test_wrapper_addition_and_duplicate_rejected(self):
+        for value in ("unreviewed_wrapper", builder.APACHE_NATIVE_WRAPPED_SYMBOLS[0]):
+            spec = self.fixture()
+            spec["wrapped_symbols"].append(value)
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "Wrapper list"):
+                builder.validate_inputs(spec)
+
+    def test_shared_wrapper_contract_change_rejected(self):
+        spec = self.fixture()
+        path = self.root / "tests/test_native_lifecycle_observer.py"
+        path.write_text("SYMBOLS = " + repr(builder.APACHE_NATIVE_WRAPPED_SYMBOLS) + "\n")
+        inventory_path = self.root / "inventory.json"
+        inventory = json.loads(inventory_path.read_text())
+        inventory["files"]["tests/test_native_lifecycle_observer.py"]["sha256"] = builder.sha(path)
+        inventory_path.write_text(json.dumps(inventory))
+        marker_path = self.root / ".i12-disposable-source-copy.json"
+        marker = json.loads(marker_path.read_text())
+        marker["snapshot_manifest_sha256"] = builder.sha(inventory_path)
+        marker_path.write_text(json.dumps(marker))
+        capture = builder.bound_json(spec["capture_receipt"])
+        capture["snapshot_manifest_sha256"] = builder.sha(inventory_path)
+        spec["capture_receipt"] = self.file("capture.json", capture)
+        identity = builder.bound_json(spec["build_identity"])
+        identity["source_inventory_sha256"] = builder.sha(inventory_path)
+        spec["build_identity"] = self.file("identity.json", identity)
+        with self.assertRaisesRegex(ValueError, "Shared native wrapper contract changed"):
             builder.validate_inputs(spec)
 
     def test_output_inside_input_rejected_before_mutation(self):

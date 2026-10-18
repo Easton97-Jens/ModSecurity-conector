@@ -24,6 +24,44 @@ OBSERVERS = ("apache-host-observer.c", "apache-observer-fd-bootstrap.c",
 STRICT = {"-std=c17", "-Wall", "-Wextra", "-Werror", "-fno-lto", "-fPIC",
           "-fstack-protector-strong", "-Wformat", "-Werror=format-security"}
 
+# The shared native test matrix covers Common-runtime entry points that Apache
+# neither links nor calls.  The captured apache-current observer defines the
+# first 26 wrappers below; the remaining shared symbols have separate runtime
+# and response-companion observers.  Keep this split explicit so a changing
+# shared tuple requires review instead of silently intersecting ELF symbols.
+APACHE_NATIVE_WRAPPED_SYMBOLS = (
+    "msconnector_transaction_contract_init", "msconnector_transaction_contract_finish",
+    "msconnector_transaction_contract_cleanup", "msconnector_transaction_contract_complete_phase",
+    "msconnector_transaction_contract_set_response_committed",
+    "msconnector_transaction_contract_record_response_metadata", "msc_new_transaction",
+    "msc_new_transaction_with_id", "msc_transaction_cleanup", "msc_process_request_body",
+    "msc_process_response_body", "msc_process_logging", "msc_append_request_body",
+    "msc_append_response_body", "msc_process_request_headers", "msc_process_response_headers",
+    "msc_intervention", "msconnector_runtime_transaction_begin",
+    "msconnector_runtime_transaction_begin_request_stream",
+    "msconnector_runtime_transaction_append_request_body_chunk",
+    "msconnector_runtime_transaction_finish_request_body",
+    "msconnector_runtime_transaction_process_response_headers",
+    "msconnector_runtime_transaction_append_response_body_chunk",
+    "msconnector_runtime_transaction_finish_response_body",
+    "msconnector_runtime_transaction_finish", "msconnector_runtime_transaction_destroy",
+)
+SHARED_NON_APACHE_WRAPPED_SYMBOLS = (
+    "msconnector_runtime_transaction_finalize_and_snapshot",
+    "msconnector_runtime_response_companion_handoff_with_handle",
+    "msconnector_runtime_response_companion_claim_handle",
+    "msconnector_runtime_response_companion_revoke_handle",
+    "msconnector_runtime_response_companion_session_process_response_headers",
+    "msconnector_runtime_response_companion_session_append_response_body_chunk",
+    "msconnector_runtime_response_companion_session_finish_response_body",
+    "msconnector_runtime_response_companion_session_set_response_commit_state",
+    "msconnector_runtime_response_companion_session_record_host_action",
+    "msconnector_runtime_response_companion_session_fail",
+    "msconnector_runtime_response_companion_session_cancel",
+    "msconnector_runtime_response_companion_session_release",
+)
+APACHE_HOST_WRAPPED_SYMBOLS = ("msconnector_open_private_event_file", "apache_lifecycle_observe")
+
 
 def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
@@ -167,6 +205,15 @@ def native_symbols(path):
     return list(symbols)
 
 
+def apache_wrapped_symbols(path):
+    """Return the exact wrappers implemented by the Apache observer set."""
+    shared = native_symbols(path)
+    expected_shared = list(APACHE_NATIVE_WRAPPED_SYMBOLS + SHARED_NON_APACHE_WRAPPED_SYMBOLS)
+    if shared != expected_shared:
+        raise ValueError("Shared native wrapper contract changed; review Apache observer scope")
+    return list(APACHE_NATIVE_WRAPPED_SYMBOLS + APACHE_HOST_WRAPPED_SYMBOLS)
+
+
 def validate_inputs(spec):
     root = Path(spec["source_root"]).resolve(strict=True)
     output = Path(spec["output"]).resolve()
@@ -227,10 +274,9 @@ def validate_inputs(spec):
     for anchor in fault["external_source_anchors"]:
         if capture["actual_before_sha256"].get(anchor["file"]) != anchor["source_sha256"]:
             raise ValueError("Fault anchors target a different Product revision")
-    symbols = native_symbols(root / "tests/test_native_lifecycle_observer.py")
-    symbols += ["msconnector_open_private_event_file", "apache_lifecycle_observe"]
+    symbols = apache_wrapped_symbols(root / "tests/test_native_lifecycle_observer.py")
     if spec["wrapped_symbols"] != symbols:
-        raise ValueError("Wrapper list must exactly preserve native and Apache wraps")
+        raise ValueError("Wrapper list must exactly preserve the Apache-defined observer scope")
     return root, output, identity, capture, helpers, fault, header, sdk, include, make_path, symbols
 
 
@@ -248,7 +294,8 @@ def build(spec_path):
                "source_revision": identity["source_revision"], "git_tree": identity["git_tree"],
                "input_bindings": spec, "commands": commands, "runtime_qualification": None,
                "source_input_mutated": False, "retained_product_objects": {},
-               "instrumented_sources": {}, "wrapped_symbols": symbols}
+               "instrumented_sources": {}, "wrapped_symbols": symbols,
+               "shared_non_apache_wrapped_symbols": list(SHARED_NON_APACHE_WRAPPED_SYMBOLS)}
 
     def save():
         (output / "build-identity.json").write_text(json.dumps(receipt, indent=2) + "\n")

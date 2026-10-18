@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -421,6 +421,57 @@ class AcceptanceDriverTest(unittest.TestCase):
         os.link(target, hardlink)
         with self.assertRaisesRegex(ValueError, "one-link"):
             BATCH.artifact_identity(hardlink)
+
+    def test_digest_and_cli_mount_paths_reject_escape_and_aliases(self):
+        root = self.private_workspace()
+        artifact_root = root / "artifacts"
+        artifact_root.mkdir(mode=0o700)
+        physical = artifact_root / "module.so"
+        physical.write_bytes(b"admitted fixture")
+        with patch.dict(os.environ, CODEX_TEMP_ROOT=str(root)):
+            self.assertEqual(BATCH.admitted_mount_path(physical, artifact_root), physical)
+            self.assertEqual(BATCH.digest(physical), hashlib.sha256(b"admitted fixture").hexdigest())
+            alias = artifact_root / "alias.so"
+            alias.symlink_to(physical)
+            ancestor = root / "artifact-alias"
+            ancestor.symlink_to(artifact_root, target_is_directory=True)
+            nested = artifact_root / "nested"
+            nested.mkdir(mode=0o700)
+            traversal = nested / ".." / physical.name
+            sibling = root.parent / (root.name + "-prefix-sibling")
+            sibling.write_bytes(b"outside configured root")
+            self.addCleanup(sibling.unlink)
+            for supplied in (alias, ancestor / physical.name, traversal, sibling, Path("relative")):
+                with self.subTest(path=supplied), self.assertRaises(ValueError):
+                    BATCH.digest(supplied)
+            for supplied in (alias, ancestor / physical.name, traversal, sibling, Path("relative")):
+                with self.subTest(cli_path=supplied), self.assertRaises(ValueError):
+                    BATCH.admitted_mount_path(supplied, artifact_root)
+
+    def test_private_admission_requires_each_runtime_preload_binding(self):
+        root = self.private_workspace()
+        helper_dir = root / "helpers"
+        helper_dir.mkdir(mode=0o700)
+        module = root / "module.so"
+        sink_helper = root / "sink-helper.so"
+        io_helper = root / "io-helper.so"
+        admission_file = root / "admission.json"
+        admission_file.write_text(json.dumps({"outside_namespaces": {}}))
+        required = (module, Path("/usr/sbin/apache2"),
+                    Path("/usr/lib/x86_64-linux-gnu/libmodsecurity.so.3.0.14"),
+                    sink_helper, io_helper)
+        for omitted in (sink_helper, io_helper):
+            binding = {"input_sha256": {str(path): "0" * 64 for path in required if path != omitted}}
+            (helper_dir / "batch-binding.json").write_text(json.dumps(binding))
+            direct = Mock()
+            with self.subTest(omitted=omitted), patch.object(
+                    BATCH, "Path", side_effect=lambda value: admission_file
+                    if value == "/opt/controller/admission.json" else Path(value)):
+                with self.assertRaisesRegex(ValueError, "binding omits"):
+                    BATCH.private_admission(
+                        direct, module, helper_dir,
+                        runtime_helpers={"sink_helper": sink_helper, "io_helper": io_helper})
+            direct.admission.assert_not_called()
 
     def test_inherited_fault_environment_is_not_carried_into_another_case(self):
         root = self.private_workspace()
