@@ -269,6 +269,7 @@ class ConfigurationLedgerTests(unittest.TestCase):
     def test_exact_source_reviewed_rejection_exit_255_is_not_normalized(self):
         self.oracle.update(native_result="config_rejected", visible_status=255, rule_id=None)
         self.packet["oracle_sha256"] = LEDGER.ORACLES.canonical_digest(self.oracle)
+        self.bind_rejection_expectation()
         self.process()["waited_exit"] = 255
         self.rebind_process()
         self.assertEqual(self.review()["outcome"], "PASS")

@@ -64,3 +64,5 @@ No host process, scanner upload, Git publication or original-ID promotion is per
 ## Final diff and review status
 
 The ordinary lifecycle path remains intact. Separate-scope dispatch and summary tests verify that preallocation PASS contributes to applicable original-case qualification while full lifecycle counts stay unchanged. Independent final review passed after correcting the latest native pointer-result binding and rejecting malformed response Content-Length values; its separate 26 focused controls passed. Integration and real-host acceptance remain owned by the parent task.
+
+Integration with the published exact-parser-exit repair preserves independently reviewed POSIX rejection exits from 1 through 255. The incoming exit-255 regression now supplies the same mandatory diagnostic/first-cause binding as the exit-1 control. The initial integrated test failure is retained separately; no exit is normalized and no source requirement removed.

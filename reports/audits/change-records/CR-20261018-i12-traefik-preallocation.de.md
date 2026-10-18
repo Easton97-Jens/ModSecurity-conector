@@ -64,3 +64,5 @@ Diese Qualifieränderung startet keine Hosts, lädt keinen Scan hoch, veröffent
 ## Finaler Diff- und Review-Status
 
 Der normale Lebenszykluspfad bleibt erhalten. Tests für getrennten Dispatch und Zusammenfassung belegen, dass Preallocation-PASS die passende Originalfallqualifikation erhöht, während vollständige Lebenszykluszahlen unverändert bleiben. Das unabhängige Abschlussreview bestand nach Korrektur der aktuellen nativen Pointer-Rückgabebindung und Zurückweisung fehlerhafter Content-Length-Antwortwerte; seine getrennten 26 fokussierten Kontrollen bestanden. Integration und echte Hostabnahme verantwortet weiterhin die übergeordnete Aufgabe.
+
+Die Integration mit der veröffentlichten Reparatur exakter Parser-Exitwerte erhält unabhängig geprüfte POSIX-Zurückweisungswerte von 1 bis 255. Die eingehende Exit-255-Regression liefert jetzt dieselbe verpflichtende Quellbindung von Diagnose und erster Fehlerursache wie die Exit-1-Kontrolle. Der anfängliche integrierte Testfehler bleibt separat erhalten; kein Exitwert wird normalisiert und keine Quellpflicht entfernt.
