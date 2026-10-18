@@ -247,6 +247,14 @@ sed \
     -e "s|__COMPANION_SOCKET__|$COMPANION_SOCKET|g" \
     "$TRAEFIK_TEMPLATE" > "$TRAEFIK_CONFIG"
 
+# Inspect the original request line while keeping client forwarding fields
+# untrusted. Traefik generates the authoritative URI for the auth exchange.
+if ! grep -Fqx '        preserveRequestMethod: true' "$TRAEFIK_CONFIG" ||
+    ! grep -Fqx '        trustForwardHeader: false' "$TRAEFIK_CONFIG"; then
+    echo "BLOCKED: forwardAuth requires preserveRequestMethod=true and trustForwardHeader=false" >&2
+    exit 77
+fi
+
 # A forwardAuth template without these settings silently drops the request
 # body before the authorization service. Refuse to start such a deployment;
 # P2 is buffered by the host; this remains a 4096-byte host limitation.

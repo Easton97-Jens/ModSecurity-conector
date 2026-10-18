@@ -74,12 +74,47 @@ class TraefikForwardAuthP2ContractTest(unittest.TestCase):
         self.assertNotIn("request_body", auth_response)
         self.assertNotIn("body_marker", auth_response)
 
+    def test_original_method_and_untrusted_forwarding_are_explicit(self) -> None:
+        for text in (self.dynamic,
+                     (ROOT / "connectors/traefik/config/traefik-forwardauth-dynamic.yaml").read_text(),
+                     (ROOT / "connectors/traefik/config/traefik-forwardauth-composite-dynamic.yaml").read_text()):
+            with self.subTest(text=text[:80]):
+                self.assertRegex(text, r"(?m)^        preserveRequestMethod: true$")
+                self.assertRegex(text, r"(?m)^        trustForwardHeader: false$")
+
+    def test_omitted_or_disabled_method_preservation_is_rejected(self) -> None:
+        for changed in (self.dynamic.replace("        preserveRequestMethod: true\n", ""),
+                        self.dynamic.replace("preserveRequestMethod: true", "preserveRequestMethod: false")):
+            with self.subTest(changed=changed):
+                with self.assertRaisesRegex(RuntimeError, "preserveRequestMethod"):
+                    RUNNER.validate_forwardauth_p2_contract(changed)
+
+    def test_untrusted_forwarding_cannot_be_enabled_or_omitted(self) -> None:
+        for changed in (self.dynamic.replace("        trustForwardHeader: false\n", ""),
+                        self.dynamic.replace("trustForwardHeader: false", "trustForwardHeader: true")):
+            with self.subTest(changed=changed):
+                with self.assertRaisesRegex(RuntimeError, "trustForwardHeader"):
+                    RUNNER.validate_forwardauth_p2_contract(changed)
+
+    def test_duplicate_method_setting_is_rejected(self) -> None:
+        duplicate = self.dynamic.replace("        preserveRequestMethod: true\n",
+                                         "        preserveRequestMethod: true\n        preserveRequestMethod: false\n")
+        with self.assertRaisesRegex(RuntimeError, "preserveRequestMethod"):
+            RUNNER.validate_forwardauth_p2_contract(duplicate)
+
+    def test_duplicate_forwarding_setting_is_rejected(self) -> None:
+        duplicate = self.dynamic.replace("        trustForwardHeader: false\n",
+                                         "        trustForwardHeader: false\n        trustForwardHeader: true\n")
+        with self.assertRaisesRegex(RuntimeError, "trustForwardHeader"):
+            RUNNER.validate_forwardauth_p2_contract(duplicate)
+
     def test_start_smoke_has_fail_closed_p2_guards(self) -> None:
         script = (ROOT / "connectors/traefik/scripts/start-smoke.sh").read_text(
             encoding="utf-8"
         )
         self.assertIn("forwardAuth P2 requires forwardBody=true and maxBodySize=4096", script)
         self.assertIn("4096-byte host limitation", script)
+        self.assertIn("forwardAuth requires preserveRequestMethod=true and trustForwardHeader=false", script)
         self.assertNotIn("request_body_limit=", script)
         self.assertNotIn("body_limit_action=", script)
         self.assertIn("--check-config", script)

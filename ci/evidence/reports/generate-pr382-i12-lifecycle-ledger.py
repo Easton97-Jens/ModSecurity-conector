@@ -290,10 +290,14 @@ def reviewed_configuration_packet(supplied, row, effective_oracle):
     if verdict not in ("PASS", "FAIL"):
         raise ValueError("Parser exit alone is not an evaluated configuration verdict")
     expected = effective_oracle.get("native_result")
+    expected_exit = effective_oracle.get("visible_status")
+    explicit_exit = (type(expected_exit) is int and
+                     ((expected == "config_accepted" and expected_exit == 0) or
+                      (expected == "config_rejected" and 1 <= expected_exit <= 255)))
     if (effective_oracle.get("phase") != 0
             or effective_oracle.get("physical_evidence_not_projection") is not True
             or effective_oracle.get("unresolved_expected_value_reason")
-            or (expected, effective_oracle.get("visible_status")) not in (("config_accepted", 0), ("config_rejected", 1))):
+            or not explicit_exit):
         raise ValueError("Parser scope requires an explicit acceptance or rejection oracle")
     process = observed["parser_process"]
     matched = (process["waited_signal"] is None and process["waited_exit"] >= 0
