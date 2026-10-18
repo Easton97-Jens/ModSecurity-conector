@@ -23,6 +23,9 @@ import time
 from i12_spop_wire import decode_frame, MAX_FRAME
 
 ROOT = Path("/task")
+FRAMES_FILE = 'frames.jsonl'
+BACKEND_FILE = 'backend.jsonl'
+HOST_BINARY = '/mnt/artifacts/haproxy'
 LOCK = threading.Lock()
 
 
@@ -58,24 +61,38 @@ def snapshot(process, name):
            "fds": {file.name: os.readlink(file) for file in proc.joinpath("fd").iterdir()}})
 
 
+def read_rows(name):
+    path = ROOT / name
+    return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+
+
 def evaluate(selected):
     """Compare independent observations; a successful launcher is insufficient."""
     case = selected["case"]
     allowed = case in ("empty-allow", "post-allow")
     policy_deny = case in ("p1-deny", "p2-deny")
     technical_loss = case == "technical-agent-loss"
-    expected = {"ack_status": None if technical_loss else 400 if case == "corrupt-notify" else 200 if allowed else 403 if policy_deny else 503,
+    ack_status = 503
+    if allowed:
+        ack_status = 200
+    elif policy_deny:
+        ack_status = 403
+    elif case == "corrupt-notify":
+        ack_status = 400
+    elif technical_loss:
+        ack_status = None
+    expected = {"ack_status": ack_status,
                 "ack_blocked": None if technical_loss else not allowed,
                 "backend_requests": 1 if allowed else 0,
                 "client_status": 200 if allowed else 503,
                 "fully_inspected_http2": False}
-    frames = [json.loads(line) for line in (ROOT / "frames.jsonl").read_text().splitlines()] if (ROOT / "frames.jsonl").exists() else []
+    frames = read_rows(FRAMES_FILE)
     acks = [{action["name"]: action["value"] for action in frame["decoded"].get("actions", [])}
             for frame in frames if frame["decoded"].get("kind") == 103]
     clients = [json.loads(line) for line in (ROOT / "client.jsonl").read_text().splitlines()]
     observed = {"ack_status": acks[-1].get("status") if acks else None,
                 "ack_blocked": acks[-1].get("blocked") if acks else None,
-                "backend_requests": len((ROOT / "backend.jsonl").read_text().splitlines()) if (ROOT / "backend.jsonl").exists() else 0,
+                "backend_requests": len(read_rows(BACKEND_FILE)),
                 "client_status": None if clients[-1]["http2"] else int(clients[-1]["status_line"].split()[1]),
                 "fully_inspected_http2": False}
     mismatches = [key for key in ("ack_status", "ack_blocked", "backend_requests") if observed[key] != expected[key]]
@@ -101,6 +118,39 @@ class Observer:
         self.thread = threading.Thread(target=self.accept, daemon=True)
         self.thread.start()
 
+    def forward_frames(self, pending, destination, connection, direction, stamp):
+        while len(pending) >= 4:
+            size = struct.unpack("!I", pending[:4])[0]
+            if size > MAX_FRAME:
+                raise ValueError("observer frame budget exceeded")
+            if len(pending) < 4 + size:
+                break
+            raw = bytes(pending[:4 + size])
+            del pending[:4 + size]
+            try:
+                decoded = decode_frame(raw)
+            except ValueError as error:
+                decoded = {"decode_error": str(error)}
+            record(FRAMES_FILE, {"connection": connection,
+                   "direction": direction, "wall_ns": stamp,
+                   "sha256": hashlib.sha256(raw).hexdigest(),
+                   "hex": raw.hex(), "decoded": decoded})
+            if self.corrupt_notify and direction == "host-agent":
+                forwarded = raw
+                if decoded.get("kind") == 3:
+                    # Remove a byte from the final version argument,
+                    # while giving the agent a complete TCP/SPOP
+                    # envelope. The production notify parser must
+                    # reject the damaged typed value before native
+                    # transaction allocation.
+                    forwarded = struct.pack("!I", len(raw) - 5) + raw[4:-1]
+                record("forwarded-frames.jsonl", {"connection": connection,
+                       "direction": direction, "wall_ns": time.time_ns(),
+                       "hex": forwarded.hex(),
+                       "sha256": hashlib.sha256(forwarded).hexdigest(),
+                       "deliberately_corrupted": forwarded != raw})
+                destination.sendall(forwarded)
+
     def copy(self, source, destination, connection, direction):
         pending = bytearray()
         try:
@@ -115,37 +165,7 @@ class Observer:
                 record("wire-chunks.jsonl", {"connection": connection,
                        "direction": direction, "wall_ns": stamp, "hex": data.hex()})
                 pending.extend(data)
-                while len(pending) >= 4:
-                    size = struct.unpack("!I", pending[:4])[0]
-                    if size > MAX_FRAME:
-                        raise ValueError("observer frame budget exceeded")
-                    if len(pending) < 4 + size:
-                        break
-                    raw = bytes(pending[:4 + size])
-                    del pending[:4 + size]
-                    try:
-                        decoded = decode_frame(raw)
-                    except (ValueError, UnicodeError) as error:
-                        decoded = {"decode_error": str(error)}
-                    record("frames.jsonl", {"connection": connection,
-                           "direction": direction, "wall_ns": stamp,
-                           "sha256": hashlib.sha256(raw).hexdigest(),
-                           "hex": raw.hex(), "decoded": decoded})
-                    if self.corrupt_notify and direction == "host-agent":
-                        forwarded = raw
-                        if decoded.get("kind") == 3:
-                            # Remove a byte from the final version argument,
-                            # while giving the agent a complete TCP/SPOP
-                            # envelope. The production notify parser must
-                            # reject the damaged typed value before native
-                            # transaction allocation.
-                            forwarded = struct.pack("!I", len(raw) - 5) + raw[4:-1]
-                        record("forwarded-frames.jsonl", {"connection": connection,
-                               "direction": direction, "wall_ns": time.time_ns(),
-                               "hex": forwarded.hex(),
-                               "sha256": hashlib.sha256(forwarded).hexdigest(),
-                               "deliberately_corrupted": forwarded != raw})
-                        destination.sendall(forwarded)
+                self.forward_frames(pending, destination, connection, direction, stamp)
                 if not (self.corrupt_notify and direction == "host-agent"):
                     destination.sendall(data)
         except (OSError, ValueError) as error:
@@ -227,15 +247,26 @@ def backend(stop):
                     if not chunk:
                         break
                     body += chunk
-                record("backend.jsonl", {"wall_ns": time.time_ns(),
+                record(BACKEND_FILE, {"wall_ns": time.time_ns(),
                        "header_hex": head.hex(), "body_hex": body.hex()})
                 peer.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 7\r\nConnection: close\r\n\r\nBACKEND")
 
 
-def main():
-    selected = json.loads(Path("/mnt/fixtures/selected.json").read_text())
-    case = selected["case"]
-    with_companion = selected.get("with_companion", False)
+def h2_stream_ended(response):
+    pos = 0
+    ended = False
+    while len(response) - pos >= 9:
+        size = int.from_bytes(response[pos:pos + 3], "big")
+        if len(response) - pos < 9 + size:
+            break
+        kind, flags = response[pos + 3:pos + 5]
+        stream = int.from_bytes(response[pos + 5:pos + 9], "big") & 0x7fffffff
+        ended = ended or (stream == 1 and kind in (0, 1) and bool(flags & 1))
+        pos += 9 + size
+    return ended
+
+
+def prepare_request(case):
     # Mutate only the test representation emitted by the real HAProxy host.
     body_length = "body_len=req.body_size" if case != "missing-body-length" else ""
     if case == "mismatched-body-length":
@@ -245,7 +276,7 @@ def main():
     if case == "p2-deny":
         body = b"alpha=I12_BLOCK_BODY"
     path = "/" + case
-    headers = f"Host: localhost\r\nConnection: close\r\n"
+    headers = "Host: localhost\r\nConnection: close\r\n"
     if case == "p1-deny":
         headers += "X-I12-Block: yes\r\n"
     if body:
@@ -263,6 +294,72 @@ def main():
             block += b"\x0f\x0d\x010"
         request = (b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n" + b"\x00\x00\x00\x04\x00\x00\x00\x00\x00" +
                    len(block).to_bytes(3, "big") + b"\x01\x05\x00\x00\x00\x01" + block)
+    return body_length, version, request, h2
+
+
+def capture_response(case, request, h2):
+    with socket.create_connection(("127.0.0.1", 18540), timeout=5) as client:
+        client.settimeout(5)
+        started = time.time_ns()
+        client.sendall(request)
+        response = bytearray()
+        terminal = "eof"
+        try:
+            while True:
+                chunk = client.recv(65536)
+                if not chunk:
+                    break
+                response.extend(chunk)
+                if h2:
+                    # Stop only after the complete response stream's
+                    # END_STREAM frame, preserving every transport byte.
+                    ended = h2_stream_ended(response)
+                    if ended:
+                        terminal = "h2-end-stream"
+                        break
+        except OSError as error:
+            terminal = type(error).__name__
+        (ROOT / "response.raw").write_bytes(response)
+        record("client.jsonl", {"case": case, "started_ns": started,
+               "finished_ns": time.time_ns(), "terminal": terminal,
+               "response_hex": response.hex(), "http2": h2,
+               "status_line": None if h2 else bytes(response).split(b"\r\n", 1)[0].decode("ascii", "replace")})
+
+
+def cleanup_host(children, observer, stop, worker, with_companion):
+    for name, process, argv in reversed(children):
+        if process.poll() is None:
+            process.send_signal(signal.SIGTERM)
+        try:
+            code = process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            code = process.wait(timeout=5)
+        record("commands.jsonl", {"argv": argv, "launcher_rtk_proxied": True, "cwd": os.getcwd(),
+               "exit": code, "reaped": True, "pid": process.pid})
+    if observer is not None:
+        observer.close()
+    stop.set()
+    worker.join(4)
+    record("cleanup.jsonl", {"backend_joined": not worker.is_alive(),
+           "response_companion_configured": with_companion, "full_lifecycle_pass": None})
+
+
+def verify_host_configuration():
+    for name, argv in (("identity", [HOST_BINARY, "-vv"]),
+                       ("config", [HOST_BINARY, "-c", "-f", "/task/haproxy.cfg"])):
+        with (ROOT / (name + ".stdout")).open("wb") as out, (ROOT / (name + ".stderr")).open("wb") as err:
+            result = subprocess.run(["rtk", "proxy", *argv], stdout=out, stderr=err, timeout=10)
+        record("commands.jsonl", {"argv": ["rtk", "proxy", *argv], "cwd": os.getcwd(), "exit": result.returncode})
+        if result.returncode:
+            raise RuntimeError(name + " failed")
+
+
+def main():
+    selected = json.loads(Path("/mnt/fixtures/selected.json").read_text())
+    case = selected["case"]
+    with_companion = selected.get("with_companion", False)
+    body_length, version, request, h2 = prepare_request(case)
     (ROOT / "request.raw").write_bytes(request)
     (ROOT / "rules.conf").write_text('''SecRuleEngine On
 SecRequestBodyAccess On
@@ -357,15 +454,9 @@ backend be_spoa
                 raise TimeoutError("backend startup")
             time.sleep(.01)
         observer = Observer(corrupt_notify=case == "corrupt-notify")
-        for name, argv in (("identity", ["/mnt/artifacts/haproxy", "-vv"]),
-                           ("config", ["/mnt/artifacts/haproxy", "-c", "-f", "/task/haproxy.cfg"])):
-            with (ROOT / (name + ".stdout")).open("wb") as out, (ROOT / (name + ".stderr")).open("wb") as err:
-                result = subprocess.run(["rtk", "proxy", *argv], stdout=out, stderr=err, timeout=10)
-            record("commands.jsonl", {"argv": ["rtk", "proxy", *argv], "cwd": os.getcwd(), "exit": result.returncode})
-            if result.returncode:
-                raise RuntimeError(name + " failed")
+        verify_host_configuration()
         for name, argv in (("agent", ["/mnt/artifacts/haproxy-spop", "--config", "/task/agent.conf"]),
-                           ("host", ["/mnt/artifacts/haproxy", "-db", "-f", "/task/haproxy.cfg"])):
+                           ("host", [HOST_BINARY, "-db", "-f", "/task/haproxy.cfg"])):
             fd = os.open(ROOT / (name + "-native-api.jsonl"), os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_APPEND, 0o600)
             env = dict(os.environ, MSCONNECTOR_LIFECYCLE_FD=str(fd),
                        MSCONNECTOR_LIFECYCLE_RUN=selected["run"],
@@ -389,62 +480,13 @@ backend be_spoa
             agent.send_signal(signal.SIGTERM)
             code = agent.wait(timeout=5)
             record("faults.jsonl", {"kind": "agent-stop-before-request", "exit": code})
-        with socket.create_connection(("127.0.0.1", 18540), timeout=5) as client:
-            client.settimeout(5)
-            started = time.time_ns()
-            client.sendall(request)
-            response = bytearray()
-            terminal = "eof"
-            try:
-                while True:
-                    chunk = client.recv(65536)
-                    if not chunk:
-                        break
-                    response.extend(chunk)
-                    if h2:
-                        # Stop only after the complete response stream's
-                        # END_STREAM frame, preserving every transport byte.
-                        pos = 0
-                        ended = False
-                        while len(response) - pos >= 9:
-                            size = int.from_bytes(response[pos:pos + 3], "big")
-                            if len(response) - pos < 9 + size:
-                                break
-                            kind, flags = response[pos + 3:pos + 5]
-                            stream = int.from_bytes(response[pos + 5:pos + 9], "big") & 0x7fffffff
-                            ended = ended or (stream == 1 and kind in (0, 1) and bool(flags & 1))
-                            pos += 9 + size
-                        if ended:
-                            terminal = "h2-end-stream"
-                            break
-            except (OSError, TimeoutError) as error:
-                terminal = type(error).__name__
-            (ROOT / "response.raw").write_bytes(response)
-            record("client.jsonl", {"case": case, "started_ns": started,
-                   "finished_ns": time.time_ns(), "terminal": terminal,
-                   "response_hex": response.hex(), "http2": h2,
-                   "status_line": None if h2 else bytes(response).split(b"\r\n", 1)[0].decode("ascii", "replace")})
+        capture_response(case, request, h2)
         time.sleep(.2)
         for name, process, _ in children:
             if process.poll() is None:
                 snapshot(process, name + "-after")
     finally:
-        for name, process, argv in reversed(children):
-            if process.poll() is None:
-                process.send_signal(signal.SIGTERM)
-            try:
-                code = process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                code = process.wait(timeout=5)
-            record("commands.jsonl", {"argv": argv, "launcher_rtk_proxied": True, "cwd": os.getcwd(),
-                   "exit": code, "reaped": True, "pid": process.pid})
-        if observer is not None:
-            observer.close()
-        stop.set()
-        worker.join(4)
-        record("cleanup.jsonl", {"backend_joined": not worker.is_alive(),
-               "response_companion_configured": with_companion, "full_lifecycle_pass": None})
+        cleanup_host(children, observer, stop, worker, with_companion)
     evaluate(selected)
 
 

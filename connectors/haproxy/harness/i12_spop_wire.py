@@ -63,6 +63,19 @@ class Reader:
         return {"tag": tag, "value": value}
 
 
+def decode_messages(reader):
+    messages = []
+    while reader.pos < len(reader.data):
+        name = reader.blob().decode("utf-8")
+        count = reader.take(1)[0]
+        arguments = []
+        for _ in range(count):
+            key = reader.blob().decode("utf-8")
+            arguments.append({"name": key, **reader.typed()})
+        messages.append({"name": name, "arguments": arguments})
+    return messages
+
+
 def decode_frame(raw: bytes) -> dict:
     if len(raw) < 4:
         raise InvalidFrame("missing length")
@@ -75,16 +88,7 @@ def decode_frame(raw: bytes) -> dict:
     result = {"kind": kind, "flags": flags, "stream": reader.uint(),
               "frame": reader.uint()}
     if kind == 3:
-        messages = []
-        while reader.pos < len(reader.data):
-            name = reader.blob().decode("utf-8")
-            count = reader.take(1)[0]
-            arguments = []
-            for _ in range(count):
-                key = reader.blob().decode("utf-8")
-                arguments.append({"name": key, **reader.typed()})
-            messages.append({"name": name, "arguments": arguments})
-        result["messages"] = messages
+        result["messages"] = decode_messages(reader)
     elif kind == 103:
         actions = []
         while reader.pos < len(reader.data):

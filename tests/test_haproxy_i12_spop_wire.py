@@ -58,20 +58,24 @@ class HaproxyI12SpopWireTests(unittest.TestCase):
     def test_every_truncated_prefix_of_complete_frame_is_rejected(self):
         raw = envelope(b"\x0dcheck-request\x01\x08body_len\x04\x00")
         for size in range(len(raw)):
+            prefix = raw[:size]
             with self.subTest(size=size), self.assertRaises(WIRE.InvalidFrame):
-                WIRE.decode_frame(raw[:size])
+                WIRE.decode_frame(prefix)
 
     def test_supported_envelope_cannot_hide_truncated_or_unknown_typed_value(self):
         for payload in (b"\x0dcheck-request\x01\x04body\x09\x04te",
                         b"\x0dcheck-request\x01\x04body\x0f"):
+            raw = envelope(payload)
             with self.subTest(payload=payload), self.assertRaises(WIRE.InvalidFrame):
-                WIRE.decode_frame(envelope(payload))
+                WIRE.decode_frame(raw)
 
     def test_frame_size_and_integer_budgets_fail_before_unbounded_decode(self):
+        oversized = struct.pack("!I", WIRE.MAX_FRAME + 1)
         with self.assertRaises(WIRE.InvalidFrame):
-            WIRE.decode_frame(struct.pack("!I", WIRE.MAX_FRAME + 1))
+            WIRE.decode_frame(oversized)
+        reader = WIRE.Reader(b"\xff" * 12)
         with self.assertRaises(WIRE.InvalidFrame):
-            WIRE.Reader(b"\xff" * 12).uint()
+            reader.uint()
 
 
 if __name__ == "__main__":

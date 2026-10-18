@@ -7,6 +7,15 @@ from pathlib import Path
 import re
 
 
+EXECUTION_FILE = 'execution.json'
+
+
+HOST_CONFIG = 'haproxy.cfg'
+
+
+RULES_FILE = 'rules.conf'
+
+
 def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -33,19 +42,74 @@ def match_wire_segments(writes, wire):
     return segments, cursor == len(wire)
 
 
+def phase_transitions(native):
+    transitions = []
+    for enter in native:
+        if enter["edge"] != "enter" or enter["function"] not in ("common_complete_phase", "common_finish", "common_cleanup"):
+            continue
+        returned = next((row for row in native if row["call"] == enter["call"] and row["edge"] == "return"), None)
+        transitions.append({"function": enter["function"], "before": enter["contract_state"], "after": returned["contract_state"] if returned else None})
+    return transitions
+
+
+def select_main_allocation(allocated, client, contract):
+    if "original_requirement_binding" not in contract:
+        if len(allocated) != 2:
+            raise ValueError("expected independent main and health-neighbor allocations")
+        return allocated[0]
+    candidates = [row for row in allocated if client["started_wall_ns"] <= row["wall_ns"] <= client["completed_wall_ns"]]
+    if len(candidates) > 1:
+        raise ValueError("main allocation association is ambiguous")
+    return candidates[0] if candidates else None
+
+
+def common_sink_rows(path, native_id, common_id):
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    identities = {identity for identity in (native_id, common_id) if identity is not None}
+    return {"all_physical_rows": rows,
+            "exact_main_transaction_rows": [row for row in rows if row.get("transaction_id") in identities],
+            "association": {"native_transaction_id": native_id, "common_transaction_id": common_id},
+            "native_audit_is_not_common_sink": True}
+
+
+def attach_supplemental_observations(observations, data, native_id, common_id, refs, backend, source_receipt):
+    barrier = data / "client-first-body.json"
+    if barrier.is_file():
+        observations["commit_order"]["value"]["upstream_first_byte_barrier"] = {
+            "actual_client": load(barrier),
+            "actual_backend": [row for row in backend if row.get("kind", "").startswith("upstream_")],
+            "backend_write_is_not_native_EOS": True,
+        }
+        observations["commit_order"]["evidence"].extend((reference(barrier, "client_process"), refs["backend"]))
+    sink = data / "common-events.jsonl"
+    if sink.is_file():
+        physical = common_sink_rows(sink, native_id, common_id)
+        sink_ref = reference(sink, "physical_event_sink")
+        observations["native_events"]["value"]["physical_common_sink"] = physical
+        observations["native_events"]["evidence"].append(sink_ref)
+        observations["physical_event_order"]["value"]["physical_common_sink"] = physical
+        observations["physical_event_order"]["evidence"].append(sink_ref)
+        observations["terminal_event_count"]["value"]["physical_common_sink"] = physical
+        observations["terminal_event_count"]["value"]["Common_Allow_reason"] = "Physical Common rows retained; Allow and terminal classification requires the independently reviewed product event contract."
+        observations["terminal_event_count"]["evidence"].append(sink_ref)
+    build_binding = source_receipt.parent.parent / "build-source-binding.json"
+    if build_binding.is_file():
+        observations["source_config_binding"]["evidence"].append(reference(build_binding, "source_manifest"))
+        observations["source_config_binding"]["value"]["current_product_source_binding"] = load(build_binding)
+
+
 def observe(attempt, fixture, binary, source_receipt):
     data = attempt / "data"
-    execution = load(data / "execution.json")
+    execution = load(data / EXECUTION_FILE)
     controller = load(attempt / "controller-result.json")
     contract = load(fixture / "case-contract.json")
     client = load(data / "main-client.json")
     neighbor = load(data / "neighbor-client.json")
     raw = [json.loads(line) for line in (data / "native-api.jsonl").read_text().splitlines()]
     allocated = [row for row in raw if row["function"] == "host_allocation" and row["edge"] == "return" and row["result"] == 1]
-    if len(allocated) != 2:
-        raise ValueError("expected independent main and health-neighbor allocations")
-    scope = allocated[0]["allocation_scope_call"]
-    native = [row for row in raw if row["allocation_scope_call"] == scope]
+    main_allocated = select_main_allocation(allocated, client, contract)
+    scope = main_allocated["allocation_scope_call"] if main_allocated else None
+    native = [row for row in raw if row["allocation_scope_call"] == scope] if scope is not None else []
 
     def calls(function, edge="return"):
         return [row for row in native if row["function"] == function and row["edge"] == edge]
@@ -56,19 +120,25 @@ def observe(attempt, fixture, binary, source_receipt):
     wire = (data / "main-wire.bin").read_bytes()
     segments, wire_count_matches = match_wire_segments(writes, wire)
     backend = [json.loads(line) for line in (data / "backend.jsonl").read_text().splitlines()]
-    main_backend = [row for row in backend if row["path"] == "/i12-main"]
-    native_id = calls("native_new_with_id")[0]["transaction_id"]
-    common_id = calls("common_init")[0]["canonical_transaction_id"]
+    backend_requests = [row for row in backend if "method" in row]
+    request_path = contract.get("request_path", "/i12-main")
+    request_method = contract.get("request_method", "POST")
+    main_backend = [row for row in backend_requests if row["path"] == request_path]
+    native_new = calls("native_new_with_id")
+    common_init = calls("common_init")
+    native_id = native_new[0]["transaction_id"] if native_new else None
+    common_id = common_init[0]["canonical_transaction_id"] if common_init else None
     audit = (data / "native-audit.log").read_text()
     native_lines = [line for line in audit.splitlines() if f'[unique_id "{native_id}"]' in line]
     blocks = re.findall(r'^---([A-Za-z0-9]+)---A--\n([^\n]+)\n(.*?)^---\1---Z--', audit, re.M | re.S)
-    main_blocks = [block for block in blocks if (" " + native_id + " ") in block[1] and "POST /i12-main HTTP/1.1" in block[2]]
-    counts = {str(rule): sum(f'[id "{rule}"]' in line for line in native_lines) for rule in (1999401, 1999404, 1999471, 1999472, 1999473)}
-    transitions = []
-    for enter in native:
-        if enter["edge"] == "enter" and enter["function"] in ("common_complete_phase", "common_finish", "common_cleanup"):
-            returned = next((row for row in native if row["call"] == enter["call"] and row["edge"] == "return"), None)
-            transitions.append({"function": enter["function"], "before": enter["contract_state"], "after": returned["contract_state"] if returned else None})
+    request_line = f"{request_method} {request_path} HTTP/1.1"
+    main_blocks = [block for block in blocks if native_id and (" " + native_id + " ") in block[1] and request_line in block[2]]
+    rule_ids = {1999401, 1999404, 1999471, 1999472, 1999473}
+    bound_rule = contract.get("original_requirement_binding", {}).get("original_oracle", {}).get("rule_id")
+    if bound_rule is not None:
+        rule_ids.add(bound_rule)
+    counts = {str(rule): sum(f'[id "{rule}"]' in line for line in native_lines) for rule in sorted(rule_ids)}
+    transitions = phase_transitions(native)
     command = next(row for row in execution["commands"] if row["label"] == "main-client")
     before = load(data / "before-main.fds.json")
     after = load(data / "after-main.fds.json")
@@ -80,16 +150,16 @@ def observe(attempt, fixture, binary, source_receipt):
         "api": reference(data / "native-api.jsonl", "native_api"),
         "host": reference(data / "haproxy.stderr", "host_callback"),
         "client": reference(data / "main-client.json", "client_process"),
-        "client_commands": reference(data / "execution.json", "client_process"),
+        "client_commands": reference(data / EXECUTION_FILE, "client_process"),
         "neighbor": reference(data / "neighbor-client.json", "client_process"),
         "backend": reference(data / "backend.jsonl", "backend_process"),
         "audit": reference(data / "native-audit.log", "physical_event_sink"),
         "debug": reference(data / "native-debug.log", "native_debug"),
-        "config": reference(data / "haproxy.cfg", "effective_configuration"),
-        "rules": reference(data / "rules.conf", "effective_configuration"),
+        "config": reference(data / HOST_CONFIG, "effective_configuration"),
+        "rules": reference(data / RULES_FILE, "effective_configuration"),
         "contract": reference(fixture / "case-contract.json", "source_contract"),
         "controller": reference(attempt / "controller-result.json", "isolation_receipt"),
-        "execution": reference(data / "execution.json", "cleanup_observer"),
+        "execution": reference(data / EXECUTION_FILE, "cleanup_observer"),
         "source": reference(source_receipt, "source_manifest"),
         "maps": reference(data / "before-main.maps", "loaded_image"),
         "identity": reference(data / "identity.stdout", "loaded_image"),
@@ -100,21 +170,21 @@ def observe(attempt, fixture, binary, source_receipt):
 
     observations = {
         "product_host_identity": known({"host_binary_sha256": sha(binary), "actual_loaded_SDK_images": sdk_images, "loaded_maps": maps, "identity": (data / "identity.stdout").read_text()}, "maps", "identity", "controller"),
-        "source_config_binding": known({"source_receipt_sha256": sha(source_receipt), "effective_rules_sha256": sha(data / "rules.conf"), "effective_config_sha256": sha(data / "haproxy.cfg")}, "source", "config", "rules"),
+        "source_config_binding": known({"source_receipt_sha256": sha(source_receipt), "effective_rules_sha256": sha(data / RULES_FILE), "effective_config_sha256": sha(data / HOST_CONFIG)}, "source", "config", "rules"),
         "capability": known(contract, "contract"),
         "client_exit": known(command["exit"], "client_commands"),
         "client_signal": known({"actual_signal": command["signal"], "actual_normal_exit": command["exit"] >= 0}, "client_commands"),
         "client_headers": known(client["headers"], "client"),
         "client_bytes": known(client["response_bytes"], "client"),
         "client_sha256": known(client["response_sha256"], "client"),
-        "backend_request_count": known({"main": len(main_backend), "neighbor": sum(row["path"] == "/i12-neighbor" for row in backend)}, "backend"),
-        "backend_payload_identity": known(backend, "backend"),
+        "backend_request_count": known({"main": len(main_backend), "neighbor": sum(row["path"] == "/i12-neighbor" for row in backend_requests)}, "backend"),
+        "backend_payload_identity": known(backend_requests, "backend"),
         "client_backend_correlation": known({"main_backend": main_backend, "actual_client": client, "independent_backend_process": True}, "client", "backend"),
         "native_events": known({"native_id": native_id, "actual_lines": native_lines, "actual_rule_counts": counts}, "audit"),
         "native_api_returns": known(native, "api"),
         "native_transaction_id": known(native_id, "api"),
         "common_transaction_id": known(common_id, "api"),
-        "observed_handle_association": known(allocated[0], "api"),
+        "observed_handle_association": known(main_allocated, "api"),
         "native_phases": known({phase: calls(phase) for phase in ("native_process_request_headers", "native_process_request_body", "native_process_response_headers", "native_process_response_body", "native_process_logging")}, "api", "debug"),
         "native_body_chunks": known({"request": calls("native_append_request_body"), "response": calls("native_append_response_body"), "native_append_has_no_EOS_argument": True}, "api"),
         "native_intervention_or_first_cause": known(calls("native_intervention"), "api"),
@@ -135,11 +205,8 @@ def observe(attempt, fixture, binary, source_receipt):
         "physical_event_order": known({"native_serial_A_Z_boundaries": [row[0] for row in main_blocks], "rule_counts": counts}, "audit"),
         "terminal_event_count": known({"native_main_serial_A_Z_records": len(main_blocks), "Common_Allow_physical_sink": None, "Common_Allow_reason": "No separately configured physical Common Allow sink; native audit and Common state remain separate."}, "audit"),
     }
-    build_binding = source_receipt.parent.parent / "build-source-binding.json"
-    if build_binding.is_file():
-        observations["source_config_binding"]["evidence"].append(reference(build_binding, "source_manifest"))
-        observations["source_config_binding"]["value"]["current_product_source_binding"] = load(build_binding)
-    return {"run_scoped_case_id": contract.get("original_id") or contract["diagnostic_id"], "leg_id": "haproxy-native-htx", "run_id": raw[0]["run"], "execution_kind": "host_http", "execution_observed": True, "reviewed_by": "pending_root", "isolation_attempt_nonce": attempt.name.removeprefix("attempt-"), "effective_config_sha256": sha(data / "haproxy.cfg"), "rules_sha256": sha(data / "rules.conf"), "source_bound_fixture_contract": contract, "oracle_evaluated": None, "outcome": None, "full_lifecycle_qualified": None, "observations": observations, "raw_artifacts": [{"path": str(path), "sha256": sha(path), "bytes": path.stat().st_size} for path in sorted(data.iterdir()) if path.is_file() and path.name not in ("tls.key", "tls.pem")]}
+    attach_supplemental_observations(observations, data, native_id, common_id, refs, backend, source_receipt)
+    return {"run_scoped_case_id": contract.get("original_id") or contract["diagnostic_id"], "leg_id": "haproxy-native-htx", "run_id": raw[0]["run"], "execution_kind": "host_http", "execution_observed": True, "reviewed_by": "pending_root", "isolation_attempt_nonce": attempt.name.removeprefix("attempt-"), "effective_config_sha256": sha(data / HOST_CONFIG), "rules_sha256": sha(data / RULES_FILE), "source_bound_fixture_contract": contract, "oracle_evaluated": None, "outcome": None, "full_lifecycle_qualified": None, "observations": observations, "raw_artifacts": [{"path": str(path), "sha256": sha(path), "bytes": path.stat().st_size} for path in sorted(data.iterdir()) if path.is_file() and path.name not in ("tls.key", "tls.pem")]}
 
 
 def main():
