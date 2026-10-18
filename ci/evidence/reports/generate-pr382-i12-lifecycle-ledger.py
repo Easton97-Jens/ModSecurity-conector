@@ -277,6 +277,27 @@ def configuration_source_binding(packet, observed, producers):
         raise ValueError("Parser cleanup differs from physical observer")
 
 
+def configuration_rejection_matches(packet, row, observed):
+    """An unrelated loader failure with exit 1 never proves the named rejection."""
+    refs = {item["role"]: item for item in packet["measurement_evidence"]}
+    source = json.loads(Path(refs["expectation_source"]["path"]).read_text())
+    expected = source.get("expected_parser_rejection")
+    if (not isinstance(expected, dict) or source.get("reviewed_by") != "root"
+            or expected.get("original_contract_sha256") != ORACLES.canonical_digest(row["selected_requirement"])
+            or expected.get("oracle_sha256") != packet["oracle_sha256"]
+            or expected.get("diagnostic_stream") not in ("stdout", "stderr")
+            or not isinstance(expected.get("diagnostic_contains"), str)
+            or not expected["diagnostic_contains"].strip()
+            or not isinstance(expected.get("first_cause"), str) or not expected["first_cause"].strip()):
+        raise ValueError("Configuration rejection needs a source-bound diagnostic and first-cause expectation")
+    actual = json.loads(Path(refs["parser_process"]["path"]).read_text())
+    process = observed["parser_process"]
+    if not isinstance(process.get("first_cause"), str) or actual.get("first_cause") != process["first_cause"]:
+        raise ValueError("Configuration first cause must match the actual parser receipt")
+    return (process["first_cause"] == expected["first_cause"]
+            and expected["diagnostic_contains"] in process[expected["diagnostic_stream"]])
+
+
 def reviewed_configuration_packet(supplied, row, effective_oracle):
     """Qualify an original parser contract without fabricating an HTTP lifecycle.
 
@@ -304,8 +325,10 @@ def reviewed_configuration_packet(supplied, row, effective_oracle):
     process = observed["parser_process"]
     matched = (process["waited_signal"] is None and process["waited_exit"] >= 0
                and process["waited_exit"] == effective_oracle["visible_status"])
+    if expected == "config_rejected":
+        matched = configuration_rejection_matches(packet, row, observed) and matched
     if verdict != ("PASS" if matched else "FAIL"):
-        raise ValueError("Parser verdict contradicts actual exit/signal and independent oracle")
+        raise ValueError("Parser verdict contradicts actual exit/signal/first cause and independent oracle")
     return {"receipt": ref, "observations": observed, "execution_observed": True,
             "mandatory_observations": dict(zip(CONFIGURATION_FIELDS, (
                 observed["parser_process"],
@@ -313,6 +336,381 @@ def reviewed_configuration_packet(supplied, row, effective_oracle):
                 {"expected_oracle": copy.deepcopy(effective_oracle), "oracle_sha256": packet["oracle_sha256"]}), strict=True)),
             "qualification_scope": "configuration_control", "full_case_qualified": True,
             "full_lifecycle_qualified": False, "outcome": verdict, "unknown_fields": []}
+
+
+# These are original Traefik contracts, not a new general exemption for early exits.
+TRAEFIK_REQUEST_ROUTES = frozenset(("traefik-native-uds", "traefik-forwardauth-request"))
+TRAEFIK_ROUTES = TRAEFIK_REQUEST_ROUTES | {"traefik-forwardauth-response-companion"}
+PARSER_REJECTIONS = frozenset(("invalid_content_length", "conflicting_content_length",
+                               "duplicate_transfer_encoding", "content_length_overflow"))
+MAPPING_REJECTIONS = frozenset(("body_size_nonzero_with_null_data", "header_count_nonzero_with_null_headers"))
+EARLY_CLEANUP_CASES = frozenset(("early_mapping_failure_cleanup", "transaction_begin_failure_cleanup"))
+PREALLOCATION_NULL_FIELDS = frozenset((
+    "native_events", "native_transaction_id", "common_transaction_id",
+    "observed_handle_association", "native_phases", "native_body_chunks",
+    "native_intervention_or_first_cause", "host_eos", "native_eos", "commit_order", "mime_gate",
+    "finish_calls", "finish_transitions", "native_free_calls", "physical_event_order", "terminal_event_count"))
+
+
+def bound_json(selector, packet_path, roles):
+    """Read an exact existing producer field without treating packet data as a measurement."""
+    if not isinstance(selector, dict):
+        raise ValueError("Missing physical preallocation selector")
+    ref = ORACLES.verify_reference(selector.get("reference", {}))
+    if ref.get("role") not in roles or ref["path"] == str(packet_path):
+        raise ValueError("Preallocation measurement has an unsuitable or self-referential producer")
+    raw = Path(ref["path"]).read_text()
+    if "line" in selector:
+        line = selector["line"]
+        if type(line) is not int or not 0 <= line < len(raw.splitlines()):
+            raise ValueError("Invalid exact physical JSONL line selector")
+        raw = raw.splitlines()[line]
+    value = json.loads(raw)
+    pointer = selector.get("pointer")
+    if not isinstance(pointer, str) or (pointer and not pointer.startswith("/")):
+        raise ValueError("Preallocation selector needs an exact JSON pointer")
+    try:
+        for part in pointer.split("/")[1:] if pointer else ():
+            key = part.replace("~1", "/").replace("~0", "~")
+            value = value[int(key)] if isinstance(value, list) else value[key]
+    except (KeyError, IndexError, TypeError, ValueError) as error:
+        raise ValueError("Physical preallocation selector does not exist") from error
+    return value
+
+
+def preallocation_contract(packet, row, oracle, path):
+    route, case = row["leg_id"], row["run_scoped_case_id"].split("::")[-1]
+    eligible = ((route in TRAEFIK_REQUEST_ROUTES and case in PARSER_REJECTIONS | MAPPING_REJECTIONS)
+                or (route in TRAEFIK_ROUTES and case in EARLY_CLEANUP_CASES | {"NEED-physical-event-sink-open"}))
+    if not eligible or row["selected_requirement"].get("execution_kind") != "host_case_or_missing_fixture":
+        raise ValueError("Original ID does not permit preallocation qualification")
+    if (packet.get("reviewed_by") != "root" or packet.get("run_scoped_case_id") != row["run_scoped_case_id"]
+            or packet.get("leg_id") != route or packet.get("execution_observed") is not True
+            or packet.get("execution_kind") != "host_preallocation_control"
+            or packet.get("full_lifecycle_qualified") is not False):
+        raise ValueError("Preallocation control needs exact Root-reviewed identity and cannot claim a lifecycle")
+    if (oracle is None or packet.get("oracle_evaluated") is not True
+            or packet.get("oracle_sha256") != ORACLES.canonical_digest(oracle)
+            or oracle.get("unresolved_expected_value_reason") or oracle.get("phase", "missing") is not None
+            or oracle.get("physical_evidence_not_projection") is not True):
+        raise ValueError("Preallocation control needs an independently reviewed effective oracle with absent native phase")
+    ref = ORACLES.verify_reference(packet.get("preallocation_contract", {}))
+    if (ref.get("kind") not in ORACLES.INDEPENDENT_KINDS or not ref.get("revision")
+            or ref.get("role") != "expectation_source" or ref["path"] == str(path)):
+        raise ValueError("Preallocation contract requires a separate revisioned expectation source")
+    expected = json.loads(Path(ref["path"]).read_text())
+    validate_preallocation_approval(expected, row, packet)
+    expected_kind = "http_parser" if case in PARSER_REJECTIONS else ("service_startup" if case == "NEED-physical-event-sink-open" else "mapping_or_begin")
+    if expected.get("failure_class") != expected_kind:
+        raise ValueError("Preallocation failure class does not match the original ID")
+    if expected_kind != "http_parser" and (not isinstance(expected.get("operation"), str) or not expected["operation"]
+            or "errno" not in expected or (expected["errno"] is not None and type(expected["errno"]) is not int)
+            or type(expected.get("failure_result")) is not int):
+        raise ValueError("Preallocation operation, return and errno expectation must be explicit")
+    if expected_kind == "mapping_or_begin" and (expected["errno"] is not None or expected.get("errno_scope") != "not_an_os_operation"
+            or expected["failure_result"] not in (0, -1)):
+        raise ValueError("Mapper/native API results must not invent an OS errno")
+    return expected
+
+
+def validate_preallocation_approval(expected, row, packet):
+    if (expected.get("reviewed_by") != "root" or expected.get("run_scoped_case_id") != row["run_scoped_case_id"]
+            or expected.get("original_contract_sha256") != ORACLES.canonical_digest(row["selected_requirement"])
+            or expected.get("oracle_sha256") != packet["oracle_sha256"]
+            or type(expected.get("native_allocation_count")) is not int or expected["native_allocation_count"] != 0
+            or not isinstance(expected.get("first_cause"), str) or not expected["first_cause"]):
+        raise ValueError("Preallocation approval does not bind the exact original contract and oracle")
+
+
+def preallocation_observations(packet, path):
+    if set(packet.get("observations", {})) != set(ROLES):
+        raise ValueError("Preallocation controls must retain all 35 original observation fields")
+    result = {}
+    for field, item in packet["observations"].items():
+        if field in PREALLOCATION_NULL_FIELDS:
+            if item.get("value", "missing") is not None or not item.get("reason"):
+                raise ValueError("Unallocated lifecycle observations must remain explicitly null")
+            result[field] = copy.deepcopy(item)
+        else:
+            result[field], complete = measurement(field, item, path)
+            if not complete:
+                raise ValueError("Missing physical preallocation observation: " + field)
+    if result["backend_request_count"]["value"] != 0:
+        raise ValueError("Preallocation rejection requires backend exclusion")
+    return result
+
+
+def preallocation_source_binding(packet, observations):
+    binding = observations["source_config_binding"]
+    refs = {ref["role"]: ref for ref in binding["evidence"]}
+    source = json.loads(Path(refs["source_manifest"]["path"]).read_text())
+    value = binding["value"]
+    if (not isinstance(value, dict) or source.get("parent_sha") != packet.get("parent_sha")
+            or value.get("parent_sha") != packet.get("parent_sha")
+            or value.get("effective_config_sha256") != packet.get("effective_config_sha256")
+            or refs["effective_configuration"]["sha256"] != packet.get("effective_config_sha256")):
+        raise ValueError("Preallocation source revision and effective configuration must bind actual bytes")
+
+
+def observer_records(ref, path):
+    ref = ORACLES.verify_reference(ref)
+    if ref.get("role") != "native_api" or ref["path"] == str(path):
+        raise ValueError("Preallocation needs the physical native observer stream")
+    rows = [json.loads(line) for line in Path(ref["path"]).read_text().splitlines() if line]
+    if not rows:
+        raise ValueError("An empty observer stream cannot prove zero allocations")
+    by_pid = {}
+    for record in rows:
+        if (record.get("schema") != "native-lifecycle-v1" or type(record.get("pid")) is not int or record["pid"] <= 0 or record.get("uid") != 65534
+                or record.get("invalid") is not False or type(record.get("sequence")) is not int
+                or type(record.get("monotonic_ns")) is not int):
+            raise ValueError("Invalid native observer record")
+        by_pid.setdefault(record["pid"], []).append(record)
+    for records in by_pid.values():
+        if ([item["sequence"] for item in records] != list(range(1, len(records)+1))
+                or records[0].get("function") != "observer" or records[0].get("edge") not in ("admitted", "fork")
+                or records[-1].get("function") != "observer" or records[-1].get("edge") not in ("final", "snapshot")
+                or any(a["monotonic_ns"] > b["monotonic_ns"] for a, b in zip(records, records[1:]))):
+            raise ValueError("Observer activation, sequence and terminal coverage are mandatory")
+    return by_pid
+
+
+def observed_allocations(records):
+    constructors = [row for row in records if row.get("function") in ("native_new", "native_new_with_id")]
+    returns = [row for row in constructors if row.get("edge") == "return"]
+    enters = [row for row in constructors if row.get("edge") == "enter"]
+    if (len(returns) != len(enters)
+            or [(row.get("function"), row.get("call")) for row in enters] != [(row.get("function"), row.get("call")) for row in returns]
+            or any(type(row.get("result")) is not int or row["result"] not in (0, 1) for row in returns)):
+        raise ValueError("Incomplete native allocation call pairs")
+    return len(enters), sum(row["result"] for row in returns)
+
+
+def physical_window(value, pid):
+    if not isinstance(value, dict):
+        raise ValueError("Missing actual client/controller window")
+    return {**value, "pid": pid,
+            "start_monotonic_ns": value.get("start_monotonic_ns", value.get("started_ns", value.get("monotonic_ns"))),
+            "end_monotonic_ns": value.get("end_monotonic_ns", value.get("completed_ns"))}
+
+
+def backend_headers(packet, path, key):
+    ref = ORACLES.verify_reference(packet.get("backend_log", {}))
+    if ref.get("role") != "backend_process" or ref["path"] == str(path) or not isinstance(key, str) or not key:
+        raise ValueError("Physical independent early-header backend receipts and client key are mandatory")
+    rows = [json.loads(line) for line in Path(ref["path"]).read_text().splitlines() if line]
+    if not rows or any(not isinstance(row, dict) for row in rows):
+        raise ValueError("Empty backend stream cannot establish a monitored exclusion")
+    return sum((row.get("event") == "parsed_headers" and row.get("probe") == key)
+               or (row.get("operation") == "headers-arrived" and row.get("key") == key) for row in rows)
+
+
+def control_status(control):
+    if "status" in control:
+        return control["status"]
+    requests = control.get("requests")
+    if not isinstance(requests, list) or len(requests) != 1:
+        raise ValueError("Healthy control needs one actual client response")
+    return requests[0].get("client_framing", {}).get("status")
+
+
+def observed_window(value, by_pid, packet):
+    if (not isinstance(value, dict) or type(value.get("pid")) is not int
+            or type(value.get("start_monotonic_ns")) is not int or type(value.get("end_monotonic_ns")) is not int
+            or value["start_monotonic_ns"] >= value["end_monotonic_ns"]):
+        raise ValueError("Preallocation needs an exact physical process/time window")
+    rows = by_pid.get(value["pid"], [])
+    if (not rows or rows[0]["monotonic_ns"] > value["start_monotonic_ns"]
+            or rows[-1]["monotonic_ns"] < value["end_monotonic_ns"]
+            or any(row.get("run") != packet["run_id"] or row.get("profile") != packet["leg_id"] for row in rows)):
+        raise ValueError("Observer does not cover the actual process/run/window")
+    return [row for row in rows if value["start_monotonic_ns"] <= row["monotonic_ns"] <= value["end_monotonic_ns"]]
+
+
+def preallocation_images(packet, path):
+    identities = []
+    for name in ("target_identity", "before_identity", "after_identity"):
+        identity = bound_json(packet["preallocation_measurements"].get(name), path, {"loaded_image"})
+        if (not isinstance(identity, dict) or identity.get("run_id") != packet["run_id"]
+                or identity.get("parent_sha") != packet["parent_sha"] or identity.get("uid") != 65534
+                or any(not isinstance(identity.get(key), str) or re.fullmatch(r"[a-f0-9]{64}", identity[key]) is None
+                       for key in ("host_binary_sha256", "module_sha256", "observer_sha256"))):
+            raise ValueError("Loaded observer/image/source/UID identity is missing")
+        identities.append(identity)
+    image_keys = ("host_binary_sha256", "module_sha256", "observer_sha256")
+    if any(any(identity[key] != identities[0][key] for key in image_keys) for identity in identities):
+        raise ValueError("Healthy controls do not use the same loaded instrumented images")
+    return identities
+
+
+def preallocation_controls(packet, path, expected):
+    bindings = packet.get("preallocation_measurements", {})
+    by_pid = observer_records(packet.get("observer_log", {}), path)
+    identities = preallocation_images(packet, path)
+    target = physical_window(bound_json(bindings.get("target_window"), path, {"client_process", "host_callback"}), identities[0].get("pid"))
+    rows = observed_window(target, by_pid, packet)
+    attempts, allocated = observed_allocations(rows)
+    if allocated != 0:
+        raise ValueError("A native allocation prevents preallocation qualification")
+    target_key = target.get("key", target.get("probe"))
+    if backend_headers(packet, path, target_key) != 0:
+        raise ValueError("Target reached the independent backend before body processing")
+    windows = []
+    for index, name in enumerate(("before_control", "after_control"), 1):
+        control = physical_window(bound_json(bindings.get(name), path, {"client_process", "host_callback"}), identities[index].get("pid"))
+        records = observed_window(control, by_pid, packet)
+        if (identities[index].get("pid") != control["pid"] or control_status(control) != 200
+                or backend_headers(packet, path, control.get("key", control.get("probe"))) != 1 or observed_allocations(records)[1] != 1
+                or sum(row.get("function") == "native_cleanup" and row.get("edge") == "enter" for row in records) != 1):
+            raise ValueError("Healthy controls need actual native allocation/free, client and backend evidence")
+        windows.append(control)
+    if (identities[0].get("pid") != target["pid"] or windows[0]["end_monotonic_ns"] >= target["start_monotonic_ns"]
+            or target["end_monotonic_ns"] >= windows[1]["start_monotonic_ns"]):
+        raise ValueError("Healthy controls must bracket the target execution")
+    if expected["failure_class"] != "service_startup" and any(control["pid"] != target["pid"] for control in windows):
+        raise ValueError("HTTP/parser/mapping controls require the same live native process")
+    if any(str(row.get("function", "")).startswith("native_") and row.get("function") not in ("native_new", "native_new_with_id") for row in rows):
+        raise ValueError("A native transaction call in the target window contradicts nonallocation")
+    return {"native_constructor_attempts": attempts, "native_allocations": allocated,
+            "target_window": target, "controls": windows,
+            "native_api_returns": [{"function": row["function"], "call": row["call"], "result": row["result"]}
+                for row in rows if row.get("edge") == "return" and str(row.get("function", "")).startswith(("native_", "runtime_"))],
+            "native_runtime_begin_returns": [row["result"] for row in rows
+                if row.get("function") in ("runtime_begin", "runtime_begin_request_stream") and row.get("edge") == "return"]}
+
+
+def response_entity_framing(head, body):
+    lengths = []
+    if b"\n" in head.replace(b"\r\n", b"") or b"\r" in head.replace(b"\r\n", b""):
+        raise ValueError("Invalid preallocation response header line framing")
+    for line in head.split(b"\r\n")[1:]:
+        if b":" not in line or line.startswith((b" ", b"\t")):
+            raise ValueError("Invalid preallocation response header")
+        name, value = line.split(b":", 1)
+        if re.fullmatch(rb"[!#$%&'*+.^_`|~0-9A-Za-z-]+", name) is None:
+            raise ValueError("Invalid preallocation response field name")
+        if any((byte < 32 and byte != 9) or byte == 127 for byte in value):
+            raise ValueError("Invalid preallocation response field value")
+        if name.lower() == b"transfer-encoding":
+            raise ValueError("Preallocation raw framing needs an independently supported entity decoder")
+        if name.lower() == b"content-length":
+            value = value.strip(b" \t")
+            if not value.isdigit() or len(value) > 19 or int(value) > 9223372036854775807:
+                raise ValueError("Invalid or oversized preallocation response Content-Length")
+            lengths.append(int(value))
+    if lengths and (len(lengths) != 1 or lengths[0] != len(body)):
+        raise ValueError("Incomplete or ambiguous preallocation response body framing")
+
+
+def preallocation_wire(packet, row, oracle, path):
+    request = ORACLES.verify_reference(packet.get("client_request", {}))
+    response = ORACLES.verify_reference(packet.get("client_response", {}))
+    if any(ref.get("role") != "client_process" or ref["path"] == str(path) for ref in (request, response)):
+        raise ValueError("Actual client request and response bytes are mandatory")
+    raw = Path(response["path"]).read_bytes()
+    match = re.match(rb"HTTP/1\.[01] ([0-9]{3})[^\r\n]*\r\n", raw)
+    if (not match or b"\r\n\r\n" not in raw or int(match[1]) != oracle.get("visible_status")
+            or len(re.findall(rb"(?m)^HTTP/1\.[01] [0-9]{3}", raw)) != 1):
+        raise ValueError("Raw client response does not match the independently reviewed status")
+    head, body = raw.split(b"\r\n\r\n", 1)
+    response_entity_framing(head, body)
+    if (packet["observations"]["client_sha256"]["value"] != hashlib.sha256(body).hexdigest()
+            or packet["observations"]["client_bytes"]["value"] != len(body)):
+        raise ValueError("Client entity byte count/digest differs from the physical raw response")
+    target = bound_json(packet["preallocation_measurements"].get("target_window"), path, {"client_process", "host_callback"})
+    key = target.get("key", target.get("probe"))
+    request_bytes = Path(request["path"]).read_bytes()
+    headers = request_bytes.split(b"\r\n\r\n", 1)[0].split(b"\r\n")[1:]
+    keys = [line.split(b":", 1)[1].strip().decode("ascii") for line in headers
+            if line.lower().startswith((b"x-i12-probe:", b"x-i12-acceptance-key:"))]
+    if keys != [key]:
+        raise ValueError("Raw client request key differs from its physical time window/backend correlation")
+    case = row["run_scoped_case_id"].split("::")[-1]
+    if case in PARSER_REJECTIONS:
+        headers = Path(request["path"]).read_bytes().split(b"\r\n\r\n", 1)[0].split(b"\r\n")[1:]
+        lengths = [line.split(b":", 1)[1].strip() for line in headers if line.lower().startswith(b"content-length:")]
+        transfers = [line for line in headers if line.lower().startswith(b"transfer-encoding:")]
+        valid = {"invalid_content_length": bool(lengths) and any(not value.isdigit() for value in lengths),
+                 "conflicting_content_length": len(set(lengths)) > 1,
+                 "duplicate_transfer_encoding": len(transfers) > 1,
+                 "content_length_overflow": any(value.isdigit() and int(value) > 9223372036854775807 for value in lengths)}
+        if not valid[case] or int(match[1]) != 400:
+            raise ValueError("Physical malformed request does not exercise the exact original parser case")
+    return int(match[1])
+
+
+def preallocation_failure(packet, row, expected, controls, path):
+    bindings = packet["preallocation_measurements"]
+    fault = bound_json(bindings.get("fault"), path, {"host_callback"})
+    window = controls["target_window"]
+    if (not isinstance(fault, dict) or fault.get("operation") != expected["operation"]
+            or fault.get("pid") != window["pid"] or type(fault.get("result")) is not int
+            or not window["start_monotonic_ns"] <= fault.get("monotonic_ns", -1) <= window["end_monotonic_ns"]):
+        raise ValueError("Preallocation rejection needs its actual failing operation/process/window")
+    if expected["failure_class"] == "service_startup":
+        preallocation_startup_failure(packet, expected, fault, path)
+        return
+    case = row["run_scoped_case_id"].split("::")[-1]
+    if case in MAPPING_REJECTIONS:
+        suffix = "body-null" if case == "body_size_nonzero_with_null_data" else "headers-null"
+        prefix = "native-request-" if row["leg_id"] == "traefik-native-uds" else "mapper-"
+        if fault["operation"] != prefix + suffix:
+            raise ValueError("Wrong actual pointer-injection boundary for the original mapper contract")
+        count_key, null_key = (("input_size", "body_data_null") if suffix == "body-null" else ("header_count", "headers_null"))
+        if type(fault.get(count_key)) is not int or fault[count_key] <= 0 or fault.get(null_key) is not True:
+            raise ValueError("Mapper contract needs actual nonzero count and actual NULL pointer measurements")
+        if prefix == "native-request-":
+            if (fault["result"] != expected["failure_result"]
+                    or controls["native_runtime_begin_returns"] != [fault["result"]]):
+                raise ValueError("Native pointer rejection needs its actual independently observed begin return")
+            return
+    if fault["result"] != expected["failure_result"]:
+        raise ValueError("Actual mapper/native failure return differs from its independent contract")
+
+
+def preallocation_startup_failure(packet, expected, fault, path):
+    if (fault["operation"] not in ("open", "open64", "openat", "openat64")
+            or type(fault.get("errno")) is not int or fault["errno"] <= 0
+            or fault["errno"] != expected["errno"] or fault["result"] != -1 or expected["failure_result"] != -1):
+        raise ValueError("Startup rejection requires a real failing open syscall and actual errno")
+    process = bound_json(packet["preallocation_measurements"].get("startup_process"), path, {"host_callback"})
+    if (not isinstance(process, dict) or process.get("actual_pid") != fault["pid"]
+            or type(expected.get("process_exit")) is not int or process.get("exit_code") != expected["process_exit"]
+            or process.get("signal") is not None):
+        raise ValueError("Startup rejection requires the actual failed service process exit")
+    diagnostic = bound_json(packet["preallocation_measurements"].get("startup_diagnostic"), path, {"host_callback"})
+    if (not isinstance(diagnostic, str) or not isinstance(expected.get("diagnostic_contains"), str)
+            or not expected["diagnostic_contains"] or expected["diagnostic_contains"] not in diagnostic):
+        raise ValueError("Startup rejection requires its source-bound actual diagnostic")
+
+
+def reviewed_preallocation_packet(supplied, row, effective_oracle):
+    ref = ORACLES.verify_reference(supplied)
+    path = Path(ref["path"])
+    packet = json.loads(path.read_text())
+    expected = preallocation_contract(packet, row, effective_oracle, path)
+    observations = preallocation_observations(packet, path)
+    preallocation_source_binding(packet, observations)
+    controls = preallocation_controls(packet, path, expected)
+    if observations["native_api_returns"]["value"] != controls["native_api_returns"]:
+        raise ValueError("Actual native/runtime API returns must agree with the physical target observer stream")
+    status = preallocation_wire(packet, row, effective_oracle, path)
+    if expected["failure_class"] != "http_parser":
+        preallocation_failure(packet, row, expected, controls, path)
+    cleanup = bound_json(packet["preallocation_measurements"].get("cleanup"), path, {"cleanup_observer"})
+    if (not isinstance(cleanup, dict) or cleanup.get("run_id") != packet["run_id"]
+            or any(type(cleanup.get(key)) is not int or cleanup[key] != 0
+                   for key in ("descriptors_remaining", "sockets_remaining", "processes_remaining"))
+            or cleanup.get("cleanup_calls") != 1):
+        raise ValueError("Exact once-cleanup and FD/socket/process receipts are mandatory")
+    if type(cleanup.get("cleanup_calls")) is not int:
+        raise ValueError("Cleanup call count must be an observed integer")
+    if packet.get("outcome") != "PASS":
+        raise ValueError("Preallocation proof cannot substitute a driver exit for a qualified verdict")
+    return {"receipt": ref, "observations": observations, "execution_observed": True,
+            "qualification_scope": "preallocation_control", "full_case_qualified": True,
+            "full_lifecycle_qualified": False, "outcome": "PASS", "unknown_fields": [],
+            "preallocation_measurements": controls, "visible_status": status}
 
 
 PRE_NATIVE_MAPPING = {
@@ -722,6 +1120,7 @@ def build_ledger(requirements, selection, reconciliation, packets):
             oracle = None
         reviewer = (reviewed_configuration_packet
                     if by_id[identity]["selected_requirement"].get("execution_kind") == "actual_configtest"
+                    else reviewed_preallocation_packet if packet.get("execution_kind") == "host_preallocation_control"
                     else reviewed_packet)
         if packet.get("execution_kind") == "host_pre_native_rejection":
             reviewer = reviewed_pre_native_packet
@@ -735,8 +1134,11 @@ def build_ledger(requirements, selection, reconciliation, packets):
         row["oracle_reconciliation"] = copy.deepcopy(reviews.get(identity))
         observation = observations.get(identity)
         configuration = observation is not None and observation.get("qualification_scope") == "configuration_control"
+        preallocation = observation is not None and observation.get("qualification_scope") == "preallocation_control"
         pre_native = observation is not None and observation.get("qualification_scope") == "host_pre_native_rejection"
-        row["current_lifecycle_packet"] = None if configuration or pre_native else observation
+        row["current_lifecycle_packet"] = None if configuration or preallocation or pre_native else observation
+        row["current_preallocation_packet"] = observation if preallocation else None
+        row["qualified_preallocation_pass"] = False
         row["current_pre_native_packet"] = observation if pre_native else None
         row["current_configuration_packet"] = observation if configuration else None
         row["qualified_host_lifecycle_pass"] = False
@@ -750,6 +1152,13 @@ def build_ledger(requirements, selection, reconciliation, packets):
                 row["qualified_full_case_pass"] = observation["outcome"] == "PASS"
                 row["qualified_configuration_pass"] = observation["outcome"] == "PASS"
                 row["qualification_scope"] = "configuration_control"
+            elif preallocation:
+                row["status"] = observation["outcome"]
+                row["qualified_full_case_pass"] = observation["outcome"] == "PASS"
+                row["qualified_preallocation_pass"] = observation["outcome"] == "PASS"
+                row["qualification_scope"] = "preallocation_control"
+
+
             elif pre_native:
                 row["status"] = observation["outcome"]
                 row["qualified_full_case_pass"] = observation["outcome"] == "PASS"
@@ -772,6 +1181,9 @@ def build_ledger(requirements, selection, reconciliation, packets):
                 "configuration_only_pass": sum(row["qualification_scope"] == "historical_configuration_only" for row in rows),
                 "current_configuration_pass": sum(row["qualification_scope"] == "configuration_control" and row["status"] == "PASS" for row in rows),
                 "current_configuration_fail": sum(row["qualification_scope"] == "configuration_control" and row["status"] == "FAIL" for row in rows),
+                "current_preallocation_pass": sum(row["qualification_scope"] == "preallocation_control" and row["status"] == "PASS" for row in rows),
+
+
                 "pre_native_rejection_pass": sum(row["qualification_scope"] == "host_pre_native_rejection" and row["status"] == "PASS" for row in rows),
                 "full_lifecycle_pass": sum(row["status"] == "PASS" for row in full),
                 "full_lifecycle_fail": sum(row["status"] == "FAIL" for row in full),

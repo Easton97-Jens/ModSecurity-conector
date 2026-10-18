@@ -362,14 +362,14 @@ class CurrentApacheProfileControls(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory(prefix="apache-export-contract-", dir=TEST_ROOT)
         cls.addClassCleanup(temporary.cleanup)
         cls.work = Path(temporary.name)
-        cls.revision = subprocess.run(["rtk", "proxy", "git", "rev-parse", "HEAD"],
+        cls.revision = subprocess.run(["git", "rev-parse", "HEAD"],
             cwd=CAPTURE.REPOSITORY, check=True, capture_output=True, text=True).stdout.strip()
-        cls.tree = subprocess.run(["rtk", "proxy", "git", "rev-parse", "HEAD^{tree}"],
+        cls.tree = subprocess.run(["git", "rev-parse", "HEAD^{tree}"],
             cwd=CAPTURE.REPOSITORY, check=True, capture_output=True, text=True).stdout.strip()
         cls.archive = cls.work / "committed-parent.tar"
-        subprocess.run(["rtk", "proxy", "git", "archive", "--format=tar", "--output", str(cls.archive), "HEAD"],
+        subprocess.run(["git", "archive", "--format=tar", "--output", str(cls.archive), "HEAD"],
             cwd=CAPTURE.REPOSITORY, check=True, capture_output=True)
-        listing = subprocess.run(["rtk", "proxy", "git", "ls-tree", "-rz", "HEAD"],
+        listing = subprocess.run(["git", "ls-tree", "-rz", "HEAD"],
             cwd=CAPTURE.REPOSITORY, check=True, capture_output=True).stdout
         cls.files, cls.gitlinks = {}, {}
         for row in listing.split(b"\0"):
