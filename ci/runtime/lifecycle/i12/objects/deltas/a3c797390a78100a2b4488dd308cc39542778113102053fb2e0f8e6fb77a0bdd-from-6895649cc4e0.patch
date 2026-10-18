@@ -1,0 +1,45 @@
+--- a/payload
++++ b/payload
+@@ -59 +58,0 @@
+-    int failure_response_selected;
+@@ -440,2 +438,0 @@
+-    if (result != HANDLER_ERROR && ctx != NULL)
+-        ctx->failure_response_selected = 1;
+@@ -1155,6 +1152 @@
+-    if (ctx != NULL && (ctx->technical_failed || ctx->api_failed)) {
+-        /* Permit the error document already selected by fail_request to reach
+-         * the client.  The terminal context still forbids another engine call. */
+-        return ctx->technical_failed &&
+-            ctx->failure_response_selected ? HANDLER_GO_ON : HANDLER_ERROR;
+-    }
++    if (ctx != NULL && (ctx->technical_failed || ctx->api_failed)) return HANDLER_ERROR;
+@@ -1246,16 +1237,0 @@
+-        /* Stock and body-mode=none paths have no body callback to report output
+-         * commitment.  Reset observes the real host counters before logging. */
+-        msconnector_error_init(&runtime_error);
+-        if (ctx->response_processed && !ctx->host_response_attempted &&
+-            msconnector_runtime_transaction_set_response_commit_state_checked(
+-                ctx->transaction, r->write_queue.bytes_out > 0,
+-                r->resp_header_len > 0U &&
+-                    r->write_queue.bytes_out > (off_t)r->resp_header_len,
+-                &runtime_error) != 1) {
+-            ctx->api_failed = 1;
+-            log_error(r->conf.errh, __FILE__, __LINE__,
+-                "msconnector reset commit-state synchronization failed: %s",
+-                msconnector_error_code_name(runtime_error.code));
+-            handler_ctx_destroy(ctx_slot);
+-            return HANDLER_ERROR;
+-        }
+@@ -1263,4 +1239 @@
+-        /* An applied disruptive P3 decision is already terminal.  Reset must
+-         * finish logging/cleanup without starting another body phase or
+-         * treating the deliberately replaced response as a missing EOS. */
+-        if (!ctx->host_response_attempted && !p->response_body_hooks_enabled &&
++        if (!p->response_body_hooks_enabled &&
+@@ -1277 +1250 @@
+-        else if (!ctx->host_response_attempted && p->response_body_hooks_enabled &&
++        else if (p->response_body_hooks_enabled &&
+@@ -1294,2 +1267 @@
+-        if (!ctx->host_response_attempted &&
+-            ctx->response_processed && !ctx->response_body_finished &&
++        if (ctx->response_processed && !ctx->response_body_finished &&

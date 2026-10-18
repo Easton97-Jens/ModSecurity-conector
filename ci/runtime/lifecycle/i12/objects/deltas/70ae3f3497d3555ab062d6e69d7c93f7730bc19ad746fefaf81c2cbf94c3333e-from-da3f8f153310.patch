@@ -1,0 +1,20 @@
+--- a/payload
++++ b/payload
+@@ -3942,2 +3941,0 @@
+-    modsec_request->http_version = request->http_metadata.has_http_version ?
+-        request->http_metadata.http_version : NULL;
+@@ -4004,5 +4002 @@
+-    if (!request->http_metadata.has_http_version ||
+-            (strcmp(request->http_metadata.http_version, "1.0") != 0 &&
+-             strcmp(request->http_metadata.http_version, "1.1") != 0 &&
+-             strcmp(request->http_metadata.http_version, "2.0") != 0) ||
+-            !request->has_body || !request->has_body_len_arg ||
++    if (!request->has_body || !request->has_body_len_arg ||
+@@ -4066,5 +4060,2 @@
+-    modsec_rc = state->config.response_phases_enabled ?
+-        haproxy_modsecurity_transaction_begin(
+-            state->engine, &modsec_request, decision, &transaction) :
+-        haproxy_modsecurity_transaction_begin_request_authorization(
+-            state->engine, &modsec_request, decision, &transaction);
++    modsec_rc = haproxy_modsecurity_transaction_begin(
++        state->engine, &modsec_request, decision, &transaction);

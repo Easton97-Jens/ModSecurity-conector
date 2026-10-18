@@ -5,6 +5,9 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import copy
+import subprocess
+import tarfile
 import unittest
 
 SPEC = importlib.util.spec_from_file_location("capture_sources", Path(__file__).with_name("capture_sources.py"))
@@ -320,6 +323,121 @@ class CurrentSourceCopyControls(CaptureSourceControls):
         self.snapshot["files"]["module.c"]["sha256"] = CAPTURE.digest(changed)
         self.freeze()
         self.assert_refused_unchanged()
+
+
+class CurrentApacheProfileControls(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        temporary = tempfile.TemporaryDirectory(prefix="apache-export-contract-", dir=TEST_ROOT)
+        cls.addClassCleanup(temporary.cleanup)
+        cls.work = Path(temporary.name)
+        cls.revision = subprocess.run(["rtk", "proxy", "git", "rev-parse", "HEAD"],
+            cwd=CAPTURE.REPOSITORY, check=True, capture_output=True, text=True).stdout.strip()
+        cls.tree = subprocess.run(["rtk", "proxy", "git", "rev-parse", "HEAD^{tree}"],
+            cwd=CAPTURE.REPOSITORY, check=True, capture_output=True, text=True).stdout.strip()
+        cls.archive = cls.work / "committed-parent.tar"
+        subprocess.run(["rtk", "proxy", "git", "archive", "--format=tar", "--output", str(cls.archive), "HEAD"],
+            cwd=CAPTURE.REPOSITORY, check=True, capture_output=True)
+        listing = subprocess.run(["rtk", "proxy", "git", "ls-tree", "-rz", "HEAD"],
+            cwd=CAPTURE.REPOSITORY, check=True, capture_output=True).stdout
+        cls.files, cls.gitlinks = {}, {}
+        for row in listing.split(b"\0"):
+            if not row:
+                continue
+            metadata, name = row.split(b"\t", 1)
+            mode, kind, identity = metadata.decode().split()
+            name = name.decode()
+            if mode == "160000":
+                cls.gitlinks[name] = identity
+            else:
+                if kind != "blob" or mode not in ("100644", "100755"):
+                    raise ValueError("Committed Parent export is not a regular-file-only source inventory")
+                cls.files[name] = 493 if mode == "100755" else 420
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix="copy-", dir=self.work)
+        self.addCleanup(temporary.cleanup)
+        self.target = Path(temporary.name)
+        with tarfile.open(self.archive) as archive:
+            archive.extractall(self.target, filter="data")
+        for name, mode in self.files.items():
+            (self.target / name).chmod(mode)
+        self.inventory = {"format": "i12-source-export-manifest-v1", "source_revision": self.revision,
+            "git_tree": self.tree, "files": {name: {"mode": mode,
+                "sha256": CAPTURE.digest((self.target / name).read_bytes())} for name, mode in self.files.items()},
+            "gitlinks": self.gitlinks}
+        self.freeze()
+
+    def freeze(self):
+        data = json.dumps(self.inventory).encode()
+        (self.target / CAPTURE.SNAPSHOT).write_bytes(data)
+        (self.target / CAPTURE.MARKER).write_text(json.dumps({
+            "format": "i12-disposable-source-copy-v2", "path": str(self.target), "disposable": True,
+            "source_revision": self.revision, "snapshot_manifest": CAPTURE.SNAPSHOT,
+            "snapshot_manifest_sha256": CAPTURE.digest(data)}))
+
+    def registry(self):
+        registry = CAPTURE.Registry()
+        # Only the test-owned storage authorization is relocated for CI. Object,
+        # source-profile, identity, and hash validation remain the real contract.
+        registry.manifest["authorized_storage_root"] = str(self.work)
+        return registry
+
+    def test_current_full_git_export_applies_without_baseline_identity_substitution(self):
+        registry = self.registry()
+        result = CAPTURE.apply(registry, "apache-current", self.target)
+        self.assertEqual(result["source_revision"], self.revision)
+        self.assertEqual(result["source_git_tree"], self.tree)
+        self.assertEqual(result["snapshot_file_count"], len(self.files))
+        self.assertEqual(result["delivery_product_baseline"], registry.manifest["delivery_product_baseline"])
+        for name, entry in registry.manifest["profiles"]["apache-current"]["source_targets"].items():
+            self.assertEqual(CAPTURE.digest((self.target / name).read_bytes()), entry["sha256"])
+        self.assertTrue((self.target / ".i12-capture/apache-current").is_dir())
+        self.assertFalse(result["runtime_qualified"])
+
+    def test_current_profile_only_rebinds_native_before_bytes(self):
+        registry = self.registry()
+        current = copy.deepcopy(registry.manifest["profiles"]["apache-current"])
+        historical = registry.manifest["profiles"]["apache"]
+        self.assertEqual(current.pop("required_source_identity_format"), "i12-disposable-source-copy-v2")
+        provenance = current["provenance"].pop("current_source_application")
+        self.assertEqual(provenance["runtime_profile"], "apache-native")
+        for name in ("native-lifecycle-observer.c", "native-lifecycle-observer.h"):
+            path = "ci/runtime/lifecycle/" + name
+            self.assertEqual(current["source_targets"][path]["before_sha256"],
+                registry.manifest["shared_observer_repository"][name])
+            current["source_targets"][path]["before_sha256"] = historical["source_targets"][path]["before_sha256"]
+        self.assertEqual(current, historical)
+
+    def test_historical_profile_still_rejects_current_native_before_bytes(self):
+        original = (self.target / "connectors/apache/src/mod_security3.c").read_bytes()
+        with self.assertRaisesRegex(ValueError, "Source-copy base differs"):
+            CAPTURE.apply(self.registry(), "apache", self.target)
+        self.assertEqual(original, (self.target / "connectors/apache/src/mod_security3.c").read_bytes())
+        self.assertFalse((self.target / ".i12-capture").exists())
+
+    def test_v1_marker_cannot_label_current_profile_with_historical_baseline(self):
+        registry = self.registry()
+        (self.target / CAPTURE.MARKER).write_text(json.dumps({"format": "i12-disposable-source-copy-v1",
+            "path": str(self.target), "disposable": True, "parent_sha": registry.manifest["delivery_product_baseline"]}))
+        with self.assertRaisesRegex(ValueError, "declared source identity format"):
+            CAPTURE.apply(registry, "apache-current", self.target)
+        self.assertFalse((self.target / ".i12-capture").exists())
+
+    def test_complete_frozen_inventory_does_not_override_current_before_pin(self):
+        name = "ci/runtime/lifecycle/native-lifecycle-observer.c"
+        (self.target / name).write_bytes(b"changed but completely inventoried\n")
+        self.inventory["files"][name]["sha256"] = CAPTURE.digest((self.target / name).read_bytes())
+        self.freeze()
+        with self.assertRaisesRegex(ValueError, "Source-copy base differs"):
+            CAPTURE.apply(self.registry(), "apache-current", self.target)
+        self.assertFalse((self.target / ".i12-capture").exists())
+
+    def test_unknown_required_identity_format_rejected_by_registry(self):
+        registry = self.registry()
+        registry.manifest["profiles"]["apache-current"]["required_source_identity_format"] = "unrecognized-v99"
+        with self.assertRaisesRegex(ValueError, "Unknown required source identity format"):
+            registry.verify()
 
 
 if __name__ == "__main__":

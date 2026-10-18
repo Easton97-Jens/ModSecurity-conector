@@ -32,13 +32,15 @@ pass whitespace checks.
 | `haproxy-companion-host` | Separate response-companion host variant |
 | `haproxy-spop-agent` | Separate diagnostic request-agent/backend variant |
 | `envoy` | Shared ext_proc/authz capture source; actual authz backend and distinct ext_proc backend retained separately |
-| `apache` | Exact three product-TU overlays and APR/native/host helpers |
+| `apache` | Historical exact three product-TU overlays and APR/native/host helpers |
+| `apache-current` | Same Apache capture after-bytes; current native C/H before-pins and mandatory complete v2 export |
 | `lighttpd` | Separate stock-sidecar and patched-native fixtures, including original and empty cases |
 | `traefik-native` | Actual native-UDS middleware/engine/runtime observation variant |
 | `traefik-forwardauth` | Separate authorization/response-observer source variant |
 
-These nine **source variants** are not nine qualified runtime routes. Shared
-source never transfers execution, EOS, identity or outcome between logical routes.
+The ten **source-application profiles** comprise nine historical variants plus
+`apache-current`. Runtime route counts remain independent. Shared source never
+transfers execution, EOS, identity or outcome between logical routes.
 Framework and MRTS repositories/gitlinks remain outside this contract. Private
 fixture definitions are run-scoped capture inputs, not reusable catalog additions.
 
@@ -102,7 +104,7 @@ The v2 marker has exactly these fields:
   "format": "i12-disposable-source-copy-v2",
   "path": "/var/tmp/codex/ModSecurity-conector/disposable-current-copy",
   "disposable": true,
-  "source_revision": "ad510c3b4168ff0e11fc36803e2ce4127a0689ad",
+  "source_revision": "850879e82ea729f274cb383507b05938df06027a",
   "snapshot_manifest": ".i12-source-export-manifest.json",
   "snapshot_manifest_sha256": "<complete lowercase SHA256 of the frozen inventory>"
 }
@@ -129,6 +131,24 @@ refuses files that change while being hashed. The full frozen inventory remains
 in the copy after capture and describes the **pre-capture** source, not build
 outputs. Build in a separate directory after applying capture; a used copy cannot
 be submitted as an untouched export again.
+
+Use `--profile apache-current` for the current committed checkout's complete
+v2 export. This additive profile changes only the native observer C/H
+`before_sha256` pins from `ad8e5e36…`/`f9f63b62…` to
+`0d903fc5…`/`5b7d8fa7…`; all capture after-bytes, product overlays, SDK3.0.14 ABI
+and historical `apache` profile remain unchanged. Its declared
+`required_source_identity_format` rejects a v1 marker before any writes, even
+when the source bytes otherwise match. Registry verification rejects unknown
+required formats. The source-application name does not create a new run,
+transaction or runtime route: the native profile remains `apache-native`.
+Historical package/build provenance stays labelled historical; a new full build
+and actual loaded images need their own evidence.
+
+After integrating the current HAProxy/lighttpd repairs, five historical
+repository-backed objects are exact reverse deltas from the reviewed current
+bases. Their original content hashes and all historical profile selections stay
+unchanged. Registry verification covers 160 objects; this count does not count
+host executions or qualified requirements.
 
 The application receipt records `source_revision`, `source_git_tree`, inventory
 SHA256, file count and gitlink metadata separately from
