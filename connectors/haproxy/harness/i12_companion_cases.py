@@ -5,6 +5,8 @@ import hashlib
 import json
 import struct
 
+PLAIN_MIME = "text/plain"
+CSV_MIME = "text/csv"
 LEG = "haproxy-spop-htx-response-companion"
 BODY = b"companion-physical-response-body\n"
 NEIGHBOR = b"neighbor-ok\n"
@@ -30,7 +32,7 @@ def body_for(fixture, neighbor=False):
 
 def fixture_mime_types(fixture):
     name = fixture["case_id"].rsplit("::", 1)[-1]
-    return ("text/plain", "text/csv") if name.startswith(("NEED-", "HIST-")) else ("text/plain", "text/html", "application/json")
+    return (PLAIN_MIME, CSV_MIME) if name.startswith(("NEED-", "HIST-")) else (PLAIN_MIME, "text/html", "application/json")
 
 
 def native_rejects(fixture, body, neighbor):
@@ -57,11 +59,14 @@ def native_prediction(fixture, body, neighbor):
         return {"allocation": True, "decision": "native_body_limit_reject", "rule_id": None, "eos": 0, "free": 1}
     limit = fixture.get("native_limit", len(body))
     inspected = body[:limit]
-    content_type = "text/plain" if neighbor else fixture.get("content_type", "")
+    content_type = PLAIN_MIME if neighbor else fixture.get("content_type", "")
     in_scope = str(content_type).split(";", 1)[0] in fixture_mime_types(fixture)
     match = in_scope and fixture.get("marker", "companion-physical").encode() in inspected
     complete = neighbor or fixture.get("transport") == "complete"
-    return {"allocation": True, "decision": ("deny" if match else "allow") if complete else "incomplete",
+    decision = "incomplete"
+    if complete:
+        decision = "deny" if match else "allow"
+    return {"allocation": True, "decision": decision,
             "rule_id": fixture.get("rule_id") if match and complete else None,
             "eos": int(complete) if fixture.get("transport") != "cancel" else None, "free": 1}
 
@@ -74,8 +79,11 @@ def source_expectation(fixture, neighbor=False):
     terminal = scenario in ("p3-deny", "p3-redirect", "missing", "expired")
     transport = "complete" if neighbor else fixture.get("transport", "complete")
     complete = not strict and not terminal and transport == "complete"
+    status = 200
+    if not neighbor:
+        status = None if strict else fixture.get("status", 200)
     return {"source": "i12_companion_cases.py:body_for/source_expectation",
-            "status": (None if strict else fixture.get("status", 200)) if not neighbor else 200,
+            "status": status,
             "source_body_bytes": len(body), "source_body_sha256": hashlib.sha256(body).hexdigest(),
             "body_bytes": len(body) if complete else None,
             "body_sha256": hashlib.sha256(body).hexdigest() if complete else None,
@@ -90,7 +98,7 @@ def source_expectation(fixture, neighbor=False):
 PROFILE_OVERRIDES = (
     (("NEED-response-empty",), {"body": "empty"}),
     (("NEED-response-file", "NEED-response-above-former-connector-limit"), {"body": "large"}),
-    (("NEED-response-csv",), {"body": "csv", "content_type": "text/csv"}),
+    (("NEED-response-csv",), {"body": "csv", "content_type": CSV_MIME}),
     (("NEED-response-marker-at-payload-end",), {"body": "marker-end"}),
     (("deny_response_header_marker_403", "phase3_response_header_rule", "phase3_deny_before_commit", "phase3_original_and_visible_status", "NEED-response-commit-order"), {"scenario": "p3-deny", "rule_id": 1100201, "status": 403}),
     (("phase3_redirect_before_commit",), {"scenario": "p3-redirect", "rule_id": 1100202, "status": 302}),
@@ -128,11 +136,11 @@ FAULT_SEAMS = {
 def fixture_profile(case_id):
     name = case_id.removeprefix(PREFIX)
     profile = {"case_id": case_id, "body": "single", "mode": "safe", "scenario": "safe",
-               "content_type": "text/plain", "chunk_size": 65536, "pause_after_first": False,
+               "content_type": PLAIN_MIME, "chunk_size": 65536, "pause_after_first": False,
                "transport": "complete", "count": 1, "parallel": False, "mrc_fault": None,
                "required_fault_seam": FAULT_SEAMS.get(name), "rule_id": 1100301, "status": 200,
                "native_limit": 4 * 1024 * 1024, "limit_action": "Reject", "native_request_limit": 1024,
-               "marker": "companion-physical" if name.startswith("NEED-") or name.startswith("HIST-") else "no-crs-response-body-marker"}
+               "marker": "companion-physical" if name.startswith(("NEED-", "HIST-")) else "no-crs-response-body-marker"}
     for names, overrides in PROFILE_OVERRIDES:
         if name in names:
             profile.update(overrides)
@@ -279,7 +287,7 @@ def validate_controls(fixture):
     choices = {"scenario": ("safe", "p3-deny", "p3-redirect", "missing", "expired", "parallel"),
                "mode": ("safe", "strict"), "limit_action": ("Reject", "ProcessPartial"), "transport": ("complete", "cancel", "incomplete"),
                "mrc_fault": (None, "missing", "wrong", "stale", "claim-replay"),
-               "content_type": (None, "text/plain", "text/plain; charset=utf-8", "text/csv", "application/octet-stream")}
+               "content_type": (None, PLAIN_MIME, "text/plain; charset=utf-8", CSV_MIME, "application/octet-stream")}
     for name, allowed in choices.items():
         if fixture.get(name) not in allowed:
             raise ValueError("unsupported fixture control: " + name)

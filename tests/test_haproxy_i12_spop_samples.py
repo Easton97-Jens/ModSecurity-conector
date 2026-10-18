@@ -1,4 +1,4 @@
-"""Execute native bounded-sample admission and a deliberately unsafe mutant.
+"""Execute native bounded-sample admission and independently targeted mutants.
 
 These are C admission checks, not HAProxy host or lifecycle qualifications.
 """
@@ -24,9 +24,16 @@ int main(void) {
     request.has_body_len_arg = 0;
     if (notify_request_has_complete_body_sample(&request)) return 2;
     request.has_body_len_arg = 1;
+    /* Known CL=0 isolates the mandatory version-presence guard from the
+     * separate HTTP/1-only unframed-empty fallback below. */
+    headers[0].value = "0";
+    request.headers = headers;
+    request.header_count = 1;
     request.http_metadata.has_http_version = 0;
     if (notify_request_has_complete_body_sample(&request)) return 3;
     request.http_metadata.has_http_version = 1;
+    request.header_count = 0;
+    headers[0].value = "4";
     strcpy(request.http_metadata.http_version, "2.0");
     if (notify_request_has_complete_body_sample(&request)) return 4;
     request.body_len = request.http_metadata.advertised_body_len = 4U;
@@ -59,7 +66,7 @@ int main(void) {
 
 
 class HaproxyI12SpopSampleTests(unittest.TestCase):
-    def test_native_admission_and_missing_version_mutant(self):
+    def test_native_admission_and_independent_version_framing_mutants(self):
         temporary_root = Path(os.environ.get("RUNNER_TEMP") or os.environ.get("TMPDIR")
                               or "/var/tmp/codex/ModSecurity-conector/tmp")
         temporary_root.mkdir(parents=True, exist_ok=True)
@@ -68,20 +75,27 @@ class HaproxyI12SpopSampleTests(unittest.TestCase):
             original = SOURCE.read_text()
             anchor = "request->http_metadata.has_http_version && request->http_metadata.http_version[0] == '1'"
             self.assertEqual(original.count(anchor), 1)
+            presence_anchor = "!request->http_metadata.has_http_version ||\n            "
+            self.assertEqual(original.count(presence_anchor), 1)
             for name, text, expected in (("current", original, 0),
-                                         ("missing-version-mutant", original.replace(anchor, "1", 1), 3)):
-                source = directory / (name + ".c")
-                source.write_text("#define main haproxy_spop_unused_program_main\n" + text + MAIN)
-                binary = directory / name
-                command = ["cc", "-std=c17", "-Wall", "-Wextra", "-Werror", "-pthread",
-                           "-ffunction-sections", "-fdata-sections", "-Wl,--gc-sections",
-                           "-I" + str(ROOT / "common/include"),
-                           "-I" + str(ROOT / "connectors/haproxy/src"), str(source),
-                           str(ROOT / "common/src/transaction_state.c"), "-o", str(binary)]
-                compiled = subprocess.run(command, capture_output=True, text=True, timeout=60)
-                self.assertEqual(compiled.returncode, 0, compiled.stderr)
-                result = subprocess.run([str(binary)], capture_output=True, timeout=5)
-                self.assertEqual(result.returncode, expected, result.stderr)
+                                         ("unframed-http2-mutant", original.replace(anchor, "1", 1), 4),
+                                         ("missing-version-mutant", original.replace(presence_anchor, "", 1), 3)):
+                with self.subTest(mutation=name, expected_native_exit=expected):
+                    self.compile_and_run(directory, name, text, expected)
+
+    def compile_and_run(self, directory, name, text, expected):
+        source = directory / (name + ".c")
+        source.write_text("#define main haproxy_spop_unused_program_main\n" + text + MAIN)
+        binary = directory / name
+        command = ["cc", "-std=c17", "-Wall", "-Wextra", "-Werror", "-pthread",
+                   "-ffunction-sections", "-fdata-sections", "-Wl,--gc-sections",
+                   "-I" + str(ROOT / "common/include"),
+                   "-I" + str(ROOT / "connectors/haproxy/src"), str(source),
+                   str(ROOT / "common/src/transaction_state.c"), "-o", str(binary)]
+        compiled = subprocess.run(command, capture_output=True, text=True, timeout=60)
+        self.assertEqual(compiled.returncode, 0, compiled.stderr)
+        result = subprocess.run([str(binary)], capture_output=True, timeout=5)
+        self.assertEqual(result.returncode, expected, result.stderr)
 
 
 if __name__ == "__main__":

@@ -10,12 +10,14 @@ import copy
 import hashlib
 import json
 import os
+import stat
 from pathlib import Path
 
 import yaml
 
 import i12_native_cases as fixtures
 
+SOURCE_ROOT = Path("/var") / "tmp" / "codex" / "ModSecurity-conector"
 LEG = "haproxy-native-htx"
 ORIGINAL_IDS_SHA256 = "bb34ce6c26063b1c13df6087b0a3cc5034f227216720aeaca2f195fba38b33d1"
 ORIGINAL_CONTRACTS_SHA256 = "f4ca4e4b97cf3cf5dd267684afdfa39a8fd5b9e8b88b71bf6470cb184ce7ea3b"
@@ -58,14 +60,36 @@ def digest(value):
     return hashlib.sha256(data).hexdigest()
 
 
-def reference(path, role):
-    if not path.is_absolute() or ".." in path.parts or any(part.is_symlink() for part in (path, *path.parents)):
+def source_descriptor(path):
+    """Pin each directory without ever reopening an untrusted full path."""
+    if not path.is_absolute() or ".." in path.parts:
         raise ValueError("physical absolute source path required")
-    boundary = Path("/var") / "tmp" / "codex" / "ModSecurity-conector"
-    path.resolve().relative_to(boundary)
-    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
-    with os.fdopen(descriptor, "rb") as source:
-        data = source.read()
+    path.relative_to(SOURCE_ROOT)
+    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    parent = os.open("/", directory_flags)
+    try:
+        for component in path.parts[1:-1]:
+            child = os.open(component, directory_flags, dir_fd=parent)
+            os.close(parent)
+            parent = child
+        return os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+    finally:
+        os.close(parent)
+
+
+def read_source(path):
+    descriptor = source_descriptor(path)
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise ValueError("regular admitted source file required")
+        with os.fdopen(descriptor, "rb", closefd=False) as source:
+            return source.read()
+    finally:
+        os.close(descriptor)
+
+
+def reference(path, role):
+    data = read_source(path)
     return {"path": str(path), "sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data), "role": role}
 
 
@@ -116,7 +140,7 @@ def fixture_document(request, catalog_case, catalog_dir):
     if not path.is_file():
         return {}, None
     reference(path, "original_declarative_fixture")
-    return yaml.safe_load(path.read_text()), path
+    return yaml.safe_load(read_source(path)), path
 
 
 def wire_request(request, body):
@@ -218,7 +242,7 @@ def bind_row(row, catalog, catalog_dir, rules, sources):
             "original_selected_requirement_sha256": row["original_selected_requirement_sha256"],
             "original_oracle": row["original_oracle"], "oracle_sources": sources,
             "source_fixture": None, "missing_observations": row["required_measurement_contract"],
-            "measurements": {key: None for key in row["required_measurement_contract"]},
+            "measurements": dict.fromkeys(row["required_measurement_contract"]),
             "execution": None, "qualifier_result": None, "current_lifecycle_pass": False,
             "product_rebuild_required": True, "physical_common_event_sink_required": True,
             "qualification_dependencies": ["fresh_integrated_source_and_build_binding", "physical_common_event_sink", "actual_host_measurements", "independent_root_oracle_and_qualifier_review"],
@@ -259,13 +283,13 @@ def prepare(inventory_path, catalog_path, rules_path, sdk_source, capture, outpu
                reference(sdk_source, "independent_libModSecurity_3.0.14_source")]
     if sources[-1]["sha256"] != SDK_TRANSACTION_SHA256:
         raise ValueError("exact libModSecurity3.0.14 transaction source required")
-    rows = native_rows(json.loads(inventory_path.read_text()))
+    rows = native_rows(json.loads(read_source(inventory_path)))
     original_catalog_hashes = {row["original_source_hashes"]["framework:tests/cases/no-crs-baseline/catalog.json"]
                                for row in rows if row.get("original_source_hashes")}
     if original_catalog_hashes != {sources[0]["sha256"]}:
         raise ValueError("pinned original Framework catalog hash differs")
-    catalog = {case["case_id"]: case for case in json.loads(catalog_path.read_text())["cases"]}
-    rules_text = rules_path.read_text()
+    catalog = {case["case_id"]: case for case in json.loads(read_source(catalog_path))["cases"]}
+    rules_text = read_source(rules_path).decode()
     rules = rules_text[rules_text.index(CANONICAL_RULE_PREFIX):]
     output = fixtures.fresh_output(output)
     plans = []

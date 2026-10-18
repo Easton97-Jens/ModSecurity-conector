@@ -24,6 +24,9 @@ CAPTURE_HASHES = {
 }
 BASE_REQUEST = b"haproxy-lifecycle-main\n"
 BASE_RESPONSE = b"haproxy-lifecycle-response\n"
+COMMON_EVENTS_PATH = "/task/common-events.jsonl"
+NATIVE_FILTER_DIRECTIVE = "filter modsecurity-htx rules-file /task/rules.conf phase4-mode safe"
+MAIN_PATH = "/i12-main"
 DIAGNOSTIC_CASES = frozenset(("p1-deny", "p2-deny", "p3-deny", "p4-safe"))
 
 
@@ -88,6 +91,8 @@ def body_probe(variable, body, rule, phase):
 
 
 def prepare_launch(launch, name, case, request, response):
+    launch = replace_once(launch, NATIVE_FILTER_DIRECTIVE,
+                          NATIVE_FILTER_DIRECTIVE + " events-file " + COMMON_EVENTS_PATH)
     launch = replace_once(launch, "SecRequestBodyLimit 1024", "SecRequestBodyLimit " + str(case.get("request_limit", 1048576)))
     launch = replace_once(launch, "SecRequestBodyNoFilesLimit 1024", "SecRequestBodyNoFilesLimit 1048576")
     launch = replace_once(launch, "SecResponseBodyLimit 1024", "SecResponseBodyLimit " + str(case.get("response_limit", 1048576)))
@@ -101,7 +106,7 @@ def prepare_launch(launch, name, case, request, response):
     if case.get("deny_phase"):
         phase = case["deny_phase"]
         variable = "REQUEST_URI" if phase < 3 else "RESPONSE_HEADERS:X-I12-Main"
-        pattern = "/i12-main" if phase < 3 else "main"
+        pattern = MAIN_PATH if phase < 3 else "main"
         extra += f'SecRule {variable} "@contains {pattern}" "id:1999473,phase:{phase},deny,status:403,log,msg:\'I12_NATIVE_P{phase}_DENY\'"\n'
     if case.get("redirect_phase"):
         extra += 'SecRule RESPONSE_HEADERS:X-I12-Main "@streq main" "id:1999474,phase:3,redirect:https://haproxy-i12.invalid/redirect-target,status:302,log,msg:\'I12_NATIVE_P3_REDIRECT\'"\n'
@@ -140,9 +145,9 @@ def prepare_backend(backend, case, response):
     backend = replace_once(backend, "response=b'haproxy-lifecycle-response\\n'", "response=" + response_expr + " if self.path=='/i12-main' else b'healthy\\n'")
     backend = replace_once(backend, "self.send_response(200);", "self.send_response(200);self.send_header('X-I12-Main','main' if self.path=='/i12-main' else 'neighbor');")
     if "request_path" in case:
-        backend = backend.replace("/i12-main", case["request_path"])
+        backend = backend.replace(MAIN_PATH, case["request_path"])
     for header in case.get("response_headers", []):
-        statement = "\n        if self.path==" + repr(case.get("request_path", "/i12-main")) + ":\n            self.send_header(" + repr(header["name"]) + "," + repr(header["value"]) + ");\n        "
+        statement = "\n        if self.path==" + repr(case.get("request_path", MAIN_PATH)) + ":\n            self.send_header(" + repr(header["name"]) + "," + repr(header["value"]) + ");\n        "
         backend = replace_once(backend, "self.end_headers();", statement + "self.end_headers();")
     if case.get("request_method") == "GET":
         backend = replace_once(backend, "    def log_message(self,*args):pass", "    do_GET = do_POST\n    def log_message(self,*args):pass")
@@ -210,7 +215,7 @@ def chunk_expressions(variable, sizes):
     return expressions
 
 
-def case_contract(name, case, request, response, diagnostic, selected_id, inspected_response):
+def case_contract(case, request, response, diagnostic, selected_id, inspected_response):
     contract = {"schema": "i12-haproxy-native-case-v1", "original_id": None if diagnostic else selected_id,
                 "diagnostic_id": selected_id if diagnostic else None,
                 "original_obligation_eligible": not diagnostic,
@@ -228,7 +233,7 @@ def case_contract(name, case, request, response, diagnostic, selected_id, inspec
     if "original_id" in case:
         contract["original_requirement_binding"] = case["original_requirement_binding"]
         contract["request_method"] = case.get("request_method", "POST")
-        contract["request_path"] = case.get("request_path", "/i12-main")
+        contract["request_path"] = case.get("request_path", MAIN_PATH)
     return contract
 
 
@@ -251,7 +256,7 @@ def materialize(capture, output, name, case):
     (output / OPENSSL_CONFIG).write_text(original[OPENSSL_CONFIG])
     (output / "request-body.bin").write_bytes(request)
     (output / "response-body.bin").write_bytes(response)
-    contract = case_contract(name, case, request, response, diagnostic, selected_id, inspected_response)
+    contract = case_contract(case, request, response, diagnostic, selected_id, inspected_response)
     (output / "case-contract.json").write_text(json.dumps(contract, indent=2) + "\n")
     files = {p.name: digest(p.read_bytes()) for p in output.iterdir()}
     for path in output.iterdir():

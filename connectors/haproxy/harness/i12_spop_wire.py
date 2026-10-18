@@ -76,6 +76,13 @@ def decode_messages(reader):
     return messages
 
 
+def decode_key_values(reader):
+    pairs = []
+    while reader.pos < len(reader.data):
+        pairs.append({"name": reader.blob().decode("utf-8"), **reader.typed()})
+    return pairs
+
+
 def decode_frame(raw: bytes) -> dict:
     if len(raw) < 4:
         raise InvalidFrame("missing length")
@@ -87,7 +94,11 @@ def decode_frame(raw: bytes) -> dict:
     flags = struct.unpack("!I", reader.take(4))[0]
     result = {"kind": kind, "flags": flags, "stream": reader.uint(),
               "frame": reader.uint()}
-    if kind == 3:
+    if kind in (1, 2, 101, 102):
+        start = reader.pos
+        result["key_values"] = decode_key_values(reader)
+        result["payload_hex"] = reader.data[start:].hex()
+    elif kind == 3:
         result["messages"] = decode_messages(reader)
     elif kind == 103:
         actions = []

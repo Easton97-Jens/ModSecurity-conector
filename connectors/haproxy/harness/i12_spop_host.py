@@ -17,10 +17,12 @@ import signal
 import socket
 import struct
 import subprocess
+import sys
 import threading
 import time
 
 from i12_spop_wire import decode_frame, MAX_FRAME
+import i12_spop_cases as cases
 
 ROOT = Path("/task")
 FRAMES_FILE = 'frames.jsonl'
@@ -35,6 +37,10 @@ def record(name, value):
 
 
 def case_identity(selected):
+    if selected.get("schema") == cases.SCHEMA:
+        original = cases.validate_original(selected)
+        return {"diagnostic_id": original, "original_id": original,
+                "original_obligation_eligible": True}
     # These supplemental probes do not carry a reviewed original Oracle
     # contract. In particular, an incoming legacy case_id must never invent
     # original membership or transfer a diagnostic run to a corrected ID.
@@ -69,7 +75,7 @@ def read_rows(name):
 def evaluate(selected):
     """Compare independent observations; a successful launcher is insufficient."""
     case = selected["case"]
-    allowed = case in ("empty-allow", "post-allow")
+    allowed = case in ("empty-allow", "post-allow", "h2-content-length-mapping")
     policy_deny = case in ("p1-deny", "p2-deny")
     technical_loss = case == "technical-agent-loss"
     ack_status = 503
@@ -135,6 +141,11 @@ class Observer:
                    "direction": direction, "wall_ns": stamp,
                    "sha256": hashlib.sha256(raw).hexdigest(),
                    "hex": raw.hex(), "decoded": decoded})
+            if decoded.get("kind") == 3:
+                record("samples.jsonl", {"connection": connection,
+                       "stream": decoded["stream"], "frame": decoded["frame"],
+                       "wire_sha256": hashlib.sha256(raw).hexdigest(),
+                       "measurement": cases.inspect_notify_frame(raw)})
             if self.corrupt_notify and direction == "host-agent":
                 forwarded = raw
                 if decoded.get("kind") == 3:
@@ -143,7 +154,7 @@ class Observer:
                     # envelope. The production notify parser must
                     # reject the damaged typed value before native
                     # transaction allocation.
-                    forwarded = struct.pack("!I", len(raw) - 5) + raw[4:-1]
+                    forwarded = cases.corrupt_notify_frame(raw)
                 record("forwarded-frames.jsonl", {"connection": connection,
                        "direction": direction, "wall_ns": time.time_ns(),
                        "hex": forwarded.hex(),
@@ -202,19 +213,23 @@ class Observer:
                                               (destination, source, "agent-host")):
                 worker = threading.Thread(target=self.copy,
                                           args=(first, second, connection, direction), daemon=True)
-                self.workers.append(worker)
                 worker.start()
+                self.workers.append(worker)
 
     def close(self):
         self.stop.set()
         self.listener.close()
+        self.thread.join(2)
+        if self.thread.is_alive():
+            raise RuntimeError("SPOP accept worker did not stop")
         for peer in self.peers:
             peer.close()
-        self.thread.join(2)
         for worker in self.workers:
             worker.join(2)
         record("observer-cleanup.jsonl", {"listener_joined": not self.thread.is_alive(),
                "workers_joined": all(not worker.is_alive() for worker in self.workers)})
+        if any(worker.is_alive() for worker in self.workers):
+            raise RuntimeError("SPOP relay worker did not stop")
 
 
 def backend(stop):
@@ -248,7 +263,8 @@ def backend(stop):
                         break
                     body += chunk
                 record(BACKEND_FILE, {"wall_ns": time.time_ns(),
-                       "header_hex": head.hex(), "body_hex": body.hex()})
+                       "header_hex": head.hex(), "body_hex": body.hex(),
+                       "neighbor": head.split(b"\r\n", 1)[0].split(b" ")[1] == b"/i12-neighbor"})
                 peer.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 7\r\nConnection: close\r\n\r\nBACKEND")
 
 
@@ -355,11 +371,312 @@ def verify_host_configuration():
             raise RuntimeError(name + " failed")
 
 
+def original_rules(selected):
+    profile = cases.validate_runtime(selected)
+    # Preserve the canonical rules; override only runtime paths and the
+    # explicitly source-bound native request body policy and physical native
+    # observers. Audit parts deliberately omit request and response bodies.
+    removed = ("SecAuditLog ", "SecAuditEngine ", "SecAuditLogType ",
+               "SecAuditLogParts ", "SecDebugLog ", "SecDebugLogLevel ", "SecRequestBodyLimit ",
+               "SecRequestBodyNoFilesLimit ", "SecRequestBodyLimitAction ")
+    source = "\n".join(line for line in selected["rules_source"].splitlines()
+                       if not line.strip().startswith(removed))
+    return (source + "\n" + profile["rules_extra"] +
+            f'\nSecRequestBodyLimit {profile["native_request_limit"]}\n'
+            f'SecRequestBodyNoFilesLimit {profile["native_request_limit"]}\n'
+            f'SecRequestBodyLimitAction {profile["native_request_limit_action"]}\n'
+            'SecAuditEngine On\nSecAuditLogType Serial\nSecAuditLogParts ABFHZ\n'
+            'SecAuditLog /task/native-audit.log\nSecDebugLog /task/native-debug.log\nSecDebugLogLevel 9\n')
+
+
+def original_configuration(selected, config, spoe, agent):
+    profile = cases.validate_runtime(selected)
+    # Both faults are local to the original request. The clean neighbor uses
+    # real req.body_size and real req.body in the same process pair.
+    assignments = ('    http-request set-var(txn.i12_body) req.body\n'
+                   '    http-request set-var(txn.i12_length) req.body_size\n')
+    for field, fetch, normal in (("body", profile["body_fetch"], "req.body"),
+                                ("length", profile["body_size_fetch"], "req.body_size")):
+        if fetch != normal:
+            assignments += (f'    http-request set-var(txn.i12_{field}) {fetch}'
+                            ' unless { path -m str /i12-neighbor }\n')
+    anchor = '    http-request send-spoe-group modsecurity request-check'
+    config = config.replace(anchor, assignments + anchor)
+    config = config.replace('    http-request deny deny_status 503 if',
+                            '    http-request deny deny_status 403 if { var(txn.modsec.status) -m int 403 }\n'
+                            '    http-request deny deny_status 429 if { var(txn.modsec.status) -m int 429 }\n'
+                            '    http-request redirect location %[var(txn.modsec.redirect_url)] code 302 if { var(txn.modsec.status) -m int 302 }\n'
+                            '    http-request deny deny_status 503 if')
+    spoe = spoe.replace('body=req.body body_len=req.body_size',
+                        'body=var(txn.i12_body) body_len=var(txn.i12_length)')
+    if profile["companion_export_only"]:
+        # Original traffic exports a held transaction without claiming it.
+        # A second frontend in the same host lets the clean neighbor complete
+        # its own real response companion lifecycle independently.
+        start = config.index('frontend request_only\n')
+        end = config.index('backend be_app\n')
+        front = config[start:end]
+        filter_line = next(line for line in front.splitlines(True) if 'filter modsecurity-htx ' in line)
+        config = config[:start] + front.replace(filter_line, '') + front.replace(
+            'frontend request_only', 'frontend clean_neighbor').replace('18540', '18544') + config[end:]
+        agent = agent.replace('response-body-timeout=10000',
+                              f'response-body-timeout={profile["companion_ttl_ms"]}')
+    return config, spoe, agent
+
+
+def response_measurement(raw):
+    header, separator, body = raw.partition(b"\r\n\r\n")
+    result = {"headers_complete": bool(separator), "status": None,
+              "body_bytes": len(body), "body_sha256": hashlib.sha256(body).hexdigest(),
+              "content_length": None, "complete_length_framing": False}
+    if not separator:
+        return result
+    try:
+        result["status"] = int(header.split(b"\r\n", 1)[0].split()[1])
+        lengths = [line.split(b":", 1)[1].strip() for line in header.split(b"\r\n")[1:]
+                   if line.lower().startswith(b"content-length:")]
+        if len(lengths) == 1 and lengths[0].isdigit():
+            result["content_length"] = int(lengths[0])
+            result["complete_length_framing"] = len(body) == result["content_length"]
+    except (ValueError, IndexError):
+        result["parse_error"] = True
+    return result
+
+
+def capture_original_request(client, profile, index, neighbor, connection):
+    request = cases.profile_wire(profile)
+    if profile.get("connection_reuse"):
+        request = request.replace(b"Connection: close", b"Connection: keep-alive")
+    (ROOT / f'request-{index}.raw').write_bytes(request)
+    body_start = request.find(b"\r\n\r\n") + 4
+    chunks = profile.get("request_chunk_sizes", [])
+    if chunks:
+        client.sendall(request[:body_start])
+        position = body_start
+        for size in chunks:
+            client.sendall(request[position:position + size])
+            position += size
+            time.sleep(.025)
+        client.sendall(request[position:])
+    else:
+        client.sendall(request)
+    if profile.get("raw_template") == "incomplete-body":
+        client.shutdown(socket.SHUT_WR)
+    response = bytearray()
+    terminal = None
+    try:
+        while len(response) <= 2 * 1024 * 1024:
+            chunk = client.recv(65536)
+            if not chunk:
+                terminal = "tcp-eof"
+                break
+            response.extend(chunk)
+            if profile.get("connection_reuse") and response_measurement(response)["complete_length_framing"]:
+                terminal = "complete-content-length"
+                break
+        if terminal is None:
+            raise ValueError("bounded client response exceeded")
+    except OSError as error:
+        terminal = type(error).__name__
+    raw = bytes(response)
+    (ROOT / f'response-{index}.raw').write_bytes(raw)
+    record("client.jsonl", {"case": profile["case"], "index": index, "neighbor": neighbor,
+           "connection": connection, "socket_fd": client.fileno(), "terminal": terminal,
+           "request_sha256": hashlib.sha256(request).hexdigest(), "response_sha256": hashlib.sha256(raw).hexdigest(),
+           "http2": False, "measurement": response_measurement(raw)})
+
+
+def original_client(selected):
+    profile = cases.validate_runtime(selected)
+    connection = 0
+    shared = None
+    try:
+        for index, request in enumerate(cases.source_requests(profile)):
+            reuse = profile.get("connection_reuse", False)
+            request = dict(request, connection_reuse=reuse)
+            if shared is None:
+                shared = socket.create_connection(("127.0.0.1", 18540), timeout=5)
+                shared.settimeout(5)
+                connection += 1
+            capture_original_request(shared, request, index, False, connection)
+            if not reuse:
+                shared.close()
+                shared = None
+    finally:
+        if shared is not None:
+            shared.close()
+    time.sleep(profile["settle_seconds"])
+    port = 18544 if profile["companion_export_only"] else 18540
+    with socket.create_connection(("127.0.0.1", port), timeout=5) as neighbor:
+        neighbor.settimeout(5)
+        capture_original_request(neighbor, cases.neighbor_profile(), "neighbor", True, connection + 1)
+
+
+def run_original_client(selected):
+    argv = [sys.executable, str(Path(__file__).resolve()), "--original-client"]
+    with (ROOT / "client.stdout").open("wb") as out, (ROOT / "client.stderr").open("wb") as err:
+        result = subprocess.run(argv, stdout=out, stderr=err, timeout=40)
+    record("commands.jsonl", {"argv": argv, "exit": result.returncode, "reaped": True,
+           "role": "independent-client", "launcher_rtk_proxied": True})
+    if result.returncode:
+        raise RuntimeError("independent original client failed")
+
+
+def evaluate_original(selected):
+    clients = read_rows("client.jsonl")
+    main = [row for row in clients if not row["neighbor"]]
+    neighbors = [row for row in clients if row["neighbor"]]
+    frames = read_rows(FRAMES_FILE)
+    actions, neighbor_actions = correlated_actions(frames)
+    backend_rows = read_rows(BACKEND_FILE)
+    expected = selected["effective_oracle"]
+    expected_rows = expected.get("requests", [expected])
+    mismatches = ack_integrity_violations(frames, expected_rows)
+    mismatches.extend(sample_claim_violations(frames, expected_rows))
+    if len(main) != len(expected_rows):
+        mismatches.append("main-client-count")
+    for index, (client, oracle) in enumerate(zip(main, expected_rows)):
+        status = oracle.get("client_status")
+        if status is not None and client["measurement"]["status"] != status:
+            mismatches.append(f'client-status-{index}')
+        if status == 200 and (client["measurement"]["body_sha256"] != hashlib.sha256(b"BACKEND").hexdigest()
+                              or not client["measurement"]["complete_length_framing"]):
+            mismatches.append(f'client-body-framing-{index}')
+        ack = oracle.get("ack_status")
+        if ack is not None and (len(actions) <= index or actions[index].get("status") != ack):
+            mismatches.append(f'ack-status-{index}')
+        blocked = oracle.get("ack_blocked")
+        if blocked is not None and (len(actions) <= index or actions[index].get("blocked") != blocked):
+            mismatches.append(f'ack-blocked-{index}')
+    count = sum(not row["neighbor"] for row in backend_rows)
+    if expected.get("backend_requests") is not None and count != expected["backend_requests"]:
+        mismatches.append("main-backend-count")
+    neighbor_ok = len(neighbors) == 1 and neighbors[0]["measurement"]["status"] == 200 and neighbors[0]["measurement"]["complete_length_framing"] and neighbors[0]["measurement"]["body_sha256"] == selected["neighbor_expected"]["body_sha256"] and sum(row["neighbor"] for row in backend_rows) == 1
+    if not neighbor_ok:
+        mismatches.append("healthy-neighbor")
+    if len(neighbor_actions) != 1 or neighbor_actions[0].get("status") != 200 or neighbor_actions[0].get("blocked") is not False:
+        mismatches.append("healthy-neighbor-ack")
+    if all(row.get("ack_status") is None for row in expected_rows) and not expected.get("unresolved_expected_fields") and actions:
+        mismatches.append("unexpected-main-ack")
+    if selected["runtime"].get("connection_reuse") and len({row["connection"] for row in main}) != 1:
+        mismatches.append("connection-reuse")
+    record("expectations.jsonl", {**case_identity(selected), "expected": expected,
+           "main_clients": main, "main_backend_requests": count, "healthy_neighbor": neighbor_ok,
+           "ack_actions": actions, "mismatches": mismatches,
+           "observation_result": "failed" if mismatches else "unproved" if expected.get("unresolved_expected_fields") else "passed",
+           "full_lifecycle_pass": None, "native_physical_evidence_requires_independent_review": True,
+           "companion_profile_qualified": False})
+
+
+def correlated_actions(frames):
+    roles = {}
+    main, neighbors = [], []
+    for row in frames:
+        frame = row["decoded"]
+        key = (row["connection"], frame.get("stream"), frame.get("frame"))
+        if frame.get("kind") == 3:
+            arguments = [argument for message in frame.get("messages", []) for argument in message["arguments"]]
+            path = next((argument["value"] for argument in arguments if argument["name"] == "path"), None)
+            roles[key] = path == "/i12-neighbor"
+        elif frame.get("kind") == 103:
+            action = {item["name"]: item["value"] for item in frame["actions"]}
+            action["wire_binding"] = {"connection": key[0], "stream": key[1], "frame": key[2],
+                                      "notify_observed": key in roles}
+            (neighbors if roles.get(key) else main).append(action)
+    return main, neighbors
+
+
+def ack_action_violations(actions):
+    names = [item["name"] for item in actions]
+    errors = []
+    if len(names) != len(set(names)):
+        errors.append("duplicate-ack-action")
+    values = {item["name"]: item for item in actions}
+    status = values.get("status", {})
+    blocked = values.get("blocked", {})
+    if status.get("tag") not in (2, 3, 4, 5) or type(status.get("value")) is not int:
+        errors.append("ack-status-type")
+    if blocked.get("tag") not in (1, 17) or type(blocked.get("value")) is not bool:
+        errors.append("ack-blocked-type")
+    if any(item.get("scope") != 2 for item in actions):
+        errors.append("ack-action-scope")
+    return errors
+
+
+def ack_integrity_violations(frames, expected_rows):
+    notified, acknowledged = set(), set()
+    errors = []
+    for row in frames:
+        frame = row["decoded"]
+        kind = frame.get("kind")
+        key = (row["connection"], frame.get("stream"), frame.get("frame"))
+        if kind == 3:
+            if not valid_notify_envelope(frame) or row.get("direction") != "host-agent":
+                errors.append("notify-envelope-or-direction")
+            if key in notified:
+                errors.append("duplicate-notify-identity")
+            notified.add(key)
+        elif kind == 103:
+            errors.extend(ack_frame_violations(row, notified, acknowledged))
+            acknowledged.add(key)
+    main, _neighbor = correlated_actions(frames)
+    if not any("ack_status" in row.get("unresolved_expected_fields", []) for row in expected_rows):
+        count = sum(row.get("ack_status") is not None for row in expected_rows)
+        if len(main) != count:
+            errors.append("main-ack-count")
+    return errors
+
+
+def valid_notify_envelope(frame):
+    messages = frame.get("messages", [])
+    return (frame.get("flags") == 1 and bool(frame.get("stream")) and bool(frame.get("frame"))
+            and len(messages) == 1 and messages[0].get("name") == "check-request")
+
+
+def sample_claim_violations(frames, expected_rows):
+    samples = []
+    for row in frames:
+        frame = row["decoded"]
+        if frame.get("kind") != 3:
+            continue
+        messages = frame.get("messages", [])
+        arguments = [item for message in messages for item in message["arguments"]]
+        if any(item["name"] == "path" and item["value"] == "/i12-neighbor" for item in arguments):
+            continue
+        samples.append(cases.inspect_sample(arguments))
+    expected_claims = [row for row in expected_rows if row.get("sample_inspection_claim") is True]
+    if not expected_claims:
+        return []
+    if len(samples) != len(expected_rows):
+        return ["main-sample-count"]
+    return [f'finite-sample-claim-{index}' for index, (sample, oracle) in enumerate(zip(samples, expected_rows))
+            if oracle.get("sample_inspection_claim") is True and not sample["finite_sample_complete"]]
+
+
+def ack_frame_violations(row, notified, acknowledged):
+    frame = row["decoded"]
+    key = (row["connection"], frame.get("stream"), frame.get("frame"))
+    errors = ack_action_violations(frame["actions"])
+    if key not in notified:
+        errors.append("orphan-ack")
+    if key in acknowledged:
+        errors.append("duplicate-ack-identity")
+    if frame.get("flags") != 1 or not frame.get("stream") or not frame.get("frame"):
+        errors.append("ack-envelope")
+    if row.get("direction") != "agent-host":
+        errors.append("ack-direction")
+    return errors
+
+
 def main():
     selected = json.loads(Path("/mnt/fixtures/selected.json").read_text())
     case = selected["case"]
-    with_companion = selected.get("with_companion", False)
+    original = selected.get("schema") == cases.SCHEMA
+    profile = cases.validate_runtime(selected) if original else None
+    with_companion = profile["with_companion"] if original else selected.get("with_companion", False)
     body_length, version, request, h2 = prepare_request(case)
+    if original:
+        request = cases.profile_wire(cases.source_requests(profile)[0])
     (ROOT / "request.raw").write_bytes(request)
     (ROOT / "rules.conf").write_text('''SecRuleEngine On
 SecRequestBodyAccess On
@@ -441,6 +758,11 @@ backend be_spoa
     if with_companion:
         anchor = "    http-request set-var(txn.modsec.blocked) bool(true)"
         config = config.replace(anchor, f"    filter modsecurity-htx response-companion-socket /task/companion.sock response-companion-timeout-ms 2000 response-companion-uid {os.geteuid()} response-companion-gid {os.getegid()} phase4-mode safe\n" + anchor)
+    if original:
+        config, spoe, agent_config = original_configuration(selected, config, (ROOT / "spoe.cfg").read_text(), agent_config)
+        (ROOT / "spoe.cfg").write_text(spoe)
+        (ROOT / "agent.conf").write_text(agent_config)
+        (ROOT / "rules.conf").write_text(original_rules(selected))
     (ROOT / "haproxy.cfg").write_text(config)
     children = []
     stop = threading.Event()
@@ -480,15 +802,26 @@ backend be_spoa
             agent.send_signal(signal.SIGTERM)
             code = agent.wait(timeout=5)
             record("faults.jsonl", {"kind": "agent-stop-before-request", "exit": code})
-        capture_response(case, request, h2)
+        if original:
+            run_original_client(selected)
+        else:
+            capture_response(case, request, h2)
         time.sleep(.2)
         for name, process, _ in children:
             if process.poll() is None:
                 snapshot(process, name + "-after")
     finally:
         cleanup_host(children, observer, stop, worker, with_companion)
-    evaluate(selected)
+    if original:
+        evaluate_original(selected)
+    else:
+        evaluate(selected)
 
 
 if __name__ == "__main__":
-    main()
+    if sys.argv[1:] == ["--original-client"]:
+        original_client(json.loads(Path("/mnt/fixtures/selected.json").read_text()))
+    elif not sys.argv[1:]:
+        main()
+    else:
+        raise ValueError("unsupported private driver command")

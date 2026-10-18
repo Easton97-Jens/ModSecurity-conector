@@ -4,6 +4,7 @@ import ast
 import io
 import importlib.util
 import json
+import shlex
 from pathlib import Path
 import tempfile
 import unittest
@@ -55,6 +56,73 @@ class NativeFixtureIntegrity(unittest.TestCase):
         # writable again so TemporaryDirectory can remove its own artifacts.
         for path in self.base.rglob("*"):
             path.chmod(0o755 if path.is_dir() else 0o644)
+
+    def test_future_native_fixture_configures_exactly_one_physical_common_sink(self):
+        fixture = Path(self.make("response-single-chunk")["source"])
+        parsed = ast.parse((fixture / "launch.py").read_text())
+        configuration = [node.value for node in ast.walk(parsed)
+                         if isinstance(node, ast.Constant) and isinstance(node.value, str)
+                         and "filter modsecurity-htx " in node.value]
+        lines = [line.strip() for text in configuration for line in text.splitlines()
+                 if line.strip().startswith("filter modsecurity-htx ")]
+        self.assertEqual(len(lines), 1)
+        tokens = shlex.split(lines[0])
+        self.assertEqual(tokens.count("events-file"), 1)
+        self.assertEqual(tokens[tokens.index("events-file") + 1], "/task/common-events.jsonl")
+        self.assertEqual(list(fixture.rglob("common-events.jsonl")), [])
+
+    def test_physical_sink_patch_rejects_missing_or_duplicate_filter_anchor(self):
+        launch = (self.capture / CASES.LAUNCH_FILE).read_text()
+        case = CASES.cases()["response-single-chunk"]
+        for altered in (launch.replace(CASES.NATIVE_FILTER_DIRECTIVE, "changed-filter"),
+                        launch + "\n" + CASES.NATIVE_FILTER_DIRECTIVE):
+            with self.subTest(altered=altered[-100:]), self.assertRaisesRegex(ValueError, "capture boundary changed"):
+                CASES.prepare_launch(altered, "response-single-chunk", case, case["request"], case["response"])
+
+    def test_reference_rejects_outside_and_traversal_before_any_open(self):
+        for source in (Path("/etc/passwd"), self.base / ".." / "source.txt", Path("relative.txt")):
+            with self.subTest(source=source), patch.object(CONTRACTS.os, "open") as opened:
+                with self.assertRaises(ValueError):
+                    CONTRACTS.reference(source, "negative-source-control")
+                opened.assert_not_called()
+
+    def test_reference_reads_regular_file_and_rejects_symlinks_and_special_files(self):
+        source = self.base / "regular.txt"
+        source.write_bytes(b"bounded independent source")
+        self.assertEqual(CONTRACTS.read_source(source), b"bounded independent source")
+        link = self.base / "link.txt"
+        link.symlink_to(source)
+        fifo = self.base / "fifo"
+        CONTRACTS.os.mkfifo(fifo)
+        directory_link = self.base / "directory-link"
+        directory_link.symlink_to(self.base, target_is_directory=True)
+        for candidate in (link, directory_link / source.name, fifo, self.base):
+            with self.subTest(candidate=candidate), self.assertRaises((OSError, ValueError)):
+                CONTRACTS.reference(candidate, "negative-source-control")
+
+    def test_reference_parent_replacement_cannot_redirect_pinned_input(self):
+        parent = self.base / "input-parent"
+        parent.mkdir()
+        source = parent / "source.txt"
+        source.write_bytes(b"original admitted bytes")
+        other = self.base / "other-parent"
+        other.mkdir()
+        (other / source.name).write_bytes(b"different bytes through raced symlink")
+        original_open = CONTRACTS.os.open
+        swapped = False
+
+        def replace_parent(path, flags, *args, **kwargs):
+            nonlocal swapped
+            if Path(path).name == source.name and not swapped:
+                swapped = True
+                parent.rename(self.base / "held-original-parent")
+                parent.symlink_to(other, target_is_directory=True)
+            return original_open(path, flags, *args, **kwargs)
+
+        with patch.object(CONTRACTS.os, "open", side_effect=replace_parent):
+            observed = CONTRACTS.reference(source, "race-control")
+        self.assertTrue(swapped)
+        self.assertEqual(observed["sha256"], hashlib.sha256(b"original admitted bytes").hexdigest())
 
     def test_capture_mutation_rejected_before_fixture_creation(self):
         source = self.capture / "launch.py"

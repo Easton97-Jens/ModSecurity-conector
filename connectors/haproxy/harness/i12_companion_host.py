@@ -26,6 +26,8 @@ import threading
 import time
 
 ROOT = Path("/var") / "tmp" / "codex" / "ModSecurity-conector"
+TASK_ROOT = Path("/task")
+FIXTURE_FILE = "fixture.json"
 MRC_SOCKET = "mrc.sock"
 TLS_CERT = "tls.crt"
 TLS_KEY = "tls.key"
@@ -61,7 +63,7 @@ def physical_path(path: Path, allowed_root: Path) -> Path:
 
 def admitted_input(path: Path) -> Path:
     # The private controller mounts immutable artifacts and fixtures here.
-    for boundary in (ROOT, Path("/mnt/artifacts"), Path("/mnt/fixtures"), Path("/task")):
+    for boundary in (ROOT, Path("/mnt/artifacts"), Path("/mnt/fixtures"), TASK_ROOT):
         try:
             resolved = physical_path(path, boundary)
         except (ValueError, FileNotFoundError):
@@ -73,7 +75,7 @@ def admitted_input(path: Path) -> Path:
 
 def fresh_root(path: Path, allowed_root: Path = ROOT) -> Path:
     # A caller may narrow the external boundary, never widen it.
-    if allowed_root != Path("/task"):
+    if allowed_root != TASK_ROOT:
         physical_path(allowed_root, ROOT)
     resolved = physical_path(path, allowed_root)
     resolved.mkdir(mode=0o700, parents=False, exist_ok=False)
@@ -109,13 +111,13 @@ def stop_capture_threads(workers, sockets, relays):
 
 
 def capture_client(root: Path, front: int, index: int, cancel: bool, neighbor: bool = False) -> None:
-    boundary = Path("/task") if root.is_relative_to(Path("/task")) else ROOT
+    boundary = TASK_ROOT if root.is_relative_to(TASK_ROOT) else ROOT
     root = physical_path(root, boundary)
     if not root.is_dir():
         raise ValueError("existing private client output directory required")
     path = "/neighbor" if neighbor else f"/i12/{index}"
     body = b"neighbor" if neighbor else b"abcdefgh"
-    fixture_path = root / "fixture.json"
+    fixture_path = root / FIXTURE_FILE
     fixture = json.loads(fixture_path.read_text()) if fixture_path.exists() else {}
     request = (f"POST {path} HTTP/1.1\r\nHost: companion.invalid\r\nContent-Type: text/plain\r\nContent-Length: {len(body)}\r\nConnection: close\r\n\r\n").encode() + body
     response = bytearray()
@@ -131,19 +133,13 @@ def capture_client(root: Path, front: int, index: int, cancel: bool, neighbor: b
         if cancel:
             response.extend(sock.recv(4096))
         else:
-            try:
-                while chunk := sock.recv(4096):
-                    response.extend(chunk)
-                    capture_first_body(root, index, response)
-            except OSError as exc:
-                error = type(exc).__name__ + ": " + str(exc)
-                error_type = type(exc).__name__
-                error_errno = exc.errno
-                kernel_reset = exc.errno == errno.ECONNRESET
-                terminal = capture_kernel_terminal(sock)
-                kernel_eof = terminal["kernel_tcp_eof"]
-                kernel_reset = kernel_reset or terminal["kernel_tcp_reset"]
-                kernel_error = terminal["kernel_error"]
+            terminal = capture_client_response(sock, root, index, response)
+            error = terminal["error"]
+            error_type = terminal["error_type"]
+            error_errno = terminal["error_errno"]
+            kernel_reset = terminal["kernel_tcp_reset"]
+            kernel_eof = terminal["kernel_tcp_eof"]
+            kernel_error = terminal["kernel_error"]
         if cancel and fixture.get("transport") == "cancel":
             raw = socket.socket(fileno=sock.detach())
             raw.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
@@ -166,6 +162,21 @@ def capture_client(root: Path, front: int, index: int, cancel: bool, neighbor: b
     if error:
         tls_eof = "exception"
     (root / f"client-{index}.json").write_text(json.dumps({"kind": "client", "index": index, "length": len(response), "error": error, "error_type": error_type, "error_errno": error_errno, "tls_eof": tls_eof, "kernel_tcp_eof": kernel_eof, "kernel_tcp_reset": kernel_reset, "kernel_error": kernel_error, "unwrap_error": unwrap_error, "time_ns": time.time_ns()}) + "\n")
+
+def capture_client_response(sock, root, index, response):
+    result = {"error": None, "error_type": None, "error_errno": None,
+              "kernel_tcp_reset": None, "kernel_tcp_eof": None, "kernel_error": None}
+    try:
+        while chunk := sock.recv(4096):
+            response.extend(chunk)
+            capture_first_body(root, index, response)
+    except OSError as exc:
+        result.update(error=type(exc).__name__ + ": " + str(exc), error_type=type(exc).__name__, error_errno=exc.errno)
+        terminal = capture_kernel_terminal(sock)
+        result.update(terminal)
+        result["kernel_tcp_reset"] = exc.errno == errno.ECONNRESET or terminal["kernel_tcp_reset"]
+    return result
+
 
 def capture_kernel_terminal(tls_socket):
     result = {"kernel_tcp_eof": None, "kernel_tcp_reset": False, "kernel_error": None}
@@ -207,7 +218,7 @@ def relay_bytes(proxy_stop, source, target, path):
 
 
 def relay_stream(proxy_stop, source, target, raw, record, path):
-    fixture_path = path.parent / "fixture.json"
+    fixture_path = path.parent / FIXTURE_FILE
     fixture = json.loads(fixture_path.read_text()) if fixture_path.exists() else {}
     frame_mode = relay_frame_mode(fixture, path)
     pending = bytearray()
@@ -326,6 +337,12 @@ def capture_accept_loop(listener, connect_upstream, prefix, directions, proxy_st
             start_capture_thread(relay_bytes, (proxy_stop, source, target, root / f"{prefix}-{connection}-{direction}.bin"), proxy_threads)
 
 
+def backend_response_body(fixture, neighbor):
+    if fixture:
+        return cases.body_for(fixture, neighbor)
+    return cases.NEIGHBOR if neighbor else BODY
+
+
 def backend_handler(args, record):
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
@@ -334,7 +351,7 @@ def backend_handler(args, record):
             record({"kind": "backend_request", "path": self.path, "body_hex": request.hex(), "headers": list(self.headers.items()), "time_ns": time.time_ns()})
             fixture = getattr(args, "fixture_data", {})
             neighbor = self.path == "/neighbor"
-            body = cases.body_for(fixture, neighbor) if fixture else (cases.NEIGHBOR if neighbor else BODY)
+            body = backend_response_body(fixture, neighbor)
             if args.case == "expired" and not neighbor:
                 time.sleep(.4)
             self.send_response(200)
@@ -498,9 +515,9 @@ def selected_client_cancel(root, mode):
 
 
 def client_is_cancel(root):
-    boundary = Path("/task") if root.is_relative_to(Path("/task")) else ROOT
+    boundary = TASK_ROOT if root.is_relative_to(TASK_ROOT) else ROOT
     root = physical_path(root, boundary)
-    path = root / "fixture.json"
+    path = root / FIXTURE_FILE
     return path.exists() and json.loads(path.read_text()).get("transport") == "cancel"
 
 
@@ -537,7 +554,7 @@ def main() -> int:
     args.fixture_data = load_fixture(args.fixture, args.case_id)
     root = fresh_root(args.root, args.allowed_root)
     if args.fixture_data:
-        (root / "fixture.json").write_text(json.dumps(args.fixture_data, indent=2) + "\n")
+        (root / FIXTURE_FILE).write_text(json.dumps(args.fixture_data, indent=2) + "\n")
         args.case = args.fixture_data["scenario"]
     args.root = root
     if len(str(root / MRC_SOCKET)) >= 100:
@@ -566,8 +583,8 @@ def main() -> int:
     mrc_loop = partial(capture_accept_loop, mrc_proxy, partial(connect_mrc, root), "mrc1", ("host", "owner"), proxy_stop, proxy_sockets, root, proxy_threads)
     mrc_worker = threading.Thread(target=mrc_loop, daemon=True)
 
-    Handler = backend_handler(args, record)
-    backend = CaptureBackendServer(("127.0.0.1", 0), Handler)
+    handler_class = backend_handler(args, record)
+    backend = CaptureBackendServer(("127.0.0.1", 0), handler_class)
     worker = threading.Thread(target=backend.serve_forever, daemon=True)
     run = partial(capture_run, root, commands)
     start = partial(capture_start, root, args, children, commands)
