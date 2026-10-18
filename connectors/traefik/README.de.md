@@ -56,6 +56,12 @@ Konfigurationsfehler; Observer- oder Korrelationsfehler sind fail-closed. Dies
 ist Source-/Component-Wiring mit Status `implemented_not_asserted`, kein
 Live-Host-Nachweis.
 
+Die forwardAuth-Vorlagen setzen `preserveRequestMethod: true` und
+`trustForwardHeader: false`. Traefik sendet die Originalmethode und erzeugt
+Forwarding-Metadaten aus dem eingehenden Request neu; vom Client gelieferte
+Forwarding-Header werden nicht maßgeblich. Diese Option wird mit Traefik
+3.7.13 geprüft; ältere Hostversionen benötigen eine separate Kompatibilitätsprüfung.
+
 Die eingecheckte forwardAuth-Konfiguration aktiviert Request-seitiges P2
 ausdrücklich mit `forwardBody: true` und `maxBodySize: 4096`. Die
 Der C-Dienst übergibt den Authorization-Body inkrementell an native P2;

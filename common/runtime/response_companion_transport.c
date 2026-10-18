@@ -1844,8 +1844,18 @@ static int response_companion_handle_outcome(
      * custom backend from recording a pre-P3 action. */
     result = state->response_headers && state->has_decision && !state->outcome_recorded &&
         response_companion_parse_outcome(frame,
-        &actual_action, &visible_status, &connection_aborted) &&
-        response_companion_backend_record_host_action(worker->transport,
+        &actual_action, &visible_status, &connection_aborted);
+    if (result) {
+        /* Only an admitted host outcome may annotate the retained decision.
+         * Runtime derives the policy mode from its actual configuration. */
+        if (state->committed && state->response_eos &&
+            state->latest_decision.phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
+            state->latest_decision.disruptive &&
+            state->latest_decision.kind >= MSCONNECTOR_DECISION_KIND_DENY &&
+            state->latest_decision.kind <= MSCONNECTOR_DECISION_KIND_CONNECTION_ABORT) {
+            state->latest_decision.late_intervention = 1;
+        }
+        result = response_companion_backend_record_host_action(worker->transport,
             &state->session,
             &(msconnector_response_companion_host_action){
                 .decision = &state->latest_decision,
@@ -1855,6 +1865,7 @@ static int response_companion_handle_outcome(
                     actual_action, connection_aborted),
                 .connection_aborted = connection_aborted},
             &error);
+    }
     if (!result && error.code == MSCONNECTOR_ERROR_NONE) {
         const char *message = "response companion outcome is invalid";
 

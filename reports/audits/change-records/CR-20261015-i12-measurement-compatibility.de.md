@@ -22,7 +22,7 @@ Strenge Compilerwarnungen und alle bestehenden Negativkontrollen erhalten. Fixtu
 
 ## Implementierungsentscheidung und Begründung
 
-Lint verwendet `prepare-runtime-components` mit Ziel `shared` und dessen exakten Umgebungssnapshot. Bestehende Framework-Pins bleiben verbindlich. Constructor-Probes bewahren Eingaben, Compiler-Argumente und Diagnosen. MIME erlaubt `native_api`; Transportbelege bleiben dafür ungültig. `reviewed_configuration_packet` akzeptiert ausschließlich ursprüngliche `actual_configtest`-Verträge mit unabhängig gebundenen Parser-/Image-/Konfigurations-/Quell-/Cleanup-Belegen und liefert immer `full_lifecycle_qualified: false`.
+Lint verwendet `prepare-runtime-components` mit Ziel `shared` und dessen exakten Umgebungssnapshot über den vorhandenen geprüften Wrapper `with-runtime-components.sh`. Damit bleiben Ziel-/Cache-Prüfungen erhalten und ein neues dynamisches Source-Fragment im Workflow entfällt. Bestehende Framework-Pins bleiben verbindlich. Constructor-Probes bewahren Eingaben, Compiler-Argumente und Diagnosen. MIME erlaubt `native_api`; Transportbelege bleiben dafür ungültig. `reviewed_configuration_packet` akzeptiert ausschließlich ursprüngliche `actual_configtest`-Verträge mit unabhängig gebundenen Parser-/Image-/Konfigurations-/Quell-/Cleanup-Belegen und liefert immer `full_lifecycle_qualified: false`.
 
 ## Geänderte Dateien
 

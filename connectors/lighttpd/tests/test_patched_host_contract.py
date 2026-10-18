@@ -646,7 +646,7 @@ class PatchedHostContractTest(unittest.TestCase):
         self.assertIn("handler_ctx_destroy(ctx_slot);", request_reset)
         self.assertLess(
             request_reset.index("if (!defer_transaction_finish)"),
-            request_reset.index("handler_ctx_destroy(ctx_slot);")
+            request_reset.rindex("handler_ctx_destroy(ctx_slot);")
         )
         self.assertNotIn(
             "msconnector_runtime_transaction_finish_response_body", missing_eos

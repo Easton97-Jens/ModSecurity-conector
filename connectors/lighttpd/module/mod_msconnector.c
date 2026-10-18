@@ -56,6 +56,7 @@ typedef struct {
     msconnector_response response;
     char host_request_id[96];
     int technical_failed;
+    int failure_response_selected;
     int host_response_attempted;
     int response_processed;
     int request_body_finished;
@@ -436,6 +437,8 @@ static handler_t mod_msconnector_fail_request(
                 ctx->transaction, r->http_status, 0, &error) != 1)
             return HANDLER_ERROR;
     }
+    if (result != HANDLER_ERROR && ctx != NULL)
+        ctx->failure_response_selected = 1;
     return result;
 }
 
@@ -1149,7 +1152,12 @@ REQUEST_FUNC(mod_msconnector_handle_response_start) {
         return HANDLER_GO_ON;
     }
     ctx = r->plugin_ctx[p->id];
-    if (ctx != NULL && (ctx->technical_failed || ctx->api_failed)) return HANDLER_ERROR;
+    if (ctx != NULL && (ctx->technical_failed || ctx->api_failed)) {
+        /* Permit the error document already selected by fail_request to reach
+         * the client.  The terminal context still forbids another engine call. */
+        return ctx->technical_failed &&
+            ctx->failure_response_selected ? HANDLER_GO_ON : HANDLER_ERROR;
+    }
     if (ctx == NULL || ctx->transaction == NULL || ctx->response_processed) {
         return HANDLER_GO_ON;
     }
@@ -1235,8 +1243,27 @@ REQUEST_FUNC(mod_msconnector_handle_request_reset) {
         return HANDLER_ERROR;
     }
     if (ctx->transaction != NULL) {
+        /* Stock and body-mode=none paths have no body callback to report output
+         * commitment.  Reset observes the real host counters before logging. */
+        msconnector_error_init(&runtime_error);
+        if (ctx->response_processed && !ctx->host_response_attempted &&
+            msconnector_runtime_transaction_set_response_commit_state_checked(
+                ctx->transaction, r->write_queue.bytes_out > 0,
+                r->resp_header_len > 0U &&
+                    r->write_queue.bytes_out > (off_t)r->resp_header_len,
+                &runtime_error) != 1) {
+            ctx->api_failed = 1;
+            log_error(r->conf.errh, __FILE__, __LINE__,
+                "msconnector reset commit-state synchronization failed: %s",
+                msconnector_error_code_name(runtime_error.code));
+            handler_ctx_destroy(ctx_slot);
+            return HANDLER_ERROR;
+        }
 #ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
-        if (!p->response_body_hooks_enabled &&
+        /* An applied disruptive P3 decision is already terminal.  Reset must
+         * finish logging/cleanup without starting another body phase or
+         * treating the deliberately replaced response as a missing EOS. */
+        if (!ctx->host_response_attempted && !p->response_body_hooks_enabled &&
             ctx->response_processed && !ctx->response_body_finished &&
             mod_msconnector_finish_uninspected_response_body(r, ctx) != HANDLER_GO_ON) {
             result = HANDLER_ERROR;
@@ -1247,7 +1274,7 @@ REQUEST_FUNC(mod_msconnector_handle_request_reset) {
                 __LINE__,
                 "msconnector could not complete unobserved response lifecycle before reset");
         }
-        else if (p->response_body_hooks_enabled &&
+        else if (!ctx->host_response_attempted && p->response_body_hooks_enabled &&
                  ctx->response_processed && !ctx->response_body_finished) {
             /* A disconnect/reset did not reach the entity EOS callback.  Do
              * not synthesize Phase-4 completion from request reset.  Defer
@@ -1264,7 +1291,8 @@ REQUEST_FUNC(mod_msconnector_handle_request_reset) {
             }
         }
 #else
-        if (ctx->response_processed && !ctx->response_body_finished &&
+        if (!ctx->host_response_attempted &&
+            ctx->response_processed && !ctx->response_body_finished &&
             mod_msconnector_finish_uninspected_response_body(r, ctx) != HANDLER_GO_ON) {
             result = HANDLER_ERROR;
             defer_transaction_finish = 1;

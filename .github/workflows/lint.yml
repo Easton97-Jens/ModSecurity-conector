@@ -97,12 +97,12 @@ jobs:
         run: |
           set -eu
           test -f "$I12_SDK_ENV_SNAPSHOT"
-          . "$I12_SDK_ENV_SNAPSHOT"
-          test -f "$MODSECURITY_LIB_FILE"
-          test -f "$MODSECURITY_INCLUDE_DIR/modsecurity/transaction.h"
           export NATIVE_OBSERVER_TEST_OUT="$BUILD_ROOT/i12-observer-controls"
-          export MODSECURITY_INCLUDE_DIR MODSECURITY_LIB_DIR MODSECURITY_LIB_FILE
-          python -m unittest -v tests.test_native_lifecycle_observer tests.test_apache_header_semantics
+          RUNTIME_COMPONENT_ENV_SNAPSHOT="$I12_SDK_ENV_SNAPSHOT" \
+            RUNTIME_REPORT_OUTPUT_ROOT="$BUILD_ROOT/i12-sdk-reports" \
+            RUNTIME_COMPONENT_TARGET=shared SKIP_RUNTIME_COMPONENT_PREPARE=1 \
+            sh ci/provisioning/cache/with-runtime-components.sh \
+              python -m unittest -v tests.test_native_lifecycle_observer tests.test_apache_header_semantics
       - name: Verify I09 route API and terminal error regressions
         if: ${{ !cancelled() }}
         run: make check-i09-native-routes
@@ -141,6 +141,7 @@ jobs:
         env:
           SONAR_CHECK_GITHUB_TOKEN: ${{ github.token }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: python ci/checks/common/check-sonar-zero.py
       - name: Require zero Sonar duplication for the PR head
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
