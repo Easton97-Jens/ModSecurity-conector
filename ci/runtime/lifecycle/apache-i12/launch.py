@@ -80,7 +80,9 @@ receipt={'argv':argv,'actual_driver_exit':result.returncode if result is not Non
     'source_instrumentation_is_test_only':True,'original_selected_id':settings['original_selected_id'],'settings':settings,
     'original_null_oracles_preserved_elsewhere':True,'one_main_and_one_separate_neighbor':True,
     'full_lifecycle_qualification':None}
-Path('/task/apache-lifecycle-command.json').write_text(json.dumps(receipt,indent=2,sort_keys=True)+'\n')
+with Path('/task/apache-lifecycle-command.json').open('w', encoding='utf-8') as receipt_stream:
+    json.dump(receipt, receipt_stream, indent=2, sort_keys=True)
+    receipt_stream.write('\n')
 print(json.dumps({'actual_driver_exit':result.returncode if result is not None else None,'timed_out':timed_out,'execution_error':execution_error,'native_process_snapshots':len(snapshots),'sampler_errors':len(errors),'full_lifecycle_qualification':None}))
 if timed_out:
     exit_code = 124

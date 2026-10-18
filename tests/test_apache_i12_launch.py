@@ -38,7 +38,9 @@ class ApacheLaunchReceiptTests(unittest.TestCase):
             compiled_tail = compile(tail, '<actual-apache-launch-tail>', 'exec')
             with self.assertRaises(SystemExit) as exit_context:
                 exec(compiled_tail, scope)
-            receipt = json.loads((output / 'apache-lifecycle-command.json').read_text())
+            serialized = (output / 'apache-lifecycle-command.json').read_text()
+            receipt = json.loads(serialized)
+            self.assertEqual(serialized, json.dumps(receipt, indent=2, sort_keys=True) + '\n')
             self.assertTrue(scope['stop'].is_set())
             self.assertTrue(receipt['sampler_thread_stopped'])
             return exit_context.exception.code, receipt

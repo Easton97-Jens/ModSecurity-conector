@@ -100,7 +100,7 @@ class ApachePreparation:
             self.proof = json.loads(self.proof_path.read_text())
             self.record = next((value for value in self.proof['cases'] if value['case'] == self.case))
             self.canonical_path = RUN / 'sealed-common-inputs/framework/tests/rules/no-crs-baseline.conf'
-            self.pattern = re.compile('^SecRule RESPONSE_BODY[^\\n]*\\n[^\\n]*1100301[^\\n]*\\n', re.MULTILINE)
+            self.pattern = re.compile('^SecRule RESPONSE_BODY[^\\n]*\\n(?=[^\\n]*1100301)[^\\n]*\\n', re.MULTILINE)
             self.local_match = self.pattern.search(self.fixture['rules'])
             self.canonical_match = self.pattern.search(self.canonical_path.read_text())
             if self.local_match is None or self.canonical_match is None:

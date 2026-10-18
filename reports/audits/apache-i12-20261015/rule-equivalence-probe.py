@@ -24,7 +24,7 @@ intervene=bind('msc_intervention',I,[P,c.POINTER(Intervention)])
 log=bind('msc_process_logging',I,[P]);cleantx=bind('msc_transaction_cleanup',None,[P])
 cleanrules=bind('msc_rules_cleanup',I,[P]);clean=bind('msc_cleanup',None,[P])
 callbacktype=c.CFUNCTYPE(None,P,P);setcb=bind('msc_set_log_cb',None,[P,callbacktype])
-pattern=re.compile(r'^SecRule RESPONSE_BODY[^\n]*\n[^\n]*1100301[^\n]*\n', re.MULTILINE)
+pattern=re.compile(r'^SecRule RESPONSE_BODY[^\n]*\n(?=[^\n]*1100301)[^\n]*\n', re.MULTILINE)
 preamble=ROOT/'tests/rules/no-crs-baseline.conf';canonical=pattern.search(preamble.read_text()).group()
 assert 'SecDefaultAction' not in preamble.read_text()
 records=[]

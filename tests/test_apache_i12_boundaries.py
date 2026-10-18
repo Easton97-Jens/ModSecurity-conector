@@ -1,8 +1,10 @@
 """Reject filesystem and CLI inputs that escape the admitted Apache task."""
+import ast
 import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -73,6 +75,33 @@ class ApacheBoundaryTests(unittest.TestCase):
                      '--data-binary', '@/task/body', '-o', '/task/response',
                      'http://127.0.0.1:18140/fixture']
             self.assertEqual(CLIENT.checked_arguments(valid), valid)
+
+    def test_response_rule_selector_retains_exact_two_line_rule_and_rejects_neighbors(self):
+        sources = (
+            'ci/runtime/lifecycle/apache-i12/prepare.py',
+            'reports/audits/apache-i12-20261015/rule-equivalence-probe.py',
+        )
+        rule = 'SecRule RESPONSE_BODY "@contains marker" \\\n    "id:1100301,phase:4,deny,status:403"\n'
+        neighbors = (
+            'SecRule RESPONSE_BODY "@contains 1100301" \\\n    "id:1100302,phase:4,deny"\n',
+            'SecRule REQUEST_BODY "@contains marker" \\\n    "id:1100301,phase:2,deny"\n',
+            'SecRule RESPONSE_BODY "@contains marker" \\\n    "msg:' + 'a' * 100000 + ',id:1100302"\n',
+        )
+        for source in sources:
+            tree = ast.parse((ROOT / source).read_text())
+            expressions = [node for node in ast.walk(tree)
+                           if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                           and node.func.attr == 'compile' and node.args
+                           and isinstance(node.args[0], ast.Constant)
+                           and '1100301' in str(node.args[0].value)]
+            self.assertEqual(len(expressions), 1)
+            selector = re.compile(expressions[0].args[0].value, re.MULTILINE)
+            with self.subTest(source=source):
+                for neighbor in neighbors:
+                    self.assertIsNone(selector.search(neighbor))
+                text = ''.join(neighbors) + rule + ''.join(neighbors)
+                self.assertEqual(selector.search(text).group(), rule)
+                self.assertEqual(selector.sub('', text, count=1), ''.join(neighbors) * 2)
 
     def test_public_projection_preserves_source_and_only_renames_numeric_join(self):
         original = {'positive_control': {'clients': [{'actual_process': {

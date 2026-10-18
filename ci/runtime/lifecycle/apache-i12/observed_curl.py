@@ -9,6 +9,8 @@ import sys
 import time
 from urllib.parse import urlsplit
 
+HTTP_PREFIX = 'http://'
+
 
 def private_output(value):
     path = Path(value)
@@ -73,7 +75,7 @@ def checked_arguments(arguments):
             result.extend((value, checked_value(value, supplied)))
         else:
             result.append(checked_url(value))
-    if sum(value.startswith('http://') for value in result) != 1:
+    if sum(value.startswith(HTTP_PREFIX) for value in result) != 1:
         raise ValueError('Exactly one admitted URL is required')
     return result
 
@@ -107,7 +109,7 @@ def capture_main(arguments):
 
 
 def capture_neighbor(arguments, output, main_id):
-    endpoint = urlsplit(next(value for value in arguments if value.startswith('http://')))
+    endpoint = urlsplit(next(value for value in arguments if value.startswith(HTTP_PREFIX)))
     neighbor_id = str(time.time_ns())
     process, receipt = run_raw([
         '-sS', '--http1.1', '-D', str(output / 'neighbor.headers'), '-X', 'GET',
@@ -122,7 +124,7 @@ def capture_neighbor(arguments, output, main_id):
 def main():
     arguments = checked_arguments(sys.argv[1:])
     selected = os.environ.get('I12_APACHE_SELECTED_URI')
-    selected_request = selected and any(value.startswith('http://') and urlsplit(value).path == selected
+    selected_request = selected and any(value.startswith(HTTP_PREFIX) and urlsplit(value).path == selected
                                         for value in arguments)
     if selected_request:
         process = capture_main(arguments)
