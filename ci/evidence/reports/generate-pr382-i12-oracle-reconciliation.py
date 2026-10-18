@@ -141,6 +141,54 @@ def validate_unsupported_applicability(supplied, row, independent):
     return {"receipt": receipt_ref, "capability_evidence": proof}
 
 
+def validate_traefik_expected_absence(record, row, effective, independent, missing):
+    """Review known absence without supplying a status, phase or runtime fact.
+
+    Ordinary unresolved nulls remain errors. Only separately approved primary
+    host/protocol sources can establish absence for an exact Traefik contract.
+    Host execution and all applicable lifecycle observations remain separate.
+    """
+    approval = record.get("expected_absence")
+    routes = {"traefik-native-uds", "traefik-forwardauth-request",
+              "traefik-forwardauth-response-companion"}
+    selected = row["selected_requirement"]
+    identity = row["run_scoped_case_id"]
+    if (not isinstance(approval, dict) or row.get("leg_id") not in routes
+            or identity != f"I12::{row['leg_id']}::{selected.get('case_id')}"
+            or selected.get("run_scoped_case_id") != identity
+            or record.get("run_scoped_case_id") != identity):
+        raise ValueError("Effective oracle still lacks an applicable expectation; exact absence approval required")
+    expected = {"schema_version": 1, "reviewed_by": "root", "run_scoped_case_id": identity,
+                "leg_id": row["leg_id"], "selected_requirement_sha256": canonical_digest(selected),
+                "original_oracle_sha256": canonical_digest(selected["expected_oracle"])}
+    if (type(approval.get("schema_version")) is not int
+            or any(approval.get(name) != value for name, value in expected.items())
+            or set(approval) != {*expected, "fields"}):
+        raise ValueError("Expected absence needs separate Root review of the exact original contract")
+    fields = approval.get("fields")
+    if not isinstance(fields, dict) or not missing or set(fields) != missing:
+        raise ValueError("Expected absence must cover exactly the literal null expectation fields")
+    kinds = {"native_result": "no_native_decision", "phase": "no_native_phase",
+             "visible_status": "no_http_response"}
+    sources = {(p["path"], p["sha256"], p.get("kind"), p.get("revision")) for p in independent}
+    reviewed = copy.deepcopy(approval)
+    for field, supplied in fields.items():
+        if (field not in effective or not isinstance(supplied, dict)
+                or set(supplied) != {"kind", "reason", "proof"}
+                or supplied.get("kind") != kinds[field]
+                or not isinstance(supplied.get("reason"), str) or not supplied["reason"].strip()):
+            raise ValueError("Expected absence needs an explicit typed reason for each literal null")
+        proof = [verify_reference(item) for item in supplied.get("proof", [])]
+        if (not proof or any((p["path"], p["sha256"], p.get("kind"), p.get("revision"))
+                             not in sources for p in proof)
+                or any(p.get("kind") not in {"official_host_contract", "protocol_contract",
+                                              "native_engine_contract"} for p in proof)
+                or not {"official_host_contract", "protocol_contract"} <= {p.get("kind") for p in proof}):
+            raise ValueError("Expected absence requires independently reviewed primary host and protocol sources")
+        reviewed["fields"][field]["proof"] = proof
+    return reviewed
+
+
 def review_record(record, row):
     category = record.get("category")
     if category not in CATEGORIES:
@@ -179,14 +227,16 @@ def review_record(record, row):
             raise ValueError("An existing oracle requires explicit correction rather than replacement")
         effective = copy.deepcopy(resolution)
     resolved = category not in UNRESOLVED
+    absence = None
     if resolved and category != "UNSUPPORTED_CAPABILITY":
         if effective.get("unresolved_expected_value_reason"):
             raise ValueError("A resolved oracle must provide an independently bound expectation")
         if effective.get("physical_evidence_not_projection") is not True:
             raise ValueError("Effective oracle must preserve physical evidence requirement")
-        for field in ("native_result", "visible_status", "phase"):
-            if effective.get(field) is None:
-                raise ValueError(f"Effective oracle still lacks an applicable expectation: {field}")
+        missing = {field for field in ("native_result", "visible_status", "phase")
+                   if effective.get(field) is None}
+        if missing or record.get("expected_absence") is not None:
+            absence = validate_traefik_expected_absence(record, row, effective, independent, missing)
     retest = None
     if record.get("retest") is not None:
         if not resolved or category == "UNSUPPORTED_CAPABILITY":
@@ -197,7 +247,8 @@ def review_record(record, row):
             "independent_sources": independent, "implementation_sources": implementation,
             "unsupported_applicability": applicability,
             "approved_correction": copy.deepcopy(correction), "effective_oracle": effective,
-            "retest": retest, "full_lifecycle_qualified": False}
+            "retest": retest, "full_lifecycle_qualified": False,
+            **({"expected_absence": absence} if absence is not None else {})}
 
 
 def reconcile(requirements, selection, records):
