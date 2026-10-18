@@ -446,6 +446,21 @@ def response_measurement(raw):
     return result
 
 
+def original_client_endpoint(client, method):
+    try:
+        endpoint = getattr(client, method)()
+    except OSError as error:
+        return None, type(error).__name__
+    if isinstance(endpoint, tuple) and len(endpoint) in (2, 4) and isinstance(endpoint[0], str) and type(endpoint[1]) is int:
+        return list(endpoint), None
+    return None, "non-IP-socket-endpoint"
+
+
+def stamp_original_client(report, prefix):
+    report[prefix + "_wall_ns"] = time.time_ns()
+    report[prefix + "_monotonic_ns"] = time.monotonic_ns()
+
+
 def capture_original_request(client, profile, index, neighbor, connection):
     request = cases.profile_wire(profile)
     if profile.get("connection_reuse"):
@@ -453,40 +468,62 @@ def capture_original_request(client, profile, index, neighbor, connection):
     (ROOT / f'request-{index}.raw').write_bytes(request)
     body_start = request.find(b"\r\n\r\n") + 4
     chunks = profile.get("request_chunk_sizes", [])
-    if chunks:
-        client.sendall(request[:body_start])
-        position = body_start
-        for size in chunks:
-            client.sendall(request[position:position + size])
-            position += size
-            time.sleep(.025)
-        client.sendall(request[position:])
-    else:
-        client.sendall(request)
-    if profile.get("raw_template") == "incomplete-body":
-        client.shutdown(socket.SHUT_WR)
     response = bytearray()
     terminal = None
+    report = {"schema": "i12-spop-client-capture-v2", "pid": os.getpid(),
+              "error_type": None, "error_errno": None, "error_stage": None,
+              "request_send_completed_wall_ns": None, "request_send_completed_monotonic_ns": None,
+              "request_send_missing_reason": None}
+    for field, method in (("connection_local", "getsockname"), ("connection_peer", "getpeername")):
+        report[field], report[field + "_missing_reason"] = original_client_endpoint(client, method)
+    stamp_original_client(report, "started")
+    stage = "request_send"
     try:
-        while len(response) <= 2 * 1024 * 1024:
-            chunk = client.recv(65536)
-            if not chunk:
-                terminal = "tcp-eof"
-                break
-            response.extend(chunk)
-            if profile.get("connection_reuse") and response_measurement(response)["complete_length_framing"]:
-                terminal = "complete-content-length"
-                break
-        if terminal is None:
-            raise ValueError("bounded client response exceeded")
-    except OSError as error:
+        stamp_original_client(report, "request_send_started")
+        if chunks:
+            client.sendall(request[:body_start])
+            position = body_start
+            for size in chunks:
+                client.sendall(request[position:position + size])
+                position += size
+                time.sleep(.025)
+            client.sendall(request[position:])
+        else:
+            client.sendall(request)
+        stamp_original_client(report, "request_send_completed")
+        stage = "request_shutdown"
+        if profile.get("raw_template") == "incomplete-body":
+            client.shutdown(socket.SHUT_WR)
+        stage = "response_read"
+        try:
+            while len(response) <= 2 * 1024 * 1024:
+                chunk = client.recv(65536)
+                if not chunk:
+                    terminal = "tcp-eof"
+                    break
+                response.extend(chunk)
+                if profile.get("connection_reuse") and response_measurement(response)["complete_length_framing"]:
+                    terminal = "complete-content-length"
+                    break
+            if terminal is None:
+                raise ValueError("bounded client response exceeded")
+        except OSError as error:
+            terminal = type(error).__name__
+            report.update(error_type=type(error).__name__, error_errno=error.errno, error_stage=stage)
+    except (OSError, ValueError) as error:
         terminal = type(error).__name__
-    raw = bytes(response)
-    (ROOT / f'response-{index}.raw').write_bytes(raw)
-    record(CLIENT_FILE, {"case": profile["case"], "index": index, "neighbor": neighbor,
-           "connection": connection, "socket_fd": client.fileno(), "terminal": terminal,
-           "request_sha256": hashlib.sha256(request).hexdigest(), "response_sha256": hashlib.sha256(raw).hexdigest(),
-           "http2": False, "measurement": response_measurement(raw)})
+        report.update(error_type=type(error).__name__, error_errno=getattr(error, "errno", None), error_stage=stage)
+        if report["request_send_completed_wall_ns"] is None:
+            report["request_send_missing_reason"] = type(error).__name__
+        raise
+    finally:
+        stamp_original_client(report, "completed")
+        raw = bytes(response)
+        (ROOT / f'response-{index}.raw').write_bytes(raw)
+        record(CLIENT_FILE, {**report, "case": profile["case"], "index": index, "neighbor": neighbor,
+               "connection": connection, "socket_fd": client.fileno(), "terminal": terminal,
+               "request_sha256": hashlib.sha256(request).hexdigest(), "response_sha256": hashlib.sha256(raw).hexdigest(),
+               "http2": False, "measurement": response_measurement(raw)})
 
 
 def original_client(selected):
@@ -515,13 +552,41 @@ def original_client(selected):
         capture_original_request(neighbor, cases.neighbor_profile(), "neighbor", True, connection + 1)
 
 
+def wait_original_client(argv, timeout=40):
+    process = None
+    reaped = False
+    timed_out = False
+    try:
+        with (ROOT / "client.stdout").open("wb") as out, (ROOT / "client.stderr").open("wb") as err:
+            process = subprocess.Popen(argv, stdout=out, stderr=err)
+            try:
+                code = process.wait(timeout=timeout)
+                reaped = True
+            except subprocess.TimeoutExpired:
+                timed_out = True
+                process.kill()
+                process.wait()
+                reaped = True
+                raise
+            except BaseException:
+                process.kill()
+                process.wait()
+                reaped = True
+                raise
+        return code
+    finally:
+        code = process.returncode if process is not None else None
+        record(COMMANDS_FILE, {"argv": argv, "exit": code, "reaped": reaped,
+               "pid": process.pid if process is not None else None,
+               "pid_missing_reason": None if process is not None else "client-launch-failed",
+               "parent_pid": os.getpid(), "timed_out": timed_out,
+               "signal": -code if code is not None and code < 0 else None,
+               "role": "independent-client", "launcher_rtk_proxied": True})
+
+
 def run_original_client():
     argv = [sys.executable, str(Path(__file__).resolve()), "--original-client"]
-    with (ROOT / "client.stdout").open("wb") as out, (ROOT / "client.stderr").open("wb") as err:
-        result = subprocess.run(argv, stdout=out, stderr=err, timeout=40)
-    record(COMMANDS_FILE, {"argv": argv, "exit": result.returncode, "reaped": True,
-           "role": "independent-client", "launcher_rtk_proxied": True})
-    if result.returncode:
+    if wait_original_client(argv, timeout=40):
         raise RuntimeError("independent original client failed")
 
 
