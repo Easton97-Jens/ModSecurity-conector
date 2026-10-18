@@ -20,7 +20,7 @@ from tests.c_source_contract import function_definition
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c"
 FUNCTIONS = (
-    "bounded_cstring_length", "close_owned_stream", "open_private_file", "mkdir_p",
+    "bounded_cstring_length", "close_owned_stream", "open_private_file", "open_private_event_stream", "mkdir_p",
     "dirname_to_buffer", "open_append_file_or_standard", "log_streams_share_inode",
     "open_agent_logs", "close_agent_owned_streams", "json_write_string",
     "safe_decision_name", "phase4_requested_action", "phase4_common_event_write",
@@ -311,7 +311,9 @@ class HaproxySpopEventSinkFailureTests(unittest.TestCase):
         compiler = shlex.split(os.environ.get("CC", "cc"))
         if not compiler or shutil.which(compiler[0]) is None:
             raise RuntimeError("a C compiler is required for SPOP sink tests")
-        temporary = tempfile.TemporaryDirectory(prefix="haproxy-spop-sink-", dir=os.environ.get("RUNNER_TEMP"))
+        parent = Path(os.environ.get("RUNNER_TEMP") or os.environ.get("TMPDIR") or "/var/tmp/codex/ModSecurity-conector/tmp")
+        parent.mkdir(parents=True, exist_ok=True)
+        temporary = tempfile.TemporaryDirectory(prefix="haproxy-spop-sink-", dir=parent)
         cls.addClassCleanup(temporary.cleanup)
         cls.directory = Path(temporary.name)
         os.chmod(cls.directory, 0o700)
@@ -330,8 +332,7 @@ class HaproxySpopEventSinkFailureTests(unittest.TestCase):
         cls.binaries = {}
         cls.compile_fixture(compiler, text, "current")
         anchor = """    if (error.code == MSCONNECTOR_ERROR_NONE &&
-            (fputs(serialized, state->decision_log) == EOF ||
-             ferror(state->decision_log) || fflush(state->decision_log) != 0)) {
+            !msconnector_event_file_write(state->decision_log, serialized, &error)) {
         msconnector_error_set(&error, MSCONNECTOR_ERROR_IO,
             "SPOP decision sink write or flush failed", "haproxy-spoe-spop");
     }"""
