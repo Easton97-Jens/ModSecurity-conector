@@ -1,8 +1,12 @@
 import ctypes as c
 import hashlib,json,re
 from pathlib import Path
+import os
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "ci/runtime/lifecycle/apache-i12"))
+import paths
 import yaml
-ROOT=Path('/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/sealed-common-inputs/framework')
+ROOT=paths.storage_root() / 'runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/sealed-common-inputs/framework'
 LIB=Path('/usr/lib/x86_64-linux-gnu/libmodsecurity.so.3.0.14')
 lib=c.CDLL(str(LIB)); P=c.c_void_p; S=c.c_char_p; I=c.c_int
 class Intervention(c.Structure):
@@ -20,7 +24,7 @@ intervene=bind('msc_intervention',I,[P,c.POINTER(Intervention)])
 log=bind('msc_process_logging',I,[P]);cleantx=bind('msc_transaction_cleanup',None,[P])
 cleanrules=bind('msc_rules_cleanup',I,[P]);clean=bind('msc_cleanup',None,[P])
 callbacktype=c.CFUNCTYPE(None,P,P);setcb=bind('msc_set_log_cb',None,[P,callbacktype])
-pattern=re.compile(r'SecRule RESPONSE_BODY[^\n]*\n[^\n]*1100301[^\n]*\n')
+pattern=re.compile(r'^SecRule RESPONSE_BODY[^\n]*\n[^\n]*1100301[^\n]*\n', re.MULTILINE)
 preamble=ROOT/'tests/rules/no-crs-baseline.conf';canonical=pattern.search(preamble.read_text()).group()
 assert 'SecDefaultAction' not in preamble.read_text()
 records=[]
@@ -31,7 +35,7 @@ for name in ('phase4_body_at_limit','phase4_body_over_limit','phase4_body_reject
  result={}
  for form,rule in [('local',local),('canonical',canonical)]:
   engine=init();rules=newrules();messages=[]
-  cb=callbacktype(lambda data,message:messages.append(c.string_at(message).decode(errors='replace')));setcb(engine,cb)
+  cb=callbacktype(lambda data,message,messages=messages:messages.append(c.string_at(message).decode(errors='replace')));setcb(engine,cb)
   text=pattern.sub('',preamble.read_text())+'\n'+pattern.sub('',fixture['rules'])+'\n'+rule
   err=S();loaded=add(rules,text.encode(),c.byref(err));assert loaded>=0,err.value
   tx=newtx(engine,rules,None);assert tx

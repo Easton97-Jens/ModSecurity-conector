@@ -35,8 +35,9 @@ class ApacheLaunchReceiptTests(unittest.TestCase):
                 env={}, os=SimpleNamespace(environ={}),
                 stop=threading.Event(), thread=SimpleNamespace(join=lambda timeout: None, is_alive=lambda: False),
                 owned=owned, hashlib=hashlib, snapshots=[], errors=[], settings={'case_id': 'bounded-test', 'original_selected_id': 'I12::apache-native::bounded-test'}, json=json)
+            compiled_tail = compile(tail, '<actual-apache-launch-tail>', 'exec')
             with self.assertRaises(SystemExit) as exit_context:
-                exec(compile(tail, '<actual-apache-launch-tail>', 'exec'), scope)
+                exec(compiled_tail, scope)
             receipt = json.loads((output / 'apache-lifecycle-command.json').read_text())
             self.assertTrue(scope['stop'].is_set())
             self.assertTrue(receipt['sampler_thread_stopped'])

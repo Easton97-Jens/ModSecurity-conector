@@ -82,6 +82,22 @@ class PackagingTest(unittest.TestCase):
         self.assertEqual(fresh["qualification"], "PARTIAL_HOST_MEASUREMENTS")
         self.assertIsNone(fresh["outcome"])
         self.assertFalse(fresh["qualified_pass"])
+        self.assertIsNone(fresh["accepted_packet"])
+
+    def test_packet_lookup_uses_supplied_reference_without_overwriting_acceptance(self):
+        first = self.write("first.json", {"run_scoped_case_id": "first"})
+        second = self.write("second.json", {"run_scoped_case_id": "second"})
+        work = PACKAGE.ApachePackage(None, None, None, None)
+        work.packets = {}
+        work.supplied = PACKAGE.ref(first)
+        work.receipt = None
+        work.packet = None
+        supplied = PACKAGE.ref(second)
+        receipt, packet = work.packet_reference(supplied)
+        self.assertEqual(receipt, supplied)
+        self.assertEqual(packet["run_scoped_case_id"], "second")
+        self.assertIsNone(work.receipt)
+        self.assertIsNone(work.packet)
 
     def test_known_values_reference_exact_packet_without_replacing_nulls(self):
         observations = copy.deepcopy(self.source["rows"][0]["fresh_observations"])

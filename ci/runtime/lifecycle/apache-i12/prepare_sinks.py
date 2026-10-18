@@ -3,12 +3,17 @@
 import argparse
 import hashlib
 import json
+import os
+import sys
 from pathlib import Path
 import shutil
 
-RUN = Path('/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle')
-DIRECT = Path('/var/tmp/codex/ModSecurity-conector/runs/e2e/20261013T125816Z-8c574cdf-i12-completion/apache-current-prep-v2/apache-runner.py')
-INTERPOSER = Path('/var/tmp/codex/ModSecurity-conector/runs/i12-apache-410-20261015/sink/apr-sink-fault.so')
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import paths
+
+RUN = paths.storage_root() / 'runs/e2e/20261014T182400Z-pr410-oracle-lifecycle'
+DIRECT = paths.storage_root() / 'runs/e2e/20261013T125816Z-8c574cdf-i12-completion/apache-current-prep-v2/apache-runner.py'
+INTERPOSER = paths.storage_root() / 'runs/i12-apache-410-20261015/sink/apr-sink-fault.so'
 FAULTS = ['badpath', 'devfull', 'unwritable', 'closed-descriptor', 'physical-enospc', 'observe']
 
 
@@ -28,7 +33,7 @@ def ledger(tree, destination):
 
 
 def prepare(output, fault):
-    output = output.resolve()
+    output = paths.new_output(output)
     allowed = RUN / 'apache-i12-20261015/sinks-v1'
     if output == allowed or not output.is_relative_to(allowed):
         raise ValueError('new output must be below ' + str(allowed))
@@ -51,7 +56,9 @@ def prepare(output, fault):
         case.update(name='no-fault-control', case_id='E2E-APACHE-SINK-NO-FAULT-CONTROL', fault='observe')
         case['control_expectation'] = {'http_status': 403, 'backend_requests': 0, 'native_rule_id': 120016, 'native_rule_phase': 1, 'physical_event_sink_write_success': True}
     shutil.copyfile(original_cases, fixtures / 'original-cases.json')
-    settings = {'case': case, 'run_id': '20261015-apache-sink-' + fault,
+    shutil.copyfile(Path(__file__).with_name('paths.py'), fixtures / 'paths.py')
+    shutil.copyfile(Path(__file__).with_name('process_capture.py'), fixtures / 'process_capture.py')
+    settings = {'storage_root': str(paths.storage_root()), 'runtime_root': str(paths.storage_root() / 'apache-sinks'), 'case': case, 'run_id': '20261015-apache-sink-' + fault,
         'original_cases_source': str(original_cases), 'original_cases_sha256': sha(original_cases),
         'original_case': original_case, 'original_helpers_source': str(DIRECT), 'original_helpers_sha256': sha(DIRECT),
         'interposer_source': str(INTERPOSER), 'interposer_sha256': sha(INTERPOSER),

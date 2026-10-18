@@ -9,9 +9,13 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import os
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "ci/runtime/lifecycle/apache-i12"))
+import paths
 
-WT=Path('/var/tmp/codex/ModSecurity-conector/worktrees/i12-apache-410-20261015')
-BASE=Path('/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle')
+WT=Path(__file__).resolve().parents[3]
+BASE=paths.storage_root() / 'runs/e2e/20261014T182400Z-pr410-oracle-lifecycle'
 OUT=Path(__file__).resolve().parent
 APPROVED=OUT/'approved'; APPROVED.mkdir(mode=0o700,exist_ok=True)
 spec=importlib.util.spec_from_file_location('review',WT/'ci/runtime/lifecycle/apache-i12/review.py')
@@ -19,13 +23,14 @@ R=importlib.util.module_from_spec(spec);spec.loader.exec_module(R)
 L=R.LEDGER
 baseline=json.loads((BASE/'ledger/twentyone-qualified-08.json').read_text())
 rows={r['selected_requirement']['case_id']:r for r in L.apache_rows(baseline)}
+TEXT_PLAIN = 'text/plain'
 expected={
- 'NEED-request-empty':(b'', 'text/plain'),
- 'NEED-request-single-chunk':(b'apx-eos-request-payload','text/plain'),
- 'NEED-request-content-type-present':(b'apx-eos-request-payload','text/plain'),
+ 'NEED-request-empty':(b'', TEXT_PLAIN),
+ 'NEED-request-single-chunk':(b'apx-eos-request-payload',TEXT_PLAIN),
+ 'NEED-request-content-type-present':(b'apx-eos-request-payload',TEXT_PLAIN),
  'NEED-request-content-type-missing':(b'apx-eos-request-payload',None),
  'NEED-request-charset-present':(b'apx-eos-request-payload','text/plain; charset=utf-8'),
- 'NEED-request-charset-missing':(b'apx-eos-request-payload','text/plain'),
+ 'NEED-request-charset-missing':(b'apx-eos-request-payload',TEXT_PLAIN),
  'NEED-request-csv':(b'column_a,column_b\nvalue_a,value_b\n','text/csv'),
 }
 def ref(path,**extra):return {**L.ORACLES.reference(Path(path).resolve(strict=True)),**extra}

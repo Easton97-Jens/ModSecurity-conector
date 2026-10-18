@@ -235,11 +235,11 @@
           "ended_unix_ns": 1792073572905121864,
           "role": "main",
           "request_id": "20261015-apache-sink-observe-main",
-          "client_token": "1792073572237261040",
           "uri": "/sink-disruptive",
           "actual_waited_exit_code": 0,
           "stdout_bytes": 3,
-          "stderr_bytes": 0
+          "stderr_bytes": 0,
+          "client_process_correlation_id": "1792073572237261040"
         },
         "status": 403,
         "entity_bytes": 239,
@@ -323,11 +323,11 @@
           "ended_unix_ns": 1792073574274505977,
           "role": "followup",
           "request_id": "20261015-apache-sink-observe-followup",
-          "client_token": "1792073573106068129",
           "uri": "/followup",
           "actual_waited_exit_code": 0,
           "stdout_bytes": 3,
-          "stderr_bytes": 0
+          "stderr_bytes": 0,
+          "client_process_correlation_id": "1792073573106068129"
         },
         "status": 200,
         "entity_bytes": 3,
@@ -441,11 +441,11 @@
           "ended_unix_ns": 1792073575493246998,
           "role": "neighbor",
           "request_id": "20261015-apache-sink-observe-neighbor",
-          "client_token": "1792073574475291814",
           "uri": "/neighbor",
           "actual_waited_exit_code": 0,
           "stdout_bytes": 3,
-          "stderr_bytes": 0
+          "stderr_bytes": 0,
+          "client_process_correlation_id": "1792073574475291814"
         },
         "status": 200,
         "entity_bytes": 3,
@@ -620,11 +620,11 @@
             "ended_unix_ns": 1792073005423472090,
             "role": "main",
             "request_id": "20261015-apache-sink-badpath-main",
-            "client_token": "1792073004298540081",
             "uri": "/sink-disruptive",
             "actual_waited_exit_code": 0,
             "stdout_bytes": 3,
-            "stderr_bytes": 0
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073004298540081"
           },
           "status": 500,
           "entity_bytes": 571,
@@ -705,11 +705,11 @@
             "ended_unix_ns": 1792073007046647184,
             "role": "followup",
             "request_id": "20261015-apache-sink-badpath-followup",
-            "client_token": "1792073005624829266",
             "uri": "/followup",
             "actual_waited_exit_code": 0,
             "stdout_bytes": 3,
-            "stderr_bytes": 0
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073005624829266"
           },
           "status": 200,
           "entity_bytes": 3,
@@ -820,11 +820,11 @@
             "ended_unix_ns": 1792073008496300563,
             "role": "neighbor",
             "request_id": "20261015-apache-sink-badpath-neighbor",
-            "client_token": "1792073007247551864",
             "uri": "/neighbor",
             "actual_waited_exit_code": 0,
             "stdout_bytes": 3,
-            "stderr_bytes": 0
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073007247551864"
           },
           "status": 200,
           "entity_bytes": 3,
@@ -1000,11 +1000,11 @@
             "ended_unix_ns": 1792073091716313683,
             "role": "main",
             "request_id": "20261015-apache-sink-devfull-main",
-            "client_token": "1792073090794305608",
             "uri": "/sink-disruptive",
             "actual_waited_exit_code": 0,
             "stdout_bytes": 3,
-            "stderr_bytes": 0
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073090794305608"
           },
           "status": 500,
           "entity_bytes": 571,
@@ -1085,11 +1085,11 @@
             "ended_unix_ns": 1792073092794103232,
             "role": "followup",
             "request_id": "20261015-apache-sink-devfull-followup",
-            "client_token": "1792073091917193972",
             "uri": "/followup",
             "actual_waited_exit_code": 0,
             "stdout_bytes": 3,
-            "stderr_bytes": 0
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073091917193972"
           },
           "status": 200,
           "entity_bytes": 3,
@@ -1200,11 +1200,11 @@
             "ended_unix_ns": 1792073094019784805,
             "role": "neighbor",
             "request_id": "20261015-apache-sink-devfull-neighbor",
-            "client_token": "1792073092995329570",
             "uri": "/neighbor",
             "actual_waited_exit_code": 0,
             "stdout_bytes": 3,
-            "stderr_bytes": 0
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073092995329570"
           },
           "status": 200,
           "entity_bytes": 3,
@@ -1380,11 +1380,11 @@
             "ended_unix_ns": 1792073168858634635,
             "role": "main",
             "request_id": "20261015-apache-sink-unwritable-main",
-            "client_token": "1792073167182443248",
             "uri": "/sink-disruptive",
             "actual_waited_exit_code": 0,
             "stdout_bytes": 3,
-            "stderr_bytes": 0
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073167182443248"
           },
           "status": 500,
           "entity_bytes": 571,
@@ -1465,11 +1465,11 @@
             "ended_unix_ns": 1792073170183628428,
             "role": "followup",
             "request_id": "20261015-apache-sink-unwritable-followup",
-            "client_token": "1792073169059593512",
             "uri": "/followup",
             "actual_waited_exit_code": 0,
             "stdout_bytes": 3,
-            "stderr_bytes": 0
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073169059593512"
           },
           "status": 200,
           "entity_bytes": 3,
@@ -1580,11 +1580,11 @@
             "ended_unix_ns": 1792073172290927263,
             "role": "neighbor",
             "request_id": "20261015-apache-sink-unwritable-neighbor",
-            "client_token": "1792073170384785881",
             "uri": "/neighbor",
             "actual_waited_exit_code": 0,
             "stdout_bytes": 3,
-            "stderr_bytes": 0
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073170384785881"
           },
           "status": 200,
           "entity_bytes": 3,
@@ -1887,11 +1887,11 @@
             "ended_unix_ns": 1792073252174690625,
             "role": "main",
             "request_id": "20261015-apache-sink-closed-descriptor-main",
-            "client_token": "1792073251404454203",
             "uri": "/sink-disruptive",
             "actual_waited_exit_code": 0,
             "stdout_bytes": 3,
-            "stderr_bytes": 0
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073251404454203"
           },
           "status": 500,
           "entity_bytes": 571,
@@ -1972,11 +1972,11 @@
             "ended_unix_ns": 1792073253348673351,
             "role": "followup",
             "request_id": "20261015-apache-sink-closed-descriptor-followup",
-            "client_token": "1792073252375854405",
             "uri": "/followup",
             "actual_waited_exit_code": 0,
             "stdout_bytes": 3,
-            "stderr_bytes": 0
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073252375854405"
           },
           "status": 200,
           "entity_bytes": 3,
@@ -2090,11 +2090,11 @@
             "ended_unix_ns": 1792073254756149771,
             "role": "neighbor",
             "request_id": "20261015-apache-sink-closed-descriptor-neighbor",
-            "client_token": "1792073253787604075",
             "uri": "/neighbor",
             "actual_waited_exit_code": 0,
             "stdout_bytes": 3,
-            "stderr_bytes": 0
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073253787604075"
           },
           "status": 200,
           "entity_bytes": 3,
@@ -2400,11 +2400,11 @@
             "ended_unix_ns": 1792073328249914660,
             "role": "main",
             "request_id": "20261015-apache-sink-physical-enospc-main",
-            "client_token": "1792073326829649763",
             "uri": "/sink-disruptive",
             "actual_waited_exit_code": 0,
             "stdout_bytes": 3,
-            "stderr_bytes": 0
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073326829649763"
           },
           "status": 500,
           "entity_bytes": 571,
@@ -2485,11 +2485,11 @@
             "ended_unix_ns": 1792073329369654683,
             "role": "followup",
             "request_id": "20261015-apache-sink-physical-enospc-followup",
-            "client_token": "1792073328451336326",
             "uri": "/followup",
             "actual_waited_exit_code": 0,
             "stdout_bytes": 3,
-            "stderr_bytes": 0
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073328451336326"
           },
           "status": 200,
           "entity_bytes": 3,
@@ -2603,11 +2603,11 @@
             "ended_unix_ns": 1792073331041999956,
             "role": "neighbor",
             "request_id": "20261015-apache-sink-physical-enospc-neighbor",
-            "client_token": "1792073329570820063",
             "uri": "/neighbor",
             "actual_waited_exit_code": 0,
             "stdout_bytes": 3,
-            "stderr_bytes": 0
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073329570820063"
           },
           "status": 200,
           "entity_bytes": 3,
@@ -3236,5 +3236,122 @@
       "sha256": "df237353bf5b71c8eac8a8017a878cec6e7a16dc67712aa4a10e0c9d32936a7e",
       "bytes": 4605
     }
-  ]
+  ],
+  "public_projection": {
+    "schema": "apache-i12-public-readback-v1",
+    "is_physical_capture": false,
+    "source_sha256": "e52c51888736e9f252d1eff738e75cd7f8dd784045926ec12fad2df85439772f",
+    "source_reference": "raw/sink-positive-control.json.gz (gzip; exact decoded SHA256 e52c51888736e9f252d1eff738e75cd7f8dd784045926ec12fad2df85439772f; raw/manifest.json)",
+    "renamed_fields": [
+      {
+        "group_index": 0,
+        "client_index": 0,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 0,
+        "client_index": 1,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 0,
+        "client_index": 2,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 1,
+        "client_index": 0,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 1,
+        "client_index": 1,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 1,
+        "client_index": 2,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 2,
+        "client_index": 0,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 2,
+        "client_index": 1,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 2,
+        "client_index": 2,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 3,
+        "client_index": 0,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 3,
+        "client_index": 1,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 3,
+        "client_index": 2,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 4,
+        "client_index": 0,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 4,
+        "client_index": 1,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 4,
+        "client_index": 2,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 5,
+        "client_index": 0,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 5,
+        "client_index": 1,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 5,
+        "client_index": 2,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      }
+    ],
+    "reason": "Numeric timestamp joins identify test client processes and carry no authentication authority. The public name expresses that meaning. Physical originals and referenced hashes remain unchanged."
+  }
 }

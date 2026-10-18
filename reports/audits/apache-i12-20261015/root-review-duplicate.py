@@ -1,9 +1,13 @@
 """Root qualification of the pinned Apache-core duplicate-header oracle only."""
 import copy,hashlib,importlib.util,json
 from pathlib import Path
-W=Path('/var/tmp/codex/ModSecurity-conector/worktrees/i12-apache-410-20261015')
+import os
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "ci/runtime/lifecycle/apache-i12"))
+import paths
+W=Path(__file__).resolve().parents[3]
 O=Path(__file__).resolve().parent
-B=Path('/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle')
+B=paths.storage_root() / 'runs/e2e/20261014T182400Z-pr410-oracle-lifecycle'
 s=importlib.util.spec_from_file_location('review',W/'ci/runtime/lifecycle/apache-i12/review.py');R=importlib.util.module_from_spec(s);s.loader.exec_module(R)
 L=R.LEDGER
 r=next(x for x in json.loads((O/'apache-ledger-interim.json').read_text())['rows'] if x['run_scoped_case_id']=='I12::apache-native::duplicate_header_names')

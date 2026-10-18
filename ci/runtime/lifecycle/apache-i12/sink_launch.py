@@ -10,6 +10,10 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import paths
+from process_capture import capture_process
 import shutil
 import subprocess
 import sys
@@ -23,8 +27,8 @@ settings = json.loads(Path('/mnt/fixtures/sink-settings.json').read_text())
 admission = json.loads(Path('/opt/controller/admission.json').read_text())
 binding = dict(settings['binding'], outside_namespaces=admission['outside_namespaces'])
 current = direct.admission(binding)
-base = Path('/var/tmp/codex/ModSecurity-conector/apache-sinks')
-base.mkdir(mode=0o700)
+os.environ['CODEX_TEMP_ROOT'] = settings['storage_root']
+base = paths.private_directory(settings['runtime_root'])
 owned = base / 'native-bin/apache2'
 owned.parent.mkdir(mode=0o700)
 shutil.copyfile('/usr/sbin/apache2', owned)
@@ -74,7 +78,7 @@ with ExitStack() as cleanup:
     config.chmod(0o600)
     env = dict(os.environ,
         LD_PRELOAD='/mnt/artifacts/apache/apr-sink-fault.so',
-        I12_SINK_PATH=sink, I12_SINK_MARKER=str(marker),
+        I12_SINK_ROOT=str(base), I12_SINK_PATH=sink, I12_SINK_MARKER=str(marker),
         I12_SINK_FAULT=case['fault'] if case['fault'] in ('closed-descriptor', 'physical-enospc') else 'observe',
         MSCONNECTOR_APACHE_NATIVE_OBSERVER='/task/apache-native-api.jsonl',
         MSCONNECTOR_APACHE_HOST_OBSERVER='/task/apache-host-eos.jsonl',
@@ -98,20 +102,7 @@ with ExitStack() as cleanup:
                     proc = Path('/proc') / str(child)
                     if os.readlink(proc / 'exe') != str(owned):
                         continue
-                    stat = (proc / 'stat').read_text()
-                    label = str(time.monotonic_ns())
-                    output = Path('/task/native-process')
-                    output.mkdir(mode=0o700, exist_ok=True)
-                    maps = (proc / 'maps').read_text()
-                    status = (proc / 'status').read_text()
-                    fds = {p.name: os.readlink(p) for p in (proc / 'fd').iterdir()}
-                    (output / (label + '.maps')).write_text(maps)
-                    (output / (label + '.status')).write_text(status)
-                    (output / (label + '.fds.json')).write_text(json.dumps(fds, indent=2) + '\n')
-                    snapshots.append({'monotonic_ns': int(label), 'native_child_pid': child,
-                        'starttime': stat.rsplit(')', 1)[1].split()[19], 'fd_count': len(fds),
-                        'maps_sha256': hashlib.sha256(maps.encode()).hexdigest(),
-                        'status_sha256': hashlib.sha256(status.encode()).hexdigest(), 'files_label': label})
+                    snapshots.append(capture_process(child))
                 except (FileNotFoundError, ProcessLookupError):
                     pass
                 except Exception as error:

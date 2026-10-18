@@ -127,7 +127,7 @@ class ApacheI12SinkFaultTests(unittest.TestCase):
                 marker_path.write_text("I12_APACHE_SINK_FAULT_V1\n")
                 marker_path.chmod(0o600)
             environment = os.environ.copy()
-            environment.update(LD_PRELOAD=str(self.library), I12_SINK_FAULT=mode,
+            environment.update(LD_PRELOAD=str(self.library), I12_SINK_FAULT=mode, I12_SINK_ROOT=str(self.directory),
                 I12_SINK_PATH=str(directory / "other.jsonl" if mismatch else target),
                 I12_SINK_MARKER=str(marker_path))
             command = [str(self.driver), str(target), str(int(adopt)), "2"]
