@@ -68,6 +68,7 @@ struct request_st {
   size_t resp_header_len;
   int http_status;
   int http_version;
+  int resp_body_finished;
 };
 typedef struct {
   unsigned id;
@@ -239,6 +240,16 @@ static handler_t http_status_set_err(request_st *r, int status) {
     return HANDLER_ERROR;
   r->http_status = status;
   return HANDLER_FINISHED;
+}
+static handler_t http_status_set_err_fin(request_st *r, int status) {
+  r->resp_body_finished = 1;
+  return http_status_set_err(r, status);
+}
+static void http_response_reset(request_st *r) {
+  r->http_status = 0;
+  r->resp_body_finished = 0;
+  r->write_queue.bytes_in = r->write_queue.bytes_out = 0;
+  r->resp_header_len = 0;
 }
 /* Logging is intentionally outside the controlled host-action observations. */
 static char fixture_log_buffer[4096];
@@ -470,8 +481,11 @@ static void fixture_verify(const fixture_verification_snapshot *snapshot,
     assert(snapshot->commit ? snapshot->statuses == 0
                             : snapshot->statuses == 1);
     int expected = fixture_expected_status(snapshot->operation);
-    if (snapshot->operation == 8)
-      assert(r->http_status == 200);
+    if (snapshot->operation == 8) {
+      /* Reset retired the uncommitted upstream200 before the injected host
+       * setter failed. No replacement status was successfully selected. */
+      assert(r->http_status == 0);
+    }
     else if (snapshot->operation == 9)
       assert(r->http_status == 403);
     else
