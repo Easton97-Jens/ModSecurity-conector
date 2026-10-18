@@ -23,6 +23,8 @@ TLS mit frischer privater Runtime-CA und IP-SAN-Zertifikat für 127.0.0.1 bereit
 
 Python 3.14 HTTPSServer verwendet mindestens TLS 1.2 und HTTP/1.1-ALPN. Vorhandenes OpenSSL erzeugt synthetische Zertifikate mit einem Tag Gültigkeit. Der private CA-Schlüssel wird nach Signierung gelöscht, der Leaf-Schlüssel verbleibt ausschließlich im privaten Taskverzeichnis. HTTPS, tls.ca und insecureSkipVerify: false werden vor YAML-Prüfung und Hoststart konfiguriert. Der gepinnte Traefik-Vertrag verwendet ClientTLS.ca. Quellen: [Python HTTPSServer](https://docs.python.org/3.14/library/http.server.html), [gepinntes Traefik ClientTLS](https://github.com/traefik/traefik/blob/fc92cc118a0557a029c7019d5ee06665127b0f13/pkg/types/tls.go), [gepinntes forwardAuth](https://github.com/traefik/traefik/blob/fc92cc118a0557a029c7019d5ee06665127b0f13/pkg/middlewares/auth/forward.go).
 
+Beide synthetischen `openssl req`-Aufrufe verwenden ausdrücklich `-config /dev/null`. Subjekt und Zertifikatserweiterungen werden vollständig vom Fixture vorgegeben. Die Erzeugung benötigt dadurch keine Host-OpenSSL-Konfiguration, die im privaten Controller fehlt. Die Dateisystemsicht des Controllers bleibt unverändert.
+
 ## Geänderte Dateien
 
 Traefik-spezifisch: i12_auth/auth_proxy.py bindet HTTPS; i12_auth/tls_fixture.py erzeugt begrenztes privates Zertifikatsmaterial und konfiguriert Vertrauen; i12_auth/prepare.py staged den Helper und erfasst nur öffentliche Zertifikatshashes. tests/test_traefik_i12_tls.py und tests/test_traefik_i12_quality_controls.py prüfen echte TLS-Verbindungen und Ablehnungsgrenzen. Dieser zweisprachige Change Record dokumentiert das Ergebnis.
@@ -30,6 +32,8 @@ Traefik-spezifisch: i12_auth/auth_proxy.py bindet HTTPS; i12_auth/tls_fixture.py
 ## Ausgeführte Befehle
 
 Alle lokalen Befehle verwenden RTK und die Parent-Virtualenv. Die fokussierte TLS-/Quality-/Authorization-Suite bestand vor der letzten Ergänzung öffentlicher Zertifikatshashes 30 Tests. Die abschließende gemeinsame TLS-/Quality-/Auth-/Source-Export-/Native-Measurement-/Ledger-Suite bestand 58 Tests in 17,594 Sekunden; 42 zweisprachige Dokumentations- und Change-Record-Tests bestanden. AST-Syntax aller fünf Python-Dateien und git diff --check bestanden. Exakte Befehle, Exitcodes und Quellhashes liegen extern unter relay-tls/final.json.
+
+Die Vorbereitung des privaten Controllers zeigte die Abhängigkeit von der fehlenden Hostkonfiguration vor einem Hoststart. Ein echter Regressionstest mit `OPENSSL_CONF` auf eine nicht vorhandene Datei schlug vor der Korrektur fehl. Mit ausdrücklich leerer Konfiguration bestehen 31 TLS-/Quality-/Authorization-Tests einschließlich tatsächlicher Zertifikatsketten- und IP-SAN-Prüfung bei fehlender Konfiguration. Fehler und bestandene Wiederholung bleiben getrennt unter `checks/root-relay-missing-openssl-config-before-20261018.*` und `checks/root-relay-independent-openssl-config-after-20261018.*` erhalten.
 
 ## Security-Auswirkung
 

@@ -133,6 +133,20 @@ class RelayTLSControls(unittest.TestCase):
 
 
 class TLSConfigurationControls(unittest.TestCase):
+    def test_certificate_generation_does_not_require_host_openssl_configuration(self):
+        with tempfile.TemporaryDirectory(prefix='i12-tls-no-host-config-', dir=quality.EXTERNAL) as temporary:
+            root = Path(temporary).resolve()
+            with mock.patch.dict(os.environ, {'CODEX_TEMP_ROOT': str(root),
+                                             'OPENSSL_CONF': str(root / 'absent-openssl.cnf')}):
+                directory = root / 'tls'
+                receipt = TLS.generate(directory)
+                verified = TLS.openssl(directory, 'verify', '-CAfile', 'ca.crt',
+                                       '-verify_ip', '127.0.0.1', '-purpose', 'sslserver', 'server.crt')
+            self.assertIn('server.crt: OK', verified)
+            self.assertFalse(receipt['ca_private_key_retained'])
+            self.assertFalse((directory / 'ca.key').exists())
+            self.assertEqual((directory / 'server.key').stat().st_mode & 0o777, 0o600)
+
     def test_exact_host_TLS_CA_contract_preserves_response_capacity(self):
         value = ('        address: http://127.0.0.1:43210/authorize\n'
                  '        maxResponseBodySize: 32768\n        preserveRequestMethod: true\n')

@@ -56,11 +56,11 @@ def generate(directory=TLS_ROOT):
                           'keyUsage=critical,digitalSignature,keyEncipherment\n'
                           'extendedKeyUsage=serverAuth\nsubjectAltName=IP:127.0.0.1\n')
     try:
-        openssl(directory, 'req', '-x509', '-newkey', 'rsa:2048', '-noenc', '-sha256', '-days', '1',
+        openssl(directory, 'req', '-config', '/dev/null', '-x509', '-newkey', 'rsa:2048', '-noenc', '-sha256', '-days', '1',
                 '-subj', '/CN=Traefik I12 synthetic fixture CA', '-keyout', 'ca.key', '-out', 'ca.crt',
                 '-addext', 'basicConstraints=critical,CA:TRUE,pathlen:0',
                 '-addext', 'keyUsage=critical,keyCertSign,cRLSign')
-        openssl(directory, 'req', '-new', '-newkey', 'rsa:2048', '-noenc',
+        openssl(directory, 'req', '-config', '/dev/null', '-new', '-newkey', 'rsa:2048', '-noenc',
                 '-subj', '/CN=127.0.0.1', '-keyout', 'server.key', '-out', 'server.csr')
         openssl(directory, 'x509', '-req', '-in', 'server.csr', '-CA', 'ca.crt', '-CAkey', 'ca.key',
                 '-CAcreateserial', '-out', 'server.crt', '-days', '1', '-sha256', '-extfile', 'leaf.ext')
