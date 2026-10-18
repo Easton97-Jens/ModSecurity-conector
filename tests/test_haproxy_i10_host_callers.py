@@ -13,7 +13,7 @@ from tests.c_source_contract import function_definition
 ROOT = Path(__file__).resolve().parents[1]
 OVERLAY = ROOT / "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c"
 FUNCTIONS = (
-    "request_version",
+    "request_version", "event_sink_failed", "write_event",
     "companion_cancel_cause_from_error", "companion_cancel_and_close", "abort_context", "finish_context", "error_phase", "report_error", "apply_precommit_deny",
     "fail_closed_precommit", "abort_response_stream", "fail_closed_postcommit", "fail_closed_request_phase",
     "companion_result_is_forwardable", "companion_record_precommit_outcome", "companion_record_terminal_outcome",
@@ -47,7 +47,7 @@ class HAProxyI10HostCallers(unittest.TestCase):
             harness = temp / "caller.c"
             harness.write_text(c_source)
             binary = temp / "caller"
-            sources = ["late_intervention.c", "decision_action.c", "block_statuses.c",
+            sources = ["event_jsonl.c", "transaction_state.c", "transaction_id.c", "log_sanitize.c", "rule_id.c", "late_intervention.c", "decision_action.c", "block_statuses.c",
                        "http_status.c", "error.c", "decision.c", "intervention.c", "event.c", "json_escape.c", "status.c"]
             command = ["cc", "-std=c17", "-Wall", "-Wextra", "-Werror", "-ffunction-sections", "-Wl,--gc-sections",
                        "-I", str(ROOT / "common/include"),

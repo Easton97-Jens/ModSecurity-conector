@@ -156,6 +156,8 @@ struct haproxy_modsecurity_transaction {
         int response_phases_require_companion;
         int response_companion_handed_off;
         int response_companion_claimed;
+        int outcome_recorded;
+        int native_response_status;
         msconnector_decision_action response_companion_action;
         char response_companion_transport_result[32];
         int response_companion_visible_status;
@@ -765,6 +767,9 @@ static int finish_body(
         transaction_failure(transaction, decision, MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE,
             "failed to record Common body decision");
         return 1;
+    }
+    if (phase->phase == 4) {
+        transaction->response_companion.native_response_status = decision->status;
     }
     return 0;
 }
@@ -1689,13 +1694,16 @@ int haproxy_modsecurity_transaction_record_response_companion_outcome(
     size_t transport_len;
     if (transaction == 0 || !transaction->contract_initialized ||
             !transaction->response_companion.response_companion_claimed ||
+            transaction->response_companion.outcome_recorded ||
             (msconnector_transaction_contract_is_terminal(&transaction->contract) &&
-                (transaction->contract.status != MSCONNECTOR_TRANSACTION_STATUS_TERMINAL ||
+                ((transaction->contract.status != MSCONNECTOR_TRANSACTION_STATUS_TERMINAL &&
+                  transaction->contract.status != MSCONNECTOR_TRANSACTION_STATUS_COMPLETED) ||
                  (transaction->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE &&
                   transaction->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT))) ||
             actual_action < MSCONNECTOR_DECISION_ACTION_ALLOW ||
             actual_action > MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION ||
-            transport_result == 0 ||
+            transport_result == 0 || transport_result[0] == '\0' ||
+            strcmp(transport_result, "not_observable") == 0 ||
             visible_http_status < 0 || visible_http_status > 999 ||
             connection_aborted < 0 || connection_aborted > 1) {
         return 1;
@@ -1708,6 +1716,7 @@ int haproxy_modsecurity_transaction_record_response_companion_outcome(
     if (transport_len >= sizeof(transaction->response_companion.response_companion_transport_result)) {
         return 1;
     }
+    transaction->response_companion.outcome_recorded = 1;
     transaction->response_companion.response_companion_action = actual_action;
     memcpy(transaction->response_companion.response_companion_transport_result, transport_result,
         transport_len + 1U);
@@ -1720,6 +1729,77 @@ int haproxy_modsecurity_transaction_record_response_companion_outcome(
      * as a second engine decision; the Common contract's engine decision was
      * already recorded during P1/P2/P3/P4 evaluation. */
     return 0;
+}
+
+int haproxy_modsecurity_transaction_response_event(
+        const haproxy_modsecurity_transaction *transaction,
+        const msconnector_decision *requested, msconnector_event *event,
+        msconnector_error *error) {
+    msconnector_decision canonical;
+    if (transaction == NULL || requested == NULL || event == NULL ||
+            !transaction->contract_initialized ||
+            !transaction->response_companion.response_companion_claimed ||
+            !transaction->response_companion.outcome_recorded ||
+            (!msconnector_decision_is_disruptive(requested) &&
+             requested->kind != MSCONNECTOR_DECISION_KIND_ALLOW) ||
+            (int)requested->phase != transaction->contract.last_completed_phase ||
+            (msconnector_decision_is_disruptive(requested) &&
+             requested->http_status != transaction->response_companion.native_response_status) ||
+            (requested->rule_id != NULL && strcmp(requested->rule_id, transaction->contract.rule_id) != 0) ||
+            (transaction->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT &&
+             requested->kind != MSCONNECTOR_DECISION_KIND_DENY) ||
+            (requested->phase != MSCONNECTOR_PHASE_RESPONSE_HEADERS &&
+             requested->phase != MSCONNECTOR_PHASE_RESPONSE_BODY) ||
+            (transaction->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE &&
+             transaction->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT) ||
+            (transaction->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE &&
+             msconnector_transaction_decision_kind_from_engine(requested) !=
+                transaction->contract.engine_decision)) {
+        msconnector_error_set(error, MSCONNECTOR_ERROR_PHASE_SEQUENCE,
+            "response event requires its completed native phase and recorded OUTCOME", "haproxy");
+        return 0;
+    }
+    if (!msconnector_decision_is_disruptive(requested)) {
+        msconnector_event_init(event);
+        return 2; /* Valid native Allow: no Common decision event. */
+    }
+    msconnector_decision_init(&canonical);
+    canonical.phase = (enum msconnector_phase)transaction->contract.last_completed_phase;
+    canonical.kind = requested->kind; /* Matched against the native contract above. */
+    canonical.status = MSCONNECTOR_STATUS_BLOCKED;
+    canonical.disruptive = 1;
+    canonical.http_status = transaction->response_companion.native_response_status;
+    canonical.rule_id = transaction->contract.rule_id;
+    canonical.reason = "native_response_intervention";
+    canonical.body_limit = transaction->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT;
+    if (!msconnector_decision_to_event(&canonical, event, "haproxy", transaction->request_id)) {
+        msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
+            "response decision has no Common event", "haproxy");
+        return 0;
+    }
+    event->meta.integration_mode = "spop-htx-response-companion";
+    event->decision.rule_id = transaction->contract.rule_id;
+    event->decision.reason = "native_response_intervention";
+    event->decision.actual_action = msconnector_decision_action_name(
+        transaction->response_companion.response_companion_action);
+    event->http.original_http_status = transaction->contract.response_status;
+    event->http.visible_http_status = transaction->response_companion.response_companion_visible_status;
+    event->http.transport_result = transaction->response_companion.response_companion_transport_result;
+    event->flags.response_committed = transaction->contract.response_committed;
+    event->flags.headers_sent = transaction->contract.response_committed;
+    event->flags.response_started = transaction->contract.response_committed;
+    event->flags.body_started = transaction->response_body.started;
+    event->flags.connection_aborted = transaction->response_companion.response_companion_connection_aborted;
+    event->flags.eos_seen = (transaction->contract.completed_phase_mask &
+        MSCONNECTOR_TRANSACTION_PHASE_MASK_P4) != 0U;
+    event->flags.late_intervention = requested->phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
+        transaction->contract.response_committed;
+    /* OUTCOME carries no host phase4-mode; the owner default is not evidence. */
+    event->flags.late_intervention_mode = NULL;
+    event->body.bytes_seen = transaction->response_body.bytes_seen;
+    event->body.bytes_inspected = transaction->response_body.bytes_inspected;
+    event->body.content_type = transaction->contract.response_content_type;
+    return 1;
 }
 
 static int map_response_for_transaction(
@@ -1847,6 +1927,7 @@ int haproxy_modsecurity_transaction_process_response_headers(
             "failed to record Common P3 decision");
         return 1;
     }
+    transaction->response_companion.native_response_status = decision->status;
     return 0;
 }
 
