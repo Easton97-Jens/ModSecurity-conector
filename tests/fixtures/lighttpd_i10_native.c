@@ -96,6 +96,7 @@ typedef struct {
   msconnector_response response;
   char host_request_id[96];
   int technical_failed;
+  int failure_response_selected;
   int api_failed;
   int host_response_attempted;
   int response_processed;
@@ -182,7 +183,7 @@ int fixture_msconnector_runtime_transaction_record_failure_host_action(
   (void)aborted;
   (void)e;
   ++ack_calls;
-  return 1;
+  return fault == 14 ? 0 : 1;
 }
 int fixture_msconnector_runtime_transaction_record_host_action(
     const msconnector_runtime_transaction *tx, const msconnector_decision *d,
@@ -420,7 +421,8 @@ static void fixture_reenter(int operation, request_st *r, plugin_data *p,
   if (operation == 5)
     assert(mod_msconnector_handle_uri_clean(r, p) == HANDLER_ERROR);
   else if (operation == 6)
-    assert(mod_msconnector_handle_response_start(r, p) == HANDLER_ERROR);
+    assert(mod_msconnector_handle_response_start(r, p) ==
+           (ctx->failure_response_selected ? HANDLER_GO_ON : HANDLER_ERROR));
   else if (operation == 7) {
     chunkqueue q = {0};
     assert(mod_msconnector_handle_request_body(r, &q, 0, 1, 0, 1, p) ==
