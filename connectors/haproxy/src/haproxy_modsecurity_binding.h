@@ -135,6 +135,14 @@ int haproxy_modsecurity_transaction_record_response_companion_outcome(
     msconnector_decision_action actual_action,
     const char *transport_result,
     int visible_http_status, int connection_aborted);
+/* Borrowed metadata snapshot, valid only during this owner call before finish.
+ * Requires a validated, recorded response OUTCOME; native contract supplies
+ * phase/rule/correlation/commit. Returns 0 for invalid input, 1 for an event,
+ * and 2 for a validated native Allow (no event). No ACK/RELEASE inference. */
+int haproxy_modsecurity_transaction_response_event(
+    const haproxy_modsecurity_transaction *transaction,
+    const msconnector_decision *requested, msconnector_event *event,
+    msconnector_error *error);
 int haproxy_modsecurity_transaction_process_response_headers(
     haproxy_modsecurity_transaction *transaction,
     const haproxy_modsecurity_response *response,

@@ -336,3 +336,38 @@ See [the cross-connector response-limit ownership contract](../../docs/phase4-mo
 for the exact scope, compatibility boundary and validation limitations.
 
 The SPOE/SPOP profile transports one request-body sample in a frame of at most 65536 bytes, including metadata. It does not implement incremental request transport. If the advertised body length differs from the delivered sample, the agent rejects the incomplete representation as an unsupported transport admission; this is not a BODY_LIMIT result. Native HTX passes complete borrowed DATA slices incrementally. The smoke helper’s test upstream retains its 64 KiB request/response fixture capacity; those harness tests do not prove larger host bodies.
+
+## Physical Common decision sinks
+
+The native HTX filter accepts the optional `events-file /task/common-events.jsonl`
+argument. Use a private regular append file owned by the runtime uid with mode
+`0600`; every parent component must satisfy the existing trusted-parent policy.
+The shared opener rejects symlinks in every component. Configured SPOP decision
+logs use the same opener. An unsafe path fails initialization; there is no
+fallback to another event destination.
+
+The native filter writes bounded Common JSONL metadata for disruptive native
+decisions and technical causes. It excludes body bytes, headers, URI and native
+log text. Ordinary Allow produces no invented decision event. A mutex protects
+the configured stream; serialization, `fputs`, `ferror`, `fflush` and `fclose`
+are checked, the first sink error is sticky, and subsequent requests fail closed
+on that sink failure. A failed native decision write retains its observed phase
+and any earlier technical cause. Closing consumes the owned stream once.
+Successful flushing proves stream acceptance, not durable storage or client
+transport. Native filter deinitialization can alert on close failure but cannot
+set a process exit status through its void callback.
+
+For the response companion, the native owner emits a decision event only after
+validated OUTCOME and before RELEASE. Phase, decision kind, native status and
+rule identity are checked against the held native transaction; queued metadata
+is copied into owned bounded storage. Valid P4 Allow may record OUTCOME from
+the completed state without an invented P4 decision event. The owner cannot
+observe the HTX phase4-mode setting from the current wire contract, so its event
+omits optional `late_intervention_mode`. Prove host mode separately from the
+effective filter configuration and actual transport. Native direct events use
+their own known filter configuration.
+
+Native SDK, stdio fault, concurrency, sanitizer and mutation controls are
+component evidence. Fresh integrated host runs and independent qualification
+remain necessary for I12. See the
+[physical sink Change Record](../../reports/audits/change-records/CR-20261018-haproxy-physical-common-sinks.md).

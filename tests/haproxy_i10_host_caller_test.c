@@ -5,6 +5,9 @@
 #include "msconnector/limits.h"
 #include "response_companion_client.h"
 #include <assert.h>
+#include <pthread.h>
+#include "msconnector/event_jsonl.h"
+#include "msconnector/event_protocol.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
