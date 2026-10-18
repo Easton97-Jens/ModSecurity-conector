@@ -77,3 +77,16 @@ Methode GET des Autorisierungsrequests. Die Prüfung der ursprünglichen
 Anwendungsmethode ist hier deshalb nicht belegt. Produktdiagnose und Reparatur
 gehören in die zuständige Übergabe, nicht in diesen Producer. Eine vollständige
 Abdeckung sämtlicher ursprünglicher IDs wird nicht behauptet.
+
+Die aktuelle Vorbereitung exportiert jede versionierte reguläre Parent-Datei aus
+dem exakten `HEAD`-Git-Baum, einschließlich Dateimodi, SHA256-Inventar und
+Gitlink-Revisionsmetadaten. Git-Metadaten, Symlinks, Gitlink-Inhalte sowie nicht
+committete/nicht versionierte Producer werden ausgeschlossen. `CODEX_TEMP_ROOT`
+muss den konfigurierten privaten externen Speicherstamm bezeichnen; das Ziel
+muss frisch und physisch darunter liegen. Der Exporter schreibt die vollständige
+v2-Quellidentität vor Anwendung der vorhandenen zentralen Capture-Variante.
+Anwendungsbeleg und eingefrorenes Inventar vor Capture erhalten tatsächliche
+Quellrevision und Instrumentierungs-Hashes. Reine Fixture-Änderungen,
+einschließlich nicht committeter Abnahme-Producer, benötigen separate explizite
+Hashes; sie erben niemals eine Identität committeter Quellen. Die Vorbereitung
+startet keinen Host und belegt keine Runtime-Qualifikation.

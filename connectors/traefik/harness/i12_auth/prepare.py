@@ -60,22 +60,12 @@ def validate_output(output):
 
 
 def stage_source(repository, output):
-    source = output / 'source';source.mkdir()
-    shutil.copytree(repository / 'common', source / 'common')
-    (source / 'connectors').mkdir()
-    shutil.copytree(repository / 'connectors/traefik', source / 'connectors/traefik')
-    for path in (repository / 'connectors').glob('profile_registry.*'):
-        shutil.copyfile(path, source / 'connectors' / path.name)
-    central = load(repository / 'ci/runtime/lifecycle/i12/capture_sources.py', 'i12_central_capture')
-    registry = central.Registry(repository=repository)
-    profile = registry.manifest['profiles']['traefik-forwardauth']
-    for relative, entry in profile['source_targets'].items():
-        if relative.startswith('ci/'):
-            target = source / relative;target.parent.mkdir(parents=True, exist_ok=True)
-            if entry['before_sha256'] is not None:shutil.copyfile(repository / relative, target)
-    marker = {'format': 'i12-disposable-source-copy-v1', 'path': str(source), 'disposable': True,
-              'parent_sha': registry.manifest['delivery_product_baseline']}
-    (source / central.MARKER).write_text(json.dumps(marker) + '\n')
+    exporter = load(repository / 'connectors/traefik/harness/i12/source_export.py', 'i12_source_export')
+    source = output / 'source'
+    exporter.export(repository, source)
+    capture_root = repository / 'ci/runtime/lifecycle/i12'
+    central = load(capture_root / 'capture_sources.py', 'i12_central_capture')
+    registry = central.Registry(capture_root, repository)
     central.apply(registry, 'traefik-forwardauth', source)
     return source
 

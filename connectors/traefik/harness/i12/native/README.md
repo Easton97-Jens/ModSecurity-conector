@@ -59,3 +59,15 @@ observation fields for independent review; absent callbacks remain unknown.
 It never evaluates the oracle or grants qualification. Real fault outcomes can
 include zero client bytes despite a logical host write; report that physical
 outcome separately from an HTTP recorder or a native deny decision.
+
+Current preparation exports every committed Parent regular file from the exact
+`HEAD` Git tree, with file modes, SHA256 inventory and Gitlink revision metadata.
+It excludes Git metadata, symlinks, Gitlink contents and uncommitted/untracked
+producers. `CODEX_TEMP_ROOT` must name the configured private external storage
+root; the destination must be fresh and physically beneath it. The exporter
+writes the complete v2 source identity before applying the existing central
+capture variant. The application receipt and frozen pre-capture inventory retain
+the actual source revision and instrumentation hashes. Fixture-only changes,
+including uncommitted acceptance producers, require separate explicit hashes;
+they never inherit a committed-source identity. Preparation starts no host and
+proves no runtime qualification.

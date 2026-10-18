@@ -96,32 +96,21 @@ def seal(root):
 
 
 def refresh_capture_source(repo, source, profile, registry, overlays):
-    # Refresh every actual build input from this checkout before instrumentation.
-    product_paths = [*sorted((repo / 'common').rglob('*.c')), *sorted((repo / 'common').rglob('*.h')),
-                     *sorted((repo / 'connectors/traefik').rglob('*.c')),
-                     *sorted((repo / 'connectors/traefik').rglob('*.h')),
-                     *sorted((repo / 'connectors/traefik/native_middleware').glob('*.go')),
-                     repo / 'connectors/profile_registry.c']
-    bindings = {}
-    for path in product_paths:
-        relative = str(path.relative_to(repo))
-        destination = source / relative
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(path, destination)
-        bindings[relative] = sha(path)
-    for relative, entry in profile['source_targets'].items():
-        path = source / relative
-        # Verify the declared current base before applying any capture delta.
-        if entry['before_sha256'] is not None:
-            base = repo / relative
-            if sha(base) != entry['before_sha256']:
-                raise ValueError('current capture base differs: ' + relative)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(registry.content(entry['sha256']))
-        if relative in bindings and bindings[relative] != sha(path):
-            overlays[relative] = {'baseline_a9_sha256': bindings[relative], 'instrumented_sha256': sha(path),
-                                  'scope': 'central traefik-native capture-only observation'}
-    return bindings
+    exporter_path = Path(__file__).resolve().parents[1] / 'source_export.py'
+    spec = importlib.util.spec_from_file_location('i12_source_export', exporter_path)
+    exporter = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(exporter)
+    snapshot = exporter.export(repo, source)
+    central = importlib.util.module_from_spec(importlib.util.spec_from_file_location(
+        'i12_capture_apply', registry.root / 'capture_sources.py'))
+    central.__spec__.loader.exec_module(central)
+    receipt = central.apply(registry, 'traefik-native', source)
+    for relative, before in receipt['actual_before_sha256'].items():
+        after = receipt['exact_written_sha256'][relative]
+        if before != after:
+            overlays[relative] = {'before_sha256': before, 'instrumented_sha256': after,
+                                 'scope': 'central traefik-native capture-only observation'}
+    return {name: entry['sha256'] for name, entry in snapshot['files'].items()}
 
 
 def stage_fixtures(fixtures, profile, registry):
@@ -140,10 +129,6 @@ def prepare(repo, historical, output):
     output = validate_output(output, fresh=True)
     output.mkdir(parents=True, mode=0o700)
     source, fixtures = output / 'source', output / 'fixtures'
-    previous = historical / 'traefik-lifecycle/execution-review/inputs-v4'
-    shutil.copytree(previous / 'source', source)
-    for path in (source, *source.rglob('*')):
-        path.chmod(0o700 if path.is_dir() or path.stat().st_mode & 0o111 else 0o600)
     capture_root = repo / 'ci/runtime/lifecycle/i12'
     spec = importlib.util.spec_from_file_location('capture_sources', capture_root / 'capture_sources.py')
     module = importlib.util.module_from_spec(spec)
@@ -152,11 +137,12 @@ def prepare(repo, historical, output):
     profile = registry.manifest['profiles']['traefik-native']
     overlays = {}
     bindings = refresh_capture_source(repo, source, profile, registry, overlays)
+    revision = json.loads((source / '.i12-source-export-manifest.json').read_text())['source_revision']
     stage_fixtures(fixtures, profile, registry)
     driver = (fixtures / 'driver.py').read_text()
     driver = replace_once(driver, "RUN = 'tf-i12-eos-20261014'", "RUN = 'tf-i12-native-20261015'")
-    driver = replace_once(driver, "'delivery_base': '02754040bced960cfc1857416cd7101bb3116ef4'", "'delivery_base': 'f27eb59b53beff6f65384fc2e5037881a3052c01'")
-    driver = replace_once(driver, "'product_base': 'a9d48bb58aa948aea7d79e20cdf09d3f239b7808'", "'product_base': 'f27eb59b53beff6f65384fc2e5037881a3052c01'")
+    driver = replace_once(driver, "'delivery_base': '02754040bced960cfc1857416cd7101bb3116ef4'", "'delivery_base': " + repr(revision))
+    driver = replace_once(driver, "'product_base': 'a9d48bb58aa948aea7d79e20cdf09d3f239b7808'", "'product_base': " + repr(revision))
     start = driver.index('    product = json.loads(')
     end = driver.index("    write('build-manifest.json'", start)
     driver = driver[:start] + "    write('current-product-binding.json', json.loads((FIXTURES / 'current-product-binding.json').read_text()))\n" + driver[end:]
@@ -175,9 +161,9 @@ def prepare(repo, historical, output):
     driver = replace_once(driver, old, new)
     driver = driver.replace("'selected_case_count': 1", "'selected_case_count': 6")
     (fixtures / 'driver.py').write_text(driver)
-    save(fixtures / 'current-product-binding.json', {'checkout': str(repo), 'checkout_base': 'f27eb59b53beff6f65384fc2e5037881a3052c01',
+    save(fixtures / 'current-product-binding.json', {'checkout': str(repo), 'checkout_base': json.loads((source / '.i12-source-export-manifest.json').read_text())['source_revision'],
          'product_inputs': bindings, 'capture_overlays': overlays, 'central_manifest_sha256': sha(capture_root / 'manifest.json'),
-         'historical_build_scaffolding': str(previous / 'source'), 'runtime_replay': False})
+         'historical_host_artifact_inputs': str(historical / 'sealed-common-inputs/artifacts/traefik'), 'runtime_replay': False})
     shutil.copytree(historical / 'sealed-common-inputs/artifacts/traefik', output / 'artifacts/traefik')
     ledgers = {}
     for name in ('source', 'fixtures', 'artifacts'):

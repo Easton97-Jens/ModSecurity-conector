@@ -1,0 +1,88 @@
+"""Committed-source export controls without hosts or repository mutations."""
+import hashlib
+import importlib.util
+import json
+import os
+from pathlib import Path
+import tempfile
+import unittest
+from unittest.mock import patch
+
+ROOT = Path(__file__).resolve().parents[1]
+SPEC = importlib.util.spec_from_file_location('traefik_source_export', ROOT / 'connectors/traefik/harness/i12/source_export.py')
+EXPORT = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(EXPORT)
+
+
+class SourceExportControls(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(dir='/var/tmp/codex/ModSecurity-conector', prefix='source-export-unit-')
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.env = patch.dict(os.environ, {'CODEX_TEMP_ROOT': str(self.root)})
+        self.env.start()
+        self.addCleanup(self.env.stop)
+        self.data = b'committed source\n'
+        self.blob = hashlib.sha1(b'blob ' + str(len(self.data)).encode() + b'\0' + self.data, usedforsecurity=False).hexdigest()
+        self.revision, self.tree = 'a' * 40, 'b' * 40
+        self.rows = ('100755 blob ' + self.blob + '\tscript.py\0' + '160000 commit ' + 'c' * 40 + '\tmodules/framework\0').encode()
+
+    def git(self, _repository, *arguments, data=None):
+        if arguments == ('rev-parse', '--verify', 'HEAD^{commit}'):
+            return self.revision.encode() + b'\n'
+        if arguments == ('rev-parse', '--verify', self.revision + '^{tree}'):
+            return self.tree.encode() + b'\n'
+        if arguments == ('ls-tree', '-rz', self.revision):
+            return self.rows
+        self.assertEqual(arguments, ('cat-file', '--batch'))
+        self.assertEqual(data, (self.blob + '\n').encode())
+        return (self.blob + ' blob ' + str(len(self.data)) + '\n').encode() + self.data + b'\n'
+
+    def export(self):
+        with patch.object(EXPORT, 'git', side_effect=self.git):
+            return EXPORT.export(ROOT, self.root / 'source')
+
+    def test_complete_committed_inventory_modes_and_gitlinks(self):
+        result = self.export()
+        source = self.root / 'source'
+        self.assertEqual((source / 'script.py').read_bytes(), self.data)
+        self.assertEqual(result['files']['script.py']['mode'], 493)
+        self.assertEqual((source / 'script.py').stat().st_mode & 0o777, 493)
+        self.assertEqual(result['gitlinks'], {'modules/framework': 'c' * 40})
+        self.assertFalse((source / 'modules').exists())
+        marker = json.loads((source / EXPORT.MARKER).read_text())
+        self.assertEqual(marker['snapshot_manifest_sha256'], hashlib.sha256((source / EXPORT.SNAPSHOT).read_bytes()).hexdigest())
+        self.assertEqual(result['source_revision'], self.revision)
+        self.assertEqual(result['git_tree'], self.tree)
+
+    def test_unknown_symlink_and_escape_git_entries_rejected(self):
+        for mode, name in [('120000', 'link'), ('100644', '../escape'), ('100644', '.git/config')]:
+            with self.subTest(mode=mode, name=name):
+                self.rows = (mode + ' blob ' + self.blob + '\t' + name + '\0').encode()
+                with self.assertRaises(ValueError):
+                    self.export()
+                self.assertFalse((self.root / 'source').exists())
+
+    def test_corrupted_git_blob_is_rejected(self):
+        self.data += b'changed'
+        with self.assertRaisesRegex(ValueError, 'object identity'):
+            self.export()
+
+    def test_existing_destination_is_never_overwritten(self):
+        (self.root / 'source').mkdir()
+        (self.root / 'source/retained').write_text('retain')
+        with self.assertRaises(ValueError):
+            self.export()
+        self.assertEqual((self.root / 'source/retained').read_text(), 'retain')
+
+    def test_missing_configured_root_and_symlink_destination_rejected(self):
+        with patch.dict(os.environ, {'CODEX_TEMP_ROOT': ''}):
+            with self.assertRaises(ValueError):
+                self.export()
+        (self.root / 'source').symlink_to(self.root, target_is_directory=True)
+        with self.assertRaises(ValueError):
+            self.export()
+
+
+if __name__ == '__main__':
+    unittest.main()

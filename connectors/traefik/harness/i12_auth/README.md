@@ -70,3 +70,15 @@ produced native Common events with method GET on the authorization request;
 original application-method inspection is consequently not established here.
 Production diagnosis and any repair belong to the owning handoff, not this
 producer. Full coverage of all original IDs is not claimed.
+
+Current preparation exports every committed Parent regular file from the exact
+`HEAD` Git tree, with file modes, SHA256 inventory and Gitlink revision metadata.
+It excludes Git metadata, symlinks, Gitlink contents and uncommitted/untracked
+producers. `CODEX_TEMP_ROOT` must name the configured private external storage
+root; the destination must be fresh and physically beneath it. The exporter
+writes the complete v2 source identity before applying the existing central
+capture variant. The application receipt and frozen pre-capture inventory retain
+the actual source revision and instrumentation hashes. Fixture-only changes,
+including uncommitted acceptance producers, require separate explicit hashes;
+they never inherit a committed-source identity. Preparation starts no host and
+proves no runtime qualification.
