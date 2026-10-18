@@ -74,7 +74,9 @@ static int process_request_connection(Transaction *value,
     (void)value; (void)request; (void)decision; note('C'); return fail_at == 'C';
 }
 static int msc_process_uri(Transaction *value, const char *uri, const char *method, const char *version) {
-    (void)value; (void)uri; (void)method; (void)version; note('U'); return fail_at != 'U';
+    (void)value; (void)uri; (void)method;
+    if (version == NULL || strcmp(version, "1.1") != 0) { abort(); }
+    note('U'); return fail_at != 'U';
 }
 static int process_request_headers(Transaction *value,
         const haproxy_modsecurity_request *request, haproxy_modsecurity_decision *decision) {

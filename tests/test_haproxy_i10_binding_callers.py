@@ -81,6 +81,8 @@ static int test_native(const char *name) {
                        str(ROOT / "connectors/haproxy/src/haproxy_modsecurity_mapper.c"),
                        str(ROOT / "connectors/profile_registry.c"), *(str(s) for s in sources),
                        "-o", str(temp / "caller")]
+            if os.environ.get("HAPROXY_I10_BINDING_SANITIZERS") == "1":
+                command[1:1] = ["-fsanitize=address,undefined", "-fno-omit-frame-pointer"]
             compiled = subprocess.run(command, capture_output=True, text=True)
             self.assertEqual(compiled.returncode, 0, compiled.stdout + compiled.stderr)
             return subprocess.run([str(temp / "caller"), *arguments], capture_output=True, text=True, cwd=temp, timeout=30)
@@ -110,6 +112,39 @@ static int test_native(const char *name) {
             spop=True, arguments=("http-version",))
         self.assertNotEqual(result.returncode, 0, "hardcoded native version mutation survived")
 
+    def test_owner_outcome_writes_physical_common_before_release(self):
+        result = self.run_caller(BINDING.read_text(), spop=True, arguments=("owner-events",))
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_snapshot_rejects_nondisruptive_nonallow_negative_control(self):
+        binding = BINDING.read_text()
+        guard = """            (!msconnector_decision_is_disruptive(requested) &&
+             requested->kind != MSCONNECTOR_DECISION_KIND_ALLOW) ||
+"""
+        self.assertIn(guard, binding)
+        result = self.run_caller(binding.replace(guard, "", 1),
+            spop=True, arguments=("owner-events",))
+        self.assertNotEqual(result.returncode, 0, "non-Allow suppression mutation survived")
+
+    def test_owner_event_boundary_mutations_are_detected(self):
+        binding = BINDING.read_text()
+        runtime = (ROOT / "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c").read_text()
+        mutations = [
+            (binding.replace("(msconnector_decision_is_disruptive(requested) &&\n             requested->http_status != transaction->response_companion.native_response_status) ||", ""), runtime),
+            (binding.replace("(int)requested->phase != transaction->contract.last_completed_phase ||", ""), runtime),
+            (binding.replace("            transaction->response_companion.outcome_recorded ||", ""), runtime),
+            (binding.replace("!transaction->response_companion.outcome_recorded ||", ""), runtime),
+            (binding.replace("event->decision.rule_id = transaction->contract.rule_id;", "event->decision.rule_id = requested->rule_id;"), runtime),
+            (binding, runtime.replace("context->success = spop_bridge_outcome_event_write(context);",
+                "(void)spop_bridge_outcome_event_write; context->success = 1;")),
+            (binding, runtime.replace("context->command.decision = &context->outcome_decision;",
+                "context->command.decision = command->decision;")),
+        ]
+        for index, (modified_binding, modified_runtime) in enumerate(mutations):
+            with self.subTest(mutation=index, binding_changed=modified_binding != binding, runtime_changed=modified_runtime != runtime):
+                result = self.run_caller(modified_binding, spop=True, runtime_source=modified_runtime, arguments=("owner-events",))
+                self.assertNotEqual(result.returncode, 0, "owner event boundary mutation survived")
+
     def test_native_response_decisions_accept_host_outcome(self):
         for phase in ("3", "4", "body-limit", "body-limit-logging-failure"):
             with self.subTest(phase=phase):
@@ -128,7 +163,8 @@ static int test_native(const char *name) {
     def test_terminal_decision_outcome_negative_control(self):
         source = BINDING.read_text()
         guard = '''(msconnector_transaction_contract_is_terminal(&transaction->contract) &&
-                (transaction->contract.status != MSCONNECTOR_TRANSACTION_STATUS_TERMINAL ||
+                ((transaction->contract.status != MSCONNECTOR_TRANSACTION_STATUS_TERMINAL &&
+                  transaction->contract.status != MSCONNECTOR_TRANSACTION_STATUS_COMPLETED) ||
                  (transaction->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE &&
                   transaction->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT)))'''
         self.assertIn(guard, source)
