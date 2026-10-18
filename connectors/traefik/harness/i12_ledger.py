@@ -108,9 +108,17 @@ def apply_packets(packets, by_id, contract):
         oracle = review.get('effective_oracle') if review else row['selected_requirement']['expected_oracle']
         if oracle and oracle.get('unresolved_expected_value_reason'):
             oracle = None
-        measured = contract.reviewed_packet(verified, row, oracle)
-        validate_host_observations(measured)
-        row['fresh_lifecycle'] = measured
+        if row['selected_requirement'].get('execution_kind') == 'actual_configtest':
+            measured = contract.reviewed_configuration_packet(verified, row, oracle)
+            row['fresh_configuration'] = measured
+        elif packet.get('execution_kind') == 'host_preallocation_control':
+            measured = contract.reviewed_preallocation_packet(verified, row, oracle)
+            validate_host_observations(measured)
+            row['fresh_preallocation'] = measured
+        else:
+            measured = contract.reviewed_packet(verified, row, oracle)
+            validate_host_observations(measured)
+            row['fresh_lifecycle'] = measured
 
 
 def oracle_summary(selected):
@@ -124,6 +132,28 @@ def oracle_summary(selected):
 def full_outcome(fresh, outcome):
     return [r for r in fresh if r['fresh_lifecycle']['full_lifecycle_qualified'] and
             r['fresh_lifecycle']['outcome'] == outcome]
+
+
+def own_scope_summary(selected, qualified, lifecycle_fail):
+    counts = {}
+    cases = set(qualified)
+    failed = {r["run_scoped_case_id"] for r in lifecycle_fail}
+    for scope in ('configuration', 'preallocation'):
+        field = 'fresh_' + scope
+        measured = [r for r in selected if r.get(field)]
+        passed = [r for r in measured if r[field]['full_case_qualified'] and
+                  r[field]['outcome'] == 'PASS']
+        rejected = [r for r in measured if r[field]['full_case_qualified'] and
+                    r[field]['outcome'] == 'FAIL']
+        counts[field + '_pass'] = len(passed)
+        counts[field + '_fail'] = len(rejected)
+        cases.update(r['run_scoped_case_id'] for r in passed)
+        failed.update(r['run_scoped_case_id'] for r in rejected)
+    cases.difference_update(failed)
+    return {**counts, 'case_qualified_pass': len(cases),
+            'case_qualified_fail': len(failed),
+            'case_unqualified_ids': [r['run_scoped_case_id'] for r in selected
+                                     if r['run_scoped_case_id'] not in cases | failed]}
 
 
 def route_summary(rows, leg):
@@ -145,6 +175,7 @@ def route_summary(rows, leg):
                        'lifecycle_pass': len(qualified),
                        'lifecycle_unqualified_ids': [r['run_scoped_case_id'] for r in selected
                                                   if r['run_scoped_case_id'] not in qualified and r not in full_fail],
+                       **own_scope_summary(selected, qualified, full_fail),
                        **oracle_summary(selected)}
 
 
@@ -168,6 +199,11 @@ def reconcile(inventory, reviews=(), packets=()):
             row['qualified_host_lifecycle_pass'] = fresh['outcome'] == 'PASS'
         elif fresh and not row['qualified_host_lifecycle_pass']:
             row['status'] = 'PARTIAL_HOST_MEASUREMENTS'
+        own = row.get('fresh_configuration') or row.get('fresh_preallocation')
+        if own and own['full_case_qualified']:
+            row['status'] = own['outcome']
+            row['qualification_scope'] = own['qualification_scope']
+            row['qualified_host_lifecycle_pass'] = False
     return {'schema_version': 1, 'scope': 'traefik-only',
             'source_ledger': inventory['source_ledger'],
             'source_reconciliation': inventory['source_reconciliation'],

@@ -156,5 +156,139 @@ class TraefikI12LedgerTest(unittest.TestCase):
                     LEDGER.reconcile(changed)
 
 
+class TraefikOwnScopeConsumerTest(unittest.TestCase):
+    # Producer-shaped synthetic controls exercise the real central validators;
+    # they are not physical host evidence or qualification of this repository.
+    def setUp(self):
+        self.inventory = json.loads(LEDGER.INVENTORY.read_text())
+        self.contract = LEDGER.contracts()
+        temporary = tempfile.TemporaryDirectory(dir=os.environ.get('TMPDIR'))
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+
+    def configuration(self):
+        from tests.test_i12_lifecycle_ledger import configuration_control
+        _, packet, _ = configuration_control(self.root)
+        row = next(r for r in self.inventory['rows'] if r['run_scoped_case_id'] ==
+                   'I12::traefik-forwardauth-request::valid_rules_file')
+        oracle = row['selected_requirement']['expected_oracle']
+        packet.update(run_scoped_case_id=row['run_scoped_case_id'], leg_id=row['leg_id'],
+                      oracle_sha256=self.contract.ORACLES.canonical_digest(oracle))
+        ref = next(r for r in packet['measurement_evidence'] if r['role'] == 'parser_process')
+        path = Path(ref['path'])
+        actual = json.loads(path.read_text())
+        actual.update(run_scoped_case_id=row['run_scoped_case_id'], leg_id=row['leg_id'])
+        path.write_text(json.dumps(actual))
+        ref.update(self.contract.ORACLES.reference(path))
+        return row, packet, oracle
+
+    def packet_reference(self, packet):
+        path = self.root / 'packet.json'
+        path.write_text(json.dumps(packet))
+        return self.contract.ORACLES.reference(path)
+
+    def test_configuration_accepted_centrally_qualifies_only_its_original_scope(self):
+        row, packet, oracle = self.configuration()
+        ref = self.packet_reference(packet)
+        self.assertTrue(self.contract.reviewed_configuration_packet(ref, row, oracle)['full_case_qualified'])
+        result = LEDGER.reconcile(self.inventory, packets=[ref])
+        current = next(r for r in result['rows'] if r.get('fresh_configuration'))
+        self.assertEqual(current['qualification_scope'], 'configuration_control')
+        self.assertNotIn('fresh_lifecycle', current)
+        self.assertFalse(current['qualified_host_lifecycle_pass'])
+        summary = result['summary'][row['leg_id']]
+        self.assertEqual(summary['fresh_configuration_pass'], 1)
+        self.assertEqual(summary['fresh_lifecycle_pass'], 0)
+        self.assertEqual(summary['fresh_host_attempts'], 0)
+        self.assertIn(row['run_scoped_case_id'], summary['lifecycle_unqualified_ids'])
+        self.assertNotIn(row['run_scoped_case_id'], summary['case_unqualified_ids'])
+
+    def test_configuration_fail_stays_own_scope_without_a_pass_or_unknown_credit(self):
+        row, packet, _ = self.configuration()
+        packet['outcome'] = 'FAIL'
+        process = packet['actual_observations']['parser_process']
+        process['waited_exit'] = 1
+        ref = next(r for r in packet['measurement_evidence'] if r['role'] == 'parser_process')
+        path = Path(ref['path'])
+        actual = json.loads(path.read_text())
+        actual['waited_exit'] = 1
+        path.write_text(json.dumps(actual))
+        ref.update(self.contract.ORACLES.reference(path))
+        result = LEDGER.reconcile(self.inventory, packets=[self.packet_reference(packet)])
+        summary = result['summary'][row['leg_id']]
+        self.assertEqual(summary['fresh_configuration_pass'], 0)
+        self.assertEqual(summary['fresh_configuration_fail'], 1)
+        self.assertEqual(summary['case_qualified_fail'], 1)
+        self.assertEqual(summary['case_qualified_pass'], 1)  # One historical lifecycle.
+        self.assertEqual(summary['fresh_lifecycle_fail'], 0)
+        self.assertIn(row['run_scoped_case_id'], summary['lifecycle_unqualified_ids'])
+        self.assertNotIn(row['run_scoped_case_id'], summary['case_unqualified_ids'])
+
+    def test_configuration_scope_cannot_cover_http_or_sibling_id(self):
+        _, packet, _ = self.configuration()
+        for identity in ('I12::traefik-native-uds::allow_without_marker',
+                         'I12::traefik-forwardauth-request::invalid_rule_syntax'):
+            with self.subTest(identity=identity):
+                packet['run_scoped_case_id'] = identity
+                packet['leg_id'] = identity.split('::')[1]
+                with self.assertRaises(ValueError):
+                    LEDGER.reconcile(self.inventory, packets=[self.packet_reference(packet)])
+
+    def test_missing_configuration_producer_or_invented_lifecycle_is_rejected(self):
+        for mutation in ('missing_process', 'lifecycle_claim'):
+            with self.subTest(mutation=mutation):
+                _, packet, _ = self.configuration()
+                if mutation == 'missing_process':
+                    packet['measurement_evidence'] = [r for r in packet['measurement_evidence']
+                                                      if r['role'] != 'parser_process']
+                else:
+                    packet['full_lifecycle_qualified'] = True
+                with self.assertRaises(ValueError):
+                    LEDGER.reconcile(self.inventory, packets=[self.packet_reference(packet)])
+
+    def preallocation(self):
+        from tests.test_i12_traefik_preallocation import TraefikPreallocationTests
+        fixture = TraefikPreallocationTests()
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        row = copy.deepcopy(next(r for r in self.inventory['rows'] if
+                                 r['run_scoped_case_id'] == fixture.case))
+        fixture.row = row
+        fixture.rebind_expected()
+        row['fresh_oracle_review'] = {'resolved': True, 'effective_oracle': fixture.oracle}
+        return fixture, row
+
+    def test_preallocation_uses_real_original_contract_without_lifecycle_credit(self):
+        fixture, row = self.preallocation()
+        ref = fixture.write('packet.json', fixture.packet, 'reviewed_packet')
+        self.assertTrue(self.contract.reviewed_preallocation_packet(ref, row, fixture.oracle)['full_case_qualified'])
+        rows = copy.deepcopy(self.inventory['rows'])
+        by_id = {r['run_scoped_case_id']: r for r in rows}
+        by_id[row['run_scoped_case_id']] = row
+        rows[rows.index(next(r for r in rows if r['run_scoped_case_id'] == fixture.case))] = row
+        LEDGER.apply_packets([ref], by_id, self.contract)
+        summary = LEDGER.route_summary(rows, row['leg_id'])
+        self.assertIn('fresh_preallocation', row)
+        self.assertNotIn('fresh_lifecycle', row)
+        self.assertEqual(summary['fresh_preallocation_pass'], 1)
+        self.assertEqual(summary['fresh_lifecycle_pass'], 0)
+        self.assertIn(fixture.case, summary['lifecycle_unqualified_ids'])
+        self.assertNotIn(fixture.case, summary['case_unqualified_ids'])
+
+    def test_preallocation_missing_observer_and_cross_id_are_rejected(self):
+        for mutation in ('missing_observer', 'cross_id'):
+            with self.subTest(mutation=mutation):
+                fixture, row = self.preallocation()
+                if mutation == 'missing_observer':
+                    fixture.packet.pop('observer_log')
+                else:
+                    fixture.packet['run_scoped_case_id'] = 'I12::traefik-native-uds::allow_without_marker'
+                    row = copy.deepcopy(next(r for r in self.inventory['rows'] if
+                        r['run_scoped_case_id'] == fixture.packet['run_scoped_case_id']))
+                ref = fixture.write('packet.json', fixture.packet, 'reviewed_packet')
+                with self.assertRaises((ValueError, KeyError)):
+                    LEDGER.apply_packets([ref], {row['run_scoped_case_id']: row}, self.contract)
+
+
 if __name__ == '__main__':
     unittest.main()
