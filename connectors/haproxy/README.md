@@ -371,3 +371,5 @@ Native SDK, stdio fault, concurrency, sanitizer and mutation controls are
 component evidence. Fresh integrated host runs and independent qualification
 remain necessary for I12. See the
 [physical sink Change Record](../../reports/audits/change-records/CR-20261018-haproxy-physical-common-sinks.md).
+
+For Strict postcommit H1, the native filter now erases queued response bytes and invokes the ready frontend transport hard-shutdown API before the H1 mux can send a clean TLS close_notify. H2 keeps its per-stream shutdown. Component/API/mutation controls and compilation passed; fresh integrated transport qualification remains required. See the [H1 transport Change Record](../../reports/audits/change-records/CR-20261018-haproxy-strict-h1-transport-abort.md).

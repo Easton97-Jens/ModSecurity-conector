@@ -31,6 +31,7 @@
 #include <haproxy/api.h>
 #include <haproxy/channel-t.h>
 #include <haproxy/channel.h>
+#include <haproxy/connection.h>
 #include <haproxy/errors.h>
 #include <haproxy/filters.h>
 #include <haproxy/http_ana.h>
@@ -39,6 +40,7 @@
 #include <haproxy/htx.h>
 #include <haproxy/init.h>
 #include <haproxy/sc_strm.h>
+#include <haproxy/stconn.h>
 #include <haproxy/stream.h>
 #include <haproxy/sample.h>
 #include <haproxy/vars.h>
@@ -828,6 +830,17 @@ static void haproxy_modsecurity_htx_abort_response_stream(struct stream *s)
         return;
     }
     channel_htx_erase(&s->res, htxbuf(&s->res.buf));
+    if (s->scf != NULL && s->scf->sedesc != NULL) {
+        struct connection *connection = sc_conn(s->scf);
+        const char *mux = conn_get_mux_name(connection);
+        /* H1 SILENT mux shutdown still calls the transport with clean=1.
+         * Latch unclean TLS shutdown first. H2 keeps its stream shutdown:
+         * closing its shared transport would also terminate neighbour streams. */
+        if (connection != NULL && conn_xprt_ready(connection) &&
+                mux != NULL && strcmp(mux, "H1") == 0) {
+            conn_xprt_shutw_hard(connection);
+        }
+    }
     stream_abort(s);
     if (s->scf != NULL) {
         s->scf->flags |= SC_FL_NOLINGER;

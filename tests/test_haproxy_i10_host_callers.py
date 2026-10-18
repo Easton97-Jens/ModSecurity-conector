@@ -4,6 +4,8 @@ This checks host API calls, never client transport effects. Common policy code
 is linked unchanged. Mutation copies live outside the source checkout.
 """
 from pathlib import Path
+import hashlib
+import json
 import os
 import subprocess
 import tempfile
@@ -38,6 +40,22 @@ class HAProxyI10HostCallers(unittest.TestCase):
             previous = source[source.rfind("\n", 0, start - 1) + 1:start].strip()
             bodies.append(previous + "\n" + body if not body.startswith("static ") else body)
         fixture = (ROOT / "tests/haproxy_i10_host_caller_test.c").read_text()
+        # Optional pinned-host input exercises the unchanged upstream inline
+        # API bodies rather than the self-contained controlled fixture copies.
+        api_source = os.environ.get("HAPROXY_I10_API_SOURCE")
+        if api_source:
+            api_root = Path(api_source)
+            self.assertEqual((api_root / "VERSION").read_text().strip(), "3.2.25")
+            definitions = []
+            for header, names in (
+                ("connection.h", ("conn_xprt_ready", "conn_get_mux_name", "conn_xprt_shutw", "conn_xprt_shutw_hard")),
+                ("stconn.h", ("__sc_conn", "sc_conn")),
+            ):
+                upstream = (api_root / "include/haproxy" / header).read_text()
+                definitions.extend(function_definition(upstream, name) for name in names)
+            start = fixture.index("/* HAPROXY_TRANSPORT_API_BEGIN */")
+            end = fixture.index("/* HAPROXY_TRANSPORT_API_END */", start)
+            fixture = fixture[:start] + "\n".join(definitions) + "\n" + fixture[end:]
         c_source = fixture.replace("/* PRODUCT_STRUCTS */", structs).replace(
             "/* PRODUCT_FUNCTIONS */", "\n\n".join(bodies))
         temp_root = Path(os.environ.get("TMPDIR", "/var/tmp/codex/ModSecurity-conector/tmp"))
@@ -58,12 +76,43 @@ class HAProxyI10HostCallers(unittest.TestCase):
             if os.environ.get("HAPROXY_I10_SANITIZERS") == "1":
                 command[1:1] = ["-fsanitize=address,undefined", "-fno-omit-frame-pointer"]
             compiled = subprocess.run(command, capture_output=True, text=True)
+            observed = subprocess.run([str(binary)], capture_output=True, text=True, cwd=temp, timeout=30) if compiled.returncode == 0 else None
+            receipt_root = os.environ.get("HAPROXY_I10_CALLER_RECEIPTS")
+            if receipt_root:
+                receipt = Path(receipt_root)
+                receipt.mkdir(parents=True, exist_ok=True)
+                key = hashlib.sha256(str(temp).encode()).hexdigest()[:16]
+                (receipt / (key + ".c")).write_text(c_source)
+                record = dict(argv=command, cwd=str(ROOT), compile_exit=compiled.returncode,
+                    compile_stdout=compiled.stdout, compile_stderr=compiled.stderr,
+                    fixture_sha256=hashlib.sha256(c_source.encode()).hexdigest(),
+                    upstream_api_source=api_source,
+                    exit=observed.returncode if observed else None,
+                    stdout=observed.stdout if observed else None, stderr=observed.stderr if observed else None,
+                    binary_sha256=hashlib.sha256(binary.read_bytes()).hexdigest() if binary.exists() else None)
+                (receipt / (key + ".json")).write_text(json.dumps(record, indent=2) + "\n")
             self.assertEqual(compiled.returncode, 0, compiled.stdout + compiled.stderr)
-            return subprocess.run([str(binary)], capture_output=True, text=True, cwd=temp, timeout=30)
+            return observed
 
     def test_productive_host_callers_mode_commit_reentry_matrix(self):
         result = self.compile_and_run(OVERLAY.read_text())
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_strict_transport_negative_controls(self):
+        source = OVERLAY.read_text()
+        mutations = {
+            "hard-shutdown-omitted": ("conn_xprt_shutw_hard(connection);", "(void)connection;"),
+            "hard-replaced-with-clean": ("conn_xprt_shutw_hard(connection);", "conn_xprt_shutw(connection);"),
+            "hard-after-mux-clean": ("conn_xprt_shutw_hard(connection);", "sc_shutdown(s->scf); conn_xprt_shutw_hard(connection);"),
+            "h2-transport-closed": ('mux != NULL && strcmp(mux, "H1") == 0', 'mux != NULL && (strcmp(mux, "H1") == 0 || strcmp(mux, "H2") == 0)'),
+            "not-ready-transport-used": ("connection != NULL && conn_xprt_ready(connection) &&", "connection != NULL &&"),
+            "null-endpoint-dereferenced": ("s->scf != NULL && s->scf->sedesc != NULL", "s->scf != NULL"),
+        }
+        for name, (old, new) in mutations.items():
+            with self.subTest(mutation=name):
+                self.assertIn(old, source)
+                result = self.compile_and_run(source.replace(old, new, 1))
+                self.assertNotEqual(result.returncode, 0, name + " unexpectedly survived")
 
     def test_negative_controls_detect_actual_boundary_regressions(self):
         source = OVERLAY.read_text()

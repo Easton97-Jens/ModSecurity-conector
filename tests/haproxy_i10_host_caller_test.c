@@ -52,6 +52,7 @@ struct channel {
   unsigned int flags;
   int buf;
   size_t output;
+  unsigned int erase_order;
 };
 struct htx {
   int unused;
@@ -69,7 +70,66 @@ struct http_msg {
 struct http_txn {
   short status;
 };
-struct stconn { unsigned int flags, aborts, shutdowns; };
+#define CO_FL_XPRT_READY 8U
+#define SE_FL_T_MUX 1U
+struct stream;
+struct connection;
+struct xprt_ops { void (*shutw)(struct connection *, void *, int); };
+struct mux_ops { const char *name; };
+struct connection {
+  unsigned int flags;
+  const struct xprt_ops *xprt;
+  void *xprt_ctx;
+  const struct mux_ops *mux;
+  struct stream *owner;
+  unsigned int hard_calls, clean_calls, close_notify, quiet;
+  unsigned int hard_order, clean_order, stream_shutdowns;
+};
+struct sedesc { struct connection *conn; unsigned int flags; };
+struct stconn { unsigned int flags, aborts, shutdowns; struct sedesc *sedesc; };
+static int sc_ep_test(const struct stconn *sc, unsigned int flags) {
+  return (sc->sedesc->flags & flags) != 0;
+}
+/* HAPROXY_TRANSPORT_API_BEGIN */
+/* Pinned HAProxy 3.2.25 public inline bodies; controlled endpoint structs. */
+static inline int conn_xprt_ready(const struct connection *conn)
+{
+	return (conn->flags & CO_FL_XPRT_READY);
+}
+
+static inline const char *conn_get_mux_name(const struct connection *conn)
+{
+	if (!conn || !conn->mux)
+		return "NONE";
+	return conn->mux->name;
+}
+
+static inline void conn_xprt_shutw(struct connection *c)
+{
+	/* clean data-layer shutdown */
+	if (c->xprt && c->xprt->shutw)
+		c->xprt->shutw(c, c->xprt_ctx, 1);
+}
+
+static inline void conn_xprt_shutw_hard(struct connection *c)
+{
+	/* unclean data-layer shutdown */
+	if (c->xprt && c->xprt->shutw)
+		c->xprt->shutw(c, c->xprt_ctx, 0);
+}
+
+static inline struct connection *__sc_conn(const struct stconn *sc)
+{
+	return sc->sedesc->conn;
+}
+
+static inline struct connection *sc_conn(const struct stconn *sc)
+{
+	if (sc_ep_test(sc, SE_FL_T_MUX))
+		return __sc_conn(sc);
+	return NULL;
+}
+/* HAPROXY_TRANSPORT_API_END */
 struct stream {
   struct http_txn *txn;
   unsigned int replies;
@@ -78,6 +138,10 @@ struct stream {
   struct channel res;
   struct stconn frontend;
   struct stconn *scf;
+  struct stconn backend, *scb;
+  struct connection client_conn, server_conn;
+  struct sedesc client_desc, server_desc;
+  unsigned int stream_abort_order, async_order;
   size_t delivered_bytes;
 };
 struct filter {
@@ -129,6 +193,37 @@ static int cancel_calls;
 static struct stream *observed_stream;
 static int register_calls;
 static int unregistered;
+static unsigned int call_sequence;
+static const struct mux_ops fixture_h1_mux = {"H1"};
+static const struct mux_ops fixture_h2_mux = {"H2"};
+static const struct mux_ops fixture_unknown_mux = {"OTHER"};
+/* Model the independently traced ssl_sock_shutw contract. This is not wire
+ * evidence: only a real host/client retest can establish the TLS result. */
+static void fixture_tls_shutw(struct connection *conn, void *context, int clean) {
+  assert(context == conn && conn->owner != NULL);
+  if (!clean) {
+    conn->hard_calls++; conn->quiet = 1; conn->hard_order = ++call_sequence;
+    assert(conn->owner->res.output == 0);
+  } else {
+    conn->clean_calls++; conn->clean_order = ++call_sequence;
+    if (!conn->quiet) conn->close_notify++;
+  }
+}
+static const struct xprt_ops fixture_tls = {fixture_tls_shutw};
+static const struct xprt_ops fixture_raw = {NULL};
+static void initialize_transports(struct stream *s) {
+  memset(&s->frontend, 0, sizeof(s->frontend));
+  memset(&s->backend, 0, sizeof(s->backend));
+  s->client_conn = (struct connection){.flags=CO_FL_XPRT_READY,
+    .xprt=&fixture_tls, .mux=&fixture_h1_mux, .owner=s};
+  s->server_conn = s->client_conn;
+  s->client_conn.xprt_ctx = &s->client_conn;
+  s->server_conn.xprt_ctx = &s->server_conn;
+  s->client_desc = (struct sedesc){&s->client_conn, SE_FL_T_MUX};
+  s->server_desc = (struct sedesc){&s->server_conn, SE_FL_T_MUX};
+  s->frontend.sedesc=&s->client_desc; s->backend.sedesc=&s->server_desc;
+  s->scf=&s->frontend; s->scb=&s->backend;
+}
 static void http_set_term_flags(const struct stream *s) { (void)s; }
 static void *http_error_message(const struct stream *s) {
   (void)s;
@@ -143,13 +238,23 @@ void channel_htx_erase(struct channel *channel, struct htx *htx) {
   (void)htx;
   channel->output = 0;
   channel->buf = 0;
+  channel->erase_order = ++call_sequence;
 }
-void stream_abort(struct stream *s) { s->stream_aborts++; }
+void stream_abort(struct stream *s) { s->stream_aborts++; s->stream_abort_order=++call_sequence; }
 void sc_abort(struct stconn *sc) { sc->aborts++; }
-void sc_shutdown(struct stconn *sc) { sc->shutdowns++; }
+void sc_shutdown(struct stconn *sc) {
+  sc->shutdowns++;
+  if (!sc->sedesc) return;
+  struct connection *conn=sc_conn(sc);
+  if (!conn || !conn_xprt_ready(conn)) return;
+  const char *mux=conn_get_mux_name(conn);
+  if (mux && strcmp(mux,"H1")==0) conn_xprt_shutw(conn);
+  else if (mux && strcmp(mux,"H2")==0) conn->stream_shutdowns++;
+}
 static void stream_shutdown(struct stream *s, unsigned int reason) {
   assert(reason == SF_ERR_KILLED);
   s->kills++;
+  s->async_order = ++call_sequence;
 }
 static void unregister_data_filter(const struct stream *s,
                                    const struct channel *c,
@@ -435,8 +540,9 @@ static void reset(struct haproxy_modsecurity_htx_filter_context *c,
   s->stream_aborts = 0;
   s->res.output = 0;
   s->delivered_bytes = 0;
-  memset(&s->frontend, 0, sizeof(s->frontend));
-  s->scf = &s->frontend;
+  initialize_transports(s);
+  call_sequence = 0;
+  s->res.erase_order = s->stream_abort_order = s->async_order = 0;
   native_disruptive = 0;
   native_result = 1;
   common_result = 1;
@@ -480,6 +586,7 @@ static void initialize_environment(struct fixture_environment *e) {
   e->f = (struct filter){&e->c, &e->config};
   e->s.txn = &e->txn;
   e->neighbour.txn = &e->txn;
+  initialize_transports(&e->neighbour);
   e->response_channel.flags = CF_ISRESP;
   e->req.chn = &e->request_channel;
   e->res.chn = &e->response_channel;
@@ -710,6 +817,12 @@ static void check_strict_queued_response(struct fixture_environment *e) {
             assert(e->s.res.output == 0 && e->s.stream_aborts == 1);
             assert(e->s.frontend.aborts == 1 && e->s.frontend.shutdowns == 1);
             assert(e->s.frontend.flags & SC_FL_NOLINGER);
+            assert(e->s.client_conn.hard_calls==1 && e->s.client_conn.clean_calls==1);
+            assert(e->s.client_conn.close_notify==0);
+            assert(e->s.res.erase_order < e->s.client_conn.hard_order);
+            assert(e->s.client_conn.hard_order < e->s.stream_abort_order);
+            assert(e->s.client_conn.hard_order < e->s.client_conn.clean_order);
+            assert(e->s.client_conn.clean_order < e->s.async_order);
             assert(outcome_calls == 0); /* shutdown is not invented wire observation */
             int terminal_calls = abort_calls + release_calls;
             assert(haproxy_modsecurity_htx_filter_http_end(&e->s, &e->f, &e->res) == -1);
@@ -718,11 +831,66 @@ static void check_strict_queued_response(struct fixture_environment *e) {
             assert(result == 1 && e->s.res.output == queued[n]);
             assert(e->s.stream_aborts == 0);
             assert(e->s.frontend.aborts == 0 && e->s.frontend.shutdowns == 0);
+            assert(e->s.client_conn.hard_calls==0 && e->s.client_conn.clean_calls==0);
           }
           assert(e->neighbour.kills == 0 && e->neighbour.replies == 0);
+          assert(e->neighbour.client_conn.hard_calls==0 && e->neighbour.client_conn.clean_calls==0);
+          assert(e->s.server_conn.hard_calls==0 && e->s.server_conn.clean_calls==0);
         }
       }
     }
+  }
+}
+static void check_strict_transport_endpoints(struct fixture_environment *e) {
+  haproxy_modsecurity_htx_abort_response_stream(NULL);
+  for (int endpoint=0; endpoint<11; ++endpoint) {
+    reset(&e->c,&e->s);
+    e->s.res.output=33;
+    struct mux_ops nameless={NULL};
+    switch(endpoint) {
+      case 0: e->s.scf=NULL; break;
+      case 1: e->s.frontend.sedesc=NULL; break;
+      case 2: e->s.client_desc.flags=0; break;
+      case 3: e->s.client_desc.conn=NULL; break;
+      case 4: e->s.client_conn.flags=0; e->s.client_conn.xprt_ctx=NULL; break;
+      case 5: e->s.client_conn.xprt=&fixture_raw; e->s.client_conn.xprt_ctx=NULL; break;
+      case 6: e->s.client_conn.xprt=NULL; break;
+      case 7: e->s.client_conn.mux=&fixture_unknown_mux; break;
+      case 8:
+        e->s.client_conn.mux=&fixture_h2_mux;
+        e->neighbour.client_desc.conn=&e->s.client_conn;
+        break;
+      case 9: e->s.client_conn.mux=NULL; break;
+      case 10: e->s.client_conn.mux=&nameless; break;
+    }
+    haproxy_modsecurity_htx_abort_response_stream(&e->s);
+    assert(e->s.res.output==0 && e->s.kills==1);
+    assert(e->s.client_conn.hard_calls==0);
+    assert(e->s.server_conn.hard_calls==0 && e->s.server_conn.clean_calls==0);
+    if(endpoint==8) {
+      /* Existing H2 stream-shutdown path stays intact; no shared TLS close. */
+      assert(e->s.client_conn.stream_shutdowns==1);
+      assert(e->s.client_conn.clean_calls==0 && e->s.client_conn.quiet==0);
+      assert(e->neighbour.frontend.sedesc->conn==&e->s.client_conn);
+      assert(e->neighbour.frontend.sedesc->conn->hard_calls==0);
+      e->neighbour.client_desc.conn=&e->neighbour.client_conn;
+    }
+    assert(e->neighbour.frontend.aborts==0 && e->neighbour.frontend.shutdowns==0);
+    assert(e->neighbour.client_conn.hard_calls==0 && e->neighbour.client_conn.clean_calls==0);
+  }
+}
+static void check_strict_allow_keeps_transport(struct fixture_environment *e) {
+  for (int companion=0;companion<2;++companion) {
+    reset(&e->c,&e->s);
+    e->config.common_config.phase4_mode=MSCONNECTOR_PHASE4_MODE_STRICT;
+    e->c.companion.mode=companion;
+    if(companion)e->c.transaction=NULL;
+    e->c.response.headers_committed=1;
+    e->s.res.output=33;
+    native_result=0;native_disruptive=0;decision_kind=MSCONNECTOR_DECISION_KIND_ALLOW;
+    assert(haproxy_modsecurity_htx_filter_http_end(&e->s,&e->f,&e->res)==1);
+    assert(e->s.res.output==33 && e->s.kills==0);
+    assert(e->s.client_conn.hard_calls==0 && e->s.client_conn.clean_calls==0);
   }
 }
 static void check_request_version(void) {
@@ -762,6 +930,8 @@ int main(void) {
     check_eos(&e);
   }
   check_strict_queued_response(&e);
+  check_strict_transport_endpoints(&e);
+  check_strict_allow_keeps_transport(&e);
   puts("HAProxy HTX direct/companion: Off/Safe/Strict config x pre/header/body "
        "x terminal reentry; native, commit, EOS, close, checked "
        "OPEN/CLAIM/RELEASE and nested success");
