@@ -31,6 +31,7 @@
 #include <haproxy/api.h>
 #include <haproxy/channel-t.h>
 #include <haproxy/channel.h>
+#include <haproxy/connection.h>
 #include <haproxy/errors.h>
 #include <haproxy/filters.h>
 #include <haproxy/http_ana.h>
@@ -39,6 +40,7 @@
 #include <haproxy/htx.h>
 #include <haproxy/init.h>
 #include <haproxy/sc_strm.h>
+#include <haproxy/stconn.h>
 #include <haproxy/stream.h>
 #include <haproxy/sample.h>
 #include <haproxy/vars.h>
@@ -47,6 +49,11 @@
 #include "haproxy_modsecurity_binding.h"
 #include "response_companion_client.h"
 #include "msconnector/block_statuses.h"
+#include <pthread.h>
+#include <stdio.h>
+#include <unistd.h>
+#include "msconnector/event_jsonl.h"
+#include "msconnector/event_protocol.h"
 #include "msconnector/config.h"
 #include "msconnector/config_parser.h"
 #include "msconnector/decision_action.h"
@@ -69,6 +76,11 @@ const char *haproxy_modsecurity_htx_filter_id = "modsecurity-htx streaming filte
 
 struct haproxy_modsecurity_htx_filter_config {
     char *rules_file;
+    char *events_path;
+    FILE *events_file;
+    pthread_mutex_t events_lock;
+    int events_lock_initialized;
+    msconnector_error events_error;
     char *response_companion_socket;
     uint64_t response_companion_timeout_ms;
     uid_t response_companion_uid;
@@ -87,6 +99,7 @@ struct haproxy_modsecurity_htx_owned_headers {
 };
 
 struct haproxy_modsecurity_htx_filter_context {
+    struct haproxy_modsecurity_htx_filter_config *config;
     haproxy_modsecurity_transaction *transaction;
     struct {
         char transaction_id[128];
@@ -107,6 +120,7 @@ struct haproxy_modsecurity_htx_filter_context {
     } request;
     struct {
         int headers_seen;
+        int original_status;
         int headers_committed;
         int body_started;
         int finished;
@@ -459,11 +473,144 @@ static int haproxy_modsecurity_htx_copy_headers(
     return 0;
 }
 
-static void haproxy_modsecurity_htx_report_decision(
-    const char *stage, const struct haproxy_modsecurity_htx_filter_context *ctx,
+/* Sink failure is sticky for every later request, including ordinary Allow
+ * results which intentionally emit no Common decision event. */
+static int haproxy_modsecurity_htx_event_sink_failed(
+    struct haproxy_modsecurity_htx_filter_context *ctx, int observed_phase)
+{
+    struct haproxy_modsecurity_htx_filter_config *config = ctx ? ctx->config : NULL;
+    int failed;
+    if (config == NULL || config->events_path == NULL) { return 0; }
+    if (!config->events_lock_initialized ||
+            pthread_mutex_lock(&config->events_lock) != 0) { failed = 1; }
+    else {
+        failed = config->events_error.code != MSCONNECTOR_ERROR_NONE ||
+            config->events_file == NULL;
+        (void)pthread_mutex_unlock(&config->events_lock);
+    }
+    if (failed) {
+        if (ctx->lifecycle.error.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+            ctx->lifecycle.error.error_class = MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
+            ctx->lifecycle.error.phase = observed_phase >= 1 && observed_phase <= 4 ?
+                observed_phase : (ctx->response.headers_seen ? 4 :
+                (ctx->request.finished ? 3 : (ctx->request.headers_seen ? 2 : 1)));
+            ctx->lifecycle.error.status = 503;
+            ctx->lifecycle.error.disruptive = 1;
+            (void)snprintf(ctx->lifecycle.error.action,
+                sizeof(ctx->lifecycle.error.action), "deny");
+        }
+        ctx->lifecycle.fail_closed = 1;
+    }
+    return failed;
+}
+
+static int haproxy_modsecurity_htx_write_event(
+    struct haproxy_modsecurity_htx_filter_context *ctx,
     const haproxy_modsecurity_decision *decision)
 {
-    if (!decision || !decision->disruptive) {
+    struct haproxy_modsecurity_htx_filter_config *config = ctx ? ctx->config : NULL;
+    msconnector_event event;
+    char line[8192];
+    char rule_id[32];
+    const char *id;
+    int ok;
+    static const enum msconnector_phase phases[] = {
+        MSCONNECTOR_PHASE_REQUEST_HEADERS, MSCONNECTOR_PHASE_REQUEST_BODY,
+        MSCONNECTOR_PHASE_RESPONSE_HEADERS, MSCONNECTOR_PHASE_RESPONSE_BODY};
+    if (config == NULL || config->events_path == NULL) { return 1; }
+    if (haproxy_modsecurity_htx_event_sink_failed(ctx, decision ? decision->phase : 0)) { return 0; }
+    if (decision == NULL) { return 0; }
+    if (!decision->disruptive &&
+            decision->error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) { return 1; }
+    if (pthread_mutex_lock(&config->events_lock) != 0) {
+        ctx->lifecycle.fail_closed = 1;
+        if (ctx->lifecycle.error.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+            ctx->lifecycle.error.error_class = MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
+            ctx->lifecycle.error.phase = decision->phase;
+        }
+        return 0;
+    }
+    if (decision->phase < 1 || decision->phase > 4) {
+        msconnector_error_set(&config->events_error, MSCONNECTOR_ERROR_INTERNAL,
+            "native event phase is invalid", "haproxy-htx");
+        (void)pthread_mutex_unlock(&config->events_lock);
+        (void)haproxy_modsecurity_htx_event_sink_failed(ctx, decision ? decision->phase : 0);
+        return 0;
+    }
+    msconnector_event_init(&event);
+    id = decision->phase <= 2 ? MSCONN_EVENT_REQUEST_BLOCKED : MSCONN_EVENT_RESPONSE_BLOCKED;
+    switch (decision->error_class) {
+    case MSCONNECTOR_TRANSACTION_ERROR_NONE: break;
+    case MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT: id = MSCONN_EVENT_BODY_LIMIT; break;
+    case MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE: id = MSCONN_EVENT_INVALID_ENGINE_RESPONSE; break;
+    case MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT: id = MSCONN_EVENT_ENGINE_TIMEOUT; break;
+    case MSCONNECTOR_TRANSACTION_ERROR_ENGINE_UNAVAILABLE: id = MSCONN_EVENT_ENGINE_UNAVAILABLE; break;
+    case MSCONNECTOR_TRANSACTION_ERROR_CLIENT_CANCEL: id = MSCONN_EVENT_CLIENT_CANCEL; break;
+    case MSCONNECTOR_TRANSACTION_ERROR_UPSTREAM_DISCONNECT: id = MSCONN_EVENT_UPSTREAM_DISCONNECT; break;
+    case MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL:
+    case MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE:
+    case MSCONNECTOR_TRANSACTION_ERROR_CORRELATION_MISSING:
+    case MSCONNECTOR_TRANSACTION_ERROR_CORRELATION_EXPIRED:
+    case MSCONNECTOR_TRANSACTION_ERROR_CORRELATION_MISMATCH: id = MSCONN_EVENT_PROTOCOL_ERROR; break;
+    default: id = MSCONN_EVENT_CONNECTOR_ERROR; break;
+    }
+    (void)snprintf(rule_id, sizeof(rule_id), "%d", decision->rule_id);
+    event.meta.connector = "haproxy";
+    event.meta.integration_mode = "native-htx";
+    event.meta.transaction_id = ctx->lifecycle.transaction_id;
+    event.meta.message_id = id;
+    event.decision.phase = phases[decision->phase - 1];
+    event.decision.status = decision->error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE &&
+        decision->error_class != MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT ?
+        MSCONNECTOR_STATUS_ERROR : MSCONNECTOR_STATUS_BLOCKED;
+    event.decision.requested_action = decision->action[0] ? decision->action : "deny";
+    event.decision.action = event.decision.requested_action;
+    event.decision.actual_action = "";
+    event.decision.rule_id = decision->error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE &&
+        decision->rule_id > 0 ? rule_id : "";
+    event.decision.reason = decision->error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE ?
+        "native_rule_intervention" : (decision->error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT ?
+            (decision->phase == 4 ? "response_body_limit_exceeded" : "request_body_limit_exceeded") :
+            msconnector_event_protocol_error_name(id));
+    event.http.http_status = decision->status;
+    event.http.original_http_status = ctx->response.original_status;
+    event.http.transport_result = "not_observable";
+    event.flags.response_committed = ctx->response.headers_committed;
+    event.flags.headers_sent = ctx->response.headers_committed;
+    event.flags.body_started = ctx->response.body_started;
+    event.flags.response_started = ctx->response.headers_committed;
+    event.flags.eos_seen = decision->phase == 2 ? ctx->request.finished :
+        (decision->phase == 4 ? ctx->response.finished : 0);
+    event.flags.late_intervention = decision->phase == 4 && ctx->response.headers_committed;
+    event.flags.late_intervention_mode = config->common_config.phase4_mode ==
+        MSCONNECTOR_PHASE4_MODE_STRICT ? "strict" : "safe";
+    ok = msconnector_event_write_jsonl_stream(&event, config->events_file,
+        line, sizeof(line), &config->events_error);
+    (void)pthread_mutex_unlock(&config->events_lock);
+    if (!ok) {
+        if (ctx->lifecycle.error.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+            if (decision->error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+                ctx->lifecycle.error = *decision;
+            } else {
+                ctx->lifecycle.error.error_class = MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
+                ctx->lifecycle.error.phase = decision->phase;
+                ctx->lifecycle.error.status = 503;
+                ctx->lifecycle.error.disruptive = 1;
+                (void)snprintf(ctx->lifecycle.error.action,
+                    sizeof(ctx->lifecycle.error.action), "deny");
+            }
+        }
+        (void)haproxy_modsecurity_htx_event_sink_failed(ctx, decision ? decision->phase : 0);
+    }
+    return ok;
+}
+
+static void haproxy_modsecurity_htx_report_decision(
+    const char *stage, struct haproxy_modsecurity_htx_filter_context *ctx,
+    const haproxy_modsecurity_decision *decision)
+{
+    if (!haproxy_modsecurity_htx_write_event(ctx, decision) ||
+            !decision || !decision->disruptive) {
         return;
     }
     /* Do not include decision->log_message, URI, headers, or body bytes. */
@@ -475,7 +622,7 @@ static void haproxy_modsecurity_htx_report_decision(
 
 static void haproxy_modsecurity_htx_report_late_decision(
     const struct haproxy_modsecurity_htx_filter_config *config,
-    const struct haproxy_modsecurity_htx_filter_context *ctx,
+    struct haproxy_modsecurity_htx_filter_context *ctx,
     const haproxy_modsecurity_decision *decision)
 {
     msconnector_late_intervention_policy policy;
@@ -485,11 +632,11 @@ static void haproxy_modsecurity_htx_report_late_decision(
     const char *host_action;
     int strict_mode;
 
-    if (!decision || !decision->disruptive) {
+    if (!haproxy_modsecurity_htx_write_event(ctx, decision) ||
+            !decision || !decision->disruptive) {
         return;
     }
     if (config != NULL && config->common_config.phase4_mode == MSCONNECTOR_PHASE4_MODE_OFF) {
-        haproxy_modsecurity_htx_report_decision("response-body", ctx, decision);
         return;
     }
     strict_mode = config != NULL &&
@@ -576,6 +723,7 @@ static void haproxy_modsecurity_htx_report_error(
         }
         ctx->lifecycle.error.phase = haproxy_modsecurity_htx_error_phase(ctx);
     }
+    if (!haproxy_modsecurity_htx_write_event(ctx, &ctx->lifecycle.error)) { return; }
     if (haproxy_modsecurity_error_event_write(&ctx->lifecycle.error,
             ctx->lifecycle.transaction_id, line, sizeof(line))) {
         ctx->lifecycle.error_emitted = 1;
@@ -682,6 +830,17 @@ static void haproxy_modsecurity_htx_abort_response_stream(struct stream *s)
         return;
     }
     channel_htx_erase(&s->res, htxbuf(&s->res.buf));
+    if (s->scf != NULL && s->scf->sedesc != NULL) {
+        struct connection *connection = sc_conn(s->scf);
+        const char *mux = conn_get_mux_name(connection);
+        /* H1 SILENT mux shutdown still calls the transport with clean=1.
+         * Latch unclean TLS shutdown first. H2 keeps its stream shutdown:
+         * closing its shared transport would also terminate neighbour streams. */
+        if (connection != NULL && conn_xprt_ready(connection) &&
+                mux != NULL && strcmp(mux, "H1") == 0) {
+            conn_xprt_shutw_hard(connection);
+        }
+    }
     stream_abort(s);
     if (s->scf != NULL) {
         s->scf->flags |= SC_FL_NOLINGER;
@@ -857,6 +1016,7 @@ static int haproxy_modsecurity_htx_begin_request(
         return -1;
     }
     haproxy_modsecurity_htx_report_decision("request", ctx, &decision);
+    if (ctx->lifecycle.fail_closed) { return -1; }
     if (decision.disruptive) {
         /* P1 is still before the request is committed.  Translate a valid
          * deny through HAProxy's native reply path; every other disruptive
@@ -999,7 +1159,9 @@ static int haproxy_modsecurity_htx_process_response_headers(
         return -1;
     }
     ctx->response.headers_seen = 1;
+    ctx->response.original_status = response.status;
     haproxy_modsecurity_htx_report_decision("response-header", ctx, &decision);
+    if (ctx->lifecycle.fail_closed) { return -1; }
     if (decision.disruptive) {
         /* P3 remains pre-commit.  Only a validated deny has a native
          * HAProxy response translation; all other disruptive decisions use
@@ -1457,6 +1619,20 @@ static int haproxy_modsecurity_htx_finish_companion_response(
     return 1;
 }
 
+static void haproxy_modsecurity_htx_close_events(
+    struct haproxy_modsecurity_htx_filter_config *config)
+{
+    if (!msconnector_event_file_close(&config->events_file, &config->events_error)) {
+        ha_alert("modsecurity-htx: events-file close or prior sink failure\n");
+    }
+    if (config->events_lock_initialized) {
+        (void)pthread_mutex_destroy(&config->events_lock);
+        config->events_lock_initialized = 0;
+    }
+    free(config->events_path);
+    config->events_path = NULL;
+}
+
 static int haproxy_modsecurity_htx_filter_init(struct proxy *px, struct flt_conf *fconf)
 {
     struct haproxy_modsecurity_htx_filter_config *config = fconf->conf;
@@ -1467,6 +1643,20 @@ static int haproxy_modsecurity_htx_filter_init(struct proxy *px, struct flt_conf
     if (!config) {
         ha_alert("modsecurity-htx: filter configuration is required\n");
         return -1;
+    }
+    if (config->events_path != NULL) {
+        int fd = -1;
+        if (pthread_mutex_init(&config->events_lock, NULL) != 0) { return -1; }
+        config->events_lock_initialized = 1;
+        if (!msconnector_open_private_event_file(config->events_path, &fd)) {
+            ha_alert("modsecurity-htx: events-file is not a secure private event file\n");
+            haproxy_modsecurity_htx_close_events(config);
+            return -1;
+        }
+        config->events_file = fdopen(fd, "a");
+        if (config->events_file == NULL) {
+            (void)close(fd); haproxy_modsecurity_htx_close_events(config); return -1;
+        }
     }
     if (haproxy_modsecurity_htx_companion_enabled(config)) {
         fconf->flags |= FLT_CFG_FL_HTX;
@@ -1482,6 +1672,7 @@ static int haproxy_modsecurity_htx_filter_init(struct proxy *px, struct flt_conf
     engine_config.rules_file = config->rules_file;
     if (haproxy_modsecurity_engine_create(&engine_config, &config->engine, &decision) != 0) {
         ha_alert("modsecurity-htx: failed to initialize the ModSecurity engine\n");
+        haproxy_modsecurity_htx_close_events(config);
         return -1;
     }
     fconf->flags |= FLT_CFG_FL_HTX;
@@ -1499,6 +1690,7 @@ static void haproxy_modsecurity_htx_filter_deinit(struct proxy *px, struct flt_c
     if (config->engine != NULL) {
         haproxy_modsecurity_engine_destroy(config->engine);
     }
+    haproxy_modsecurity_htx_close_events(config);
     free(config->rules_file);
     free(config->response_companion_socket);
     free(config);
@@ -1517,6 +1709,7 @@ static int haproxy_modsecurity_htx_filter_attach(struct stream *s, struct filter
         free(ctx);
         return -1;
     }
+    ctx->config = config;
     ctx->companion.mode =
         haproxy_modsecurity_htx_companion_enabled(config);
     filter->ctx = ctx;
@@ -1773,6 +1966,10 @@ static int haproxy_modsecurity_htx_finish_request(
         return 1;
     }
     haproxy_modsecurity_htx_report_decision("request-body", ctx, &decision);
+    if (ctx->lifecycle.fail_closed) {
+        haproxy_modsecurity_htx_fail_closed_request_phase(s, ctx, "request event sink");
+        return 1;
+    }
     if (decision.disruptive) {
         /* P2 can be reached after HAProxy has borrowed a current DATA slice,
          * but before P3 it still has a valid local reply path.  Scheduler
@@ -1836,6 +2033,11 @@ static int haproxy_modsecurity_htx_finish_response(
         return -1;
     }
     haproxy_modsecurity_htx_report_late_decision(config, ctx, &decision);
+    if (ctx->lifecycle.fail_closed) {
+        haproxy_modsecurity_htx_fail_closed_postcommit(s, ctx, "response event sink");
+        unregister_data_filter(s, msg->chn, filter);
+        return -1;
+    }
     if (decision.disruptive && (config == NULL ||
             config->common_config.phase4_mode != MSCONNECTOR_PHASE4_MODE_OFF)) {
         msconnector_late_intervention_policy_init(&policy);
@@ -1972,6 +2174,7 @@ static void haproxy_modsecurity_htx_filter_config_destroy(
     if (config == NULL) {
         return;
     }
+    haproxy_modsecurity_htx_close_events(config);
     free(config->rules_file);
     free(config->response_companion_socket);
     free(config);
@@ -1982,6 +2185,20 @@ enum haproxy_modsecurity_htx_parse_result {
     HAPROXY_MODSECURITY_HTX_PARSE_HANDLED,
     HAPROXY_MODSECURITY_HTX_PARSE_ERROR
 };
+
+static int parse_events_option(
+    struct haproxy_modsecurity_htx_filter_config *config,
+    char **args, int pos, char **err)
+{
+    if (strcmp(args[pos], "events-file") != 0) { return HAPROXY_MODSECURITY_HTX_PARSE_UNHANDLED; }
+    if (args[pos + 1] == NULL || args[pos + 1][0] == '\0' || config->events_path != NULL) {
+        memprintf(err, "events-file requires one nonempty private path");
+        return HAPROXY_MODSECURITY_HTX_PARSE_ERROR;
+    }
+    config->events_path = strdup(args[pos + 1]);
+    if (config->events_path == NULL) { return HAPROXY_MODSECURITY_HTX_PARSE_ERROR; }
+    return HAPROXY_MODSECURITY_HTX_PARSE_HANDLED;
+}
 
 static int parse_owned_path_option(
     struct haproxy_modsecurity_htx_filter_config *config,
@@ -2105,7 +2322,10 @@ static int haproxy_modsecurity_htx_filter_parse(
     msconnector_config_apply_defaults(&config->common_config);
     pos = *cur_arg + 1;
     while (args[pos] != NULL && args[pos][0] != '\0') {
-        int handled = parse_owned_path_option(config, args, pos, err, *cur_arg, 0);
+        int handled = parse_events_option(config, args, pos, err);
+        if (handled == HAPROXY_MODSECURITY_HTX_PARSE_UNHANDLED) {
+            handled = parse_owned_path_option(config, args, pos, err, *cur_arg, 0);
+        }
         if (handled == HAPROXY_MODSECURITY_HTX_PARSE_UNHANDLED) {
             handled = parse_owned_path_option(config, args, pos, err, *cur_arg, 1);
         }
