@@ -86,6 +86,61 @@ def index_rows(rows, label):
     return index
 
 
+def compact_oracles(original_oracles, indexed):
+    source_bindings = {}
+    compact_oracles = []
+    for oracle in original_oracles:
+        case_id = oracle["run_scoped_case_id"]
+        if case_id not in indexed or not oracle["original_596_member"]:
+            raise ValueError(f"Wrong original oracle membership: {case_id}")
+        if oracle["original_selected_requirement"] != indexed[case_id]["selected_requirement"]:
+            raise ValueError(f"Changed original requirement: {case_id}")
+        binding = {key: oracle[key] for key in
+                   ("original_source_revision", "original_source_hashes")}
+        binding_id = digest(binding)
+        source_bindings[binding_id] = binding
+        compact = {k: v for k, v in oracle.items() if k not in binding}
+        compact["original_source_binding_sha256"] = binding_id
+        compact["original_row_sha256"] = digest(oracle)
+        compact_oracles.append(compact)
+    return compact_oracles, source_bindings
+
+
+def compact_cases(rows, route):
+    compact_rows = []
+    for row in rows:
+        if row["required_leg"] != (route != DIAGNOSTIC):
+            raise ValueError(f"Diagnostic/required route confusion: {route}")
+        if route == DIAGNOSTIC and row.get("qualification_scope") == "full_host_lifecycle":
+            raise ValueError("Stock-native diagnostic cannot inherit body-streaming lifecycle qualification")
+        compact_rows.append({
+            "run_scoped_case_id": row["run_scoped_case_id"],
+            "leg_id": route, "required_leg": row["required_leg"],
+            "selected_requirement": row["selected_requirement"],
+            **{field: row.get(field) for field in STATUS_FIELDS},
+            "original_row_sha256": digest(row),
+        })
+    return compact_rows
+
+
+def route_summary(rows, original_oracles, route):
+    lifecycle = sum(r.get("qualified_host_lifecycle_pass") is True for r in rows)
+    config = sum(r["status"] == "PASS" and r.get("qualification_scope") !=
+                 "full_host_lifecycle" for r in rows)
+    return {
+        "original_ids": len(rows),
+        "required_leg": route != DIAGNOSTIC,
+        "execution_observed": sum(r["execution_observed"] is True for r in rows),
+        "full_lifecycle_pass": lifecycle,
+        "configuration_only_pass": config,
+        "unqualified_ids": sum(r["status"] != "PASS" for r in rows),
+        "original_oracles": len(original_oracles),
+        "resolved_original_oracles": sum(r["resolved"] is True for r in original_oracles),
+        "unresolved_original_oracles": sum(r["resolved"] is not True for r in original_oracles),
+        "oracle_categories": dict(Counter(r["category"] for r in original_oracles)),
+    }
+
+
 def reconcile(ledger, oracles, sources, supplemental=None):
     """Return six route files and summary; never mutate either input."""
     supplemental = supplemental or {}
@@ -103,51 +158,10 @@ def reconcile(ledger, oracles, sources, supplemental=None):
         original_oracles = [r for r in oracles["oracle_matrix"] if r["leg_id"] == route]
         if len(rows) != case_count or len(original_oracles) != oracle_count:
             raise ValueError(f"Wrong original membership count for {route}")
-        indexed = {r["run_scoped_case_id"]: r for r in rows}
-        source_bindings = {}
-        compact_oracles = []
-        for oracle in original_oracles:
-            case_id = oracle["run_scoped_case_id"]
-            if case_id not in indexed or not oracle["original_596_member"]:
-                raise ValueError(f"Wrong original oracle membership: {case_id}")
-            if oracle["original_selected_requirement"] != indexed[case_id]["selected_requirement"]:
-                raise ValueError(f"Changed original requirement: {case_id}")
-            binding = {key: oracle[key] for key in
-                       ("original_source_revision", "original_source_hashes")}
-            binding_id = digest(binding)
-            source_bindings[binding_id] = binding
-            compact = {k: v for k, v in oracle.items() if k not in binding}
-            compact["original_source_binding_sha256"] = binding_id
-            compact["original_row_sha256"] = digest(oracle)
-            compact_oracles.append(compact)
-        compact_rows = []
-        for row in rows:
-            if row["required_leg"] != (route != DIAGNOSTIC):
-                raise ValueError(f"Diagnostic/required route confusion: {route}")
-            if route == DIAGNOSTIC and row.get("qualification_scope") == "full_host_lifecycle":
-                raise ValueError("Stock-native diagnostic cannot inherit body-streaming lifecycle qualification")
-            compact_rows.append({
-                "run_scoped_case_id": row["run_scoped_case_id"],
-                "leg_id": route, "required_leg": row["required_leg"],
-                "selected_requirement": row["selected_requirement"],
-                **{field: row.get(field) for field in STATUS_FIELDS},
-                "original_row_sha256": digest(row),
-            })
-        lifecycle = sum(r.get("qualified_host_lifecycle_pass") is True for r in rows)
-        config = sum(r["status"] == "PASS" and r.get("qualification_scope") !=
-                     "full_host_lifecycle" for r in rows)
-        summaries[route] = {
-            "original_ids": len(rows),
-            "required_leg": route != DIAGNOSTIC,
-            "execution_observed": sum(r["execution_observed"] is True for r in rows),
-            "full_lifecycle_pass": lifecycle,
-            "configuration_only_pass": config,
-            "unqualified_ids": sum(r["status"] != "PASS" for r in rows),
-            "original_oracles": len(original_oracles),
-            "resolved_original_oracles": sum(r["resolved"] is True for r in original_oracles),
-            "unresolved_original_oracles": sum(r["resolved"] is not True for r in original_oracles),
-            "oracle_categories": dict(Counter(r["category"] for r in original_oracles)),
-        }
+        compact_oracle_rows, source_bindings = compact_oracles(
+            original_oracles, {r["run_scoped_case_id"]: r for r in rows})
+        compact_rows = compact_cases(rows, route)
+        summaries[route] = route_summary(rows, original_oracles, route)
         common = {"schema": "lighttpd-i12-inherited-ledger-v1", "route": route,
                   "qualification_performed_by_exporter": False,
                   "new_evidence_refs": supplemental.get(route, []),
@@ -155,7 +169,7 @@ def reconcile(ledger, oracles, sources, supplemental=None):
                   "input_sources": sources, "summary": summaries[route]}
         files[f"{route}-cases.json"] = {**common, "rows": compact_rows}
         files[f"{route}-oracles.json"] = {**common,
-            "original_source_bindings": source_bindings, "rows": compact_oracles}
+            "original_source_bindings": source_bindings, "rows": compact_oracle_rows}
     files["summary.json"] = {"schema": "lighttpd-i12-inherited-summary-v1",
         "qualification_performed_by_exporter": False, "input_sources": sources,
         "routes": summaries}
