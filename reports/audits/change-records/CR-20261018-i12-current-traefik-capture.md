@@ -53,3 +53,5 @@ Host execution and hosted CI/Sonar were not run by this source-only subtask; the
 ## Final diff and review status
 
 Focused source tests passed. Root integration and independent review remain pending; unrelated gate edits in the shared worktree were preserved.
+
+During normal integration of parallel commit `61e45cf6dd211f21835709a014fe6884d4bcda62`, Root verified that its three HAProxy frozen objects reproduce exactly the same original byte hashes. The merged manifest uses those published `objects/text/` paths and removes this task's duplicate files; all original object IDs, source bytes, capture results and current Traefik base guards remain unchanged. The original commits remain in history. The parallel lighttpd anchors and exact parser-exit repair are preserved.

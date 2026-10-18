@@ -53,3 +53,5 @@ Hostausführung und gehostete CI/Sonar wurden in dieser reinen Quellteilaufgabe 
 ## Finaler Diff- und Review-Status
 
 Gezielte Quelltests bestanden. Root-Integration und unabhängiges Review stehen aus; unabhängige Gate-Änderungen im gemeinsamen Worktree blieben erhalten.
+
+Bei der normalen Integration des parallelen Commits `61e45cf6dd211f21835709a014fe6884d4bcda62` bestätigte Root, dass dessen drei eingefrorene HAProxy-Objekte exakt dieselben ursprünglichen Bytehashes reproduzieren. Das zusammengeführte Manifest verwendet diese veröffentlichten `objects/text/`-Pfade und entfernt die doppelten Dateien dieser Aufgabe; alle ursprünglichen Objekt-IDs, Quellbytes, Capture-Ergebnisse und aktuellen Traefik-Basisprüfungen bleiben unverändert. Die ursprünglichen Commits bleiben in der Historie. Die parallelen lighttpd-Anker und die Prüfung des exakten Parser-Exits bleiben erhalten.
