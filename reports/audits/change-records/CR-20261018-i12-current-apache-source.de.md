@@ -36,15 +36,14 @@ Eingabehashes und verlangt das vorhandene v2-Format. Ergebnis-Hashes, drei Apach
 Produkt-Overlays und SDK-ABI bleiben mit `apache` identisch. Die Registry lehnt
 unbekannte Pflichtformate ab; die Anwendung prüft die Profilanforderung vor ihrem
 ersten Schreibzugriff. Vollständiges Inventar und Einzeldatei-Hashes bleiben Pflicht.
-Fünf exakte Rückwärts-Deltas erhalten historische Objekte aus den neuen geprüften
-Repository-Basen. Alle 155 bisherigen Inhalts-Hashes und neun historischen Profile
-bleiben erhalten; fünf aktuelle Basisobjekte kommen hinzu. Kein historisches
-Overlay wird stillschweigend auf eine geänderte Basis angewendet.
+Die integrierte gemeinsame Korrektur sichert bereits die fünf historischen Objekte
+als verlustfreie Textzeilenobjekte. Alle 155 bisherigen Inhalts-Hashes bleiben
+unverändert. Das Apache-Profil benötigt keine doppelten Sicherungsobjekte; kein
+historisches Overlay wird stillschweigend auf eine geänderte Basis angewendet.
 
 ## Geänderte Dateien
 
-Gemeinsame Capture-Registry, Manifest, fünf exakte Rückwärts-Deltas,
-Negativkontrollen und EN/DE-Anleitung. Keine historischen Inhaltsbytes,
+Gemeinsame Capture-Registry, Manifest, Negativkontrollen und EN/DE-Anleitung. Keine historischen Inhaltsbytes,
 Produktquellen oder Framework-/MRTS-Gitlinks werden geändert.
 
 ## Ausgeführte Befehle
@@ -53,7 +52,7 @@ RTK-gekapselte Unittest-Discovery mit Parent-Python für `test_capture_sources.p
 54 Tests bestanden, Exit 0. Die Kontrollen exportieren den gesamten committeten
 Parent-Gitbaum, binden tatsächliche Revision/Baum/Modi/Hashes und prüfen die echte
 Anwendung. Historische Profilgleichheit und sämtliche Ergebnis-Hashes werden geprüft.
-Registry-Prüfung: 160 Inhaltsobjekte, zehn Quellprofile, Exit 0. Der erste Lauf auf
+Registry-Prüfung: 155 Inhaltsobjekte, zehn Quellprofile, Exit 0. Der erste Lauf auf
 dem aktuellen Head scheiterte an geänderten Repository-Basen; behoben wurde dies
 durch Erhaltung ihrer historischen Bytes, ohne Hashprüfungen zu umgehen.
 

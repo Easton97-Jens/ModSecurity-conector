@@ -152,11 +152,10 @@ Transaktion und keine Runtime-Route: Das native Profil bleibt `apache-native`.
 Historische Paket-/Buildherkunft bleibt als historisch gekennzeichnet; ein neuer
 Vollbuild und tatsächlich geladene Images benötigen eigene Nachweise.
 
-Nach Integration aktueller HAProxy-/lighttpd-Korrekturen werden fünf historische
-Repository-Objekte als exakte Rückwärts-Deltas aus den geprüften aktuellen Basen
-erhalten. Originale Inhalts-Hashes und historische Profilauswahlen bleiben
-unverändert. Die Registry prüft 160 Objekte; diese Zahl zählt weder Hostausführungen
-noch qualifizierte Anforderungen.
+Die integrierte gemeinsame Korrektur erhält fünf historische HAProxy-/lighttpd-
+Objekte als verlustfreie Textzeilenobjekte. Inhalts-Hashes und historische Ergebnis-
+Hashes bleiben unverändert. Die Registry prüft 155 Objekte; diese Zahl zählt weder
+Hostausführungen noch qualifizierte Anforderungen.
 
 Der Anwendungsbeleg erfasst `source_revision`, `source_git_tree`, Inventar-SHA256,
 Dateizahl und Gitlink-Metadaten getrennt von `delivery_product_baseline`. Ein
@@ -218,3 +217,23 @@ Schlüssel, Zertifikate, Binärdateien, Archive, Caches, Git-Metadaten und schwe
 Rohdaten aus. Jeder neue Lauf benötigt weiterhin unabhängig gebundene geladene
 Images, effektive Konfiguration, echte Clients/Backend, native Phasen/EOS/Finish/Free,
 physische Logs, Cleanup, Nachbargesundheit und Root-Review.
+
+## Geprüfte aktuelle Traefik-Eingabebasen
+
+Die vorhandenen Varianten `traefik-native` und `traefik-forwardauth` akzeptieren
+für ihre beiden gemeinsamen Observer-Eingabedateien auch
+`current_before_sha256`, ausschließlich nach erfolgreicher vollständiger
+v2-Inventarprüfung. Dies sind explizite, geprüfte Manifest-Hashes, niemals aus
+der gelieferten Kopie abgeleitete Werte. Der ursprüngliche `before_sha256` und
+sämtliche instrumentierten Ergebnis-Hashes bleiben unverändert. Ein v1-Marker
+kann die aktuelle Alternative nicht wählen. Der Anwendungsbeleg erfasst
+`actual_before_sha256` für jedes Quellziel, einschließlich `null` für neue Dateien.
+Unbekannte Quellbytes und Änderungen außerhalb der ausgewählten Ziele werden
+weiterhin zurückgewiesen.
+
+Drei historische HAProxy-Repository-Objekte sind als verlustfreie `text_lines`
+gegen Commit `8cc32dceb06121f589150a9794f28878c5e4ba2a` authentifiziert eingefroren.
+Ihre Identitäten und sämtliche abhängigen Delta-/Ergebnisidentitäten bleiben
+unverändert. Dadurch bleibt historische Quellprüfung bei fortgeschriebenen
+unabhängigen Produktdateien möglich; daraus entsteht weder ein neuer
+HAProxy-Runtime-Nachweis noch eine Profilerweiterung.

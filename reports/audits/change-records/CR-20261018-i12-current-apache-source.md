@@ -35,15 +35,14 @@ product overlays and SDK ABI remain identical to the historical `apache` profile
 Registry validation rejects an unknown required identity format; application
 checks the profile requirement before its first write. Complete inventory and
 per-file hash checks remain in force.
-Five exact reverse deltas preserve the historical objects from the new reviewed
-repository bases. All 155 previous content hashes and nine historical profiles
-are retained; five current base objects are added. No historical overlay is
-silently applied to a changed base.
+The integrated shared repair already freezes the five historical objects as
+lossless text-line objects. All 155 previous content hashes remain unchanged.
+The Apache profile needs no duplicate preservation objects; no historical overlay
+is silently applied to a changed base.
 
 ## Changed files
 
-The shared capture registry, manifest, five exact reverse deltas, negative
-controls and EN/DE capture guide. No historical content bytes, product source or
+The shared capture registry, manifest, negative controls and EN/DE capture guide. No historical content bytes, product source or
 Framework/MRTS gitlink changes.
 
 ## Commands executed
@@ -52,7 +51,7 @@ RTK-wrapped Parent Python unittest discovery for `test_capture_sources.py`:
 54 tests passed, exit 0. Controls export the entire committed Parent Git tree,
 bind its actual revision/tree/modes/hashes and exercise the real application.
 Historical profile equality and all unchanged output hashes are checked.
-Registry verification: 160 content objects, ten source profiles, exit 0. The
+Registry verification: 155 content objects, ten source profiles, exit 0. The
 initial current-head run failed on the changed repository bases; that failure
 was corrected by preserving their historical bytes rather than bypassing hashes.
 

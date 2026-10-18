@@ -317,6 +317,37 @@ class CurrentSourceCopyControls(CaptureSourceControls):
         self.freeze()
         self.assert_refused_unchanged()
 
+    def test_reviewed_current_base_requires_complete_v2(self):
+        current = b"int module(void) { return 2; }\n"
+        entry = self.manifest['profiles']['selected']['source_targets']['module.c']
+        entry['current_before_sha256'] = CAPTURE.digest(current)
+        self.save_manifest()
+        (self.copy / 'module.c').write_bytes(current)
+        self.snapshot['files']['module.c']['sha256'] = CAPTURE.digest(current)
+        self.freeze()
+        result = self.apply()
+        self.assertEqual(result['actual_before_sha256']['module.c'], CAPTURE.digest(current))
+        self.assertEqual((self.copy / 'module.c').read_bytes(), self.observed)
+
+    def test_current_base_rejected_for_legacy_marker(self):
+        current = b"int module(void) { return 2; }\n"
+        self.manifest['profiles']['selected']['source_targets']['module.c']['current_before_sha256'] = CAPTURE.digest(current)
+        self.save_manifest()
+        (self.copy / 'module.c').write_bytes(current)
+        (self.copy / CAPTURE.SNAPSHOT).unlink()
+        self.marker()
+        self.assert_refused_unchanged()
+
+    def test_current_base_with_unselected_tampering_rejected(self):
+        current = b"int module(void) { return 2; }\n"
+        self.manifest['profiles']['selected']['source_targets']['module.c']['current_before_sha256'] = CAPTURE.digest(current)
+        self.save_manifest()
+        (self.copy / 'module.c').write_bytes(current)
+        self.snapshot['files']['module.c']['sha256'] = CAPTURE.digest(current)
+        self.freeze()
+        self.extra.write_bytes(b'tampered unrelated file')
+        self.assert_refused_unchanged()
+
     def test_selected_base_checked_even_with_valid_complete_export(self):
         changed = b"different but frozen source\n"
         (self.copy / "module.c").write_bytes(changed)

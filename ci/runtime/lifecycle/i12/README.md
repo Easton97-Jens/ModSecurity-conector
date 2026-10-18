@@ -144,11 +144,10 @@ transaction or runtime route: the native profile remains `apache-native`.
 Historical package/build provenance stays labelled historical; a new full build
 and actual loaded images need their own evidence.
 
-After integrating the current HAProxy/lighttpd repairs, five historical
-repository-backed objects are exact reverse deltas from the reviewed current
-bases. Their original content hashes and all historical profile selections stay
-unchanged. Registry verification covers 160 objects; this count does not count
-host executions or qualified requirements.
+The integrated shared repair preserves five historical HAProxy/lighttpd objects
+as lossless text-line objects. Their content hashes and historical output hashes
+remain unchanged. Registry verification covers 155 objects; this count does not
+count host executions or qualified requirements.
 
 The application receipt records `source_revision`, `source_git_tree`, inventory
 SHA256, file count and gitlink metadata separately from
@@ -206,3 +205,20 @@ certificates, binaries, archives, caches, Git metadata and heavy raw evidence.
 Any new execution still requires independently bound loaded images, effective
 configuration, real clients/backend, native phases/EOS/finish/free, physical logs,
 cleanup, neighbor health and Root review.
+
+## Reviewed current Traefik input bases
+
+The existing `traefik-native` and `traefik-forwardauth` variants also accept
+`current_before_sha256` for their two shared observer input files, exclusively
+following successful complete v2 inventory validation. These are explicit,
+reviewed hashes in the manifest, never values inferred from the supplied copy.
+The original `before_sha256` and all instrumented result hashes remain unchanged.
+A v1 marker cannot select the current alternative. The application receipt records
+`actual_before_sha256` for every source target, including `null` for new files.
+Unknown source bytes and changes outside the selected targets remain rejected.
+
+Three historical HAProxy repository objects are frozen as lossless `text_lines`
+objects authenticated against commit `8cc32dceb06121f589150a9794f28878c5e4ba2a`.
+Their identities and all dependent delta/result identities are unchanged. This
+preserves historical source verification after unrelated product files advance;
+it adds no HAProxy runtime claim or profile extension.

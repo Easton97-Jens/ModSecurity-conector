@@ -1,160 +1,405 @@
-"""Offline tests for exact-head, read-only Sonar zero-finding enforcement."""
+"""Offline exact-head controls using official structured response shapes."""
 from __future__ import annotations
 
 from contextlib import redirect_stdout
+import copy
 import importlib.util
 import io
 from pathlib import Path
 import unittest
+from unittest import mock
+from urllib.parse import parse_qs, urlsplit
+import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-SPEC = importlib.util.spec_from_file_location(
-    "sonar_zero_gate", ROOT / "ci/checks/common/check-sonar-zero.py"
-)
-assert SPEC is not None
-assert SPEC.loader is not None
+SPEC = importlib.util.spec_from_file_location("sonar_zero_gate", ROOT / "ci/checks/common/check-sonar-zero.py")
 GATE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(GATE)
 HEAD = "a" * 40
 REPOSITORY = "example/connector"
+PR = "413"
+PR_ANALYSES = "project_pull_requests/list"
+MEASURES_COMPONENT = "measures/component"
+ISSUES_SEARCH = "issues/search"
 
 
-def make_check(*, head=HEAD, identifier=1, issues=0, hotspots=0, annotations=0,
-               accepted=0, status="completed", conclusion="success"):
-    return {"id": identifier, "head_sha": head, "name": GATE.CHECK_NAME,
-            "app": {"slug": "sonarqubecloud"}, "status": status,
-            "conclusion": conclusion,
-            "output": {"summary": f"[{issues} New issues] [{accepted} Accepted issues] [{hotspots} Security Hotspots]",
-                       "annotations_count": annotations}}
+def make_check(**changes):
+    value = {"id": 1, "head_sha": HEAD, "name": GATE.CHECK_NAME,
+             "app": {"slug": "sonarqubecloud"}, "status": "completed", "conclusion": "success",
+             "output": {"summary": "Quality Gate passed", "annotations_count": 0}}
+    value.update(changes)
+    return value
+
+
+def alter_inventory_page(mode, params, payload, first):
+    if mode == 'partial':payload['issues'] = []
+    if mode == 'duplicate':payload['issues'][-1] = first
+    if mode == 'count-change' and params['p'] == 2:payload['paging']['total'] = 102
+    if mode == 'missing-paging':payload.pop('paging')
+    if mode == 'bool-page':payload['paging']['pageIndex'] = True
+    return payload
+
+
+def alter_check_inventory(kind, payload):
+    if kind == 'missing':payload.pop('total_count')
+    if kind == 'partial':payload['total_count'] = 2
+    if kind == 'duplicate':
+        payload['total_count'] = 2
+        payload['check_runs'].append(copy.deepcopy(payload['check_runs'][0]))
+    if kind == 'boolean':payload['total_count'] = True
+    return payload
+
+
+class Evidence:
+    """Independent fake API boundaries; every response has explicit counts."""
+    def __init__(self):
+        self.checks = [make_check()]
+        self.heads = [HEAD, HEAD]
+        self.annotations = []
+        self.analysis = {"key": PR, "commit": {"sha": HEAD}, "analysisDate": "2026-10-15T14:48:42+0000",
+                         "status": {"qualityGateStatus": "OK"}}
+        self.gate = {"status": "OK", "ignoredConditions": False,
+                     "conditions": [{"status": "OK", "metricKey": "new_security_rating"}]}
+        self.measures = [{"metric": key, "periods": [{"index": 1, "value": "1" if key in GATE.RATING_METRICS else "0"}]} for key in GATE.METRICS]
+        self.active, self.accepted, self.hotspots = [], [], []
+        self.github_calls, self.sonar_calls = [], []
+        self.hook = lambda endpoint, params, payload: payload
+
+    def set_measure(self, key, value):
+        next(row for row in self.measures if row['metric'] == key)['periods'][0]['value'] = value
+
+    def records(self, count, prefix="issue"):
+        return [{"key": prefix+str(index), "project": GATE.PROJECT, "pullRequest": PR} for index in range(count)]
+
+    def fetch(self, path):
+        self.github_calls.append(path)
+        if "/pulls/" in path:
+            head = self.heads.pop(0) if len(self.heads) > 1 else self.heads[0]
+            return {"number": int(PR), "head": {"sha": head}}
+        page = int(parse_qs(urlsplit(path).query).get('page', ['1'])[0])
+        if "/annotations?" in path:
+            return copy.deepcopy(self.annotations[(page-1)*GATE.PAGE_SIZE:page*GATE.PAGE_SIZE])
+        if "/commits/" in path:
+            return {"total_count": len(self.checks), "check_runs": copy.deepcopy(self.checks[(page-1)*GATE.PAGE_SIZE:page*GATE.PAGE_SIZE])}
+        raise AssertionError('unexpected GitHub endpoint: '+path)
+
+    def sonar(self, endpoint, params):
+        self.sonar_calls.append((endpoint, dict(params)))
+        if endpoint == PR_ANALYSES:
+            result = {"pullRequests": [copy.deepcopy(self.analysis)]}
+        elif endpoint == "qualitygates/project_status":
+            result = {"projectStatus": copy.deepcopy(self.gate)}
+        elif endpoint == MEASURES_COMPONENT:
+            result = {"component": {"key": GATE.PROJECT, "pullRequest": PR, "measures": copy.deepcopy(self.measures)}}
+        elif endpoint == ISSUES_SEARCH:
+            rows = self.accepted if params['issueStatuses'] == 'ACCEPTED' else self.active
+            page, size = params['p'], params['ps']
+            result = {"paging": {"pageIndex": page, "pageSize": size, "total": len(rows)},
+                      "issues": copy.deepcopy(rows[(page-1)*size:page*size])}
+        elif endpoint == "measures/component_tree":
+            result = {"paging": {"pageIndex": params['p'], "pageSize": params['ps'], "total": 0}, "components": []}
+        else:
+            raise AssertionError('unexpected Sonar endpoint: '+endpoint)
+        return self.hook(endpoint, params, result)
+
+    def verify(self, **options):
+        with redirect_stdout(io.StringIO()):
+            return GATE.verify(REPOSITORY, HEAD, self.fetch, pr=PR, read_sonar=self.sonar,
+                               sleep=lambda _: None, attempts=options.pop('attempts', 1), **options)
 
 
 class SonarZeroGateTests(unittest.TestCase):
-    def verify(self, checks, annotations=None, attempts=1):
-        calls = []
-        def fetch(path):
-            calls.append(path)
-            if "/annotations?" in path:
-                return annotations or []
-            return {"check_runs": checks}
-        with redirect_stdout(io.StringIO()):
-            evidence = GATE.verify(REPOSITORY, HEAD, fetch,
-                                   sleep=lambda seconds: None, attempts=attempts)
-        return evidence, calls
+    def test_both_workflow_gates_bind_explicit_PR_and_head(self):
+        workflow = yaml.safe_load((ROOT/'.github/workflows/lint.yml').read_text())
+        commands = {'python ci/checks/common/check-sonar-zero.py',
+                    'python ci/checks/common/check-sonar-duplication.py'}
+        steps = [s for job in workflow['jobs'].values() for s in job.get('steps', []) if s.get('run') in commands]
+        self.assertEqual(len(steps), 2)
+        for step in steps:
+            self.assertEqual(step['env']['PR_NUMBER'], '${{ github.event.pull_request.number }}')
+            self.assertEqual(step['env']['PR_HEAD_SHA'], '${{ github.event.pull_request.head.sha }}')
 
-    def test_explicit_zero_for_exact_head_passes(self):
-        evidence, calls = self.verify([make_check()])
-        self.assertEqual(evidence["head_sha"], HEAD)
-        self.assertEqual(evidence["new_issues"], 0)
-        self.assertEqual(evidence["accepted_issues"], 0)
-        self.assertEqual(len(calls), 1)
+    def test_missing_presentation_counts_pass_only_with_complete_structured_zero(self):
+        evidence = Evidence()
+        result = evidence.verify()
+        self.assertEqual(result['head_sha'], HEAD)
+        self.assertEqual(result['new_violations'], '0')
+        self.assertEqual(result['security_rating'], '1')
+        self.assertEqual(sum(name == PR_ANALYSES for name, _ in evidence.sonar_calls), 2)
 
-    def test_green_quality_gate_with_new_issues_fails(self):
-        checks = [make_check(issues=2)]
-        with self.assertRaisesRegex(GATE.GateError, "zero new issues"):
-            self.verify(checks)
+    def test_all_missing_metrics_fail_instead_of_defaulting_to_zero(self):
+        for missing in GATE.METRICS:
+            with self.subTest(metric=missing):
+                evidence = Evidence()
+                evidence.measures = [r for r in evidence.measures if r['metric'] != missing]
+                with self.assertRaisesRegex(GATE.GateError, 'incomplete'):
+                    evidence.verify()
 
-    def test_hotspots_fail_even_without_issues(self):
-        checks = [make_check(hotspots=1)]
-        with self.assertRaises(GATE.GateError):
-            self.verify(checks)
+    def test_duplicate_and_null_metric_values_fail(self):
+        evidence = Evidence()
+        evidence.measures.append(copy.deepcopy(evidence.measures[0]))
+        with self.assertRaisesRegex(GATE.GateError, 'duplicate'):
+            evidence.verify()
+        evidence = Evidence()
+        evidence.set_measure('new_violations', None)
+        with self.assertRaisesRegex(GATE.GateError, 'numeric'):
+            evidence.verify()
 
-    def test_annotations_cannot_be_hidden_by_zero_summary(self):
-        checks = [make_check(annotations=1)]
-        with self.assertRaises(GATE.GateError):
-            self.verify(checks)
+    def test_every_nonzero_finding_class_fails(self):
+        for key, inventory in [('new_violations', 'active'), ('new_accepted_issues', 'accepted'), ('new_security_hotspots', 'hotspots')]:
+            with self.subTest(metric=key):
+                evidence = Evidence()
+                evidence.set_measure(key, '1')
+                setattr(evidence, inventory, evidence.records(1))
+                with self.assertRaisesRegex(GATE.GateError, 'zero new issues'):
+                    evidence.verify()
 
-    def test_old_head_cannot_satisfy_the_gate(self):
-        checks = [make_check(head="b" * 40)]
-        with self.assertRaisesRegex(GATE.GateError, "exact PR head"):
-            self.verify(checks)
+    def test_measures_cannot_hide_finding_inventory(self):
+        evidence = Evidence()
+        evidence.active = evidence.records(1)
+        with self.assertRaisesRegex(GATE.GateError, 'disagree'):
+            evidence.verify()
 
-    def test_new_pending_analysis_supersedes_old_success(self):
-        checks = [make_check(), make_check(identifier=2, status="in_progress")]
-        with self.assertRaises(GATE.GateError):
-            self.verify(checks)
+    def test_security_rating_must_be_explicit_A(self):
+        for key in GATE.RATING_METRICS:
+            with self.subTest(metric=key):
+                evidence = Evidence()
+                evidence.set_measure(key, '2')
+                with self.assertRaisesRegex(GATE.GateError, 'Security Rating'):
+                    evidence.verify()
 
-    def test_missing_analysis_does_not_pass(self):
-        with self.assertRaises(GATE.GateError):
-            self.verify([])
-
-    def test_wrong_check_provider_cannot_supply_evidence(self):
-        check = make_check()
-        check["app"]["slug"] = "another-app"
-        with self.assertRaises(GATE.GateError):
-            self.verify([check])
-
-    def test_failed_analysis_with_zero_findings_still_fails(self):
-        checks = [make_check(conclusion="failure")]
-        with self.assertRaises(GATE.GateError):
-            self.verify(checks)
-
-    def test_missing_or_ambiguous_summary_fails(self):
-        for summary in ("Quality Gate passed", "0 New issues 1 New issues 0 Security Hotspots"):
-            with self.subTest(summary=summary):
-                check = make_check()
-                check["output"]["summary"] = summary
+    def test_provider_must_be_terminal_success_for_current_head(self):
+        for change in ({'head_sha': 'b'*40}, {'status': 'in_progress'}, {'conclusion': 'failure'}, {'app': {'slug': 'foreign'}}):
+            with self.subTest(change=change):
+                evidence = Evidence()
+                evidence.checks = [make_check(**change)]
                 with self.assertRaises(GATE.GateError):
-                    self.verify([check])
+                    evidence.verify()
+
+    def test_latest_pending_run_supersedes_old_success(self):
+        evidence = Evidence()
+        evidence.checks.append(make_check(id=2, status='in_progress'))
+        with self.assertRaisesRegex(GATE.GateError, 'completed'):
+            evidence.verify()
+
+    def test_current_PR_head_checked_before_and_after(self):
+        for heads in (['b'*40, HEAD], [HEAD, 'b'*40]):
+            with self.subTest(heads=heads):
+                evidence = Evidence()
+                evidence.heads = heads
+                with self.assertRaisesRegex(GATE.GateError, 'PR head changed'):
+                    evidence.verify()
+
+    def test_stale_missing_ambiguous_or_changed_analysis_is_rejected(self):
+        cases = (
+            lambda e, p: {'pullRequests': []},
+            lambda e, p: {'pullRequests': [p['pullRequests'][0], p['pullRequests'][0]]},
+            lambda e, p: {'pullRequests': [{**p['pullRequests'][0], 'commit': {'sha': 'b'*40}}]},
+            lambda e, p: {'pullRequests': [{**p['pullRequests'][0], 'commit': {}}]},
+            lambda e, p: {'pullRequests': [{**p['pullRequests'][0], 'analysisDate': None}]},
+        )
+        for mutate in cases:
+            with self.subTest(mutate=mutate):
+                evidence = Evidence()
+                evidence.hook = lambda endpoint, params, payload: mutate(evidence, payload) if endpoint == PR_ANALYSES else payload
+                with self.assertRaises(GATE.GateError):
+                    evidence.verify()
+
+    def test_analysis_replacement_during_readback_fails(self):
+        evidence = Evidence()
+        def hook(endpoint, params, payload):
+            if endpoint == PR_ANALYSES and len(evidence.sonar_calls) > 1:
+                payload['pullRequests'][0]['analysisDate'] = '2026-10-15T15:00:00+0000'
+            return payload
+        evidence.hook = hook
+        with self.assertRaisesRegex(GATE.GateError, 'analysis changed'):
+            evidence.verify()
+
+    def test_quality_gate_failure_ignored_or_missing_conditions_fail(self):
+        for changes in ({'status': 'ERROR'}, {'ignoredConditions': True}, {'ignoredConditions': None},
+                        {'conditions': None}, {'conditions': [{'status': 'ERROR'}]}):
+            with self.subTest(changes=changes):
+                evidence = Evidence()
+                evidence.gate.update(changes)
+                with self.assertRaises(GATE.GateError):
+                    evidence.verify()
+
+    def test_foreign_or_missing_component_identity_fails(self):
+        for identity in ({'key': 'foreign'}, {'pullRequest': '410'}, {'pullRequest': None}):
+            with self.subTest(identity=identity):
+                evidence = Evidence()
+                def hook(endpoint, params, payload):
+                    if endpoint == MEASURES_COMPONENT:
+                        payload['component'].update(identity)
+                    return payload
+                evidence.hook = hook
+                with self.assertRaisesRegex(GATE.GateError, 'identity'):
+                    evidence.verify()
+
+    def test_github_inventory_is_fully_paginated(self):
+        evidence = Evidence()
+        evidence.checks = [make_check(id=i) for i in range(1, 102)]
+        result = evidence.verify()
+        self.assertEqual(result['check_id'], 101)
+        self.assertEqual(sum('/commits/' in p for p in evidence.github_calls), 4)
+
+    def test_sonar_inventory_is_fully_paginated_before_nonzero_rejection(self):
+        evidence = Evidence()
+        evidence.active = evidence.records(101)
+        evidence.set_measure('new_violations', '101')
+        with self.assertRaisesRegex(GATE.GateError, 'zero new issues'):
+            evidence.verify()
+        active_pages = [p['p'] for name, p in evidence.sonar_calls if name == ISSUES_SEARCH and p['issueStatuses'] == 'OPEN,CONFIRMED']
+        self.assertEqual(active_pages, [1, 2])
+
+    def test_partial_duplicate_or_ambiguous_pages_fail(self):
+        for mode in ('partial', 'duplicate', 'count-change', 'missing-paging', 'bool-page'):
+            with self.subTest(mode=mode):
+                evidence = Evidence()
+                evidence.active = evidence.records(101)
+                evidence.set_measure('new_violations', '101')
+                def hook(endpoint, params, payload):
+                    if endpoint != ISSUES_SEARCH or params['issueStatuses'] != 'OPEN,CONFIRMED':
+                        return payload
+                    return alter_inventory_page(mode, params, payload, evidence.active[0])
+                evidence.hook = hook
+                with self.assertRaises(GATE.GateError):
+                    evidence.verify()
+
+    def test_annotations_cannot_be_hidden_or_left_partial(self):
+        for declared, records in ((0, [{}]), (1, []), (1, [{}])):
+            with self.subTest(declared=declared, records=records):
+                evidence = Evidence()
+                evidence.annotations = records
+                evidence.checks[0]['output']['annotations_count'] = declared
+                with self.assertRaises(GATE.GateError):
+                    evidence.verify()
+
+    def test_annotation_inventory_is_fully_paginated_before_rejection(self):
+        evidence = Evidence()
+        evidence.annotations = [{} for _ in range(101)]
+        evidence.checks[0]['output']['annotations_count'] = 101
+        with self.assertRaises(GATE.GateError):
+            evidence.verify()
+        self.assertEqual(sum('/annotations?' in p for p in evidence.github_calls), 2)
+
+    def test_missing_partial_duplicate_or_boolean_github_counts_fail(self):
+        for kind in ('missing', 'partial', 'duplicate', 'boolean'):
+            with self.subTest(kind=kind):
+                evidence = Evidence()
+                fetch = evidence.fetch
+                def altered(path):
+                    payload = fetch(path)
+                    if '/commits/' in path:
+                        return alter_check_inventory(kind, payload)
+                    return payload
+                with self.assertRaises(GATE.GateError):
+                    GATE.verify(REPOSITORY, HEAD, altered, pr=PR, read_sonar=evidence.sonar, attempts=1)
+
+    def test_analysis_timestamp_must_be_explicit_and_timezone_aware(self):
+        for date in ('', ' ', 'yesterday', '2026-10-15T14:00:00', None):
+            with self.subTest(date=date):
+                evidence = Evidence()
+                evidence.analysis['analysisDate'] = date
+                with self.assertRaisesRegex(GATE.GateError, 'date'):
+                    evidence.verify()
+
+    def test_missing_checks_and_counts_fail(self):
+        evidence = Evidence()
+        evidence.checks = []
+        with self.assertRaises(GATE.GateError):
+            evidence.verify()
+        evidence = Evidence()
+        evidence.checks[0]['output'].pop('annotations_count')
+        with self.assertRaises(GATE.GateError):
+            evidence.verify()
+
+    def test_provider_replacement_during_readback_fails(self):
+        evidence = Evidence()
+        def hook(endpoint, params, payload):
+            if endpoint == MEASURES_COMPONENT:
+                evidence.checks.append(make_check(id=2))
+            return payload
+        evidence.hook = hook
+        with self.assertRaisesRegex(GATE.GateError, 'provider changed'):
+            evidence.verify()
+
+    def test_provider_conclusion_change_during_readback_fails(self):
+        evidence = Evidence()
+        def hook(endpoint, params, payload):
+            if endpoint == MEASURES_COMPONENT:
+                evidence.checks[0]["conclusion"] = "failure"
+            return payload
+        evidence.hook = hook
+        with self.assertRaisesRegex(GATE.GateError, "provider changed"):
+            evidence.verify()
 
     def test_invalid_identity_stops_before_network(self):
-        def forbidden_fetch(path):
-            self.fail("invalid input reached the network")
-        for repository, head in (("../foreign", HEAD), ("example/..", HEAD),
-                                 ("example/name/extra", HEAD), (REPOSITORY, "branch-name")):
-            with self.subTest(repository=repository, head=head):
+        for repository, head, pr in (('../foreign', HEAD, PR), ('example/..', HEAD, PR),
+                                     (REPOSITORY, 'branch', PR), (REPOSITORY, HEAD, '0')):
+            with self.subTest(repository=repository, head=head, pr=pr):
                 with self.assertRaises(GATE.GateError):
-                    GATE.verify(repository, head, forbidden_fetch)
+                    GATE.verify(repository, head, lambda _: self.fail('network reached'), pr=pr)
 
-    def test_annotation_output_is_bounded_and_command_inert(self):
+    def test_diagnostic_text_is_bounded_and_command_inert(self):
         output = io.StringIO()
-        annotation = {"path": "file.c", "start_line": 9,
-                      "title": "issue", "message": "\n::error::" + "x" * 2000,
-                      "raw_details": "source-must-not-be-printed"}
+        annotation = {'path': 'file.c', 'start_line': 9, 'title': 'issue',
+                      'message': '\n::error::'+'x'*2000, 'raw_details': 'never print source'}
         with redirect_stdout(output):
-            GATE.report_findings(REPOSITORY, 7, lambda path: [annotation])
-        text = output.getvalue()
-        self.assertEqual(len(text.splitlines()), 1)
-        self.assertTrue(text.startswith("sonar finding: "))
-        self.assertNotIn("source-must-not-be-printed", text)
-        self.assertLess(len(text), 700)
+            GATE.report_findings(REPOSITORY, 1, lambda _: [annotation])
+        self.assertEqual(len(output.getvalue().splitlines()), 1)
+        self.assertNotIn('never print source', output.getvalue())
+        self.assertLess(len(output.getvalue()), 700)
 
-    def test_singular_finding_is_reported_then_rejected(self):
-        check = make_check(issues=1, annotations=1)
-        check["output"]["summary"] = "[1 New issue] [0 Accepted issues] [0 Security Hotspots]"
+    def test_duplicate_JSON_fields_and_redirects_fail(self):
+        with self.assertRaisesRegex(GATE.GateError, 'duplicate JSON'):
+            GATE.unique_object([('total', 0), ('total', 1)])
+        with self.assertRaisesRegex(GATE.GateError, 'redirected'):
+            GATE.RejectRedirects().redirect_request(None, None, None, None, None, None)
+
+    def test_official_client_enforces_timeout_byte_bound_and_object_shape(self):
+        opener = mock.MagicMock()
+        response = opener.open.return_value.__enter__.return_value
+        response.read.return_value = b'x' * (GATE.MAX_RESPONSE_BYTES+1)
+        with mock.patch.object(GATE.urllib.request, 'build_opener', return_value=opener):
+            with self.assertRaisesRegex(GATE.GateError, 'bounded'):
+                GATE.read_json(object())
+        self.assertEqual(opener.open.call_args.kwargs['timeout'], 15)
+        response.read.assert_called_once_with(GATE.MAX_RESPONSE_BYTES+1)
+        with mock.patch.object(GATE, 'read_json', return_value=[]):
+            with self.assertRaisesRegex(GATE.GateError, 'object'):
+                GATE.sonar_get(MEASURES_COMPONENT, {})
+
+    def test_only_supported_new_code_filter_is_sent_and_hotspots_remain_PR_measure(self):
+        evidence = Evidence()
+        evidence.verify()
+        for endpoint, params in evidence.sonar_calls:
+            self.assertNotEqual(endpoint, 'hotspots/search')
+            if endpoint == ISSUES_SEARCH:
+                self.assertEqual(params['sinceLeakPeriod'], 'true')
+                self.assertNotIn('inNewCodePeriod', params)
+
+    def test_duplicate_file_and_blocks_remain_bounded_diagnostics_before_failure(self):
+        evidence = Evidence()
+        evidence.set_measure('new_duplicated_lines', '2')
+        def hook(endpoint, params, payload):
+            if endpoint == 'measures/component_tree':
+                payload['paging']['total'] = 1
+                payload['components'] = [{'key': GATE.PROJECT+':file.c', 'path': 'file.c',
+                    'measures': [{'metric': 'new_duplicated_lines', 'period': {'value': '2'}}]}]
+            return payload
+        evidence.hook = hook
+        read = evidence.sonar
+        def sonar(endpoint, params):
+            if endpoint == 'duplications/show':
+                return {'duplications': [{'blocks': [{'from': 1, 'size': 2, '_ref': '1'}]}], 'files': {}}
+            return read(endpoint, params)
         output = io.StringIO()
-        calls = []
-        def fetch(path):
-            calls.append(path)
-            if "/annotations?" in path:
-                return [{"path": "file.c", "message": "actual finding"}]
-            return {"check_runs": [check]}
-        with redirect_stdout(output), self.assertRaisesRegex(GATE.GateError, "zero new issues"):
-            GATE.verify(REPOSITORY, HEAD, fetch, attempts=1)
-        self.assertEqual(len(calls), 2)
-        self.assertIn("actual finding", output.getvalue())
-        self.assertIn('"new_issues": 1', output.getvalue())
-
-    def test_accepted_findings_cannot_make_the_gate_green(self):
-        for summary in ("[0 New issues] [1 Accepted issue] [0 Security Hotspots]",
-                        "[0 New issues] [2 Accepted issues] [0 Security Hotspots]"):
-            with self.subTest(summary=summary):
-                check = make_check()
-                check["output"]["summary"] = summary
-                with self.assertRaisesRegex(GATE.GateError, "zero new issues"):
-                    self.verify([check])
-
-    def test_singular_and_plural_cannot_hide_ambiguous_counts(self):
-        check = make_check()
-        check["output"]["summary"] += " [1 New issue]"
-        with self.assertRaisesRegex(GATE.GateError, "ambiguous"):
-            self.verify([check])
-
-    def test_missing_accepted_count_is_not_assumed_zero(self):
-        check = make_check()
-        check["output"]["summary"] = "[0 New issues] [0 Security Hotspots]"
-        with self.assertRaisesRegex(GATE.GateError, "Accepted issues"):
-            self.verify([check])
+        with redirect_stdout(output), self.assertRaisesRegex(GATE.GateError, 'zero new issues'):
+            GATE.verify(REPOSITORY, HEAD, evidence.fetch, pr=PR, read_sonar=sonar, attempts=1)
+        self.assertIn('sonar duplicate file:', output.getvalue())
+        self.assertIn('sonar duplicate blocks:', output.getvalue())
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     unittest.main()
