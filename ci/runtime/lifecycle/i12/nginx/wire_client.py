@@ -9,9 +9,52 @@ import os
 from pathlib import Path
 import re
 import socket
+import stat
 import time
 
 LIMIT = 16 * 1024 * 1024
+
+
+def storage_root():
+    """Require the configured private project anchor, with no temp fallback."""
+    value = os.environ.get("CODEX_TEMP_ROOT", "")
+    match = re.fullmatch(r"/[A-Za-z0-9_./-]+", value)
+    if match is None:
+        raise ValueError("canonical CODEX_TEMP_ROOT required")
+    root = Path(match.group(0))
+    if (str(root) != value or root != root.resolve() or root == Path("/") or
+            ".." in root.parts):
+        raise ValueError("canonical CODEX_TEMP_ROOT required")
+    info = root.lstat()
+    if (not stat.S_ISDIR(info.st_mode) or info.st_uid not in (0, os.geteuid()) or
+            info.st_mode & 0o022):
+        raise ValueError("private owned CODEX_TEMP_ROOT required")
+    return root
+
+
+def artifact_path(value, *, fresh=False):
+    """Confine client files to canonical protected task storage."""
+    match = re.fullmatch(r"/[A-Za-z0-9_./-]+", str(value))
+    if match is None:
+        raise ValueError("canonical client artifact path required")
+    path = Path(match.group(0))
+    anchor = storage_root()
+    if str(path) != str(value) or path != path.resolve() or not path.is_relative_to(anchor):
+        raise ValueError("client artifact outside protected task storage")
+    existing = path.parent if fresh else path
+    for ancestor in (existing, *existing.parents):
+        info = ancestor.lstat()
+        sticky_root = (not ancestor.is_relative_to(anchor) and stat.S_ISDIR(info.st_mode)
+                       and info.st_uid == 0 and info.st_mode & stat.S_ISVTX)
+        if (stat.S_ISLNK(info.st_mode) or info.st_uid not in (0, os.geteuid()) or
+                info.st_mode & 0o022 and not sticky_root):
+            raise ValueError("client artifact ancestry is not protected")
+    if fresh:
+        if path.exists() or path.is_symlink():
+            raise ValueError("fresh client observation directory required")
+    elif not stat.S_ISREG(path.lstat().st_mode):
+        raise ValueError("regular client request file required")
+    return path
 
 
 def sha(data):
@@ -66,7 +109,13 @@ def entity(raw):
 def run(port, request_path, output, pieces=1):
     if not 1 <= pieces <= 64 or not 1024 < port < 65536:
         raise ValueError("closed loopback port/write-count contract")
-    request = request_path.read_bytes()
+    request_path = artifact_path(request_path)
+    output = artifact_path(output, fresh=True)
+    descriptor = os.open(request_path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(descriptor, "rb") as stream:
+        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+            raise ValueError("regular client request file required")
+        request = stream.read(LIMIT + 1)
     if not 0 < len(request) <= LIMIT:
         raise ValueError("request size outside bound")
     output.mkdir(mode=0o700)

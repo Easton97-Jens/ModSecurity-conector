@@ -15,17 +15,31 @@ from pathlib import Path
 
 
 BASELINE_SHA256 = "a3a901db7d70884d2f491c95246629071cd55280ad94ee0fd86049c2e954c7ff"
-EVIDENCE_ROOT = Path("/var/tmp/codex/ModSecurity-conector/runs")
 REPOSITORY_ROOT = Path(__file__).resolve().parents[5]
+
+
+def evidence_root():
+    """Require an existing private run root configured by the operator."""
+    value = os.environ.get("CODEX_RUN_ROOT")
+    if not value:
+        raise ValueError("CODEX_RUN_ROOT must name a protected project directory")
+    root = Path(value)
+    if not root.is_absolute() or root.parent == root or root != root.resolve() or not root.is_dir():
+        raise ValueError("Canonical existing CODEX_RUN_ROOT required")
+    info = root.lstat()
+    if info.st_uid not in (0, os.geteuid()) or info.st_mode & 0o022:
+        raise ValueError("CODEX_RUN_ROOT must be operator-owned and protected")
+    return root
 
 
 def trusted_ancestry(path, *, regular=False):
     """Reject writable/unowned ancestors before reaching any filesystem sink."""
+    root = evidence_root()
     for component in reversed((path, *path.parents)):
         info = component.lstat()
         if info.st_uid not in (0, os.geteuid()) or stat.S_ISLNK(info.st_mode):
             raise ValueError("Path requires root/operator ownership without symlinks")
-        transit = (component != path and not component.is_relative_to(EVIDENCE_ROOT) and
+        transit = (component != path and not component.is_relative_to(root) and
                    info.st_uid == 0 and stat.S_ISDIR(info.st_mode) and info.st_mode & stat.S_ISVTX)
         if info.st_mode & 0o022 and not transit:
             raise ValueError("Path has a group/world-writable component")
@@ -38,7 +52,7 @@ def trusted_ancestry(path, *, regular=False):
 def evidence_path(path):
     """Accept evidence only inside the operator-owned project run boundary."""
     path = Path(path).absolute()
-    if ".." in path.parts or not path.is_relative_to(EVIDENCE_ROOT):
+    if ".." in path.parts or not path.is_relative_to(evidence_root()):
         raise ValueError("Evidence path must remain inside the project run root")
     trusted_ancestry(path, regular=True)
     return path
@@ -364,15 +378,19 @@ def main():
     args.ledger = evidence_path(args.ledger)
     args.observations = [evidence_path(path) for path in args.observations]
     args.verification = [evidence_path(path) for path in args.verification]
-    args.output = output_path(args.output, "ci/runtime/lifecycle/i12/nginx/evidence-20261015.json")
-    reports = [(german, output_path(
-        Path(str(args.report_prefix) + (".de.md" if german else ".md")),
-        "docs/pr-410-i12-nginx-evidence-20261015" + (".de.md" if german else ".md")))
-        for german in (False, True)]
+    # CLI destinations are assertions of the fixed publication contract. Never
+    # carry a caller-supplied path to a write, even after checking equality.
+    output_path(args.output, "ci/runtime/lifecycle/i12/nginx/evidence-20261015.json")
+    machine = REPOSITORY_ROOT / "ci/runtime/lifecycle/i12/nginx/evidence-20261015.json"
+    reports = [(False, REPOSITORY_ROOT / "docs/pr-410-i12-nginx-evidence-20261015.md"),
+               (True, REPOSITORY_ROOT / "docs/pr-410-i12-nginx-evidence-20261015.de.md")]
+    for german, destination in reports:
+        suffix = ".de.md" if german else ".md"
+        output_path(Path(str(args.report_prefix) + suffix), str(destination.relative_to(REPOSITORY_ROOT)))
     data = compact(read(args.ledger), args.ledger, args.observations, args.verification)
-    args.output.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    machine.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     for german, path in reports:
-        path.write_text(report(data, args.output.relative_to(REPOSITORY_ROOT), german), encoding="utf-8")
+        path.write_text(report(data, machine.relative_to(REPOSITORY_ROOT), german), encoding="utf-8")
 
 
 if __name__ == "__main__":

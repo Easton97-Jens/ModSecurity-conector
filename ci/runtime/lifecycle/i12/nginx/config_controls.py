@@ -9,8 +9,21 @@ import re
 import stat
 import subprocess
 
-ARTIFACT_ROOT = Path("/var/tmp/codex/ModSecurity-conector")
 SEALED_INPUT_ROOTS = (Path("/mnt/fixtures"), Path("/mnt/artifacts"))
+
+
+def artifact_root():
+    """Require the operator's existing private project artifact directory."""
+    value = os.environ.get("CODEX_TEMP_ROOT")
+    if not value:
+        raise ValueError("CODEX_TEMP_ROOT must name a protected project directory")
+    root = Path(value)
+    if not root.is_absolute() or root.parent == root or root != root.resolve() or not root.is_dir():
+        raise ValueError("canonical existing CODEX_TEMP_ROOT required")
+    metadata = root.lstat()
+    if metadata.st_uid not in (0, os.geteuid()) or metadata.st_mode & 0o022:
+        raise ValueError("CODEX_TEMP_ROOT must be operator-owned and protected")
+    return root
 
 
 def trusted_path(value, *, directory=False, fresh=False):
@@ -19,7 +32,8 @@ def trusted_path(value, *, directory=False, fresh=False):
     if match is None:
         raise ValueError("absolute configuration-safe artifact path required")
     path = Path(match.group(0))
-    roots = (ARTIFACT_ROOT,) if fresh else (ARTIFACT_ROOT, *SEALED_INPUT_ROOTS)
+    project_root = artifact_root()
+    roots = (project_root,) if fresh else (project_root, *SEALED_INPUT_ROOTS)
     if path != path.resolve() or not any(path.is_relative_to(root) for root in roots):
         raise ValueError("canonical task-owned artifact path required")
     existing = path.parent if fresh else path
@@ -28,8 +42,9 @@ def trusted_path(value, *, directory=False, fresh=False):
         if stat.S_ISLNK(metadata.st_mode) or metadata.st_uid not in (0, os.geteuid()):
             raise ValueError("operator-owned nonsymlink artifact ancestry required")
         if metadata.st_mode & 0o022 and not (
-                ancestor in (Path("/var/tmp"), Path("/tmp"))
-                and metadata.st_uid == 0 and metadata.st_mode & stat.S_ISVTX):
+                not ancestor.is_relative_to(project_root) and ancestor != existing
+                and stat.S_ISDIR(metadata.st_mode) and metadata.st_uid == 0
+                and metadata.st_mode & stat.S_ISVTX):
             raise ValueError("artifact ancestry must not be group/world writable")
     if fresh:
         if path.exists() or path.is_symlink():

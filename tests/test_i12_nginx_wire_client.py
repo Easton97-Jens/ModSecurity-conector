@@ -9,12 +9,18 @@ import sys
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "ci/runtime/lifecycle/i12/nginx/wire_client.py"
 SPEC = importlib.util.spec_from_file_location("i12_nginx_wire_client", SCRIPT)
 CLIENT = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(CLIENT)
+RUN_ROOT = Path("/var/tmp/codex/ModSecurity-conector/runs")
+RUNNER_SPEC = importlib.util.spec_from_file_location("i12_nginx_run_cases", SCRIPT.with_name("run_cases.py"))
+RUNNER = importlib.util.module_from_spec(RUNNER_SPEC)
+with patch.object(sys, "path", [str(SCRIPT.parent), *sys.path]):
+    RUNNER_SPEC.loader.exec_module(RUNNER)
 
 
 def response(headers, body=b"", status=b"HTTP/1.1 200 OK"):
@@ -67,10 +73,16 @@ class FiniteFramingTests(unittest.TestCase):
 
 
 class WaitedClientTests(unittest.TestCase):
+    def setUp(self):
+        self.environment = patch.dict(os.environ, {"CODEX_TEMP_ROOT": str(RUN_ROOT.parent)})
+        self.environment.start()
+        self.addCleanup(self.environment.stop)
+
     def execute(self, wire):
         """Use one owned ephemeral listener, and wait for both child and server."""
         failures = []
-        with socket.socket() as listener, tempfile.TemporaryDirectory(prefix="i12-wire-") as directory:
+        RUN_ROOT.mkdir(parents=True, exist_ok=True)
+        with socket.socket() as listener, tempfile.TemporaryDirectory(prefix="i12-wire-", dir=RUN_ROOT) as directory:
             listener.bind(("127.0.0.1", 0))
             listener.listen(1)
             listener.settimeout(5)
@@ -101,7 +113,8 @@ class WaitedClientTests(unittest.TestCase):
                     ["rtk", "proxy", sys.executable, str(SCRIPT), "--port", str(port),
                      "--request", str(request), "--output", str(root / "observation")],
                     capture_output=True, timeout=15, check=False,
-                    env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONNOUSERSITE": "1"},
+                    env=RUNNER.client_environment({"PATH": os.environ["PATH"],
+                        "PYTHONDONTWRITEBYTECODE": "1", "PYTHONNOUSERSITE": "1"}),
                 )
             finally:
                 server.join(6)
@@ -112,6 +125,62 @@ class WaitedClientTests(unittest.TestCase):
             self.assertEqual((output / "response.bin").read_bytes(), wire)
             self.assertNotIn("native_eos", observed)
             return process, observed
+
+    def test_filtered_client_environment_only_adds_validated_storage_anchor(self):
+        filtered = {"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C", "LD_LIBRARY_PATH": "/mnt/artifacts/lib"}
+        with patch.dict(os.environ, {"UNRELATED_PRIVATE_VALUE": "must-not-propagate"}):
+            actual = RUNNER.client_environment(filtered)
+        self.assertEqual(actual, {**filtered, "CODEX_TEMP_ROOT": str(RUN_ROOT.parent)})
+        self.assertNotIn("CODEX_TEMP_ROOT", filtered)
+        with patch.dict(os.environ, {"CODEX_TEMP_ROOT": ""}):
+            with self.assertRaises(ValueError):
+                RUNNER.client_environment(filtered)
+
+    def test_client_paths_reject_escape_symlink_and_reused_output(self):
+        RUN_ROOT.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="i12-wire-boundary-", dir=RUN_ROOT) as directory:
+            root = Path(directory)
+            request = root / "request.bin"
+            request.write_bytes(b"request")
+            link = root / "link.bin"
+            link.symlink_to(request)
+            for invalid in (link, root, root / ".." / "escape", Path("/etc/passwd")):
+                with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                    CLIENT.artifact_path(invalid)
+            with self.assertRaises(ValueError):
+                CLIENT.artifact_path(root, fresh=True)
+            request.chmod(0o666)
+            with self.assertRaises(ValueError):
+                CLIENT.artifact_path(request)
+            request.chmod(0o1666)
+            with self.assertRaises(ValueError):
+                CLIENT.artifact_path(request)
+            request.chmod(0o600)
+            root.chmod(0o1777)
+            try:
+                with self.assertRaises(ValueError):
+                    CLIENT.artifact_path(request)
+                with self.assertRaises(ValueError):
+                    CLIENT.artifact_path(root / "fresh", fresh=True)
+            finally:
+                root.chmod(0o700)
+
+    def test_client_storage_anchor_is_explicit_private_and_canonical(self):
+        RUN_ROOT.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="i12-wire-anchor-", dir=RUN_ROOT) as directory:
+            root = Path(directory)
+            for invalid in ("", "relative", str(root) + "/", str(root / ".." / "escape"), "/"):
+                with self.subTest(invalid=invalid), patch.dict(os.environ, {"CODEX_TEMP_ROOT": invalid}):
+                    with self.assertRaises(ValueError):
+                        CLIENT.storage_root()
+            with patch.dict(os.environ, {"CODEX_TEMP_ROOT": str(root)}):
+                self.assertEqual(CLIENT.storage_root(), root)
+                root.chmod(0o1777)
+                try:
+                    with self.assertRaises(ValueError):
+                        CLIENT.storage_root()
+                finally:
+                    root.chmod(0o700)
 
     def test_complete_response_is_waited_and_eof_is_transport_only(self):
         process, observed = self.execute(response(b"Content-Length: 3", b"abc"))

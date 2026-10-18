@@ -3,6 +3,7 @@
 import copy
 import importlib.util
 import json
+import os
 from pathlib import Path
 import unittest
 from unittest import mock
@@ -28,6 +29,10 @@ class QualificationTests(unittest.TestCase):
         fixture.setUp()
         self.addCleanup(fixture.doCleanups)
         self.fixture = fixture
+        run_root = fixture.path.parents[2]
+        configured_root = mock.patch.dict(os.environ, {"CODEX_RUN_ROOT": str(run_root)})
+        configured_root.start()
+        self.addCleanup(configured_root.stop)
         record = fixture.packet(1)
         self.packet_path = Path(record["packet"]["path"])
         self.packet = json.loads(self.packet_path.read_text())
@@ -226,6 +231,21 @@ class QualificationTests(unittest.TestCase):
         self.decision["outcome"] = "FAIL"
         records = self.run_materializer()
         self.assertEqual(json.loads(Path(records[0]["packet"]["path"]).read_text())["outcome"], "FAIL")
+
+    def test_run_root_requires_explicit_protected_configuration(self):
+        with mock.patch.dict(os.environ, {"CODEX_RUN_ROOT": ""}):
+            with self.assertRaisesRegex(ValueError, "CODEX_RUN_ROOT"):
+                QUALIFY.publication_path(self.fixture.path / "approved")
+        for configured in ("relative", str(self.fixture.path / ".."), "/"):
+            with self.subTest(configured=configured):
+                with mock.patch.dict(os.environ, {"CODEX_RUN_ROOT": configured}):
+                    with self.assertRaises(ValueError):
+                        QUALIFY.evidence_root()
+        self.fixture.path.chmod(0o777)
+        self.addCleanup(self.fixture.path.chmod, 0o700)
+        with mock.patch.dict(os.environ, {"CODEX_RUN_ROOT": str(self.fixture.path)}):
+            with self.assertRaisesRegex(ValueError, "protected"):
+                QUALIFY.evidence_root()
 
     def test_native_return_counts_bind_process_partial_and_negative_returns(self):
         calls = self.packet["observations"]["native_api_returns"]["value"]["measured_calls"]

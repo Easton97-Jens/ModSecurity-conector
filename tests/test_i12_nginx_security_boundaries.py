@@ -10,6 +10,7 @@ import stat
 import tempfile
 import tarfile
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,6 +37,12 @@ class EvidenceBoundaryTests(unittest.TestCase):
         # Use the same protected external storage as the harness; /tmp fixtures
         # would hide the real ancestry policy these tests need to exercise.
         RUN_ROOT.mkdir(parents=True, exist_ok=True)
+        configured_roots = patch.dict(os.environ, {
+            "CODEX_TEMP_ROOT": str(RUN_ROOT.parent),
+            "CODEX_RUN_ROOT": str(RUN_ROOT),
+        })
+        configured_roots.start()
+        self.addCleanup(configured_roots.stop)
         scratch = tempfile.TemporaryDirectory(prefix="nginx-boundary-", dir=RUN_ROOT)
         self.addCleanup(scratch.cleanup)
         self.scratch = Path(scratch.name)
@@ -54,7 +61,8 @@ class EvidenceBoundaryTests(unittest.TestCase):
 
     def synthetic_inventory(self):
         payload = b"synthetic source\n"
-        blob = hashlib.sha1(b"blob " + str(len(payload)).encode() + b"\0" + payload).hexdigest()
+        blob = hashlib.sha1(b"blob " + str(len(payload)).encode() + b"\0" + payload,
+                            usedforsecurity=False).hexdigest()
         return payload, {"src/main.c": {"mode": 0o644, "git_blob": blob}}
 
     def test_git_inventory_requires_exact_ids_modes_paths_and_no_collisions(self):
@@ -146,6 +154,50 @@ class EvidenceBoundaryTests(unittest.TestCase):
         with self.assertRaises(FileExistsError):
             BUILD.create_private_output(target)
         self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o700)
+
+    def test_build_storage_requires_explicit_canonical_project_anchor(self):
+        for value in ("", ".", "/", "relative/storage", str(self.scratch) + "/",
+                      str(self.scratch) + "/../escape"):
+            with self.subTest(value=value):
+                with patch.dict(os.environ, {"CODEX_TEMP_ROOT": value}):
+                    with self.assertRaises(ValueError):
+                        BUILD.storage_root()
+        with patch.dict(os.environ, {}, clear=True):
+            with self.assertRaises(ValueError):
+                BUILD.storage_root()
+        with patch.dict(os.environ, {"CODEX_TEMP_ROOT": str(self.scratch)}):
+            self.assertEqual(BUILD.storage_root(), self.scratch)
+            target = self.scratch / "configured-build"
+            self.assertEqual(BUILD.create_private_output(target), target)
+            self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o700)
+
+    def test_configured_storage_anchor_cannot_itself_be_shared_sticky_transit(self):
+        self.scratch.chmod(0o1777)
+        self.addCleanup(self.scratch.chmod, 0o700)
+        target = self.scratch / "forbidden-build"
+        with patch.dict(os.environ, {"CODEX_TEMP_ROOT": str(self.scratch)}):
+            with self.assertRaises(ValueError):
+                BUILD.create_private_output(target)
+        self.assertFalse(target.exists())
+
+    def test_report_and_config_require_explicit_protected_storage_configuration(self):
+        for variable, reader in (("CODEX_RUN_ROOT", REPORT.evidence_root),
+                                 ("CODEX_TEMP_ROOT", CONFIG.artifact_root)):
+            for value in ("", "relative/storage", str(self.scratch / ".." / "noncanonical")):
+                with self.subTest(variable=variable, value=value):
+                    with patch.dict(os.environ, {variable: value}):
+                        with self.assertRaises(ValueError):
+                            reader()
+            with patch.dict(os.environ, {}, clear=True):
+                with self.assertRaises(ValueError):
+                    reader()
+            self.scratch.chmod(0o777)
+            try:
+                with patch.dict(os.environ, {variable: str(self.scratch)}):
+                    with self.assertRaises(ValueError):
+                        reader()
+            finally:
+                self.scratch.chmod(0o700)
 
     def test_build_rejects_escape_links_and_writable_ancestors(self):
         with self.assertRaises(ValueError):

@@ -9,6 +9,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import stat
 import subprocess
 import sys
@@ -17,6 +18,27 @@ import threading
 import time
 
 from scenarios import cases, serializable
+
+
+def storage_root():
+    """Require the configured private project anchor, with no temp fallback."""
+    value = os.environ.get("CODEX_TEMP_ROOT", "")
+    match = re.fullmatch(r"/[A-Za-z0-9_./-]+", value)
+    if match is None:
+        raise ValueError("canonical CODEX_TEMP_ROOT required")
+    root = Path(match.group(0))
+    if (str(root) != value or root != root.resolve() or root == Path("/") or
+            ".." in root.parts):
+        raise ValueError("canonical CODEX_TEMP_ROOT required")
+    info = root.lstat()
+    if (not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022):
+        raise ValueError("private root-owned CODEX_TEMP_ROOT required")
+    return root
+
+
+def client_environment(parser_environment):
+    """Pass only the validated storage anchor alongside the filtered host env."""
+    return {**parser_environment, "CODEX_TEMP_ROOT": str(storage_root())}
 
 
 def digest(path):
@@ -140,11 +162,18 @@ def run_one(args, row, raw, maps):
     # worker may traverse it, but cannot replace files or plant child symlinks.
     # The sealed controller admits this tree as writable and maps it back to
     # nginx-worker-runtime; its parent remains read-only inside the namespace.
-    scratch_parent = Path("/var/tmp/codex/ModSecurity-nginx-i12")
+    scratch_parent = storage_root().with_name("ModSecurity-nginx-i12")
     metadata = scratch_parent.lstat()
     if (scratch_parent.resolve() != scratch_parent or not stat.S_ISDIR(metadata.st_mode)
             or metadata.st_uid != 0 or metadata.st_mode & 0o022):
         raise ValueError("root-owned non-writable worker scratch parent required")
+    for ancestor in scratch_parent.parents:
+        info = ancestor.lstat()
+        sticky_root = (stat.S_ISDIR(info.st_mode) and info.st_uid == 0
+                       and info.st_mode & stat.S_ISVTX)
+        if (not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or
+                info.st_mode & 0o022 and not sticky_root):
+            raise ValueError("protected root-owned worker scratch ancestry required")
     worker = Path(tempfile.mkdtemp(prefix="nginx-i12-", dir=scratch_parent))
     worker.chmod(0o711)
     for leaf in ("client", "proxy"):
@@ -236,7 +265,8 @@ def run_one(args, row, raw, maps):
                 clientargv = [sys.executable, str(Path(__file__).with_name("wire_client.py")), "--port", str(port),
                               "--request", str(request), "--output", str(output / label), "--pieces", str(row["writes"] if selected else 1)]
                 started = time.monotonic_ns()
-                with subprocess.Popen(clientargv, env=parser_env, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as client:
+                with subprocess.Popen(clientargv, env=client_environment(parser_env),
+                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE) as client:
                     try:
                         client_stdout, client_stderr = client.communicate(timeout=20)
                     except subprocess.TimeoutExpired:

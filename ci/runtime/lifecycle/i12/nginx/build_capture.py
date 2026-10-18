@@ -9,6 +9,16 @@ from pathlib import Path
 def sha(path): return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def storage_root():
+    """Use the project-admitted storage anchor, never a public-temp default."""
+    value = os.environ.get("CODEX_TEMP_ROOT", "")
+    root = Path(value)
+    if (not value or not root.is_absolute() or str(root) != value or
+            ".." in root.parts or root == Path("/")):
+        raise ValueError("canonical project CODEX_TEMP_ROOT required")
+    return root
+
+
 OBSERVER_COMPATIBILITY = {
     "ci/runtime/lifecycle/native-lifecycle-observer.c": (
         "0d903fc5e6432769a136931b7ebea16a6f87db941d28d23583ccccf4c75e6537",
@@ -84,7 +94,10 @@ def export_archive(data, target, files, gitlinks):
             if stream is None:
                 raise ValueError("archive regular-file payload absent")
             payload = stream.read()
-            blob = hashlib.sha1(b"blob " + str(len(payload)).encode() + b"\0" + payload).hexdigest()
+            # Git's object name is a compatibility identifier; the independent
+            # snapshot/integrity binding below always uses SHA-256.
+            blob = hashlib.sha1(b"blob " + str(len(payload)).encode() + b"\0" + payload,
+                                usedforsecurity=False).hexdigest()
             if len(payload) != member.size or blob != expected["git_blob"]:
                 raise ValueError("archive blob differs from Git tree")
             destination = target / name
@@ -115,7 +128,7 @@ def export_current(git, target, revision, capture):
               "source_revision": revision, "snapshot_manifest": capture.SNAPSHOT,
               "snapshot_manifest_sha256": hashlib.sha256(data).hexdigest()}
     (target / capture.MARKER).write_text(json.dumps(marker) + "\n")
-    return capture.disposable(target, "unused-v2", Path("/var/tmp/codex/ModSecurity-conector"))
+    return capture.disposable(target, "unused-v2", storage_root())
 
 
 def permitted_transition(name, current, entry):
@@ -272,11 +285,11 @@ def apply_historical_adapter(checkout, output, snapshot, capture, source_identit
 def create_private_output(output):
     """Create a fresh output below trusted storage without following symlinks.
 
-    The root-owned sticky /var/tmp is only a transit ancestor. All storage and
+    Root-owned sticky directories are only transit ancestors. All storage and
     output ancestors must be owned by root/the operator and deny other writers.
     Existing directories are inspected through descriptors, never chmodded.
     """
-    storage = Path("/var/tmp/codex/ModSecurity-conector")
+    storage = storage_root()
     output = Path(output)
     if not output.is_absolute() or ".." in output.parts or storage not in output.parents:
         raise ValueError("fresh absolute external output below trusted storage required")
@@ -301,7 +314,7 @@ def create_private_output(output):
             child = os.open(component, flags, dir_fd=descriptor)
             try:
                 metadata = os.fstat(child)
-                shared_transit = (current == Path("/var/tmp") and metadata.st_uid == 0
+                shared_transit = (current in storage.parents and metadata.st_uid == 0
                                   and metadata.st_mode & stat.S_ISVTX)
                 if metadata.st_uid not in (0, os.geteuid()) or (
                     metadata.st_mode & 0o022 and not shared_transit

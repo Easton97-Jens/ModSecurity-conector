@@ -23,6 +23,49 @@ SPEC.loader.exec_module(SCHEMA)
 SDK_SHA256 = "32257230b8f378987ba1204049dcc1e23927fd44c8778e09d41805ad705c3407"
 
 
+def storage_root():
+    """Require the configured private project anchor, with no temp fallback."""
+    value = os.environ.get("CODEX_TEMP_ROOT", "")
+    match = re.fullmatch(r"/[A-Za-z0-9_./-]+", value)
+    if match is None:
+        raise ValueError("canonical CODEX_TEMP_ROOT required")
+    root = Path(match.group(0))
+    if (str(root) != value or root != root.resolve() or root == Path("/") or
+            ".." in root.parts):
+        raise ValueError("canonical CODEX_TEMP_ROOT required")
+    info = root.lstat()
+    if (not stat.S_ISDIR(info.st_mode) or info.st_uid not in (0, os.geteuid()) or
+            info.st_mode & 0o022):
+        raise ValueError("private owned CODEX_TEMP_ROOT required")
+    return root
+
+
+def artifact_path(value, *, directory=False, output=False):
+    """Validate operator-controlled CLI paths before opening evidence files."""
+    match = re.fullmatch(r"/[A-Za-z0-9_./-]+", str(value))
+    if match is None:
+        raise ValueError("canonical review artifact path required")
+    path = Path(match.group(0))
+    anchor = storage_root()
+    if str(path) != str(value) or path != path.resolve() or not path.is_relative_to(anchor):
+        raise ValueError("review artifact outside protected task storage")
+    existing = path
+    while output and not existing.exists():
+        existing = existing.parent
+    for ancestor in (existing, *existing.parents):
+        info = ancestor.lstat()
+        sticky_root = (not ancestor.is_relative_to(anchor) and stat.S_ISDIR(info.st_mode)
+                       and info.st_uid == 0 and info.st_mode & stat.S_ISVTX)
+        if (stat.S_ISLNK(info.st_mode) or info.st_uid not in (0, os.geteuid()) or
+                info.st_mode & 0o022 and not sticky_root):
+            raise ValueError("review artifact ancestry is not protected")
+    if not output and not (path.is_dir() if directory else path.is_file()):
+        raise ValueError("review artifact has wrong file type")
+    if output and path.exists() and not path.is_dir():
+        raise ValueError("review output must be a directory")
+    return path
+
+
 def read(path):
     return json.loads(path.read_text())
 
@@ -50,10 +93,10 @@ def physical(runtime, attempt, admission):
     path = absolute_path(runtime)
     # These are virtual mount names in the admitted namespace, never host
     # temporary directories to open. Only their protected backing files are read.
-    root = PurePosixPath("/var/tmp/codex/ModSecurity-conector")
+    root = PurePosixPath(storage_root())
     if path.is_relative_to(root):
         return attempt / "data" / path.relative_to(root)
-    worker = PurePosixPath("/var/tmp/codex/ModSecurity-nginx-i12")
+    worker = root.with_name("ModSecurity-nginx-i12")
     if path.is_relative_to(worker):
         return attempt / "data/nginx-worker-runtime" / path.relative_to(worker)
     for binding in sorted(admission["bindings"], key=lambda item: len(item["target"]), reverse=True):
@@ -444,6 +487,10 @@ def main():
     for name in ("attempt", "source-manifest", "build-receipt", "output"):
         parser.add_argument("--" + name, type=Path, required=True)
     args = parser.parse_args()
+    args.attempt = artifact_path(args.attempt, directory=True)
+    args.source_manifest = artifact_path(args.source_manifest)
+    args.build_receipt = artifact_path(args.build_receipt)
+    args.output = artifact_path(args.output, output=True)
     controller = read(args.attempt / "controller-result.json")
     admission_path = args.attempt / "admission.original.json"
     live_admission = read(admission_path)
@@ -462,7 +509,7 @@ def main():
     source_bindings = [binding for binding in admission["bindings"] if binding.get("ledger") == str(args.source_manifest)]
     if len(source_bindings) != 1 or sha(args.source_manifest) != source_bindings[0]["ledger_sha256"]:
         raise ValueError("Source manifest does not bind this admitted host attempt")
-    args.output.mkdir(parents=True, exist_ok=True)
+    args.output.mkdir(mode=0o700, parents=True, exist_ok=True)
     summaries = []
     for path in sorted((args.attempt / "data").rglob("full-observation-receipt.json")):
         try:

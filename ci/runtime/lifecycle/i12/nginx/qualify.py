@@ -34,7 +34,6 @@ REQUIRED_CHECKS = {
 }
 TERMINALS = {2: "request_terminal_to_p2_once", 4: "response_terminal_to_p4_once"}
 PHASE_FUNCTIONS = {2: "native_process_request_body", 4: "native_process_response_body"}
-EVIDENCE_ROOT = Path("/var/tmp/codex/ModSecurity-conector/runs")
 REQUIRED_ASSERTIONS = {
     "raw_artifact_digests_match", "config_loaded", "receipt_errors_empty", "selected_transaction_unique",
     "selected_allocation_unique", "native_invalid_rows_absent", "selected_native_nobody",
@@ -50,10 +49,24 @@ def require(condition, reason):
         raise ValueError(reason)
 
 
+def evidence_root():
+    """Require an existing private run root configured by the operator."""
+    value = os.environ.get("CODEX_RUN_ROOT")
+    require(bool(value), "CODEX_RUN_ROOT must name a protected project directory")
+    root = Path(value)
+    require(root.is_absolute() and root.parent != root and root == root.resolve() and root.is_dir(),
+            "Canonical existing CODEX_RUN_ROOT required")
+    info = root.lstat()
+    require(info.st_uid in (0, os.geteuid()) and not info.st_mode & 0o022,
+            "CODEX_RUN_ROOT must be operator-owned and protected")
+    return root
+
+
 def publication_path(path):
     """Keep approved packets inside project runs, with no link traversal."""
     path = Path(path).absolute()
-    require(".." not in path.parts and path.is_relative_to(EVIDENCE_ROOT) and path != EVIDENCE_ROOT,
+    root = evidence_root()
+    require(".." not in path.parts and path.is_relative_to(root) and path != root,
             "Approved output must be inside the project run root")
     trusted_ancestry(path, allow_missing=True)
     require(not path.exists(), "Approved output directory must be fresh")
@@ -62,6 +75,7 @@ def publication_path(path):
 
 def trusted_ancestry(path, *, regular=False, allow_missing=False):
     """Trust only root/operator-owned paths with protected ancestry."""
+    root = evidence_root()
     for component in reversed((path, *path.parents)):
         try:
             info = component.lstat()
@@ -70,7 +84,7 @@ def trusted_ancestry(path, *, regular=False, allow_missing=False):
             continue
         require(info.st_uid in (0, os.geteuid()) and not stat.S_ISLNK(info.st_mode),
                 "Path requires root/operator ownership without symlinks")
-        transit = (component != path and not component.is_relative_to(EVIDENCE_ROOT) and
+        transit = (component != path and not component.is_relative_to(root) and
                    info.st_uid == 0 and stat.S_ISDIR(info.st_mode) and info.st_mode & stat.S_ISVTX)
         require(not info.st_mode & 0o022 or transit, "Path has a group/world-writable component")
         require(component == path or stat.S_ISDIR(info.st_mode), "Path ancestor must be a directory")
@@ -80,7 +94,7 @@ def trusted_ancestry(path, *, regular=False, allow_missing=False):
 
 def evidence_path(path):
     path = Path(path).absolute()
-    require(".." not in path.parts and path.is_relative_to(EVIDENCE_ROOT),
+    require(".." not in path.parts and path.is_relative_to(evidence_root()),
             "Evidence path must remain inside the project run root")
     trusted_ancestry(path, regular=True)
     return path
