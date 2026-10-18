@@ -7,6 +7,7 @@ historical partial executions remain separate from full host lifecycle results.
 """
 import argparse
 import copy
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -21,6 +22,11 @@ def oracle_module():
 
 
 ORACLES = oracle_module()
+CONFIGURATION_FIELDS = (
+    "actual-config-parser-argv-cwd-exit-signal-stderr",
+    "source-host-module-effective-config-identity",
+    "expected-parser-acceptance-or-rejection",
+)
 ROLES = {
     "product_host_identity": {"loaded_image", "isolation_receipt"},
     "source_config_binding": {"source_manifest", "effective_configuration"},
@@ -153,15 +159,26 @@ def validate_configuration_identity(packet, row, effective_oracle):
     selected = row["selected_requirement"]
     if selected.get("execution_kind") != "actual_configtest":
         raise ValueError("Only an original actual_configtest contract permits parser qualification")
+    if set(selected.get("mandatory_missing_observations", [])) != set(CONFIGURATION_FIELDS):
+        raise ValueError("Parser qualification must preserve the original three observations")
     if (packet.get("reviewed_by") != "root"
             or packet.get("run_scoped_case_id") != row["run_scoped_case_id"]
             or packet.get("leg_id") != row["leg_id"]):
         raise ValueError("Configuration packet requires Root review of the exact original ID")
     if packet.get("execution_kind") != "configuration_parser" or packet.get("execution_observed") is not True:
         raise ValueError("Configuration qualification requires an observed parser process")
-    for name in ("run_id", "parent_sha", "effective_config_sha256", "rules_sha256"):
+    if packet.get("full_lifecycle_qualified") is True:
+        raise ValueError("Configuration qualification cannot claim a host lifecycle")
+    for name in ("run_id", "parent_sha", "effective_config_sha256"):
         if not packet.get(name):
             raise ValueError(f"Missing parser identity: {name}")
+    absent_rules = packet.get("rules_absence_sha256")
+    if absent_rules:
+        if (row["run_scoped_case_id"].split("::")[-1] != "missing_rules_file"
+                or "rules_sha256" not in packet or packet["rules_sha256"] is not None):
+            raise ValueError("Rules absence is only valid for the original missing-rules contract; unloaded rules stay null")
+    elif not packet.get("rules_sha256"):
+        raise ValueError("Missing parser identity: rules_sha256")
     if (packet.get("oracle_evaluated") is not True or effective_oracle is None
             or packet.get("oracle_sha256") != ORACLES.canonical_digest(effective_oracle)):
         raise ValueError("Parser evaluation must bind the independently reviewed effective oracle")
@@ -169,9 +186,11 @@ def validate_configuration_identity(packet, row, effective_oracle):
 
 def configuration_measurements(packet, ref):
     roles = {"parser_process", "source_manifest", "effective_configuration", "invoked_image",
-             "cleanup_observer", "isolation_receipt"}
+             "cleanup_observer", "isolation_receipt", "native_module",
+             "parser_stdout", "parser_stderr", "expectation_source"}
+    roles.add("rules_absence" if packet.get("rules_absence_sha256") else "rules_file")
     evidence = [ORACLES.verify_reference(item) for item in packet.get("measurement_evidence", [])]
-    if not roles <= {item.get("role") for item in evidence}:
+    if roles != {item.get("role") for item in evidence} or len(evidence) != len(roles):
         raise ValueError("Parser packet lacks independent process, image, source/config or cleanup producers")
     if any(item["path"] == ref["path"] for item in evidence):
         raise ValueError("Parser packet cannot be its own measurement")
@@ -184,7 +203,76 @@ def configuration_measurements(packet, ref):
     for name in ("invocation_identity", "source_config_binding", "cleanup"):
         if not observed.get(name):
             raise ValueError(f"Parser packet lacks actual {name}")
+    producers = {item["role"]: item for item in evidence}
+    configuration_process_binding(packet, process, producers)
+    configuration_source_binding(packet, observed, producers)
+    independent = producers["expectation_source"]
+    implementation_hashes = {item["sha256"] for item in evidence if item["role"] != "expectation_source"}
+    if (independent.get("kind") not in ORACLES.INDEPENDENT_KINDS or not independent.get("revision")
+            or independent["sha256"] in implementation_hashes):
+        raise ValueError("Parser expectation requires a separate revisioned independent source")
     return observed
+
+
+def configuration_process_binding(packet, process, producers):
+    """Match a physical parser receipt; the driver's exit cannot substitute."""
+    actual = json.loads(Path(producers["parser_process"]["path"]).read_text())
+    for name in ("run_scoped_case_id", "leg_id", "run_id", "parent_sha", "effective_config_sha256", "rules_sha256",
+                 "execution_kind", "execution_observed"):
+        if actual.get(name) != packet[name]:
+            raise ValueError(f"Parser process identity differs: {name}")
+    if packet.get("rules_absence_sha256"):
+        configuration_rules_absence(packet, actual, producers["rules_absence"])
+    for name in ("argv", "cwd", "waited_exit", "waited_signal", "stdout", "stderr", "executable_sha256"):
+        if name not in process or actual.get(name) != process[name]:
+            raise ValueError(f"Parser observation differs from physical process: {name}")
+    if (not isinstance(process["argv"], list) or not process["argv"]
+            or any(not isinstance(arg, str) or not arg for arg in process["argv"])
+            or not isinstance(process["cwd"], str) or not Path(process["cwd"]).is_absolute()
+            or process["executable_sha256"] != producers["invoked_image"]["sha256"]):
+        raise ValueError("Actual parser argv/cwd/executable identity is required")
+    for stream in ("stdout", "stderr"):
+        content = process[stream]
+        if not isinstance(content, str) or hashlib.sha256(content.encode()).hexdigest() != producers["parser_" + stream]["sha256"]:
+            raise ValueError(f"Parser {stream} differs from physical stream bytes")
+
+
+def configuration_rules_absence(packet, actual, ref):
+    """The attempted missing path has an absence receipt, never a file hash."""
+    absence = json.loads(Path(ref["path"]).read_text())
+    if (absence.get("type") != "physical_path_absence" or absence.get("exists") is not False
+            or absence.get("measurement") != "lstat" or absence.get("errno") != 2
+            or absence.get("symlink_components") != [] or actual.get("rules_lstat_errno") != 2
+            or not isinstance(absence.get("rules_path"), str) or not Path(absence["rules_path"]).is_absolute()
+            or actual.get("rules_path") != absence["rules_path"] or actual.get("rules_exists") is not False
+            or actual.get("rules_absence_sha256") != packet["rules_absence_sha256"]
+            or ref["sha256"] != packet["rules_absence_sha256"]):
+        raise ValueError("Missing rules need the actual attempted absolute path and physical absence measurement")
+    for name in ("run_scoped_case_id", "leg_id", "run_id", "parent_sha"):
+        if absence.get(name) != packet[name]:
+            raise ValueError(f"Rules absence belongs to a different execution: {name}")
+
+
+def configuration_source_binding(packet, observed, producers):
+    """Bind every invoked image and effective parser input to physical bytes."""
+    identity = observed["invocation_identity"]
+    binding = observed["source_config_binding"]
+    for field, role in (("host_binary_sha256", "invoked_image"), ("module_sha256", "native_module")):
+        if identity.get(field) != producers[role]["sha256"]:
+            raise ValueError(f"Parser image identity differs: {field}")
+    rules_binding = (("rules_absence_sha256", "rules_absence") if packet.get("rules_absence_sha256")
+                     else ("rules_sha256", "rules_file"))
+    for field, role in (("effective_config_sha256", "effective_configuration"), rules_binding):
+        if packet[field] != producers[role]["sha256"] or binding.get(field) != packet[field]:
+            raise ValueError(f"Parser effective input identity differs: {field}")
+    if packet.get("rules_absence_sha256") and binding.get("rules_sha256", "missing") is not None:
+        raise ValueError("An unloaded missing rules file has no rules SHA256")
+    source = json.loads(Path(producers["source_manifest"]["path"]).read_text())
+    if binding.get("parent_sha") != packet["parent_sha"] or source.get("parent_sha") != packet["parent_sha"]:
+        raise ValueError("Parser source revision differs from actual source manifest")
+    cleanup = json.loads(Path(producers["cleanup_observer"]["path"]).read_text())
+    if observed["cleanup"] != cleanup:
+        raise ValueError("Parser cleanup differs from physical observer")
 
 
 def reviewed_configuration_packet(supplied, row, effective_oracle):
@@ -202,14 +290,25 @@ def reviewed_configuration_packet(supplied, row, effective_oracle):
     if verdict not in ("PASS", "FAIL"):
         raise ValueError("Parser exit alone is not an evaluated configuration verdict")
     expected = effective_oracle.get("native_result")
-    if expected not in ("config_accepted", "config_rejected"):
+    expected_exit = effective_oracle.get("visible_status")
+    explicit_exit = (type(expected_exit) is int and
+                     ((expected == "config_accepted" and expected_exit == 0) or
+                      (expected == "config_rejected" and 1 <= expected_exit <= 255)))
+    if (effective_oracle.get("phase") != 0
+            or effective_oracle.get("physical_evidence_not_projection") is not True
+            or effective_oracle.get("unresolved_expected_value_reason")
+            or not explicit_exit):
         raise ValueError("Parser scope requires an explicit acceptance or rejection oracle")
     process = observed["parser_process"]
     matched = (process["waited_signal"] is None and process["waited_exit"] >= 0
-               and ((process["waited_exit"] == 0) == (expected == "config_accepted")))
+               and process["waited_exit"] == effective_oracle["visible_status"])
     if verdict != ("PASS" if matched else "FAIL"):
         raise ValueError("Parser verdict contradicts actual exit/signal and independent oracle")
     return {"receipt": ref, "observations": observed, "execution_observed": True,
+            "mandatory_observations": dict(zip(CONFIGURATION_FIELDS, (
+                observed["parser_process"],
+                {"invocation_identity": observed["invocation_identity"], "source_config_binding": observed["source_config_binding"]},
+                {"expected_oracle": copy.deepcopy(effective_oracle), "oracle_sha256": packet["oracle_sha256"]}), strict=True)),
             "qualification_scope": "configuration_control", "full_case_qualified": True,
             "full_lifecycle_qualified": False, "outcome": verdict, "unknown_fields": []}
 
@@ -231,7 +330,10 @@ def build_ledger(requirements, selection, reconciliation, packets):
         oracle = review["effective_oracle"] if review else by_id[identity]["selected_requirement"]["expected_oracle"]
         if oracle and oracle.get("unresolved_expected_value_reason"):
             oracle = None
-        observations[identity] = reviewed_packet(ref, by_id[identity], oracle)
+        reviewer = (reviewed_configuration_packet
+                    if by_id[identity]["selected_requirement"].get("execution_kind") == "actual_configtest"
+                    else reviewed_packet)
+        observations[identity] = reviewer(ref, by_id[identity], oracle)
     rows = []
     for original_row in original:
         row = copy.deepcopy(original_row)
@@ -239,13 +341,22 @@ def build_ledger(requirements, selection, reconciliation, packets):
         row["historical_status"] = row["status"]
         row["historical_execution_observed"] = row["execution_observed"]
         row["oracle_reconciliation"] = copy.deepcopy(reviews.get(identity))
-        row["current_lifecycle_packet"] = observations.get(identity)
+        observation = observations.get(identity)
+        configuration = observation is not None and observation.get("qualification_scope") == "configuration_control"
+        row["current_lifecycle_packet"] = None if configuration else observation
+        row["current_configuration_packet"] = observation if configuration else None
         row["qualified_host_lifecycle_pass"] = False
+        row["qualified_configuration_pass"] = False
         row["qualification_scope"] = "historical_configuration_only" if row["status"] == "PASS" else None
         if identity in observations:
             observation = observations[identity]
             row["execution_observed"] = True
-            if observation["full_lifecycle_qualified"]:
+            if configuration:
+                row["status"] = observation["outcome"]
+                row["qualified_full_case_pass"] = observation["outcome"] == "PASS"
+                row["qualified_configuration_pass"] = observation["outcome"] == "PASS"
+                row["qualification_scope"] = "configuration_control"
+            elif observation["full_lifecycle_qualified"]:
                 row["status"] = observation["outcome"]
                 row["qualified_full_case_pass"] = observation["outcome"] == "PASS"
                 row["qualified_host_lifecycle_pass"] = observation["outcome"] == "PASS"
@@ -261,6 +372,8 @@ def build_ledger(requirements, selection, reconciliation, packets):
             "summary": {
                 "original_ids": len(rows), "actually_executed_ids": sum(row["execution_observed"] is True for row in rows),
                 "configuration_only_pass": sum(row["qualification_scope"] == "historical_configuration_only" for row in rows),
+                "current_configuration_pass": sum(row["qualification_scope"] == "configuration_control" and row["status"] == "PASS" for row in rows),
+                "current_configuration_fail": sum(row["qualification_scope"] == "configuration_control" and row["status"] == "FAIL" for row in rows),
                 "full_lifecycle_pass": sum(row["status"] == "PASS" for row in full),
                 "full_lifecycle_fail": sum(row["status"] == "FAIL" for row in full),
                 "required_full_lifecycle_pass": len(required_full_pass),

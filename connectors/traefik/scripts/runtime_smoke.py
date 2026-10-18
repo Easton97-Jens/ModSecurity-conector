@@ -430,6 +430,7 @@ def dynamic_config(upstream_port: int, auth_port: int, companion_socket: Path) -
       forwardAuth:
         address: http://127.0.0.1:{auth_port}/authorize
         trustForwardHeader: false
+        preserveRequestMethod: true
         # Keep the logical forwardAuth P2 contract explicit and bounded.
         forwardBody: true
         maxBodySize: 4096
@@ -456,6 +457,12 @@ def dynamic_config(upstream_port: int, auth_port: int, companion_socket: Path) -
 def validate_forwardauth_p2_contract(dynamic_text: str) -> None:
     """Reject a forwardAuth host configuration that disables or loosens P2."""
 
+    methods = re.findall(r"(?m)^\s{8}preserveRequestMethod:\s*(\S+)\s*$", dynamic_text)
+    if methods != ["true"]:
+        raise RuntimeError("forwardAuth requires preserveRequestMethod: true")
+    forwarded = re.findall(r"(?m)^\s{8}trustForwardHeader:\s*(\S+)\s*$", dynamic_text)
+    if forwarded != ["false"]:
+        raise RuntimeError("forwardAuth requires trustForwardHeader: false")
     if "        forwardBody: true" not in dynamic_text:
         raise RuntimeError("forwardAuth P2 requires forwardBody: true")
     body_size = re.search(r"(?m)^\s{8}maxBodySize:\s*(\d+)\s*$", dynamic_text)

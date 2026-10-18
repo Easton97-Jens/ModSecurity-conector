@@ -157,6 +157,28 @@ configuration issue, verify the selected HTX overlay and host configuration
 first. For an intervention question, distinguish requested WAF action from the
 actual HAProxy host action and visible client outcome.
 
+## Request scope, HTTP version, and queued Strict output
+
+The standalone SPOP authorization route selects a finite P1/P2 transaction
+before native allocation and finishes that scope explicitly. A response-enabled
+route retains its full P1--P4 contract. Missing or incomplete samples remain
+fail closed; request-only success supplies no response-phase evidence.
+
+The internal request structure requires the actual `http_version` token
+(`1.0`, `1.1`, or `2.0`). The SPOP decoder, mapper, native URI call, and HTX
+snapshot preserve that value. Missing, unknown, or conflicting versions are
+rejected before native transaction allocation. Rebuild all internal consumers
+after this structure change. Version admission alone does not establish that
+every HTTP/2 framing or sample mapping is supported.
+
+For a post-commit Strict intervention, the HTX filter erases queued response
+HTX/channel data, aborts the affected stream, and returns a negative filter
+result so HAProxy cannot subsequently advance the rejected slice. Safe retains
+its own behavior. Bytes already delivered cannot be withdrawn. Component tests
+cover queued sizes and adjacent-stream isolation; actual mux output, client
+bytes, and decision ordering require a fresh host run on the integrated build.
+The change record records those evidence limits explicitly.
+
 ## Limitations and compatibility
 
 Native HTX and historical SPOE/SPOP are distinct integrations. Do not combine
