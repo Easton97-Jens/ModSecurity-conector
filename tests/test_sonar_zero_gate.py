@@ -109,6 +109,20 @@ class Evidence:
 
 
 class SonarZeroGateTests(unittest.TestCase):
+    def test_hash_locked_yaml_dependency_is_installed_before_gate_unit_tests(self):
+        workflow = yaml.safe_load((ROOT/'.github/workflows/lint.yml').read_text())
+        steps = workflow['jobs']['scaffold-lint']['steps']
+        installs = [(index, step) for index, step in enumerate(steps)
+                    if '--require-hashes -r requirements-ci.lock' in step.get('run', '')]
+        self.assertEqual(len(installs), 1)
+        index, step = installs[0]
+        self.assertIn('--only-binary=:all:', step['run'])
+        self.assertNotIn('if', step)
+        consumers = [position for position, candidate in enumerate(steps)
+                     if 'tests.test_sonar_zero_gate' in candidate.get('run', '')]
+        self.assertEqual(len(consumers), 1)
+        self.assertLess(index, consumers[0])
+
     def test_both_workflow_gates_bind_explicit_PR_and_head(self):
         workflow = yaml.safe_load((ROOT/'.github/workflows/lint.yml').read_text())
         commands = {'python ci/checks/common/check-sonar-zero.py',

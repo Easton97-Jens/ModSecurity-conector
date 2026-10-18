@@ -49,6 +49,9 @@ def overlay_function_bodies(source: str) -> dict[str, str]:
         ("response_append", "static int haproxy_modsecurity_htx_append_response_payload("),
         ("response_end", "static int haproxy_modsecurity_htx_finish_response("),
         ("precommit_deny", "static int haproxy_modsecurity_htx_apply_precommit_deny("),
+        ("precommit_redirect", "static int haproxy_modsecurity_htx_apply_precommit_redirect("),
+        ("precommit_decision", "static int haproxy_modsecurity_htx_apply_precommit_decision("),
+        ("precommit_action", "static int haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed("),
         ("request_begin", "static int haproxy_modsecurity_htx_begin_request("),
         ("response_headers", "static int haproxy_modsecurity_htx_process_response_headers("),
         ("request_end", "static int haproxy_modsecurity_htx_finish_request("),
@@ -76,6 +79,9 @@ def load_contract() -> tuple[str, Path]:
 
 def runtime_selection_checks(source: str, helper: str, runtime: str, bodies: dict[str, str]) -> list[tuple[bool, str]]:
     precommit_deny = bodies["precommit_deny"]
+    precommit_redirect = bodies["precommit_redirect"]
+    precommit_decision = bodies["precommit_decision"]
+    precommit_action = bodies["precommit_action"]
     request_begin = bodies["request_begin"]
     response_headers = bodies["response_headers"]
     response_append = bodies["response_append"]
@@ -89,7 +95,8 @@ def runtime_selection_checks(source: str, helper: str, runtime: str, bodies: dic
         ("#include <haproxy/http_ana.h>" in source and "#include \"msconnector/block_statuses.h\"" in source, "overlay imports HAProxy's normal HTTP-reply API and shared block-status policy"),
         ("strcmp(decision->action, \"deny\")" in precommit_deny and "strcmp(decision->action, \"redirect\")" not in precommit_deny and "msconnector_block_status_is_allowed(decision->status)" in precommit_deny and "msconnector_block_status_normalize(decision->status)" in precommit_deny, "precommit host action accepts only validated deny interventions"),
         ("s->txn->status = (short)status;" in precommit_deny and "http_set_term_flags(s);" in precommit_deny and "http_reply_and_close(s, (short)status, http_error_message(s));" in precommit_deny and "http_reply_and_close(s, (short)status, NULL)" not in precommit_deny, "precommit deny uses HAProxy's concrete error-reply path, never the NULL-reply truncation path"),
-        ("haproxy_modsecurity_htx_apply_precommit_deny(s, ctx, &decision)" in request_begin and "haproxy_modsecurity_htx_apply_precommit_deny(s, ctx, &decision)" in response_headers, "both Phase 1 and pre-forward Phase 3 route deny through the native host action"),
+        ("haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed(s, ctx," in request_begin and "haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed(s, ctx," in response_headers and "haproxy_modsecurity_htx_apply_precommit_decision(s, ctx, decision)" in precommit_action and "haproxy_modsecurity_htx_apply_precommit_deny(s, ctx, decision)" in precommit_decision, "both Phase 1 and pre-forward Phase 3 route deny through the validated dispatcher"),
+        ("haproxy_modsecurity_redirect_url_length" in precommit_redirect and "rule.type = REDIRECT_TYPE_LOCATION;" in precommit_redirect and "rule.rdr_str = location;" in precommit_redirect and "http_apply_redirect_rule(&rule, s, s->txn) == 1" in precommit_redirect and precommit_redirect.index("haproxy_modsecurity_htx_finish_context(ctx)") < precommit_redirect.index("ctx->lifecycle.disabled = 1;") < precommit_redirect.index("http_apply_redirect_rule("), "precommit redirect uses a bounded literal Location after native finish and reentry suppression"),
         ("HTX_BLK_DATA" in source and "htx_find_offset" in source and "htx_get_blk_value" in source, "response hook walks current HTX DATA slices instead of materializing a body"),
         ("haproxy_modsecurity_transaction_append_response_body_chunk" in response_append and "return (int)len;" in response_callback, "response payload forwards borrowed chunks and never holds HAProxy output"),
     ]
@@ -125,9 +132,9 @@ def lifecycle_checks(source: str, binding: str, binding_header: str, bodies: dic
         (
             "haproxy_modsecurity_htx_report_decision(\"request-body\"" in request_end
             and "if (!ctx->response.headers_seen)" in request_end
-            and "haproxy_modsecurity_htx_apply_precommit_deny(" in request_end
+            and "haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed(" in request_end
             and request_end.index("if (!ctx->response.headers_seen)")
-            < request_end.index("haproxy_modsecurity_htx_apply_precommit_deny(")
+            < request_end.index("haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed(")
             and "haproxy_modsecurity_htx_fail_closed_postcommit(" in request_end,
             "request EOS can use the native reply path only before this filter sees response headers",
         ),

@@ -231,6 +231,20 @@ class ConfigurationLedgerTests(unittest.TestCase):
         path.write_text(json.dumps(actual))
         ref.update(LEDGER.ORACLES.reference(path))
 
+    def bind_rejection_expectation(self):
+        process = self.process()
+        process.update(first_cause="rules_rejected", stderr="source-bound rules rejection")
+        stream = next(item for item in self.packet["measurement_evidence"] if item["role"] == "parser_stderr")
+        Path(stream["path"]).write_text(process["stderr"])
+        stream.update(LEDGER.ORACLES.reference(Path(stream["path"])))
+        ref = next(item for item in self.packet["measurement_evidence"] if item["role"] == "expectation_source")
+        Path(ref["path"]).write_text(json.dumps({"reviewed_by": "root", "expected_parser_rejection": {
+            "original_contract_sha256": LEDGER.ORACLES.canonical_digest(self.row["selected_requirement"]),
+            "oracle_sha256": self.packet["oracle_sha256"], "diagnostic_stream": "stderr",
+            "diagnostic_contains": "source-bound rules rejection", "first_cause": "rules_rejected"}}))
+        ref.update(LEDGER.ORACLES.reference(Path(ref["path"])))
+        self.rebind_process()
+
     def test_exact_three_original_observations_without_lifecycle_fabrication(self):
         result = self.review()
         self.assertEqual(set(result["mandatory_observations"]), set(LEDGER.CONFIGURATION_FIELDS))
@@ -241,6 +255,7 @@ class ConfigurationLedgerTests(unittest.TestCase):
     def test_exact_rejection_exit_and_truthful_failure(self):
         self.oracle.update(native_result="config_rejected", visible_status=1, rule_id=None)
         self.packet["oracle_sha256"] = LEDGER.ORACLES.canonical_digest(self.oracle)
+        self.bind_rejection_expectation()
         self.process()["waited_exit"] = 1
         self.rebind_process()
         self.assertEqual(self.review()["outcome"], "PASS")
@@ -254,6 +269,7 @@ class ConfigurationLedgerTests(unittest.TestCase):
     def test_exact_source_reviewed_rejection_exit_255_is_not_normalized(self):
         self.oracle.update(native_result="config_rejected", visible_status=255, rule_id=None)
         self.packet["oracle_sha256"] = LEDGER.ORACLES.canonical_digest(self.oracle)
+        self.bind_rejection_expectation()
         self.process()["waited_exit"] = 255
         self.rebind_process()
         self.assertEqual(self.review()["outcome"], "PASS")
@@ -300,6 +316,7 @@ class ConfigurationLedgerTests(unittest.TestCase):
         actual.update(self.process())
         actual_path.write_text(json.dumps(actual))
         process_ref.update(LEDGER.ORACLES.reference(actual_path))
+        self.bind_rejection_expectation()
         self.assertEqual(self.review()["outcome"], "PASS")
         self.packet["rules_sha256"] = "0" * 64
         with self.assertRaises(ValueError):
@@ -670,6 +687,136 @@ class PreNativeRejectionTests(unittest.TestCase):
         self.assertEqual(result["summary"]["pre_native_rejection_pass"], 1)
         self.assertEqual(result["summary"]["full_lifecycle_pass"], 0)
         self.assertEqual(result["summary"]["required_qualified_pass"], 1)
+
+
+class LighttpdPreNativeRejectionTests(unittest.TestCase):
+    """Separate lighttpd source/log/FD contract; no Apache format fallback."""
+
+    write = PreNativeRejectionTests.write
+    review = PreNativeRejectionTests.review
+
+    def setUp(self):
+        PreNativeRejectionTests.setUp(self)
+        self.leg = "lighttpd-stock-native-control"
+        self.case = "I12::" + self.leg + "::" + self.name
+        self.row.update(run_scoped_case_id=self.case, leg_id=self.leg, required_leg=False)
+        self.row["selected_requirement"].update(run_scoped_case_id=self.case,
+            requirement_mapping=copy.deepcopy(LEDGER.LIGHTTPD_PRE_NATIVE_MAPPING[self.name]))
+        self.packet.update(run_scoped_case_id=self.case, leg_id=self.leg)
+        for record in self.api:
+            record["profile"] = self.leg
+            record["allocation_scope_call"] = 30 if record["monotonic_ns"] < 100 else 230
+        self.backend = [{"schema": "apache-independent-backend-v1", "pid": 111, "uid": 65534,
+                         "path": "/" + label, "monotonic_ns": stamp}
+                        for label, stamp in (("before", 40), ("after", 240))]
+        for label in ("before", "after"):
+            self.controls[label]["request_id"] = "/" + label
+        raw = Path(self.sink["path"]).read_bytes().replace(b'"connector": "apache"', b'"connector": "lighttpd"')
+        self.event["sink"] = self.write("lighttpd-sink", raw)
+        boundary = len(raw.splitlines(keepends=True)[0])
+        self.event.update(before_offset=boundary, after_offset=boundary,
+            before_control={"start_offset": 0, "end_offset": boundary},
+            after_control={"start_offset": boundary, "end_offset": len(raw)})
+        self.message = "invalid Content-Length header -> 400"
+        self.core = ("1970-01-01 00:00:01.500000000: (/official/src/request.c.327) " + self.message + "\n"
+            "1970-01-01 00:00:01.500000001: (/official/src/request.c.1414) rqst: POST /main HTTP/1.1\n"
+            "1970-01-01 00:00:01.500000002: (/official/src/request.c.1414) rqst: X-I12-ID: main-control\n").encode()
+        self.fd = {"device": 1, "inode": 2, "mode": 0o600, "owner_uid": 65534, "nlink": 1}
+        self.point = {**self.fd, "path": "/task/control/host-error.log", "uid": 65534}
+        self.hosts = [{"pid": 100, "starttime": 17, "fds": {"3": self.point["path"]}, "fd_metadata": {"3": self.fd}}]
+        self.host_callbacks = [{"schema": "lighttpd-stock-diagnostic-host-v1", "pid": 100, "uid": 65534,
+            "kind": "request_decision_returned", "runtime_allocation_scope_call": scope,
+            "host_transaction_id": label + "-native", "technical_failed": 0, "api_failed": 0,
+            "request_intervened": 0, "monotonic_ns": stamp}
+            for label, scope, stamp in (("before", 30, 33), ("after", 230, 233))]
+        self.window_changes = {}
+
+    def bind(self):
+        PreNativeRejectionTests.bind(self)
+        self.contents["core_diagnostic"] = self.core
+        self.contents["host_callback"] = ("\n".join(json.dumps(r) for r in self.host_callbacks) + "\n").encode()
+        core = self.write("core_diagnostic", self.core)
+        keys = ("run_scoped_case_id", "leg_id", "run_id", "parent_sha", "effective_config_sha256", "rules_sha256",
+                "host_pid", "host_starttime", "uid", "request_id", "request_sha256")
+        window = {key: self.packet[key] for key in keys}
+        window.update(execution_observed=True, exclusive_request_window=True, core_sha256=core["sha256"],
+            before={**self.point, "monotonic_ns": 90, "size": 0},
+            after={**self.point, "monotonic_ns": 210, "size": len(self.core)},
+            actual_host_identity=self.write("actual-host-identity", self.hosts))
+        window.update(self.window_changes)
+        self.contents["core_diagnostic_window"] = window
+        self.packet["source_approval"]["core_diagnostic_code"] = self.message
+        self.packet["measurement_evidence"] = [self.write(role, value, role=role) for role, value in self.contents.items()]
+        return self.write("packet", self.packet)
+
+    def test_exact_three_diagnostic_contracts_preserve_false_lifecycle_credit(self):
+        for name, mapping in LEDGER.LIGHTTPD_PRE_NATIVE_MAPPING.items():
+            self.name = name
+            self.case = "I12::" + self.leg + "::" + name
+            self.row["run_scoped_case_id"] = self.case
+            self.row["selected_requirement"].update(case_id=name, run_scoped_case_id=self.case, requirement_mapping=copy.deepcopy(mapping))
+            self.packet["run_scoped_case_id"] = self.case
+            message = "duplicate Content-Length header -> 400" if name == "conflicting_content_length" else "invalid Content-Length header -> 400"
+            self.core = self.core.replace(self.message.encode(), message.encode())
+            self.message = message
+            with self.subTest(case=name):
+                result = self.review()
+                self.assertTrue(result["full_case_qualified"])
+                self.assertFalse(result["full_lifecycle_qualified"])
+                self.assertIsNone(result["observations"]["main_native_transaction_id"])
+
+    def test_no_duplicate_te_sibling_or_changed_original_mapping(self):
+        self.row["selected_requirement"]["case_id"] = "duplicate_transfer_encoding"
+        with self.assertRaises(ValueError):
+            self.review()
+        self.row["selected_requirement"]["case_id"] = self.name
+        self.row["selected_requirement"]["requirement_mapping"] = LEDGER.PRE_NATIVE_MAPPING[self.name]
+        with self.assertRaises(ValueError):
+            self.review()
+        self.row["selected_requirement"]["requirement_mapping"] = LEDGER.LIGHTTPD_PRE_NATIVE_MAPPING[self.name]
+        self.row["leg_id"] = "lighttpd-patched-native"
+        with self.assertRaises(ValueError):
+            self.review()
+
+    def test_pidless_core_requires_actual_host_fd_and_private_complete_window(self):
+        original_point, original_hosts = copy.deepcopy(self.point), copy.deepcopy(self.hosts)
+        for mutation in ("inode", "uid", "mode", "pid", "fd", "gap", "wrong-core"):
+            self.point, self.hosts, self.window_changes = copy.deepcopy(original_point), copy.deepcopy(original_hosts), {}
+            if mutation == "inode": self.hosts[0]["fd_metadata"]["3"]["inode"] += 1
+            elif mutation == "uid": self.point["owner_uid"] = 0
+            elif mutation == "mode": self.point["mode"] = 0o644
+            elif mutation == "pid": self.hosts[0]["pid"] = 999
+            elif mutation == "fd": self.hosts[0]["fds"]["3"] = "/another/log"
+            elif mutation == "gap": self.window_changes["after"] = {**self.point, "monotonic_ns": 199, "size": len(self.core)}
+            else: self.window_changes["core_sha256"] = "0" * 64
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                self.review()
+
+    def test_apache_log_schema_stale_clock_and_other_request_cannot_substitute(self):
+        original = self.core
+        for mutation in ("apache", "stale", "path", "request-id", "precision"):
+            self.core = original
+            if mutation == "apache": self.core = b"[Thu Jan 01 00:00:01.500000 1970] [pid 100] [client 127.0.0.1:12345] AH02429\n"
+            elif mutation == "stale": self.core = original.replace(b"00:00:01", b"00:00:03")
+            elif mutation == "path": self.core = original.replace(b"POST /main", b"POST /other")
+            elif mutation == "request-id": self.core = original.replace(b"main-control", b"other-control")
+            else: self.core = original.replace(b".500000000", b".500000")
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                self.review()
+
+    def test_apache_host_backend_or_event_aliases_do_not_validate_lighttpd(self):
+        self.host_callbacks[0]["schema"] = "apache-host-v1"
+        with self.assertRaises(ValueError):
+            self.review()
+        self.host_callbacks[0]["schema"] = "lighttpd-stock-diagnostic-host-v1"
+        self.backend[0]["uid"] = 0
+        with self.assertRaises(ValueError):
+            self.review()
+        self.backend[0]["uid"] = 65534
+        raw = Path(self.event["sink"]["path"]).read_bytes().replace(b'"connector": "lighttpd"', b'"connector": "apache"')
+        self.event["sink"] = self.write("wrong-connector", raw)
+        with self.assertRaises(ValueError):
+            self.review()
 
 
 if __name__ == "__main__":
