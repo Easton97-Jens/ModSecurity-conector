@@ -508,9 +508,15 @@ static int capture_intervention(
         if (body_limit) {
             copy_message(decision->action, sizeof(decision->action), "deny");
         } else if (intervention.url != 0 && intervention.url[0] != '\0') {
+            size_t redirect_length = 0U;
+            if (!haproxy_modsecurity_redirect_url_length(intervention.url,
+                    sizeof(decision->redirect_url), &redirect_length)) {
+                native_error_decision(decision, "invalid native redirect URL");
+                msc_intervention_cleanup(&intervention);
+                return 1;
+            }
             copy_message(decision->action, sizeof(decision->action), "redirect");
-            copy_message(decision->redirect_url, sizeof(decision->redirect_url),
-                intervention.url);
+            memcpy(decision->redirect_url, intervention.url, redirect_length + 1U);
         } else {
             copy_message(decision->action, sizeof(decision->action), "deny");
         }

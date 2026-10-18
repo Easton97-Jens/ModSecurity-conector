@@ -1,6 +1,7 @@
 #ifndef HAPROXY_MODSECURITY_BINDING_H
 #define HAPROXY_MODSECURITY_BINDING_H
 
+#include <stddef.h>
 #include "msconnector/error.h"
 #include "msconnector/config.h"
 #include "msconnector/crs.h"
@@ -10,6 +11,22 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/* Validate a literal Location value without truncation or log-format parsing.
+ * capacity includes the required terminator; the native decision owns its copy. */
+static inline int haproxy_modsecurity_redirect_url_length(
+    const char *value, size_t capacity, size_t *length) {
+    size_t index;
+    if (value == NULL || length == NULL || capacity == 0U || value[0] == '\0') {
+        return 0;
+    }
+    for (index = 0U; index < capacity; ++index) {
+        unsigned char byte = (unsigned char)value[index];
+        if (byte == 0U) { *length = index; return 1; }
+        if (byte < 0x20U || byte == 0x7fU) { return 0; }
+    }
+    return 0;
+}
 
 typedef struct haproxy_modsecurity_decision {
     int disruptive;
