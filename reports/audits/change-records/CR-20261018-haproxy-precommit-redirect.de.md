@@ -2,8 +2,6 @@
 
 **Sprache:** [English](CR-20261018-haproxy-precommit-redirect.md) | Deutsch
 
-Nur eine Vorlage. Alle offenen Abschnitte mit tatsächlichen Fakten ausfüllen; keine Validierung wird behauptet.
-
 ## Identität
 
 | Feld | Wert |
