@@ -18,6 +18,28 @@ def wire(status, body):
     return f"HTTP/1.1 {status} result\r\nContent-Length: {len(body)}\r\n\r\n".encode() + body
 
 
+@pytest.mark.parametrize("label", ["NEED-allow", sequences.PREFIX + "allow"])
+def test_sequence_identity_accepts_only_known_original_base_versions(label):
+    launch = "MSCONNECTOR_LIFECYCLE_CASE=" + repr(label) + "\nreceipt={'selected_id':" + repr(sequences.PREFIX + "allow") + "}"
+    for name in sequences.CASE_NAMES:
+        changed = sequences.bind_launch_identity(launch, {"original_id": sequences.PREFIX + "allow"}, name)
+        assert changed.count("MSCONNECTOR_LIFECYCLE_CASE=" + repr(sequences.PREFIX + name)) == 1
+        assert changed.count("'selected_id':" + repr(sequences.PREFIX + name)) == 1
+
+
+@pytest.mark.parametrize("launch,original", [
+    ("MSCONNECTOR_LIFECYCLE_CASE='NEED-allow'", "wrong"),
+    ("MSCONNECTOR_LIFECYCLE_CASE='unknown'", sequences.PREFIX + "allow"),
+    ("MSCONNECTOR_LIFECYCLE_CASE='NEED-allow'\nMSCONNECTOR_LIFECYCLE_CASE='NEED-allow'", sequences.PREFIX + "allow"),
+    ("MSCONNECTOR_LIFECYCLE_CASE='NEED-allow'\nMSCONNECTOR_LIFECYCLE_CASE='" + sequences.PREFIX + "allow'", sequences.PREFIX + "allow"),
+    ("MSCONNECTOR_LIFECYCLE_CASE='NEED-allow'\nMSCONNECTOR_LIFECYCLE_CASE='unknown'", sequences.PREFIX + "allow"),
+    ("MSCONNECTOR_LIFECYCLE_CASE='NEED-allow'\n'selected_id':'" + sequences.PREFIX + "allow'\n'selected_id':'" + sequences.PREFIX + "allow'", sequences.PREFIX + "allow"),
+])
+def test_sequence_identity_rejects_unbound_or_ambiguous_anchors(launch, original):
+    with pytest.raises(ValueError):
+        sequences.bind_launch_identity(launch, {"original_id": original}, sequences.CASE_NAMES[0])
+
+
 class Socket:
     def __init__(self, chunks):
         self.chunks = iter(chunks)

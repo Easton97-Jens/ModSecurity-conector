@@ -79,6 +79,62 @@ class NativeFixtureIntegrity(unittest.TestCase):
             with self.subTest(altered=altered[-100:]), self.assertRaisesRegex(ValueError, "capture boundary changed"):
                 CASES.prepare_launch(altered, "response-single-chunk", case, case["request"], case["response"])
 
+    def test_full_original_identity_is_bound_once_without_need_substring_replacement(self):
+        launch = (self.capture / CASES.LAUNCH_FILE).read_text()
+        for suffix in ("allow", "NEED-request-eos-once", "NEED-p3-redirect"):
+            original = "I12::haproxy-native-htx::" + suffix
+            case = dict(CASES.cases()["request-empty"], original_id=original)
+            prepared, _, selected, _ = CASES.prepare_launch(launch, suffix, case, case["request"], case["response"])
+            self.assertEqual(selected, original)
+            self.assertEqual(prepared.count("MSCONNECTOR_LIFECYCLE_CASE=" + repr(original)), 1)
+            self.assertEqual(prepared.count("'selected_id':" + repr(original)), 1)
+            self.assertNotIn("NEED-NEED-", prepared)
+        for anchor in ("MSCONNECTOR_LIFECYCLE_CASE='NEED-request-eos-once'",
+                       "'selected_id':'I12::haproxy-native-htx::NEED-request-eos-once'"):
+            for altered in (launch.replace(anchor, "changed"), launch + "\n" + anchor):
+                with self.assertRaisesRegex(ValueError, "capture boundary changed"):
+                    CASES.prepare_launch(altered, "allow", case, case["request"], case["response"])
+
+    def test_redirect_client_requires_exact_one_source_location_and_none_for_neighbor(self):
+        case = CASES.cases()["p3-redirect"]
+        client = CASES.prepare_client((self.capture / CASES.CLIENT_FILE).read_text(), case, case["request"])
+        self.assertIn("row['status']!=(302 if name=='main' else 200)", client)
+        self.assertIn("or not redirect_location_matches(row,name):", client)
+        predicate = next(node for node in ast.parse(client).body if isinstance(node, ast.FunctionDef)
+                         and node.name == "redirect_location_matches")
+        scope = {}
+        exec(compile(ast.Module(body=[predicate], type_ignores=[]), "actual-header-predicate", "exec"), scope)
+        matches = scope["redirect_location_matches"]
+        location = case["expected_location"]
+        self.assertTrue(matches({"headers": [["location", location]]}, "main"))
+        for headers in ([], [["Location", "wrong"]], [["Location", location], ["LOCATION", location]]):
+            self.assertFalse(matches({"headers": headers}, "main"))
+        self.assertTrue(matches({"headers": [["Content-Length", "8"]]}, "neighbor"))
+        self.assertFalse(matches({"headers": [["Location", location]]}, "neighbor"))
+
+    def test_named_p3_redirect_uses_canonical_rule_and_preserves_original_oracle(self):
+        name = "phase3_redirect_before_commit"
+        location = "https://no-crs.invalid/phase3-redirect"
+        document = self.base / "redirect.yaml"
+        document.write_text("request:\n  method: GET\n  path: /source-redirect\nresponse:\n  headers: {X-Modsec-Upstream: redirect}\n  body: source-body\nfull_lifecycle:\n  redirect_location: " + location + "\n")
+        catalog = {name: {"request": {"method": "GET", "path": "/source-redirect", "fixture": "redirect.yaml"}, "expected_status": 302}}
+        oracle = {"rule_id": None, "phase": None, "unresolved_expected_value_reason": "original unresolved"}
+        row = {"run_scoped_case_id": "I12::haproxy-native-htx::NEED-p3-redirect",
+               "original_selected_requirement": {"case_id": "NEED-p3-redirect", "execution_kind": "actual_host"},
+               "original_selected_requirement_sha256": "a" * 64,
+               "original_oracle": oracle, "required_measurement_contract": []}
+        rules = 'SecRule RESPONSE_HEADERS:X-Modsec-Upstream "@streq redirect" "id:1100202,phase:3,redirect:' + location + ',status:302"\n'
+        plan, case = CONTRACTS.bind_row(row, catalog, self.base, rules, [])
+        self.assertEqual(plan["original_oracle"], oracle)
+        self.assertEqual(case["expected_status"], 302)
+        self.assertEqual(case["expected_location"], location)
+        self.assertFalse(case["response_inspected"])
+        self.assertEqual(case["response_headers"], [{"name": "X-Modsec-Upstream", "value": "redirect"}])
+        launch, _, _, _ = CASES.prepare_launch((self.capture / CASES.LAUNCH_FILE).read_text(), "NEED-p3-redirect", case, case["request"], case["response"])
+        self.assertIn("id:1100202", launch)
+        self.assertNotIn("id:1999474", launch)
+        self.assertNotIn("id:1999472", launch)
+
     def test_reference_rejects_outside_and_traversal_before_any_open(self):
         for source in (Path("/etc/passwd"), self.base / ".." / "source.txt", Path("relative.txt")):
             with self.subTest(source=source), patch.object(CONTRACTS.os, "open") as opened:

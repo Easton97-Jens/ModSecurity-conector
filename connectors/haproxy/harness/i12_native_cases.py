@@ -69,9 +69,9 @@ def cases():
         "p1-deny": {"deny_phase": 1, "expected_status": 403},
         "p2-deny": {"deny_phase": 2, "expected_status": 403},
         "p3-deny": {"deny_phase": 3, "expected_status": 403},
-        # Current HTX host contract deliberately fails unsupported redirects
-        # closed with503; the native policy still requests302 plus Location.
-        "p3-redirect": {"redirect_phase": 3, "expected_status": 503, "native_requested_status": 302},
+        "p3-redirect": {"redirect_phase": 3, "expected_status": 302,
+                        "expected_location": "https://haproxy-i12.invalid/redirect-target",
+                        "response_inspected": False, "native_requested_status": 302},
         "p4-safe": {"deny_phase": 4},
     }
     for value in result.values():
@@ -115,9 +115,11 @@ def prepare_launch(launch, name, case, request, response):
     diagnostic = name in DIAGNOSTIC_CASES
     selected_id = ("DIAG::haproxy-native-htx::" + name if diagnostic else "I12::haproxy-native-htx::NEED-" + name)
     selected_id = case.get("original_id", selected_id)
-    case_label = ("DIAG-" if diagnostic else "NEED-") + name
-    launch = launch.replace("I12::haproxy-native-htx::NEED-request-eos-once", selected_id)
-    launch = launch.replace("NEED-request-eos-once", case_label).replace("20261014-haproxy-htx-01", "20261015-htx-" + name)
+    launch = replace_once(launch, "MSCONNECTOR_LIFECYCLE_CASE='NEED-request-eos-once'",
+                          "MSCONNECTOR_LIFECYCLE_CASE=" + repr(selected_id))
+    launch = replace_once(launch, "'selected_id':'I12::haproxy-native-htx::NEED-request-eos-once'",
+                          "'selected_id':" + repr(selected_id))
+    launch = replace_once(launch, "20261014-haproxy-htx-01", "20261015-htx-" + name)
     # A failed main client is retained and the healthy neighbor still runs.
     # A driver zero exit is explicitly not a full lifecycle qualification.
     launch = replace_once(launch, "if result.returncode:raise RuntimeError(label+' failed')", "if result.returncode and label!='main-client':raise RuntimeError(label+' failed')")
@@ -137,6 +139,14 @@ def prepare_client(client, case, request):
         client = replace_once(client, "connection.sendall(request);", "\n    pieces=[request[:-len(body)]," + ",".join(pieces) + "]\n    for piece in pieces:\n        connection.sendall(piece);time.sleep(.1)\n    ")
     expected = case.get("expected_status", 200)
     client = replace_once(client, "if row['status']!=200", f"if row['status']!=({expected} if name=='main' else 200)")
+    if "expected_location" in case:
+        # Compare actual parsed header multiplicity, independently of status.
+        check = ("def redirect_location_matches(row, name):\n"
+                 "    locations=[value for key,value in row['headers'] if key.lower()=='location']\n"
+                 "    return locations==([" + repr(case["expected_location"]) + "] if name=='main' else [])\n")
+        client = check + client
+        client = replace_once(client, "or not row['body_complete']:",
+                              "or not row['body_complete'] or not redirect_location_matches(row,name):")
     return client_first_byte_barrier(client, case)
 
 

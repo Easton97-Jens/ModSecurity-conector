@@ -209,6 +209,10 @@ def canonical_case(name, catalog, catalog_dir, rules):
             "rules_extra": rules + supplemental_rules(document), "response_headers": response_headers}
     status = catalog[name].get("expected_status")
     case["expected_status"] = 200 if status in (None, 0) else status
+    location = document.get("full_lifecycle", {}).get("redirect_location")
+    if location is not None:
+        case["expected_location"] = location
+        case["response_inspected"] = False
     apply_source_chunks(case, document.get("full_lifecycle", {}), body, response)
     if merged.get("raw_template"):
         case["request_method"] = "POST"
@@ -263,7 +267,12 @@ def bind_row(row, catalog, catalog_dir, rules, sources):
     if gap:
         plan["contract_gaps"].append(gap)
         return plan, None
-    case = named_case(name.removeprefix("NEED-")) if name.startswith("NEED-") else None
+    if name == "NEED-p3-redirect":
+        case, document = canonical_case("phase3_redirect_before_commit", catalog, catalog_dir, rules)
+        if document:
+            plan["oracle_sources"] = [*sources, reference(document, "original_declarative_fixture")]
+    else:
+        case = named_case(name.removeprefix("NEED-")) if name.startswith("NEED-") else None
     if case is None and name in catalog:
         case, document = canonical_case(name, catalog, catalog_dir, rules)
         if document:
@@ -276,6 +285,7 @@ def bind_row(row, catalog, catalog_dir, rules, sources):
                                              "original_oracle": row["original_oracle"], "sources": plan["oracle_sources"]}
     plan["preexecution_fixture_expectation"] = {
         "declared_client_status": case.get("expected_status", 200),
+        "declared_redirect_location": case.get("expected_location"),
         "request_bytes": len(case["request"]), "request_sha256": fixtures.digest(case["request"]),
         "response_bytes": len(case["response"]), "response_sha256": fixtures.digest(case["response"]),
         "native_rule_id_from_original": row["original_oracle"]["rule_id"],

@@ -193,6 +193,21 @@ def join_native(client, native):
             "HTTP_success_is_not_native_lifecycle_proof": True}
 
 
+def bind_launch_identity(launch, base_contract, name):
+    from i12_native_cases import replace_once
+
+    if base_contract.get("original_id") != PREFIX + "allow" or name not in CASE_NAMES:
+        raise ValueError("sequence base must bind the original native allow case")
+    anchors = ["MSCONNECTOR_LIFECYCLE_CASE=" + repr(label)
+               for label in ("NEED-allow", PREFIX + "allow")]
+    if launch.count("MSCONNECTOR_LIFECYCLE_CASE=") != 1 or sum(launch.count(anchor) for anchor in anchors) != 1:
+        raise ValueError("ambiguous or missing allow observer identity")
+    anchor = next(anchor for anchor in anchors if anchor in launch)
+    launch = replace_once(launch, anchor, "MSCONNECTOR_LIFECYCLE_CASE=" + repr(PREFIX + name))
+    return replace_once(launch, "'selected_id':" + repr(PREFIX + "allow"),
+                        "'selected_id':" + repr(PREFIX + name))
+
+
 def prepare(base, plans_path, output):
     from i12_native_cases import replace_once
 
@@ -211,10 +226,8 @@ def prepare(base, plans_path, output):
         case.mkdir()
         launch = sources["launch.py"].decode()
         launch = replace_once(launch, "    default_backend htx_upstream", "    errorfile 403 /mnt/fixtures/deny.http\n    default_backend htx_upstream")
-        launch = launch.replace(PREFIX + "allow", PREFIX + name)
+        launch = bind_launch_identity(launch, json.loads(sources["case-contract.json"]), name)
         launch = launch.replace("20261015-htx-allow", "20261018-htx-" + name)
-        launch = replace_once(launch, "MSCONNECTOR_LIFECYCLE_CASE='NEED-allow'",
-                              "MSCONNECTOR_LIFECYCLE_CASE=" + repr(name))
         backend = sources["backend.py"].decode()
         backend = replace_once(backend, "BaseHTTPRequestHandler,HTTPServer", "BaseHTTPRequestHandler,ThreadingHTTPServer")
         backend = replace_once(backend, "server=HTTPServer(", "server=ThreadingHTTPServer(")
