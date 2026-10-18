@@ -150,6 +150,7 @@ struct haproxy_modsecurity_transaction {
     char request_id[128];
     msconnector_transaction_contract contract;
     int contract_initialized;
+    int request_authorization_only;
     /* Companion ownership and the actual returned host result share a lifetime. */
     struct {
         int response_phases_require_companion;
@@ -1134,7 +1135,7 @@ static int evaluate_request_phases(Transaction *transaction,
     if (process_request_connection(transaction, request, decision) != 0) {
         return 1;
     }
-    if (msc_process_uri(transaction, safe_uri, safe_method, "1.1") != 1) {
+    if (msc_process_uri(transaction, safe_uri, safe_method, request->http_version) != 1) {
         native_error_decision(decision, "msc_process_uri failed");
         return 1;
     }
@@ -1368,7 +1369,7 @@ static int begin_transaction_protocol(
             "request connection failed");
         return -1;
     }
-    if (msc_process_uri(transaction->transaction, safe_uri, safe_method, "1.1") != 1) {
+    if (msc_process_uri(transaction->transaction, safe_uri, safe_method, request->http_version) != 1) {
         transaction_failure(transaction, decision,
             MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, "msc_process_uri failed");
         return -1;
@@ -1412,14 +1413,16 @@ static int begin_transaction_protocol(
     return 0;
 }
 
-int haproxy_modsecurity_transaction_begin_request_with_profile(
+static int begin_request_with_scope(
         haproxy_modsecurity_engine *engine,
         const haproxy_modsecurity_request *request,
         const char *profile_id,
+        int request_authorization_only,
         haproxy_modsecurity_decision *decision,
         haproxy_modsecurity_transaction **transaction) {
     haproxy_modsecurity_transaction *created;
     const msconnector_transaction_profile *profile;
+    msconnector_transaction_profile authorization_profile;
     char canonical_request_id[MSCONNECTOR_MAX_TRANSACTION_ID_LENGTH] = {0};
     int has_request_id;
 
@@ -1460,6 +1463,16 @@ int haproxy_modsecurity_transaction_begin_request_with_profile(
             "HAProxy transaction profile does not define the required direct P1/P2 and owned P3/P4 routes");
         return 1;
     }
+    if (request_authorization_only) {
+        if (profile->profile_id != MSCONNECTOR_PROFILE_HAPROXY_SPOE_SPOP) {
+            copy_message(decision->log_message, sizeof(decision->log_message),
+                "request authorization requires the SPOP profile");
+            return 1;
+        }
+        authorization_profile = *profile;
+        authorization_profile.companion_phase_mask = 0U;
+        profile = &authorization_profile;
+    }
     if (!validate_common_mapped_request(engine, request, decision)) {
         return 1;
     }
@@ -1499,7 +1512,9 @@ int haproxy_modsecurity_transaction_begin_request_with_profile(
         return 1;
     }
     created->contract_initialized = 1;
+    created->request_authorization_only = request_authorization_only;
     created->response_companion.response_phases_require_companion =
+        !request_authorization_only &&
         profile->profile_id == MSCONNECTOR_PROFILE_HAPROXY_SPOE_SPOP;
     created->transaction = create_request_transaction_with_id(engine->modsec,
         engine->rules, created->request_id);
@@ -1515,6 +1530,16 @@ int haproxy_modsecurity_transaction_begin_request_with_profile(
     }
     *transaction = created;
     return 0;
+}
+
+int haproxy_modsecurity_transaction_begin_request_with_profile(
+        haproxy_modsecurity_engine *engine,
+        const haproxy_modsecurity_request *request,
+        const char *profile_id,
+        haproxy_modsecurity_decision *decision,
+        haproxy_modsecurity_transaction **transaction) {
+    return begin_request_with_scope(engine, request, profile_id, 0, decision,
+        transaction);
 }
 
 int haproxy_modsecurity_transaction_begin_request(
@@ -1555,9 +1580,10 @@ int haproxy_modsecurity_transaction_finish_request_body(
     return finish_body(transaction, decision, &phase);
 }
 
-int haproxy_modsecurity_transaction_begin(
+static int begin_atomic_request(
         haproxy_modsecurity_engine *engine,
         const haproxy_modsecurity_request *request,
+        int request_authorization_only,
         haproxy_modsecurity_decision *decision,
         haproxy_modsecurity_transaction **transaction) {
     haproxy_modsecurity_transaction *created = 0;
@@ -1570,8 +1596,8 @@ int haproxy_modsecurity_transaction_begin(
         return 1;
     }
     *transaction = 0;
-    rc = haproxy_modsecurity_transaction_begin_request(engine, request, decision,
-        transaction);
+    rc = begin_request_with_scope(engine, request, "haproxy-spoe-spop",
+        request_authorization_only, decision, transaction);
     created = *transaction;
     if (rc != 0 || created == 0 || decision->disruptive != 0) {
         return rc;
@@ -1582,6 +1608,22 @@ int haproxy_modsecurity_transaction_begin(
         return 1;
     }
     return haproxy_modsecurity_transaction_finish_request_body(created, decision);
+}
+
+int haproxy_modsecurity_transaction_begin(
+        haproxy_modsecurity_engine *engine,
+        const haproxy_modsecurity_request *request,
+        haproxy_modsecurity_decision *decision,
+        haproxy_modsecurity_transaction **transaction) {
+    return begin_atomic_request(engine, request, 0, decision, transaction);
+}
+
+int haproxy_modsecurity_transaction_begin_request_authorization(
+        haproxy_modsecurity_engine *engine,
+        const haproxy_modsecurity_request *request,
+        haproxy_modsecurity_decision *decision,
+        haproxy_modsecurity_transaction **transaction) {
+    return begin_atomic_request(engine, request, 1, decision, transaction);
 }
 
 int haproxy_modsecurity_transaction_handoff_response_companion(
@@ -1910,8 +1952,10 @@ int haproxy_modsecurity_transaction_finish_with_decision(
         }
     }
     if (result == 0) {
-        result = msconnector_transaction_contract_finish(&transaction->contract, 0U) ==
-            MSCONNECTOR_TRANSACTION_TRANSITION_OK ? 0 : 1;
+        int finished = transaction->request_authorization_only ?
+            msconnector_transaction_contract_finish_request_authorization(&transaction->contract, 0U) :
+            msconnector_transaction_contract_finish(&transaction->contract, 0U);
+        result = finished == MSCONNECTOR_TRANSACTION_TRANSITION_OK ? 0 : 1;
         if (result != 0 && decision != NULL) {
             transaction_failure(transaction, decision,
                 MSCONNECTOR_TRANSACTION_ERROR_CLEANUP_INCOMPLETE,
@@ -1976,6 +2020,7 @@ int haproxy_modsecurity_phase1_header_eval(
     headers[1].value = test_header_value != 0 ? test_header_value : "";
     memset(&request, 0, sizeof(request));
     request.method = method;
+    request.http_version = "1.1";
     request.uri = uri;
     request.client_ip = "192.0.2.10";
     request.client_port = 12345;
@@ -2025,6 +2070,7 @@ static int haproxy_modsecurity_request_body_eval(
     headers[2].value = "11";
     memset(&request, 0, sizeof(request));
     request.method = "POST";
+    request.http_version = "1.1";
     request.uri = uri;
     request.client_ip = "192.0.2.10";
     request.client_port = 12345;
@@ -2091,6 +2137,7 @@ int haproxy_modsecurity_request_body_self_test(
     headers[2].value = "11";
     memset(&request, 0, sizeof(request));
     request.method = "POST";
+    request.http_version = "1.1";
     request.uri = "/haproxy-binding-body-self-test";
     request.client_ip = "192.0.2.10";
     request.client_port = 12345;
@@ -2140,6 +2187,7 @@ int haproxy_modsecurity_crs_sqli_eval(
     headers[0].value = host;
     memset(&request, 0, sizeof(request));
     request.method = method;
+    request.http_version = "1.1";
     request.uri = uri;
     request.client_ip = "192.0.2.10";
     request.client_port = 12345;

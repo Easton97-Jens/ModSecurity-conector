@@ -169,6 +169,31 @@ und Hostkonfiguration zu prüfen. Bei einer Interventionsfrage wird die
 angeforderte WAF-Aktion von der tatsächlichen HAProxy-Hostaktion und dem
 sichtbaren Clientergebnis unterschieden.
 
+## Requestumfang, HTTP-Version und wartende Strict-Ausgabe
+
+Die eigenständige SPOP-Autorisierungsroute wählt vor der nativen Allokation
+eine begrenzte P1/P2-Transaktion und schließt diesen Umfang ausdrücklich ab.
+Eine Route mit Responseverarbeitung behält ihren vollständigen P1--P4-Vertrag.
+Fehlende oder unvollständige Samples bleiben fail-closed; ein erfolgreicher
+Requestabschluss liefert keinen Nachweis für Responsephasen.
+
+Die interne Requeststruktur verlangt das tatsächliche `http_version`-Token
+(`1.0`, `1.1` oder `2.0`). SPOP-Decoder, Mapper, nativer URI-Aufruf und
+HTX-Snapshot erhalten diesen Wert. Fehlende, unbekannte oder widersprüchliche
+Versionen werden vor der nativen Transaktionsallokation abgelehnt. Nach dieser
+Strukturänderung müssen alle internen Verbraucher neu gebaut werden. Die
+Versionsannahme allein belegt keine Unterstützung jeder HTTP/2-Framing- oder
+Sampleabbildung.
+
+Bei einer Strict-Intervention nach Commit entfernt der HTX-Filter wartende
+Response-HTX-/Kanaldaten, bricht den betroffenen Stream ab und liefert ein
+negatives Filterergebnis, damit HAProxy den abgelehnten Bereich anschließend
+nicht fortschaltet. Safe behält sein eigenes Verhalten. Bereits ausgelieferte
+Bytes lassen sich nicht zurücknehmen. Komponententests prüfen wartende Größen
+und die Isolation benachbarter Streams; tatsächliche Mux-Ausgabe, Clientbytes
+und Entscheidungsreihenfolge brauchen einen neuen Hostlauf mit dem integrierten
+Build. Der Change Record benennt diese Nachweisgrenzen ausdrücklich.
+
 ## Grenzen und Kompatibilität
 
 Native HTX- und historische SPOE/SPOP-Integration sind verschieden. Ihre

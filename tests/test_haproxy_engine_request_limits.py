@@ -31,7 +31,8 @@ int main(int argc, char **argv) {
     request.request_id = "real-request-limit-binding";
     request.client_ip = "192.0.2.10"; request.client_port = 12345;
     request.server_ip = "198.51.100.20"; request.server_port = 8080;
-    request.method = "POST"; request.uri = "/engine-request-limit";
+    request.method = "POST";
+    request.http_version = "1.1"; request.uri = "/engine-request-limit";
     request.headers = headers; request.header_count = 2U;
     if (haproxy_modsecurity_engine_create(&config, &engine, &decision) ||
         haproxy_modsecurity_transaction_begin_request_with_profile(engine, &request,

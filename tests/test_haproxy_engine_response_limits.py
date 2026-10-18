@@ -36,7 +36,8 @@ int main(int argc, char **argv) {
     request.request_id = "real-limit-binding";
     request.client_ip = "192.0.2.10"; request.client_port = 12345;
     request.server_ip = "198.51.100.20"; request.server_port = 8080;
-    request.method = "GET"; request.uri = "/engine-limit";
+    request.method = "GET";
+    request.http_version = "1.1"; request.uri = "/engine-limit";
     request.headers = &request_header; request.header_count = 1U;
     response.status = 200; response.protocol = "HTTP/1.1";
     response.headers = &header; response.header_count = 1U;
@@ -91,7 +92,9 @@ int main(int argc, char **argv) {
 class HaproxyRealEngineResponseLimitTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.temporary = tempfile.TemporaryDirectory(prefix="haproxy-real-limits-", dir=os.environ.get("TMPDIR"))
+        temp_root = Path(os.environ.get("TMPDIR", "/var/tmp/codex/ModSecurity-conector/tmp"))
+        temp_root.mkdir(parents=True, exist_ok=True)
+        cls.temporary = tempfile.TemporaryDirectory(prefix="haproxy-real-limits-", dir=temp_root)
         cls.addClassCleanup(cls.temporary.cleanup)
         cls.runroot = Path(cls.temporary.name)
         cls.build = cls.runroot / "build"

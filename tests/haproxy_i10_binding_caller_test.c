@@ -23,6 +23,7 @@ static haproxy_modsecurity_transaction *start(int companion, int mode) {
   engine.rules = (RulesSet *)&engine;
   memset(&request, 0, sizeof(request));
   request.method = "GET";
+  request.http_version = "1.1";
   request.uri = "/";
   request.client_ip = "192.0.2.1";
   request.client_port = 1234;
