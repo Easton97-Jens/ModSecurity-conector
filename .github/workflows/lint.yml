@@ -30,6 +30,9 @@ jobs:
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Install hash-locked CI test dependency
+        run: |
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: --require-hashes -r requirements-ci.lock
       - name: Initialize runner temp paths
         run: |
           set -eu

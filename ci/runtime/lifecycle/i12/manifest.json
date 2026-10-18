@@ -2478,6 +2478,221 @@
         "observer_H": "f9f63b62ba8efc555dc20e673cc02251d5ab6c2ab17d8f5efa760d0d97146dcd",
         "scope": "One exact source overlay with separate ext_proc/authz/response-companion fixture data; no profile outcome transfer"
       }
+    },
+    "apache-current": {
+      "source_targets": {
+        "connectors/apache/src/mod_security3.c": {
+          "before_sha256": "8ff78a6cfc18b34e78dbe491e3e3576f54e61b6665cea285113ac9150980698a",
+          "sha256": "d1c205e8c7d8e61519dd81d94044ed214527d454583b6dcb7ce5b218e5c3630d",
+          "mode": 420
+        },
+        "connectors/apache/src/msc_filters.c": {
+          "before_sha256": "1eb1e9261fb89e12e7a2094e9d0a856759932714223455508cd657fbbed1a5cd",
+          "sha256": "cde4ce37873134bd9a60d3ec6d6130346bdb5e8cfd2989ab055e68ffd85cf5d4",
+          "mode": 420
+        },
+        "connectors/apache/src/msc_utils.c": {
+          "before_sha256": "d5db95d86019dec786bef0e0f9f31e6c90a0b967aeb8230fcaf7865ec2bc6d2d",
+          "sha256": "1a9e3e8a4dbc62e9ce3abf7b9ea251f81755b79ea3502c3dd7d835038d99bbae",
+          "mode": 420
+        },
+        "connectors/apache/src/apache-host-observer.c": {
+          "before_sha256": null,
+          "sha256": "af42bc5500b0c75b2620678648abaf16d7dc674e8bbd444745b0b8f21320af63",
+          "mode": 420
+        },
+        "connectors/apache/src/apache-host-observer.h": {
+          "before_sha256": null,
+          "sha256": "c0bde3c4b54fd802084f54665e3fa17f162bcfb29378136c669f5d8f3f46bfc9",
+          "mode": 420
+        },
+        "connectors/apache/src/apache-observer-fd-bootstrap.c": {
+          "before_sha256": null,
+          "sha256": "e5210e17b94d1fadfe76fb0506afd25fb9797d9e74f80baf06d6a2173dc1c05c",
+          "mode": 420
+        },
+        "ci/runtime/lifecycle/native-lifecycle-observer.c": {
+          "before_sha256": "0d903fc5e6432769a136931b7ebea16a6f87db941d28d23583ccccf4c75e6537",
+          "sha256": "a4ce3e2513bc3a9300781873119c256fe12f384427d4a4bb3b49578afd6a1df8",
+          "mode": 420
+        },
+        "ci/runtime/lifecycle/native-lifecycle-observer.h": {
+          "before_sha256": "5b7d8fa7c327017cafb05b1e932f70eefe8641797751a0dc19df0337f4893b1b",
+          "sha256": "5818303be9b9ed113d5b02605c223a77b45b2d587c409636bd4dd2c185ed2508",
+          "mode": 420
+        },
+        "ci/runtime/lifecycle/native-lifecycle-sdk.cpp": {
+          "before_sha256": "89ff282b7287ab30a4194bc06c04835f104b8037442e89b35a68fd1253dcfcfc",
+          "sha256": "89ff282b7287ab30a4194bc06c04835f104b8037442e89b35a68fd1253dcfcfc",
+          "mode": 420
+        }
+      },
+      "capture_files": {
+        "helpers/response-header-test-backend.observed-v2.py": {
+          "sha256": "fdd8342fd7c0c4554309f7d4fe562f7efaa7368b32b3297224e55616a7833c16",
+          "mode": 420
+        },
+        "drivers/curl-raw-client.py": {
+          "sha256": "373baa042edc32be73a04b1ca045761322181da1183c9a3ac743c868e04f8675",
+          "mode": 420
+        },
+        "helpers/prepare-v3.py": {
+          "sha256": "dc5ad31709fad901d7ad7087c5ba4520d26108077419f94996e653ee39466979",
+          "mode": 420
+        },
+        "helpers/link-observed-module-v3-pinned.py": {
+          "sha256": "dea6a24949ac2244e21db9426ad7d5f42bdb5b94f8f6d40c36c41d78e8f0ccb5",
+          "mode": 420
+        },
+        "drivers/launch.py": {
+          "sha256": "ff16b11193d35aa4637063e87d5447e0d0572bb2cf4bef0e30b5ca57006ca0a6",
+          "mode": 420
+        },
+        "drivers/fixture-contract.json": {
+          "sha256": "1604b747916689f82af68c1f85c6896d30b406addb1de0c76c662e99a40d5b6b",
+          "mode": 420
+        },
+        "helpers/compile-overlay-v3.py": {
+          "sha256": "1bdef739e16459cc85262916eb0def34e488d3b78b59ab80307d6ce2c896268d",
+          "mode": 420
+        },
+        "drivers/observed-curl.py": {
+          "sha256": "caea48ea0db79daf5c1d9ba699a8337f9a2acb51a1bde8f6c56751fd7a2f791c",
+          "mode": 420
+        },
+        "helpers/apr-callback-control.c": {
+          "sha256": "0d375d2b027070df57421244c09f6b804619df3fe9dd9cd50221d3efb25ac5bb",
+          "mode": 420
+        },
+        "helpers/prepare-source-v4.py": {
+          "sha256": "05e8c2ef52b821b27155f8995d192f90a373384bc04c0a3dbdbc79763486666b",
+          "mode": 420
+        },
+        "drivers/tests/cases/connector-specific/apache/NEED-request-eos-once.yaml": {
+          "sha256": "4ba3770e15c03a73d2dd7fd4fe15edb356046bebb8425f2301ad2b5a1bf6aff6",
+          "mode": 420
+        },
+        "helpers/native-fixture-control.c": {
+          "sha256": "a9685aeb63fc6c5faf67db43501f16ff89d0021a32a52450ed629a046003c7ce",
+          "mode": 420
+        },
+        "controller/private-runtime-v5.py": {
+          "sha256": "0fb071b6a993734fb35afa5f52f0be01c0c499eebccc335eca8a835df220ce7e",
+          "mode": 420
+        },
+        "controller/candidate-admission-v5.py": {
+          "sha256": "99d9206e12afcc7bea684da1a6d6fc08a32be282984d81300476312c875f230f",
+          "mode": 420
+        }
+      },
+      "provenance": {
+        "original_manifest_sha256": "d25e0d4449a2f05c8d570523b6d95ffd556b8ddd82833a6c39b34e4d24b12ae0",
+        "original_package_name": "private-test-source-handoff-02",
+        "product_delta_baselines": [
+          {
+            "baseline_commit": "02754040bced960cfc1857416cd7101bb3116ef4",
+            "baseline_sha256": "8ff78a6cfc18b34e78dbe491e3e3576f54e61b6665cea285113ac9150980698a",
+            "changed": true,
+            "overlay_sha256": "d1c205e8c7d8e61519dd81d94044ed214527d454583b6dcb7ce5b218e5c3630d",
+            "path": "connectors/apache/src/mod_security3.c",
+            "route": "apache"
+          },
+          {
+            "baseline_commit": "02754040bced960cfc1857416cd7101bb3116ef4",
+            "baseline_sha256": "1eb1e9261fb89e12e7a2094e9d0a856759932714223455508cd657fbbed1a5cd",
+            "changed": true,
+            "overlay_sha256": "cde4ce37873134bd9a60d3ec6d6130346bdb5e8cfd2989ab055e68ffd85cf5d4",
+            "path": "connectors/apache/src/msc_filters.c",
+            "route": "apache"
+          },
+          {
+            "baseline_commit": "02754040bced960cfc1857416cd7101bb3116ef4",
+            "baseline_sha256": "d5db95d86019dec786bef0e0f9f31e6c90a0b967aeb8230fcaf7865ec2bc6d2d",
+            "changed": true,
+            "overlay_sha256": "1a9e3e8a4dbc62e9ce3abf7b9ea251f81755b79ea3502c3dd7d835038d99bbae",
+            "path": "connectors/apache/src/msc_utils.c",
+            "route": "apache"
+          },
+          {
+            "baseline_commit": "02754040bced960cfc1857416cd7101bb3116ef4",
+            "baseline_sha256": null,
+            "changed": true,
+            "overlay_sha256": "af42bc5500b0c75b2620678648abaf16d7dc674e8bbd444745b0b8f21320af63",
+            "path": "connectors/apache/src/apache-host-observer.c",
+            "route": "apache"
+          },
+          {
+            "baseline_commit": "02754040bced960cfc1857416cd7101bb3116ef4",
+            "baseline_sha256": null,
+            "changed": true,
+            "overlay_sha256": "c0bde3c4b54fd802084f54665e3fa17f162bcfb29378136c669f5d8f3f46bfc9",
+            "path": "connectors/apache/src/apache-host-observer.h",
+            "route": "apache"
+          },
+          {
+            "baseline_commit": "02754040bced960cfc1857416cd7101bb3116ef4",
+            "baseline_sha256": null,
+            "changed": true,
+            "overlay_sha256": "e5210e17b94d1fadfe76fb0506afd25fb9797d9e74f80baf06d6a2173dc1c05c",
+            "path": "connectors/apache/src/apache-observer-fd-bootstrap.c",
+            "route": "apache"
+          },
+          {
+            "baseline_commit": "02754040bced960cfc1857416cd7101bb3116ef4",
+            "baseline_sha256": "ee1d94f7237655e7124e2752ee9c6a981253d42102560fb9d95d6af6c552f565",
+            "changed": true,
+            "overlay_sha256": "a4ce3e2513bc3a9300781873119c256fe12f384427d4a4bb3b49578afd6a1df8",
+            "path": "ci/runtime/lifecycle/native-lifecycle-observer.c",
+            "route": "apache"
+          },
+          {
+            "baseline_commit": "02754040bced960cfc1857416cd7101bb3116ef4",
+            "baseline_sha256": null,
+            "changed": true,
+            "overlay_sha256": "5818303be9b9ed113d5b02605c223a77b45b2d587c409636bd4dd2c185ed2508",
+            "path": "ci/runtime/lifecycle/native-lifecycle-observer.h",
+            "route": "apache"
+          },
+          {
+            "baseline_commit": "02754040bced960cfc1857416cd7101bb3116ef4",
+            "baseline_sha256": "89ff282b7287ab30a4194bc06c04835f104b8037442e89b35a68fd1253dcfcfc",
+            "changed": false,
+            "overlay_sha256": "89ff282b7287ab30a4194bc06c04835f104b8037442e89b35a68fd1253dcfcfc",
+            "path": "ci/runtime/lifecycle/native-lifecycle-sdk.cpp",
+            "route": "apache"
+          }
+        ],
+        "observer": {
+          "ci/runtime/lifecycle/native-lifecycle-observer.c": "a4ce3e2513bc3a9300781873119c256fe12f384427d4a4bb3b49578afd6a1df8",
+          "ci/runtime/lifecycle/native-lifecycle-observer.h": "5818303be9b9ed113d5b02605c223a77b45b2d587c409636bd4dd2c185ed2508",
+          "ci/runtime/lifecycle/native-lifecycle-sdk.cpp": "89ff282b7287ab30a4194bc06c04835f104b8037442e89b35a68fd1253dcfcfc"
+        },
+        "relocation": "Exact retained templates contain pinned external paths. Root must explicitly bind paths and guards for a new portable runner; no execution or replay is implied.",
+        "build_boundary": "Actual compile-overlay-v3 C17/F-PIC/no-LTO with real apr-1-config flags/system Apache headers, relink actual baseline module objects. This handoff does not establish a clean full module rebuild.",
+        "host_release": "Apache2.4.66",
+        "APR_release": "1.7.6",
+        "sdk_release": "3.0.14",
+        "sdk_image_sha256": "32257230b8f378987ba1204049dcc1e23927fd44c8778e09d41805ad705c3407",
+        "current_source_application": {
+          "historical_profile": "apache",
+          "before_bindings": {
+            "ci/runtime/lifecycle/native-lifecycle-observer.c": {
+              "historical_before_sha256": "ad8e5e36a17e746cf202c685dbb529fc09717f5c25441b713fa369420aa55ac6",
+              "current_before_sha256": "0d903fc5e6432769a136931b7ebea16a6f87db941d28d23583ccccf4c75e6537",
+              "unchanged_capture_sha256": "a4ce3e2513bc3a9300781873119c256fe12f384427d4a4bb3b49578afd6a1df8"
+            },
+            "ci/runtime/lifecycle/native-lifecycle-observer.h": {
+              "historical_before_sha256": "f9f63b62ba8efc555dc20e673cc02251d5ab6c2ab17d8f5efa760d0d97146dcd",
+              "current_before_sha256": "5b7d8fa7c327017cafb05b1e932f70eefe8641797751a0dc19df0337f4893b1b",
+              "unchanged_capture_sha256": "5818303be9b9ed113d5b02605c223a77b45b2d587c409636bd4dd2c185ed2508"
+            }
+          },
+          "source_identity": "Actual committed Parent revision and complete frozen export inventory under v2, independently bound by the producer; not a substitution of the historical baseline.",
+          "capture_ABI": "Same historical Apache Ca4/H581 observer after-bytes and SDK3.0.14 capture ABI; source application is not a host execution, run ID or qualification.",
+          "runtime_profile": "apache-native"
+        }
+      },
+      "required_source_identity_format": "i12-disposable-source-copy-v2"
     }
   },
   "boundaries": {

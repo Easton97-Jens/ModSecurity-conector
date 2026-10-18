@@ -32,7 +32,7 @@ typedef struct { int unused; } RulesSet;
 typedef struct { int unused; } Transaction;
 typedef struct { int unused; } haproxy_modsecurity_engine;
 typedef struct { int unused; } msconnector_decision;
-typedef struct { const char *method; const char *uri; } haproxy_modsecurity_request;
+typedef struct { const char *method; const char *uri; const char *http_version; } haproxy_modsecurity_request;
 typedef struct {
     int status, phase, disruptive, rule_id;
     int body_limit, error_class;
@@ -74,7 +74,9 @@ static int process_request_connection(Transaction *value,
     (void)value; (void)request; (void)decision; note('C'); return fail_at == 'C';
 }
 static int msc_process_uri(Transaction *value, const char *uri, const char *method, const char *version) {
-    (void)value; (void)uri; (void)method; (void)version; note('U'); return fail_at != 'U';
+    (void)value; (void)uri; (void)method;
+    if (version == NULL || strcmp(version, "1.1") != 0) { abort(); }
+    note('U'); return fail_at != 'U';
 }
 static int process_request_headers(Transaction *value,
         const haproxy_modsecurity_request *request, haproxy_modsecurity_decision *decision) {
@@ -101,7 +103,7 @@ static void msc_cleanup(ModSecurity *value) { (void)value; note('m'); }
 '''
 MAIN = r'''
 int main(int argc, char **argv) {
-    haproxy_modsecurity_request request = {"GET", "/public"};
+    haproxy_modsecurity_request request = {"GET", "/public", "1.1"};
     haproxy_modsecurity_decision decision = {0};
     int result = 0;
     int mask;

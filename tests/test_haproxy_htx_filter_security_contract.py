@@ -89,10 +89,22 @@ class HAProxyHTXFilterSecurityContractTest(unittest.TestCase):
         source = FILTER.read_text(encoding="utf-8")
         self.assertNotIn("request.body_limit", source)
         self.assertNotIn("response.body_limit", source)
-        self.assertIn("SIZE_MAX - value.len", source)
-        self.assertIn("value.len > UINT_MAX", source)
-        self.assertIn("*body_bytes_seen += value.len", source)
-        self.assertNotIn("request_body_limit", source)
+        append_data = _function_body("haproxy_modsecurity_htx_append_data")
+        self.assertIn("SIZE_MAX - value.len", append_data)
+        self.assertIn("value.len > UINT_MAX", append_data)
+        self.assertIn("*body_bytes_seen += value.len", append_data)
+        config_start = source.index("struct haproxy_modsecurity_htx_filter_config {")
+        config = source[config_start:source.index("};", config_start)]
+        payloads = [append_data, *(_function_body(name) for name in (
+            "haproxy_modsecurity_htx_append_payload",
+            "haproxy_modsecurity_htx_append_request_payload",
+            "haproxy_modsecurity_htx_append_response_payload"))]
+        # Canonical error-reason strings may name native limits. Connector
+        # budget members or limit policy in the actual append path may not.
+        for body in [config, *payloads]:
+            self.assertNotIn("request_body_limit", body)
+            self.assertNotIn("response_body_limit", body)
+        self.assertNotRegex(source, r"(?:\.|->)\s*(?:request_body_limit|response_body_limit)\b")
 
     def test_request_setup_failure_aborts_before_a_payload_callback_can_pass(self) -> None:
         body = _request_headers_body()

@@ -231,6 +231,20 @@ class ConfigurationLedgerTests(unittest.TestCase):
         path.write_text(json.dumps(actual))
         ref.update(LEDGER.ORACLES.reference(path))
 
+    def bind_rejection_expectation(self):
+        process = self.process()
+        process.update(first_cause="rules_rejected", stderr="source-bound rules rejection")
+        stream = next(item for item in self.packet["measurement_evidence"] if item["role"] == "parser_stderr")
+        Path(stream["path"]).write_text(process["stderr"])
+        stream.update(LEDGER.ORACLES.reference(Path(stream["path"])))
+        ref = next(item for item in self.packet["measurement_evidence"] if item["role"] == "expectation_source")
+        Path(ref["path"]).write_text(json.dumps({"reviewed_by": "root", "expected_parser_rejection": {
+            "original_contract_sha256": LEDGER.ORACLES.canonical_digest(self.row["selected_requirement"]),
+            "oracle_sha256": self.packet["oracle_sha256"], "diagnostic_stream": "stderr",
+            "diagnostic_contains": "source-bound rules rejection", "first_cause": "rules_rejected"}}))
+        ref.update(LEDGER.ORACLES.reference(Path(ref["path"])))
+        self.rebind_process()
+
     def test_exact_three_original_observations_without_lifecycle_fabrication(self):
         result = self.review()
         self.assertEqual(set(result["mandatory_observations"]), set(LEDGER.CONFIGURATION_FIELDS))
@@ -241,6 +255,7 @@ class ConfigurationLedgerTests(unittest.TestCase):
     def test_exact_rejection_exit_and_truthful_failure(self):
         self.oracle.update(native_result="config_rejected", visible_status=1, rule_id=None)
         self.packet["oracle_sha256"] = LEDGER.ORACLES.canonical_digest(self.oracle)
+        self.bind_rejection_expectation()
         self.process()["waited_exit"] = 1
         self.rebind_process()
         self.assertEqual(self.review()["outcome"], "PASS")
@@ -254,6 +269,7 @@ class ConfigurationLedgerTests(unittest.TestCase):
     def test_exact_source_reviewed_rejection_exit_255_is_not_normalized(self):
         self.oracle.update(native_result="config_rejected", visible_status=255, rule_id=None)
         self.packet["oracle_sha256"] = LEDGER.ORACLES.canonical_digest(self.oracle)
+        self.bind_rejection_expectation()
         self.process()["waited_exit"] = 255
         self.rebind_process()
         self.assertEqual(self.review()["outcome"], "PASS")
@@ -300,6 +316,7 @@ class ConfigurationLedgerTests(unittest.TestCase):
         actual.update(self.process())
         actual_path.write_text(json.dumps(actual))
         process_ref.update(LEDGER.ORACLES.reference(actual_path))
+        self.bind_rejection_expectation()
         self.assertEqual(self.review()["outcome"], "PASS")
         self.packet["rules_sha256"] = "0" * 64
         with self.assertRaises(ValueError):
@@ -411,6 +428,265 @@ class ConfigurationLedgerTests(unittest.TestCase):
         self.assertIsNone(row["current_lifecycle_packet"])
         self.assertEqual(result["summary"]["current_configuration_pass"], 1)
         self.assertEqual(result["summary"]["full_lifecycle_pass"], 0)
+
+
+class PreNativeRejectionTests(unittest.TestCase):
+    """Physical synthetic controls using actual Apache client/native row shapes."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="i12-pre-native-")
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name).resolve()
+        self.name = "invalid_content_length"
+        self.case = "I12::apache-native::" + self.name
+        self.oracle = copy.deepcopy(LEDGER.PRE_NATIVE_ORACLE)
+        self.row = {"run_scoped_case_id": self.case, "leg_id": "apache-native", "required_leg": True,
+                    "status": "NOT_EXECUTED_UNQUALIFIED", "execution_observed": False,
+                    "selected_requirement": {"case_id": self.name, "run_scoped_case_id": self.case,
+                        "requirement_mapping": copy.deepcopy(LEDGER.PRE_NATIVE_MAPPING[self.name]),
+                        "expected_oracle": copy.deepcopy(self.oracle)}}
+        self.packet = {"run_scoped_case_id": self.case, "leg_id": "apache-native", "reviewed_by": "root",
+                       "execution_kind": "host_pre_native_rejection", "execution_observed": True,
+                       "oracle_evaluated": True, "oracle_sha256": LEDGER.ORACLES.canonical_digest(self.oracle),
+                       "full_lifecycle_qualified": False, "native_transaction_id": None, "outcome": "PASS",
+                       "run_id": "control-run", "parent_sha": "control-parent", "framework_sha": "control-framework",
+                       "mrts_sha": "control-mrts", "host_pid": 100, "uid": 65534, "host_starttime": 17,
+                       "request_id": "main-control", "connection_id": "127.0.0.1:12345"}
+        self.contents = {role: {"physical": role} for role in LEDGER.PRE_NATIVE_ROLES}
+        self.contents.update({"effective_configuration": b"effective-control-config", "rules_file": b"control-rules",
+                              "loaded_image": b"control-host-binary", "native_module": b"control-module",
+                              "observer_image": b"control-observer", "request_wire": b"GET /main HTTP/1.1\r\nHost: localhost\r\nX-I12-ID: main-control\r\nContent-Length: invalid\r\n\r\n",
+                              "response_wire": b"HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n",
+                              "core_diagnostic": b"[Thu Jan 01 00:00:01.500000 1970] [pid 100] [client 127.0.0.1:12345] AH02429: invalid Content-Length\n",
+                              "client_receipt": {"pid": 101, "started_ns": 100, "completed_ns": 200,
+                                                 "status": 400, "error": None, "path": "/main"},
+                              "client_process": {"argv": ["control-client"], "cwd": str(self.root), "wrapper_pid": 102,
+                                                 "waited_exit": 0, "started_unix_ns": 1_000_000_000, "ended_unix_ns": 2_000_000_000},
+                              "host_callback": b""})
+        self.backend = [{"kind": "request", "request_id": "before-control", "monotonic_ns": 40},
+                        {"kind": "request", "request_id": "after-control", "monotonic_ns": 240}]
+        self.api = []
+        def native(function, edge, timestamp, **extra):
+            return {"schema": "native-lifecycle-v1", "pid": 100, "uid": 65534, "run": "control-run",
+                    "profile": "apache-native", "invalid": False, "monotonic_ns": timestamp,
+                    "function": function, "edge": edge, **extra}
+        self.api.append(native("observer", "admitted", 1))
+        for timestamp, transaction in ((30, "before-native"), (230, "after-native")):
+            # Exercise both actual constructors. No constructor exists for the rejected main request.
+            ctor = "native_new" if timestamp == 30 else "native_new_with_id"
+            for offset, function in enumerate((ctor, "native_process_request_headers", "native_process_request_body")):
+                self.api.append(native(function, "return", timestamp + offset, result=1, transaction_id=transaction))
+        self.api.append(native("observer", "final", 300, pending_calls=0, live_mappings=0))
+        before_event = json.dumps({"transaction_id": "before-native", "connector": "apache", "message_id": "MSCONN_EVENT_REQUEST_BLOCKED"}).encode() + b"\n"
+        after_event = json.dumps({"transaction_id": "after-native", "connector": "apache", "message_id": "MSCONN_EVENT_REQUEST_BLOCKED"}).encode() + b"\n"
+        self.sink = self.write("sink", before_event + after_event)
+        self.before_event_size, self.sink_size = len(before_event), len(before_event + after_event)
+        self.proofs = [self.write("host-source", {"independent_host": "control"}, kind="official_host_contract", revision="control-1"),
+                       self.write("protocol-source", {"independent_protocol": "control"}, kind="protocol_contract", revision="control-1")]
+        self.event = {"execution_observed": True, "window_complete": True, "observed_from_ns": 90, "observed_through_ns": 210,
+                      "sink": self.sink, "before_offset": self.before_event_size, "after_offset": self.before_event_size,
+                      "before_control": {"start_offset": 0, "end_offset": self.before_event_size},
+                      "after_control": {"start_offset": self.before_event_size, "end_offset": self.sink_size}}
+        self.cleanup = {"execution_observed": True, "descriptor_cleanup_observed": True, "process_cleanup_observed": True,
+                        "listener_cleanup_observed": True, "remaining_processes": [], "remaining_listeners": [], "unexpected_fd_targets": []}
+        self.controls = {}
+        for label, start, end in (("before", 20, 50), ("after", 220, 260)):
+            self.controls[label] = {"request_id": label + "-control",
+                "client_receipt": self.write(label + "-client", {"status": 200, "started_ns": start, "completed_ns": end, "path": "/" + label}),
+                "client_process": self.write(label + "-process", {"argv": ["control-client", label], "cwd": str(self.root), "waited_exit": 0})}
+
+    def write(self, name, value, **metadata):
+        path = self.root / name
+        path.write_bytes(value if isinstance(value, bytes) else json.dumps(value).encode())
+        return {**LEDGER.ORACLES.reference(path), **metadata}
+
+    def bind(self):
+        for index, record in enumerate(self.api, 1):
+            record["sequence"] = index
+            record["case"] = self.name
+        self.contents["native_api"] = ("\n".join(json.dumps(r) for r in self.api) + "\n").encode()
+        self.contents["backend_process"] = ("\n".join(json.dumps(r) for r in self.backend) + "\n").encode()
+        for key, role in (("effective_config_sha256", "effective_configuration"), ("rules_sha256", "rules_file"),
+                          ("request_sha256", "request_wire")):
+            self.packet[key] = self.write(role, self.contents[role])["sha256"]
+        image = {key: self.write(role, self.contents[role])["sha256"] for key, role in
+                 (("host_binary_sha256", "loaded_image"), ("module_sha256", "native_module"), ("observer_sha256", "observer_image"))}
+        self.contents["source_manifest"] = {"parent_sha": "control-parent", **image}
+        mapped_paths = {role: "/loaded/" + role for role in ("loaded_image", "native_module", "observer_image")}
+        maps = self.write("process-maps", ("\n".join(mapped_paths.values()) + "\n").encode())
+        status = self.write("process-status", b"Pid: 100\nUid: 65534 65534 65534 65534\n")
+        self.contents["isolation_receipt"] = {**self.packet, **image, "loaded_images_observed": True,
+            "exclusive_request_window": True, "maps": maps, "status": status, "mapped_paths": mapped_paths}
+        self.contents["host_callback"] = ("\n".join(json.dumps({"pid": 100, "monotonic_ns": stamp,
+            "kind": "host_context_associated", "native_transaction_present": True, "owner_request_matches": True,
+            "request_uri": "/" + label}) for stamp, label in ((33, "before"), (233, "after"))) + "\n").encode()
+        self.contents["event_observer"] = {**self.packet, **self.event}
+        self.contents["cleanup_observer"] = {**self.packet, **self.cleanup}
+        self.contents["healthy_controls"] = {**self.packet, **self.controls}
+        self.contents["driver_observation"] = {"case_id": self.name, "original_id": self.case, "actual_principal_execution": True,
+            "executed_case_contract": True, "missing_operations": [], "clients": [{"role": "main", "request_id": "main-control",
+                "actual_waited_exit": self.contents["client_process"]["waited_exit"], "command": self.contents["client_process"]}]}
+        self.packet["source_approval"] = {"reviewed_by": "root", "scope": "host_pre_native_rejection",
+            "run_scoped_case_id": self.case, "reason": "Independent synthetic source control", "proof": self.proofs,
+            "selected_requirement_sha256": LEDGER.ORACLES.canonical_digest(self.row["selected_requirement"]),
+            "requirement_mapping_sha256": LEDGER.ORACLES.canonical_digest(self.row["selected_requirement"]["requirement_mapping"]),
+            "oracle_sha256": self.packet["oracle_sha256"], "request_sha256": self.packet["request_sha256"], "core_diagnostic_code": "AH02429"}
+        self.packet["measurement_evidence"] = [self.write(role, value, role=role) for role, value in self.contents.items()]
+        return self.write("packet", self.packet)
+
+    def review(self):
+        return LEDGER.reviewed_pre_native_packet(self.bind(), self.row, self.oracle)
+
+    def test_separate_pre_native_scope_preserves_native_alternative_and_no_fake_lifecycle(self):
+        result = self.review()
+        self.assertTrue(result["full_case_qualified"])
+        self.assertFalse(result["full_lifecycle_qualified"])
+        self.assertIsNone(result["observations"]["main_native_transaction_id"])
+        self.assertEqual(self.oracle["native_result"], "rejected_by_host_before_connector_or_connector_rejection")
+        self.assertEqual(len(LEDGER.ROLES), 35)
+
+    def test_each_of_four_original_mappings_can_use_only_the_dedicated_scope(self):
+        for name, mapping in LEDGER.PRE_NATIVE_MAPPING.items():
+            self.name = name
+            self.case = "I12::apache-native::" + name
+            self.row["run_scoped_case_id"] = self.case
+            self.row["selected_requirement"].update(case_id=name, run_scoped_case_id=self.case,
+                                                     requirement_mapping=copy.deepcopy(mapping))
+            self.packet["run_scoped_case_id"] = self.case
+            with self.subTest(name=name):
+                self.assertFalse(self.review()["full_lifecycle_qualified"])
+
+    def test_only_four_original_id_mappings_and_unchanged_oracle_are_eligible(self):
+        for mutation in ("id", "mapping", "oracle", "native-id", "lifecycle", "phase", "phase-bool", "status-float", "root"):
+            original_packet, original_row, original_oracle = copy.deepcopy(self.packet), copy.deepcopy(self.row), copy.deepcopy(self.oracle)
+            if mutation == "id":
+                self.row["selected_requirement"]["case_id"] = "other"
+            elif mutation == "mapping":
+                self.row["selected_requirement"]["requirement_mapping"] = []
+            elif mutation == "oracle":
+                self.row["selected_requirement"]["expected_oracle"]["visible_status"] = 200
+            elif mutation == "native-id":
+                self.packet["native_transaction_id"] = "invented"
+            elif mutation == "lifecycle":
+                self.packet["full_lifecycle_qualified"] = True
+            elif mutation == "phase":
+                self.oracle["phase"] = 2
+            elif mutation == "phase-bool":
+                self.oracle["phase"] = True
+            elif mutation == "status-float":
+                self.oracle["visible_status"] = 400.0
+            else:
+                self.packet["reviewed_by"] = "worker"
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                self.review()
+            self.packet, self.row, self.oracle = original_packet, original_row, original_oracle
+
+    def test_observer_admission_final_zero_window_and_positive_api_controls_are_mandatory(self):
+        original = copy.deepcopy(self.api)
+        for mutation in ("empty", "no-before", "no-after", "no-admission", "no-final", "main-call", "pid", "uid", "bool-result"):
+            self.api = copy.deepcopy(original)
+            if mutation == "empty":
+                self.api = []
+            elif mutation == "no-before":
+                self.api = [r for r in self.api if r["monotonic_ns"] >= 100 or r["function"] == "observer"]
+            elif mutation == "no-after":
+                self.api = [r for r in self.api if r["monotonic_ns"] <= 200 or r["function"] == "observer"]
+            elif mutation == "no-admission":
+                self.api = [r for r in self.api if r["edge"] != "admitted"]
+            elif mutation == "no-final":
+                self.api = [r for r in self.api if r["edge"] != "final"]
+            elif mutation == "main-call":
+                self.api.append({**self.api[1], "monotonic_ns": 150})
+            elif mutation == "pid":
+                for r in self.api: r["pid"] = 999
+            elif mutation == "uid":
+                self.api[0]["uid"] = 0
+            else:
+                self.api[1]["result"] = True
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                self.review()
+        self.api = original
+
+    def test_client400_core_diagnostic_backend_and_physical_event_window_are_independent(self):
+        original_contents, original_event, original_backend = copy.deepcopy(self.contents), copy.deepcopy(self.event), copy.deepcopy(self.backend)
+        for mutation in ("wire", "client", "exit", "core", "core-pid", "core-stale", "backend", "event-gap", "event-positive", "event-bytes", "event-unrelated"):
+            self.contents, self.event, self.backend = copy.deepcopy(original_contents), copy.deepcopy(original_event), copy.deepcopy(original_backend)
+            if mutation == "wire":
+                self.contents["response_wire"] = b"HTTP/1.1 200 OK\r\n\r\n"
+            elif mutation == "client":
+                self.contents["client_receipt"]["status"] = 200
+            elif mutation == "exit":
+                self.contents["client_process"]["waited_exit"] = 1
+            elif mutation == "core":
+                self.contents["core_diagnostic"] = b"Apache configured only"
+            elif mutation == "core-pid":
+                self.contents["core_diagnostic"] = self.contents["core_diagnostic"].replace(b"pid 100", b"pid 1000")
+            elif mutation == "core-stale":
+                self.contents["core_diagnostic"] = self.contents["core_diagnostic"].replace(b"00:00:01", b"00:00:03")
+            elif mutation == "backend":
+                self.backend.append({"kind": "request", "request_id": "main-control", "monotonic_ns": 150})
+            elif mutation == "event-gap":
+                self.event["window_complete"] = False
+            elif mutation == "event-positive":
+                self.event["before_control"]["end_offset"] = 0
+            elif mutation == "event-unrelated":
+                self.event["sink"] = self.write("unrelated-event", b"{}\n")
+            else:
+                self.event["after_offset"] = self.before_event_size + 1
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                self.review()
+        self.contents, self.event, self.backend = original_contents, original_event, original_backend
+
+    def test_cleanup_and_healthy_controls_cannot_be_projected(self):
+        self.cleanup["unexpected_fd_targets"] = ["leaked-file"]
+        with self.assertRaises(ValueError): self.review()
+        self.cleanup["unexpected_fd_targets"] = []
+        self.controls["before"]["request_id"] = "unobserved-request"
+        with self.assertRaises(ValueError): self.review()
+
+    def test_missing_stale_sibling_source_and_image_producers_are_rejected(self):
+        ref = self.bind()
+        original = copy.deepcopy(self.packet)
+        for mutation in ("source-approval", "source-alias", "missing", "hash", "source", "isolation", "stub", "cleanup-id"):
+            self.packet = copy.deepcopy(original)
+            if mutation == "source-approval":
+                self.packet["source_approval"]["reviewed_by"] = "worker"
+            elif mutation == "source-alias":
+                proof = self.packet["source_approval"]["proof"]
+                proof[1] = {**proof[0], "kind": "protocol_contract"}
+            elif mutation == "missing":
+                self.packet["measurement_evidence"].pop()
+            elif mutation == "hash":
+                self.packet["measurement_evidence"][0]["sha256"] = "0" * 64
+            else:
+                role = {"source": "source_manifest", "isolation": "isolation_receipt", "stub": "driver_observation", "cleanup-id": "cleanup_observer"}[mutation]
+                item = next(p for p in self.packet["measurement_evidence"] if p["role"] == role)
+                actual = json.loads(Path(item["path"]).read_text())
+                if mutation == "source": actual["parent_sha"] = "other-parent"
+                elif mutation == "isolation": actual["module_sha256"] = "wrong-image"
+                elif mutation == "stub": actual["executed_case_contract"] = False
+                else: actual["request_id"] = "sibling-request"
+                self.packet["measurement_evidence"] = [self.write(role, actual, role=role) if p["role"] == role else p for p in self.packet["measurement_evidence"]]
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                LEDGER.reviewed_pre_native_packet(self.write("packet", self.packet), self.row, self.oracle)
+            self.bind()
+
+    def test_build_ledger_counts_full_case_without_host_lifecycle_or_configuration_credit(self):
+        ref = self.bind()
+        requirements = {"rows": [self.row]}
+        reconciliation = {"original_selected_contracts": [self.row["selected_requirement"]],
+                          "oracle_matrix": [], "supplemental_dispositions": [], "summary": {}}
+        with mock.patch.object(LEDGER.ORACLES, "original_contracts", return_value=requirements["rows"]):
+            result = LEDGER.build_ledger(requirements, {}, reconciliation, [ref])
+        row = result["rows"][0]
+        self.assertEqual(row["qualification_scope"], "host_pre_native_rejection")
+        self.assertTrue(row["qualified_full_case_pass"])
+        self.assertFalse(row["qualified_host_lifecycle_pass"])
+        self.assertFalse(row["qualified_configuration_pass"])
+        self.assertIsNone(row["current_lifecycle_packet"])
+        self.assertEqual(result["summary"]["pre_native_rejection_pass"], 1)
+        self.assertEqual(result["summary"]["full_lifecycle_pass"], 0)
+        self.assertEqual(result["summary"]["required_qualified_pass"], 1)
 
 
 if __name__ == "__main__":
