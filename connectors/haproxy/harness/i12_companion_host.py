@@ -110,58 +110,112 @@ def stop_capture_threads(workers, sockets, relays):
     return {"accept_workers_stopped": len(workers), "relays_stopped": len(stopped_relays)}
 
 
+def stamp_window(report, prefix):
+    report[prefix + "_wall_ns"] = time.time_ns()
+    report[prefix + "_monotonic_ns"] = time.monotonic_ns()
+
+
+def socket_endpoint(sock, method):
+    try:
+        endpoint = getattr(sock, method)()
+    except OSError:
+        return None
+    if isinstance(endpoint, tuple) and len(endpoint) in (2, 4) and isinstance(endpoint[0], str) and type(endpoint[1]) is int:
+        return list(endpoint)
+    return None
+
+
+def client_initial_report(index, cancel, neighbor):
+    report = {"schema": "i12-companion-client-capture-v2", "kind": "client", "index": index,
+              "pid": os.getpid(), "neighbor": neighbor, "cancel_requested": cancel,
+              "error": None, "error_type": None, "error_errno": None, "error_stage": None,
+              "kernel_tcp_reset": None, "kernel_error": None, "kernel_tcp_eof": None,
+              "unwrap_error": None, "connection_local": None, "connection_peer": None,
+              "request_send_started_wall_ns": None, "request_send_started_monotonic_ns": None,
+              "request_send_completed_wall_ns": None, "request_send_completed_monotonic_ns": None,
+              "transport_stage": "prepared"}
+    stamp_window(report, "started")
+    return report
+
+
 def capture_client(root: Path, front: int, index: int, cancel: bool, neighbor: bool = False) -> None:
     boundary = TASK_ROOT if root.is_relative_to(TASK_ROOT) else ROOT
     root = physical_path(root, boundary)
     if not root.is_dir():
         raise ValueError("existing private client output directory required")
+    report = client_initial_report(index, cancel, neighbor)
     path = "/neighbor" if neighbor else f"/i12/{index}"
     body = b"neighbor" if neighbor else b"abcdefgh"
-    fixture_path = root / FIXTURE_FILE
-    fixture = json.loads(fixture_path.read_text()) if fixture_path.exists() else {}
     request = (f"POST {path} HTTP/1.1\r\nHost: companion.invalid\r\nContent-Type: text/plain\r\nContent-Length: {len(body)}\r\nConnection: close\r\n\r\n").encode() + body
     response = bytearray()
-    error = None
-    error_type = None
-    error_errno = None
-    kernel_reset = None
-    kernel_error = None
-    kernel_eof = None
-    unwrap_error = None
-    with ssl.create_default_context(cafile=str(root / TLS_CERT)).wrap_socket(socket.create_connection(("127.0.0.1", front), timeout=5), server_hostname="localhost", suppress_ragged_eofs=False) as sock:
-        sock.sendall(request)
-        if cancel:
-            response.extend(sock.recv(4096))
-        else:
-            terminal = capture_client_response(sock, root, index, response)
-            error = terminal["error"]
-            error_type = terminal["error_type"]
-            error_errno = terminal["error_errno"]
-            kernel_reset = terminal["kernel_tcp_reset"]
-            kernel_eof = terminal["kernel_tcp_eof"]
-            kernel_error = terminal["kernel_error"]
-        if cancel and fixture.get("transport") == "cancel":
-            raw = socket.socket(fileno=sock.detach())
-            raw.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
-            raw.close()
-        if not error and not cancel:
-            try:
-                raw_socket = sock.unwrap()
-                raw_socket.settimeout(5)
-                kernel_eof = raw_socket.recv(1) == b""
-                raw_socket.close()
-            except OSError as exc:
-                unwrap_error = type(exc).__name__ + ": " + str(exc)
-                kernel_reset = exc.errno == errno.ECONNRESET
-                kernel_error = repr(exc)
-    (root / f"client-{index}.request").write_bytes(request)
-    (root / f"client-{index}.response").write_bytes(response)
-    tls_eof = "close_notify"
+    try:
+        fixture_path = root / FIXTURE_FILE
+        fixture = json.loads(fixture_path.read_text()) if fixture_path.exists() else {}
+        capture_client_transport(root, front, fixture, request, response, report)
+    except (OSError, ValueError) as exc:
+        report.update(error=type(exc).__name__ + ": " + str(exc), error_type=type(exc).__name__,
+                      error_errno=getattr(exc, "errno", None), error_stage=report["transport_stage"])
+        raise
+    finally:
+        stamp_window(report, "completed")
+        report.update(length=len(response), time_ns=report["completed_wall_ns"], tls_eof=client_tls_terminal(report, cancel))
+        (root / f"client-{index}.request").write_bytes(request)
+        (root / f"client-{index}.response").write_bytes(response)
+        (root / f"client-{index}.json").write_text(json.dumps(report) + "\n")
+
+
+def client_tls_terminal(report, cancel):
+    if report["error"]:
+        return "exception"
     if cancel:
-        tls_eof = "client_cancel"
-    if error:
-        tls_eof = "exception"
-    (root / f"client-{index}.json").write_text(json.dumps({"kind": "client", "index": index, "length": len(response), "error": error, "error_type": error_type, "error_errno": error_errno, "tls_eof": tls_eof, "kernel_tcp_eof": kernel_eof, "kernel_tcp_reset": kernel_reset, "kernel_error": kernel_error, "unwrap_error": unwrap_error, "time_ns": time.time_ns()}) + "\n")
+        return "client_cancel"
+    return "close_notify"
+
+
+def capture_client_transport(root, front, fixture, request, response, report):
+    context = ssl.create_default_context(cafile=str(root / TLS_CERT))
+    report["transport_stage"] = "connect"
+    with socket.create_connection(("127.0.0.1", front), timeout=5) as connection:
+        report.update(connection_local=socket_endpoint(connection, "getsockname"),
+                      connection_peer=socket_endpoint(connection, "getpeername"))
+        report["transport_stage"] = "tls_handshake"
+        with context.wrap_socket(connection, server_hostname="localhost", suppress_ragged_eofs=False) as sock:
+            report["transport_stage"] = "request_send"
+            stamp_window(report, "request_send_started")
+            sock.sendall(request)
+            stamp_window(report, "request_send_completed")
+            report["transport_stage"] = "response_read"
+            capture_client_entity(sock, root, fixture, response, report)
+
+
+def capture_client_entity(sock, root, fixture, response, report):
+    index, cancel = report["index"], report["cancel_requested"]
+    if cancel:
+        response.extend(sock.recv(4096))
+    else:
+        report.update(capture_client_response(sock, root, index, response))
+        if report["error"]:
+            report["error_stage"] = "response_read"
+    if cancel and fixture.get("transport") == "cancel":
+        report["transport_stage"] = "client_cancel"
+        raw = socket.socket(fileno=sock.detach())
+        raw.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+        raw.close()
+    if not report["error"] and not cancel:
+        report["transport_stage"] = "tls_unwrap"
+        capture_client_unwrap(sock, report)
+
+
+def capture_client_unwrap(sock, report):
+    try:
+        raw_socket = sock.unwrap()
+        raw_socket.settimeout(5)
+        report["kernel_tcp_eof"] = raw_socket.recv(1) == b""
+        raw_socket.close()
+    except OSError as exc:
+        report.update(unwrap_error=type(exc).__name__ + ": " + str(exc),
+                      kernel_tcp_reset=exc.errno == errno.ECONNRESET, kernel_error=repr(exc))
+
 
 def capture_client_response(sock, root, index, response):
     result = {"error": None, "error_type": None, "error_errno": None,
@@ -449,20 +503,65 @@ def capture_snapshot(root, children, stage):
         (root / f"{label}-{stage}.fds.json").write_text(json.dumps({"pid": process.pid, "stage": stage, "wall_ns": time.time_ns(), "monotonic_ns": time.monotonic_ns(), "fds": fds}, indent=2) + "\n")
 
 
+def reap_interrupted_client(process, receipt):
+    process.kill()
+    try:
+        return process.communicate()
+    finally:
+        process.wait()
+        receipt.update(exit=process.returncode, signal=-process.returncode if process.returncode < 0 else None, reaped=True)
+        for stream in (process.stdout, process.stderr):
+            if stream is not None:
+                stream.close()
+
+
+def capture_client_process(root, index, argv):
+    receipt = {"schema": "i12-companion-client-process-v1", "label": f"client-{index}",
+               "argv": argv, "pid": None, "exit": None, "signal": None, "reaped": False,
+               "timed_out": False, "launch_error": None, "communication_error": None}
+    stamp_window(receipt, "started")
+    stdout, stderr = b"", b""
+    error = None
+    try:
+        process = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        receipt["pid"] = process.pid
+        try:
+            stdout, stderr = process.communicate(timeout=12)
+        except BaseException as exc:
+            # Match subprocess.run's ownership even for KeyboardInterrupt and
+            # SystemExit; the caller receives the original exception only after
+            # the actual child is terminated, drained and reaped.
+            receipt["timed_out"] = isinstance(exc, subprocess.TimeoutExpired)
+            if not receipt["timed_out"]:
+                receipt["communication_error"] = repr(exc)
+            error = exc
+            stdout, stderr = reap_interrupted_client(process, receipt)
+        receipt.update(exit=process.returncode, signal=-process.returncode if process.returncode < 0 else None, reaped=True)
+    except OSError as exc:
+        receipt["launch_error"] = repr(exc)
+        error = exc
+    finally:
+        stamp_window(receipt, "completed")
+        (root / f"client-{index}.stdout").write_bytes(stdout)
+        (root / f"client-{index}.stderr").write_bytes(stderr)
+        (root / f"client-{index}.process.json").write_text(json.dumps(receipt) + "\n")
+    if error is not None:
+        raise error
+    return receipt
+
+
 def run_capture_client(root, front, args, commands, lock, record, index, neighbor=False):
     if neighbor:
         (root / "neighbor-stage").touch(exist_ok=False)
     if args.fixture_data:
         (root / f"client-{index}.expected.json").write_text(json.dumps(cases.source_expectation(args.fixture_data, neighbor), indent=2) + "\n")
     argv = [sys.executable, str(Path(__file__).resolve()), "--client-capture", str(root), str(front), str(index), "neighbor" if neighbor else args.case]
-    result = subprocess.run(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=12)
-    (root / f"client-{index}.stdout").write_bytes(result.stdout)
-    (root / f"client-{index}.stderr").write_bytes(result.stderr)
+    process_receipt = capture_client_process(root, index, argv)
     with lock:
-        commands.append({"label": f"client-{index}", "argv": argv, "exit": result.returncode, "reaped": True})
-    if result.returncode:
-        record({"kind": "client_process_failure", "index": index, "exit": result.returncode, "signal": -result.returncode if result.returncode < 0 else None})
-        raise RuntimeError(f"client-{index} failed: {result.returncode}")
+        commands.append(process_receipt)
+    if process_receipt["exit"]:
+        record({"kind": "client_process_failure", "index": index, "exit": process_receipt["exit"], "signal": process_receipt["signal"]})
+        raise RuntimeError(f"client-{index} failed: {process_receipt['exit']}")
     observation = json.loads((root / f"client-{index}.json").read_text())
     if args.fixture_data:
         expected = cases.source_expectation(args.fixture_data, neighbor)

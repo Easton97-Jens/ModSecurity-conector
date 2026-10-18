@@ -5,6 +5,11 @@ from pathlib import Path
 import tempfile
 import json
 import ssl
+import os
+import socket
+import subprocess
+import threading
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 import unittest
 
@@ -13,6 +18,48 @@ sys.path.insert(0, str(SOURCE.parent))
 spec = importlib.util.spec_from_file_location("i12_companion_host", SOURCE)
 runner = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(runner)
+
+
+def prepare_component_certificate(root):
+    configuration = root / "openssl.cnf"
+    configuration.write_text("[req]\ndistinguished_name=dn\nprompt=no\nx509_extensions=ext\n[dn]\nCN=localhost\n[ext]\nsubjectAltName=DNS:localhost\n")
+    argv = ["rtk", "proxy", "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+            "-keyout", str(root / runner.TLS_KEY), "-out", str(root / runner.TLS_CERT),
+            "-days", "1", "-config", str(configuration)]
+    result = subprocess.run(argv, capture_output=True, timeout=20)
+    if result.returncode:
+        raise AssertionError(result.stderr.decode())
+    return argv
+
+
+def serve_component_tls(listener, root, errors):
+    try:
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(root / runner.TLS_CERT, root / runner.TLS_KEY)
+        with listener:
+            peer, _address = listener.accept()
+            peer.settimeout(5)
+            with context.wrap_socket(peer, server_side=True) as stream:
+                request = bytearray()
+                while b"\r\n\r\n" not in request:
+                    chunk = stream.recv(4096)
+                    if not chunk:
+                        raise EOFError("component peer closed before request headers")
+                    request.extend(chunk)
+                head, body = request.split(b"\r\n\r\n", 1)
+                length = int(next(line.split(b":", 1)[1] for line in head.split(b"\r\n")[1:] if line.lower().startswith(b"content-length:")))
+                while len(body) < length:
+                    chunk = stream.recv(4096)
+                    if not chunk:
+                        raise EOFError("component peer closed before request body")
+                    body += chunk
+                stream.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
+                with stream.unwrap() as raw:
+                    raw.shutdown(socket.SHUT_WR)
+                    raw.recv(1)
+    except Exception as exc:
+        errors.append(repr(exc))
+
 
 class CompanionCaptureTests(unittest.TestCase):
     def setUp(self):
@@ -351,6 +398,183 @@ class CompanionCaptureTests(unittest.TestCase):
                 self.assertEqual(report["tls_eof"], expected)
                 self.assertIsNone(report["error"])
                 self.assertEqual(report["kernel_tcp_eof"], None if cancel else True)
+
+    def test_client_report_has_physical_wall_and_monotonic_window(self):
+        with tempfile.TemporaryDirectory(dir=runner.ROOT) as directory:
+            root = Path(directory)
+            context = MagicMock()
+            stream = context.wrap_socket.return_value.__enter__.return_value
+            stream.recv.side_effect = [b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok", b""]
+            stream.unwrap.return_value.recv.return_value = b""
+            with patch.object(runner.ssl, "create_default_context", return_value=context), patch.object(runner.socket, "create_connection"):
+                runner.capture_client(root, 19000, 0, False)
+            report = json.loads((root / "client-0.json").read_text())
+            for key in ("started_wall_ns", "started_monotonic_ns", "completed_wall_ns", "completed_monotonic_ns"):
+                self.assertIs(type(report[key]), int)
+                self.assertGreater(report[key], 0)
+            self.assertLessEqual(report["started_monotonic_ns"], report["completed_monotonic_ns"])
+            self.assertEqual(report["time_ns"], report["completed_wall_ns"])
+
+    def test_actual_harmless_tls_client_process_records_window_endpoints_and_wait(self):
+        with tempfile.TemporaryDirectory(dir=runner.ROOT) as directory:
+            root = Path(directory)
+            prepare_component_certificate(root)
+            listener = socket.socket()
+            listener.bind(("127.0.0.1", 0))
+            listener.listen(1)
+            listener.settimeout(5)
+            port = listener.getsockname()[1]
+            errors = []
+            server = threading.Thread(target=serve_component_tls, args=(listener, root, errors), daemon=True)
+            server.start()
+            commands, observations = [], []
+            try:
+                runner.run_capture_client(root, port, SimpleNamespace(fixture_data={}, case="safe"), commands,
+                                          threading.Lock(), observations.append, 0)
+            finally:
+                server.join(6)
+                listener.close()
+            self.assertFalse(server.is_alive())
+            self.assertEqual(errors, [])
+            client = json.loads((root / "client-0.json").read_text())
+            process = json.loads((root / "client-0.process.json").read_text())
+            self.assertEqual(process["schema"], "i12-companion-client-process-v1")
+            self.assertEqual(client["schema"], "i12-companion-client-capture-v2")
+            self.assertEqual(process["argv"], [sys.executable, str(SOURCE), "--client-capture", str(root), str(port), "0", "safe"])
+            self.assertEqual(process["pid"], client["pid"])
+            self.assertEqual(process["exit"], 0)
+            self.assertIsNone(process["signal"])
+            self.assertTrue(process["reaped"])
+            self.assertEqual(commands, [process])
+            self.assertEqual(client["connection_peer"], ["127.0.0.1", port])
+            self.assertEqual(client["connection_local"][0], "127.0.0.1")
+            self.assertLessEqual(process["started_monotonic_ns"], client["started_monotonic_ns"])
+            self.assertLessEqual(client["started_monotonic_ns"], client["request_send_started_monotonic_ns"])
+            self.assertLessEqual(client["request_send_started_monotonic_ns"], client["request_send_completed_monotonic_ns"])
+            self.assertLessEqual(client["request_send_completed_monotonic_ns"], client["completed_monotonic_ns"])
+            self.assertLessEqual(client["completed_monotonic_ns"], process["completed_monotonic_ns"])
+            self.assertTrue((root / "client-0.response").read_bytes().endswith(b"ok"))
+
+    def test_actual_refused_client_preserves_error_window_and_unknown_endpoints(self):
+        with tempfile.TemporaryDirectory(dir=runner.ROOT) as directory:
+            root = Path(directory)
+            prepare_component_certificate(root)
+            # A bound but non-listening TCP socket deterministically rejects
+            # connect without racing another process for a released port.
+            with socket.socket() as reserved:
+                reserved.bind(("127.0.0.1", 0))
+                port = reserved.getsockname()[1]
+                commands = []
+                args, lock = SimpleNamespace(fixture_data={}, case="safe"), threading.Lock()
+                with self.assertRaisesRegex(RuntimeError, "client-1 failed"):
+                    runner.run_capture_client(root, port, args, commands, lock, lambda _row: None, 1)
+            client = json.loads((root / "client-1.json").read_text())
+            process = json.loads((root / "client-1.process.json").read_text())
+            self.assertEqual(client["error_type"], "ConnectionRefusedError")
+            self.assertEqual(client["error_stage"], "connect")
+            self.assertIsNone(client["connection_local"])
+            self.assertIsNone(client["connection_peer"])
+            self.assertIsNone(client["request_send_started_wall_ns"])
+            self.assertIsNone(client["request_send_completed_wall_ns"])
+            self.assertLessEqual(client["started_monotonic_ns"], client["completed_monotonic_ns"])
+            self.assertEqual(process["exit"], 1)
+            self.assertTrue(process["reaped"])
+            self.assertEqual((root / "client-1.response").read_bytes(), b"")
+
+    def test_actual_signal_wait_is_separate_from_missing_child_completion(self):
+        with tempfile.TemporaryDirectory(dir=runner.ROOT) as directory:
+            root = Path(directory)
+            argv = [sys.executable, "-c", "import os,signal;os.kill(os.getpid(),signal.SIGTERM)"]
+            receipt = runner.capture_client_process(root, 7, argv)
+            self.assertEqual(receipt["argv"], argv)
+            self.assertEqual(receipt["exit"], -runner.signal.SIGTERM)
+            self.assertEqual(receipt["signal"], runner.signal.SIGTERM)
+            self.assertTrue(receipt["reaped"])
+            self.assertFalse((root / "client-7.json").exists())
+            self.assertLessEqual(receipt["started_monotonic_ns"], receipt["completed_monotonic_ns"])
+
+    def test_cancel_and_send_failure_keep_windows_without_fabricated_completion(self):
+        for cancel in (False, True):
+            with self.subTest(cancel=cancel), tempfile.TemporaryDirectory(dir=runner.ROOT) as directory:
+                root = Path(directory)
+                context = MagicMock()
+                stream = context.wrap_socket.return_value.__enter__.return_value
+                stream.recv.return_value = b"partial-response"
+                if not cancel:
+                    stream.sendall.side_effect = BrokenPipeError("actual send boundary")
+                with patch.object(runner.ssl, "create_default_context", return_value=context), patch.object(runner.socket, "create_connection"):
+                    if cancel:
+                        runner.capture_client(root, 19000, 0, True)
+                    else:
+                        with self.assertRaises(BrokenPipeError):
+                            runner.capture_client(root, 19000, 0, False)
+                report = json.loads((root / "client-0.json").read_text())
+                self.assertLessEqual(report["started_monotonic_ns"], report["completed_monotonic_ns"])
+                self.assertEqual(report["cancel_requested"], cancel)
+                if cancel:
+                    self.assertEqual(report["tls_eof"], "client_cancel")
+                    self.assertIsNotNone(report["request_send_completed_wall_ns"])
+                else:
+                    self.assertEqual(report["error_type"], "BrokenPipeError")
+                    self.assertIsNone(report["request_send_completed_wall_ns"])
+
+    def test_timeout_receipt_records_kill_and_wait_without_inventing_child_times(self):
+        with tempfile.TemporaryDirectory(dir=runner.ROOT) as directory:
+            root = Path(directory)
+            process = MagicMock(pid=123, returncode=-9)
+            timeout = subprocess.TimeoutExpired(["component"], 12)
+            process.communicate.side_effect = [timeout, (b"partial-output", b"timeout-detail")]
+            with patch.object(runner.subprocess, "Popen", return_value=process), self.assertRaises(subprocess.TimeoutExpired) as caught:
+                runner.capture_client_process(root, 9, ["component"])
+            self.assertIs(caught.exception, timeout)
+            process.kill.assert_called_once_with()
+            self.assertEqual(process.communicate.call_count, 2)
+            receipt = json.loads((root / "client-9.process.json").read_text())
+            self.assertTrue(receipt["timed_out"])
+            self.assertTrue(receipt["reaped"])
+            self.assertEqual(receipt["signal"], 9)
+            self.assertEqual((root / "client-9.stdout").read_bytes(), b"partial-output")
+            self.assertFalse((root / "client-9.json").exists())
+
+    def test_started_child_is_reaped_before_arbitrary_communication_exception_returns(self):
+        actual_popen = subprocess.Popen
+        for exception_type in (KeyboardInterrupt, SystemExit, RuntimeError):
+            with self.subTest(exception=exception_type.__name__), tempfile.TemporaryDirectory(dir=runner.ROOT) as directory:
+                root = Path(directory)
+                interruption = exception_type("component communication interruption")
+                children = []
+                def start(*args, **kwargs):
+                    process = actual_popen(*args, **kwargs)
+                    children.append(process)
+                    communicate = process.communicate
+                    calls = []
+                    def interrupted(*args, **kwargs):
+                        if not calls:
+                            calls.append(True)
+                            raise interruption
+                        return communicate(*args, **kwargs)
+                    process.communicate = interrupted
+                    return process
+                argv = [sys.executable, "-c", "import time;time.sleep(30)"]
+                try:
+                    with patch.object(runner.subprocess, "Popen", side_effect=start), self.assertRaises(exception_type) as caught:
+                        runner.capture_client_process(root, 12, argv)
+                    self.assertIs(caught.exception, interruption)
+                    self.assertIsNotNone(children[0].returncode, "started child was not waited by its owner")
+                    with self.assertRaises(ChildProcessError):
+                        os.waitpid(children[0].pid, os.WNOHANG)
+                    receipt = json.loads((root / "client-12.process.json").read_text())
+                    self.assertTrue(receipt["reaped"])
+                    self.assertEqual(receipt["pid"], children[0].pid)
+                    self.assertEqual(receipt["exit"], children[0].returncode)
+                    self.assertEqual(receipt["communication_error"], repr(interruption))
+                    self.assertFalse((root / "client-12.json").exists())
+                finally:
+                    # The before-fix negative control must also leave no child.
+                    for process in children:
+                        if process.poll() is None:
+                            process.kill()
+                        process.communicate(timeout=5)
 
     def test_close_notify_without_tcp_eof_remains_distinct(self):
         with tempfile.TemporaryDirectory(dir=runner.ROOT) as directory:
