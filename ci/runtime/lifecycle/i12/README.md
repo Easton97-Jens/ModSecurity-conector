@@ -186,3 +186,20 @@ certificates, binaries, archives, caches, Git metadata and heavy raw evidence.
 Any new execution still requires independently bound loaded images, effective
 configuration, real clients/backend, native phases/EOS/finish/free, physical logs,
 cleanup, neighbor health and Root review.
+
+## Reviewed current Traefik input bases
+
+The existing `traefik-native` and `traefik-forwardauth` variants also accept
+`current_before_sha256` for their two shared observer input files, exclusively
+following successful complete v2 inventory validation. These are explicit,
+reviewed hashes in the manifest, never values inferred from the supplied copy.
+The original `before_sha256` and all instrumented result hashes remain unchanged.
+A v1 marker cannot select the current alternative. The application receipt records
+`actual_before_sha256` for every source target, including `null` for new files.
+Unknown source bytes and changes outside the selected targets remain rejected.
+
+Three historical HAProxy repository objects are frozen as lossless `text_lines`
+objects authenticated against commit `8cc32dceb06121f589150a9794f28878c5e4ba2a`.
+Their identities and all dependent delta/result identities are unchanged. This
+preserves historical source verification after unrelated product files advance;
+it adds no HAProxy runtime claim or profile extension.
