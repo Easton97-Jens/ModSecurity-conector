@@ -77,7 +77,7 @@ def stage_fixtures(source, output, cases):
         shutil.copyfile(captured / name, fixture / name)
         if name.endswith('.sh'):(fixture / name).chmod(0o755)
     own = Path(__file__).resolve().parent
-    for name in ('client.py', 'backend.py', 'auth_proxy.py', 'fault_peer.py', 'validate_config.py'):shutil.copyfile(own / name, fixture / name)
+    for name in ('client.py', 'backend.py', 'auth_proxy.py', 'fault_peer.py', 'validate_config.py', 'tls_fixture.py'):shutil.copyfile(own / name, fixture / name)
     helper = source / 'connectors/traefik/response_observer/i12_observer.go'
     text = helper.read_text();start = text.index('\tif transactionID != ');end = text.index(' {\n\t\treturn', start)
     text = text[:start] + '\tif ' + ' && '.join('transactionID != "i12-auth-' + name + '"' for name in cases) + text[end:]
@@ -104,7 +104,7 @@ def prepare(repository, output, leg='traefik-forwardauth-request', cases=None):
     driver = replace(driver, "dynamic.write_text(helper.dynamic_config(backend_port,auth_port,Path(env['MSCONNECTOR_TRAEFIK_FORWARDAUTH_COMPANION_SOCKET'])))",
         "dynamic.write_text(helper.dynamic_config(backend_port,auth_port,Path(env['MSCONNECTOR_TRAEFIK_FORWARDAUTH_COMPANION_SOCKET'])).replace('        maxBodySize: 4096', '        maxBodySize: 4096\\n        maxResponseBodySize: 32768'))\n    assert 'maxResponseBodySize: 32768' in dynamic.read_text()")
     driver = replace(driver, "    helper.validate_forwardauth_p2_contract(dynamic.read_text())", "    text=dynamic.read_text().replace('\\n  middlewares:\\n', '\\n    fault:\\n      entryPoints: [web]\\n      rule: Path(`/mrc1-error`)\\n      priority: 100\\n      middlewares: [modsecurity-forwardauth, observer-fault]\\n      service: upstream\\n  middlewares:\\n    observer-fault:\\n      plugin:\\n        modsecurityResponseObserver:\\n          socketPath: /task/sockets/fault.sock\\n          timeoutMillis: 5000\\n', 1)\n    assert text.count('\\n  middlewares:')==1\n    dynamic.write_text(text)\n    helper.validate_forwardauth_p2_contract(dynamic.read_text())")
-    driver = replace(driver, "    helper.validate_forwardauth_p2_contract(dynamic.read_text())", "    helper.validate_forwardauth_p2_contract(dynamic.read_text())\n    execute('validate-effective-yaml',['/usr/bin/python3','-B',FIXTURES/'validate_config.py',dynamic],env)")
+    driver = replace(driver, "    helper.validate_forwardauth_p2_contract(dynamic.read_text())", "    execute('authorization-relay-tls',['/usr/local/bin/python3','-P',FIXTURES/'tls_fixture.py',dynamic,str(auth_port)],env)\n    helper.validate_forwardauth_p2_contract(dynamic.read_text())\n    execute('validate-effective-yaml',['/usr/bin/python3','-B',FIXTURES/'validate_config.py',dynamic],env)")
     start = driver.index('    for index,nonce in enumerate((TARGET,NEIGHBOR)):')
     end = driver.index("    (TASK/'rules.conf').write_text", start)
     rules = [
@@ -117,7 +117,7 @@ def prepare(repository, output, leg='traefik-forwardauth-request', cases=None):
     driver = driver[:start] + '    rules.extend(' + repr(rules) + ')\n' + driver[end:]
     start = driver.index("    product=json.loads((ARTIFACTS/'preparation-manifest.json').read_text())")
     end = driver.index("    command=['rtk','proxy'", start)
-    driver = driver[:start] + "    write('build-manifest.json',{'run':RUN,'host_sha256':digest(host),'engine_sha256':digest(engine),'observer_sha256':digest(observer),'sdk_accessor_sha256':digest(accessor),'wrap_symbols':SYMBOLS,'source_inputs':{str(p.relative_to(SOURCE)):digest(p) for p in SOURCE.rglob('*') if p.is_file()},'configuration':{str(p):digest(p) for p in (TASK/'rules.conf',config,dynamic)},'qualification':'measurement_only','authorization_response_capacity':32768,'host_request_limit':4096,'native_request_limit':1024})\n" + driver[end:]
+    driver = driver[:start] + "    write('build-manifest.json',{'run':RUN,'host_sha256':digest(host),'engine_sha256':digest(engine),'observer_sha256':digest(observer),'sdk_accessor_sha256':digest(accessor),'wrap_symbols':SYMBOLS,'source_inputs':{str(p.relative_to(SOURCE)):digest(p) for p in SOURCE.rglob('*') if p.is_file()},'configuration':{str(p):digest(p) for p in (TASK/'rules.conf',config,dynamic)},'qualification':'measurement_only','authorization_tls_public':{str(p):digest(p) for p in (TASK/'authorization-tls/ca.crt',TASK/'authorization-tls/server.crt',TASK/'authorization-tls/tls-receipt.json')},'authorization_response_capacity':32768,'host_request_limit':4096,'native_request_limit':1024})\n" + driver[end:]
     driver = replace(driver, "f'127.0.0.1:{auth_port}'],service_env", "f'127.0.0.1:{engine_port}'],service_env")
     driver = replace(driver, "wait.wait_for_port(auth_port,service,'actual forwardAuth native service')",
         "wait.wait_for_port(engine_port,service,'actual forwardAuth native service')\n        relay=start('authorization-relay',['/usr/local/bin/python3','-P',FIXTURES/'auth_proxy.py',str(auth_port),str(engine_port)],env,handles)\n        processes['authorization-relay']=(relay,str(FIXTURES/'auth_proxy.py'));wait.wait_for_port(auth_port,relay,'bounded authorization sample relay')")
@@ -134,7 +134,7 @@ def prepare(repository, output, leg='traefik-forwardauth-request', cases=None):
         'source_application_receipt_sha256':sha(source/'i12-source-application-receipt.json'),
         'source_files':{str(p.relative_to(source)):sha(p) for p in source.rglob('*') if p.is_file()},
         'fixture_files':{p.name:sha(p) for p in fixture.iterdir()},
-        'fixture_changes':['explicit bounded synthetic case ID admission','source-bound native phase rules','physical bounded authorization relay','thirteen distinct client probes plus neighbor','preserved authorization-response capacity32768'],
+        'fixture_changes':['explicit bounded synthetic case ID admission','source-bound native phase rules','physical bounded authorization relay','thirteen distinct client probes plus neighbor','preserved authorization-response capacity32768','verified TLS relay with fresh runtime CA and IP-SAN leaf'],
         'logical_leg':leg,'cases':cases,'runtime_qualified':False,'host_launched':False}
     (output/'preparation.json').write_text(json.dumps(receipt,indent=2)+'\n')
     return receipt

@@ -78,6 +78,16 @@ class BoundedRelayControls(unittest.TestCase):
         self.assertEqual(AUTH.port('1'), 1)
         self.assertEqual(AUTH.port('65535'), 65535)
 
+    def test_relay_rejects_unowned_TLS_material_before_binding(self):
+        metadata = types.SimpleNamespace(st_uid=os.getuid() + 1, st_mode=0o100600)
+        with mock.patch.object(Path, 'is_symlink', return_value=False), \
+             mock.patch.object(Path, 'is_file', return_value=True), \
+             mock.patch.object(Path, 'stat', return_value=metadata), \
+             mock.patch.object(AUTH.http.server, 'HTTPSServer') as listener:
+            with self.assertRaisesRegex(ValueError, 'actual private TLS'):
+                AUTH.make_server(12345, 43210)
+            listener.assert_not_called()
+
     def test_fault_ack_requires_actual_opcode_ten(self):
         header, payload = b'MSE1' + b'\0' * 8, b'\x01\x00\x03'
         self.assertEqual(FAULT.reply_fault('fault-ack', 7, 0, header, payload),

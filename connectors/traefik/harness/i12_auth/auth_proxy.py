@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import ssl
 import sys
 import time
 
@@ -69,13 +70,32 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return None  # Physical receipts own bounded HTTP evidence.
 
 
+TLS_ROOT = Path('/task/authorization-tls')
+
+
+def make_server(listen_port, engine_port, certificate_directory=TLS_ROOT):
+    directory = Path(certificate_directory)
+    paths = (directory / 'server.crt', directory / 'server.key')
+    for path in paths:
+        if (any(part.is_symlink() for part in (path, *path.parents)) or not path.is_file()
+                or path.stat().st_uid != os.getuid()):
+            raise ValueError('actual private TLS certificate files required')
+    if (paths[1].stat().st_mode & 0o077 or directory.stat().st_mode & 0o077):
+        raise ValueError('relay TLS private key and directory must be private')
+    server = http.server.HTTPSServer(('127.0.0.1', listen_port), Handler,
+                                    certfile=str(paths[0]), keyfile=str(paths[1]),
+                                    alpn_protocols=['http/1.1'])
+    server.socket.context.minimum_version = ssl.TLSVersion.TLSv1_2
+    server.engine_port = engine_port
+    return server
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('listen_port', type=port)
     parser.add_argument('engine_port', type=port)
     args = parser.parse_args()
-    server = http.server.HTTPServer(('127.0.0.1', args.listen_port), Handler)
-    server.engine_port = args.engine_port
+    server = make_server(args.listen_port, args.engine_port)
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     try:server.serve_forever(poll_interval=0.1)
     finally:server.server_close()
