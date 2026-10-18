@@ -719,6 +719,11 @@ PRE_NATIVE_MAPPING = {
     "duplicate_transfer_encoding": ["duplicate_transfer_encoding"],
     "content_length_overflow": ["content_length_overflow", "I12::apache-native::obligation::size-overflow"],
 }
+LIGHTTPD_PRE_NATIVE_MAPPING = {
+    "invalid_content_length": ["invalid_content_length", "I12::lighttpd-stock-native-control::obligation::invalid-header"],
+    "conflicting_content_length": ["conflicting_content_length"],
+    "content_length_overflow": ["content_length_overflow", "I12::lighttpd-stock-native-control::obligation::size-overflow"],
+}
 PRE_NATIVE_ORACLE = {"native_result": "rejected_by_host_before_connector_or_connector_rejection",
                      "visible_status": 400, "rule_id": None, "phase": 1, "event_fields": [],
                      "physical_evidence_not_projection": True, "unresolved_expected_value_reason": None}
@@ -730,16 +735,25 @@ PRE_NATIVE_ROLES = frozenset((
 ))
 
 
+def pre_native_profile(leg):
+    if leg == "apache-native":
+        return PRE_NATIVE_MAPPING, "apache", PRE_NATIVE_ROLES
+    if leg == "lighttpd-stock-native-control":
+        return LIGHTTPD_PRE_NATIVE_MAPPING, "lighttpd", PRE_NATIVE_ROLES | {"core_diagnostic_window"}
+    raise ValueError("Pre-native scope has no contract for this host/profile")
+
+
 def pre_native_identity(packet, row, oracle):
     selected = row["selected_requirement"]
     name = selected.get("case_id")
-    if (name not in PRE_NATIVE_MAPPING or row.get("leg_id") != "apache-native"
-            or row.get("run_scoped_case_id") != f"I12::apache-native::{name}"
+    mapping, _, _ = pre_native_profile(row.get("leg_id"))
+    if (name not in mapping
+            or row.get("run_scoped_case_id") != f'I12::{row["leg_id"]}::{name}'
             or selected.get("run_scoped_case_id") != row["run_scoped_case_id"]
-            or selected.get("requirement_mapping") != PRE_NATIVE_MAPPING[name]
+            or selected.get("requirement_mapping") != mapping[name]
             or selected.get("expected_oracle") != PRE_NATIVE_ORACLE or oracle != PRE_NATIVE_ORACLE
             or type(oracle.get("phase")) is not int or type(oracle.get("visible_status")) is not int):
-        raise ValueError("Pre-native scope requires one of four exact original Apache rejection contracts")
+        raise ValueError("Pre-native scope requires an exact original selected host rejection contract")
     if (packet.get("reviewed_by") != "root" or packet.get("execution_kind") != "host_pre_native_rejection"
             or packet.get("execution_observed") is not True or packet.get("oracle_evaluated") is not True
             or packet.get("oracle_sha256") != ORACLES.canonical_digest(oracle)
@@ -767,10 +781,10 @@ def pre_native_identity(packet, row, oracle):
     sources = [ORACLES.verify_reference(ref) for ref in approval.get("proof", [])]
     if (not {"official_host_contract", "protocol_contract"} <= {ref.get("kind") for ref in sources}
             or any(ref.get("kind") not in ORACLES.INDEPENDENT_KINDS or not ref.get("revision") for ref in sources)):
-        raise ValueError("Pre-native approval lacks versioned independent Apache and protocol sources")
+        raise ValueError("Pre-native approval lacks versioned independent host and protocol sources")
     if {p["sha256"] for p in sources if p.get("kind") == "official_host_contract"} & {
             p["sha256"] for p in sources if p.get("kind") == "protocol_contract"}:
-        raise ValueError("Independent Apache and protocol approval must bind separate source bytes")
+        raise ValueError("Independent host and protocol approval must bind separate source bytes")
     return sources
 
 
@@ -788,7 +802,7 @@ def pre_native_native_window(packet, producers, client):
     rows = [row for row in rows if row.get("pid") == packet["host_pid"]]
     start, end = client["started_ns"], client["completed_ns"]
     if (not rows or any(row.get("schema") != "native-lifecycle-v1" or row.get("run") != packet["run_id"]
-                        or row.get("profile") != "apache-native"
+                        or row.get("profile") != packet["leg_id"]
                         or row.get("case") != packet["run_scoped_case_id"].split("::")[-1]
                         or row.get("uid") != packet["uid"]
                         or row.get("invalid") is not False or type(row.get("monotonic_ns")) is not int for row in rows)):
@@ -878,9 +892,9 @@ def pre_native_producer_binding(packet, producers, client):
                       and (r["monotonic_ns"] < client["started_ns"] if label == "before_control"
                            else r["monotonic_ns"] > client["completed_ns"])}
         if (not positive or any(not isinstance(r, dict) or not r.get("transaction_id")
-                or r["transaction_id"] not in identities or r.get("connector") != "apache"
+                or r["transaction_id"] not in identities or r.get("connector") != pre_native_profile(packet["leg_id"])[1]
                 or not isinstance(r.get("message_id"), str) or not r["message_id"].startswith("MSCONN_EVENT_") for r in positive)):
-            raise ValueError("Positive sink controls must be actual Apache events joined to observed native allocations")
+            raise ValueError("Positive sink controls must be actual selected-host events joined to observed native allocations")
     cleanup = pre_native_json(producers["cleanup_observer"])
     if (cleanup.get("execution_observed") is not True
             or any(cleanup.get(key) is not True for key in ("descriptor_cleanup_observed", "process_cleanup_observed", "listener_cleanup_observed"))
@@ -905,14 +919,121 @@ def pre_native_producer_binding(packet, producers, client):
                 or not any(r.get("pid") == packet["host_pid"] and begin <= r.get("monotonic_ns", 0) <= finish
                            and r.get("function") in ("native_new", "native_new_with_id") and r.get("edge") == "return"
                            and r.get("transaction_id") for r in native)
-                or not receipt.get("path") or not any(r.get("pid") == packet["host_pid"]
-                    and r.get("kind") == "host_context_associated" and r.get("native_transaction_present") is True
-                    and r.get("owner_request_matches") is True and r.get("request_uri") == receipt["path"]
-                    and begin <= r.get("monotonic_ns", 0) <= finish for r in host)):
+                or not receipt.get("path") or not pre_native_control_host(packet, host, native, receipt, begin, finish)):
             raise ValueError("Healthy controls must join actual native constructor and host association in their windows")
         backend = pre_native_rows(producers["backend_process"])
-        if not any(r.get("kind") in ("request", "request_arrival") and r.get("request_id") == control["request_id"] for r in backend):
+        if not pre_native_control_backend(packet, backend, control, receipt, begin, finish):
             raise ValueError("Healthy controls need an independent actual backend request")
+
+
+def pre_native_control_host(packet, host, native, receipt, begin, finish):
+    if packet["leg_id"] == "apache-native":
+        return any(r.get("pid") == packet["host_pid"] and r.get("kind") == "host_context_associated"
+            and r.get("native_transaction_present") is True and r.get("owner_request_matches") is True
+            and r.get("request_uri") == receipt["path"] and begin <= r.get("monotonic_ns", 0) <= finish for r in host)
+    if packet["leg_id"] != "lighttpd-stock-native-control":
+        raise ValueError("No healthy-control host observer contract for this profile")
+    constructors = [r for r in native if r.get("pid") == packet["host_pid"] and r.get("edge") == "return"
+        and r.get("function") in ("native_new", "native_new_with_id") and r.get("result") == 1
+        and begin <= r.get("monotonic_ns", 0) <= finish]
+    return any(r.get("schema") == "lighttpd-stock-diagnostic-host-v1" and r.get("pid") == packet["host_pid"]
+        and r.get("uid") == packet["uid"] and r.get("kind") == "request_decision_returned"
+        and r.get("technical_failed") == 0 and r.get("api_failed") == 0 and r.get("request_intervened") == 0
+        and begin <= r.get("monotonic_ns", 0) <= finish
+        and any(type(r.get("runtime_allocation_scope_call")) is int and r["runtime_allocation_scope_call"] > 0
+            and r["runtime_allocation_scope_call"] == c.get("allocation_scope_call")
+            and r.get("host_transaction_id") in (c.get("transaction_id"), c.get("canonical_transaction_id")) for c in constructors)
+        for r in host)
+
+
+def pre_native_control_backend(packet, backend, control, receipt, begin, finish):
+    if packet["leg_id"] == "apache-native":
+        return any(r.get("kind") in ("request", "request_arrival") and r.get("request_id") == control["request_id"] for r in backend)
+    if packet["leg_id"] != "lighttpd-stock-native-control":
+        raise ValueError("No healthy-control backend contract for this profile")
+    return control["request_id"] == receipt["path"] and any(r.get("schema") == "apache-independent-backend-v1"
+        and r.get("uid") == packet["uid"] and type(r.get("pid")) is int
+        and r["pid"] > 0 and r["pid"] not in (packet["host_pid"], receipt.get("pid"))
+        and r.get("path") == receipt["path"] and begin <= r.get("monotonic_ns", 0) <= finish for r in backend)
+
+
+def lighttpd_pre_native_log_window(packet, producers, client):
+    window = pre_native_json(producers["core_diagnostic_window"])
+    for key in ("run_scoped_case_id", "leg_id", "run_id", "parent_sha", "effective_config_sha256", "rules_sha256",
+                "host_pid", "host_starttime", "uid", "request_id", "request_sha256"):
+        if window.get(key) != packet[key]:
+            raise ValueError("Lighttpd Core window belongs to another actual execution")
+    before, after = window.get("before", {}), window.get("after", {})
+    identity = ("device", "inode", "mode", "owner_uid", "nlink", "path")
+    raw = Path(producers["core_diagnostic"]["path"]).read_bytes()
+    if (window.get("execution_observed") is not True or window.get("exclusive_request_window") is not True
+            or window.get("core_sha256") != producers["core_diagnostic"]["sha256"]
+            or any(before.get(key) != after.get(key) for key in identity)
+            or any(type(before.get(key)) is not int for key in ("device", "inode", "mode", "owner_uid", "nlink"))
+            or before.get("owner_uid") != packet["uid"] or before.get("mode") != 0o600 or before.get("nlink") != 1
+            or any(type(point.get("monotonic_ns")) is not int or point.get("uid") != packet["uid"] for point in (before, after))
+            or before["monotonic_ns"] > client["started_ns"] or after["monotonic_ns"] < client["completed_ns"]
+            or any(type(point.get("size")) is not int for point in (before, after))
+            or not 0 <= before["size"] < after["size"] <= len(raw)):
+        raise ValueError("Lighttpd diagnostic needs a complete physical private log window")
+    hosts = pre_native_json(ORACLES.verify_reference(window["actual_host_identity"]))
+    hosts = [host for host in hosts if host.get("pid") == packet["host_pid"]
+             and host.get("starttime") == packet["host_starttime"]]
+    fields = ("device", "inode", "mode", "owner_uid", "nlink")
+    if not any(any(target == before["path"] and all(host.get("fd_metadata", {}).get(fd, {}).get(key) == before[key]
+                    for key in fields) for fd, target in host.get("fds", {}).items()) for host in hosts):
+        raise ValueError("PID-less lighttpd Core log must bind the actual host-owned descriptor inode")
+    return raw[before["size"]:after["size"]].decode()
+
+
+def lighttpd_pre_native_core(packet, producers, client, process):
+    text = lighttpd_pre_native_log_window(packet, producers, client)
+    case = packet["run_scoped_case_id"].split("::")[-1]
+    message = ("duplicate Content-Length header -> 400" if case == "conflicting_content_length"
+               else "invalid Content-Length header -> 400")
+    if packet["source_approval"].get("core_diagnostic_code") != message:
+        raise ValueError("Lighttpd source approval must select its exact parser diagnostic")
+    patterns = (r"request\.c\.327\) " + re.escape(message) + r"$",
+                r"request\.c\.1414\) rqst: POST " + re.escape(client["path"]) + r" HTTP/1\.1$",
+                r"request\.c\.1414\) rqst: X-I12-ID: " + re.escape(packet["request_id"]) + r"$")
+    for pattern in patterns:
+        matching = [line for line in text.splitlines() if re.search(pattern, line)]
+        in_window = False
+        for line in matching:
+            stamp = re.match(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)\.([0-9]{9}): ", line)
+            if stamp is None:
+                continue
+            try:
+                delta = datetime.datetime.strptime(stamp[1], "%Y-%m-%d %H:%M:%S") - datetime.datetime(1970, 1, 1)
+                timestamp = (delta.days * 86400 + delta.seconds) * 1_000_000_000 + int(stamp[2])
+            except ValueError:
+                continue
+            in_window |= process["started_unix_ns"] <= timestamp <= process["ended_unix_ns"]
+        if not in_window:
+            raise ValueError("Actual nanosecond lighttpd Core diagnostic/request must be inside the waited UTC window")
+
+
+def apache_pre_native_core(packet, producers, process):
+    diagnostic = Path(producers["core_diagnostic"]["path"]).read_text()
+    code = packet["source_approval"].get("core_diagnostic_code")
+    if (not isinstance(code, str) or not re.fullmatch(r"AH[0-9]{5}", code) or code not in diagnostic
+            or not re.search(r"\[pid " + str(packet["host_pid"]) + r"(?::|\])", diagnostic)
+            or not packet.get("connection_id") or "[client " + packet["connection_id"] + "]" not in diagnostic):
+        raise ValueError("A raw Apache Core diagnostic must independently bind the actual process and connection")
+    matching_lines = [line for line in diagnostic.splitlines() if code in line
+                      and re.search(r"\[pid " + str(packet["host_pid"]) + r"(?::|\])", line)
+                      and "[client " + packet["connection_id"] + "]" in line]
+    in_window = False
+    for line in matching_lines:
+        try:
+            stamp = datetime.datetime.strptime(line.split("]", 1)[0][1:], "%a %b %d %H:%M:%S.%f %Y")
+            delta = stamp - datetime.datetime(1970, 1, 1)
+            timestamp = ((delta.days * 86400 + delta.seconds) * 1_000_000 + delta.microseconds) * 1000
+            in_window |= process["started_unix_ns"] <= timestamp <= process["ended_unix_ns"]
+        except (ValueError, IndexError):
+            continue
+    if not in_window:
+        raise ValueError("Actual Apache Core diagnostic must fall inside the waited client UTC window")
 
 
 def reviewed_pre_native_packet(supplied, row, effective_oracle):
@@ -925,7 +1046,8 @@ def reviewed_pre_native_packet(supplied, row, effective_oracle):
     packet = pre_native_json(ref)
     sources = pre_native_identity(packet, row, effective_oracle)
     evidence = [ORACLES.verify_reference(item) for item in packet.get("measurement_evidence", [])]
-    if (len(evidence) != len(PRE_NATIVE_ROLES) or {p.get("role") for p in evidence} != PRE_NATIVE_ROLES
+    roles = pre_native_profile(packet["leg_id"])[2]
+    if (len(evidence) != len(roles) or {p.get("role") for p in evidence} != roles
             or any(p["path"] == ref["path"] for p in evidence)
             or {p["sha256"] for p in evidence} & {p["sha256"] for p in sources}):
         raise ValueError("Pre-native rejection needs distinct physical producers for every dedicated role")
@@ -964,27 +1086,12 @@ def reviewed_pre_native_packet(supplied, row, effective_oracle):
     backend = pre_native_rows(producers["backend_process"])
     if any(r.get("request_id") == packet["request_id"] or client["started_ns"] <= r.get("monotonic_ns", client["started_ns"]) <= client["completed_ns"] for r in backend):
         raise ValueError("Pre-native host rejection must have zero actual main backend activity")
-    diagnostic = Path(producers["core_diagnostic"]["path"]).read_text()
-    approval = packet["source_approval"]
-    code = approval.get("core_diagnostic_code")
-    if (not isinstance(code, str) or not re.fullmatch(r"AH[0-9]{5}", code) or code not in diagnostic
-            or not re.search(r"\[pid " + str(packet["host_pid"]) + r"(?::|\])", diagnostic)
-            or not packet.get("connection_id") or "[client " + packet["connection_id"] + "]" not in diagnostic):
-        raise ValueError("A raw Apache Core diagnostic must independently bind the actual process and connection")
-    matching_lines = [line for line in diagnostic.splitlines() if code in line
-                      and re.search(r"\[pid " + str(packet["host_pid"]) + r"(?::|\])", line)
-                      and "[client " + packet["connection_id"] + "]" in line]
-    in_window = False
-    for line in matching_lines:
-        try:
-            stamp = datetime.datetime.strptime(line.split("]", 1)[0][1:], "%a %b %d %H:%M:%S.%f %Y")
-            delta = stamp - datetime.datetime(1970, 1, 1)
-            timestamp = ((delta.days * 86400 + delta.seconds) * 1_000_000 + delta.microseconds) * 1000
-            in_window |= process["started_unix_ns"] <= timestamp <= process["ended_unix_ns"]
-        except (ValueError, IndexError):
-            continue
-    if not in_window:
-        raise ValueError("Actual Apache Core diagnostic must fall inside the waited client UTC window")
+    if packet["leg_id"] == "apache-native":
+        apache_pre_native_core(packet, producers, process)
+    elif packet["leg_id"] == "lighttpd-stock-native-control":
+        lighttpd_pre_native_core(packet, producers, client, process)
+    else:
+        raise ValueError("Pre-native Core diagnostic has no selected host format")
     pre_native_producer_binding(packet, producers, client)
     if packet.get("outcome") != "PASS":
         raise ValueError("Only a physically established host-before-native rejection is qualified in this scope")
