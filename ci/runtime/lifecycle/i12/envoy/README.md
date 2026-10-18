@@ -79,11 +79,13 @@ remain active; failed ownership checks remain errors.
 
 
 The demonstrated native source is exclusively
-`f27eb59b53beff6f65384fc2e5037881a3052c01`. Envoy product sources and Envoy Go module inputs
-are unchanged in the advanced Base head
-`2619a31777a3a9fffe3e3d4656feb7e57404ca03`; however, an observer-hash mismatch
-with the current capture manifest prevents a fresh capture of that head. The
-retained native and host receipts do not qualify this Base head.
+`f27eb59b53beff6f65384fc2e5037881a3052c01`. The current Base head
+`f8ce4c1342e29a20070029738663f86716488ccf` leaves `connectors/envoy/` and its
+Go module inputs unchanged, but changes connector-neutral transaction/companion
+sources, the shared observer and the capture registry. This branch does not
+merge or rebase that advancing Base. The retained native and host receipts do
+not qualify its current product state; a fresh current-Base capture remains
+required.
 
 The real ext_proc fault probe `fault-host-v1` drops only the empty Response-EOS callback and performs an actual half-close. The engine API and Envoy trace unambiguously correlated to the target stream report gRPC status14. The client receives an HTTP200 prefix with 96 body bytes in 64+32, but no zero chunk. Runner77/controller1/client1 remain unqualified; new PASS: 0. The target records P1–P3 and P4=0, a `runtime_finish` attempt with result0 and one logging/free/cleanup each. The healthy neighbor has P1–P4/Finish once each; no survivors or mount leaks remain. Proxy wire status remains unobserved. Missing status is not interpreted as successful completion.
 

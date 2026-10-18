@@ -82,11 +82,13 @@ Ownership-Prüfungen bleiben Fehler.
 
 
 Die nachgewiesene native Quelle ist ausschließlich
-`f27eb59b53beff6f65384fc2e5037881a3052c01`. Im fortgeschrittenen Base-Head
-`2619a31777a3a9fffe3e3d4656feb7e57404ca03` sind Envoy-Produktquellen und
-Envoy-Go-Moduleingaben unverändert; eine Abweichung zwischen Observerhash und aktuellem
-Capture-Manifest verhindert jedoch eine frische Capture dieses Heads. Die
-alten nativen und Hostreceipts qualifizieren diesen Base-Head nicht.
+`f27eb59b53beff6f65384fc2e5037881a3052c01`. Der aktuelle Base-Head
+`f8ce4c1342e29a20070029738663f86716488ccf` lässt `connectors/envoy/` und seine
+Go-Moduleingaben unverändert, ändert jedoch connector-neutrale Transaction-/
+Companion-Quellen, den gemeinsamen Observer und die Capture-Registry. Dieser
+Branch merged oder rebased die fortschreitende Base nicht. Die vorhandenen
+nativen und Hostreceipts qualifizieren deren aktuellen Produktstand nicht;
+eine frische Capture der aktuellen Base bleibt erforderlich.
 
 Die echte ext_proc-Fehlerprobe `fault-host-v1` verwirft ausschließlich den leeren Response-EOS-Callback und führt einen tatsächlichen Half-Close aus. Engine-API und dem Zielstream eindeutig zugeordneter Envoy-Trace melden gRPC-Status14. Der Client empfängt einen HTTP200-Präfix mit 96 Bodybytes in 64+32, jedoch keinen Nullchunk. Runner77/Controller1/Client1 bleiben unqualifiziert; neue PASS: 0. Am Ziel sind P1–P3 und P4=0, ein `runtime_finish`-Versuch mit Result0 sowie Logging/Free/Cleanup jeweils1 beobachtet. Der gesunde Nachbar hat P1–P4/Finish jeweils1; Survivors und Mountleaks fehlen. Der Proxy-Wirestatus bleibt unbeobachtet. Fehlender Status wird nicht als erfolgreicher Abschluss interpretiert.
 
