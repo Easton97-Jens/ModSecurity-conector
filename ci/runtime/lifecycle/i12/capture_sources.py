@@ -119,6 +119,9 @@ class Registry:
         for identity in self.manifest["objects"]:
             self.content(identity)
         for profile in self.manifest["profiles"].values():
+            if ("required_source_identity_format" in profile and profile["required_source_identity_format"] not in
+                    ("i12-disposable-source-copy-v1", "i12-disposable-source-copy-v2")):
+                raise ValueError("Unknown required source identity format")
             for mapping in (profile["source_targets"], profile["capture_files"]):
                 for name, entry in mapping.items():
                     relative(name)
@@ -275,17 +278,27 @@ def disposable(path, parent_sha, storage_root):
 def apply(registry, profile_name, target):
     profile = registry.manifest["profiles"][profile_name]
     identity = disposable(target, registry.manifest["delivery_product_baseline"], Path(registry.manifest["authorized_storage_root"]))
+    required_format = profile.get("required_source_identity_format")
+    if required_format is not None and identity["source_identity_format"] != required_format:
+        raise ValueError("Selected profile requires its declared source identity format")
     receipt_path = target / RECEIPT
     if receipt_path.exists():
         raise ValueError("Source application receipt already exists")
     registry.verify()
     writes = []
+    applied_bases = {}
     for name, entry in profile["source_targets"].items():
         path = target / relative(name)
         expected = entry["before_sha256"]
-        if (expected is None and path.exists()) or (expected is not None and
-                (not path.is_file() or digest(plain(path)) != expected)):
+        actual = digest(plain(path)) if path.exists() else None
+        allowed = [expected]
+        if "current_before_sha256" in entry:
+            current = _hex(entry["current_before_sha256"], 64)
+            if identity["source_identity_format"] == "i12-disposable-source-copy-v2":
+                allowed.append(current)
+        if actual not in allowed or (expected is not None and actual is None):
             raise ValueError("Source-copy base differs: " + name)
+        applied_bases[name] = actual
         writes.append((path, registry.content(entry["sha256"]), entry.get("mode", 420)))
     fixture_root = target / ".i12-capture" / profile_name
     if fixture_root.exists():
@@ -307,6 +320,8 @@ def apply(registry, profile_name, target):
         path.chmod(mode)
     receipt = {**identity, "delivery_product_baseline": registry.manifest["delivery_product_baseline"],
                "profile": profile_name, "source_copy": str(target),
+               "capture_manifest_sha256": digest(plain(registry.root / "manifest.json")),
+               "actual_before_sha256": applied_bases,
                "exact_written_sha256": {str(p.relative_to(target)): digest(data) for p, data, _ in writes},
                "source_copy_only": True, "runtime_qualified": False}
     with receipt_path.open("x", encoding="utf-8") as output:
