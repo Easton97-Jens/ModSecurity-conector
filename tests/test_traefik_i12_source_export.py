@@ -84,5 +84,48 @@ class SourceExportControls(unittest.TestCase):
             self.export()
 
 
+    def test_private_nested_destination_is_allowed_without_creating_it(self):
+        parent = self.root / 'private'
+        parent.mkdir(mode=0o700)
+        destination = parent / 'source'
+        self.assertIsNone(EXPORT.validate_destination(destination))
+        self.assertFalse(destination.exists())
+
+    def test_writable_ancestor_and_foreign_owner_are_rejected(self):
+        parent = self.root / 'private'
+        parent.mkdir(mode=0o700)
+        parent.chmod(0o720)
+        try:
+            with self.assertRaisesRegex(ValueError, 'private and task-owned'):
+                EXPORT.validate_destination(parent / 'source')
+        finally:
+            parent.chmod(0o700)
+        with patch.object(EXPORT.os, 'getuid', return_value=os.getuid() + 1):
+            with self.assertRaisesRegex(ValueError, 'private and task-owned'):
+                EXPORT.validate_destination(parent / 'source')
+
+    def test_nested_git_marker_file_and_dangling_symlink_are_rejected(self):
+        parent = self.root / 'private'
+        parent.mkdir(mode=0o700)
+        marker = parent / '.git'
+        marker.write_text('synthetic repository marker')
+        with self.assertRaisesRegex(ValueError, 'Git source destination'):
+            EXPORT.validate_destination(parent / 'source')
+        marker.unlink()
+        marker.symlink_to(parent / 'absent-git-directory')
+        with self.assertRaisesRegex(ValueError, 'Git source destination'):
+            EXPORT.validate_destination(parent / 'source')
+
+    def test_symlink_ancestor_and_storage_itself_are_rejected(self):
+        physical = self.root / 'physical'
+        physical.mkdir(mode=0o700)
+        link = self.root / 'linked'
+        link.symlink_to(physical, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, 'physical external'):
+            EXPORT.validate_destination(link / 'source')
+        with self.assertRaisesRegex(ValueError, 'physical external'):
+            EXPORT.validate_destination(self.root)
+
+
 if __name__ == '__main__':
     unittest.main()

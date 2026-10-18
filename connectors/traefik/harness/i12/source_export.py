@@ -44,6 +44,17 @@ def entries(repository, revision):
     return files, gitlinks
 
 
+def validate_private_ancestor(ancestor, storage):
+    if ancestor.is_symlink():
+        raise ValueError('symlink source destination forbidden')
+    if ancestor.exists():
+        info = ancestor.stat()
+        if info.st_uid != os.getuid() or info.st_mode & 0o022:
+            raise ValueError('source destination must be private and task-owned')
+    if ancestor != storage and ((ancestor / '.git').exists() or (ancestor / '.git').is_symlink()):
+        raise ValueError('Git source destination forbidden')
+
+
 def validate_destination(destination):
     configured = os.environ.get('CODEX_TEMP_ROOT')
     if not configured:
@@ -54,16 +65,9 @@ def validate_destination(destination):
             not storage.is_dir() or storage not in destination.parents):
         raise ValueError('physical external source destination required')
     for ancestor in (destination, *destination.parents):
-        if ancestor.is_symlink():
-            raise ValueError('symlink source destination forbidden')
-        if ancestor.exists():
-            info = ancestor.stat()
-            if info.st_uid != os.getuid() or info.st_mode & 0o022:
-                raise ValueError('source destination must be private and task-owned')
+        validate_private_ancestor(ancestor, storage)
         if ancestor == storage:
             break
-        if (ancestor / '.git').exists() or (ancestor / '.git').is_symlink():
-            raise ValueError('Git source destination forbidden')
 
 
 def export(repository, destination):

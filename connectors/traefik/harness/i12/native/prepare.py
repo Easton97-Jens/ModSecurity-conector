@@ -95,7 +95,7 @@ def seal(root):
     return inventory
 
 
-def refresh_capture_source(repo, source, profile, registry, overlays):
+def refresh_capture_source(repo, source, registry, overlays):
     exporter_path = Path(__file__).resolve().parents[1] / 'source_export.py'
     spec = importlib.util.spec_from_file_location('i12_source_export', exporter_path)
     exporter = importlib.util.module_from_spec(spec)
@@ -136,7 +136,7 @@ def prepare(repo, historical, output):
     registry = module.Registry(capture_root, repo)
     profile = registry.manifest['profiles']['traefik-native']
     overlays = {}
-    bindings = refresh_capture_source(repo, source, profile, registry, overlays)
+    bindings = refresh_capture_source(repo, source, registry, overlays)
     revision = json.loads((source / '.i12-source-export-manifest.json').read_text())['source_revision']
     stage_fixtures(fixtures, profile, registry)
     driver = (fixtures / 'driver.py').read_text()
