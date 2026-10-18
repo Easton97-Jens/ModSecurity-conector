@@ -199,7 +199,7 @@
     },
     "ba8fe2b69ace0e6dae345b59bc20ddc09594a5e2426a16209ee4d0e72b19baa6": {
       "kind": "text_lines",
-      "file": "objects/ba8fe2b69ace0e6dae345b59bc20ddc09594a5e2426a16209ee4d0e72b19baa6.lines.json"
+      "file": "objects/text/ba8fe2b69ace0e6dae345b59bc20ddc09594a5e2426a16209ee4d0e72b19baa6-haproxy_modsecurity_binding.c.lines.json"
     },
     "82b10f2d2e6f8b725d7d76aed30ad2612f7f6b361278b76997e0d7f4d9612f21": {
       "kind": "delta",
@@ -209,7 +209,7 @@
     },
     "e5710897d12044e7934aca931a6067c96be5dc9ef94f1cc63dd758ed1ff1b0d6": {
       "kind": "text_lines",
-      "file": "objects/e5710897d12044e7934aca931a6067c96be5dc9ef94f1cc63dd758ed1ff1b0d6.lines.json"
+      "file": "objects/text/e5710897d12044e7934aca931a6067c96be5dc9ef94f1cc63dd758ed1ff1b0d6-haproxy_modsecurity_htx_filter.c.lines.json"
     },
     "eb76f9d864b8838e2f8e48f908bee731c5893a430eba8e6674a8e1e49a3462c6": {
       "kind": "delta",
@@ -239,7 +239,7 @@
     },
     "70ae3f3497d3555ab062d6e69d7c93f7730bc19ad746fefaf81c2cbf94c3333e": {
       "kind": "text_lines",
-      "file": "objects/70ae3f3497d3555ab062d6e69d7c93f7730bc19ad746fefaf81c2cbf94c3333e.lines.json"
+      "file": "objects/text/70ae3f3497d3555ab062d6e69d7c93f7730bc19ad746fefaf81c2cbf94c3333e-haproxy_spop_diagnostic_runtime.c.lines.json"
     },
     "a3995a18d98e84ca65ae0db61413cfcc8b6541943f3d973fe04e23a07349e29b": {
       "kind": "delta",
@@ -416,8 +416,8 @@
       "file": "objects/text/07d0c9f5fd35ab1407f780d3ff525893a4dc93d05f9409aae7582b0e90acf06a-host-callback-control.c"
     },
     "a3c797390a78100a2b4488dd308cc39542778113102053fb2e0f8e6fb77a0bdd": {
-      "kind": "repository",
-      "path": "connectors/lighttpd/module/mod_msconnector.c"
+      "kind": "text_lines",
+      "file": "objects/text/a3c797390a78100a2b4488dd308cc39542778113102053fb2e0f8e6fb77a0bdd-mod_msconnector.c.lines.json"
     },
     "29266499bab8844d6194efc21c6c611cd7fc4987698da8637cb11de975600181": {
       "kind": "delta",
@@ -562,8 +562,8 @@
       "patch_sha256": "d6f9bb86d0d21f0516e9ec1ba8eac34c340ad5535fea1de1546d0262005b5d2a"
     },
     "1a6d1a981b751017fafea0b5ad8489b77baa1f6c7db86b4c9e2c45064e98467a": {
-      "kind": "repository",
-      "path": "connectors/lighttpd/patches/0001-lighttpd-msconnector-stream-hooks.patch"
+      "kind": "text_lines",
+      "file": "objects/text/1a6d1a981b751017fafea0b5ad8489b77baa1f6c7db86b4c9e2c45064e98467a-0001-lighttpd-msconnector-stream-hooks.patch.lines.json"
     },
     "92af7809bec81a1031e21a6ed03cab3aafc32ba28dd0039b08633b2667cfb94b": {
       "kind": "text",
