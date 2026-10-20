@@ -239,3 +239,12 @@ objects authenticated against commit `8cc32dceb06121f589150a9794f28878c5e4ba2a`.
 Their identities and all dependent delta/result identities are unchanged. This
 preserves historical source verification after unrelated product files advance;
 it adds no HAProxy runtime claim or profile extension.
+
+Three historical Traefik anchors (`common/runtime/msconnector_runtime.c`,
+`common/runtime/http_authorization_service.c` and
+`connectors/traefik/response_observer/observer.go`) are likewise frozen as lossless
+`text_lines`, authenticated against commit
+`3a1bafecd0c38ccf20427d580c767ed42addf4aa`. Their original SHA256 identities,
+dependent deltas, profile input/result hashes and provenance remain unchanged.
+This repairs historical registry verification when those product files advance;
+it neither authorizes changed current input bytes nor establishes runtime evidence.

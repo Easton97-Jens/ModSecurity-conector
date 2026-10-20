@@ -256,3 +256,13 @@ Ihre Identitäten und sämtliche abhängigen Delta-/Ergebnisidentitäten bleiben
 unverändert. Dadurch bleibt historische Quellprüfung bei fortgeschriebenen
 unabhängigen Produktdateien möglich; daraus entsteht weder ein neuer
 HAProxy-Runtime-Nachweis noch eine Profilerweiterung.
+
+Drei historische Traefik-Anker (`common/runtime/msconnector_runtime.c`,
+`common/runtime/http_authorization_service.c` und
+`connectors/traefik/response_observer/observer.go`) sind ebenfalls als verlustfreie
+`text_lines` eingefroren und gegen Commit
+`3a1bafecd0c38ccf20427d580c767ed42addf4aa` authentifiziert. Ihre ursprünglichen
+SHA256-Identitäten, abhängigen Deltas, Profileingabe-/Ergebnishashes und Herkunft
+bleiben unverändert. Dies repariert die historische Registry-Prüfung bei
+fortgeschriebenen Produktdateien; daraus entstehen weder eine Freigabe geänderter
+aktueller Eingabebytes noch Runtime-Nachweise.
