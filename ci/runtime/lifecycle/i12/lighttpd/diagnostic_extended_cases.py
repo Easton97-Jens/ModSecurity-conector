@@ -6,6 +6,9 @@ import json
 from pathlib import Path
 
 
+DIAGNOSTIC_PREFIX = "/diagnostic/"
+
+
 def reference(path, revision):
     return {"path": str(path), "sha256": hashlib.sha256(path.read_bytes()).hexdigest(), "revision": revision}
 
@@ -38,18 +41,18 @@ def generate(args):
         "content_length_overflow": [("Content-Length", "18446744073709551616")],
     }
     for name, headers in malformed.items():
-        path = "/diagnostic/" + name
+        path = DIAGNOSTIC_PREFIX + name
         add(name, {"path": path, "raw_requests": [wire(path, headers, method="POST")]},
             declared_scope="Actual host protocol rejection may occur before native allocation; absence is not a fabricated native phase.")
     for over in (False, True):
         count = 16 + int(over)
         name = "header_count_" + ("over_limit" if over else "at_limit")
-        path = "/diagnostic/" + name
+        path = DIAGNOSTIC_PREFIX + name
         headers = [(f"X-Test-{index}", "v") for index in range(count - 2)]
         add(name, {"path": path, "raw_requests": [wire(path, headers)]},
             runtime_settings={"max_header_count": "16"}, declared_header_count=count)
         name = "total_header_bytes_" + ("over_limit" if over else "at_limit")
-        path = "/diagnostic/" + name
+        path = DIAGNOSTIC_PREFIX + name
         # Actual mapper counts name+value only: Host13 + Connection15 + X-Pad5.
         value = "a" * (512 + int(over) - 33)
         add(name, {"path": path, "raw_requests": [wire(path, [("X-Pad", value)])]},
@@ -58,13 +61,13 @@ def generate(args):
                  "keepalive_allow_allow", "keepalive_allow_deny_allow"):
         denial = name not in ("transport_keep_alive", "keepalive_allow_allow")
         statuses = [200, 403, 200] if denial else [200, 200]
-        requests = [wire("/diagnostic/" + name + f"/{index}",
+        requests = [wire(DIAGNOSTIC_PREFIX + name + f"/{index}",
             [("X-Modsec-Smoke", "block")] if status == 403 else (), close=False)
             for index, status in enumerate(statuses)]
         add(name, {"path": requests[-1]["path"], "raw_requests": requests},
             sequence_from_wire=True, expected_sequence_statuses=statuses, prove_connection_reuse=True)
     for name in ("event_metadata_truncation", "event_json_limit"):
-        path = "/diagnostic/" + name + "/" + "a" * 1536
+        path = DIAGNOSTIC_PREFIX + name + "/" + "a" * 1536
         add(name, {"path": path, "headers": [["X-Modsec-Smoke", "log-only"]]},
             declared_non_sensitive_metadata_bytes=len(path), require_truncated_event=True)
     path = "/diagnostic/early-mapping-failure-cleanup"

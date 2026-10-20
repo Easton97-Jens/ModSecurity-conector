@@ -17,7 +17,7 @@ import time
 
 
 APPROVED_ROOTS = (Path("/mnt/artifacts"), Path("/mnt/fixtures"), Path("/task"),
-                  Path("/var/tmp/codex/ModSecurity-conector"))
+                  Path(os.environ.get("I12_TEST_ROOT", "/__i12_external_root_requires_I12_TEST_ROOT__")).absolute())
 
 
 def approved_input(path, basename=None):
@@ -25,6 +25,11 @@ def approved_input(path, basename=None):
     if (not path.is_absolute() or path.resolve(strict=True) != path
             or not any(path.is_relative_to(root) for root in APPROVED_ROOTS)):
         raise ValueError("Input must be a physical absolute approved fixture path")
+    if path.is_relative_to(APPROVED_ROOTS[-1]):
+        for directory in (APPROVED_ROOTS[-1].parent, APPROVED_ROOTS[-1]):
+            info = directory.lstat()
+            if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid() or info.st_mode & 0o022:
+                raise ValueError("External diagnostic input root must be private and current-user-owned")
     details = path.stat()
     if not stat.S_ISREG(details.st_mode) or details.st_nlink != 1:
         raise ValueError("Input must be a single-link regular fixture file")
@@ -173,26 +178,32 @@ def parser_probes(output, document, host, module, rules, port, identity=None):
     return records
 
 
+def matching_hosts(host):
+    matches = []
+    for proc in Path("/proc").iterdir():
+        if not proc.name.isdigit():
+            continue
+        try:
+            if os.readlink(proc / "exe") == str(host):
+                matches.append(proc)
+        except (FileNotFoundError, PermissionError, ProcessLookupError):
+            continue
+    return matches
+
+
 def await_host(process, host, output, port):
     deadline = time.monotonic() + 5
     while time.monotonic() < deadline:
         if process.poll() is not None:
             raise RuntimeError(f"Host exited before request: {process.returncode}")
         # Find the actual lighttpd child of the RTK wrapper.
-        matches = []
-        for proc in Path("/proc").iterdir():
-            if proc.name.isdigit():
-                try:
-                    if os.readlink(proc / "exe") == str(host):
-                        matches.append(proc)
-                except (FileNotFoundError, PermissionError, ProcessLookupError):
-                    pass
+        matches = matching_hosts(host)
         if matches:
             actual = matches[0]
             (output / "host.status").write_bytes((actual / "status").read_bytes())
             (output / "host.maps").write_bytes((actual / "maps").read_bytes())
             try:
-                sent, received = request(port)
+                request(port)
                 break
             except ConnectionRefusedError:
                 pass

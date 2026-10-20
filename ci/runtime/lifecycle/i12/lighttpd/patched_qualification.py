@@ -16,6 +16,7 @@ from pathlib import Path
 from types import SimpleNamespace
 import re
 import signal
+import stat
 import socket
 import struct
 import subprocess
@@ -28,14 +29,42 @@ ROUTE = "lighttpd-patched-native"
 RESPONSE = b"i12-qualified-response-marker-end"
 REQUEST = b"i12-qualified-request-marker-end"
 NEIGHBOR_RESPONSE = b"healthy"
-EXTERNAL_ROOT = Path("/var/tmp/codex/ModSecurity-conector")
+EXTERNAL_ROOT = Path(os.environ.get("I12_TEST_ROOT", "/__i12_external_root_requires_I12_TEST_ROOT__")).absolute()
+PROC_ROOT = Path("/proc")
+
+TEXT_PLAIN = 'text/plain'
+MODULE_SOURCE = 'connectors/lighttpd/module/mod_msconnector.c'
+PATCHED_PATH_PREFIX = '/i12/patched/'
+BACKEND_LOG = 'backend.jsonl'
+BACKEND_TRANSPORT_LOG = 'backend-transport.jsonl'
+BACKEND_READY = 'backend-ready.json'
+DISPOSABLE_MARKER = '.i12-disposable-source-copy.json'
+FIXTURE_SPEC = 'fixture-spec.json'
+RULES_CONFIG = 'rules.conf'
+AUDIT_LOG = 'audit.log'
+NATIVE_LOG = 'native.jsonl'
+HOST_LOG = 'host.jsonl'
+FAULT_LOG = 'fault.jsonl'
+EVENT_LOG = 'events.jsonl'
+SNAPSHOT = 'snapshot.json'
+CAPTURE_RECEIPT = 'capture_case.json'
+
+
+def validate_storage(path, writing):
+    if writing and path.is_relative_to(EXTERNAL_ROOT):
+        for directory in (EXTERNAL_ROOT.parent, EXTERNAL_ROOT):
+            storage = directory.lstat()
+            if (not stat.S_ISDIR(storage.st_mode) or storage.st_uid != os.geteuid()
+                    or storage.st_mode & 0o022):
+                raise ValueError("Evidence storage must be caller-owned without shared write access")
 
 
 def evidence_path(path, *, writing=False):
     path = Path(path).absolute()
     resolved = path.resolve(strict=False)
+    validate_storage(path, writing)
     writable = (EXTERNAL_ROOT, Path("/task"))
-    readable = (*writable, Path("/mnt/fixtures"), Path("/mnt/artifacts"), Path("/usr"), Path("/proc"))
+    readable = (*writable, Path("/mnt/fixtures"), Path("/mnt/artifacts"), Path("/usr"), PROC_ROOT)
     if writing and resolved != path:
         raise ValueError("Evidence output must not traverse symlinks or dot components")
     if not any(resolved.is_relative_to(root) for root in (writable if writing else readable)):
@@ -61,8 +90,18 @@ def sha(path):
 
 def write(path, value):
     path = evidence_path(path, writing=True)
-    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
-    path.chmod(0o600)
+    payload = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode()
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    try:
+        details = os.fstat(fd)
+        if not stat.S_ISREG(details.st_mode) or details.st_uid != os.geteuid() or details.st_nlink != 1:
+            raise ValueError("Evidence output must be a caller-owned single-link regular file")
+        os.fchmod(fd, 0o600)
+        os.ftruncate(fd, 0)
+        with os.fdopen(fd, "wb", closefd=False) as stream:
+            stream.write(payload)
+    finally:
+        os.close(fd)
 
 
 def append(path, value):
@@ -209,7 +248,7 @@ def definitions():
                  "NEED-abort-reset-observation", "NEED-p3-redirect"):
         spec = {"original_id": f"I12::{ROUTE}::{case}", "case": case,
             "request_hex": REQUEST.hex(), "response_hex": RESPONSE.hex(),
-            "request_content_type": "text/plain", "response_content_type": "text/plain",
+            "request_content_type": TEXT_PLAIN, "response_content_type": TEXT_PLAIN,
             "request_chunks": [len(REQUEST)], "response_chunks": [len(RESPONSE)],
             "phase4_mode": "safe", "request_limit": 1048576, "response_limit": 1048576,
             "request_limit_action": "Reject", "response_limit_action": "Reject",
@@ -225,7 +264,7 @@ def definitions():
                 "native_request_append_min": 1, "response_eos": 1,
                 "common_terminal_events": 0},
             "oracle_basis": [
-                {"path": "connectors/lighttpd/module/mod_msconnector.c",
+                {"path": MODULE_SOURCE,
                  "symbols": ["mod_msconnector_finish_request_body", "mod_msconnector_handle_response_body", "mod_msconnector_handle_request_reset"]},
                 {"path": "common/src/modsecurity_engine.c", "contract": "SDK-owned body processing and intervention"},
                 {"path": "fixture:rules.conf", "contract": "Explicit pass/log P2/P4 rules; no matching disruptive rule in benign fixtures"},
@@ -257,7 +296,7 @@ def canonical_spec(base, original, contract, baseline_rules):
     request = contract.get("request", {})
     response = contract.get("response", {})
     spec.update(method=request.get("method", "GET"),
-        path=request.get("path", "/i12/patched/" + case),
+        path=request.get("path", PATCHED_PATH_PREFIX + case),
         request_hex=request.get("body", "").encode().hex(),
         response_hex=response.get("body", RESPONSE.decode()).encode().hex())
     request_headers = request.get("headers", {})
@@ -291,6 +330,22 @@ def canonical_spec(base, original, contract, baseline_rules):
     return spec
 
 
+def decode_chunked_entity(encoded):
+    chunks = []
+    remaining = encoded
+    while True:
+        length_line, remaining = remaining.split(b"\r\n", 1)
+        length = int(length_line.split(b";", 1)[0], 16)
+        if length == 0:
+            complete = remaining == b"\r\n"
+            break
+        if len(remaining) < length + 2 or remaining[length:length + 2] != b"\r\n":
+            raise ValueError("truncated response chunk")
+        chunks.append(remaining[:length]); remaining = remaining[length + 2:]
+    entity = b"".join(chunks)
+    return entity, complete
+
+
 def response_decode(received):
     header, encoded = received.split(b"\r\n\r\n", 1)
     headers = header.decode("iso-8859-1").split("\r\n")
@@ -312,18 +367,7 @@ def response_decode(received):
         if transfer != ["chunked"]:
             raise ValueError("unsupported transfer coding")
         framing = "chunked"
-        chunks = []
-        remaining = encoded
-        while True:
-            length_line, remaining = remaining.split(b"\r\n", 1)
-            length = int(length_line.split(b";", 1)[0], 16)
-            if length == 0:
-                complete = remaining == b"\r\n"
-                break
-            if len(remaining) < length + 2 or remaining[length:length + 2] != b"\r\n":
-                raise ValueError("truncated response chunk")
-            chunks.append(remaining[:length]); remaining = remaining[length + 2:]
-        entity = b"".join(chunks)
+        entity, complete = decode_chunked_entity(encoded)
     return {"status": status, "headers": headers, "entity_bytes": len(entity),
         "entity_sha256": digest(entity), "framing": {"kind": framing, "content_lengths": lengths,
         "transfer_encoding": transfer, "encoded_entity_bytes": len(encoded), "decoded_entity_bytes": len(entity),
@@ -331,7 +375,7 @@ def response_decode(received):
 
 
 def client_headers(spec, token, selected_request, body, chunked):
-    types = spec["request_content_type"] if selected_request else "text/plain"
+    types = spec["request_content_type"] if selected_request else TEXT_PLAIN
     headers = [("Host", "i12.patched.test"), ("Connection", "close"), ("X-I12-Token", token)]
     if types is not None:
         headers.append(("Content-Type", types))
@@ -344,11 +388,19 @@ def client_headers(spec, token, selected_request, body, chunked):
     return headers
 
 
+def partial_request_chunks(partial_control, chunked, chunks):
+    if partial_control is not None:
+        if partial_control not in ("reset", "await_host_idle_timeout") or not chunked:
+            raise ValueError("partial control requires declared chunked wire")
+        chunks = chunks[:1]
+    return chunks
+
+
 def client_request(spec, output, token):
     """Materialize the exact declared file input and HTTP wire fragments."""
     selected_request = token != "neighbor"
     body = bytes.fromhex(spec["request_hex"]) if selected_request else b"healthy-neighbor"
-    path = spec.get("path", "/i12/patched/" + spec["case"]) if selected_request else "/i12/patched/neighbor"
+    path = spec.get("path", PATCHED_PATH_PREFIX + spec["case"]) if selected_request else "/i12/patched/neighbor"
     method = spec.get("method", "POST") if selected_request else "POST"
     body_file = output / (token + ".input-body")
     body_file.write_bytes(body); body_file.chmod(0o600)
@@ -368,10 +420,7 @@ def client_request(spec, output, token):
     if chunked:
         chunks.append(b"0\r\n\r\n")
     partial_control = spec.get("client_partial_control") if selected_request else None
-    if partial_control is not None:
-        if partial_control not in ("reset", "await_host_idle_timeout") or not chunked:
-            raise ValueError("partial control requires declared chunked wire")
-        chunks = chunks[:1]
+    chunks = partial_request_chunks(partial_control, chunked, chunks)
     return SimpleNamespace(body=body, path=path, body_file=body_file, chunk_sizes=chunk_sizes,
         chunked=chunked, partial_control=partial_control, wire_head=wire_head, chunks=chunks,
         selected_request=selected_request)
@@ -423,6 +472,13 @@ def client_exchange(connection, spec, prepared, received, row):
     return False
 
 
+def local_port(value):
+    port = int(value)
+    if not 1 <= port <= 65535:
+        raise ValueError("fixture TCP port is outside 1..65535")
+    return port
+
+
 def client(spec_path, output, port, token):
     spec = read_json(spec_path)
     if re.fullmatch(r"[A-Za-z0-9_-]{1,96}", token) is None:
@@ -449,7 +505,7 @@ def client(spec_path, output, port, token):
             request_payload_identity_scope="planned_materialized_input; actual transmitted prefix preserved in request.raw")
     exitcode = 1
     try:
-        with socket.create_connection(("127.0.0.1", port), timeout=10) as connection:
+        with socket.create_connection(("127.0.0.1", local_port(port)), timeout=10) as connection:
             if client_exchange(connection, spec, prepared, received, row):
                 exitcode = 0
                 return exitcode
@@ -485,8 +541,37 @@ def backend(spec_path, output):
         response_file.chmod(0o600)
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self):
+            body, sizes, main = self.observe_fixture_request()
+            if main and spec.get("response_before_headers_delay_seconds"):
+                delay = float(spec["response_before_headers_delay_seconds"])
+                if not 0 < delay <= 2:
+                    raise ValueError("preheader delay must be bounded to two seconds")
+                time.sleep(delay)
+            self.send_response(200)
+            content_type = spec["response_content_type"] if main else TEXT_PLAIN
+            if content_type is not None:
+                self.send_header("Content-Type", content_type)
+            self.send_header("X-I12-Response", "present")
+            for name, value in spec.get("response_extra_headers", []) if main else []:
+                self.send_header(name, value)
+            self.send_header("Content-Length", str(len(body) + (5 if main and spec["backend_short_length"] else 0)))
+            if main and spec.get("response_header_body_coalesced"):
+                self._headers_buffer.append(b"\r\n")
+                headers = b"".join(self._headers_buffer)
+                self._headers_buffer.clear()
+                self.connection.sendall(headers + body)
+                append(output / BACKEND_TRANSPORT_LOG, {"pid": os.getpid(), "path": self.path,
+                    "kind": "response_write", "bytes": len(body), "offset": len(body),
+                    "header_bytes_in_same_sendall": len(headers), "monotonic_ns": time.monotonic_ns()})
+                return
+            self.end_headers()
+            if main and spec.get("response_header_delay_seconds"):
+                time.sleep(float(spec["response_header_delay_seconds"]))
+            self.send_fixture_body(body, sizes, main)
+
+        def observe_fixture_request(self):
             consumed = self.rfile.read(int(self.headers.get("Content-Length", "0")))
-            main = self.path == spec.get("path", "/i12/patched/" + spec["case"])
+            main = self.path == spec.get("path", PATCHED_PATH_PREFIX + spec["case"])
             if main and response_file is not None:
                 body = response_file.read_bytes()
             else:
@@ -500,48 +585,26 @@ def backend(spec_path, output):
                 event["actual_response_file_read"] = {"path": str(response_file), "read_bytes": len(body),
                     "read_sha256": digest(body), "physical_file_sha256": sha(response_file),
                     "mode": oct(response_file.stat().st_mode & 0o777), "uid": response_file.stat().st_uid}
-            append(output / "backend.jsonl", event)
-            if main and spec.get("response_before_headers_delay_seconds"):
-                delay = float(spec["response_before_headers_delay_seconds"])
-                if not 0 < delay <= 2:
-                    raise ValueError("preheader delay must be bounded to two seconds")
-                time.sleep(delay)
-            self.send_response(200)
-            content_type = spec["response_content_type"] if main else "text/plain"
-            if content_type is not None:
-                self.send_header("Content-Type", content_type)
-            self.send_header("X-I12-Response", "present")
-            for name, value in spec.get("response_extra_headers", []) if main else []:
-                self.send_header(name, value)
-            self.send_header("Content-Length", str(len(body) + (5 if main and spec["backend_short_length"] else 0)))
-            if main and spec.get("response_header_body_coalesced"):
-                self._headers_buffer.append(b"\r\n")
-                headers = b"".join(self._headers_buffer)
-                self._headers_buffer.clear()
-                self.connection.sendall(headers + body)
-                append(output / "backend-transport.jsonl", {"pid": os.getpid(), "path": self.path,
-                    "kind": "response_write", "bytes": len(body), "offset": len(body),
-                    "header_bytes_in_same_sendall": len(headers), "monotonic_ns": time.monotonic_ns()})
-                return
-            self.end_headers()
-            if main and spec.get("response_header_delay_seconds"):
-                time.sleep(float(spec["response_header_delay_seconds"]))
+            append(output / BACKEND_LOG, event)
+            return body, sizes, main
+
+        def send_fixture_body(self, body, sizes, main):
             offset = 0
             try:
                 for size in sizes:
                     part = body[offset:offset + size]; offset += size
                     self.wfile.write(part); self.wfile.flush()
-                    append(output / "backend-transport.jsonl", {"pid": os.getpid(), "path": self.path,
+                    append(output / BACKEND_TRANSPORT_LOG, {"pid": os.getpid(), "path": self.path,
                         "kind": "response_write", "bytes": len(part), "offset": offset,
                         "monotonic_ns": time.monotonic_ns()})
                     if len(sizes) > 1:
                         time.sleep(0.05)
-                append(output / "backend-transport.jsonl", {"pid": os.getpid(), "path": self.path,
+                append(output / BACKEND_TRANSPORT_LOG, {"pid": os.getpid(), "path": self.path,
                     "kind": "response_complete", "physical_bytes": offset,
                     "declared_short_fixture": bool(main and spec["backend_short_length"]),
                     "monotonic_ns": time.monotonic_ns()})
             except OSError as exc:
-                append(output / "backend-transport.jsonl", {"pid": os.getpid(), "path": self.path,
+                append(output / BACKEND_TRANSPORT_LOG, {"pid": os.getpid(), "path": self.path,
                     "kind": "write_error", "error_type": type(exc).__name__, "errno": exc.errno,
                     "monotonic_ns": time.monotonic_ns()})
         def log_message(self, *_):
@@ -550,21 +613,20 @@ def backend(spec_path, output):
         do_GET = do_POST
         do_PUT = do_POST
     with ThreadingHTTPServer(("127.0.0.1", 0), Handler) as server:
-        write(output / "backend-ready.json", {"pid": os.getpid(), "port": server.server_port,
+        write(output / BACKEND_READY, {"pid": os.getpid(), "port": server.server_port,
             "uid": os.geteuid(), "gid": os.getegid(), "monotonic_ns": time.monotonic_ns()})
         server.serve_forever()
 
 
 def starttime(pid):
-    return Path("/proc", str(pid), "stat").read_text().rsplit(")", 1)[1].split()[19]
+    return (PROC_ROOT / str(pid) / "stat").read_text().rsplit(")", 1)[1].split()[19]
 
 
-def extend_mime_capture(source, accessor):
-    """Extend the exact existing lighttpd collector in a disposable source copy."""
+def disposable_collector(source):
     source = Path(source).absolute()
-    if source.resolve() != source or not source.is_relative_to("/var/tmp/codex/ModSecurity-conector"):
+    if source.resolve() != source or not source.is_relative_to(EXTERNAL_ROOT):
         raise ValueError("MIME overlay needs a physical authorized external source copy")
-    marker = json.loads((source / ".i12-disposable-source-copy.json").read_text())
+    marker = json.loads((source / DISPOSABLE_MARKER).read_text())
     if marker.get("disposable") is not True or marker.get("path") != str(source):
         raise ValueError("MIME overlay requires a matching disposable-copy marker")
     collector = source / "ci/runtime/lifecycle/native-lifecycle-observer.c"
@@ -575,6 +637,12 @@ def extend_mime_capture(source, accessor):
             break
     if collector.stat().st_nlink != 1 or (source / ".git").exists():
         raise ValueError("MIME overlay refuses linked inputs or a checkout")
+    return source, collector
+
+
+def extend_mime_capture(source, accessor):
+    """Extend the exact existing lighttpd collector in a disposable source copy."""
+    source, collector = disposable_collector(source)
     before = sha(collector)
     if before != "270245fedf253e4ef502fc1aedcac5406ee516b85c90002cb7deaff69fb91736":
         raise ValueError("MIME extension requires the exact existing lighttpd collector variant")
@@ -617,7 +685,8 @@ int __wrap_msc_process_response_body(Transaction *transaction) {
     if destination.exists():
         raise ValueError("MIME accessor destination already exists")
     collector.write_text(text)
-    destination.write_bytes(Path(accessor).read_bytes())
+    destination = evidence_path(destination, writing=True)
+    destination.write_bytes(evidence_path(accessor).read_bytes())
     constructor = extend_constructor_capture(collector)
     return {"collector_before_sha256": before, "collector_after_sha256": sha(collector),
         "accessor_source_sha256": sha(destination), "existing_trace_field_extended": "native_mime_selection",
@@ -630,7 +699,7 @@ def extend_constructor_capture(collector):
     """Sample constructor output slot after the actual return, including failure."""
     collector = evidence_path(collector, writing=True)
     source = collector.parents[3]
-    marker = read_json(source / ".i12-disposable-source-copy.json")
+    marker = read_json(source / DISPOSABLE_MARKER)
     if marker.get("disposable") is not True or marker.get("path") != str(source) or (source / ".git").exists():
         raise ValueError("Constructor observation requires a marked disposable source copy")
     text = collector.read_text()
@@ -661,10 +730,10 @@ def rebase_host_observation(source, current_module):
     base, and removing these four additions must reproduce it byte for byte.
     """
     source = Path(source).absolute()
-    marker = read_json(source / ".i12-disposable-source-copy.json")
+    marker = read_json(source / DISPOSABLE_MARKER)
     if source.resolve() != source or marker.get("disposable") is not True or marker.get("path") != str(source):
         raise ValueError("Host observation needs a physical marked disposable source copy")
-    destination = evidence_path(source / "connectors/lighttpd/module/mod_msconnector.c", writing=True)
+    destination = evidence_path(source / MODULE_SOURCE, writing=True)
     current = evidence_path(current_module).read_text()
     replacements = [
         ('#include "first.h"', '#include "lighttpd-host-observer.h"\n#include "first.h"'),
@@ -695,7 +764,7 @@ def rebase_host_observation(source, current_module):
 def extend_fault_capture(source, sink_header, native_header):
     """Inject declared boundary errors after separately recorded actual calls."""
     source = Path(source).absolute()
-    marker = read_json(source / ".i12-disposable-source-copy.json")
+    marker = read_json(source / DISPOSABLE_MARKER)
     if source.resolve() != source or marker.get("disposable") is not True or marker.get("path") != str(source):
         raise ValueError("Fault overlay needs a physical marked disposable copy")
     runtime = evidence_path(source / "common/runtime/msconnector_runtime.c", writing=True)
@@ -740,7 +809,7 @@ def extend_fault_capture(source, sink_header, native_header):
 
 def find_child(launcher, executable):
     expected = Path(executable).resolve()
-    for proc in Path("/proc").iterdir():
+    for proc in PROC_ROOT.iterdir():
         if not proc.name.isdecimal():
             continue
         try:
@@ -754,21 +823,99 @@ def find_child(launcher, executable):
 
 def listening(port):
     return any(line.split()[3] == "0A" and line.split()[1].endswith(f":{port:04X}")
-        for line in Path("/proc/net/tcp").read_text().splitlines()[1:])
+        for line in (PROC_ROOT / "net/tcp").read_text().splitlines()[1:])
 
 
-def capture_case(spec, output, host, modules, run_id):
-    case = spec["case"]
-    if re.fullmatch(r"[A-Za-z0-9_-]{1,96}", case) is None:
-        raise ValueError("invalid case label")
-    root = output / case
-    root.mkdir(mode=0o700)
-    client_root = root / "client"; client_root.mkdir(mode=0o700)
-    spec_path = root / "fixture-spec.json"; write(spec_path, spec)
-    # Physical empty files distinguish measured empty sinks from missing files.
-    for name in ("backend.jsonl", "backend-transport.jsonl"):
-        (root / name).touch(mode=0o600)
-    rules = root / "rules.conf"
+class CaptureActors:
+    def __init__(self, **values):
+        self.__dict__.update(values)
+
+    def launch(self, name, command):
+        stdout = (self.root / (name + ".stdout")).open("xb")
+        stderr = (self.root / (name + ".stderr")).open("xb"); self.streams.extend((stdout, stderr))
+        argv = ["rtk", "proxy", *map(str, command)]
+        process = subprocess.Popen(argv, env=self.env, stdin=subprocess.DEVNULL, stdout=stdout, stderr=stderr, start_new_session=True)
+        self.actors[name] = {"process": process, "argv": argv, "launcher_starttime": starttime(process.pid),
+            "executable": str(command[0]), "native_pid": None, "native_starttime": None}
+        return process
+    def wait(self, name, predicate):
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            row = self.actors[name]
+            if row["process"].poll() is not None:
+                raise RuntimeError(name + " exited before readiness")
+            if predicate():
+                row["native_pid"], row["native_starttime"] = find_child(row["process"].pid, row["executable"])
+                return
+            time.sleep(0.03)
+        raise TimeoutError(name + " readiness")
+    def snapshot(self, label):
+        folder = self.root / "snapshots" / label; folder.mkdir(parents=True, mode=0o700)
+        row = {"monotonic_ns": time.monotonic_ns(), "actors": {}, "physical_files": {}}
+        for name, actor in self.actors.items():
+            pid = actor["native_pid"]; proc = PROC_ROOT / str(pid)
+            if starttime(pid) != actor["native_starttime"]:
+                raise RuntimeError("native process starttime changed")
+            maps = (proc / "maps").read_bytes(); status = (proc / "status").read_bytes()
+            fds = {p.name: os.readlink(p) for p in (proc / "fd").iterdir()}
+            (folder / (name + ".maps")).write_bytes(maps)
+            (folder / (name + ".status")).write_bytes(status)
+            write(folder / (name + ".fds.json"), fds)
+            row["actors"][name] = {"pid": pid, "starttime": actor["native_starttime"],
+                "launcher_pid": actor["process"].pid, "launcher_starttime": actor["launcher_starttime"],
+                "argv": actor["argv"], "exe": os.readlink(proc / "exe"), "exe_sha256": sha(proc / "exe"),
+                "maps_sha256": digest(maps), "status_sha256": digest(status), "fds": fds}
+        for name in (EVENT_LOG, NATIVE_LOG, HOST_LOG, BACKEND_LOG):
+            p = self.root / name
+            row["physical_files"][name] = None if not p.exists() else {"sha256": sha(p), "bytes": p.stat().st_size,
+                "uid": p.stat().st_uid, "mode": oct(p.stat().st_mode & 0o777)}
+        write(folder / SNAPSHOT, row); self.snapshots.append(str(folder / SNAPSHOT))
+    def run_client(self, token, port):
+        argv = ["rtk", "proxy", sys.executable, "-B", str(Path(__file__).resolve()), "client",
+            "--spec", str(self.spec_path), "--output", str(self.client_root), "--port", str(port), "--token", token]
+        result = subprocess.run(argv, env=self.env, capture_output=True, timeout=30)
+        (self.client_root / (token + ".stdout")).write_bytes(result.stdout)
+        (self.client_root / (token + ".stderr")).write_bytes(result.stderr)
+        row = {"argv": argv, "actual_returncode": result.returncode,
+            "actual_signal": -result.returncode if result.returncode < 0 else None,
+            "receipt": str(self.client_root / (token + ".receipt.json"))}
+        write(self.client_root / (token + ".waited.json"), row); self.receipt["clients"][token] = row
+
+
+def cleanup_actor(name, actor, cleanups):
+    process = actor["process"]
+    if process.poll() is None:
+        if starttime(process.pid) != actor["launcher_starttime"]:
+            raise RuntimeError("refuse signaling replaced launcher")
+        if actor["native_pid"] is not None:
+            if starttime(actor["native_pid"]) != actor["native_starttime"]:
+                raise RuntimeError("refuse signaling replaced native actor")
+            os.kill(actor["native_pid"], signal.SIGTERM)
+        else:
+            os.killpg(process.pid, signal.SIGTERM)
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            os.killpg(process.pid, signal.SIGKILL); process.wait(timeout=5)
+    try:
+        native_gone = starttime(actor["native_pid"]) != actor["native_starttime"]
+    except (FileNotFoundError, TypeError):
+        native_gone = True
+    cleanups.append({"actor": name, "launcher_pid": process.pid,
+        "actual_returncode": process.returncode, "launcher_reaped": process.poll() is not None,
+        "native_pid": actor["native_pid"], "native_starttime": actor["native_starttime"],
+        "same_starttime_pid_gone": native_gone})
+
+
+def cleanup_actors(actors, streams, cleanups):
+    for name, actor in reversed(list(actors.items())):
+        cleanup_actor(name, actor, cleanups)
+    for stream in streams:
+        stream.close()
+
+
+def capture_configuration(spec, root):
+    rules = root / RULES_CONFIG
     rule_lines = ["SecRuleEngine On", "SecRequestBodyAccess On", "SecResponseBodyAccess On",
         "SecResponseBodyMimeType text/plain text/csv", f"SecRequestBodyLimit {spec['request_limit']}",
         f"SecRequestBodyNoFilesLimit {spec['request_limit']}", f"SecRequestBodyLimitAction {spec['request_limit_action']}",
@@ -782,7 +929,7 @@ def capture_case(spec, output, host, modules, run_id):
     if spec.get("redirect"):
         rule_lines.append('SecRule REQUEST_URI "@contains NEED-p3-redirect" "id:941233,phase:3,redirect:https://fixture.invalid/target,log,msg:\'I12 redirect normalization\'"')
     extra_rules = spec.get("rules_extra", "")
-    extra_rules = extra_rules.replace("@@AUDIT_LOG@@", str(root / "audit.log"))
+    extra_rules = extra_rules.replace("@@AUDIT_LOG@@", str(root / AUDIT_LOG))
     extra_rules = extra_rules.replace("@@AUDIT_LOG_DIR@@", str(root))
     rule_lines.append(extra_rules)
     audit_format = spec.get("audit_log_format")
@@ -804,74 +951,46 @@ def capture_case(spec, output, host, modules, run_id):
         with runtime.open("a") as stream:
             stream.write(f"late_intervention_timeout={int(spec['late_intervention_timeout_ms'])}\n")
     runtime.chmod(0o600)
-    env = {**os.environ, "MSCONNECTOR_LIGHTTPD_NATIVE_OBSERVER": str(root / "native.jsonl"),
-        "MSCONNECTOR_LIGHTTPD_HOST_OBSERVER": str(root / "host.jsonl"),
+    return runtime
+
+
+def capture_case(spec, output, host, modules, run_id):
+    host = evidence_path(host)
+    modules = evidence_path(modules)
+    if not host.is_file() or not modules.is_dir():
+        raise ValueError("fixture host file and module directory required")
+    case = spec["case"]
+    if re.fullmatch(r"[A-Za-z0-9_-]{1,96}", case) is None:
+        raise ValueError("invalid case label")
+    root = output / case
+    root.mkdir(mode=0o700)
+    client_root = root / "client"; client_root.mkdir(mode=0o700)
+    spec_path = root / FIXTURE_SPEC; write(spec_path, spec)
+    # Physical empty files distinguish measured empty sinks from missing files.
+    for name in (BACKEND_LOG, BACKEND_TRANSPORT_LOG):
+        (root / name).touch(mode=0o600)
+    runtime = capture_configuration(spec, root)
+    env = {**os.environ, "MSCONNECTOR_LIGHTTPD_NATIVE_OBSERVER": str(root / NATIVE_LOG),
+        "MSCONNECTOR_LIGHTTPD_HOST_OBSERVER": str(root / HOST_LOG),
         "MSCONNECTOR_LIFECYCLE_RUN": run_id, "MSCONNECTOR_LIFECYCLE_PROFILE": ROUTE,
         "MSCONNECTOR_LIFECYCLE_CASE": case}
     env.update(MSCONNECTOR_LIGHTTPD_DIAGNOSTIC_FAULT=spec.get("native_fault", "off"),
         MSCONNECTOR_LIGHTTPD_SINK_FAULT=spec.get("sink_fault", "off"),
         MSCONNECTOR_LIGHTTPD_POINTER_FAULT=spec.get("pointer_fault", "off"),
-        MSCONNECTOR_LIGHTTPD_DIAGNOSTIC_FAULT_LOG=str(root / "fault.jsonl"))
+        MSCONNECTOR_LIGHTTPD_DIAGNOSTIC_FAULT_LOG=str(root / FAULT_LOG))
     actors = {}; streams = []; cleanups = []; snapshots = []
     receipt = {"original_id": spec["original_id"], "case": case, "run_id": run_id,
         "uid": os.geteuid(), "gid": os.getegid(), "fixture_spec_sha256": sha(spec_path),
         "producer_source_sha256": sha(Path(__file__)), "clients": {},
         "full_lifecycle_qualified": False, "oracle_evaluated": False}
-    def launch(name, command):
-        stdout = (root / (name + ".stdout")).open("xb")
-        stderr = (root / (name + ".stderr")).open("xb"); streams.extend((stdout, stderr))
-        argv = ["rtk", "proxy", *map(str, command)]
-        process = subprocess.Popen(argv, env=env, stdin=subprocess.DEVNULL, stdout=stdout, stderr=stderr, start_new_session=True)
-        actors[name] = {"process": process, "argv": argv, "launcher_starttime": starttime(process.pid),
-            "executable": str(command[0]), "native_pid": None, "native_starttime": None}
-        return process
-    def wait(name, predicate):
-        deadline = time.monotonic() + 15
-        while time.monotonic() < deadline:
-            row = actors[name]
-            if row["process"].poll() is not None:
-                raise RuntimeError(name + " exited before readiness")
-            if predicate():
-                row["native_pid"], row["native_starttime"] = find_child(row["process"].pid, row["executable"])
-                return
-            time.sleep(0.03)
-        raise TimeoutError(name + " readiness")
-    def snapshot(label):
-        folder = root / "snapshots" / label; folder.mkdir(parents=True, mode=0o700)
-        row = {"monotonic_ns": time.monotonic_ns(), "actors": {}, "physical_files": {}}
-        for name, actor in actors.items():
-            pid = actor["native_pid"]; proc = Path("/proc") / str(pid)
-            if starttime(pid) != actor["native_starttime"]:
-                raise RuntimeError("native process starttime changed")
-            maps = (proc / "maps").read_bytes(); status = (proc / "status").read_bytes()
-            fds = {p.name: os.readlink(p) for p in (proc / "fd").iterdir()}
-            (folder / (name + ".maps")).write_bytes(maps)
-            (folder / (name + ".status")).write_bytes(status)
-            write(folder / (name + ".fds.json"), fds)
-            row["actors"][name] = {"pid": pid, "starttime": actor["native_starttime"],
-                "launcher_pid": actor["process"].pid, "launcher_starttime": actor["launcher_starttime"],
-                "argv": actor["argv"], "exe": os.readlink(proc / "exe"), "exe_sha256": sha(proc / "exe"),
-                "maps_sha256": digest(maps), "status_sha256": digest(status), "fds": fds}
-        for name in ("events.jsonl", "native.jsonl", "host.jsonl", "backend.jsonl"):
-            p = root / name
-            row["physical_files"][name] = None if not p.exists() else {"sha256": sha(p), "bytes": p.stat().st_size,
-                "uid": p.stat().st_uid, "mode": oct(p.stat().st_mode & 0o777)}
-        write(folder / "snapshot.json", row); snapshots.append(str(folder / "snapshot.json"))
-    def run_client(token, port):
-        argv = ["rtk", "proxy", sys.executable, "-B", str(Path(__file__).resolve()), "client",
-            "--spec", str(spec_path), "--output", str(client_root), "--port", str(port), "--token", token]
-        result = subprocess.run(argv, env=env, capture_output=True, timeout=30)
-        (client_root / (token + ".stdout")).write_bytes(result.stdout)
-        (client_root / (token + ".stderr")).write_bytes(result.stderr)
-        row = {"argv": argv, "actual_returncode": result.returncode,
-            "actual_signal": -result.returncode if result.returncode < 0 else None,
-            "receipt": str(client_root / (token + ".receipt.json"))}
-        write(client_root / (token + ".waited.json"), row); receipt["clients"][token] = row
+    context = CaptureActors(root=root, env=env, actors=actors, streams=streams,
+        snapshots=snapshots, client_root=client_root, spec_path=spec_path, receipt=receipt)
+    launch, wait, snapshot, run_client = context.launch, context.wait, context.snapshot, context.run_client
     host_port = None
     try:
         launch("backend", [sys.executable, "-B", str(Path(__file__).resolve()), "backend", "--spec", str(spec_path), "--output", str(root)])
-        wait("backend", lambda: (root / "backend-ready.json").exists())
-        backend_ready = json.loads((root / "backend-ready.json").read_text())
+        wait("backend", lambda: (root / BACKEND_READY).exists())
+        backend_ready = json.loads((root / BACKEND_READY).read_text())
         with socket.socket() as reservation:
             reservation.bind(("127.0.0.1", 0)); host_port = reservation.getsockname()[1]
         hostconf = root / "lighttpd.conf"
@@ -915,37 +1034,13 @@ def capture_case(spec, output, host, modules, run_id):
     except Exception as exc:
         receipt["error"] = {"type": type(exc).__name__, "message": str(exc)}
     finally:
-        for name, actor in reversed(list(actors.items())):
-            process = actor["process"]
-            if process.poll() is None:
-                if starttime(process.pid) != actor["launcher_starttime"]:
-                    raise RuntimeError("refuse signaling replaced launcher")
-                if actor["native_pid"] is not None:
-                    if starttime(actor["native_pid"]) != actor["native_starttime"]:
-                        raise RuntimeError("refuse signaling replaced native actor")
-                    os.kill(actor["native_pid"], signal.SIGTERM)
-                else:
-                    os.killpg(process.pid, signal.SIGTERM)
-                try:
-                    process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    os.killpg(process.pid, signal.SIGKILL); process.wait(timeout=5)
-            try:
-                native_gone = starttime(actor["native_pid"]) != actor["native_starttime"]
-            except (FileNotFoundError, TypeError):
-                native_gone = True
-            cleanups.append({"actor": name, "launcher_pid": process.pid,
-                "actual_returncode": process.returncode, "launcher_reaped": process.poll() is not None,
-                "native_pid": actor["native_pid"], "native_starttime": actor["native_starttime"],
-                "same_starttime_pid_gone": native_gone})
-        for stream in streams:
-            stream.close()
+        cleanup_actors(actors, streams, cleanups)
         receipt.update(cleanup=cleanups, snapshots=snapshots,
             host_listener_gone=host_port is None or not listening(host_port),
-            backend_jsonl=str(root / "backend.jsonl"), native_jsonl=str(root / "native.jsonl"), host_jsonl=str(root / "host.jsonl"))
+            backend_jsonl=str(root / BACKEND_LOG), native_jsonl=str(root / NATIVE_LOG), host_jsonl=str(root / HOST_LOG))
         receipt["physical_files"] = {str(p.relative_to(root)): {"sha256": sha(p), "bytes": p.stat().st_size,
             "uid": p.stat().st_uid, "mode": oct(p.stat().st_mode & 0o777)} for p in root.rglob("*") if p.is_file()}
-        write(root / "capture_case.json", receipt)
+        write(root / CAPTURE_RECEIPT, receipt)
     return receipt
 
 
@@ -1182,7 +1277,7 @@ def amend_source_counts(spec, root, source_count_review):
         allowed = {"native_request_body_process", "native_response_body_process", "native_logging", "native_cleanup", "native_request_append_min"}
         if count_review.get("basis") != "source_control_flow" or count_review.get("case") != spec["case"]:
             raise ValueError("Count review must name exact source-control-flow case")
-        if count_review.get("original_fixture_spec_sha256") != sha(root / "fixture-spec.json"):
+        if count_review.get("original_fixture_spec_sha256") != sha(root / FIXTURE_SPEC):
             raise ValueError("Count review does not bind original immutable fixture")
         counts = count_review["expected_counts"]
         if not counts or not set(counts).issubset(allowed) or any(type(value) is not int or value not in (0, 1) for value in counts.values()):
@@ -1203,7 +1298,7 @@ def proposal_records(root, spec, decode_failures, name):
         try:
             rows.append(json.loads(line))
         except json.JSONDecodeError as error:
-            if name != "events.jsonl" or spec.get("sink_fault") != "short_write":
+            if name != EVENT_LOG or spec.get("sink_fault") != "short_write":
                 raise
             decode_failures.setdefault(name, []).append({"physical_line": index,
                 "line_bytes": len(line), "line_sha256": digest(line),
@@ -1243,21 +1338,21 @@ def proposal_scope(native, host, primary_started, primary_completed):
 
 def proposal_physical(root, attempt, inputs, ref):
     physical = {
-        "native": ref(root / "native.jsonl", "native_api"), "host": ref(root / "host.jsonl", "host_callback"),
+        "native": ref(root / NATIVE_LOG, "native_api"), "host": ref(root / HOST_LOG, "host_callback"),
         "client": ref(root / "client/main.receipt.json", "client_process"),
         "waited": ref(root / "client/main.waited.json", "client_process"),
         "neighbor": ref(root / "client/neighbor.receipt.json", "client_process"),
-        "backend": ref(root / "backend.jsonl", "backend_process"),
-        "backend_transport": ref(root / "backend-transport.jsonl", "backend_process"),
-        "events": ref(root / "events.jsonl", "physical_event_sink"),
+        "backend": ref(root / BACKEND_LOG, "backend_process"),
+        "backend_transport": ref(root / BACKEND_TRANSPORT_LOG, "backend_process"),
+        "events": ref(root / EVENT_LOG, "physical_event_sink"),
         "debug": ref(root / "debug.log", "native_debug"),
-        "cleanup": ref(root / "capture_case.json", "cleanup_observer"),
+        "cleanup": ref(root / CAPTURE_RECEIPT, "cleanup_observer"),
         "isolation": ref(attempt / "controller-result.json", "isolation_receipt"),
         "source": ref(inputs / "source-build-binding.json", "source_manifest"),
-        "contract": ref(root / "fixture-spec.json", "source_contract"),
+        "contract": ref(root / FIXTURE_SPEC, "source_contract"),
     }
-    if (root / "fault.jsonl").exists():
-        physical["fault"] = ref(root / "fault.jsonl", "test_boundary_injection")
+    if (root / FAULT_LOG).exists():
+        physical["fault"] = ref(root / FAULT_LOG, "test_boundary_injection")
     return physical
 
 
@@ -1267,7 +1362,7 @@ def observe_fault_boundary(context):
     context.observation("native_intervention_or_first_cause", {
         "actual_native_interventions": [row for row in context.main if row["function"] == "native_intervention"],
         "actual_common_error_events_in_sink_order": [row for row in context.events if row.get("status") == "error"],
-        "actual_declared_boundary_fault_rows": context.records("fault.jsonl"),
+        "actual_declared_boundary_fault_rows": context.records(FAULT_LOG),
         "actual_host_error_log": (context.root / "host-error.log").read_text(),
         "injected_boundary_distinct_from_real_sdk_or_io": True},
         context.physical["native"], context.physical["events"], context.physical["fault"])
@@ -1292,8 +1387,8 @@ def observe_mime_boundary(context, failed_constructor_observed, parser_rejection
         context.packet["observed_response_metadata_before_early_terminal"] = copy.deepcopy(context.packet["observations"]["mime_gate"])
         context.packet["observations"]["mime_gate"].update(value=None, applicable=False,
             reason="Declared early intervention or parser/preallocation rejection terminates before native response-body processing; actual main native/host rows establish that this MIME boundary was not reached.",
-            capability_proof=[context.ref(context.root / "fixture-spec.json", "source_contract"),
-                context.ref(build_source / "connectors/lighttpd/module/mod_msconnector.c", "source_contract"),
+            capability_proof=[context.ref(context.root / FIXTURE_SPEC, "source_contract"),
+                context.ref(build_source / MODULE_SOURCE, "source_contract"),
                 context.ref(build_source / "common/runtime/msconnector_runtime.c", "source_contract")])
     return native_mime, no_response_phase
 
@@ -1306,17 +1401,17 @@ def preserve_original_status(context, expected, original_expected):
         context.packet["stronger_predeclared_fixture_assertion"] = {
             "fixture_expected_status": expected["visible_status"], "actual_status": context.main_client.get("status"),
             "original_oracle_visible_status": None, "original_oracle_not_replaced": True,
-            "fixture_source": context.ref(context.root / "fixture-spec.json", "source_contract")}
+            "fixture_source": context.ref(context.root / FIXTURE_SPEC, "source_contract")}
         expected = copy.deepcopy(original_expected)
     return expected, intentional_status
 
 
 def proposal_events(records, main, main_path, sequence_clients):
     main_ids = {r.get("canonical_transaction_id") for r in main if r.get("canonical_transaction_id")}
-    events = [r for r in records("events.jsonl")
+    events = [r for r in records(EVENT_LOG)
         if r.get("uri") == main_path or r.get("transaction_id") in main_ids]
     sequence_paths = {item["path"] for item in sequence_clients}
-    sequence_events = [row for row in records("events.jsonl") if row.get("uri") in sequence_paths]
+    sequence_events = [row for row in records(EVENT_LOG) if row.get("uri") in sequence_paths]
     return events, sequence_events
 
 
@@ -1325,7 +1420,7 @@ def proposal_related_rows(root, backend_rows, main_path, neighbor_client):
     debug_lines = [line for line in debug.splitlines() if "] [" + main_path + "]" in line]
     main_backend = [r for r in backend_rows if r["path"] == main_path]
     neighbor_backend = [r for r in backend_rows if r["path"] == neighbor_client["path"]]
-    snapshots = [json.loads((root / "snapshots" / label / "snapshot.json").read_text())
+    snapshots = [json.loads((root / "snapshots" / label / SNAPSHOT).read_text())
         for label in ("before-main", "after-main", "after-neighbor")]
     return debug_lines, main_backend, neighbor_backend, snapshots
 
@@ -1333,7 +1428,7 @@ def proposal_related_rows(root, backend_rows, main_path, neighbor_client):
 def proposal_native_events(root, main):
     native_ids = sorted({r["transaction_id"] for r in main if r.get("transaction_id_origin") == "sdk_public_m_id" and r.get("transaction_id")})
     common_ids = sorted({r["canonical_transaction_id"] for r in main if r.get("canonical_transaction_id")})
-    audit_lines = [line for line in (root / "audit.log").read_text().splitlines()
+    audit_lines = [line for line in (root / AUDIT_LOG).read_text().splitlines()
         if any(f'[unique_id "{native_id}"]' in line for native_id in native_ids)]
     return native_ids, common_ids, audit_lines
 
@@ -1356,21 +1451,21 @@ def propose(case_root, attempt, inputs, output, source_count_review=None, qualif
     helper = importlib.util.module_from_spec(helper_spec); helper_spec.loader.exec_module(helper)
     ref = helper.reference
     root = Path(case_root); attempt = Path(attempt); inputs = Path(inputs)
-    receipt = json.loads((root / "capture_case.json").read_text())
-    spec = json.loads((root / "fixture-spec.json").read_text())
+    receipt = json.loads((root / CAPTURE_RECEIPT).read_text())
+    spec = json.loads((root / FIXTURE_SPEC).read_text())
     source = json.loads((inputs / "source-build-binding.json").read_text())
     count_review, original_counts = amend_source_counts(spec, root, source_count_review)
     identity = {"run_id": receipt["run_id"], "parent_sha": source["actual_checkout_head"],
         "framework_sha": "99a7985c1be92a2297b1b59208f64df6768f2cbf",
         "mrts_sha": "8a6bb546c4c81d8ffc7be801dceac60c6925685f",
         "framework_scope": "gitlink_identity_only_not_executed", "mrts_scope": "gitlink_identity_only_not_executed",
-        "effective_config_sha256": sha(root / "lighttpd.conf"), "rules_sha256": sha(root / "rules.conf")}
+        "effective_config_sha256": sha(root / "lighttpd.conf"), "rules_sha256": sha(root / RULES_CONFIG)}
     packet = helper.packet_template(spec["original_id"], identity)
     packet["execution_observed"] = receipt.get("reached_stage") == "main_and_neighbor_http_executed"
     decode_failures = {}
     def records(name):
         return proposal_records(root, spec, decode_failures, name)
-    native = records("native.jsonl"); host = records("host.jsonl"); backend_rows = records("backend.jsonl")
+    native = records(NATIVE_LOG); host = records(HOST_LOG); backend_rows = records(BACKEND_LOG)
     main_client, neighbor_client, sequence_clients, primary_started, primary_completed = proposal_clients(root, receipt)
     scope, main, hooks, counts = proposal_scope(native, host, primary_started, primary_completed)
     main_path = main_client["path"]
@@ -1385,7 +1480,7 @@ def propose(case_root, attempt, inputs, output, source_count_review=None, qualif
     native_ids, common_ids, audit_lines = proposal_native_events(root, main)
     observation("native_events", {"actual_common_jsonl_rows": events,
         "actual_scoped_native_audit_lines": audit_lines, "physical_decode_errors": decode_failures},
-        physical["events"], ref(root / "audit.log", "physical_event_sink"))
+        physical["events"], ref(root / AUDIT_LOG, "physical_event_sink"))
     observe_native_transaction_id(SimpleNamespace(**locals()))
     failed_constructor_observed = observe_failed_constructor(SimpleNamespace(**locals()))
     parser_rejection_observed = observe_parser_rejection(SimpleNamespace(**locals()))
@@ -1441,7 +1536,7 @@ def finalize_proposal(context):
         "actual_observations": {"assertions": assertions, "main_scope": scope, "actual_counts": counts},
         "measurement_evidence": list(physical.values())}
     write(output / "retest.json", retest)
-    independent = Path("/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/source-proof/sdk-3.0.14-transaction.cc")
+    independent = EXTERNAL_ROOT / "runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/source-proof/sdk-3.0.14-transaction.cc"
     record = {"run_scoped_case_id": spec["original_id"], "leg_id": ROUTE,
         "reviewed_by": "worker", "category": "SOURCE_CONFIRMED_EXPECTATION",
         "interpretation": "Fixture expectation was declared before execution. SDK3.0.14 native body processing, configured limit actions, explicit rules and host Safe policy provide the proposed basis; observations are a separate retest.",
@@ -1449,8 +1544,8 @@ def finalize_proposal(context):
         "independent_sources": [ref(independent, kind="native_engine_contract", revision="ModSecurity3.0.14",
             symbols=["processRequestBody", "processResponseBody", "intervention"],
             url="https://raw.githubusercontent.com/owasp-modsecurity/ModSecurity/v3.0.14/src/transaction.cc")],
-        "implementation_sources": [ref(root / "fixture-spec.json", role="source_contract"),
-            ref(root / "rules.conf", role="source_contract"), physical["source"]],
+        "implementation_sources": [ref(root / FIXTURE_SPEC, role="source_contract"),
+            ref(root / RULES_CONFIG, role="source_contract"), physical["source"]],
         "resolved_expectation": expected, "retest": ref(output / "retest.json")}
     if intentional_status:
         record["proposed_intentional_null_fields"] = {"visible_status": {

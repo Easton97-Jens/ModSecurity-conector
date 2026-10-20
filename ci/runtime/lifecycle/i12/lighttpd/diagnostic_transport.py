@@ -60,6 +60,12 @@ class Peer:
         lengths = [value.strip() for name, value in fields if name.lower() == "content-length"]
         if any(name.lower() == "transfer-encoding" for name, _ in fields):
             raise ValueError("This diagnostic wire fixture requires identity/length framing")
+        body, complete, framing = self.response_entity(lengths)
+        return {"status": int(status), "headers": fields, "entity_bytes": len(body),
+                "entity_sha256": hashlib.sha256(body).hexdigest(), "framing": framing,
+                "actual_message_complete": complete}
+
+    def response_entity(self, lengths):
         if lengths:
             if len(set(lengths)) != 1 or not lengths[0].isdigit():
                 raise ValueError("Ambiguous actual Content-Length")
@@ -67,8 +73,9 @@ class Peer:
             if size > LIMIT:
                 raise ValueError("Actual declared response exceeds 128 KiB")
             self.current_response["framing"] = "content_length"
-            while len(self.pending) < size and self.receive():
-                pass
+            while len(self.pending) < size:
+                if not self.receive():
+                    break
             body = bytes(self.pending[:size])
             del self.pending[:size]
             complete = len(body) == size
@@ -76,75 +83,97 @@ class Peer:
         else:
             self.current_response["framing"] = "peer_eof_delimited"
             while self.receive():
-                pass
+                continue
             body = bytes(self.pending)
             self.pending.clear()
             complete = True
             framing = "peer_eof_delimited"
-        return {"status": int(status), "headers": fields, "entity_bytes": len(body),
-                "entity_sha256": hashlib.sha256(body).hexdigest(), "framing": framing,
-                "actual_message_complete": complete}
+        return body, complete, framing
+
+
+def abort_receipt(connection, peer, receipt):
+    peer.receive()
+    header, boundary, entity = peer.raw.partition(b"\r\n\r\n")
+    first_line = header.split(b"\r\n", 1)[0].split()
+    lengths = [line.split(b":", 1)[1].strip() for line in header.split(b"\r\n")[1:]
+               if line.split(b":", 1)[0].lower() == b"content-length"]
+    complete = bool(boundary and len(lengths) == 1 and lengths[0].isdigit()
+                    and len(entity) == int(lengths[0]))
+    receipt.update(status=int(first_line[1]) if boundary and len(first_line) >= 2 else None,
+        headers=header.decode("ascii").split("\r\n")[1:] if boundary else [],
+        entity_bytes=len(entity), entity_sha256=hashlib.sha256(entity).hexdigest(),
+        actual_message_complete=complete, framing="intentional_client_reset_after_received_bytes",
+        intentional_client_reset=True, actual_linger_option=[1, 0])
+    connection.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+    connection.close()
+    receipt["actual_reset_socket_close_completed_ns"] = time.monotonic_ns()
+
+
+def capture_request(connection, peer, sent_wire, identity, index, request):
+    timeout = request.get("timeout_seconds", 3)
+    if not 0 < timeout <= 3:
+        raise ValueError("Declared client timeout must be bounded by three seconds")
+    connection.settimeout(timeout)
+    raw = bytes.fromhex(request["wire_hex"])
+    if len(raw) > 65536:
+        raise ValueError("Declared wire request exceeds 64 KiB")
+    started = time.monotonic_ns()
+    receipt = {"pid": os.getpid(), "uid": os.geteuid(), "gid": os.getegid(),
+        "path": request["path"], "started_ns": started,
+        "connection_identity": identity, "connection_reused": index > 0,
+        "request_wire_bytes": len(raw), "request_wire_sha256": hashlib.sha256(raw).hexdigest(),
+        "request_bytes": 0, "request_sha256": hashlib.sha256(b"").hexdigest(),
+        "error": None}
+    prior_chunks = len(peer.chunks)
+    peer.current_response = {}
+    try:
+        connection.sendall(raw)
+        sent_wire.extend(raw)
+        receipt["request_sent_ns"] = time.monotonic_ns()
+        if request.get("abort_after_first_receive") is True:
+            abort_receipt(connection, peer, receipt)
+        else:
+            receipt.update(peer.response())
+    except (OSError, EOFError, ValueError) as error:
+        if peer.current_response:
+            receipt.update(peer.current_response, entity_bytes=len(peer.pending),
+                           entity_sha256=hashlib.sha256(peer.pending).hexdigest())
+        receipt["error"] = {"type": type(error).__name__, "message": str(error)}
+    receipt.update(completed_ns=time.monotonic_ns(), tcp_eof_observed=peer.eof,
+        tcp_reset_observed=peer.reset, timeout_observed=peer.timeout,
+        actual_socket_recv_chunks=peer.chunks[prior_chunks:])
+    first = next((row for row in peer.chunks[prior_chunks:] if row["bytes"] > 0), None)
+    if first:
+        receipt["first_response_recv_completed_ns"] = first["completed_ns"]
+    return receipt
+
+
+def loopback_connection(port):
+    if not isinstance(port, int) or not 1 <= port <= 65535:
+        raise ValueError("Diagnostic client requires a valid loopback TCP port")
+    connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        connection.settimeout(3)
+        connection.connect(("127.0.0.1", port))
+    except BaseException:
+        connection.close()
+        raise
+    return connection
 
 
 def capture(port, requests, output):
+    if not isinstance(port, int) or not 1 <= port <= 65535:
+        raise ValueError("Diagnostic client requires a valid loopback TCP port")
     if not 1 <= len(requests) <= 8:
         raise ValueError("Wire sequence requires one to eight declared requests")
     rows = []
     sent_wire = bytearray()
-    with socket.create_connection(("127.0.0.1", port), timeout=3) as connection:
+    with loopback_connection(port) as connection:
         connection.settimeout(3)
         peer = Peer(connection)
         identity = {"local": connection.getsockname(), "peer": connection.getpeername(), "pid": os.getpid()}
         for index, request in enumerate(requests):
-            timeout = request.get("timeout_seconds", 3)
-            if not 0 < timeout <= 3:
-                raise ValueError("Declared client timeout must be bounded by three seconds")
-            connection.settimeout(timeout)
-            raw = bytes.fromhex(request["wire_hex"])
-            if len(raw) > 65536:
-                raise ValueError("Declared wire request exceeds 64 KiB")
-            started = time.monotonic_ns()
-            receipt = {"pid": os.getpid(), "uid": os.geteuid(), "gid": os.getegid(),
-                "path": request["path"], "started_ns": started,
-                "connection_identity": identity, "connection_reused": index > 0,
-                "request_wire_bytes": len(raw), "request_wire_sha256": hashlib.sha256(raw).hexdigest(),
-                "request_bytes": 0, "request_sha256": hashlib.sha256(b"").hexdigest(),
-                "error": None}
-            prior_chunks = len(peer.chunks)
-            peer.current_response = {}
-            try:
-                connection.sendall(raw)
-                sent_wire.extend(raw)
-                receipt["request_sent_ns"] = time.monotonic_ns()
-                if request.get("abort_after_first_receive") is True:
-                    peer.receive()
-                    header, boundary, entity = peer.raw.partition(b"\r\n\r\n")
-                    first_line = header.split(b"\r\n", 1)[0].split()
-                    lengths = [line.split(b":", 1)[1].strip() for line in header.split(b"\r\n")[1:]
-                               if line.split(b":", 1)[0].lower() == b"content-length"]
-                    complete = bool(boundary and len(lengths) == 1 and lengths[0].isdigit()
-                                    and len(entity) == int(lengths[0]))
-                    receipt.update(status=int(first_line[1]) if boundary and len(first_line) >= 2 else None,
-                        headers=header.decode("ascii").split("\r\n")[1:] if boundary else [],
-                        entity_bytes=len(entity), entity_sha256=hashlib.sha256(entity).hexdigest(),
-                        actual_message_complete=complete, framing="intentional_client_reset_after_received_bytes",
-                        intentional_client_reset=True, actual_linger_option=[1, 0])
-                    connection.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
-                    connection.close()
-                    receipt["actual_reset_socket_close_completed_ns"] = time.monotonic_ns()
-                else:
-                    receipt.update(peer.response())
-            except (OSError, EOFError, ValueError) as error:
-                if peer.current_response:
-                    receipt.update(peer.current_response, entity_bytes=len(peer.pending),
-                                   entity_sha256=hashlib.sha256(peer.pending).hexdigest())
-                receipt["error"] = {"type": type(error).__name__, "message": str(error)}
-            receipt.update(completed_ns=time.monotonic_ns(), tcp_eof_observed=peer.eof,
-                tcp_reset_observed=peer.reset, timeout_observed=peer.timeout,
-                actual_socket_recv_chunks=peer.chunks[prior_chunks:])
-            first = next((row for row in peer.chunks[prior_chunks:] if row["bytes"] > 0), None)
-            if first:
-                receipt["first_response_recv_completed_ns"] = first["completed_ns"]
+            receipt = capture_request(connection, peer, sent_wire, identity, index, request)
             rows.append(receipt)
             if receipt["error"] or not receipt["actual_message_complete"]:
                 break

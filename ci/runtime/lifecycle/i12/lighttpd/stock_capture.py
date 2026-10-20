@@ -20,10 +20,14 @@ import stat
 import subprocess
 import threading
 import time
+try:
+    from qualification import EXTERNAL_ROOT, storage_root
+except ModuleNotFoundError:
+    from ci.runtime.lifecycle.i12.lighttpd.qualification import EXTERNAL_ROOT, storage_root
 
 REPO = next((parent for parent in Path(__file__).resolve().parents
              if (parent / 'ci/runtime/lifecycle/i12/manifest.json').is_file()), Path('/mnt/src'))
-EXTERNAL = Path('/var/tmp/codex/ModSecurity-conector')
+EXTERNAL = EXTERNAL_ROOT
 PROFILES = ('off', 'safe', 'strict', 'all')
 BACKEND_LOG = 'backend.jsonl'
 EVENT_LOG = 'events.jsonl'
@@ -33,6 +37,8 @@ EMPTY_PATH = '/empty.txt'
 
 def sha(path):
     resolved = Path(path).resolve(strict=True)
+    if resolved.is_relative_to(EXTERNAL):
+        storage_root(EXTERNAL)
     allowed = (EXTERNAL, REPO, Path('/usr/lib/x86_64-linux-gnu'))
     if not any(resolved.is_relative_to(root) for root in allowed):
         raise ValueError('hash input outside declared capture/source/library roots')
@@ -66,6 +72,7 @@ def copy_tree(source, target):
 
 
 def private_root(path):
+    storage_root(EXTERNAL)
     """Reject aliases and permissive roots, including links in any ancestor."""
     path = Path(path).absolute()
     if '..' in path.parts or not path.is_relative_to(EXTERNAL):

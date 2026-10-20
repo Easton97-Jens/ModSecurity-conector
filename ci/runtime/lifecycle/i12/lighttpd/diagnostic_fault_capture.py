@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 
 
-def extend(source, sink_header):
+def validated_fault_inputs(source, sink_header):
     source, sink_header = Path(source), Path(sink_header)
     if source.resolve() != source or sink_header.resolve() != sink_header:
         raise ValueError("Fault sources must have physical paths")
@@ -38,6 +38,12 @@ def extend(source, sink_header):
     finish_output = source / finish_header.name
     if finish_output.exists() or finish_output.is_symlink():
         raise ValueError("Finish observer output must be fresh")
+    return runtime, destination, budget_header, budget_output, finish_header, finish_output
+
+
+def extend(source, sink_header):
+    source, sink_header = Path(source), Path(sink_header)
+    runtime, destination, budget_header, budget_output, finish_header, finish_output = validated_fault_inputs(source, sink_header)
     original = runtime.read_bytes()
     text = original.decode()
     finish_start = text.index("int msconnector_runtime_transaction_finish(\n")

@@ -166,6 +166,23 @@ def stage_object(staging, digest, raw, objects, used, total_maximum):
     return used
 
 
+def queue_children(raw, roots, pending, out_of_scope):
+    for child in nested_references(document(raw)):
+        if selected_child(child, roots):
+            pending.append((child, True))
+        else:
+            out_of_scope[unavailable_key(child)] = child
+
+
+def expand_seen(ref, follow, key, expanded, approved_missing, context):
+    if not follow or key in expanded or key in approved_missing:
+        return
+    maximum, snapshots, roots, pending, out_of_scope = context
+    raw, _, _ = resolved_snapshot(ref, maximum, snapshots)
+    expanded.add(key)
+    queue_children(raw, roots, pending, out_of_scope)
+
+
 def collect(seed, staging, maximum, total_maximum, snapshots):
     """Read only explicit SHA-bound references, including their JSON closure."""
     follow_default = seed.get("follow_json_references") is True
@@ -182,14 +199,8 @@ def collect(seed, staging, maximum, total_maximum, snapshots):
         ref, follow = pending.pop()
         key = unavailable_key(ref)
         if key in seen:
-            if follow and key not in expanded and key not in approved_missing:
-                raw, _, _ = resolved_snapshot(ref, maximum, snapshots)
-                expanded.add(key)
-                for child in nested_references(document(raw)):
-                    if selected_child(child, roots):
-                        pending.append((child, True))
-                    else:
-                        out_of_scope[unavailable_key(child)] = child
+            expand_seen(ref, follow, key, expanded, approved_missing,
+                        (maximum, snapshots, roots, pending, out_of_scope))
             continue
         seen.add(key)
         if len(seen) > ENTRY_LIMIT:
@@ -206,11 +217,7 @@ def collect(seed, staging, maximum, total_maximum, snapshots):
         used = stage_object(staging, digest, raw, objects, used, total_maximum)
         if follow:
             expanded.add(key)
-            for child in nested_references(document(raw)):
-                if selected_child(child, roots):
-                    pending.append((child, True))
-                else:
-                    out_of_scope[unavailable_key(child)] = child
+            queue_children(raw, roots, pending, out_of_scope)
     unknown_exceptions = set(approved_missing) - seen
     if unknown_exceptions:
         raise ValueError("Unused unavailable-reference exceptions are forbidden")

@@ -39,6 +39,21 @@ def parser_index(run, q):
     return result
 
 
+def producer_receipts(refs, q):
+    receipts, errors = [], []
+    for ref in refs:
+        if ref.get("role") not in ("client_process", "backend_process", "parser_process", "cleanup_observer", "native_api"):
+            continue
+        try:
+            q.ORACLES.verify_reference(ref)
+        except (ValueError, OSError) as error:
+            errors.append({"reference": ref, "error": str(error)})
+        else:
+            if ref not in receipts:
+                receipts.append(ref)
+    return receipts, errors
+
+
 def observations(proposals, q):
     output = []
     for item in proposals:
@@ -46,17 +61,7 @@ def observations(proposals, q):
         refs = list(packet.get("measurement_evidence", []))
         for value in packet.get("observations", {}).values():
             refs.extend(value.get("evidence", []))
-        receipts, errors = [], []
-        for ref in refs:
-            if ref.get("role") not in ("client_process", "backend_process", "parser_process", "cleanup_observer", "native_api"):
-                continue
-            try:
-                q.ORACLES.verify_reference(ref)
-            except (ValueError, OSError) as error:
-                errors.append({"reference": ref, "error": str(error)})
-            else:
-                if ref not in receipts:
-                    receipts.append(ref)
+        receipts, errors = producer_receipts(refs, q)
         oracle_path = Path(item["reference"]["path"].replace("-packet-proposal.json", "-oracle-proposal.json"))
         output.append({"packet_proposal": item["reference"], "oracle_proposal": q.reference(oracle_path),
                        "execution_kind": packet["execution_kind"],

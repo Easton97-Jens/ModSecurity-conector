@@ -17,6 +17,18 @@ import time
 from urllib.parse import urlsplit
 from lighttpd_capture_response import response_decode
 
+TASK_ROOT = Path('/task')
+
+
+def task_file(value):
+    path = Path(value)
+    if not path.is_absolute() or '..' in path.parts or not path.is_relative_to(TASK_ROOT):
+        raise ValueError('fixture file must remain inside its private task directory')
+    if any(part.is_symlink() for part in (*path.parents, path)):
+        raise ValueError('fixture file aliases forbidden')
+    return path
+
+
 arguments=sys.argv[1:]
 method='GET';headers=[];body=b'';header_file=None;body_file=None;writeout=None;url=None;abort_mode=None;framing_case=None;header_boundary=None
 index=0
@@ -36,9 +48,9 @@ while index<len(arguments):
         elif argument=='--i12-abort-after-first-entity':
             if value not in ('reset','close','signal'):raise SystemExit('unknown explicit fixture abort mode')
             abort_mode=value
-        elif argument=='-D':header_file=Path(value)
+        elif argument=='-D':header_file=task_file(value)
         elif argument=='-X':method=value
-        elif argument=='-o':body_file=Path(value)
+        elif argument=='-o':body_file=task_file(value)
         elif argument=='-w':writeout=value
         elif argument=='-H':
             name,separator,content=value.partition(':')
@@ -47,7 +59,7 @@ while index<len(arguments):
             else:raise SystemExit('unsupported fixture header form')
         else:
             if not value.startswith('@'):raise SystemExit('fixture requires materialized body file')
-            body=Path(value[1:]).read_bytes()
+            body=task_file(value[1:]).read_bytes()
         continue
     if argument.startswith('http://') and url is None:
         url=argument;index+=1;continue
@@ -86,6 +98,8 @@ if framing_case:
     request=request.replace(original_length,replacement)
 root=Path('/task/client');root.mkdir(mode=0o700,exist_ok=True)
 token=os.environ['I12_APACHE_CLIENT_TOKEN']
+if not token or any(character not in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_' for character in token):
+    raise ValueError('fixture client token must be one safe filename component')
 received=bytearray()
 recv_chunks=[]
 receipt={'pid':os.getpid(),'argv':arguments,'method':method,'path':path,

@@ -21,14 +21,14 @@ static int observation_file(const char *path) {
     if (path == NULL || strncmp(path, "/task/", 6U) != 0 || strlen(path) >= sizeof(copy)) return -1;
     memcpy(copy, path + 6U, strlen(path + 6U) + 1U);
     int parent = open("/task", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
-    char *part = copy;
+    const char *part = copy;
     for (;;) {
         struct stat details;
+        const char *slash = strchr(part, '/');
+        if (slash != NULL) copy[slash - copy] = '\0';
         if (parent < 0 || fstat(parent, &details) != 0 || details.st_uid != geteuid() ||
-            (details.st_mode & 0777U) != 0700U) break;
-        char *slash = strchr(part, '/');
-        if (slash != NULL) *slash = '\0';
-        if (*part == '\0' || strcmp(part, ".") == 0 || strcmp(part, "..") == 0) break;
+            (details.st_mode & 0777U) != 0700U || *part == '\0' ||
+            strcmp(part, ".") == 0 || strcmp(part, "..") == 0) break;
         if (slash == NULL) {
             int fd = openat(parent, part, O_WRONLY | O_APPEND | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0600);
             (void)close(parent);
@@ -49,12 +49,12 @@ static int observation_file(const char *path) {
 }
 
 static unsigned int client_port(int socket_fd) {
-    struct sockaddr_in local;
+    struct sockaddr_in local = {0};
     socklen_t size = sizeof(local);
     if (getsockname(socket_fd, (struct sockaddr *)&local, &size) != 0 ||
         size != sizeof(local) || local.sin_family != AF_INET ||
         ntohl(local.sin_addr.s_addr) != INADDR_LOOPBACK || ntohs(local.sin_port) != 18154U) return UINT_MAX;
-    struct sockaddr_in peer;
+    struct sockaddr_in peer = {0};
     size = sizeof(peer);
     if (getpeername(socket_fd, (struct sockaddr *)&peer, &size) != 0 ||
         size != sizeof(peer) || peer.sin_family != AF_INET ||

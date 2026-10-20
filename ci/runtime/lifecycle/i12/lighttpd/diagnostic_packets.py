@@ -14,9 +14,11 @@ import re
 from types import SimpleNamespace
 
 
+FAULT_LOG = "fault.jsonl"
+FINISH_LOG = "finish.jsonl"
 AUDIT_LIMIT = 8 * 1024 * 1024
 AUDIT_MARKER = re.compile(r"(?m)^---([A-Za-z0-9]+)---([A-Z])--\r?$")
-AUDIT_RULE_ID = re.compile(r'\[id\s+"([0-9]+)"\]')
+AUDIT_RULE_ID = re.compile(r'\[id\s+"((?a:\d+))"\]')
 
 
 def qualification_module():
@@ -228,7 +230,7 @@ def _check_declared_response(context):
 
 def _check_boundary_fault(context):
     if context.resolution and context.resolution.get("kind") == "boundary_fault":
-        fault = rows(context.case_dir / "fault.jsonl")
+        fault = rows(context.case_dir / FAULT_LOG)
         declaration = context.case["predeclared_fault_contract"]
         context.checks["separately_recorded_fault_once"] = len(fault) == 1
         context.checks["real_sdk_result_separate"] = bool(fault) and fault[0]["real_sdk_return"] == 1
@@ -280,7 +282,7 @@ def _check_sink_write_failure(context):
 
 def _check_sink_fault(context):
     if context.case.get("sink_fault"):
-        faults = rows(context.case_dir / "fault.jsonl")
+        faults = rows(context.case_dir / FAULT_LOG)
         context.checks["declared_physical_stdio_boundary_observed_once"] = len(faults) == 1 and faults[0].get("operation") == context.case["sink_fault"]
         context.checks["stdio_boundary_not_claimed_as_kernel_failure"] = bool(faults) and faults[0].get("kernel_failure_claimed") is False
         if context.case["sink_fault"] in ("write", "short_write", "flush"):
@@ -294,7 +296,7 @@ def _check_sink_fault(context):
 
 def _check_pointer_fault(context):
     if context.case.get("pointer_fault"):
-        faults = rows(context.case_dir / "fault.jsonl")
+        faults = rows(context.case_dir / FAULT_LOG)
         context.checks["explicit_caller_pointer_substitution_once"] = len(faults) == 1 and faults[0].get("boundary") == context.case["pointer_fault"] and faults[0].get("native_sdk_failure_claimed") is False
 
 
@@ -375,10 +377,10 @@ def _observe_native_calls(context):
 def _observe_first_cause(context):
     first_cause_proofs = [context.native_ref]
     if context.actual_finish:
-        first_cause_proofs.append(context.q.reference(context.case_dir / "finish.jsonl", "native_api"))
-    fault_rows = rows(context.case_dir / "fault.jsonl")
+        first_cause_proofs.append(context.q.reference(context.case_dir / FINISH_LOG, "native_api"))
+    fault_rows = rows(context.case_dir / FAULT_LOG)
     if fault_rows:
-        context.packet["test_boundary_fault_evidence"] = [context.q.reference(context.case_dir / "fault.jsonl", "runtime_boundary_fault")]
+        context.packet["test_boundary_fault_evidence"] = [context.q.reference(context.case_dir / FAULT_LOG, "runtime_boundary_fault")]
     context.observed("native_intervention_or_first_cause", {"interventions": [r for r in context.main if r["function"] == "native_intervention" and r["edge"] == "return"],
         "technical_fault_rows": [r for r in context.main if r.get("result") is not None and r["result"] < 0],
         "physical_first_cause_events": context.events, "physical_event_source": context.event_ref,
@@ -393,8 +395,8 @@ def _observe_eos_finish_and_cleanup_calls(context):
         "client_headers_complete_ns": context.client.get("headers_complete_recv_ns")}, context.host_ref, context.client_ref)
     context.inapplicable("mime_gate", "Stock-native modes none supply no native body MIME selection; response header mapping is independently observed.")
     finish_proofs = [context.native_ref]
-    if (context.case_dir / "finish.jsonl").is_file():
-        finish_proofs.append(context.q.reference(context.case_dir / "finish.jsonl", "native_api"))
+    if (context.case_dir / FINISH_LOG).is_file():
+        finish_proofs.append(context.q.reference(context.case_dir / FINISH_LOG, "native_api"))
     context.observed("finish_calls", {"runtime_finish": len(context.finish_entries) if context.actual_finish else context.counts["runtime_finish"],
         "runtime_finish_external_wrapped_calls": context.counts["runtime_finish"],
         "runtime_finish_actual_api_rows": context.actual_finish,
@@ -424,7 +426,7 @@ def _observe_transport_and_events(context):
     context.observed("physical_event_order", context.events, context.event_ref)
     context.packet["physical_event_parse_errors"] = context.event_parse_errors
     if context.case.get("sink_fault") or context.case.get("pointer_fault"):
-        context.packet["explicit_caller_or_stdio_fault_evidence"] = [context.q.reference(context.case_dir / "fault.jsonl", "runtime_boundary_fault"),
+        context.packet["explicit_caller_or_stdio_fault_evidence"] = [context.q.reference(context.case_dir / FAULT_LOG, "runtime_boundary_fault"),
             context.q.reference(context.case_dir / "host-error.log", "host_callback")]
     context.observed("terminal_event_count", sum(r.get("actual_action") == "deny" for r in context.events), context.event_ref)
 
@@ -468,8 +470,8 @@ def assemble(case_dir, attempt, preparation, identity, correction=None, resoluti
     events = [r for r in all_events if r.get("transaction_id") == transaction_id]
     backend = [json.loads(line) for line in receipt["backend_main_rows"]]
     all_backend = rows(case_dir / "backend.jsonl")
-    expected = (resolution["expected_oracle"] if resolution else correction["expected_oracle"] if correction else
-                original["selected_requirement"]["expected_oracle"])
+    selected_oracle = resolution or correction or original["selected_requirement"]
+    expected = selected_oracle["expected_oracle"]
     packet = q.packet_template(case_id, {**identity, "effective_config_sha256": receipt["effective_config_sha256"]})
     packet["rules_sha256"] = receipt["rules_sha256"]
     packet["execution_observed"] = receipt["execution_observed"]
@@ -478,7 +480,7 @@ def assemble(case_dir, attempt, preparation, identity, correction=None, resoluti
     expected_rule, audit_text, rule_observed, event_fields_present = _matching_oracle_events(
         case_dir, events, expected, transaction_id)
     counts = Counter(r["function"] for r in main if r["edge"] == "enter")
-    actual_finish = [r for r in rows(case_dir / "finish.jsonl") if r.get("transaction_id") == transaction_id
+    actual_finish = [r for r in rows(case_dir / FINISH_LOG) if r.get("transaction_id") == transaction_id
                      and transaction_id is not None]
     finish_entries = [r for r in actual_finish if r["edge"] == "enter"]
     finish_returns = [r for r in actual_finish if r["edge"] == "return"]

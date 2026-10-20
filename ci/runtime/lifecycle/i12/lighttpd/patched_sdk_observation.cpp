@@ -4,24 +4,34 @@
 #include <modsecurity/rules_set.h>
 #include <modsecurity/transaction.h>
 #include <cerrno>
-#include <cstdio>
 #include <cstring>
+#include <locale>
+#include <sstream>
 #include <string>
+#include <string_view>
 
 static bool quoted_metadata(const std::string& value, std::string& output) {
     if (value.size() > 256U) return false;
     output = "\"";
     for (unsigned char byte : value) {
         if (byte < 32U || byte >= 127U || byte == '"' || byte == '\\') {
-            char escaped[7];
-            (void)std::snprintf(escaped, sizeof(escaped), "\\u%04x", byte);
-            output += escaped;
+            constexpr std::string_view hex = "0123456789abcdef";
+            output += "\\u00";
+            output += hex[byte >> 4U];
+            output += hex[byte & 15U];
         } else {
             output += static_cast<char>(byte);
         }
     }
     output += '"';
     return true;
+}
+
+static bool expected_version(const char* identity) {
+    constexpr char expected[] = "ModSecurity v3.0.14";
+    constexpr size_t length = sizeof(expected) - 1U;
+    const char* version = identity == nullptr ? nullptr : std::strstr(identity, expected);
+    return version != nullptr && (version[length] == '\0' || version[length] == ' ' || version[length] == '(');
 }
 
 extern "C" int msconnector_lifecycle_sdk_mime_selection(
@@ -34,10 +44,7 @@ extern "C" int msconnector_lifecycle_sdk_mime_selection(
     }
     output[0] = '\0';
     const char* identity = modsecurity::msc_who_am_i(static_cast<modsecurity::ModSecurity*>(engine));
-    constexpr char expected[] = "ModSecurity v3.0.14";
-    constexpr size_t length = sizeof(expected) - 1U;
-    const char* version = identity == nullptr ? nullptr : std::strstr(identity, expected);
-    if (version == nullptr || (version[length] != '\0' && version[length] != ' ' && version[length] != '(')) {
+    if (!expected_version(identity)) {
         errno = saved;
         return -2;
     }
@@ -65,22 +72,28 @@ extern "C" int msconnector_lifecycle_sdk_mime_selection(
             types += encoded;
         }
         types += ']';
-        std::string qmime, qresponse, qrequest;
+        std::string qmime;
+        std::string qresponse;
+        std::string qrequest;
         if (quoted_metadata(mime, qmime) && quoted_metadata(raw_response, qresponse)
                 && quoted_metadata(raw_request, qrequest)) {
             const bool selected = policy.m_value.find(mime) != policy.m_value.end();
-            const int count = std::snprintf(output, capacity,
-                "{\"sdk_version\":\"3.0.14\",\"response_content_type\":%s,"
-                "\"response_header_content_type\":%s,\"request_header_content_type\":%s,"
-                "\"request_body_type\":%d,\"request_body_processor\":%d,"
-                "\"response_body_access\":%d,\"mime_policy_set\":%s,"
-                "\"mime_policy_clear\":%s,\"mime_types\":%s,\"mime_selected\":%s}",
-                qmime.c_str(), qresponse.c_str(), qrequest.c_str(),
-                static_cast<int>(native->m_requestBodyType), static_cast<int>(native->m_requestBodyProcessor),
-                static_cast<int>(native->m_rules->m_secResponseBodyAccess),
-                policy.m_set ? "true" : "false", policy.m_clear ? "true" : "false",
-                types.c_str(), selected ? "true" : "false");
-            if (count > 0 && static_cast<size_t>(count) < capacity) result = 1;
+            std::ostringstream json;
+            json.imbue(std::locale::classic());
+            json << R"({"sdk_version":"3.0.14","response_content_type":)" << qmime
+                 << R"(,"response_header_content_type":)" << qresponse
+                 << R"(,"request_header_content_type":)" << qrequest
+                 << R"(,"request_body_type":)" << static_cast<int>(native->m_requestBodyType)
+                 << R"(,"request_body_processor":)" << static_cast<int>(native->m_requestBodyProcessor)
+                 << R"(,"response_body_access":)" << static_cast<int>(native->m_rules->m_secResponseBodyAccess)
+                 << R"(,"mime_policy_set":)" << (policy.m_set ? "true" : "false")
+                 << R"(,"mime_policy_clear":)" << (policy.m_clear ? "true" : "false")
+                 << R"(,"mime_types":)" << types
+                 << R"(,"mime_selected":)" << (selected ? "true" : "false") << '}';
+            const std::string encoded = json.str();
+            const size_t count = encoded.copy(output, capacity - 1U);
+            output[count] = '\0';
+            if (!encoded.empty() && encoded.size() < capacity) result = 1;
         }
     }
     errno = saved;

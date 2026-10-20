@@ -10,6 +10,8 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/uio.h>
+#include <sys/ioctl.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -20,14 +22,14 @@ static int observation_file(const char *path) {
     if (path == NULL || strncmp(path, "/task/", 6U) != 0 || strlen(path) >= sizeof(copy)) return -1;
     memcpy(copy, path + 6U, strlen(path + 6U) + 1U);
     int parent = open("/task", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
-    char *part = copy;
+    const char *part = copy;
     for (;;) {
         struct stat details;
+        const char *slash = strchr(part, '/');
+        if (slash != NULL) copy[slash - copy] = '\0';
         if (parent < 0 || fstat(parent, &details) != 0 || details.st_uid != geteuid() ||
-            (details.st_mode & 0777U) != 0700U) break;
-        char *slash = strchr(part, '/');
-        if (slash != NULL) *slash = '\0';
-        if (*part == '\0' || strcmp(part, ".") == 0 || strcmp(part, "..") == 0) break;
+            (details.st_mode & 0777U) != 0700U || *part == '\0' ||
+            strcmp(part, ".") == 0 || strcmp(part, "..") == 0) break;
         if (slash == NULL) {
             int fd = openat(parent, part, O_WRONLY | O_APPEND | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0600);
             (void)close(parent);
@@ -48,8 +50,6 @@ static int observation_file(const char *path) {
 }
 
 
-#include <sys/uio.h>
-#include <sys/ioctl.h>
 extern ssize_t __real_writev(int, const struct iovec *, int);
 extern ssize_t __real_write(int, const void *, size_t);
 extern ssize_t __real_sendfile64(int, int, off64_t *, size_t);
@@ -57,6 +57,8 @@ static unsigned char configured[65536];
 static unsigned char shrunk[65536];
 
 static int selected_socket(int fd, struct sockaddr_in *local, struct sockaddr_in *peer) {
+    memset(local, 0, sizeof(*local));
+    memset(peer, 0, sizeof(*peer));
     const char *selected = getenv("MSCONNECTOR_LIGHTTPD_NETWORK_HOST_PORT");
     if (selected == NULL) return 0;
     char *end;
@@ -98,7 +100,8 @@ static void record_writev(int fd, size_t requested, ssize_t result, int saved_er
 
 ssize_t __wrap_writev(int fd, const struct iovec *vectors, int count) {
     int incoming_errno = errno;
-    struct sockaddr_in local, peer;
+    struct sockaddr_in local;
+    struct sockaddr_in peer;
     int selected = selected_socket(fd, &local, &peer);
     if (selected && fd >= 0 && fd < 65536 && !configured[fd]) {
         /* Explicit transport fixture: real socket option, never fake syscall result. */
@@ -120,7 +123,8 @@ ssize_t __wrap_writev(int fd, const struct iovec *vectors, int count) {
 
 ssize_t __wrap_write(int fd, const void *buffer, size_t count) {
     int incoming_errno = errno;
-    struct sockaddr_in local, peer;
+    struct sockaddr_in local;
+    struct sockaddr_in peer;
     int selected = selected_socket(fd, &local, &peer);
     errno = incoming_errno;
     ssize_t result = __real_write(fd, buffer, count);
@@ -132,7 +136,8 @@ ssize_t __wrap_write(int fd, const void *buffer, size_t count) {
 
 ssize_t __wrap_sendfile64(int output, int input, off64_t *offset, size_t count) {
     int incoming_errno = errno;
-    struct sockaddr_in local, peer;
+    struct sockaddr_in local;
+    struct sockaddr_in peer;
     int selected = selected_socket(output, &local, &peer);
     int restore_buffer = 0;
     const char *shrink = getenv("MSCONNECTOR_LIGHTTPD_NETWORK_SHRINK_ON_PENDING");

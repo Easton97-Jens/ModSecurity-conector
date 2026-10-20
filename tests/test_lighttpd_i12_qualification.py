@@ -14,11 +14,11 @@ MODULE_DIRECTORY = tempfile.TemporaryDirectory(
 MODULE_TEMP = Path(MODULE_DIRECTORY.name)
 MODULE_EXTERNAL = MODULE_TEMP / "evidence"
 MODULE_EXTERNAL.mkdir(mode=0o700)
-os.environ["I12_TEST_ROOT"] = str(MODULE_EXTERNAL)
-SPEC = importlib.util.spec_from_file_location(
-    "lighttpd_adapter_test", ROOT / "ci/runtime/lifecycle/i12/lighttpd/qualification.py")
-Q = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(Q)
+with mock.patch.dict(os.environ, {"I12_TEST_ROOT": str(MODULE_EXTERNAL)}):
+    SPEC = importlib.util.spec_from_file_location(
+        "lighttpd_adapter_test", ROOT / "ci/runtime/lifecycle/i12/lighttpd/qualification.py")
+    Q = importlib.util.module_from_spec(SPEC)
+    SPEC.loader.exec_module(Q)
 
 
 class LighttpdQualificationTests(unittest.TestCase):

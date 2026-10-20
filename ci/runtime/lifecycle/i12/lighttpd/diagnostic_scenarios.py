@@ -49,6 +49,40 @@ def sequence_plan(case, cases, framework, framework_sha):
             "independent_sequence_sources": references}
 
 
+def request_headers(request):
+    headers = request.get("headers", [])
+    if isinstance(headers, dict):
+        return list(headers.items())
+    return [(item["name"], item["value"]) for item in headers]
+
+
+def plan_case(case_id, cases, contract, framework, framework_sha, catalog_file, rules_file, baseline_rules):
+    case = resolve_case(case_id, cases)
+    runner = case.get("runner_case") or contract.get("runner_case")
+    if runner and not runner.startswith("tests/"):
+        runner = "tests/cases/no-crs-baseline/" + runner
+    yaml_case = yaml.safe_load((framework / runner).read_text()) if runner else {}
+    request = yaml_case.get("request") or case.get("request")
+    sequence = sequence_plan(case, cases, framework, framework_sha)
+    if sequence:
+        return {"case_id": case_id, "original_selected_requirement": contract,
+            "original_expected_oracle": contract["expected_oracle"], "rules": baseline_rules,
+            "backend_marker": None, "independent_sources": [source_ref(catalog_file, framework_sha),
+                source_ref(rules_file, framework_sha), *sequence["independent_sequence_sources"]], **sequence}
+    if not request or "path" not in request:
+        return {"case_id": case_id, "reason": "Original catalog is not a concrete single-request HTTP fixture."}
+    headers = request_headers(request)
+    refs = [source_ref(catalog_file, framework_sha), source_ref(rules_file, framework_sha)]
+    if runner:
+        refs.append(source_ref(framework / runner, framework_sha))
+    return {"case_id": case_id, "original_selected_requirement": contract,
+        "canonical_request_case_id": case["case_id"], "original_expected_oracle": contract["expected_oracle"],
+        "request": {"method": request.get("method", "GET"), "path": request["path"], "headers": headers},
+        "rules": baseline_rules + "\n" + yaml_case.get("rules", ""),
+        "backend_marker": "block" if contract["expected_oracle"].get("phase") == 3 else None,
+        "independent_sources": refs, "reused_request_is_distinct_execution": True}
+
+
 def plan(framework, original, framework_sha, selected=None):
     catalog_file = framework / "tests/cases/no-crs-baseline/catalog.json"
     catalog = json.loads(catalog_file.read_text())
@@ -64,36 +98,8 @@ def plan(framework, original, framework_sha, selected=None):
         if case_id not in cases:
             unavailable.append({"case_id": case_id, "reason": "Original named diagnostic needs its own explicit fixture/oracle resolution."})
             continue
-        case = resolve_case(case_id, cases)
-        runner = case.get("runner_case") or contract.get("runner_case")
-        if runner and not runner.startswith("tests/"):
-            runner = "tests/cases/no-crs-baseline/" + runner
-        yaml_case = yaml.safe_load((framework / runner).read_text()) if runner else {}
-        request = yaml_case.get("request") or case.get("request")
-        sequence = sequence_plan(case, cases, framework, framework_sha)
-        if sequence:
-            planned.append({"case_id": case_id, "original_selected_requirement": contract,
-                "original_expected_oracle": contract["expected_oracle"], "rules": baseline_rules,
-                "backend_marker": None, "independent_sources": [source_ref(catalog_file, framework_sha),
-                    source_ref(rules_file, framework_sha), *sequence["independent_sequence_sources"]], **sequence})
-            continue
-        if not request or "path" not in request:
-            unavailable.append({"case_id": case_id, "reason": "Original catalog is not a concrete single-request HTTP fixture."})
-            continue
-        headers = request.get("headers", [])
-        if isinstance(headers, dict):
-            headers = list(headers.items())
-        else:
-            headers = [(item["name"], item["value"]) for item in headers]
-        refs = [source_ref(catalog_file, framework_sha), source_ref(rules_file, framework_sha)]
-        if runner:
-            refs.append(source_ref(framework / runner, framework_sha))
-        planned.append({"case_id": case_id, "original_selected_requirement": contract,
-            "canonical_request_case_id": case["case_id"], "original_expected_oracle": contract["expected_oracle"],
-            "request": {"method": request.get("method", "GET"), "path": request["path"], "headers": headers},
-            "rules": baseline_rules + "\n" + yaml_case.get("rules", ""),
-            "backend_marker": "block" if contract["expected_oracle"].get("phase") == 3 else None,
-            "independent_sources": refs, "reused_request_is_distinct_execution": True})
+        candidate = plan_case(case_id, cases, contract, framework, framework_sha, catalog_file, rules_file, baseline_rules)
+        (planned if "request" in candidate else unavailable).append(candidate)
     return {"route": "lighttpd-stock-native-control", "cases": planned, "unavailable": unavailable}
 
 

@@ -22,16 +22,38 @@ import time
 
 
 ROUTE = "lighttpd-stock-native-control"
+PROC = Path("/proc")
+TEXT_PLAIN = "text/plain"
+HEALTHY_NEIGHBOR = "/diagnostic/healthy-neighbor"
+HOST_BINARY = "/mnt/artifacts/bin/lighttpd"
+BACKEND_LOG = "backend.jsonl"
+EXTERNAL_ROOT = Path(os.environ.get("I12_TEST_ROOT", "/__i12_external_root_requires_I12_TEST_ROOT__")).absolute()
+RUN_ROOT = EXTERNAL_ROOT / "runs"
+READ_ROOTS = (Path("/task"), Path("/mnt"), EXTERNAL_ROOT, Path("/root/git/ModSecurity-conector"), Path("/usr"))
 
 
 def sha(path):
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    path = Path(path).resolve(strict=True)
+    if not any(path.is_relative_to(root) for root in READ_ROOTS):
+        raise ValueError("Hash input is outside approved source, image or task roots")
+    if any(part in (".git", ".ssh", ".aws") for part in path.parts):
+        raise ValueError("Sensitive directories are not diagnostic inputs")
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def validate_external_storage():
+    for directory in (EXTERNAL_ROOT.parent, EXTERNAL_ROOT):
+        details = directory.lstat()
+        if not stat.S_ISDIR(details.st_mode) or details.st_uid != os.geteuid() or details.st_mode & 0o022:
+            raise ValueError("External diagnostic storage must be private and current-user-owned")
 
 
 def physical_output(path, *, existing=False):
     path = path.absolute()
+    if path.is_relative_to(EXTERNAL_ROOT):
+        validate_external_storage()
     if (path.resolve() != path or not any(path.is_relative_to(root) for root in
-            (Path("/task"), Path("/var/tmp/codex/ModSecurity-conector/runs")))):
+            (Path("/task"), RUN_ROOT))):
         raise ValueError("Diagnostic output must be a physical task-owned absolute path")
     if path.exists() != existing:
         raise ValueError("Diagnostic output existence does not match its invocation scope")
@@ -54,7 +76,15 @@ def declared_cases(path):
 
 
 def write(path, value):
-    Path(path).write_text(json.dumps(value, indent=2) + "\n")
+    path = Path(path).absolute()
+    if path.is_relative_to(EXTERNAL_ROOT):
+        validate_external_storage()
+    if (path.resolve() != path or not any(path.is_relative_to(root) for root in (Path("/task"), RUN_ROOT))
+            or ".." in path.parts):
+        raise ValueError("JSON output must be a physical task-owned path")
+    if path.exists() and (not path.is_file() or path.stat().st_nlink != 1):
+        raise ValueError("Existing JSON output must be a single-link regular file")
+    path.write_text(json.dumps(value, indent=2) + "\n")
 
 
 def command(argv, directory, label, env=None):
@@ -66,6 +96,20 @@ def command(argv, directory, label, env=None):
     if result.returncode:
         raise RuntimeError(f"{label} failed: {result.returncode}")
     return result
+
+
+def copied_product_inputs(source, repository, stock):
+    inputs = {}
+    for path in source.rglob("*"):
+        if not path.is_file():
+            continue
+        original = repository / path.relative_to(source)
+        if sha(path) != sha(stock.regular(original)):
+            raise ValueError("Copied product bytes differ from current checkout")
+        mode = 493 if original.stat().st_mode & 0o111 else 420
+        path.chmod(mode)
+        inputs[str(path.relative_to(source))] = {"mode": mode, "sha256": sha(path)}
+    return inputs
 
 
 def materialize_current(args, stock):
@@ -91,16 +135,7 @@ def materialize_current(args, stock):
     if head != args.checkout_head:
         raise ValueError("Current checkout differs from explicitly selected product revision")
     tree = command(["git", "-C", args.repository, "rev-parse", "HEAD^{tree}"], args.output, "actual-tree").stdout.decode().strip()
-    inputs = {}
-    for path in source.rglob("*"):
-        if not path.is_file():
-            continue
-        original = args.repository / path.relative_to(source)
-        if sha(path) != sha(stock.regular(original)):
-            raise ValueError("Copied product bytes differ from current checkout")
-        mode = 493 if original.stat().st_mode & 0o111 else 420
-        path.chmod(mode)
-        inputs[str(path.relative_to(source))] = {"mode": mode, "sha256": sha(path)}
+    inputs = copied_product_inputs(source, args.repository, stock)
     snapshot = {"format": "i12-source-export-manifest-v1", "source_revision": head,
                 "git_tree": tree, "files": inputs, "gitlinks": {}}
     write(source / store.SNAPSHOT, snapshot)
@@ -112,7 +147,7 @@ def materialize_current(args, stock):
     write(args.output / "current-export-validation.json", {"identity": identity, "immutable_store_verification": verified})
     profile = registry.manifest["profiles"]["lighttpd"]
     observations = {name: value for name, value in profile["source_targets"].items()
-                    if name.startswith("lighttpd-") or name.startswith("ci/runtime/lifecycle/native-lifecycle-")}
+                    if name.startswith(("lighttpd-", "ci/runtime/lifecycle/native-lifecycle-"))}
     written = {}
     for prefix, entries in ((source, observations), (source / ".i12-capture/lighttpd", profile["capture_files"])):
         for name, value in entries.items():
@@ -311,7 +346,7 @@ def stop(actor, actual_host=()):
     signalled, forced = [], False
     if process.poll() is None:
         for record in actual_host:
-            proc = Path("/proc") / str(record["pid"])
+            proc = PROC / str(record["pid"])
             try:
                 token = (proc / "stat").read_text().rsplit(")", 1)[1].split()[19]
                 if token == record["starttime"]:
@@ -346,7 +381,7 @@ def ready(port, process):
 
 def snapshot(directory, label, executable):
     records = []
-    for proc in Path("/proc").iterdir():
+    for proc in PROC.iterdir():
         if not proc.name.isdigit():
             continue
         try:
@@ -372,6 +407,10 @@ def snapshot(directory, label, executable):
     return records
 
 
+def stop_backend(*_):
+    raise SystemExit(0)
+
+
 def backend(port, directory):
     sys.path.insert(0, "/mnt/fixtures")
     spec = importlib.util.spec_from_file_location("diagnostic_backend", "/mnt/fixtures/observed-backend.py")
@@ -381,57 +420,64 @@ def backend(port, directory):
     from http.server import HTTPServer
     module.Handler.body_bytes = b"diagnostic-native-response"
     case = json.loads((directory / "case.json").read_text())
-    headers = [("Content-Type", "text/plain")]
+    headers = [("Content-Type", TEXT_PLAIN)]
     if case.get("backend_marker"):
         headers.append(("X-Modsec-Upstream", case["backend_marker"]))
     module.Handler.fixture = module.ResponseFixture(200, tuple(headers))
     class DiagnosticBackend(module.Handler):
         def _send_fixture(self, *, include_body):
             selected = self.fixture
-            if self.path == "/diagnostic/healthy-neighbor":
-                self.fixture = module.ResponseFixture(200, (("Content-Type", "text/plain"),))
+            if self.path == HEALTHY_NEIGHBOR:
+                self.fixture = module.ResponseFixture(200, (("Content-Type", TEXT_PLAIN),))
             try:
                 delay = case.get("backend_chunk_delay_seconds", 0)
-                if delay and self.path != "/diagnostic/healthy-neighbor":
-                    if not 0 < delay <= 2:
-                        raise ValueError("Declared backend chunk delay exceeds bounded fixture scope")
-                    self.send_response(200)
-                    self.send_header("Content-Type", "text/plain")
-                    self.send_header("Content-Length", str(len(self.body_bytes)))
-                    self.end_headers()
-                    for payload in (self.body_bytes[:1], self.body_bytes[1:]):
-                        try:
-                            written = self.wfile.write(payload) if include_body else 0
-                            self.wfile.flush()
-                            event = {"actual_body_write_return": written, "actual_flush_returned": True}
-                        except (BrokenPipeError, ConnectionResetError) as error:
-                            event = {"actual_transport_exception": type(error).__name__}
-                        with (directory / "backend-transport.jsonl").open("a") as stream:
-                            stream.write(json.dumps({"pid": os.getpid(), "monotonic_ns": time.monotonic_ns(),
-                                "path": self.path, **event}) + "\n")
-                        time.sleep(delay)
+                if delay and self.path != HEALTHY_NEIGHBOR:
+                    self._send_delayed(include_body, delay)
                     return
-                if case.get("backend_short_length") and self.path != "/diagnostic/healthy-neighbor":
-                    self.send_response(200)
-                    self.send_header("Content-Type", "text/plain")
-                    self.send_header("Content-Length", str(len(self.body_bytes) + 9))
-                    self.end_headers()
-                    written = 0
-                    if include_body:
-                        written = self.wfile.write(self.body_bytes)
-                    self.wfile.flush()
-                    with (directory / "backend-transport.jsonl").open("a") as stream:
-                        stream.write(json.dumps({"pid": os.getpid(), "monotonic_ns": time.monotonic_ns(),
-                            "actual_body_write_return": written, "declared_content_length": len(self.body_bytes) + 9,
-                            "actual_flush_returned": True, "path": self.path}) + "\n")
-                    time.sleep(0.05)
-                    self.close_connection = True
+                if case.get("backend_short_length") and self.path != HEALTHY_NEIGHBOR:
+                    self._send_short(include_body)
                     return
                 super()._send_fixture(include_body=include_body)
             finally:
                 self.fixture = selected
+
+        def _send_delayed(self, include_body, delay):
+            if not 0 < delay <= 2:
+                raise ValueError("Declared backend chunk delay exceeds bounded fixture scope")
+            self.send_response(200)
+            self.send_header("Content-Type", TEXT_PLAIN)
+            self.send_header("Content-Length", str(len(self.body_bytes)))
+            self.end_headers()
+            for payload in (self.body_bytes[:1], self.body_bytes[1:]):
+                try:
+                    written = self.wfile.write(payload) if include_body else 0
+                    self.wfile.flush()
+                    event = {"actual_body_write_return": written, "actual_flush_returned": True}
+                except (BrokenPipeError, ConnectionResetError) as error:
+                    event = {"actual_transport_exception": type(error).__name__}
+                with (directory / "backend-transport.jsonl").open("a") as stream:
+                    stream.write(json.dumps({"pid": os.getpid(), "monotonic_ns": time.monotonic_ns(),
+                        "path": self.path, **event}) + "\n")
+                time.sleep(delay)
+
+        def _send_short(self, include_body):
+            self.send_response(200)
+            self.send_header("Content-Type", TEXT_PLAIN)
+            self.send_header("Content-Length", str(len(self.body_bytes) + 9))
+            self.end_headers()
+            written = 0
+            if include_body:
+                written = self.wfile.write(self.body_bytes)
+            self.wfile.flush()
+            with (directory / "backend-transport.jsonl").open("a") as stream:
+                stream.write(json.dumps({"pid": os.getpid(), "monotonic_ns": time.monotonic_ns(),
+                    "actual_body_write_return": written, "declared_content_length": len(self.body_bytes) + 9,
+                    "actual_flush_returned": True, "path": self.path}) + "\n")
+            time.sleep(0.05)
+            self.close_connection = True
+
     server = HTTPServer(("127.0.0.1", port), DiagnosticBackend)
-    signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(SystemExit(0)))
+    signal.signal(signal.SIGTERM, stop_backend)
     try:
         server.serve_forever(poll_interval=0.05)
     finally:
@@ -485,6 +531,15 @@ def file_window_point(path):
             "mode": details.st_mode & 0o777, "owner_uid": details.st_uid, "nlink": details.st_nlink}
 
 
+def loopback_url(port, request_path):
+    if not isinstance(port, int) or not 1 <= port <= 65535:
+        raise ValueError("Diagnostic loopback port must be an integer TCP port")
+    if not isinstance(request_path, str) or not request_path.startswith("/") or any(c in request_path for c in "\r\n"):
+        raise ValueError("Diagnostic request target must be an absolute HTTP path")
+    from urllib.parse import urlunsplit
+    return urlunsplit(("http", f"127.0.0.1:{port}", request_path, "", ""))
+
+
 def client(directory, label, port, request):
     if "raw_requests" in request:
         return wire_client(directory, label, port, request)
@@ -500,7 +555,7 @@ def client(directory, label, port, request):
         body_path = directory / (label + ".request-body")
         body_path.write_bytes(body)
         argv += ["--data-binary", "@" + str(body_path)]
-    argv += [f"http://127.0.0.1:{port}" + request["path"]]
+    argv += [loopback_url(port, request["path"])]
     actual = ["rtk", "proxy", *argv]
     completed = subprocess.run(actual, env=environment, capture_output=True, timeout=30)
     (directory / f"{label}.stdout").write_bytes(completed.stdout)
@@ -520,7 +575,7 @@ def unsupported_body_configuration_probes(directory, runtime, config):
         variant_config = directory / (name + "-streaming-lighttpd.conf")
         variant_runtime.write_text(runtime.read_text().replace(name + "_body_mode=none", name + "_body_mode=streaming", 1))
         variant_config.write_text(config.read_text().replace(str(runtime), str(variant_runtime), 1))
-        argv = ["rtk", "proxy", "/mnt/artifacts/bin/lighttpd", "-m", "/mnt/artifacts/modules", "-tt", "-f", str(variant_config)]
+        argv = ["rtk", "proxy", HOST_BINARY, "-m", "/mnt/artifacts/modules", "-tt", "-f", str(variant_config)]
         result = subprocess.run(argv, capture_output=True, timeout=15)
         stdout = directory / (name + "-streaming.stdout")
         stderr = directory / (name + "-streaming.stderr")
@@ -532,6 +587,16 @@ def unsupported_body_configuration_probes(directory, runtime, config):
             "stdout_sha256": sha(stdout), "stderr_sha256": sha(stderr)})
     write(directory / "unsupported-body-configuration-probes.json", records)
     return records
+
+
+def append_host_cleanup(receipt):
+    for record in receipt.get("actual_host", []):
+        proc = PROC / str(record["pid"])
+        try:
+            gone = (proc / "stat").read_text().rsplit(")", 1)[1].split()[19] != record["starttime"]
+        except FileNotFoundError:
+            gone = True
+        receipt["actual_host_cleanup"].append({"pid": record["pid"], "starttime": record["starttime"], "same_process_gone": gone})
 
 
 def run_case(output, case):
@@ -572,7 +637,7 @@ def run_case(output, case):
         "MSCONNECTOR_LIGHTTPD_DIAGNOSTIC_CONTROL_LOG": str(directory / "control.jsonl"),
         "MSCONNECTOR_LIGHTTPD_DIAGNOSTIC_FAULT_LOG": str(directory / "fault.jsonl"),
         "MSCONNECTOR_LIFECYCLE_RUN": actual_run_id, "MSCONNECTOR_LIFECYCLE_PROFILE": ROUTE,
-        "MSCONNECTOR_LIFECYCLE_CASE": case["case_id"], "MSCONNECTOR_APACHE_BACKEND_CAPTURE": str(directory / "backend.jsonl")}
+        "MSCONNECTOR_LIFECYCLE_CASE": case["case_id"], "MSCONNECTOR_APACHE_BACKEND_CAPTURE": str(directory / BACKEND_LOG)}
     actors, receipt = [], {"case_id": case["case_id"], "run_scoped_case_id": f'I12::{ROUTE}::{case["case_id"]}',
         "leg_id": ROUTE, "actual_run_id": actual_run_id, "uid": os.getuid(), "gid": os.getgid(), "execution_observed": False,
         "effective_config_sha256": sha(config), "rules_sha256": sha(rules), "case_contract": case}
@@ -583,7 +648,7 @@ def run_case(output, case):
                          "--port", backend_port, "--output", directory], environment)
         actors.append(("backend", upstream))
         ready(backend_port, upstream[0])
-        host = start(directory, "host", ["/mnt/artifacts/bin/lighttpd", "-D", "-m", "/mnt/artifacts/modules", "-f", config], environment)
+        host = start(directory, "host", [HOST_BINARY, "-D", "-m", "/mnt/artifacts/modules", "-f", config], environment)
         actors.append(("host", host))
         if case.get("expected_startup_failure") is True:
             receipt["actual_startup_failure"] = {"host_process_waited_exit": host[0].wait(timeout=10),
@@ -591,7 +656,7 @@ def run_case(output, case):
                 "reason": "Declared startup-boundary control waits for actual host termination; no readiness connection or HTTP request is sent."}
             return receipt
         ready(port, host[0])
-        receipt["actual_host"] = snapshot(directory, "host", Path("/mnt/artifacts/bin/lighttpd"))
+        receipt["actual_host"] = snapshot(directory, "host", Path(HOST_BINARY))
         prefix = () if case.get("sequence_from_wire") else case.get("sequence_prefix", ())
         receipt["sequence_prefix"] = [client(directory, case["case_id"] + f"-prefix-{index}", port, request)
                                       for index, request in enumerate(prefix)]
@@ -605,14 +670,14 @@ def run_case(output, case):
         receipt["sequence_prefix"].extend(receipt["main"].get("prefix_receipts", []))
         receipt["execution_observed"] = True
         time.sleep(0.05)
-        backend_rows = (directory / "backend.jsonl").read_text().splitlines() if (directory / "backend.jsonl").exists() else []
+        backend_rows = (directory / BACKEND_LOG).read_text().splitlines() if (directory / BACKEND_LOG).exists() else []
         receipt["backend_main_rows"] = [line for line in backend_rows if
             receipt["main"]["started_ns"] <= json.loads(line)["monotonic_ns"] <= receipt["main"]["completed_ns"]]
-        neighbor_request = case.get("neighbor_request", {"path": "/diagnostic/healthy-neighbor"})
+        neighbor_request = case.get("neighbor_request", {"path": HEALTHY_NEIGHBOR})
         receipt["neighbor"] = client(directory, case["case_id"] + "-neighbor", port, neighbor_request)
         receipt["sequence_suffix"] = [client(directory, case["case_id"] + f"-suffix-{index}", port, request)
                                       for index, request in enumerate(case.get("sequence_suffix", ()))]
-        receipt["after_main_host"] = snapshot(directory, "host-after", Path("/mnt/artifacts/bin/lighttpd"))
+        receipt["after_main_host"] = snapshot(directory, "host-after", Path(HOST_BINARY))
     except RuntimeError as error:
         if case.get("expected_startup_failure") is not True:
             raise
@@ -623,13 +688,7 @@ def run_case(output, case):
         receipt["actors_cleanup"] = {label: stop(actor, receipt.get("actual_host", ()) if label == "host" else ())
                                      for label, actor in reversed(actors)}
         receipt["actual_host_cleanup"] = []
-        for record in receipt.get("actual_host", []):
-            proc = Path("/proc") / str(record["pid"])
-            try:
-                gone = (proc / "stat").read_text().rsplit(")", 1)[1].split()[19] != record["starttime"]
-            except FileNotFoundError:
-                gone = True
-            receipt["actual_host_cleanup"].append({"pid": record["pid"], "starttime": record["starttime"], "same_process_gone": gone})
+        append_host_cleanup(receipt)
         listeners = Path("/proc/net/tcp").read_text().splitlines()[1:]
         receipt["listeners_after_cleanup"] = [line for line in listeners if line.split()[3] == "0A" and
             any(line.split()[1].endswith(f":{target:04X}") for target in (port, backend_port))]

@@ -22,9 +22,6 @@ def configured_external_root():
     declared = os.environ.get("I12_TEST_ROOT")
     if declared:
         return Path(declared).absolute()
-    temporary = os.environ.get("TMPDIR")
-    if temporary and Path(temporary).name == "tmp":
-        return Path(temporary).absolute().parent
     return UNCONFIGURED_EXTERNAL_ROOT
 
 
@@ -185,6 +182,23 @@ def packet_validator(packet):
         raise ValueError("No selected lighttpd execution-kind validator") from exc
 
 
+def qualification_destination(output_dir):
+    destination = Path(output_dir)
+    external = destination.absolute().is_relative_to(EXTERNAL_ROOT)
+    if (".." in destination.parts or not (external
+            or destination.absolute().is_relative_to(REPOSITORY / "reports/testing"))):
+        raise ValueError("Qualification output must belong to the external run or testing report root")
+    if external:
+        storage_root(EXTERNAL_ROOT)
+    if destination.exists() or destination.is_symlink():
+        raise ValueError("Current qualification output must be a fresh physical directory")
+    for parent in destination.absolute().parents:
+        if parent.is_symlink():
+            raise ValueError("Symlink qualification output parent")
+    destination.mkdir(parents=True, mode=0o700)
+    return destination
+
+
 def qualify(packet_proposal_path, oracle_record_path, root_review_path, output_dir):
     """Require a separate Root review, then call the unchanged shared validators."""
     packet, packet_ref = _read_physical(packet_proposal_path)
@@ -209,19 +223,7 @@ def qualify(packet_proposal_path, oracle_record_path, root_review_path, output_d
     if not oracle_review["resolved"] or oracle_review["category"] == "UNSUPPORTED_CAPABILITY":
         raise ValueError("A qualified host verdict requires a resolved applicable oracle")
     packet = reviewed_proposal(packet, review)
-    destination = Path(output_dir)
-    external = destination.absolute().is_relative_to(EXTERNAL_ROOT)
-    if (".." in destination.parts or not (external
-            or destination.absolute().is_relative_to(REPOSITORY / "reports/testing"))):
-        raise ValueError("Qualification output must belong to the external run or testing report root")
-    if external:
-        storage_root(EXTERNAL_ROOT)
-    if destination.exists() or destination.is_symlink():
-        raise ValueError("Current qualification output must be a fresh physical directory")
-    for parent in destination.absolute().parents:
-        if parent.is_symlink():
-            raise ValueError("Symlink qualification output parent")
-    destination.mkdir(parents=True, mode=0o700)
+    destination = qualification_destination(output_dir)
     packet_path = destination / "reviewed-packet.json"
     _exclusive_json(packet_path, packet)
     validator = packet_validator(packet)

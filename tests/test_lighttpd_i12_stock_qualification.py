@@ -28,6 +28,22 @@ PACKET = load('stock_packet')
 
 
 class StockOriginalQualificationTests(unittest.TestCase):
+    def test_generated_response_module_decodes_real_chunked_framing(self):
+        with tempfile.TemporaryDirectory(prefix='stock-decoder-', dir=FIXTURES.EXTERNAL) as name:
+            path = Path(name) / 'lighttpd_capture_response.py'
+            path.write_text(FIXTURES.response_helper_text())
+            module_spec = importlib.util.spec_from_file_location('generated_stock_decoder', path)
+            module = importlib.util.module_from_spec(module_spec)
+            module_spec.loader.exec_module(module)
+            header = b'HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n'
+            observed, actual_header, entity = module.response_decode(
+                header + b'3\r\nabc\r\n2\r\nde\r\n0\r\n\r\n')
+            self.assertEqual(actual_header, header)
+            self.assertEqual(entity, b'abcde')
+            self.assertEqual(observed['entity_bytes'], 5)
+            self.assertEqual(observed['framing']['kind'], 'chunked')
+            self.assertTrue(observed['framing']['complete'])
+
     def test_unreviewed_case_cannot_receive_generic_allow_fixture(self):
         with self.assertRaisesRegex(ValueError, 'separately reviewed'):
             FIXTURES.fixture('NEED-invalid-native-return')
@@ -36,6 +52,22 @@ class StockOriginalQualificationTests(unittest.TestCase):
         path = Path('/etc/passwd')
         with self.assertRaisesRegex(ValueError, 'outside declared'):
             PACKET.sha(path)
+
+    def test_fixture_hash_rejects_outside_source_and_capture_roots(self):
+        with self.assertRaisesRegex(ValueError, 'outside declared'):
+            FIXTURES.sha(Path('/etc/passwd'))
+
+    def test_raw_client_rejects_output_outside_private_task_before_socket(self):
+        with tempfile.TemporaryDirectory(prefix='stock-client-path-', dir=FIXTURES.EXTERNAL) as name:
+            directory = Path(name)
+            source = ROOT / 'ci/runtime/lifecycle/i12/lighttpd/stock_raw_client.py'
+            client = directory / 'client.py'
+            client.write_text(source.read_text())
+            (directory / 'lighttpd_capture_response.py').write_text(FIXTURES.response_helper_text())
+            completed = subprocess.run(['rtk', 'proxy', sys.executable, '-B', str(client),
+                '-D', '/etc/passwd'], capture_output=True, timeout=10)
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn(b'private task directory', completed.stderr)
 
     def test_report_output_rejects_source_checkout(self):
         path = ROOT / 'not-runtime-evidence.json'
@@ -98,7 +130,9 @@ class StockOriginalQualificationTests(unittest.TestCase):
             directory = Path(name)
             source = ROOT / 'ci/runtime/lifecycle/i12/lighttpd/stock_raw_client.py'
             client = directory / 'client.py'
-            client.write_text(source.read_text().replace("Path('/task/client')", 'Path(' + repr(str(directory / 'receipts')) + ')'))
+            client_source = source.read_text().replace("Path('/task/client')", 'Path(' + repr(str(directory / 'receipts')) + ')')
+            client_source = client_source.replace("TASK_ROOT = Path('/task')", 'TASK_ROOT = Path(' + repr(str(directory)) + ')')
+            client.write_text(client_source)
             (directory / 'lighttpd_capture_response.py').write_text(FIXTURES.response_helper_text())
             listener = socket.socket()
             listener.bind(('127.0.0.1', 0))
@@ -170,8 +204,9 @@ class StockOriginalQualificationTests(unittest.TestCase):
             PACKET.selected_scope([row], 100, 150)
 
     def test_multiple_main_allocations_are_rejected(self):
+        rows = [self.constructor(9, 101), self.constructor(50, 102)]
         with self.assertRaisesRegex(ValueError, 'one typed main allocation'):
-            PACKET.selected_scope([self.constructor(9, 101), self.constructor(50, 102)], 100, 150)
+            PACKET.selected_scope(rows, 100, 150)
 
     def test_failed_constructor_absence_requires_actual_output_scalar(self):
         row = self.constructor(9, 101)
@@ -212,7 +247,7 @@ class StockOriginalQualificationTests(unittest.TestCase):
 
     def test_event_limit_relocation_remains_valid_launcher_python(self):
         source = FIXTURES._launch_caller_and_transport(
-            "config = 'default_error_status=502'", 'event_json_limit',
+            "config = 'default_error_status=502'",
             {'configured_event_json_limit': 512})
         namespace = {}
         exec(compile(source, '<bounded-event-config>', 'exec'), namespace)

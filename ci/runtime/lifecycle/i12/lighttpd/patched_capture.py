@@ -17,6 +17,7 @@ from pathlib import Path
 import re
 import shutil
 import signal
+import stat
 import socket
 import subprocess
 import sys
@@ -24,17 +25,28 @@ import threading
 import time
 
 TEXT_PLAIN = "text/plain"
-EXTERNAL_ROOT = Path("/var/tmp/codex/ModSecurity-conector")
+EXTERNAL_ROOT = Path(os.environ.get("I12_TEST_ROOT", "/__i12_external_root_requires_I12_TEST_ROOT__")).absolute()
+PROC_ROOT = Path("/proc")
+
+
+def validate_storage(path, writing):
+    if writing and path.is_relative_to(EXTERNAL_ROOT):
+        for directory in (EXTERNAL_ROOT.parent, EXTERNAL_ROOT):
+            storage = directory.lstat()
+            if (not stat.S_ISDIR(storage.st_mode) or storage.st_uid != os.geteuid()
+                    or storage.st_mode & 0o022):
+                raise ValueError("Evidence storage must be caller-owned without shared write access")
 
 
 def evidence_path(path: Path, *, writing: bool = False) -> Path:
     path = Path(path).absolute()
     resolved = path.resolve(strict=False)
+    validate_storage(path, writing)
     if writing:
         if resolved != path or not any(path.is_relative_to(root) for root in (EXTERNAL_ROOT, Path("/task"))):
             raise ValueError("Evidence output must be a physical authorized external path")
     elif not any(resolved.is_relative_to(root) for root in (
-        EXTERNAL_ROOT, Path(__file__).resolve().parents[5], Path("/usr"), Path("/proc"))):
+        EXTERNAL_ROOT, Path(__file__).resolve().parents[5], Path("/usr"), PROC_ROOT)):
         raise ValueError("Evidence input is outside the declared source/image roots")
     return path
 
@@ -45,8 +57,18 @@ def sha(path: Path) -> str:
 
 def write_json(path: Path, value: object) -> None:
     path = evidence_path(path, writing=True)
-    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
-    path.chmod(0o600)
+    payload = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode()
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    try:
+        details = os.fstat(fd)
+        if not stat.S_ISREG(details.st_mode) or details.st_uid != os.geteuid() or details.st_nlink != 1:
+            raise ValueError("Evidence output must be a caller-owned single-link regular file")
+        os.fchmod(fd, 0o600)
+        os.ftruncate(fd, 0)
+        with os.fdopen(fd, "wb", closefd=False) as stream:
+            stream.write(payload)
+    finally:
+        os.close(fd)
 
 
 def regular(path: Path) -> Path:
@@ -227,7 +249,7 @@ def snapshot_native(root: Path, row: dict) -> None:
         pids = {next(r["pid"] for r in reversed(observations) if r.get("edge") == "admitted")}
     row["native_processes"] = []
     for pid in sorted(pids):
-        proc = Path("/proc") / str(pid)
+        proc = PROC_ROOT / str(pid)
         try:
             token = (proc / "stat").read_text().rsplit(")", 1)[1].split()[19]
             (root / f"native-{pid}.maps").write_bytes((proc / "maps").read_bytes())
@@ -253,7 +275,7 @@ def finish_process(process, row: dict) -> None:
     row["launcher_reaped"] = process.poll() is not None
     row["native_cleanup"] = []
     for native in row.get("native_processes", []):
-        proc = Path("/proc") / str(native["pid"])
+        proc = PROC_ROOT / str(native["pid"])
         try:
             token = (proc / "stat").read_text().rsplit(")", 1)[1].split()[19]
             gone = token != native["starttime"]
@@ -403,7 +425,7 @@ def main() -> int:
         parser.add_argument("--" + name, required=True, type=Path)
     args = parser.parse_args()
     args.output = args.output.absolute()
-    if os.geteuid() != 0 or not args.output.is_relative_to("/var/tmp/codex/ModSecurity-conector/runs"):
+    if os.geteuid() != 0 or not args.output.is_relative_to(EXTERNAL_ROOT / "runs"):
         parser.error("root supplemental capture and authorized external run output required")
     if args.output.exists() or args.output.resolve() != args.output:
         parser.error("new physical output directory required")

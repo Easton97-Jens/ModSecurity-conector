@@ -19,7 +19,7 @@ REVIEW_SPEC.loader.exec_module(review)
 
 class PatchedCaptureTests(unittest.TestCase):
     def test_artifacts_refuse_symlink_and_hardlink(self):
-        with tempfile.TemporaryDirectory(dir="/var/tmp/codex/ModSecurity-conector") as temp:
+        with tempfile.TemporaryDirectory(dir=capture.EXTERNAL_ROOT) as temp:
             root = Path(temp)
             original = root / "image"
             original.write_bytes(b"fixture")
@@ -69,7 +69,7 @@ class PatchedCaptureTests(unittest.TestCase):
         self.assertEqual(wire.split(b"\r\n\r\n", 1)[1], b"3\r\nabc\r\n3\r\ndef\r\n0\r\n\r\n")
 
     def test_review_does_not_attribute_neighbor_append_to_empty_main(self):
-        with tempfile.TemporaryDirectory(dir="/var/tmp/codex/ModSecurity-conector") as temp:
+        with tempfile.TemporaryDirectory(dir=capture.EXTERNAL_ROOT) as temp:
             root = Path(temp)
             capture.write_json(root / "receipt.json", {"case": "empty", "uid": 0, "gid": 0,
                 "main": {"status_line": "HTTP/1.1 200 OK"}})

@@ -19,6 +19,8 @@ def main():
     parser.add_argument('--length', type=int, required=True)
     parser.add_argument('--count', type=int, default=1)
     args = parser.parse_args()
+    if not 1 <= args.port <= 65535:
+        raise ValueError('private loopback TCP port required')
     if not 1 <= args.length <= 32 * 1024 * 1024 or not 1 <= args.count <= 8:
         raise ValueError('bounded declared length required')
     directory = args.directory

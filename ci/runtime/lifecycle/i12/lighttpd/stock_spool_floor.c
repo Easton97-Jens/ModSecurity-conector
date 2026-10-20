@@ -3,7 +3,7 @@
  * Product translation unit and directory safety checks are unchanged. */
 #define fstatvfs i12_fstatvfs
 #define posix_fallocate i12_fallocate
-#include I12_STOCK_SOURCE
+#include "stock_sidecar.c"
 #undef fstatvfs
 #undef posix_fallocate
 #include <assert.h>

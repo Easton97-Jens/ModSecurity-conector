@@ -19,7 +19,8 @@ int __real_fclose(FILE *);
 int __real_accept(int, struct sockaddr *, socklen_t *);
 
 static int private_event(int fd) {
-    char link[64], path[4096];
+    char link[64];
+    char path[4096];
     struct stat details;
     if (fd < 0 || fstat(fd, &details) != 0 || !S_ISREG(details.st_mode) ||
         details.st_uid != geteuid() || (details.st_mode & 077) != 0 || details.st_nlink != 1) return 0;
@@ -42,7 +43,8 @@ static void observation(const char *operation, int called, int actual, int subst
     const char *path = getenv("MSCONNECTOR_LIGHTTPD_SINK_FAULT_TRACE");
     struct stat details;
     struct timespec now;
-    char row[768], actual_text[32];
+    char row[768];
+    char actual_text[32];
     if (path == NULL || strncmp(path, "/task/", 6) != 0 || strstr(path, "..") != NULL) _exit(90);
     int output = open(path, O_WRONLY | O_APPEND | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0600);
     if (output < 0 || fstat(output, &details) != 0 || !S_ISREG(details.st_mode) ||

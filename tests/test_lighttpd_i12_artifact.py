@@ -10,6 +10,7 @@ import tempfile
 import subprocess
 import sys
 import unittest
+from unittest import mock
 
 
 REPO = Path(__file__).resolve().parents[1]
@@ -18,11 +19,11 @@ MODULE_DIRECTORY = tempfile.TemporaryDirectory(
 MODULE_TEMP = Path(MODULE_DIRECTORY.name)
 MODULE_EXTERNAL = MODULE_TEMP / "evidence"
 MODULE_EXTERNAL.mkdir(mode=0o700)
-os.environ["I12_TEST_ROOT"] = str(MODULE_EXTERNAL)
-SPEC = importlib.util.spec_from_file_location(
-    "lighttpd_artifact", REPO / "ci/runtime/lifecycle/i12/lighttpd/artifact.py")
-A = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(A)
+with mock.patch.dict(os.environ, {"I12_TEST_ROOT": str(MODULE_EXTERNAL)}):
+    SPEC = importlib.util.spec_from_file_location(
+        "lighttpd_artifact", REPO / "ci/runtime/lifecycle/i12/lighttpd/artifact.py")
+    A = importlib.util.module_from_spec(SPEC)
+    SPEC.loader.exec_module(A)
 
 
 class ArtifactTests(unittest.TestCase):
@@ -126,9 +127,10 @@ class ArtifactTests(unittest.TestCase):
         snapshot.write_bytes(self.payload.read_bytes())
         self.payload.write_bytes(b"new source revision")
         self.write_seed(files=[original], immutable_snapshots=[A.Q.reference(snapshot)])
+        total_maximum = len(snapshot.read_bytes()) - 1
         with self.assertRaisesRegex(ValueError, "total-byte budget"):
             A.build(self.seed, self.root / "snapshot-budget-package",
-                    maximum=1024, total_maximum=len(snapshot.read_bytes()) - 1)
+                    maximum=1024, total_maximum=total_maximum)
 
     def test_snapshot_fallback_rejects_forbidden_and_symlinked_missing_paths(self):
         snapshot = A.Q.reference(self.payload)

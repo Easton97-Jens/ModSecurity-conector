@@ -20,7 +20,7 @@ def capture(output):
     command = ['rtk', 'proxy', 'cc', '-std=c17', '-Wall', '-Wextra', '-Werror',
         '-ffunction-sections', '-fdata-sections', '-pthread', '-I.', '-Icommon/include',
         '-Icommon/runtime', '-Iconnectors/lighttpd/stock_sidecar',
-        '-DI12_STOCK_SOURCE="' + str(product) + '"', str(source),
+        str(source),
         '-Wl,--gc-sections', '-lcrypto', '-o', str(binary)]
     compiled = subprocess.run(command, cwd=REPO, capture_output=True, text=True, timeout=60)
     (output / 'compile.stdout').write_text(compiled.stdout)

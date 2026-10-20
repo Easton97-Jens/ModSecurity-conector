@@ -4,10 +4,23 @@ import json
 from pathlib import Path
 import subprocess
 
-from stock_qualification import EXTERNAL, PREVIOUS, regular, sha
+from stock_qualification import EXTERNAL, PREVIOUS, regular, sha, storage_root
+
+CXX_LINK_FLAG = '-lstdc++'
+RECEIPT_FILE = 'receipt.json'
+
+
+def _source_arguments(argv, source_copy, old):
+    if source_copy is None:
+        return argv
+    source_copy = source_copy.absolute()
+    if not source_copy.is_relative_to(EXTERNAL) or '..' in source_copy.parts:
+        raise ValueError('source snapshot must be external')
+    return [value.replace(str(old / 'capture-04/source'), str(source_copy)) for value in argv]
 
 
 def build(output, mime_build, sink_faults=None, source_copy=None, helper_build=None, transport_observer=None):
+    storage_root(EXTERNAL)
     output = output.absolute()
     if '..' in output.parts or not output.is_relative_to(EXTERNAL):
         raise ValueError('external task output required')
@@ -25,24 +38,21 @@ def build(output, mime_build, sink_faults=None, source_copy=None, helper_build=N
         for name in ('host', 'sdk', 'bootstrap'):
             substitutions[str(old / 'capture-04/build' / (name + '.o'))] = str(regular(helper_build / (name + '.o')))
     argv = [substitutions.get(value, value) for value in argv]
-    if source_copy is not None:
-        source_copy = source_copy.absolute()
-        if not source_copy.is_relative_to(EXTERNAL) or '..' in source_copy.parts:
-            raise ValueError('source snapshot must be external')
-        argv = [value.replace(str(old / 'capture-04/source'), str(source_copy)) for value in argv]
-    argv.insert(argv.index('-lstdc++'), str(regular(mime_build / 'mime-accessor.o')))
+    source_copy = source_copy.absolute() if source_copy is not None else None
+    argv = _source_arguments(argv, source_copy, old)
+    argv.insert(argv.index(CXX_LINK_FLAG), str(regular(mime_build / 'mime-accessor.o')))
     if sink_faults is not None:
-        argv.insert(argv.index('-lstdc++'), str(regular(sink_faults)))
+        argv.insert(argv.index(CXX_LINK_FLAG), str(regular(sink_faults)))
         argv += ['-Wl,--wrap=' + name for name in ('fdopen', 'fputs', 'fflush', 'fclose', 'accept')]
     if transport_observer is not None:
-        argv.insert(argv.index('-lstdc++'), str(regular(transport_observer)))
+        argv.insert(argv.index(CXX_LINK_FLAG), str(regular(transport_observer)))
         argv += ['-Wl,--wrap=send', '-Wl,--wrap=recv']
     inputs = {value: sha(regular(value)) for value in argv if value.endswith(('.c', '.o'))}
     source_root = source_copy if source_copy is not None else old / 'capture-04/source'
     headers = {str(path): sha(regular(path)) for path in source_root.rglob('*.h')}
     receipt = {'argv': argv, 'compile_recipe': {'path': str(recipe), 'sha256': sha(recipe)},
-        'actual_mime_collector_build': {'path': str(mime_build / 'receipt.json'),
-            'sha256': sha(regular(mime_build / 'receipt.json'))},
+        'actual_mime_collector_build': {'path': str(mime_build / RECEIPT_FILE),
+            'sha256': sha(regular(mime_build / RECEIPT_FILE))},
         'actual_compilation_inputs': inputs, 'actual_snapshot_header_inputs': headers, 'product_changes': False,
         'probe_scope': 'Existing capture observer with typed actual SDK scalars; optional exact private event FILE fault injection.',
         'full_lifecycle_qualified': False}
@@ -55,7 +65,7 @@ def build(output, mime_build, sink_faults=None, source_copy=None, helper_build=N
     receipt['exit'] = result.returncode
     if result.returncode == 0:
         receipt['binary_sha256'] = sha(output / 'lighttpd-stock-sidecar')
-    (output / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
+    (output / RECEIPT_FILE).write_text(json.dumps(receipt, indent=2) + '\n')
     return receipt
 
 

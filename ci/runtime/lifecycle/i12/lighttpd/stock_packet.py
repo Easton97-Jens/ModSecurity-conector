@@ -13,14 +13,23 @@ import json
 from pathlib import Path
 import stat
 from types import SimpleNamespace
+try:
+    from qualification import EXTERNAL_ROOT, storage_root
+except ModuleNotFoundError:
+    from ci.runtime.lifecycle.i12.lighttpd.qualification import EXTERNAL_ROOT, storage_root
+
+RUNTIME_CONFIG = 'runtime.conf'
+TASK_PREFIX = '/task/'
 
 
 REPO = Path(__file__).resolve().parents[5]
-EXTERNAL = Path('/var/tmp/codex/ModSecurity-conector')
+EXTERNAL = EXTERNAL_ROOT
 
 
 def input_file(path):
     path = Path(path).absolute()
+    if path.is_relative_to(EXTERNAL):
+        storage_root(EXTERNAL)
     roots = (EXTERNAL, REPO, Path('/usr/lib/x86_64-linux-gnu'))
     if '..' in path.parts or not any(path.is_relative_to(root) for root in roots):
         raise ValueError('measurement input outside declared capture/source/library roots')
@@ -33,6 +42,7 @@ def input_file(path):
 
 
 def external_path(path):
+    storage_root(EXTERNAL)
     path = Path(path).absolute()
     if '..' in path.parts or not path.is_relative_to(EXTERNAL) or path.is_relative_to(EXTERNAL / 'worktrees'):
         raise ValueError('output must remain inside the external task root')
@@ -56,7 +66,7 @@ def physical_events(path):
             continue
         try:
             values.append(json.loads(line))
-        except (ValueError, UnicodeError) as error:
+        except ValueError as error:
             failures.append({'physical_line': number, 'bytes': len(line), 'parse_error_type': type(error).__name__})
     return values, failures
 
@@ -141,24 +151,34 @@ def failed_constructor_absence(returns, scope):
             and row['monotonic_ns'] < constructor['monotonic_ns']]}
 
 
+def _mapped_physical_path(path, namespace_data):
+    if path.startswith(TASK_PREFIX):
+        return namespace_data / path[len(TASK_PREFIX):]
+    if path.startswith(str(EXTERNAL) + '/'):
+        return namespace_data / path[len(str(EXTERNAL)) + 1:]
+    return Path(path)
+
+
+def _retained_mapping(line):
+    fields = line.split(maxsplit=5)
+    if len(fields) != 6 or fields[4] == '0':
+        return None
+    if not any(token in fields[5] for token in ('/bin/lighttpd', 'lighttpd-stock-sidecar', 'libmodsecurity.so')):
+        return None
+    return fields
+
+
 def mapped_images(snapshots, data, namespace_data=None):
     namespace_data = data if namespace_data is None else namespace_data
     found = []
     root = data / 'lighttpd/receipts/before-main'
     for actor in snapshots['processes']:
         for line in (root / (actor + '.maps')).read_text().splitlines():
-            fields = line.split(maxsplit=5)
-            if len(fields) != 6 or fields[4] == '0':
+            fields = _retained_mapping(line)
+            if fields is None:
                 continue
             path = fields[5]
-            if not any(token in path for token in ('/bin/lighttpd', 'lighttpd-stock-sidecar', 'libmodsecurity.so')):
-                continue
-            if path.startswith('/task/'):
-                physical = namespace_data / path[len('/task/'):]
-            elif path.startswith(str(EXTERNAL) + '/'):
-                physical = namespace_data / path[len(str(EXTERNAL)) + 1:]
-            else:
-                physical = Path(path)
+            physical = _mapped_physical_path(path, namespace_data)
             if not physical.is_file() or physical.stat().st_ino != int(fields[4]):
                 raise ValueError('mapped retained image inode identity mismatch: ' + path)
             item = {'actor': actor, 'mapped_path': path, 'physical_path': str(physical),
@@ -250,16 +270,21 @@ def _evaluate_canonical_oracle(context):
             payload = bytes.fromhex(context.fixture['request_hex'] if 'request' in context.fixture['case_id'] or context.fixture['case_id'].startswith('phase2') else context.fixture['response_hex'])
             physical_bytes = input_file(context.events_path).read_bytes()
             context.checks['actual_payload_absent_from_physical_common_event'] = bool(actual_common) and bool(payload) and (payload not in physical_bytes)
-        audit_only_cases = {'log_only', 'transaction_id_present', 'transaction_id_generated_or_fallback'}
-        audit_expectation = context.fixture.get('original_yaml_audit_expectation')
-        if context.fixture['case_id'] in audit_only_cases and audit_expectation and (audit_expectation.get('required') is True) and ('event_jsonl' not in context.fixture.get('original_yaml_required_capabilities', ['event_jsonl'])):
-            context.checks['original_physical_common_event_fields'] = context.checks['original_rule_observed']
-            context.observations['native_events']['value']['original_event_producer_scope'] = {'source': context.fixture['canonical_source'], 'required_capabilities': context.fixture['original_yaml_required_capabilities'], 'audit_expectation': audit_expectation, 'physical_field_binding': {'rule_id': expected_rule, 'transaction_id': sorted(context.native_ids)}, 'scope': 'These exact original YAMLs require native audit metadata, without event_jsonl capability; other original IDs retain their distinct Common event requirement.', 'observed_common_count': len(actual_common)}
-            if context.fixture['case_id'] == 'transaction_id_present':
-                supplied = [value for name, value in context.fixture['request_headers'] if name.lower() == 'x-modsec-transaction-id']
-                context.checks['original_supplied_native_id_preserved'] = supplied == sorted(context.native_ids) == sorted(context.common_ids)
-            if context.fixture['case_id'] == 'transaction_id_generated_or_fallback':
-                context.checks['original_generated_native_id_not_caller_override'] = bool(context.native_ids) and all((name.lower() not in ('x-request-id', 'x-modsec-transaction-id') for name, _value in context.fixture['request_headers'])) and ('x-request-id:' not in context.request_header_text.lower())
+        _evaluate_audit_only_oracle(context, expected_rule, actual_common)
+
+
+
+def _evaluate_audit_only_oracle(context, expected_rule, actual_common):
+    audit_only_cases = {'log_only', 'transaction_id_present', 'transaction_id_generated_or_fallback'}
+    audit_expectation = context.fixture.get('original_yaml_audit_expectation')
+    if context.fixture['case_id'] in audit_only_cases and audit_expectation and (audit_expectation.get('required') is True) and ('event_jsonl' not in context.fixture.get('original_yaml_required_capabilities', ['event_jsonl'])):
+        context.checks['original_physical_common_event_fields'] = context.checks['original_rule_observed']
+        context.observations['native_events']['value']['original_event_producer_scope'] = {'source': context.fixture['canonical_source'], 'required_capabilities': context.fixture['original_yaml_required_capabilities'], 'audit_expectation': audit_expectation, 'physical_field_binding': {'rule_id': expected_rule, 'transaction_id': sorted(context.native_ids)}, 'scope': 'These exact original YAMLs require native audit metadata, without event_jsonl capability; other original IDs retain their distinct Common event requirement.', 'observed_common_count': len(actual_common)}
+        if context.fixture['case_id'] == 'transaction_id_present':
+            supplied = [value for name, value in context.fixture['request_headers'] if name.lower() == 'x-modsec-transaction-id']
+            context.checks['original_supplied_native_id_preserved'] = supplied == sorted(context.native_ids) == sorted(context.common_ids)
+        if context.fixture['case_id'] == 'transaction_id_generated_or_fallback':
+            context.checks['original_generated_native_id_not_caller_override'] = bool(context.native_ids) and all((name.lower() not in ('x-request-id', 'x-modsec-transaction-id') for name, _value in context.fixture['request_headers'])) and ('x-request-id:' not in context.request_header_text.lower())
 
 def _evaluate_response_marker(context):
     if context.fixture['case_id'].startswith('NEED-response-'):
@@ -271,15 +296,15 @@ def _evaluate_response_framing(context):
 
 def _evaluate_delivered_profile(context):
     if context.fixture['case_id'].startswith('NEED-profile-'):
-        actual_runtime = dict((line.split('=', 1) for line in (context.root / 'runtime.conf').read_text().splitlines() if '=' in line))
+        actual_runtime = {key: value for line in (context.root / RUNTIME_CONFIG).read_text().splitlines() if '=' in line for key, value in (line.split('=', 1),)}
         context.checks['actual_selected_phase4_mode'] = actual_runtime['phase4_mode'] == ('strict' if context.fixture['profile'] == 'all' else context.fixture['profile'])
         context.observations['source_config_binding']['value']['actual_selected_phase4_mode'] = actual_runtime['phase4_mode']
         if context.fixture.get('profile_runtime_template'):
             expected_runtime = context.fixture['profile_runtime_template'].replace('/etc/modsecurity/no-crs-baseline.conf', '/task/lighttpd/rules.conf')
             expected_runtime = expected_runtime.replace('/var/log/lighttpd/msconnector-stock-' + context.fixture['profile'] + '-events.jsonl', '/task/lighttpd/events.jsonl')
             if context.data_relative is not None:
-                expected_runtime = expected_runtime.replace('/task/', '/task/' + str(context.data_relative) + '/')
-            context.checks['actual_delivered_profile_template'] = (context.root / 'runtime.conf').read_text() == expected_runtime
+                expected_runtime = expected_runtime.replace(TASK_PREFIX, TASK_PREFIX + str(context.data_relative) + '/')
+            context.checks['actual_delivered_profile_template'] = (context.root / RUNTIME_CONFIG).read_text() == expected_runtime
             sidecar_argv = context.snapshots['before-main']['processes']['sidecar']['argv']
             context.checks['actual_delivered_technical_arguments'] = all((option in sidecar_argv and sidecar_argv[sidecar_argv.index(option) + 1] == value for option, value in (('--timeout-ms', '10000'), ('--spool-capacity-bytes', '268435456'), ('--spool-free-reserve-bytes', '67108864'))))
 
@@ -303,16 +328,21 @@ def _evaluate_spool_resources(context):
         context.observations['neighbor_health']['evidence'].append(reference(readmission_path, 'client_process'))
         context.observations['native_events']['value']['actual_main_physical_events'] = own_events
         context.observations['native_events']['value']['first_physical_cause'] = own_events[0] if own_events else None
-        if context.fixture.get('default_capacity_probe'):
-            actual_argv = context.snapshots['before-main']['processes']['sidecar']['argv']
-            context.checks['actual_capacity_reserve_defaults_unoverridden'] = not any((option in actual_argv for option in ('--spool-capacity-bytes', '--spool-free-reserve-bytes')))
-            if context.reserve_evidence:
-                floor = read(context.reserve_evidence)
-                context.checks['actual_default_floor_seam'] = floor['compile_exit'] == floor['run_exit'] == 0 and floor['actual_assertion_receipt']['default_reserve'] == 67108864
-                context.observations['source_config_binding']['value']['default_reserve_component_boundary'] = floor
-                context.observations['source_config_binding']['evidence'].append(reference(context.reserve_evidence, 'source_manifest'))
-            else:
-                context.observations['source_config_binding']['value']['default_reserve_boundary_missing'] = 'No physical64MiB floor seam receipt supplied; unchanged default flags alone do not exercise reserve enforcement.'
+        _evaluate_default_capacity(context)
+
+
+
+def _evaluate_default_capacity(context):
+    if context.fixture.get('default_capacity_probe'):
+        actual_argv = context.snapshots['before-main']['processes']['sidecar']['argv']
+        context.checks['actual_capacity_reserve_defaults_unoverridden'] = not any((option in actual_argv for option in ('--spool-capacity-bytes', '--spool-free-reserve-bytes')))
+        if context.reserve_evidence:
+            floor = read(context.reserve_evidence)
+            context.checks['actual_default_floor_seam'] = floor['compile_exit'] == floor['run_exit'] == 0 and floor['actual_assertion_receipt']['default_reserve'] == 67108864
+            context.observations['source_config_binding']['value']['default_reserve_component_boundary'] = floor
+            context.observations['source_config_binding']['evidence'].append(reference(context.reserve_evidence, 'source_manifest'))
+        else:
+            context.observations['source_config_binding']['value']['default_reserve_boundary_missing'] = 'No physical64MiB floor seam receipt supplied; unchanged default flags alone do not exercise reserve enforcement.'
 
 def _evaluate_sink_boundary(context):
     if context.sink_fault:
@@ -356,7 +386,7 @@ def _evaluate_pointer_boundary(context):
 
 def _add_identity_roles(context):
     context.put('product_host_identity', {'processes': context.snapshots['before-main']['processes'], 'mapped_images': context.images}, [reference(Path(image['physical_path']), 'loaded_image') for image in context.images] + context.isolation_ev + [reference(context.root / 'receipts/before-main' / (actor + '.maps'), 'loaded_image') for actor in context.snapshots['before-main']['processes']])
-    context.put('source_config_binding', {'fixture': context.contract, 'compiled_source_bytes_are_explicit': True}, [reference(context.fixture_path, 'source_manifest'), reference(context.inputs / 'artifacts-ledger.json', 'source_manifest')] + [reference(context.root / name, 'effective_configuration') for name in ('rules.conf', 'runtime.conf', 'lighttpd.conf')])
+    context.put('source_config_binding', {'fixture': context.contract, 'compiled_source_bytes_are_explicit': True}, [reference(context.fixture_path, 'source_manifest'), reference(context.inputs / 'artifacts-ledger.json', 'source_manifest')] + [reference(context.root / name, 'effective_configuration') for name in ('rules.conf', RUNTIME_CONFIG, 'lighttpd.conf')])
     context.put('capability', {'original_selected_requirement': context.selected, 'actual_stock_callbacks': context.eos}, [reference(context.fixture_path, 'source_contract')] + context.host_ev)
     context.put('client_exit', context.client_process, [reference(context.client_process_path, 'client_process')])
     context.put('client_signal', {'actual_process_signal': context.client_process['actual_signal'], 'tcp_reset': context.client['tcp_reset_observed']}, context.client_ev)
@@ -415,7 +445,7 @@ def _add_cleanup_roles(context):
     context.put('transport_reset_scope', {key: context.client[key] for key in ('tcp_eof_observed', 'tcp_reset_observed', 'timeout_observed', 'error')}, context.client_ev + context.host_ev)
     context.put('host_action', {'actual_client_status': context.client['status'], 'physical_finite_EOS': context.eos, 'actual_native_returns': context.returns, 'no_alternate_status_inferred': True}, context.host_ev + context.client_ev)
     context.put('physical_event_order', {'same_native_id_rules': context.marker_lines, 'actual_common_records': context.events}, context.audit_ev)
-    sink_namespace_path = '/task/' + str((context.data / 'lighttpd/events.jsonl').relative_to(context.namespace_data))
+    sink_namespace_path = TASK_PREFIX + str((context.data / 'lighttpd/events.jsonl').relative_to(context.namespace_data))
     context.put('terminal_event_count', {'actual_common_file_count': len(context.events), 'physical_incomplete_or_invalid_lines': context.event_parse_failures, 'actual_open_sink_snapshots': [value['physical_files'].get(sink_namespace_path) for value in context.snapshots.values()], 'scope': 'all actual records retained; independent transaction IDs distinguish selected main, held resource actor and benign followups'}, [reference(context.events_path, 'physical_event_sink')])
     if set(context.observations) != set(context.ledger.ROLES):
         raise ValueError('shared qualifier field contract changed')
@@ -552,7 +582,11 @@ def _prepare_effective_expectation(context):
 
 
 def _minimum_request_appends(context):
-    return 0 if context.spool_probe or context.failed_begin_expected or context.pointer_fault else 2 if context.fixture['delayed_request'] else 1 if context.fixture['request_hex'] else 0
+    if context.spool_probe or context.failed_begin_expected or context.pointer_fault:
+        return 0
+    if context.fixture['delayed_request']:
+        return 2
+    return int(bool(context.fixture['request_hex']))
 
 
 def _native_p2_marker_observed(context):
@@ -596,6 +630,12 @@ def _evaluate_case_boundaries(context):
     _evaluate_pointer_boundary(context)
 
 
+def _packet_outcome(context):
+    if not (context.native_mime or context.response_not_reached):
+        return None
+    return 'PASS' if all(context.checks.values()) else 'FAIL'
+
+
 def _assemble_packet_proposal(context):
     context.qualified_oracle = context.contract['original_oracle'] if context.preserve_original_oracle else context.effective
     context.packet = {'leg_id': 'lighttpd-stock-sidecar', 'run_scoped_case_id': context.selected['run_scoped_case_id'],
@@ -606,7 +646,7 @@ def _assemble_packet_proposal(context):
         'effective_config_sha256': sha(context.root / 'lighttpd.conf'), 'rules_sha256': sha(context.root / 'rules.conf'),
         'reviewed_by': 'worker', 'full_lifecycle_qualified': False, 'observations': context.observations,
         'oracle_evaluated': True, 'oracle_sha256': context.ledger.ORACLES.canonical_digest(context.qualified_oracle),
-        'outcome': ('PASS' if all(context.checks.values()) else 'FAIL') if context.native_mime or context.response_not_reached else None,
+        'outcome': _packet_outcome(context),
         'evaluation_checks': context.checks}
     if context.failed_begin_expected and context.measured_absence is None:
         context.packet['outcome'] = None
