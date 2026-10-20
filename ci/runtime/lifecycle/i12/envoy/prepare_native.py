@@ -5,6 +5,7 @@ This producer never launches a host. Its receipts qualify source/build and
 native controls only; route qualification requires separate host evidence.
 """
 import argparse
+import copy
 import hashlib
 import importlib.util
 import io
@@ -84,6 +85,7 @@ def validate(source, out, env, run, go, sdk_include, sdk_library, controls_only=
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--checkout", type=Path, required=True)
+    parser.add_argument("--revision", help="Exact full lowercase commit SHA to archive; required for a fresh build")
     parser.add_argument("--run-root", type=Path, required=True)
     parser.add_argument("--module-cache", type=Path, required=True,
                         help="Existing offline module cache; copied before use")
@@ -100,6 +102,11 @@ def parse_args():
     args = parser.parse_args()
     if args.controls_only and not args.validate_existing:
         parser.error("--controls-only requires --validate-existing")
+    if not args.validate_existing or args.revision is not None:
+        try:
+            source_inventory.full_revision(args.revision)
+        except ValueError as exc:
+            parser.error(str(exc))
     return args
 
 
@@ -107,6 +114,8 @@ def existing_receipt(args, source, out, parser):
     receipt = json.loads((out / "receipt.json").read_text())
     if not receipt.get("build_ready") or receipt["source_copy"] != str(source):
         parser.error("existing build receipt is not ready or names a different source")
+    if args.revision is not None and args.revision != receipt['actual_source_commit']:
+        parser.error("existing build revision differs")
     if args.controls_only:
         for label in ("go-native", "go-race", "go-vet"):
             if not any(check["exit_code"] == 0 and
@@ -226,8 +235,31 @@ def extract_source_archive(source, archive):
         stream.extractall(source, filter="data")
 
 
-def prepare_source(source, receipt, run):
-    head = run("source-head", ["git", "rev-parse", "HEAD"]).decode().strip()
+def apply_capture(capture, registry, source, receipt):
+    # Verify the entire original registry before constructing a private adapter.
+    # Neither the archived nor the checked-in manifest is rewritten.
+    registry.verify()
+    profile = registry.manifest['profiles']['envoy']
+    source_inventory.observer_contract(profile)
+    before = receipt['source_before_overlay']
+    historical = all(before.get(name) == old
+                     for name, (old, _current) in source_inventory.OBSERVER_HASHES.items())
+    if not historical:
+        metadata = source_inventory.adapter_metadata(
+            registry.manifest, before, receipt['actual_source_commit'], receipt['manifest_sha256'])
+        registry = copy.copy(registry)
+        registry.manifest = copy.deepcopy(registry.manifest)
+        for name in metadata['preserved_targets']:
+            del registry.manifest['profiles']['envoy']['source_targets'][name]
+        receipt['envoy_capture_adapter'] = metadata
+    return capture.apply(registry, 'envoy', source)
+
+
+def prepare_source(source, receipt, run, revision):
+    revision = source_inventory.full_revision(revision)
+    head = run("source-head", ["git", "rev-parse", "--verify", revision + '^{commit}']).decode().strip()
+    if head != revision:
+        raise ValueError('resolved source revision differs from requested commit')
     archive = run("source-archive", ["git", "archive", "--format=tar", head])
     source.mkdir()
     extract_source_archive(source, archive)
@@ -237,6 +269,7 @@ def prepare_source(source, receipt, run):
         "format": "i12-disposable-source-copy-v1", "path": str(source),
         "disposable": True, "parent_sha": registry.manifest["delivery_product_baseline"]}))
     receipt["actual_source_commit"] = head
+    receipt['source_revision_selection'] = {'requested': revision, 'resolved': head}
     receipt["capture_marker_parent_is_historical_contract"] = True
     receipt["manifest_sha256"] = sha(source / "ci/runtime/lifecycle/i12/manifest.json")
     profile = registry.manifest["profiles"]["envoy"]
@@ -244,7 +277,7 @@ def prepare_source(source, receipt, run):
         name: sha(source / name) for name in profile["source_targets"]}
     run.save()
     # The shared materializer verifies all original bytes before any overlay.
-    receipt["capture_application"] = capture.apply(registry, "envoy", source)
+    receipt["capture_application"] = apply_capture(capture, registry, source, receipt)
     for name in profile["capture_files"]:
         if name.startswith("source-copy-tests/"):
             relative = name.removeprefix("source-copy-tests/")
@@ -327,7 +360,7 @@ def main():
         if args.validate_existing:
             validate_existing(args, source, out, receipt, env, run)
             return
-        profile, dependency_hashes = prepare_source(source, receipt, run)
+        profile, dependency_hashes = prepare_source(source, receipt, run, args.revision)
         configure_native_environment(args, root, out, receipt, env)
         compile_native(args, source, out, env, receipt, run, profile)
         validate(source, out, env, run, args.go, args.sdk_include, args.sdk_library)
