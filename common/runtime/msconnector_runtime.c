@@ -189,6 +189,12 @@ struct msconnector_runtime_transaction {
     msconnector_flow_guard flow;
     msconnector_transaction_contract contract;
     msconnector_runtime_event_metadata metadata;
+    struct {
+        char run_id[MSCONNECTOR_RUNTIME_PROVENANCE_TEXT_SIZE];
+        char transport_case_id[MSCONNECTOR_RUNTIME_PROVENANCE_TEXT_SIZE];
+        char connection_id[MSCONNECTOR_RUNTIME_PROVENANCE_TEXT_SIZE];
+        int connection_reused;
+    } provenance;
     msconnector_runtime_body_progress request_body;
     msconnector_runtime_body_progress response_body;
     int response_original_status;
@@ -206,6 +212,8 @@ struct msconnector_runtime_transaction {
      * Zero means no failure. No borrowed error text or body is retained. */
     msconnector_error_code event_write_failed;
     int response_companion_handed_off;
+    unsigned long cleanup_event_sequence;
+    int cleanup_event_attempted;
     /* Completion is one attempt whose result remains stable on re-entry. */
     struct {
         int finish_attempted;
@@ -1835,6 +1843,15 @@ static void populate_event_body(
 static void populate_event_response_state(
     msconnector_event *event,
     const msconnector_runtime_transaction *transaction) {
+    if (transaction->provenance.run_id[0] != '\0') {
+        event->meta.run_id = transaction->provenance.run_id;
+        event->meta.transport_case_id = transaction->provenance.transport_case_id;
+        event->protocol.connection_id = transaction->provenance.connection_id;
+        event->protocol.connection_reused = transaction->provenance.connection_reused;
+        /* Successful native/contract EOS processing, never socket EOF. */
+        event->flags.eos_seen = transaction->response_headers_processed ?
+            transaction->response_body.finished : transaction->request_body.finished;
+    }
     event->flags.truncated = transaction->metadata.truncated ||
         event->flags.body_truncated;
     event->flags.response_started = transaction->response_headers_sent ||
@@ -1986,18 +2003,21 @@ static int emit_decision_event(
     }
     if (!msconnector_decision_to_event(decision, &event, runtime->connector_name,
             transaction->metadata.transaction_id)) {
-        if (decision->phase != MSCONNECTOR_PHASE_REQUEST_BODY ||
-            transaction->request_body.limit_outcome !=
-                MSCONNECTOR_BODY_LIMIT_OUTCOME_PROCESS_PARTIAL) {
+        const int partial = decision->phase == MSCONNECTOR_PHASE_REQUEST_BODY &&
+            transaction->request_body.limit_outcome ==
+                MSCONNECTOR_BODY_LIMIT_OUTCOME_PROCESS_PARTIAL;
+        if (!partial && transaction->provenance.run_id[0] == '\0') {
             return 1;
         }
         msconnector_event_init(&event);
         event.meta.connector = runtime->connector_name;
         event.meta.transaction_id = transaction->metadata.transaction_id;
-        event.meta.message_id = MSCONN_EVENT_BODY_LIMIT;
-        event.meta.message = msconnector_event_default_message(event.meta.message_id);
-        event.meta.level = msconnector_event_default_level(event.meta.message_id);
-        event.decision.phase = MSCONNECTOR_PHASE_REQUEST_BODY;
+        event.meta.message_id = partial ? MSCONN_EVENT_BODY_LIMIT :
+            "MSCONN_EVENT_TRANSACTION_PHASE";
+        event.meta.message = partial ? msconnector_event_default_message(event.meta.message_id) :
+            "Native transaction phase completed without a disruptive decision.";
+        event.meta.level = partial ? msconnector_event_default_level(event.meta.message_id) : "info";
+        event.decision.phase = decision->phase;
         event.decision.status = MSCONNECTOR_STATUS_OK;
         event.decision.action = "allow";
         event.decision.requested_action = "allow";
@@ -2006,6 +2026,8 @@ static int emit_decision_event(
     timestamp_now(timestamp, sizeof(timestamp));
     event.meta.timestamp = timestamp;
     event.meta.event = event.meta.message_id;
+    if (strcmp(event.meta.message_id, "MSCONN_EVENT_TRANSACTION_PHASE") == 0)
+        event.meta.event = "phase_complete";
     event.meta.integration_mode = runtime->integration_mode;
     event.flags.truncated = transaction->metadata.truncated;
     event.request.method = transaction->metadata.request_method;
@@ -2179,6 +2201,81 @@ static int emit_contract_terminal_event(
     return success;
 }
 
+/* Reserve the final metadata sequence before the engine flow is frozen.
+ * This does not write a cleanup claim: the record is written only after the
+ * actual native Free and successful contract cleanup below. */
+static int reserve_cleanup_event_sequence(msconnector_runtime_transaction *transaction,
+    msconnector_error *error) {
+    if (transaction->provenance.run_id[0] == '\0' ||
+        transaction->cleanup_event_sequence != 0UL) return 1;
+    if (msconnector_flow_guard_next_sequence(&transaction->flow,
+            &transaction->cleanup_event_sequence) != MSCONNECTOR_FLOW_GUARD_OK) {
+        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+            "cleanup event sequence reservation failed", "runtime");
+    }
+    return 1;
+}
+
+static int emit_cleanup_event(msconnector_runtime_transaction *transaction,
+    msconnector_error *error) {
+    msconnector_event event;
+    msconnector_runtime *runtime = transaction->runtime;
+    char timestamp[RUNTIME_TIMESTAMP_SIZE];
+    int success;
+    const char *reason = "normal";
+    if (transaction->provenance.run_id[0] == '\0') return 1;
+    if (transaction->event_write_failed != MSCONNECTOR_ERROR_NONE)
+        return replay_event_write_failure(transaction, error);
+    if (transaction->cleanup_event_attempted) return 1;
+    if (!transaction->contract.cleanup_complete || transaction->native_started ||
+        transaction->cleanup_event_sequence == 0UL) {
+        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+            "cleanup event requires completed native and contract cleanup", "runtime");
+    }
+    transaction->cleanup_event_attempted = 1;
+    if (runtime->event_file == NULL) return 1;
+    if (transaction->contract.engine_decision == MSCONNECTOR_TRANSACTION_DECISION_CLIENT_CANCEL)
+        reason = "client_cancel";
+    else if (transaction->contract.engine_decision == MSCONNECTOR_TRANSACTION_DECISION_UPSTREAM_DISCONNECT)
+        reason = "upstream_disconnect";
+    else if (transaction->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE)
+        reason = "transaction_error";
+    else if (!transaction->completion.finished) reason = "incomplete";
+    msconnector_event_init(&event);
+    timestamp_now(timestamp, sizeof(timestamp));
+    event.meta.timestamp = timestamp;
+    event.meta.connector = runtime->connector_name;
+    event.meta.integration_mode = runtime->integration_mode;
+    event.meta.transaction_id = transaction->metadata.transaction_id;
+    event.meta.message_id = "MSCONN_EVENT_TRANSACTION_CLEANUP";
+    event.meta.event = "transaction_cleanup";
+    event.meta.message = "Native transaction and contract cleanup completed.";
+    event.meta.level = "info";
+    event.decision.phase = MSCONNECTOR_PHASE_LOGGING;
+    event.decision.status = transaction->contract.error_class ==
+        MSCONNECTOR_TRANSACTION_ERROR_NONE ? MSCONNECTOR_STATUS_OK : MSCONNECTOR_STATUS_ERROR;
+    event.decision.action = "none";
+    event.decision.requested_action = "none";
+    event.decision.reason = reason;
+    event.decision.rule_id = transaction->contract.rule_id;
+    event.flags.cleanup_reason = reason;
+    event.flags.client_disconnected = transaction->contract.engine_decision ==
+        MSCONNECTOR_TRANSACTION_DECISION_CLIENT_CANCEL;
+    event.flags.upstream_disconnected = transaction->contract.engine_decision ==
+        MSCONNECTOR_TRANSACTION_DECISION_UPSTREAM_DISCONNECT;
+    event.flags.cancelled = event.flags.client_disconnected || event.flags.upstream_disconnected;
+    populate_event_response_state(&event, transaction);
+    event.integrity.sequence = transaction->cleanup_event_sequence;
+    runtime_operation_lock(runtime);
+    event.integrity.previous_hash = runtime->previous_event_hash;
+    event.integrity.event_hash = msconnector_integrity_event_hash(&event,
+        event.integrity.previous_hash);
+    success = write_transaction_event_jsonl(transaction, &event, error);
+    if (success) runtime->previous_event_hash = event.integrity.event_hash;
+    runtime_operation_unlock(runtime);
+    return success;
+}
+
 static int mark_flow(
     msconnector_runtime_transaction *transaction,
     enum msconnector_phase phase,
@@ -2252,6 +2349,16 @@ static int handle_decision(
     *terminal = 0;
     if (!msconnector_decision_action_is_disruptive(
             msconnector_decision_action_from_decision(decision))) {
+        if (transaction->provenance.run_id[0] != '\0' &&
+            (decision->phase == MSCONNECTOR_PHASE_REQUEST_HEADERS ||
+             decision->phase == MSCONNECTOR_PHASE_RESPONSE_HEADERS ||
+             (decision->phase == MSCONNECTOR_PHASE_REQUEST_BODY &&
+                transaction->request_body.finished && transaction->request_body.limit_outcome !=
+                    MSCONNECTOR_BODY_LIMIT_OUTCOME_PROCESS_PARTIAL) ||
+             (decision->phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
+                transaction->response_body.finished))) {
+            return emit_decision_event(transaction, decision, NULL, error);
+        }
         return 1;
     }
     transaction->request_blocked = 1;
@@ -2506,6 +2613,19 @@ static int begin_native_transaction(
     return begin_request_body_processing(transaction, request, decision, error);
 }
 
+static int valid_trusted_provenance_text(const char *value) {
+    size_t i;
+    if (value == NULL || value[0] == '\0') return 0;
+    for (i = 0U; i < MSCONNECTOR_RUNTIME_PROVENANCE_TEXT_SIZE; ++i) {
+        const unsigned char c = (unsigned char)value[i];
+        if (c == 0U) return 1;
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                (c >= '0' && c <= '9') || c == '_' || c == '-' ||
+                c == '.' || c == ':')) return 0;
+    }
+    return 0;
+}
+
 static int transaction_begin_internal(
     msconnector_runtime *runtime,
     const msconnector_request *request,
@@ -2513,7 +2633,8 @@ static int transaction_begin_internal(
     msconnector_runtime_transaction **out,
     msconnector_decision *decision,
     msconnector_error *error,
-    int defer_request_body_eos) {
+    int defer_request_body_eos,
+    const msconnector_runtime_trusted_provenance *provenance) {
     msconnector_runtime_transaction *transaction;
 
     if (out != NULL) {
@@ -2527,6 +2648,14 @@ static int transaction_begin_internal(
             "runtime, request, output and decision are required", "runtime");
     }
     msconnector_decision_set_allow(decision);
+    if (provenance != NULL &&
+        (!valid_trusted_provenance_text(provenance->run_id) ||
+         !valid_trusted_provenance_text(provenance->transport_case_id) ||
+         !valid_trusted_provenance_text(provenance->connection_id) ||
+         (provenance->connection_reused != 0 && provenance->connection_reused != 1))) {
+        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+            "invalid trusted transport provenance", "runtime");
+    }
     if (!validate_transaction_begin_request(runtime, request, decision, error)) {
         return 0;
     }
@@ -2535,6 +2664,15 @@ static int transaction_begin_internal(
         return 0;
     }
     transaction->defer_request_body_eos = defer_request_body_eos;
+    if (provenance != NULL) {
+        memcpy(transaction->provenance.run_id, provenance->run_id,
+            strlen(provenance->run_id) + 1U);
+        memcpy(transaction->provenance.transport_case_id, provenance->transport_case_id,
+            strlen(provenance->transport_case_id) + 1U);
+        memcpy(transaction->provenance.connection_id, provenance->connection_id,
+            strlen(provenance->connection_id) + 1U);
+        transaction->provenance.connection_reused = provenance->connection_reused;
+    }
     *out = transaction;
     if (!begin_native_transaction(transaction, request, decision, error)) {
         return abort_transaction_begin(out);
@@ -2547,7 +2685,7 @@ int msconnector_runtime_transaction_begin(
     const char *host_request_id, msconnector_runtime_transaction **out,
     msconnector_decision *decision, msconnector_error *error) {
     return transaction_begin_internal(runtime, request, host_request_id, out,
-        decision, error, 0);
+        decision, error, 0, NULL);
 }
 
 int msconnector_runtime_transaction_begin_request_stream(
@@ -2555,7 +2693,27 @@ int msconnector_runtime_transaction_begin_request_stream(
     const char *host_request_id, msconnector_runtime_transaction **out,
     msconnector_decision *decision, msconnector_error *error) {
     return transaction_begin_internal(runtime, request, host_request_id, out,
-        decision, error, 1);
+        decision, error, 1, NULL);
+}
+
+int msconnector_runtime_transaction_begin_with_trusted_provenance(
+    msconnector_runtime *runtime, const msconnector_request *request,
+    const char *host_request_id,
+    const msconnector_runtime_trusted_provenance *provenance,
+    msconnector_runtime_transaction **out, msconnector_decision *decision,
+    msconnector_error *error) {
+    return transaction_begin_internal(runtime, request, host_request_id, out,
+        decision, error, 0, provenance);
+}
+
+int msconnector_runtime_transaction_begin_request_stream_with_trusted_provenance(
+    msconnector_runtime *runtime, const msconnector_request *request,
+    const char *host_request_id,
+    const msconnector_runtime_trusted_provenance *provenance,
+    msconnector_runtime_transaction **out, msconnector_decision *decision,
+    msconnector_error *error) {
+    return transaction_begin_internal(runtime, request, host_request_id, out,
+        decision, error, 1, provenance);
 }
 
 int msconnector_runtime_transaction_append_request_body_chunk(
@@ -3592,6 +3750,7 @@ int msconnector_runtime_response_companion_handoff_with_handle(
     }
     registry->entries[free_index].occupied = 1;
     registry->entries[free_index].ttl_ms = ttl_ms;
+    registry->entries[free_index].preclaim_deadline_ms = now_ms + ttl_ms;
     registry->entries[free_index].expires_at_ms = now_ms +
         (ttl_ms < RESPONSE_COMPANION_PRECLAIM_TTL_MS ?
             ttl_ms : RESPONSE_COMPANION_PRECLAIM_TTL_MS);
@@ -3612,6 +3771,40 @@ int msconnector_runtime_response_companion_handoff_with_handle(
     response_companion_registry_unlock(registry);
     msconnector_secure_zero(generated_handle, sizeof(generated_handle));
     return 1;
+}
+
+int msconnector_runtime_response_companion_confirm_preclaim(
+    msconnector_runtime_response_companion_registry *registry,
+    const char *handle, msconnector_error *error) {
+    int confirmed = 0;
+    if (error != NULL) msconnector_error_init(error);
+    if (registry == NULL || !response_companion_handle_is_valid(handle)) {
+        return runtime_error(error, MSCONNECTOR_ERROR_CORRELATION_MISSING,
+            "response companion capability is missing or invalid", "runtime");
+    }
+    response_companion_registry_lock(registry);
+    const uint64_t now_ms = transaction_now_ms();
+    if (!registry->shutting_down && now_ms != 0U) {
+        for (size_t index = 0U;
+             index < MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_CAPACITY; ++index) {
+            msconnector_runtime_response_companion_entry *entry = &registry->entries[index];
+            if (!entry->occupied || !response_companion_handle_matches(
+                    entry->response_handle, handle)) continue;
+            if (!entry->in_use && !entry->transport_claimed &&
+                !entry->trusted_preclaim_refreshed && entry->expires_at_ms > now_ms &&
+                entry->preclaim_deadline_ms > now_ms && entry->transaction != NULL &&
+                entry->transaction->contract.status ==
+                    MSCONNECTOR_TRANSACTION_STATUS_HANDED_OFF) {
+                entry->trusted_preclaim_refreshed = 1;
+                entry->expires_at_ms = entry->preclaim_deadline_ms;
+                confirmed = 1;
+            }
+            break;
+        }
+    }
+    response_companion_registry_unlock(registry);
+    return confirmed ? 1 : runtime_error(error, MSCONNECTOR_ERROR_CORRELATION_MISSING,
+        "response companion capability cannot be confirmed", "runtime");
 }
 
 int msconnector_runtime_response_companion_revoke_handle(
@@ -4343,7 +4536,7 @@ static int runtime_transaction_cleanup_checked(
         return contract_error(error, cleanup_result,
             "transaction cleanup did not complete");
     }
-    return 1;
+    return emit_cleanup_event(transaction, error);
 }
 
 static void runtime_transaction_cleanup_best_effort(
@@ -4357,6 +4550,9 @@ static void runtime_transaction_cleanup_best_effort(
     if (!transaction->completion.finish_attempted) {
         (void)msconnector_runtime_transaction_finish(transaction, &ignored);
     }
+    if (transaction->cleanup_event_sequence == 0UL && !transaction->flow.immutable) {
+        (void)reserve_cleanup_event_sequence(transaction, &ignored);
+    }
     if (transaction->native_started) {
         runtime_operation_lock(transaction->runtime);
         msconnector_modsecurity_transaction_cleanup(&transaction->modsecurity);
@@ -4365,6 +4561,7 @@ static void runtime_transaction_cleanup_best_effort(
     }
     (void)msconnector_transaction_contract_cleanup(&transaction->contract,
         transaction_now_ms());
+    (void)emit_cleanup_event(transaction, &ignored);
 }
 
 int msconnector_runtime_transaction_finalize_and_snapshot(
@@ -4470,10 +4667,12 @@ static int finish_transaction_with_logging(
             (void)emit_contract_terminal_event(transaction, &terminal_error);
             /* finish_attempted already seals host callbacks. Freeze event
              * metadata after the audit failure's terminal event attempt. */
+            (void)reserve_cleanup_event_sequence(transaction, &terminal_error);
             (void)msconnector_flow_guard_mark_immutable(&transaction->flow);
             return 0;
         }
     }
+    if (!reserve_cleanup_event_sequence(transaction, error)) return 0;
     if (msconnector_flow_guard_mark_immutable(&transaction->flow) !=
         MSCONNECTOR_FLOW_GUARD_OK) {
         return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
