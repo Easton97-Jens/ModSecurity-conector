@@ -73,7 +73,11 @@ typedef struct msconnector_runtime_response_companion_session {
 /*
  * Body chunks are borrowed from the host.  The runtime never retains a chunk
  * pointer after append_*_body_chunk() returns.  Counters describe metadata
- * only and are safe to place in events or result records. For responses,
+ * only and are safe to place in events or result records. For requests,
+ * bytes_retained is the SDK-owned prefix and does not prove evaluation.
+ * bytes_inspected remains zero (unknown/unproven): the C API cannot establish
+ * whether retained bytes were inspected, even after successful P2/EOS.
+ * Zero is not proof that inspection was disabled. For responses,
  * bytes_inspected means bytes offered to the native engine; it does not expose
  * the engine-owned ProcessPartial inspection prefix.
  */
@@ -83,6 +87,8 @@ typedef struct msconnector_runtime_body_progress {
     int truncated;
     int finished;
     msconnector_body_limit_outcome limit_outcome;
+    /* Appended to preserve the offsets of existing progress fields. */
+    size_t bytes_retained;
 } msconnector_runtime_body_progress;
 
 /* A bounded, payload-free copy of the Common-owned transaction state. */
