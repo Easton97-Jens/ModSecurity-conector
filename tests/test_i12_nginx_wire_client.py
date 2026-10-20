@@ -49,8 +49,9 @@ class FiniteFramingTests(unittest.TestCase):
             (b"Content-Length: 0_3", b"abc"),
             (b"Connection: close", b"abc"),
         ]:
+            wire = response(headers, body)
             with self.subTest(headers=headers, body=body), self.assertRaises(ValueError):
-                CLIENT.entity(response(headers, body))
+                CLIENT.entity(wire)
 
     def test_chunked_decodes_only_complete_terminal_framing(self):
         parsed = CLIENT.entity(response(b"Transfer-Encoding: chunked", b"2\r\nab\r\n1\r\nc\r\n0\r\n\r\n"))
@@ -61,15 +62,17 @@ class FiniteFramingTests(unittest.TestCase):
         for body in (b"", b"3", b"3\r\nab", b"3\r\nabc", b"3\r\nabc\r\n", b"0\r\n",
                      b"0\r\n\r\nextra", b"0\r\nTrailer: value\r\n\r\n", b"1;x=1\r\na\r\n0\r\n\r\n",
                      b"+1\r\na\r\n0\r\n\r\n", b"-1\r\n0\r\n\r\n"):
+            wire = response(b"Transfer-Encoding: chunked", body)
             with self.subTest(body=body), self.assertRaises(ValueError):
-                CLIENT.entity(response(b"Transfer-Encoding: chunked", body))
+                CLIENT.entity(wire)
 
     def test_transfer_encoding_conflicts_are_rejected(self):
         for headers in (b"Transfer-Encoding: chunked\r\nContent-Length: 0",
                         b"Transfer-Encoding: chunked\r\nTransfer-Encoding: chunked",
                         b"Transfer-Encoding: gzip, chunked", b"Transfer-Encoding: identity"):
+            wire = response(headers, b"0\r\n\r\n")
             with self.subTest(headers=headers), self.assertRaises(ValueError):
-                CLIENT.entity(response(headers, b"0\r\n\r\n"))
+                CLIENT.entity(wire)
 
 
 class WaitedClientTests(unittest.TestCase):

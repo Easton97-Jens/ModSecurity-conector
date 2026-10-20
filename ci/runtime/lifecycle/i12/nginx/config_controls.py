@@ -9,6 +9,8 @@ import re
 import stat
 import subprocess
 
+ARTIFACT_PATH_PATTERN = r"/[A-Za-z0-9_./-]+"
+SCOPE_FILENAME = "scope.txt"
 SEALED_INPUT_ROOTS = (Path("/mnt/fixtures"), Path("/mnt/artifacts"))
 
 
@@ -26,9 +28,24 @@ def artifact_root():
     return root
 
 
+def shared_transit(ancestor, existing, project_root, metadata):
+    return (not ancestor.is_relative_to(project_root) and ancestor != existing
+            and stat.S_ISDIR(metadata.st_mode) and metadata.st_uid == 0
+            and metadata.st_mode & stat.S_ISVTX)
+
+
+def validate_artifact_ancestry(existing, project_root):
+    for ancestor in (existing, *existing.parents):
+        metadata = ancestor.lstat()
+        if stat.S_ISLNK(metadata.st_mode) or metadata.st_uid not in (0, os.geteuid()):
+            raise ValueError("operator-owned nonsymlink artifact ancestry required")
+        if metadata.st_mode & 0o022 and not shared_transit(ancestor, existing, project_root, metadata):
+            raise ValueError("artifact ancestry must not be group/world writable")
+
+
 def trusted_path(value, *, directory=False, fresh=False):
     """Accept canonical, operator-owned paths outside writable shared areas."""
-    match = re.fullmatch(r"/[A-Za-z0-9_./-]+", str(value))
+    match = re.fullmatch(ARTIFACT_PATH_PATTERN, str(value))
     if match is None:
         raise ValueError("absolute configuration-safe artifact path required")
     path = Path(match.group(0))
@@ -37,15 +54,7 @@ def trusted_path(value, *, directory=False, fresh=False):
     if path != path.resolve() or not any(path.is_relative_to(root) for root in roots):
         raise ValueError("canonical task-owned artifact path required")
     existing = path.parent if fresh else path
-    for ancestor in (existing, *existing.parents):
-        metadata = ancestor.lstat()
-        if stat.S_ISLNK(metadata.st_mode) or metadata.st_uid not in (0, os.geteuid()):
-            raise ValueError("operator-owned nonsymlink artifact ancestry required")
-        if metadata.st_mode & 0o022 and not (
-                not ancestor.is_relative_to(project_root) and ancestor != existing
-                and stat.S_ISDIR(metadata.st_mode) and metadata.st_uid == 0
-                and metadata.st_mode & stat.S_ISVTX):
-            raise ValueError("artifact ancestry must not be group/world writable")
+    validate_artifact_ancestry(existing, project_root)
     if fresh:
         if path.exists() or path.is_symlink():
             raise ValueError("fresh task-owned output required")
@@ -74,24 +83,24 @@ def main():
         raise ValueError("executable NGINX artifact required")
     # The command and every argument are validated paths or fixed parser flags;
     # neither shell syntax nor NGINX configuration delimiters are accepted.
-    executable = re.fullmatch(r"/[A-Za-z0-9_./-]+", str(args.nginx_binary)).group(0)
+    executable = re.fullmatch(ARTIFACT_PATH_PATTERN, str(args.nginx_binary)).group(0)
     args.output.mkdir(mode=0o700)
     cases = [
         ("historical-minimal", "modsecurity_phase4_mode minimal;", 1, "expected off|safe|strict"),
-        ("historical-host-mime-gate", 'modsecurity_phase4_content_types_file "' + str(args.output / "scope.txt") + '";', 1,
+        ("historical-host-mime-gate", 'modsecurity_phase4_content_types_file "' + str(args.output / SCOPE_FILENAME) + '";', 1,
          'unknown directive "modsecurity_phase4_content_types_file"'),
         ("supported-safe", "modsecurity_phase4_mode safe;", 0, "test is successful"),
         ("supported-strict", "modsecurity_phase4_mode strict;", 0, "test is successful"),
     ]
-    (args.output / "scope.txt").write_text("application/json\n")
+    (args.output / SCOPE_FILENAME).write_text("application/json\n")
     environment = {"PATH": "/usr/bin:/bin", "LD_LIBRARY_PATH": str(args.library_dir)}
     rows = []
     for label, directive, expected, diagnostic in cases:
         configuration = args.output / (label + ".conf")
         configuration.write_text(f'load_module "{args.module}";\nuser nobody nogroup;\n'
             + f'pid "{args.output}/{label}.pid";\nerror_log stderr;\nevents {{}}\nhttp {{ {directive} }}\n')
-        configuration_argument = re.fullmatch(r"/[A-Za-z0-9_./-]+", str(configuration)).group(0)
-        prefix_argument = re.fullmatch(r"/[A-Za-z0-9_./-]+", str(args.output) + "/").group(0)
+        configuration_argument = re.fullmatch(ARTIFACT_PATH_PATTERN, str(configuration)).group(0)
+        prefix_argument = re.fullmatch(ARTIFACT_PATH_PATTERN, str(args.output) + "/").group(0)
         argv = [executable, "-e", "stderr", "-t", "-c", configuration_argument, "-p", prefix_argument]
         child = subprocess.run(argv, env=environment, capture_output=True, timeout=15, shell=False)
         (args.output / (label + ".stdout")).write_bytes(child.stdout)
@@ -104,7 +113,7 @@ def main():
             "http_requests_sent": 0, "host_started": False})
     receipt = {"scope": "Native parser only; no HTTP or lifecycle qualification", "rows": rows,
         "module_sha256": sha(args.module), "binary_sha256": sha(args.nginx_binary),
-        "rules_scope_file_sha256": sha(args.output / "scope.txt"), "all_expected": all(row["matched"] for row in rows)}
+        "rules_scope_file_sha256": sha(args.output / SCOPE_FILENAME), "all_expected": all(row["matched"] for row in rows)}
     (args.output / "receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
     print(json.dumps(receipt))
     return 0 if receipt["all_expected"] else 1

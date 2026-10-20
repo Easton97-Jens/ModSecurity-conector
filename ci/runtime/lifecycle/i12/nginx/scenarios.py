@@ -2,16 +2,23 @@
 from __future__ import annotations
 
 
+MARKER_PREFIX = b"marker="
+
+
 def cases():
     rows = []
 
     def add(identity, **changes):
-        row = dict(case_id=identity, request=b"marker=NGXI12_REQ&shape=single", response=b"NGXI12_RSP physical native response\n",
-                   request_type="application/x-www-form-urlencoded", response_type="text/plain; charset=utf-8",
-                   mode="safe", request_limit=1048576, response_limit=1048576, request_action="Reject",
-                   response_action="Reject", writes=1, response_parts=1, chunked=False, request_file=False,
-                   response_file=False, extra_headers=[], extra_rules="", nginx_directives="", fault=None,
-                   expected_status=200, expected_client_exit=0, expected_rule=None, scope="allow")
+        row = {"case_id": identity, "request": b"marker=NGXI12_REQ&shape=single",
+               "response": b"NGXI12_RSP physical native response\n",
+               "request_type": "application/x-www-form-urlencoded",
+               "response_type": "text/plain; charset=utf-8", "mode": "safe",
+               "request_limit": 1048576, "response_limit": 1048576,
+               "request_action": "Reject", "response_action": "Reject", "writes": 1,
+               "response_parts": 1, "chunked": False, "request_file": False,
+               "response_file": False, "extra_headers": [], "extra_rules": "",
+               "nginx_directives": "", "fault": None, "expected_status": 200,
+               "expected_client_exit": 0, "expected_rule": None, "scope": "allow"}
         row.update(changes)
         rows.append(row)
 
@@ -31,19 +38,19 @@ def cases():
         extra_rules="SecResponseBodyMimeType text/csv\n")
     add("NEED-response-charset-missing", response_type="text/plain")
     for name in ("NEED-request-file", "NEED-native-file-body"):
-        add(name, request=b"marker=" + b"x" * 65536 + b"NGXI12_REQ", request_file=True)
-    add("NEED-request-multiple-chunks", request=b"marker=" + b"x" * 65536 + b"NGXI12_REQ", request_file=True, writes=4)
-    add("NEED-request-streaming", request=b"marker=" + b"x" * 65536 + b"NGXI12_REQ", request_file=True, writes=8)
+        add(name, request=MARKER_PREFIX + b"x" * 65536 + b"NGXI12_REQ", request_file=True)
+    add("NEED-request-multiple-chunks", request=MARKER_PREFIX + b"x" * 65536 + b"NGXI12_REQ", request_file=True, writes=4)
+    add("NEED-request-streaming", request=MARKER_PREFIX + b"x" * 65536 + b"NGXI12_REQ", request_file=True, writes=8)
     add("NEED-response-file", response_file=True, get_entity=True, request=b"x")
     add("NEED-response-streaming", response=b"NGXI12_" + b"RSP streamed response\n", response_parts=4, chunked=True)
     add("transport_http11_chunked", response_parts=3, chunked=True)
-    add("NEED-request-marker-at-payload-end", request=b"marker=" + b"x" * 32768 + b"NGXI12_REQ")
+    add("NEED-request-marker-at-payload-end", request=MARKER_PREFIX + b"x" * 32768 + b"NGXI12_REQ")
     add("NEED-response-marker-at-payload-end", response=b"x" * 32768 + b"NGXI12_RSP")
-    add("NEED-request-above-former-connector-limit", request=b"marker=" + b"x" * 1048576 + b"NGXI12_REQ",
+    add("NEED-request-above-former-connector-limit", request=MARKER_PREFIX + b"x" * 1048576 + b"NGXI12_REQ",
         request_limit=2097152, response_limit=2097152, request_file=True)
     add("NEED-response-above-former-connector-limit", response=b"x" * 1048576 + b"NGXI12_RSP",
         request_limit=2097152, response_limit=2097152)
-    add("NEED-request-reject", request=b"marker=" + b"x" * 1024, request_limit=64, expected_status=403, scope="request_reject")
+    add("NEED-request-reject", request=MARKER_PREFIX + b"x" * 1024, request_limit=64, expected_status=403, scope="request_reject")
     add("NEED-request-process-partial", request=b"marker=NGXI12_REQ&" + b"x" * 1024, request_limit=64,
         request_action="ProcessPartial", scope="request_partial")
     add("phase4_body_reject", response=b"NGXI12_RSP" + b"x" * 128, response_limit=64,

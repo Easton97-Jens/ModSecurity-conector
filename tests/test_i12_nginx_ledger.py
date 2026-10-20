@@ -103,8 +103,9 @@ class NginxLedgerTests(unittest.TestCase):
         self.assertEqual(result["rows"][1]["baseline"], self.baseline["rows"][1])
 
     def test_duplicate_native_transaction_rejected(self):
+        packets = [self.packet(1, "same"), self.packet(2, "same")]
         with self.assertRaisesRegex(ValueError, "physical request or run/native"):
-            LEDGER.build_ledger(self.baseline, [self.packet(1, "same"), self.packet(2, "same")])
+            LEDGER.build_ledger(self.baseline, packets)
 
     def test_historical_qualified_transaction_cannot_qualify_a_different_id(self):
         old = self.packet(1, "historical-tx")
@@ -112,8 +113,9 @@ class NginxLedgerTests(unittest.TestCase):
         row["current_lifecycle_packet"] = LEDGER.SHARED.reviewed_packet(old["packet"], row, self.oracle)
         row["qualification_scope"] = "full_host_lifecycle"
         row["status"] = "PASS"
+        packets = [self.packet(2, "historical-tx")]
         with self.assertRaisesRegex(ValueError, "physical request or run/native"):
-            LEDGER.build_ledger(self.baseline, [self.packet(2, "historical-tx")])
+            LEDGER.build_ledger(self.baseline, packets)
 
     def test_duplicate_physical_request_path_rejected(self):
         packets = [self.packet(1, request="shared.bin"), self.packet(2, request="shared.bin")]

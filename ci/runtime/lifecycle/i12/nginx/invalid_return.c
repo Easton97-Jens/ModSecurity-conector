@@ -18,7 +18,9 @@ typedef int (*process_body_fn)(void *);
 typedef void (*cleanup_fn)(void *);
 static pid_t owned_master;
 static char owned_id[33];
-static int evidence = -1, armed, spent;
+static int evidence = -1;
+static int armed;
+static int spent;
 static dev_t evidence_device;
 static ino_t evidence_inode;
 static void *selected_transaction;
@@ -75,7 +77,8 @@ void *msc_new_transaction_with_id(void *engine, void *rules, char *id, void *opa
 {
     new_transaction_fn original;
     void *transaction;
-    int saved_errno, entry_errno = errno;
+    int saved_errno;
+    int entry_errno = errno;
     *(void **)(&original) = dlsym(RTLD_NEXT, "msc_new_transaction_with_id");
     if (original == NULL) _exit(126);
     errno = entry_errno;
@@ -92,7 +95,9 @@ void *msc_new_transaction_with_id(void *engine, void *rules, char *id, void *opa
 int msc_process_request_body(void *transaction)
 {
     process_body_fn original;
-    int result, saved_errno, entry_errno = errno;
+    int result;
+    int saved_errno;
+    int entry_errno = errno;
     *(void **)(&original) = dlsym(RTLD_NEXT, "msc_process_request_body");
     if (original == NULL) _exit(126);
     errno = entry_errno;

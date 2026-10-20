@@ -198,6 +198,48 @@ class EvidenceBoundaryTests(unittest.TestCase):
         finally:
             self.image.chmod(0o500)
 
+    def test_fixture_compiler_uses_fixed_relative_arguments_and_retains_receipts(self):
+        fixture_names = ("nginx_worker_self_maps", "nginx_common_input_fault",
+                         "nginx_engine_budget_fault", "nginx_transaction_fault")
+        source_root = self.scratch / "source-ordinary/tests/fixtures"
+        source_root.mkdir(parents=True)
+        for name in fixture_names:
+            (source_root / (name + ".c")).write_text("synthetic fixture " + name)
+
+        def compile_command(command, *, cwd, capture_output, shell):
+            self.assertEqual(cwd, str(self.scratch))
+            self.assertTrue(capture_output)
+            self.assertIs(shell, False)
+            self.assertEqual(command[:3], ["rtk", "proxy", "cc"])
+            self.assertIn("-I./source-ordinary/common/include", command)
+            self.assertFalse(any(str(self.scratch) in arg for arg in command))
+            self.assertTrue(command[-1].startswith("./fixtures/"))
+            (Path(cwd) / command[-1]).write_bytes(b"synthetic compiled fixture")
+            return BUILD.subprocess.CompletedProcess(command, 0, b"compiler output", b"")
+
+        with patch.object(BUILD.subprocess, "run", side_effect=compile_command) as compiler:
+            BUILD.compile_fixtures(self.scratch)
+        self.assertEqual(compiler.call_count, 4)
+        receipt = json.loads((self.scratch / "fixtures/receipt.json").read_text())
+        self.assertEqual(set(receipt), set(fixture_names))
+        for name, entry in receipt.items():
+            self.assertEqual(entry["exit"], 0)
+            self.assertEqual(entry["cwd"], str(self.scratch))
+            self.assertEqual(entry["source_sha256"], BUILD.sha(source_root / (name + ".c")))
+            self.assertEqual(entry["library_sha256"], BUILD.sha(self.scratch / "fixtures" / (name + ".so")))
+            self.assertEqual((self.scratch / "fixtures" / (name + ".stdout")).read_bytes(), b"compiler output")
+
+    def test_fixture_compiler_rejects_untrusted_working_directory_before_execution(self):
+        link = self.scratch / "linked-output"
+        link.symlink_to(self.scratch, target_is_directory=True)
+        for output in (link, Path(str(self.scratch) + ";injected"),
+                       self.scratch / ".." / self.scratch.name, Path("/etc")):
+            with self.subTest(output=output), patch.object(BUILD.subprocess, "run") as compiler:
+                with self.assertRaises(ValueError):
+                    BUILD.compile_fixtures(output)
+                compiler.assert_not_called()
+        self.assertFalse((self.scratch / "fixtures").exists())
+
     def test_configured_storage_anchor_cannot_itself_be_shared_sticky_transit(self):
         self.scratch.chmod(0o1777)
         self.addCleanup(self.scratch.chmod, 0o700)

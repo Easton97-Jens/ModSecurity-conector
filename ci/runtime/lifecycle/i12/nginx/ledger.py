@@ -122,6 +122,59 @@ def effective_review(row, supplied):
     return review, oracle
 
 
+def client_matches_request(client, receipt_path, request):
+    argv = client.get("argv", [])
+    if client.get("label") != "selected" or "--request" not in argv:
+        return False
+    index = argv.index("--request") + 1
+    if index >= len(argv):
+        return False
+    # Isolation receipts retain the in-host argv. The exported physical
+    # file must be that receipt's exact sibling, not a same-byte alias.
+    exported = receipt_path.parent / Path(argv[index]).name
+    return (str(exported) == request["path"] and
+            client.get("observation", {}).get("request_sha256") == request["sha256"])
+
+
+def client_receipt(path):
+    try:
+        return json.loads(path.read_text())
+    except (UnicodeError, json.JSONDecodeError):
+        return None
+
+
+def selected_client_run(proofs, packet, request):
+    observed_run = None
+    for proof in proofs:
+        receipt_path = Path(proof["path"])
+        receipt = client_receipt(receipt_path)
+        if not isinstance(receipt, dict) or receipt.get("selected_id") != packet["run_scoped_case_id"]:
+            continue
+        receipt_run = receipt.get("run_id") or receipt.get("roles", {}).get("run_id")
+        if not receipt_run or receipt_run != packet["run_id"]:
+            raise ValueError("Packet run ID differs from the actual selected client receipt run")
+        for client in receipt.get("clients", []):
+            if client_matches_request(client, receipt_path, request):
+                observed_run = receipt_run
+    if observed_run is None:
+        raise ValueError("Request path is not bound to the selected physical client proof")
+    return observed_run
+
+
+def selected_native_rows(proofs, transaction):
+    rows = []
+    for proof in proofs:
+        for line in Path(proof["path"]).read_text().splitlines():
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            if row.get("transaction_id") == transaction:
+                rows.append(row)
+    if not rows:
+        raise ValueError("No physical native rows bind the selected transaction")
+    return rows
+
+
 def physical_identity(identity, packet, reviewed):
     """Bind one request file to the selected client receipt and native transaction."""
     request = ORACLES.reference(identity["physical_request_path"])
@@ -130,45 +183,10 @@ def physical_identity(identity, packet, reviewed):
         transaction = transaction.get("value")
     if not transaction or identity.get("transaction_id") != transaction:
         raise ValueError("Request identity differs from observed native transaction")
-    matched = False
-    observed_run = None
-    for proof in reviewed["observations"]["client_exit"].get("evidence", []):
-        receipt_path = Path(proof["path"])
-        try:
-            receipt = json.loads(receipt_path.read_text())
-        except (UnicodeError, json.JSONDecodeError):
-            continue
-        if not isinstance(receipt, dict) or receipt.get("selected_id") != packet["run_scoped_case_id"]:
-            continue
-        receipt_run = receipt.get("run_id") or receipt.get("roles", {}).get("run_id")
-        if not receipt_run or receipt_run != packet["run_id"]:
-            raise ValueError("Packet run ID differs from the actual selected client receipt run")
-        for client in receipt.get("clients", []):
-            argv = client.get("argv", [])
-            if client.get("label") != "selected" or "--request" not in argv:
-                continue
-            index = argv.index("--request") + 1
-            if index >= len(argv):
-                continue
-            # Isolation receipts retain the in-host argv. The exported physical
-            # file must be that receipt's exact sibling, not a same-byte alias.
-            exported = receipt_path.parent / Path(argv[index]).name
-            if (str(exported) == request["path"] and
-                    client.get("observation", {}).get("request_sha256") == request["sha256"]):
-                matched = True
-                observed_run = receipt_run
-    if not matched:
-        raise ValueError("Request path is not bound to the selected physical client proof")
-    selected_native = []
-    for proof in reviewed["observations"]["native_transaction_id"].get("evidence", []):
-        for line in Path(proof["path"]).read_text().splitlines():
-            if not line.strip():
-                continue
-            row = json.loads(line)
-            if row.get("transaction_id") == transaction:
-                selected_native.append(row)
-    if not selected_native:
-        raise ValueError("No physical native rows bind the selected transaction")
+    observed_run = selected_client_run(reviewed["observations"]["client_exit"].get("evidence", []),
+                                       packet, request)
+    selected_native = selected_native_rows(
+        reviewed["observations"]["native_transaction_id"].get("evidence", []), transaction)
     for row in selected_native:
         for field, expected in (("run", observed_run), ("profile", packet["leg_id"]),
                                 ("case", packet["run_scoped_case_id"])):
@@ -178,10 +196,22 @@ def physical_identity(identity, packet, reviewed):
             "run_id": observed_run}
 
 
-def build_ledger(baseline, packets):
-    original = selected_rows(baseline)
-    by_id = {row["run_scoped_case_id"]: row for row in original}
-    additions, request_paths, transactions = {}, set(), set()
+def historical_request_paths(old):
+    paths = []
+    for proof in old["observations"]["client_exit"].get("evidence", []):
+        receipt_path = Path(ORACLES.verify_reference(proof)["path"])
+        receipt = json.loads(receipt_path.read_text())
+        for client in receipt.get("clients", []):
+            argv = client.get("argv", [])
+            if client.get("label") == "selected" and "--request" in argv:
+                position = argv.index("--request") + 1
+                if position < len(argv):
+                    path = str(receipt_path.parent / Path(argv[position]).name)
+                    paths.append(path)
+    return paths
+
+
+def historical_identities(original):
     historical_requests, historical_transactions = {}, {}
     for row in original:
         old = row.get("current_lifecycle_packet")
@@ -192,27 +222,48 @@ def build_ledger(baseline, packets):
         if isinstance(transaction, dict):
             transaction = transaction.get("value")
         historical_transactions[(old_packet["run_id"], transaction)] = row["run_scoped_case_id"]
-        for proof in old["observations"]["client_exit"].get("evidence", []):
-            receipt_path = Path(ORACLES.verify_reference(proof)["path"])
-            receipt = json.loads(receipt_path.read_text())
-            for client in receipt.get("clients", []):
-                argv = client.get("argv", [])
-                if client.get("label") == "selected" and "--request" in argv:
-                    position = argv.index("--request") + 1
-                    if position < len(argv):
-                        path = str(receipt_path.parent / Path(argv[position]).name)
-                        historical_requests[path] = row["run_scoped_case_id"]
+        for path in historical_request_paths(old):
+            historical_requests[path] = row["run_scoped_case_id"]
+    return historical_requests, historical_transactions
+
+
+def review_addition(record, by_id, additions):
+    reference = ORACLES.verify_reference(record["packet"])
+    packet = json.loads(Path(reference["path"]).read_text())
+    case_id = packet.get("run_scoped_case_id")
+    if case_id not in by_id or case_id in additions:
+        raise ValueError("Unknown or duplicate original packet ID")
+    review, oracle = effective_review(by_id[case_id], record.get("effective_oracle"))
+    reviewed = SHARED.reviewed_packet(reference, by_id[case_id], oracle)
+    if packet.get("outcome") == "PASS" and oracle is None:
+        raise ValueError("An unresolved oracle cannot receive a PASS")
+    identity = physical_identity(record["request_identity"], packet, reviewed)
+    return case_id, reviewed, review, identity
+
+
+def ledger_row(original_row, additions):
+    case_id = original_row["run_scoped_case_id"]
+    addition = additions.get(case_id)
+    old_qualified = original_row.get("qualification_scope") == "full_host_lifecycle"
+    qualified = (addition["packet"]["full_lifecycle_qualified"] if addition else old_qualified)
+    status = original_row["status"]
+    if addition:
+        status = "PARTIAL_HOST_MEASUREMENTS"
+        if qualified:
+            status = addition["packet"]["outcome"]
+    return {"run_scoped_case_id": case_id, "leg_id": "nginx-native",
+            "selected_requirement": copy.deepcopy(original_row["selected_requirement"]),
+            "baseline": copy.deepcopy(original_row), "new_evidence": addition,
+            "new_status": status, "full_lifecycle_qualified": qualified}
+
+
+def build_ledger(baseline, packets):
+    original = selected_rows(baseline)
+    by_id = {row["run_scoped_case_id"]: row for row in original}
+    additions, request_paths, transactions = {}, set(), set()
+    historical_requests, historical_transactions = historical_identities(original)
     for record in packets:
-        reference = ORACLES.verify_reference(record["packet"])
-        packet = json.loads(Path(reference["path"]).read_text())
-        case_id = packet.get("run_scoped_case_id")
-        if case_id not in by_id or case_id in additions:
-            raise ValueError("Unknown or duplicate original packet ID")
-        review, oracle = effective_review(by_id[case_id], record.get("effective_oracle"))
-        reviewed = SHARED.reviewed_packet(reference, by_id[case_id], oracle)
-        if packet.get("outcome") == "PASS" and oracle is None:
-            raise ValueError("An unresolved oracle cannot receive a PASS")
-        identity = physical_identity(record["request_identity"], packet, reviewed)
+        case_id, reviewed, review, identity = review_addition(record, by_id, additions)
         path = identity["physical_request"]["path"]
         transaction = (identity["run_id"], identity["transaction_id"])
         if (path in request_paths or transaction in transactions or
@@ -223,18 +274,7 @@ def build_ledger(baseline, packets):
         transactions.add(transaction)
         additions[case_id] = {"packet": reviewed, "oracle_review": review,
                               "request_identity": identity}
-    rows = []
-    for original_row in original:
-        case_id = original_row["run_scoped_case_id"]
-        addition = additions.get(case_id)
-        old_qualified = original_row.get("qualification_scope") == "full_host_lifecycle"
-        qualified = (addition["packet"]["full_lifecycle_qualified"] if addition else old_qualified)
-        status = (addition["packet"]["outcome"] if addition and qualified else
-                  "PARTIAL_HOST_MEASUREMENTS" if addition else original_row["status"])
-        rows.append({"run_scoped_case_id": case_id, "leg_id": "nginx-native",
-                     "selected_requirement": copy.deepcopy(original_row["selected_requirement"]),
-                     "baseline": copy.deepcopy(original_row), "new_evidence": addition,
-                     "new_status": status, "full_lifecycle_qualified": qualified})
+    rows = [ledger_row(row, additions) for row in original]
     unknown = [row for row in rows if row["selected_requirement"]["expected_oracle"].get(
         "unresolved_expected_value_reason")]
     resolved_before = sum(bool((row["baseline"].get("oracle_reconciliation") or {}).get("resolved"))

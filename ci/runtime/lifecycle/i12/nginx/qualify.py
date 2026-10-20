@@ -150,10 +150,7 @@ def check_body(actual, check, label):
                 len(actual) >= check["min_bytes"], label + " shorter than explicit minimum")
 
 
-def verify_checks(packet, candidate, checks, oracle, outcome):
-    require(isinstance(checks, dict) and set(checks) == REQUIRED_CHECKS,
-            "Every semantic checks field must be explicit; unknown fields are rejected")
-    obs = {name: measurement["value"] for name, measurement in packet["observations"].items()}
+def verify_integrity_assertions(candidate, checks):
     allowed = checks["allowed_absent_phases"]
     require(isinstance(allowed, list) and len(allowed) == len(set(allowed)) and
             all(type(phase) is int and phase in TERMINALS for phase in allowed), "Invalid absent phase declaration")
@@ -162,6 +159,9 @@ def verify_checks(packet, candidate, checks, oracle, outcome):
     for name, value in assertions.items():
         exceptions = [phase for phase in allowed if TERMINALS[phase] == name]
         require(value is True or (value is False and exceptions), "Base integrity assertion failed: " + name)
+
+
+def verify_client_transport(obs, checks):
     expect(obs["client_headers"]["http_status"], checks["http_status"], "HTTP status")
     exit_info, signal_info = obs["client_exit"], obs["client_signal"]
     require(exit_info.get("direct_child_wait") is True and signal_info.get("direct_child_wait") is True and
@@ -175,7 +175,9 @@ def verify_checks(packet, candidate, checks, oracle, outcome):
                                      ("socket_reset", "socket_reset")):
         expect(obs["transport_framing"][actual_key], checks[expected_key], expected_key)
     expect(obs["backend_request_count"]["selected"], checks["backend_count"], "backend count")
-    native = obs["native_api_returns"]["measured_calls"]
+
+
+def verify_native_returns(native, checks):
     return_checks = checks["native_return_checks"]
     require(isinstance(return_checks, list), "Native return checks must be an explicit list")
     for expected in return_checks:
@@ -190,6 +192,10 @@ def verify_checks(packet, candidate, checks, oracle, outcome):
         match = {key: value for key, value in expected.items() if key != "count"}
         expect(sum(subset(row, match) for row in native), expected["count"],
                "native return subset count " + expected["function"])
+
+
+def verify_native_functions(native, checks):
+    allowed = checks["allowed_absent_phases"]
     functions = [call["function"] for call in native]
     required, forbidden = checks["required_native_functions"], checks["forbidden_native_functions"]
     require(isinstance(required, (list, dict)) and bool(required) and isinstance(forbidden, list),
@@ -203,10 +209,15 @@ def verify_checks(packet, candidate, checks, oracle, outcome):
         require(PHASE_FUNCTIONS[phase] in forbidden, "Absent phase must explicitly forbid its native function")
         require(checks["request_eos" if phase == 2 else "response_eos"] is False,
                 "Absent phase cannot claim a native EOS")
+
+
+def verify_native_eos(obs, checks):
     for side, phase in (("request", 2), ("response", 4)):
         key = side + "_terminal_precedes_single_p" + str(phase)
         expect(obs["native_eos"][key], checks[side + "_eos"], side + " EOS")
-    events = obs["native_events"]
+
+
+def verify_oracle_event_fields(events, checks, oracle, outcome):
     event_fields = oracle.get("event_fields", [])
     require(isinstance(event_fields, list) and all(isinstance(field, str) and field for field in event_fields),
             "Effective oracle event_fields must be a field-name list")
@@ -219,6 +230,9 @@ def verify_checks(packet, candidate, checks, oracle, outcome):
     # from different events or supplemented by native/API/source projections.
     actual_fields_present = not event_fields or any(all(field in event for field in event_fields) for event in events)
     expect(actual_fields_present, declared_fields_present, "oracle fields in one physical event")
+
+
+def verify_forbidden_events(events, checks):
     check_events(events, checks["required_events"], "required events")
     require(isinstance(checks["forbidden_events"], list), "Forbidden events must be explicit")
     for forbidden_event in checks["forbidden_events"]:
@@ -229,6 +243,9 @@ def verify_checks(packet, candidate, checks, oracle, outcome):
     for field in checks["forbidden_event_fields"]:
         require(isinstance(field, str) and all(field not in event for event in events),
                 "Forbidden event field observed: " + str(field))
+
+
+def verify_cleanup_and_bodies(obs, candidate, checks):
     expect(len(obs["finish_calls"]["common_finish"]), checks["common_finish_count"], "Common finish count")
     expect(len(obs["finish_calls"]["native_logging"]), checks["native_logging_count"], "native logging count")
     expect(obs["native_free_calls"]["count"], checks["native_free_count"], "native free count")
@@ -237,6 +254,10 @@ def verify_checks(packet, candidate, checks, oracle, outcome):
     wire = evidence_path(candidate["request_identity"]["physical_request_path"]).read_bytes()
     request_headers, request_body = wire.split(b"\r\n\r\n", 1)
     check_body(request_body, checks["request_body"], "Request body")
+    return request_headers
+
+
+def verify_request_content_type(request_headers, checks):
     request_types = []
     for line in request_headers.split(b"\r\n")[1:]:
         name, separator, value = line.partition(b":")
@@ -246,6 +267,9 @@ def verify_checks(packet, candidate, checks, oracle, outcome):
     expected_type = checks["required_request_content_type"]
     require(expected_type is None or isinstance(expected_type, str), "Invalid request Content-Type expectation")
     expect(request_types, [] if expected_type is None else [expected_type], "actual request Content-Type")
+
+
+def verify_mime_debug(obs, checks):
     fragments = checks["required_mime_debug_fragments"]
     require(isinstance(fragments, list) and all(isinstance(fragment, str) and fragment for fragment in fragments),
             "MIME debug fragments must be an explicit list of nonempty strings")
@@ -257,6 +281,9 @@ def verify_checks(packet, candidate, checks, oracle, outcome):
     require(isinstance(checks["required_sdk_mime_semantics"], str) and bool(checks["required_sdk_mime_semantics"]),
             "SDK MIME semantics must be an explicit nonempty string")
     expect(obs["mime_gate"]["sdk_fixture_semantics"], checks["required_sdk_mime_semantics"], "SDK MIME semantics")
+
+
+def verify_body_buffers(obs, checks):
     chunks = obs["native_body_chunks"]
     for side in ("request", "response"):
         expect(len(chunks[side]), checks[side + "_append_count"], side + " append count")
@@ -267,6 +294,9 @@ def verify_checks(packet, candidate, checks, oracle, outcome):
         actual = any(row.get("operation") == operation and row.get(field) == 1
                      for row in chunks["host_buffer_state"])
         expect(actual, checks[key], key)
+
+
+def verify_response_content_type(obs, checks):
     content_type = checks["required_content_type"]
     require(content_type is None or isinstance(content_type, str), "Invalid content type expectation")
     if content_type is not None:
@@ -274,6 +304,9 @@ def verify_checks(packet, candidate, checks, oracle, outcome):
         types = [line.split(":", 1)[1].strip() for line in header_lines
                  if line.split(":", 1)[0].lower() == "content-type"]
         expect(types, [content_type], "actual response Content-Type")
+
+
+def verify_neighbor(obs, checks):
     neighbors = obs["neighbor_health"]["actual_followup_clients"]
     require(checks["neighbor_success"] is True and len(neighbors) == 1, "One successful neighbor is required")
     neighbor = neighbors[0]
@@ -282,6 +315,9 @@ def verify_checks(packet, candidate, checks, oracle, outcome):
             neighbor["pid"] == neighbor.get("observation", {}).get("pid") and
             neighbor["observation"].get("status") == 200 and neighbor["observation"].get("framing_complete") is True,
             "Neighbor health/direct wait failed")
+
+
+def verify_scoped_fixtures(obs, checks):
     fixture_checks = checks["scoped_fixture_events"]
     actual_fixture = obs["native_api_returns"].get("scoped_fixture_events", {})
     require(isinstance(fixture_checks, dict) and set(fixture_checks) == set(actual_fixture),
@@ -294,6 +330,38 @@ def verify_checks(packet, candidate, checks, oracle, outcome):
             expect(actual, expected, "scoped fixture " + label)
 
 
+def verify_checks(packet, candidate, checks, oracle, outcome):
+    require(isinstance(checks, dict) and set(checks) == REQUIRED_CHECKS,
+            "Every semantic checks field must be explicit; unknown fields are rejected")
+    obs = {name: measurement["value"] for name, measurement in packet["observations"].items()}
+    verify_integrity_assertions(candidate, checks)
+    verify_client_transport(obs, checks)
+    native = obs["native_api_returns"]["measured_calls"]
+    verify_native_returns(native, checks)
+    verify_native_functions(native, checks)
+    verify_native_eos(obs, checks)
+    events = obs["native_events"]
+    verify_oracle_event_fields(events, checks, oracle, outcome)
+    verify_forbidden_events(events, checks)
+    request_headers = verify_cleanup_and_bodies(obs, candidate, checks)
+    verify_request_content_type(request_headers, checks)
+    verify_mime_debug(obs, checks)
+    verify_body_buffers(obs, checks)
+    verify_response_content_type(obs, checks)
+    verify_neighbor(obs, checks)
+    verify_scoped_fixtures(obs, checks)
+
+
+def candidate_index(candidates):
+    by_id = {}
+    for candidate in candidates["cases"]:
+        identity = candidate.get("run_scoped_case_id")
+        if identity:
+            require(identity not in by_id, "Duplicate candidate ID")
+            by_id[identity] = candidate
+    return by_id
+
+
 def materialize(baseline, candidates, decisions, output):
     """Validate all decisions before creating any approved packet."""
     output = publication_path(output)
@@ -302,12 +370,7 @@ def materialize(baseline, candidates, decisions, output):
             "Controller and driver must exit zero")
     require(isinstance(decisions, list) and bool(decisions), "Explicit decisions list required")
     originals = {row["run_scoped_case_id"]: row for row in LEDGER.selected_rows(baseline)}
-    by_id = {}
-    for candidate in candidates["cases"]:
-        identity = candidate.get("run_scoped_case_id")
-        if identity:
-            require(identity not in by_id, "Duplicate candidate ID")
-            by_id[identity] = candidate
+    by_id = candidate_index(candidates)
     prepared, ids, requests, transactions = [], set(), set(), set()
     for decision in decisions:
         require(isinstance(decision, dict) and set(decision) <= {

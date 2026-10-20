@@ -16,6 +16,7 @@ from pathlib import Path
 
 BASELINE_SHA256 = "a3a901db7d70884d2f491c95246629071cd55280ad94ee0fd86049c2e954c7ff"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[5]
+JSON_FENCE = "```json"
 
 
 def evidence_root():
@@ -144,28 +145,30 @@ def public_summary(value):
     return select(value, ("scope", "source_sha256", "sdk_sha256", "steps", "passed"))
 
 
+def check_public_value(item, forbidden, sensitive):
+    if isinstance(item, dict):
+        for key, child in item.items():
+            if key in forbidden or sensitive.search(key):
+                raise ValueError(f"Private artifact key rejected: {key}")
+            check_public_value(child, forbidden, sensitive)
+    elif isinstance(item, list):
+        for child in item:
+            check_public_value(child, forbidden, sensitive)
+
+
 def check_public_artifact(value):
     """Fail closed if a future input adds private mappings or body material."""
     forbidden = {"environment", "exact_hex", "body_hex", "decision", "checks",
                  "request_body", "response_body", "raw_body"}
     sensitive = re.compile(r"(?:password|secret|credential|authorization|cookie|api_key|access_token|private_key)", re.I)
-    def walk(item):
-        if isinstance(item, dict):
-            for key, child in item.items():
-                if key in forbidden or sensitive.search(key):
-                    raise ValueError(f"Private artifact key rejected: {key}")
-                walk(child)
-        elif isinstance(item, list):
-            for child in item:
-                walk(child)
     # Verification's public check list is intentional; per-case decisions are not.
     for section in value.get("verification", []):
         for check in section["summary"].get("checks", []):
-            walk(check)
+            check_public_value(check, forbidden, sensitive)
     without_checks = {**value, "verification": [{**section, "summary": {
         key: child for key, child in section["summary"].items() if key != "checks"}}
         for section in value.get("verification", [])]}
-    walk(without_checks)
+    check_public_value(without_checks, forbidden, sensitive)
 
 
 def read(path):
@@ -199,15 +202,7 @@ def public_selected_requirement(value):
     return public_source_hash_inventory(value)
 
 
-def compact(ledger, ledger_path, observations, verification):
-    baseline_ref = ledger["inputs"]["baseline"]
-    if baseline_ref["sha256"] != BASELINE_SHA256:
-        raise ValueError("Unexpected immutable baseline")
-    baseline_path = Path(baseline_ref["path"])
-    if reference(baseline_path)["sha256"] != BASELINE_SHA256:
-        raise ValueError("Baseline bytes changed")
-    baseline = {row["run_scoped_case_id"]: row for row in read(baseline_path)["rows"]
-                if row["leg_id"] == "nginx-native"}
+def validate_compact_membership(ledger, baseline, observations):
     rows = ledger["rows"]
     ids = [row["run_scoped_case_id"] for row in rows]
     if len(ids) != 140 or len(set(ids)) != 140 or set(ids) != set(baseline):
@@ -228,32 +223,48 @@ def compact(ledger, ledger_path, observations, verification):
     if set(gaps) != unqualified or any(not isinstance(value, str) or not value.strip()
                                       for value in gaps.values()):
         raise ValueError("Remaining-gap mapping must exactly cover unqualified original IDs")
-    compact_rows = []
-    for index, row in enumerate(rows):
-        case_id = row["run_scoped_case_id"]
-        selected = row["selected_requirement"]
-        if selected != baseline[case_id]["selected_requirement"] or row["baseline"] != baseline[case_id]:
-            raise ValueError("Original selected contract or historical row changed")
-        new = row["new_evidence"]
-        packet = new["packet"] if new else None
-        compact_rows.append({
-            "run_scoped_case_id": case_id,
-            "selected_requirement_sha256": canonical_hash(selected),
-            "selected_requirement": public_selected_requirement(selected),
-            "baseline_row_sha256": canonical_hash(row["baseline"]),
-            "baseline_row_locator": {"input": "baseline", "run_scoped_case_id": case_id},
-            "full_row_locator": {"input": "full_ledger", "row_index": index},
-            "baseline_status": row["baseline"]["status"],
-            "baseline_qualification_scope": row["baseline"].get("qualification_scope"),
-            "new_status": row["new_status"],
-            "full_lifecycle_qualified": row["full_lifecycle_qualified"],
-            "new_packet": packet.get("receipt") if packet else None,
-            "new_request_identity": new["request_identity"] if new else None,
-            "new_oracle_review": public_source_hash_inventory(new["oracle_review"]) if new else None,
-            "original_oracle_unresolved": bool(selected["expected_oracle"].get(
-                "unresolved_expected_value_reason")),
-            "remaining_gap": None if row["full_lifecycle_qualified"] else gaps[case_id],
-        })
+    return rows, gaps
+
+
+def compact_row(index, row, baseline, gaps):
+    case_id = row["run_scoped_case_id"]
+    selected = row["selected_requirement"]
+    if selected != baseline[case_id]["selected_requirement"] or row["baseline"] != baseline[case_id]:
+        raise ValueError("Original selected contract or historical row changed")
+    new = row["new_evidence"]
+    packet = new["packet"] if new else None
+    return {
+        "run_scoped_case_id": case_id,
+        "selected_requirement_sha256": canonical_hash(selected),
+        "selected_requirement": public_selected_requirement(selected),
+        "baseline_row_sha256": canonical_hash(row["baseline"]),
+        "baseline_row_locator": {"input": "baseline", "run_scoped_case_id": case_id},
+        "full_row_locator": {"input": "full_ledger", "row_index": index},
+        "baseline_status": row["baseline"]["status"],
+        "baseline_qualification_scope": row["baseline"].get("qualification_scope"),
+        "new_status": row["new_status"],
+        "full_lifecycle_qualified": row["full_lifecycle_qualified"],
+        "new_packet": packet.get("receipt") if packet else None,
+        "new_request_identity": new["request_identity"] if new else None,
+        "new_oracle_review": public_source_hash_inventory(new["oracle_review"]) if new else None,
+        "original_oracle_unresolved": bool(selected["expected_oracle"].get(
+            "unresolved_expected_value_reason")),
+        "remaining_gap": None if row["full_lifecycle_qualified"] else gaps[case_id],
+    }
+
+
+def compact(ledger, ledger_path, observations, verification):
+    baseline_ref = ledger["inputs"]["baseline"]
+    if baseline_ref["sha256"] != BASELINE_SHA256:
+        raise ValueError("Unexpected immutable baseline")
+    baseline_path = Path(baseline_ref["path"])
+    if reference(baseline_path)["sha256"] != BASELINE_SHA256:
+        raise ValueError("Baseline bytes changed")
+    baseline = {row["run_scoped_case_id"]: row for row in read(baseline_path)["rows"]
+                if row["leg_id"] == "nginx-native"}
+    rows, gaps = validate_compact_membership(ledger, baseline, observations)
+    compact_rows = [compact_row(index, row, baseline, gaps)
+                    for index, row in enumerate(rows)]
     result = {"schema_version": 1, "profile": "nginx-native", "date": "2026-10-15",
             "canonical_hash_format": "UTF-8 JSON, sorted keys, separators=(',', ':'), ensure_ascii=False",
             "inputs": {"baseline": baseline_ref, "full_ledger": reference(ledger_path),
@@ -267,6 +278,36 @@ def compact(ledger, ledger_path, observations, verification):
             "rows": compact_rows}
     check_public_artifact(result)
     return result
+
+
+def observation_header(item):
+    summary = item["summary"]
+    header = {key: value for key, value in summary.items() if key != "cases"}
+    if "remaining_gaps" in summary:
+        header = {key: summary[key] for key in (
+            "source_head", "branch", "base", "scope", "sdk_mime", "product_defect",
+            "remaining_original_open_oracle_ids")}
+        header["build_identity"] = {key: value for key, value in summary["build_identity"].items()
+                                    if key.endswith("sha256") or key == "sdk_version"}
+        header["compiled_parent_unit_count"] = summary["build_identity"]["compiled_parent_units"]
+        header["compiled_nginx_generated_unit_count"] = summary["build_identity"]["compiled_nginx_generated_units"]
+        header["suite"] = {key: value for key, value in summary["suite"].items()
+                           if key != "receipt_references"}
+        header["qualified_failures"] = [{"case_id": failure["run_scoped_case_id"],
+                                          "cause": failure["cause"]}
+                                         for failure in summary["qualified_failures"]]
+    return header
+
+
+def append_verification(lines, verification):
+    for item in verification:
+        for check in item["summary"].get("checks", []):
+            command = check.get("command", [])
+            command = " ".join(command) if isinstance(command, list) else str(command)
+            lines.append(f"| {check.get('name')} | {check.get('exit_code')} | {check.get('status')} | `{command.replace('|', '&#124;')}` |")
+    for item in verification:
+        if not item["summary"].get("checks"):
+            lines += ["", JSON_FENCE, json.dumps(item, indent=2, ensure_ascii=False), "```", ""]
 
 
 def report(data, machine_path, german=False):
@@ -286,7 +327,7 @@ def report(data, machine_path, german=False):
                     "Die 140 ausgewählten ursprünglichen IDs bleiben maßgeblich. Nur ein freigegebenes vollständiges ausgewähltes Hostpaket qualifiziert einen Lifecycle-PASS. Kandidatenbeobachtungen, native Unit-Tests, Konfigurationsprüfungen und Aliase qualifizieren keine zusätzlichen Requests."), "",
              choose(f"Current complete qualification covers **{qualified}/140 original IDs**: **{summary['full_lifecycle_pass']} PASS** and **{summary['full_lifecycle_fail']} FAIL**. **{remaining} IDs** still lack a complete lifecycle qualification. Baseline qualification resolved {summary['baseline_resolved_original_oracles']} of the original {summary['original_open_oracles']} open oracle expectations, and new evidence resolves {summary['newly_resolved_original_oracles']}; **{summary['remaining_original_open_oracles']} remain open**.",
                     f"Die aktuelle vollständige Qualifikation umfasst **{qualified}/140 ursprüngliche IDs**: **{summary['full_lifecycle_pass']} PASS** und **{summary['full_lifecycle_fail']} FAIL**. **{remaining} IDs** haben weiterhin keine vollständige Lifecycle-Qualifikation. Die Basisqualifikation löste {summary['baseline_resolved_original_oracles']} der ursprünglich {summary['original_open_oracles']} offenen Oracle-Erwartungen auf, und neue Nachweise lösen {summary['newly_resolved_original_oracles']} auf; **{summary['remaining_original_open_oracles']} bleiben offen**."), "",
-             "```json", json.dumps(data["summary"], indent=2, ensure_ascii=False), "```", "",
+             JSON_FENCE, json.dumps(data["summary"], indent=2, ensure_ascii=False), "```", "",
              choose("The original 43 open oracle expectations and their baseline reconciliation remain unchanged unless an explicit reviewed addition resolves them. A source interpretation alone does not fabricate a new successful host request.",
                     "Die ursprünglich 43 offenen Oracle-Erwartungen und ihre Basisabstimmung bleiben ohne explizite geprüfte Ergänzung unverändert. Eine Quellinterpretation allein erzeugt keinen neuen erfolgreichen Hostrequest."), "",
              choose("## Historical evidence and oracle semantics", "## Historische Nachweise und Oracle-Semantik"), "",
@@ -306,38 +347,17 @@ def report(data, machine_path, german=False):
              choose("The referenced candidate summaries retain actual Root-master/Nobody-worker identity, loaded connector/SDK mappings, client process exit/signal, exact bytes and framing, native API returns, physical events, commit ordering, finish/free and neighbor/cleanup measurements where available. Unknown measurements remain unknown. Host terminal callbacks paired with native process-body entry establish the measured EOS boundary; client EOF and zero-byte append do not establish native EOS. HTTP/1 observations do not prove HTTP/2 reset behavior.",
                     "Die referenzierten Kandidatenzusammenfassungen behalten tatsächliche Root-Master-/Nobody-Worker-Identität, geladene Connector-/SDK-Mappings, Clientprozess-Exit/Signal, exakte Bytes und Framing, native API-Rückgaben, physische Events, Commitreihenfolge, Finish/Free sowie Nachbar-/Cleanup-Messungen soweit verfügbar. Unbekannte Messungen bleiben unbekannt. Host-Terminalcallbacks zusammen mit nativem Process-Body-Eintritt belegen die gemessene EOS-Grenze; Client-EOF und Nullbyte-Append belegen kein natives EOS. HTTP/1-Beobachtungen beweisen kein HTTP/2-Resetverhalten."), ""]
     for item in data["observations"]:
-        summary = item["summary"]
-        header = {key: value for key, value in summary.items() if key != "cases"}
-        if "remaining_gaps" in summary:
-            header = {key: summary[key] for key in (
-                "source_head", "branch", "base", "scope", "sdk_mime", "product_defect",
-                "remaining_original_open_oracle_ids")}
-            header["build_identity"] = {key: value for key, value in summary["build_identity"].items()
-                                        if key.endswith("sha256") or key == "sdk_version"}
-            header["compiled_parent_unit_count"] = summary["build_identity"]["compiled_parent_units"]
-            header["compiled_nginx_generated_unit_count"] = summary["build_identity"]["compiled_nginx_generated_units"]
-            header["suite"] = {key: value for key, value in summary["suite"].items()
-                               if key != "receipt_references"}
-            header["qualified_failures"] = [{"case_id": failure["run_scoped_case_id"],
-                                              "cause": failure["cause"]}
-                                             for failure in summary["qualified_failures"]]
-        lines += ["```json", json.dumps({"input": item["input"], **header}, indent=2, ensure_ascii=False), "```", ""]
+        header = observation_header(item)
+        lines += [JSON_FENCE, json.dumps({"input": item["input"], **header}, indent=2, ensure_ascii=False), "```", ""]
     lines += [choose("## Verification", "## Verifikation"), "",
               choose("Every check below reports its observed result, including failed setup attempts. Compiled/native/mutation checks establish their own layer and do not qualify a host lifecycle.",
                      "Jede folgende Prüfung nennt ihr beobachtetes Ergebnis einschließlich fehlgeschlagener Setupversuche. Kompilierte/native/Mutationsprüfungen belegen ihre eigene Ebene und qualifizieren keinen Host-Lifecycle."), "",
               choose("| Check | Exit | Status | Command |", "| Prüfung | Exit | Status | Befehl |"), "| --- | --- | --- | --- |"]
-    for item in data["verification"]:
-        for check in item["summary"].get("checks", []):
-            command = check.get("command", [])
-            command = " ".join(command) if isinstance(command, list) else str(command)
-            lines.append(f"| {check.get('name')} | {check.get('exit_code')} | {check.get('status')} | `{command.replace('|', '&#124;')}` |")
-    for item in data["verification"]:
-        if not item["summary"].get("checks"):
-            lines += ["", "```json", json.dumps(item, indent=2, ensure_ascii=False), "```", ""]
+    append_verification(lines, data["verification"])
     lines += ["", choose("## Complete 140-ID ledger", "## Vollständiges 140-ID-Ledger"), "",
               choose(f"The [machine artifact](../{machine_path.as_posix()}) retains every original selected contract as a readable projection with its canonical full-contract hash, baseline status, new status and external raw-proof locators. Per-path source hashes stay in the externally bound baseline. The external baseline and full ledger are bound below by SHA256; heavy raw files are intentionally retained outside Git.",
                      f"Das [Maschinenartefakt](../{machine_path.as_posix()}) behält jeden ursprünglichen ausgewählten Vertrag als lesbare Projektion mit seinem kanonischen Vollvertragshash, Basisstatus, neuem Status und externen Rohbeleg-Locators. Pfadbezogene Quellhashes bleiben in der extern gebundenen Basis. Externe Basis und vollständiges Ledger sind unten durch SHA256 gebunden; schwere Rohdateien bleiben außerhalb von Git."), "",
-              "```json", json.dumps(data["inputs"], indent=2), "```", "",
+              JSON_FENCE, json.dumps(data["inputs"], indent=2), "```", "",
               choose("### Qualified original IDs", "### Qualifizierte ursprüngliche IDs"), "",
               choose("Each row below is one original selected ID. Packet hashes and independent request identities are retained in the machine artifact; a retest of an already qualified ID does not add another original requirement.",
                      "Jede folgende Zeile ist eine ursprüngliche ausgewählte ID. Pakethashes und unabhängige Requestidentitäten stehen im Maschinenartefakt; der erneute Test einer bereits qualifizierten ID fügt keine weitere ursprüngliche Anforderung hinzu."), "",

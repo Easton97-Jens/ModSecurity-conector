@@ -13,28 +13,32 @@ import stat
 import time
 
 LIMIT = 16 * 1024 * 1024
+STATUS_LINE = re.compile(rb"HTTP/1\.[01] ([1-5]\d{2})(?: [^\r\n]*)?")
+HEADER_NAME = re.compile(rb"[!#$%&'*+.^_`|~0-9A-Za-z-]+")
+DIGITS = re.compile(rb"\d+")
+ARTIFACT_PATH = re.compile(r"/[A-Za-z0-9_./-]+")
 
 
 def storage_root():
     """Require the configured private project anchor, with no temp fallback."""
     value = os.environ.get("CODEX_TEMP_ROOT", "")
-    match = re.fullmatch(r"/[A-Za-z0-9_./-]+", value)
-    if match is None:
+    if ARTIFACT_PATH.fullmatch(value) is None:
         raise ValueError("canonical CODEX_TEMP_ROOT required")
-    root = Path(match.group(0))
-    if (str(root) != value or root != root.resolve() or root == Path("/") or
-            ".." in root.parts):
+    root = Path(value)
+    canonical = str(root) == value and root == root.resolve()
+    bounded = root != Path("/") and ".." not in root.parts
+    if not canonical or not bounded:
         raise ValueError("canonical CODEX_TEMP_ROOT required")
-    info = root.lstat()
-    if (not stat.S_ISDIR(info.st_mode) or info.st_uid not in (0, os.geteuid()) or
-            info.st_mode & 0o022):
+    metadata = root.lstat()
+    private = metadata.st_uid in (0, os.geteuid()) and not metadata.st_mode & 0o022
+    if not stat.S_ISDIR(metadata.st_mode) or not private:
         raise ValueError("private owned CODEX_TEMP_ROOT required")
     return root
 
 
 def artifact_path(value, *, fresh=False):
     """Confine client files to canonical protected task storage."""
-    match = re.fullmatch(r"/[A-Za-z0-9_./-]+", str(value))
+    match = ARTIFACT_PATH.fullmatch(str(value))
     if match is None:
         raise ValueError("canonical client artifact path required")
     path = Path(match.group(0))
@@ -61,56 +65,63 @@ def sha(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def entity(raw):
-    """Parse retained finite H1 bytes, rejecting ambiguous/incomplete framing."""
+def response_head(raw):
+    """Return a validated status, retained head, body and normalized headers."""
     header, body = raw.split(b"\r\n\r\n", 1)
     lines = header.split(b"\r\n")
-    start = re.fullmatch(rb"HTTP/1\.[01] ([1-5][0-9]{2})(?: [^\r\n]*)?", lines[0])
+    start = STATUS_LINE.fullmatch(lines[0])
     if start is None:
         raise ValueError("invalid HTTP status line")
-    status = int(start[1])
     headers = []
     for line in lines[1:]:
         pair = line.split(b":", 1)
-        if len(pair) != 2 or re.fullmatch(rb"[!#$%&'*+.^_`|~0-9A-Za-z-]+", pair[0]) is None:
+        if len(pair) != 2 or HEADER_NAME.fullmatch(pair[0]) is None:
             raise ValueError("invalid response header")
         headers.append(pair)
+    return int(start[1]), header + b"\r\n\r\n", body, headers
+
+
+def chunked_entity(body):
+    """Decode one complete chunked entity without trailers or extensions."""
+    position = 0
+    decoded = bytearray()
+    while True:
+        end = body.find(b"\r\n", position)
+        if end < 0:
+            raise ValueError("incomplete chunk size")
+        size_text = body[position:end]
+        if not size_text or any(character not in b"0123456789abcdefABCDEF" for character in size_text):
+            raise ValueError("invalid chunk size")
+        size = int(size_text, 16)
+        position = end + 2
+        if size == 0:
+            if body[position:] != b"\r\n":
+                raise ValueError("incomplete terminal chunk or unsupported trailers")
+            return bytes(decoded)
+        if position + size + 2 > len(body) or body[position + size:position + size + 2] != b"\r\n":
+            raise ValueError("incomplete chunk data")
+        decoded.extend(body[position:position + size])
+        position += size + 2
+
+
+def entity(raw):
+    """Parse retained finite H1 bytes, rejecting ambiguous/incomplete framing."""
+    status, header, body, headers = response_head(raw)
     raw_lengths = [v.strip(b" \t") for k, v in headers if k.lower() == b"content-length"]
-    if any(re.fullmatch(rb"[0-9]+", value) is None for value in raw_lengths):
+    if any(DIGITS.fullmatch(value) is None for value in raw_lengths):
         raise ValueError("invalid Content-Length digits")
     lengths = [int(value) for value in raw_lengths]
     encodings = [v.strip().lower() for k, v in headers if k.lower() == b"transfer-encoding"]
     if encodings:
         if encodings != [b"chunked"] or lengths:
             raise ValueError("ambiguous transfer framing")
-        position, decoded = 0, bytearray()
-        while True:
-            end = body.find(b"\r\n", position)
-            if end < 0:
-                raise ValueError("incomplete chunk size")
-            size_text = body[position:end]
-            if not size_text or any(c not in b"0123456789abcdefABCDEF" for c in size_text):
-                raise ValueError("invalid chunk size")
-            size = int(size_text, 16)
-            position = end + 2
-            if size == 0:
-                if body[position:] != b"\r\n":
-                    raise ValueError("incomplete terminal chunk or unsupported trailers")
-                return status, header + b"\r\n\r\n", bytes(decoded), "http1.1-chunked"
-            if position + size + 2 > len(body) or body[position + size:position + size + 2] != b"\r\n":
-                raise ValueError("incomplete chunk data")
-            decoded.extend(body[position:position + size])
-            position += size + 2
+        return status, header, chunked_entity(body), "http1.1-chunked"
     if len(lengths) != 1 or lengths[0] != len(body):
         raise ValueError("finite Content-Length mismatch")
-    return status, header + b"\r\n\r\n", body, "http1.1-content-length"
+    return status, header, body, "http1.1-content-length"
 
 
-def run(port, request_path, output, pieces=1):
-    if not 1 <= pieces <= 64 or not 1024 < port < 65536:
-        raise ValueError("closed loopback port/write-count contract")
-    request_path = artifact_path(request_path)
-    output = artifact_path(output, fresh=True)
+def read_request(request_path):
     descriptor = os.open(request_path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     with os.fdopen(descriptor, "rb") as stream:
         if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
@@ -118,6 +129,65 @@ def run(port, request_path, output, pieces=1):
         request = stream.read(LIMIT + 1)
     if not 0 < len(request) <= LIMIT:
         raise ValueError("request size outside bound")
+    return request
+
+
+def transmit(stream, request, pieces, observed):
+    head, body = request.split(b"\r\n\r\n", 1)
+    segments = [request]
+    if pieces != 1:
+        segments = [head + b"\r\n\r\n"] + [
+            body[index * len(body) // pieces:(index + 1) * len(body) // pieces]
+            for index in range(pieces)]
+    for segment in segments:
+        started = time.monotonic_ns()
+        stream.sendall(segment)
+        observed["writes"].append({"bytes": len(segment), "started_monotonic_ns": started,
+                                   "returned_monotonic_ns": time.monotonic_ns()})
+        if pieces > 1:
+            time.sleep(0.025)
+
+
+def receive(stream, wire, observed):
+    deadline = time.monotonic() + 10
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("bounded client response deadline")
+        stream.settimeout(remaining)
+        chunk = stream.recv(65536)
+        if not chunk:
+            observed.update(socket_eof=True, socket_eof_monotonic_ns=time.monotonic_ns())
+            return
+        now = time.monotonic_ns()
+        if observed["first_response_monotonic_ns"] is None:
+            observed["first_response_monotonic_ns"] = now
+        wire.extend(chunk)
+        has_entity = b"\r\n\r\n" in wire and len(wire.split(b"\r\n\r\n", 1)[1])
+        if has_entity and observed["first_entity_monotonic_ns"] is None:
+            observed["first_entity_monotonic_ns"] = now
+        if len(wire) > LIMIT:
+            raise ValueError("bounded response exceeded")
+
+
+def retain_fragment(output, wire, observed):
+    if b"\r\n\r\n" not in wire:
+        return
+    head, fragment = bytes(wire).split(b"\r\n\r\n", 1)
+    (output / "headers.bin").write_bytes(head + b"\r\n\r\n")
+    (output / "body-fragment.bin").write_bytes(fragment)
+    start = STATUS_LINE.fullmatch(head.split(b"\r\n", 1)[0])
+    observed["status"] = int(start[1]) if start else None
+    observed["fragment_bytes"] = len(fragment)
+    observed["fragment_sha256"] = sha(fragment)
+
+
+def run(port, request_path, output, pieces=1):
+    if not 1 <= pieces <= 64 or not 1024 < port < 65536:
+        raise ValueError("closed loopback port/write-count contract")
+    request_path = artifact_path(request_path)
+    output = artifact_path(output, fresh=True)
+    request = read_request(request_path)
     output.mkdir(mode=0o700)
     observed = {"request_sha256": sha(request), "first_response_monotonic_ns": None,
                 "first_entity_monotonic_ns": None, "status": None, "writes": [],
@@ -128,50 +198,17 @@ def run(port, request_path, output, pieces=1):
     try:
         with socket.create_connection(("127.0.0.1", port), timeout=5) as stream:
             observed.update(local=stream.getsockname(), peer=stream.getpeername())
-            head, body = request.split(b"\r\n\r\n", 1)
-            segments = [request] if pieces == 1 else [head + b"\r\n\r\n"] + [
-                body[i * len(body) // pieces:(i + 1) * len(body) // pieces] for i in range(pieces)]
-            for segment in segments:
-                started = time.monotonic_ns()
-                stream.sendall(segment)
-                observed["writes"].append({"bytes": len(segment), "started_monotonic_ns": started,
-                                           "returned_monotonic_ns": time.monotonic_ns()})
-                if pieces > 1:
-                    time.sleep(0.025)
-            deadline = time.monotonic() + 10
-            while True:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    raise TimeoutError("bounded client response deadline")
-                stream.settimeout(remaining)
-                chunk = stream.recv(65536)
-                if not chunk:
-                    observed.update(socket_eof=True, socket_eof_monotonic_ns=time.monotonic_ns())
-                    break
-                now = time.monotonic_ns()
-                if observed["first_response_monotonic_ns"] is None:
-                    observed["first_response_monotonic_ns"] = now
-                wire.extend(chunk)
-                if b"\r\n\r\n" in wire and len(wire.split(b"\r\n\r\n", 1)[1]) and observed["first_entity_monotonic_ns"] is None:
-                    observed["first_entity_monotonic_ns"] = now
-                if len(wire) > LIMIT:
-                    raise ValueError("bounded response exceeded")
+            transmit(stream, request, pieces, observed)
+            receive(stream, wire, observed)
         status, headers, body, framing = entity(bytes(wire))
         (output / "headers.bin").write_bytes(headers)
         (output / "body.bin").write_bytes(body)
         observed.update(status=status, body_bytes=len(body), body_sha256=sha(body), framing=framing,
                         framing_complete=True)
-    except (OSError, ValueError, TimeoutError) as exc:
+    except (OSError, ValueError) as exc:
         error = type(exc).__name__ + ": " + str(exc)
         observed["socket_reset"] = isinstance(exc, ConnectionResetError)
-        if b"\r\n\r\n" in wire:
-            head, fragment = bytes(wire).split(b"\r\n\r\n", 1)
-            (output / "headers.bin").write_bytes(head + b"\r\n\r\n")
-            (output / "body-fragment.bin").write_bytes(fragment)
-            start = re.fullmatch(rb"HTTP/1\.[01] ([1-5][0-9]{2})(?: [^\r\n]*)?", head.split(b"\r\n", 1)[0])
-            observed["status"] = int(start[1]) if start else None
-            observed["fragment_bytes"] = len(fragment)
-            observed["fragment_sha256"] = sha(fragment)
+        retain_fragment(output, wire, observed)
     finally:
         (output / "response.bin").write_bytes(wire)
         observed.update(response_sha256=sha(wire), error=error, finished_monotonic_ns=time.monotonic_ns())
