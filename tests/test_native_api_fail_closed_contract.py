@@ -32,7 +32,7 @@ def requires_success(source: str, operation: str) -> bool:
         closing = matching_delimiter(source, opening, "(", ")")
         prefix = source[max(0, call.start() - 100):call.start()]
         suffix = source[closing + 1:]
-        delegated = re.search(rf"!{helper}\s*\(\s*$", prefix) is not None
+        delegated = re.search(rf"!{helper}\s*\(\s*(?:[A-Za-z_]\w*\s*=\s*)?$", prefix) is not None
         direct = re.match(r"\s*!=\s*1\b", suffix) is not None
         if "append" in operation:
             if not delegated:
@@ -62,6 +62,10 @@ class NativeAPIFailClosedContractTests(unittest.TestCase):
         append = "msc_append_request_body"
         self.assertFalse(requires_success(f"if ({append}(tx, data, size) != 1) return 0;", append))
         self.assertFalse(requires_success(f"if (!msconnector_native_phase_succeeded({append}(tx, data, size))) return 0;", append))
+        assigned = f"if (!msconnector_native_body_append_can_continue(result = {append}(tx, data, size))) return 0;"
+        self.assertTrue(requires_success(assigned, append))
+        self.assertFalse(requires_success(assigned.replace("!msconnector", "msconnector"), append))
+        self.assertFalse(requires_success(assigned + f" result = {append}(tx, data, size);", append))
 
     def test_common_runtime_rejects_every_boolean_native_failure(self) -> None:
         for operation in ("msc_process_connection", "msc_process_uri", "msc_set_request_hostname", "msc_add_n_request_header", "msc_process_request_headers", "msc_append_request_body", "msc_process_request_body", "msc_add_n_response_header", "msc_process_response_headers", "msc_append_response_body", "msc_process_response_body"):
