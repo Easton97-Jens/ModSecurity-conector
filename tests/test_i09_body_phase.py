@@ -33,6 +33,11 @@ EXTRA_FUNCTIONS = (
 )
 NATIVE_SEAMS = r'''
 static int append_calls;
+size_t msc_get_request_body_length(Transaction *transaction) {
+    (void)transaction;
+    /* These overflow/prior-error cases must fail before any native access. */
+    abort();
+}
 int msconnector_modsecurity_append_request_body(msconnector_modsecurity_transaction *tx,
         const unsigned char *data, size_t size, msconnector_error *error) {
     (void)tx; (void)data; (void)size; (void)error; ++append_calls; return 1;

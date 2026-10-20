@@ -85,10 +85,14 @@ var (
 // Config is the host-facing configuration. SocketPath is deliberately UDS
 // only; no TCP or implicit fallback is supported.
 type Config struct {
-	SocketPath      string `json:"socketPath,omitempty"`
-	TimeoutMillis   int    `json:"timeoutMillis,omitempty"`
-	ExpectedPeerUID *int   `json:"expectedPeerUID,omitempty"`
-	ExpectedPeerGID *int   `json:"expectedPeerGID,omitempty"`
+	SocketPath           string `json:"socketPath,omitempty"`
+	TimeoutMillis        int    `json:"timeoutMillis,omitempty"`
+	ExpectedPeerUID      *int   `json:"expectedPeerUID,omitempty"`
+	ExpectedPeerGID      *int   `json:"expectedPeerGID,omitempty"`
+	ProvenanceSocketPath string `json:"provenanceSocketPath,omitempty"`
+	RunID                string `json:"runID,omitempty"`
+	TransportCaseID      string `json:"transportCaseID,omitempty"`
+	ConfirmProvenance    bool   `json:"confirmProvenance,omitempty"`
 }
 
 func CreateConfig() *Config {
@@ -111,6 +115,9 @@ func normalizeConfig(input *Config) (Config, error) {
 	}
 	if !safeSocketPath(c.SocketPath) || c.TimeoutMillis < 1 || c.TimeoutMillis > 60000 {
 		return Config{}, errors.New("modsecurity response observer: invalid private socket or timeout")
+	}
+	if err := validateProvenanceConfig(c); err != nil {
+		return Config{}, err
 	}
 	return c, nil
 }
@@ -151,15 +158,32 @@ func New(_ context.Context, next http.Handler, config *Config, _ string) (http.H
 	if err != nil {
 		return nil, err
 	}
-	return &middleware{next: next, config: c}, nil
+	m := &middleware{next: next, config: c}
+	if c.ProvenanceSocketPath != "" {
+		if err := m.initializeCorrelationSecret(); err != nil {
+			return nil, err
+		}
+	}
+	return m, nil
 }
 
 type middleware struct {
-	next   http.Handler
-	config Config
+	next              http.Handler
+	config            Config
+	correlationSecret [32]byte
 }
 
 func (m *middleware) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+	if m.config.ConfirmProvenance {
+		m.confirmProvenance(writer, request)
+		return
+	}
+	stripProvenanceHeaders(request.Header)
+	stripProvenanceHeaders(request.Trailer)
+	if m.config.ProvenanceSocketPath != "" {
+		m.serveWithProvenance(writer, request)
+		return
+	}
 	handles := request.Header.Values("X-Msconnector-Response-Handle")
 	if len(handles) != 1 || !validHandle(handles[0]) {
 		http.Error(writer, "response observer handle required", http.StatusServiceUnavailable)
