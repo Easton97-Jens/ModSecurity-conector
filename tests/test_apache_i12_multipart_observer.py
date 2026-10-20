@@ -8,6 +8,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import time
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,7 +29,25 @@ FIXTURE = r'''
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <dirent.h>
+#include <new>
 #include <string>
+static int allocation_budget=-1;
+void *operator new(std::size_t size) {
+    if (allocation_budget==0) throw std::bad_alloc();
+    if (allocation_budget>0) --allocation_budget;
+    if (void *value=std::malloc(size)) return value;
+    throw std::bad_alloc();
+}
+void operator delete(void *value) noexcept { std::free(value); }
+void operator delete(void *value,std::size_t) noexcept { std::free(value); }
+static int descriptor_count() {
+    DIR *directory=opendir("/proc/self/fd");
+    if (!directory) return -1;
+    int count=0;
+    while (readdir(directory)) ++count;
+    closedir(directory); return count;
+}
 using namespace modsecurity;
 extern "C" void i12_apache_observe_multipart(void *) noexcept;
 extern "C" void i12_apache_observe_multipart_cleanup(void *) noexcept;
@@ -38,14 +57,26 @@ int main(int argc, char **argv) {
     std::string config="SecRuleEngine On\nSecRequestBodyAccess On\nSecUploadKeepFiles Off\nSecTmpSaveUploadedFiles On\nSecUploadDir ";
     config += argv[1]; config += "\n";
     if(!engine || !rules || msc_rules_add(rules,config.c_str(),&error)<0) { fprintf(stderr,"%s",error?error:"init");return 3; }
-    auto *tx=msc_new_transaction(engine,rules,nullptr); if(!tx)return 4;
+    std::string mode=argv[2];
+    auto *tx=mode=="quoted-id" ? msc_new_transaction_with_id(engine,rules,"\"\\\x01\x80",nullptr) :
+        msc_new_transaction(engine,rules,nullptr); if(!tx)return 4;
     msc_process_connection(tx,"127.0.0.1",1234,"127.0.0.1",8080);
     msc_process_uri(tx,"/_multipart","POST","1.1");
     msc_add_request_header(tx,(const unsigned char *)"Content-Type",(const unsigned char *)"multipart/form-data; boundary=i12proof");
     msc_process_request_headers(tx);
     std::string body="--i12proof\r\nContent-Disposition: form-data; name=\"upload\"; filename=\"synthetic.txt\"\r\nContent-Type: text/plain\r\n\r\nDATA\r\n--i12proof--\r\n";
     if(msc_append_request_body(tx,(const unsigned char *)body.data(),body.size())!=1 || msc_process_request_body(tx)!=1)return 5;
-    std::string mode=argv[2];
+    if(mode=="allocation-failure") {
+        int baseline=descriptor_count(); if(baseline<0)return 6;
+        for(int budget=0;budget<48;++budget) {
+            allocation_budget=budget;errno=E2BIG;i12_apache_observe_multipart(tx);
+            int observed_errno=errno;allocation_budget=-1;
+            if(observed_errno!=E2BIG || descriptor_count()!=baseline)return 7;
+        }
+        msc_transaction_cleanup(tx);i12_apache_observe_multipart_cleanup(tx);
+        msc_rules_cleanup(rules);msc_cleanup(engine);
+        printf("{\"allocation_fault_budgets\":48,\"descriptor_leaks\":0}\n");return 0;
+    }
     if(mode=="escape")tx->m_variableFilesTmpNames.set("escape","/etc/passwd",0);
     if(mode=="symlink")tx->m_variableFilesTmpNames.set("symlink",std::string(argv[1])+"/foreign-link",0);
     if(mode=="limit")for(int i=0;i<20;++i)tx->m_variableFilesTmpNames.set(std::to_string(i),"/outside/"+std::to_string(i),0);
@@ -170,14 +201,20 @@ class ApacheMultipartObserverTests(unittest.TestCase):
         environment.pop("I12_APACHE_MULTIPART_ROOT", None)
         if admitted:
             environment["I12_APACHE_MULTIPART_ROOT"] = str(root or self.directory)
+        started_ns = time.monotonic_ns()
         result = subprocess.run(["rtk", "proxy", str(self.binary), str(self.directory), mode],
             env=environment, capture_output=True, text=True, timeout=15)
+        completed_ns = time.monotonic_ns()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout), {"observe_errno": 7, "cleanup_errno": 25})
         (self.directory / "process.json").write_text(json.dumps({"exit": result.returncode,
             "stdout": result.stdout, "stderr": result.stderr}, indent=2))
         path = self.directory / "multipart.jsonl"
-        return [json.loads(line) for line in path.read_text().splitlines()] if path.is_file() and not path.is_symlink() and path.stat().st_nlink == 1 else []
+        rows = [json.loads(line) for line in path.read_text().splitlines()] if path.is_file() and not path.is_symlink() and path.stat().st_nlink == 1 else []
+        for row in rows:
+            self.assertLessEqual(started_ns, row["monotonic_ns"])
+            self.assertLessEqual(row["monotonic_ns"], completed_ns)
+        return rows
 
     def test_real_sdk_collection_file_and_actual_destructor_unlink(self):
         before, after = self.run_native()
@@ -186,6 +223,7 @@ class ApacheMultipartObserverTests(unittest.TestCase):
         self.assertEqual(before["files_sizes_count"], 1)
         self.assertEqual(len(before["filename_fingerprints"]), 1)
         self.assertEqual(len(before["filename_fingerprints"][0]["value_fingerprint_fnv1a64"]), 16)
+        self.assertEqual(before["filename_fingerprints"][0]["value_fingerprint_fnv1a64"], "33ce5792db0608ae")
         self.assertTrue(before["filename_fingerprints_complete"])
         self.assertEqual(before["files_combined_size"], "4")
         self.assertEqual(before["native_tmpfile_objects_count"], 1)
@@ -207,6 +245,20 @@ class ApacheMultipartObserverTests(unittest.TestCase):
     def test_absent_optin_does_not_change_sdk_processing_or_leave_uploaded_file(self):
         self.assertEqual(self.run_native(admitted=False), [])
         self.assertEqual(sorted(path.name for path in self.directory.iterdir()), ["multipart.enable", "process.json"])
+
+    def test_json_quoting_preserves_control_and_high_bytes(self):
+        before, after = self.run_native("quoted-id")
+        for row in (before, after):
+            self.assertEqual(row["transaction_id"], '"\\\x01\x80')
+
+    def test_allocation_exceptions_close_descriptors_and_preserve_errno(self):
+        environment = os.environ.copy()
+        environment["I12_APACHE_MULTIPART_ROOT"] = str(self.directory)
+        result = subprocess.run(["rtk", "proxy", str(self.binary), str(self.directory), "allocation-failure"],
+            env=environment, capture_output=True, text=True, timeout=15)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), {"allocation_fault_budgets": 48, "descriptor_leaks": 0})
+        self.assertIn("apache-multipart-observer: observation failed", result.stderr)
 
     def test_invalid_marker_and_public_root_are_refused(self):
         (self.directory / "multipart.enable").write_text("wrong\n")

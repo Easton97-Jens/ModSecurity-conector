@@ -134,7 +134,7 @@ def decode_rows(content):
             continue
         try:
             row = json.loads(line)
-        except (UnicodeDecodeError, ValueError) as error:
+        except ValueError as error:
             raise GateError("Malformed complete observer record") from error
         if not isinstance(row, dict):
             raise GateError("Observer record is not an object")
@@ -225,13 +225,18 @@ class OwnedWireChild:
     def execute(wire_client):
         for selected in (signal.SIGINT, signal.SIGTERM):
             signal.signal(selected, signal.SIG_DFL)
+        code = 78
         try:
-            code = wire_client()
-            if type(code) is not int or not 0 <= code <= 255:
-                code = 78
-        except BaseException:
-            code = 78
-        os._exit(code)
+            candidate = wire_client()
+            if type(candidate) is int and 0 <= candidate <= 255:
+                code = candidate
+        finally:
+            # This terminal child boundary deliberately handles the active
+            # exception by retaining the default error code: even a custom
+            # BaseException must never unwind into the parent's controller.
+            # Real SIGINT/SIGTERM retain SIG_DFL and therefore still produce
+            # physical signal wait status.
+            os._exit(code)
 
     def poll(self):
         if self.waited is None:

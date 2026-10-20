@@ -48,7 +48,7 @@ class SourceOracleTests(unittest.TestCase):
         result = self.review()
         self.assertEqual((result['original155'], result['configuration_contracts'],
                           result['host_contracts'], result['original54']), (155, 10, 145, 54))
-        self.assertEqual(result['new_revision_resolved'], 0)
+        self.assertEqual(0, result['new_revision_resolved'])
         original = {r['run_scoped_case_id']: r for r in self.old['oracle_matrix']}
         for row in result['rows']:
             self.assertEqual(row['original_oracle'], original[row['original_id']]['original_oracle'])

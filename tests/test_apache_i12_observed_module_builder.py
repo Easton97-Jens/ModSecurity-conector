@@ -1,9 +1,11 @@
 """Bounded identity/overlay tests; no second native build or host claim."""
 import importlib.util
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 
 MODULE = Path(__file__).resolve().parents[1] / "ci/runtime/lifecycle/apache-i12/acceptance/build_observed_module.py"
@@ -64,27 +66,32 @@ class CanonicalCommandTests(unittest.TestCase):
         self.assertTrue(builder.STRICT.issubset(argv))
 
     def test_missing_hardening_rejected(self):
+        command = self.command().replace("-fstack-protector-strong", "")
         with self.assertRaisesRegex(ValueError, "strict"):
-            builder.compiler_argv(self.command().replace("-fstack-protector-strong", ""), "src/mod_security3.c")
+            builder.compiler_argv(command, "src/mod_security3.c")
 
     def test_duplicate_command_rejected(self):
+        command = self.command() + "\n" + self.command()
         with self.assertRaisesRegex(ValueError, "ambiguous"):
-            builder.compiler_argv(self.command() + "\n" + self.command(), "src/mod_security3.c")
+            builder.compiler_argv(command, "src/mod_security3.c")
 
     def test_response_file_rejected(self):
+        command = self.command() + " @options"
         with self.assertRaisesRegex(ValueError, "injection"):
-            builder.compiler_argv(self.command() + " @options", "src/mod_security3.c")
+            builder.compiler_argv(command, "src/mod_security3.c")
 
     def test_dependency_output_flags_rejected(self):
         for flags in ("-MMD -MF src/.deps/module.d", "-MFsrc/immutable.d", "-Wp,-MD,src/deps.d",
                       "-MJ src/compile.json", "--dependency-file=src/immutable.d", "-Xpreprocessor -MD"):
+            command = self.command() + " " + flags
             with self.subTest(flags=flags), self.assertRaisesRegex(ValueError, "dependency output"):
-                builder.compiler_argv(self.command() + " " + flags, "src/mod_security3.c")
+                builder.compiler_argv(command, "src/mod_security3.c")
 
     def test_auxiliary_outputs_rejected(self):
         for flag in ("-save-temps", "-dumpdir=src/", "-fprofile-arcs", "-ftest-coverage"):
+            command = self.command() + " " + flag
             with self.subTest(flag=flag), self.assertRaisesRegex(ValueError, "output"):
-                builder.compiler_argv(self.command() + " " + flag, "src/mod_security3.c")
+                builder.compiler_argv(command, "src/mod_security3.c")
 
 
 class ElfValidationTests(unittest.TestCase):
@@ -134,6 +141,9 @@ class IdentityTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.base = Path(self.temp.name)
+        self.environment = mock.patch.dict(os.environ, {"CODEX_TEMP_ROOT": str(self.base)})
+        self.environment.start()
+        self.addCleanup(self.environment.stop)
         self.root = self.base / "export"
         self.root.mkdir()
 
@@ -202,7 +212,7 @@ class IdentityTests(unittest.TestCase):
         builder.validate_inputs(spec)
         marker = json.loads((self.root / ".i12-disposable-source-copy.json").read_text())
         snapshot = json.loads((self.root / marker["snapshot_manifest"]).read_text())
-        capture = builder.bound_json(spec["capture_receipt"])
+        capture = builder.bound_json(spec["capture_receipt"], (self.base,))
         (self.root / "tests/test_native_lifecycle_observer.py").write_text("modified while compiling")
         with self.assertRaisesRegex(ValueError, "snapshot changed"):
             builder.validate_source_snapshot(self.root, snapshot, capture["exact_written_sha256"])
@@ -211,7 +221,7 @@ class IdentityTests(unittest.TestCase):
         spec = self.fixture()
         marker = json.loads((self.root / ".i12-disposable-source-copy.json").read_text())
         snapshot = json.loads((self.root / marker["snapshot_manifest"]).read_text())
-        written = builder.bound_json(spec["capture_receipt"])["exact_written_sha256"]
+        written = builder.bound_json(spec["capture_receipt"], (self.base,))["exact_written_sha256"]
         output = self.file("export/generated-observer.h", "generated capture output")
         written["generated-observer.h"] = output["sha256"]
         builder.validate_source_snapshot(self.root, snapshot, written)
@@ -224,6 +234,90 @@ class IdentityTests(unittest.TestCase):
         (self.base / "objects/0.o").write_text("stale")
         with self.assertRaisesRegex(ValueError, "hash mismatch"):
             builder.validate_inputs(spec)
+
+    def test_outside_storage_input_rejected_before_read(self):
+        spec = self.fixture()
+        with tempfile.TemporaryDirectory(dir=self.base.parent) as outside:
+            path = Path(outside) / "make.stdout"
+            path.write_text("fixture transcript")
+            spec["make_stdout"] = {"path": str(path), "sha256": builder.sha(path)}
+            with mock.patch.object(builder, "sha", side_effect=AssertionError("outside file was read")) as digest:
+                with self.assertRaisesRegex(ValueError, "authorized evidence roots"):
+                    builder.bound(spec["make_stdout"], (self.base,))
+                digest.assert_not_called()
+
+    def test_storage_prefix_sibling_rejected(self):
+        spec = self.fixture()
+        with tempfile.TemporaryDirectory(prefix=self.base.name + "-sibling-", dir=self.base.parent) as sibling:
+            path = Path(sibling) / "make.stdout"
+            path.write_text("fixture transcript")
+            spec["make_stdout"] = {"path": str(path), "sha256": builder.sha(path)}
+            with self.assertRaisesRegex(ValueError, "authorized evidence roots"):
+                builder.validate_inputs(spec)
+
+    def test_parent_traversal_input_rejected(self):
+        spec = self.fixture()
+        spec["make_stdout"]["path"] = str(self.base / "objects" / ".." / "make.stdout")
+        with self.assertRaisesRegex(ValueError, "authorized evidence roots"):
+            builder.validate_inputs(spec)
+
+    def test_final_symlink_input_rejected(self):
+        spec = self.fixture()
+        link = self.base / "make-link.stdout"
+        link.symlink_to(self.base / "make.stdout")
+        spec["make_stdout"] = {"path": str(link), "sha256": builder.sha(self.base / "make.stdout")}
+        with self.assertRaisesRegex(ValueError, "follows a link"):
+            builder.validate_inputs(spec)
+
+    def test_ancestor_symlink_input_rejected(self):
+        spec = self.fixture()
+        alias = self.base / "alias"
+        alias.symlink_to(self.base, target_is_directory=True)
+        spec["make_stdout"] = {"path": str(alias / "make.stdout"),
+                               "sha256": builder.sha(self.base / "make.stdout")}
+        with self.assertRaisesRegex(ValueError, "follows a link"):
+            builder.validate_inputs(spec)
+
+    def test_inventory_parent_traversal_rejected(self):
+        spec = self.fixture()
+        marker_path = self.root / ".i12-disposable-source-copy.json"
+        marker = json.loads(marker_path.read_text())
+        marker["snapshot_manifest"] = "../make.stdout"
+        marker_path.write_text(json.dumps(marker))
+        with self.assertRaisesRegex(ValueError, "inventory member"):
+            builder.validate_inputs(spec)
+
+    def test_nonregular_input_is_rejected_before_hashing(self):
+        fifo = self.base / "input.fifo"
+        os.mkfifo(fifo, 0o600)
+        item = {"path": str(fifo), "sha256": "0" * 64}
+        with mock.patch.object(builder, "sha", side_effect=AssertionError("FIFO was hashed")) as digest:
+            with self.assertRaisesRegex(ValueError, "object type"):
+                builder.bound(item, (self.base,))
+            digest.assert_not_called()
+
+    def test_hash_bound_closes_descriptor_on_oversize_failure(self):
+        path = self.base / "oversize.bin"
+        path.write_bytes(b"four")
+        actual_close = builder.os.close
+        closed = []
+
+        def close(descriptor):
+            closed.append(descriptor)
+            actual_close(descriptor)
+
+        with mock.patch.object(builder, "MAX_HASHED_INPUT_BYTES", 3), \
+                mock.patch.object(builder.os, "close", side_effect=close):
+            with self.assertRaisesRegex(ValueError, "bounded regular"):
+                builder.sha(path)
+        self.assertEqual(len(closed), 1)
+
+    def test_bound_json_parses_the_hash_checked_read(self):
+        item = self.file("bound.json", {"value": "same bytes"})
+        with mock.patch.object(builder, "read_regular_bytes",
+                               wraps=builder.read_regular_bytes) as reader:
+            self.assertEqual(builder.bound_json(item, (self.base,)), {"value": "same bytes"})
+        reader.assert_called_once_with(Path(item["path"]))
 
     def test_wrapper_omission_rejected(self):
         spec = self.fixture()
@@ -250,10 +344,10 @@ class IdentityTests(unittest.TestCase):
         marker = json.loads(marker_path.read_text())
         marker["snapshot_manifest_sha256"] = builder.sha(inventory_path)
         marker_path.write_text(json.dumps(marker))
-        capture = builder.bound_json(spec["capture_receipt"])
+        capture = builder.bound_json(spec["capture_receipt"], (self.base,))
         capture["snapshot_manifest_sha256"] = builder.sha(inventory_path)
         spec["capture_receipt"] = self.file("capture.json", capture)
-        identity = builder.bound_json(spec["build_identity"])
+        identity = builder.bound_json(spec["build_identity"], (self.base,))
         identity["source_inventory_sha256"] = builder.sha(inventory_path)
         spec["build_identity"] = self.file("identity.json", identity)
         with self.assertRaisesRegex(ValueError, "Shared native wrapper contract changed"):
@@ -267,7 +361,7 @@ class IdentityTests(unittest.TestCase):
 
     def test_capture_wrong_root_rejected(self):
         spec = self.fixture()
-        capture = builder.bound_json(spec["capture_receipt"])
+        capture = builder.bound_json(spec["capture_receipt"], (self.base,))
         capture["source_copy"] = str(self.base / "other")
         spec["capture_receipt"] = self.file("capture.json", capture)
         with self.assertRaisesRegex(ValueError, "apache-current"):
@@ -275,7 +369,7 @@ class IdentityTests(unittest.TestCase):
 
     def test_capture_tree_mismatch_rejected(self):
         spec = self.fixture()
-        capture = builder.bound_json(spec["capture_receipt"])
+        capture = builder.bound_json(spec["capture_receipt"], (self.base,))
         capture["source_git_tree"] = "c" * 40
         spec["capture_receipt"] = self.file("capture.json", capture)
         with self.assertRaisesRegex(ValueError, "trees disagree"):

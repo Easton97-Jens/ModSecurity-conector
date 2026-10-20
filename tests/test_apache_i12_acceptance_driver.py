@@ -64,6 +64,11 @@ class AcceptanceDriverTest(unittest.TestCase):
         self.assertIn(b"Content-Length: 12\r\n", head)
         self.assertEqual(b"".join(chunks), b"actual bytes")
 
+    def test_wire_request_rejects_nonprivate_port(self):
+        request = self.request()
+        with self.assertRaisesRegex(ValueError, "private loopback port"):
+            BATCH.wire_request(request, 443)
+
     def test_raw_invalid_framing_is_not_normalized(self):
         request = self.request(framing="raw_no_normalization", headers=[["Content-Length", "1"], ["Content-Length", "2"]])
         head, _ = BATCH.wire_request(request, 18123)
@@ -83,8 +88,9 @@ class AcceptanceDriverTest(unittest.TestCase):
                 BATCH.wire_request(request, 18123)
         item = byte_input(b"actual bytes")
         item["sha256"] = "0" * 64
+        request = self.request(body=item)
         with self.assertRaisesRegex(ValueError, "identity mismatch"):
-            BATCH.wire_request(self.request(body=item), 18123)
+            BATCH.wire_request(request, 18123)
 
     def test_response_content_length_and_real_chunked_decode(self):
         fields, body, header = BATCH.response_framing(b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nabc")
@@ -142,8 +148,9 @@ class AcceptanceDriverTest(unittest.TestCase):
         self.assertEqual(BACKEND.read_body(io.BytesIO(b"3\r\nabc\r\n0\r\n\r\n"), headers), b"abc")
         headers = Message()
         headers["Content-Length"] = "4"
+        stream = io.BytesIO(b"abc")
         with self.assertRaisesRegex(ValueError, "truncated"):
-            BACKEND.read_body(io.BytesIO(b"abc"), headers)
+            BACKEND.read_body(stream, headers)
 
     def test_fault_seam_never_becomes_normal_contract_execution(self):
         plan = {"driver_seams": ["causal_response_barrier", "physical_sink_close"],
@@ -267,6 +274,49 @@ class AcceptanceDriverTest(unittest.TestCase):
                 else:
                     self.assertEqual(Path(result["principal_sink"]).stat().st_mode & 0o777, 0o600)
 
+    def test_physical_sink_collection_requires_exact_apr_failure(self):
+        with tempfile.TemporaryDirectory(dir=self.private_workspace()) as temporary:
+            root = Path(temporary)
+            observation = {"executed_case_contract": True, "missing_operations": [],
+                           "fault_not_activated": None}
+            sink = {"configured": True, "requested_mode": "closed-descriptor"}
+            row = {"stage": "apr_file_write_full", "action": "closed-descriptor",
+                   "result": 9, "operation_result": 0}
+            (root / "error.log").write_text("host I12_APACHE_APR " + json.dumps(row) + "\n")
+            BATCH.collect_sink_observation(root, sink, observation)
+            self.assertTrue(sink["actual_fault_observed"])
+            self.assertFalse(observation["fault_not_activated"])
+            self.assertTrue(observation["executed_case_contract"])
+
+            row["operation_result"] = -1
+            (root / "error.log").write_text("host I12_APACHE_APR " + json.dumps(row) + "\n")
+            observation.update(executed_case_contract=True, fault_not_activated=None)
+            BATCH.collect_sink_observation(root, sink, observation)
+            self.assertFalse(sink["actual_fault_observed"])
+            self.assertTrue(observation["fault_not_activated"])
+            self.assertFalse(observation["executed_case_contract"])
+
+    def test_enospc_and_pre_apr_sink_collection_remain_distinct(self):
+        with tempfile.TemporaryDirectory(dir=self.private_workspace()) as temporary:
+            root = Path(temporary)
+            row = {"stage": "apr_file_write_full", "action": "physical-enospc",
+                   "result": 28, "operation_result": 1}
+            (root / "error.log").write_text("I12_APACHE_APR " + json.dumps(row) + "\n")
+            observation = {"executed_case_contract": True, "missing_operations": [],
+                           "fault_not_activated": None}
+            sink = {"configured": True, "requested_mode": "physical-enospc"}
+            BATCH.collect_sink_observation(root, sink, observation)
+            self.assertTrue(sink["actual_fault_observed"])
+            self.assertTrue(observation["executed_case_contract"])
+
+            observation = {"executed_case_contract": True, "missing_operations": [],
+                           "fault_not_activated": None}
+            sink = {"configured": True, "requested_mode": "devfull"}
+            BATCH.collect_sink_observation(root, sink, observation)
+            self.assertFalse(observation["executed_case_contract"])
+            self.assertIn("independent_Common_POSIX_first_cause_and_native120016_join",
+                          observation["missing_operations"])
+
     def test_host_io_optin_is_private_and_only_modifies_apache_environment(self):
         temporary_root = Path(os.environ.get("CODEX_TEST_TMP_ROOT") or os.environ.get("RUNNER_TEMP")
                               or "/var/tmp/codex/ModSecurity-conector/acceptance-driver-tests")
@@ -305,6 +355,13 @@ class AcceptanceDriverTest(unittest.TestCase):
             self.assertEqual(BATCH.main(), 37)
         client.assert_called_once()
 
+    def test_batch_port_converter_accepts_cli_text_and_rejects_ambiguous_values(self):
+        self.assertEqual(BATCH.private_loopback_port("18123"), 18123)
+        self.assertEqual(BATCH.private_loopback_port(18123), 18123)
+        for value in (443, "443", True, "18123 ", "١٨١٢٣", object()):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "private loopback port"):
+                BATCH.private_loopback_port(value)
+
     def test_bucket_and_multipart_private_admission_do_not_claim_runtime_wiring(self):
         root = self.private_workspace()
         (root / "uploads").mkdir(mode=0o700)
@@ -329,7 +386,7 @@ class AcceptanceDriverTest(unittest.TestCase):
         self.assertIsNone(result["multipart"]["actual_cleanup_observed"])
         self.assertNotIn("LD_PRELOAD", {key: value for key, value in environment.items() if key not in os.environ})
         self.assertEqual(json.dumps(plan, sort_keys=True), original_plan)
-        self.assertTrue(dict(os.environ) == inherited, "process environment changed")
+        self.assertEqual(dict(os.environ), inherited, "process environment changed")
         rules = BATCH.native_rules(plan, root)
         self.assertIn("SecTmpSaveUploadedFiles On", rules)
         self.assertIn("SecUploadKeepFiles Off", rules)
@@ -387,8 +444,9 @@ class AcceptanceDriverTest(unittest.TestCase):
             case_root.mkdir(mode=0o700)
             plan = {"case_id": "NEED-invalid-native-return", "execution_kind": "host_http",
                     "request": self.request(headers=headers), "unique_main_request": {"token": "test-main"}}
+            environment = BATCH.case_environment(plan, case_root)
             with self.assertRaisesRegex(ValueError, "exactly one bounded principal"):
-                BATCH.configure_host_helpers(plan, case_root, BATCH.case_environment(plan, case_root), artifacts)
+                BATCH.configure_host_helpers(plan, case_root, environment, artifacts)
 
     def test_selected_missing_rules_path_has_real_enoent_receipt_and_null_hash(self):
         root = self.private_workspace()

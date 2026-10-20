@@ -36,9 +36,9 @@ struct request { uint64_t sequence; char method[16]; char uri[256]; };
 struct parser { char header[HEADER_BYTES]; size_t used; uint64_t remaining; int unsupported; };
 struct connection {
     dev_t device; ino_t inode; int fd; int occupied;
-    unsigned short local_port, peer_port;
-    uint64_t requests, responses; struct request queue[8]; unsigned head, count;
-    struct parser input, output; int status;
+    unsigned short local_port; unsigned short peer_port;
+    uint64_t requests; uint64_t responses; struct request queue[8]; unsigned head; unsigned count;
+    struct parser input; struct parser output; int status;
 };
 struct native { const Transaction *key; int phase; char id[256]; const char *id_source; };
 static struct connection connections[CAPACITY];
@@ -48,8 +48,11 @@ static struct budget *budget;
 static int output_fd = -1;
 static dev_t output_device; static ino_t output_inode;
 static uint64_t sequence;
-static _Thread_local unsigned internal, apr_depth, syscall_seen;
-static _Thread_local uint64_t parent_call, wire_call;
+static _Thread_local unsigned internal;
+static _Thread_local unsigned apr_depth;
+static _Thread_local unsigned syscall_seen;
+static _Thread_local uint64_t parent_call;
+static _Thread_local uint64_t wire_call;
 static _Thread_local int apr_fd=-1;
 static _Thread_local char renderer_identity[900]="null";
 
@@ -83,7 +86,7 @@ static void emit(const char *kind, const char *fields) {
     int length = snprintf(record, sizeof(record),
         "{\"schema\":\"apache-host-io-v1\",\"pid\":%ld,\"tid\":%ld,\"uid\":%ld,"
         "\"sequence\":%" PRIu64 ",\"monotonic_ns\":%" PRIu64 ",\"kind\":\"%s\","
-        "\"invalid\":%s,%s}\n", (long)getpid(), (long)syscall(SYS_gettid), (long)geteuid(),
+        "\"invalid\":%s,%s}\n", (long)getpid(), syscall(SYS_gettid), (long)geteuid(),
         ++sequence, now(), kind, atomic_load(&budget->invalid) ? "true":"false", fields);
     if (length <= 0 || (size_t)length >= sizeof(record) ||
         syscall(SYS_write, output_fd, record, (size_t)length) != length) invalid();
@@ -194,7 +197,7 @@ static int loopback(int fd, struct sockaddr_in *local, struct sockaddr_in *peer,
         (ntohl(local->sin_addr.s_addr) >> 24) == 127;
 }
 static struct connection *connection(int fd) {
-    struct sockaddr_in local,peer; struct stat info;
+    struct sockaddr_in local; struct sockaddr_in peer; struct stat info;
     if (fstat(fd,&info) != 0 || !S_ISSOCK(info.st_mode)) return NULL;
     struct connection *available=NULL;
     for (size_t i=0;i<CAPACITY;++i) {
@@ -209,7 +212,11 @@ static struct connection *connection(int fd) {
     return available;
 }
 static void wire_record(struct connection *c,const char *kind) {
-    char fields[2200],status[16]="null",uri[300]="null",method[40]="null",request[32]="null";
+    char fields[2200];
+    char status[16]="null";
+    char uri[300]="null";
+    char method[40]="null";
+    char request[32]="null";
     if (c->status) (void)snprintf(status,sizeof(status),"%d",c->status);
     if (c->count) {
         struct request *r=&c->queue[c->head];
@@ -217,7 +224,8 @@ static void wire_record(struct connection *c,const char *kind) {
         if (r->uri[0]) (void)snprintf(uri,sizeof(uri),"\"%s\"",r->uri);
         if (r->method[0]) (void)snprintf(method,sizeof(method),"\"%s\"",r->method);
     }
-    const char *framing=!strcmp(kind,"response_headers_sent")?(c->output.unsupported?"false":"true"):"null";
+    const char *framing="null";
+    if (!strcmp(kind,"response_headers_sent")) framing=c->output.unsupported?"false":"true";
     (void)snprintf(fields,sizeof(fields),"\"fd\":%d,\"socket_inode\":%ju,\"local_port\":%u,\"peer_port\":%u,"
         "\"request_sequence\":%s,\"request_uri\":%s,\"request_method\":%s,\"response_sequence\":%" PRIu64 ","
         "\"http_status\":%s,\"body_framing_supported\":%s,\"renderer_identity\":%s,"
@@ -225,14 +233,14 @@ static void wire_record(struct connection *c,const char *kind) {
         c->fd,(uintmax_t)c->inode,c->local_port,c->peer_port,request,uri,method,c->responses,status,framing,renderer_identity,wire_call);
     emit(kind,fields);
 }
-static int content_length(char *header,uint64_t *remaining) {
-    char *p=strstr(header,"\r\n"); int found=0;
+static int content_length(const char *header,uint64_t *remaining) {
+    const char *p=strstr(header,"\r\n"); int found=0;
     if (!p) return 0;
     for (p+=2;*p && strncmp(p,"\r\n",2);) {
-        char *end=strstr(p,"\r\n"); if (!end) return 0;
+        const char *end=strstr(p,"\r\n"); if (!end) return 0;
         if (!strncasecmp(p,"Transfer-Encoding:",18)) return 0;
         if (!strncasecmp(p,"Content-Length:",15)) {
-            char *number=p+15; while (*number==' ' || *number=='\t') ++number;
+            const char *number=p+15; while (*number==' ' || *number=='\t') ++number;
             char *last=NULL; errno=0; unsigned long long value=strtoull(number,&last,10);
             if (found || errno || last==number || last!=end || *number<'0' || *number>'9') return 0;
             *remaining=(uint64_t)value; found=1;
@@ -242,7 +250,9 @@ static int content_length(char *header,uint64_t *remaining) {
     return found;
 }
 static void input_header(struct connection *c) {
-    char method[16],uri[256],protocol[16];
+    char method[16];
+    char uri[256];
+    char protocol[16];
     if (sscanf(c->input.header,"%15s %255s %15s",method,uri,protocol) != 3 ||
         (strcmp(protocol,"HTTP/1.1") && strcmp(protocol,"HTTP/1.0")) || c->count == 8) {
         c->input.unsupported=1; return;
@@ -252,10 +262,9 @@ static void input_header(struct connection *c) {
     if (safe_string(method,sizeof(method),"ABCDEFGHIJKLMNOPQRSTUVWXYZ")) strcpy(r->method,method);
     if (safe_string(uri,sizeof(uri),"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/_-.")) strcpy(r->uri,uri);
     /* No CL means a zero-body request only for methods without entity data. */
-    if (!content_length(c->input.header,&c->input.remaining)) {
-        if (strcasestr(c->input.header,"\r\nTransfer-Encoding:") ||
-                (strcmp(method,"GET") && strcmp(method,"HEAD"))) c->input.unsupported=1;
-    }
+    if (!content_length(c->input.header,&c->input.remaining) &&
+        (strcasestr(c->input.header,"\r\nTransfer-Encoding:") ||
+         (strcmp(method,"GET") && strcmp(method,"HEAD")))) c->input.unsupported=1;
     wire_record(c,"request_headers_received");
 }
 static void output_header(struct connection *c) {
@@ -270,6 +279,14 @@ static void output_header(struct connection *c) {
     wire_record(c,"response_headers_sent");
     if (status<200) c->status=0;
 }
+static void feed_status_line(struct connection *c,const struct parser *p) {
+    if (c->status || p->used<2 || p->header[p->used-1]!='\n') return;
+    int status=0;
+    if (sscanf(p->header,"HTTP/1.%*1[01] %3d",&status)!=1 || status<100 || status>599) return;
+    c->status=status;
+    if (status>=200) ++c->responses;
+    wire_record(c,"response_status_line_sent");
+}
 static void feed(struct connection *c,int incoming,const unsigned char *data,size_t size) {
     struct parser *p=incoming?&c->input:&c->output;
     for (size_t i=0;i<size && !p->unsupported;++i) {
@@ -279,13 +296,7 @@ static void feed(struct connection *c,int incoming,const unsigned char *data,siz
         }
         if (p->used+1>=sizeof(p->header)) { p->unsupported=1; invalid(); break; }
         p->header[p->used++]=(char)data[i]; p->header[p->used]='\0';
-        if (!incoming && !c->status && p->used>=2 && p->header[p->used-1]=='\n') {
-            int status=0;
-            if (sscanf(p->header,"HTTP/1.%*1[01] %3d",&status)==1 && status>=100 && status<=599) {
-                c->status=status; if (status>=200) ++c->responses;
-                wire_record(c,"response_status_line_sent");
-            }
-        }
+        if (!incoming) feed_status_line(c,p);
         if (p->used>=4 && !memcmp(p->header+p->used-4,"\r\n\r\n",4)) {
             if (incoming) input_header(c); else output_header(c);
             p->used=0;
@@ -296,40 +307,60 @@ static uint64_t call_number(void) {
     uint64_t result; (void)pthread_mutex_lock(&lock); result=++sequence;
     (void)pthread_mutex_unlock(&lock); return result;
 }
-static void transport(const char *name,void *real,int fd,int incoming,int apr,
-    long result,int return_errno,size_t requested,size_t reported,int bytes_known,
-    const struct iovec *vectors,int count,uint64_t call,uint64_t entered,int parse) {
+struct transport_call {
+    const char *name;
+    void *real;
+    int fd;
+    int incoming;
+    int apr;
+    long result;
+    int return_errno;
+    size_t requested;
+    size_t reported;
+    int bytes_known;
+    const struct iovec *vectors;
+    int count;
+    uint64_t call;
+    uint64_t entered;
+    int parse;
+};
+static void feed_transport(struct connection *c,const struct transport_call *t) {
+    if (!t->parse || !t->bytes_known || !t->reported) return;
+    size_t remaining=t->reported;
+    wire_call=t->call;
+    for (int i=0;i<t->count;++i) {
+        if (!remaining) break;
+        size_t n=t->vectors[i].iov_len<remaining?t->vectors[i].iov_len:remaining;
+        feed(c,t->incoming,t->vectors[i].iov_base,n); remaining-=n;
+    }
+    if (remaining) c->output.unsupported=1;
+    wire_call=0;
+}
+static void transport(const struct transport_call *t) {
     if (output_fd<0 || internal) return;
     int saved=errno; ++internal; (void)pthread_mutex_lock(&lock);
-    struct connection *c=connection(fd);
+    struct connection *c=connection(t->fd);
     if (c != NULL) {
-        if (!incoming && bytes_known && reported) outgoing_stack(call);
+        if (!t->incoming && t->bytes_known && t->reported) outgoing_stack(t->call);
         else strcpy(renderer_identity,"null");
         Dl_info image={0}; char object[600]="null";
-        if (dladdr(real,&image) && safe_string(image.dli_fname,512,"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/_-+."))
+        if (dladdr(t->real,&image) && safe_string(image.dli_fname,512,"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/_-+."))
             (void)snprintf(object,sizeof(object),"\"%s\"",image.dli_fname);
-        char fields[1536],requested_bytes[32];
-        if (!apr && result<0 && (!strcmp(name,"writev") || !strcmp(name,"readv")))
+        char fields[1536];
+        char requested_bytes[32];
+        if (!t->apr && t->result<0 && (!strcmp(t->name,"writev") || !strcmp(t->name,"readv")))
             strcpy(requested_bytes,"null");
-        else (void)snprintf(requested_bytes,sizeof(requested_bytes),"%zu",requested);
+        else (void)snprintf(requested_bytes,sizeof(requested_bytes),"%zu",t->requested);
         (void)snprintf(fields,sizeof(fields),"\"function\":\"%s\",\"layer\":\"%s\",\"call\":%" PRIu64 ","
             "\"parent_call\":%" PRIu64 ",\"entered_ns\":%" PRIu64 ",\"return_ns\":%" PRIu64 ","
             "\"fd\":%d,\"socket_inode\":%ju,\"local_port\":%u,\"peer_port\":%u,"
             "\"result\":%ld,\"errno_at_return\":%d,\"requested_bytes\":%s,\"reported_bytes\":%zu,"
             "\"written_bytes_known\":%s,\"real_symbol_object\":%s,\"real_symbol_address\":\"%p\","
-            "\"apr_version\":\"%s\",\"stream_accounted_here\":%s",name,apr?"apr":"libc",call,parent_call,
-            entered,now(),fd,(uintmax_t)c->inode,c->local_port,c->peer_port,result,return_errno,requested_bytes,reported,
-            bytes_known?"true":"false",object,real,apr_version_string(),parse?"true":"false");
+            "\"apr_version\":\"%s\",\"stream_accounted_here\":%s",t->name,t->apr?"apr":"libc",t->call,parent_call,
+            t->entered,now(),t->fd,(uintmax_t)c->inode,c->local_port,c->peer_port,t->result,t->return_errno,requested_bytes,t->reported,
+            t->bytes_known?"true":"false",object,t->real,apr_version_string(),t->parse?"true":"false");
         emit("transport_return",fields);
-        if (parse && bytes_known && reported) {
-            size_t remaining=reported; wire_call=call;
-            for (int i=0;i<count && remaining;++i) {
-                size_t n=vectors[i].iov_len<remaining?vectors[i].iov_len:remaining;
-                feed(c,incoming,vectors[i].iov_base,n); remaining-=n;
-            }
-            if (remaining) { c->output.unsupported=1; }
-            wire_call=0;
-        }
+        feed_transport(c,t);
         strcpy(renderer_identity,"null");
     }
     (void)pthread_mutex_unlock(&lock); --internal; errno=saved;
@@ -341,19 +372,22 @@ static void prepare_transport(int fd) {
 }
 static size_t vector_size(const struct iovec *v,int count) {
     size_t size=0; if (!v || count<0 || count>1024) return 0;
-    for (int i=0;i<count;++i) { if (v[i].iov_len>SIZE_MAX-size) return 0; size+=v[i].iov_len; }
+    for (int i=0;i<count;++i) {
+        if (v[i].iov_len>SIZE_MAX-size) return 0;
+        size+=v[i].iov_len;
+    }
     return size;
 }
 #define BUFFER_WRAPPER(name, signature, arguments, fd_arg, incoming, parse_bytes) \
 ssize_t name signature { \
     int initial=errno; ssize_t (*real_call) signature=symbol(#name); \
     if (internal || output_fd<0) { errno=initial; return real_call arguments; } \
-    prepare_transport(fd_arg); uint64_t entered=now(),call=call_number(); errno=initial; \
+    prepare_transport(fd_arg); uint64_t entered=now(); uint64_t call=call_number(); errno=initial; \
     ssize_t result=real_call arguments; int saved=errno; \
     if (apr_depth && fd==apr_fd) syscall_seen=1; \
     struct iovec vector={(void *)buffer,size}; \
-    transport(#name,(void *)real_call,fd_arg,incoming,0,result,saved,size,result>0?(size_t)result:0,result>=0, \
-        &vector,1,call,entered,parse_bytes); errno=saved; return result; \
+    transport(&(const struct transport_call){#name,(void *)&*real_call,fd_arg,incoming,0,result,saved,size,result>0?(size_t)result:0,result>=0, \
+        &vector,1,call,entered,parse_bytes}); errno=saved; return result; \
 }
 BUFFER_WRAPPER(send,(int fd,const void *buffer,size_t size,int flags),(fd,buffer,size,flags),fd,0,!(flags&MSG_OOB))
 BUFFER_WRAPPER(recv,(int fd,void *buffer,size_t size,int flags),(fd,buffer,size,flags),fd,1,!(flags&(MSG_PEEK|MSG_TRUNC|MSG_OOB)))
@@ -363,12 +397,12 @@ BUFFER_WRAPPER(read,(int fd,void *buffer,size_t size),(fd,buffer,size),fd,1,1)
 ssize_t name(int fd,const struct iovec *vectors,int count) { \
     int initial=errno; ssize_t (*real_call)(int,const struct iovec *,int)=symbol(#name); \
     if (internal || output_fd<0) { errno=initial; return real_call(fd,vectors,count); } \
-    prepare_transport(fd); uint64_t entered=now(),call=call_number(); errno=initial; ssize_t result=real_call(fd,vectors,count); int saved=errno; \
+    prepare_transport(fd); uint64_t entered=now(); uint64_t call=call_number(); errno=initial; ssize_t result=real_call(fd,vectors,count); int saved=errno; \
     if (apr_depth && fd==apr_fd) syscall_seen=1; \
     /* A failed kernel call may have rejected the iovec address itself. */ \
     size_t requested=result>=0?vector_size(vectors,count):0; \
-    transport(#name,(void *)real_call,fd,incoming,0,result,saved,requested,result>0?(size_t)result:0, \
-        result>=0,result>=0?vectors:NULL,result>=0?count:0,call,entered,result>=0); errno=saved; return result; \
+    transport(&(const struct transport_call){#name,(void *)&*real_call,fd,incoming,0,result,saved,requested,result>0?(size_t)result:0, \
+        result>=0,result>=0?vectors:NULL,result>=0?count:0,call,entered,result>=0}); errno=saved; return result; \
 }
 VECTOR_WRAPPER(writev,0)
 VECTOR_WRAPPER(readv,1)
@@ -389,28 +423,28 @@ static int apr_leave(struct apr_scope previous) {
 #define APR_BUFFER(name, incoming, qualifier) \
 apr_status_t name(apr_socket_t *socket,qualifier char *buffer,apr_size_t *size) { \
     int initial=errno; apr_status_t (*real_call)(apr_socket_t *,qualifier char *,apr_size_t *)=symbol(#name); \
-    size_t requested=size?*size:0; int fd=socket_fd(socket); uint64_t entered=now(),call=call_number(); struct apr_scope scope=apr_enter(call,fd); \
+    size_t requested=size?*size:0; int fd=socket_fd(socket); uint64_t entered=now(); uint64_t call=call_number(); struct apr_scope scope=apr_enter(call,fd); \
     errno=initial; apr_status_t result=real_call(socket,buffer,size); int saved=errno; int parse=apr_leave(scope); \
     struct iovec vector={(void *)buffer,requested}; \
-    transport(#name,(void *)real_call,fd,incoming,1,result,saved,requested,size?*size:0,result==APR_SUCCESS, \
-        &vector,1,call,entered,parse); errno=saved; return result; \
+    transport(&(const struct transport_call){#name,(void *)&*real_call,fd,incoming,1,result,saved,requested,size?*size:0,result==APR_SUCCESS, \
+        &vector,1,call,entered,parse}); errno=saved; return result; \
 }
 APR_BUFFER(apr_socket_send,0,const)
 APR_BUFFER(apr_socket_recv,1,)
 apr_status_t apr_socket_sendv(apr_socket_t *socket,const struct iovec *vectors,apr_int32_t count,apr_size_t *size) {
     int initial=errno; apr_status_t (*real_call)(apr_socket_t *,const struct iovec *,apr_int32_t,apr_size_t *)=symbol("apr_socket_sendv");
-    int fd=socket_fd(socket); size_t requested=vector_size(vectors,count); uint64_t entered=now(),call=call_number(); struct apr_scope scope=apr_enter(call,fd);
-    errno=initial; apr_status_t result=real_call(socket,vectors,count,size); int saved=errno; int parse=apr_leave(scope);
-    transport("apr_socket_sendv",(void *)real_call,fd,0,1,result,saved,requested,size?*size:0,result==APR_SUCCESS,
-        vectors,count,call,entered,parse); errno=saved; return result;
+    int fd=socket_fd(socket); size_t requested=vector_size(vectors,count); uint64_t entered=now(); uint64_t call=call_number(); struct apr_scope scope=apr_enter(call,fd);
+    errno=initial; apr_status_t result=(*real_call)(socket,vectors,count,size); int saved=errno; int parse=apr_leave(scope);
+    transport(&(const struct transport_call){"apr_socket_sendv",(void *)&*real_call,fd,0,1,result,saved,requested,size?*size:0,result==APR_SUCCESS,
+        vectors,count,call,entered,parse}); errno=saved; return result;
 }
 apr_status_t apr_socket_sendfile(apr_socket_t *socket,apr_file_t *file,apr_hdtr_t *headers,
     apr_off_t *offset,apr_size_t *size,apr_int32_t flags) {
     int initial=errno; apr_status_t (*real_call)(apr_socket_t *,apr_file_t *,apr_hdtr_t *,apr_off_t *,apr_size_t *,apr_int32_t)=symbol("apr_socket_sendfile");
-    int fd=socket_fd(socket); size_t requested=size?*size:0; uint64_t entered=now(),call=call_number(); struct apr_scope scope=apr_enter(call,fd);
-    errno=initial; apr_status_t result=real_call(socket,file,headers,offset,size,flags); int saved=errno; (void)apr_leave(scope);
-    transport("apr_socket_sendfile",(void *)real_call,fd,0,1,result,saved,requested,size?*size:0,result==APR_SUCCESS,
-        NULL,0,call,entered,0); errno=saved; return result;
+    int fd=socket_fd(socket); size_t requested=size?*size:0; uint64_t entered=now(); uint64_t call=call_number(); struct apr_scope scope=apr_enter(call,fd);
+    errno=initial; apr_status_t result=(*real_call)(socket,file,headers,offset,size,flags); int saved=errno; (void)apr_leave(scope);
+    transport(&(const struct transport_call){"apr_socket_sendfile",(void *)&*real_call,fd,0,1,result,saved,requested,size?*size:0,result==APR_SUCCESS,
+        NULL,0,call,entered,0}); errno=saved; return result;
 }
 static struct native *native_entry(const Transaction *key) {
     struct native *empty=NULL;
@@ -429,10 +463,10 @@ ModSecurity *msc_init(void) {
         ++internal;
         const char *(*who)(ModSecurity *)=symbol("msc_who_am_i");
         const char *sdk=engine?who(engine):NULL;
-        char version[300]="null",real_image[750],caller_image[750],fields[2200];
+        char version[300]="null"; char real_image[750]; char caller_image[750]; char fields[2200];
         if (safe_string(sdk,256,"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 /_-.()+"))
             (void)snprintf(version,sizeof(version),"\"%s\"",sdk);
-        image_identity((void *)real_call,real_image,sizeof(real_image));
+        image_identity((void *)&*real_call,real_image,sizeof(real_image));
         image_identity(caller,caller_image,sizeof(caller_image));
         (void)pthread_mutex_lock(&lock);
         (void)snprintf(fields,sizeof(fields),"\"function\":\"msc_init\",\"engine_key\":\"%p\","
@@ -459,12 +493,14 @@ static void created(Transaction *transaction,ModSecurity *engine,const char *cal
     if (!safe_string(id,sizeof(id),"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-.:")) id[0]='\0';
     (void)pthread_mutex_lock(&lock); struct native *entry=native_entry(transaction);
     if (entry) { strcpy(entry->id,id); entry->id_source=origin; }
-    char fields[1200],quoted[300]="null",version[300]="null";
+    char fields[1200];
+    char quoted[300]="null";
+    char version[300]="null";
     const char *(*who)(ModSecurity *)=dlsym(RTLD_NEXT,"msc_who_am_i");
     const char *sdk=who?who(engine):NULL;
     if (safe_string(sdk,256,"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 /_-.()+"))
         (void)snprintf(version,sizeof(version),"\"%s\"",sdk);
-    if (*id) (void)snprintf(quoted,sizeof(quoted),"\"%s\"",id);
+    if (id[0]) (void)snprintf(quoted,sizeof(quoted),"\"%s\"",id);
     (void)snprintf(fields,sizeof(fields),"\"transaction_key\":\"%p\",\"transaction_id\":%s,\"transaction_id_source\":\"%s\",\"sdk_version\":%s",
         (void *)transaction,quoted,origin,version);
     emit("native_transaction_created",fields); (void)pthread_mutex_unlock(&lock); --internal; errno=saved;
@@ -490,20 +526,30 @@ static void native_phase(Transaction *key,int phase) {
  * the same preload image. */
 extern void i12_apache_observe_multipart(void *) __attribute__((weak));
 extern void i12_apache_observe_multipart_cleanup(void *) __attribute__((weak));
-static void appended(Transaction *transaction,const char *direction,size_t input_size,
-    size_t before,size_t after,int result,int saved,uint64_t entered,uint64_t returned) {
+struct append_call {
+    Transaction *transaction;
+    const char *direction;
+    size_t input_size;
+    size_t before;
+    size_t after;
+    int result;
+    int saved;
+    uint64_t entered;
+    uint64_t returned;
+};
+static void appended(const struct append_call *call) {
     ++internal; (void)pthread_mutex_lock(&lock);
-    struct native *entry=native_entry(transaction);
-    char id[300]="null",fields[1500];
-    if (entry && *entry->id) (void)snprintf(id,sizeof(id),"\"%s\"",entry->id);
+    struct native *entry=native_entry(call->transaction);
+    char id[300]="null"; char fields[1500];
+    if (entry && entry->id[0]) (void)snprintf(id,sizeof(id),"\"%s\"",entry->id);
     (void)snprintf(fields,sizeof(fields),"\"function\":\"msc_append_%s_body\",\"transaction_key\":\"%p\","
         "\"transaction_id\":%s,\"transaction_id_source\":\"%s\",\"phase\":%d,"
         "\"phase_is_append_boundary_not_process_execution\":true,\"input_size\":%zu,\"result\":%d,"
         "\"errno_at_return\":%d,\"entered_ns\":%" PRIu64 ",\"return_ns\":%" PRIu64 ","
         "\"sdk_body_length_before\":%zu,\"sdk_body_length_after\":%zu,"
         "\"length_semantics\":\"raw public SDK body length getter; not Common offered bytes\"",
-        direction,(void *)transaction,id,entry && entry->id_source?entry->id_source:"unknown",
-        entry?entry->phase:0,input_size,result,saved,entered,returned,before,after);
+        call->direction,(void *)call->transaction,id,entry && entry->id_source?entry->id_source:"unknown",
+        entry?entry->phase:0,call->input_size,call->result,call->saved,call->entered,call->returned,call->before,call->after);
     emit("native_body_append_return",fields);
     (void)pthread_mutex_unlock(&lock); --internal;
 }
@@ -516,7 +562,7 @@ int msc_append_##direction##_body(Transaction *transaction,const unsigned char *
     native_phase(transaction,boundary_phase); uint64_t entered=now(); errno=initial; \
     int result=real_call(transaction,data,size); int saved=errno; uint64_t returned=now(); \
     ++internal; size_t after=length(transaction); --internal; \
-    appended(transaction,#direction,size,before,after,result,saved,entered,returned); errno=saved; return result; \
+    appended(&(const struct append_call){transaction,#direction,size,before,after,result,saved,entered,returned}); errno=saved; return result; \
 }
 NATIVE_BODY_APPEND(request,2)
 NATIVE_BODY_APPEND(response,4)
@@ -543,9 +589,14 @@ int msc_process_response_headers(Transaction *transaction,int status,const char 
 static unsigned rule_id(const char *log) {
     if (!log || strnlen(log,16385)>16384) return 0;
     const char *p=strstr(log,"[id \""); if (!p || strstr(p+5,"[id \"")) return 0;
-    p+=5; unsigned value=0,count=0;
-    while (*p>='0' && *p<='9' && count++<10) {
-        unsigned digit=(unsigned)(*p++-'0'); if (value>(UINT32_MAX-digit)/10) return 0; value=value*10+digit;
+    p+=5; unsigned value=0; unsigned count=0;
+    while (*p>='0' && *p<='9') {
+        ++count;
+        if (count>10) break;
+        unsigned digit=(unsigned)(*p-'0');
+        ++p;
+        if (value>(UINT32_MAX-digit)/10) return 0;
+        value=value*10+digit;
     }
     return count && p[0]=='"' && p[1]==']'?value:0;
 }
@@ -554,8 +605,9 @@ int msc_intervention(Transaction *transaction,ModSecurityIntervention *intervent
     uint64_t entered=now(); errno=initial; int result=real_call(transaction,intervention); int saved=errno;
     if (output_fd>=0) {
         ++internal; (void)pthread_mutex_lock(&lock); struct native *entry=native_entry(transaction);
-        char fields[1400],status[16]="null",disruptive[16]="null",id[32]="null",phase[16]="null",txid[300]="null";
-        if (entry && *entry->id) (void)snprintf(txid,sizeof(txid),"\"%s\"",entry->id);
+        char fields[1400]; char status[16]="null"; char disruptive[16]="null"; char id[32]="null";
+        char phase[16]="null"; char txid[300]="null";
+        if (entry && entry->id[0]) (void)snprintf(txid,sizeof(txid),"\"%s\"",entry->id);
         if (entry && entry->phase) (void)snprintf(phase,sizeof(phase),"%d",entry->phase);
         if (result==1 && intervention) {
             (void)snprintf(status,sizeof(status),"%d",intervention->status);
@@ -563,13 +615,13 @@ int msc_intervention(Transaction *transaction,ModSecurityIntervention *intervent
             unsigned actual=rule_id(intervention->log); if (actual) (void)snprintf(id,sizeof(id),"%u",actual);
         }
         Dl_info image={0}; char object[600]="null";
-        if (dladdr((void *)real_call,&image) && safe_string(image.dli_fname,512,"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/_-+."))
+        if (dladdr((void *)&*real_call,&image) && safe_string(image.dli_fname,512,"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/_-+."))
             (void)snprintf(object,sizeof(object),"\"%s\"",image.dli_fname);
         (void)snprintf(fields,sizeof(fields),"\"function\":\"msc_intervention\",\"transaction_key\":\"%p\","
             "\"transaction_id\":%s,\"transaction_id_source\":\"%s\",\"phase\":%s,\"entered_ns\":%" PRIu64 ",\"return_ns\":%" PRIu64 ",\"result\":%d,"
             "\"errno_at_return\":%d,\"native_status\":%s,\"native_disruptive\":%s,\"native_log_rule_id\":%s,"
             "\"real_symbol_object\":%s,\"real_symbol_address\":\"%p\",\"raw_log_captured\":false",
-            (void *)transaction,txid,entry && entry->id_source?entry->id_source:"unknown",phase,entered,now(),result,saved,status,disruptive,id,object,(void *)real_call);
+            (void *)transaction,txid,entry && entry->id_source?entry->id_source:"unknown",phase,entered,now(),result,saved,status,disruptive,id,object,(void *)&*real_call);
         emit("native_intervention_return",fields); (void)pthread_mutex_unlock(&lock); --internal;
     }
     errno=saved; return result;

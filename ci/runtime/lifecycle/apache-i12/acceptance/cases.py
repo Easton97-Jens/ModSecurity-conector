@@ -16,6 +16,8 @@ from pathlib import Path
 
 APACHE_IDS_SHA256 = "4c660ea9f259f43f13b5b3c7e1e09815a65d537dd5dcddfce446ee0183468c73"
 APACHE_CONTRACTS_SHA256 = "2a470a552e424d149b601b11040694e79ff8f03d9421838c37dae51d823e2c33"
+TEXT_PLAIN = "text/plain"
+PREFIX_BYTES = b"prefix "
 
 CONFIG_CASES = {
     "valid_rules_file": (["modsecurity_rules_file @@BASELINE_RULES@@"], 0),
@@ -139,16 +141,16 @@ def base_host(case_id, ordinal):
     return {"request": {"method": "GET", "path": "/i12/" + case_id,
                 "headers": [["X-I12-ID", token]], "body": byte_input(b""),
                 "chunks": [], "framing": "content_length", "peer_action": "normal"},
-            "backend": {"status": 200, "headers": [["Content-Type", "text/plain"]],
+            "backend": {"status": 200, "headers": [["Content-Type", TEXT_PLAIN]],
                 "body": byte_input(b"Apache I12 healthy body\n"), "chunks": [],
                 "framing": "content_length", "principal_only": True,
                 "barrier": None, "peer_fault": None, "file": None},
             "controls": [{"label": "followup", "method": "GET", "path": "/followup",
-                          "expected_status": 200, "backend_headers": [["Content-Type", "text/plain"]],
+                          "expected_status": 200, "backend_headers": [["Content-Type", TEXT_PLAIN]],
                           "backend_body": byte_input(b"OK\n")},
                          {"label": "neighbor", "method": "GET", "path": "/neighbor",
                           "connection": "independent", "expected_status": 200,
-                          "backend_headers": [["Content-Type", "text/plain"]],
+                          "backend_headers": [["Content-Type", TEXT_PLAIN]],
                           "backend_body": byte_input(b"OK\n")}],
             "apache": {"phase4_mode": "safe", "config_directives": [],
                        "transaction_id_expression": "%{req:X-I12-ID}"},
@@ -160,7 +162,7 @@ def base_host(case_id, ordinal):
                 "counting_key": "observed_process_connection_and_native_transaction_allocation"}}
 
 
-def apply_canonical(plan, entry, fixture, request):
+def apply_canonical_request(plan, fixture, request):
     combined = copy.deepcopy(fixture.get("request", {}) if fixture else {})
     combined.update({k: v for k, v in request.items() if k in ("method", "path", "headers", "body")})
     for key in ("method", "path"):
@@ -172,14 +174,23 @@ def apply_canonical(plan, entry, fixture, request):
         plan["request"]["body"] = byte_input(str(combined["body"]))
     elif "body_fixture" in request:
         plan["request"]["body"] = byte_input(request["body_fixture"])
-    if fixture:
-        plan["rules"] = fixture.get("rules", "")
-        response = fixture.get("response", {})
-        if "body" in response:
-            plan["backend"]["body"] = byte_input(str(response["body"]))
-        if "content_type" in response:
-            set_header(plan["backend"]["headers"], "Content-Type", response["content_type"])
-        plan["backend"]["headers"] += ordered_headers(response.get("headers", {}))
+
+
+def apply_canonical_fixture(plan, fixture):
+    if not fixture:
+        return
+    plan["rules"] = fixture.get("rules", "")
+    response = fixture.get("response", {})
+    if "body" in response:
+        plan["backend"]["body"] = byte_input(str(response["body"]))
+    if "content_type" in response:
+        set_header(plan["backend"]["headers"], "Content-Type", response["content_type"])
+    plan["backend"]["headers"] += ordered_headers(response.get("headers", {}))
+
+
+def apply_canonical(plan, entry, fixture, request):
+    apply_canonical_request(plan, fixture, request)
+    apply_canonical_fixture(plan, fixture)
     if "response_body_fixture" in request:
         plan["backend"]["body"] = byte_input(request["response_body_fixture"])
     if "response_fixture" in request:
@@ -187,7 +198,7 @@ def apply_canonical(plan, entry, fixture, request):
         set_header(plan["backend"]["headers"], name, value.strip())
     variant = request.get("content_type_variant")
     if variant:
-        types = {"in_scope": "text/plain", "charset": "text/plain; charset=utf-8",
+        types = {"in_scope": TEXT_PLAIN, "charset": "text/plain; charset=utf-8",
                  "out_of_scope": "image/png", "missing": None}
         if variant not in types:
             raise ValueError("unknown content-type variant")
@@ -199,9 +210,49 @@ def apply_canonical(plan, entry, fixture, request):
                        native_rule_id=entry.get("expected_rule_id"), native_phase=entry.get("phase"))
 
 
+def historical_chunks(uri):
+    if "empty" in uri:
+        return []
+    if "late" in uri or "postcommit" in uri:
+        return [b"FIRST-I12\n", b"LATEBLOCK-I12\n", b"LAST-I12\n"]
+    if "multi" in uri:
+        return [b"FIRST-I12\n", b"MIDDLE-I12\n", b"LAST-I12\n"]
+    return [b"ALLOW-I12\n"]
+
+
+def historical_mime(uri):
+    if "missing-content-type" in uri:
+        return None
+    if "scopeout" in uri:
+        return "application/octet-stream"
+    if "with-charset" in uri:
+        return "text/plain; charset=utf-8"
+    return TEXT_PLAIN
+
+
+def configure_historical_fault(plan, original):
+    mode = original.get("fault")
+    if not mode:
+        return
+    native = mode in ("precommit", "postcommit")
+    boundary = "native_api" if native else "physical_event_sink"
+    seam = "native_" + mode if native else "physical_sink_" + mode
+    plan["fault"] = fault(mode, boundary, "original_direct_runner_" + mode)
+    plan["driver_seams"].append(seam)
+    if not native:
+        return
+    sdk_boundary = "msc_process_request_headers" if mode == "precommit" else "msc_append_response_body"
+    plan["controlled_fault_contract"] = controlled_fault_contract(
+        sdk_boundary, 0 if mode == "precommit" else -1,
+        "explicit_call_or_skip_with_separate_original_result")
+    plan["controlled_fault_contract"].update(
+        historical_fault_call_ordinal=1 if mode == "precommit" else 2,
+        historical_sdk_called_on_fault=False,
+        require_actual_commit_before_fault=mode == "postcommit")
+
+
 def historical_case(plan, original):
     """Preserve the old direct runner's URI, rule IDs and byte generation."""
-    name = original["name"]
     plan["request"]["path"] = original["uri"]
     plan["apache"]["phase4_mode"] = original["mode"]
     plan["rules"] = ("SecRequestBodyLimit %d\nSecRequestBodyNoFilesLimit %d\n"
@@ -209,40 +260,22 @@ def historical_case(plan, original):
                      "SecResponseBodyLimitAction %s\n" %
                      (original["request_limit"], original["request_limit"], original["request_action"],
                       original["response_limit"], original["response_action"])) + HISTORICAL_RULES
-    if name == "p2-deny":
+    if original["name"] == "p2-deny":
         plan["request"].update(method="POST", body=byte_input(b"P2BLOCK-I12"))
-        set_header(plan["request"]["headers"], "Content-Type", "text/plain")
-    uri = original["uri"]
-    late = "late" in uri or "postcommit" in uri
-    chunks = [] if "empty" in uri else ([b"FIRST-I12\n", b"LATEBLOCK-I12\n", b"LAST-I12\n"] if late
-             else [b"FIRST-I12\n", b"MIDDLE-I12\n", b"LAST-I12\n"] if "multi" in uri else [b"ALLOW-I12\n"])
+        set_header(plan["request"]["headers"], "Content-Type", TEXT_PLAIN)
+    chunks = historical_chunks(original["uri"])
     plan["backend"].update(body=byte_input(b"".join(chunks)), chunks=[byte_input(x) for x in chunks],
                            framing="chunked", chunk_delay_seconds=0.15)
-    mime = None if "missing-content-type" in uri else ("application/octet-stream" if "scopeout" in uri
-           else "text/plain; charset=utf-8" if "with-charset" in uri else "text/plain")
-    set_header(plan["backend"]["headers"], "Content-Type", mime)
+    set_header(plan["backend"]["headers"], "Content-Type", historical_mime(original["uri"]))
     plan["candidate_expectation"].update(visible_status=original["expected"].get("http_status"),
                                        backend_requests=original["expected"].get("backend_requests"))
-    if original.get("fault"):
-        mode = original["fault"]
-        plan["fault"] = fault(mode, "physical_event_sink" if mode not in ("precommit", "postcommit")
-                              else "native_api", "original_direct_runner_" + mode)
-        plan["driver_seams"].append("physical_sink_" + mode if mode not in ("precommit", "postcommit")
-                                    else "native_" + mode)
-        if mode in ("precommit", "postcommit"):
-            boundary = "msc_process_request_headers" if mode == "precommit" else "msc_append_response_body"
-            plan["controlled_fault_contract"] = controlled_fault_contract(
-                boundary, 0 if mode == "precommit" else -1, "explicit_call_or_skip_with_separate_original_result")
-            plan["controlled_fault_contract"].update(
-                historical_fault_call_ordinal=1 if mode == "precommit" else 2,
-                historical_sdk_called_on_fault=False,
-                require_actual_commit_before_fault=mode == "postcommit")
+    configure_historical_fault(plan, original)
 
 
 def _configure_phase3(plan, case_id):
     backend = plan['backend']
     expected = plan['candidate_expectation']
-    if not (case_id.startswith('phase3_') or case_id == 'deny_response_header_marker_403'):
+    if not case_id.startswith('phase3_') and case_id != 'deny_response_header_marker_403':
         return
     redirect = 'redirect' in case_id
     set_header(backend['headers'], 'X-Modsec-Upstream', 'redirect' if redirect else 'block')
@@ -254,11 +287,13 @@ def _configure_phase4_marker(plan, case_id):
     backend = plan['backend']
     expected = plan['candidate_expectation']
     low = case_id.lower()
-    if not (low.startswith('phase4') and (not any((x in low for x in ('limit', 'partial', 'reject', 'scope', 'content_type'))))):
+    if not low.startswith('phase4'):
+        return
+    if any(x in low for x in ('limit', 'partial', 'reject', 'scope', 'content_type')):
         return
     payload = input_bytes(backend['body'])
     if RESPONSE_MARKER not in payload:
-        payload = b'prefix ' + RESPONSE_MARKER
+        payload = PREFIX_BYTES + RESPONSE_MARKER
         backend['body'] = byte_input(payload)
     marker_at = payload.index(RESPONSE_MARKER)
     split = marker_at if marker_at > 0 else min(8, len(payload))
@@ -268,7 +303,7 @@ def _configure_phase4_marker(plan, case_id):
 
 def _configure_late_mode(plan, case_id):
     low = case_id.lower()
-    if any((x in low for x in ('strict', 'after_commit_abort'))):
+    if any(x in low for x in ('strict', 'after_commit_abort')):
         plan['apache']['phase4_mode'] = 'strict'
     elif low.endswith('_minimal'):
         plan['variant_conflicts'] = ['Apache exposes off/safe/strict, no separate minimal mode; Safe is not silently substituted for minimal']
@@ -278,22 +313,22 @@ def _configure_body_limit(plan, case_id, contract, fixture):
     request = plan['request']
     backend = plan['backend']
     expected = plan['candidate_expectation']
-    if not case_id in ('phase2_at_limit', 'phase2_over_limit', 'phase2_truncated', 'full_lifecycle_event_metadata_bounded', 'phase4_body_at_limit', 'phase4_body_over_limit', 'phase4_body_process_partial', 'phase4_body_reject'):
+    if case_id not in ('phase2_at_limit', 'phase2_over_limit', 'phase2_truncated', 'full_lifecycle_event_metadata_bounded', 'phase4_body_at_limit', 'phase4_body_over_limit', 'phase4_body_process_partial', 'phase4_body_reject'):
         return
     phase = 2 if case_id.startswith('phase2') else 4
     limit = (fixture or {}).get('full_lifecycle', {}).get('limit_bytes', 16)
     size = limit if case_id.endswith('at_limit') else limit + 1
-    partial = case_id.endswith('truncated') or case_id.endswith('process_partial')
+    partial = case_id.endswith(('truncated', 'process_partial'))
     action = 'ProcessPartial' if partial else 'Reject'
     prefix = 'Request' if phase == 2 else 'Response'
     plan['rules'] += '\nSec%sBodyLimit %d\nSec%sBodyLimitAction %s\n' % (prefix, limit, prefix, action)
     if phase == 2:
         plan['rules'] += 'SecRequestBodyNoFilesLimit %d\n' % limit
         request.update(method='POST', body=byte_input(b'a' * size))
-        set_header(request['headers'], 'Content-Type', 'text/plain')
+        set_header(request['headers'], 'Content-Type', TEXT_PLAIN)
     else:
         backend.update(body=byte_input(b'a' * size), chunks=[], framing='content_length')
-        set_header(backend['headers'], 'Content-Type', 'text/plain')
+        set_header(backend['headers'], 'Content-Type', TEXT_PLAIN)
     plan['limit_variant'] = {'phase': phase, 'limit_bytes': limit, 'wire_bytes': size, 'native_action': action, 'native_buffer_bytes': limit if partial else None, 'native_limit_intervention_status': 403 if size > limit and (not partial) else None, 'native_limit_rule_id': None, 'actual_transport_truncation': False, 'original_marker_rule_expected': contract['expected_oracle'].get('rule_id')}
     plan['variant_conflicts'] = ['Original physical limit metadata and marker-rule expectation require independent reconciliation; native limit decision has no intrinsic rule ID']
     expected.update(native_status=403 if size > limit and (not partial) else 200, native_rule_id=None, native_phase=phase)
@@ -303,7 +338,7 @@ def _configure_request_data(plan, case_id):
     if not case_id.startswith('NEED-request-'):
         return
     request.update(method='POST', body=byte_input(b'Apache-I12-request-payload'))
-    set_header(request['headers'], 'Content-Type', 'text/plain')
+    set_header(request['headers'], 'Content-Type', TEXT_PLAIN)
     if case_id.endswith('empty'):
         request['body'] = byte_input(b'')
     if case_id.endswith('content-type-missing'):
@@ -326,7 +361,7 @@ def _configure_request_data(plan, case_id):
             'native_upload_tmp_cleanup_observed': None,
             'actual_APR_FILE_bucket_observed': None}
     if 'mime-scope' in case_id:
-        set_header(request['headers'], 'Content-Type', 'text/plain' if case_id.endswith('in') else 'image/png')
+        set_header(request['headers'], 'Content-Type', TEXT_PLAIN if case_id.endswith('in') else 'image/png')
         plan['variant_conflicts'] = ['SDK has no request MIME allowlist equivalent to response SecResponseBodyMimeType; raw-body ingestion candidate requires explicit original-obligation reconciliation']
     if case_id.endswith('marker-at-payload-end'):
         request['body'] = byte_input(b'a' * 65536 + REQUEST_MARKER)
@@ -354,7 +389,7 @@ def _configure_response_data(plan, case_id):
 def _configure_former_limit(plan, case_id):
     request = plan['request']
     backend = plan['backend']
-    if not 'above-former-connector-limit' in case_id:
+    if 'above-former-connector-limit' not in case_id:
         return
     target = request if 'request' in case_id else backend
     size = 10 * 1024 * 1024 + 1
@@ -367,43 +402,45 @@ def _configure_streaming(plan, case_id):
     request = plan['request']
     backend = plan['backend']
     low = case_id.lower()
-    streaming = any((x in low for x in ('streaming', 'split_across_chunks', 'first_byte', 'no_full_response_buffering')))
+    streaming = any(x in low for x in ('streaming', 'split_across_chunks', 'first_byte', 'no_full_response_buffering'))
     if not streaming:
         return
-    response = not ('request' in low or low.startswith('phase2'))
+    request_stream = 'request' in low or low.startswith('phase2')
+    response = not request_stream
     target = backend if response else request
     chunks = [b'no-crs-response-', b'body-marker'] if response else [b'no-crs-request-', b'body-marker']
     target.update(body=byte_input(b''.join(chunks)), chunks=[byte_input(x) for x in chunks], framing='chunked')
     if not response:
         request['method'] = 'POST'
-        set_header(request['headers'], 'Content-Type', 'text/plain')
+        set_header(request['headers'], 'Content-Type', TEXT_PLAIN)
     target['barrier'] = {'after_chunk': 1, 'release_condition': 'client_received_first_chunk' if response else 'native_append_first_chunk_observed', 'timeout_seconds': 5}
     plan['driver_seams'].append('causal_response_barrier' if response else 'causal_native_request_append_barrier')
 
 def _configure_nonzero_body(plan, case_id):
     request = plan['request']
-    if not case_id == 'body_size_nonzero_with_null_data':
+    if case_id != 'body_size_nonzero_with_null_data':
         return
     request.update(method='POST', body=byte_input(b'actual-nonzero-bucket'))
-    set_header(request['headers'], 'Content-Type', 'text/plain')
+    set_header(request['headers'], 'Content-Type', TEXT_PLAIN)
 
 def _configure_nonzero_headers(plan, case_id):
     request = plan['request']
-    if not case_id == 'header_count_nonzero_with_null_headers':
+    if case_id != 'header_count_nonzero_with_null_headers':
         return
     set_header(request['headers'], 'X-I12-Input-Fault', 'nonempty')
 
 def _configure_keepalive_response(plan, case_id):
     backend = plan['backend']
     low = case_id.lower()
-    if not case_id in ('keepalive_safe_followup', 'keepalive_after_strict_new_connection'):
+    if case_id not in ('keepalive_safe_followup', 'keepalive_after_strict_new_connection'):
         return
-    backend.update(body=byte_input(b'prefix ' + RESPONSE_MARKER), chunks=[byte_input(b'prefix '), byte_input(RESPONSE_MARKER)], framing='chunked')
+    backend.update(body=byte_input(PREFIX_BYTES + RESPONSE_MARKER),
+                   chunks=[byte_input(PREFIX_BYTES), byte_input(RESPONSE_MARKER)], framing='chunked')
     plan['apache']['phase4_mode'] = 'strict' if 'strict' in low else 'safe'
 
 def _configure_shutdown(plan, case_id):
     expected = plan['candidate_expectation']
-    if not case_id == 'clean_shutdown':
+    if case_id != 'clean_shutdown':
         return
     expected['visible_status'] = 200
     plan['process_operation'] = {'after_controls': 'SIGTERM_owned_host_and_wait', 'expected_host_exit': 0}
@@ -412,7 +449,7 @@ def _configure_shutdown(plan, case_id):
 def _configure_malformed_request(plan, case_id):
     request = plan['request']
     malformed = {'invalid_content_length': [['Content-Length', 'invalid']], 'conflicting_content_length': [['Content-Length', '1'], ['Content-Length', '2']], 'duplicate_transfer_encoding': [['Transfer-Encoding', 'chunked'], ['Transfer-Encoding', 'chunked']], 'content_length_overflow': [['Content-Length', '18446744073709551616']]}
-    if not case_id in malformed:
+    if case_id not in malformed:
         return
     request['headers'] += malformed[case_id]
     request['framing'] = 'raw_no_normalization'
@@ -420,7 +457,7 @@ def _configure_malformed_request(plan, case_id):
 
 def _configure_native_fault(plan, case_id):
     boundary_faults = {'body_size_nonzero_with_null_data': ('apache_input_filter_process_bucket', 'substitute_NULL_data_keep_nonzero_actual_bucket_length'), 'header_count_nonzero_with_null_headers': ('apache_request_mapper', 'substitute_NULL_header_table_keep_nonzero_count'), 'early_mapping_failure_cleanup': ('msc_add_request_header', 'controlled_header_mapping_failure_after_real_call_keep_original_result'), 'transaction_begin_failure_cleanup': ('msc_new_transaction_with_id', 'controlled_null_transaction_constructor_result_not_allocator_OOM'), 'finish_failure_propagation': ('msc_process_logging', 'controlled_native_logging_failure_after_real_call'), 'NEED-invalid-native-return': ('msc_process_request_headers', 'controlled_invalid_return_after_real_call_keep_original_return_record'), 'NEED-invalid-metadata': ('msc_apache_contract_begin', 'invalid_phase_enum_at_principal_boundary'), 'response_short_write_resume': ('ap_pass_brigade', 'real_short_write_then_resume_same_brigade'), 'response_write_would_block_resume': ('ap_pass_brigade', 'real_nonblocking_pipe_saturation_APR_EAGAIN_then_drain_resume')}
-    if not case_id in boundary_faults:
+    if case_id not in boundary_faults:
         return
     boundary, operation = boundary_faults[case_id]
     plan['fault'] = fault('native_boundary', boundary, operation)
@@ -445,7 +482,7 @@ def controlled_fault_contract(boundary, effective_result, call_policy):
 
 def _configure_timeout(plan, case_id):
     low = case_id.lower()
-    if not 'timeout' in low:
+    if 'timeout' not in low:
         return
     plan['fault'] = fault('timeout', 'msc_process_response_body' if 'after_commit' in low else 'msc_process_request_headers', 'real_monotonic_delay_exceed_authoritative_budget')
     plan['fault']['delay_ms'] = 100
@@ -465,7 +502,7 @@ def _configure_physical_sink(plan, case_id):
 
 def _configure_abnormal_transport(plan, case_id):
     request = plan['request']
-    if not case_id in ('NEED-missing-eos', 'NEED-incomplete-framing', 'NEED-cancel', 'NEED-client-exit-signal', 'NEED-abort-reset-observation'):
+    if case_id not in ('NEED-missing-eos', 'NEED-incomplete-framing', 'NEED-cancel', 'NEED-client-exit-signal', 'NEED-abort-reset-observation'):
         return
     request.update(method='POST', body=byte_input(b'incomplete'), framing='content_length_overdeclared', declared_content_length=128, peer_action='shutdown_write_before_body_complete')
     if case_id.endswith('cancel'):
@@ -478,7 +515,7 @@ def _configure_abnormal_transport(plan, case_id):
 
 def _configure_sequence(plan, case_id):
     low = case_id.lower()
-    sequence = any((x in low for x in ('keepalive', 'keep_alive', 'sequential', 'neighbor-connection')))
+    sequence = any(x in low for x in ('keepalive', 'keep_alive', 'sequential', 'neighbor-connection'))
     if not sequence:
         return
     plan['sequence'] = {'connection': 'same_http11_keepalive', 'requests': ['main', 'followup'], 'independent_neighbor': True}
@@ -491,7 +528,7 @@ def _configure_sequence(plan, case_id):
 def _configure_event_boundary(plan, case_id):
     request = plan['request']
     expected = plan['candidate_expectation']
-    if not case_id in ('event_metadata_truncation', 'event_json_limit'):
+    if case_id not in ('event_metadata_truncation', 'event_json_limit'):
         return
     set_header(request['headers'], 'X-Modsec-Smoke', 'log-only')
     prefix = '/no-crs/events/'
@@ -510,7 +547,7 @@ def _configure_event_boundary(plan, case_id):
 def _configure_supplemental_rule(plan, case_id):
     request = plan['request']
     expected = plan['candidate_expectation']
-    if not (case_id.startswith('NEED-') and (not plan['fault'])):
+    if not case_id.startswith('NEED-') or plan['fault']:
         return
     plan['rules'] += '\nSecRule REQUEST_URI "@streq ' + request['path'] + '" "id:91041950,phase:1,pass,log,t:none,msg:apache-i12-input-binding"\n'
     request_deny = 'streaming' in case_id and 'request' in case_id or case_id.endswith('request-marker-at-payload-end') or case_id == 'NEED-request-above-former-connector-limit'
@@ -525,7 +562,10 @@ def _configure_supplemental_rule(plan, case_id):
         expected['backend_requests'] = 0
 
 def _configure_historical_sink(plan, case_id):
-    if not (case_id.startswith('E2E-APACHE-') and plan['fault'] and (plan['fault']['boundary'] == 'physical_event_sink')):
+    selected = plan['fault']
+    if not case_id.startswith('E2E-APACHE-') or not selected:
+        return
+    if selected['boundary'] != 'physical_event_sink':
         return
     plan['fault']['activation'] = 'exact_main_request_id_once_without_delaying_first_sink_failure'
     plan['historical_planning_assumption'] = {

@@ -11,6 +11,7 @@ import subprocess
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[4]
+APACHE_MODULE_SOURCE = "connectors/apache/src/mod_security3.c"
 HEADER = '''/* Test-only declarations for external instrumented source copies. */
 #include <httpd.h>
 #include <modsecurity/transaction.h>
@@ -66,16 +67,16 @@ def build(output: Path, include: Path) -> dict:
                    "Retain the existing native GNU-wrapper list exactly; msc_append_response_body remains independently wrapped, while the helper itself records the real public msc_add_request_header return without claiming a separate wrapper",
                ]}
     receipt["external_source_anchors"] = [
-        {"file": "connectors/apache/src/mod_security3.c", "occurrences_required": 1,
+        {"file": APACHE_MODULE_SOURCE, "occurrences_required": 1,
          "original": "msc_process_request_headers(msr->t)",
          "replacement": "i12_apache_fault_process_request_headers(r, msr->t, &msr->contract, msr->response.committed)"},
         {"file": "connectors/apache/src/msc_filters.c", "occurrences_required": 1,
          "original": "msc_append_response_body(msr->t,\n                (const unsigned char *)data, len)",
          "replacement": "i12_apache_fault_append_response_body(msr->r, msr->t, (const unsigned char *)data, len, &msr->contract, msr->response.committed)"},
-        {"file": "connectors/apache/src/mod_security3.c", "occurrences_required": 1,
+        {"file": APACHE_MODULE_SOURCE, "occurrences_required": 1,
          "original": "msc_add_request_header(msr->t, key_bytes, val_bytes)",
          "replacement": "i12_apache_fault_add_request_header(r, msr->t, key_bytes, val_bytes)"},
-        {"file": "connectors/apache/src/mod_security3.c", "occurrences_required": 1,
+        {"file": APACHE_MODULE_SOURCE, "occurrences_required": 1,
          "original": "msc_process_logging(msr->t)",
          "replacement": "i12_apache_fault_process_logging(r, msr->t)"}]
     for anchor in receipt["external_source_anchors"]:

@@ -7,9 +7,7 @@ import subprocess
 import string
 import sys
 import time
-from urllib.parse import urlsplit
-
-HTTP_PREFIX = 'http://'
+from urllib.parse import urlsplit, urlunsplit
 
 
 def private_output(value):
@@ -20,11 +18,22 @@ def private_output(value):
     return str(path)
 
 
-def checked_url(value):
+def checked_endpoint(value):
+    # urlsplit strips some control characters. Reject them before parsing so
+    # admission applies to the literal URL that will reach the native client.
+    if any(character.isspace() or ord(character) < 32 or ord(character) == 127
+           for character in value):
+        raise ValueError('Whitespace and controls are not admitted in a client URL')
     url = urlsplit(value)
-    if (url.scheme != 'http' or url.hostname != '127.0.0.1' or url.username or url.password
+    if (url.scheme != 'http' or url.hostname != '127.0.0.1'
+            or url.username is not None or url.password is not None
             or url.fragment or url.port is None or not 1024 <= url.port <= 65535):
         raise ValueError('Only an uncredentialed admitted loopback HTTP endpoint is allowed')
+    return url
+
+
+def checked_url(value):
+    checked_endpoint(value)
     return value
 
 
@@ -57,13 +66,14 @@ def checked_value(flag, value):
     return value
 
 
-def checked_arguments(arguments):
+def checked_request(arguments):
     """Reject curl config files, alternate protocols, and argument/file injection."""
     if arguments == ['--version']:
-        return arguments
+        return arguments, None
     switches = {'-sS', '-k', '--http1.1', '--no-buffer'}
     values = {'-D', '-o', '--data-binary', '-X', '-w', '-H'}
     result = []
+    endpoint = None
     pending = iter(arguments)
     for value in pending:
         if value in switches:
@@ -74,10 +84,18 @@ def checked_arguments(arguments):
                 raise ValueError('Missing client option value')
             result.extend((value, checked_value(value, supplied)))
         else:
-            result.append(checked_url(value))
-    if sum(value.startswith(HTTP_PREFIX) for value in result) != 1:
+            candidate = checked_endpoint(value)
+            if endpoint is not None:
+                raise ValueError('Exactly one admitted URL is required')
+            endpoint = candidate
+            result.append(value)
+    if endpoint is None:
         raise ValueError('Exactly one admitted URL is required')
-    return result
+    return result, endpoint
+
+
+def checked_arguments(arguments):
+    return checked_request(arguments)[0]
 
 
 def run_raw(arguments, correlation_id):
@@ -109,12 +127,14 @@ def capture_main(arguments):
 
 
 def capture_neighbor(arguments, output, main_id):
-    endpoint = urlsplit(next(value for value in arguments if value.startswith(HTTP_PREFIX)))
+    _, endpoint = checked_request(arguments)
+    if endpoint is None:
+        raise ValueError('A followup requires an admitted request endpoint')
     neighbor_id = str(time.time_ns())
     process, receipt = run_raw([
         '-sS', '--http1.1', '-D', str(output / 'neighbor.headers'), '-X', 'GET',
         '-o', str(output / 'neighbor.body'), '-w', '%{http_code}', '-H', 'X-Modsec-Smoke: allow',
-        f'http://127.0.0.1:{endpoint.port}/no-crs/allow'], neighbor_id)
+        urlunsplit((endpoint.scheme, endpoint.netloc, '/no-crs/allow', '', ''))], neighbor_id)
     receipt.update(actual_stdout=process.stdout.decode('ascii', errors='replace'),
                    role='separate_original_allow_neighbor', main_client_token=main_id,
                    does_not_replace_main_outcome=True)
@@ -122,10 +142,9 @@ def capture_neighbor(arguments, output, main_id):
 
 
 def main():
-    arguments = checked_arguments(sys.argv[1:])
+    arguments, endpoint = checked_request(sys.argv[1:])
     selected = os.environ.get('I12_APACHE_SELECTED_URI')
-    selected_request = selected and any(value.startswith(HTTP_PREFIX) and urlsplit(value).path == selected
-                                        for value in arguments)
+    selected_request = selected and endpoint is not None and endpoint.path == selected
     if selected_request:
         process = capture_main(arguments)
     else:

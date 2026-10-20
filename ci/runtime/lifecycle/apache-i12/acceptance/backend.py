@@ -13,6 +13,22 @@ import time
 
 
 MAX_BODY = 16 * 1024 * 1024
+MIN_PRIVATE_PORT = 1024
+MAX_PORT = 65535
+
+
+def private_loopback_port(value):
+    if isinstance(value, bool):
+        port = None
+    elif isinstance(value, str) and value.isascii() and value.isdecimal():
+        port = int(value, 10)
+    elif isinstance(value, int):
+        port = value
+    else:
+        port = None
+    if port is None or not MIN_PRIVATE_PORT <= port <= MAX_PORT:
+        raise ValueError("private loopback port is outside the admitted range")
+    return port
 
 
 def content(item):
@@ -41,28 +57,32 @@ def response_for(plan, path):
     return None
 
 
+def read_chunked_body(stream):
+    chunks, total = [], 0
+    while True:
+        line = stream.readline(128)
+        if not line.endswith(b"\r\n"):
+            raise ValueError("truncated backend chunk header")
+        size = int(line.strip().split(b";", 1)[0], 16)
+        if size < 0 or total + size > MAX_BODY:
+            raise ValueError("backend body exceeds bound")
+        if not size:
+            if stream.readline(3) != b"\r\n":
+                raise ValueError("backend chunk trailers unsupported")
+            return b"".join(chunks)
+        data = stream.read(size)
+        if len(data) != size or stream.read(2) != b"\r\n":
+            raise ValueError("truncated backend chunk")
+        chunks.append(data)
+        total += size
+
+
 def read_body(stream, headers):
     transfer = headers.get_all("Transfer-Encoding", [])
     if transfer:
         if transfer != ["chunked"]:
             raise ValueError("unsupported backend transfer encoding")
-        chunks, total = [], 0
-        while True:
-            line = stream.readline(128)
-            if not line.endswith(b"\r\n"):
-                raise ValueError("truncated backend chunk header")
-            size = int(line.strip().split(b";", 1)[0], 16)
-            if size < 0 or total + size > MAX_BODY:
-                raise ValueError("backend body exceeds bound")
-            if not size:
-                if stream.readline(3) != b"\r\n":
-                    raise ValueError("backend chunk trailers unsupported")
-                return b"".join(chunks)
-            data = stream.read(size)
-            if len(data) != size or stream.read(2) != b"\r\n":
-                raise ValueError("truncated backend chunk")
-            chunks.append(data)
-            total += size
+        return read_chunked_body(stream)
     length = int(headers.get("Content-Length", "0"))
     if length < 0 or length > MAX_BODY:
         raise ValueError("backend body exceeds bound")
@@ -86,6 +106,43 @@ def wait_for_client_barrier(selected, index, root, token, physical):
             raise TimeoutError("client did not prove first body receipt before barrier timeout")
 
 
+def response_chunks(selected):
+    chunks = [content(x) for x in selected.get("chunks", [])]
+    payload = content(selected["body"])
+    if chunks and b"".join(chunks) != payload:
+        raise ValueError("backend chunks do not equal declared body")
+    return (chunks or ([payload] if payload else [])), payload
+
+
+def response_headers(handler, selected, payload, chunked):
+    handler.send_response(selected["status"])
+    for name, value in selected["headers"]:
+        if name.lower() not in ("content-length", "transfer-encoding", "connection"):
+            handler.send_header(name, value)
+    handler.send_header("Transfer-Encoding" if chunked else "Content-Length",
+                        "chunked" if chunked else str(len(payload)))
+    handler.end_headers()
+
+
+def valid_token(token):
+    return bool(token) and len(token) <= 256 and all(
+        c.isascii() and (c.isalnum() or c in "-_") for c in token)
+
+
+def write_response_body(handler, selected, chunks, chunked, token, root, physical):
+    for index, chunk in enumerate(chunks):
+        wire = ("%x\r\n" % len(chunk)).encode() + chunk + b"\r\n" if chunked else chunk
+        handler.wfile.write(wire)
+        handler.wfile.flush()
+        physical({"kind": "write", "request_id": token, "chunk_index": index,
+                  "bytes": len(chunk), "sha256": hashlib.sha256(chunk).hexdigest()})
+        wait_for_client_barrier(selected, index, root, token, physical)
+        time.sleep(selected.get("chunk_delay_seconds", 0))
+    if chunked:
+        handler.wfile.write(b"0\r\n\r\n")
+        handler.wfile.flush()
+
+
 def serve(plan, root, port):
     lock = threading.Lock()
 
@@ -101,35 +158,14 @@ def serve(plan, root, port):
         protocol_version = "HTTP/1.1"
 
         def log_message(self, *_args):
-            pass
+            """Suppress BaseHTTPRequestHandler stderr; physical JSONL is the capture."""
 
         def send_selected_response(self, selected, token):
-            chunks = [content(x) for x in selected.get("chunks", [])]
-            payload = content(selected["body"])
-            if chunks and b"".join(chunks) != payload:
-                raise ValueError("backend chunks do not equal declared body")
-            if not chunks and payload:
-                chunks = [payload]
+            chunks, payload = response_chunks(selected)
             chunked = selected.get("framing") == "chunked"
-            self.send_response(selected["status"])
-            for name, value in selected["headers"]:
-                if name.lower() not in ("content-length", "transfer-encoding", "connection"):
-                    self.send_header(name, value)
-            self.send_header("Transfer-Encoding" if chunked else "Content-Length",
-                             "chunked" if chunked else str(len(payload)))
-            self.end_headers()
+            response_headers(self, selected, payload, chunked)
             physical({"kind": "response_headers_write", "request_id": token})
-            for index, chunk in enumerate(chunks):
-                wire = ("%x\r\n" % len(chunk)).encode() + chunk + b"\r\n" if chunked else chunk
-                self.wfile.write(wire)
-                self.wfile.flush()
-                physical({"kind": "write", "request_id": token, "chunk_index": index,
-                          "bytes": len(chunk), "sha256": hashlib.sha256(chunk).hexdigest()})
-                wait_for_client_barrier(selected, index, root, token, physical)
-                time.sleep(selected.get("chunk_delay_seconds", 0))
-            if chunked:
-                self.wfile.write(b"0\r\n\r\n")
-                self.wfile.flush()
+            write_response_body(self, selected, chunks, chunked, token, root, physical)
             physical({"kind": "backend_eos_write", "request_id": token,
                       "body_bytes": len(payload), "body_sha256": hashlib.sha256(payload).hexdigest()})
 
@@ -138,7 +174,7 @@ def serve(plan, root, port):
 
         def do_GET(self):
             token = self.headers.get("X-I12-ID", "")
-            if not token or len(token) > 256 or not all(c.isascii() and (c.isalnum() or c in "-_") for c in token):
+            if not valid_token(token):
                 self.send_error(400)
                 return
             try:
@@ -157,12 +193,14 @@ def serve(plan, root, port):
                     self.send_error(404)
                     return
                 self.send_selected_response(selected, token)
-            except (OSError, ValueError, TimeoutError) as error:
+            except (OSError, ValueError) as error:
                 physical({"kind": "backend_error", "request_id": token,
                           "type": type(error).__name__, "message": str(error)})
                 self.close_connection = True
 
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    # The admitted private network namespace uses literal loopback HTTP to
+    # exercise Apache's HTTP framing. TLS would change the fixture contract.
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", private_loopback_port(port)), Handler)
     server.daemon_threads = True
     server.serve_forever()
 
@@ -171,7 +209,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--spec", type=Path, required=True)
     parser.add_argument("--root", type=Path, required=True)
-    parser.add_argument("--port", type=int, required=True)
+    parser.add_argument("--port", type=private_loopback_port, required=True)
     args = parser.parse_args()
     serve(json.loads(args.spec.read_text()), args.root, args.port)
 

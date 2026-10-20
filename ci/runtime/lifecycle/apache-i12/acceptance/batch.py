@@ -23,6 +23,18 @@ import time
 
 
 MAX_WIRE = 16 * 1024 * 1024
+MIN_PRIVATE_PORT = 1024
+MAX_PORT = 65535
+ARTIFACT_MOUNT = Path("/mnt/artifacts")
+FIXTURE_MOUNT = Path("/mnt/fixtures")
+AUDIT_FILE = "audit.log"
+EVENTS_FILE = "events.jsonl"
+NATIVE_API_FILE = "native-api.jsonl"
+RECEIPT_FILE = "receipt.json"
+RULES_FILE = "rules.conf"
+SEQUENCE_RECEIPT_FILE = "sequence-receipt.json"
+SPEC_FILE = "spec.json"
+TERMINATION_FILE = "termination.json"
 PARENT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PARENT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -48,7 +60,7 @@ def digest(path):
     if supplied != resolved or not resolved.is_file():
         raise ValueError("digest input must be a regular nonsymlink file")
     roots = []
-    for candidate in (Path("/mnt/artifacts"), Path("/mnt/fixtures"),
+    for candidate in (ARTIFACT_MOUNT, FIXTURE_MOUNT,
                       Path("/mnt/framework/tests/rules")):
         if candidate.is_dir() and candidate.resolve(strict=True) == candidate:
             roots.append(candidate)
@@ -92,7 +104,7 @@ def save(path, value):
 def replace_tokens(text, root):
     return (text.replace("@@CASE_ROOT@@", str(root))
             .replace("@@BASELINE_RULES@@", "/mnt/framework/tests/rules/no-crs-baseline.conf")
-            .replace("@@AUDIT_LOG@@", str(root / "audit.log"))
+            .replace("@@AUDIT_LOG@@", str(root / AUDIT_FILE))
             .replace("@@AUDIT_LOG_DIR@@", str(root / "audit-storage"))
             .replace("@@INVALID_SCOPE@@", "/mnt/framework/tests/fixtures/no-crs-baseline/invalid-content-type-scope.txt")
             .replace("@@WILDCARD_SCOPE@@", "/mnt/framework/tests/fixtures/no-crs-baseline/wildcard-content-type-scope.txt"))
@@ -111,7 +123,7 @@ def native_rules(plan, root):
         lines += ["SecTmpSaveUploadedFiles On", "SecUploadKeepFiles Off",
                   'SecUploadDir "' + str(root / "uploads") + '"']
     lines += ["SecAuditEngine On", "SecAuditLogType Serial", "SecAuditLogParts ABHZ",
-              'SecAuditLog "' + str(root / "audit.log") + '"',
+              'SecAuditLog "' + str(root / AUDIT_FILE) + '"',
               'SecAuditLogStorageDir "' + str(root / "audit-storage") + '"',
               'SecDebugLog "' + str(root / "native-debug.log") + '"', "SecDebugLogLevel 5"]
     return "\n".join(lines) + "\n"
@@ -121,7 +133,7 @@ def selected_rules_file(plan, root):
     missing = plan["execution_kind"] == "configtest" and plan.get("case_id") == "missing_rules_file"
     if missing and plan["config"].get("setup"):
         raise ValueError("missing-rules fixture cannot have setup operations")
-    return root / ("absent.rules" if missing else "rules.conf")
+    return root / ("absent.rules" if missing else RULES_FILE)
 
 
 def selected_rules_observation(plan, root):
@@ -190,7 +202,7 @@ def config_text(plan, root, module, port, backend_port, principal_sink=None):
               f'ProxyPass "/" "http://127.0.0.1:{backend_port}/" connectiontimeout=2 timeout=10',
               f'ProxyPassReverse "/" "http://127.0.0.1:{backend_port}/"',
               '<Location "/">', "Require all granted", "</Location>", "modsecurity on",
-              f'modsecurity_phase4_log "{root}/events.jsonl"',
+              f'modsecurity_phase4_log "{root / EVENTS_FILE}"',
               "modsecurity_phase4_mode " + plan.get("apache", {}).get("phase4_mode", "safe"),
               f'modsecurity_rules_file "{selected_rules_file(plan, root)}"']
     expression = plan.get("apache", {}).get("transaction_id_expression", "%{req:X-I12-ID}")
@@ -216,43 +228,71 @@ def config_text(plan, root, module, port, backend_port, principal_sink=None):
         lines += [f"<VirtualHost 127.0.0.1:{port}>", "ServerName 127.0.0.1",
                   f'modsecurity_phase4_log "{principal_sink}"', "</VirtualHost>",
                   f"<VirtualHost 127.0.0.1:{port}>", "ServerName control.localhost",
-                  f'modsecurity_phase4_log "{root}/events.jsonl"', "</VirtualHost>"]
+                  f'modsecurity_phase4_log "{root / EVENTS_FILE}"', "</VirtualHost>"]
     return "\n".join(lines) + "\n"
 
 
-def wire_request(request, port):
-    body = body_bytes(request["body"])
-    if len(body) > MAX_WIRE or request["method"] not in ("GET", "POST"):
+def private_loopback_port(value):
+    if isinstance(value, bool):
+        port = None
+    elif isinstance(value, str) and value.isascii() and value.isdecimal():
+        port = int(value, 10)
+    elif isinstance(value, int):
+        port = value
+    else:
+        port = None
+    if port is None or not MIN_PRIVATE_PORT <= port <= MAX_PORT:
+        raise ValueError("private loopback port is outside the admitted range")
+    return port
+
+
+def request_head(request, port):
+    method = request["method"]
+    if method not in ("GET", "POST"):
         raise ValueError("unsupported bounded method/body")
     path = request["path"]
     if not path.startswith("/") or any(c in path for c in "\r\n "):
         raise ValueError("unsafe raw request target")
     headers = request["headers"]
-    head = f'{request["method"]} {path} HTTP/1.1\r\n'.encode("ascii")
+    head = f"{method} {path} HTTP/1.1\r\n".encode("ascii")
     if not any(name.lower() == "host" for name, _ in headers):
         head += f"Host: 127.0.0.1:{port}\r\n".encode("ascii")
     for name, value in headers:
         if any(c in name + value for c in "\r\n"):
             raise ValueError("header contains wire delimiter")
         head += (name + ": " + value + "\r\n").encode("ascii")
+    return head
+
+
+def framed_request_body(request, body):
     framing = request.get("framing", "content_length")
     if framing == "chunked":
-        head += b"Transfer-Encoding: chunked\r\n"
         chunks = [body_bytes(item) for item in request.get("chunks", [])] or [body]
         if b"".join(chunks) != body:
             raise ValueError("request chunk content mismatch")
         encoded = [("%x\r\n" % len(part)).encode() + part + b"\r\n" for part in chunks if part]
         encoded.append(b"0\r\n\r\n")
-    else:
-        encoded = [body] if body else []
-        if framing != "raw_no_normalization" and (body or request["method"] == "POST"):
-            length = request.get("declared_content_length", len(body))
-            head += f"Content-Length: {length}\r\n".encode("ascii")
+        return b"Transfer-Encoding: chunked\r\n", encoded
+    encoded = [body] if body else []
+    if framing == "raw_no_normalization" or not body and request["method"] != "POST":
+        return b"", encoded
+    length = request.get("declared_content_length", len(body))
+    return f"Content-Length: {length}\r\n".encode("ascii"), encoded
+
+
+def wire_request(request, port):
+    port = private_loopback_port(port)
+    body = body_bytes(request["body"])
+    if len(body) > MAX_WIRE:
+        raise ValueError("unsupported bounded method/body")
+    head = request_head(request, port)
+    framing_header, encoded = framed_request_body(request, body)
+    head += framing_header
     head += b"Connection: close\r\n\r\n"
     return head, encoded
 
 
-def response_framing(received):
+def response_header(received):
     header, encoded = received.split(b"\r\n\r\n", 1)
     lines = header.decode("iso-8859-1").split("\r\n")
     status_line = lines[0].split()
@@ -262,32 +302,45 @@ def response_framing(received):
     fields = [line.split(":", 1) for line in lines[1:]]
     lengths = [v.strip() for k, v in fields if k.lower() == "content-length"]
     transfers = [v.strip().lower() for k, v in fields if k.lower() == "transfer-encoding"]
-    decoded, kind = encoded, "close_delimited"
     if lengths and transfers:
         raise ValueError("ambiguous response framing")
+    return header, encoded, lines, status, lengths, transfers
+
+
+def decode_chunked_response(encoded):
+    rest = encoded
+    parts = []
+    while True:
+        line, rest = rest.split(b"\r\n", 1)
+        size_text = line.split(b";", 1)[0]
+        if not size_text or any(c not in b"0123456789abcdefABCDEF" for c in size_text):
+            raise ValueError("invalid response chunk size")
+        length = int(size_text, 16)
+        if not length:
+            if rest != b"\r\n":
+                raise ValueError("unexpected response trailers/suffix")
+            return b"".join(parts)
+        if len(rest) < length + 2 or rest[length:length + 2] != b"\r\n":
+            raise ValueError("truncated response chunk")
+        parts.append(rest[:length])
+        rest = rest[length + 2:]
+
+
+def decode_response_entity(encoded, lengths, transfers):
     if lengths:
-        kind = "content_length"
         if len(lengths) != 1 or not lengths[0].isascii() or not lengths[0].isdecimal() or int(lengths[0]) != len(encoded):
             raise ValueError("truncated or ambiguous Content-Length")
-    elif transfers:
+        return encoded, "content_length"
+    if transfers:
         if transfers != ["chunked"]:
             raise ValueError("unsupported response transfer encoding")
-        kind, rest, parts = "chunked", encoded, []
-        while True:
-            line, rest = rest.split(b"\r\n", 1)
-            size_text = line.split(b";", 1)[0]
-            if not size_text or any(c not in b"0123456789abcdefABCDEF" for c in size_text):
-                raise ValueError("invalid response chunk size")
-            length = int(size_text, 16)
-            if not length:
-                if rest != b"\r\n":
-                    raise ValueError("unexpected response trailers/suffix")
-                break
-            if len(rest) < length + 2 or rest[length:length + 2] != b"\r\n":
-                raise ValueError("truncated response chunk")
-            parts.append(rest[:length])
-            rest = rest[length + 2:]
-        decoded = b"".join(parts)
+        return decode_chunked_response(encoded), "chunked"
+    return encoded, "close_delimited"
+
+
+def response_framing(received):
+    header, encoded, lines, status, lengths, transfers = response_header(received)
+    decoded, kind = decode_response_entity(encoded, lengths, transfers)
     return {"status": status, "headers": lines, "framing": {"kind": kind,
             "content_lengths": lengths, "transfer_encoding": transfers,
             "encoded_entity_bytes": len(encoded), "decoded_entity_bytes": len(decoded)}}, decoded, header + b"\r\n\r\n"
@@ -384,7 +437,7 @@ def client_main(spec_path, root, port, backend_root, cancellation_context=None):
     try:
         head, chunks = wire_request(request, port)
         raw = head + b"".join(chunks)
-        with socket.create_connection(("127.0.0.1", port), timeout=10) as connection:
+        with socket.create_connection(("127.0.0.1", private_loopback_port(port)), timeout=10) as connection:
             connection.settimeout(10)
             send_client_request(connection, request, head, chunks, root, receipt)
             if after_client_send(connection, request, receipt, cancellation_context):
@@ -402,7 +455,7 @@ def client_main(spec_path, root, port, backend_root, cancellation_context=None):
         (root / "request.raw").write_bytes(raw)
         (root / "response.raw").write_bytes(received)
         receipt.update(completed_ns=time.monotonic_ns(), proposed_process_exit=exit_code)
-        save(root / "receipt.json", receipt)
+        save(root / RECEIPT_FILE, receipt)
     return exit_code
 
 
@@ -438,7 +491,7 @@ def prepare_sink(plan, root, helper):
     elif mode == "unwritable":
         directory = root / "unwritable-sink-parent"
         directory.mkdir(mode=0o500)
-        target = directory / "events.jsonl"
+        target = directory / EVENTS_FILE
     else:
         target.touch(mode=0o600)
     marker = root / "sink-fault.marker"
@@ -449,7 +502,7 @@ def prepare_sink(plan, root, helper):
                    "I12_SINK_MARKER": str(marker),
                    "I12_SINK_FAULT": mode if mode in ("closed-descriptor", "physical-enospc") else "observe"}
     return {"configured": True, "requested_mode": mode, "principal_sink": str(target),
-            "healthy_control_sink": str(root / "events.jsonl"), "helper_sha256": digest(helper),
+            "healthy_control_sink": str(root / EVENTS_FILE), "helper_sha256": digest(helper),
             "marker_sha256": digest(marker), "environment": environment,
             "native_rule_order_unchanged": True, "actual_fault_observed": None,
             "apr_calls": None, "pre_apr_rejection": None}
@@ -551,7 +604,7 @@ def configure_host_helpers(plan, root, environment, artifacts):
 
 
 def case_environment(plan, root):
-    environment = dict(os.environ, MSCONNECTOR_APACHE_NATIVE_OBSERVER=str(root / "native-api.jsonl"),
+    environment = dict(os.environ, MSCONNECTOR_APACHE_NATIVE_OBSERVER=str(root / NATIVE_API_FILE),
                 MSCONNECTOR_APACHE_HOST_OBSERVER=str(root / "host-eos.jsonl"),
                 MSCONNECTOR_APACHE_BACKEND_CAPTURE=str(root / "connector-backend.jsonl"),
                 MSCONNECTOR_LIFECYCLE_RUN=os.environ.get("MSCONNECTOR_LIFECYCLE_RUN", "apache-i12-batch"),
@@ -588,21 +641,21 @@ def client_request(plan, variants, label, sink):
 
 def client_command(plan, root, target, port, request, label, sequence, env, observation):
     if sequence:
-        argv = [sys.executable, str(Path(__file__).with_name("keepalive.py")), "--spec", str(root / "spec.json"),
+        argv = [sys.executable, str(Path(__file__).with_name("keepalive.py")), "--spec", str(root / SPEC_FILE),
                 "--output", str(target), "--port", str(port), "--backend-root", str(root / "backend")]
     else:
         argv = [sys.executable, str(Path(__file__)), "--client-spec", str(target / "request.json"),
                 "--output", str(target), "--port", str(port), "--backend-root", str(root / "backend")]
         if label == "main" and request.get("peer_action", "normal") in (*cancellation.ACTIONS,
                 "SO_LINGER_zero_RST_after_first_native_append"):
-            argv += ["--native-log", str(root / "native-api.jsonl"), "--gate-run", env["MSCONNECTOR_LIFECYCLE_RUN"],
+            argv += ["--native-log", str(root / NATIVE_API_FILE), "--gate-run", env["MSCONNECTOR_LIFECYCLE_RUN"],
                      "--gate-case", plan["case_id"], "--gate-host-pid", str(observation["host_identity"]["pid"])]
     return argv
 
 
 def read_sequence_observation(target, observation):
-    client_observation = json.loads((target / "sequence-receipt.json").read_text())
-    observation["clients"][-1]["receipt"] = str(target / "sequence-receipt.json")
+    client_observation = json.loads((target / SEQUENCE_RECEIPT_FILE).read_text())
+    observation["clients"][-1]["receipt"] = str(target / SEQUENCE_RECEIPT_FILE)
     steps = client_observation["steps"]
     observation["actual_principal_execution"] = bool(steps and steps[0].get("request_send_completed_ns") is not None)
     if not client_observation["executed_requested_sequence"]:
@@ -612,9 +665,9 @@ def read_sequence_observation(target, observation):
 
 
 def read_termination_observation(target, observation):
-    termination = json.loads((target / "termination.json").read_text())
+    termination = json.loads((target / TERMINATION_FILE).read_text())
     observation["clients"][-1].update(actual_client_termination=termination["actual_termination"],
-        receipt=str(target / "termination.json"), wrapper_exit_is_not_wire_client_exit=True)
+        receipt=str(target / TERMINATION_FILE), wrapper_exit_is_not_wire_client_exit=True)
     ready_path = target / "send-ready.json"
     ready = json.loads(ready_path.read_text()) if ready_path.is_file() else None
     observation["actual_principal_execution"] = bool(ready and ready["progress"].get("request_send_completed_ns") is not None)
@@ -623,12 +676,12 @@ def read_termination_observation(target, observation):
 
 
 def read_client_observation(target, label, sequence, request, observation):
-    if sequence and (target / "sequence-receipt.json").is_file():
+    if sequence and (target / SEQUENCE_RECEIPT_FILE).is_file():
         read_sequence_observation(target, observation)
-    elif label == "main" and (target / "termination.json").is_file():
+    elif label == "main" and (target / TERMINATION_FILE).is_file():
         read_termination_observation(target, observation)
-    elif label == "main" and (target / "receipt.json").is_file():
-        client_observation = json.loads((target / "receipt.json").read_text())
+    elif label == "main" and (target / RECEIPT_FILE).is_file():
+        client_observation = json.loads((target / RECEIPT_FILE).read_text())
         observation["actual_principal_execution"] = client_observation.get("request_send_completed_ns") is not None
         if request.get("peer_action") == "SO_LINGER_zero_RST_after_first_native_append" and not client_observation.get("reset_request"):
             observation["missing_operations"].append("actual_native_gated_client_reset_unproven")
@@ -649,7 +702,7 @@ def run_clients(plan, root, port, sink, env, observation, direct):
         receipt = direct.waited(argv, root, target / "process", timeout=25)
         observation["clients"].append({"role": label, "actual_waited_exit": receipt["waited_exit"],
             "request_id": next(value for name, value in request["headers"] if name.lower() == "x-i12-id"),
-            "receipt": str(target / "receipt.json"), "command": receipt})
+            "receipt": str(target / RECEIPT_FILE), "command": receipt})
         read_client_observation(target, label, sequence, request, observation)
 
 
@@ -662,26 +715,31 @@ def collect_final_observation(root, event, sink, host, port, backend, backend_po
                 observation[label + "_cleanup_error"] = {"type": type(error).__name__, "message": str(error)}
                 observation["stop_batch_after_cleanup_failure"] = True
     observation["physical_files"] = [{"path": str(path), "bytes": path.stat().st_size, "sha256": digest(path)}
-        for path in (event, root / "native-api.jsonl", root / "host-eos.jsonl", root / "audit.log",
+        for path in (event, root / NATIVE_API_FILE, root / "host-eos.jsonl", root / AUDIT_FILE,
                      root / "native-debug.log", root / "error.log", root / "backend/requests.jsonl",
                      root / "principal-events.jsonl", root / "host-io.jsonl", root / "fault-boundary.jsonl",
                      root / "uploads/multipart.jsonl", root / "selected-rules-path.json") if path.is_file()]
-    if sink and sink["configured"]:
-        sink["apr_calls"] = read_apr_calls(root / "error.log")
-        mode = sink["requested_mode"]
-        if mode in ("closed-descriptor", "physical-enospc"):
-            expected_result = 9 if mode == "closed-descriptor" else 28
-            sink["actual_fault_observed"] = any(row.get("stage") == "apr_file_write_full" and
-                row.get("action") == mode and row.get("result") == expected_result and
-                row.get("operation_result", -1) >= 0 for row in sink["apr_calls"])
-            observation["fault_not_activated"] = not sink["actual_fault_observed"]
-            if not sink["actual_fault_observed"]:
-                observation["executed_case_contract"] = False
-        else:
-            # Missing APR rows cannot establish an APR open error. Root
-            # must join actual Common/POSIX failure, native audit and host.
+    collect_sink_observation(root, sink, observation)
+
+
+def collect_sink_observation(root, sink, observation):
+    if not sink or not sink["configured"]:
+        return
+    sink["apr_calls"] = read_apr_calls(root / "error.log")
+    mode = sink["requested_mode"]
+    if mode in ("closed-descriptor", "physical-enospc"):
+        expected_result = 9 if mode == "closed-descriptor" else 28
+        sink["actual_fault_observed"] = any(row.get("stage") == "apr_file_write_full" and
+            row.get("action") == mode and row.get("result") == expected_result and
+            row.get("operation_result", -1) >= 0 for row in sink["apr_calls"])
+        observation["fault_not_activated"] = not sink["actual_fault_observed"]
+        if not sink["actual_fault_observed"]:
             observation["executed_case_contract"] = False
-            observation["missing_operations"].append("independent_Common_POSIX_first_cause_and_native120016_join")
+    else:
+        # Missing APR rows cannot establish an APR open error. Root
+        # must join actual Common/POSIX failure, native audit and host.
+        observation["executed_case_contract"] = False
+        observation["missing_operations"].append("independent_Common_POSIX_first_cause_and_native120016_join")
 
 
 def sample_processes(host, owned, stop, snapshots, sample_errors, direct):
@@ -711,13 +769,13 @@ def execute(plan, ordinal, base, module, direct, owned, sink_helper, io_helper, 
     root.mkdir(mode=0o700)
     for name in ("audit-storage", "uploads", "backend"):
         (root / name).mkdir(mode=0o700)
-    event = root / "events.jsonl"
+    event = root / EVENTS_FILE
     event.touch(mode=0o600)
     save(root / "original-spec.json", plan)
     plan = keepalive.prepare_plan(plan)
-    save(root / "spec.json", plan)
-    (root / "rules.conf").write_text(native_rules(plan, root))
-    (root / "rules.conf").chmod(0o600)
+    save(root / SPEC_FILE, plan)
+    (root / RULES_FILE).write_text(native_rules(plan, root))
+    (root / RULES_FILE).chmod(0o600)
     selected_rules = selected_rules_observation(plan, root)
     port, backend_port = direct.free_port(), direct.free_port()
     sink = prepare_sink(plan, root, sink_helper)
@@ -767,7 +825,7 @@ def execute(plan, ordinal, base, module, direct, owned, sink_helper, io_helper, 
         if configtest["waited_exit"] != 0:
             raise RuntimeError("actual configuration rejected before host request")
         backend, observation["backend_launch"] = direct.launch([sys.executable,
-            str(Path(__file__).with_name("backend.py")), "--spec", str(root / "spec.json"),
+            str(Path(__file__).with_name("backend.py")), "--spec", str(root / SPEC_FILE),
             "--root", str(root / "backend"), "--port", str(backend_port)], root, root / "backend/process")
         observation["backend_identity"] = direct.ready(backend, backend_port, os.path.realpath(sys.executable))
         host, observation["host_launch"] = direct.launch([str(owned), "-X", "-f", str(config)], root, root / "host", env)
@@ -808,7 +866,7 @@ def private_admission(direct, module, helper_dir, helper_artifacts=None, runtime
             "binding_source": str(binding_file)}
 
 
-def main():
+def argument_parser():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plan", type=Path)
     parser.add_argument("--output", type=Path, required=True)
@@ -820,42 +878,55 @@ def main():
         parser.add_argument("--" + name.replace("_", "-"), type=Path)
     parser.add_argument("--only", default="")
     parser.add_argument("--client-spec", type=Path)
-    parser.add_argument("--port", type=int)
+    parser.add_argument("--port", type=private_loopback_port)
     parser.add_argument("--backend-root", type=Path)
     parser.add_argument("--native-log", type=Path)
     parser.add_argument("--gate-run")
     parser.add_argument("--gate-case")
     parser.add_argument("--gate-host-pid", type=int)
-    args = parser.parse_args()
-    if args.client_spec:
-        request = json.loads(args.client_spec.read_text())
-        action = request.get("peer_action", "normal")
-        context = None
-        if action in (*cancellation.ACTIONS, "SO_LINGER_zero_RST_after_first_native_append"):
-            if args.native_log is None or not args.gate_run or not args.gate_case:
-                parser.error("cancel/reset requires physical native log and exact run/case identity")
-            identity = {"run": args.gate_run, "case": args.gate_case,
-                        "transaction_id": next(v for k, v in request["headers"] if k.lower() == "x-i12-id")}
-            if args.gate_host_pid is not None:
-                identity["host_pid"] = args.gate_host_pid
-            context = {"native_log": args.native_log, "identity": identity, "ready_path": args.output / "send-ready.json"}
-        if action in cancellation.ACTIONS:
-            result = cancellation.supervise_client(
-                lambda: client_main(args.client_spec, args.output, args.port, args.backend_root, context),
-                args.native_log, identity, context["ready_path"], args.output / "termination.json", action)
-            return result["wrapper_exit"]
-        return client_main(args.client_spec, args.output, args.port, args.backend_root, context)
+    return parser
+
+
+def run_client_mode(args, parser):
+    request = json.loads(args.client_spec.read_text())
+    action = request.get("peer_action", "normal")
+    context = None
+    if action in (*cancellation.ACTIONS, "SO_LINGER_zero_RST_after_first_native_append"):
+        if args.native_log is None or not args.gate_run or not args.gate_case:
+            parser.error("cancel/reset requires physical native log and exact run/case identity")
+        identity = {"run": args.gate_run, "case": args.gate_case,
+                    "transaction_id": next(v for k, v in request["headers"] if k.lower() == "x-i12-id")}
+        if args.gate_host_pid is not None:
+            identity["host_pid"] = args.gate_host_pid
+        context = {"native_log": args.native_log, "identity": identity, "ready_path": args.output / "send-ready.json"}
+    if action in cancellation.ACTIONS:
+        result = cancellation.supervise_client(
+            lambda: client_main(args.client_spec, args.output, args.port, args.backend_root, context),
+            args.native_log, identity, context["ready_path"], args.output / TERMINATION_FILE, action)
+        return result["wrapper_exit"]
+    return client_main(args.client_spec, args.output, args.port, args.backend_root, context)
+
+
+def admit_batch_arguments(args, parser):
     if args.plan is None or args.module is None or args.helper_dir is None:
         parser.error("batch execution needs --plan --module --helper-dir")
     if any(getattr(args, name) is None for name in LINK_ARTIFACTS):
         parser.error("batch execution needs explicit --host-bucket-object --multipart-object --fault-boundary-object --fault-boundary-header")
-    args.plan = admitted_mount_path(args.plan, "/mnt/fixtures")
-    args.module = admitted_mount_path(args.module, "/mnt/artifacts")
-    args.helper_dir = admitted_mount_path(args.helper_dir, "/mnt/fixtures", file=False)
-    args.sink_helper = admitted_mount_path(args.sink_helper, "/mnt/artifacts")
-    args.io_helper = admitted_mount_path(args.io_helper, "/mnt/artifacts")
+    args.plan = admitted_mount_path(args.plan, FIXTURE_MOUNT)
+    args.module = admitted_mount_path(args.module, ARTIFACT_MOUNT)
+    args.helper_dir = admitted_mount_path(args.helper_dir, FIXTURE_MOUNT, file=False)
+    args.sink_helper = admitted_mount_path(args.sink_helper, ARTIFACT_MOUNT)
+    args.io_helper = admitted_mount_path(args.io_helper, ARTIFACT_MOUNT)
     for name in LINK_ARTIFACTS:
-        setattr(args, name, admitted_mount_path(getattr(args, name), "/mnt/artifacts"))
+        setattr(args, name, admitted_mount_path(getattr(args, name), ARTIFACT_MOUNT))
+
+
+def main():
+    parser = argument_parser()
+    args = parser.parse_args()
+    if args.client_spec:
+        return run_client_mode(args, parser)
+    admit_batch_arguments(args, parser)
     helper_artifacts = {name: getattr(args, name) for name in LINK_ARTIFACTS}
     helper_identities = {name: artifact_identity(path) for name, path in helper_artifacts.items()}
     runtime_helpers = {"sink_helper": args.sink_helper, "io_helper": args.io_helper}

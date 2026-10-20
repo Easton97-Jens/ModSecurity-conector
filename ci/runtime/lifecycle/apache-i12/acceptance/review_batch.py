@@ -24,6 +24,8 @@ REVIEW = load_review()
 read = REVIEW.read
 reference = REVIEW.reference
 ROLES = REVIEW.LEDGER.SHARED.ROLES
+OBSERVATION_FILE = 'observation.json'
+CONFIG_COMMAND_FILE = 'configtest.command.json'
 
 
 def optional_rows(path):
@@ -34,7 +36,7 @@ def wire_headers(content):
     """Extract only physically present HTTP status/header bytes, even on truncation."""
     head, separator, _ = content.partition(b'\r\n\r\n')
     lines = head.split(b'\r\n')
-    match = re.fullmatch(rb'HTTP/1\.[01] ([0-9]{3})(?: .*)?', lines[0])
+    match = re.fullmatch(rb'HTTP/1\.[01] (\d{3})(?: .*)?', lines[0], re.ASCII)
     if match is None or not separator:
         return None
     fields = []
@@ -59,7 +61,7 @@ def audit_records(text, native_id):
         if first and re.search(r'\]\s+' + re.escape(native_id) + r'\s', first[0]):
             result.append({'boundary': marker.group(1), 'physical_text': block,
                            'complete_Z_section': '---' + marker.group(1) + '---Z--' in block,
-                           'physical_rule_ids': re.findall(r'\[id "([0-9]+)"\]', block)})
+                           'physical_rule_ids': re.findall(r'\[id "(\d+)"\]', block, re.ASCII)})
     return result
 
 
@@ -182,7 +184,7 @@ class BatchExtractor(REVIEW.CandidateExtractor):
         self.checks = {}
 
     def load_batch_case(self):
-        self.command_path = self.root / 'observation.json'
+        self.command_path = self.root / OBSERVATION_FILE
         self.command = read(self.command_path)
         if self.command['original_id'] != self.selected_id or self.command['case_id'] != self.case:
             raise ValueError('Executed observation identity differs from selected original ID')
@@ -384,9 +386,9 @@ def empty_packet(plan, reason):
 
 def configuration_candidate(plan, root, attempt, spec_path, bindings, controller):
     packet = empty_packet(plan, 'Configuration-only execution has no host lifecycle observations.')
-    observation = read(root / 'observation.json')
-    command = root / 'configtest.command.json'
-    paths = [root / name for name in ('httpd.conf', 'rules.conf', 'configtest.command.json',
+    observation = read(root / OBSERVATION_FILE)
+    command = root / CONFIG_COMMAND_FILE
+    paths = [root / name for name in ('httpd.conf', 'rules.conf', CONFIG_COMMAND_FILE,
                                     'configtest.stdout', 'configtest.stderr')]
     packet.update(execution_observed=observation.get('actual_config_execution') is True,
         configuration_candidate={'actual_command': read(command) if command.is_file() else None,
@@ -424,7 +426,7 @@ def extract_all(attempt, spec_path):
             raise ValueError('Ambiguous physical case directory')
         root = matches[0] if matches else base / ('missing-' + plan['case_id'])
         try:
-            if not (root / 'observation.json').is_file():
+            if not (root / OBSERVATION_FILE).is_file():
                 packet = empty_packet(plan, 'No actual case observation capture in this attempt.')
             elif plan['execution_kind'] == 'configtest':
                 packet = configuration_candidate(plan, root, attempt, spec_path, bindings, controller)

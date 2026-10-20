@@ -15,6 +15,7 @@ import json
 import os
 from pathlib import Path
 import shlex
+import stat
 import subprocess
 import time
 
@@ -23,6 +24,10 @@ OBSERVERS = ("apache-host-observer.c", "apache-observer-fd-bootstrap.c",
              "native-lifecycle-observer.c", "native-lifecycle-sdk.cpp")
 STRICT = {"-std=c17", "-Wall", "-Wextra", "-Werror", "-fno-lto", "-fPIC",
           "-fstack-protector-strong", "-Wformat", "-Werror=format-security"}
+MAX_HASHED_INPUT_BYTES = 512 * 1024 * 1024
+MAX_JSON_INPUT_BYTES = 64 * 1024 * 1024
+SYSTEM_LIBRARY_ROOTS = (Path("/usr/lib"), Path("/usr/local/lib"))
+SYSTEM_INCLUDE_ROOTS = (Path("/usr/include"), Path("/usr/local/include"))
 
 # The shared native test matrix covers Common-runtime entry points that Apache
 # neither links nor calls.  The captured apache-current observer defines the
@@ -63,21 +68,169 @@ SHARED_NON_APACHE_WRAPPED_SYMBOLS = (
 APACHE_HOST_WRAPPED_SYMBOLS = ("msconnector_open_private_event_file", "apache_lifecycle_observe")
 
 
+def file_identity(details):
+    return (details.st_dev, details.st_ino, details.st_size, details.st_mtime_ns,
+            details.st_ctime_ns, details.st_uid, details.st_gid, details.st_mode,
+            details.st_nlink)
+
+
 def sha(path):
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    """Hash one already selected regular file without following its final link."""
+    descriptor = None
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        before = os.fstat(descriptor)
+        if (not stat.S_ISREG(before.st_mode) or before.st_size < 0
+                or before.st_size > MAX_HASHED_INPUT_BYTES):
+            raise ValueError("Expected bounded regular input file")
+        digest = hashlib.sha256()
+        size = 0
+        while True:
+            block = os.read(descriptor, min(1024 * 1024, MAX_HASHED_INPUT_BYTES + 1 - size))
+            if not block:
+                break
+            size += len(block)
+            if size > MAX_HASHED_INPUT_BYTES:
+                raise ValueError("Input exceeds the hash bound")
+            digest.update(block)
+        after = os.fstat(descriptor)
+        if size != before.st_size or file_identity(before) != file_identity(after):
+            raise ValueError("Input changed while hashing")
+        return digest.hexdigest()
+    except OSError as error:
+        raise ValueError("Unable to read admitted regular input") from error
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
 
 
-def bound(item):
-    path = Path(item["path"])
-    if not path.is_absolute() or path.is_symlink() or not path.is_file():
-        raise ValueError("Expected absolute regular input file: " + str(path))
+def read_regular_bytes(path, maximum=MAX_JSON_INPUT_BYTES):
+    """Read bounded bytes once from one no-follow descriptor."""
+    descriptor = None
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        before = os.fstat(descriptor)
+        if (not stat.S_ISREG(before.st_mode) or before.st_size < 0
+                or before.st_size > maximum):
+            raise ValueError("Expected bounded regular input file")
+        content = bytearray()
+        while len(content) <= maximum:
+            block = os.read(descriptor, min(1024 * 1024, maximum + 1 - len(content)))
+            if not block:
+                break
+            content.extend(block)
+        after = os.fstat(descriptor)
+        if (len(content) > maximum or len(content) != before.st_size
+                or file_identity(before) != file_identity(after)):
+            raise ValueError("Input changed while reading")
+        return bytes(content)
+    except OSError as error:
+        raise ValueError("Unable to read admitted regular input") from error
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+
+
+def configured_storage_root():
+    """Return the explicit task storage root, rejecting aliases and unsafe ancestry."""
+    value = os.environ.get("CODEX_TEMP_ROOT")
+    if not value or not isinstance(value, str):
+        raise ValueError("CODEX_TEMP_ROOT must select the authorized evidence root")
+    root = Path(value)
+    if (not root.is_absolute() or ".." in root.parts or str(root) != value
+            or root.resolve(strict=True) != root or not root.is_dir()):
+        raise ValueError("Configured evidence root must be canonical")
+    for ancestor in (root, *root.parents):
+        details = ancestor.stat()
+        sticky_shared = details.st_uid == 0 and details.st_mode & stat.S_ISVTX
+        if (not stat.S_ISDIR(details.st_mode) or details.st_uid not in {0, os.geteuid()}
+                or details.st_mode & 0o022 and not sticky_shared):
+            raise ValueError("Configured evidence ancestry permits replacement")
+    return root
+
+
+def admitted_path(value, roots, *, directory=False):
+    """Admit a canonical absolute path below an explicit root before filesystem use."""
+    if not isinstance(value, str) or not value or len(value) > 4096 or any(ord(char) < 32 for char in value):
+        raise ValueError("Canonical admitted path required")
+    supplied = Path(value)
+    if (not supplied.is_absolute() or ".." in supplied.parts or str(supplied) != value
+            or not any(supplied.is_relative_to(root) for root in roots)):
+        raise ValueError("Input escapes authorized evidence roots")
+    try:
+        resolved = supplied.resolve(strict=True)
+    except OSError as error:
+        raise ValueError("Unable to resolve admitted input") from error
+    if resolved != supplied or not any(resolved.is_relative_to(root) for root in roots):
+        raise ValueError("Admitted input follows a link or escapes its root")
+    details = resolved.stat()
+    expected_type = stat.S_ISDIR if directory else stat.S_ISREG
+    if (not expected_type(details.st_mode) or details.st_uid not in {0, os.geteuid()}
+            or details.st_mode & 0o022):
+        raise ValueError("Admitted input has an unexpected object type")
+    anchor = max((root for root in roots if resolved.is_relative_to(root)), key=lambda root: len(root.parts))
+    ancestor = resolved if directory else resolved.parent
+    while True:
+        details = ancestor.stat()
+        if (not stat.S_ISDIR(details.st_mode) or details.st_uid not in {0, os.geteuid()}
+                or details.st_mode & 0o022):
+            raise ValueError("Admitted input ancestry permits replacement")
+        if ancestor == anchor:
+            break
+        ancestor = ancestor.parent
+    return resolved
+
+
+def new_output_path(value, storage):
+    """Admit one fresh output below the configured storage root."""
+    if not isinstance(value, str) or not value or len(value) > 4096 or any(ord(char) < 32 for char in value):
+        raise ValueError("Canonical output path required")
+    output = Path(value)
+    if (not output.is_absolute() or ".." in output.parts or str(output) != value
+            or output == storage or not output.is_relative_to(storage)):
+        raise ValueError("Output escapes configured evidence storage")
+    parent = output.parent.resolve(strict=True)
+    if parent != output.parent or output.resolve(strict=False) != output or output.exists():
+        raise ValueError("Output must be fresh and cannot follow links")
+    ancestor = parent
+    while True:
+        details = ancestor.stat()
+        if (not stat.S_ISDIR(details.st_mode) or details.st_uid not in {0, os.geteuid()}
+                or details.st_mode & 0o022):
+            raise ValueError("Output ancestry permits replacement")
+        if ancestor == storage:
+            break
+        ancestor = ancestor.parent
+    return output
+
+
+def source_member(root, name):
+    """Resolve an inventory member without accepting absolute or parent paths."""
+    if not isinstance(name, str):
+        raise ValueError("Source inventory name must be text")
+    relative = Path(name)
+    if relative.is_absolute() or ".." in relative.parts or str(relative) != name:
+        raise ValueError("Source inventory member escapes the source root")
+    return admitted_path(str(root / relative), (root,))
+
+
+def bound(item, roots):
+    if not isinstance(item, dict) or set(item) != {"path", "sha256"}:
+        raise ValueError("Exact path and hash binding required")
+    path = admitted_path(item["path"], roots)
     if sha(path) != item["sha256"]:
         raise ValueError("Input hash mismatch: " + str(path))
-    return path.resolve()
+    return path
 
 
-def bound_json(item):
-    return json.loads(bound(item).read_text())
+def bound_json(item, roots):
+    if not isinstance(item, dict) or set(item) != {"path", "sha256"}:
+        raise ValueError("Exact path and hash binding required")
+    path = admitted_path(item["path"], roots)
+    content = read_regular_bytes(path)
+    if hashlib.sha256(content).hexdigest() != item["sha256"]:
+        raise ValueError("Input hash mismatch: " + str(path))
+    return json.loads(content)
 
 
 def replace_once(text, before, after):
@@ -183,12 +336,12 @@ def validate_sdk_resolution(ldd_output, sdk):
 
 def validate_source_snapshot(root, snapshot, written):
     for name, record in snapshot["files"].items():
-        file = root / name
-        if not file.resolve().is_relative_to(root) or file.is_symlink() or sha(file) != written.get(name, record["sha256"]):
+        file = source_member(root, name)
+        if sha(file) != written.get(name, record["sha256"]):
             raise ValueError("Source snapshot changed: " + name)
     for name, expected in written.items():
-        file = root / name
-        if not file.resolve().is_relative_to(root) or file.is_symlink() or sha(file) != expected:
+        file = source_member(root, name)
+        if sha(file) != expected:
             raise ValueError("Capture output changed: " + name)
 
 
@@ -215,30 +368,35 @@ def apache_wrapped_symbols(path):
 
 
 def validate_inputs(spec):
-    root = Path(spec["source_root"]).resolve(strict=True)
-    output = Path(spec["output"]).resolve()
-    if output.exists() or output.is_relative_to(root) or root.is_relative_to(output):
+    storage = configured_storage_root()
+    root = admitted_path(spec["source_root"], (storage,), directory=True)
+    output = new_output_path(spec["output"], storage)
+    if output.is_relative_to(root) or root.is_relative_to(output):
         raise ValueError("Output must be fresh and disjoint from input source")
     if (root / ".git").exists():
         raise ValueError("Only a disposable source export may be instrumented")
-    marker = json.loads((root / ".i12-disposable-source-copy.json").read_text())
+    marker = json.loads(read_regular_bytes(source_member(root, ".i12-disposable-source-copy.json")))
     if marker.get("format") != "i12-disposable-source-copy-v2" or marker.get("disposable") is not True or marker.get("path") != str(root):
         raise ValueError("Disposable v2 identity required")
-    capture = bound_json(spec["capture_receipt"])
-    identity = bound_json(spec["build_identity"])
+    capture = bound_json(spec["capture_receipt"], (storage,))
+    identity = bound_json(spec["build_identity"], (storage,))
     if capture.get("profile") != "apache-current" or capture.get("source_copy") != str(root):
         raise ValueError("Complete apache-current capture required")
     if identity.get("source_revision") != marker["source_revision"] or capture.get("source_revision") != marker["source_revision"]:
         raise ValueError("Source revisions disagree")
     if identity.get("git_tree") != capture.get("source_git_tree") or not identity.get("git_tree"):
         raise ValueError("Source trees disagree")
-    manifest = root / "ci/runtime/lifecycle/i12/manifest.json"
+    manifest = source_member(root, "ci/runtime/lifecycle/i12/manifest.json")
     if sha(manifest) != capture.get("capture_manifest_sha256"):
         raise ValueError("Capture manifest changed")
-    inventory = root / marker["snapshot_manifest"]
-    if sha(inventory) != marker["snapshot_manifest_sha256"] or sha(inventory) != identity["source_inventory_sha256"] or sha(inventory) != capture["snapshot_manifest_sha256"]:
+    inventory = source_member(root, marker["snapshot_manifest"])
+    inventory_content = read_regular_bytes(inventory)
+    inventory_sha256 = hashlib.sha256(inventory_content).hexdigest()
+    if (inventory_sha256 != marker["snapshot_manifest_sha256"]
+            or inventory_sha256 != identity["source_inventory_sha256"]
+            or inventory_sha256 != capture["snapshot_manifest_sha256"]):
         raise ValueError("Full source inventory binding mismatch")
-    snapshot = json.loads(inventory.read_text())
+    snapshot = json.loads(inventory_content)
     written = capture["exact_written_sha256"]
     if not written or not all(name in written for name in SOURCE_FILES):
         raise ValueError("Incomplete capture receipt")
@@ -247,30 +405,30 @@ def validate_inputs(spec):
     if len(objects) != 33 or identity.get("fresh_product_translation_units") != 33 or identity.get("historical_objects_reused") is not False:
         raise ValueError("All 33 fresh Product objects required")
     for path, expected in objects.items():
-        bound({"path": path, "sha256": expected})
+        bound({"path": path, "sha256": expected}, (storage,))
     if any(record.get("exit") != 0 for record in identity["commands"]):
         raise ValueError("Failed canonical build cannot be reused")
     make_record = [r for r in identity["commands"] if r["label"] == "make"]
-    make_path = bound(spec["make_stdout"])
+    make_path = bound(spec["make_stdout"], (storage,))
     if len(make_record) != 1 or make_record[0]["stdout_sha256"] != sha(make_path):
         raise ValueError("Compiler transcript does not belong to this build")
-    sdk = bound(spec["sdk_library"])
+    sdk = bound(spec["sdk_library"], (storage, *SYSTEM_LIBRARY_ROOTS))
     if str(sdk) != identity["sdk"]["path"] or sha(sdk) != identity["sdk"]["sha256"]:
         raise ValueError("Selected SDK differs from canonical build")
-    include = Path(spec["sdk_include"]).resolve(strict=True)
+    include = admitted_path(spec["sdk_include"], (storage, *SYSTEM_INCLUDE_ROOTS), directory=True)
     if not (include / "modsecurity/transaction.h").is_file():
         raise ValueError("Explicit selected SDK include root required")
     for path, expected in identity["sdk_headers"].items():
-        if not Path(path).resolve().is_relative_to(include):
+        if not Path(path).is_relative_to(include):
             raise ValueError("SDK header inventory differs from selected include root")
-        bound({"path": path, "sha256": expected})
+        bound({"path": path, "sha256": expected}, (include,))
     if set(spec["helper_objects"]) != {"common", "fault", "bucket"}:
         raise ValueError("Exact Common, fault and bucket helpers required")
-    helpers = {name: bound(item) for name, item in spec["helper_objects"].items()}
-    fault = bound_json(spec["fault_receipt"])
+    helpers = {name: bound(item, (storage,)) for name, item in spec["helper_objects"].items()}
+    fault = bound_json(spec["fault_receipt"], (storage,))
     if fault.get("exit") != 0 or fault.get("helper_revision") != 2 or fault.get("object_sha256") != sha(helpers["fault"]):
         raise ValueError("Fault helper identity mismatch")
-    header = bound(spec["fault_header"])
+    header = bound(spec["fault_header"], (storage,))
     for anchor in fault["external_source_anchors"]:
         if capture["actual_before_sha256"].get(anchor["file"]) != anchor["source_sha256"]:
             raise ValueError("Fault anchors target a different Product revision")
@@ -281,7 +439,8 @@ def validate_inputs(spec):
 
 
 def build(spec_path):
-    spec_path = Path(spec_path).resolve(strict=True)
+    storage = configured_storage_root()
+    spec_path = admitted_path(str(spec_path), (storage,))
     spec = json.loads(spec_path.read_text())
     root, output, identity, capture, helpers, fault, header, sdk, include, make_path, symbols = validate_inputs(spec)
     texts = {name: (root / name).read_text() for name in SOURCE_FILES}
@@ -386,16 +545,17 @@ def build(spec_path):
     # Rebind the complete inventory/capture outputs after all compiler/linker
     # commands. Checking only the two copied TUs would miss another source file
     # changed by a tool while these immutable inputs were in use.
-    marker = json.loads((root / ".i12-disposable-source-copy.json").read_text())
-    inventory = root / marker["snapshot_manifest"]
-    if sha(inventory) != identity["source_inventory_sha256"]:
+    marker = json.loads(read_regular_bytes(source_member(root, ".i12-disposable-source-copy.json")))
+    inventory = source_member(root, marker["snapshot_manifest"])
+    inventory_content = read_regular_bytes(inventory)
+    if hashlib.sha256(inventory_content).hexdigest() != identity["source_inventory_sha256"]:
         raise ValueError("Source inventory changed during build")
-    validate_source_snapshot(root, json.loads(inventory.read_text()), capture["exact_written_sha256"])
+    validate_source_snapshot(root, json.loads(inventory_content), capture["exact_written_sha256"])
     for name, text in texts.items():
         if (root / name).read_text() != text:
             raise ValueError("Input source mutated during build")
     for path, expected in identity["objects"].items():
-        if sha(path) != expected:
+        if sha(admitted_path(path, (storage,))) != expected:
             raise ValueError("Original Product object mutated during build")
     receipt.update({"module": str(module), "module_sha256": sha(module),
                     "product_translation_units": 33, "recompiled_product_translation_units": 2,

@@ -3,7 +3,9 @@
 import importlib.util
 from pathlib import Path
 import socket
+from types import SimpleNamespace
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,6 +29,13 @@ class KeepaliveTest(unittest.TestCase):
         return {"case_id": case_id, "request": {"method": "GET", "path": "/principal",
             "headers": [["X-I12-ID", "unique-main"]], "body": {"bytes": 0}, "chunks": []},
             "backend": {"body": None}, "driver_seams": ["raw_connection_sequence_transaction_join"]}
+
+    def test_private_loopback_port_accepts_cli_text_and_rejects_ambiguous_values(self):
+        self.assertEqual(KEEPALIVE.private_loopback_port("18124"), 18124)
+        self.assertEqual(KEEPALIVE.private_loopback_port(18124), 18124)
+        for value in (443, "443", True, "18124 ", "١٨١٢٤", object()):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "private loopback port"):
+                KEEPALIVE.private_loopback_port(value)
 
     def test_exact_original_allow_deny_allow_families_have_three_unique_transactions(self):
         for case_id in KEEPALIVE.DENY_SEQUENCES:
@@ -113,8 +122,13 @@ class KeepaliveTest(unittest.TestCase):
                  b"HTTP/1.1 200 OK\r\n\r\nunframed",
                  b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nxyz\r\n"]
         for wire in wires:
+            reader = KEEPALIVE.ResponseReader(CapturedSocket([wire]))
             with self.subTest(wire=wire), self.assertRaises(ValueError):
-                KEEPALIVE.ResponseReader(CapturedSocket([wire])).read_response()
+                reader.read_response()
+
+    def test_sequence_socket_rejects_nonprivate_port_before_connect(self):
+        with self.assertRaisesRegex(ValueError, "private loopback port"):
+            KEEPALIVE.open_sequence_connection({}, Path("/owned"), 443, Path("/backend"), {})
 
     def test_strict_new_socket_contract_needs_actual_server_close(self):
         plan = self.plan("keepalive_after_strict_new_connection")
@@ -124,6 +138,39 @@ class KeepaliveTest(unittest.TestCase):
         self.assertFalse(KEEPALIVE.sequence_complete(plan, summary))
         summary["server_close_before_fresh_socket"] = True
         self.assertTrue(KEEPALIVE.sequence_complete(plan, summary))
+
+    def test_strict_first_response_retains_close_and_allows_fresh_socket_step(self):
+        summary = {}
+        result = {"response": {"tcp_reset_observed": True}, "error": {"type": "ConnectionResetError"}}
+        self.assertFalse(KEEPALIVE.stop_sequence(result, True, 0, summary))
+        self.assertTrue(summary["server_close_before_fresh_socket"])
+        self.assertTrue(KEEPALIVE.stop_sequence(result, True, 1, summary))
+
+    def test_non_strict_sequence_stops_on_error_or_close_header(self):
+        summary = {}
+        self.assertTrue(KEEPALIVE.stop_sequence({"response": {}, "error": {"type": "OSError"}},
+                                               False, 0, summary))
+        self.assertNotIn("sequence_stopped_reason", summary)
+        self.assertTrue(KEEPALIVE.stop_sequence({"response": {}, "error": None}, False, 0, summary))
+        self.assertEqual(summary["sequence_stopped_reason"], "server response forbids connection reuse")
+        self.assertFalse(KEEPALIVE.stop_sequence(
+            {"response": {"connection_reusable_by_headers": True}, "error": None}, False, 1, {}))
+
+    def test_strict_second_step_closes_first_socket_before_opening_new_one(self):
+        connection, reader = mock.Mock(), object()
+        args = SimpleNamespace(output=Path("/owned"), port=12345, backend_root=Path("/backend"))
+        selected = (object(), object())
+        with mock.patch.object(KEEPALIVE, "open_sequence_connection", return_value=selected) as opened:
+            self.assertEqual(KEEPALIVE.select_sequence_connection(
+                connection, reader, False, {}, args, {}), (connection, reader))
+            opened.assert_not_called()
+            connection.close.assert_not_called()
+            def after_close(*_args):
+                connection.close.assert_called_once_with()
+                return selected
+            opened.side_effect = after_close
+            self.assertEqual(KEEPALIVE.select_sequence_connection(
+                connection, reader, True, {}, args, {}), selected)
 
     def test_neighbor_case_has_real_backend_pause_and_keeps_original_input(self):
         original = self.plan("NEED-neighbor-connection-stream")

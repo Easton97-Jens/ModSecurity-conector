@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import re
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -102,6 +103,43 @@ class ApacheBoundaryTests(unittest.TestCase):
                 text = ''.join(neighbors) + rule + ''.join(neighbors)
                 self.assertEqual(selector.search(text).group(), rule)
                 self.assertEqual(selector.sub('', text, count=1), ''.join(neighbors) * 2)
+
+    def test_client_endpoint_is_discovered_only_in_url_argument_position(self):
+        endpoint = 'http://127.0.0.1:18140/fixture?literal=one%20two'
+        arguments = ['-H', 'http://header-only', endpoint]
+        admitted, parsed = CLIENT.checked_request(arguments)
+        self.assertEqual(admitted, arguments)
+        self.assertEqual(parsed.path, '/fixture')
+        self.assertEqual(parsed.port, 18140)
+        with self.assertRaises(ValueError):
+            CLIENT.checked_request(['-H', 'http://header-only'])
+
+    def test_client_rejects_normalized_controls_credentials_and_nonprivate_ports(self):
+        invalid = (
+            'http://127.0.0.1:8080/fi\nxture',
+            ' http://127.0.0.1:8080/fixture',
+            'http://127.0.0.1:8080/fixture\x00',
+            'http://@127.0.0.1:8080/fixture',
+            'http://127.0.0.1:1023/fixture',
+            'http://127.0.0.1:65536/fixture',
+            'https://127.0.0.1:8080/fixture',
+        )
+        for endpoint in invalid:
+            with self.subTest(endpoint=endpoint), self.assertRaises(ValueError):
+                CLIENT.checked_arguments([endpoint])
+        for port in (1024, 65535):
+            endpoint = 'http://127.0.0.1:%d/fixture' % port
+            self.assertEqual(CLIENT.checked_arguments([endpoint]), [endpoint])
+
+    def test_neighbor_uses_admitted_endpoint_not_http_looking_header(self):
+        arguments = ['-H', 'http://header-only', 'http://127.0.0.1:18140/fixture?x=1']
+        process = subprocess.CompletedProcess([], 0, stdout=b'200', stderr=b'')
+        with tempfile.TemporaryDirectory(dir=os.environ['CODEX_TEMP_ROOT']) as root:
+            with patch.object(CLIENT, 'run_raw', return_value=(process, {})) as run:
+                CLIENT.capture_neighbor(arguments, Path(root), 'principal')
+            followup = run.call_args.args[0]
+            self.assertEqual(followup[-1], 'http://127.0.0.1:18140/no-crs/allow')
+            self.assertEqual(len(list(Path(root).glob('*.actual-process.json'))), 1)
 
     def test_public_projection_preserves_source_and_only_renames_numeric_join(self):
         original = {'positive_control': {'clients': [{'actual_process': {

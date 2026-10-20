@@ -10,10 +10,11 @@ import shlex
 import subprocess
 
 HERE = Path(__file__).resolve().parent
+TRANSACTION_HEADER = "modsecurity/transaction.h"
 
 def build(output: Path, include: Path, multipart_object: Path | None = None) -> dict:
     output = output.resolve()
-    if not (include / "modsecurity/transaction.h").is_file():
+    if not (include / TRANSACTION_HEADER).is_file():
         raise ValueError("explicit selected SDK transaction header required")
     output.mkdir(parents=True, exist_ok=True)
     apr = shlex.split(subprocess.run(["rtk", "proxy", "apr-1-config", "--includes", "--cppflags", "--cflags"],
@@ -38,8 +39,8 @@ def build(output: Path, include: Path, multipart_object: Path | None = None) -> 
     result = subprocess.run(command, capture_output=True, text=True, timeout=90)
     receipt = {"command": command, "exit": result.returncode, "stdout": result.stdout, "stderr": result.stderr,
         "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
-        "selected_sdk_header": str((include / "modsecurity/transaction.h").resolve()),
-        "selected_sdk_header_sha256": hashlib.sha256((include / "modsecurity/transaction.h").read_bytes()).hexdigest(),
+        "selected_sdk_header": str((include / TRANSACTION_HEADER).resolve()),
+        "selected_sdk_header_sha256": hashlib.sha256((include / TRANSACTION_HEADER).read_bytes()).hexdigest(),
         "multipart_object": str(multipart_object) if multipart_object is not None else None,
         "multipart_object_sha256": multipart_sha256,
         "binary_sha256": hashlib.sha256(target.read_bytes()).hexdigest() if result.returncode == 0 else None,

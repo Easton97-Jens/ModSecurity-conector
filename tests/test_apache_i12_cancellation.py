@@ -45,6 +45,31 @@ def write_rows(path, rows):
 
 
 class CancellationTests(unittest.TestCase):
+    def test_child_terminal_python_events_are_reaped_as_error_exit(self):
+        class ChildTerminalEvent(BaseException):
+            """Exercise the direct-fork boundary beyond Exception subclasses."""
+
+        for terminal in (SystemExit(0), KeyboardInterrupt(), GeneratorExit(), ChildTerminalEvent()):
+            with self.subTest(event=type(terminal).__name__):
+                def wire_child():
+                    raise terminal
+
+                child = cancel.OwnedWireChild(wire_child)
+                pid, status = os.waitpid(child.pid, 0)
+                child.waited = cancel.waited_status(pid, status)
+                self.assertEqual(78, child.waited['exit_code'])
+                self.assertFalse(child.waited['signalled'])
+
+    def test_child_success_is_not_changed_by_parent_handled_exception_context(self):
+        try:
+            raise ValueError("parent-only handled error")
+        except ValueError:
+            child = cancel.OwnedWireChild(lambda: 0)
+            pid, status = os.waitpid(child.pid, 0)
+        child.waited = cancel.waited_status(pid, status)
+        self.assertEqual(0, child.waited['exit_code'])
+        self.assertFalse(child.waited['signalled'])
+
     def test_gate_accepts_native_zero_and_one_only(self):
         for result in (0, 1):
             rows = synthetic_rows()

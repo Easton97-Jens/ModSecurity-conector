@@ -28,9 +28,12 @@
 
 struct shared_state { atomic_int fired; atomic_uint records; atomic_uint response_appends; };
 static struct shared_state *state;
-static int root_fd=-1, marker_fd=-1, output_fd=-1;
+static int root_fd=-1;
+static int marker_fd=-1;
+static int output_fd=-1;
 static dev_t device; static ino_t inode;
-static char principal[193], mode[48];
+static char principal[193];
+static char mode[48];
 static const char marker[]="I12_APACHE_FAULT_BOUNDARY_V1\n";
 static uint64_t now(void) {
     struct timespec value;
@@ -58,7 +61,8 @@ static int output_valid(void) {
 __attribute__((constructor)) static void admit(void) {
     int saved=errno; struct stat st; char resolved[4096];
     const char *root=getenv("I12_APACHE_FAULT_ROOT");
-    const char *id=getenv("I12_APACHE_FAULT_ID"), *kind=getenv("I12_APACHE_FAULT_MODE");
+    const char *id=getenv("I12_APACHE_FAULT_ID");
+    const char *kind=getenv("I12_APACHE_FAULT_MODE");
     if (!root || root[0]!='/' || !realpath(root,resolved) || strcmp(root,resolved) ||
         !id || !*id || strnlen(id,sizeof(principal))>=sizeof(principal) ||
         strspn(id,"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-.")!=strlen(id) ||
@@ -89,7 +93,7 @@ static int loopback(const apr_sockaddr_t *address) {
     memcpy(&value,address->ipaddr_ptr,sizeof(value)); return (ntohl(value)>>24)==127;
 }
 static int selected(request_rec *r,const char *kind) {
-    if (!state || !*principal || strcmp(kind,mode) || !r || r->main || r->prev ||
+    if (!state || !principal[0] || strcmp(kind,mode) || !r || r->main || r->prev ||
         !r->connection || !loopback(r->connection->client_addr) ||
         !loopback(r->connection->local_addr) || !r->headers_in || !marker_valid() || !output_valid()) return 0;
     const apr_array_header_t *headers=apr_table_elts(r->headers_in);
@@ -108,7 +112,7 @@ static int emit(const char *kind,const char *fields) {
     char line[2048];
     int n=snprintf(line,sizeof(line),"{\"schema\":\"apache-fault-boundary-v1\",\"kind\":\"%s\","
         "\"pid\":%ld,\"tid\":%ld,\"monotonic_ns\":%" PRIu64 ",\"principal_id\":\"%s\","
-        "\"mode\":\"%s\",%s}\n",kind,(long)getpid(),(long)syscall(SYS_gettid),now(),principal,mode,fields);
+        "\"mode\":\"%s\",%s}\n",kind,(long)getpid(),syscall(SYS_gettid),now(),principal,mode,fields);
     return n>0 && (size_t)n<sizeof(line) && syscall(SYS_write,output_fd,line,(size_t)n)==n;
 }
 static int claim(void) {
@@ -117,7 +121,7 @@ static int claim(void) {
 /* Insert ONLY after a successful actual apr_bucket_read and before the
  * productive (len > 0 && data == NULL) branch. No SDK call sees this NULL. */
 int i12_apache_fault_after_bucket_read(request_rec *r,const char **data,apr_size_t length,int actual_read_result) {
-    int saved=errno,changed=0;
+    int saved=errno; int changed=0;
     if (actual_read_result==APR_SUCCESS && data && *data && length && selected(r,"null-body") && claim()) {
         char fields[512];
         (void)snprintf(fields,sizeof(fields),"\"boundary\":\"apache_input_filter_process_bucket\","
@@ -134,7 +138,7 @@ int i12_apache_fault_after_bucket_read(request_rec *r,const char **data,apr_size
  * view with the REAL public validator. Apache's runtime does not normally call
  * msc_apache_map_request; this record never claims that it does. */
 int i12_apache_fault_request_metadata(request_rec *r) {
-    int saved=errno,returned=1;
+    int saved=errno; int returned=1;
     if (selected(r,"null-headers")) {
         const apr_array_header_t *headers=apr_table_elts(r->headers_in);
         if (headers && headers->nelts>0 && claim()) {
@@ -163,7 +167,11 @@ int i12_apache_fault_request_metadata(request_rec *r) {
 
 struct native_call {
     request_rec *request; Transaction *transaction; const char *function;
-    int original, actual_errno, committed; uint64_t entered, returned;
+    int original;
+    int actual_errno;
+    int committed;
+    uint64_t entered;
+    uint64_t returned;
     unsigned ordinal;
 };
 static int record_original(const struct native_call *call) {
@@ -184,8 +192,8 @@ static int timeout_ready(void *opaque,int phase,int committed) {
 }
 static int actual_timeout(void *opaque,const struct native_call *call) {
     msconnector_transaction_contract *contract=opaque;
-    int before_error=contract->error_class,before_decision=contract->engine_decision;
-    int before_status=contract->status,before_phase=contract->active_phase;
+    int before_error=contract->error_class; int before_decision=contract->engine_decision;
+    int before_status=contract->status; int before_phase=contract->active_phase;
     uint64_t timestamp=now()/UINT64_C(1000000);
     int result=msconnector_transaction_contract_timeout(contract,timestamp);
     char fields[1280];

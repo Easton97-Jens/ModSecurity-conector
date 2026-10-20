@@ -21,6 +21,9 @@ import time
 
 
 MAX_RESPONSE = 16 * 1024 * 1024
+MIN_PRIVATE_PORT = 1024
+MAX_PORT = 65535
+REQUEST_JSON = "request.json"
 CASES = frozenset(("multiple_sequential_requests", "keep_alive_requests_if_supported",
                   "transport_keep_alive", "transport_sequential_requests", "keepalive_allow_allow",
                   "keepalive_allow_deny_allow", "keepalive_safe_followup",
@@ -193,10 +196,7 @@ class ResponseReader:
         self.need(body_start + length)
         return body_start + length, bytes(self.pending[body_start:body_start + length])
 
-    def read_response(self, request_method="GET"):
-        self.exchange = {"started_ns": time.monotonic_ns(), "recv_operations": [],
-                         "tcp_eof_observed": False, "tcp_reset_observed": False,
-                         "status": None, "framing_complete": False, "error": None}
+    def final_header(self):
         interim = []
         for _ in range(9):
             header_end = self.delimiter(b"\r\n\r\n", 65536)
@@ -207,25 +207,31 @@ class ResponseReader:
             del self.pending[:header_end + 4]
         else:
             raise ValueError("too many interim HTTP responses")
-        self.exchange.update(parsed, interim_responses=interim)
-        start = header_end + 4
+        return header_end, parsed, interim
+
+    def response_entity(self, request_method, parsed, start):
         if request_method == "HEAD" or parsed["status"] in (204, 304):
-            end, body = start, b""
-            kind = "no_entity"
-        elif parsed["transfer_encoding"]:
+            return start, b"", "no_entity"
+        if parsed["transfer_encoding"]:
             end, body = self.chunked(start)
-            kind = "chunked"
-        elif parsed["content_lengths"]:
+            return end, body, "chunked"
+        if parsed["content_lengths"]:
             end, body = self.content_length(start, int(parsed["content_lengths"][0]))
-            kind = "content_length"
-        elif not parsed["connection_reusable_by_headers"]:
+            return end, body, "content_length"
+        if not parsed["connection_reusable_by_headers"]:
             while self.receive():
                 if len(self.pending) > start:
                     self.prefix()
-            end, body = len(self.pending), bytes(self.pending[start:])
-            kind = "close_delimited"
-        else:
-            raise ValueError("unframed response cannot be reused")
+            return len(self.pending), bytes(self.pending[start:]), "close_delimited"
+        raise ValueError("unframed response cannot be reused")
+
+    def read_response(self, request_method="GET"):
+        self.exchange = {"started_ns": time.monotonic_ns(), "recv_operations": [],
+                         "tcp_eof_observed": False, "tcp_reset_observed": False,
+                         "status": None, "framing_complete": False, "error": None}
+        header_end, parsed, interim = self.final_header()
+        self.exchange.update(parsed, interim_responses=interim)
+        end, body, kind = self.response_entity(request_method, parsed, header_end + 4)
         raw = bytes(self.pending[:end])
         del self.pending[:end]
         self.exchange.update(completed_ns=time.monotonic_ns(), framing_complete=True,
@@ -248,7 +254,7 @@ def send_exchange(reader, step, target, port, wire_request):
         raise ValueError("unexpected parent wire-client connection contract")
     head = head[:-len(ending)] + b"Connection: keep-alive\r\n\r\n"
     raw = head + b"".join(chunks)
-    save(target / "request.json", request)
+    save(target / REQUEST_JSON, request)
     (target / "request.raw").write_bytes(raw)
     receipt = {"label": step["label"], "pid": os.getpid(), "socket": connection_identity(reader.connection),
                "request_id": next(v for k, v in request["headers"] if k.lower() == "x-i12-id"),
@@ -283,9 +289,9 @@ def concurrent_neighbor(plan, output, port, backend_root):
     request.update(method="GET", path="/neighbor", chunks=[], framing="content_length", peer_action="normal",
                    body={"encoding": "base64", "data": "", "bytes": 0, "sha256": hashlib.sha256(b"").hexdigest()})
     request["headers"] = [["X-I12-ID", token + "-concurrent-neighbor"]]
-    save(target / "request.json", request)
+    save(target / REQUEST_JSON, request)
     command = ["rtk", "proxy", sys.executable, str(Path(__file__).with_name("batch.py")),
-        "--client-spec", str(target / "request.json"), "--output", str(target),
+        "--client-spec", str(target / REQUEST_JSON), "--output", str(target),
         "--port", str(port), "--backend-root", str(release)]
     result = {"argv": command, "pid": None, "waited_exit": None,
               "started_ns": time.monotonic_ns(), "main_release_ns": None}
@@ -319,20 +325,37 @@ def sequence_complete(plan, summary):
     if len(summary["steps"]) != wanted or summary.get("error"):
         return False
     strict = plan["case_id"] == "keepalive_after_strict_new_connection"
-    for index, step in enumerate(summary["steps"]):
-        if step["request_send_completed_ns"] is None:
-            return False
-        if strict and index == 0:
-            if not summary["server_close_before_fresh_socket"]:
-                return False
-        elif step["error"] or not (step["response"] or {}).get("framing_complete"):
-            return False
+    if not all(sequence_step_complete(step, strict and index == 0, summary)
+               for index, step in enumerate(summary["steps"])):
+        return False
     neighbor = summary.get("concurrent_neighbor")
     return neighbor is not None and neighbor.get("waited_exit") == 0 if plan["case_id"] == "NEED-neighbor-connection-stream" else True
 
 
+def sequence_step_complete(step, strict_first, summary):
+    if step["request_send_completed_ns"] is None:
+        return False
+    if strict_first:
+        return bool(summary["server_close_before_fresh_socket"])
+    return not step["error"] and bool((step["response"] or {}).get("framing_complete"))
+
+
+def private_loopback_port(value):
+    if isinstance(value, bool):
+        port = None
+    elif isinstance(value, str) and value.isascii() and value.isdecimal():
+        port = int(value, 10)
+    elif isinstance(value, int):
+        port = value
+    else:
+        port = None
+    if port is None or not MIN_PRIVATE_PORT <= port <= MAX_PORT:
+        raise ValueError("private loopback port is outside the admitted range")
+    return port
+
+
 def open_sequence_connection(plan, output, port, backend_root, summary):
-    connection = socket.create_connection(("127.0.0.1", port), timeout=10)
+    connection = socket.create_connection(("127.0.0.1", private_loopback_port(port)), timeout=10)
     connection.settimeout(10)
     summary["connections"].append(connection_identity(connection))
     callback = None
@@ -343,11 +366,32 @@ def open_sequence_connection(plan, output, port, backend_root, summary):
     return connection, ResponseReader(connection, callback)
 
 
+def select_sequence_connection(connection, reader, fresh, plan, args, summary):
+    if connection is None or fresh:
+        if connection is not None:
+            connection.close()
+        return open_sequence_connection(plan, args.output, args.port, args.backend_root, summary)
+    return connection, reader
+
+
+def stop_sequence(result, strict, index, summary):
+    response = result.get("response") or {}
+    if strict and index == 0:
+        summary["server_close_before_fresh_socket"] = bool(
+            response.get("tcp_eof_observed") or response.get("tcp_reset_observed"))
+    if result["error"] and not (strict and index == 0):
+        return True
+    if not strict and not response.get("connection_reusable_by_headers", False):
+        summary["sequence_stopped_reason"] = "server response forbids connection reuse"
+        return True
+    return False
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--spec", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--port", type=int, required=True)
+    parser.add_argument("--port", type=private_loopback_port, required=True)
     parser.add_argument("--backend-root", type=Path, required=True)
     args = parser.parse_args()
     spec = importlib.util.spec_from_file_location("keepalive_parent_batch", Path(__file__).with_name("batch.py"))
@@ -357,22 +401,14 @@ def main():
     strict = plan["case_id"] == "keepalive_after_strict_new_connection"
     summary = {"pid": os.getpid(), "case_id": plan["case_id"], "steps": [], "connections": [],
                "server_close_before_fresh_socket": None, "outcome": None, "full_lifecycle_qualification": None}
-    connection = None
+    connection = reader = None
     try:
         for index, step in enumerate(sequence_requests(plan)):
-            if connection is None or strict and index == 1:
-                if connection is not None:
-                    connection.close()
-                connection, reader = open_sequence_connection(plan, args.output, args.port, args.backend_root, summary)
+            connection, reader = select_sequence_connection(
+                connection, reader, strict and index == 1, plan, args, summary)
             result = send_exchange(reader, step, args.output / step["label"], args.port, batch.wire_request)
             summary["steps"].append(result)
-            response = result.get("response") or {}
-            if strict and index == 0:
-                summary["server_close_before_fresh_socket"] = bool(response.get("tcp_eof_observed") or response.get("tcp_reset_observed"))
-            if result["error"] and not (strict and index == 0):
-                break
-            if not strict and not response.get("connection_reusable_by_headers", False):
-                summary["sequence_stopped_reason"] = "server response forbids connection reuse"
+            if stop_sequence(result, strict, index, summary):
                 break
     except (OSError, ValueError) as error:
         summary["error"] = {"type": type(error).__name__, "message": str(error)}

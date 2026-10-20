@@ -32,9 +32,11 @@ static int private_path(const char *path) {
         strstr(path,"/../") == NULL && strstr(path,"/./") == NULL;
 }
 static int admitted(const char *path) {
-    const char *marker=getenv("I12_SINK_MARKER"), *target=getenv("I12_SINK_PATH"), *mode=getenv("I12_SINK_FAULT");
+    const char *marker=getenv("I12_SINK_MARKER");
+    const char *target=getenv("I12_SINK_PATH");
+    const char *mode=getenv("I12_SINK_FAULT");
     const char expected[]="I12_APACHE_SINK_FAULT_V1\n"; char value[sizeof(expected)]={0};
-    struct stat st; int saved=errno,ok=0;
+    struct stat st; int saved=errno; int ok=0;
     if (!private_path(marker) || target == NULL || mode == NULL || path == NULL || strcmp(path,target) ||
         (!private_path(target) && strcmp(target,"/dev/full")) ||
         (strcmp(mode,"observe") && strcmp(mode,"closed-descriptor") && strcmp(mode,"physical-enospc"))) goto done;
@@ -53,15 +55,19 @@ static uint64_t monotonic_ns(void) {
     return (uint64_t)now.tv_sec*UINT64_C(1000000000)+(uint64_t)now.tv_nsec;
 }
 static int quoted_path(char *out,size_t capacity,const char *path) {
-    size_t used=0,length=strnlen(path,241);
+    size_t used=0; size_t length=strnlen(path,241);
     if (length>240) { (void)snprintf(out,capacity,"null"); return 1; }
     out[used++]='"';
     for (size_t i=0;i<length;++i) {
         unsigned char c=(unsigned char)path[i];
         if (c<32 || c>=127 || c=='"' || c=='\\') {
             if (capacity-used<7) return -1;
-            (void)snprintf(out+used,capacity-used,"\\u%04x",(unsigned)c);used+=6;
-        } else { if (capacity-used<2) return -1;out[used++]=(char)c; }
+            (void)snprintf(out+used,capacity-used,"\\u%04x",(unsigned)c);
+            used+=6;
+        } else {
+            if (capacity-used<2) return -1;
+            out[used++]=(char)c;
+        }
     }
     out[used++]='"';out[used]='\0';return 0;
 }
@@ -76,7 +82,7 @@ int __wrap_msconnector_open_private_event_file(const char *path,int *out_fd) {
         /* out_fd is output-only: reading its uninitialized entry value would be
          * undefined. Common's public failure contract guarantees -1 on return. */
         int fd=out_fd != NULL?*out_fd:-1;
-        char line[3072],resource[1500],valid[16]="null",descriptor[32]="null";
+        char line[3072]; char resource[1500]; char valid[16]="null"; char descriptor[32]="null";
         int truncated=quoted_path(resource,sizeof(resource),path);
         if (out_fd != NULL) {
             (void)snprintf(descriptor,sizeof(descriptor),"%d",fd);
@@ -89,9 +95,9 @@ int __wrap_msconnector_open_private_event_file(const char *path,int *out_fd) {
             "\"fd_valid_before\":null,\"fd_valid_after\":%s,\"resource_path\":%s,\"resource_path_truncated\":%s,"
             "\"phase\":null,\"allocation_scope_call\":null,\"native_transaction\":null,"
             "\"real_function_address\":\"%p\",\"operation\":\"actual_common_private_open\",\"apr_open_observed\":false}\n",
-            (long)getpid(),(long)syscall(SYS_gettid),(long)geteuid(),(long)getegid(),observation,
+            (long)getpid(),syscall(SYS_gettid),(long)geteuid(),(long)getegid(),observation,
             entered,returned,result,saved,out_fd?"true":"false",descriptor,valid,resource,truncated?"true":"false",
-            (void *)__real_msconnector_open_private_event_file);
+            (void *)&__real_msconnector_open_private_event_file);
         if (truncated>=0 && length>0 && (size_t)length<sizeof(line))
             (void)syscall(SYS_write,STDERR_FILENO,line,(size_t)length);
     }
