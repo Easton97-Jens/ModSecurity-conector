@@ -93,8 +93,9 @@ class ApacheCaptureProfileTests(unittest.TestCase):
         self.assertFalse(result["global_manifest_verified"])
         self.assertFalse(result["runtime_qualified"])
         self.assertEqual(result["profiles"], 1)
+        shared_registry = SHARED.Registry(self.root, self.repository)
         with self.assertRaisesRegex(ValueError, "Source byte hash mismatch"):
-            SHARED.Registry(self.root, self.repository).verify()
+            shared_registry.verify()
 
     def test_selected_object_tamper_is_rejected_before_writes(self):
         (self.root / "fixture.txt").write_bytes(b"tampered\n")
@@ -107,24 +108,28 @@ class ApacheCaptureProfileTests(unittest.TestCase):
 
     def test_delta_base_tamper_is_rejected(self):
         (self.root / "base.txt").write_bytes(b"tampered base\n")
+        registry = self.registry()
         with self.assertRaisesRegex(ValueError, "Source byte hash mismatch"):
-            self.registry().verify()
+            registry.verify()
 
     def test_delta_patch_tamper_is_rejected(self):
         (self.root / "delta.patch").write_bytes(self.patch + b"extra\n")
+        registry = self.registry()
         with self.assertRaisesRegex(ValueError, "Source delta hash mismatch"):
-            self.registry().verify()
+            registry.verify()
 
     def test_missing_transitive_object_is_rejected(self):
         del self.manifest["objects"][self.before]
         self.save_manifest()
+        registry = self.registry()
         with self.assertRaises(KeyError):
-            self.registry().verify()
+            registry.verify()
 
     def test_missing_selected_file_is_rejected(self):
         (self.root / "fixture.txt").unlink()
+        registry = self.registry()
         with self.assertRaises(OSError):
-            self.registry().verify()
+            registry.verify()
 
     def test_cached_content_does_not_hide_later_tamper(self):
         registry = self.registry()
@@ -136,8 +141,9 @@ class ApacheCaptureProfileTests(unittest.TestCase):
     def test_cycle_in_selected_closure_is_rejected(self):
         self.manifest["objects"][self.after]["base"] = self.after
         self.save_manifest()
+        registry = self.registry()
         with self.assertRaisesRegex(ValueError, "Cyclic source delta"):
-            self.registry().verify()
+            registry.verify()
 
     def test_profile_cannot_be_selected_by_cli(self):
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as caught:
@@ -147,8 +153,9 @@ class ApacheCaptureProfileTests(unittest.TestCase):
     def test_v2_requirement_cannot_be_removed(self):
         self.manifest["profiles"]["apache-current"].pop("required_source_identity_format")
         self.save_manifest()
+        registry = self.registry()
         with self.assertRaisesRegex(ValueError, "complete v2 export identity"):
-            self.registry().verify()
+            registry.verify()
 
     def test_shared_apply_bytes_modes_and_receipt_are_unchanged(self):
         # Make the complete synthetic manifest valid so both verifiers admit it.
