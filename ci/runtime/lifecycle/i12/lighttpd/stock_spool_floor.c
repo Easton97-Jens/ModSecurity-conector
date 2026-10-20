@@ -27,7 +27,7 @@ int i12_fallocate(int fd, off_t offset, off_t length) {
     return 0;
 }
 
-static sidecar_exchange_state exchange(sidecar_options *options, sidecar_spool_budget *budget) {
+static sidecar_exchange_state exchange(const sidecar_options *options, sidecar_spool_budget *budget) {
     sidecar_exchange_state state;
     memset(&state, 0, sizeof(state));
     state.dependencies.options = options;

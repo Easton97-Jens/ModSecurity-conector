@@ -10,6 +10,16 @@ import json
 from pathlib import Path
 
 
+def observer_paths(source, sink_header, name):
+    header = sink_header.with_name(name)
+    if header.resolve() != header or header.stat().st_nlink != 1:
+        raise ValueError("Observer must be a physical single-link input")
+    output = source / name
+    if output.exists() or output.is_symlink():
+        raise ValueError("Observer output must be fresh")
+    return header, output
+
+
 def validated_fault_inputs(source, sink_header):
     source, sink_header = Path(source), Path(sink_header)
     if source.resolve() != source or sink_header.resolve() != sink_header:
@@ -26,18 +36,8 @@ def validated_fault_inputs(source, sink_header):
     destination = source / "patched_faults.h"
     if destination.exists() or destination.is_symlink():
         raise ValueError("Fault helper output must be fresh")
-    budget_header = sink_header.with_name("diagnostic_budget_observer.h")
-    if budget_header.resolve() != budget_header or budget_header.stat().st_nlink != 1:
-        raise ValueError("Budget observer must be a physical single-link input")
-    budget_output = source / budget_header.name
-    if budget_output.exists() or budget_output.is_symlink():
-        raise ValueError("Budget observer output must be fresh")
-    finish_header = sink_header.with_name("diagnostic_finish_observer.h")
-    if finish_header.resolve() != finish_header or finish_header.stat().st_nlink != 1:
-        raise ValueError("Finish observer must be a physical single-link input")
-    finish_output = source / finish_header.name
-    if finish_output.exists() or finish_output.is_symlink():
-        raise ValueError("Finish observer output must be fresh")
+    budget_header, budget_output = observer_paths(source, sink_header, "diagnostic_budget_observer.h")
+    finish_header, finish_output = observer_paths(source, sink_header, "diagnostic_finish_observer.h")
     return runtime, destination, budget_header, budget_output, finish_header, finish_output
 
 

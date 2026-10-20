@@ -29,7 +29,8 @@ HOST_BINARY = "/mnt/artifacts/bin/lighttpd"
 BACKEND_LOG = "backend.jsonl"
 EXTERNAL_ROOT = Path(os.environ.get("I12_TEST_ROOT", "/__i12_external_root_requires_I12_TEST_ROOT__")).absolute()
 RUN_ROOT = EXTERNAL_ROOT / "runs"
-READ_ROOTS = (Path("/task"), Path("/mnt"), EXTERNAL_ROOT, Path("/root/git/ModSecurity-conector"), Path("/usr"))
+TASK_ROOT = Path("/task")
+READ_ROOTS = (TASK_ROOT, Path("/mnt"), EXTERNAL_ROOT, Path("/root/git/ModSecurity-conector"), Path("/usr"))
 
 
 def sha(path):
@@ -53,7 +54,7 @@ def physical_output(path, *, existing=False):
     if path.is_relative_to(EXTERNAL_ROOT):
         validate_external_storage()
     if (path.resolve() != path or not any(path.is_relative_to(root) for root in
-            (Path("/task"), RUN_ROOT))):
+            (TASK_ROOT, RUN_ROOT))):
         raise ValueError("Diagnostic output must be a physical task-owned absolute path")
     if path.exists() != existing:
         raise ValueError("Diagnostic output existence does not match its invocation scope")
@@ -75,16 +76,43 @@ def declared_cases(path):
     return cases
 
 
-def write(path, value):
+def json_output_parts(path):
     path = Path(path).absolute()
     if path.is_relative_to(EXTERNAL_ROOT):
         validate_external_storage()
-    if (path.resolve() != path or not any(path.is_relative_to(root) for root in (Path("/task"), RUN_ROOT))
-            or ".." in path.parts):
+    roots = [root for root in (TASK_ROOT, RUN_ROOT) if path.is_relative_to(root)]
+    if path.resolve() != path or not roots:
         raise ValueError("JSON output must be a physical task-owned path")
-    if path.exists() and (not path.is_file() or path.stat().st_nlink != 1):
-        raise ValueError("Existing JSON output must be a single-link regular file")
-    path.write_text(json.dumps(value, indent=2) + "\n")
+    root = roots[0]
+    parts = path.relative_to(root).parts
+    if not parts:
+        raise ValueError("JSON output must name a file below its approved root")
+    for part in parts:
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+", part) or part in (".", ".."):
+            raise ValueError("JSON output components must be bounded literal names")
+    return root, parts
+
+
+def write(path, value):
+    root, parts = json_output_parts(path)
+    parent = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        for part in parts[:-1]:
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=parent)
+            os.close(parent)
+            parent = child
+        descriptor = os.open(parts[-1], os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK,
+                             0o600, dir_fd=parent)
+        with os.fdopen(descriptor, "w") as stream:
+            details = os.fstat(stream.fileno())
+            if not stat.S_ISREG(details.st_mode) or details.st_nlink != 1 or details.st_uid != os.geteuid():
+                raise ValueError("JSON output must be an owned single-link regular file")
+            if details.st_mode & 0o077:
+                raise ValueError("JSON output must have private file permissions")
+            stream.truncate(0)
+            stream.write(json.dumps(value, indent=2) + "\n")
+    finally:
+        os.close(parent)
 
 
 def command(argv, directory, label, env=None):
@@ -175,6 +203,44 @@ def materialize_current(args, stock):
                       if line.split() and line.split()[-1].startswith("__wrap_")})
     write(args.output / "build-binding.json", {"wrapped_symbols": wrapped, "current_product_inputs": inputs,
         "source_export_identity": identity, "capture_application_receipt_sha256": sha(source / store.RECEIPT)})
+
+
+def numeric_loopback_client(original):
+    """Retain the raw observer with explicit port/path inputs, without URL parsing.
+
+    The host fixture is plaintext HTTP on isolated numeric loopback. Its client
+    needs no scheme, DNS lookup, authority, redirect, or remote URL capability.
+    """
+    start = original.index("    if argument.startswith(")
+    body_limit = re.search(r"^if len\(body\)>\d+", original[start:], re.MULTILINE)
+    if body_limit is None:
+        raise ValueError("Numeric diagnostic client body-limit anchor changed")
+    end = start + body_limit.start()
+    replacement = '''    if argument in ('--i12-port', '--i12-path'):
+        if index+1>=len(arguments):raise SystemExit('incomplete numeric loopback argument')
+        value=arguments[index+1];index+=2
+        if argument=='--i12-port':
+            if not value.isascii() or not value.isdecimal():raise SystemExit('port must be numeric')
+            port=int(value)
+        else:path=value
+        continue
+    raise SystemExit('unsupported fixture curl argument: '+argument)
+if port is None or not 1<=port<=65535 or path is None or not path.startswith('/') or path.startswith('//'):
+    raise SystemExit('fixture requires a numeric loopback port and origin-form path')
+if any(character in path for character in '\\r\\n'):
+    raise SystemExit('invalid origin-form path')
+if header_file is None or body_file is None or writeout!='%{http_code}':
+    raise SystemExit('incomplete exact fixture curl contract')
+'''
+    text = original[:start] + replacement + original[end:]
+    text = text.replace("from urllib.parse import urlsplit\n", "", 1)
+    text = text.replace("url=None", "port=None;path=None", 1)
+    text = text.replace("path=parsed.path+('?' +parsed.query if parsed.query else '')\n", "", 1)
+    text = text.replace("parsed.port", "port")
+    if "parsed" in text or "urlsplit" in text:
+        raise ValueError("Numeric diagnostic client anchors changed")
+    compile(text, "diagnostic-numeric-raw-client.py", "exec")
+    return text
 
 
 def prepare(args):
@@ -304,6 +370,8 @@ def prepare(args):
     captured = source / ".i12-capture/lighttpd/stock-empty-drivers"
     for filename in ("curl-raw-client.py", "observed-backend.py"):
         shutil.copyfile(captured / filename, fixtures / filename)
+    raw_client = fixtures / "curl-raw-client.py"
+    raw_client.write_text(numeric_loopback_client(raw_client.read_text()))
     shutil.copyfile(args.repository / "ci/runtime/common/response_fixture_omission.py", fixtures / "response_fixture_omission.py")
     shutil.copyfile(Path(__file__), fixtures / "diagnostic_native.py")
     shutil.copyfile(args.repository / "ci/runtime/lifecycle/i12/lighttpd/diagnostic_transport.py", fixtures / "diagnostic_transport.py")
@@ -318,6 +386,7 @@ def prepare(args):
         "runtime_after_fault_overlay_sha256": sha(runtime_source), "fault_overlay_sha256": sha(fault_source),
         "host_sha256": sha(args.host), "host_module_sha256": sha(artifacts / "modules/mod_msconnector.so"),
         "sdk_sha256": sha(args.sdk / "lib/libmodsecurity.so"), "fixture_source_sha256": sha(Path(__file__)),
+        "numeric_loopback_client_sha256": sha(raw_client),
         "observation_overlay_changes_decisions": False,
         "fault_overlay": "Only explicit declared modes alter caller pointers/stdio or Runtime boundary return, or invoke actual public timeout/cancel APIs; real native SDK returns stay separately recorded."})
 
@@ -531,13 +600,13 @@ def file_window_point(path):
             "mode": details.st_mode & 0o777, "owner_uid": details.st_uid, "nlink": details.st_nlink}
 
 
-def loopback_url(port, request_path):
+def loopback_target(port, request_path):
     if not isinstance(port, int) or not 1 <= port <= 65535:
         raise ValueError("Diagnostic loopback port must be an integer TCP port")
-    if not isinstance(request_path, str) or not request_path.startswith("/") or any(c in request_path for c in "\r\n"):
+    if (not isinstance(request_path, str) or not request_path.startswith("/") or request_path.startswith("//")
+            or any(c in request_path for c in "\r\n")):
         raise ValueError("Diagnostic request target must be an absolute HTTP path")
-    from urllib.parse import urlunsplit
-    return urlunsplit(("http", f"127.0.0.1:{port}", request_path, "", ""))
+    return ["--i12-port", str(port), "--i12-path", request_path]
 
 
 def client(directory, label, port, request):
@@ -555,7 +624,7 @@ def client(directory, label, port, request):
         body_path = directory / (label + ".request-body")
         body_path.write_bytes(body)
         argv += ["--data-binary", "@" + str(body_path)]
-    argv += [loopback_url(port, request["path"])]
+    argv += loopback_target(port, request["path"])
     actual = ["rtk", "proxy", *argv]
     completed = subprocess.run(actual, env=environment, capture_output=True, timeout=30)
     (directory / f"{label}.stdout").write_bytes(completed.stdout)

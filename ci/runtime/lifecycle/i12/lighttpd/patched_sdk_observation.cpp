@@ -4,6 +4,7 @@
 #include <modsecurity/rules_set.h>
 #include <modsecurity/transaction.h>
 #include <cerrno>
+#include <cstddef>
 #include <cstring>
 #include <locale>
 #include <sstream>
@@ -13,14 +14,16 @@
 static bool quoted_metadata(const std::string& value, std::string& output) {
     if (value.size() > 256U) return false;
     output = "\"";
-    for (unsigned char byte : value) {
-        if (byte < 32U || byte >= 127U || byte == '"' || byte == '\\') {
+    for (char character : value) {
+        const auto byte = static_cast<std::byte>(character);
+        if (byte < std::byte{32} || byte >= std::byte{127}
+                || byte == std::byte{'"'} || byte == std::byte{'\\'}) {
             constexpr std::string_view hex = "0123456789abcdef";
             output += "\\u00";
-            output += hex[byte >> 4U];
-            output += hex[byte & 15U];
+            output += hex[std::to_integer<size_t>(byte >> 4U)];
+            output += hex[std::to_integer<size_t>(byte & std::byte{15})];
         } else {
-            output += static_cast<char>(byte);
+            output += character;
         }
     }
     output += '"';

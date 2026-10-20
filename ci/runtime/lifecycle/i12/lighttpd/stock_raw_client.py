@@ -26,7 +26,13 @@ def task_file(value):
         raise ValueError('fixture file must remain inside its private task directory')
     if any(part.is_symlink() for part in (*path.parents, path)):
         raise ValueError('fixture file aliases forbidden')
-    return path
+    # Resolve before the I/O boundary and compare whole directory components.
+    # The lexical and alias checks above remain stricter than canonicalization.
+    canonical = os.path.realpath(value)
+    boundary = os.path.realpath(TASK_ROOT) + os.sep
+    if not canonical.startswith(boundary):
+        raise ValueError('fixture file must remain inside its private task directory')
+    return Path(canonical)
 
 
 arguments=sys.argv[1:]

@@ -532,6 +532,89 @@ def client(spec_path, output, port, token):
     return exitcode
 
 
+class FixtureBackendHandler(BaseHTTPRequestHandler):
+    def delay_before_headers(self, main):
+        spec = self.server.fixture_spec
+        if main and spec.get("response_before_headers_delay_seconds"):
+            delay = float(spec["response_before_headers_delay_seconds"])
+            if not 0 < delay <= 2:
+                raise ValueError("preheader delay must be bounded to two seconds")
+            time.sleep(delay)
+
+    def do_POST(self):
+        spec, output = self.server.fixture_spec, self.server.fixture_output
+        body, sizes, main = self.observe_fixture_request()
+        self.delay_before_headers(main)
+        self.send_response(200)
+        content_type = spec["response_content_type"] if main else TEXT_PLAIN
+        if content_type is not None:
+            self.send_header("Content-Type", content_type)
+        self.send_header("X-I12-Response", "present")
+        for name, value in spec.get("response_extra_headers", []) if main else []:
+            self.send_header(name, value)
+        self.send_header("Content-Length", str(len(body) + (5 if main and spec["backend_short_length"] else 0)))
+        if main and spec.get("response_header_body_coalesced"):
+            self._headers_buffer.append(b"\r\n")
+            headers = b"".join(self._headers_buffer)
+            self._headers_buffer.clear()
+            self.connection.sendall(headers + body)
+            append(output / BACKEND_TRANSPORT_LOG, {"pid": os.getpid(), "path": self.path,
+                "kind": "response_write", "bytes": len(body), "offset": len(body),
+                "header_bytes_in_same_sendall": len(headers), "monotonic_ns": time.monotonic_ns()})
+            return
+        self.end_headers()
+        if main and spec.get("response_header_delay_seconds"):
+            time.sleep(float(spec["response_header_delay_seconds"]))
+        self.send_fixture_body(body, sizes, main)
+
+    def observe_fixture_request(self):
+        spec, output = self.server.fixture_spec, self.server.fixture_output
+        response_file = self.server.fixture_response_file
+        consumed = self.rfile.read(int(self.headers.get("Content-Length", "0")))
+        main = self.path == spec.get("path", PATCHED_PATH_PREFIX + spec["case"])
+        if main and response_file is not None:
+            body = response_file.read_bytes()
+        else:
+            body = bytes.fromhex(spec["response_hex"]) if main else NEIGHBOR_RESPONSE
+        sizes = spec["response_chunks"] if main else [len(body)]
+        event = {"pid": os.getpid(), "uid": os.geteuid(), "gid": os.getegid(),
+            "path": self.path, "method": self.command, "headers": list(self.headers.items()),
+            "body_bytes_consumed": len(consumed), "body_sha256": digest(consumed),
+            "response_source_body_sha256": digest(body), "monotonic_ns": time.monotonic_ns()}
+        if main and response_file is not None:
+            event["actual_response_file_read"] = {"path": str(response_file), "read_bytes": len(body),
+                "read_sha256": digest(body), "physical_file_sha256": sha(response_file),
+                "mode": oct(response_file.stat().st_mode & 0o777), "uid": response_file.stat().st_uid}
+        append(output / BACKEND_LOG, event)
+        return body, sizes, main
+
+    def send_fixture_body(self, body, sizes, main):
+        spec, output = self.server.fixture_spec, self.server.fixture_output
+        offset = 0
+        try:
+            for size in sizes:
+                part = body[offset:offset + size]; offset += size
+                self.wfile.write(part); self.wfile.flush()
+                append(output / BACKEND_TRANSPORT_LOG, {"pid": os.getpid(), "path": self.path,
+                    "kind": "response_write", "bytes": len(part), "offset": offset,
+                    "monotonic_ns": time.monotonic_ns()})
+                if len(sizes) > 1:
+                    time.sleep(0.05)
+            append(output / BACKEND_TRANSPORT_LOG, {"pid": os.getpid(), "path": self.path,
+                "kind": "response_complete", "physical_bytes": offset,
+                "declared_short_fixture": bool(main and spec["backend_short_length"]),
+                "monotonic_ns": time.monotonic_ns()})
+        except OSError as exc:
+            append(output / BACKEND_TRANSPORT_LOG, {"pid": os.getpid(), "path": self.path,
+                "kind": "write_error", "error_type": type(exc).__name__, "errno": exc.errno,
+                "monotonic_ns": time.monotonic_ns()})
+    def log_message(self, *_):
+        # The independent JSONL transport records replace console access logs.
+        pass
+    do_GET = do_POST
+    do_PUT = do_POST
+
+
 def backend(spec_path, output):
     spec = read_json(spec_path)
     response_file = None
@@ -539,80 +622,10 @@ def backend(spec_path, output):
         response_file = evidence_path(output / "backend-response.input", writing=True)
         response_file.write_bytes(bytes.fromhex(spec["response_hex"]))
         response_file.chmod(0o600)
-    class Handler(BaseHTTPRequestHandler):
-        def do_POST(self):
-            body, sizes, main = self.observe_fixture_request()
-            if main and spec.get("response_before_headers_delay_seconds"):
-                delay = float(spec["response_before_headers_delay_seconds"])
-                if not 0 < delay <= 2:
-                    raise ValueError("preheader delay must be bounded to two seconds")
-                time.sleep(delay)
-            self.send_response(200)
-            content_type = spec["response_content_type"] if main else TEXT_PLAIN
-            if content_type is not None:
-                self.send_header("Content-Type", content_type)
-            self.send_header("X-I12-Response", "present")
-            for name, value in spec.get("response_extra_headers", []) if main else []:
-                self.send_header(name, value)
-            self.send_header("Content-Length", str(len(body) + (5 if main and spec["backend_short_length"] else 0)))
-            if main and spec.get("response_header_body_coalesced"):
-                self._headers_buffer.append(b"\r\n")
-                headers = b"".join(self._headers_buffer)
-                self._headers_buffer.clear()
-                self.connection.sendall(headers + body)
-                append(output / BACKEND_TRANSPORT_LOG, {"pid": os.getpid(), "path": self.path,
-                    "kind": "response_write", "bytes": len(body), "offset": len(body),
-                    "header_bytes_in_same_sendall": len(headers), "monotonic_ns": time.monotonic_ns()})
-                return
-            self.end_headers()
-            if main and spec.get("response_header_delay_seconds"):
-                time.sleep(float(spec["response_header_delay_seconds"]))
-            self.send_fixture_body(body, sizes, main)
-
-        def observe_fixture_request(self):
-            consumed = self.rfile.read(int(self.headers.get("Content-Length", "0")))
-            main = self.path == spec.get("path", PATCHED_PATH_PREFIX + spec["case"])
-            if main and response_file is not None:
-                body = response_file.read_bytes()
-            else:
-                body = bytes.fromhex(spec["response_hex"]) if main else NEIGHBOR_RESPONSE
-            sizes = spec["response_chunks"] if main else [len(body)]
-            event = {"pid": os.getpid(), "uid": os.geteuid(), "gid": os.getegid(),
-                "path": self.path, "method": self.command, "headers": list(self.headers.items()),
-                "body_bytes_consumed": len(consumed), "body_sha256": digest(consumed),
-                "response_source_body_sha256": digest(body), "monotonic_ns": time.monotonic_ns()}
-            if main and response_file is not None:
-                event["actual_response_file_read"] = {"path": str(response_file), "read_bytes": len(body),
-                    "read_sha256": digest(body), "physical_file_sha256": sha(response_file),
-                    "mode": oct(response_file.stat().st_mode & 0o777), "uid": response_file.stat().st_uid}
-            append(output / BACKEND_LOG, event)
-            return body, sizes, main
-
-        def send_fixture_body(self, body, sizes, main):
-            offset = 0
-            try:
-                for size in sizes:
-                    part = body[offset:offset + size]; offset += size
-                    self.wfile.write(part); self.wfile.flush()
-                    append(output / BACKEND_TRANSPORT_LOG, {"pid": os.getpid(), "path": self.path,
-                        "kind": "response_write", "bytes": len(part), "offset": offset,
-                        "monotonic_ns": time.monotonic_ns()})
-                    if len(sizes) > 1:
-                        time.sleep(0.05)
-                append(output / BACKEND_TRANSPORT_LOG, {"pid": os.getpid(), "path": self.path,
-                    "kind": "response_complete", "physical_bytes": offset,
-                    "declared_short_fixture": bool(main and spec["backend_short_length"]),
-                    "monotonic_ns": time.monotonic_ns()})
-            except OSError as exc:
-                append(output / BACKEND_TRANSPORT_LOG, {"pid": os.getpid(), "path": self.path,
-                    "kind": "write_error", "error_type": type(exc).__name__, "errno": exc.errno,
-                    "monotonic_ns": time.monotonic_ns()})
-        def log_message(self, *_):
-            # The independent JSONL transport records replace console access logs.
-            pass
-        do_GET = do_POST
-        do_PUT = do_POST
-    with ThreadingHTTPServer(("127.0.0.1", 0), Handler) as server:
+    with ThreadingHTTPServer(("127.0.0.1", 0), FixtureBackendHandler) as server:
+        server.fixture_spec = spec
+        server.fixture_output = output
+        server.fixture_response_file = response_file
         write(output / BACKEND_READY, {"pid": os.getpid(), "port": server.server_port,
             "uid": os.geteuid(), "gid": os.getegid(), "monotonic_ns": time.monotonic_ns()})
         server.serve_forever()
@@ -943,7 +956,7 @@ def capture_configuration(spec, root):
         "response_body_mode=streaming", f"phase4_mode={spec['phase4_mode']}",
         f"max_header_count={spec['max_header_count']}", "default_block_status=403",
         f"default_error_status={spec.get('default_error_status', 502)}",
-        f"event_path={spec.get('event_path_override', str(root / 'events.jsonl'))}", ""]))
+        f"event_path={spec.get('event_path_override', str(root / EVENT_LOG))}", ""]))
     if spec.get("max_event_json_bytes") is not None:
         with runtime.open("a") as stream:
             stream.write(f"max_event_json_bytes={int(spec['max_event_json_bytes'])}\n")
@@ -1142,7 +1155,7 @@ def observe_transport_reset_scope(context):
     context.observation('transport_reset_scope', {k: context.main_client.get(k) for k in ('tcp_eof_observed', 'tcp_reset_observed', 'timeout_observed', 'error')}, context.physical['client'])
     context.observation('host_action', {'client_status': context.main_client.get('status'), 'actual_host_hook_rows': context.hooks, 'actual_events': context.events, 'no_inferred_transport_abort': True}, context.physical['host'], context.physical['client'])
     context.observation('physical_event_order', context.events, context.physical['events'])
-    context.observation('terminal_event_count', {'actual_main_record_count': len(context.events), 'whole_sink_bytes': (context.root / 'events.jsonl').stat().st_size, 'actual_sink_snapshots': [s['physical_files']['events.jsonl'] for s in context.snapshots]}, context.physical['events'])
+    context.observation('terminal_event_count', {'actual_main_record_count': len(context.events), 'whole_sink_bytes': (context.root / EVENT_LOG).stat().st_size, 'actual_sink_snapshots': [s['physical_files'][EVENT_LOG] for s in context.snapshots]}, context.physical['events'])
 
 
 def base_assertions(context):

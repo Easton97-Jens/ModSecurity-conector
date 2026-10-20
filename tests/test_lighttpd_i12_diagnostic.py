@@ -155,6 +155,15 @@ class DiagnosticTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Fresh"):
                 DIAGNOSTIC.fresh_output(actual)
 
+    def test_numeric_loopback_client_keeps_origin_form_contract(self):
+        source = (Path(__file__).resolve().parents[1]
+                  / "ci/runtime/lifecycle/i12/lighttpd/stock_raw_client.py").read_text()
+        generated = NATIVE.numeric_loopback_client(source)
+        self.assertNotIn("urlsplit", generated)
+        self.assertIn("socket.create_connection(('127.0.0.1',port)", generated)
+        self.assertEqual(NATIVE.loopback_target(8080, "/diagnostic?case=p1"),
+                         ["--i12-port", "8080", "--i12-path", "/diagnostic?case=p1"])
+
 
 if __name__ == "__main__":
     unittest.main()
