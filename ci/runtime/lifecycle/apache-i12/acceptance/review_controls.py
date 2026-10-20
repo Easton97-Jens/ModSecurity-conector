@@ -27,6 +27,7 @@ SHARED = REVIEW.LEDGER.SHARED
 ORACLES = REVIEW.ORACLES
 PATHS = REVIEW.LEDGER.PATHS
 PRE_NATIVE_CASES = frozenset(SHARED.PRE_NATIVE_MAPPING)
+OBSERVATION_FILE = 'observation.json'
 CONFIG_ROLES = frozenset(('parser_process', 'source_manifest', 'effective_configuration',
     'invoked_image', 'cleanup_observer', 'isolation_receipt', 'native_module',
     'parser_stdout', 'parser_stderr', 'expectation_source'))
@@ -38,7 +39,7 @@ PRE_NATIVE_PRODUCERS = {'client_process': 'main/process.command.json',
     'client_receipt': 'main/receipt.json', 'request_wire': 'main/request.raw',
     'response_wire': 'main/response.raw', 'native_api': 'native-api.jsonl',
     'host_callback': 'host-eos.jsonl', 'backend_process': 'backend/requests.jsonl',
-    'core_diagnostic': 'error.log', 'driver_observation': 'observation.json',
+    'core_diagnostic': 'error.log', 'driver_observation': OBSERVATION_FILE,
     'effective_configuration': 'httpd.conf', 'rules_file': 'rules.conf'}
 # Only these contract-defined producers are JSON documents. Inspecting their
 # references never admits new files: every dependency must already be explicit
@@ -97,7 +98,7 @@ def candidate(plan, root, attempt, spec_path, bindings, controller):
     configuration = plan['execution_kind'] == 'configtest'
     if not configuration and plan['case_id'] not in PRE_NATIVE_CASES:
         raise ValueError('Only original Apache parser controls have this review scope')
-    observation_path = root / 'observation.json'
+    observation_path = root / OBSERVATION_FILE
     observed = REVIEW.read(observation_path)
     if observed.get('original_id') != plan['original_id'] or observed.get('case_id') != plan['case_id']:
         raise ValueError('Physical control identity differs from the selected original ID')
@@ -105,7 +106,7 @@ def candidate(plan, root, attempt, spec_path, bindings, controller):
     # Dedicated receipts can be supplied by an existing producer. Their mere
     # presence is never treated as proof that the shared producer contract holds.
     evidence = control_producers(root, configuration)
-    captures = existing_references(root, {'driver_observation': 'observation.json',
+    captures = existing_references(root, {'driver_observation': OBSERVATION_FILE,
         'parser_command': 'configtest.command.json', 'settings': 'settings.json',
         'host_io': 'host-io.jsonl', 'event_sink': 'events.jsonl',
         'process_observer': 'process-snapshots.jsonl', 'host_cleanup': 'host-cleanup.json',

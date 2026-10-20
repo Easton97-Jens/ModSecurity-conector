@@ -123,8 +123,9 @@ class ConfigCaptureTests(unittest.TestCase):
                 owned.write_bytes(b"changed after wait\n")
                 return receipt
 
+        waiter = MutatingWaiter()
         with self.assertRaisesRegex(ValueError, "input identity failed"):
-            self.run_parser(b"exit 0\n", MutatingWaiter())
+            self.run_parser(b"exit 0\n", waiter)
         self.assertTrue((self.root / "configtest-cleanup.json").is_file())
 
     def test_stream_hash_keeps_original_byte_identity_after_file_mutation(self):
@@ -143,8 +144,9 @@ class ConfigCaptureTests(unittest.TestCase):
                 (root / "configtest.stdout").write_bytes(b"tampered capture")
                 return receipt
 
+        waiter = StreamMutatingWaiter()
         with self.assertRaisesRegex(ValueError, "stream identity changed"):
-            self.run_parser(b"printf original\n", StreamMutatingWaiter())
+            self.run_parser(b"printf original\n", waiter)
 
     def test_raw_signal_cannot_be_replaced_with_normalized_wrapper_code(self):
         root = self.root
@@ -158,8 +160,9 @@ class ConfigCaptureTests(unittest.TestCase):
                 path.write_text(json.dumps(raw))
                 return receipt
 
+        waiter = ReturnMutatingWaiter()
         with self.assertRaisesRegex(ValueError, "raw wait binding failed"):
-            self.run_parser(b"kill -TERM $$\n", ReturnMutatingWaiter())
+            self.run_parser(b"kill -TERM $$\n", waiter)
 
     def test_sealed_fixture_copy_contract_keeps_runner_beside_batch(self):
         fixtures = self.base / "fixtures"
@@ -190,11 +193,13 @@ class ConfigCaptureTests(unittest.TestCase):
         (helper_dir / "batch-binding.json").write_text(json.dumps(
             {"input_sha256": {str(path): "0" * 64 for path in required}}))
         direct = Mock()
+        module = required[0]
+        execution_helpers = {"configtest_runner": SOURCE.with_name("configtest_runner.py")}
         with patch.object(BATCH, "Path", side_effect=lambda value: admission_file
                           if value == "/opt/controller/admission.json" else Path(value)):
             with self.assertRaisesRegex(ValueError, "binding omits"):
-                BATCH.private_admission(direct, required[0], helper_dir,
-                                        execution_helpers={"configtest_runner": SOURCE.with_name("configtest_runner.py")})
+                BATCH.private_admission(direct, module, helper_dir,
+                                        execution_helpers=execution_helpers)
         direct.admission.assert_not_called()
 
     def test_actual_timeout_reaps_parser_and_rejects_helper_transport(self):
@@ -211,8 +216,9 @@ class ConfigCaptureTests(unittest.TestCase):
                 changed = [argv[0], "-c", program, argv[1], argv[3], argv[5], argv[7]]
                 return super().waited(changed, cwd, prefix, env)
 
+        waiter = ShortTimeoutWaiter()
         with self.assertRaisesRegex(ValueError, "helper transport or input identity failed"):
-            self.run_parser(b"while :; do :; done\n", ShortTimeoutWaiter())
+            self.run_parser(b"while :; do :; done\n", waiter)
         parser = json.loads((self.root / "configtest-process.json").read_text())
         wrapper = json.loads((self.root / "configtest-wrapper-process.json").read_text())
         self.assertTrue(parser["timeout"])

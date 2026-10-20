@@ -1,5 +1,6 @@
 /* Apache I12 test-only public-SDK multipart observation; never changes SDK calls. */
 #include <modsecurity/transaction.h>
+#include <algorithm>
 #include <array>
 #include <cerrno>
 #include <cstddef>
@@ -118,7 +119,7 @@ std::string common(const modsecurity::Transaction *key, const std::string &id, c
     return out.str();
 }
 bool has_path_separator(std::string_view path) {
-    return path.find('/') != std::string_view::npos;
+    return std::any_of(path.begin(), path.end(), [](char character) { return character == '/'; });
 }
 std::string path_metadata(int root, const std::string &directory, const std::string &path) {
     std::ostringstream out; out << R"({"path_fingerprint_fnv1a64":)" << json_quoted(fingerprint(path));
