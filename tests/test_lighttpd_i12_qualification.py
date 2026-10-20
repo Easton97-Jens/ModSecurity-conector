@@ -9,6 +9,12 @@ from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
+MODULE_DIRECTORY = tempfile.TemporaryDirectory(
+    prefix="lighttpd-qualification-module-", dir=os.environ.get("RUNNER_TEMP"))
+MODULE_TEMP = Path(MODULE_DIRECTORY.name)
+MODULE_EXTERNAL = MODULE_TEMP / "evidence"
+MODULE_EXTERNAL.mkdir(mode=0o700)
+os.environ["I12_TEST_ROOT"] = str(MODULE_EXTERNAL)
 SPEC = importlib.util.spec_from_file_location(
     "lighttpd_adapter_test", ROOT / "ci/runtime/lifecycle/i12/lighttpd/qualification.py")
 Q = importlib.util.module_from_spec(SPEC)
@@ -17,7 +23,8 @@ SPEC.loader.exec_module(Q)
 
 class LighttpdQualificationTests(unittest.TestCase):
     def setUp(self):
-        directory = tempfile.TemporaryDirectory(prefix="lighttpd-qualification-control-", dir=os.environ.get("RUNNER_TEMP"))
+        directory = tempfile.TemporaryDirectory(
+            prefix="lighttpd-qualification-control-", dir=Q.EXTERNAL_ROOT)
         self.addCleanup(directory.cleanup)
         self.root = Path(directory.name).resolve()
         self.identity = "I12::lighttpd-stock-sidecar::allow_without_marker"
@@ -47,6 +54,7 @@ class LighttpdQualificationTests(unittest.TestCase):
                 "run_scoped_case_id": self.identity, "reviewed_by": "root",
                 "packet_sha256": Q.reference(self.packet_path)["sha256"],
                 "oracle_record_sha256": Q.reference(self.record_path)["sha256"],
+                "qualifier_source_sha256": Q.loaded_source_digests(),
                 "independent_oracle_review": "Synthetic authorization control.",
                 "physical_transaction_review": "Synthetic incomplete packet: all measurements absent."}))
 
@@ -82,6 +90,20 @@ class LighttpdQualificationTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "changed during"):
                 Q.frozen_qualifier_sources(second)
 
+    def test_retained_source_substitution_cannot_reuse_root_approval(self):
+        self.save()
+        result = self.qualify()
+        review = json.loads(self.review_path.read_text())
+        Q.verify_qualifier_sources(result, review)
+        result["qualifier_sources"][0] = {
+            **result["qualifier_sources"][0], **Q.reference(self.source),
+            "role": "qualification_source"}
+        with self.assertRaisesRegex(ValueError, "differs from Root"):
+            Q.verify_qualifier_sources(result, review)
+        result["qualifier_sources"][0]["original_source_path"] = "unrelated.py"
+        with self.assertRaisesRegex(ValueError, "approved identities"):
+            Q.verify_qualifier_sources(result, review)
+
     def test_sibling_oracle_and_missing_observation_cannot_inherit_credit(self):
         self.record["run_scoped_case_id"] = "I12::lighttpd-stock-sidecar::deny_header_marker_403"
         self.save()
@@ -111,6 +133,32 @@ class LighttpdQualificationTests(unittest.TestCase):
         os.link(self.source, self.root / "hardlink.txt")
         with self.assertRaisesRegex(ValueError, "unshared"):
             Q.reference(self.source)
+
+    def test_existing_storage_parent_cannot_be_shared_writable_or_symlinked(self):
+        protected = self.root / "protected"
+        protected.mkdir(mode=0o700)
+        with mock.patch.object(Q, "Path", return_value=protected):
+            self.assertEqual(Q.storage_root(), protected)
+            protected.chmod(0o777)
+            with self.assertRaisesRegex(ValueError, "without shared write"):
+                Q.storage_root()
+        protected.chmod(0o700)
+        link = self.root / "storage-link"
+        link.symlink_to(protected, target_is_directory=True)
+        with mock.patch.object(Q, "Path", return_value=link):
+            with self.assertRaisesRegex(ValueError, "existing current-user-owned"):
+                Q.storage_root()
+
+    def test_import_defers_missing_external_root_until_first_use(self):
+        missing = self.root / "does-not-exist"
+        spec = importlib.util.spec_from_file_location(
+            "lighttpd_adapter_missing_root_control", Path(Q.__file__))
+        module = importlib.util.module_from_spec(spec)
+        with mock.patch.dict(os.environ, {"I12_TEST_ROOT": str(missing)}):
+            spec.loader.exec_module(module)
+        self.assertEqual(module.EXTERNAL_ROOT, missing)
+        with self.assertRaises(FileNotFoundError):
+            module.storage_root()
 
     def test_non_lighttpd_and_unselected_ids_are_rejected(self):
         for identity in ("I12::traefik-native-uds::allow_without_marker",

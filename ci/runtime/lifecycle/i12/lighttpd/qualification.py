@@ -9,13 +9,43 @@ from __future__ import annotations
 import copy
 import importlib.util
 import json
+import os
 from pathlib import Path
+import stat
+
+
+UNCONFIGURED_EXTERNAL_ROOT = Path("/__i12_external_root_requires_I12_TEST_ROOT__")
+
+
+def configured_external_root():
+    """Resolve the declared test root without touching it during module import."""
+    declared = os.environ.get("I12_TEST_ROOT")
+    if declared:
+        return Path(declared).absolute()
+    temporary = os.environ.get("TMPDIR")
+    if temporary and Path(temporary).name == "tmp":
+        return Path(temporary).absolute().parent
+    return UNCONFIGURED_EXTERNAL_ROOT
+
+
+def storage_root(root=None):
+    """Validate the configured private evidence root when it is actually used."""
+    root = Path(root or globals().get("EXTERNAL_ROOT", configured_external_root())).absolute()
+    if root == UNCONFIGURED_EXTERNAL_ROOT:
+        raise ValueError("Set I12_TEST_ROOT to an existing private evidence directory")
+    for parent in (root.parent, root):
+        info = parent.lstat()
+        if (not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid()
+                or info.st_mode & 0o022):
+            raise ValueError(
+                "Evidence storage must be an existing current-user-owned directory without shared write access")
+    return root
 
 
 REPOSITORY = Path(__file__).resolve().parents[5]
 BASELINE = REPOSITORY / "reports/testing/lighttpd-i12-20261015"
 ROUTES = ("lighttpd-stock-sidecar", "lighttpd-patched-native", "lighttpd-stock-native-control")
-EXTERNAL_ROOT = Path("/var/tmp/codex/ModSecurity-conector")
+EXTERNAL_ROOT = configured_external_root()
 SPEC = importlib.util.spec_from_file_location(
     "lighttpd_shared_i12_qualifier",
     REPOSITORY / "ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py",
@@ -36,10 +66,12 @@ LOADED_SOURCES[str(Path(__file__).absolute())] = SOURCES.snapshot(Path(__file__)
 
 def reference(path, role=None, **metadata):
     path = Path(path).absolute()
-    readable = (EXTERNAL_ROOT, Path("/root/git/ModSecurity-conector"), Path("/usr"))
+    readable = (EXTERNAL_ROOT, REPOSITORY, Path("/root/git/ModSecurity-conector"), Path("/usr"))
     if (".." in path.parts or any(part in (".git", ".aws", ".ssh") for part in path.parts)
             or not any(path.is_relative_to(root) for root in readable)):
         raise ValueError("Evidence must belong to the approved repository, external run or installed image roots")
+    if path.is_relative_to(EXTERNAL_ROOT):
+        storage_root(EXTERNAL_ROOT)
     result = SOURCES.reference(path)
     if role is not None:
         result["role"] = role
@@ -109,6 +141,24 @@ def frozen_qualifier_sources(destination):
     return result
 
 
+def loaded_source_digests():
+    return {path: ref["sha256"] for path, (_, ref) in LOADED_SOURCES.items()}
+
+
+def verify_qualifier_sources(result, root_review):
+    """Bind retained validator bytes to the exact separate Root source approval."""
+    approved = root_review.get("qualifier_source_sha256", {})
+    refs = result.get("qualifier_sources", [])
+    if (set(approved) != set(LOADED_SOURCES) or len(refs) != len(approved)
+            or {ref.get("original_source_path") for ref in refs} != set(approved)):
+        raise ValueError("Qualification sources need exact separately Root-approved identities")
+    for ref in refs:
+        actual = ORACLES.verify_reference(ref)
+        if (ref.get("role") != "qualification_source"
+                or actual["sha256"] != approved[ref["original_source_path"]]):
+            raise ValueError("Executed qualification source differs from Root source approval")
+
+
 def reviewed_proposal(proposal, review):
     """Apply only separately hash-bound Root decisions to a worker proposal."""
     packet = copy.deepcopy(proposal)
@@ -148,7 +198,8 @@ def qualify(packet_proposal_path, oracle_record_path, root_review_path, output_d
             or review.get("packet_sha256") != packet_ref["sha256"]
             or review.get("oracle_record_sha256") != record_ref["sha256"]
             or not review.get("independent_oracle_review")
-            or not review.get("physical_transaction_review")):
+            or not review.get("physical_transaction_review")
+            or review.get("qualifier_source_sha256") != loaded_source_digests()):
         raise ValueError("Separate Root review must bind both exact proposals and their evidence")
     record = copy.deepcopy(record)
     record["reviewed_by"] = "root"
@@ -159,9 +210,12 @@ def qualify(packet_proposal_path, oracle_record_path, root_review_path, output_d
         raise ValueError("A qualified host verdict requires a resolved applicable oracle")
     packet = reviewed_proposal(packet, review)
     destination = Path(output_dir)
-    if (".." in destination.parts or not any(destination.absolute().is_relative_to(root)
-            for root in (EXTERNAL_ROOT, REPOSITORY / "reports/testing"))):
+    external = destination.absolute().is_relative_to(EXTERNAL_ROOT)
+    if (".." in destination.parts or not (external
+            or destination.absolute().is_relative_to(REPOSITORY / "reports/testing"))):
         raise ValueError("Qualification output must belong to the external run or testing report root")
+    if external:
+        storage_root(EXTERNAL_ROOT)
     if destination.exists() or destination.is_symlink():
         raise ValueError("Current qualification output must be a fresh physical directory")
     for parent in destination.absolute().parents:

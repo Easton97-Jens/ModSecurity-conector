@@ -25,10 +25,18 @@ REPO = next((parent for parent in Path(__file__).resolve().parents
              if (parent / 'ci/runtime/lifecycle/i12/manifest.json').is_file()), Path('/mnt/src'))
 EXTERNAL = Path('/var/tmp/codex/ModSecurity-conector')
 PROFILES = ('off', 'safe', 'strict', 'all')
+BACKEND_LOG = 'backend.jsonl'
+EVENT_LOG = 'events.jsonl'
+BODY_PATH = '/body.txt'
+EMPTY_PATH = '/empty.txt'
 
 
 def sha(path):
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    resolved = Path(path).resolve(strict=True)
+    allowed = (EXTERNAL, REPO, Path('/usr/lib/x86_64-linux-gnu'))
+    if not any(resolved.is_relative_to(root) for root in allowed):
+        raise ValueError('hash input outside declared capture/source/library roots')
+    return hashlib.sha256(resolved.read_bytes()).hexdigest()
 
 
 def regular(path):
@@ -218,8 +226,7 @@ def ready(port, process):
     raise RuntimeError('LISTEN timeout')
 
 
-def process_snapshot(launcher, binary):
-    """Bind the real native descendant and inspect live unlinked spool FDs."""
+def process_inventory():
     processes = {}
     for path in Path('/proc').iterdir():
         if not path.name.isdecimal():
@@ -229,30 +236,46 @@ def process_snapshot(launcher, binary):
             processes[int(path.name)] = (int(fields[1]), fields[19])
         except (OSError, IndexError):
             continue
+    return processes
+
+
+def is_descendant(pid, launcher, processes):
+    visited = set()
+    while pid in processes and pid not in visited:
+        if pid == launcher:
+            return True
+        visited.add(pid)
+        pid = processes[pid][0]
+    return False
+
+
+def native_process_snapshot(pid, token, binary):
+    proc = Path('/proc', str(pid))
+    if (proc / 'exe').resolve() != binary.resolve():
+        return None
+    fds = []
+    for fd in (proc / 'fd').iterdir():
+        detail = fd.stat()
+        fds.append({'fd': fd.name, 'target': os.readlink(fd),
+                    'mode': oct(stat.S_IMODE(detail.st_mode)), 'uid': detail.st_uid,
+                    'size': detail.st_size, 'links': detail.st_nlink})
+    return {'pid': pid, 'starttime': token, 'exe_sha256': sha(proc / 'exe'),
+            'maps': (proc / 'maps').read_text(), 'status': (proc / 'status').read_text(), 'fds': fds}
+
+
+def process_snapshot(launcher, binary):
+    """Bind the real native descendant and inspect live unlinked spool FDs."""
+    processes = process_inventory()
     observations = []
     for pid, (_parent, token) in processes.items():
-        ancestor = pid
-        visited = set()
-        while ancestor in processes and ancestor not in visited:
-            if ancestor == launcher.pid:
-                proc = Path('/proc', str(pid))
-                try:
-                    if (proc / 'exe').resolve() != binary.resolve():
-                        break
-                    fds = []
-                    for fd in (proc / 'fd').iterdir():
-                        detail = fd.stat()
-                        fds.append({'fd': fd.name, 'target': os.readlink(fd),
-                            'mode': oct(stat.S_IMODE(detail.st_mode)), 'uid': detail.st_uid,
-                            'size': detail.st_size, 'links': detail.st_nlink})
-                    observations.append({'pid': pid, 'starttime': token, 'exe_sha256': sha(proc / 'exe'),
-                        'maps': (proc / 'maps').read_text(), 'status': (proc / 'status').read_text(),
-                        'fds': fds})
-                except OSError as error:
-                    observations.append({'pid': pid, 'snapshot_error': repr(error)})
-                break
-            visited.add(ancestor)
-            ancestor = processes[ancestor][0]
+        if not is_descendant(pid, launcher.pid, processes):
+            continue
+        try:
+            snapshot = native_process_snapshot(pid, token, binary)
+            if snapshot is not None:
+                observations.append(snapshot)
+        except OSError as error:
+            observations.append({'pid': pid, 'snapshot_error': repr(error)})
     return observations
 
 
@@ -277,6 +300,86 @@ def capture(root, binary, host, modules, native_action='Reject'):
         return _capture(root, binary, host, modules, native_action, resources)
 
 
+def capture_profile(root, binary, host_port, native_action, profile):
+    folder = root / profile
+    folder.mkdir(mode=0o700)
+    spool = folder / 'spool'
+    spool.mkdir(mode=0o700)
+    rules = folder / 'rules.conf'
+    rules.write_text('\n'.join([
+        'SecRuleEngine On', 'SecRequestBodyAccess On', 'SecRequestBodyLimit 4096',
+        'SecRequestBodyNoFilesLimit 4096', 'SecRequestBodyLimitAction ' + native_action,
+        'SecResponseBodyAccess On', 'SecResponseBodyMimeType text/plain',
+        'SecResponseBodyLimit 4096', 'SecResponseBodyLimitAction ' + native_action,
+        'SecRule REQUEST_URI "@contains p1-block" "id:9911201,phase:1,deny,status:451,log"',
+        'SecRule REQUEST_BODY "@contains p2-marker" "id:9911202,phase:2,deny,status:418,log"',
+        'SecRule REQUEST_URI "@contains p3-block" "id:9911203,phase:3,deny,status:422,log"',
+        'SecRule RESPONSE_BODY "@contains stock-p4-marker" "id:9911204,phase:4,pass,log"',
+        'SecRule REQUEST_URI "@contains p4-block" "id:9911205,phase:4,deny,status:429,log"', '']))
+    rules.chmod(0o600)
+    template = REPO / f'examples/lighttpd/stock/{profile}/msconnector-runtime.conf'
+    runtime = folder / 'runtime.conf'
+    runtime.write_text('\n'.join(
+        f'rules_file={rules}' if line.startswith('rules_file=') else
+        f'event_path={folder}/events.jsonl' if line.startswith('event_path=') else line
+        for line in template.read_text().splitlines()) + '\n')
+    runtime.chmod(0o600)
+    port = free_port()
+    env = dict(os.environ, MSCONNECTOR_LIGHTTPD_NATIVE_OBSERVER=str(folder / 'native.jsonl'),
+               MSCONNECTOR_LIGHTTPD_HOST_OBSERVER=str(folder / 'host-eos.jsonl'),
+               MSCONNECTOR_LIFECYCLE_RUN='i12-lighttpd-stock-20261015',
+               MSCONNECTOR_LIFECYCLE_PROFILE='lighttpd-stock-sidecar',
+               MSCONNECTOR_LIFECYCLE_CASE='supplement-' + profile)
+    sidecar = launch(folder, 'sidecar', [binary, '--config', runtime, '--listen',
+        f'127.0.0.1:{port}', '--upstream', f'127.0.0.1:{host_port}', '--timeout-ms', '1000',
+        '--spool-directory', spool, '--spool-capacity-bytes', '65536',
+        '--spool-free-reserve-bytes', '1048576'], env)
+    result = {'profile': profile, 'template_sha256': sha(template), 'observations': [],
+              'uid': os.geteuid(), 'native_limit_action': native_action,
+              'full_lifecycle_qualified': False, 'oracle_evaluated': False}
+    try:
+        ready(port, sidecar[0])
+        result['native_process_before'] = process_snapshot(sidecar[0], binary)
+        before_backend = (root / BACKEND_LOG).read_text().splitlines() if (root / BACKEND_LOG).exists() else []
+
+        def held_request(sidecar=sidecar, result=result, before_backend=before_backend):
+            result['held_body_snapshot'] = process_snapshot(sidecar[0], binary)
+            during = (root / BACKEND_LOG).read_text().splitlines() if (root / BACKEND_LOG).exists() else []
+            result['backend_requests_before_replay_admission'] = len(during) - len(before_backend)
+
+        result['held_replay_request'] = request(port, BODY_PATH, b'x' * 3000, hold=held_request)
+        multipart = b'--i12\r\nContent-Disposition: form-data; name="one"\r\n\r\nhello\r\n--i12\r\nContent-Disposition: form-data; name="two"\r\n\r\nworld\r\n--i12--\r\n'
+        result['multipart_request'] = request(port, BODY_PATH, multipart,
+            content_type='multipart/form-data; boundary=i12')
+        for name, path, body, reset in (
+            ('allow', BODY_PATH, b'body', False), ('empty', EMPTY_PATH, b'', False),
+            ('p1', '/p1-block', b'', False), ('p2', BODY_PATH, b'p2-marker', False),
+            ('limit-reject', BODY_PATH, b'x' * 4097, False),
+            ('p3', '/p3-block', b'', False), ('historical-rst-control', BODY_PATH, b'', True),
+            ('p4-disruptive', '/p4-block', b'', False),
+            ('response-native-limit', '/response-large', b'', False),
+            ('response-mime-out', '/mime-out', b'', False),
+            ('neighbor', EMPTY_PATH, b'neighbor', False)):
+            before = (folder / EVENT_LOG).read_bytes() if (folder / EVENT_LOG).exists() else b''
+            observation = {'case': name, **request(port, path, body, reset)}
+            time.sleep(.08)
+            after = (folder / EVENT_LOG).read_bytes() if (folder / EVENT_LOG).exists() else b''
+            observation['physical_event_append_bytes'] = len(after) - len(before)
+            result['observations'].append(observation)
+        result['execution_status'] = 'observed'
+    except (OSError, RuntimeError) as error:
+        result['execution_status'] = 'blocked'
+        result['error'] = str(error)
+    finally:
+        result['cleanup'] = stop(sidecar)
+        result['spool_remaining_names'] = sorted(p.name for p in spool.iterdir())
+        result['spool_mode'] = oct(stat.S_IMODE(spool.stat().st_mode))
+        result['physical_files'] = {p.name: {'sha256': sha(p), 'size': p.stat().st_size,
+            'mode': oct(stat.S_IMODE(p.stat().st_mode))} for p in folder.iterdir() if p.is_file()}
+        write(folder / 'observations.json', result)
+    return result
+
+
 def _capture(root, binary, host, modules, native_action, resources):
     docroot = root / 'htdocs'
     docroot.mkdir(mode=0o700)
@@ -288,9 +391,13 @@ def _capture(root, binary, host, modules, native_action, resources):
     class Backend(BaseHTTPRequestHandler):
         def do_POST(self):
             body = self.rfile.read(int(self.headers.get('Content-Length', '0')))
-            content = b'' if self.path == '/empty.txt' else b'x' * 5000 if self.path == '/response-large' else b'stock-p4-marker'
+            content = b'stock-p4-marker'
+            if self.path == EMPTY_PATH:
+                content = b''
+            elif self.path == '/response-large':
+                content = b'x' * 5000
             mime = 'application/octet-stream' if self.path == '/mime-out' else 'text/plain'
-            with backend_lock, (root / 'backend.jsonl').open('a') as stream:
+            with backend_lock, (root / BACKEND_LOG).open('a') as stream:
                 stream.write(json.dumps({'method': self.command, 'path': self.path,
                     'monotonic_ns': time.monotonic_ns(), 'request_body_bytes': len(body),
                     'request_body_sha256': hashlib.sha256(body).hexdigest(),
@@ -303,6 +410,8 @@ def _capture(root, binary, host, modules, native_action, resources):
             self.wfile.write(content)
 
         def log_message(self, *_args):
+            # Raw protocol and native logs are retained separately; suppress
+            # unrelated BaseHTTPRequestHandler console access logging.
             pass
 
     backend = ThreadingHTTPServer(('127.0.0.1', 0), Backend)
@@ -327,83 +436,7 @@ def _capture(root, binary, host, modules, native_action, resources):
     try:
         ready(host_port, actor[0])
         for profile in PROFILES:
-            folder = root / profile
-            folder.mkdir(mode=0o700)
-            spool = folder / 'spool'
-            spool.mkdir(mode=0o700)
-            rules = folder / 'rules.conf'
-            rules.write_text('\n'.join([
-                'SecRuleEngine On', 'SecRequestBodyAccess On', 'SecRequestBodyLimit 4096',
-                'SecRequestBodyNoFilesLimit 4096', 'SecRequestBodyLimitAction ' + native_action,
-                'SecResponseBodyAccess On', 'SecResponseBodyMimeType text/plain',
-                'SecResponseBodyLimit 4096', 'SecResponseBodyLimitAction ' + native_action,
-                'SecRule REQUEST_URI "@contains p1-block" "id:9911201,phase:1,deny,status:451,log"',
-                'SecRule REQUEST_BODY "@contains p2-marker" "id:9911202,phase:2,deny,status:418,log"',
-                'SecRule REQUEST_URI "@contains p3-block" "id:9911203,phase:3,deny,status:422,log"',
-                'SecRule RESPONSE_BODY "@contains stock-p4-marker" "id:9911204,phase:4,pass,log"',
-                'SecRule REQUEST_URI "@contains p4-block" "id:9911205,phase:4,deny,status:429,log"', '']))
-            rules.chmod(0o600)
-            template = REPO / f'examples/lighttpd/stock/{profile}/msconnector-runtime.conf'
-            runtime = folder / 'runtime.conf'
-            runtime.write_text('\n'.join(
-                f'rules_file={rules}' if line.startswith('rules_file=') else
-                f'event_path={folder}/events.jsonl' if line.startswith('event_path=') else line
-                for line in template.read_text().splitlines()) + '\n')
-            runtime.chmod(0o600)
-            port = free_port()
-            env = dict(os.environ, MSCONNECTOR_LIGHTTPD_NATIVE_OBSERVER=str(folder / 'native.jsonl'),
-                       MSCONNECTOR_LIGHTTPD_HOST_OBSERVER=str(folder / 'host-eos.jsonl'),
-                       MSCONNECTOR_LIFECYCLE_RUN='i12-lighttpd-stock-20261015',
-                       MSCONNECTOR_LIFECYCLE_PROFILE='lighttpd-stock-sidecar',
-                       MSCONNECTOR_LIFECYCLE_CASE='supplement-' + profile)
-            sidecar = launch(folder, 'sidecar', [binary, '--config', runtime, '--listen',
-                f'127.0.0.1:{port}', '--upstream', f'127.0.0.1:{host_port}', '--timeout-ms', '1000',
-                '--spool-directory', spool, '--spool-capacity-bytes', '65536',
-                '--spool-free-reserve-bytes', '1048576'], env)
-            result = {'profile': profile, 'template_sha256': sha(template), 'observations': [],
-                      'uid': os.geteuid(), 'native_limit_action': native_action,
-                      'full_lifecycle_qualified': False, 'oracle_evaluated': False}
-            try:
-                ready(port, sidecar[0])
-                result['native_process_before'] = process_snapshot(sidecar[0], binary)
-                before_backend = (root / 'backend.jsonl').read_text().splitlines() if (root / 'backend.jsonl').exists() else []
-
-                def held_request():
-                    result['held_body_snapshot'] = process_snapshot(sidecar[0], binary)
-                    during = (root / 'backend.jsonl').read_text().splitlines() if (root / 'backend.jsonl').exists() else []
-                    result['backend_requests_before_replay_admission'] = len(during) - len(before_backend)
-
-                result['held_replay_request'] = request(port, '/body.txt', b'x' * 3000, hold=held_request)
-                multipart = b'--i12\r\nContent-Disposition: form-data; name="one"\r\n\r\nhello\r\n--i12\r\nContent-Disposition: form-data; name="two"\r\n\r\nworld\r\n--i12--\r\n'
-                result['multipart_request'] = request(port, '/body.txt', multipart,
-                    content_type='multipart/form-data; boundary=i12')
-                for name, path, body, reset in (
-                    ('allow', '/body.txt', b'body', False), ('empty', '/empty.txt', b'', False),
-                    ('p1', '/p1-block', b'', False), ('p2', '/body.txt', b'p2-marker', False),
-                    ('limit-reject', '/body.txt', b'x' * 4097, False),
-                    ('p3', '/p3-block', b'', False), ('historical-rst-control', '/body.txt', b'', True),
-                    ('p4-disruptive', '/p4-block', b'', False),
-                    ('response-native-limit', '/response-large', b'', False),
-                    ('response-mime-out', '/mime-out', b'', False),
-                    ('neighbor', '/empty.txt', b'neighbor', False)):
-                    before = (folder / 'events.jsonl').read_bytes() if (folder / 'events.jsonl').exists() else b''
-                    observation = {'case': name, **request(port, path, body, reset)}
-                    time.sleep(.08)
-                    after = (folder / 'events.jsonl').read_bytes() if (folder / 'events.jsonl').exists() else b''
-                    observation['physical_event_append_bytes'] = len(after) - len(before)
-                    result['observations'].append(observation)
-                result['execution_status'] = 'observed'
-            except (OSError, RuntimeError) as error:
-                result['execution_status'] = 'blocked'
-                result['error'] = str(error)
-            finally:
-                result['cleanup'] = stop(sidecar)
-                result['spool_remaining_names'] = sorted(p.name for p in spool.iterdir())
-                result['spool_mode'] = oct(stat.S_IMODE(spool.stat().st_mode))
-                result['physical_files'] = {p.name: {'sha256': sha(p), 'size': p.stat().st_size,
-                    'mode': oct(stat.S_IMODE(p.stat().st_mode))} for p in folder.iterdir() if p.is_file()}
-                write(folder / 'observations.json', result)
-                rows.append(result)
+            rows.append(capture_profile(root, binary, host_port, native_action, profile))
     finally:
         cleanup = stop(actor)
         write(root / 'host-cleanup.json', cleanup)

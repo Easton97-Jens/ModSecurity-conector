@@ -23,12 +23,28 @@ import sys
 import threading
 import time
 
+TEXT_PLAIN = "text/plain"
+EXTERNAL_ROOT = Path("/var/tmp/codex/ModSecurity-conector")
+
+
+def evidence_path(path: Path, *, writing: bool = False) -> Path:
+    path = Path(path).absolute()
+    resolved = path.resolve(strict=False)
+    if writing:
+        if resolved != path or not any(path.is_relative_to(root) for root in (EXTERNAL_ROOT, Path("/task"))):
+            raise ValueError("Evidence output must be a physical authorized external path")
+    elif not any(resolved.is_relative_to(root) for root in (
+        EXTERNAL_ROOT, Path(__file__).resolve().parents[5], Path("/usr"), Path("/proc"))):
+        raise ValueError("Evidence input is outside the declared source/image roots")
+    return path
+
 
 def sha(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    return hashlib.sha256(evidence_path(path).read_bytes()).hexdigest()
 
 
 def write_json(path: Path, value: object) -> None:
+    path = evidence_path(path, writing=True)
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
     path.chmod(0o600)
 
@@ -58,27 +74,31 @@ def command(root: Path, label: str, argv: list[str], **kwargs: object) -> subpro
     return result
 
 
+def copy_source_folder(repo: Path, source: Path, folder: str, inputs: dict) -> None:
+    source_folder = repo / folder
+    for component in (source_folder, *source_folder.parents):
+        if component.is_symlink():
+            raise ValueError(f"symlink source directory: {component}")
+    for original in sorted(source_folder.rglob("*")):
+        if original.is_symlink():
+            raise ValueError(f"symlink source input: {original}")
+        if original.is_dir():
+            continue
+        regular(original)
+        relative = original.relative_to(repo)
+        target = source / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(original, target)
+        inputs[str(relative)] = sha(original)
+
+
 def prepare(args: argparse.Namespace) -> tuple[Path, Path]:
     root, repo = args.output, args.repository
     source = root / "source"
     source.mkdir(mode=0o700)
     inputs = {}
     for folder in ("common", "connectors/lighttpd"):
-        source_folder = repo / folder
-        for component in (source_folder, *source_folder.parents):
-            if component.is_symlink():
-                raise ValueError(f"symlink source directory: {component}")
-        for original in sorted(source_folder.rglob("*")):
-            if original.is_symlink():
-                raise ValueError(f"symlink source input: {original}")
-            if original.is_dir():
-                continue
-            regular(original)
-            relative = original.relative_to(repo)
-            target = source / relative
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(original, target)
-            inputs[str(relative)] = sha(original)
+        copy_source_folder(repo, source, folder, inputs)
     for relative in ("connectors/profile_registry.c", "connectors/profile_registry.h",
                      "ci/runtime/lifecycle/native-lifecycle-observer.c",
                      "ci/runtime/lifecycle/native-lifecycle-observer.h",
@@ -128,7 +148,7 @@ def prepare(args: argparse.Namespace) -> tuple[Path, Path]:
         objects.append(str(target))
     symbols = json.loads(regular(args.reference_receipt).read_text())["wrapped_symbols"]
     if len(symbols) != 38 or len(set(symbols)) != 38 or any(
-        re.fullmatch(r"[a-zA-Z_][a-zA-Z_0-9]*", name) is None for name in symbols
+        re.fullmatch(r"[a-zA-Z_]\w*", name, flags=re.ASCII) is None for name in symbols
     ):
         raise ValueError("expected the existing exact 38-symbol capture ABI")
     wrapper = build / "observer-cc.py"
@@ -165,7 +185,7 @@ def prepare(args: argparse.Namespace) -> tuple[Path, Path]:
 
 
 def request(port: int, path: str, body: bytes, chunked: bool = False,
-            content_type: str = "text/plain", extra_headers: bool = False) -> dict:
+            content_type: str = TEXT_PLAIN, extra_headers: bool = False) -> dict:
     headers = (f"POST {path} HTTP/1.1\r\nHost: i12.lighttpd.test\r\n"
                f"Content-Type: {content_type}\r\nConnection: close\r\n")
     if extra_headers:
@@ -197,12 +217,84 @@ def request(port: int, path: str, body: bytes, chunked: bool = False,
         "physical_client_bytes": len(received)}
 
 
+def snapshot_native(root: Path, row: dict) -> None:
+    native = root / "native.jsonl"
+    if not native.exists():
+        return
+    observations = [json.loads(line) for line in native.read_text().splitlines()]
+    pids = {r["pid"] for r in observations if r.get("function") == "runtime_begin_request_stream"}
+    if not pids:
+        pids = {next(r["pid"] for r in reversed(observations) if r.get("edge") == "admitted")}
+    row["native_processes"] = []
+    for pid in sorted(pids):
+        proc = Path("/proc") / str(pid)
+        try:
+            token = (proc / "stat").read_text().rsplit(")", 1)[1].split()[19]
+            (root / f"native-{pid}.maps").write_bytes((proc / "maps").read_bytes())
+            (root / f"native-{pid}.status").write_bytes((proc / "status").read_bytes())
+            row["native_processes"].append({"pid": pid, "starttime": token,
+                "exe": os.readlink(proc / "exe"), "exe_sha256": sha(proc / "exe"),
+                "fd_count": len(list((proc / "fd").iterdir()))})
+        except (OSError, ValueError) as exc:
+            row.setdefault("snapshot_errors", []).append(str(exc))
+
+
+def finish_process(process, row: dict) -> None:
+    if process is None:
+        return
+    if process.poll() is None:
+        os.killpg(process.pid, signal.SIGTERM)
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait(timeout=5)
+    row["launcher_returncode"] = process.returncode
+    row["launcher_reaped"] = process.poll() is not None
+    row["native_cleanup"] = []
+    for native in row.get("native_processes", []):
+        proc = Path("/proc") / str(native["pid"])
+        try:
+            token = (proc / "stat").read_text().rsplit(")", 1)[1].split()[19]
+            gone = token != native["starttime"]
+        except FileNotFoundError:
+            gone = True
+        row["native_cleanup"].append({**native, "same_starttime_pid_gone": gone})
+
+
+def finish_server(server, thread, row: dict) -> None:
+    if server is not None:
+        if thread is not None and thread.is_alive():
+            server.shutdown()
+        server.server_close()
+    if thread is not None:
+        thread.join(timeout=5)
+    row["backend_thread_stopped"] = thread is None or not thread.is_alive()
+
+
+def wait_host_ready(process, port, row):
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            row["reached_stage"] = "host_exited_before_readiness"
+            return False
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.1):
+                return True
+        except OSError:
+            time.sleep(0.03)
+    raise TimeoutError("host readiness timeout")
+
+
 def run_case(args: argparse.Namespace, modules: Path, name: str, body: bytes,
-             limit: int = 1048576, action: str = "Reject", mime: str = "text/plain",
+             limit: int = 1048576, action: str = "Reject", mime: str = TEXT_PLAIN,
              phase4: str = "safe", chunked: bool = False,
              response_limit: int = 1048576, response_action: str = "Reject",
-             content_type: str = "text/plain", max_headers: int = 64,
-             backend_eof: bool = False) -> dict:
+             content_type: str = TEXT_PLAIN, **scenario) -> dict:
+    max_headers = scenario.pop("max_headers", 64)
+    backend_eof = scenario.pop("backend_eof", False)
+    if scenario:
+        raise ValueError("Unsupported fixture options: " + str(sorted(scenario)))
     root = args.output / "cases" / name
     root.mkdir(mode=0o700)
     backend_rows = []
@@ -221,6 +313,7 @@ def run_case(args: argparse.Namespace, modules: Path, name: str, body: bytes,
             self.wfile.write(payload[:5]); self.wfile.flush(); time.sleep(0.03)
             self.wfile.write(payload[5:]); self.wfile.flush()
         def log_message(self, *_):
+            # Physical request/response records above replace unstructured stderr.
             pass
     with socket.socket() as reservation:
         reservation.bind(("127.0.0.1", 0))
@@ -281,72 +374,21 @@ def run_case(args: argparse.Namespace, modules: Path, name: str, body: bytes,
             row["host_argv"] = argv
             process = subprocess.Popen(argv, env=environment, stdout=stdout, stderr=stderr,
                 stdin=subprocess.DEVNULL, start_new_session=True)
-            deadline = time.monotonic() + 10
-            while time.monotonic() < deadline:
-                if process.poll() is not None:
-                    row["reached_stage"] = "host_exited_before_readiness"
-                    return row
-                try:
-                    with socket.create_connection(("127.0.0.1", port), timeout=0.1):
-                        break
-                except OSError:
-                    time.sleep(0.03)
-            else:
-                raise TimeoutError("host readiness timeout")
+            if not wait_host_ready(process, port, row):
+                return row
             row["reached_stage"] = "host_requests_executed"
             row["main"] = request(port, "/" + name, body, chunked, content_type,
                                   extra_headers=max_headers < 64)
             time.sleep(0.05)
-            native = root / "native.jsonl"
-            if native.exists():
-                observations = [json.loads(line) for line in native.read_text().splitlines()]
-                pids = {r["pid"] for r in observations if r.get("function") == "runtime_begin_request_stream"}
-                if not pids:
-                    pids = {next(r["pid"] for r in reversed(observations) if r.get("edge") == "admitted")}
-                row["native_processes"] = []
-                for pid in sorted(pids):
-                    proc = Path("/proc") / str(pid)
-                    try:
-                        token = (proc / "stat").read_text().rsplit(")", 1)[1].split()[19]
-                        (root / f"native-{pid}.maps").write_bytes((proc / "maps").read_bytes())
-                        (root / f"native-{pid}.status").write_bytes((proc / "status").read_bytes())
-                        row["native_processes"].append({"pid": pid, "starttime": token,
-                            "exe": os.readlink(proc / "exe"), "exe_sha256": sha(proc / "exe"),
-                            "fd_count": len(list((proc / "fd").iterdir()))})
-                    except (OSError, ValueError) as exc:
-                        row.setdefault("snapshot_errors", []).append(str(exc))
+            snapshot_native(root, row)
             row["backend_main_count"] = len(backend_rows)
             row["neighbor"] = request(port, "/neighbor", b"ordinary-neighbor")
             time.sleep(0.05)
     except Exception as exc:
         row["error"] = {"type": type(exc).__name__, "message": str(exc)}
     finally:
-        if process is not None:
-            if process.poll() is None:
-                os.killpg(process.pid, signal.SIGTERM)
-                try:
-                    process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    os.killpg(process.pid, signal.SIGKILL)
-                    process.wait(timeout=5)
-            row["launcher_returncode"] = process.returncode
-            row["launcher_reaped"] = process.poll() is not None
-            row["native_cleanup"] = []
-            for native in row.get("native_processes", []):
-                proc = Path("/proc") / str(native["pid"])
-                try:
-                    token = (proc / "stat").read_text().rsplit(")", 1)[1].split()[19]
-                    gone = token != native["starttime"]
-                except FileNotFoundError:
-                    gone = True
-                row["native_cleanup"].append({**native, "same_starttime_pid_gone": gone})
-        if server is not None:
-            if thread is not None and thread.is_alive():
-                server.shutdown()
-            server.server_close()
-        if thread is not None:
-            thread.join(timeout=5)
-        row["backend_thread_stopped"] = thread is None or not thread.is_alive()
+        finish_process(process, row)
+        finish_server(server, thread, row)
         row["backend"] = backend_rows
         row["physical_files"] = {p.name: {"sha256": sha(p), "size": p.stat().st_size,
             "uid": p.stat().st_uid, "mode": oct(p.stat().st_mode & 0o777)}

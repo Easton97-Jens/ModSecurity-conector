@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import argparse
 import copy
-from collections import Counter, defaultdict
+from collections import Counter
 import importlib.util
 import json
 from pathlib import Path
@@ -28,18 +28,23 @@ def load_reference(ref):
     return value
 
 
+def qualified_status(qualification):
+    """A saved presentation status cannot override the fresh qualifier."""
+    full = qualification.get("full_case_qualified", qualification["full_lifecycle_qualified"])
+    return qualification["outcome"] if full else "PARTIAL_HOST_MEASUREMENTS"
+
+
+def validate_saved_status(result, qualification):
+    if result.get("status") != qualified_status(qualification):
+        raise ValueError("Saved status differs from current shared qualifier")
+
+
 def current_result(path):
     """Revalidate raw evidence, oracle and packet instead of trusting saved PASS."""
     result = load_reference(Q.reference(path))
-    sources = result.get("qualifier_sources", [])
-    if (len(sources) != len(Q.LOADED_SOURCES)
-            or len({ref.get("original_source_path") for ref in sources}) != len(sources)
-            or any(ref.get("role") != "qualification_source" for ref in sources)):
-        raise ValueError("Current result needs the immutable executed qualification sources")
-    for source in sources:
-        Q.ORACLES.verify_reference(source)
     row = Q.original_row(result["run_scoped_case_id"])
     root_review = load_reference(result["root_review"])
+    Q.verify_qualifier_sources(result, root_review)
     packet_proposal = Q.ORACLES.verify_reference(result["proposal"])
     oracle_proposal = Q.ORACLES.verify_reference(result["oracle_proposal"])
     if (root_review.get("reviewed_by") != "root"
@@ -67,6 +72,7 @@ def current_result(path):
     qualification = validator(packet_ref, row, review["effective_oracle"])
     if qualification != result["qualifier"]:
         raise ValueError("Saved qualification differs from current shared qualifier")
+    validate_saved_status(result, qualification)
     dedicated = parser or packet["execution_kind"] == "host_pre_native_rejection"
     clients = packet["measurement_evidence"] if dedicated else packet["observations"]["client_exit"].get("evidence", [])
     producer_role = "parser_process" if parser else "client_process"
@@ -75,6 +81,40 @@ def current_result(path):
     if not physical_clients:
         raise ValueError("Cannot count an actual execution without its physical process producer")
     return result, packet, physical_clients
+
+
+def validate_capture_processes(item, evidence, processes):
+    observed = item.get("execution_observed")
+    if observed is not None and type(observed) is not bool:
+        raise ValueError("Capture execution observation must remain explicit")
+    if observed is True:
+        role = {"host_http": "client_process", "configuration_parser": "parser_process"}.get(item.get("execution_kind"))
+        if not evidence or not processes or role is None or any(p.get("role") != role for p in processes):
+            raise ValueError("An executed original needs its physical independent process producers")
+    elif processes:
+        raise ValueError("Unexecuted coverage cannot count an HTTP/parser process")
+
+
+def validate_capture_disposition(item, evidence):
+    status = item["status"]
+    if status in ("UNSUPPORTED_CAPABILITY", "ENVIRONMENT_BLOCKED") and not evidence:
+        raise ValueError("Capability or environment disposition requires concrete evidence")
+    if status in ("HOST_START_ONLY", "NOT_EXECUTED_UNQUALIFIED") and item.get("execution_observed") is True:
+        raise ValueError("A host start cannot count as an original HTTP execution")
+    if status == "UNSUPPORTED_CAPABILITY" and item.get("oracle_record") is None:
+        raise ValueError("Unsupported coverage requires the per-ID existing oracle reconciliation")
+
+
+def capture_oracle_review(item, row):
+    if item.get("oracle_record") is None:
+        return None
+    record = load_reference(item["oracle_record"])
+    if record.get("reviewed_by") != "root" or record.get("run_scoped_case_id") != row["run_scoped_case_id"]:
+        raise ValueError("Capture oracle disposition needs Root review of this exact original ID")
+    reviewed = Q.ORACLES.review_record(record, row)
+    if item["status"] == "UNSUPPORTED_CAPABILITY" and reviewed["category"] != "UNSUPPORTED_CAPABILITY":
+        raise ValueError("Unsupported coverage needs the existing per-ID capability reconciliation")
+    return reviewed
 
 
 def execution_inventory(path):
@@ -99,31 +139,12 @@ def execution_inventory(path):
             raise ValueError("Capture coverage cannot assign a qualified verdict")
         evidence = [Q.ORACLES.verify_reference(r) for r in item.get("capture_refs", [])]
         processes = [Q.ORACLES.verify_reference(r) for r in item.get("process_producers", [])]
-        observed = item.get("execution_observed")
-        kind = item.get("execution_kind")
-        if observed is not None and type(observed) is not bool:
-            raise ValueError("Capture execution observation must remain explicit")
-        if observed is True:
-            role = {"host_http": "client_process", "configuration_parser": "parser_process"}.get(kind)
-            if not evidence or not processes or role is None or any(p.get("role") != role for p in processes):
-                raise ValueError("An executed original needs its physical independent process producers")
-        elif processes:
-            raise ValueError("Unexecuted coverage cannot count an HTTP/parser process")
-        if item["status"] in ("UNSUPPORTED_CAPABILITY", "ENVIRONMENT_BLOCKED") and not evidence:
-            raise ValueError("Capability or environment disposition requires concrete evidence")
-        if item["status"] in ("HOST_START_ONLY", "NOT_EXECUTED_UNQUALIFIED") and observed is True:
-            raise ValueError("A host start cannot count as an original HTTP execution")
-        if item["status"] == "UNSUPPORTED_CAPABILITY" and item.get("oracle_record") is None:
-            raise ValueError("Unsupported coverage requires the per-ID existing oracle reconciliation")
+        validate_capture_processes(item, evidence, processes)
+        validate_capture_disposition(item, evidence)
         indexed[identity] = {**copy.deepcopy(item), "capture_refs": evidence,
                              "process_producers": processes}
-        if item.get("oracle_record") is not None:
-            record = load_reference(item["oracle_record"])
-            if record.get("reviewed_by") != "root" or record.get("run_scoped_case_id") != identity:
-                raise ValueError("Capture oracle disposition needs Root review of this exact original ID")
-            reviewed = Q.ORACLES.review_record(record, row)
-            if item["status"] == "UNSUPPORTED_CAPABILITY" and reviewed["category"] != "UNSUPPORTED_CAPABILITY":
-                raise ValueError("Unsupported coverage needs the existing per-ID capability reconciliation")
+        reviewed = capture_oracle_review(item, row)
+        if reviewed is not None:
             indexed[identity]["oracle_review"] = reviewed
     return indexed, ref
 
@@ -143,9 +164,29 @@ def capture_only_result(capture, inventory_ref):
     }
 
 
-def producer_identity(producers):
-    """A copied receipt is the same execution witness, regardless of its path."""
-    return tuple(sorted({item["sha256"] for item in producers}))
+def execution_groups(entries):
+    """Join overlapping receipt sets transitively, including copied witnesses."""
+    groups = []
+    for entry in entries:
+        hashes = {item["sha256"] for item in entry["client_producers"]}
+        if not hashes:
+            raise ValueError("An actual execution needs a physical process witness")
+        producers = {(item["path"], item["sha256"]): item
+                     for item in entry["client_producers"]}
+        identities = dict.fromkeys(entry["original_ids"])
+        separate = []
+        for group in groups:
+            if hashes & group["hashes"]:
+                hashes.update(group["hashes"])
+                producers.update(group["producers"])
+                identities.update(group["identities"])
+            else:
+                separate.append(group)
+        separate.append({"hashes": hashes, "producers": producers, "identities": identities})
+        groups = separate
+    return [{"client_producers": list(group["producers"].values()),
+             "original_ids": list(group["identities"]), "unique_execution_count": 1}
+            for group in groups]
 
 
 def base_case(row, cases_ref, index, original_oracle):
@@ -169,7 +210,7 @@ def qualified_result(result, packet, clients, row, result_ref):
     full_case = qualifier.get("full_case_qualified", qualifier["full_lifecycle_qualified"])
     http = packet["execution_kind"] in ("host_http", "host_pre_native_rejection")
     return {
-        "qualification": result_ref, "status": result["status"],
+        "qualification": result_ref, "status": qualified_status(qualifier),
         "execution_observed": qualifier["execution_observed"],
         "full_lifecycle_qualified": row["required_leg"] and qualifier["full_lifecycle_qualified"],
         "full_case_qualified": full_case,
@@ -191,7 +232,7 @@ def route_export(route, revisions, results, captures=None, inventory_ref=None):
     cases_ref, oracle_ref = Q.reference(cases_path), Q.reference(oracle_path)
     inherited = load_reference(cases_ref)
     oracles = {r["run_scoped_case_id"]: r for r in load_reference(oracle_ref)["rows"]}
-    rows, executions, execution_producers = [], defaultdict(list), {}
+    rows, executions = [], []
     captures = captures or {}
     for index, row in enumerate(inherited["rows"]):
         case_id = row["run_scoped_case_id"]
@@ -205,9 +246,8 @@ def route_export(route, revisions, results, captures=None, inventory_ref=None):
             entry["new_evidence_refs"] = [inventory_ref, *capture["capture_refs"],
                                            *capture["process_producers"]]
             if capture["execution_observed"] is True:
-                key = producer_identity(capture["process_producers"])
-                execution_producers.setdefault(key, capture["process_producers"])
-                executions[key].append(case_id)
+                executions.append({"client_producers": capture["process_producers"],
+                                   "original_ids": [case_id]})
         if case_id in results:
             result, packet, clients, result_ref = results[case_id]
             qualifier = result["qualifier"]
@@ -215,18 +255,13 @@ def route_export(route, revisions, results, captures=None, inventory_ref=None):
             entry["new_evidence_refs"] += result["new_evidence_refs"] + [result_ref]
             entry["remaining_reason"] = None if entry["current"]["full_case_qualified"] else "Missing: " + ", ".join(qualifier["unknown_fields"])
             producers = [{"path": p, "sha256": h} for p, h in clients]
-            key = producer_identity(producers)
-            execution_producers.setdefault(key, producers)
-            if case_id not in executions[key]:
-                executions[key].append(case_id)
+            executions.append({"client_producers": producers, "original_ids": [case_id]})
         rows.append(entry)
     summary = summarize(rows, inherited["summary"], oracles)
     return {"schema": "lighttpd-i12-current-ledger-v1", "route": route,
             "revision_binding": revisions, "baseline": [cases_ref, oracle_ref],
             "summary": summary,
-            "actual_executions": [{"client_producers": execution_producers[key],
-                                   "original_ids": ids, "unique_execution_count": 1}
-                                  for key, ids in executions.items()], "rows": rows}
+            "actual_executions": execution_groups(executions), "rows": rows}
 
 
 def summarize(rows, inherited, oracles):
@@ -239,13 +274,17 @@ def summarize(rows, inherited, oracles):
     newly_resolved = [row for row in current if row["run_scoped_case_id"] in oracles
                       and not oracles[row["run_scoped_case_id"]]["resolved"]
                       and row["current"]["oracle_resolved"]]
+    def count_executions(kinds):
+        return len(execution_groups([
+            {"client_producers": row["current"]["actual_client_producers"],
+             "original_ids": [row["run_scoped_case_id"]]}
+            for row in current if row["current"]["execution_kind"] in kinds
+            and row["current"]["execution_observed"] is True]))
     return {
         "original_ids": len(rows), "historical": inherited,
         "current_executed_original_ids": sum(r["current"]["execution_observed"] is True for r in current),
-        "current_unique_http_executions": len({producer_identity(row["current"]["actual_client_producers"]) for row in current
-             if row["current"]["execution_kind"] in ("host_http", "host_pre_native_rejection") and row["current"]["execution_observed"] is True}),
-        "current_unique_parser_executions": len({producer_identity(row["current"]["actual_client_producers"]) for row in current
-             if row["current"]["execution_kind"] == "configuration_parser" and row["current"]["execution_observed"] is True}),
+        "current_unique_http_executions": count_executions(("host_http", "host_pre_native_rejection")),
+        "current_unique_parser_executions": count_executions(("configuration_parser",)),
         "current_verdicts": dict(verdicts),
         "current_qualified_verdicts": dict(Counter(r["current"]["status"] for r in new_full)),
         "current_required_host_lifecycle_pass": sum(r["required_leg"] and r["current"]["full_lifecycle_qualified"]
@@ -261,6 +300,20 @@ def summarize(rows, inherited, oracles):
     }
 
 
+def export_output(output):
+    output = Path(output).absolute()
+    approved = (Q.EXTERNAL_ROOT, Q.REPOSITORY / "reports/testing")
+    if ".." in output.parts or not any(output.is_relative_to(root) for root in approved):
+        raise ValueError("Current ledger output must belong to approved external or testing report roots")
+    if output.exists() or output.is_symlink():
+        raise ValueError("Use a fresh output directory; inherited exports are immutable")
+    if output.resolve() != output:
+        raise ValueError("Current ledger output must have physical parents")
+    if output.is_relative_to(Q.EXTERNAL_ROOT):
+        Q.storage_root(Q.EXTERNAL_ROOT)
+    return output
+
+
 def export(paths, revisions, output, execution_index=None):
     captures, inventory_ref = execution_inventory(execution_index)
     indexed = {}
@@ -270,11 +323,7 @@ def export(paths, revisions, output, execution_index=None):
         if identity in indexed:
             raise ValueError("Multiple selected current results for the same original ID")
         indexed[identity] = result, packet, clients, Q.reference(path)
-    output = Path(output)
-    if output.exists() or output.is_symlink():
-        raise ValueError("Use a fresh output directory; inherited exports are immutable")
-    if output.absolute().resolve() != output.absolute():
-        raise ValueError("Current ledger output must have physical parents")
+    output = export_output(output)
     output.mkdir(parents=True, mode=0o700)
     summaries = {}
     for route in Q.ROUTES:

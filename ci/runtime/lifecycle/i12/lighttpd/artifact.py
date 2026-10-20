@@ -26,6 +26,7 @@ FILE_LIMIT = 128 * 1024 * 1024
 TOTAL_LIMIT = 2 * 1024 * 1024 * 1024
 MANIFEST_LIMIT = 32 * 1024 * 1024
 ENTRY_LIMIT = 20000
+MANIFEST_NAME = "manifest.json"
 
 
 def nested_references(value):
@@ -46,7 +47,34 @@ def document(raw):
         return None
 
 
+def approved_reference_path(value):
+    """Validate a selected logical path even when its final file is absent."""
+    path = Path(value)
+    readable = (Q.EXTERNAL_ROOT, Q.REPOSITORY,
+                Path("/root/git/ModSecurity-conector"), Path("/usr"))
+    if (not path.is_absolute() or ".." in path.parts
+            or any(part in (".git", ".aws", ".ssh") for part in path.parts)
+            or not any(path.is_relative_to(root) for root in readable)):
+        raise ValueError(
+            f"Evidence must belong to approved roots without traversal or sensitive paths: {path}")
+    if path.is_relative_to(Q.EXTERNAL_ROOT):
+        Q.storage_root(Q.EXTERNAL_ROOT)
+    cursor = path
+    while not cursor.exists():
+        if cursor.is_symlink():
+            raise ValueError(
+                f"Evidence path must be physical without symlink components: {path}")
+        parent = cursor.parent
+        if parent == cursor:
+            raise ValueError(f"Evidence path has no existing physical parent: {path}")
+        cursor = parent
+    if cursor.resolve(strict=True) != cursor:
+        raise ValueError(f"Evidence path must be physical without symlink components: {path}")
+    return path
+
+
 def checked_snapshot(ref, maximum):
+    approved_reference_path(ref["path"])
     path = Path(ref["path"])
     if path.stat().st_size > maximum:
         raise ValueError("Evidence file exceeds the explicit per-file budget")
@@ -57,6 +85,48 @@ def checked_snapshot(ref, maximum):
     if "bytes" in ref and actual["bytes"] != ref["bytes"]:
         raise ValueError("Evidence size differs from the selected immutable reference")
     return raw, actual
+
+
+def load_immutable_snapshots(refs, maximum, total_maximum):
+    """Load Root-selected historical bytes without changing their original refs."""
+    if len(refs) > ENTRY_LIMIT:
+        raise ValueError("Immutable snapshots exceed the bounded entry budget")
+    snapshots = {}
+    used = 0
+    for ref in refs:
+        raw, actual = checked_snapshot(ref, maximum)
+        prior = snapshots.get(actual["sha256"])
+        if prior is not None and prior[0] != raw:
+            raise ValueError("Immutable snapshots disagree for the same digest")
+        if prior is None:
+            used += len(raw)
+            if used > total_maximum:
+                raise ValueError("Immutable snapshots exceed the explicit total-byte budget")
+        snapshots[actual["sha256"]] = raw, actual
+    return snapshots
+
+
+def resolved_snapshot(ref, maximum, snapshots):
+    """Prefer the bound producer path and use an exact selected snapshot on drift."""
+    approved_reference_path(ref["path"])
+    try:
+        raw, actual = checked_snapshot(ref, maximum)
+        return raw, actual, None
+    except FileNotFoundError as error:
+        failure = error
+    except ValueError as error:
+        if str(error) not in ("Evidence bytes differ from the selected immutable reference",
+                              "Evidence size differs from the selected immutable reference"):
+            raise
+        failure = error
+    snapshot = snapshots.get(ref["sha256"])
+    if snapshot is None:
+        raise failure
+    raw, source = snapshot
+    if len(raw) > maximum or ("bytes" in ref and len(raw) != ref["bytes"]):
+        raise ValueError("Immutable snapshot size differs from the original reference")
+    actual = {"path": ref["path"], "sha256": ref["sha256"], "bytes": len(raw)}
+    return raw, actual, source
 
 
 def add_member(archive, name, raw):
@@ -71,43 +141,80 @@ def unavailable_key(ref):
     return ref["path"], ref["sha256"]
 
 
-def collect(seed, staging, maximum, total_maximum):
+def reference_roots(seed):
+    roots = tuple(Path(value) for value in seed.get("recursive_reference_roots", []))
+    if any(not root.is_absolute() or ".." in root.parts for root in roots):
+        raise ValueError("Recursive reference roots must be absolute without traversal")
+    return roots
+
+
+def selected_child(ref, roots):
+    return not roots or any(Path(ref["path"]).is_relative_to(root) for root in roots)
+
+
+def stage_object(staging, digest, raw, objects, used, total_maximum):
+    if digest in objects:
+        return used
+    used += len(raw)
+    if used > total_maximum:
+        raise ValueError("Evidence closure exceeds its explicit total-byte budget")
+    target = staging / digest
+    with target.open("xb") as stream:
+        stream.write(raw)
+    target.chmod(0o444)
+    objects[digest] = len(raw)
+    return used
+
+
+def collect(seed, staging, maximum, total_maximum, snapshots):
     """Read only explicit SHA-bound references, including their JSON closure."""
-    pending = list(seed["files"])
+    follow_default = seed.get("follow_json_references") is True
+    pending = [(ref, ref.get("follow_json_references", follow_default))
+               for ref in seed["files"]]
     approved_missing = {unavailable_key(ref): ref for ref in seed.get("unavailable_references", [])}
     if any(not item.get("reason") for item in approved_missing.values()):
         raise ValueError("Unavailable historical references require a separate explicit explanation")
-    entries, objects, missing, seen = [], {}, [], set()
+    roots = reference_roots(seed)
+    entries, objects, missing, resolutions, out_of_scope = [], {}, [], [], {}
+    seen, expanded = set(), set()
     used = 0
     while pending:
-        ref = pending.pop()
+        ref, follow = pending.pop()
         key = unavailable_key(ref)
         if key in seen:
+            if follow and key not in expanded and key not in approved_missing:
+                raw, _, _ = resolved_snapshot(ref, maximum, snapshots)
+                expanded.add(key)
+                for child in nested_references(document(raw)):
+                    if selected_child(child, roots):
+                        pending.append((child, True))
+                    else:
+                        out_of_scope[unavailable_key(child)] = child
             continue
         seen.add(key)
         if len(seen) > ENTRY_LIMIT:
             raise ValueError("Evidence reference closure exceeds its bounded entry budget")
+        approved_reference_path(ref["path"])
         if key in approved_missing:
             missing.append(approved_missing[key])
             continue
-        raw, actual = checked_snapshot(ref, maximum)
+        raw, actual, source = resolved_snapshot(ref, maximum, snapshots)
         digest = actual["sha256"]
         entries.append(actual)
-        if digest not in objects:
-            used += len(raw)
-            if used > total_maximum:
-                raise ValueError("Evidence closure exceeds its explicit total-byte budget")
-            target = staging / digest
-            with target.open("xb") as stream:
-                stream.write(raw)
-            target.chmod(0o444)
-            objects[digest] = len(raw)
-        if seed.get("follow_json_references") is True:
-            pending.extend(nested_references(document(raw)))
+        if source is not None:
+            resolutions.append({"reference": actual, "snapshot": source})
+        used = stage_object(staging, digest, raw, objects, used, total_maximum)
+        if follow:
+            expanded.add(key)
+            for child in nested_references(document(raw)):
+                if selected_child(child, roots):
+                    pending.append((child, True))
+                else:
+                    out_of_scope[unavailable_key(child)] = child
     unknown_exceptions = set(approved_missing) - seen
     if unknown_exceptions:
         raise ValueError("Unused unavailable-reference exceptions are forbidden")
-    return entries, objects, missing
+    return entries, objects, missing, resolutions, list(out_of_scope.values()), used
 
 
 def build(seed_path, output, *, maximum=FILE_LIMIT, total_maximum=TOTAL_LIMIT):
@@ -118,13 +225,24 @@ def build(seed_path, output, *, maximum=FILE_LIMIT, total_maximum=TOTAL_LIMIT):
     output = Path(output).absolute()
     if ".." in output.parts or not output.is_relative_to(Q.EXTERNAL_ROOT):
         raise ValueError("Raw evidence output must use the configured external storage root")
+    Q.storage_root(Q.EXTERNAL_ROOT)
     Q.SOURCES.physical_path(output.parent)
     if output.exists() or output.is_symlink():
         raise ValueError("Use a fresh evidence artifact directory")
     output.mkdir(mode=0o700)
     staging = output / "objects"
     staging.mkdir(mode=0o700)
-    entries, objects, missing = collect(seed, staging, maximum, total_maximum)
+    snapshots = load_immutable_snapshots(
+        seed.get("immutable_snapshots", []), maximum, total_maximum)
+    entries, objects, missing, resolutions, out_of_scope, used = collect(
+        seed, staging, maximum, total_maximum, snapshots)
+    used_snapshots = {item["snapshot"]["sha256"] for item in resolutions}
+    unused_snapshots = set(snapshots) - used_snapshots
+    if unused_snapshots:
+        raise ValueError("Unused immutable snapshots are forbidden")
+    for raw, ref in snapshots.values():
+        entries.append(ref)
+        used = stage_object(staging, ref["sha256"], raw, objects, used, total_maximum)
     seed_raw, seed_ref = checked_snapshot(seed_ref, maximum)
     entries.append(seed_ref)
     if seed_ref["sha256"] not in objects:
@@ -140,6 +258,9 @@ def build(seed_path, output, *, maximum=FILE_LIMIT, total_maximum=TOTAL_LIMIT):
         "publication_review": seed["publication_review"],
         "files": sorted(entries, key=lambda ref: (ref["path"], ref["sha256"])),
         "objects": objects, "unavailable_references": missing,
+        "immutable_snapshot_resolutions": resolutions,
+        "out_of_scope_references": sorted(
+            out_of_scope, key=lambda ref: (ref["path"], ref["sha256"])),
         "raw_complete": not missing,
         "unique_bytes": sum(objects.values()),
         "scope": "Selected physical evidence; packaging does not qualify any original case.",
@@ -147,21 +268,23 @@ def build(seed_path, output, *, maximum=FILE_LIMIT, total_maximum=TOTAL_LIMIT):
     raw_manifest = (json.dumps(manifest, sort_keys=True, indent=2) + "\n").encode()
     if len(raw_manifest) > MANIFEST_LIMIT:
         raise ValueError("Evidence manifest exceeds its bounded budget")
-    manifest_path = output / "manifest.json"
+    manifest_path = output / MANIFEST_NAME
     manifest_path.write_bytes(raw_manifest)
     archive_path = output / "lighttpd-i12-raw.tar.gz"
-    with archive_path.open("xb") as stream:
-        with gzip.GzipFile(filename="", mode="wb", fileobj=stream, mtime=0) as compressed:
-            with tarfile.open(fileobj=compressed, mode="w|") as archive:
-                add_member(archive, "manifest.json", raw_manifest)
-                for digest in sorted(objects):
-                    add_member(archive, "objects/" + digest, (staging / digest).read_bytes())
+    with (archive_path.open("xb") as stream,
+          gzip.GzipFile(filename="", mode="wb", fileobj=stream, mtime=0) as compressed,
+          tarfile.open(fileobj=compressed, mode="w|") as archive):
+        add_member(archive, MANIFEST_NAME, raw_manifest)
+        for digest in sorted(objects):
+            add_member(archive, "objects/" + digest, (staging / digest).read_bytes())
     archive_ref = Q.reference(archive_path)
     verification = verify(archive_path, archive_ref["sha256"], maximum=maximum,
                           total_maximum=total_maximum)
     receipt = {"archive": archive_ref, "manifest": Q.reference(manifest_path),
                "objects": len(objects), "physical_paths": len(entries),
-               "unavailable_references": len(missing), "unique_bytes": sum(objects.values()),
+               "unavailable_references": len(missing),
+               "out_of_scope_references": len(out_of_scope),
+               "unique_bytes": sum(objects.values()),
                "verification": verification}
     Q._exclusive_json(output / "package-receipt.json", receipt)
     return receipt
@@ -192,13 +315,29 @@ def verify_manifest(manifest, measured):
         raise ValueError("Unavailable references cannot be marked as complete raw evidence")
     return {"verified": True, "objects": len(measured), "physical_paths": len(manifest["files"]),
             "unique_bytes": sum(measured.values()), "raw_complete": manifest["raw_complete"],
-            "unavailable_references": len(manifest["unavailable_references"])}
+            "unavailable_references": len(manifest["unavailable_references"]),
+            "out_of_scope_references": len(manifest.get("out_of_scope_references", []))}
+
+
+def approved_archive_path(path):
+    """Validate the CLI/API input before passing a path to the archive reader."""
+    path = Path(path).absolute()
+    readable = (Q.EXTERNAL_ROOT, Q.REPOSITORY, Path("/root/git/ModSecurity-conector"), Path("/usr"))
+    if (".." in path.parts or any(part in (".git", ".aws", ".ssh") for part in path.parts)
+            or not any(path.is_relative_to(root) for root in readable)):
+        raise ValueError("Archive input must belong to approved evidence roots without traversal")
+    if path.resolve(strict=True) != path:
+        raise ValueError("Archive input must be physical without symlink components")
+    if path.is_relative_to(Q.EXTERNAL_ROOT):
+        Q.storage_root(Q.EXTERNAL_ROOT)
+    return path
 
 
 def verify(path, expected_sha256, *, maximum=FILE_LIMIT, total_maximum=TOTAL_LIMIT):
     """Check actual retrieved bytes and every member; never extract untrusted paths."""
     if SHA256.fullmatch(expected_sha256) is None:
         raise ValueError("Expected archive SHA256 must be explicit")
+    path = approved_archive_path(path)
     actual = Q.reference(path)
     if actual["sha256"] != expected_sha256:
         raise ValueError("Retrieved archive SHA256 differs from the published manifest")
@@ -209,7 +348,7 @@ def verify(path, expected_sha256, *, maximum=FILE_LIMIT, total_maximum=TOTAL_LIM
             if member.name in names or len(names) >= ENTRY_LIMIT:
                 raise ValueError("Duplicate or excessive archive members")
             names.add(member.name)
-            if member.name == "manifest.json":
+            if member.name == MANIFEST_NAME:
                 manifest = json.loads(read_member(archive, member, MANIFEST_LIMIT))
                 continue
             prefix, separator, digest = member.name.partition("/")
