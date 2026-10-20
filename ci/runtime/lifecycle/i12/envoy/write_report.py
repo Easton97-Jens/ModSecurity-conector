@@ -6,6 +6,7 @@ from pathlib import Path
 import validate_oracles
 import qualify_originals
 import evidence_io
+import current_base_evidence
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[4]
@@ -28,8 +29,8 @@ def validate_controls_receipt(path):
     ]
     if (receipt.get('schema_version') != 1 or receipt.get('argv') != expected_argv or
             receipt.get('cwd') != str(ROOT) or receipt.get('exit_code') != 0 or
-            receipt.get('tests') != 188 or receipt.get('skips') != 0):
-        raise ValueError('current complete Envoy control receipt is not a 188-test PASS')
+            receipt.get('tests') != 225 or receipt.get('skips') != 0):
+        raise ValueError('current complete Envoy control receipt is not a 225-test PASS')
     if set(receipt.get('logs', {})) != {'stdout', 'stderr'}:
         raise ValueError('control receipt must retain both raw logs')
     for log in receipt['logs'].values():
@@ -250,8 +251,8 @@ def verification_limits(german):
         '',
         '## Verifikation und Grenzen' if german else '## Verification and limits',
         '',
-        'Native/CGo Go `./...`, Race `./...`, Vet `./...` und 32 gemeinsame native Observer-Kontrollen: PASS. Die aktuelle vollständige Envoy-Evidenzsuite hat 188 PASS ohne Skip. Neue Kontrollen prüfen unveränderte IDs/Oracles, physische Hashes, fehlende gRPC-Trailer, geordnete Streamweiterleitung, versiegelte Fault-Fixtures, Quell-/Binary-Austausch, Backend-Framing und Namespace-Ownership-Rennen. Exakte Kommandos, Ergebnisse und Loghashes stehen in den referenzierten Receipts.' if german else
-         'Native/CGo Go `./...`, race `./...`, vet `./...` and 32 common native observer controls: PASS. The current complete Envoy evidence suite has 188 PASS with no skips. New controls cover unchanged IDs/oracles, physical hashes, absent gRPC trailers, ordered stream forwarding, sealed fault fixtures, substituted source/binaries, backend framing and namespace ownership races. Exact commands, outcomes and log hashes are in the referenced receipts.',
+        'Native/CGo Go `./...`, Race `./...`, Vet `./...` und 32 gemeinsame native Observer-Kontrollen: PASS. Die aktuelle vollständige Envoy-Evidenzsuite hat 225 PASS ohne Skip. Neue Kontrollen prüfen unveränderte IDs/Oracles, physische Hashes, fehlende gRPC-Trailer, geordnete Streamweiterleitung, versiegelte Fault-Fixtures, Quell-/Binary-Austausch, Backend-Framing und Namespace-Ownership-Rennen. Exakte Kommandos, Ergebnisse und Loghashes stehen in den referenzierten Receipts.' if german else
+         'Native/CGo Go `./...`, race `./...`, vet `./...` and 32 common native observer controls: PASS. The current complete Envoy evidence suite has 225 PASS with no skips. New controls cover unchanged IDs/oracles, physical hashes, absent gRPC trailers, ordered stream forwarding, sealed fault fixtures, substituted source/binaries, backend framing and namespace ownership races. Exact commands, outcomes and log hashes are in the referenced receipts.',
         '',
         'Offen bleiben die vollständige unabhängige Oracle-/Original-ID-Abnahme, direkte native MIME-/Charset-Auswahl, vollständig korrelierte parallele gRPC-Terminalstatus, gezielt fehlende/wiederholte Hostcallbacks, alle physischen Event-Sink-Fehler und der vollständige Observer-Stop/Restart-Vertrag. P4 Strict wird nicht als unterstützt oder abgenommen behauptet. Unit-, Native- und Race-Erfolg ersetzen diese Hostnachweise nicht.' if german else
          'Still open: complete independent oracle/original-ID acceptance, direct native MIME/charset selection, fully correlated concurrent gRPC terminal status, deliberate missing/repeated host callbacks, all physical event-sink failures and the complete observer stop/restart contract. P4 Strict is not claimed supported or accepted. Unit, native and race success do not replace these host proofs.',
@@ -273,6 +274,58 @@ def storage_footer(german):
                    'References reside in task-owned external storage; the PR contains source and sanitized metadata, not binaries, caches, private keys or raw payloads.',
         ''
     ]
+
+
+def add_current_base_evidence(data, path):
+    if path is None:
+        return
+    supplement = current_base_evidence.validate(path)
+    data['current_base_evidence'] = supplement
+    data['physical_inputs']['current_base_supplement'] = reference(path)
+
+
+def current_base_findings(data, german):
+    supplement = data.get('current_base_evidence')
+    if supplement is None:
+        return []
+    heading = '## Ergänzende Hostproben auf der aktuellen Base' if german else '## Supplemental host probes on the current base'
+    text = (
+        'Die separat hashgebundene Ergänzung prüft die Base `' + supplement['parent_sha'] + '` '
+        'mit dem von der Base geforderten Go 1.27.2 für den Enginebuild, x/net 0.61.0, ModSecurity 3.0.14 und Envoy 1.39.1. '
+        'Die Hostumgebung meldet separat das installierte Go 1.27.3; diese Messung belegt keinen Enginebuild. '
+        'Der frühere Enginebuild mit Go 1.27.3 und seine drei Hostproben bleiben als überholte, nicht qualifizierende Evidenz erhalten. '
+        'Drei frühere Admission-Fehler bleiben Exit 77 mit unbekannter Hostausführung und ohne Cleanup-Behauptung erhalten. '
+        'Drei neue Streaming-Proben haben Runner-Exit 0 und physisch geprüftes Cleanup. '
+        'Je Route sind Zielrequest/-response 95/96 Bytes, Nachbarrequest/-response 6/7 Bytes und zwei Backendrequests belegt. '
+        'Die folgende Tabelle erhält den tatsächlich belegten Authorization-Status je Route und Client. '
+        'Nicht zuordenbare Trailer bleiben unbekannt und erfolgreicher Abschluss false. '
+        'Der fehlende Process-gRPC-Status bleibt unbekannt und erfolgreicher Abschluss false. '
+        'Diese Proben qualifizieren keine Original-ID: `new_lifecycle_pass=0`. '
+        'Die historischen Messungen, Retakes, Oracle-Zähler und die Quellrevision der bisherigen nativen Evidenz bleiben erhalten.'
+        if german else
+        'The separately hash-bound supplement checks base `' + supplement['parent_sha'] + '` '
+        'with the Base-required Go 1.27.2 for the engine build, x/net 0.61.0, ModSecurity 3.0.14 and Envoy 1.39.1. '
+        'The host environment separately reports installed Go 1.27.3; that measurement does not prove the engine build toolchain. '
+        'The earlier engine build using Go 1.27.3 and its three host probes are retained as superseded, nonqualifying evidence. '
+        'Three earlier admission failures retain exit 77, unknown host execution and no cleanup claim. '
+        'Three fresh streaming probes have runner exit 0 and physically verified cleanup. '
+        'Each route proves target request/response 95/96 bytes, neighbor request/response 6/7 bytes and two backend requests. '
+        'The following table retains the actually proven Authorization status for each route and client. '
+        'Unscoped trailers remain unknown and successful completion false. '
+        'The absent Process gRPC status remains unknown and successful completion false. '
+        'These probes qualify no original ID: `new_lifecycle_pass=0`. '
+        'Historical measurements, retakes, oracle counts and the prior native evidence source revision are retained.')
+    lines = ['', heading, '', text, '',
+        '| Route | Client | Authorization grpc-status | Successful completion |',
+        '| --- | --- | --- | --- |']
+    for route, roles in supplement['route_transport_observations'].items():
+        for role, transport in roles.items():
+            auth = transport['authorization']
+            status = auth['remote_grpc_status']
+            lines.append('| ' + route + ' | ' + role + ' | '
+                         + ('unknown' if status is None else str(status)) + ' | '
+                         + str(auth['successful_grpc_completion']).lower() + ' |')
+    return lines + ['']
 
 
 def report(data, german):
@@ -307,6 +360,7 @@ def report(data, german):
     lines += sample_companion_cleanup(german)
     lines += verification_limits(german)
     lines += additional_findings(data, german)
+    lines += current_base_findings(data, german)
     lines += references_heading(german)
     for label, value in data['physical_inputs'].items():
         lines.append('- `' + label + '`: `' + value['path'] + '` — SHA256 `' + value['sha256'] + '`.')
@@ -433,6 +487,7 @@ def main():
     parser.add_argument('--oracle-review', type=Path, action='append', required=True)
     parser.add_argument('--qualified', type=Path, action='append', default=[])
     parser.add_argument('--oracle-supplement', type=Path, action='append', default=[])
+    parser.add_argument('--current-base-supplement', type=Path)
     args = parser.parse_args()
     baseline = load(args.baseline)
     native = load(args.native)
@@ -470,6 +525,7 @@ def main():
     allowed_review_hashes = add_oracle_supplements(data, args.oracle_supplement, source_review, source_rows)
     add_host_measurements(data, args.review)
     add_original_retakes(data, source_rows, allowed_review_hashes)
+    add_current_base_evidence(data, args.current_base_supplement)
     directory = ROOT / 'reports/testing'
     (directory / (STEM + '.json')).write_text(encode_report(data))
     for german in (False, True):

@@ -12,6 +12,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tarfile
@@ -219,6 +220,12 @@ def validate_existing(args, source, out, receipt, env, run):
     if args.tmp_root:
         env["TMPDIR"] = str(args.tmp_root.absolute())
     receipt["validation_environment"] = {"TMPDIR": env["TMPDIR"]}
+    if 'go_provenance' in receipt:
+        previous = receipt['go_provenance']
+        if sha(args.go.resolve(strict=True)) != previous['executable_sha256']:
+            raise ValueError('existing build Go executable hash mismatch')
+        profile = json.loads((source / source_inventory.MANIFEST).read_text())['profiles']['envoy']
+        record_go_provenance(args.go, env, receipt, run, profile)
     validate(source, out, env, run, args.go, args.sdk_include, args.sdk_library, args.controls_only)
     receipt["status"] = "pass"
     receipt.pop("failure", None)
@@ -314,9 +321,37 @@ def configure_native_environment(args, root, out, receipt, env):
     receipt["sdk_library"] = {"path": str(args.sdk_library), "sha256": sha(args.sdk_library)}
 
 
+def record_go_provenance(go, env, receipt, run, profile):
+    version = profile['provenance']['go_version']
+    if not isinstance(version, str) or re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version) is None:
+        raise ValueError('exact capture Go version required')
+    executable = go.resolve(strict=True)
+    selected = shutil.which('go', path=env.get('PATH', ''))
+    if (not go.is_absolute() or go.name != 'go' or not executable.is_file()
+            or selected is None or Path(selected).resolve(strict=True) != executable
+            or env.get('GOTOOLCHAIN') != 'local'
+            or env.get('GOOS', 'linux') != 'linux' or env.get('GOARCH', 'amd64') != 'amd64'):
+        raise ValueError('native build must use the selected local Go executable for linux/amd64')
+    identity = {'required_version': version, 'required_identity': 'go version go' + version + ' linux/amd64',
+                'actual_identity': None, 'configured_path': str(go), 'executable_path': str(executable),
+                'executable_sha256': sha(executable), 'verified': False}
+    receipt['go_provenance'] = identity
+    output = run('go-version', [go, 'version'])
+    identity['actual_identity'] = output.decode('utf-8', errors='replace').removesuffix('\n')
+    if sha(executable) != identity['executable_sha256']:
+        run.save()
+        raise ValueError('Go executable changed during provenance capture')
+    if output != (identity['required_identity'] + '\n').encode():
+        run.save()
+        raise ValueError('Go version differs from exact capture provenance')
+    identity['verified'] = True
+    run.save()
+
+
 def compile_native(args, source, out, env, receipt, run, profile):
     if sha(args.sdk_library) != profile["provenance"]["sdk_image_sha256"]:
         raise ValueError("SDK library differs from the selected capture contract")
+    record_go_provenance(args.go, env, receipt, run, profile)
     controls = load(source / OBSERVER_TEST, "envoy_observer_controls")
     symbols = controls.SYMBOLS
     if len(symbols) != 38 or len(set(symbols)) != 38:
@@ -335,11 +370,12 @@ def compile_native(args, source, out, env, receipt, run, profile):
     env["I12_ENVOY_OBSERVER_LDFLAGS"] = " ".join([str(out / OBSERVER_ARCHIVE),
         "-Wl,--undefined=msconnector_lifecycle_sdk_transaction_id",
         *("-Wl,--wrap=" + name for name in symbols)])
-    run("go-version", [args.go, "version"])
     run("sdk-identity-build", ["gcc", "-std=c17", *flags, "-I", args.sdk_include,
         source / ".i12-capture/envoy/sdk-who.c", args.sdk_library, "-o", out / "sdk-who"])
     run("sdk-identity", [out / "sdk-who"])
     run("composite-build", ["sh", source / "connectors/envoy/build/build_composite.sh"], source)
+    if sha(args.go.resolve(strict=True)) != receipt['go_provenance']['executable_sha256']:
+        raise ValueError('Go executable changed during product build')
     receipt["build_ready"] = True
     receipt["binaries"] = {str(path.relative_to(out)): sha(path) for path in (
         out / "build/envoy-ext-proc/msconnector_envoy_ext_proc",

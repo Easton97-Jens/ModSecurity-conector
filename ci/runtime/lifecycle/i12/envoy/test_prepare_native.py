@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import tarfile
 import tempfile
+from types import SimpleNamespace
 import unittest
 
 import prepare_native as prepare
@@ -215,6 +216,99 @@ class ObserverAdapterControls(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'resolved source revision differs'):
             prepare.prepare_source(self.source, {}, changed_resolution, 'a' * 40)
         self.assertEqual(calls, [('source-head', ['git', 'rev-parse', '--verify', 'a' * 40 + '^{commit}'])])
+
+
+class GoProvenanceControls(unittest.TestCase):
+    def setUp(self):
+        manifest = Path(__file__).resolve().parents[1] / 'manifest.json'
+        storage = json.loads(manifest.read_text())['authorized_storage_root']
+        self.temporary = tempfile.TemporaryDirectory(dir=storage)
+        self.root = Path(self.temporary.name)
+        self.go = self.root / 'go'
+        self.go.write_bytes(b'physical test executable identity')
+        self.go.chmod(0o755)
+        self.env = {'PATH': str(self.root), 'GOTOOLCHAIN': 'local'}
+        self.profile = {'provenance': {'go_version': '1.27.2'}}
+        self.receipt = {}
+        self.calls = []
+        self.output = b'go version go1.27.2 linux/amd64\n'
+
+        class Runner:
+            def __call__(_runner, label, argv, *_args):
+                self.calls.append((label, argv))
+                return self.output
+
+            def save(_runner):
+                pass
+
+        self.run = Runner()
+
+    def tearDown(self):
+        self.temporary.cleanup()
+
+    def capture(self):
+        prepare.record_go_provenance(self.go, self.env, self.receipt, self.run, self.profile)
+
+    def test_exact_identity_records_required_actual_and_physical_executable(self):
+        self.capture()
+        self.assertEqual(self.calls, [('go-version', [self.go, 'version'])])
+        self.assertEqual(self.receipt['go_provenance'], {
+            'required_version': '1.27.2', 'required_identity': 'go version go1.27.2 linux/amd64',
+            'actual_identity': 'go version go1.27.2 linux/amd64',
+            'configured_path': str(self.go), 'executable_path': str(self.go),
+            'executable_sha256': prepare.sha(self.go), 'verified': True})
+
+    def test_wrong_patch_release_is_recorded_and_rejected_before_any_build(self):
+        self.output = b'go version go1.27.3 linux/amd64\n'
+        sdk = self.root / 'libmodsecurity.so'
+        sdk.write_bytes(b'test sdk identity')
+        self.profile['provenance']['sdk_image_sha256'] = prepare.sha(sdk)
+        args = SimpleNamespace(go=self.go, sdk_library=sdk)
+        with self.assertRaisesRegex(ValueError, 'exact capture provenance'):
+            prepare.compile_native(args, self.root / 'absent-source', self.root,
+                                   self.env, self.receipt, self.run, self.profile)
+        self.assertEqual(self.calls, [('go-version', [self.go, 'version'])])
+        self.assertFalse(self.receipt['go_provenance']['verified'])
+        self.assertEqual(self.receipt['go_provenance']['actual_identity'], 'go version go1.27.3 linux/amd64')
+        self.assertNotIn('build_ready', self.receipt)
+
+    def test_format_platform_development_and_extra_output_mutations_are_rejected(self):
+        for output in (b'go version go1.27.2 linux/arm64\n', b'go version go1.27.2 darwin/amd64\n',
+                       b'go version devel go1.27.2 linux/amd64\n', b'go version go1.27.2rc1 linux/amd64\n',
+                       b'go version go1.27.2 linux/amd64', b'go version go1.27.2 linux/amd64\r\n',
+                       b'go version go1.27.2 linux/amd64\nextra\n', b'go version go1.27.2 linux/amd64 \n',
+                       b'go version go1.27.2 linux/amd64\xff\n', b''):
+            with self.subTest(output=output):
+                self.output = output
+                with self.assertRaisesRegex(ValueError, 'exact capture provenance'):
+                    self.capture()
+                self.assertFalse(self.receipt['go_provenance']['verified'])
+
+    def test_inexact_manifest_version_is_rejected_before_invocation(self):
+        for version in ('go1.27.2', '1.27', '1.27.2rc1', '1.27.2\n', None):
+            with self.subTest(version=version):
+                self.profile['provenance']['go_version'] = version
+                with self.assertRaisesRegex(ValueError, 'exact capture Go version required'):
+                    self.capture()
+        self.assertEqual(self.calls, [])
+
+    def test_cross_platform_auto_toolchain_and_other_path_selection_are_rejected(self):
+        for changes in ({'GOOS': 'windows'}, {'GOARCH': 'arm64'}, {'GOTOOLCHAIN': 'auto'}, {'PATH': ''}):
+            with self.subTest(changes=changes):
+                self.env = {'PATH': str(self.root), 'GOTOOLCHAIN': 'local', **changes}
+                with self.assertRaisesRegex(ValueError, 'selected local Go executable'):
+                    self.capture()
+        self.assertEqual(self.calls, [])
+
+    def test_changed_executable_during_version_capture_is_rejected(self):
+        def changing_run(label, argv):
+            self.go.write_bytes(b'substituted Go executable')
+            return self.output
+        changing_run.save = lambda: None
+        self.run = changing_run
+        with self.assertRaisesRegex(ValueError, 'changed during provenance capture'):
+            self.capture()
+        self.assertFalse(self.receipt['go_provenance']['verified'])
 
 
 if __name__ == '__main__':

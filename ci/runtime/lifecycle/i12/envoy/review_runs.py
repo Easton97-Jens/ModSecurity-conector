@@ -480,9 +480,13 @@ def parser_modules(helpers):
             raise ValueError('unreviewed transport helper: ' + name)
     sys.path.insert(0, str(helpers))
     try:
+        host_spec = importlib.util.spec_from_file_location('review_host_capture', helpers / 'host_log_observations.py')
+        host_capture = importlib.util.module_from_spec(host_spec)
+        host_spec.loader.exec_module(host_capture)
         spec = importlib.util.spec_from_file_location('review_grpc_capture', helpers / 'grpc_stream_observations.py')
         capture = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(capture)
+        capture.authorization_host_logs = host_capture
     finally:
         sys.path.pop(0)
     return transport, capture, hashes
@@ -493,9 +497,13 @@ def transport_summary(artifacts, shape, transport, capture):
     result = {}
     for label in ('target', 'neighbor'):
         observation = {'verified': False}
+        unary = None
         if raw is not None and capture is not None and isinstance(shape.get(label), str):
-            observation = capture.observe(raw.decode('utf-8', errors='replace'), '/' + shape[label])
-        classified = transport.terminal(observation)
+            text = raw.decode('utf-8', errors='replace')
+            path = '/' + shape[label]
+            observation = capture.observe(text, path)
+            unary = transport.authorization_observation(text, path, capture.authorization_host_logs)
+        classified = transport.terminal(observation, unary)
         result[label] = {name: classified[name] for name in ('process', 'authorization')}
         result[label]['received_http2_payload_callback_count'] = (
             len(observation['actual_received_payload_callbacks'])

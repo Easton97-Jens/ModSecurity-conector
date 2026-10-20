@@ -12,6 +12,31 @@ spec.loader.exec_module(writer)
 
 
 class ReportControls(unittest.TestCase):
+    def test_current_base_supplement_keeps_historical_counts_and_revision(self):
+        data = {'parent_sha': 'f27', 'summary': {'lifecycle_pass': 11, 'open': 114},
+            'host_measurements': [1] * 86, 'original_id_retakes': {'host_runs': 37},
+            'physical_inputs': {}}
+        supplement = {'parent_sha': 'a622', 'new_lifecycle_pass': 0,
+            'route_transport_observations': {'request': {'target': {'authorization': {
+                'remote_grpc_status': None, 'successful_grpc_completion': False}}}}}
+        before = json.loads(json.dumps(data))
+        with patch.object(writer.current_base_evidence, 'validate', return_value=supplement), \
+                patch.object(writer, 'reference', return_value={'sha256': 'supplement'}):
+            writer.add_current_base_evidence(data, Path('/supplement.json'))
+        for key in ('parent_sha', 'summary', 'host_measurements', 'original_id_retakes'):
+            self.assertEqual(data[key], before[key])
+        self.assertEqual(data['current_base_evidence'], supplement)
+        for german in (False, True):
+            self.assertIn('`new_lifecycle_pass=0`', '\n'.join(writer.current_base_findings(data, german)))
+            self.assertIn('| request | target | unknown | false |',
+                          '\n'.join(writer.current_base_findings(data, german)))
+
+    def test_absent_current_base_supplement_preserves_report(self):
+        data = {'physical_inputs': {}}
+        writer.add_current_base_evidence(data, None)
+        self.assertEqual(data, {'physical_inputs': {}})
+        self.assertEqual(writer.current_base_findings(data, False), [])
+
     def test_compact_serialization_preserves_unknown_and_nested_evidence(self):
         data = {'status': 'PARTIAL', 'original_ids': [{'id': 'one', 'grpc_status': None}],
                 'host_measurements': [{'backend': {'request_count': 0, 'request_count_is_lower_bound': True}}],

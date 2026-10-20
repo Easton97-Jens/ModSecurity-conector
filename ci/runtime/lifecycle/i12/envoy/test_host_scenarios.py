@@ -120,13 +120,13 @@ class CaptureControls(unittest.TestCase):
         self.assertFalse(result['process']['successful_grpc_completion'])
 
     def test_unary_requires_trailer_close_and_verified_scope(self):
-        unary = {'actual_success_trailer': {'text': "'grpc-status', '0'"},
+        unary = {'verified': True, 'actual_success_trailer': {'text': "'grpc-status', '0'"},
                  'actual_stream_close': {'text': 'stream 1 closed: 0'}}
-        self.assertTrue(terminal({'verified': True, 'unary_authorization_grpc_end': unary})['authorization']['successful_grpc_completion'])
+        self.assertTrue(terminal({'verified': False}, unary)['authorization']['successful_grpc_completion'])
         for field in unary:
             incomplete = {key: value for key, value in unary.items() if key != field}
-            self.assertFalse(terminal({'verified': True, 'unary_authorization_grpc_end': incomplete})['authorization']['successful_grpc_completion'])
-        self.assertFalse(terminal({'verified': False, 'unary_authorization_grpc_end': unary})['authorization']['successful_grpc_completion'])
+            self.assertFalse(terminal({'verified': True}, incomplete)['authorization']['successful_grpc_completion'])
+        self.assertFalse(terminal({'verified': True}, dict(unary, verified=False))['authorization']['successful_grpc_completion'])
 
 
 if __name__ == '__main__':
