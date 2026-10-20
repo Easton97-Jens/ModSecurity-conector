@@ -417,7 +417,7 @@ def create_private_output(output):
     Existing directories are inspected through descriptors, never chmodded.
     """
     storage = storage_root()
-    output = Path(output)
+    output = lexical_absolute_path(output)
     if not output.is_absolute() or ".." in output.parts or storage not in output.parents:
         raise ValueError("fresh absolute external output below trusted storage required")
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC

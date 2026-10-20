@@ -103,8 +103,9 @@ class EvidenceBoundaryTests(unittest.TestCase):
             target = self.scratch / ("rejected-" + str(index))
             target.mkdir()
             with self.subTest(members=members):
+                archive = self.archive(members)
                 with self.assertRaises(ValueError):
-                    BUILD.export_archive(self.archive(members), target, files, {})
+                    BUILD.export_archive(archive, target, files, {})
 
     def test_v2_export_is_validated_by_unchanged_shared_snapshot_contract(self):
         spec = importlib.util.spec_from_file_location("nginx_boundary_shared_capture",
@@ -269,10 +270,12 @@ class EvidenceBoundaryTests(unittest.TestCase):
                 self.scratch.chmod(0o700)
 
     def test_build_rejects_escape_links_and_writable_ancestors(self):
-        with self.assertRaises(ValueError):
-            BUILD.create_private_output(Path("/tmp/nginx-i12-untrusted-output"))
-        with self.assertRaises(ValueError):
-            BUILD.create_private_output(self.scratch / ".." / "escaped")
+        rejected = (Path("/tmp/nginx-i12-untrusted-output"),
+                    self.scratch / ".." / "escaped",
+                    self.scratch / "unsafe output")
+        for output in rejected:
+            with self.subTest(output=output), self.assertRaises(ValueError):
+                BUILD.create_private_output(output)
         link = self.scratch / "linked"
         link.symlink_to(self.scratch, target_is_directory=True)
         with self.assertRaises((OSError, ValueError)):

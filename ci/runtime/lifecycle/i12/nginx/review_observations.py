@@ -634,7 +634,6 @@ def propose(out, attempt, admission, controller, source_manifest, build_receipt,
         cb=cb,
     )
     context.body, context.complete_body = client_measurements(context)
-    body = context.body
     followup_backend = backend_measurements(context)
     if selected_native:
         context.scoped_fixture_events, context.native_proofs = scoped_native_proofs(out, tx, api, assertions)
