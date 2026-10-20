@@ -63,7 +63,7 @@ int msconnector_runtime_transaction_finish(msconnector_runtime_transaction *tran
 }
 '''
     begin = ("    return transaction_begin_internal(runtime, request, host_request_id, out,\n"
-             "        decision, error, 0);")
+             "        decision, error, 0, NULL);")
     injected = ("    msconnector_request injected_request;\n"
         "    if (request != NULL && (i12_pointer_null(\"headers_null\", request->headers, request->header_count) ||\n"
         "            i12_pointer_null(\"method_null\", request->method, 1U))) {\n"
