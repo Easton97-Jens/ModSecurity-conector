@@ -20,6 +20,8 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[4]
 CLIENT_RESPONSE_BYTES_ID = 'I12::envoy-ext-proc::NEED-client-response-bytes'
 CLIENT_EXIT_SIGNAL_ID = 'I12::envoy-ext-proc::NEED-client-exit-signal'
+AUTHZ_CLIENT_RESPONSE_BYTES_ID = 'I12::envoy-ext-authz-request::NEED-client-response-bytes'
+AUTHZ_REQUEST_MULTIPLE_CHUNKS_ID = 'I12::envoy-ext-authz-request::NEED-request-multiple-chunks'
 ALLOWED = frozenset((
     'I12::envoy-ext-proc::NEED-request-streaming',
     'I12::envoy-ext-proc::NEED-response-streaming',
@@ -27,6 +29,8 @@ ALLOWED = frozenset((
     'I12::envoy-ext-authz-response-companion::NEED-allow',
     CLIENT_RESPONSE_BYTES_ID,
     CLIENT_EXIT_SIGNAL_ID,
+    AUTHZ_CLIENT_RESPONSE_BYTES_ID,
+    AUTHZ_REQUEST_MULTIPLE_CHUNKS_ID,
 ))
 sys.path.insert(0, str(HERE))
 import review_runs as REVIEW
@@ -454,15 +458,162 @@ def client_termination_original_checks(summary, expected, data, checks):
 
 
 def client_original_checks(original, summary, expected, data, checks):
-    if original == CLIENT_RESPONSE_BYTES_ID:
+    if original in (CLIENT_RESPONSE_BYTES_ID, AUTHZ_CLIENT_RESPONSE_BYTES_ID):
         client_response_original_checks(summary, expected, data, checks)
     elif original == CLIENT_EXIT_SIGNAL_ID:
         client_termination_original_checks(summary, expected, data, checks)
 
 
+def authz_fragment_event_origin(line, message):
+    """Require the retained Envoy logger, component and source line per event."""
+    exact = {
+        'request headers complete (end_stream=false):':
+            ('debug', 'http', 'source/common/http/conn_manager_impl.cc:1357'),
+        'request end stream timestamp recorded':
+            ('debug', 'http', 'source/common/http/conn_manager_impl.cc:1340'),
+        'setting buffer limit to 4096':
+            ('debug', 'http', 'source/common/http/filter_manager.cc:1730'),
+        'ext_authz filter is buffering the request':
+            ('debug', 'ext_authz', 'source/extensions/filters/http/ext_authz/ext_authz.cc:490'),
+        'ext_authz filter finished buffering the request since stream is ended':
+            ('debug', 'ext_authz', 'source/extensions/filters/http/ext_authz/ext_authz.cc:516'),
+    }
+    origin = exact.get(message)
+    for beginning, source_line in (
+            ('body size=', 'source/common/http/http1/codec_impl.cc:1296'),
+            ('decode headers called: filter=', 'source/common/http/filter_manager.cc:651'),
+            ('decode data called: filter=', 'source/common/http/filter_manager.cc:799')):
+        if message.startswith(beginning):
+            origin = ('trace', 'http', source_line)
+    if message.startswith("cluster '") and ' match for URL ' in message:
+        origin = ('debug', 'router', 'source/common/router/router.cc:586')
+    if origin is None:
+        return True
+    prefix = r'^\[[^\]]+\] \[[0-9]+\] ' + re.escape(' '.join('[' + part + ']' for part in origin))
+    return re.match(prefix + r' \[Tags: ', line) is not None
+
+
+def authz_host_fragments(summary, expected, shape, data):
+    """The selected HTTP1 sample has two host fragments, then one native sample.
+
+    Codec body lines only carry a connection ID. Require each to be immediately
+    followed by the selected stream's header-mutation and authorization decoders.
+    Worker identity, ordered buffering setup and a single later Check dispatch
+    bound the receive-to-authorization interval. Client sends are not measured.
+    """
+    metadata = summary.get('physical_files', {}).get('envoy.stderr', {})
+    if not metadata.get('sha256') or type(metadata.get('bytes')) is not int:
+        raise ValueError('hash-bound physical Envoy trace required')
+    verify_ref(dict(metadata, path=str(data / 'envoy.stderr')))
+    lines = read_bytes(data / 'envoy.stderr').decode().splitlines()
+    nonce = shape.get('target')
+    if not isinstance(nonce, str) or not re.fullmatch(r'e-[0-9a-f]{12}', nonce):
+        return {}
+    tagged = re.compile(r'\[Tags: "ConnectionId":"([0-9]+)"(?:,"StreamId":"([0-9]+)")?\] (.*)')
+    worker_tag = re.compile(r'^\[[^\]]+\] \[([0-9]+)\] ')
+    def worker_at(index):
+        tag = worker_tag.match(lines[index])
+        return tag[1] if tag else None
+    headers = []
+    for index, line in enumerate(lines):
+        match = tagged.search(line)
+        if match and match[3] == 'request headers complete (end_stream=false):':
+            block = []
+            for header in lines[index + 1:]:
+                if not header:
+                    break
+                block.append(header)
+            if "':path', '/" + nonce + "'" in block and "'x-request-id', '" + nonce + "'" in block:
+                if not authz_fragment_event_origin(line, match[3]):
+                    return {}
+                headers.append((index, match[1], match[2], worker_at(index)))
+    if len(headers) != 1 or headers[0][2] is None or headers[0][3] is None:
+        return {}
+    start, connection, stream, worker = headers[0]
+    scoped = []
+    fragments = []
+    buffering_chain = [
+        'decode headers called: filter=envoy.filters.http.header_mutation status=0',
+        'ext_authz filter is buffering the request', 'setting buffer limit to 4096',
+        'decode headers called: filter=envoy.filters.http.ext_authz status=1']
+    dispatches = []
+    finished_index = None
+    upstream_index = None
+    for index in range(start + 1, len(lines)):
+        match = tagged.search(lines[index])
+        if not match:
+            continue
+        message = match[3]
+        if message == "cluster 'msconnector_composite' match for URL '/envoy.service.auth.v3.Authorization/Check'":
+            if (worker_at(index) != worker or match[2] is None
+                    or not authz_fragment_event_origin(lines[index], message)):
+                return {}
+            dispatches.append(index)
+        if match[1] != connection:
+            continue
+        if worker_at(index) != worker:
+            return {}
+        if not authz_fragment_event_origin(lines[index], message):
+            return {}
+        if message.startswith('request headers complete'):
+            return {}
+        if match[2] not in (None, stream):
+            return {}
+        if message.startswith('body size='):
+            size = re.fullmatch(r'body size=([0-9]+)', message)
+            if (size is None or match[2] is not None
+                    or 'request end stream timestamp recorded' in scoped
+                    or [value for value in scoped if value in buffering_chain] != buffering_chain):
+                return {}
+            for offset, decoder in ((1, 'header_mutation status=0'), (2, 'ext_authz status=1')):
+                following = tagged.search(lines[index + offset]) if index + offset < len(lines) else None
+                if (following is None or (following[1], following[2]) != (connection, stream)
+                        or worker_at(index + offset) != worker
+                        or not authz_fragment_event_origin(lines[index + offset], following[3])
+                        or following[3] != 'decode data called: filter=envoy.filters.http.' + decoder):
+                    return {}
+            fragments.append({'line': index + 1, 'bytes': int(size[1])})
+        if match[2] == stream:
+            scoped.append(message)
+        if message == 'ext_authz filter finished buffering the request since stream is ended':
+            if finished_index is not None:
+                return {}
+            finished_index = index
+        if message == "cluster 'upstream_service' match for URL '/" + nonce + "'":
+            if match[2] != stream:
+                return {}
+            upstream_index = index
+            break
+    end = 'request end stream timestamp recorded'
+    finished = 'ext_authz filter finished buffering the request since stream is ended'
+    if ([row['bytes'] for row in fragments] != [64, 31] or expected.get('request_bytes') != 95
+            or scoped.count(end) != 1 or scoped.count(finished) != 1
+            or scoped.index(end) >= scoped.index(finished)
+            or [value for value in scoped if value in buffering_chain] != buffering_chain
+            or len(dispatches) != 1 or finished_index is None or upstream_index is None
+            or not finished_index < dispatches[0] < upstream_index):
+        return {}
+    return {'worker_thread_id': worker, 'connection_id': connection, 'stream_id': stream, 'request_nonce': nonce,
+            'fragments': fragments, 'total_bytes': 95, 'host_eos_count': 1,
+            'authorization_dispatch_count': 1, 'authorization_dispatch_line': dispatches[0] + 1,
+            'scope': 'two Envoy HTTP1 receive fragments; one buffered authorization/native sample; no native streaming claim'}
+
+
+def authz_fragment_original_checks(summary, expected, shape, data, checks):
+    checks['original_authz_multiple_host_fragments'] = bool(authz_host_fragments(summary, expected, shape, data))
+    scopes = summary.get('native', {}).get('scopes', [])
+    calls = [row for row in (scopes[0].get('typed_body_callbacks', []) if scopes else [])
+             if row.get('operation') == 1 and row.get('response_direction') == 0]
+    checks['original_authz_single_complete_native_sample'] = (len(calls) == 1
+        and calls[0].get('body_bytes') == expected.get('request_bytes') == 95
+        and calls[0].get('eos_argument') is True)
+
+
 def scoped_checks(summary, record, expected, original, shape, native_rows, data):
     checks = predicates(summary, expected)
     client_original_checks(original, summary, expected, data, checks)
+    if original == AUTHZ_REQUEST_MULTIPLE_CHUNKS_ID:
+        authz_fragment_original_checks(summary, expected, shape, data, checks)
     checks['actual_outer_process_terminal'] = (record.get('process_exit_code') == 0
         and type(record.get('started_ns')) is int and type(record.get('finished_ns')) is int
         and record['finished_ns'] >= record['started_ns'] and all(
@@ -598,6 +749,8 @@ def stage_one(record, parent, runs_path, helpers, output):
     control = reference(attempt / 'controller-result.json')
     shape_ref = reference(fixture / SHAPE_FILE)
     values = observation_values(summary, checks, tids, cids, event_meta, expected, original, data)
+    if original == AUTHZ_REQUEST_MULTIPLE_CHUNKS_ID:
+        values['host_action']['request_host_fragments'] = authz_host_fragments(summary, expected, shape, data)
     observations = make_observations(shared, data, fixture, source_ref, values, refs, checks)
     packet = {'schema': 'i12.envoy.original-packet.v1', 'reviewed_by': 'pending_root_review',
         'run_scoped_case_id': original, 'leg_id': route, 'run_id': build['run'], 'parent_sha': parent,

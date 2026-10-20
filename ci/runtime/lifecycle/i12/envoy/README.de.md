@@ -4,9 +4,9 @@
 
 Diese reine Envoy-Testerweiterung nutzt die vorhandene Capture-Variante `envoy`
 und den gemeinsamen nativen Observer. Der [Taskbericht](../../../../../reports/testing/i12-envoy-host-evidence-20261015.de.md)
-ist **PARTIAL**: 284 Original-IDs bleiben erhalten. Sechs neu freigegebene
-Nachweispakete erhöhen den aktuellen Lifecycle-PASS-Bestand auf neun;
-116 ursprüngliche Oracles bleiben offen. Die zentrale Baseline bleibt
+ist **PARTIAL**: 284 Original-IDs bleiben erhalten. Acht neu freigegebene
+Nachweispakete erhöhen den aktuellen Lifecycle-PASS-Bestand auf elf;
+114 ursprüngliche Oracles bleiben offen. Die zentrale Baseline bleibt
 unverändert. Synthetische Hostproben qualifizieren Original-IDs nicht automatisch.
 
 Alle 125 Original-Oracles haben einzelne Quellreviews. Die 33 neuen
@@ -18,19 +18,23 @@ Hostabnahme getrennt.
 | Route | Lifecycle-PASS / Original-IDs | Offene Original-Oracles |
 | --- | ---: | ---: |
 | `envoy-ext-proc` | 5 / 117 | 46 |
-| `envoy-ext-authz-request` | 2 / 94 | 38 |
+| `envoy-ext-authz-request` | 4 / 94 | 36 |
 | `envoy-ext-authz-response-companion` | 2 / 73 | 32 |
 
-Von 275 IDs ohne vollständige Lifecycle-Abnahme sind 8 reine
-Konfigurations-PASS und 267 unqualifiziert. Die 86 echten Hostmessungen umfassen
-37 Retakes unter 33 exakten Original-IDs. Die sechs neuen Einzelfreigaben sind:
+Von 273 IDs ohne vollständige Lifecycle-Abnahme sind 8 reine
+Konfigurations-PASS und 265 unqualifiziert. Die 86 echten Hostmessungen umfassen
+37 Retakes unter 33 exakten Original-IDs. Die acht neuen Einzelfreigaben sind:
 
 - `I12::envoy-ext-proc::NEED-request-streaming`
 - `I12::envoy-ext-proc::NEED-response-streaming`
 - `I12::envoy-ext-proc::NEED-client-response-bytes`
 - `I12::envoy-ext-proc::NEED-client-exit-signal`
 - `I12::envoy-ext-authz-request::NEED-complete-sample`
+- `I12::envoy-ext-authz-request::NEED-request-multiple-chunks`
+- `I12::envoy-ext-authz-request::NEED-client-response-bytes`
 - `I12::envoy-ext-authz-response-companion::NEED-allow`
+
+Die zwei zusätzlichen Request-Autorisierungsfreigaben binden Host- und Clientvertrag unabhängig. Der physische Envoy-Trace identifiziert Worker 285 / CID1 / SID6459190741822168578 und Hostfragmente 64+31=95 mit anschließendem EOS, danach den Authorization Check in Zeile 275. Die Engine erhält ein vollständiges natives 95-Byte-Sample und ein EOS; mehrere Client-Schreibvorgänge bedeuten keine mehreren nativen Callbacks. Die Responsebyte-Freigabe prüft rohes HTTP-Framing und Client-Entitybytes unabhängig. Der Process-Remote-gRPC-Status bleibt unbekannt und wird nicht als Erfolg gezählt.
 
 ## Producer
 
@@ -61,7 +65,7 @@ rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B -m unittest discove
 rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B ci/runtime/lifecycle/i12/capture_sources.py verify
 ```
 
-Die vollständige aktuelle Envoy-Suite hat 175 PASS und 0 Skips. Die fokussierten Fehlerproben-Kontrollen haben 16 PASS, die separaten Go-Testproxy-Kontrollen 10 PASS. Diese Kontrollen qualifizieren den Hostlauf nicht automatisch.
+Die vollständige aktuelle Envoy-Suite hat 188 PASS und 0 Skips. Beleg: `ci/final-envoy-controls-188-v1.json`. Die fokussierten Fehlerproben-Kontrollen haben 16 PASS, die separaten Go-Testproxy-Kontrollen 10 PASS. Diese Kontrollen qualifizieren den Hostlauf nicht automatisch.
 
 Jeder Producer bietet `--help`. Native Vorbereitung benötigt eine neue
 registrierte externe Laufwurzel, den aktuellen Checkout, den vorhandenen

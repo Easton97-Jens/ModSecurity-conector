@@ -441,10 +441,232 @@ class PacketMutations(unittest.TestCase):
         self.assertFalse(self.client_original_results(Q.CLIENT_EXIT_SIGNAL_ID, value, expected)[CLIENT_SIGNAL_CHECK])
 
     def test_selected_client_checks_do_not_expand_other_original_contracts(self):
-        for original in Q.ALLOWED - {Q.CLIENT_EXIT_SIGNAL_ID, Q.CLIENT_RESPONSE_BYTES_ID}:
+        for original in Q.ALLOWED - {Q.CLIENT_EXIT_SIGNAL_ID, Q.CLIENT_RESPONSE_BYTES_ID,
+                                      Q.AUTHZ_CLIENT_RESPONSE_BYTES_ID}:
             with self.subTest(original=original):
                 checks = self.client_original_results(original, {}, {})
                 self.assertEqual(checks, {})
+
+    def test_authz_response_bytes_uses_independent_raw_checker(self):
+        value, expected = self.client_original_fixture()
+        self.assertTrue(all(self.client_original_results(Q.AUTHZ_CLIENT_RESPONSE_BYTES_ID, value, expected).values()))
+        (self.root / 'client/target.body.raw').write_bytes(b'altered!')
+        self.assertFalse(self.client_original_results(Q.AUTHZ_CLIENT_RESPONSE_BYTES_ID, value, expected)[CLIENT_RESPONSE_SHA_CHECK])
+
+    def fragment_fixture(self):
+        self.shape = {'target': 'e-a0e7e6552a85'}
+        self.pre_body = [
+            'decode headers called: filter=envoy.filters.http.header_mutation status=0',
+            'ext_authz filter is buffering the request', 'setting buffer limit to 4096',
+            'decode headers called: filter=envoy.filters.http.ext_authz status=1']
+        self.dispatch_lines = ["cluster 'msconnector_composite' match for URL '/envoy.service.auth.v3.Authorization/Check'"]
+        self.host_lines = [
+            'request headers complete (end_stream=false):',
+            "':path', '/e-a0e7e6552a85'", "'x-request-id', 'e-a0e7e6552a85'", '',
+            'body size=64', 'decode data called: filter=envoy.filters.http.header_mutation status=0',
+            'decode data called: filter=envoy.filters.http.ext_authz status=1',
+            'body size=31', 'decode data called: filter=envoy.filters.http.header_mutation status=0',
+            'decode data called: filter=envoy.filters.http.ext_authz status=1',
+            'request end stream timestamp recorded',
+            'ext_authz filter finished buffering the request since stream is ended']
+        self.value = summary()
+        calls = self.value['native']['scopes'][0]['typed_body_callbacks']
+        self.value['native']['scopes'][0]['typed_body_callbacks'] = [
+            row for row in calls if not (row['operation'] == 1 and row['response_direction'] == 0)] + [
+            {'operation': 1, 'response_direction': 0, 'body_bytes': 95, 'eos_argument': True}]
+
+    def fragment_results(self):
+        rendered = []
+        host_lines = self.host_lines[:4] + self.pre_body + self.host_lines[4:] + self.dispatch_lines + [
+            "cluster 'upstream_service' match for URL '/e-a0e7e6552a85'"]
+        for line in host_lines:
+            if not line or line.startswith("'"):
+                rendered.append(line)
+                continue
+            stream = '' if line.startswith('body size=') else ',"StreamId":"6459190741822168578"'
+            connection = '1'
+            if '/envoy.service.auth.v3.Authorization/Check' in line:
+                connection, stream = '0', ',"StreamId":"5617891409911879446"'
+            origin = self.fragment_origin(line)
+            rendered.append('[2026-10-15T15:04:13.285+00:00] [285] ' + origin + ' [Tags: "ConnectionId":"'
+                            + connection + '"' + stream + '] ' + line)
+        trace = self.root / 'envoy.stderr'
+        trace.write_text('\n'.join(rendered) + '\n')
+        self.value['physical_files'] = {'envoy.stderr': Q.reference(trace)}
+        checks = {}
+        Q.authz_fragment_original_checks(self.value, ORACLE, self.shape, self.root, checks)
+        return checks
+
+    @staticmethod
+    def fragment_origin(message):
+        if message.startswith('request headers complete'):
+            return '[debug] [http] [source/common/http/conn_manager_impl.cc:1357]'
+        if message.startswith('request end stream'):
+            return '[debug] [http] [source/common/http/conn_manager_impl.cc:1340]'
+        if message.startswith('body size='):
+            return '[trace] [http] [source/common/http/http1/codec_impl.cc:1296]'
+        if message.startswith('decode headers called:'):
+            return '[trace] [http] [source/common/http/filter_manager.cc:651]'
+        if message.startswith('decode data called:'):
+            return '[trace] [http] [source/common/http/filter_manager.cc:799]'
+        if message.startswith('setting buffer limit'):
+            return '[debug] [http] [source/common/http/filter_manager.cc:1730]'
+        if message.startswith('ext_authz filter is buffering'):
+            return '[debug] [ext_authz] [source/extensions/filters/http/ext_authz/ext_authz.cc:490]'
+        if message.startswith('ext_authz filter finished buffering'):
+            return '[debug] [ext_authz] [source/extensions/filters/http/ext_authz/ext_authz.cc:516]'
+        return '[debug] [router] [source/common/router/router.cc:586]'
+
+    def test_authz_fragments_are_host_receives_and_single_native_sample(self):
+        self.fragment_fixture()
+        self.assertTrue(all(self.fragment_results().values()))
+        measured = Q.authz_host_fragments(self.value, ORACLE, self.shape, self.root)
+        self.assertEqual([row['bytes'] for row in measured['fragments']], [64, 31])
+        self.assertEqual(measured['stream_id'], '6459190741822168578')
+        self.assertEqual(measured['worker_thread_id'], '285')
+        self.assertEqual(measured['authorization_dispatch_count'], 1)
+        self.assertIn('no native streaming claim', measured['scope'])
+
+    def test_authz_client_writes_alone_and_one_fragment_are_insufficient(self):
+        for body_lines in ([], ['body size=95',
+                'decode data called: filter=envoy.filters.http.header_mutation status=0',
+                'decode data called: filter=envoy.filters.http.ext_authz status=1']):
+            with self.subTest(body_lines=body_lines):
+                self.fragment_fixture()
+                self.host_lines[4:10] = body_lines
+                self.value['clients']['target']['actual_request_sends'] = [32, 32, 31]
+                self.assertFalse(self.fragment_results()['original_authz_multiple_host_fragments'])
+
+    def test_authz_wrong_nonce_sizes_order_and_decoder_fail(self):
+        mutations = [(1, "':path', '/e-000000000000'"), (4, 'body size=63'),
+                     (4, 'body size=31'), (7, 'body size=64'),
+                     (6, 'decode data called: filter=envoy.filters.http.ext_authz status=2')]
+        for index, replacement in mutations:
+            with self.subTest(index=index, replacement=replacement):
+                self.fragment_fixture()
+                self.host_lines[index] = replacement
+                self.assertFalse(self.fragment_results()['original_authz_multiple_host_fragments'])
+
+    def test_authz_fragment_physical_hash_and_wrong_stream_fail(self):
+        self.fragment_fixture()
+        self.fragment_results()
+        trace = self.root / 'envoy.stderr'
+        content = trace.read_text().replace('"StreamId":"6459190741822168578"] decode data',
+                                            '"StreamId":"2"] decode data', 1)
+        trace.write_text(content)
+        with self.assertRaisesRegex(ValueError, 'physical reference changed'):
+            Q.authz_host_fragments(self.value, ORACLE, self.shape, self.root)
+        self.value['physical_files']['envoy.stderr'] = Q.reference(trace)
+        self.assertEqual(Q.authz_host_fragments(self.value, ORACLE, self.shape, self.root), {})
+
+    def test_authz_wrong_connection_and_ambiguous_nonce_fail(self):
+        self.fragment_fixture()
+        self.fragment_results()
+        trace = self.root / 'envoy.stderr'
+        trace.write_text(trace.read_text().replace('"ConnectionId":"1"] body size=64',
+                                                 '"ConnectionId":"2"] body size=64'))
+        self.value['physical_files']['envoy.stderr'] = Q.reference(trace)
+        self.assertEqual(Q.authz_host_fragments(self.value, ORACLE, self.shape, self.root), {})
+        self.host_lines.extend(self.host_lines[:4])
+        self.assertFalse(self.fragment_results()['original_authz_multiple_host_fragments'])
+
+    def test_authz_multiple_native_callbacks_are_rejected(self):
+        self.fragment_fixture()
+        self.value['native']['scopes'][0]['typed_body_callbacks'].append(
+            {'operation': 1, 'response_direction': 0, 'body_bytes': 0, 'eos_argument': False})
+        checks = self.fragment_results()
+        self.assertTrue(checks['original_authz_multiple_host_fragments'])
+        self.assertFalse(checks['original_authz_single_complete_native_sample'])
+
+    def test_authz_fragments_after_eos_and_missing_hash_fail(self):
+        self.fragment_fixture()
+        self.host_lines.insert(7, 'request end stream timestamp recorded')
+        self.host_lines.pop(11)
+        self.assertFalse(self.fragment_results()['original_authz_multiple_host_fragments'])
+        self.value['physical_files'] = {}
+        with self.assertRaisesRegex(ValueError, 'hash-bound physical Envoy trace'):
+            Q.authz_host_fragments(self.value, ORACLE, self.shape, self.root)
+
+    def test_authz_prebody_chain_is_required_exactly_once_and_in_order(self):
+        for operation in ('missing', 'wrong', 'reordered', 'duplicate'):
+            for index in range(4):
+                with self.subTest(operation=operation, index=index):
+                    self.fragment_fixture()
+                    if operation == 'missing':
+                        self.pre_body.pop(index)
+                    elif operation == 'wrong':
+                        self.pre_body[index] += ' altered'
+                    elif operation == 'reordered':
+                        other = (index + 1) % 4
+                        self.pre_body[index], self.pre_body[other] = self.pre_body[other], self.pre_body[index]
+                    else:
+                        self.pre_body.insert(index, self.pre_body[index])
+                    self.assertFalse(self.fragment_results()['original_authz_multiple_host_fragments'])
+
+    def test_authz_check_dispatch_is_once_and_after_buffering(self):
+        for operation in ('missing', 'duplicate', 'early'):
+            with self.subTest(operation=operation):
+                self.fragment_fixture()
+                if operation == 'missing':
+                    self.dispatch_lines = []
+                elif operation == 'duplicate':
+                    self.dispatch_lines *= 2
+                else:
+                    self.host_lines.insert(7, self.dispatch_lines.pop())
+                self.assertFalse(self.fragment_results()['original_authz_multiple_host_fragments'])
+
+    def test_authz_worker_is_numeric_present_and_consistent_at_every_bound_line(self):
+        self.fragment_fixture()
+        self.fragment_results()
+        trace = self.root / 'envoy.stderr'
+        baseline = trace.read_text().splitlines()
+        for index, line in enumerate(baseline):
+            if '[Tags:' not in line:
+                continue
+            for replacement in ('[286]', '[not-a-worker]', ''):
+                with self.subTest(index=index, replacement=replacement):
+                    altered = list(baseline)
+                    altered[index] = line.replace('[285]', replacement, 1)
+                    trace.write_text('\n'.join(altered) + '\n')
+                    self.value['physical_files']['envoy.stderr'] = Q.reference(trace)
+                    self.assertEqual(Q.authz_host_fragments(self.value, ORACLE, self.shape, self.root), {})
+
+    def test_authz_event_logger_source_and_source_line_are_message_specific(self):
+        self.fragment_fixture()
+        self.fragment_results()
+        trace = self.root / 'envoy.stderr'
+        baseline = trace.read_text().splitlines()
+        for index, line in enumerate(baseline):
+            if '[Tags:' not in line:
+                continue
+            for mutation in ('source', 'line', 'logger', 'level'):
+                with self.subTest(index=index, mutation=mutation):
+                    altered = list(baseline)
+                    prefix, message = line.split(' [Tags:', 1)
+                    if mutation == 'source':
+                        prefix = prefix.replace('[source/', '[wrong/')
+                    elif mutation == 'line':
+                        source, _ = prefix.rsplit(':', 1)
+                        prefix = source + ':9999]'
+                    elif mutation == 'logger':
+                        prefix = prefix.replace('] [http]', '] [wrong]').replace('] [ext_authz]', '] [wrong]').replace('] [router]', '] [wrong]')
+                    else:
+                        prefix = prefix.replace('[trace]', '[info]').replace('[debug]', '[info]')
+                    altered[index] = prefix + ' [Tags:' + message
+                    trace.write_text('\n'.join(altered) + '\n')
+                    self.value['physical_files']['envoy.stderr'] = Q.reference(trace)
+                    self.assertEqual(Q.authz_host_fragments(self.value, ORACLE, self.shape, self.root), {})
+
+    def test_authz_new_ids_cannot_cross_route_or_original(self):
+        for original in (Q.AUTHZ_CLIENT_RESPONSE_BYTES_ID, Q.AUTHZ_REQUEST_MULTIPLE_CHUNKS_ID):
+            with self.subTest(original=original):
+                with self.assertRaisesRegex(ValueError, 'original ID or sibling'):
+                    Q.identity({'case': {'original_case_ids': [original], 'route': 'envoy-ext-proc', 'label': 'x'}},
+                               {'original_case_ids': [original], 'leg': 'envoy-ext-proc', 'case_id': 'I12-ENVOY-HOST::x'})
+                with self.assertRaisesRegex(ValueError, 'original ID or sibling'):
+                    Q.identity({'case': {'original_case_ids': [original], 'route': 'envoy-ext-authz-request', 'label': 'x'}},
+                               {'original_case_ids': [Q.CLIENT_RESPONSE_BYTES_ID], 'leg': 'envoy-ext-authz-request',
+                                'case_id': 'I12-ENVOY-HOST::x'})
 
 
 if __name__ == '__main__':

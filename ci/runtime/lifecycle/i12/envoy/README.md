@@ -4,8 +4,8 @@
 
 This Envoy-only test extension reuses the existing `envoy` capture variant and
 common native observer. The [task report](../../../../../reports/testing/i12-envoy-host-evidence-20261015.md)
-is **PARTIAL**: 284 original IDs are preserved. Six newly approved packets
-raise the current lifecycle PASS to nine; 116 original oracles remain open.
+is **PARTIAL**: 284 original IDs are preserved. Eight newly approved packets
+raise the current lifecycle PASS to eleven; 114 original oracles remain open.
 The central baseline stays unchanged. Synthetic host scenarios do not
 automatically qualify original IDs.
 
@@ -17,19 +17,23 @@ source proposals remain separate from canonical resolution and host acceptance.
 | Route | Lifecycle PASS / original IDs | Open original oracles |
 | --- | ---: | ---: |
 | `envoy-ext-proc` | 5 / 117 | 46 |
-| `envoy-ext-authz-request` | 2 / 94 | 38 |
+| `envoy-ext-authz-request` | 4 / 94 | 36 |
 | `envoy-ext-authz-response-companion` | 2 / 73 | 32 |
 
-Of 275 IDs without full lifecycle acceptance, 8 are configuration-only PASS
-and 267 are unqualified. The 86 real host measurements include 37 retakes under
-33 exact original IDs. The six new individual approvals are:
+Of 273 IDs without full lifecycle acceptance, 8 are configuration-only PASS
+and 265 are unqualified. The 86 real host measurements include 37 retakes under
+33 exact original IDs. The eight new individual approvals are:
 
 - `I12::envoy-ext-proc::NEED-request-streaming`
 - `I12::envoy-ext-proc::NEED-response-streaming`
 - `I12::envoy-ext-proc::NEED-client-response-bytes`
 - `I12::envoy-ext-proc::NEED-client-exit-signal`
 - `I12::envoy-ext-authz-request::NEED-complete-sample`
+- `I12::envoy-ext-authz-request::NEED-request-multiple-chunks`
+- `I12::envoy-ext-authz-request::NEED-client-response-bytes`
 - `I12::envoy-ext-authz-response-companion::NEED-allow`
+
+The two additional request-authorization qualifications independently bind the host and client contracts. The physical Envoy trace identifies worker 285 / CID1 / SID6459190741822168578 and host fragments 64+31=95 followed by EOS, then the Authorization Check at line 275. The engine receives one complete 95-byte native sample and one EOS; multiple client writes do not imply multiple native callbacks. The response-byte qualification independently checks raw HTTP framing and client entity bytes. Process remote gRPC status remains unknown and is not counted as success.
 
 ## Producers
 
@@ -60,7 +64,7 @@ rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B -m unittest discove
 rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B ci/runtime/lifecycle/i12/capture_sources.py verify
 ```
 
-The current complete Envoy suite has 175 PASS and 0 skips. Focused fault controls have 16 PASS; separate Go test-proxy controls have 10 PASS. These controls do not automatically qualify the host run.
+The current complete Envoy suite has 188 PASS and 0 skips. Receipt: `ci/final-envoy-controls-188-v1.json`. Focused fault controls have 16 PASS; separate Go test-proxy controls have 10 PASS. These controls do not automatically qualify the host run.
 
 Each producer exposes `--help`. Native preparation requires a fresh registered
 external run root, the current checkout, the existing offline module cache,

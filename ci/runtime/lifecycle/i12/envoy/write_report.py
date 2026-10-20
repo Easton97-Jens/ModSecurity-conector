@@ -28,8 +28,8 @@ def validate_controls_receipt(path):
     ]
     if (receipt.get('schema_version') != 1 or receipt.get('argv') != expected_argv or
             receipt.get('cwd') != str(ROOT) or receipt.get('exit_code') != 0 or
-            receipt.get('tests') != 175 or receipt.get('skips') != 0):
-        raise ValueError('current complete Envoy control receipt is not a 175-test PASS')
+            receipt.get('tests') != 188 or receipt.get('skips') != 0):
+        raise ValueError('current complete Envoy control receipt is not a 188-test PASS')
     if set(receipt.get('logs', {})) != {'stdout', 'stderr'}:
         raise ValueError('control receipt must retain both raw logs')
     for log in receipt['logs'].values():
@@ -250,8 +250,8 @@ def verification_limits(german):
         '',
         '## Verifikation und Grenzen' if german else '## Verification and limits',
         '',
-        'Native/CGo Go `./...`, Race `./...`, Vet `./...` und 32 gemeinsame native Observer-Kontrollen: PASS. Die aktuelle vollständige Envoy-Evidenzsuite hat 175 PASS ohne Skip. Neue Kontrollen prüfen unveränderte IDs/Oracles, physische Hashes, fehlende gRPC-Trailer, geordnete Streamweiterleitung, versiegelte Fault-Fixtures, Quell-/Binary-Austausch, Backend-Framing und Namespace-Ownership-Rennen. Exakte Kommandos, Ergebnisse und Loghashes stehen in den referenzierten Receipts.' if german else
-         'Native/CGo Go `./...`, race `./...`, vet `./...` and 32 common native observer controls: PASS. The current complete Envoy evidence suite has 175 PASS with no skips. New controls cover unchanged IDs/oracles, physical hashes, absent gRPC trailers, ordered stream forwarding, sealed fault fixtures, substituted source/binaries, backend framing and namespace ownership races. Exact commands, outcomes and log hashes are in the referenced receipts.',
+        'Native/CGo Go `./...`, Race `./...`, Vet `./...` und 32 gemeinsame native Observer-Kontrollen: PASS. Die aktuelle vollständige Envoy-Evidenzsuite hat 188 PASS ohne Skip. Neue Kontrollen prüfen unveränderte IDs/Oracles, physische Hashes, fehlende gRPC-Trailer, geordnete Streamweiterleitung, versiegelte Fault-Fixtures, Quell-/Binary-Austausch, Backend-Framing und Namespace-Ownership-Rennen. Exakte Kommandos, Ergebnisse und Loghashes stehen in den referenzierten Receipts.' if german else
+         'Native/CGo Go `./...`, race `./...`, vet `./...` and 32 common native observer controls: PASS. The current complete Envoy evidence suite has 188 PASS with no skips. New controls cover unchanged IDs/oracles, physical hashes, absent gRPC trailers, ordered stream forwarding, sealed fault fixtures, substituted source/binaries, backend framing and namespace ownership races. Exact commands, outcomes and log hashes are in the referenced receipts.',
         '',
         'Offen bleiben die vollständige unabhängige Oracle-/Original-ID-Abnahme, direkte native MIME-/Charset-Auswahl, vollständig korrelierte parallele gRPC-Terminalstatus, gezielt fehlende/wiederholte Hostcallbacks, alle physischen Event-Sink-Fehler und der vollständige Observer-Stop/Restart-Vertrag. P4 Strict wird nicht als unterstützt oder abgenommen behauptet. Unit-, Native- und Race-Erfolg ersetzen diese Hostnachweise nicht.' if german else
          'Still open: complete independent oracle/original-ID acceptance, direct native MIME/charset selection, fully correlated concurrent gRPC terminal status, deliberate missing/repeated host callbacks, all physical event-sink failures and the complete observer stop/restart contract. P4 Strict is not claimed supported or accepted. Unit, native and race success do not replace these host proofs.',
