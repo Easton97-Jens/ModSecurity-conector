@@ -21,6 +21,10 @@ def load_review():
 
 
 REVIEW = load_review()
+CONTROL_SPEC = importlib.util.spec_from_file_location(
+    'apache_batch_control_review', Path(__file__).with_name('review_controls.py'))
+CONTROLS = importlib.util.module_from_spec(CONTROL_SPEC)
+CONTROL_SPEC.loader.exec_module(CONTROLS)
 read = REVIEW.read
 reference = REVIEW.reference
 ROLES = REVIEW.LEDGER.SHARED.ROLES
@@ -406,6 +410,15 @@ def configuration_candidate(plan, root, attempt, spec_path, bindings, controller
         if path.is_file():
             packet['configuration_candidate'][name] = {'reference': REVIEW.ORACLES.reference(path),
                                                        'actual': read(path)}
+    packet['control_candidate'] = CONTROLS.candidate(plan, root, attempt, spec_path, bindings, controller)
+    return packet
+
+
+def pre_native_candidate(plan, root, attempt, spec_path, bindings, controller):
+    packet = empty_packet(plan, 'Host parser control has no observed main native lifecycle.')
+    control = CONTROLS.candidate(plan, root, attempt, spec_path, bindings, controller)
+    packet.update(execution_kind=control['execution_kind'], execution_observed=control['execution_observed'],
+                  run_id=control['run_id'], native_transaction_id=None, control_candidate=control)
     return packet
 
 
@@ -431,6 +444,8 @@ def extract_all(attempt, spec_path):
                 packet = empty_packet(plan, 'No actual case observation capture in this attempt.')
             elif plan['execution_kind'] == 'configtest':
                 packet = configuration_candidate(plan, root, attempt, spec_path, bindings, controller)
+            elif plan['case_id'] in CONTROLS.PRE_NATIVE_CASES:
+                packet = pre_native_candidate(plan, root, attempt, spec_path, bindings, controller)
             else:
                 extractor = BatchExtractor(attempt, spec_path, plan, root, bindings, controller)
                 extractor.load_batch_case()
