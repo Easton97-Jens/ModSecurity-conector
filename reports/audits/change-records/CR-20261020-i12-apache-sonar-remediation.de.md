@@ -11,6 +11,9 @@ Apache-spezifische Bereinigung des Abnahme-Harness in Draft-PR #414. Dieser Beri
 | Change-ID | CR-20261020-i12-apache-sonar-remediation |
 | Datum (UTC) | 2026-10-20 |
 | Basis-Revision | `fe2c30f710a26e3ea7ef0dcc2b847e3fb093deb6` |
+| Apache-Bereinigungscommit | `ee68b78f4f802149ed6d864a32ff5198e8c0596b` |
+| Integrierter Quell-/Test-Head | `f51a5af855a1da55540c4ffda11e3ff95b01d2cf` |
+| Aktueller PR-#410-Zielbranch-Head | `92cd1133ceb3de1afee0e935be167dac39673a8c` |
 
 ## Motivation und Problemstellung
 
@@ -57,7 +60,8 @@ Befehle verwenden RTK und die vorhandene Python-Umgebung. Arbeitsverzeichnis: `/
 | Abschließende Apache-I12-Unittest-Discovery nach allen Quellkorrekturen | 269 Tests, Exit 0, 3 ausdrückliche Opt-in-/Root-DAC-Skips. Dies ist der maßgebliche gemeinsame lokale Lauf. |
 | Batch-Review-Opt-ins mit tatsächlichem Capture nach den abschließenden Quellkorrekturen | 8 Tests, Exit 0, keine Skips. Zwei vorherige Aufrufe wählten den falschen beibehaltenen Spec-Pfad und scheiterten vor der Extraktion; maßgeblich ist der Lauf mit der versuchseigenen `2-smoke-spec-v2.json`. |
 | Separater Common-Sink-Boundary-Lauf unter UID/GID `65534` nach den C-Änderungen | 9/9 Tests bestanden, Exit 0, einschließlich echtem `EACCES`/`errno 13` am schreibgeschützten Elternverzeichnis; Evidence liegt unter `/var/tmp/codex/ModSecurity-conector/nonroot-common-boundary-414-20261020-v2/evidence`. |
-| Breite Auswahl von Sonar-Gate-, Reliability- und Helpertests | 61 Tests ausgeführt, Exit 1: 60 bestanden; das bestehende HAProxy-Append-String-Linkfixture scheiterte an nicht aufgelösten Common-/Authorization-Symbolen. Dieser Integrationsfehler eines anderen Connectors liegt außerhalb der Apache-Änderung und wurde weder verborgen noch verändert. |
+| Breite Auswahl von Sonar-Gate-, Reliability- und Helpertests | Erster integrierter Lauf: 60 bestanden; ein veraltetes HAProxy-Fixture scheiterte beim Linken, Exit 1. Die reine Fixturekorrektur wurde unabhängig geprüft, zentral als `92cd1133ceb3de1afee0e935be167dac39673a8c` auf #410 veröffentlicht und normal übernommen. Exakter integrierter Wiederholungslauf: 61 Tests bestanden, Exit 0. |
+| Eingehende Zielbranch-Regressionen | Lighttpd-Response-Splice/Empty-EOS: 2 Tests bestanden, Exit 0. Gemeinsames Config-/Lifecycle-/Pre-Native-Ledger: 40 Tests bestanden, Exit 0. |
 | `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python ci/tools/new-change-record.py check` | Exit 0; nur Change-Record-Struktur, keine Evidence-Validierung. |
 | `rtk proxy make check-bilingual-docs` mit Framework `99a7985c1be92a2297b1b59208f64df6768f2cbf` nur-lesbar an der Gitlink-Position | Exit 0, `bilingual docs ok`. Der erste direkte Checkout-Versuch zeigte nur den absichtlich nicht ausgecheckten Worktree-Gitlink; maßgeblich ist der Read-only-Wiederholungslauf mit exaktem Pin. |
 | `rtk proxy make check-doc-links` im selben nur-lesbaren Namespace mit exaktem Pin | Exit 0; Repository-Pfadverweise und Dokumentlinks bestanden. |
@@ -83,7 +87,7 @@ Das vollständige Inventar mit 179 Issues gehört zur alten Basis-Analyse. Lokal
 
 ## Verbleibende Risiken
 
-Refactoring von Framing-, Ausnahme- und Observer-Pfaden kann weiterhin Verhalten außerhalb der lokal ausgeführten Pfade beeinflussen. Der Apache-Abnahme fehlen weiterhin vollständige aktuelle Run-Qualifikation für alle Pflichtfälle und unabhängige Freigabe der Original-Oracle-Vorschläge. Gemeinsamer Ledger-Dispatch für Config-/Pre-Native-/Host-Qualifikation bleibt Integrationsbedarf; diese Änderung verändert den zentralen Generator nicht. Der unabhängige HAProxy-Fixture-Linkfehler bleibt ebenfalls ein zentraler beziehungsweise Connector-Integrationsbedarf außerhalb des erlaubten Apache-Dateiumfangs.
+Refactoring von Framing-, Ausnahme- und Observer-Pfaden kann weiterhin Verhalten außerhalb der lokal ausgeführten Pfade beeinflussen. Der Apache-Abnahme fehlen weiterhin vollständige aktuelle Run-Qualifikation für alle Pflichtfälle und unabhängige Freigabe der Original-Oracle-Vorschläge. Apache-spezifischer ergänzender Dispatch und semantische Prädikate werden weiterhin benötigt, um die nun integrierten gemeinsamen Config-/Pre-Native-/Host-Validatoren anzuwenden, ohne den zentralen Generator zu verändern.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
@@ -91,4 +95,4 @@ In dieser lokalen Validierungsstufe des Berichts sind eine neue commitgebundene 
 
 ## Finaler Diff- und Review-Status
 
-Die Bereinigung ist ein uncommitteter Kandidat relativ zum vollständigen Basis-SHA oben. Ein unabhängiges Abschlussreview deckte den erweiterten Diff ab, fand die beiden oben erfassten Regressionen und verifizierte ihre Korrekturen; es fand keine verbleibende konkrete blockierende Security- oder Verhaltensabweichung. Normale Commits/Pushes und Zielbranch-Integration sind autorisiert; hier werden weder ein veröffentlichter Bereinigungs-SHA, erfolgreiche commitgenaue CI-/Sonar-Prüfung noch ein PR-Merge behauptet. Abschließende Lieferung und Runtime-Qualifikation werden in der integrierenden Aufgabe getrennt verfolgt.
+Die Bereinigung ist als `ee68b78f4f802149ed6d864a32ff5198e8c0596b` committet; der aktuelle lokale Quell-/Test-Integrationshead ist `f51a5af855a1da55540c4ffda11e3ff95b01d2cf`. Ein unabhängiges Abschlussreview deckte den erweiterten Apache-Diff ab, fand die beiden oben erfassten Regressionen und verifizierte ihre Korrekturen; es fand keine verbleibende konkrete blockierende Security- oder Verhaltensabweichung. Das veraltete HAProxy-Testfixture wurde getrennt auf dem #410-Zielbranch korrigiert und veröffentlicht, bevor es normal erneut integriert wurde. Erfolgreiche CI-/Sonar-Prüfung des exakt veröffentlichten Heads und ein PR-Merge werden hier nicht behauptet. Abschließende Lieferung und Runtime-Qualifikation werden in der integrierenden Aufgabe getrennt verfolgt.

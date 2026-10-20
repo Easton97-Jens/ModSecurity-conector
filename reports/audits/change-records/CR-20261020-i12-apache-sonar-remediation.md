@@ -11,6 +11,9 @@ Apache-only acceptance-harness remediation in Draft PR #414. This record describ
 | Change ID | CR-20261020-i12-apache-sonar-remediation |
 | Date (UTC) | 2026-10-20 |
 | Base revision | `fe2c30f710a26e3ea7ef0dcc2b847e3fb093deb6` |
+| Apache remediation commit | `ee68b78f4f802149ed6d864a32ff5198e8c0596b` |
+| Integrated source/test head | `f51a5af855a1da55540c4ffda11e3ff95b01d2cf` |
+| Current PR #410 target head | `92cd1133ceb3de1afee0e935be167dac39673a8c` |
 
 ## Motivation and problem statement
 
@@ -57,7 +60,8 @@ Commands use RTK and the existing Python environment. Working directory: `/var/t
 | Final Apache-I12 unittest discovery after all source fixes | 269 tests, exit 0, 3 explicit opt-in/root-DAC skips. This is the authoritative combined local run. |
 | Actual-capture batch-review opt-ins after the final source fixes | 8 tests, exit 0, no skips. Two preceding invocations selected the wrong retained spec path and failed before extraction; the exact attempt-owned `2-smoke-spec-v2.json` rerun is authoritative. |
 | Separate Common sink boundary run under UID/GID `65534` after the C changes | 9/9 tests passed, exit 0, including genuine read-only-parent `EACCES`/`errno 13`; evidence is under `/var/tmp/codex/ModSecurity-conector/nonroot-common-boundary-414-20261020-v2/evidence`. |
-| Broad Sonar gate/reliability/helper selection | 61 tests executed, exit 1: 60 passed and the pre-existing HAProxy append-string link fixture failed on unresolved Common/authorization symbols. That other-connector integration is outside this Apache-only change and was not hidden or modified. |
+| Broad Sonar gate/reliability/helper selection | Initial integrated run: 60 passed and one stale HAProxy fixture failed to link, exit 1. The fixture-only correction was independently tested and published centrally on #410 as `92cd1133ceb3de1afee0e935be167dac39673a8c`, then normally merged. Exact integrated rerun: 61 tests passed, exit 0. |
+| Incoming target regressions | Lighttpd response-splice/empty-EOS: 2 tests passed, exit 0. Shared configuration/lifecycle/pre-native ledger: 40 tests passed, exit 0. |
 | `rtk proxy /root/git/ModSecurity-conector/.venv/bin/python ci/tools/new-change-record.py check` | Exit 0; Change Record structure only, not evidence validation. |
 | `rtk proxy make check-bilingual-docs` with Framework `99a7985c1be92a2297b1b59208f64df6768f2cbf` mounted read-only at the gitlink | Exit 0, `bilingual docs ok`. The first direct checkout attempt only exposed the intentionally unpopulated worktree gitlink; the exact-pin read-only rerun is authoritative. |
 | `rtk proxy make check-doc-links` in the same exact-pin read-only namespace | Exit 0, repository path references and document links passed. |
@@ -83,7 +87,7 @@ The full 179-issue inventory belongs to the old base analysis. Local source reme
 
 ## Remaining risks
 
-Refactoring framing, exception and observer paths may still affect behavior outside the locally exercised paths. Apache acceptance lacks full current-run qualification for all mandatory cases and independent approval of the original oracle proposals. Shared ledger dispatch needed for configuration/pre-native/host qualification remains an integration need; this change does not alter the central generator. The unrelated HAProxy fixture link failure also remains a central/connector integration need outside the permitted Apache file scope.
+Refactoring framing, exception and observer paths may still affect behavior outside the locally exercised paths. Apache acceptance lacks full current-run qualification for all mandatory cases and independent approval of the original oracle proposals. Apache-specific supplemental dispatch and semantic predicates are still needed to apply the now-integrated shared configuration/pre-native/host validators without changing the central generator.
 
 ## Checks not run and rationale
 
@@ -91,4 +95,4 @@ At this record's local-validation stage, a new commit-bound Cloud analysis and a
 
 ## Final diff and review status
 
-The remediation is an uncommitted candidate relative to the full base SHA above. An independent final review covered the expanded diff, found the two regressions recorded above, and verified their corrections; it found no remaining concrete blocking security or behavior issue. Normal commit/push and target-branch integration are authorized; no published remediation SHA, exact-commit CI/Sonar success or PR merge is claimed here. Final delivery and runtime qualification are tracked separately in the integrating task.
+The remediation is committed as `ee68b78f4f802149ed6d864a32ff5198e8c0596b`; the current local source/test integration head is `f51a5af855a1da55540c4ffda11e3ff95b01d2cf`. An independent final review covered the expanded Apache diff, found the two regressions recorded above, and verified their corrections; it found no remaining concrete blocking security or behavior issue. The stale HAProxy test fixture was fixed and published separately on the #410 target before normal reintegration. Exact published-head CI/Sonar success and PR merge are not claimed here. Final delivery and runtime qualification are tracked separately in the integrating task.
