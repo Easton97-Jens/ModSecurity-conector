@@ -15,6 +15,7 @@ from pathlib import Path
 import shutil
 import signal
 import socket
+from socketserver import TCPServer
 import stat
 import subprocess
 import sys
@@ -480,15 +481,29 @@ def stop_backend(*_):
     raise SystemExit(0)
 
 
-def backend(port, directory):
-    sys.path.insert(0, "/mnt/fixtures")
-    spec = importlib.util.spec_from_file_location("diagnostic_backend", "/mnt/fixtures/observed-backend.py")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    from http.server import HTTPServer
+class NumericLoopbackFixtureServer(TCPServer):
+    """Private plaintext wire fixture; no DNS, wildcard bind or remote peers."""
+
+    allow_reuse_address = True
+
+    def __init__(self, port, handler):
+        if type(port) is not int or not 0 <= port <= 65535:
+            raise ValueError("Backend fixture requires an integer loopback TCP port")
+        super().__init__(("127.0.0.1", port), handler)
+
+    def verify_request(self, request, client_address):
+        try:
+            bound_address = self.socket.getsockname()[0]
+            peer_address = request.getpeername()[0]
+        except OSError:
+            return False
+        return (bound_address == "127.0.0.1"
+                and client_address[0] == "127.0.0.1"
+                and peer_address == "127.0.0.1")
+
+
+def backend_handler(module, directory, case):
     module.Handler.body_bytes = b"diagnostic-native-response"
-    case = json.loads((directory / "case.json").read_text())
     headers = [("Content-Type", TEXT_PLAIN)]
     if case.get("backend_marker"):
         headers.append(("X-Modsec-Upstream", case["backend_marker"]))
@@ -545,7 +560,17 @@ def backend(port, directory):
             time.sleep(0.05)
             self.close_connection = True
 
-    server = HTTPServer(("127.0.0.1", port), DiagnosticBackend)
+    return DiagnosticBackend
+
+
+def backend(port, directory):
+    sys.path.insert(0, "/mnt/fixtures")
+    spec = importlib.util.spec_from_file_location("diagnostic_backend", "/mnt/fixtures/observed-backend.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    case = json.loads((directory / "case.json").read_text())
+    server = NumericLoopbackFixtureServer(port, backend_handler(module, directory, case))
     signal.signal(signal.SIGTERM, stop_backend)
     try:
         server.serve_forever(poll_interval=0.05)

@@ -9,6 +9,8 @@ import shutil
 import subprocess
 import threading
 import unittest
+from unittest import mock
+import sys
 
 
 SPEC = importlib.util.spec_from_file_location("lighttpd_i12_diagnostic",
@@ -26,6 +28,83 @@ PACKETS_SPEC.loader.exec_module(PACKETS)
 
 
 class DiagnosticTests(unittest.TestCase):
+    def backend_module(self):
+        source = Path(__file__).resolve().parents[1] / "ci/runtime/common/response-header-test-backend.py"
+        spec = importlib.util.spec_from_file_location("diagnostic_test_backend", source)
+        module = importlib.util.module_from_spec(spec)
+        with mock.patch.dict(sys.modules, {spec.name: module}), mock.patch.object(sys, "path", [str(source.parent), *sys.path]):
+            spec.loader.exec_module(module)
+        return module
+
+    def exchange_backend(self, directory, case, method="GET", peer="127.0.0.1"):
+        handler = NATIVE.backend_handler(self.backend_module(), directory, case)
+        with NATIVE.NumericLoopbackFixtureServer(0, handler) as server:
+            self.assertEqual(server.socket.getsockname()[0], "127.0.0.1")
+            server.timeout = 3
+            worker = threading.Thread(target=server.handle_request)
+            worker.start()
+            try:
+                with socket.socket() as connection:
+                    connection.settimeout(3)
+                    connection.bind((peer, 0))
+                    connection.connect(server.server_address)
+                    entity = b"actual-post" if method == "POST" else b""
+                    request = (f"{method} /diagnostic/test HTTP/1.1\r\nHost: private-fixture\r\n"
+                               f"Content-Length: {len(entity)}\r\nConnection: close\r\n\r\n").encode() + entity
+                    connection.sendall(request)
+                    received = bytearray()
+                    while True:
+                        try:
+                            chunk = connection.recv(4096)
+                        except ConnectionResetError:
+                            break
+                        if not chunk:
+                            break
+                        received.extend(chunk)
+            finally:
+                worker.join(timeout=5)
+            self.assertFalse(worker.is_alive())
+            return bytes(received)
+
+    def assert_backend_response(self, root, case, method, expected_events):
+        body = b"diagnostic-native-response"
+        transport = root / "backend-transport.jsonl"
+        if transport.exists():
+            transport.unlink()
+        raw = self.exchange_backend(root, case, method)
+        header, _, entity = raw.partition(b"\r\n\r\n")
+        self.assertTrue(header.startswith(b"HTTP/1.0 200 "))
+        self.assertEqual(entity, body)
+        declared = len(body) + (9 if case.get("backend_short_length") else 0)
+        self.assertIn(f"Content-Length: {declared}".encode(), header)
+        events = [json.loads(line) for line in transport.read_text().splitlines()] if transport.exists() else []
+        self.assertEqual(len(events), expected_events)
+        self.assertEqual(sum(event["actual_body_write_return"] for event in events), len(body) if expected_events else 0)
+        self.assertTrue(all(event["actual_flush_returned"] for event in events))
+
+    def test_numeric_backend_real_get_post_delay_and_short_response(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for case, expected_events in (({}, 0), ({"backend_chunk_delay_seconds": 0.01}, 2), ({"backend_short_length": True}, 1)):
+                for method in ("GET", "POST"):
+                    with self.subTest(case=case, method=method):
+                        self.assert_backend_response(root, case, method, expected_events)
+
+    def test_numeric_backend_rejects_remote_identity_and_invalid_bind_port(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            self.assertEqual(self.exchange_backend(Path(temporary), {}, peer="127.0.0.2"), b"")
+        with NATIVE.NumericLoopbackFixtureServer(0, object) as server:
+            request = mock.Mock()
+            request.getpeername.return_value = ("192.0.2.1", 1234)
+            self.assertFalse(server.verify_request(request, ("127.0.0.1", 1234)))
+            request.getpeername.return_value = ("127.0.0.1", 1234)
+            self.assertFalse(server.verify_request(request, ("192.0.2.1", 1234)))
+            request.getpeername.side_effect = OSError(107, "Transport endpoint is not connected")
+            self.assertFalse(server.verify_request(request, ("127.0.0.1", 1234)))
+        for port in (-1, 65536, "80", True):
+            with self.subTest(port=port), self.assertRaisesRegex(ValueError, "integer loopback TCP port"):
+                NATIVE.NumericLoopbackFixtureServer(port, object)
+
     def test_rule_oracle_uses_exact_main_transaction_event_or_audit_token(self):
         def audit_record(boundary, transaction_id, rule_id, extra=""):
             return (f"---{boundary}---A--\n[date] {transaction_id} 127.0.0.1\n"
