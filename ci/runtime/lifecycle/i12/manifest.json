@@ -518,20 +518,20 @@
       "file": "objects/text/6f2e18bf5441d96dc94d35004401cc4d93bed4ec85b1c70c36bc6b67c7a8606b-i12_observer.go"
     },
     "0fa85f5658be96a25204adf489b2e18149a5f826b5ed528e55ec7b2ffe410aa4": {
-      "kind": "repository",
-      "path": "common/runtime/msconnector_runtime.c"
+      "kind": "text_lines",
+      "file": "objects/text/0fa85f5658be96a25204adf489b2e18149a5f826b5ed528e55ec7b2ffe410aa4-msconnector_runtime.c.lines.json"
     },
     "7f1544f1f36042c68359c7caed7d5dc4ce8cc77d44282debdc3955ea725a5e9c": {
-      "kind": "repository",
-      "path": "common/runtime/http_authorization_service.c"
+      "kind": "text_lines",
+      "file": "objects/text/7f1544f1f36042c68359c7caed7d5dc4ce8cc77d44282debdc3955ea725a5e9c-http_authorization_service.c.lines.json"
     },
     "7fc06c4c56f1960b16c4096dfc42a6c93f80576d1f9f427fffe7dfba37b81075": {
       "kind": "text",
       "file": "objects/text/7fc06c4c56f1960b16c4096dfc42a6c93f80576d1f9f427fffe7dfba37b81075-driver.py"
     },
     "445dcfd6c296c442d8b1593e4bc1106077900b0c745cf1b79beb0d3ead555580": {
-      "kind": "repository",
-      "path": "connectors/traefik/response_observer/observer.go"
+      "kind": "text_lines",
+      "file": "objects/text/445dcfd6c296c442d8b1593e4bc1106077900b0c745cf1b79beb0d3ead555580-observer.go.lines.json"
     },
     "9d7227d022124633176962efcd9b5c04a6e329292cab527419244be70abbc75d": {
       "kind": "delta",

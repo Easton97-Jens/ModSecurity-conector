@@ -79,6 +79,31 @@ int msconnector_runtime_transaction_finish(msconnector_runtime_transaction *t, m
 void msconnector_runtime_transaction_destroy(msconnector_runtime_transaction **t) {
     if (*t != NULL) { ++destroy_calls; *t = NULL; }
 }
+int msconnector_runtime_transaction_begin_request_stream_with_trusted_provenance(
+    msconnector_runtime *r, const msconnector_request *q, const char *id,
+    const msconnector_runtime_trusted_provenance *provenance,
+    msconnector_runtime_transaction **out, msconnector_decision *d, msconnector_error *e) {
+    if (provenance != NULL) {
+        if (out != NULL) *out = NULL;
+        msconnector_error_set(e, MSCONNECTOR_ERROR_UNSUPPORTED_PHASE,
+            "trusted provenance is outside this legacy fixture", "fixture");
+        return 0;
+    }
+    return msconnector_runtime_transaction_begin_request_stream(r, q, id, out, d, e);
+}
+int msconnector_runtime_transaction_finalize_and_snapshot(
+    msconnector_runtime_transaction **t, msconnector_runtime_transaction_snapshot *snapshot,
+    msconnector_error *e) {
+    if (t == NULL || *t == NULL || snapshot == NULL ||
+        msconnector_runtime_transaction_finish(*t, e) != 1) return 0;
+    memset(snapshot, 0, sizeof(*snapshot));
+    snapshot->finished = 1;
+    snapshot->contract.cleanup_started = 1;
+    snapshot->contract.cleanup_complete = 1;
+    snapshot->contract.status = MSCONNECTOR_TRANSACTION_STATUS_CLEANED;
+    msconnector_runtime_transaction_destroy(t);
+    return 1;
+}
 static int handoff(const msconnector_runtime *r, msconnector_runtime_transaction *t,
     void *u, char handle[MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE], msconnector_error *e) {
     (void)r; (void)t; (void)u; ++handoff_calls; memset(handle, 'a', 64U); handle[64] = '\0';
@@ -317,7 +342,7 @@ class ServiceCallerTests(unittest.TestCase):
     def test_mutations_cannot_convert_errors_into_success(self):
         for relative, fixture, old, new, args in (
             ("common/runtime/http_authorization_service.c", AUTH,
-             "&transaction, &decision, &common_error) != 1", "&transaction, &decision, &common_error) == 0",
+             "&transaction, &decision, &common_error, &binding_claimed) != 1", "&transaction, &decision, &common_error, &binding_claimed) == 0",
              ("envoy-ext-authz", 0, -1, 13, 1, 0)),
             ("common/runtime/http_authorization_service.c", AUTH,
              "parsed->body, parsed->body_size, error) != 1", "parsed->body, parsed->body_size, error) == 0",
