@@ -525,6 +525,7 @@ def build(spec_path):
     receipt = {"schema": "apache-i12-observed-module-build-v1", "spec_sha256": sha(spec_path),
                "builder_sha256": sha(__file__), "source_root": str(root),
                "source_revision": identity["source_revision"], "git_tree": identity["git_tree"],
+               "historical_objects_reused": False,
                "input_bindings": spec, "commands": commands, "runtime_qualification": None,
                "source_input_mutated": False, "retained_product_objects": {},
                "instrumented_sources": {}, "wrapped_symbols": symbols,
