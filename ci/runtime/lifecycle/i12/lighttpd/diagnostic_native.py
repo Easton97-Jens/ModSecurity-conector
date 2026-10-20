@@ -563,6 +563,12 @@ def backend_handler(module, directory, case):
     return DiagnosticBackend
 
 
+def serve_numeric_loopback(server):
+    server.timeout = 0.05
+    while True:
+        server.handle_request()
+
+
 def backend(port, directory):
     sys.path.insert(0, "/mnt/fixtures")
     spec = importlib.util.spec_from_file_location("diagnostic_backend", "/mnt/fixtures/observed-backend.py")
@@ -573,7 +579,7 @@ def backend(port, directory):
     server = NumericLoopbackFixtureServer(port, backend_handler(module, directory, case))
     signal.signal(signal.SIGTERM, stop_backend)
     try:
-        server.serve_forever(poll_interval=0.05)
+        serve_numeric_loopback(server)
     finally:
         server.server_close()
 

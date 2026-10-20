@@ -105,6 +105,14 @@ class DiagnosticTests(unittest.TestCase):
             with self.subTest(port=port), self.assertRaisesRegex(ValueError, "integer loopback TCP port"):
                 NATIVE.NumericLoopbackFixtureServer(port, object)
 
+    def test_numeric_backend_service_loop_is_bounded_and_signal_stoppable(self):
+        server = mock.Mock()
+        server.handle_request.side_effect = (None, SystemExit(0))
+        with self.assertRaises(SystemExit):
+            NATIVE.serve_numeric_loopback(server)
+        self.assertEqual(server.timeout, 0.05)
+        self.assertEqual(server.handle_request.call_count, 2)
+
     def test_rule_oracle_uses_exact_main_transaction_event_or_audit_token(self):
         def audit_record(boundary, transaction_id, rule_id, extra=""):
             return (f"---{boundary}---A--\n[date] {transaction_id} 127.0.0.1\n"
