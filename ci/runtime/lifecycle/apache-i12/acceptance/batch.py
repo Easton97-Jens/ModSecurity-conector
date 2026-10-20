@@ -366,13 +366,42 @@ def entity_prefix_received(received):
     return True
 
 
-def send_client_request(connection, request, head, chunks, root, receipt):
+def request_append_barrier(request, context):
+    barrier = request.get("barrier")
+    if barrier is None:
+        return None
+    if (not isinstance(barrier, dict) or type(barrier.get("after_chunk")) is not int
+            or barrier["after_chunk"] != 1 or request.get("framing") != "chunked"
+            or barrier.get("release_condition") != "native_append_first_chunk_observed"
+            or type(barrier.get("timeout_seconds")) not in (int, float)
+            or not 0 < barrier["timeout_seconds"] <= 20
+            or len(request.get("chunks", [])) < 2
+            or not body_bytes(request["chunks"][0])):
+        raise ValueError("invalid first request body chunk barrier")
+    if context is None:
+        raise cancellation.GateError("request chunk barrier requires native identity context")
+    cancellation.validate_identity(context["identity"])
+    identifiers = [value for name, value in request["headers"] if name.lower() == "x-i12-id"]
+    if identifiers != [context["identity"]["transaction_id"]] or "host_pid" not in context["identity"]:
+        raise cancellation.GateError("request chunk barrier requires one exact principal and host PID")
+    return barrier
+
+
+def send_client_request(connection, request, head, chunks, root, receipt, context=None):
+    barrier = request_append_barrier(request, context)
     connection.sendall(head)
     receipt["request_headers_sent_ns"] = time.monotonic_ns()
     for index, chunk in enumerate(chunks):
         connection.sendall(chunk)
         receipt["request_send_operations"].append({"index": index, "bytes": len(chunk),
             "sha256": hashlib.sha256(chunk).hexdigest(), "completed_ns": time.monotonic_ns()})
+        if barrier is not None and index == 0:
+            gate = {"release_condition": barrier["release_condition"], "after_chunk": 1,
+                    "started_ns": time.monotonic_ns(), "released": False, "native_append": None}
+            receipt["request_chunk_barrier"] = gate
+            gate["native_append"] = cancellation.wait_for_append(context["native_log"],
+                context["identity"], receipt["started_ns"], barrier["timeout_seconds"])
+            gate.update(released=True, completed_ns=time.monotonic_ns())
         if request.get("chunks"):
             time.sleep(0.15)
     receipt["request_send_completed_ns"] = time.monotonic_ns()
@@ -439,7 +468,7 @@ def client_main(spec_path, root, port, backend_root, cancellation_context=None):
         raw = head + b"".join(chunks)
         with socket.create_connection(("127.0.0.1", private_loopback_port(port)), timeout=10) as connection:
             connection.settimeout(10)
-            send_client_request(connection, request, head, chunks, root, receipt)
+            send_client_request(connection, request, head, chunks, root, receipt, cancellation_context)
             if after_client_send(connection, request, receipt, cancellation_context):
                 exit_code = 0
                 return exit_code
@@ -452,6 +481,11 @@ def client_main(spec_path, root, port, backend_root, cancellation_context=None):
     except (OSError, ValueError, RuntimeError) as error:
         client_error(receipt, error)
     finally:
+        if request.get("barrier") is not None:
+            sent = len(receipt["request_send_operations"])
+            raw = head + b"".join(chunks[:sent]) if "request_headers_sent_ns" in receipt else b""
+            receipt.update(request_wire_bytes=len(raw), request_wire_sha256=hashlib.sha256(raw).hexdigest(),
+                           request_wire_capture_scope="completed_sendall_operations_only")
         (root / "request.raw").write_bytes(raw)
         (root / "response.raw").write_bytes(received)
         receipt.update(completed_ns=time.monotonic_ns(), proposed_process_exit=exit_code)
@@ -460,6 +494,7 @@ def client_main(spec_path, root, port, backend_root, cancellation_context=None):
 
 
 SUPPORTED_SEAMS = frozenset(("raw_wire_preserve_invalid_framing", "causal_response_barrier",
+                            "causal_native_request_append_barrier",
                             "shutdown_write_before_body_complete", "SO_LINGER_zero_RST_after_first_native_append",
                             *cancellation.ACTIONS))
 
@@ -628,7 +663,7 @@ def client_request(plan, variants, label, sink):
             control = next(item for item in plan["controls"] if item["label"] == label)
         request.update(method=control["method"], path=control["path"], body={"encoding": "base64",
             "data": "", "bytes": 0, "sha256": hashlib.sha256(b"").hexdigest()},
-            chunks=[], framing="content_length", peer_action="normal")
+            chunks=[], framing="content_length", peer_action="normal", barrier=None)
         request["headers"] = [["X-I12-ID", plan["unique_main_request"]["token"] + "-" + label]]
         if plan.get("baseline_rules_required"):
             # Exercise the unchanged baseline's benign pass/log rule so the
@@ -646,8 +681,9 @@ def client_command(plan, root, target, port, request, label, sequence, env, obse
     else:
         argv = [sys.executable, str(Path(__file__)), "--client-spec", str(target / "request.json"),
                 "--output", str(target), "--port", str(port), "--backend-root", str(root / "backend")]
-        if label == "main" and request.get("peer_action", "normal") in (*cancellation.ACTIONS,
-                "SO_LINGER_zero_RST_after_first_native_append"):
+        if label == "main" and (request.get("barrier") is not None or
+                request.get("peer_action", "normal") in (*cancellation.ACTIONS,
+                "SO_LINGER_zero_RST_after_first_native_append")):
             argv += ["--native-log", str(root / NATIVE_API_FILE), "--gate-run", env["MSCONNECTOR_LIFECYCLE_RUN"],
                      "--gate-case", plan["case_id"], "--gate-host-pid", str(observation["host_identity"]["pid"])]
     return argv
@@ -683,6 +719,8 @@ def read_client_observation(target, label, sequence, request, observation):
     elif label == "main" and (target / RECEIPT_FILE).is_file():
         client_observation = json.loads((target / RECEIPT_FILE).read_text())
         observation["actual_principal_execution"] = client_observation.get("request_send_completed_ns") is not None
+        if request.get("barrier") is not None and not client_observation.get("request_chunk_barrier", {}).get("released"):
+            observation["missing_operations"].append("actual_native_request_chunk_barrier_unproven")
         if request.get("peer_action") == "SO_LINGER_zero_RST_after_first_native_append" and not client_observation.get("reset_request"):
             observation["missing_operations"].append("actual_native_gated_client_reset_unproven")
 
@@ -942,9 +980,9 @@ def run_client_mode(args, parser):
     request = json.loads(args.client_spec.read_text())
     action = request.get("peer_action", "normal")
     context = None
-    if action in (*cancellation.ACTIONS, "SO_LINGER_zero_RST_after_first_native_append"):
+    if request.get("barrier") is not None or action in (*cancellation.ACTIONS, "SO_LINGER_zero_RST_after_first_native_append"):
         if args.native_log is None or not args.gate_run or not args.gate_case:
-            parser.error("cancel/reset requires physical native log and exact run/case identity")
+            parser.error("native-gated request requires physical native log and exact run/case identity")
         identity = {"run": args.gate_run, "case": args.gate_case,
                     "transaction_id": next(v for k, v in request["headers"] if k.lower() == "x-i12-id")}
         if args.gate_host_pid is not None:
