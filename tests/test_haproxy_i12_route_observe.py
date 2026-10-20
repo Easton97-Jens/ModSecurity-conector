@@ -272,6 +272,35 @@ class RouteObservationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "sealed input hash differs"):
             self.observe()
 
+    def test_current_completion_seal_provenance_binds_all_images(self):
+        direct = self.artifacts / "haproxy-direct"
+        direct.write_bytes(b"unit-control-only:haproxy-direct")
+        legacy = json.loads((self.artifacts / "source-provenance.json").read_text())
+        images = [{"role": "direct", "source": str(direct), "sealed_copy": str(direct),
+                   "sha256": OBSERVE.digest(direct.read_bytes())}, *legacy["images"]]
+        current = self.root / "completion-seal.json"
+        build = {"required_head": "current-control", "host_runs": 0, "runtime_qualified": False,
+                 "binaries": {role: {"path": image["source"], "sha256": image["sha256"]}
+                              for role, image in (("direct", images[0]), ("companion", images[1]), ("agent", images[2]))}}
+        self.write(current, build)
+        provenance = {"schema": "haproxy-i12-host-input-provenance-v1",
+                      "product_and_capture_revision": "current-control",
+                      "build_completion_seal": str(current),
+                      "build_completion_seal_sha256": OBSERVE.digest(current.read_bytes()),
+                      "images": images}
+        actual, actual_images = OBSERVE.verified_provenance_images(provenance, current)
+        self.assertEqual(actual["required_head"], "current-control")
+        self.assertEqual([image["role"] for image in actual_images],
+                         ["direct", "companion", "agent", "native_engine"])
+        changed = copy.deepcopy(provenance)
+        changed["images"][0]["sha256"] = "0" * 64
+        with self.assertRaisesRegex(ValueError, "sealed input hash differs"):
+            OBSERVE.verified_provenance_images(changed, current)
+        changed = copy.deepcopy(provenance)
+        changed["images"].pop()
+        with self.assertRaisesRegex(ValueError, "unexpected image inventory"):
+            OBSERVE.verified_provenance_images(changed, current)
+
     def test_cross_client_payload_and_missing_callback_cannot_complete_association(self):
         (self.data / "client-0.request").write_bytes(b"POST /i12/0 HTTP/1.1\r\nContent-Length: 8\r\n\r\nDIFFERENT")
         self.assertIsNone(self.observe()["partial_association"]["join"])

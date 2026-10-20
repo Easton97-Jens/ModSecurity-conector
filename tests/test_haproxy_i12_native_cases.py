@@ -107,6 +107,7 @@ class NativeFixtureIntegrity(unittest.TestCase):
         matches = scope["redirect_location_matches"]
         location = case["expected_location"]
         self.assertTrue(matches({"headers": [["location", location]]}, "main"))
+        self.assertTrue(matches({"headers": [["Location", " \t" + location + "\t"]]}, "main"))
         for headers in ([], [["Location", "wrong"]], [["Location", location], ["LOCATION", location]]):
             self.assertFalse(matches({"headers": headers}, "main"))
         self.assertTrue(matches({"headers": [["Content-Length", "8"]]}, "neighbor"))
@@ -261,6 +262,87 @@ class NativeFixtureIntegrity(unittest.TestCase):
         segments, complete = OBSERVER.match_wire_segments(writes, b"hell")
         self.assertFalse(complete)
         self.assertFalse(segments[0]["digest_matches"])
+
+    def test_current_completion_seal_and_namespace_sdk_bind_physical_images(self):
+        artifacts = self.base / "artifacts"
+        artifacts.mkdir()
+        sources = self.base / "sources"
+        sources.mkdir()
+        names = {"direct": "haproxy-direct", "agent": "haproxy-spop",
+                 "companion": "haproxy", "native_engine": "libmodsecurity.so.3"}
+        images = {}
+        for role, name in names.items():
+            source = sources / name
+            source.write_bytes(("source-" + role).encode())
+            sealed = artifacts / name
+            sealed.write_bytes(source.read_bytes())
+            images[role] = {"role": role, "source": str(source), "sealed_copy": str(sealed),
+                            "sha256": hashlib.sha256(sealed.read_bytes()).hexdigest()}
+        binary = artifacts / "haproxy-direct"
+        sdk = artifacts / "libmodsecurity.so.3"
+        receipt = self.base / "completion-seal.json"
+        receipt.write_text(json.dumps({"required_head": "a" * 40, "host_runs": 0,
+                          "runtime_qualified": False,
+                          "binaries": {role: {"path": image["source"], "sha256": image["sha256"]}
+                                       for role, image in images.items() if role != "native_engine"}}) + "\n")
+        provenance = {"schema": "haproxy-i12-host-input-provenance-v1",
+                      "build_completion_seal": str(receipt),
+                      "build_completion_seal_sha256": hashlib.sha256(receipt.read_bytes()).hexdigest(),
+                      "product_and_capture_revision": "a" * 40,
+                      "images": list(images.values())}
+        provenance_path = artifacts / "source-provenance.json"
+        provenance_path.write_text(json.dumps(provenance) + "\n")
+        artifact_ledger = self.base / "artifact-ledger.json"
+        artifact_ledger.write_text(json.dumps({"files": {
+            path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in artifacts.iterdir()
+        }}) + "\n")
+        fixture = self.base / "fixture"
+        fixture.mkdir()
+        contract = fixture / "case-contract.json"
+        contract.write_text("{}\n")
+        launch = fixture / "launch.py"
+        launch.write_text("pass\n")
+        fixture_ledger = self.base / "fixture-ledger.json"
+        fixture_ledger.write_text(json.dumps({"files": {
+            path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in fixture.iterdir()
+        }}) + "\n")
+        spec = self.base / "spec.json"
+        argv = ["/usr/local/bin/python3", "-B", "/mnt/fixtures/launch.py"]
+        spec.write_text(json.dumps({"argv": argv, "bindings": [
+            {"source": str(artifacts), "target": "/mnt/artifacts", "ledger": str(artifact_ledger),
+             "ledger_sha256": hashlib.sha256(artifact_ledger.read_bytes()).hexdigest()},
+            {"source": str(fixture), "target": "/mnt/fixtures", "ledger": str(fixture_ledger),
+             "ledger_sha256": hashlib.sha256(fixture_ledger.read_bytes()).hexdigest()},
+        ]}) + "\n")
+        attempt = self.base / "attempt"
+        attempt.mkdir()
+        admission = attempt / "admission.original.json"
+        admission.write_text(json.dumps({"argv": argv}) + "\n")
+        spec_hash = hashlib.sha256(spec.read_bytes()).hexdigest()
+        controller = {"spec_sha256": spec_hash,
+                      "admission_sha256": hashlib.sha256(admission.read_bytes()).hexdigest(),
+                      "executed_input_hashes_before": {str(spec): spec_hash},
+                      "executed_input_hashes_after": {str(spec): spec_hash}}
+        (attempt / "controller-result.json").write_text(json.dumps(controller) + "\n")
+
+        binding = OBSERVER.verified_attempt_inputs(attempt, spec, fixture, binary, receipt)
+        self.assertEqual(binding["source_binary_binding"]["required_head"], "a" * 40)
+        image = OBSERVER.resolve_sdk_image("/mnt/artifacts/libmodsecurity.so.3", binding)
+        self.assertEqual(image["physical_path"], str(sdk))
+        self.assertEqual(image["sha256"], hashlib.sha256(sdk.read_bytes()).hexdigest())
+        other = self.base / "other-direct"
+        other.write_bytes(binary.read_bytes())
+        with self.assertRaisesRegex(ValueError, "explicit Direct binary differs"):
+            OBSERVER.verified_attempt_inputs(attempt, spec, fixture, other, receipt)
+        sdk.write_bytes(b"changed")
+        with self.assertRaisesRegex(ValueError, "sealed input hash differs"):
+            OBSERVER.verified_attempt_inputs(attempt, spec, fixture, binary, receipt)
+        alias = self.base / "sdk-alias"
+        alias.symlink_to(sdk)
+        with self.assertRaisesRegex(ValueError, "physical absolute regular file"):
+            OBSERVER.require_hash(alias, hashlib.sha256(sdk.read_bytes()).hexdigest())
+        with self.assertRaisesRegex(ValueError, "unexpected"):
+            OBSERVER.resolve_sdk_image("/other/libmodsecurity.so.3", binding)
 
     def test_canonical_source_request_keeps_duplicate_headers_and_exact_original_id(self):
         name = "duplicate_header_names"

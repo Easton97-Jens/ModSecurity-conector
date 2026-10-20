@@ -142,7 +142,7 @@ def prepare_client(client, case, request):
     if "expected_location" in case:
         # Compare actual parsed header multiplicity, independently of status.
         check = ("def redirect_location_matches(row, name):\n"
-                 "    locations=[value for key,value in row['headers'] if key.lower()=='location']\n"
+                 "    locations=[value.strip(' \\t') for key,value in row['headers'] if key.lower()=='location']\n"
                  "    return locations==([" + repr(case["expected_location"]) + "] if name=='main' else [])\n")
         client = check + client
         client = replace_once(client, "or not row['body_complete']:",

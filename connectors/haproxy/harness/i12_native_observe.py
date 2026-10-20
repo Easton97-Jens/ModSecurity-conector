@@ -28,6 +28,160 @@ def load(path):
     return json.loads(path.read_text())
 
 
+def require_hash(path, expected):
+    path = Path(path)
+    try:
+        physical = path.is_absolute() and path.resolve(strict=True) == path and path.is_file()
+    except OSError:
+        physical = False
+    if not physical:
+        raise ValueError("sealed input must be a physical absolute regular file: " + str(path))
+    if sha(path) != expected:
+        raise ValueError("sealed input hash differs: " + str(path))
+
+
+class Bindings:
+    """Resolve namespace files only through controller-sealed source ledgers."""
+    def __init__(self, spec):
+        self.rows = []
+        for item in spec["bindings"]:
+            ledger_path = Path(item["ledger"])
+            require_hash(ledger_path, item["ledger_sha256"])
+            source, target = Path(item["source"]), Path(item["target"])
+            if not source.is_absolute() or not target.is_absolute() or ".." in target.parts:
+                raise ValueError("invalid namespace binding")
+            ledger = load(ledger_path)
+            if not isinstance(ledger.get("files"), dict):
+                raise ValueError("sealed binding ledger has no file inventory")
+            self.rows.append((source, target, ledger["files"], ledger_path))
+
+    def resolve(self, namespace):
+        path = Path(namespace)
+        if not path.is_absolute() or ".." in path.parts:
+            raise ValueError("invalid namespace path")
+        matches = []
+        for source, target, files, ledger in self.rows:
+            if path.is_relative_to(target):
+                relative = str(path.relative_to(target))
+                if relative not in files:
+                    raise ValueError("namespace image absent from sealed ledger")
+                actual = source / relative
+                require_hash(actual, files[relative])
+                matches.append((actual, ledger))
+        if len(matches) != 1:
+            raise ValueError("namespace path has missing or ambiguous sealed binding")
+        return matches[0]
+
+
+def verified_source_binary(binary, source_receipt, provenance=None):
+    receipt = load(source_receipt)
+    binaries = receipt.get("binaries")
+    if binaries is None:
+        return {"receipt_format": "legacy", "source_receipt_sha256": sha(source_receipt)}
+    if not isinstance(binaries, dict) or "direct" not in binaries:
+        raise ValueError("current source receipt has no Direct binary")
+    direct = binaries["direct"]
+    expected = direct.get("sha256")
+    source = Path(direct.get("path", ""))
+    if not isinstance(expected, str) or re.fullmatch(r"[0-9a-f]{64}", expected) is None:
+        raise ValueError("current build completion seal has an invalid Direct hash")
+    try:
+        require_hash(source, expected)
+        require_hash(binary, expected)
+    except ValueError as error:
+        raise ValueError("executed Direct binary differs from current build completion seal") from error
+    if provenance is not None:
+        if provenance.get("build_completion_seal") != str(source_receipt):
+            raise ValueError("source provenance names a different build completion seal")
+        require_hash(source_receipt, provenance.get("build_completion_seal_sha256"))
+        if provenance.get("product_and_capture_revision") != receipt.get("required_head"):
+            raise ValueError("source provenance differs from build completion revision")
+    return {"receipt_format": "current-completion-seal", "source_receipt_sha256": sha(source_receipt),
+            "required_head": receipt.get("required_head"), "direct_binary_sha256": expected,
+            "host_runs_before_capture": receipt.get("host_runs"), "runtime_qualified_before_capture": receipt.get("runtime_qualified")}
+
+
+def verified_attempt_inputs(attempt, spec_path, fixture, binary, source_receipt):
+    controller_path = attempt / "controller-result.json"
+    controller = load(controller_path)
+    require_hash(spec_path, controller["spec_sha256"])
+    for key in ("executed_input_hashes_before", "executed_input_hashes_after"):
+        if controller[key].get(str(spec_path)) != controller["spec_sha256"]:
+            raise ValueError("controller does not bind explicit source spec")
+    admission_path = attempt / "admission.original.json"
+    require_hash(admission_path, controller["admission_sha256"])
+    admission, spec = load(admission_path), load(spec_path)
+    if admission["argv"] != spec["argv"]:
+        raise ValueError("admitted argv differs from explicit source spec")
+    if spec["argv"] != ["/usr/local/bin/python3", "-B", "/mnt/fixtures/launch.py"]:
+        raise ValueError("native host spec does not execute the sealed fixture entrypoint")
+
+    bindings = Bindings(spec)
+    direct, artifact_ledger = bindings.resolve("/mnt/artifacts/haproxy-direct")
+    sdk, sdk_ledger = bindings.resolve("/mnt/artifacts/libmodsecurity.so.3")
+    provenance_path, provenance_ledger = bindings.resolve("/mnt/artifacts/source-provenance.json")
+    contract_path, fixture_ledger = bindings.resolve("/mnt/fixtures/case-contract.json")
+    launch_path, launch_ledger = bindings.resolve("/mnt/fixtures/launch.py")
+    if direct != binary:
+        raise ValueError("explicit Direct binary differs from executed sealed spec")
+    if contract_path != fixture / "case-contract.json":
+        raise ValueError("explicit fixture differs from executed sealed spec")
+    if launch_path != fixture / "launch.py" or launch_ledger != fixture_ledger:
+        raise ValueError("executed fixture entrypoint differs from explicit sealed fixture")
+    if len({artifact_ledger, sdk_ledger, provenance_ledger}) != 1:
+        raise ValueError("artifact images do not share one sealed ledger")
+
+    provenance = load(provenance_path)
+    if provenance.get("schema") != "haproxy-i12-host-input-provenance-v1":
+        raise ValueError("current host observation requires current source provenance")
+    source_binding = verified_source_binary(binary, source_receipt, provenance)
+    if set(load(source_receipt).get("binaries", {})) != {"direct", "agent", "companion"}:
+        raise ValueError("build completion seal has an unexpected binary inventory")
+    images = provenance.get("images")
+    roles = [image.get("role") for image in images] if isinstance(images, list) else []
+    expected_roles = {"direct", "agent", "companion", "native_engine"}
+    if len(roles) != 4 or set(roles) != expected_roles or len(set(roles)) != len(roles):
+        raise ValueError("current source provenance has an unexpected image inventory")
+    by_role = {image["role"]: image for image in images}
+    expected_paths = {
+        "direct": direct,
+        "agent": bindings.resolve("/mnt/artifacts/haproxy-spop")[0],
+        "companion": bindings.resolve("/mnt/artifacts/haproxy")[0],
+        "native_engine": sdk,
+    }
+    receipt = load(source_receipt)
+    for role, actual in expected_paths.items():
+        image = by_role[role]
+        if Path(image.get("sealed_copy", "")) != actual:
+            raise ValueError("source provenance sealed image differs from executed spec")
+        require_hash(actual, image.get("sha256"))
+        require_hash(Path(image.get("source", "")), image.get("sha256"))
+        if role != "native_engine" and receipt["binaries"][role].get("sha256") != image.get("sha256"):
+            raise ValueError("source provenance binary differs from build completion seal")
+    return {
+        "spec_sha256": controller["spec_sha256"],
+        "admission_sha256": controller["admission_sha256"],
+        "source_binary_binding": source_binding,
+        "direct_binary": str(direct),
+        "native_engine": str(sdk),
+        "native_engine_sha256": by_role["native_engine"]["sha256"],
+        "provenance": str(provenance_path),
+        "provenance_sha256": sha(provenance_path),
+        "artifact_ledger": str(artifact_ledger),
+        "artifact_ledger_sha256": sha(artifact_ledger),
+        "fixture_ledger": str(fixture_ledger),
+        "fixture_ledger_sha256": sha(fixture_ledger),
+    }
+
+
+def resolve_sdk_image(namespace_path, attempt_binding):
+    if namespace_path != "/mnt/artifacts/libmodsecurity.so.3":
+        raise ValueError("unexpected loaded native engine namespace path")
+    physical = Path(attempt_binding["native_engine"])
+    require_hash(physical, attempt_binding["native_engine_sha256"])
+    return {"namespace_path": namespace_path, "physical_path": str(physical), "sha256": sha(physical)}
+
+
 def match_wire_segments(writes, wire):
     """Compare every positive host write with its contiguous actual client bytes."""
     cursor = 0
@@ -98,10 +252,11 @@ def attach_supplemental_observations(observations, data, native_id, common_id, r
         observations["source_config_binding"]["value"]["current_product_source_binding"] = load(build_binding)
 
 
-def observe(attempt, fixture, binary, source_receipt):
+def observe(attempt, fixture, binary, source_receipt, spec_path):
     data = attempt / "data"
     execution = load(data / EXECUTION_FILE)
     controller = load(attempt / "controller-result.json")
+    attempt_binding = verified_attempt_inputs(attempt, spec_path, fixture, binary, source_receipt)
     contract = load(fixture / "case-contract.json")
     client = load(data / "main-client.json")
     neighbor = load(data / "neighbor-client.json")
@@ -145,7 +300,7 @@ def observe(attempt, fixture, binary, source_receipt):
     after_neighbor = load(data / "after-neighbor.fds.json")
     maps = (data / "before-main.maps").read_text()
     loaded_sdk = sorted({line.split()[-1] for line in maps.splitlines() if "libmodsecurity.so" in line})
-    sdk_images = [{"path": path, "sha256": sha(Path(path))} for path in loaded_sdk]
+    sdk_images = [resolve_sdk_image(path, attempt_binding) for path in loaded_sdk]
     refs = {
         "api": reference(data / "native-api.jsonl", "native_api"),
         "host": reference(data / "haproxy.stderr", "host_callback"),
@@ -161,6 +316,10 @@ def observe(attempt, fixture, binary, source_receipt):
         "controller": reference(attempt / "controller-result.json", "isolation_receipt"),
         "execution": reference(data / EXECUTION_FILE, "cleanup_observer"),
         "source": reference(source_receipt, "source_manifest"),
+        "spec": reference(spec_path, "source_manifest"),
+        "provenance": reference(Path(attempt_binding["provenance"]), "source_manifest"),
+        "artifact_ledger": reference(Path(attempt_binding["artifact_ledger"]), "source_manifest"),
+        "fixture_ledger": reference(Path(attempt_binding["fixture_ledger"]), "source_manifest"),
         "maps": reference(data / "before-main.maps", "loaded_image"),
         "identity": reference(data / "identity.stdout", "loaded_image"),
     }
@@ -170,15 +329,15 @@ def observe(attempt, fixture, binary, source_receipt):
 
     observations = {
         "product_host_identity": known({"host_binary_sha256": sha(binary), "actual_loaded_SDK_images": sdk_images, "loaded_maps": maps, "identity": (data / "identity.stdout").read_text()}, "maps", "identity", "controller"),
-        "source_config_binding": known({"source_receipt_sha256": sha(source_receipt), "effective_rules_sha256": sha(data / RULES_FILE), "effective_config_sha256": sha(data / HOST_CONFIG)}, "source", "config", "rules"),
-        "capability": known(contract, "contract"),
+        "source_config_binding": known({"source_receipt_sha256": sha(source_receipt), "attempt_input_binding": attempt_binding, "effective_rules_sha256": sha(data / RULES_FILE), "effective_config_sha256": sha(data / HOST_CONFIG)}, "source", "spec", "provenance", "artifact_ledger", "fixture_ledger", "config", "rules"),
+        "capability": known(contract, "contract", "host"),
         "client_exit": known(command["exit"], "client_commands"),
         "client_signal": known({"actual_signal": command["signal"], "actual_normal_exit": command["exit"] >= 0}, "client_commands"),
         "client_headers": known(client["headers"], "client"),
         "client_bytes": known(client["response_bytes"], "client"),
         "client_sha256": known(client["response_sha256"], "client"),
         "backend_request_count": known({"main": len(main_backend), "neighbor": sum(row["path"] == "/i12-neighbor" for row in backend_requests)}, "backend"),
-        "backend_payload_identity": known(backend_requests, "backend"),
+        "backend_payload_identity": known(backend_requests, "backend", "client"),
         "client_backend_correlation": known({"main_backend": main_backend, "actual_client": client, "independent_backend_process": True}, "client", "backend"),
         "native_events": known({"native_id": native_id, "actual_lines": native_lines, "actual_rule_counts": counts}, "audit"),
         "native_api_returns": known(native, "api"),
@@ -211,10 +370,10 @@ def observe(attempt, fixture, binary, source_receipt):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ("attempt", "fixture", "binary", "source-receipt", "output"):
+    for name in ("attempt", "fixture", "binary", "source-receipt", "spec", "output"):
         parser.add_argument("--" + name, type=Path, required=True)
     args = parser.parse_args()
-    result = observe(args.attempt, args.fixture, args.binary, args.source_receipt)
+    result = observe(args.attempt, args.fixture, args.binary, args.source_receipt, args.spec)
     args.output.write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps({"id": result["run_scoped_case_id"], "fields": len(result["observations"]), "full_lifecycle_qualified": None}))
 

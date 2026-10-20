@@ -159,6 +159,42 @@ def executed_fixture(spec, bindings, fixture_path, attempt, data):
             "result_reference": reference(result_path, ROLE_CLEANUP)}
 
 
+def verified_provenance_images(provenance, build_path):
+    build = read_json(build_path)
+    images = provenance.get("images")
+    if not isinstance(images, list):
+        raise ValueError("source provenance images must be an array")
+    if provenance.get("schema") == "haproxy-i12-host-input-provenance-v1":
+        if provenance.get("build_completion_seal") != str(build_path):
+            raise ValueError("source provenance names a different build completion seal")
+        require_hash(build_path, provenance.get("build_completion_seal_sha256"))
+        revision = provenance.get("product_and_capture_revision")
+        if build.get("required_head") != revision:
+            raise ValueError("build completion seal differs from source provenance revision")
+        binaries = build.get("binaries")
+        if not isinstance(binaries, dict) or set(binaries) != {"direct", "agent", "companion"}:
+            raise ValueError("build completion seal has an unexpected binary inventory")
+        roles = [image.get("role") for image in images if isinstance(image, dict)]
+        if len(images) != 4 or set(roles) != {"direct", "agent", "companion", "native_engine"} or len(set(roles)) != len(roles):
+            raise ValueError("current source provenance has an unexpected image inventory")
+        for image in images:
+            require_hash(Path(image["source"]), image["sha256"])
+            require_hash(Path(image["sealed_copy"]), image["sha256"])
+            if image["role"] != "native_engine" and binaries[image["role"]].get("sha256") != image["sha256"]:
+                raise ValueError("sealed image differs from build completion seal")
+        return build, images
+    if provenance.get("build_receipt") != str(build_path):
+        raise ValueError("source provenance names a different build receipt")
+    require_hash(build_path, provenance.get("build_receipt_sha256"))
+    for image in images:
+        require_hash(Path(image["source"]), image["sha256"])
+        require_hash(Path(image["sealed_copy"]), image["sha256"])
+        expected = build["sdk"]["image_sha256"] if image["role"] == "native_engine" else build[image["role"]]["sha256"]
+        if expected != image["sha256"]:
+            raise ValueError("sealed image differs from source build receipt")
+    return build, images
+
+
 def bind_inputs(attempt, data, spec_path, build_path, fixture_path):
     data.relative_to(attempt / "data")
     controller_path = attempt / "controller-result.json"
@@ -170,24 +206,13 @@ def bind_inputs(attempt, data, spec_path, build_path, fixture_path):
     admission_path = attempt / "admission.original.json"
     require_hash(admission_path, controller["admission_sha256"])
     admission = read_json(admission_path)
-    spec, build = read_json(spec_path), read_json(build_path)
+    spec = read_json(spec_path)
     if admission["argv"] != spec["argv"]:
         raise ValueError("admitted argv differs from explicit source spec")
     bindings = Bindings(spec)
     provenance_path, _ = bindings.resolve("/mnt/artifacts/source-provenance.json")
     provenance = read_json(provenance_path)
-    if provenance["build_receipt"] != str(build_path):
-        raise ValueError("source provenance names a different build receipt")
-    require_hash(build_path, provenance["build_receipt_sha256"])
-    images = []
-    for image in provenance["images"]:
-        require_hash(Path(image["source"]), image["sha256"])
-        actual = Path(image["sealed_copy"])
-        require_hash(actual, image["sha256"])
-        expected = build["sdk"]["image_sha256"] if image["role"] == "native_engine" else build[image["role"]]["sha256"]
-        if expected != image["sha256"]:
-            raise ValueError("sealed image differs from source build receipt")
-        images.append(image)
+    build, images = verified_provenance_images(provenance, build_path)
     batch = executed_fixture(spec, bindings, fixture_path, attempt, data)
     return {"controller": controller, "admission": admission, "spec": spec, "build": build, "provenance": provenance,
             "images": images, "bindings": bindings, "batch": batch, "fixture": read_json(fixture_path),
@@ -896,7 +921,7 @@ def observe(attempt, data, spec, build_receipt, fixture, leg, case_id, index=0, 
     matched = joined["rows"] if joined else []
     return {"run_scoped_case_id": case_id, "leg_id": leg, "run_id": attempt.name,
             "execution_kind": "host_http", "execution_observed": execution_observed, "execution_observed_reason": execution_reason,
-            "reviewed_by": "pending_root", "parent_sha": binding["provenance"].get("product_revision"),
+            "reviewed_by": "pending_root", "parent_sha": binding["provenance"].get("product_revision", binding["provenance"].get("product_and_capture_revision")),
             "framework_sha": None, "mrts_sha": None, "effective_config_sha256": digest(config) if config is not None else None,
             "source_bound_fixture_contract": binding["fixture"], "original_contract": original, "batch_execution_binding": binding["batch"],
             "oracle_evaluated": None, "outcome": None, "full_lifecycle_qualified": None,

@@ -26,7 +26,14 @@ The extractor reuses current capture descriptor admission, the native transition
 
 The v4 correction decodes physical SPOP backend `header_hex` and `body_hex` rows, retaining their original `neighbor`, `wall_ns` and raw record. The recorded header excludes the CRLFCRLF delimiter; embedded delimiters, invalid request/header syntax, ambiguous lengths, transfer coding, body-length mismatch and oversized hex are rejected. Unknown or corrupt rows leave the exact backend count and correlation unknown. A measured zero additionally requires backend readiness, a joined producer and one independently captured healthy neighbor. Existing companion backend shapes remain supported. Path counts alone do not establish per-client correlation.
 
+Current host-input provenance can bind the reviewed three-binary completion seal directly. The observer requires the exact Direct, Agent and Companion inventory, the exact source revision, all four immutable image hashes including the separately pinned native engine, and the controller-verified artifact ledger. The earlier build-receipt format remains supported for retained runs.
+
+The native Direct observer additionally requires the controller-hashed spec and admission receipt. It resolves the namespace-only Direct binary, SDK, source provenance, fixture contract and launch entry point through the exact artifact and fixture ledgers, then checks all provenance images against their source, sealed copy and completion seal. Namespace paths remain separate from physical paths; a substituted spec, fixture, binary, SDK, ledger or provenance file is rejected.
+
+- `connectors/haproxy/harness/i12_native_cases.py`
+- `connectors/haproxy/harness/i12_native_observe.py`
 - `connectors/haproxy/harness/i12_route_observe.py`
+- `tests/test_haproxy_i12_native_cases.py`
 - `tests/test_haproxy_i12_route_observe.py`
 - `reports/audits/change-records/CR-20261018-haproxy-route-observation-extractor.md`
 - `reports/audits/change-records/CR-20261018-haproxy-route-observation-extractor.de.md`
@@ -47,6 +54,8 @@ rtk proxy env PYTHONNOUSERSITE=1 /var/tmp/codex/ModSecurity-conector/runs/i12-ha
 
 All 24 tests and 20 subtests passed, including literal retained pilot backend rows, valid bodies, malformed boundaries/headers/lengths/metadata, unknown rows, missing positive controls and incomplete JSONL. The v4 stored extraction and validation receipts are retained under `R2/route-observer-20261018/v4`; this correction adds no host run or qualification.
 
+The current follow-up ran the two affected modules together and then the full HAProxy-I12 harness group. The focused result was 48 tests and 29 subtests passed; the broader result was 194 tests and 106 subtests passed. The added controls reject a same-content Direct binary at another path, a changed SDK, wrong namespace, changed seal/provenance image and incomplete image inventory. Redirect header comparison accepts HTTP optional whitespace while continuing to reject missing, wrong or duplicate `Location` fields.
+
 ## Security impact
 
 This is a bounded defensive acceptance tool. It reads admitted physical files and writes a fresh exclusive output. It adds no host traffic, broad scan, authorization change, exception or suppression. A changed source seal or conflicting namespace binding is rejected.
@@ -65,8 +74,8 @@ First-cause classification, terminal event semantics, exact transport/write attr
 
 ## Checks not run and rationale
 
-No host run, new product build, scanner run or Root qualification was performed. The assignment covers extraction and regression checks against existing captures. Product failures and acceptance remain with their assigned owners.
+This harness follow-up started no new host, product build or scanner run. It was applied to a separately retained current host attempt; that attempt and its independent Root qualification are recorded in the current acceptance evidence rather than treated as a property of the extractor.
 
 ## Final diff and review status
 
-Only the new HAProxy extractor, its tests and this paired change record are changed. The previous six frozen Sonar files are untouched by this task. Root review/publication remains pending; no Git mutation is included.
+Only HAProxy fixture/observation harnesses, their tests and this paired change record are changed. The previous six frozen Sonar files are untouched. Delivery and publication remain separate steps.
