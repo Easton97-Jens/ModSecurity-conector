@@ -26,6 +26,28 @@ PATHS = load_paths()
 SHARED = load_shared()
 ORACLES = SHARED.ORACLES
 
+def packet_reviewer(row, packet):
+    if row['selected_requirement'].get('execution_kind') == 'actual_configtest':
+        return SHARED.reviewed_configuration_packet
+    if packet.get('execution_kind') == 'host_pre_native_rejection':
+        return SHARED.reviewed_pre_native_packet
+    return SHARED.reviewed_packet
+
+def effective_oracle(review, original):
+    oracle = review.get('effective_oracle') if review else original
+    if oracle and oracle.get('unresolved_expected_value_reason'):
+        return None
+    return oracle
+
+def qualification_scope(fresh, qualified):
+    if not fresh:
+        return None
+    if fresh.get('qualification_scope'):
+        return fresh['qualification_scope']
+    if qualified:
+        return 'full_host_lifecycle'
+    return None
+
 def apache_rows(baseline):
     """Check the immutable complete catalog before selecting the Apache slice."""
     rows = baseline['rows']
@@ -77,14 +99,8 @@ class ApacheLedger:
                     raise ValueError(f'Packet does not bind expected identity: {name}')
             row = self.by_id[self.identity]
             self.review = self.reviews.get(self.identity, row.get('oracle_reconciliation'))
-            self.oracle = self.review.get('effective_oracle') if self.review else row['selected_requirement']['expected_oracle']
-            if self.oracle and self.oracle.get('unresolved_expected_value_reason'):
-                self.oracle = None
-            reviewer = SHARED.reviewed_packet
-            if row['selected_requirement'].get('execution_kind') == 'actual_configtest':
-                reviewer = SHARED.reviewed_configuration_packet
-            elif self.packet.get('execution_kind') == 'host_pre_native_rejection':
-                reviewer = SHARED.reviewed_pre_native_packet
+            self.oracle = effective_oracle(self.review, row['selected_requirement']['expected_oracle'])
+            reviewer = packet_reviewer(row, self.packet)
             self.observations[self.identity] = reviewer(self.ref, row, self.oracle)
 
     def collect_rows(self):
@@ -98,8 +114,7 @@ class ApacheLedger:
             # Control scopes cannot supply native body/finish/free observations.
             case_qualified = self.qualified or bool(self.fresh and self.fresh.get('full_case_qualified'))
             self.rows[-1].update({
-                'fresh_qualification_scope': (self.fresh.get('qualification_scope') or
-                                              ('full_host_lifecycle' if self.qualified else None)) if self.fresh else None,
+                'fresh_qualification_scope': qualification_scope(self.fresh, self.qualified),
                 'fresh_case_qualified': case_qualified,
                 'fresh_case_outcome': self.fresh['outcome'] if case_qualified else None,
                 'fresh_case_qualified_pass': case_qualified and self.fresh['outcome'] == 'PASS',

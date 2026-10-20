@@ -118,10 +118,7 @@ std::string common(const modsecurity::Transaction *key, const std::string &id, c
     return out.str();
 }
 bool has_path_separator(std::string_view path) {
-    for (char character : path) {
-        if (character == '/') return true;
-    }
-    return false;
+    return path.find('/') != std::string_view::npos;
 }
 std::string path_metadata(int root, const std::string &directory, const std::string &path) {
     std::ostringstream out; out << R"({"path_fingerprint_fnv1a64":)" << json_quoted(fingerprint(path));
@@ -205,7 +202,7 @@ extern "C" void i12_apache_observe_multipart(void *opaque) noexcept {
                     << R"(,"path_snapshot_complete":)" << (snapshot.complete ? "true" : "false")
                     << R"(,"max_observed_files":)" << max_files << R"(,"files":)" << files(root.get(), directory, snapshot.paths) << '}';
                 if (found != state.saved.end()) found->second = snapshot;
-                else state.saved.emplace(opaque, snapshot);
+                else state.saved.try_emplace(opaque, snapshot);
                 output(state, root.get(), row.str());
             }
         }

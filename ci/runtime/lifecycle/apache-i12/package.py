@@ -211,14 +211,8 @@ class ApachePackage:
         if self.fresh:
             self.receipt, self.packet = self.packet_reference(self.fresh['receipt'])
             self.review = row.get('oracle_reconciliation')
-            self.effective = self.review.get('effective_oracle') if self.review else row['original_oracle']
-            if self.effective and self.effective.get('unresolved_expected_value_reason'):
-                self.effective = None
-            reviewer = LEDGER.SHARED.reviewed_packet
-            if row['selected_requirement'].get('execution_kind') == 'actual_configtest':
-                reviewer = LEDGER.SHARED.reviewed_configuration_packet
-            elif self.packet.get('execution_kind') == 'host_pre_native_rejection':
-                reviewer = LEDGER.SHARED.reviewed_pre_native_packet
+            self.effective = LEDGER.effective_oracle(self.review, row['original_oracle'])
+            reviewer = LEDGER.packet_reviewer(row, self.packet)
             self.validated = reviewer(self.receipt, row, self.effective)
             if any((self.validated.get(key) != self.fresh.get(key) for key in ('execution_observed', 'full_lifecycle_qualified', 'outcome', 'unknown_fields', 'observations', 'qualification_scope', 'full_case_qualified'))):
                 raise ValueError("Adapter's accepted packet differs from fresh shared validation")

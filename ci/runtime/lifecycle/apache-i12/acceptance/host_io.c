@@ -422,28 +422,28 @@ static int apr_leave(struct apr_scope previous) {
 }
 #define APR_BUFFER(name, incoming, qualifier) \
 apr_status_t name(apr_socket_t *socket,qualifier char *buffer,apr_size_t *size) { \
-    int initial=errno; apr_status_t (*real_call)(apr_socket_t *,qualifier char *,apr_size_t *)=symbol(#name); \
+    int initial=errno; void *real_address=symbol(#name); apr_status_t (*real_call)(apr_socket_t *,qualifier char *,apr_size_t *)=real_address; \
     size_t requested=size?*size:0; int fd=socket_fd(socket); uint64_t entered=now(); uint64_t call=call_number(); struct apr_scope scope=apr_enter(call,fd); \
     errno=initial; apr_status_t result=real_call(socket,buffer,size); int saved=errno; int parse=apr_leave(scope); \
     struct iovec vector={(void *)buffer,requested}; \
-    transport(&(const struct transport_call){#name,(void *)&*real_call,fd,incoming,1,result,saved,requested,size?*size:0,result==APR_SUCCESS, \
+    transport(&(const struct transport_call){#name,real_address,fd,incoming,1,result,saved,requested,size?*size:0,result==APR_SUCCESS, \
         &vector,1,call,entered,parse}); errno=saved; return result; \
 }
 APR_BUFFER(apr_socket_send,0,const)
 APR_BUFFER(apr_socket_recv,1,)
 apr_status_t apr_socket_sendv(apr_socket_t *socket,const struct iovec *vectors,apr_int32_t count,apr_size_t *size) {
-    int initial=errno; apr_status_t (*real_call)(apr_socket_t *,const struct iovec *,apr_int32_t,apr_size_t *)=symbol("apr_socket_sendv");
+    int initial=errno; void *real_address=symbol("apr_socket_sendv"); apr_status_t (*real_call)(apr_socket_t *,const struct iovec *,apr_int32_t,apr_size_t *)=real_address;
     int fd=socket_fd(socket); size_t requested=vector_size(vectors,count); uint64_t entered=now(); uint64_t call=call_number(); struct apr_scope scope=apr_enter(call,fd);
     errno=initial; apr_status_t result=real_call(socket,vectors,count,size); int saved=errno; int parse=apr_leave(scope);
-    transport(&(const struct transport_call){"apr_socket_sendv",(void *)&*real_call,fd,0,1,result,saved,requested,size?*size:0,result==APR_SUCCESS,
+    transport(&(const struct transport_call){"apr_socket_sendv",real_address,fd,0,1,result,saved,requested,size?*size:0,result==APR_SUCCESS,
         vectors,count,call,entered,parse}); errno=saved; return result;
 }
 apr_status_t apr_socket_sendfile(apr_socket_t *socket,apr_file_t *file,apr_hdtr_t *headers,
     apr_off_t *offset,apr_size_t *size,apr_int32_t flags) {
-    int initial=errno; apr_status_t (*real_call)(apr_socket_t *,apr_file_t *,apr_hdtr_t *,apr_off_t *,apr_size_t *,apr_int32_t)=symbol("apr_socket_sendfile");
+    int initial=errno; void *real_address=symbol("apr_socket_sendfile"); apr_status_t (*real_call)(apr_socket_t *,apr_file_t *,apr_hdtr_t *,apr_off_t *,apr_size_t *,apr_int32_t)=real_address;
     int fd=socket_fd(socket); size_t requested=size?*size:0; uint64_t entered=now(); uint64_t call=call_number(); struct apr_scope scope=apr_enter(call,fd);
     errno=initial; apr_status_t result=real_call(socket,file,headers,offset,size,flags); int saved=errno; (void)apr_leave(scope);
-    transport(&(const struct transport_call){"apr_socket_sendfile",(void *)&*real_call,fd,0,1,result,saved,requested,size?*size:0,result==APR_SUCCESS,
+    transport(&(const struct transport_call){"apr_socket_sendfile",real_address,fd,0,1,result,saved,requested,size?*size:0,result==APR_SUCCESS,
         NULL,0,call,entered,0}); errno=saved; return result;
 }
 static struct native *native_entry(const Transaction *key) {

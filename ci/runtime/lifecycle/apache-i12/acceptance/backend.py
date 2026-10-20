@@ -8,6 +8,7 @@ import http.server
 import json
 import os
 from pathlib import Path
+import socketserver
 import threading
 import time
 
@@ -17,13 +18,14 @@ MIN_PRIVATE_PORT = 1024
 MAX_PORT = 65535
 
 
-class PrivateLoopbackHTTPServer(http.server.ThreadingHTTPServer):
+class PrivateLoopbackHTTPServer(socketserver.ThreadingTCPServer):
     """Plain HTTP fixture restricted to one literal IPv4 loopback listener.
 
     The private namespace exercises HTTP framing, including malformed peers;
     transport encryption is deliberately outside that test protocol.
     """
     daemon_threads = True
+    allow_reuse_address = True
 
     def server_bind(self):
         host, port = self.server_address

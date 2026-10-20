@@ -3,7 +3,12 @@ import base64
 import hashlib
 import importlib.util
 import io
+import multiprocessing
+import os
 from pathlib import Path
+import socket
+import tempfile
+import time
 from unittest import mock
 import unittest
 
@@ -64,9 +69,48 @@ class BackendWireTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'private loopback port'):
             listener.server_bind()
         listener.server_address = ('127.0.0.1', 18123)
-        with mock.patch.object(BACKEND.http.server.ThreadingHTTPServer, 'server_bind') as bind:
+        with mock.patch.object(BACKEND.socketserver.ThreadingTCPServer, 'server_bind') as bind:
             listener.server_bind()
         bind.assert_called_once_with()
+
+    def test_private_listener_preserves_real_http_request_and_response(self):
+        with socket.socket() as reservation:
+            reservation.bind(('127.0.0.1', 0))
+            port = reservation.getsockname()[1]
+        plan = {'request': {'path': '/principal'}, 'controls': [], 'backend': {
+            'status': 200, 'headers': [['Content-Type', 'text/plain']],
+            'body': blob(b'physical-body'), 'chunks': [], 'framing': 'content_length'}}
+        base = Path(os.environ.get('CODEX_TEST_TMP_ROOT', '/var/tmp/codex/ModSecurity-conector'))
+        base.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix='apache-backend-wire-', dir=base) as temporary:
+            process = multiprocessing.get_context('fork').Process(
+                target=BACKEND.serve, args=(plan, Path(temporary), port))
+            process.start()
+            try:
+                deadline = time.monotonic() + 5
+                while True:
+                    try:
+                        client = socket.create_connection(('127.0.0.1', port), timeout=1)
+                        break
+                    except ConnectionRefusedError:
+                        if time.monotonic() >= deadline:
+                            raise
+                        time.sleep(0.01)
+                with client:
+                    client.sendall(b'GET /principal HTTP/1.1\r\nHost: localhost\r\n'
+                                   b'X-I12-ID: principal\r\nConnection: close\r\n\r\n')
+                    response = bytearray()
+                    while chunk := client.recv(4096):
+                        response.extend(chunk)
+                self.assertTrue(response.startswith(b'HTTP/1.1 200 OK\r\n'))
+                self.assertTrue(response.endswith(b'\r\n\r\nphysical-body'))
+                self.assertIn('backend_eos_write', (Path(temporary) / 'requests.jsonl').read_text())
+            finally:
+                process.terminate()
+                process.join(5)
+                if process.is_alive():
+                    process.kill()
+                    process.join(5)
 
 
 if __name__ == '__main__':
