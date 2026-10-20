@@ -85,6 +85,9 @@ class ApacheLedgerTest(unittest.TestCase):
             self.assertEqual(len(row["fresh_observations"]), 35)
             self.assertTrue(all(item["value"] is None for item in row["fresh_observations"].values()))
             self.assertIsNone(row["fresh_outcome"])
+            self.assertIsNone(row["fresh_case_outcome"])
+            self.assertIsNone(row["fresh_qualification_scope"])
+            self.assertFalse(row["fresh_case_qualified"])
         self.assertEqual(result["rows"][0]["historical_result"], self.baseline["rows"][0])
 
     def test_complete_physical_packet_uses_shared_qualification(self):
@@ -92,6 +95,112 @@ class ApacheLedgerTest(unittest.TestCase):
         self.assertEqual(result["summary"]["fresh_full_lifecycle_pass"], 1)
         self.assertEqual(result["summary"]["missing_fresh_full_qualification"], 154)
         self.assertTrue(result["rows"][0]["fresh_qualified_pass"])
+        self.assertEqual(result["rows"][0]["fresh_qualification_scope"], "full_host_lifecycle")
+        self.assertTrue(result["rows"][0]["fresh_case_qualified_pass"])
+
+    def set_execution_kind(self, kind):
+        self.baseline["rows"][0]["selected_requirement"]["execution_kind"] = kind
+        digest = LEDGER.ORACLES.canonical_digest(
+            [row["selected_requirement"] for row in self.baseline["rows"]])
+        changed = patch.object(LEDGER.ORACLES, "CONTRACT_SHA256", digest)
+        changed.start()
+        self.addCleanup(changed.stop)
+
+    def control_review(self, scope, outcome="PASS"):
+        return {"observations": {"control": {"value": 1}}, "execution_observed": True,
+                "qualification_scope": scope, "full_case_qualified": True,
+                "full_lifecycle_qualified": False, "outcome": outcome}
+
+    def test_configuration_dispatch_uses_original_contract_and_separate_scope(self):
+        self.set_execution_kind("actual_configtest")
+        self.packet["execution_kind"] = "configuration_parser"
+        reviewed = self.control_review("configuration_control")
+        with patch.object(LEDGER.SHARED, "reviewed_configuration_packet", return_value=reviewed) as config, \
+                patch.object(LEDGER.SHARED, "reviewed_pre_native_packet") as pre_native, \
+                patch.object(LEDGER.SHARED, "reviewed_packet") as host:
+            result = self.build()
+        config.assert_called_once()
+        self.assertEqual(config.call_args.args[1], self.baseline["rows"][0])
+        self.assertEqual(config.call_args.args[2], self.baseline["rows"][0]["selected_requirement"]["expected_oracle"])
+        pre_native.assert_not_called()
+        host.assert_not_called()
+        row = result["rows"][0]
+        self.assertEqual(row["fresh_qualification_scope"], "configuration_control")
+        self.assertEqual(row["fresh_case_outcome"], "PASS")
+        self.assertTrue(row["fresh_case_qualified_pass"])
+        self.assertFalse(row["fresh_full_lifecycle_qualified"])
+        self.assertFalse(row["fresh_qualified_pass"])
+        self.assertIsNone(row["fresh_outcome"])
+        self.assertEqual(result["summary"]["fresh_configuration_pass"], 1)
+        self.assertEqual(result["summary"]["fresh_pre_native_pass"], 0)
+        self.assertEqual(result["summary"]["fresh_full_lifecycle_pass"], 0)
+        self.assertEqual(result["summary"]["missing_fresh_full_qualification"], 155)
+        self.assertEqual(result["summary"]["missing_fresh_case_qualification"], 154)
+        self.assertEqual(row["historical_result"], self.baseline["rows"][0])
+
+    def test_pre_native_dispatch_preserves_control_observations(self):
+        self.packet["execution_kind"] = "host_pre_native_rejection"
+        reviewed = self.control_review("host_pre_native_rejection")
+        with patch.object(LEDGER.SHARED, "reviewed_pre_native_packet", return_value=reviewed) as pre_native, \
+                patch.object(LEDGER.SHARED, "reviewed_configuration_packet") as config, \
+                patch.object(LEDGER.SHARED, "reviewed_packet") as host:
+            result = self.build()
+        pre_native.assert_called_once()
+        config.assert_not_called()
+        host.assert_not_called()
+        self.assertEqual(result["rows"][0]["fresh_observations"], reviewed["observations"])
+        self.assertEqual(result["summary"]["fresh_pre_native_pass"], 1)
+        self.assertEqual(result["summary"]["fresh_configuration_pass"], 0)
+        self.assertEqual(result["summary"]["fresh_full_lifecycle_pass"], 0)
+        self.assertIsNone(result["rows"][0]["fresh_outcome"])
+
+    def test_configuration_validator_failure_cannot_fall_back_to_host(self):
+        self.set_execution_kind("actual_configtest")
+        self.packet["execution_kind"] = "host_pre_native_rejection"
+        with patch.object(LEDGER.SHARED, "reviewed_configuration_packet", side_effect=ValueError("parser contract")) as config, \
+                patch.object(LEDGER.SHARED, "reviewed_pre_native_packet") as pre_native, \
+                patch.object(LEDGER.SHARED, "reviewed_packet") as host:
+            with self.assertRaisesRegex(ValueError, "parser contract"):
+                self.build()
+        config.assert_called_once()
+        pre_native.assert_not_called()
+        host.assert_not_called()
+
+    def test_parser_packet_cannot_promote_a_host_contract(self):
+        self.packet["execution_kind"] = "configuration_parser"
+        with self.assertRaisesRegex(ValueError, "actual host HTTP"):
+            self.build()
+
+    def test_configuration_dispatch_keeps_real_shared_contract_validation(self):
+        self.set_execution_kind("actual_configtest")
+        self.packet["execution_kind"] = "configuration_parser"
+        # A dispatch match does not waive the original parser observations.
+        with self.assertRaisesRegex(ValueError, "original three observations"):
+            self.build()
+
+    def test_pre_native_validator_failure_cannot_fall_back_to_host(self):
+        self.packet["execution_kind"] = "host_pre_native_rejection"
+        with patch.object(LEDGER.SHARED, "reviewed_pre_native_packet", side_effect=ValueError("pre-native evidence")), \
+                patch.object(LEDGER.SHARED, "reviewed_packet") as host:
+            with self.assertRaisesRegex(ValueError, "pre-native evidence"):
+                self.build()
+        host.assert_not_called()
+
+    def test_configuration_fail_and_unresolved_oracle_remain_separate(self):
+        self.set_execution_kind("actual_configtest")
+        self.packet["execution_kind"] = "configuration_parser"
+        row = self.baseline["rows"][0]
+        row["oracle_reconciliation"] = {"effective_oracle": {"unresolved_expected_value_reason": "pending"},
+                                         "resolved": False}
+        with patch.object(LEDGER.SHARED, "reviewed_configuration_packet",
+                          return_value=self.control_review("configuration_control", "FAIL")) as config:
+            result = self.build()
+        self.assertIsNone(config.call_args.args[2])
+        self.assertEqual(result["summary"]["fresh_configuration_fail"], 1)
+        self.assertEqual(result["summary"]["fresh_full_lifecycle_fail"], 0)
+        self.assertFalse(result["rows"][0]["fresh_case_qualified_pass"])
+        self.assertIsNone(result["rows"][1]["fresh_case_outcome"])
+        self.assertIsNone(result["rows"][1]["fresh_qualification_scope"])
 
     def test_null_measurement_stays_partial(self):
         self.packet["observations"]["client_exit"] = {"value": None, "reason": "No waited exit."}

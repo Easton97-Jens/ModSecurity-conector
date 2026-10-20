@@ -26,8 +26,17 @@ def read(path):
 def ref(path):
     return ORACLES.reference(Path(path).resolve(strict=True))
 
-def compact_observations(observations, packet_reference):
+def compact_observations(observations, packet_reference, scope=None, packet=None):
     """Reference actual values rather than copying megabytes of capture rows."""
+    if scope == 'configuration_control':
+        if packet_reference is None or packet is None or observations != packet.get('actual_observations'):
+            raise ValueError('Configuration observations must match the physical actual_observations')
+        return {name: {'observed_value_reference': {
+            'packet_sha256': packet_reference['sha256'],
+            'json_pointer': '/actual_observations/' + name.replace('~', '~0').replace('/', '~1')}}
+                for name in observations}
+    if scope == 'host_pre_native_rejection':
+        return compact_pre_native(observations, packet_reference, packet)
     if set(observations) != set(ROLES):
         raise ValueError('All 35 observation roles must remain explicit')
     result = {}
@@ -38,6 +47,32 @@ def compact_observations(observations, packet_reference):
             if packet_reference is None:
                 raise ValueError('A known observation requires a physical packet reference')
             result[name] = {'observed_value_reference': {'packet_sha256': packet_reference['sha256'], 'json_pointer': '/observations/' + name}, 'applicable': item.get('applicable', True)}
+    return result
+
+
+def compact_pre_native(observations, packet_reference, packet):
+    """Bind small validated window conclusions to their physical producers."""
+    if packet_reference is None or packet is None:
+        raise ValueError('Pre-native observations require a physical reviewed packet')
+    producers = {item['role']: ORACLES.verify_reference(item)
+                 for item in packet['measurement_evidence']}
+    client = read(producers['client_receipt']['path'])
+    process = read(producers['client_process']['path'])
+    derived = LEDGER.SHARED.pre_native_native_window(packet, producers, client)
+    if observations != {'client_process': process, 'client': client, **derived}:
+        raise ValueError('Pre-native observations differ from their physical producers or validated window')
+    result = {name: {'observed_value_reference': {
+        'packet_sha256': packet_reference['sha256'],
+        'producer_reference': producers[role], 'json_pointer': ''}}
+              for name, role in (('client_process', 'client_process'), ('client', 'client_receipt'))}
+    binding = {'validator': 'reviewed_pre_native_packet/pre_native_native_window',
+               'packet_sha256': packet_reference['sha256'],
+               'measurement_evidence': [producers[role] for role in
+                                        ('native_api', 'client_receipt', 'host_callback')]}
+    for name, value in derived.items():
+        result[name] = {'value': value, 'validated_derivation': copy.deepcopy(binding)}
+        if value is None:
+            result[name]['reason'] = 'No native transaction was allocated in the validated main request window.'
     return result
 
 def check_rows(source):
@@ -64,19 +99,33 @@ def oracle_summary(review):
     keys = ('category', 'resolved', 'interpretation', 'scope', 'effective_oracle', 'independent_sources', 'implementation_sources', 'unsupported_applicability', 'approved_correction', 'retest')
     return {key: copy.deepcopy(review.get(key)) for key in keys}
 
-def qualification(qualified, observed):
+def qualification(qualified, observed, scope=None):
     if qualified:
         return 'FULL_HOST_LIFECYCLE'
+    if scope in ('configuration_control', 'host_pre_native_rejection'):
+        return scope.upper()
     if observed:
         return 'PARTIAL_HOST_MEASUREMENTS'
     return 'NOT_EXECUTED'
 
 
 def qualification_flags_match(row, validated):
-    expected_pass = validated['full_lifecycle_qualified'] and validated['outcome'] == 'PASS'
+    full = validated['full_lifecycle_qualified']
+    expected_pass = full and validated['outcome'] == 'PASS'
     return (row['fresh_full_lifecycle_qualified'] == validated['full_lifecycle_qualified']
-            and row['fresh_outcome'] == validated['outcome']
+            and row['fresh_outcome'] == (validated['outcome'] if full else None)
             and row['fresh_qualified_pass'] == expected_pass)
+
+
+def case_qualification(validated):
+    full = validated['full_lifecycle_qualified']
+    qualified = full or validated.get('full_case_qualified') is True
+    return {
+        'fresh_qualification_scope': validated.get('qualification_scope') or ('full_host_lifecycle' if full else None),
+        'fresh_case_qualified': qualified,
+        'fresh_case_outcome': validated['outcome'] if qualified else None,
+        'fresh_case_qualified_pass': qualified and validated['outcome'] == 'PASS',
+    }
 
 
 class ApachePackage:
@@ -92,7 +141,7 @@ class ApachePackage:
         packet = read(receipt['path'])
         digest = receipt['sha256']
         if digest not in self.packets:
-            keys = ('run_scoped_case_id', 'actual_scenario_variant', 'reviewed_by', 'execution_observed', 'execution_kind', 'run_id', 'parent_sha', 'evidence_branch_base', 'framework_sha', 'mrts_sha', 'mrts_scope', 'effective_config_sha256', 'rules_sha256', 'actual_attempt', 'oracle_evaluated', 'oracle_sha256', 'outcome', 'full_lifecycle_qualified', 'review_checks', 'unknown_fields', 'scope_limits')
+            keys = ('run_scoped_case_id', 'actual_scenario_variant', 'reviewed_by', 'execution_observed', 'execution_kind', 'run_id', 'parent_sha', 'evidence_branch_base', 'framework_sha', 'mrts_sha', 'mrts_scope', 'effective_config_sha256', 'rules_sha256', 'actual_attempt', 'oracle_evaluated', 'oracle_sha256', 'outcome', 'full_lifecycle_qualified', 'qualification_scope', 'full_case_qualified', 'review_checks', 'unknown_fields', 'scope_limits')
             self.packets[digest] = {'receipt': receipt, **{key: copy.deepcopy(packet.get(key)) for key in keys}}
         return (receipt, packet)
 
@@ -157,20 +206,32 @@ class ApachePackage:
             self.collect_row(row)
 
     def validate_row_packet(self, row):
+        self.case_fields = {'fresh_qualification_scope': None, 'fresh_case_qualified': False,
+                            'fresh_case_outcome': None, 'fresh_case_qualified_pass': False}
         if self.fresh:
             self.receipt, self.packet = self.packet_reference(self.fresh['receipt'])
             self.review = row.get('oracle_reconciliation')
             self.effective = self.review.get('effective_oracle') if self.review else row['original_oracle']
             if self.effective and self.effective.get('unresolved_expected_value_reason'):
                 self.effective = None
-            self.validated = LEDGER.SHARED.reviewed_packet(self.receipt, row, self.effective)
-            if any((self.validated[key] != self.fresh[key] for key in ('execution_observed', 'full_lifecycle_qualified', 'outcome', 'unknown_fields', 'observations'))):
+            reviewer = LEDGER.SHARED.reviewed_packet
+            if row['selected_requirement'].get('execution_kind') == 'actual_configtest':
+                reviewer = LEDGER.SHARED.reviewed_configuration_packet
+            elif self.packet.get('execution_kind') == 'host_pre_native_rejection':
+                reviewer = LEDGER.SHARED.reviewed_pre_native_packet
+            self.validated = reviewer(self.receipt, row, self.effective)
+            if any((self.validated.get(key) != self.fresh.get(key) for key in ('execution_observed', 'full_lifecycle_qualified', 'outcome', 'unknown_fields', 'observations', 'qualification_scope', 'full_case_qualified'))):
                 raise ValueError("Adapter's accepted packet differs from fresh shared validation")
-            if not qualification_flags_match(row, self.validated):
+            if (not qualification_flags_match(row, self.validated)
+                    or row['fresh_execution_observed'] != self.validated['execution_observed']
+                    or row['fresh_observations'] != self.validated['observations']):
                 raise ValueError('Adapter qualification flags do not match its physical packet')
+            self.case_fields = case_qualification(self.validated)
             self.add_attempt(self.packet.get('actual_attempt'))
         elif row['fresh_full_lifecycle_qualified'] or row['fresh_qualified_pass'] or row['fresh_outcome'] is not None:
             raise ValueError('No accepted packet means no fresh qualification')
+        if any(row.get(key, value) != value for key, value in self.case_fields.items()):
+            raise ValueError('Adapter case qualification does not match its physical packet')
 
     def collect_row(self, row):
         self.identity = row['run_scoped_case_id']
@@ -184,16 +245,40 @@ class ApachePackage:
         self.qualified = row['fresh_full_lifecycle_qualified']
         self.observations = row['fresh_observations']
         self.observation_receipt = self.receipt
+        self.observation_packet = self.packet
+        self.observation_scope = self.case_fields['fresh_qualification_scope']
         if not self.fresh:
             self.actual_candidates = [item for item in self.raw if item.get('candidate') and item['actual_execution_observed']]
             if self.actual_candidates:
                 self.observation_receipt, self.actual = self.packet_reference(self.actual_candidates[-1]['candidate'])
-                self.observations = self.actual['observations']
-        self.packaged.append({'run_scoped_case_id': self.identity, 'leg_id': 'apache-native', 'required_leg': True, 'selected_requirement': copy.deepcopy(row['selected_requirement']), 'original_oracle': copy.deepcopy(row['original_oracle']), 'original_54_oracle_member': bool(row['original_oracle'].get('unresolved_expected_value_reason')), 'oracle_reconciliation': oracle_summary(row.get('oracle_reconciliation')), 'historical': {'status': self.old['status'], 'execution_observed': self.old.get('execution_observed'), 'qualification_scope': self.old.get('qualification_scope'), 'configuration_pass': self.old.get('qualification_scope') == 'historical_configuration_only' and self.old['status'] == 'PASS', 'full_lifecycle_pass': self.old.get('qualification_scope') == 'full_host_lifecycle' and self.old['status'] == 'PASS'}, 'fresh': {'execution_observed': bool(self.observed), 'accepted_execution_observed': row['fresh_execution_observed'], 'full_lifecycle_qualified': self.qualified, 'outcome': row['fresh_outcome'], 'qualified_pass': row['fresh_qualified_pass'], 'qualification': qualification(self.qualified, self.observed), 'accepted_packet': self.receipt, 'observation_packet': self.observation_receipt, 'observations': compact_observations(self.observations, self.observation_receipt), 'candidate_attempts': self.raw, 'sink_attempts': self.sink_cases}})
+                self.observation_packet = self.actual
+                self.observations = self.actual.get('observations', self.actual.get('actual_observations', self.observations))
+                if self.actual.get('execution_kind') == 'configuration_parser':
+                    self.observation_scope = 'configuration_control'
+        self.packaged.append({'run_scoped_case_id': self.identity, 'leg_id': 'apache-native', 'required_leg': True, 'selected_requirement': copy.deepcopy(row['selected_requirement']), 'original_oracle': copy.deepcopy(row['original_oracle']), 'original_54_oracle_member': bool(row['original_oracle'].get('unresolved_expected_value_reason')), 'oracle_reconciliation': oracle_summary(row.get('oracle_reconciliation')), 'historical': {'status': self.old['status'], 'execution_observed': self.old.get('execution_observed'), 'qualification_scope': self.old.get('qualification_scope'), 'configuration_pass': self.old.get('qualification_scope') == 'historical_configuration_only' and self.old['status'] == 'PASS', 'full_lifecycle_pass': self.old.get('qualification_scope') == 'full_host_lifecycle' and self.old['status'] == 'PASS'}, 'fresh': {'execution_observed': bool(self.observed), 'accepted_execution_observed': row['fresh_execution_observed'], 'full_lifecycle_qualified': self.qualified, 'outcome': row['fresh_outcome'], 'qualified_pass': row['fresh_qualified_pass'], 'qualification': qualification(self.qualified, self.observed), 'accepted_packet': self.receipt, 'observation_packet': self.observation_receipt, 'observations': compact_observations(self.observations, self.observation_receipt, self.observation_scope, self.observation_packet), 'candidate_attempts': self.raw, 'sink_attempts': self.sink_cases}})
+
+        fresh = self.packaged[-1]['fresh']
+        fresh.update({key.removeprefix('fresh_'): value for key, value in self.case_fields.items()})
+        fresh['qualification'] = qualification(self.qualified, self.observed,
+                                               self.case_fields['fresh_qualification_scope'])
+
+    def control_summary(self):
+        result = {}
+        for label, scope in (('configuration', 'configuration_control'),
+                             ('pre_native', 'host_pre_native_rejection')):
+            selected = [row['fresh'] for row in self.packaged
+                        if row['fresh']['qualification_scope'] == scope]
+            for outcome in ('PASS', 'FAIL'):
+                result[f'fresh_{label}_{outcome.lower()}'] = sum(
+                    row['case_outcome'] == outcome for row in selected)
+        result['fresh_case_qualified_pass'] = sum(row['fresh']['case_qualified_pass'] for row in self.packaged)
+        result['missing_fresh_case_qualification'] = sum(not row['fresh']['case_qualified'] for row in self.packaged)
+        return result
 
     def summarize(self):
         self.source_summary = copy.deepcopy(self.source['summary'])
         self.result = {'schema_version': 1, 'scope': 'apache-native', 'i12_complete': False, 'packaging_does_not_qualify_runtime': True, 'original_ordered_id_sha256': self.source['original_ordered_id_sha256'], 'original_selected_contract_sha256': self.source['original_selected_contract_sha256'], 'source_full_ledger': ref(self.source_path), 'source_summary': self.source_summary, 'summary': {'required_cases': len(self.packaged), 'fresh_actual_executed_ids_including_unqualified': sum((row['fresh']['execution_observed'] for row in self.packaged)), 'fresh_full_lifecycle_pass': sum((row['fresh']['qualified_pass'] for row in self.packaged)), 'fresh_full_lifecycle_fail': sum((row['fresh']['outcome'] == 'FAIL' for row in self.packaged)), 'fresh_partial_ids': sum((row['fresh']['qualification'] == 'PARTIAL_HOST_MEASUREMENTS' for row in self.packaged)), 'fresh_not_executed_ids': sum((row['fresh']['qualification'] == 'NOT_EXECUTED' for row in self.packaged)), 'raw_attempts': len(self.attempts), 'original_open_oracle_subset': self.source_summary['original_open_oracle_subset'], 'resolved_original_oracles': self.source_summary['resolved_original_oracles'], 'unresolved_original_oracles': self.source_summary['unresolved_original_oracles']}, 'input_evidence': [ref(self.candidate_index), ref(self.sink_readback)], 'run_indices': self.run_indices, 'raw_attempts': list(self.attempts.values()), 'packet_registry': self.packets, 'rows': self.packaged}
+        self.result['summary'].update(self.control_summary())
         for name in ('reviewed-packets.json', 'reviewed-oracles.json'):
             path = self.run_root / name
             if path.is_file():

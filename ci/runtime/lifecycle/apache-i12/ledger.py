@@ -80,7 +80,12 @@ class ApacheLedger:
             self.oracle = self.review.get('effective_oracle') if self.review else row['selected_requirement']['expected_oracle']
             if self.oracle and self.oracle.get('unresolved_expected_value_reason'):
                 self.oracle = None
-            self.observations[self.identity] = SHARED.reviewed_packet(self.ref, row, self.oracle)
+            reviewer = SHARED.reviewed_packet
+            if row['selected_requirement'].get('execution_kind') == 'actual_configtest':
+                reviewer = SHARED.reviewed_configuration_packet
+            elif self.packet.get('execution_kind') == 'host_pre_native_rejection':
+                reviewer = SHARED.reviewed_pre_native_packet
+            self.observations[self.identity] = reviewer(self.ref, row, self.oracle)
 
     def collect_rows(self):
         self.rows = []
@@ -89,6 +94,28 @@ class ApacheLedger:
             self.fresh = self.observations.get(self.identity)
             self.qualified = self.fresh is not None and self.fresh['full_lifecycle_qualified']
             self.rows.append({'run_scoped_case_id': self.identity, 'leg_id': 'apache-native', 'required_leg': True, 'selected_requirement': copy.deepcopy(old['selected_requirement']), 'original_oracle': copy.deepcopy(old['selected_requirement']['expected_oracle']), 'historical_result': copy.deepcopy(old), 'oracle_reconciliation': copy.deepcopy(self.reviews.get(self.identity, old.get('oracle_reconciliation'))), 'fresh_packet': self.fresh, 'fresh_observations': copy.deepcopy(self.fresh['observations']) if self.fresh else {name: {'value': None, 'reason': 'No newly reviewed Apache host packet for this original ID.'} for name in SHARED.ROLES}, 'fresh_execution_observed': self.fresh is not None, 'fresh_full_lifecycle_qualified': self.qualified, 'fresh_outcome': self.fresh['outcome'] if self.qualified else None, 'fresh_qualified_pass': self.qualified and self.fresh['outcome'] == 'PASS'})
+
+            # Control scopes cannot supply native body/finish/free observations.
+            case_qualified = self.qualified or bool(self.fresh and self.fresh.get('full_case_qualified'))
+            self.rows[-1].update({
+                'fresh_qualification_scope': (self.fresh.get('qualification_scope') or
+                                              ('full_host_lifecycle' if self.qualified else None)) if self.fresh else None,
+                'fresh_case_qualified': case_qualified,
+                'fresh_case_outcome': self.fresh['outcome'] if case_qualified else None,
+                'fresh_case_qualified_pass': case_qualified and self.fresh['outcome'] == 'PASS',
+            })
+
+    def control_summary(self):
+        result = {}
+        for label, scope in (('configuration', 'configuration_control'),
+                             ('pre_native', 'host_pre_native_rejection')):
+            selected = [row for row in self.rows if row['fresh_qualification_scope'] == scope]
+            for outcome in ('PASS', 'FAIL'):
+                result[f'fresh_{label}_{outcome.lower()}'] = sum(
+                    row['fresh_case_outcome'] == outcome for row in selected)
+        result['fresh_case_qualified_pass'] = sum(row['fresh_case_qualified_pass'] for row in self.rows)
+        result['missing_fresh_case_qualification'] = sum(not row['fresh_case_qualified'] for row in self.rows)
+        return result
 
     def summarize(self):
         self.subset = [row for row in self.rows if row['original_oracle'].get('unresolved_expected_value_reason')]
@@ -101,7 +128,9 @@ def build_ledger(baseline, packets, oracle_records=(), expected_identity=None):
     work.review_oracles()
     work.review_packets()
     work.collect_rows()
-    return work.summarize()
+    result = work.summarize()
+    result['summary'].update(work.control_summary())
+    return result
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
