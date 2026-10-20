@@ -1,8 +1,8 @@
 /* Apache I12 test-only public-SDK multipart observation; never changes SDK calls. */
 #include <modsecurity/transaction.h>
-#include <algorithm>
 #include <array>
 #include <cerrno>
+#include <cstddef>
 #include <cstdint>
 #include <chrono>
 #include <cstdlib>
@@ -52,7 +52,11 @@ std::string json_quoted(std::string_view value) {
     std::ostringstream out; out << '"';
     for (unsigned char c : value.substr(0, 256)) {
         if (c == '"' || c == '\\') out << '\\' << c;
-        else if (c < 32 || c >= 127) out << R"(\u00)" << hex[c >> 4] << hex[c & 15];
+        else if (c < 32 || c >= 127) {
+            const std::byte byte{c};
+            out << R"(\u00)" << hex[std::to_integer<unsigned>(byte >> 4)]
+                << hex[std::to_integer<unsigned>(byte & std::byte{15})];
+        }
         else out << c;
     }
     out << '"'; return out.str();
@@ -75,9 +79,9 @@ bool private_file(const struct stat &info) {
 }
 int root_fd(std::string &path) {
     const char *configured = std::getenv("I12_APACHE_MULTIPART_ROOT");
-    if (!configured || configured[0] != '/' || std::strlen(configured) >= PATH_MAX) return -1;
-    std::array<char, PATH_MAX> canonical{};
-    if (!realpath(configured, canonical.data()) || std::strcmp(canonical.data(), configured)) return -1;
+    if (!configured || configured[0] != '/' || strnlen(configured, PATH_MAX) >= PATH_MAX) return -1;
+    if (std::array<char, PATH_MAX> canonical{};
+        !realpath(configured, canonical.data()) || std::strcmp(canonical.data(), configured)) return -1;
     path = configured;
     if (int fd = open(configured, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC); fd >= 0) {
         struct stat info;
@@ -85,10 +89,9 @@ int root_fd(std::string &path) {
         Descriptor marker(openat(fd, "multipart.enable", O_RDONLY | O_NOFOLLOW | O_CLOEXEC));
         constexpr std::string_view expected = "I12_APACHE_MULTIPART_V1\n";
         std::array<char, expected.size() + 2> text{};
-        bool admitted = marker.get() >= 0 && !fstat(marker.get(), &info) && private_file(info) &&
+        if (bool admitted = marker.get() >= 0 && !fstat(marker.get(), &info) && private_file(info) &&
             read(marker.get(), text.data(), text.size()) == static_cast<ssize_t>(expected.size()) &&
-            std::string_view(text.data(), expected.size()) == expected;
-        if (!admitted) { close(fd); return -1; }
+            std::string_view(text.data(), expected.size()) == expected; !admitted) { close(fd); return -1; }
         return fd;
     }
     return -1;
@@ -115,7 +118,10 @@ std::string common(const modsecurity::Transaction *key, const std::string &id, c
     return out.str();
 }
 bool has_path_separator(std::string_view path) {
-    return std::find(path.begin(), path.end(), '/') != path.end();
+    for (char character : path) {
+        if (character == '/') return true;
+    }
+    return false;
 }
 std::string path_metadata(int root, const std::string &directory, const std::string &path) {
     std::ostringstream out; out << R"({"path_fingerprint_fnv1a64":)" << json_quoted(fingerprint(path));
@@ -140,7 +146,10 @@ std::string path_metadata(int root, const std::string &directory, const std::str
 }
 std::string files(int root, const std::string &directory, const std::vector<std::string> &paths) {
     std::ostringstream out; out << '[';
-    for (std::size_t i = 0; i < paths.size(); ++i) { if (i) out << ','; out << path_metadata(root, directory, paths[i]); }
+    for (std::size_t i = 0; i < paths.size(); ++i) {
+        if (i) out << ',';
+        out << path_metadata(root, directory, paths[i]);
+    }
     out << ']'; return out.str();
 }
 std::string names(const modsecurity::AnchoredSetVariable &collection) {
@@ -174,7 +183,8 @@ extern "C" void i12_apache_observe_multipart(void *opaque) noexcept {
         auto &state = observer_state();
         std::scoped_lock guard(state.lock); reset_process(state);
         if (root.get() >= 0) {
-            if (opaque && (state.saved.count(opaque) || state.saved.size() < max_transactions)) {
+            auto found = state.saved.find(opaque);
+            if (opaque && (found != state.saved.end() || state.saved.size() < max_transactions)) {
                 auto *transaction = static_cast<modsecurity::Transaction *>(opaque);
                 Saved snapshot{transaction->m_id, {}, transaction->m_variableFilesTmpNames.size() <= max_files};
                 for (const auto &entry : transaction->m_variableFilesTmpNames) {
@@ -194,7 +204,9 @@ extern "C" void i12_apache_observe_multipart(void *opaque) noexcept {
                     << R"(,"native_tmpfile_objects_count":)" << transaction->m_multipartPartTmpFiles.size()
                     << R"(,"path_snapshot_complete":)" << (snapshot.complete ? "true" : "false")
                     << R"(,"max_observed_files":)" << max_files << R"(,"files":)" << files(root.get(), directory, snapshot.paths) << '}';
-                state.saved[opaque] = snapshot; output(state, root.get(), row.str());
+                if (found != state.saved.end()) found->second = snapshot;
+                else state.saved.emplace(opaque, snapshot);
+                output(state, root.get(), row.str());
             }
         }
     } catch (...) { observation_failed(); }

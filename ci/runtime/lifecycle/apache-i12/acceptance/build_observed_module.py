@@ -149,6 +149,18 @@ def configured_storage_root():
     return root
 
 
+def validate_private_ancestry(ancestor, anchor):
+    """Require every directory through the admitted anchor to resist replacement."""
+    while True:
+        details = ancestor.stat()
+        if (not stat.S_ISDIR(details.st_mode) or details.st_uid not in {0, os.geteuid()}
+                or details.st_mode & 0o022):
+            raise ValueError("Admitted input ancestry permits replacement")
+        if ancestor == anchor:
+            return
+        ancestor = ancestor.parent
+
+
 def admitted_path(value, roots, *, directory=False):
     """Admit a canonical absolute path below an explicit root before filesystem use."""
     if not isinstance(value, str) or not value or len(value) > 4096 or any(ord(char) < 32 for char in value):
@@ -169,15 +181,7 @@ def admitted_path(value, roots, *, directory=False):
             or details.st_mode & 0o022):
         raise ValueError("Admitted input has an unexpected object type")
     anchor = max((root for root in roots if resolved.is_relative_to(root)), key=lambda root: len(root.parts))
-    ancestor = resolved if directory else resolved.parent
-    while True:
-        details = ancestor.stat()
-        if (not stat.S_ISDIR(details.st_mode) or details.st_uid not in {0, os.geteuid()}
-                or details.st_mode & 0o022):
-            raise ValueError("Admitted input ancestry permits replacement")
-        if ancestor == anchor:
-            break
-        ancestor = ancestor.parent
+    validate_private_ancestry(resolved if directory else resolved.parent, anchor)
     return resolved
 
 
@@ -367,19 +371,8 @@ def apache_wrapped_symbols(path):
     return list(APACHE_NATIVE_WRAPPED_SYMBOLS + APACHE_HOST_WRAPPED_SYMBOLS)
 
 
-def validate_inputs(spec):
-    storage = configured_storage_root()
-    root = admitted_path(spec["source_root"], (storage,), directory=True)
-    output = new_output_path(spec["output"], storage)
-    if output.is_relative_to(root) or root.is_relative_to(output):
-        raise ValueError("Output must be fresh and disjoint from input source")
-    if (root / ".git").exists():
-        raise ValueError("Only a disposable source export may be instrumented")
-    marker = json.loads(read_regular_bytes(source_member(root, ".i12-disposable-source-copy.json")))
-    if marker.get("format") != "i12-disposable-source-copy-v2" or marker.get("disposable") is not True or marker.get("path") != str(root):
-        raise ValueError("Disposable v2 identity required")
-    capture = bound_json(spec["capture_receipt"], (storage,))
-    identity = bound_json(spec["build_identity"], (storage,))
+def validate_capture_identity(root, marker, capture, identity):
+    """Reconcile the source, capture manifest and complete inventory bindings."""
     if capture.get("profile") != "apache-current" or capture.get("source_copy") != str(root):
         raise ValueError("Complete apache-current capture required")
     if identity.get("source_revision") != marker["source_revision"] or capture.get("source_revision") != marker["source_revision"]:
@@ -401,6 +394,10 @@ def validate_inputs(spec):
     if not written or not all(name in written for name in SOURCE_FILES):
         raise ValueError("Incomplete capture receipt")
     validate_source_snapshot(root, snapshot, written)
+
+
+def validate_product_build(spec, storage, identity):
+    """Admit all fresh objects and the transcript from their canonical build."""
     objects = identity["objects"]
     if len(objects) != 33 or identity.get("fresh_product_translation_units") != 33 or identity.get("historical_objects_reused") is not False:
         raise ValueError("All 33 fresh Product objects required")
@@ -412,6 +409,11 @@ def validate_inputs(spec):
     make_path = bound(spec["make_stdout"], (storage,))
     if len(make_record) != 1 or make_record[0]["stdout_sha256"] != sha(make_path):
         raise ValueError("Compiler transcript does not belong to this build")
+    return make_path
+
+
+def validate_sdk_inputs(spec, storage, identity):
+    """Bind the selected SDK library and its complete header inventory."""
     sdk = bound(spec["sdk_library"], (storage, *SYSTEM_LIBRARY_ROOTS))
     if str(sdk) != identity["sdk"]["path"] or sha(sdk) != identity["sdk"]["sha256"]:
         raise ValueError("Selected SDK differs from canonical build")
@@ -422,6 +424,11 @@ def validate_inputs(spec):
         if not Path(path).is_relative_to(include):
             raise ValueError("SDK header inventory differs from selected include root")
         bound({"path": path, "sha256": expected}, (include,))
+    return sdk, include
+
+
+def validate_helper_inputs(spec, storage, capture):
+    """Bind helpers and ensure fault anchors target the captured Product source."""
     if set(spec["helper_objects"]) != {"common", "fault", "bucket"}:
         raise ValueError("Exact Common, fault and bucket helpers required")
     helpers = {name: bound(item, (storage,)) for name, item in spec["helper_objects"].items()}
@@ -432,10 +439,77 @@ def validate_inputs(spec):
     for anchor in fault["external_source_anchors"]:
         if capture["actual_before_sha256"].get(anchor["file"]) != anchor["source_sha256"]:
             raise ValueError("Fault anchors target a different Product revision")
+    return helpers, fault, header
+
+
+def validate_inputs(spec):
+    storage = configured_storage_root()
+    root = admitted_path(spec["source_root"], (storage,), directory=True)
+    output = new_output_path(spec["output"], storage)
+    if output.is_relative_to(root) or root.is_relative_to(output):
+        raise ValueError("Output must be fresh and disjoint from input source")
+    if (root / ".git").exists():
+        raise ValueError("Only a disposable source export may be instrumented")
+    marker = json.loads(read_regular_bytes(source_member(root, ".i12-disposable-source-copy.json")))
+    if marker.get("format") != "i12-disposable-source-copy-v2" or marker.get("disposable") is not True or marker.get("path") != str(root):
+        raise ValueError("Disposable v2 identity required")
+    capture = bound_json(spec["capture_receipt"], (storage,))
+    identity = bound_json(spec["build_identity"], (storage,))
+    validate_capture_identity(root, marker, capture, identity)
+    make_path = validate_product_build(spec, storage, identity)
+    sdk, include = validate_sdk_inputs(spec, storage, identity)
+    helpers, fault, header = validate_helper_inputs(spec, storage, capture)
     symbols = apache_wrapped_symbols(root / "tests/test_native_lifecycle_observer.py")
     if spec["wrapped_symbols"] != symbols:
         raise ValueError("Wrapper list must exactly preserve the Apache-defined observer scope")
     return root, output, identity, capture, helpers, fault, header, sdk, include, make_path, symbols
+
+
+def compile_observers(root, output, include, receipt, run):
+    compiled = []
+    includes = ["-I", str(root), "-I", str(root / "common/include"), "-I", str(root / "ci/runtime/lifecycle"),
+                "-I", str(root / "connectors/apache/src"), "-I", "/usr/include/apache2", "-I", "/usr/include/apr-1.0",
+                *([] if include == Path("/usr/include") else ["-isystem", str(include)])]
+    receipt["observer_objects"] = {}
+    for filename in OBSERVERS:
+        cpp = filename.endswith(".cpp")
+        source = root / ("connectors/apache/src" if filename.startswith("apache-") else "ci/runtime/lifecycle") / filename
+        obj = output / (source.stem + ".o")
+        argv = ["g++" if cpp else "cc", "-std=c++17" if cpp else "-std=c17", "-Wall", "-Wextra", "-Werror",
+                "-pthread", "-fPIC", "-fno-lto", *(["-D_GNU_SOURCE"] if filename == "apache-host-observer.c" else []),
+                *includes, "-c", str(source), "-o", str(obj)]
+        run("compile-" + source.stem, argv, root)
+        compiled.append(obj)
+        receipt["observer_objects"][str(obj)] = {"sha256": sha(obj), "source_sha256": sha(source)}
+    return compiled
+
+
+def validate_elf_hardening(dynamic, program, link_argv):
+    if "BIND_NOW" not in dynamic or "-Wl,-Bsymbolic-functions" not in link_argv:
+        raise ValueError("ELF immediate binding or symbolic-function linkage missing")
+    if "GNU_RELRO" not in program:
+        raise ValueError("ELF RELRO missing")
+    stack = [line for line in program.splitlines() if "GNU_STACK" in line]
+    if len(stack) != 1 or "RWE" in stack[0]:
+        raise ValueError("ELF non-executable stack missing")
+
+
+def validate_unchanged_build_inputs(root, identity, capture, texts, storage):
+    # Rebind the complete inventory/capture outputs after all compiler/linker
+    # commands. Checking only the two copied TUs would miss another source file
+    # changed by a tool while these immutable inputs were in use.
+    marker = json.loads(read_regular_bytes(source_member(root, ".i12-disposable-source-copy.json")))
+    inventory = source_member(root, marker["snapshot_manifest"])
+    inventory_content = read_regular_bytes(inventory)
+    if hashlib.sha256(inventory_content).hexdigest() != identity["source_inventory_sha256"]:
+        raise ValueError("Source inventory changed during build")
+    validate_source_snapshot(root, json.loads(inventory_content), capture["exact_written_sha256"])
+    for name, text in texts.items():
+        if (root / name).read_text() != text:
+            raise ValueError("Input source mutated during build")
+    for path, expected in identity["objects"].items():
+        if sha(admitted_path(path, (storage,))) != expected:
+            raise ValueError("Original Product object mutated during build")
 
 
 def build(spec_path):
@@ -508,21 +582,7 @@ def build(spec_path):
             receipt["retained_product_objects"][path] = expected
     if len(receipt["retained_product_objects"]) != 31:
         raise ValueError("Expected exactly 31 unchanged fresh Product objects")
-    compiled = []
-    includes = ["-I", str(root), "-I", str(root / "common/include"), "-I", str(root / "ci/runtime/lifecycle"),
-                "-I", str(root / "connectors/apache/src"), "-I", "/usr/include/apache2", "-I", "/usr/include/apr-1.0",
-                *([] if include == Path("/usr/include") else ["-isystem", str(include)])]
-    receipt["observer_objects"] = {}
-    for filename in OBSERVERS:
-        cpp = filename.endswith(".cpp")
-        source = root / ("connectors/apache/src" if filename.startswith("apache-") else "ci/runtime/lifecycle") / filename
-        obj = output / (source.stem + ".o")
-        argv = ["g++" if cpp else "cc", "-std=c++17" if cpp else "-std=c17", "-Wall", "-Wextra", "-Werror",
-                "-pthread", "-fPIC", "-fno-lto", *(["-D_GNU_SOURCE"] if filename == "apache-host-observer.c" else []),
-                *includes, "-c", str(source), "-o", str(obj)]
-        run("compile-" + source.stem, argv, root)
-        compiled.append(obj)
-        receipt["observer_objects"][str(obj)] = {"sha256": sha(obj), "source_sha256": sha(source)}
+    compiled = compile_observers(root, output, include, receipt, run)
     module = output / "mod_security3.so"
     link_argv = ["g++", "-shared", "-fPIC", "-fno-lto", "-pthread", "-Wl,--as-needed",
         "-Wl,-Bsymbolic-functions", "-Wl,-z,relro", "-Wl,-z,now", *product, *compiled,
@@ -534,29 +594,9 @@ def build(spec_path):
     symbol_table = run("elf-symbols", ["readelf", "-W", "-s", str(module)], root)
     libraries = run("linked-libraries", ["ldd", str(module)], root)
     receipt["resolved_sdk"] = validate_sdk_resolution(libraries, sdk)
-    if "BIND_NOW" not in dynamic or "-Wl,-Bsymbolic-functions" not in link_argv:
-        raise ValueError("ELF immediate binding or symbolic-function linkage missing")
-    if "GNU_RELRO" not in program:
-        raise ValueError("ELF RELRO missing")
-    stack = [line for line in program.splitlines() if "GNU_STACK" in line]
-    if len(stack) != 1 or "RWE" in stack[0]:
-        raise ValueError("ELF non-executable stack missing")
+    validate_elf_hardening(dynamic, program, link_argv)
     validate_wrapper_definitions(symbol_table, symbols)
-    # Rebind the complete inventory/capture outputs after all compiler/linker
-    # commands. Checking only the two copied TUs would miss another source file
-    # changed by a tool while these immutable inputs were in use.
-    marker = json.loads(read_regular_bytes(source_member(root, ".i12-disposable-source-copy.json")))
-    inventory = source_member(root, marker["snapshot_manifest"])
-    inventory_content = read_regular_bytes(inventory)
-    if hashlib.sha256(inventory_content).hexdigest() != identity["source_inventory_sha256"]:
-        raise ValueError("Source inventory changed during build")
-    validate_source_snapshot(root, json.loads(inventory_content), capture["exact_written_sha256"])
-    for name, text in texts.items():
-        if (root / name).read_text() != text:
-            raise ValueError("Input source mutated during build")
-    for path, expected in identity["objects"].items():
-        if sha(admitted_path(path, (storage,))) != expected:
-            raise ValueError("Original Product object mutated during build")
+    validate_unchanged_build_inputs(root, identity, capture, texts, storage)
     receipt.update({"module": str(module), "module_sha256": sha(module),
                     "product_translation_units": 33, "recompiled_product_translation_units": 2,
                     "historical_objects_reused": False, "sdk_sha256": sha(sdk)})

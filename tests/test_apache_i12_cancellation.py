@@ -57,7 +57,7 @@ class CancellationTests(unittest.TestCase):
                 child = cancel.OwnedWireChild(wire_child)
                 pid, status = os.waitpid(child.pid, 0)
                 child.waited = cancel.waited_status(pid, status)
-                self.assertEqual(78, child.waited['exit_code'])
+                self.assertEqual(child.waited['exit_code'], 78)
                 self.assertFalse(child.waited['signalled'])
 
     def test_child_success_is_not_changed_by_parent_handled_exception_context(self):
@@ -67,7 +67,7 @@ class CancellationTests(unittest.TestCase):
             child = cancel.OwnedWireChild(lambda: 0)
             pid, status = os.waitpid(child.pid, 0)
         child.waited = cancel.waited_status(pid, status)
-        self.assertEqual(0, child.waited['exit_code'])
+        self.assertEqual(child.waited['exit_code'], 0)
         self.assertFalse(child.waited['signalled'])
 
     def test_gate_accepts_native_zero_and_one_only(self):

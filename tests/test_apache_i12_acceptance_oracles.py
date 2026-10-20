@@ -48,7 +48,7 @@ class SourceOracleTests(unittest.TestCase):
         result = self.review()
         self.assertEqual((result['original155'], result['configuration_contracts'],
                           result['host_contracts'], result['original54']), (155, 10, 145, 54))
-        self.assertEqual(0, result['new_revision_resolved'])
+        self.assertEqual(result['new_revision_resolved'], 0)
         original = {r['run_scoped_case_id']: r for r in self.old['oracle_matrix']}
         for row in result['rows']:
             self.assertEqual(row['original_oracle'], original[row['original_id']]['original_oracle'])
@@ -58,7 +58,8 @@ class SourceOracleTests(unittest.TestCase):
             self.assertIsNone(row['reviewed_by'])
             self.assertFalse(row['resolved'])
             self.assertFalse(row['full_lifecycle_qualified'])
-        self.assertEqual((self.inventory, self.plan, self.old), before)
+        current_inputs = (self.inventory, self.plan, self.old)
+        self.assertEqual(current_inputs, before)
 
     def test_prior_observed_result_is_never_an_oracle_input(self):
         first = self.review()

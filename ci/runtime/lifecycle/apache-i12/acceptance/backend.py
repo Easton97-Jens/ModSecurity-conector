@@ -17,6 +17,22 @@ MIN_PRIVATE_PORT = 1024
 MAX_PORT = 65535
 
 
+class PrivateLoopbackHTTPServer(http.server.ThreadingHTTPServer):
+    """Plain HTTP fixture restricted to one literal IPv4 loopback listener.
+
+    The private namespace exercises HTTP framing, including malformed peers;
+    transport encryption is deliberately outside that test protocol.
+    """
+    daemon_threads = True
+
+    def server_bind(self):
+        host, port = self.server_address
+        if host != "127.0.0.1":
+            raise ValueError("backend listener must use literal private loopback")
+        private_loopback_port(port)
+        super().server_bind()
+
+
 def private_loopback_port(value):
     if isinstance(value, bool):
         port = None
@@ -200,8 +216,7 @@ def serve(plan, root, port):
 
     # The admitted private network namespace uses literal loopback HTTP to
     # exercise Apache's HTTP framing. TLS would change the fixture contract.
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", private_loopback_port(port)), Handler)
-    server.daemon_threads = True
+    server = PrivateLoopbackHTTPServer(("127.0.0.1", private_loopback_port(port)), Handler)
     server.serve_forever()
 
 

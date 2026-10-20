@@ -26,6 +26,7 @@ reference = REVIEW.reference
 ROLES = REVIEW.LEDGER.SHARED.ROLES
 OBSERVATION_FILE = 'observation.json'
 CONFIG_COMMAND_FILE = 'configtest.command.json'
+CONTROLLER_RESULT_FILE = 'controller-result.json'
 
 
 def optional_rows(path):
@@ -174,7 +175,7 @@ class BatchExtractor(REVIEW.CandidateExtractor):
         self.attempt, self.spec_path = Path(attempt), Path(spec_path)
         self.data, self.root = self.attempt / 'data', case_root
         self.plan, self.bindings, self.controller = plan, bindings, controller
-        self.controller_path = self.attempt / 'controller-result.json'
+        self.controller_path = self.attempt / CONTROLLER_RESULT_FILE
         self.contract_path = case_root / 'spec.json'
         self.contract = {'original_selected_requirement': plan['original_contract']}
         self.settings_path = case_root / 'settings.json'
@@ -364,7 +365,7 @@ class BatchExtractor(REVIEW.CandidateExtractor):
 
 
 def load_admission(attempt, spec_path):
-    controller, spec = read(attempt / 'controller-result.json'), read(spec_path)
+    controller, spec = read(attempt / CONTROLLER_RESULT_FILE), read(spec_path)
     if controller.get('spec_sha256') != REVIEW.ORACLES.reference(spec_path)['sha256']:
         raise ValueError('Supplied admission spec differs from actual attempt')
     bindings = {item['target']: item for item in spec['bindings']}
@@ -399,7 +400,7 @@ def configuration_candidate(plan, root, attempt, spec_path, bindings, controller
         parent_sha=resolved_metadata_head(bindings, '/mnt/git'),
         framework_sha=resolved_metadata_head(bindings, '/mnt/git-framework'),
         input_evidence=[REVIEW.ORACLES.reference(spec_path),
-                        REVIEW.ORACLES.reference(attempt / 'controller-result.json')])
+                        REVIEW.ORACLES.reference(attempt / CONTROLLER_RESULT_FILE)])
     for name in ('binary-identity.json', 'admission.json'):
         path = root.parent / name
         if path.is_file():

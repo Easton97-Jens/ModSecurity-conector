@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import io
 from pathlib import Path
+from unittest import mock
 import unittest
 
 SOURCE = Path(__file__).resolve().parents[1] / 'ci/runtime/lifecycle/apache-i12/acceptance/backend.py'
@@ -27,10 +28,10 @@ class BackendWireTests(unittest.TestCase):
         events = []
         handler = Handler()
         BACKEND.write_response_body(handler, selected, chunks, True, 'principal', Path('.'), events.append)
-        self.assertEqual(b'3\r\none\r\n3\r\ntwo\r\n0\r\n\r\n', handler.wfile.getvalue())
-        self.assertEqual(b'onetwo', payload)
-        self.assertEqual([0, 1], [row['chunk_index'] for row in events])
-        self.assertEqual(['principal', 'principal'], [row['request_id'] for row in events])
+        self.assertEqual(handler.wfile.getvalue(), b'3\r\none\r\n3\r\ntwo\r\n0\r\n\r\n')
+        self.assertEqual(payload, b'onetwo')
+        self.assertEqual([row['chunk_index'] for row in events], [0, 1])
+        self.assertEqual([row['request_id'] for row in events], ['principal', 'principal'])
 
     def test_mismatched_declared_body_is_rejected_before_wire_write(self):
         selected = {'body': blob(b'one'), 'chunks': [blob(b'two')]}
@@ -38,7 +39,7 @@ class BackendWireTests(unittest.TestCase):
             BACKEND.response_chunks(selected)
 
     def test_empty_body_keeps_no_data_chunks(self):
-        self.assertEqual(([], b''), BACKEND.response_chunks({'body': blob(b'')}))
+        self.assertEqual(BACKEND.response_chunks({'body': blob(b'')}), ([], b''))
         self.assertTrue(BACKEND.valid_token('principal_1-A'))
         for token in ('', 'a' * 257, 'a b', 'ä', 'a\r\nb'):
             self.assertFalse(BACKEND.valid_token(token))
@@ -49,6 +50,23 @@ class BackendWireTests(unittest.TestCase):
         for value in (443, '443', True, '18123 ', '١٨١٢٣', object()):
             with self.subTest(value=value), self.assertRaisesRegex(ValueError, 'private loopback port'):
                 BACKEND.private_loopback_port(value)
+
+    def test_listener_rejects_nonloopback_address_before_binding(self):
+        listener = object.__new__(BACKEND.PrivateLoopbackHTTPServer)
+        for address in ('0.0.0.0', 'localhost', '192.0.2.1', '::1'):
+            listener.server_address = (address, 18123)
+            with self.subTest(address=address), self.assertRaisesRegex(ValueError, 'literal private loopback'):
+                listener.server_bind()
+
+    def test_listener_admits_only_private_loopback_port(self):
+        listener = object.__new__(BACKEND.PrivateLoopbackHTTPServer)
+        listener.server_address = ('127.0.0.1', 443)
+        with self.assertRaisesRegex(ValueError, 'private loopback port'):
+            listener.server_bind()
+        listener.server_address = ('127.0.0.1', 18123)
+        with mock.patch.object(BACKEND.http.server.ThreadingHTTPServer, 'server_bind') as bind:
+            listener.server_bind()
+        bind.assert_called_once_with()
 
 
 if __name__ == '__main__':

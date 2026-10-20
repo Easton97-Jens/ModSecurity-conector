@@ -434,7 +434,7 @@ APR_BUFFER(apr_socket_recv,1,)
 apr_status_t apr_socket_sendv(apr_socket_t *socket,const struct iovec *vectors,apr_int32_t count,apr_size_t *size) {
     int initial=errno; apr_status_t (*real_call)(apr_socket_t *,const struct iovec *,apr_int32_t,apr_size_t *)=symbol("apr_socket_sendv");
     int fd=socket_fd(socket); size_t requested=vector_size(vectors,count); uint64_t entered=now(); uint64_t call=call_number(); struct apr_scope scope=apr_enter(call,fd);
-    errno=initial; apr_status_t result=(*real_call)(socket,vectors,count,size); int saved=errno; int parse=apr_leave(scope);
+    errno=initial; apr_status_t result=real_call(socket,vectors,count,size); int saved=errno; int parse=apr_leave(scope);
     transport(&(const struct transport_call){"apr_socket_sendv",(void *)&*real_call,fd,0,1,result,saved,requested,size?*size:0,result==APR_SUCCESS,
         vectors,count,call,entered,parse}); errno=saved; return result;
 }
@@ -442,7 +442,7 @@ apr_status_t apr_socket_sendfile(apr_socket_t *socket,apr_file_t *file,apr_hdtr_
     apr_off_t *offset,apr_size_t *size,apr_int32_t flags) {
     int initial=errno; apr_status_t (*real_call)(apr_socket_t *,apr_file_t *,apr_hdtr_t *,apr_off_t *,apr_size_t *,apr_int32_t)=symbol("apr_socket_sendfile");
     int fd=socket_fd(socket); size_t requested=size?*size:0; uint64_t entered=now(); uint64_t call=call_number(); struct apr_scope scope=apr_enter(call,fd);
-    errno=initial; apr_status_t result=(*real_call)(socket,file,headers,offset,size,flags); int saved=errno; (void)apr_leave(scope);
+    errno=initial; apr_status_t result=real_call(socket,file,headers,offset,size,flags); int saved=errno; (void)apr_leave(scope);
     transport(&(const struct transport_call){"apr_socket_sendfile",(void *)&*real_call,fd,0,1,result,saved,requested,size?*size:0,result==APR_SUCCESS,
         NULL,0,call,entered,0}); errno=saved; return result;
 }
@@ -456,7 +456,7 @@ static struct native *native_entry(const Transaction *key) {
     return empty;
 }
 ModSecurity *msc_init(void) {
-    int initial=errno; ModSecurity *(*real_call)(void)=symbol("msc_init");
+    int initial=errno; void *real_address=symbol("msc_init"); ModSecurity *(*real_call)(void)=real_address;
     void *caller=__builtin_extract_return_addr(__builtin_return_address(0));
     uint64_t entered=now(); errno=initial; ModSecurity *engine=real_call(); int saved=errno; uint64_t returned=now();
     if (output_fd>=0) {
@@ -466,7 +466,7 @@ ModSecurity *msc_init(void) {
         char version[300]="null"; char real_image[750]; char caller_image[750]; char fields[2200];
         if (safe_string(sdk,256,"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 /_-.()+"))
             (void)snprintf(version,sizeof(version),"\"%s\"",sdk);
-        image_identity((void *)&*real_call,real_image,sizeof(real_image));
+        image_identity(real_address,real_image,sizeof(real_image));
         image_identity(caller,caller_image,sizeof(caller_image));
         (void)pthread_mutex_lock(&lock);
         (void)snprintf(fields,sizeof(fields),"\"function\":\"msc_init\",\"engine_key\":\"%p\","
@@ -601,7 +601,8 @@ static unsigned rule_id(const char *log) {
     return count && p[0]=='"' && p[1]==']'?value:0;
 }
 int msc_intervention(Transaction *transaction,ModSecurityIntervention *intervention) {
-    int initial=errno; int (*real_call)(Transaction *,ModSecurityIntervention *)=symbol("msc_intervention");
+    int initial=errno; void *real_address=symbol("msc_intervention");
+    int (*real_call)(Transaction *,ModSecurityIntervention *)=real_address;
     uint64_t entered=now(); errno=initial; int result=real_call(transaction,intervention); int saved=errno;
     if (output_fd>=0) {
         ++internal; (void)pthread_mutex_lock(&lock); struct native *entry=native_entry(transaction);
@@ -615,13 +616,13 @@ int msc_intervention(Transaction *transaction,ModSecurityIntervention *intervent
             unsigned actual=rule_id(intervention->log); if (actual) (void)snprintf(id,sizeof(id),"%u",actual);
         }
         Dl_info image={0}; char object[600]="null";
-        if (dladdr((void *)&*real_call,&image) && safe_string(image.dli_fname,512,"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/_-+."))
+        if (dladdr(real_address,&image) && safe_string(image.dli_fname,512,"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/_-+."))
             (void)snprintf(object,sizeof(object),"\"%s\"",image.dli_fname);
         (void)snprintf(fields,sizeof(fields),"\"function\":\"msc_intervention\",\"transaction_key\":\"%p\","
             "\"transaction_id\":%s,\"transaction_id_source\":\"%s\",\"phase\":%s,\"entered_ns\":%" PRIu64 ",\"return_ns\":%" PRIu64 ",\"result\":%d,"
             "\"errno_at_return\":%d,\"native_status\":%s,\"native_disruptive\":%s,\"native_log_rule_id\":%s,"
             "\"real_symbol_object\":%s,\"real_symbol_address\":\"%p\",\"raw_log_captured\":false",
-            (void *)transaction,txid,entry && entry->id_source?entry->id_source:"unknown",phase,entered,now(),result,saved,status,disruptive,id,object,(void *)&*real_call);
+            (void *)transaction,txid,entry && entry->id_source?entry->id_source:"unknown",phase,entered,now(),result,saved,status,disruptive,id,object,real_address);
         emit("native_intervention_return",fields); (void)pthread_mutex_unlock(&lock); --internal;
     }
     errno=saved; return result;
