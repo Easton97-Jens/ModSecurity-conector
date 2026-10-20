@@ -4,9 +4,9 @@
 
 Diese reine Envoy-Testerweiterung nutzt die vorhandene Capture-Variante `envoy`
 und den gemeinsamen nativen Observer. Der [Taskbericht](../../../../../reports/testing/i12-envoy-host-evidence-20261015.de.md)
-ist **PARTIAL**: 284 Original-IDs bleiben erhalten. Acht neu freigegebene
-Nachweispakete erhöhen den aktuellen Lifecycle-PASS-Bestand auf elf;
-114 ursprüngliche Oracles bleiben offen. Die zentrale Baseline bleibt
+ist **PARTIAL**: 284 Original-IDs bleiben erhalten. Vier neu freigegebene ext_proc-
+Nachweispakete erhöhen den aktuellen Lifecycle-PASS-Bestand auf sieben;
+118 ursprüngliche Oracles bleiben offen. Die zentrale Baseline bleibt
 unverändert. Synthetische Hostproben qualifizieren Original-IDs nicht automatisch.
 
 Alle 125 Original-Oracles haben einzelne Quellreviews. Die 33 neuen
@@ -18,23 +18,26 @@ Hostabnahme getrennt.
 | Route | Lifecycle-PASS / Original-IDs | Offene Original-Oracles |
 | --- | ---: | ---: |
 | `envoy-ext-proc` | 5 / 117 | 46 |
-| `envoy-ext-authz-request` | 4 / 94 | 36 |
-| `envoy-ext-authz-response-companion` | 2 / 73 | 32 |
+| `envoy-ext-authz-request` | 1 / 94 | 39 |
+| `envoy-ext-authz-response-companion` | 1 / 73 | 33 |
 
-Von 273 IDs ohne vollständige Lifecycle-Abnahme sind 8 reine
-Konfigurations-PASS und 265 unqualifiziert. Die 86 echten Hostmessungen umfassen
-37 Retakes unter 33 exakten Original-IDs. Die acht neuen Einzelfreigaben sind:
+Von 277 IDs ohne vollständige Lifecycle-Abnahme sind 8 reine
+Konfigurations-PASS und 269 unqualifiziert. Die 86 echten Hostmessungen umfassen
+37 Retakes unter 33 exakten Original-IDs. Die vier neuen Einzelfreigaben sind:
 
 - `I12::envoy-ext-proc::NEED-request-streaming`
 - `I12::envoy-ext-proc::NEED-response-streaming`
 - `I12::envoy-ext-proc::NEED-client-response-bytes`
 - `I12::envoy-ext-proc::NEED-client-exit-signal`
-- `I12::envoy-ext-authz-request::NEED-complete-sample`
-- `I12::envoy-ext-authz-request::NEED-request-multiple-chunks`
-- `I12::envoy-ext-authz-request::NEED-client-response-bytes`
-- `I12::envoy-ext-authz-response-companion::NEED-allow`
 
-Die zwei zusätzlichen Request-Autorisierungsfreigaben binden Host- und Clientvertrag unabhängig. Der physische Envoy-Trace identifiziert Worker 285 / CID1 / SID6459190741822168578 und Hostfragmente 64+31=95 mit anschließendem EOS, danach den Authorization Check in Zeile 275. Die Engine erhält ein vollständiges natives 95-Byte-Sample und ein EOS; mehrere Client-Schreibvorgänge bedeuten keine mehreren nativen Callbacks. Die Responsebyte-Freigabe prüft rohes HTTP-Framing und Client-Entitybytes unabhängig. Der Process-Remote-gRPC-Status bleibt unbekannt und wird nicht als Erfolg gezählt.
+Vier zuvor vorgeschlagene Qualifikationen sind ausgeschlossen: bei Request-
+Autorisierung `NEED-complete-sample`, `NEED-request-multiple-chunks` und
+`NEED-client-response-bytes` sowie beim Companion `NEED-allow`. Ihre
+Authorization-Trailer tragen keine Zuordnung zum jeweiligen Stream; der
+Remote-gRPC-Status bleibt unbekannt und erfolgreicher Abschluss bleibt falsch.
+Die physischen Host-, Client- und Backendbeobachtungen bleiben erhalten, ohne
+diese IDs zu qualifizieren. Mehrere Client-Schreibvorgänge bedeuten keine
+mehreren nativen Authorization-Callbacks.
 
 ## Producer
 
@@ -50,6 +53,7 @@ Die zwei zusätzlichen Request-Autorisierungsfreigaben binden Host- und Clientve
 | `bind_originals.py` | Versiegelt neue Retakes geprüfter Fixtures unter exakten Original-IDs mit sämtlichen Eingaben innerhalb des aktuellen privaten Laufs |
 | `run_host.py` | Begrenzte Starts mit dem bestehenden nonroot Controller; Exitcodes bleiben Beobachtungen |
 | `review_runs.py` | Physische Hashes, geladene Images, Client-/Backendbytes, native/Hostcallbacks, Cleanup und Transportfakten |
+| `current_base_evidence.py` | Bindet das separate native/Host-Supplement der aktuellen Base sowie verworfene und ersetzte Versuche; ergänzt keine Original-ID-Qualifikation |
 | `transport.py` | Unterscheidet tatsächlichen lokalen HTTP/2-Reset von explizitem Remote-gRPC-Erfolg |
 | `qualify_originals.py` | Bereitet ausgewählte Originalfälle vor; Einzelfreigabe verlangt exakte Fixturegleichheit, frische Reproduktion aller 35 Nachweisfelder und den gemeinsamen Validator |
 | `write_report.py` | Erzeugt nur den eigenen EN/DE-Taskbericht und das exakte ID-JSON; ändert keine gemeinsamen Generatoren oder Ledger |
@@ -65,7 +69,7 @@ rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B -m unittest discove
 rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B ci/runtime/lifecycle/i12/capture_sources.py verify
 ```
 
-Die vollständige aktuelle Envoy-Suite hat 188 PASS und 0 Skips. Beleg: `ci/final-envoy-controls-188-base-a622-v2.json`. Die fokussierten Fehlerproben-Kontrollen haben 16 PASS, die separaten Go-Testproxy-Kontrollen 10 PASS. Diese Kontrollen qualifizieren den Hostlauf nicht automatisch.
+Die vollständige aktuelle Envoy-Suite hat 232 PASS und 0 Skips. Beleg: `ci/final-envoy-controls-232-base-a622-v7.json`. Die fokussierten Fehlerproben-Kontrollen haben 16 PASS, die separaten Go-Testproxy-Kontrollen 10 PASS. Diese Kontrollen qualifizieren den Hostlauf nicht automatisch.
 
 Jeder Producer bietet `--help`. Native Vorbereitung benötigt eine neue
 registrierte externe Laufwurzel, den aktuellen Checkout, den vorhandenen
@@ -85,16 +89,52 @@ fehlzuordnet. Alle ursprünglichen Prüfungen bleiben aktiv; fehlgeschlagene
 Ownership-Prüfungen bleiben Fehler.
 
 
-Die Quellrevision der nativen und Hostevidenz bleibt ausschließlich
+Die Quellrevision der historisch qualifizierten nativen und Hostevidenz bleibt
 `f27eb59b53beff6f65384fc2e5037881a3052c01`. Der exakte Base-Head
 `a62296fb57263f9be18c6ac879e36e0ab2a9935c` wurde in
-`dfb1a07a863530a53c0006ee204319453d66a2ad` in diesen
-Branch gemergt. Die erhaltene Baseline und die physischen Quellen wurden mit den
-aktuellen zentralen Validatoren erneut geprüft; dieser Envoy-Task änderte
-keinen gemeinsamen Validator. Die erhaltenen Laufzeitreceipts qualifizieren
-den gemergten Base-Produktstand nicht; eine frische Capture der aktuellen
-Base bleibt erforderlich. Begrenzte Dokumentationsevidenz:
-`ci/docs-postmerge-a622-v2.json`.
+`dfb1a07a863530a53c0006ee204319453d66a2ad` gemergt. Ein separates
+hashgebundenes Supplement `current-base-evidence-v1.json` bindet jetzt die
+finalen Receipts `current-base-a622-native-v3` und `current-base-a622-host-v3`.
+Der Engine-Build nutzt das von der Base verlangte Go 1.27.2 und x/net 0.61.0;
+das auf dem Host installierte Go 1.27.3 ist eine separate Umgebungsbeobachtung.
+Das SDK ist ModSecurity 3.0.14, der Host Envoy 1.39.1. Alle 16 nativen
+Prüfungen einschließlich Go/CGo, Race, Vet und 34 nativen Observer-Kontrollen
+bestanden. Frühere Build-/Hostversuche mit Go 1.27.3 bleiben ersetzt. Ein Build
+mit gemischter Toolchain scheiterte vor dem Hoststart und bleibt verworfene
+Evidenz. Frühere Zulassungsfehler behalten Exit 77 ohne Cleanup-Aussage.
+
+Alle drei finalen Proben der aktuellen Base haben Runner-Exit 0, zwei vollständige
+Backendrequests, physische Eventlogs und geprüftes Cleanup ohne Survivors oder
+Mountleaks. Jede Route beobachtet Zielrequest/-response mit 95/96 Bytes sowie
+unabhängigen Nachbarrequest/-response mit 6/7 Bytes. Ihre Verträge bleiben getrennt:
+
+- ext_proc beobachtet Requestchunks 64+31+0 und Responsechunks 64+32+0 mit
+  EOS, natives Finish/Logging/Free/Cleanup sowie lokalen Process-reset2.
+  Der Remote-gRPC-Status von Process bleibt unbekannt.
+- Request-Autorisierung liefert ein vollständiges natives 95-Byte-Sample unter
+  Host-`max_request_bytes=4096` und nativem Limit 1024. Diese Probe prüft keine
+  native Body-Limit-Entscheidung. Unzugeordnete Authorization-Trailer lassen den
+  Remotestatus unbekannt; HTTP-/Backendbeobachtungen belegen keinen gRPC-Erfolg.
+- Der Companion beobachtet eine korrelierte Transaction-Lease, P3 vor dem
+  Common-Commit, danach Response-Bodycallbacks/P4, EOS und Cleanup. Sein Ziel empfängt eine
+  vollständige HTTP-Entity mit anschließendem TCP-Reset errno104; der Nachbar
+  beobachtet EOF. Die Remotestatus von Authorization und Process bleiben
+  unbekannt. Eine Unterstützung von P4 Strict wird nicht behauptet.
+
+Die folgenden vier Fälle bleiben unqualifiziert, weil die sichtbaren
+Authorization-Trailer nicht streamgebunden sind und der Remote-gRPC-Status
+unbekannt bleibt:
+
+- `I12::envoy-ext-authz-request::NEED-complete-sample`
+- `I12::envoy-ext-authz-request::NEED-request-multiple-chunks`
+- `I12::envoy-ext-authz-request::NEED-client-response-bytes`
+- `I12::envoy-ext-authz-response-companion::NEED-allow`
+
+Das Supplement qualifiziert keine Original-ID und ergänzt keinen Oracle-
+Fortschritt. Die historischen Messungs-/Retake-Zahlen bleiben unverändert.
+Die erhaltene Baseline und physischen Quellen wurden mit aktuellen zentralen
+Validatoren erneut geprüft; dieser Envoy-Task änderte keinen gemeinsamen
+Validator. Begrenzte Dokumentationsevidenz: `ci/docs-postmerge-a622-v4.json`.
 
 Die echte ext_proc-Fehlerprobe `fault-host-v1` verwirft ausschließlich den leeren Response-EOS-Callback und führt einen tatsächlichen Half-Close aus. Engine-API und dem Zielstream eindeutig zugeordneter Envoy-Trace melden gRPC-Status14. Der Client empfängt einen HTTP200-Präfix mit 96 Bodybytes in 64+32, jedoch keinen Nullchunk. Runner77/Controller1/Client1 bleiben unqualifiziert; neue PASS: 0. Am Ziel sind P1–P3 und P4=0, ein `runtime_finish`-Versuch mit Result0 sowie Logging/Free/Cleanup jeweils1 beobachtet. Der gesunde Nachbar hat P1–P4/Finish jeweils1; Survivors und Mountleaks fehlen. Der Proxy-Wirestatus bleibt unbeobachtet. Fehlender Status wird nicht als erfolgreicher Abschluss interpretiert.
 

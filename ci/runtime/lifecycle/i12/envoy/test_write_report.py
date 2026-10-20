@@ -27,9 +27,19 @@ class ReportControls(unittest.TestCase):
             self.assertEqual(data[key], before[key])
         self.assertEqual(data['current_base_evidence'], supplement)
         for german in (False, True):
-            self.assertIn('`new_lifecycle_pass=0`', '\n'.join(writer.current_base_findings(data, german)))
+            findings = '\n'.join(writer.current_base_findings(data, german))
+            self.assertIn('`new_lifecycle_pass=0`', findings)
             self.assertIn('| request | target | unknown | false |',
-                          '\n'.join(writer.current_base_findings(data, german)))
+                          findings)
+            self.assertIn('`64/31/0-EOS`', findings)
+            self.assertIn('`max_request_bytes=4096`', findings)
+            self.assertIn('`errno 104`', findings)
+            self.assertIn('P3', findings)
+            self.assertIn('Commit' if german else 'commit', findings)
+            self.assertIn('34 PASS', '\n'.join(writer.verification_limits(german)))
+            exclusions = '\n'.join(writer.strict_status_exclusions(german))
+            for identity in writer.STRICT_STATUS_EXCLUSIONS:
+                self.assertIn(identity, exclusions)
 
     def test_absent_current_base_supplement_preserves_report(self):
         data = {'physical_inputs': {}}
@@ -42,6 +52,20 @@ class ReportControls(unittest.TestCase):
                 'host_measurements': [{'backend': {'request_count': 0, 'request_count_is_lower_bound': True}}],
                 'qualified_originals': [], 'counts': {'open': 119}}
         self.assertEqual(json.loads(writer.encode_report(data)), data)
+        originals = [{'run_scoped_case_id': identity}
+                     for identity in writer.STRICT_STATUS_EXCLUSIONS]
+        strict_data = {'original_ids': originals, 'qualified_originals': []}
+        writer.bind_strict_status_exclusions(strict_data)
+        exclusions = strict_data['strict_status_exclusions']
+        self.assertEqual(exclusions['count'], 4)
+        self.assertEqual(exclusions['original_ids'], list(writer.STRICT_STATUS_EXCLUSIONS))
+        self.assertEqual(exclusions['qualification_outcome'], 'UNQUALIFIED')
+        self.assertIsNone(exclusions['remote_grpc_status'])
+        self.assertFalse(exclusions['successful_grpc_completion'])
+        strict_data['qualified_originals'] = [
+            {'run_scoped_case_id': originals[0]['run_scoped_case_id']}]
+        with self.assertRaisesRegex(ValueError, 'unknown Authorization status'):
+            writer.bind_strict_status_exclusions(strict_data)
 
     def test_fault_probe_report_retains_failed_client_finish_and_nonqualification(self):
         target_counts = {'native_process_request_headers': 1, 'native_process_request_body': 1,

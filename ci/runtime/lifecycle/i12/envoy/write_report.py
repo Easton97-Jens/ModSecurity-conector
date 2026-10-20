@@ -11,6 +11,12 @@ import current_base_evidence
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[4]
 STEM = 'i12-envoy-host-evidence-20261015'
+STRICT_STATUS_EXCLUSIONS = (
+    'I12::envoy-ext-authz-request::NEED-complete-sample',
+    'I12::envoy-ext-authz-request::NEED-request-multiple-chunks',
+    'I12::envoy-ext-authz-request::NEED-client-response-bytes',
+    'I12::envoy-ext-authz-response-companion::NEED-allow',
+)
 
 
 def reference(path):
@@ -80,6 +86,7 @@ def additional_findings(data, german):
     lines += ['', ('Neue individuell geprüfte Lifecycle-PASS:' if german else 'New individually reviewed lifecycle PASS:'), '']
     lines.extend('- `' + item['run_scoped_case_id'] + '` — `' + item['receipt']['sha256'] + '`.'
                  for item in data['qualified_originals'])
+    lines += strict_status_exclusions(german)
     current = data['current_oracle_result']
     lines += ['', ('Der eigene aktuelle Abnahmestand hat ' if german else 'This task’s current acceptance state has ')
               + str(current['resolved']) + (' aufgelöste und ' if german else ' resolved and ')
@@ -92,6 +99,31 @@ def additional_findings(data, german):
         ('Die vollständige Bilingual-Prüfung endet mit Exit 2 wegen 22 unveränderter Links in den nicht initialisierten Framework-Gitlink dieses Worktrees. Die Parent-Sprachverträge und sämtliche neuen Dokumentlinks bestehen die abgegrenzte API-Prüfung. Das ist kein globales Bilingual-PASS. Alle 2.105 Buildquellen wurden unabhängig aus dem archivierten Parent und den Capture-Overlays rekonstruiert; Fall-/Routen-/Parent-Austausch und der äußere Timeoutpfad haben eigene Negativkontrollen.' if german else
          'The complete bilingual check exits 2 because 22 unchanged links target this worktree’s uninitialized Framework gitlink. Parent language contracts and every new document link pass the scoped API check. This is not a global bilingual PASS. All 2,105 build sources were independently reconstructed from the archived Parent and capture overlays; case/route/Parent substitution and the outer timeout path have dedicated negative controls.'), '']
     return lines
+
+
+def strict_status_exclusions(german):
+    lines = ['', ('Nicht erneut freigegeben, weil die sichtbaren Authorization-Trailer nicht streamgebunden sind und der Remote-gRPC-Status unbekannt bleibt:' if german else
+                  'Not reapproved because the visible Authorization trailers are not stream-bound and the remote gRPC status remains unknown:'), '']
+    lines.extend('- `' + identity + '`.' for identity in STRICT_STATUS_EXCLUSIONS)
+    return lines
+
+
+def bind_strict_status_exclusions(data):
+    original_ids = {row['run_scoped_case_id'] for row in data['original_ids']}
+    qualified_ids = {row['run_scoped_case_id'] for row in data['qualified_originals']}
+    exclusions = set(STRICT_STATUS_EXCLUSIONS)
+    if not exclusions <= original_ids:
+        raise ValueError('strict status exclusion is not an original ID')
+    if exclusions & qualified_ids:
+        raise ValueError('unknown Authorization status cannot be qualified')
+    data['strict_status_exclusions'] = {
+        'count': len(STRICT_STATUS_EXCLUSIONS),
+        'original_ids': list(STRICT_STATUS_EXCLUSIONS),
+        'qualification_outcome': 'UNQUALIFIED',
+        'reason': 'authorization_trailers_not_stream_bound_and_remote_grpc_status_unknown',
+        'remote_grpc_status': None,
+        'successful_grpc_completion': False,
+    }
 
 
 def qualified_heading(german):
@@ -251,8 +283,8 @@ def verification_limits(german):
         '',
         '## Verifikation und Grenzen' if german else '## Verification and limits',
         '',
-        'Native/CGo Go `./...`, Race `./...`, Vet `./...` und 32 gemeinsame native Observer-Kontrollen: PASS. Die aktuelle vollständige Envoy-Evidenzsuite hat 232 PASS ohne Skip. Neue Kontrollen prüfen unveränderte IDs/Oracles, physische Hashes, fehlende gRPC-Trailer, geordnete Streamweiterleitung, versiegelte Fault-Fixtures, Quell-/Binary-Austausch, Backend-Framing und Namespace-Ownership-Rennen. Exakte Kommandos, Ergebnisse und Loghashes stehen in den referenzierten Receipts.' if german else
-         'Native/CGo Go `./...`, race `./...`, vet `./...` and 32 common native observer controls: PASS. The current complete Envoy evidence suite has 232 PASS with no skips. New controls cover unchanged IDs/oracles, physical hashes, absent gRPC trailers, ordered stream forwarding, sealed fault fixtures, substituted source/binaries, backend framing and namespace ownership races. Exact commands, outcomes and log hashes are in the referenced receipts.',
+        'Native/CGo Go `./...`, Race `./...` und Vet `./...`: PASS. Die historische f27-Evidenz enthält 32 gemeinsame native Observer-Kontrollen; der aktuelle a622-Native-v3-Lauf enthält 34 PASS. Die aktuelle vollständige Envoy-Evidenzsuite hat 232 PASS ohne Skip. Neue Kontrollen prüfen unveränderte IDs/Oracles, physische Hashes, fehlende gRPC-Trailer, geordnete Streamweiterleitung, versiegelte Fault-Fixtures, Quell-/Binary-Austausch, Backend-Framing und Namespace-Ownership-Rennen. Exakte Kommandos, Ergebnisse und Loghashes stehen in den referenzierten Receipts.' if german else
+         'Native/CGo Go `./...`, race `./...` and vet `./...`: PASS. The historical f27 evidence contains 32 common native observer controls; the current a622 native-v3 run contains 34 PASS. The current complete Envoy evidence suite has 232 PASS with no skips. New controls cover unchanged IDs/oracles, physical hashes, absent gRPC trailers, ordered stream forwarding, sealed fault fixtures, substituted source/binaries, backend framing and namespace ownership races. Exact commands, outcomes and log hashes are in the referenced receipts.',
         '',
         'Offen bleiben die vollständige unabhängige Oracle-/Original-ID-Abnahme, direkte native MIME-/Charset-Auswahl, vollständig korrelierte parallele gRPC-Terminalstatus, gezielt fehlende/wiederholte Hostcallbacks, alle physischen Event-Sink-Fehler und der vollständige Observer-Stop/Restart-Vertrag. P4 Strict wird nicht als unterstützt oder abgenommen behauptet. Unit-, Native- und Race-Erfolg ersetzen diese Hostnachweise nicht.' if german else
          'Still open: complete independent oracle/original-ID acceptance, direct native MIME/charset selection, fully correlated concurrent gRPC terminal status, deliberate missing/repeated host callbacks, all physical event-sink failures and the complete observer stop/restart contract. P4 Strict is not claimed supported or accepted. Unit, native and race success do not replace these host proofs.',
@@ -317,7 +349,15 @@ def current_base_findings(data, german):
         'The absent Process gRPC status remains unknown and successful completion false. '
         'These probes qualify no original ID: `new_lifecycle_pass=0`. '
         'Historical measurements, retakes, oracle counts and the prior native evidence source revision are retained.')
-    lines = ['', heading, '', text, '',
+    route_findings = [
+        ('- **`envoy-ext-proc`:** Request-Callbacks `64/31/0-EOS` und Response-Callbacks `64/32/0-EOS`, P1–P4-Regeln `1900111–1900114`, exakt 95/96 Zielbytes und vollständiges Finish/Cleanup für Ziel und Nachbar sind physisch belegt. Beide Process-Streams enden mit lokalem HTTP/2-Reset 2; ihr Remote-gRPC-Status bleibt unbekannt. Der Nachbar lief sequenziell. Reject/ProcessPartial, Cancellation, fehlende oder wiederholte Callbacks sowie native MIME-/Charset-Auswahl werden durch diese Probe nicht belegt.' if german else
+         '- **`envoy-ext-proc`:** Request callbacks `64/31/0-EOS` and response callbacks `64/32/0-EOS`, P1–P4 rules `1900111–1900114`, exact target bytes 95/96 and complete Finish/cleanup for target and neighbor are physically proven. Both Process streams end in local HTTP/2 reset 2; their remote gRPC status remains unknown. The neighbor ran sequentially. Reject/ProcessPartial, cancellation, missing or repeated callbacks and native MIME/charset selection are not proven by this probe.'),
+        ('- **`envoy-ext-authz-request`:** Envoy puffert mit `max_request_bytes=4096`, `allow_partial_message=false`; die Engine erhält genau ein vollständiges 95-Byte-Sample mit EOS unter ihrem nativen 1024-Byte-Reject-Limit. Kein Host-413, natives Reject/ProcessPartial, Regelblock oder Runtimefehler wird ausgelöst. Ziel und Nachbar liefern HTTP 200 und je einen vollständigen Backendrequest. Die sichtbaren Authorization-Status-0-Trailer sind nicht streamgebunden und bleiben für beide Rollen unbekannt; der Target-Process ist nicht sicher zugeordnet, der Nachbar endet mit lokalem Reset 2.' if german else
+         '- **`envoy-ext-authz-request`:** Envoy buffers with `max_request_bytes=4096`, `allow_partial_message=false`; the engine receives exactly one complete 95-byte sample with EOS below its native 1024-byte Reject limit. No host 413, native Reject/ProcessPartial, rule block or runtime failure is triggered. Target and neighbor return HTTP 200 with one complete backend request each. The visible Authorization status-0 trailers are not stream-bound and remain unknown for both roles; the target Process is not safely scoped and the neighbor ends in local reset 2.'),
+        ('- **`envoy-ext-authz-response-companion`:** Dieselbe serverseitige Decision-ID bindet Lease-Ausgabe und -Annahme an P1–P4; P3 endet vor dem Common-Commit, der seinerseits vor den Response-Bodycallbacks und P4 liegt. Response-Callbacks `64/32/0-EOS`, Finish und Cleanup laufen für zwei getrennte native Scopes. Der Zielclient erhält die vollständige HTTP-200-Entity mit 96 Bytes und danach TCP-Reset `errno 104`; der Nachbar erhält 7 Bytes und EOF. Authorization bleibt für beide Rollen unbekannt, Target-Process unbekannt und Nachbar-Process lokaler Reset 2. Fehlende/abgelaufene Leases, Observer-/gRPC-Abbruch, technische erste Fehlerursache und Strict-P4-Fähigkeit bleiben offen.' if german else
+         '- **`envoy-ext-authz-response-companion`:** The same server-issued decision ID binds lease issue and acceptance through P1–P4; P3 completes before the Common commit, which in turn precedes the response-body callbacks and P4. Response callbacks `64/32/0-EOS`, Finish and cleanup complete for two distinct native scopes. The target client receives the complete HTTP-200 entity with 96 bytes followed by TCP reset `errno 104`; the neighbor receives 7 bytes and EOF. Authorization remains unknown for both roles, the target Process remains unknown and the neighbor Process has local reset 2. Missing/expired leases, observer/gRPC abort, the first technical error cause and Strict-P4 capability remain open.'),
+    ]
+    lines = ['', heading, '', text, ''] + route_findings + ['',
         '| Route | Client | Authorization grpc-status | Successful completion |',
         '| --- | --- | --- | --- |']
     for route, roles in supplement['route_transport_observations'].items():
@@ -508,6 +548,7 @@ def main():
                 'original_oracle_member', 'original_oracle', 'residual', 'existing_host_packet')} for row in baseline['rows']],
             'host_measurements': []}
     data['qualified_originals'] = qualified
+    bind_strict_status_exclusions(data)
     add_route_results(data, baseline, qualified)
     data['current_oracle_result'] = {'resolved': 3 + len(qualified), 'open': 122 - len(qualified),
                                      'baseline_unchanged': True}
