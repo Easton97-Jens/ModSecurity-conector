@@ -284,8 +284,10 @@ static int request_limit_test(int argc, char **argv) {
     CHECK(msconnector_runtime_transaction_finish_request_body(transaction, &decision, &error));
     CHECK(decision.disruptive ? decision.intervention.status == native_status : native_status == 0);
     CHECK(msconnector_runtime_transaction_snapshot_get(transaction, &snapshot));
-    CHECK(snapshot.request_body.bytes_seen == length && snapshot.request_body.bytes_inspected == length);
-    CHECK(!snapshot.request_body.truncated);
+    CHECK(snapshot.request_body.bytes_seen == length);
+    CHECK(snapshot.request_body.bytes_retained == native_prefix);
+    CHECK(snapshot.request_body.bytes_inspected == 0U);
+    CHECK(snapshot.request_body.truncated == (native_prefix < length));
     CHECK(snapshot.contract.last_completed_phase == MSCONNECTOR_PHASE_REQUEST_BODY);
     CHECK(!msconnector_runtime_transaction_finish_request_body(transaction, &decision, &error));
     CHECK(error.code != MSCONNECTOR_ERROR_NONE);
@@ -300,7 +302,7 @@ static int request_limit_test(int argc, char **argv) {
     CHECK(msconnector_runtime_transaction_snapshot_get(transaction, &snapshot));
     CHECK(snapshot.contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
     CHECK(snapshot.request_body.bytes_seen == 1U);
-    CHECK(snapshot.request_body.bytes_inspected == 1U);
+    CHECK(snapshot.request_body.bytes_inspected == 0U);
     msconnector_runtime_transaction_destroy(&transaction);
     CHECK(msconnector_runtime_transaction_begin_request_stream(runtime, &request,
         "request-missing-eos", &transaction, &decision, &error));
