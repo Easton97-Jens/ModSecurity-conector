@@ -106,7 +106,9 @@ class EngineResponseLimits(unittest.TestCase):
         serializer protocol tests keep their existing dependency boundary.
         """
         binary = self.directory / "transaction-companion"
-        command = native_compile_command("tests/transaction_phase_runtime_companion_test.c", binary)
+        command = native_compile_command("tests/transaction_phase_runtime_companion_test.c", binary,
+            extra_sources=["connectors/traefik/src/traefik_provenance.c"],
+            extra_flags=["-Icommon/runtime"])
         result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=90)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         with tempfile.TemporaryDirectory(dir=self.directory) as directory:
@@ -131,6 +133,32 @@ class EngineResponseLimits(unittest.TestCase):
             result = subprocess.run([str(binary)], cwd=directory,
                                     capture_output=True, text=True, timeout=90)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_trusted_preclaim_missing_refresh_negative_control(self):
+        """A success-only MTP1 confirmation cannot substitute for registry TTL.
+
+        Omit only the actual expiry update in a compiled negative control;
+        the physical query succeeds but the >5-second trusted claim must fail.
+        """
+        source = (ROOT / "common/runtime/msconnector_runtime.c").read_text()
+        anchor = "entry->expires_at_ms = entry->preclaim_deadline_ms;"
+        self.assertEqual(source.count(anchor), 1)
+        candidate = self.directory / "missing-preclaim-refresh.c"
+        candidate.write_text(source.replace(anchor,
+            "(void)entry->preclaim_deadline_ms; /* negative control */", 1))
+        binary = self.directory / "missing-preclaim-refresh"
+        command = native_compile_command("tests/transaction_phase_runtime_companion_test.c", binary,
+            extra_sources=["connectors/traefik/src/traefik_provenance.c"],
+            extra_flags=["-Icommon/runtime"])
+        command[command.index("common/runtime/msconnector_runtime.c")] = str(candidate)
+        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=90)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        with tempfile.TemporaryDirectory(dir=self.directory) as directory:
+            result = subprocess.run([str(binary)], cwd=directory, capture_output=True,
+                                    text=True, timeout=30)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("test_trusted_preclaim_refresh", result.stderr)
+            self.assertIn("claim_handle(&registry, trusted", result.stderr)
 
     def test_boundaries_actions_chunking_and_modes(self):
         for limit in (128, 1024):
