@@ -44,6 +44,7 @@
 #define AUTH_LISTENER_POLL_TIMEOUT_MS 100
 
 typedef struct authorization_cli {
+    const msconnector_http_authorization_trusted_binding *trusted_binding;
     const char *config_path;
     const char *listen_spec;
     int check_config;
@@ -93,6 +94,7 @@ typedef struct authorization_request_limits {
 struct authorization_worker;
 
 typedef struct authorization_service {
+    msconnector_http_authorization_trusted_binding trusted_binding;
     msconnector_runtime *runtime;
     const msconnector_http_authorization_profile *profile;
     msconnector_http_authorization_profile profile_copy;
@@ -1173,6 +1175,47 @@ static void authorization_response_set_stream_error(
     }
 }
 
+static int authorization_begin_trusted_request(authorization_service *service,
+    msconnector_request *request, msconnector_runtime_transaction **transaction,
+    msconnector_decision *decision, msconnector_error *error, int *binding_claimed) {
+    msconnector_http_authorization_provenance_storage storage = {0};
+    msconnector_runtime_trusted_provenance provenance;
+    msconnector_header filtered[MSCONNECTOR_MAX_HEADER_COUNT];
+    const msconnector_header *original_headers = request->headers;
+    size_t original_count = request->header_count;
+    size_t kept = 0U;
+    int success;
+    *binding_claimed = 0;
+    if (service->trusted_binding.claim == NULL) {
+        return msconnector_runtime_transaction_begin_request_stream(service->runtime,
+            request, NULL, transaction, decision, error);
+    }
+    if (!service->trusted_binding.claim(service->trusted_binding.userdata,
+            request, &storage, error)) return 0;
+    *binding_claimed = 1;
+    if (request->header_count > MSCONNECTOR_MAX_HEADER_COUNT) return 0;
+    for (size_t i = 0U; i < request->header_count; ++i) {
+        const msconnector_header *header = &request->headers[i];
+        const size_t private_size = strlen(service->trusted_binding.token_header);
+        if (header->name != NULL && header->name_size == private_size &&
+            strncasecmp(header->name, service->trusted_binding.token_header, private_size) == 0)
+            continue;
+        filtered[kept++] = *header;
+    }
+    request->headers = filtered;
+    request->header_count = kept;
+    provenance.run_id = storage.run_id;
+    provenance.transport_case_id = storage.transport_case_id;
+    provenance.connection_id = storage.connection_id;
+    provenance.connection_reused = storage.connection_reused;
+    success = msconnector_runtime_transaction_begin_request_stream_with_trusted_provenance(
+        service->runtime, request, NULL, &provenance, transaction, decision, error);
+    msconnector_secure_zero(&storage, sizeof(storage));
+    request->headers = original_headers;
+    request->header_count = original_count;
+    return success;
+}
+
 /* Mapping diagnostics borrow a bounded caller-owned output buffer. */
 typedef struct authorization_mapping_error {
     char *data;
@@ -1193,6 +1236,7 @@ static void authorization_process_runtime_request(
     msconnector_error common_error;
     char response_handle[MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE];
     int response_companion_owns_transaction = 0;
+    int binding_claimed = 0;
     memset(&request, 0, sizeof(request));
     msconnector_error_init(&common_error);
     msconnector_decision_set_allow(&decision);
@@ -1203,8 +1247,8 @@ static void authorization_process_runtime_request(
         response->status = 400;
         response->decision_name = "mapping_error";
         response->success = 0;
-    } else if (msconnector_runtime_transaction_begin_request_stream(service->runtime, &request, NULL,
-            &transaction, &decision, &common_error) != 1) {
+    } else if (authorization_begin_trusted_request(service, &request,
+            &transaction, &decision, &common_error, &binding_claimed) != 1) {
         authorization_response_set_runtime_error(service, &common_error, response);
     } else {
         if (!msconnector_decision_action_is_disruptive(
@@ -1247,7 +1291,29 @@ static void authorization_process_runtime_request(
         response->terminal_response_marker =
             service->profile->terminal_response_marker_header != NULL &&
             service->profile->terminal_response_marker_value != NULL;
+        if (service->trusted_binding.claim != NULL && transaction != NULL) {
+            msconnector_runtime_transaction_snapshot snapshot;
+            msconnector_error cleanup_error;
+            msconnector_error_init(&cleanup_error);
+            if (!msconnector_runtime_transaction_finalize_and_snapshot(&transaction,
+                    &snapshot, &cleanup_error)) {
+                authorization_response_set_runtime_error(service, &cleanup_error, response);
+            }
+        }
         msconnector_runtime_transaction_destroy(&transaction);
+    }
+    if (binding_claimed && service->trusted_binding.complete != NULL &&
+        !service->trusted_binding.complete(service->trusted_binding.userdata,
+            &request, response->status, response->response_handle, &common_error)) {
+        if (response_companion_owns_transaction && response->response_handle != NULL &&
+            service->profile->revoke_response_companion != NULL) {
+            msconnector_error revoke_error;
+            msconnector_error_init(&revoke_error);
+            (void)service->profile->revoke_response_companion(
+                service->profile->response_companion_userdata,
+                response->response_handle, &revoke_error);
+        }
+        authorization_response_set_runtime_error(service, &common_error, response);
     }
     msconnector_secure_zero(response_handle, sizeof(response_handle));
 }
@@ -1466,6 +1532,7 @@ static int authorization_service_init(
     }
     memset(service, 0, sizeof(*service));
     service->runtime = runtime;
+    if (cli->trusted_binding != NULL) service->trusted_binding = *cli->trusted_binding;
     /* Workers can outlive the entry-point stack during bounded shutdown.
      * Keep a bounded, fully-owned profile copy with the heap-owned service.
      * Mapping callbacks are code pointers; all textual and header data is
@@ -1973,12 +2040,22 @@ int msconnector_http_authorization_service_main(
     int argc,
     char **argv,
     const msconnector_http_authorization_profile *profile) {
+    return msconnector_http_authorization_service_main_with_trusted_binding(
+        argc, argv, profile, NULL);
+}
+
+int msconnector_http_authorization_service_main_with_trusted_binding(
+    int argc, char **argv, const msconnector_http_authorization_profile *profile,
+    const msconnector_http_authorization_trusted_binding *binding) {
     authorization_cli cli;
     char error[AUTH_ERROR_SIZE];
-    if (!validate_profile(profile) || !parse_cli(argc, argv, &cli)) {
+    if ((binding != NULL && (binding->claim == NULL || binding->token_header == NULL ||
+            binding->token_header[0] == '\0')) ||
+        !validate_profile(profile) || !parse_cli(argc, argv, &cli)) {
         print_usage(argc > 0 && argv != NULL ? argv[0] : "authorization-service");
         return 2;
     }
+    cli.trusted_binding = binding;
     if (cli.check_config) {
         error[0] = '\0';
         if (!msconnector_runtime_config_check(profile->connector_name,
