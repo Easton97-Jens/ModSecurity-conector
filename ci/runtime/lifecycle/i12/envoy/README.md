@@ -64,7 +64,7 @@ rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B -m unittest discove
 rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B ci/runtime/lifecycle/i12/capture_sources.py verify
 ```
 
-The current complete Envoy suite has 188 PASS and 0 skips. Receipt: `ci/final-envoy-controls-188-v1.json`. Focused fault controls have 16 PASS; separate Go test-proxy controls have 10 PASS. These controls do not automatically qualify the host run.
+The current complete Envoy suite has 188 PASS and 0 skips. Receipt: `ci/final-envoy-controls-188-base-a622-v2.json`. Focused fault controls have 16 PASS; separate Go test-proxy controls have 10 PASS. These controls do not automatically qualify the host run.
 
 Each producer exposes `--help`. Native preparation requires a fresh registered
 external run root, the current checkout, the existing offline module cache,
@@ -82,15 +82,14 @@ inode reuse from misattributing another run's processes. All original gates
 remain active; failed ownership checks remain errors.
 
 
-The demonstrated native source is exclusively
-`f27eb59b53beff6f65384fc2e5037881a3052c01`. At the recorded delivery
-comparison, Base head `f8ce4c1342e29a20070029738663f86716488ccf` left
-`connectors/envoy/` and its Go module inputs unchanged, while connector-neutral
-transaction/companion sources, the shared observer and the capture registry had
-changed. This branch does not
-merge or rebase that advancing Base. The retained native and host receipts do
-not qualify a later Base product state; a fresh current-Base capture remains
-required.
+The native and host evidence source remains exclusively
+`f27eb59b53beff6f65384fc2e5037881a3052c01`. The exact Base head
+`a62296fb57263f9be18c6ac879e36e0ab2a9935c` was merged into this branch in
+`dfb1a07a863530a53c0006ee204319453d66a2ad`. The retained baseline and physical sources were revalidated with
+the current central validators; this Envoy task modified no shared validator.
+The retained runtime receipts do not qualify the merged Base product state;
+a fresh current-Base capture remains required. Scoped documentation evidence:
+`ci/docs-postmerge-a622-v2.json`.
 
 The real ext_proc fault probe `fault-host-v1` drops only the empty Response-EOS callback and performs an actual half-close. The engine API and Envoy trace unambiguously correlated to the target stream report gRPC status14. The client receives an HTTP200 prefix with 96 body bytes in 64+32, but no zero chunk. Runner77/controller1/client1 remain unqualified; new PASS: 0. The target records P1–P3 and P4=0, a `runtime_finish` attempt with result0 and one logging/free/cleanup each. The healthy neighbor has P1–P4/Finish once each; no survivors or mount leaks remain. Proxy wire status remains unobserved. Missing status is not interpreted as successful completion.
 

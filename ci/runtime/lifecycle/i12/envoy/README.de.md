@@ -65,7 +65,7 @@ rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B -m unittest discove
 rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B ci/runtime/lifecycle/i12/capture_sources.py verify
 ```
 
-Die vollständige aktuelle Envoy-Suite hat 188 PASS und 0 Skips. Beleg: `ci/final-envoy-controls-188-v1.json`. Die fokussierten Fehlerproben-Kontrollen haben 16 PASS, die separaten Go-Testproxy-Kontrollen 10 PASS. Diese Kontrollen qualifizieren den Hostlauf nicht automatisch.
+Die vollständige aktuelle Envoy-Suite hat 188 PASS und 0 Skips. Beleg: `ci/final-envoy-controls-188-base-a622-v2.json`. Die fokussierten Fehlerproben-Kontrollen haben 16 PASS, die separaten Go-Testproxy-Kontrollen 10 PASS. Diese Kontrollen qualifizieren den Hostlauf nicht automatisch.
 
 Jeder Producer bietet `--help`. Native Vorbereitung benötigt eine neue
 registrierte externe Laufwurzel, den aktuellen Checkout, den vorhandenen
@@ -85,15 +85,16 @@ fehlzuordnet. Alle ursprünglichen Prüfungen bleiben aktiv; fehlgeschlagene
 Ownership-Prüfungen bleiben Fehler.
 
 
-Die nachgewiesene native Quelle ist ausschließlich
-`f27eb59b53beff6f65384fc2e5037881a3052c01`. Beim protokollierten
-Delivery-Vergleich ließ der Base-Head
-`f8ce4c1342e29a20070029738663f86716488ccf` `connectors/envoy/`
-und seine Go-Moduleingaben unverändert, während connector-neutrale Transaction-/
-Companion-Quellen, der gemeinsame Observer und die Capture-Registry geändert
-waren. Dieser Branch merged oder rebased die fortschreitende Base nicht. Die vorhandenen
-nativen und Hostreceipts qualifizieren keinen späteren Base-Produktstand;
-eine frische Capture der aktuellen Base bleibt erforderlich.
+Die Quellrevision der nativen und Hostevidenz bleibt ausschließlich
+`f27eb59b53beff6f65384fc2e5037881a3052c01`. Der exakte Base-Head
+`a62296fb57263f9be18c6ac879e36e0ab2a9935c` wurde in
+`dfb1a07a863530a53c0006ee204319453d66a2ad` in diesen
+Branch gemergt. Die erhaltene Baseline und die physischen Quellen wurden mit den
+aktuellen zentralen Validatoren erneut geprüft; dieser Envoy-Task änderte
+keinen gemeinsamen Validator. Die erhaltenen Laufzeitreceipts qualifizieren
+den gemergten Base-Produktstand nicht; eine frische Capture der aktuellen
+Base bleibt erforderlich. Begrenzte Dokumentationsevidenz:
+`ci/docs-postmerge-a622-v2.json`.
 
 Die echte ext_proc-Fehlerprobe `fault-host-v1` verwirft ausschließlich den leeren Response-EOS-Callback und führt einen tatsächlichen Half-Close aus. Engine-API und dem Zielstream eindeutig zugeordneter Envoy-Trace melden gRPC-Status14. Der Client empfängt einen HTTP200-Präfix mit 96 Bodybytes in 64+32, jedoch keinen Nullchunk. Runner77/Controller1/Client1 bleiben unqualifiziert; neue PASS: 0. Am Ziel sind P1–P3 und P4=0, ein `runtime_finish`-Versuch mit Result0 sowie Logging/Free/Cleanup jeweils1 beobachtet. Der gesunde Nachbar hat P1–P4/Finish jeweils1; Survivors und Mountleaks fehlen. Der Proxy-Wirestatus bleibt unbeobachtet. Fehlender Status wird nicht als erfolgreicher Abschluss interpretiert.
 

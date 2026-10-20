@@ -4,7 +4,7 @@
 
 Status: **PARTIAL**. Full acceptance of all 284 original cases has not been achieved.
 
-Base and product contract: `f27eb59b53beff6f65384fc2e5037881a3052c01`.
+Native/host evidence source revision: `f27eb59b53beff6f65384fc2e5037881a3052c01`.
 
 The companion JSON preserves all 284 exact original IDs and their baseline results. New synthetic host probes have their own identities; only separately validated, individually approved full packets qualify original cases.
 
@@ -32,7 +32,7 @@ Exact qualified IDs:
 - `I12::envoy-ext-authz-response-companion::NEED-lease-claim`
 - `I12::envoy-ext-authz-response-companion::NEED-allow`
 
-The baseline contained 281 IDs without full host acceptance: 8 configuration-only PASS and 273 unqualified cases. Of the original 125 open oracles, 3 were resolved and 122 open. These inputs were revalidated with the unchanged central validators and physical sources. New qualifications are recorded separately with full receipts in the current state above.
+The retained baseline contained 281 IDs without full host acceptance: 8 configuration-only PASS and 273 unqualified cases. Of the original 125 open oracles, 3 were resolved and 122 open. The retained baseline and its physical sources were revalidated with the current central validators. This Envoy task modified no shared validator. New qualifications are recorded separately with full receipts in the current state above.
 
 ## New physical host measurements
 
@@ -136,7 +136,7 @@ The directed real `envoy-ext-proc` probe removes only the target stream’s empt
 
 ## Native identity and evidence chain
 
-- Parent: `f27eb59b53beff6f65384fc2e5037881a3052c01`.
+- Native/host evidence source revision: `f27eb59b53beff6f65384fc2e5037881a3052c01`.
 - Envoy: `b579d07d3ad7ee11d32b105e91a5a39ad24718d7/1.39.1/Clean/RELEASE/BoringSSL`.
 - Envoy image SHA256: `002c6e1c69ed0fa0ea381887247cadadfaec9481375fa8d8d2b1731eeabf40b8`.
 - SDK: `ModSecurity v3.0.14 (Linux)`; SHA256 `32257230b8f378987ba1204049dcc1e23927fd44c8778e09d41805ad705c3407`.
@@ -174,14 +174,14 @@ All 125 original oracles were individually reviewed against source, SDK and host
 
 New individually reviewed lifecycle PASS:
 
-- `I12::envoy-ext-proc::NEED-request-streaming` — `f44b8b5e3883df89c7e13bbcf21251e0b1cc38660c650648cef7b2ee88c47400`.
-- `I12::envoy-ext-proc::NEED-response-streaming` — `c8af94d026fc904fc4cbdd51bad23e65968c809878b3ef6381b9ee491045f441`.
-- `I12::envoy-ext-proc::NEED-client-response-bytes` — `5dd743385665cc06efa7b59ed88fa60b74c86cce079983fe04c943470a05f032`.
-- `I12::envoy-ext-proc::NEED-client-exit-signal` — `0022200931c279a05b026f3a36a70d5f588502ad833ce6d256c67cac1d1fe570`.
-- `I12::envoy-ext-authz-request::NEED-complete-sample` — `b1a566f4388f7cc52e72ea8c5e754fb04efdb6255d49bcfb0749430704a10ed4`.
-- `I12::envoy-ext-authz-request::NEED-request-multiple-chunks` — `3c22a657b89b21baddbb80f697eb1044315dedc6ca37adb7451d2f7629429e80`.
-- `I12::envoy-ext-authz-request::NEED-client-response-bytes` — `6511cee496dbb619361b33b1143f92084c1d8114dfd7ca40f924d8357887b20c`.
-- `I12::envoy-ext-authz-response-companion::NEED-allow` — `a508230ae22871bc3ff3af0983482f8c1eeb780029d7babd88ac9b433cd9ec8e`.
+- `I12::envoy-ext-proc::NEED-request-streaming` — `d1a7e9350467c776ff442b157fb2dd3c374570be09d237f6be3d05c34707878c`.
+- `I12::envoy-ext-proc::NEED-response-streaming` — `3d6893cd98d96fff10d0fb40553ec723bedef76dcfb8658ce25acc5f5e8289f6`.
+- `I12::envoy-ext-proc::NEED-client-response-bytes` — `04dee0c1ca91215b3252c7fde74e90de3845edb66ebf5b7c6a459983fb75f512`.
+- `I12::envoy-ext-proc::NEED-client-exit-signal` — `8a980a591a1499074779cb2663314f88eba0d118d13186ca9577a77193dde9e8`.
+- `I12::envoy-ext-authz-request::NEED-complete-sample` — `1e4899ca940ba0115d6e38af88ca6aabe0f1e6d0acf4353edec458d5ec954103`.
+- `I12::envoy-ext-authz-request::NEED-request-multiple-chunks` — `0ef614bf379097eb54e82a79fe73ceb6deb3da12092d308deca6efe493f11019`.
+- `I12::envoy-ext-authz-request::NEED-client-response-bytes` — `fa6d06ddc6b3f69c54fa6f02e3297779060798947e85494ce411cbb9ca25b266`.
+- `I12::envoy-ext-authz-response-companion::NEED-allow` — `94e47517c477465a9efc83e26047b90a9b964947ac3b4f4d8d8b82948dcc1ee7`.
 
 This task’s current acceptance state has 11 resolved and 114 open original oracles. The central baseline inventory remains unchanged.
 
@@ -195,15 +195,15 @@ The complete bilingual check exits 2 because 22 unchanged links target this work
 
 - `baseline`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/baseline-envoy-reconciliation.json` — SHA256 `e5bc09638b139351aa9816df79faffcb8923117f1bd74ca59fdd7b21021ac469`.
 - `native`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/native-v2/native-build/receipt.json` — SHA256 `fd429f2d49a76c71233eb581992a24fc81ac47b1ca8662fd3892be046eee16b0`.
-- `validation`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/ci/final-envoy-controls-188-v1.json` — SHA256 `06cd7b8d1ed4562bf8e85338bc80898006da12c7debb1d93007467a43a2308dd`.
-- `I12__envoy-ext-proc__NEED-request-streaming`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v9/I12__envoy-ext-proc__NEED-request-streaming.json` — SHA256 `f44b8b5e3883df89c7e13bbcf21251e0b1cc38660c650648cef7b2ee88c47400`.
-- `I12__envoy-ext-proc__NEED-response-streaming`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v9/I12__envoy-ext-proc__NEED-response-streaming.json` — SHA256 `c8af94d026fc904fc4cbdd51bad23e65968c809878b3ef6381b9ee491045f441`.
-- `I12__envoy-ext-proc__NEED-client-response-bytes`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v9/I12__envoy-ext-proc__NEED-client-response-bytes.json` — SHA256 `5dd743385665cc06efa7b59ed88fa60b74c86cce079983fe04c943470a05f032`.
-- `I12__envoy-ext-proc__NEED-client-exit-signal`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v9/I12__envoy-ext-proc__NEED-client-exit-signal.json` — SHA256 `0022200931c279a05b026f3a36a70d5f588502ad833ce6d256c67cac1d1fe570`.
-- `I12__envoy-ext-authz-request__NEED-complete-sample`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v9/I12__envoy-ext-authz-request__NEED-complete-sample.json` — SHA256 `b1a566f4388f7cc52e72ea8c5e754fb04efdb6255d49bcfb0749430704a10ed4`.
-- `I12__envoy-ext-authz-request__NEED-request-multiple-chunks`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v9/I12__envoy-ext-authz-request__NEED-request-multiple-chunks.json` — SHA256 `3c22a657b89b21baddbb80f697eb1044315dedc6ca37adb7451d2f7629429e80`.
-- `I12__envoy-ext-authz-request__NEED-client-response-bytes`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v9/I12__envoy-ext-authz-request__NEED-client-response-bytes.json` — SHA256 `6511cee496dbb619361b33b1143f92084c1d8114dfd7ca40f924d8357887b20c`.
-- `I12__envoy-ext-authz-response-companion__NEED-allow`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v9/I12__envoy-ext-authz-response-companion__NEED-allow.json` — SHA256 `a508230ae22871bc3ff3af0983482f8c1eeb780029d7babd88ac9b433cd9ec8e`.
+- `validation`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/ci/final-envoy-controls-188-base-a622-v2.json` — SHA256 `3b0450464984ca2c2e7b8be4eda7e816a14327d3db68e8b7104a2518ac1a0ea2`.
+- `I12__envoy-ext-proc__NEED-request-streaming`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v10/I12__envoy-ext-proc__NEED-request-streaming.json` — SHA256 `d1a7e9350467c776ff442b157fb2dd3c374570be09d237f6be3d05c34707878c`.
+- `I12__envoy-ext-proc__NEED-response-streaming`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v10/I12__envoy-ext-proc__NEED-response-streaming.json` — SHA256 `3d6893cd98d96fff10d0fb40553ec723bedef76dcfb8658ce25acc5f5e8289f6`.
+- `I12__envoy-ext-proc__NEED-client-response-bytes`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v10/I12__envoy-ext-proc__NEED-client-response-bytes.json` — SHA256 `04dee0c1ca91215b3252c7fde74e90de3845edb66ebf5b7c6a459983fb75f512`.
+- `I12__envoy-ext-proc__NEED-client-exit-signal`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v10/I12__envoy-ext-proc__NEED-client-exit-signal.json` — SHA256 `8a980a591a1499074779cb2663314f88eba0d118d13186ca9577a77193dde9e8`.
+- `I12__envoy-ext-authz-request__NEED-complete-sample`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v10/I12__envoy-ext-authz-request__NEED-complete-sample.json` — SHA256 `1e4899ca940ba0115d6e38af88ca6aabe0f1e6d0acf4353edec458d5ec954103`.
+- `I12__envoy-ext-authz-request__NEED-request-multiple-chunks`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v10/I12__envoy-ext-authz-request__NEED-request-multiple-chunks.json` — SHA256 `0ef614bf379097eb54e82a79fe73ceb6deb3da12092d308deca6efe493f11019`.
+- `I12__envoy-ext-authz-request__NEED-client-response-bytes`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v10/I12__envoy-ext-authz-request__NEED-client-response-bytes.json` — SHA256 `fa6d06ddc6b3f69c54fa6f02e3297779060798947e85494ce411cbb9ca25b266`.
+- `I12__envoy-ext-authz-response-companion__NEED-allow`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v10/I12__envoy-ext-authz-response-companion__NEED-allow.json` — SHA256 `94e47517c477465a9efc83e26047b90a9b964947ac3b4f4d8d8b82948dcc1ee7`.
 - `oracles-ext-proc`: `/var/tmp/codex/ModSecurity-conector/worktrees/i12-envoy-410-20261015/ci/runtime/lifecycle/i12/envoy/oracles-ext-proc.json` — SHA256 `a25fe9a5808df508a5182cedf343166ccafebefabaeaa7d7898a4eb6d2c61a2f`.
 - `oracles-authz-request`: `/var/tmp/codex/ModSecurity-conector/worktrees/i12-envoy-410-20261015/ci/runtime/lifecycle/i12/envoy/oracles-authz-request.json` — SHA256 `00299799b27918783dff71e44720059d23bc539570f71c4e37a4b6d91ac08ddf`.
 - `oracles-companion`: `/var/tmp/codex/ModSecurity-conector/worktrees/i12-envoy-410-20261015/ci/runtime/lifecycle/i12/envoy/oracles-companion.json` — SHA256 `fe98c20ebd63ad455a34e2a65dbced229d43cab63755d70e743a18abdaf9f1b3`.

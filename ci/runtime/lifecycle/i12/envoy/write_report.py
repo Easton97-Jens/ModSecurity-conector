@@ -104,8 +104,8 @@ def qualified_heading(german):
 def host_intro(german):
     return [
         '',
-        'Die Baseline enthielt 281 IDs ohne vollständige Hostabnahme: 8 reine Konfigurations-PASS und 273 unqualifizierte Fälle. Von den ursprünglichen 125 offenen Oracles waren 3 aufgelöst und 122 offen. Diese Eingaben wurden mit den unveränderten zentralen Validatoren und physischen Quellen erneut geprüft. Neue Qualifikationen stehen separat mit ihren vollständigen Receipts im aktuellen Stand oben.' if german else
-                   'The baseline contained 281 IDs without full host acceptance: 8 configuration-only PASS and 273 unqualified cases. Of the original 125 open oracles, 3 were resolved and 122 open. These inputs were revalidated with the unchanged central validators and physical sources. New qualifications are recorded separately with full receipts in the current state above.',
+        'Die erhaltene Baseline enthielt 281 IDs ohne vollständige Hostabnahme: 8 reine Konfigurations-PASS und 273 unqualifizierte Fälle. Von den ursprünglichen 125 offenen Oracles waren 3 aufgelöst und 122 offen. Die erhaltene Baseline und ihre physischen Quellen wurden mit den aktuellen zentralen Validatoren erneut geprüft. Dieser Envoy-Task änderte keinen gemeinsamen Validator. Neue Qualifikationen stehen separat mit ihren vollständigen Receipts im aktuellen Stand oben.' if german else
+                   'The retained baseline contained 281 IDs without full host acceptance: 8 configuration-only PASS and 273 unqualified cases. Of the original 125 open oracles, 3 were resolved and 122 open. The retained baseline and its physical sources were revalidated with the current central validators. This Envoy task modified no shared validator. New qualifications are recorded separately with full receipts in the current state above.',
         '',
         '## Neue physische Hostmessungen' if german else '## New physical host measurements',
         '',
@@ -124,7 +124,7 @@ def native_identity(data, german):
         '',
         '## Native Identität und Nachweiskette' if german else '## Native identity and evidence chain',
         '',
-        '- Parent: `' + data['parent_sha'] + '`.',
+        ('- Quellrevision der nativen/Hostevidenz: `' if german else '- Native/host evidence source revision: `') + data['parent_sha'] + '`.',
         '- Envoy: `b579d07d3ad7ee11d32b105e91a5a39ad24718d7/1.39.1/Clean/RELEASE/BoringSSL`.',
         '- Envoy image SHA256: `002c6e1c69ed0fa0ea381887247cadadfaec9481375fa8d8d2b1731eeabf40b8`.'
     ]
@@ -280,7 +280,7 @@ def report(data, german):
     lines = [('# I12 Envoy: Hostmessungen und verbleibende Abnahme' if german else '# I12 Envoy: host measurements and remaining acceptance'), '', language, '',
         ('Status: **PARTIAL**. Die vollständige Abnahme aller 284 Originalfälle ist nicht erreicht.' if german else
          'Status: **PARTIAL**. Full acceptance of all 284 original cases has not been achieved.'), '',
-        ('Basis und Produktvertrag: ' if german else 'Base and product contract: ') + '`' + data['parent_sha'] + '`.', '',
+        ('Quellrevision der nativen/Hostevidenz: ' if german else 'Native/host evidence source revision: ') + '`' + data['parent_sha'] + '`.', '',
         ('Die JSON-Begleitdatei erhält alle 284 exakten Original-IDs und ihre Baseline-Ergebnisse. Neue synthetische Hostproben haben eigene Identitäten; nur separat validierte, einzeln freigegebene vollständige Nachweispakete qualifizieren Originalfälle.' if german else
          'The companion JSON preserves all 284 exact original IDs and their baseline results. New synthetic host probes have their own identities; only separately validated, individually approved full packets qualify original cases.'), '',
         f'[{STEM}.json]({STEM}.json)', '',
