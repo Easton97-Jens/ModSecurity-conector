@@ -85,7 +85,8 @@ class CurrentBaseControls(unittest.TestCase):
 
     def test_go_provenance_requires_physical_compiler_and_local_identity(self):
         with tempfile.TemporaryDirectory(dir=current.evidence_io.STORAGE) as directory:
-            path = Path(directory) / 'go'
+            path = Path(directory) / 'bin/go'
+            path.parent.mkdir()
             path.write_bytes(b'physical compiler')
             identity = 'go version go1.27.2 linux/amd64'
             proof = {'environment': {'GOTOOLCHAIN': 'local'}, 'checks': [
@@ -93,6 +94,25 @@ class CurrentBaseControls(unittest.TestCase):
                 'go_provenance': {'required_version': '1.27.2', 'required_identity': identity,
                     'actual_identity': identity, 'verified': True, 'configured_path': str(path),
                     'executable_path': str(path), 'executable_sha256': current.evidence_io.reference(path)['sha256']}}
+            root = path.parent.parent
+            required = {'GOROOT': str(root), 'GOOS': 'linux', 'GOARCH': 'amd64',
+                'GOVERSION': 'go1.27.2', 'GOTOOLDIR': str(root / 'pkg/tool/linux_amd64')}
+            proof['environment'].update({key: required[key] for key in ('GOROOT', 'GOOS', 'GOARCH')})
+            proof['go_provenance'].update(required_environment=dict(required), actual_environment=dict(required),
+                environment_output=''.join(value + '\n' for value in required.values()), tools={})
+            proof['checks'].append({'label': 'go-environment',
+                'argv': ['rtk', 'proxy', str(path), 'env', *required]})
+            proof['go_provenance']['configured_path'] = str(path)
+            for name in ('compile', 'link'):
+                tool_path = root / 'pkg/tool/linux_amd64' / name
+                tool_path.parent.mkdir(parents=True, exist_ok=True)
+                tool_path.write_bytes(name.encode())
+                tool = {'path': str(tool_path), 'sha256': current.evidence_io.reference(tool_path)['sha256'],
+                    'required_identity': name + ' version go1.27.2',
+                    'actual_identity': name + ' version go1.27.2'}
+                proof['go_provenance']['tools'][name] = tool
+                proof['checks'].append({'label': 'go-' + name + '-version',
+                    'argv': ['rtk', 'proxy', str(tool_path), '-V']})
             refs = {}
             current.go_provenance(proof, refs)
             self.assertIn(str(path), refs)
@@ -101,6 +121,11 @@ class CurrentBaseControls(unittest.TestCase):
                 lambda p: p['go_provenance'].update(verified=False),
                 lambda p: p['environment'].update(GOTOOLCHAIN='auto'),
                 lambda p: p['go_provenance'].update(executable_sha256='0' * 64),
+                lambda p: p['environment'].update(GOROOT='/different'),
+                lambda p: p['go_provenance']['actual_environment'].update(GOVERSION='go1.27.3'),
+                lambda p: p['go_provenance']['tools']['compile'].update(actual_identity='compile version go1.27.3'),
+                lambda p: p['go_provenance']['tools']['link'].update(path='/different/link'),
+                lambda p: p['go_provenance']['tools']['link'].update(sha256='0' * 64),
                 lambda p: p['checks'][0]['argv'].__setitem__(2, '/other/go')]
             for mutate in mutations:
                 changed = copy.deepcopy(proof)
@@ -115,6 +140,55 @@ class CurrentBaseControls(unittest.TestCase):
         current.go_provenance({}, {}, allow_legacy=True)
         with self.assertRaisesRegex(ValueError, 'provenance required'):
             current.go_provenance({}, {})
+
+    def test_rejected_native_preserves_only_pre_host_compiler_failure(self):
+        with tempfile.TemporaryDirectory(dir=current.evidence_io.STORAGE) as directory:
+            root = Path(directory)
+            labels = current.CHECKS - {'go-native', 'go-race', 'go-vet', 'native-observer-controls'}
+            proof = {'actual_source_commit': current.PARENT, 'host_launched': False,
+                'status': 'failed', 'source_copy': str(root / 'source'),
+                'complete_source_inventory': {'source': 'hash'}, 'checks': []}
+            diagnostic = b'compile: version "go1.27.3" does not match go tool version "go1.27.2"\n'
+            for label in sorted(labels - {'composite-build'}) + ['composite-build']:
+                check = {'label': label, 'exit_code': int(label == 'composite-build')}
+                for channel in ('stdout', 'stderr'):
+                    data = (diagnostic if label == 'composite-build' and channel == 'stderr' else
+                            b'go version go1.27.2 linux/amd64\n' if label == 'go-version' and channel == 'stdout' else b'')
+                    log = root / (label + '.' + channel)
+                    log.write_bytes(data)
+                    check[channel + '_sha256'] = current.evidence_io.reference(log)['sha256']
+                proof['checks'].append(check)
+            path = root / 'receipt.json'
+            path.write_text(json.dumps(proof))
+            with patch.object(current, 'go_provenance'), \
+                    patch.object(current.source_inventory, 'verify', return_value=proof['complete_source_inventory']):
+                result = current.rejected_native_evidence(path, {})
+                self.assertEqual(result['classification'], 'rejected_toolchain_isolation')
+                self.assertEqual(result['new_lifecycle_pass'], 0)
+                mutations = [lambda p: p.update(host_launched=True),
+                    lambda p: p.update(status='pass'), lambda p: p.update(binaries={}),
+                    lambda p: p.update(build_ready=True),
+                    lambda p: p.update(actual_source_commit='b' * 40),
+                    lambda p: p['checks'][0].update(exit_code=1)]
+                for mutate in mutations:
+                    changed = copy.deepcopy(proof)
+                    mutate(changed)
+                    path.write_text(json.dumps(changed))
+                    with self.assertRaises(ValueError):
+                        current.rejected_native_evidence(path, {})
+                path.write_text(json.dumps(proof))
+                (root / 'composite-build.stderr').write_bytes(b'other failure')
+                with self.assertRaisesRegex(ValueError, 'physical reference changed'):
+                    current.rejected_native_evidence(path, {})
+                proof['checks'][-1]['stderr_sha256'] = current.evidence_io.reference(
+                    root / 'composite-build.stderr')['sha256']
+                path.write_text(json.dumps(proof))
+                with self.assertRaisesRegex(ValueError, 'physical compiler/tool mismatch'):
+                    current.rejected_native_evidence(path, {})
+
+    def test_rejected_native_input_is_required(self):
+        with self.assertRaises(TypeError):
+            current.produce(*(Path('/input') for _ in range(5)))
 
     def test_cleanup_mutations_are_rejected(self):
         mutations = [lambda row: row['controller'].update(surviving_namespace_pid_count=1),
@@ -157,7 +231,7 @@ class CurrentBaseControls(unittest.TestCase):
     def test_validation_replays_and_rejects_supplement_mutation(self):
         ref = {'path': '/native', 'sha256': 'native', 'bytes': 1}
         supplement = {'inputs': {name: dict(ref) for name in (
-            'native', 'admission_review', 'review', 'superseded_native', 'superseded_review')},
+            'native', 'admission_review', 'review', 'superseded_native', 'superseded_review', 'rejected_native')},
                       'new_lifecycle_pass': 0}
         with patch.object(current.evidence_io, 'read_json', return_value=supplement), \
                 patch.object(current.evidence_io, 'reference', return_value=ref), \

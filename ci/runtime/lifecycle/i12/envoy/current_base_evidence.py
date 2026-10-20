@@ -18,6 +18,7 @@ SCENARIOS = {
 CHECKS = {'source-head', 'source-archive', 'observer', 'accessor', 'observer-archive',
           'go-version', 'sdk-identity-build', 'sdk-identity', 'composite-build',
           'go-native', 'go-race', 'go-vet', 'native-observer-controls'}
+ISOLATION_CHECKS = {'go-environment', 'go-compile-version', 'go-link-version'}
 
 
 def require(condition, message):
@@ -32,7 +33,7 @@ def bind(path, expected, references):
     return ref
 
 
-def go_provenance(proof, references, allow_legacy=False):
+def go_provenance(proof, references, allow_legacy=False, require_isolation=True):
     provenance = proof.get('go_provenance')
     if allow_legacy and provenance is None:
         return
@@ -55,16 +56,42 @@ def go_provenance(proof, references, allow_legacy=False):
             require(check['argv'][:3] == ['rtk', 'proxy', str(configured)],
                     'native Go check executable differs')
     bind(executable, provenance['executable_sha256'], references)
+    if not require_isolation:
+        return
+    root = executable.parent.parent
+    required = {'GOROOT': str(root), 'GOOS': 'linux', 'GOARCH': 'amd64', 'GOVERSION': 'go1.27.2',
+                'GOTOOLDIR': str(root / 'pkg/tool/linux_amd64')}
+    require(provenance.get('required_environment') == required
+            and provenance.get('actual_environment') == required
+            and provenance.get('environment_output') == ''.join(value + '\n' for value in required.values())
+            and all(proof['environment'].get(key) == required[key] for key in ('GOROOT', 'GOOS', 'GOARCH')),
+            'isolated native Go environment differs')
+    checks = {check['label']: check for check in proof['checks']}
+    require(checks['go-environment']['argv'] == ['rtk', 'proxy', str(configured), 'env', *required],
+            'isolated Go environment command differs')
+    tools = provenance.get('tools', {})
+    require(set(tools) == {'compile', 'link'}, 'both isolated Go tool identities required')
+    for name, tool in tools.items():
+        tool_path = root / 'pkg/tool/linux_amd64' / name
+        expected_identity = name + ' version go1.27.2'
+        require(tool.get('path') == str(tool_path)
+                and tool.get('required_identity') == expected_identity
+                and tool.get('actual_identity') == expected_identity
+                and checks['go-' + name + '-version']['argv'] == ['rtk', 'proxy', str(tool_path), '-V'],
+                'isolated Go compiler/linker identity differs')
+        bind(tool_path, tool['sha256'], references)
 
 
 def native_evidence(path, references, go_version='1.27.2', allow_legacy=False):
     proof = evidence_io.read_json(path)
     bind(path, evidence_io.reference(path)['sha256'], references)
     require(proof.get('actual_source_commit') == PARENT, 'current-base native revision differs')
-    require(proof.get('status') == 'pass' and proof.get('build_ready') is True,
+    require(proof.get('status') == 'pass' and proof.get('build_ready') is True
+            and proof.get('host_launched') is False,
             'current-base native checks must pass')
-    require({check['label'] for check in proof['checks']} == CHECKS
-            and len(proof['checks']) == len(CHECKS)
+    expected_checks = CHECKS if allow_legacy else CHECKS | ISOLATION_CHECKS
+    require({check['label'] for check in proof['checks']} == expected_checks
+            and len(proof['checks']) == len(expected_checks)
             and all(check['exit_code'] == 0 for check in proof['checks']),
             'complete native check set required')
     go_provenance(proof, references, allow_legacy)
@@ -72,6 +99,13 @@ def native_evidence(path, references, go_version='1.27.2', allow_legacy=False):
         for channel in ('stdout', 'stderr'):
             bind(path.parent / (check['label'] + '.' + channel),
                  check[channel + '_sha256'], references)
+    if not allow_legacy:
+        provenance = proof['go_provenance']
+        require(evidence_io.read_bytes(path.parent / 'go-environment.stdout')
+                == provenance['environment_output'].encode(), 'physical Go environment output differs')
+        for name, tool in provenance['tools'].items():
+            require(evidence_io.read_bytes(path.parent / ('go-' + name + '-version.stdout'))
+                    == (tool['actual_identity'] + '\n').encode(), 'physical Go tool identity output differs')
     source = Path(proof['source_copy'])
     require(source_inventory.verify(source, proof) == proof['complete_source_inventory'],
             'native source inventory differs')
@@ -94,6 +128,35 @@ def native_evidence(path, references, go_version='1.27.2', allow_legacy=False):
         bind(path.parent / name, sha, references)
         bind(Path(proof['host_ready_binaries']) / Path(name).name, sha, references)
     return proof
+
+
+def rejected_native_evidence(path, references):
+    proof = evidence_io.read_json(path)
+    receipt = bind(path, evidence_io.reference(path)['sha256'], references)
+    require(proof.get('actual_source_commit') == PARENT and proof.get('host_launched') is False
+            and proof.get('status') == 'failed' and 'build_ready' not in proof and 'binaries' not in proof,
+            'rejected native must be an exact-base pre-host build failure')
+    checks = proof['checks']
+    labels = CHECKS - {'go-native', 'go-race', 'go-vet', 'native-observer-controls'}
+    require(len(checks) == len(labels) and {check['label'] for check in checks} == labels
+            and checks[-1]['label'] == 'composite-build' and checks[-1]['exit_code'] != 0
+            and all(check['exit_code'] == 0 for check in checks[:-1]),
+            'rejected native must retain sole terminal composite-build failure')
+    go_provenance(proof, references, require_isolation=False)
+    for check in checks:
+        for channel in ('stdout', 'stderr'):
+            bind(path.parent / (check['label'] + '.' + channel), check[channel + '_sha256'], references)
+    require(evidence_io.read_bytes(path.parent / 'go-version.stdout')
+            == b'go version go1.27.2 linux/amd64\n', 'rejected native driver identity differs')
+    diagnostic = b'compile: version "go1.27.3" does not match go tool version "go1.27.2"'
+    require(diagnostic in evidence_io.read_bytes(path.parent / 'composite-build.stderr'),
+            'rejected native lacks physical compiler/tool mismatch')
+    require(source_inventory.verify(Path(proof['source_copy']), proof) == proof['complete_source_inventory'],
+            'rejected native source inventory differs')
+    return {'classification': 'rejected_toolchain_isolation', 'receipt': receipt,
+            'host_launched': False, 'status': 'failed', 'failure_check': 'composite-build',
+            'driver_go': '1.27.2', 'compiler_go': '1.27.3', 'original_oracle_case_ids': [],
+            'oracle_progress_assigned': False, 'new_lifecycle_pass': 0}
 
 
 def nonqualification(review):
@@ -217,10 +280,11 @@ def review_evidence(path, proof, admission, references):
     return review
 
 
-def produce(native, admission_review, review, superseded_native, superseded_review):
+def produce(native, admission_review, review, superseded_native, superseded_review, rejected_native):
     references = {}
     proof = native_evidence(native, references)
     previous = native_evidence(superseded_native, references, '1.27.3', allow_legacy=True)
+    rejected = rejected_native_evidence(rejected_native, references)
     failed = review_evidence(admission_review, previous, True, references)
     superseded = review_evidence(superseded_review, previous, False, references)
     observed = review_evidence(review, proof, False, references)
@@ -234,7 +298,9 @@ def produce(native, admission_review, review, superseded_native, superseded_revi
                                              for row in observed['scenarios']},
             'inputs': {name: evidence_io.reference(path) for name, path in (
                 ('native', native), ('admission_review', admission_review), ('review', review),
-                ('superseded_native', superseded_native), ('superseded_review', superseded_review))},
+                ('superseded_native', superseded_native), ('superseded_review', superseded_review),
+                ('rejected_native', rejected_native))},
+            'rejected_native': rejected,
             'admission_failures': failed['scenarios'], 'observations': observed['scenarios'],
             'superseded': {'classification': 'wrong_toolchain_nonqualifying',
                 'engine_build_go': '1.27.3', 'required_engine_build_go': '1.27.2',
@@ -250,18 +316,18 @@ def validate(path):
     for ref in inputs.values():
         require(evidence_io.reference(Path(ref['path'])) == ref, 'supplement input changed')
     actual = produce(*(Path(inputs[key]['path']) for key in (
-        'native', 'admission_review', 'review', 'superseded_native', 'superseded_review')))
+        'native', 'admission_review', 'review', 'superseded_native', 'superseded_review', 'rejected_native')))
     require(supplement == actual, 'current-base supplement differs from fresh validation')
     return actual
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ('native', 'admission-review', 'review', 'superseded-native', 'superseded-review', 'output'):
+    for name in ('native', 'admission-review', 'review', 'superseded-native', 'superseded-review', 'rejected-native', 'output'):
         parser.add_argument('--' + name, type=Path, required=True)
     args = parser.parse_args()
     result = produce(args.native, args.admission_review, args.review,
-                     args.superseded_native, args.superseded_review)
+                     args.superseded_native, args.superseded_review, args.rejected_native)
     with args.output.open('x') as stream:
         json.dump(result, stream, indent=2)
         stream.write('\n')

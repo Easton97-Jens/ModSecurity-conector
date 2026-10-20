@@ -189,7 +189,8 @@ class CommandRunner:
             "start_ns": started, "finish_ns": time.time_ns(), "exit_code": code,
             "environment": {key: env[key] for key in (
                 "CGO_ENABLED", "CGO_CFLAGS", "CGO_LDFLAGS", "TMPDIR",
-                "MODSECURITY_INCLUDE_DIR", "NATIVE_OBSERVER_TEST_OUT") if key in env},
+                "MODSECURITY_INCLUDE_DIR", "NATIVE_OBSERVER_TEST_OUT",
+                "GOROOT", "GOOS", "GOARCH", "GOTOOLCHAIN") if key in env},
             "stdout_sha256": hashlib.sha256(stdout).hexdigest(),
             "stderr_sha256": hashlib.sha256(stderr).hexdigest()})
         self.save()
@@ -224,6 +225,9 @@ def validate_existing(args, source, out, receipt, env, run):
         previous = receipt['go_provenance']
         if sha(args.go.resolve(strict=True)) != previous['executable_sha256']:
             raise ValueError('existing build Go executable hash mismatch')
+        if 'tools' in previous:
+            verify_go_toolchain_hashes(previous)
+        isolate_go_environment(args.go, env)
         profile = json.loads((source / source_inventory.MANIFEST).read_text())['profiles']['envoy']
         record_go_provenance(args.go, env, receipt, run, profile)
     validate(source, out, env, run, args.go, args.sdk_include, args.sdk_library, args.controls_only)
@@ -314,11 +318,34 @@ def configure_native_environment(args, root, out, receipt, env):
                MODSECURITY_LIB_DIR=str(args.sdk_library.parent),
                MODSECURITY_LIB_FILE=str(args.sdk_library),
                PATH=str(args.go.parent) + os.pathsep + env["PATH"])
+    isolate_go_environment(args.go, env)
     receipt["environment"] = {key: env[key] for key in (
-        "GOTOOLCHAIN", "GOPROXY", "GOSUMDB", "GOWORK", "GOFLAGS", "GOMAXPROCS",
+        "GOROOT", "GOOS", "GOARCH", "GOTOOLCHAIN", "GOPROXY", "GOSUMDB", "GOWORK", "GOFLAGS", "GOMAXPROCS",
         "GOCACHE", "GOMODCACHE", "TMPDIR", "BUILD_ROOT", "MODSECURITY_INCLUDE_DIR",
         "MODSECURITY_LIB_FILE")}
     receipt["sdk_library"] = {"path": str(args.sdk_library), "sha256": sha(args.sdk_library)}
+
+
+def go_root(go):
+    executable = go.resolve(strict=True)
+    if not go.is_absolute() or go.name != 'go' or executable.name != 'go' or executable.parent.name != 'bin':
+        raise ValueError('selected Go must resolve to its physical GOROOT/bin/go')
+    return executable.parent.parent
+
+
+def isolate_go_environment(go, env):
+    root = go_root(go)
+    env.update(GOROOT=str(root), GOOS='linux', GOARCH='amd64', GOTOOLCHAIN='local',
+               PATH=str(root / 'bin') + os.pathsep + env.get('PATH', ''))
+
+
+def verify_go_toolchain_hashes(identity):
+    paths = {'driver': {'path': identity['executable_path'], 'sha256': identity['executable_sha256']},
+             **identity['tools']}
+    for name, item in paths.items():
+        path = Path(item['path'])
+        if path.resolve(strict=True) != path or not path.is_file() or sha(path) != item['sha256']:
+            raise ValueError('Go toolchain executable changed: ' + name)
 
 
 def record_go_provenance(go, env, receipt, run, profile):
@@ -326,11 +353,13 @@ def record_go_provenance(go, env, receipt, run, profile):
     if not isinstance(version, str) or re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version) is None:
         raise ValueError('exact capture Go version required')
     executable = go.resolve(strict=True)
+    root = go_root(go)
     selected = shutil.which('go', path=env.get('PATH', ''))
     if (not go.is_absolute() or go.name != 'go' or not executable.is_file()
             or selected is None or Path(selected).resolve(strict=True) != executable
             or env.get('GOTOOLCHAIN') != 'local'
-            or env.get('GOOS', 'linux') != 'linux' or env.get('GOARCH', 'amd64') != 'amd64'):
+            or env.get('GOROOT') != str(root)
+            or env.get('GOOS') != 'linux' or env.get('GOARCH') != 'amd64'):
         raise ValueError('native build must use the selected local Go executable for linux/amd64')
     identity = {'required_version': version, 'required_identity': 'go version go' + version + ' linux/amd64',
                 'actual_identity': None, 'configured_path': str(go), 'executable_path': str(executable),
@@ -344,6 +373,29 @@ def record_go_provenance(go, env, receipt, run, profile):
     if output != (identity['required_identity'] + '\n').encode():
         run.save()
         raise ValueError('Go version differs from exact capture provenance')
+    required = {'GOROOT': str(root), 'GOOS': 'linux', 'GOARCH': 'amd64', 'GOVERSION': 'go' + version,
+                'GOTOOLDIR': str(root / 'pkg/tool/linux_amd64')}
+    identity['required_environment'] = required
+    output = run('go-environment', [go, 'env', *required])
+    identity['environment_output'] = output.decode('utf-8', errors='replace')
+    identity['actual_environment'] = None
+    if output != ''.join(value + '\n' for value in required.values()).encode():
+        run.save()
+        raise ValueError('Go environment differs from isolated capture toolchain')
+    identity['actual_environment'] = dict(zip(required, output.decode().splitlines()))
+    identity['tools'] = {}
+    for name in ('compile', 'link'):
+        path = root / 'pkg/tool/linux_amd64' / name
+        if path.resolve(strict=True) != path or not path.is_file():
+            raise ValueError('Go tool must be physical inside selected GOROOT: ' + name)
+        item = {'path': str(path), 'sha256': sha(path), 'required_identity': name + ' version go' + version}
+        identity['tools'][name] = item
+        output = run('go-' + name + '-version', [path, '-V'])
+        item['actual_identity'] = output.decode('utf-8', errors='replace').removesuffix('\n')
+        if output != (item['required_identity'] + '\n').encode():
+            run.save()
+            raise ValueError('Go tool version differs from exact capture provenance: ' + name)
+    verify_go_toolchain_hashes(identity)
     identity['verified'] = True
     run.save()
 
@@ -374,8 +426,7 @@ def compile_native(args, source, out, env, receipt, run, profile):
         source / ".i12-capture/envoy/sdk-who.c", args.sdk_library, "-o", out / "sdk-who"])
     run("sdk-identity", [out / "sdk-who"])
     run("composite-build", ["sh", source / "connectors/envoy/build/build_composite.sh"], source)
-    if sha(args.go.resolve(strict=True)) != receipt['go_provenance']['executable_sha256']:
-        raise ValueError('Go executable changed during product build')
+    verify_go_toolchain_hashes(receipt['go_provenance'])
     receipt["build_ready"] = True
     receipt["binaries"] = {str(path.relative_to(out)): sha(path) for path in (
         out / "build/envoy-ext-proc/msconnector_envoy_ext_proc",

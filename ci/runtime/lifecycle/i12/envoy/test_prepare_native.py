@@ -224,18 +224,32 @@ class GoProvenanceControls(unittest.TestCase):
         storage = json.loads(manifest.read_text())['authorized_storage_root']
         self.temporary = tempfile.TemporaryDirectory(dir=storage)
         self.root = Path(self.temporary.name)
-        self.go = self.root / 'go'
+        (self.root / 'bin').mkdir()
+        self.go = self.root / 'bin/go'
         self.go.write_bytes(b'physical test executable identity')
         self.go.chmod(0o755)
-        self.env = {'PATH': str(self.root), 'GOTOOLCHAIN': 'local'}
+        self.env = {'PATH': str(self.root / 'bin'), 'GOTOOLCHAIN': 'local',
+                    'GOROOT': str(self.root), 'GOOS': 'linux', 'GOARCH': 'amd64'}
         self.profile = {'provenance': {'go_version': '1.27.2'}}
         self.receipt = {}
         self.calls = []
         self.output = b'go version go1.27.2 linux/amd64\n'
+        self.environment_output = (str(self.root) + '\nlinux\namd64\ngo1.27.2\n' +
+                                   str(self.root / 'pkg/tool/linux_amd64') + '\n').encode()
+        self.tool_outputs = {}
+        for name in ('compile', 'link'):
+            path = self.root / 'pkg/tool/linux_amd64' / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(('physical ' + name + ' test tool').encode())
+            self.tool_outputs[name] = (name + ' version go1.27.2\n').encode()
 
         class Runner:
             def __call__(_runner, label, argv, *_args):
                 self.calls.append((label, argv))
+                if label == 'go-environment':
+                    return self.environment_output
+                if label in ('go-compile-version', 'go-link-version'):
+                    return self.tool_outputs[label.removeprefix('go-').removesuffix('-version')]
                 return self.output
 
             def save(_runner):
@@ -251,12 +265,25 @@ class GoProvenanceControls(unittest.TestCase):
 
     def test_exact_identity_records_required_actual_and_physical_executable(self):
         self.capture()
-        self.assertEqual(self.calls, [('go-version', [self.go, 'version'])])
-        self.assertEqual(self.receipt['go_provenance'], {
+        self.assertEqual(self.calls, [
+            ('go-version', [self.go, 'version']),
+            ('go-environment', [self.go, 'env', 'GOROOT', 'GOOS', 'GOARCH', 'GOVERSION', 'GOTOOLDIR']),
+            ('go-compile-version', [self.root / 'pkg/tool/linux_amd64/compile', '-V']),
+            ('go-link-version', [self.root / 'pkg/tool/linux_amd64/link', '-V'])])
+        identity = self.receipt['go_provenance']
+        self.assertEqual({key: identity[key] for key in (
+            'required_version', 'required_identity', 'actual_identity', 'configured_path',
+            'executable_path', 'executable_sha256', 'verified')}, {
             'required_version': '1.27.2', 'required_identity': 'go version go1.27.2 linux/amd64',
             'actual_identity': 'go version go1.27.2 linux/amd64',
             'configured_path': str(self.go), 'executable_path': str(self.go),
             'executable_sha256': prepare.sha(self.go), 'verified': True})
+        self.assertEqual(identity['actual_environment'], identity['required_environment'])
+        for name in ('compile', 'link'):
+            item = identity['tools'][name]
+            self.assertEqual(item['path'], str(self.root / 'pkg/tool/linux_amd64' / name))
+            self.assertEqual(item['sha256'], prepare.sha(Path(item['path'])))
+            self.assertEqual(item['actual_identity'], name + ' version go1.27.2')
 
     def test_wrong_patch_release_is_recorded_and_rejected_before_any_build(self):
         self.output = b'go version go1.27.3 linux/amd64\n'
@@ -293,9 +320,11 @@ class GoProvenanceControls(unittest.TestCase):
         self.assertEqual(self.calls, [])
 
     def test_cross_platform_auto_toolchain_and_other_path_selection_are_rejected(self):
-        for changes in ({'GOOS': 'windows'}, {'GOARCH': 'arm64'}, {'GOTOOLCHAIN': 'auto'}, {'PATH': ''}):
+        for changes in ({'GOOS': 'windows'}, {'GOARCH': 'arm64'}, {'GOTOOLCHAIN': 'auto'},
+                        {'PATH': ''}, {'GOROOT': '/usr/local/go'}):
             with self.subTest(changes=changes):
-                self.env = {'PATH': str(self.root), 'GOTOOLCHAIN': 'local', **changes}
+                self.env = {'PATH': str(self.root / 'bin'), 'GOTOOLCHAIN': 'local',
+                            'GOROOT': str(self.root), 'GOOS': 'linux', 'GOARCH': 'amd64', **changes}
                 with self.assertRaisesRegex(ValueError, 'selected local Go executable'):
                     self.capture()
         self.assertEqual(self.calls, [])
@@ -309,6 +338,67 @@ class GoProvenanceControls(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'changed during provenance capture'):
             self.capture()
         self.assertFalse(self.receipt['go_provenance']['verified'])
+
+    def test_configuration_overwrites_inherited_foreign_toolchain_environment(self):
+        cache = self.root / 'module-cache'
+        cache.mkdir()
+        run_root = self.root / 'run'
+        run_root.mkdir()
+        sdk = self.root / 'sdk.so'
+        sdk.write_bytes(b'test sdk')
+        args = SimpleNamespace(go=self.go, module_cache=cache, tmp_root=None,
+                               sdk_include=self.root, sdk_library=sdk)
+        self.env.update(GOROOT='/usr/local/go', GOOS='windows', GOARCH='arm64', GOTOOLCHAIN='auto')
+        prepare.configure_native_environment(args, run_root, run_root / 'native-build', self.receipt, self.env)
+        for key, expected in {'GOROOT': str(self.root), 'GOOS': 'linux', 'GOARCH': 'amd64',
+                              'GOTOOLCHAIN': 'local'}.items():
+            self.assertEqual(self.env[key], expected)
+            self.assertEqual(self.receipt['environment'][key], expected)
+        self.capture()
+        self.assertTrue(self.receipt['go_provenance']['verified'])
+
+    def test_go_environment_identity_and_format_substitutions_are_rejected(self):
+        original = self.environment_output
+        for replacement in (original.replace(str(self.root).encode(), b'/usr/local/go'),
+                            original.replace(b'linux\n', b'windows\n'),
+                            original.replace(b'amd64\n', b'arm64\n'),
+                            original.replace(b'go1.27.2\n', b'go1.27.3\n'),
+                            original.replace(b'pkg/tool/linux_amd64', b'foreign-tool-directory'),
+                            original.rstrip(b'\n'), original + b'extra\n', original.replace(b'\n', b'\r\n')):
+            with self.subTest(output=replacement):
+                self.environment_output = replacement
+                with self.assertRaisesRegex(ValueError, 'environment differs from isolated capture toolchain'):
+                    self.capture()
+                self.assertFalse(self.receipt['go_provenance']['verified'])
+
+    def test_wrong_compile_or_link_tool_version_is_rejected(self):
+        for name in ('compile', 'link'):
+            with self.subTest(tool=name):
+                self.tool_outputs = {tool: (tool + ' version go1.27.2\n').encode()
+                                     for tool in ('compile', 'link')}
+                self.tool_outputs[name] = (name + ' version go1.27.3\n').encode()
+                with self.assertRaisesRegex(ValueError, 'tool version differs.*' + name):
+                    self.capture()
+                self.assertFalse(self.receipt['go_provenance']['verified'])
+
+    def test_driver_compile_and_link_are_rehashed_after_build(self):
+        self.capture()
+        baseline = self.receipt['go_provenance']
+        for path in (self.go, *(self.root / 'pkg/tool/linux_amd64' / name for name in ('compile', 'link'))):
+            with self.subTest(path=path):
+                original = path.read_bytes()
+                path.write_bytes(b'substituted after build')
+                with self.assertRaisesRegex(ValueError, 'toolchain executable changed'):
+                    prepare.verify_go_toolchain_hashes(baseline)
+                path.write_bytes(original)
+
+    def test_foreign_tool_symlink_is_rejected_before_tool_invocation(self):
+        path = self.root / 'pkg/tool/linux_amd64/compile'
+        path.unlink()
+        path.symlink_to(self.go)
+        with self.assertRaisesRegex(ValueError, 'tool must be physical inside selected GOROOT'):
+            self.capture()
+        self.assertEqual([label for label, _argv in self.calls], ['go-version', 'go-environment'])
 
 
 if __name__ == '__main__':
