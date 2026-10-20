@@ -8,6 +8,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import re
 from pathlib import Path
 import struct
 
@@ -27,6 +28,7 @@ ROLE_CLEANUP = 'cleanup_observer'
 ROLE_ISOLATION = 'isolation_receipt'
 ROLE_IMAGE = 'loaded_image'
 ROLE_DEBUG = 'native_debug'
+ROLE_BACKEND = 'backend_process'
 AGENT_STDERR = 'agent.stderr'
 HOST_STDERR = 'host.stderr'
 DECISION_FILE = 'decision.jsonl'
@@ -36,6 +38,10 @@ REQUEST_BODY_CALL = 'native_process_request_body'
 REQUEST_FINISH_CALL = 'common_finish_request_authorization'
 NEW_NATIVE_CALL = 'native_new_with_id'
 ALLOCATION_CALL = 'host_allocation'
+BACKEND_HEADER_LIMIT = 65536
+BACKEND_BODY_LIMIT = 8 * 1024 * 1024
+HTTP_TOKEN = re.compile(rb"[!#$%&'*+.^_`|~0-9A-Za-z-]+")
+BACKEND_KINDS = frozenset(("backend_request", "backend_chunk", "backend_body_finished", "backend_disconnect", "backend_paused_before_eos", "backend_resumed"))
 
 
 def module_at(name, path):
@@ -447,7 +453,7 @@ def load_route(readings, companion, index):
         readings.problems[wire_name] = "captured response differs from independent client digest"
         wire = None
     backend_name = "observations.json" if companion else "backend.jsonl"
-    backend = readings.get(backend_name, "backend_process", "array" if companion else "jsonl")
+    backend = readings.get(backend_name, ROLE_BACKEND, "array" if companion else "jsonl")
     commands_name = "receipt.json" if companion else "commands.jsonl"
     commands = readings.get(commands_name, ROLE_CLEANUP, "json" if companion else "jsonl")
     capture_receipt = commands if companion else None
@@ -575,21 +581,121 @@ def client_process_measurements(observations, route, readings, index):
         observations["client_signal"] = measured({"signal": -code if code is not None and code < 0 else None, "exit": code}, proof)
 
 
+def backend_hex(value, limit, label):
+    if not isinstance(value, str) or len(value) > limit * 2 or len(value) % 2 or re.fullmatch("[0-9a-fA-F]*", value) is None:
+        raise ValueError("invalid or oversized backend " + label + " hex")
+    return bytes.fromhex(value)
+
+
+def backend_headers(lines):
+    result = []
+    for line in lines:
+        name, separator, value = line.partition(b":")
+        if not separator or HTTP_TOKEN.fullmatch(name) is None:
+            raise ValueError("invalid backend HTTP header name")
+        if any(byte < 32 and byte != 9 or byte == 127 for byte in value):
+            raise ValueError("invalid backend HTTP header value")
+        result.append([name.decode("ascii"), value.strip(b" \t").decode("latin1")])
+    return result
+
+
+def spop_backend_request(raw):
+    if type(raw.get("neighbor")) is not bool or type(raw.get("wall_ns")) is not int or raw["wall_ns"] <= 0:
+        raise ValueError("invalid backend neighbor or physical timestamp")
+    header = backend_hex(raw.get("header_hex"), BACKEND_HEADER_LIMIT, "header")
+    body = backend_hex(raw.get("body_hex"), BACKEND_BODY_LIMIT, "body")
+    lines = header.split(b"\r\n")
+    parts = lines[0].split(b" ")
+    if len(parts) != 3 or HTTP_TOKEN.fullmatch(parts[0]) is None or parts[2] not in (b"HTTP/1.0", b"HTTP/1.1"):
+        raise ValueError("invalid backend HTTP request line")
+    if not parts[1] or any(byte < 33 or byte > 126 for byte in parts[1]):
+        raise ValueError("invalid backend HTTP request target")
+    headers = backend_headers(lines[1:])
+    lengths = [value for name, value in headers if name.lower() == "content-length"]
+    if any(name.lower() == "transfer-encoding" for name, _ in headers):
+        raise ValueError("backend transfer coding is not a complete length-framed capture")
+    if len(lengths) > 1 or any(not value.isascii() or not value.isdigit() or len(value) > 20 for value in lengths):
+        raise ValueError("ambiguous backend Content-Length")
+    length = int(lengths[0]) if lengths else 0
+    if len(body) != length:
+        raise ValueError("backend body differs from declared Content-Length")
+    path = parts[1].decode("ascii")
+    if raw["neighbor"] != (path == "/i12-neighbor"):
+        raise ValueError("backend neighbor marker conflicts with request path")
+    return {"method": parts[0].decode("ascii"), "path": path, "http_version": parts[2].decode("ascii"),
+            "headers": headers, "body_bytes": len(body), "body_sha256": digest(body), "body_hex": body.hex(),
+            "neighbor": path == "/i12-neighbor", "raw_record": raw}
+
+
+def normalized_backend_rows(route):
+    rows, errors = [], []
+    for index, raw in enumerate(route["backend"] or []):
+        try:
+            if not isinstance(raw, dict):
+                raise ValueError("physical backend row is not an object")
+            if "header_hex" in raw:
+                rows.append(spop_backend_request(raw))
+            elif raw.get("kind") in BACKEND_KINDS or "method" in raw and "path" in raw:
+                rows.append(raw)
+            elif raw.get("kind") not in ("client", "capture_cleanup"):
+                raise ValueError("unknown physical backend row shape")
+        except (TypeError, ValueError) as error:
+            errors.append({"row": index, "reason": str(error), "raw_record": raw})
+    return rows, errors
+
+
 def actual_backend_rows(route):
-    return [row for row in route["backend"] or [] if row.get("kind", "").startswith("backend_") or "method" in row]
+    rows, errors = normalized_backend_rows(route)
+    return rows if not errors else None
+
+
+def backend_zero_control(route, readings, requests):
+    raw = read_bytes(readings.root / route["backend_name"])
+    if raw and not raw.endswith(b"\n"):
+        return None, "backend log has no complete final JSONL line"
+    ready = readings.get("backend.ready", ROLE_BACKEND, "bytes")
+    cleanup = readings.get("cleanup.jsonl", ROLE_CLEANUP, "jsonl")
+    if ready is None or not any(row.get("backend_joined") is True for row in cleanup or []):
+        return None, "backend readiness or joined-producer receipt is missing"
+    neighbors = [row for row in route["all_clients"] or [] if row.get("neighbor") is True]
+    actual_neighbor = [row for row in requests if row.get("path") == "/i12-neighbor"]
+    wire = readings.get("response-neighbor.raw", ROLE_CLIENT, "bytes")
+    if len(neighbors) != 1 or len(actual_neighbor) != 1 or wire is None:
+        return None, "zero main count needs one independently captured positive neighbor"
+    measured_wire = CASES.response_measurements(wire)
+    if neighbors[0].get("response_sha256") != digest(wire) or measured_wire.get("status") != 200 or measured_wire.get("complete_length_framing") is not True:
+        return None, "positive neighbor wire/hash/framing is incomplete"
+    return {"backend_log_opened": True, "backend_joined": True, "positive_neighbor_backend_rows": actual_neighbor,
+            "actual_neighbor_client": neighbors[0], "actual_neighbor_wire_sha256": digest(wire),
+            "actual_neighbor_response": measured_wire}, None
 
 
 def backend_measurements(observations, route, readings, path):
     if route["backend"] is None or route["client"] is None:
         return
-    all_requests = [row for row in route["backend"] if row.get("kind") == "backend_request" or "method" in row]
-    selected = [row for row in all_requests if row.get("path") == path]
-    backend_ref = [readings.ref(route["backend_name"], "backend_process")]
-    observations["backend_request_count"] = measured({"matching_path": len(selected), "all_actual_requests": all_requests}, backend_ref)
+    rows, errors = normalized_backend_rows(route)
+    requests = [row for row in rows if row.get("kind") == "backend_request" or "method" in row]
+    selected = [row for row in requests if row.get("path") == path]
+    value = {"matching_path": len(selected), "all_actual_requests": requests, "raw_physical_rows": route["backend"]}
+    if route["backend_name"] == "backend.jsonl":
+        raw = read_bytes(readings.root / route["backend_name"])
+        if raw and not raw.endswith(b"\n"):
+            errors.append({"reason": "backend log has no complete final JSONL line"})
+    if errors:
+        observations["backend_request_count"] = unknown("unknown or corrupt backend rows prevent an exact request count", {**value, "decode_errors": errors})
+        return
+    if not selected and route["backend_name"] == "backend.jsonl":
+        control, reason = backend_zero_control(route, readings, requests)
+        if control is None:
+            observations["backend_request_count"] = unknown(reason, value)
+            return
+        value["zero_main_positive_control"] = control
+    backend_ref = [readings.ref(route["backend_name"], ROLE_BACKEND)]
+    observations["backend_request_count"] = measured(value, backend_ref)
     refs = backend_ref + [readings.ref(route["client_name"], ROLE_CLIENT)]
-    value = {"path": path, "matching_backend_rows": selected, "actual_client": route["client"], "path_only_is_not_unique_transaction_correlation": True}
+    partial = {"path": path, "matching_backend_rows": selected, "actual_client": route["client"], "path_only_is_not_unique_transaction_correlation": True}
     for field in ("backend_payload_identity", "client_backend_correlation"):
-        observations[field] = unknown("independent raw client/backend facts retained; exact payload and per-client correlation review pending", value)
+        observations[field] = unknown("independent raw client/backend facts retained; exact payload and per-client correlation review pending", partial)
         observations[field]["partial_evidence"] = refs
 
 
@@ -692,14 +798,14 @@ def cleanup_and_neighbor(observations, route, readings, companion):
             captures[owner] = {stage: readings.get(owner + "-" + stage + ".fds.json", ROLE_CLEANUP) for stage in ("before-main", "after-main", "after-neighbor")}
         neighbor = readings.get("client-100.json", ROLE_CLIENT)
         if neighbor is not None and route["backend"] is not None:
-            observations["neighbor_health"] = measured({"actual_neighbor_client": neighbor, "actual_backend_rows": actual_backend_rows(route)}, [readings.ref("client-100.json", ROLE_CLIENT), readings.ref(route["backend_name"], "backend_process")])
+            observations["neighbor_health"] = measured({"actual_neighbor_client": neighbor, "actual_backend_rows": actual_backend_rows(route)}, [readings.ref("client-100.json", ROLE_CLIENT), readings.ref(route["backend_name"], ROLE_BACKEND)])
     else:
         rows = readings.get("process-identity.jsonl", ROLE_CLEANUP, "jsonl")
         if rows is not None:
             captures["actual_process_snapshots"] = rows
         neighbors = [row for row in route["all_clients"] or [] if row.get("neighbor") is True]
         if len(neighbors) == 1 and route["backend"] is not None:
-            observations["neighbor_health"] = measured({"actual_neighbor_client": neighbors[0], "actual_backend_rows": actual_backend_rows(route)}, [readings.ref(route["client_name"], ROLE_CLIENT), readings.ref(route["backend_name"], "backend_process")])
+            observations["neighbor_health"] = measured({"actual_neighbor_client": neighbors[0], "actual_backend_rows": actual_backend_rows(route)}, [readings.ref(route["client_name"], ROLE_CLIENT), readings.ref(route["backend_name"], ROLE_BACKEND)])
     if captures:
         proofs = [readings.ref(name, ROLE_CLEANUP) for name in readings.artifacts if name.endswith(".fds.json") or name == "process-identity.jsonl"]
         if proofs:

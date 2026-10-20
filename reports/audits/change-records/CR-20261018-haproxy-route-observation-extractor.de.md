@@ -24,6 +24,8 @@ Der Extraktor verwendet die Deskriptorzulassung des aktuellen Captures, den nati
 
 ## Geänderte Dateien
 
+Die v4-Korrektur dekodiert physische SPOP-Backendzeilen mit `header_hex` und `body_hex` und bewahrt deren ursprüngliche Felder `neighbor`, `wall_ns` und den Rohdatensatz. Der aufgezeichnete Header enthält den CRLFCRLF-Trenner nicht; eingebettete Trenner, ungültige Request-/Headersyntax, mehrdeutige Längen, Transfer-Coding, abweichende Bodylängen und übergroße Hexdaten werden abgelehnt. Unbekannte oder beschädigte Zeilen lassen die exakte Backendanzahl und Korrelation unbekannt. Eine gemessene Null erfordert zusätzlich Backend-Readiness, einen gejointen Producer und genau einen unabhängig erfassten gesunden Nachbarn. Bestehende Companion-Backendformate bleiben unterstützt. Pfadanzahlen allein belegen keine Zuordnung zu einzelnen Clients.
+
 - `connectors/haproxy/harness/i12_route_observe.py`
 - `tests/test_haproxy_i12_route_observe.py`
 - `reports/audits/change-records/CR-20261018-haproxy-route-observation-extractor.md`
@@ -36,6 +38,14 @@ rtk proxy env PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python
 ```
 
 Neunzehn gezielte Tests prüfen gespeicherte Schemata, unvollständige oder beschädigte Evidence, Nachbarfälle, Client-Payload-/UUID-/Endpunkt-/Zeitkonflikte, versiegelte Images, Batch-Roots, tatsächliche Prozessbelege und Request-Authorization-Finish. Die gespeicherten Extraktionsbelege enthalten exakte Argumente, Exits und Rohhashes unter `R2/route-observer-20261018`.
+
+Für v4 wurde die deklarierte Python-3.14.7-Umgebung verwendet:
+
+```sh
+rtk proxy env PYTHONNOUSERSITE=1 /var/tmp/codex/ModSecurity-conector/runs/i12-haproxy-415-acceptance-20261015/test-env/bin/python -B -m pytest -q tests/test_haproxy_i12_route_observe.py
+```
+
+Alle 24 Tests und 20 Subtests bestanden, einschließlich wörtlich übernommener aufbewahrter Pilot-Backendzeilen, gültiger Bodies, beschädigter Grenzen/Header/Längen/Metadaten, unbekannter Zeilen, fehlender Positivkontrollen und unvollständigem JSONL. Die v4-Belege für gespeicherte Extraktionen und Validierung liegen unter `R2/route-observer-20261018/v4`; diese Korrektur ergänzt weder Hostläufe noch Qualifikation.
 
 ## Security-Auswirkung
 

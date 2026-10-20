@@ -36,6 +36,102 @@ def stored_schema_rows():
             row("native_cleanup", 46, allocation_join_verified=True)]
 
 
+def stored_spop_backend_rows():
+    # Physical pilot attempt 1792320861376221286/c00 backend.jsonl: the
+    # producer removes CRLFCRLF before recording header_hex, retaining the
+    # independently read body, neighbor marker and actual wall timestamp.
+    return [
+        {"body_hex": "", "header_hex": "474554202f6e6f2d6372732f616c6c6f7720485454502f312e310d0a686f73743a206c6f63616c686f73740d0a636f6e74656e742d6c656e6774683a20300d0a782d6d6f647365632d736d6f6b653a20616c6c6f77", "neighbor": False, "wall_ns": 1792320902099490750},
+        {"body_hex": "", "header_hex": "474554202f6931322d6e65696768626f7220485454502f312e310d0a686f73743a206c6f63616c686f73740d0a636f6e74656e742d6c656e6774683a2030", "neighbor": True, "wall_ns": 1792320902306182549},
+    ]
+
+
+class BackendDecodingTests(unittest.TestCase):
+    def test_physical_count_requires_complete_log_and_positive_zero_control(self):
+        with tempfile.TemporaryDirectory(dir=OBSERVE.CAPTURE.STORAGE) as directory:
+            root = Path(directory)
+            rows = stored_spop_backend_rows()
+            wire = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
+            (root / "backend.ready").write_bytes(b"ready")
+            (root / "cleanup.jsonl").write_text('{"backend_joined":true}\n')
+            (root / "response-neighbor.raw").write_bytes(wire)
+            route = {"backend": rows, "backend_name": "backend.jsonl", "client": {}, "client_name": "client.jsonl",
+                     "all_clients": [{"neighbor": True, "response_sha256": OBSERVE.digest(wire)}]}
+            for expected, captured in ((1, rows), (0, rows[1:])):
+                with self.subTest(main_count=expected):
+                    route["backend"] = captured
+                    (root / "backend.jsonl").write_text("".join(json.dumps(row) + "\n" for row in captured))
+                    (root / "client.jsonl").write_text("{}\n")
+                    readings = OBSERVE.Readings(root)
+                    readings.get("backend.jsonl", OBSERVE.ROLE_BACKEND, "jsonl")
+                    readings.get("client.jsonl", OBSERVE.ROLE_CLIENT, "jsonl")
+                    observations = {}
+                    OBSERVE.backend_measurements(observations, route, readings, "/no-crs/allow")
+                    self.assertEqual(observations["backend_request_count"]["value"]["matching_path"], expected)
+                    self.assertIsNone(observations["client_backend_correlation"]["value"])
+            (root / "backend.ready").unlink()
+            observations = {}
+            OBSERVE.backend_measurements(observations, route, readings, "/no-crs/allow")
+            self.assertIsNone(observations["backend_request_count"]["value"])
+            route["backend"] = rows + [{}]
+            observations = {}
+            OBSERVE.backend_measurements(observations, route, readings, "/no-crs/allow")
+            self.assertIsNone(observations["backend_request_count"]["value"])
+            route["backend"] = rows
+            (root / "backend.jsonl").write_text(json.dumps(rows[0]))
+            observations = {}
+            OBSERVE.backend_measurements(observations, route, readings, "/no-crs/allow")
+            self.assertIsNone(observations["backend_request_count"]["value"])
+
+    def test_stored_pilot_allow_and_deny_do_not_become_zero_backend_counts(self):
+        raw = stored_spop_backend_rows()
+        rows, errors = OBSERVE.normalized_backend_rows({"backend": raw})
+        self.assertFalse(errors)
+        self.assertEqual([r["path"] for r in rows], ["/no-crs/allow", "/i12-neighbor"])
+        self.assertEqual(sum(r["path"] == "/no-crs/allow" for r in rows), 1)
+        self.assertEqual(sum(r["neighbor"] for r in rows), 1)
+        self.assertEqual(rows[0]["raw_record"], raw[0])
+        # c01 has only the neighbor row, with its own physical timestamp.
+        deny = {**raw[1], "wall_ns": 1792320911661074927}
+        rows, errors = OBSERVE.normalized_backend_rows({"backend": [deny]})
+        self.assertFalse(errors)
+        self.assertEqual(sum(r["path"] == "/no-crs/deny" for r in rows), 0)
+        self.assertEqual(sum(r["neighbor"] for r in rows), 1)
+
+    def test_unknown_or_corrupt_rows_never_report_an_empty_backend(self):
+        raw = stored_spop_backend_rows()[0]
+        malformed = [None, {}, {"kind": "backend_unknown"}, {**raw, "header_hex": "zz"},
+                     {**raw, "body_hex": "a"}, {**raw, "neighbor": True},
+                     {**raw, "wall_ns": True}, {**raw, "header_hex": "00" * (OBSERVE.BACKEND_HEADER_LIMIT + 1)}]
+        for bad in malformed:
+            with self.subTest(row=repr(bad)[:100]):
+                route = {"backend": [raw, bad]}
+                rows, errors = OBSERVE.normalized_backend_rows(route)
+                self.assertEqual(len(rows), 1)
+                self.assertEqual(len(errors), 1)
+                self.assertEqual(errors[0]["raw_record"], bad)
+                self.assertIsNone(OBSERVE.actual_backend_rows(route))
+
+    def test_request_boundary_length_and_header_corruption_are_rejected(self):
+        raw = stored_spop_backend_rows()[0]
+        requests = [b"GET / HTTP/1.1\r\n\r\n", b"GET / HTTP/1.1\r\nBad Header: x",
+                    b"GET / HTTP/1.1\r\nHost: x\nInjected: y",
+                    b"GET / HTTP/1.1\r\nContent-Length: 1", b"GET / HTTP/1.1\r\nContent-Length: 0\r\nContent-Length: 0",
+                    b"GET / HTTP/1.1\r\nTransfer-Encoding: chunked", b"GET / HTTP/2.0", b"GET /a b HTTP/1.1"]
+        for request in requests:
+            with self.subTest(request=request):
+                with self.assertRaises(ValueError):
+                    OBSERVE.spop_backend_request({**raw, "header_hex": request.hex()})
+
+    def test_complete_body_and_original_companion_rows_remain_supported(self):
+        raw = stored_spop_backend_rows()[0]
+        value = OBSERVE.spop_backend_request({**raw, "header_hex": b"POST /body HTTP/1.0\r\nContent-Length: 3".hex(), "body_hex": b"a\x00b".hex()})
+        self.assertEqual(value["body_sha256"], OBSERVE.digest(b"a\x00b"))
+        self.assertEqual(value["body_bytes"], 3)
+        companion = [{"kind": "backend_request", "path": "/i12/0", "body_hex": ""}, {"kind": "backend_chunk", "path": "/i12/0", "bytes": 1}]
+        self.assertEqual(OBSERVE.normalized_backend_rows({"backend": companion}), (companion, []))
+
+
 class RouteObservationTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(dir=OBSERVE.CAPTURE.STORAGE)

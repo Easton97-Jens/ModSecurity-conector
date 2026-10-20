@@ -24,6 +24,8 @@ The extractor reuses current capture descriptor admission, the native transition
 
 ## Changed files
 
+The v4 correction decodes physical SPOP backend `header_hex` and `body_hex` rows, retaining their original `neighbor`, `wall_ns` and raw record. The recorded header excludes the CRLFCRLF delimiter; embedded delimiters, invalid request/header syntax, ambiguous lengths, transfer coding, body-length mismatch and oversized hex are rejected. Unknown or corrupt rows leave the exact backend count and correlation unknown. A measured zero additionally requires backend readiness, a joined producer and one independently captured healthy neighbor. Existing companion backend shapes remain supported. Path counts alone do not establish per-client correlation.
+
 - `connectors/haproxy/harness/i12_route_observe.py`
 - `tests/test_haproxy_i12_route_observe.py`
 - `reports/audits/change-records/CR-20261018-haproxy-route-observation-extractor.md`
@@ -36,6 +38,14 @@ rtk proxy env PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python
 ```
 
 Nineteen focused tests cover stored schemas, incomplete/corrupt evidence, sibling cases, client payload/UUID/endpoint/time conflicts, sealed images, batch roots, actual process receipts and request-authorization finish. Stored extraction receipts preserve exact arguments, exits and raw hashes under `R2/route-observer-20261018`.
+
+For v4, the declared Python 3.14.7 environment ran:
+
+```sh
+rtk proxy env PYTHONNOUSERSITE=1 /var/tmp/codex/ModSecurity-conector/runs/i12-haproxy-415-acceptance-20261015/test-env/bin/python -B -m pytest -q tests/test_haproxy_i12_route_observe.py
+```
+
+All 24 tests and 20 subtests passed, including literal retained pilot backend rows, valid bodies, malformed boundaries/headers/lengths/metadata, unknown rows, missing positive controls and incomplete JSONL. The v4 stored extraction and validation receipts are retained under `R2/route-observer-20261018/v4`; this correction adds no host run or qualification.
 
 ## Security impact
 
