@@ -152,6 +152,7 @@ typedef struct msconnector_native_transaction {
     int request_decision_pending;
     msconnector_decision pending_response_decision;
     int response_decision_pending;
+    int request_partial_observed;
 } msconnector_native_transaction;
 
 typedef struct msconnector_runtime_event_metadata {
@@ -312,6 +313,24 @@ static int append_request_body_to_engine(
     runtime_operation_lock(runtime);
     appended = msconnector_modsecurity_append_request_body(
         &transaction->modsecurity, data, append_size, error);
+    if (appended) {
+        msconnector_native_transaction *native = transaction->modsecurity.native_transaction;
+        const size_t retained = msc_get_request_body_length(native->transaction);
+        if (retained > transaction->request_body.bytes_seen) {
+            (void)msconnector_transaction_contract_fail(&transaction->contract,
+                MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, transaction_now_ms());
+            transaction->contract.error_phase = MSCONNECTOR_PHASE_REQUEST_BODY;
+            transaction->request_blocked = 1;
+            appended = runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
+                "native request body length exceeds offered bytes", "libmodsecurity");
+        } else {
+            transaction->request_body.bytes_retained = retained;
+            transaction->request_body.truncated = retained < transaction->request_body.bytes_seen;
+            if (native->request_partial_observed) {
+                transaction->request_body.limit_outcome = MSCONNECTOR_BODY_LIMIT_OUTCOME_PROCESS_PARTIAL;
+            }
+        }
+    }
     runtime_operation_unlock(runtime);
     return appended;
 }
@@ -1248,12 +1267,13 @@ static int native_append_request_body(
     msconnector_error *error) {
     msconnector_native_transaction *native = native_transaction;
     msconnector_runtime *runtime = userdata;
-    if (size > 0U &&
-        !msconnector_native_body_append_can_continue(
-            msc_append_request_body(native->transaction, data, size))) {
+    int appended = 1;
+    if (size > 0U && !msconnector_native_body_append_can_continue(
+            appended = msc_append_request_body(native->transaction, data, size))) {
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
             "request body append failed", "libmodsecurity");
     }
+    native->request_partial_observed |= appended == 0;
     if (!native->request_decision_pending) {
         if (!native_decision(runtime, native, MSCONNECTOR_PHASE_REQUEST_BODY,
                 &native->pending_request_decision, error)) return 0;
@@ -1799,7 +1819,8 @@ static void populate_event_body(
     if (decision->phase == MSCONNECTOR_PHASE_REQUEST_BODY) {
         event->body.bytes_seen = transaction->request_body.bytes_seen;
         event->body.bytes_inspected = transaction->request_body.bytes_inspected;
-        event->body.limit_outcome = msconnector_decision_is_body_limit(decision) ? "reject" : "";
+        event->body.limit_outcome = msconnector_body_limit_outcome_name(
+            transaction->request_body.limit_outcome);
         event->flags.body_truncated = transaction->request_body.truncated;
         return;
     }
@@ -1960,10 +1981,26 @@ static int emit_decision_event(
         return replay_event_write_failure(transaction, error);
     }
     runtime = transaction->runtime;
-    if (runtime->event_file == NULL ||
-        !msconnector_decision_to_event(decision, &event, runtime->connector_name,
-            transaction->metadata.transaction_id)) {
+    if (runtime->event_file == NULL) {
         return 1;
+    }
+    if (!msconnector_decision_to_event(decision, &event, runtime->connector_name,
+            transaction->metadata.transaction_id)) {
+        if (decision->phase != MSCONNECTOR_PHASE_REQUEST_BODY ||
+            transaction->request_body.limit_outcome !=
+                MSCONNECTOR_BODY_LIMIT_OUTCOME_PROCESS_PARTIAL) {
+            return 1;
+        }
+        msconnector_event_init(&event);
+        event.meta.connector = runtime->connector_name;
+        event.meta.transaction_id = transaction->metadata.transaction_id;
+        event.meta.message_id = MSCONN_EVENT_BODY_LIMIT;
+        event.meta.message = msconnector_event_default_message(event.meta.message_id);
+        event.meta.level = msconnector_event_default_level(event.meta.message_id);
+        event.decision.phase = MSCONNECTOR_PHASE_REQUEST_BODY;
+        event.decision.status = MSCONNECTOR_STATUS_OK;
+        event.decision.action = "allow";
+        event.decision.requested_action = "allow";
     }
     runtime_operation_lock(runtime);
     timestamp_now(timestamp, sizeof(timestamp));
@@ -2581,10 +2618,6 @@ int msconnector_runtime_transaction_append_request_body_chunk(
         !append_request_body_to_engine(transaction, data, append_size, error)) {
         return 0;
     }
-    if (append_size > 0U && runtime->config.enable == MSCONNECTOR_BOOL_ON &&
-        !transaction->request_blocked) {
-        transaction->request_body.bytes_inspected += append_size;
-    }
     return 1;
 }
 
@@ -2623,8 +2656,16 @@ int msconnector_runtime_transaction_finish_request_body(
         return 0;
     }
     transaction->request_body.finished = 1;
+    if (msconnector_decision_is_body_limit(decision)) {
+        transaction->request_body.limit_outcome = MSCONNECTOR_BODY_LIMIT_OUTCOME_REJECT;
+    }
     if (!mark_flow(transaction, MSCONNECTOR_PHASE_REQUEST_BODY, error)) {
         return 0;
+    }
+    if (!msconnector_decision_action_is_disruptive(
+            msconnector_decision_action_from_decision(decision)) &&
+        transaction->request_body.limit_outcome == MSCONNECTOR_BODY_LIMIT_OUTCOME_PROCESS_PARTIAL) {
+        if (!emit_decision_event(transaction, decision, NULL, error)) return 0;
     }
     return handle_decision(transaction, decision, error, &terminal);
 }
@@ -4241,6 +4282,7 @@ void msconnector_runtime_transaction_request_body_progress(
         progress->truncated = transaction->request_body.truncated;
         progress->finished = transaction->request_body.finished;
         progress->limit_outcome = transaction->request_body.limit_outcome;
+        progress->bytes_retained = transaction->request_body.bytes_retained;
     }
 }
 

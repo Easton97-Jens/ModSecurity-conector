@@ -169,6 +169,19 @@ class EngineResponseLimits(unittest.TestCase):
             observed[action] = int(match.group(1))
         self.assertEqual(observed, {"Reject": 120, "ProcessPartial": 128})
 
+    def test_native_request_retained_and_evaluated_prefix_telemetry(self):
+        binary = self.directory / "request-telemetry"
+        command = native_compile_command("tests/request_body_telemetry_test.c", binary,
+            extra_flags=["-Wl,--wrap=msc_get_request_body_length", "-Wl,--wrap=msc_process_request_body",
+                         "-Wl,--wrap=fflush"])
+        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=90)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for scenario in ("reject", "partial", "full", "disabled", "accessor-error", "phase-error", "sink-error"):
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory(dir=self.directory) as directory:
+                result = subprocess.run([str(binary), directory, scenario], capture_output=True,
+                                        text=True, timeout=30)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_request_boundaries_actions_modes_and_chunking(self):
         for limit in (128, 1024):
             for action in ("Reject", "ProcessPartial"):
