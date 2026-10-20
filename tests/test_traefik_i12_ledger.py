@@ -231,8 +231,9 @@ class TraefikOwnScopeConsumerTest(unittest.TestCase):
             with self.subTest(identity=identity):
                 packet['run_scoped_case_id'] = identity
                 packet['leg_id'] = identity.split('::')[1]
+                supplied = self.packet_reference(packet)
                 with self.assertRaises(ValueError):
-                    LEDGER.reconcile(self.inventory, packets=[self.packet_reference(packet)])
+                    LEDGER.reconcile(self.inventory, packets=[supplied])
 
     def test_missing_configuration_producer_or_invented_lifecycle_is_rejected(self):
         for mutation in ('missing_process', 'lifecycle_claim'):
@@ -243,8 +244,9 @@ class TraefikOwnScopeConsumerTest(unittest.TestCase):
                                                       if r['role'] != 'parser_process']
                 else:
                     packet['full_lifecycle_qualified'] = True
+                supplied = self.packet_reference(packet)
                 with self.assertRaises(ValueError):
-                    LEDGER.reconcile(self.inventory, packets=[self.packet_reference(packet)])
+                    LEDGER.reconcile(self.inventory, packets=[supplied])
 
     def preallocation(self):
         from tests.test_i12_traefik_preallocation import TraefikPreallocationTests
