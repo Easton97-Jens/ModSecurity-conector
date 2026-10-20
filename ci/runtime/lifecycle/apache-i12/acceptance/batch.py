@@ -764,6 +764,54 @@ def prepare_config_fixtures(plan, root):
                 raise ValueError("unsupported config fixture setup")
 
 
+def observed_configtest(direct, owned, config, root, env):
+    """Keep the RTK/helper transport separate from the actual parser child."""
+    executable_sha256 = digest(owned)
+    helper = Path(__file__).with_name("configtest_runner.py")
+    helper_sha256 = digest(helper)
+    prefix = root / "configtest-wrapper"
+    wrapper = direct.waited([sys.executable, str(helper), "--owned", str(owned),
+                             "--config", str(config), "--root", str(root)], root, prefix, env)
+    for stream in ("stdout", "stderr"):
+        content = Path(str(prefix) + "." + stream).read_bytes()
+        wrapper[stream + "_bytes"] = len(content)
+        wrapper[stream + "_sha256"] = hashlib.sha256(content).hexdigest()
+    wrapper["helper_sha256"] = helper_sha256
+    save(root / "configtest-wrapper-process.json", wrapper)
+    receipt_file = root / "configtest-process.json"
+    receipt = json.loads(receipt_file.read_text(encoding="utf-8"))
+    raw_returncode = receipt["raw_returncode"]
+    if (isinstance(raw_returncode, bool) or not isinstance(raw_returncode, int)
+            or receipt["waited_exit"] != raw_returncode
+            or receipt["waited_signal"] != (-raw_returncode if raw_returncode < 0 else None)
+            or receipt["argv"] != [str(owned), "-t", "-f", str(config)]
+            or receipt["cwd"] != str(root)
+            or receipt["pid"] != receipt["parser_pid"]
+            or receipt["supervisor_parent_pid"] != wrapper["wrapper_pid"]):
+        raise ValueError("physical parser process identity or raw wait binding failed")
+    if (wrapper["waited_exit"] != 0 or receipt["timeout"] is not False or receipt["stream_decoding_errors"]
+            or receipt["input_identity_unchanged"] is not True
+            or receipt["executable_sha256"] != executable_sha256
+            or digest(owned) != executable_sha256 or receipt["helper_sha256"] != helper_sha256
+            or digest(helper) != helper_sha256 or receipt["config_sha256"] != digest(config)):
+        raise ValueError("physical parser helper transport or input identity failed")
+    for stream in ("stdout", "stderr"):
+        content = (root / ("configtest." + stream)).read_bytes()
+        if (hashlib.sha256(content).hexdigest() != receipt[stream + "_sha256"]
+                or len(content) != receipt[stream + "_bytes"]
+                or content.decode("utf-8", errors="strict") != receipt[stream]):
+            raise ValueError("physical parser stream identity changed")
+    cleanup = json.loads((root / "configtest-cleanup.json").read_text(encoding="utf-8"))
+    if (digest(root / "configtest-cleanup.json") != receipt["cleanup_sha256"]
+            or cleanup != receipt["cleanup"] or cleanup["pid"] != receipt["parser_pid"]):
+        raise ValueError("physical parser cleanup identity changed")
+    if digest(root / "configtest.command.json") != digest(receipt_file):
+        raise ValueError("physical parser command receipt identity changed")
+    receipt.update(parser_receipt_sha256=digest(receipt_file), wrapper_process=wrapper,
+                   wrapper_receipt_sha256=digest(root / "configtest-wrapper-process.json"))
+    return receipt
+
+
 def execute(plan, ordinal, base, module, direct, owned, sink_helper, io_helper, helper_artifacts=None):
     root = base / ("%03d-" % ordinal + plan["case_id"])
     root.mkdir(mode=0o700)
@@ -816,8 +864,9 @@ def execute(plan, ordinal, base, module, direct, owned, sink_helper, io_helper, 
 
     try:
         prepare_config_fixtures(plan, root)
-        configtest = direct.waited([str(owned), "-t", "-f", str(config)], root, root / "configtest", env)
+        configtest = observed_configtest(direct, owned, config, root, env)
         observation["configtest"] = configtest
+        observation["configtest_cleanup"] = configtest["cleanup"]
         if plan["execution_kind"] == "configtest":
             observation["actual_config_execution"] = True
             observation["executed_case_contract"] = True
@@ -848,7 +897,8 @@ def execute(plan, ordinal, base, module, direct, owned, sink_helper, io_helper, 
     return observation
 
 
-def private_admission(direct, module, helper_dir, helper_artifacts=None, runtime_helpers=None):
+def private_admission(direct, module, helper_dir, helper_artifacts=None, runtime_helpers=None,
+                      execution_helpers=None):
     admission = json.loads(Path("/opt/controller/admission.json").read_text())
     binding_file = helper_dir / "batch-binding.json"
     if not binding_file.is_file():
@@ -856,7 +906,8 @@ def private_admission(direct, module, helper_dir, helper_artifacts=None, runtime
     binding = json.loads(binding_file.read_text())
     required_inputs = (str(module), "/usr/sbin/apache2", "/usr/lib/x86_64-linux-gnu/libmodsecurity.so.3.0.14",
                        *(str(path) for path in (helper_artifacts or {}).values()),
-                       *(str(path) for path in (runtime_helpers or {}).values()))
+                       *(str(path) for path in (runtime_helpers or {}).values()),
+                       *(str(path) for path in (execution_helpers or {}).values()))
     for required in required_inputs:
         if required not in binding.get("input_sha256", {}):
             raise ValueError("reviewed binding omits actual host/module/SDK")
@@ -931,8 +982,12 @@ def main():
     helper_identities = {name: artifact_identity(path) for name, path in helper_artifacts.items()}
     runtime_helpers = {"sink_helper": args.sink_helper, "io_helper": args.io_helper}
     runtime_helper_identities = {name: artifact_identity(path) for name, path in runtime_helpers.items()}
+    execution_helpers = {"configtest_runner": admitted_mount_path(
+        Path(__file__).with_name("configtest_runner.py"), FIXTURE_MOUNT)}
+    execution_helper_identities = {name: artifact_identity(path) for name, path in execution_helpers.items()}
     direct = load_module("apache_original_direct", args.helper_dir / "direct-runner.py")
-    admission = private_admission(direct, args.module, args.helper_dir, helper_artifacts, runtime_helpers)
+    admission = private_admission(direct, args.module, args.helper_dir, helper_artifacts, runtime_helpers,
+                                  execution_helpers)
     base = paths.private_directory(args.output)
     save(base / "admission.json", admission)
     payload = json.loads(args.plan.read_text())
@@ -947,6 +1002,7 @@ def main():
         "module": str(args.module), "module_sha256": digest(args.module),
         "host_helper_link_artifacts": helper_identities,
         "runtime_preload_artifacts": runtime_helper_identities,
+        "execution_helper_artifacts": execution_helper_identities,
         "plan_sha256": digest(args.plan), "direct_helper_sha256": digest(args.helper_dir / "direct-runner.py")})
     results = []
     for ordinal, plan in enumerate(payload["rows"]):
