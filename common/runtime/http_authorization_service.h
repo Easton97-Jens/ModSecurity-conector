@@ -87,6 +87,35 @@ int msconnector_http_authorization_service_main(
     char **argv,
     const msconnector_http_authorization_profile *profile);
 
+/* Optional trusted adapter pre-P1 binding. The callback must atomically claim
+ * a private reservation and copy identifiers into the provided bounded
+ * output. After a successful claim the service strips token_header before
+ * runtime/native P1. HTTP header values may
+ * select a one-time capability but may never supply provenance themselves.
+ * The options are copied; callback code, token_header and userdata must remain
+ * valid for process lifetime, including a deferred worker shutdown. */
+typedef struct msconnector_http_authorization_provenance_storage {
+    char run_id[MSCONNECTOR_RUNTIME_PROVENANCE_TEXT_SIZE];
+    char transport_case_id[MSCONNECTOR_RUNTIME_PROVENANCE_TEXT_SIZE];
+    char connection_id[MSCONNECTOR_RUNTIME_PROVENANCE_TEXT_SIZE];
+    int connection_reused;
+} msconnector_http_authorization_provenance_storage;
+typedef struct msconnector_http_authorization_trusted_binding {
+    int (*claim)(void *userdata, const msconnector_request *request,
+        msconnector_http_authorization_provenance_storage *storage,
+        msconnector_error *error);
+    void *userdata;
+    const char *token_header;
+    /* Optional one-time private reply attestation, after all request/native
+     * finish decisions and before the HTTP authorization reply is written.
+     * This describes the service reply, never physical client delivery. */
+    int (*complete)(void *userdata, const msconnector_request *request,
+        int reply_status, const char *response_handle, msconnector_error *error);
+} msconnector_http_authorization_trusted_binding;
+int msconnector_http_authorization_service_main_with_trusted_binding(
+    int argc, char **argv, const msconnector_http_authorization_profile *profile,
+    const msconnector_http_authorization_trusted_binding *binding);
+
 #ifdef __cplusplus
 }
 #endif
