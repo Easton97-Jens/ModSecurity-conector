@@ -5,10 +5,13 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import stat
 
 HERE = Path(__file__).resolve().parent
 REPOSITORY = HERE.parents[3]
 MARKER = ".i12-disposable-source-copy.json"
+SNAPSHOT = ".i12-source-export-manifest.json"
+RECEIPT = "i12-source-application-receipt.json"
 
 
 def digest(data):
@@ -116,12 +119,135 @@ class Registry:
         for identity in self.manifest["objects"]:
             self.content(identity)
         for profile in self.manifest["profiles"].values():
+            if ("required_source_identity_format" in profile and profile["required_source_identity_format"] not in
+                    ("i12-disposable-source-copy-v1", "i12-disposable-source-copy-v2")):
+                raise ValueError("Unknown required source identity format")
             for mapping in (profile["source_targets"], profile["capture_files"]):
                 for name, entry in mapping.items():
                     relative(name)
                     self.content(entry["sha256"])
         return {"objects": len(self.cache), "profiles": len(self.manifest["profiles"]),
                 "source_only": True, "runtime_qualified": False}
+
+
+def _unique_fields(pairs):
+    result = {}
+    for name, value in pairs:
+        if name in result:
+            raise ValueError("Duplicate identity/inventory field")
+        result[name] = value
+    return result
+
+
+def _keys(value, expected):
+    if not isinstance(value, dict) or set(value) != set(expected):
+        raise ValueError("Unexpected identity/inventory schema")
+
+
+def _hex(value, length):
+    if not isinstance(value, str) or re.fullmatch("[0-9a-f]{" + str(length) + "}", value) is None:
+        raise ValueError("Expected complete lowercase revision/hash")
+    return value
+
+
+def _export_file(name, entry):
+    path = relative(name)
+    if name in (MARKER, SNAPSHOT, RECEIPT) or ".i12-capture" in path.parts:
+        raise ValueError("Export inventory contains capture metadata")
+    _keys(entry, ("mode", "sha256"))
+    if type(entry["mode"]) is not int or entry["mode"] not in (420, 493):
+        raise ValueError("Expected exact Git regular-file mode")
+    _hex(entry["sha256"], 64)
+    return path
+
+
+def _export_gitlink(name, revision, gitlinks, files, directories):
+    path = relative(name)
+    _hex(revision, 40)
+    if (name in (MARKER, SNAPSHOT, RECEIPT) or ".i12-capture" in path.parts or
+            any(str(parent) in gitlinks for parent in path.parents)):
+        raise ValueError("Invalid or nested Gitlink metadata")
+    if name in files or name in directories:
+        raise ValueError("Gitlink contents or file collision in source inventory")
+    return path
+
+
+def _snapshot_entries(snapshot):
+    files, gitlinks = snapshot["files"], snapshot["gitlinks"]
+    if not isinstance(files, dict) or not files or not isinstance(gitlinks, dict):
+        raise ValueError("Expected complete nonempty source-file inventory")
+    directories = set()
+    for name, entry in files.items():
+        path = _export_file(name, entry)
+        directories.update(str(parent) for parent in path.parents if str(parent) != ".")
+    for name, revision in gitlinks.items():
+        path = _export_gitlink(name, revision, gitlinks, files, directories)
+        directories.add(name)
+        directories.update(str(parent) for parent in path.parents if str(parent) != ".")
+    if any(name in files for name in directories):
+        raise ValueError("Inventory file/directory collision")
+    return files, directories
+
+
+def _file_hash(path, expected):
+    info = path.stat(follow_symlinks=False)
+    if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+        raise ValueError("Source inventory requires physical unlinked regular files")
+    if stat.S_IMODE(info.st_mode) != expected["mode"]:
+        raise ValueError("Export source mode differs: " + str(path))
+    result = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            result.update(chunk)
+    after = path.stat(follow_symlinks=False)
+    if (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns) != (
+            after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns):
+        raise ValueError("Source inventory changed during validation")
+    if result.hexdigest() != expected["sha256"]:
+        raise ValueError("Export source hash differs: " + str(path))
+
+
+def _verify_snapshot_files(path, files, directories):
+    seen = set()
+    for child in path.rglob("*"):
+        name = str(child.relative_to(path))
+        info = child.stat(follow_symlinks=False)
+        if stat.S_ISDIR(info.st_mode):
+            if name not in directories:
+                raise ValueError("Unexpected export directory: " + name)
+        elif name in (MARKER, SNAPSHOT):
+            plain(child)
+        elif name in files:
+            _file_hash(child, files[name])
+            seen.add(name)
+        else:
+            raise ValueError("Unexpected export object: " + name)
+    if seen != set(files):
+        raise ValueError("Missing exported source files")
+
+
+def _snapshot_identity(path, marker_bytes):
+    marker = json.loads(marker_bytes, object_pairs_hook=_unique_fields)
+    _keys(marker, ("format", "path", "disposable", "source_revision",
+                   "snapshot_manifest", "snapshot_manifest_sha256"))
+    if marker["path"] != str(path) or marker["disposable"] is not True or marker["snapshot_manifest"] != SNAPSHOT:
+        raise ValueError("Explicit current disposable source identity differs")
+    revision = _hex(marker["source_revision"], 40)
+    identity = _hex(marker["snapshot_manifest_sha256"], 64)
+    data = plain(path / SNAPSHOT)
+    if digest(data) != identity:
+        raise ValueError("Frozen export inventory hash differs")
+    snapshot = json.loads(data, object_pairs_hook=_unique_fields)
+    _keys(snapshot, ("format", "source_revision", "git_tree", "files", "gitlinks"))
+    if snapshot["format"] != "i12-source-export-manifest-v1" or snapshot["source_revision"] != revision:
+        raise ValueError("Export revision/schema differs from marker")
+    tree = _hex(snapshot["git_tree"], 40)
+    files, directories = _snapshot_entries(snapshot)
+    _verify_snapshot_files(path, files, directories)
+    return {"source_revision": revision, "source_git_tree": tree,
+            "snapshot_manifest": SNAPSHOT, "snapshot_manifest_sha256": identity,
+            "snapshot_file_count": len(files), "snapshot_gitlinks": snapshot["gitlinks"],
+            "source_identity_format": marker["format"]}
 
 
 def disposable(path, parent_sha, storage_root):
@@ -139,26 +265,40 @@ def disposable(path, parent_sha, storage_root):
     for child in path.rglob("*"):
         if child.name == ".git" or child.is_symlink():
             raise ValueError("Git metadata or symlink inside source copy")
-    marker = json.loads(plain(path / MARKER))
+    marker_bytes = plain(path / MARKER)
+    marker = json.loads(marker_bytes)
+    if isinstance(marker, dict) and marker.get("format") == "i12-disposable-source-copy-v2":
+        return _snapshot_identity(path, marker_bytes)
     if marker != {"format": "i12-disposable-source-copy-v1", "path": str(path),
                   "disposable": True, "parent_sha": parent_sha}:
         raise ValueError("Explicit disposable source-copy identity is missing or differs")
+    return {"source_revision": parent_sha, "source_identity_format": marker["format"]}
 
 
 def apply(registry, profile_name, target):
     profile = registry.manifest["profiles"][profile_name]
-    disposable(target, registry.manifest["delivery_product_baseline"], Path(registry.manifest["authorized_storage_root"]))
-    receipt_path = target / "i12-source-application-receipt.json"
+    identity = disposable(target, registry.manifest["delivery_product_baseline"], Path(registry.manifest["authorized_storage_root"]))
+    required_format = profile.get("required_source_identity_format")
+    if required_format is not None and identity["source_identity_format"] != required_format:
+        raise ValueError("Selected profile requires its declared source identity format")
+    receipt_path = target / RECEIPT
     if receipt_path.exists():
         raise ValueError("Source application receipt already exists")
     registry.verify()
     writes = []
+    applied_bases = {}
     for name, entry in profile["source_targets"].items():
         path = target / relative(name)
         expected = entry["before_sha256"]
-        if (expected is None and path.exists()) or (expected is not None and
-                (not path.is_file() or digest(plain(path)) != expected)):
+        actual = digest(plain(path)) if path.exists() else None
+        allowed = [expected]
+        if "current_before_sha256" in entry:
+            current = _hex(entry["current_before_sha256"], 64)
+            if identity["source_identity_format"] == "i12-disposable-source-copy-v2":
+                allowed.append(current)
+        if actual not in allowed or (expected is not None and actual is None):
             raise ValueError("Source-copy base differs: " + name)
+        applied_bases[name] = actual
         writes.append((path, registry.content(entry["sha256"]), entry.get("mode", 420)))
     fixture_root = target / ".i12-capture" / profile_name
     if fixture_root.exists():
@@ -178,7 +318,10 @@ def apply(registry, profile_name, target):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(data)
         path.chmod(mode)
-    receipt = {"profile": profile_name, "source_copy": str(target),
+    receipt = {**identity, "delivery_product_baseline": registry.manifest["delivery_product_baseline"],
+               "profile": profile_name, "source_copy": str(target),
+               "capture_manifest_sha256": digest(plain(registry.root / "manifest.json")),
+               "actual_before_sha256": applied_bases,
                "exact_written_sha256": {str(p.relative_to(target)): digest(data) for p, data, _ in writes},
                "source_copy_only": True, "runtime_qualified": False}
     with receipt_path.open("x", encoding="utf-8") as output:

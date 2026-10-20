@@ -150,11 +150,14 @@ struct haproxy_modsecurity_transaction {
     char request_id[128];
     msconnector_transaction_contract contract;
     int contract_initialized;
+    int request_authorization_only;
     /* Companion ownership and the actual returned host result share a lifetime. */
     struct {
         int response_phases_require_companion;
         int response_companion_handed_off;
         int response_companion_claimed;
+        int outcome_recorded;
+        int native_response_status;
         msconnector_decision_action response_companion_action;
         char response_companion_transport_result[32];
         int response_companion_visible_status;
@@ -505,9 +508,15 @@ static int capture_intervention(
         if (body_limit) {
             copy_message(decision->action, sizeof(decision->action), "deny");
         } else if (intervention.url != 0 && intervention.url[0] != '\0') {
+            size_t redirect_length = 0U;
+            if (!haproxy_modsecurity_redirect_url_length(intervention.url,
+                    sizeof(decision->redirect_url), &redirect_length)) {
+                native_error_decision(decision, "invalid native redirect URL");
+                msc_intervention_cleanup(&intervention);
+                return 1;
+            }
             copy_message(decision->action, sizeof(decision->action), "redirect");
-            copy_message(decision->redirect_url, sizeof(decision->redirect_url),
-                intervention.url);
+            memcpy(decision->redirect_url, intervention.url, redirect_length + 1U);
         } else {
             copy_message(decision->action, sizeof(decision->action), "deny");
         }
@@ -764,6 +773,9 @@ static int finish_body(
         transaction_failure(transaction, decision, MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE,
             "failed to record Common body decision");
         return 1;
+    }
+    if (phase->phase == 4) {
+        transaction->response_companion.native_response_status = decision->status;
     }
     return 0;
 }
@@ -1134,7 +1146,7 @@ static int evaluate_request_phases(Transaction *transaction,
     if (process_request_connection(transaction, request, decision) != 0) {
         return 1;
     }
-    if (msc_process_uri(transaction, safe_uri, safe_method, "1.1") != 1) {
+    if (msc_process_uri(transaction, safe_uri, safe_method, request->http_version) != 1) {
         native_error_decision(decision, "msc_process_uri failed");
         return 1;
     }
@@ -1368,7 +1380,7 @@ static int begin_transaction_protocol(
             "request connection failed");
         return -1;
     }
-    if (msc_process_uri(transaction->transaction, safe_uri, safe_method, "1.1") != 1) {
+    if (msc_process_uri(transaction->transaction, safe_uri, safe_method, request->http_version) != 1) {
         transaction_failure(transaction, decision,
             MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, "msc_process_uri failed");
         return -1;
@@ -1412,14 +1424,16 @@ static int begin_transaction_protocol(
     return 0;
 }
 
-int haproxy_modsecurity_transaction_begin_request_with_profile(
+static int begin_request_with_scope(
         haproxy_modsecurity_engine *engine,
         const haproxy_modsecurity_request *request,
         const char *profile_id,
+        int request_authorization_only,
         haproxy_modsecurity_decision *decision,
         haproxy_modsecurity_transaction **transaction) {
     haproxy_modsecurity_transaction *created;
     const msconnector_transaction_profile *profile;
+    msconnector_transaction_profile authorization_profile;
     char canonical_request_id[MSCONNECTOR_MAX_TRANSACTION_ID_LENGTH] = {0};
     int has_request_id;
 
@@ -1460,6 +1474,16 @@ int haproxy_modsecurity_transaction_begin_request_with_profile(
             "HAProxy transaction profile does not define the required direct P1/P2 and owned P3/P4 routes");
         return 1;
     }
+    if (request_authorization_only) {
+        if (profile->profile_id != MSCONNECTOR_PROFILE_HAPROXY_SPOE_SPOP) {
+            copy_message(decision->log_message, sizeof(decision->log_message),
+                "request authorization requires the SPOP profile");
+            return 1;
+        }
+        authorization_profile = *profile;
+        authorization_profile.companion_phase_mask = 0U;
+        profile = &authorization_profile;
+    }
     if (!validate_common_mapped_request(engine, request, decision)) {
         return 1;
     }
@@ -1499,7 +1523,9 @@ int haproxy_modsecurity_transaction_begin_request_with_profile(
         return 1;
     }
     created->contract_initialized = 1;
+    created->request_authorization_only = request_authorization_only;
     created->response_companion.response_phases_require_companion =
+        !request_authorization_only &&
         profile->profile_id == MSCONNECTOR_PROFILE_HAPROXY_SPOE_SPOP;
     created->transaction = create_request_transaction_with_id(engine->modsec,
         engine->rules, created->request_id);
@@ -1515,6 +1541,16 @@ int haproxy_modsecurity_transaction_begin_request_with_profile(
     }
     *transaction = created;
     return 0;
+}
+
+int haproxy_modsecurity_transaction_begin_request_with_profile(
+        haproxy_modsecurity_engine *engine,
+        const haproxy_modsecurity_request *request,
+        const char *profile_id,
+        haproxy_modsecurity_decision *decision,
+        haproxy_modsecurity_transaction **transaction) {
+    return begin_request_with_scope(engine, request, profile_id, 0, decision,
+        transaction);
 }
 
 int haproxy_modsecurity_transaction_begin_request(
@@ -1555,9 +1591,10 @@ int haproxy_modsecurity_transaction_finish_request_body(
     return finish_body(transaction, decision, &phase);
 }
 
-int haproxy_modsecurity_transaction_begin(
+static int begin_atomic_request(
         haproxy_modsecurity_engine *engine,
         const haproxy_modsecurity_request *request,
+        int request_authorization_only,
         haproxy_modsecurity_decision *decision,
         haproxy_modsecurity_transaction **transaction) {
     haproxy_modsecurity_transaction *created = 0;
@@ -1570,8 +1607,8 @@ int haproxy_modsecurity_transaction_begin(
         return 1;
     }
     *transaction = 0;
-    rc = haproxy_modsecurity_transaction_begin_request(engine, request, decision,
-        transaction);
+    rc = begin_request_with_scope(engine, request, "haproxy-spoe-spop",
+        request_authorization_only, decision, transaction);
     created = *transaction;
     if (rc != 0 || created == 0 || decision->disruptive != 0) {
         return rc;
@@ -1582,6 +1619,22 @@ int haproxy_modsecurity_transaction_begin(
         return 1;
     }
     return haproxy_modsecurity_transaction_finish_request_body(created, decision);
+}
+
+int haproxy_modsecurity_transaction_begin(
+        haproxy_modsecurity_engine *engine,
+        const haproxy_modsecurity_request *request,
+        haproxy_modsecurity_decision *decision,
+        haproxy_modsecurity_transaction **transaction) {
+    return begin_atomic_request(engine, request, 0, decision, transaction);
+}
+
+int haproxy_modsecurity_transaction_begin_request_authorization(
+        haproxy_modsecurity_engine *engine,
+        const haproxy_modsecurity_request *request,
+        haproxy_modsecurity_decision *decision,
+        haproxy_modsecurity_transaction **transaction) {
+    return begin_atomic_request(engine, request, 1, decision, transaction);
 }
 
 int haproxy_modsecurity_transaction_handoff_response_companion(
@@ -1647,13 +1700,16 @@ int haproxy_modsecurity_transaction_record_response_companion_outcome(
     size_t transport_len;
     if (transaction == 0 || !transaction->contract_initialized ||
             !transaction->response_companion.response_companion_claimed ||
+            transaction->response_companion.outcome_recorded ||
             (msconnector_transaction_contract_is_terminal(&transaction->contract) &&
-                (transaction->contract.status != MSCONNECTOR_TRANSACTION_STATUS_TERMINAL ||
+                ((transaction->contract.status != MSCONNECTOR_TRANSACTION_STATUS_TERMINAL &&
+                  transaction->contract.status != MSCONNECTOR_TRANSACTION_STATUS_COMPLETED) ||
                  (transaction->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE &&
                   transaction->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT))) ||
             actual_action < MSCONNECTOR_DECISION_ACTION_ALLOW ||
             actual_action > MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION ||
-            transport_result == 0 ||
+            transport_result == 0 || transport_result[0] == '\0' ||
+            strcmp(transport_result, "not_observable") == 0 ||
             visible_http_status < 0 || visible_http_status > 999 ||
             connection_aborted < 0 || connection_aborted > 1) {
         return 1;
@@ -1666,6 +1722,7 @@ int haproxy_modsecurity_transaction_record_response_companion_outcome(
     if (transport_len >= sizeof(transaction->response_companion.response_companion_transport_result)) {
         return 1;
     }
+    transaction->response_companion.outcome_recorded = 1;
     transaction->response_companion.response_companion_action = actual_action;
     memcpy(transaction->response_companion.response_companion_transport_result, transport_result,
         transport_len + 1U);
@@ -1678,6 +1735,77 @@ int haproxy_modsecurity_transaction_record_response_companion_outcome(
      * as a second engine decision; the Common contract's engine decision was
      * already recorded during P1/P2/P3/P4 evaluation. */
     return 0;
+}
+
+int haproxy_modsecurity_transaction_response_event(
+        const haproxy_modsecurity_transaction *transaction,
+        const msconnector_decision *requested, msconnector_event *event,
+        msconnector_error *error) {
+    msconnector_decision canonical;
+    if (transaction == NULL || requested == NULL || event == NULL ||
+            !transaction->contract_initialized ||
+            !transaction->response_companion.response_companion_claimed ||
+            !transaction->response_companion.outcome_recorded ||
+            (!msconnector_decision_is_disruptive(requested) &&
+             requested->kind != MSCONNECTOR_DECISION_KIND_ALLOW) ||
+            (int)requested->phase != transaction->contract.last_completed_phase ||
+            (msconnector_decision_is_disruptive(requested) &&
+             requested->http_status != transaction->response_companion.native_response_status) ||
+            (requested->rule_id != NULL && strcmp(requested->rule_id, transaction->contract.rule_id) != 0) ||
+            (transaction->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT &&
+             requested->kind != MSCONNECTOR_DECISION_KIND_DENY) ||
+            (requested->phase != MSCONNECTOR_PHASE_RESPONSE_HEADERS &&
+             requested->phase != MSCONNECTOR_PHASE_RESPONSE_BODY) ||
+            (transaction->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE &&
+             transaction->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT) ||
+            (transaction->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE &&
+             msconnector_transaction_decision_kind_from_engine(requested) !=
+                transaction->contract.engine_decision)) {
+        msconnector_error_set(error, MSCONNECTOR_ERROR_PHASE_SEQUENCE,
+            "response event requires its completed native phase and recorded OUTCOME", "haproxy");
+        return 0;
+    }
+    if (!msconnector_decision_is_disruptive(requested)) {
+        msconnector_event_init(event);
+        return 2; /* Valid native Allow: no Common decision event. */
+    }
+    msconnector_decision_init(&canonical);
+    canonical.phase = (enum msconnector_phase)transaction->contract.last_completed_phase;
+    canonical.kind = requested->kind; /* Matched against the native contract above. */
+    canonical.status = MSCONNECTOR_STATUS_BLOCKED;
+    canonical.disruptive = 1;
+    canonical.http_status = transaction->response_companion.native_response_status;
+    canonical.rule_id = transaction->contract.rule_id;
+    canonical.reason = "native_response_intervention";
+    canonical.body_limit = transaction->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT;
+    if (!msconnector_decision_to_event(&canonical, event, "haproxy", transaction->request_id)) {
+        msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
+            "response decision has no Common event", "haproxy");
+        return 0;
+    }
+    event->meta.integration_mode = "spop-htx-response-companion";
+    event->decision.rule_id = transaction->contract.rule_id;
+    event->decision.reason = "native_response_intervention";
+    event->decision.actual_action = msconnector_decision_action_name(
+        transaction->response_companion.response_companion_action);
+    event->http.original_http_status = transaction->contract.response_status;
+    event->http.visible_http_status = transaction->response_companion.response_companion_visible_status;
+    event->http.transport_result = transaction->response_companion.response_companion_transport_result;
+    event->flags.response_committed = transaction->contract.response_committed;
+    event->flags.headers_sent = transaction->contract.response_committed;
+    event->flags.response_started = transaction->contract.response_committed;
+    event->flags.body_started = transaction->response_body.started;
+    event->flags.connection_aborted = transaction->response_companion.response_companion_connection_aborted;
+    event->flags.eos_seen = (transaction->contract.completed_phase_mask &
+        MSCONNECTOR_TRANSACTION_PHASE_MASK_P4) != 0U;
+    event->flags.late_intervention = requested->phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
+        transaction->contract.response_committed;
+    /* OUTCOME carries no host phase4-mode; the owner default is not evidence. */
+    event->flags.late_intervention_mode = NULL;
+    event->body.bytes_seen = transaction->response_body.bytes_seen;
+    event->body.bytes_inspected = transaction->response_body.bytes_inspected;
+    event->body.content_type = transaction->contract.response_content_type;
+    return 1;
 }
 
 static int map_response_for_transaction(
@@ -1805,6 +1933,7 @@ int haproxy_modsecurity_transaction_process_response_headers(
             "failed to record Common P3 decision");
         return 1;
     }
+    transaction->response_companion.native_response_status = decision->status;
     return 0;
 }
 
@@ -1910,8 +2039,10 @@ int haproxy_modsecurity_transaction_finish_with_decision(
         }
     }
     if (result == 0) {
-        result = msconnector_transaction_contract_finish(&transaction->contract, 0U) ==
-            MSCONNECTOR_TRANSACTION_TRANSITION_OK ? 0 : 1;
+        int finished = transaction->request_authorization_only ?
+            msconnector_transaction_contract_finish_request_authorization(&transaction->contract, 0U) :
+            msconnector_transaction_contract_finish(&transaction->contract, 0U);
+        result = finished == MSCONNECTOR_TRANSACTION_TRANSITION_OK ? 0 : 1;
         if (result != 0 && decision != NULL) {
             transaction_failure(transaction, decision,
                 MSCONNECTOR_TRANSACTION_ERROR_CLEANUP_INCOMPLETE,
@@ -1976,6 +2107,7 @@ int haproxy_modsecurity_phase1_header_eval(
     headers[1].value = test_header_value != 0 ? test_header_value : "";
     memset(&request, 0, sizeof(request));
     request.method = method;
+    request.http_version = "1.1";
     request.uri = uri;
     request.client_ip = "192.0.2.10";
     request.client_port = 12345;
@@ -2025,6 +2157,7 @@ static int haproxy_modsecurity_request_body_eval(
     headers[2].value = "11";
     memset(&request, 0, sizeof(request));
     request.method = "POST";
+    request.http_version = "1.1";
     request.uri = uri;
     request.client_ip = "192.0.2.10";
     request.client_port = 12345;
@@ -2091,6 +2224,7 @@ int haproxy_modsecurity_request_body_self_test(
     headers[2].value = "11";
     memset(&request, 0, sizeof(request));
     request.method = "POST";
+    request.http_version = "1.1";
     request.uri = "/haproxy-binding-body-self-test";
     request.client_ip = "192.0.2.10";
     request.client_port = 12345;
@@ -2140,6 +2274,7 @@ int haproxy_modsecurity_crs_sqli_eval(
     headers[0].value = host;
     memset(&request, 0, sizeof(request));
     request.method = method;
+    request.http_version = "1.1";
     request.uri = uri;
     request.client_ip = "192.0.2.10";
     request.client_port = 12345;

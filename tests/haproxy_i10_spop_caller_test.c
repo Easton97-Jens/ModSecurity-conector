@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #define main haproxy_spop_program_main
 #include "PRODUCT_RUNTIME"
 #undef main
@@ -6,6 +7,88 @@ extern const char *native_failure;
 extern int native_failure_result;
 extern unsigned int native_calls;
 extern unsigned int native_cleanups;
+extern int native_intervention;
+/* Semantic regression: this production caller must finish a finite request
+ * authorization without inventing response phases. The HTTP version check
+ * observes the native API boundary independently of the ACK decision. */
+extern char native_http_version[16];
+static void check_request_authorization(agent_state *state, int version_only) {
+  notify_request request = {0};
+  runtime_header headers[] = {{"Host", "example.test"}, {"Content-Length", "0"}};
+  copy_cstring(request.client_ip, sizeof(request.client_ip), "192.0.2.1");
+  copy_cstring(request.server_ip, sizeof(request.server_ip), "198.51.100.1");
+  copy_cstring(request.method, sizeof(request.method), "GET");
+  copy_cstring(request.uri, sizeof(request.uri), "/");
+  copy_cstring(request.request_id, sizeof(request.request_id), "request-authorization");
+  request.client_port = 1234; request.server_port = 443;
+  request.has_client_ip = request.has_server_ip = 1;
+  request.has_client_port = request.has_server_port = 1;
+  request.headers = headers; request.header_count = 2;
+  request.has_body = request.has_body_len_arg = request.has_headers_text = 1;
+  request.http_metadata.has_http_version = 1;
+  copy_cstring(request.http_metadata.http_version,
+      sizeof(request.http_metadata.http_version), version_only ? "2.0" : "1.1");
+  haproxy_modsecurity_decision decision;
+  int processed = 0;
+  spop_ack_decision_origin origin = SPOP_ACK_FAILURE_DECISION;
+  const char *text = "pass";
+  char handle[HAPROXY_SPOP_RESPONSE_COMPANION_HANDLE_STORAGE] = {0};
+  unsigned int before = native_cleanups;
+  native_failure = NULL;
+  process_production_request_notify(state, &request, &decision, &processed,
+      &origin, &text, handle);
+  if (version_only) {
+    assert(strcmp(native_http_version, "2.0") == 0);
+  } else {
+    assert(processed == 1 && origin == SPOP_ACK_ENGINE_DECISION);
+    assert(!decision.disruptive && decision.status == 200);
+    assert(native_cleanups == before + 1);
+    assert(handle[0] == '\0');
+  }
+}
+static void check_version_admission(agent_state *state) {
+  runtime_header headers[] = {{"Host", "example.test"}, {"Content-Length", "0"}};
+  const char *versions[] = {NULL, "0.9", "3.0", "9.9"};
+  for (size_t i = 0; i < sizeof(versions) / sizeof(versions[0]); ++i) {
+    notify_request r = {0};
+    r.has_client_ip = r.has_server_ip = r.has_client_port = r.has_server_port = 1;
+    r.client_port = 1234; r.server_port = 443;
+    strcpy(r.client_ip, "192.0.2.1"); strcpy(r.server_ip, "198.51.100.1");
+    strcpy(r.method, "GET"); strcpy(r.uri, "/"); strcpy(r.request_id, "version-reject");
+    r.headers = headers; r.header_count = 2;
+    r.has_body = r.has_body_len_arg = r.has_headers_text = 1;
+    if (versions[i]) { r.http_metadata.has_http_version = 1; strcpy(r.http_metadata.http_version, versions[i]); }
+    haproxy_modsecurity_decision d;
+    int processed = 0;
+    spop_ack_decision_origin origin = SPOP_ACK_FAILURE_DECISION;
+    const char *text = "pass";
+    char handle[HAPROXY_SPOP_RESPONSE_COMPANION_HANDLE_STORAGE] = {0};
+    unsigned int calls = native_calls, cleanups = native_cleanups;
+    process_production_request_notify(state, &r, &d, &processed, &origin, &text, handle);
+    assert(d.disruptive && d.status == 503 && processed == 0);
+    assert(origin == SPOP_ACK_FAILURE_DECISION);
+    assert(native_calls == calls && native_cleanups == cleanups);
+    haproxy_modsecurity_request mapped;
+    haproxy_modsecurity_transaction *tx = NULL;
+    build_modsecurity_request_from_notify(&r, NULL, &mapped);
+    assert(haproxy_modsecurity_transaction_begin_request_authorization(
+        state->engine, &mapped, &d, &tx) != 0);
+    assert(tx == NULL && native_calls == calls && native_cleanups == cleanups);
+  }
+  /* Two declared versions are contradictory even when one is otherwise valid.
+   * Reject identical duplicates too; no last-value-wins normalization. */
+  for (int conflict = 0; conflict < 2; ++conflict) {
+    spop_buffer frame = {0};
+    notify_request r = {0};
+    size_t pos = 0;
+    assert(append_string(&frame, "http_version") == 0);
+    assert(append_typed_string(&frame, "1.1") == 0);
+    assert(append_string(&frame, "http_version") == 0);
+    assert(append_typed_string(&frame, conflict ? "2.0" : "1.1") == 0);
+    assert(parse_notify_arguments(frame.data, frame.len, &pos, &r, 2U) != 0);
+    free_notify_request(&r);
+  }
+}
 static void check_request_failure(agent_state *state, size_t failure,
                                   const char *failure_name) {
   haproxy_modsecurity_decision d;
@@ -30,6 +113,8 @@ static void check_request_failure(agent_state *state, size_t failure,
   request.has_body_len_arg = 1;
   request.has_headers_text = 1;
   request.http_metadata.advertised_body_len = 1;
+  request.http_metadata.has_http_version = 1;
+  strcpy(request.http_metadata.http_version, "1.1");
   unsigned char body[] = "x";
   request.body = body;
   request.body_len = 1;
@@ -62,6 +147,7 @@ static void check_missing_companion(agent_state *state) {
   haproxy_modsecurity_request terminal_request = {0};
   haproxy_modsecurity_header terminal_headers[] = {{"Host", "example.test"}};
   terminal_request.method = "GET";
+  terminal_request.http_version = "1.1";
   terminal_request.uri = "/";
   terminal_request.client_ip = "192.0.2.1";
   terminal_request.server_ip = "198.51.100.1";
@@ -86,6 +172,7 @@ static void check_owner_failure(agent_state *state, int operation) {
   haproxy_modsecurity_request r = {0};
   haproxy_modsecurity_header h[] = {{"Host", "example.test"}};
   r.method = "GET";
+  r.http_version = "1.1";
   r.uri = "/";
   r.client_ip = "192.0.2.1";
   r.server_ip = "198.51.100.1";
@@ -160,7 +247,149 @@ static void check_owner_failure(agent_state *state, int operation) {
   else
     haproxy_modsecurity_transaction_abort(t);
 }
-static void check_mode(const char *mode, const char *fail_mode, int enforces) {
+static ssize_t fail_outcome_event(void *opaque, const char *data, size_t size) {
+  (void)opaque; (void)data; (void)size; errno = EIO; return -1;
+}
+static void check_owner_outcome_event(agent_state *state, int phase, int fault, int strict) {
+  haproxy_modsecurity_request r = {0};
+  haproxy_modsecurity_header h[] = {{"Host", "example.test"}};
+  r.method = "GET"; r.uri = "/"; r.http_version = "1.1";
+  r.client_ip = "192.0.2.1"; r.server_ip = "198.51.100.1";
+  r.client_port = 1234; r.server_port = 443;
+  r.headers = h; r.header_count = 1; r.request_id = "native-owner-event";
+  haproxy_modsecurity_transaction *tx = NULL;
+  haproxy_modsecurity_decision d;
+  native_failure = NULL; native_intervention = 0;
+  assert(haproxy_modsecurity_transaction_begin(state->engine, &r, &d, &tx) == 0);
+  assert(haproxy_modsecurity_transaction_handoff_response_companion(tx) == 0);
+  assert(haproxy_modsecurity_transaction_claim_response_companion(tx) == 0);
+  haproxy_modsecurity_response response = {0};
+  response.status = 200; response.protocol = "HTTP/1.1";
+  native_intervention = phase == 3 && fault < 2;
+  assert(haproxy_modsecurity_transaction_process_response_headers(tx, &response, &d) == 0);
+  if (phase == 4) {
+    assert(haproxy_modsecurity_transaction_set_response_commit_state(tx, 1, 0) == 0);
+    native_intervention = fault < 2;
+    assert(haproxy_modsecurity_transaction_finish_response_body(tx, &d) == 0);
+  }
+  assert(fault >= 2 ? !d.disruptive : (d.disruptive && d.rule_id == 123));
+  native_intervention = 0;
+  msconnector_decision requested;
+  char borrowed_reason[] = "SECRET-INPUT-NATIVE-LOG";
+  msconnector_decision_set_deny(&requested, 403, NULL, borrowed_reason);
+  /* Common retains equal fields in distinct owned buffers. */
+  char borrowed_intervention_log[] = "SECRET-INPUT-NATIVE-LOG";
+  requested.intervention.log_message = borrowed_intervention_log;
+  if (fault >= 2) msconnector_decision_set_allow(&requested);
+  requested.phase = phase == 3 ? MSCONNECTOR_PHASE_RESPONSE_HEADERS : MSCONNECTOR_PHASE_RESPONSE_BODY;
+  msconnector_event event;
+  msconnector_error error;
+  msconnector_error_init(&error);
+  assert(!haproxy_modsecurity_transaction_response_event(tx, &requested, &event, &error));
+  assert(error.code == MSCONNECTOR_ERROR_PHASE_SEQUENCE);
+  msconnector_error_init(&state->decision_log_error);
+  copy_cstring(state->config.decision_log, sizeof(state->config.decision_log), "configured");
+  if (fault == 1) {
+    cookie_io_functions_t ops = {.write = fail_outcome_event};
+    state->decision_log = fopencookie(NULL, "w", ops);
+    assert(state->decision_log != NULL);
+    assert(setvbuf(state->decision_log, NULL, _IONBF, 0) == 0);
+  } else {
+    state->decision_log = fopen("native-owner-event.jsonl", "w+");
+    assert(state->decision_log != NULL && ftell(state->decision_log) == 0);
+  }
+  spop_bridge_task_context context = {0};
+  context.state = state; context.transaction = tx;
+  context.command.operation = HAPROXY_SPOP_RESPONSE_COMPANION_OUTCOME;
+  context.command.decision = &requested;
+  context.command.action = fault >= 2 ? MSCONNECTOR_DECISION_ACTION_ALLOW : phase == 3 ? MSCONNECTOR_DECISION_ACTION_DENY : MSCONNECTOR_DECISION_ACTION_LOG_ONLY;
+  context.command.visible_http_status = fault >= 2 ? 200 : phase == 3 ? 403 : 200;
+  context.command.transport_result = fault >= 2 ? "allowed" : phase == 3 ? "denied" : "log_only";
+  if (strict && phase == 4 && fault < 2) {
+    context.command.action = MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION;
+    context.command.transport_result = "connection_aborted";
+    context.command.connection_aborted = 1;
+  }
+  haproxy_spop_response_companion_owner_command borrowed = context.command;
+  borrowed.lease = 1U;
+  msconnector_error_init(&error);
+  assert(prepare_spop_bridge_context(&context, &borrowed, &error) == 0);
+  assert(context.command.decision == &context.outcome_decision);
+  memset(borrowed_reason, 'X', sizeof(borrowed_reason) - 1U);
+  memset(borrowed_intervention_log, 'X', sizeof(borrowed_intervention_log) - 1U);
+  if (fault < 2) assert(strcmp(context.command.decision->reason, "SECRET-INPUT-NATIVE-LOG") == 0);
+  if (fault == 3) msconnector_error_set(&state->decision_log_error,
+      MSCONNECTOR_ERROR_IO, "earlier sink failure", "test");
+  unsigned int before = native_cleanups;
+  run_spop_bridge_task(&context);
+  if (!fault) {
+    msconnector_error_init(&error);
+    assert(haproxy_modsecurity_transaction_response_event(tx, &requested, &event, &error) == 1);
+    assert(event.flags.late_intervention_mode == NULL);
+    msconnector_decision forged_allow;
+    msconnector_decision_set_allow(&forged_allow);
+    forged_allow.phase = requested.phase;
+    msconnector_error_init(&error);
+    assert(!haproxy_modsecurity_transaction_response_event(tx, &forged_allow, &event, &error));
+    assert(haproxy_modsecurity_transaction_record_response_companion_outcome(tx,
+        context.command.action, "stale-replay", 200, 0) != 0);
+    msconnector_decision wrong = requested;
+    wrong.disruptive = 0;
+    wrong.intervention.disruptive = 0;
+    msconnector_error_init(&error);
+    assert(!haproxy_modsecurity_transaction_response_event(tx, &wrong, &event, &error));
+    wrong = requested;
+    wrong.http_status = 401;
+    msconnector_error_init(&error);
+    assert(!haproxy_modsecurity_transaction_response_event(tx, &wrong, &event, &error));
+    wrong = requested; wrong.kind = MSCONNECTOR_DECISION_KIND_REDIRECT;
+    msconnector_error_init(&error);
+    assert(!haproxy_modsecurity_transaction_response_event(tx, &wrong, &event, &error));
+    wrong = requested; wrong.rule_id = "999999";
+    msconnector_error_init(&error);
+    assert(!haproxy_modsecurity_transaction_response_event(tx, &wrong, &event, &error));
+    wrong = requested; wrong.phase = phase == 3 ? MSCONNECTOR_PHASE_RESPONSE_BODY : MSCONNECTOR_PHASE_RESPONSE_HEADERS;
+    msconnector_error_init(&error);
+    assert(!haproxy_modsecurity_transaction_response_event(tx, &wrong, &event, &error));
+  }
+  if (fault == 1 || fault == 3) {
+    assert(!context.success && context.error.code == MSCONNECTOR_ERROR_IO);
+    assert(state->decision_log_error.code == MSCONNECTOR_ERROR_IO);
+    haproxy_modsecurity_transaction_abort(tx);
+  } else {
+    if (!context.success) fprintf(stderr, "OUTCOME failed phase=%d fixture=%d error=%d %s\n",
+        phase, fault, context.error.code, context.error.message ? context.error.message : "");
+    assert(context.success);
+    assert(fflush(state->decision_log) == 0);
+    if (fault >= 2) {
+      assert(ftell(state->decision_log) == 0);
+    } else {
+    assert(ftell(state->decision_log) > 0);
+    rewind(state->decision_log); char line[8192];
+    assert(fgets(line, sizeof(line), state->decision_log) != NULL);
+    assert(strstr(line, "native-owner-event") != NULL);
+    assert(strstr(line, "\"rule_id\":\"123\"") != NULL);
+    assert(strstr(line, "SECRET-INPUT-NATIVE-LOG") == NULL);
+    assert(strstr(line, "\"http_status\":403") != NULL);
+    assert(strstr(line, phase == 3 ? "\"visible_http_status\":403" : "\"visible_http_status\":200") != NULL);
+    assert(strstr(line, strict && phase == 4 ? "\"connection_aborted\":true" : "\"connection_aborted\":false") != NULL);
+    assert(strstr(line, phase == 3 ? "\"actual_action\":\"deny\"" : strict ? "\"actual_action\":\"abort_connection\"" : "\"actual_action\":\"log_only\"") != NULL);
+    }
+    if (fault >= 2 && phase == 3) {
+      /* P3 Allow has no P4/EOS: do not fabricate a successful full finish. */
+      haproxy_modsecurity_transaction_abort(tx);
+    } else {
+      context.command.operation = HAPROXY_SPOP_RESPONSE_COMPANION_RELEASE;
+      run_spop_bridge_task(&context);
+      assert(context.success && context.transaction_consumed);
+    }
+  }
+  assert(native_cleanups == before + 1);
+  (void)fclose(state->decision_log); state->decision_log = NULL;
+  state->config.decision_log[0] = '\0';
+  msconnector_error_init(&state->decision_log_error);
+}
+static void check_mode(const char *mode, const char *fail_mode, int enforces, const char *only) {
   agent_state state;
   memset(&state, 0, sizeof(state));
   copy_cstring(state.config.mode, sizeof(state.config.mode), mode);
@@ -173,12 +402,26 @@ static void check_mode(const char *mode, const char *fail_mode, int enforces) {
   msconnector_config_init(&cfg.common_config);
   msconnector_config_apply_defaults(&cfg.common_config);
   cfg.rules_file = "PRODUCT_RULES";
+  if (only && strcmp(only, "owner-events") == 0)
+    cfg.common_config.phase4_mode = MSCONNECTOR_PHASE4_MODE_STRICT;
   haproxy_modsecurity_decision d;
   assert(haproxy_modsecurity_engine_create(&cfg, &state.engine, &d) == 0);
+  if (only != NULL) {
+    if (strcmp(only, "owner-events") == 0) {
+      for (int phase = 3; phase <= 4; ++phase)
+        for (int fault = 0; fault <= 3; ++fault) {
+          check_owner_outcome_event(&state, phase, fault, 0);
+          if (phase == 4) check_owner_outcome_event(&state, phase, fault, 1);
+        }
+    } else if (strcmp(only, "invalid-version") == 0) check_version_admission(&state);
+    else check_request_authorization(&state, strcmp(only, "http-version") == 0);
+    haproxy_modsecurity_engine_destroy(state.engine);
+    return;
+  }
   const char *failures[] = {
       "msc_process_connection", "msc_process_request_headers",
-      "msc_append_request_body", "msc_process_request_body"};
-  for (size_t failure = 0; failure < 4; failure++)
+      "msc_append_request_body", "msc_process_request_body", "msc_process_logging"};
+  for (size_t failure = 0; failure < 5; failure++)
     check_request_failure(&state, failure, failures[failure]);
   check_missing_companion(&state);
   for (int operation = 0; operation < 6; operation++)
@@ -235,7 +478,7 @@ int main(int argc, char **argv) {
   const char *fail_modes[] = {"closed", "open"};
   for (size_t mode = 0; mode < 2; mode++) {
     for (size_t fail_mode = 0; fail_mode < 2; fail_mode++)
-      check_mode(modes[mode], fail_modes[fail_mode], mode != 0);
+      check_mode(modes[mode], fail_modes[fail_mode], mode != 0, argc == 2 ? argv[1] : NULL);
   }
   puts("full SPOP request TU: P1/P2 native failure -> disruptive503 -> "
        "serialized blocked ACK; detect/enforce x open/closed; cleanup and "

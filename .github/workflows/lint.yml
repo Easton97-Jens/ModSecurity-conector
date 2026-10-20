@@ -30,6 +30,9 @@ jobs:
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Install hash-locked CI test dependency
+        run: |
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: --require-hashes -r requirements-ci.lock
       - name: Initialize runner temp paths
         run: |
           set -eu
@@ -78,19 +81,31 @@ jobs:
         run: |
           set -eu
           sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes apache2-dev build-essential libmodsecurity-dev
+          sudo apt-get install --no-install-recommends --yes apache2-dev build-essential libmodsecurity-dev autoconf automake libtool pkg-config libyajl-dev libcurl4-openssl-dev libpcre2-dev libssl-dev liblmdb-dev
+      - name: Prepare the approved I12 SDK through the shared component producer
+        if: ${{ !cancelled() }}
+        env:
+          RUNTIME_COMPONENT_TARGET: shared
+          ALLOW_RUNTIME_DOWNLOADS: "1"
+          ALLOW_RUNTIME_BUILDS: "1"
+        run: |
+          set -eu
+          mkdir -p "$BUILD_ROOT/i12-sdk-reports"
+          RUNTIME_COMPONENT_ENV_SNAPSHOT=$(sh ci/runtime/lifecycle/reserve-runtime-env-snapshot.sh "$BUILD_ROOT/i12-sdk-reports")
+          export RUNTIME_COMPONENT_ENV_SNAPSHOT
+          RUNTIME_REPORT_OUTPUT_ROOT="$BUILD_ROOT/i12-sdk-reports" make prepare-runtime-components
+          printf 'I12_SDK_ENV_SNAPSHOT=%s\n' "$RUNTIME_COMPONENT_ENV_SNAPSHOT" >> "$GITHUB_ENV"
       - name: Verify I12 native observer and Apache header measurement controls
         if: ${{ !cancelled() }}
         run: |
           set -eu
-          SDK_LIBRARY="$(cc -print-file-name=libmodsecurity.so)"
-          test -f "$SDK_LIBRARY"
-          SDK_LIBRARY_DIR="$(dirname "$SDK_LIBRARY")"
+          test -f "$I12_SDK_ENV_SNAPSHOT"
           export NATIVE_OBSERVER_TEST_OUT="$BUILD_ROOT/i12-observer-controls"
-          export MODSECURITY_INCLUDE_DIR=/usr/include
-          export MODSECURITY_LIB_DIR="$SDK_LIBRARY_DIR"
-          export MODSECURITY_LIB_FILE="$SDK_LIBRARY"
-          python -m unittest -v tests.test_native_lifecycle_observer tests.test_apache_header_semantics
+          RUNTIME_COMPONENT_ENV_SNAPSHOT="$I12_SDK_ENV_SNAPSHOT" \
+            RUNTIME_REPORT_OUTPUT_ROOT="$BUILD_ROOT/i12-sdk-reports" \
+            RUNTIME_COMPONENT_TARGET=shared SKIP_RUNTIME_COMPONENT_PREPARE=1 \
+            sh ci/provisioning/cache/with-runtime-components.sh \
+              python -m unittest -v tests.test_native_lifecycle_observer tests.test_apache_header_semantics
       - name: Verify I09 route API and terminal error regressions
         if: ${{ !cancelled() }}
         run: make check-i09-native-routes
@@ -129,6 +144,7 @@ jobs:
         env:
           SONAR_CHECK_GITHUB_TOKEN: ${{ github.token }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: python ci/checks/common/check-sonar-zero.py
       - name: Require zero Sonar duplication for the PR head
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}

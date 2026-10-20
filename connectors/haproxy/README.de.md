@@ -357,3 +357,52 @@ beschreibt den genauen Geltungsbereich, die Kompatibilitätsgrenze und die
 Grenzen der Validierung.
 
 Das SPOE/SPOP-Profil transportiert ein Request-Body-Sample in einem Frame mit höchstens 65536 Bytes einschließlich Metadaten. Es implementiert keinen inkrementellen Request-Transport. Weicht die angekündigte Body-Länge vom übertragenen Sample ab, lehnt der Agent die unvollständige Darstellung als nicht unterstützte Transportzulassung ab; dies ist kein BODY_LIMIT-Ergebnis. Native HTX übergibt vollständige geliehene DATA-Abschnitte inkrementell. Der Test-Upstream des Smoke-Helpers behält seine 64-KiB-Kapazität für Request-/Response-Fixtures; diese Harness-Tests beweisen keine größeren Host-Bodys.
+
+## Physische Common-Entscheidungssinks
+
+Der native HTX-Filter akzeptiert das optionale Argument
+`events-file /task/common-events.jsonl`. Verwende eine private reguläre
+Append-Datei im Eigentum der Runtime-UID mit Modus `0600`; jede übergeordnete
+Pfadkomponente muss die bestehende Trusted-Parent-Policy erfüllen. Der gemeinsame
+Opener weist Symlinks in jeder Komponente zurück. Konfigurierte SPOP-Decisionlogs
+verwenden denselben Opener. Ein unsicherer Pfad lässt die Initialisierung
+scheitern; es gibt kein Ausweichen auf ein anderes Eventziel.
+
+Der native Filter schreibt begrenzte Common-JSONL-Metadaten für disruptive native
+Entscheidungen und technische Ursachen. Bodybytes, Header, URI und nativer
+Logtext sind ausgeschlossen. Normales Allow erzeugt kein erfundenes
+Entscheidungsevent. Ein Mutex schützt den konfigurierten Stream; Serialisierung,
+`fputs`, `ferror`, `fflush` und `fclose` werden geprüft, der erste Sinkfehler bleibt
+erhalten und nachfolgende Requests schlagen bei diesem Sinkfehler fail-closed
+fehl. Ein fehlgeschlagener nativer Entscheidungsschreibvorgang erhält seine
+beobachtete Phase und eine frühere technische Ursache. Close verbraucht den
+eigenen Stream einmal. Erfolgreiches Flush belegt die Streamannahme, keine
+dauerhafte Speicherung oder Clientzustellung. Die native Filter-Deinitialisierung
+kann einen Close-Fehler melden, aber über ihren void-Callback keinen
+Prozessexitstatus setzen.
+
+Beim Response-Companion erzeugt der native Owner ein Entscheidungsevent erst
+nach validiertem OUTCOME und vor RELEASE. Phase, Entscheidungsart, nativer Status
+und Regelidentität werden mit der gehaltenen nativen Transaktion verglichen;
+Queue-Metadaten werden in eigenen begrenzten Speicher kopiert. Gültiges P4-Allow
+darf OUTCOME aus dem abgeschlossenen Zustand speichern, ohne ein P4-Entscheidungsevent
+zu erfinden. Der Owner kann die HTX-Einstellung phase4-mode aus dem aktuellen
+Wire-Vertrag nicht beobachten; sein Event lässt deshalb das optionale Feld
+`late_intervention_mode` aus. Hostmodus ist separat aus effektiver
+Filterkonfiguration und wirklichem Transport zu belegen. Native Direct-Events
+verwenden ihre eigene bekannte Filterkonfiguration.
+
+Native SDK-, stdio-Fehler-, Parallelitäts-, Sanitizer- und Mutationskontrollen
+sind Komponentenbelege. Frische integrierte Hostläufe und unabhängige
+Qualifikation bleiben für I12 erforderlich. Siehe den
+[Change Record zum physischen Sink](../../reports/audits/change-records/CR-20261018-haproxy-physical-common-sinks.de.md).
+
+Für Strict nach Commit bei H1 löscht der native Filter jetzt wartende Responsebytes und ruft die Hard-Shutdown-API des bereiten Frontendtransports auf, bevor der H1-Mux ein sauberes TLS close_notify senden kann. H2 behält seinen Shutdown pro Stream. Komponenten-/API-/Mutationskontrollen und Kompilierung bestanden; frische integrierte Transportqualifikation bleibt erforderlich. Siehe den [H1-Transport-Change-Record](../../reports/audits/change-records/CR-20261018-haproxy-strict-h1-transport-abort.de.md).
+
+Native Redirects vor Commit in P1/P2/P3 verwenden HAProxys Reply-API für einen
+literalen `Location`-Wert mit dem ursprünglichen unterstützten Status. Der
+Connector besitzt die URL vor dem nativen Cleanup und lehnt abgeschnittene
+Werte oder Steuerzeichen ab. Der Companion zeichnet den tatsächlichen Redirect-
+OUTCOME vor RELEASE auf. Quell-, native SDK- und Host-API-Regressionen bestanden;
+unabhängige integrierte Client-Retests bleiben erforderlich. Siehe den
+[Redirect-Change-Record](../../reports/audits/change-records/CR-20261018-haproxy-precommit-redirect.de.md).

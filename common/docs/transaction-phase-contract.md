@@ -175,6 +175,18 @@ failed restart is a fail-closed connector error: no opaque handle is issued,
 no transaction is handed off, and no transport, version, or capability
 fallback is allowed.
 
+## Finite request authorization
+
+An explicitly request-only adapter may declare direct phases P1/P2 (mask `3`)
+and no companion phases before native transaction creation. Its dedicated
+`msconnector_transaction_contract_finish_request_authorization` operation
+accepts exactly completed P1/P2 with no active phase, response commitment, or
+handoff. It does not synthesize P3/P4. Cancelled, denied, and failed terminal
+transactions retain their terminal cause and use the same cleanup ownership.
+Generic `finish` still requires all four phases (mask `15`). This finite
+authorization contract does not qualify a response companion or an unlimited
+request stream. The Common structure layout is unchanged.
+
 ## Uniform decisions
 
 | Decision | Host action | Event type | Rule ID | Failure policy | Cleanup |
