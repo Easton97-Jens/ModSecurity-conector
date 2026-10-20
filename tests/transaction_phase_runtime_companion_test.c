@@ -7,11 +7,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "common/runtime/msconnector_runtime.h"
 #include "connectors/profile_registry.h"
 #include "tests/transaction_phase_test_support.h"
+#include "connectors/traefik/src/traefik_provenance.h"
 
 typedef struct companion_worker {
     msconnector_runtime_response_companion_registry *registry;
@@ -290,11 +294,11 @@ static void test_lossy_event_is_not_written_or_chained(void) {
     assert(unlink(fixture.rules_path) == 0);
 }
 
-static void begin_handed_off(
+static void begin_handed_off_ttl(
     msconnector_runtime *runtime,
     msconnector_runtime_response_companion_registry *registry,
     const char *transaction_id,
-    char handle[MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE]) {
+    char handle[MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE], uint64_t ttl) {
     msconnector_runtime_transaction *transaction = NULL;
     msconnector_decision decision;
     msconnector_error error;
@@ -304,7 +308,104 @@ static void begin_handed_off(
     assert(transaction != NULL);
     assert(strcmp(msconnector_runtime_transaction_id(transaction), transaction_id) == 0);
     assert(msconnector_runtime_response_companion_handoff_with_handle(registry,
-        transaction, UINT64_C(60000), handle, &error));
+        transaction, ttl, handle, &error));
+}
+
+static void begin_handed_off(msconnector_runtime *runtime,
+    msconnector_runtime_response_companion_registry *registry, const char *id,
+    char handle[MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE]) {
+    begin_handed_off_ttl(runtime, registry, id, handle, UINT64_C(60000));
+}
+
+static int confirm_registry(void *userdata, const char *handle, msconnector_error *error) {
+    return msconnector_runtime_response_companion_confirm_preclaim(userdata, handle, error);
+}
+
+static void socket_exact(int fd, unsigned char *buffer, size_t size, int writing) {
+    while (size != 0U) {
+        ssize_t count = writing ? send(fd, buffer, size, 0) : recv(fd, buffer, size, 0);
+        assert(count > 0);
+        buffer += (size_t)count;
+        size -= (size_t)count;
+    }
+}
+
+/* Physical MTP1 confirmation uses the actual Common registry, not the Go
+ * fake MRC1 server. Ordinary handles still expire after five seconds. */
+static void test_trusted_preclaim_refresh(msconnector_runtime *runtime) {
+    msconnector_runtime_response_companion_registry registry;
+    msconnector_runtime_response_companion_session session;
+    msconnector_http_authorization_provenance_storage storage;
+    msconnector_error error;
+    char ordinary[65], trusted[65], claimed[65], expired[65], foreign[65];
+    char path[sizeof(((struct sockaddr_un *)0)->sun_path)];
+    struct sockaddr_un address = {.sun_family = AF_UNIX};
+    unsigned char reserve[] = {'M','T','P','1',1,1,0,0,0,0,0,10,
+        0,1,'r',0,1,'c',0,1,'i',0};
+    unsigned char reply[79];
+    unsigned char query[] = {'M','T','P','1',1,2,0,0,0,0,0,0};
+    char token[65];
+    msconnector_runtime_response_companion_registry_init(&registry);
+    begin_handed_off_ttl(runtime, &registry, "initial-five-second-control", ordinary, 30000U);
+    begin_handed_off_ttl(runtime, &registry, "trusted-thirty-second-control", trusted, 30000U);
+    const uint64_t original_deadline = registry.entries[1].preclaim_deadline_ms;
+    memset(foreign, 'f', 64U); foreign[64] = '\0';
+    assert(!confirm_registry(&registry, foreign, &error));
+    assert(snprintf(path, sizeof(path), "%s/p.sock", test_private_directory()) > 0);
+    assert(strlen(path) < sizeof(address.sun_path));
+    strcpy(address.sun_path, path);
+    assert(msconnector_traefik_provenance_start_with_confirmation(path, confirm_registry, &registry));
+    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    assert(fd >= 0 && connect(fd, (struct sockaddr *)&address, sizeof(address)) == 0);
+    socket_exact(fd, reserve, sizeof(reserve), 1);
+    socket_exact(fd, reply, 77U, 0);
+    assert(reply[12] == 0U);
+    memcpy(token, reply + 13U, 64U); token[64] = '\0';
+    msconnector_header header = {MSCONNECTOR_TRAEFIK_PROVENANCE_HEADER,
+        sizeof(MSCONNECTOR_TRAEFIK_PROVENANCE_HEADER)-1U, token, 64U};
+    msconnector_request request = {.headers = &header, .header_count = 1U};
+    assert(msconnector_traefik_provenance_claim(NULL, &request, &storage, &error));
+    assert(msconnector_traefik_provenance_complete(NULL, &request, 200, trusted, &error));
+    socket_exact(fd, query, sizeof(query), 1);
+    socket_exact(fd, reply, sizeof(reply), 0);
+    assert(reply[12] == 0U && memcmp(reply + 15U, trusted, 64U) == 0);
+    while (atomic_flag_test_and_set_explicit(&registry.lock, memory_order_acquire)) {}
+    const int original_deadline_preserved =
+        registry.entries[1].expires_at_ms == original_deadline &&
+        registry.entries[1].trusted_preclaim_refreshed;
+    atomic_flag_clear_explicit(&registry.lock, memory_order_release);
+    assert(!confirm_registry(&registry, trusted, &error)); /* one refresh */
+    assert(close(fd) == 0);
+    msconnector_traefik_provenance_stop();
+    struct timespec wait = {.tv_sec = 5, .tv_nsec = 100000000L};
+    assert(nanosleep(&wait, NULL) == 0);
+    assert(!confirm_registry(&registry, ordinary, &error)); /* cannot resurrect */
+    assert(!msconnector_runtime_response_companion_claim_handle(&registry, ordinary, &session, &error));
+    assert(msconnector_runtime_response_companion_claim_handle(&registry, trusted, &session, &error));
+    assert(original_deadline_preserved); /* no fresh thirty-second window */
+    assert(!confirm_registry(&registry, trusted, &error));
+    assert(msconnector_runtime_response_companion_session_cancel(&session, 0, &error));
+    begin_handed_off_ttl(runtime, &registry, "already-claimed", claimed, 30000U);
+    assert(msconnector_runtime_response_companion_claim_handle(&registry, claimed, &session, &error));
+    assert(!confirm_registry(&registry, claimed, &error));
+    assert(msconnector_runtime_response_companion_session_cancel(&session, 0, &error));
+    begin_handed_off_ttl(runtime, &registry, "expired-confirmation", expired, 1U);
+    wait.tv_sec = 0; wait.tv_nsec = 10000000L;
+    assert(nanosleep(&wait, NULL) == 0);
+    assert(!confirm_registry(&registry, expired, &error));
+    assert(msconnector_runtime_response_companion_registry_shutdown(&registry, &error));
+    assert(!confirm_registry(&registry, expired, &error));
+    /* Shutdown latch with a real unclaimed native handle and one explicitly
+     * synthetic metadata-only blocking lease (no native/session ownership). */
+    msconnector_runtime_response_companion_registry_init(&registry);
+    begin_handed_off_ttl(runtime, &registry, "shutdown-unclaimed-live", foreign, 30000U);
+    registry.entries[1].occupied = 1;
+    registry.entries[1].in_use = 1;
+    assert(!msconnector_runtime_response_companion_registry_shutdown(&registry, &error));
+    assert(!confirm_registry(&registry, foreign, &error));
+    assert(!registry.entries[0].trusted_preclaim_refreshed);
+    registry.entries[1].in_use = 0;
+    assert(msconnector_runtime_response_companion_registry_shutdown(&registry, &error));
 }
 
 /* ext_authz forwards a bounded request entity to P2 before transferring the
@@ -405,6 +506,77 @@ static void *run_parallel_response(void *opaque) {
     return NULL;
 }
 
+static void test_trusted_provenance_native_lifecycle(void) {
+    static const char rules[] = "SecRuleEngine On\n"
+        "SecRule REQUEST_URI \"@streq /blocked\" \"id:1010,phase:1,deny,status:403,log\"\n";
+    for (int mode = 0; mode < 3; ++mode) {
+        authz_runtime_fixture fixture = {0};
+        msconnector_runtime_transaction *transaction = NULL;
+        msconnector_runtime_response_companion_registry registry;
+        msconnector_decision decision;
+        msconnector_error error;
+        msconnector_request request = {0};
+        char run_id[] = "trusted-native-run";
+        char connection_id[] = "trusted-native-connection";
+        msconnector_runtime_trusted_provenance provenance = {
+            run_id, "trusted-native-case", connection_id, 0};
+        char handle[MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE];
+        char contents[32768];
+        create_runtime_fixture(fixture.config_path, fixture.event_path,
+            fixture.rules_path, rules, "buffered", "safe", (response_fixture_policy){1024U, "Reject"});
+        assert(msconnector_runtime_create("traefik", fixture.config_path, &fixture.runtime, NULL, 0U));
+        assert(msconnector_runtime_set_event_integration_mode(fixture.runtime, "forwardAuth"));
+        assert(msconnector_runtime_set_transaction_profile(fixture.runtime,
+            msconnector_profile_registry_find("traefik-forwardauth")));
+        request.method = "GET";
+        request.uri = mode == 0 ? "/blocked" : "/allowed";
+        request.http_version = "HTTP/1.1";
+        request.client.address = "127.0.0.1"; request.client.port = 12345;
+        request.server.address = "127.0.0.1"; request.server.port = 9191;
+        msconnector_error_init(&error);
+        if (mode == 2) {
+            assert(msconnector_runtime_transaction_begin_request_stream_with_trusted_provenance(
+                fixture.runtime, &request, "trusted-cancel", &provenance, &transaction, &decision, &error));
+        } else {
+            assert(msconnector_runtime_transaction_begin_with_trusted_provenance(
+                fixture.runtime, &request, mode == 0 ? "trusted-deny" : "trusted-allow",
+                &provenance, &transaction, &decision, &error));
+        }
+        memset(run_id, 'x', sizeof(run_id)-1U);
+        memset(connection_id, 'x', sizeof(connection_id)-1U);
+        if (mode == 1) {
+            msconnector_runtime_response_companion_registry_init(&registry);
+            assert(msconnector_runtime_response_companion_handoff_with_handle(&registry,
+                transaction, UINT64_C(60000), handle, &error));
+            transaction = NULL;
+            assert(finish_response(&registry, handle));
+            assert(msconnector_runtime_response_companion_registry_shutdown(&registry, &error));
+        } else {
+            msconnector_runtime_transaction_snapshot snapshot;
+            if (mode == 2) assert(msconnector_runtime_transaction_cancel(transaction, 0, &error));
+            assert(msconnector_runtime_transaction_finalize_and_snapshot(&transaction, &snapshot, &error));
+            assert(transaction == NULL && snapshot.contract.cleanup_complete);
+        }
+        msconnector_runtime_destroy(&fixture.runtime);
+        read_event_contents(fixture.event_path, contents, sizeof(contents));
+        assert(strstr(contents, "\"run_id\":\"trusted-native-run\"") != NULL);
+        assert(strstr(contents, "\"connection_id\":\"trusted-native-connection\"") != NULL);
+        assert(strstr(contents, "\"transport_case_id\":\"trusted-native-case\"") != NULL);
+        assert(strstr(contents, "\"connection_reused\":false") != NULL);
+        assert(strstr(contents, "\"event\":\"transaction_cleanup\"") != NULL);
+        assert(strstr(contents, "xxxxxxxx") == NULL);
+        if (mode == 0) assert(strstr(contents, "\"rule_id\":\"1010\"") != NULL);
+        if (mode == 1) assert(strstr(contents, "\"eos_seen\":true") != NULL);
+        if (mode == 2) {
+            assert(strstr(contents, "\"cleanup_reason\":\"client_cancel\"") != NULL);
+            assert(strstr(contents, "\"eos_seen\":true") == NULL);
+        }
+        assert(unlink(fixture.config_path) == 0);
+        assert(unlink(fixture.event_path) == 0);
+        assert(unlink(fixture.rules_path) == 0);
+    }
+}
+
 int main(void) {
     msconnector_runtime *runtime = NULL;
     msconnector_runtime_response_companion_registry registry;
@@ -430,6 +602,7 @@ int main(void) {
     msconnector_runtime_response_companion_registry_init(&registry);
 
     char handle[MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE];
+    test_trusted_preclaim_refresh(runtime);
     begin_handed_off(runtime, &registry, "live-happy", handle);
     assert(finish_response(&registry, handle));
     msconnector_error_init(&error);
@@ -536,6 +709,7 @@ int main(void) {
     test_invalid_byte_event_is_losslessly_written();
     test_lossy_event_is_not_written_or_chained();
     test_buffered_request_body_handoff();
+    test_trusted_provenance_native_lifecycle();
     assert(rmdir(test_private_root) == 0);
     return 0;
 }

@@ -10,6 +10,7 @@
 
 static msconnector_runtime_transaction *retained;
 static size_t expected_length;
+static size_t expected_retained;
 static int handoff_calls;
 static int handoff(const msconnector_runtime *runtime, msconnector_runtime_transaction *transaction,
     void *userdata, char handle[MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE], msconnector_error *error) {
@@ -19,7 +20,8 @@ static int handoff(const msconnector_runtime *runtime, msconnector_runtime_trans
     assert(msconnector_runtime_transaction_snapshot_get(transaction, &snapshot));
     assert(snapshot.request_body.finished);
     assert(snapshot.request_body.bytes_seen == expected_length);
-    assert(snapshot.request_body.bytes_inspected == expected_length);
+    assert(snapshot.request_body.bytes_inspected == 0U);
+    assert(snapshot.request_body.bytes_retained == expected_retained);
     assert(snapshot.contract.last_completed_phase == MSCONNECTOR_PHASE_REQUEST_BODY);
     assert(retained == NULL);
     retained = transaction; ++handoff_calls;
@@ -96,6 +98,8 @@ int main(int argc, char **argv) {
     int sockets[2]; assert(socketpair(AF_UNIX,SOCK_STREAM,0,sockets)==0);
     writer input={sockets[1],(size_t)strtoull(argv[5],NULL,10),(size_t)strtoull(argv[6],NULL,10),atoi(argv[7])};
     expected_length=input.length;
+    expected_retained = strcmp(argv[4], "ProcessPartial") == 0 && limit < input.length
+        ? limit : input.length;
     pthread_t thread; assert(pthread_create(&thread,NULL,client,&input)==0);
     struct sockaddr_in endpoint; memset(&endpoint,0,sizeof(endpoint)); endpoint.sin_family=AF_INET;
     endpoint.sin_addr.s_addr=htonl(INADDR_LOOPBACK); endpoint.sin_port=htons(12345);
