@@ -289,6 +289,38 @@ const char *msconnector_runtime_transaction_id(
 void msconnector_runtime_transaction_destroy(msconnector_runtime_transaction **t)
     { if (t != NULL) { free(*t); *t = NULL; } }
 
+/* This legacy transport fixture has no trusted-provenance producer. */
+int msconnector_runtime_transaction_begin_request_stream_with_trusted_provenance(
+    msconnector_runtime *runtime, const msconnector_request *request,
+    const char *request_id, const msconnector_runtime_trusted_provenance *provenance,
+    msconnector_runtime_transaction **out, msconnector_decision *decision,
+    msconnector_error *error) {
+    if (provenance != NULL) {
+        if (out != NULL) *out = NULL;
+        msconnector_error_set(error, MSCONNECTOR_ERROR_UNSUPPORTED_PHASE,
+            "trusted provenance is outside this legacy fixture", "fixture");
+        return 0;
+    }
+    return msconnector_runtime_transaction_begin_request_stream(runtime, request,
+        request_id, out, decision, error);
+}
+int msconnector_runtime_transaction_finalize_and_snapshot(
+    msconnector_runtime_transaction **transaction,
+    msconnector_runtime_transaction_snapshot *snapshot, msconnector_error *error) {
+    if (transaction == NULL || *transaction == NULL || snapshot == NULL) return 0;
+    if (!(*transaction)->finished &&
+        msconnector_runtime_transaction_finish(*transaction, error) != 1) return 0;
+    memset(snapshot, 0, sizeof(*snapshot));
+    snapshot->finished = (*transaction)->finished;
+    snapshot->request_body.bytes_seen = (*transaction)->request_body_bytes;
+    snapshot->request_body.finished = (*transaction)->request_body_finished;
+    snapshot->contract.cleanup_started = 1;
+    snapshot->contract.cleanup_complete = 1;
+    snapshot->contract.status = MSCONNECTOR_TRANSACTION_STATUS_CLEANED;
+    msconnector_runtime_transaction_destroy(transaction);
+    return 1;
+}
+
 static const msconnector_transaction_profile transaction_profile = {
     .profile_id = 1U, .profile_name = "peer-close", .connector_id = "peer-close",
     .host_adapter_id = "peer-close", .direct_phase_mask = MSCONNECTOR_TRANSACTION_PHASE_MASK_ALL,

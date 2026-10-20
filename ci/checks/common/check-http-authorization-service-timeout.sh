@@ -14,6 +14,8 @@ TEST_SOURCE="$REPO_ROOT/ci/checks/common/http_authorization_service_timeout_smok
 TEST_BINARY="$OUT_DIR/http_authorization_service_timeout_smoke"
 COMPANION_SOURCE="$REPO_ROOT/tests/http_authorization_service_response_companion_lifecycle_smoke.c"
 COMPANION_BINARY="$OUT_DIR/http_authorization_service_response_companion_lifecycle_smoke"
+TRUSTED_SOURCE="$REPO_ROOT/tests/http_authorization_service_trusted_binding_smoke.c"
+TRUSTED_BINARY="$OUT_DIR/http_authorization_service_trusted_binding_smoke"
 
 case "$BUILD_ROOT" in
     /*) ;;
@@ -54,5 +56,27 @@ mkdir -p "$OUT_DIR"
     "$REPO_ROOT"/common/src/*.c \
     -o "$COMPANION_BINARY"
 "$COMPANION_BINARY"
+
+"$CC_BIN" $MSCONNECTOR_CFLAGS -pthread \
+    -I "$REPO_ROOT" \
+    -I "$REPO_ROOT/common/include" \
+    -I "$REPO_ROOT/common/runtime" \
+    "$TRUSTED_SOURCE" \
+    "$REPO_ROOT/common/runtime/http_authorization_service.c" \
+    "$REPO_ROOT"/common/src/*.c \
+    -o "$TRUSTED_BINARY"
+"$TRUSTED_BINARY"
+
+for fixture in detached_worker peer_close; do
+    "$CC_BIN" $MSCONNECTOR_CFLAGS -pthread \
+        -I "$REPO_ROOT" \
+        -I "$REPO_ROOT/common/include" \
+        -I "$REPO_ROOT/common/runtime" \
+        "$REPO_ROOT/tests/http_authorization_service_${fixture}_smoke.c" \
+        "$REPO_ROOT/common/runtime/http_authorization_service.c" \
+        "$REPO_ROOT"/common/src/*.c \
+        -o "$OUT_DIR/http_authorization_service_${fixture}_smoke"
+    "$OUT_DIR/http_authorization_service_${fixture}_smoke"
+done
 
 printf 'http_authorization_service_timeout_smoke: pass output=%s\n' "$OUT_DIR"
