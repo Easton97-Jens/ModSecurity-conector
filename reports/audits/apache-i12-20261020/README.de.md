@@ -1,6 +1,6 @@
 # Apache-Verfahren zur abschließenden Prüfung physischer Nachweise
 
-Englische Begleitdatei: [README.md](README.md).
+**Sprache:** [English](README.md) | Deutsch
 
 `final_review.py` ergänzt den vorhandenen Apache-Batchextraktor und die
 unveränderten gemeinsamen Lifecycle-Validatoren um ein konservatives

@@ -1,6 +1,6 @@
 # Apache final physical-evidence review procedure
 
-German companion: [README.de.md](README.de.md).
+**Language:** English | [Deutsch](README.de.md)
 
 `final_review.py` adds a conservative Root review procedure to the existing
 Apache batch extractor and unchanged shared lifecycle validators. It runs no

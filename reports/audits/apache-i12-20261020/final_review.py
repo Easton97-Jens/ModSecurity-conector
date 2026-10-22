@@ -18,6 +18,7 @@ import re
 
 
 ROOT = Path(__file__).resolve().parents[3]
+RESPONSE_RAW = 'response.raw'
 
 
 def load(name, relative):
@@ -115,7 +116,10 @@ def bytes_input(value):
 def predicate(name, passed, reason, references=()):
     if passed is not None and type(passed) is not bool:
         raise ValueError('Predicate must be true, false or unknown')
-    return {'name': name, 'result': None if passed is None else ('PASS' if passed else 'FAIL'),
+    result = None
+    if passed is not None:
+        result = 'PASS' if passed else 'FAIL'
+    return {'name': name, 'result': result,
             'reason': reason, 'physical_references': list(references)}
 
 
@@ -157,7 +161,7 @@ def complete_measurements(packet, packet_path):
 def check_wire(plan, packet):
     refs = evidence(packet, 'client_bytes')
     request_refs = [item for item in refs if Path(item['path']).name == 'request.raw']
-    response_refs = [item for item in refs if Path(item['path']).name == 'response.raw']
+    response_refs = [item for item in refs if Path(item['path']).name == RESPONSE_RAW]
     if len(request_refs) != 1 or len(response_refs) != 1:
         return False
     request = Path(request_refs[0]['path']).read_bytes()
@@ -177,7 +181,7 @@ def check_wire(plan, packet):
     if (request_lengths != [str(len(body)).encode()]
             or any(key.lower() == b'transfer-encoding' for key, _ in fields)):
         return False
-    response_head, separator, entity = response.partition(b'\r\n\r\n')
+    _, separator, entity = response.partition(b'\r\n\r\n')
     headers = BATCH.wire_headers(response)
     if not separator or headers is None or headers['status'] != plan['candidate_expectation']['visible_status']:
         return False
@@ -418,15 +422,18 @@ def check_registered_oracle_lifecycle(plan, packet):
 
 def check_registered_fixture(plan):
     name = plan['case_id']
-    body = (b'' if name == 'NEED-request-empty' else
-            b'column_a,column_b\nvalue_a,value_b\n' if name == 'NEED-request-csv' else
-            b'Apache-I12-request-payload')
+    if name == 'NEED-request-empty':
+        body = b''
+    elif name == 'NEED-request-csv':
+        body = b'column_a,column_b\nvalue_a,value_b\n'
+    else:
+        body = b'Apache-I12-request-payload'
     content_type = 'text/csv' if name == 'NEED-request-csv' else 'text/plain'
     types = [value for key, value in plan['request']['headers'] if key.lower() == 'content-type']
     expected = plan['candidate_expectation']
     return (bytes_input(plan['request']['body']) == body
             and bytes_input(plan['backend']['body']) == b'Apache I12 healthy body\n'
-            and types == ([] if content_type is None else [content_type])
+            and types == [content_type]
             and plan['request']['method'] == 'POST' and plan['request']['path'] == '/i12/' + name
             and plan['request']['framing'] == plan['backend']['framing'] == 'content_length'
             and plan['request']['peer_action'] == 'normal'
@@ -441,7 +448,7 @@ def control_references(packet):
         return []
     root = Path(driver['path']).parent
     return [O.reference(root / label / filename) for label in ('followup', 'neighbor')
-            for filename in ('receipt.json', 'process.command.json', 'response.raw')
+            for filename in ('receipt.json', 'process.command.json', RESPONSE_RAW)
             if (root / label / filename).is_file()]
 
 
@@ -457,7 +464,7 @@ def check_controls(plan, packet):
         directory = root / control['label']
         receipt = json.loads((directory / 'receipt.json').read_text())
         process = json.loads((directory / 'process.command.json').read_text())
-        raw = (directory / 'response.raw').read_bytes()
+        raw = (directory / RESPONSE_RAW).read_bytes()
         headers = BATCH.wire_headers(raw)
         body = bytes_input(control['backend_body'])
         if (receipt['path'] != control['path'] or receipt['method'] != control['method']

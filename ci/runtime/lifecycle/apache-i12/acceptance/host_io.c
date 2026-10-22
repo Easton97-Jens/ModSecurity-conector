@@ -431,8 +431,12 @@ apr_status_t name(apr_socket_t *socket,qualifier char *buffer,apr_size_t *size) 
 }
 APR_BUFFER(apr_socket_send,0,const)
 APR_BUFFER(apr_socket_recv,1,)
+typedef apr_status_t (*apr_sendv_function)(apr_socket_t *socket, const struct iovec *vectors,
+    apr_int32_t count, apr_size_t *size);
+typedef apr_status_t (*apr_sendfile_function)(apr_socket_t *socket, apr_file_t *file,
+    apr_hdtr_t *headers, apr_off_t *offset, apr_size_t *size, apr_int32_t flags);
 apr_status_t apr_socket_sendv(apr_socket_t *socket,const struct iovec *vectors,apr_int32_t count,apr_size_t *size) {
-    int initial=errno; void *real_address=symbol("apr_socket_sendv"); apr_status_t (*real_call)(apr_socket_t *target,const struct iovec *buffers,apr_int32_t length,apr_size_t *written)=real_address;
+    int initial=errno; void *real_address=symbol("apr_socket_sendv"); apr_sendv_function real_call=real_address;
     int fd=socket_fd(socket); size_t requested=vector_size(vectors,count); uint64_t entered=now(); uint64_t call=call_number(); struct apr_scope scope=apr_enter(call,fd);
     errno=initial; apr_status_t result=real_call(socket,vectors,count,size); int saved=errno; int parse=apr_leave(scope);
     const struct transport_call observed={"apr_socket_sendv",real_address,fd,0,1,result,saved,requested,size?*size:0,result==APR_SUCCESS,
@@ -441,7 +445,7 @@ apr_status_t apr_socket_sendv(apr_socket_t *socket,const struct iovec *vectors,a
 }
 apr_status_t apr_socket_sendfile(apr_socket_t *socket,apr_file_t *file,apr_hdtr_t *headers,
     apr_off_t *offset,apr_size_t *size,apr_int32_t flags) {
-    int initial=errno; void *real_address=symbol("apr_socket_sendfile"); apr_status_t (*real_call)(apr_socket_t *target,apr_file_t *source,apr_hdtr_t *head_tail,apr_off_t *position,apr_size_t *written,apr_int32_t options)=real_address;
+    int initial=errno; void *real_address=symbol("apr_socket_sendfile"); apr_sendfile_function real_call=real_address;
     int fd=socket_fd(socket); size_t requested=size?*size:0; uint64_t entered=now(); uint64_t call=call_number(); struct apr_scope scope=apr_enter(call,fd);
     errno=initial; apr_status_t result=real_call(socket,file,headers,offset,size,flags); int saved=errno; (void)apr_leave(scope);
     const struct transport_call observed={"apr_socket_sendfile",real_address,fd,0,1,result,saved,requested,size?*size:0,result==APR_SUCCESS,
