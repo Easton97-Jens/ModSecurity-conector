@@ -36,8 +36,8 @@
       "patch_sha256": "0c5bd00478c78873b2478f01f24331385a9925c9e3b096704c83772f3cc1c36c"
     },
     "3ad4e4d801672b0aec1c94326e6e0a2e12e2422e57d1e747121a0bbc2c1b73c8": {
-      "kind": "repository",
-      "path": "connectors/nginx/src/ngx_http_modsecurity_access.c"
+      "kind": "text_lines",
+      "file": "objects/text/3ad4e4d801672b0aec1c94326e6e0a2e12e2422e57d1e747121a0bbc2c1b73c8-ngx_http_modsecurity_access.c.lines.json"
     },
     "a7495c06df19e5cb51cd61b291b81993e10a811517c246bce52a39092ee0d569": {
       "kind": "delta",
