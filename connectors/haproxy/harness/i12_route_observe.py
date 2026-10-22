@@ -38,6 +38,9 @@ REQUEST_BODY_CALL = 'native_process_request_body'
 REQUEST_FINISH_CALL = 'common_finish_request_authorization'
 NEW_NATIVE_CALL = 'native_new_with_id'
 ALLOCATION_CALL = 'host_allocation'
+AGENT_CONFIG = 'agent.conf'
+NATIVE_DEBUG = 'native-debug.log'
+NEIGHBOR_PATH = '/i12-neighbor'
 BACKEND_HEADER_LIMIT = 65536
 BACKEND_BODY_LIMIT = 8 * 1024 * 1024
 HTTP_TOKEN = re.compile(rb"[!#$%&'*+.^_`|~0-9A-Za-z-]+")
@@ -159,29 +162,33 @@ def executed_fixture(spec, bindings, fixture_path, attempt, data):
             "result_reference": reference(result_path, ROLE_CLEANUP)}
 
 
+def verify_completion_images(provenance, build_path, build, images):
+    if provenance.get("build_completion_seal") != str(build_path):
+        raise ValueError("source provenance names a different build completion seal")
+    require_hash(build_path, provenance.get("build_completion_seal_sha256"))
+    revision = provenance.get("product_and_capture_revision")
+    if build.get("required_head") != revision:
+        raise ValueError("build completion seal differs from source provenance revision")
+    binaries = build.get("binaries")
+    if not isinstance(binaries, dict) or set(binaries) != {"direct", "agent", "companion"}:
+        raise ValueError("build completion seal has an unexpected binary inventory")
+    roles = [image.get("role") for image in images if isinstance(image, dict)]
+    if len(images) != 4 or set(roles) != {"direct", "agent", "companion", "native_engine"} or len(set(roles)) != len(roles):
+        raise ValueError("current source provenance has an unexpected image inventory")
+    for image in images:
+        require_hash(Path(image["source"]), image["sha256"])
+        require_hash(Path(image["sealed_copy"]), image["sha256"])
+        if image["role"] != "native_engine" and binaries[image["role"]].get("sha256") != image["sha256"]:
+            raise ValueError("sealed image differs from build completion seal")
+
+
 def verified_provenance_images(provenance, build_path):
     build = read_json(build_path)
     images = provenance.get("images")
     if not isinstance(images, list):
         raise ValueError("source provenance images must be an array")
     if provenance.get("schema") == "haproxy-i12-host-input-provenance-v1":
-        if provenance.get("build_completion_seal") != str(build_path):
-            raise ValueError("source provenance names a different build completion seal")
-        require_hash(build_path, provenance.get("build_completion_seal_sha256"))
-        revision = provenance.get("product_and_capture_revision")
-        if build.get("required_head") != revision:
-            raise ValueError("build completion seal differs from source provenance revision")
-        binaries = build.get("binaries")
-        if not isinstance(binaries, dict) or set(binaries) != {"direct", "agent", "companion"}:
-            raise ValueError("build completion seal has an unexpected binary inventory")
-        roles = [image.get("role") for image in images if isinstance(image, dict)]
-        if len(images) != 4 or set(roles) != {"direct", "agent", "companion", "native_engine"} or len(set(roles)) != len(roles):
-            raise ValueError("current source provenance has an unexpected image inventory")
-        for image in images:
-            require_hash(Path(image["source"]), image["sha256"])
-            require_hash(Path(image["sealed_copy"]), image["sha256"])
-            if image["role"] != "native_engine" and binaries[image["role"]].get("sha256") != image["sha256"]:
-                raise ValueError("sealed image differs from build completion seal")
+        verify_completion_images(provenance, build_path, build, images)
         return build, images
     if provenance.get("build_receipt") != str(build_path):
         raise ValueError("source provenance names a different build receipt")
@@ -245,7 +252,7 @@ class Readings:
             if not isinstance(value, expected):
                 raise ValueError("unexpected stored JSON container")
             return value
-        except (OSError, ValueError, UnicodeError) as error:
+        except (OSError, ValueError) as error:
             self.problems[name] = type(error).__name__ + ": " + str(error)
             return None
 
@@ -459,6 +466,23 @@ def client_files(companion, indexed, index):
     return "response.raw", "request.raw"
 
 
+def verified_client_bytes(readings, name, value, client, field):
+    if client is not None and value is not None and client.get(field) not in (None, digest(value)):
+        label = "request" if field == "request_sha256" else "response"
+        readings.problems[name] = "captured " + label + " differs from independent client digest"
+        return None
+    return value
+
+
+def receipt_commands(readings, commands, name, companion):
+    if companion and commands:
+        commands = commands.get("commands")
+        if not isinstance(commands, list):
+            readings.problems[name] = "host receipt has no actual command array"
+            return None
+    return commands
+
+
 def load_route(readings, companion, index):
     prefix = "agent-native.jsonl" if companion else "agent-native-api.jsonl"
     native = readings.get(prefix, ROLE_API, "jsonl")
@@ -471,22 +495,14 @@ def load_route(readings, companion, index):
     wire_name, request_name = client_files(companion, indexed, index)
     wire = readings.get(wire_name, ROLE_CLIENT, "bytes")
     request = readings.get(request_name, ROLE_CLIENT, "bytes")
-    if client is not None and request is not None and client.get("request_sha256") not in (None, digest(request)):
-        readings.problems[request_name] = "captured request differs from independent client digest"
-        request = None
-    if client is not None and wire is not None and client.get("response_sha256") not in (None, digest(wire)):
-        readings.problems[wire_name] = "captured response differs from independent client digest"
-        wire = None
+    request = verified_client_bytes(readings, request_name, request, client, "request_sha256")
+    wire = verified_client_bytes(readings, wire_name, wire, client, "response_sha256")
     backend_name = "observations.json" if companion else "backend.jsonl"
     backend = readings.get(backend_name, ROLE_BACKEND, "array" if companion else "jsonl")
     commands_name = "receipt.json" if companion else "commands.jsonl"
     commands = readings.get(commands_name, ROLE_CLEANUP, "json" if companion else "jsonl")
     capture_receipt = commands if companion else None
-    if companion and commands:
-        commands = commands.get("commands")
-        if not isinstance(commands, list):
-            readings.problems[commands_name] = "host receipt has no actual command array"
-            commands = None
+    commands = receipt_commands(readings, commands, commands_name, companion)
     agent_text = readings.get(AGENT_STDERR, ROLE_HOST, "text")
     host_text = readings.get(HOST_STDERR, ROLE_HOST, "text")
     agent_callbacks, agent_errors = callback_rows(agent_text)
@@ -517,17 +533,17 @@ def native_measurements(observations, route, readings, joined):
     states = transitions(rows)
     observations["finish_transitions"] = unknown("Common transition state or paired return missing/ambiguous", states) if any(row["after"] is None for row in states) else measured(states, api)
     observations["native_free_calls"] = measured({"actual_native_cleanup_returns": calls(rows, "native_cleanup"), "common_cleanup_is_not_a_second_native_free": True}, api)
-    debug = readings.get("native-debug.log", ROLE_DEBUG, "text")
+    debug = readings.get(NATIVE_DEBUG, ROLE_DEBUG, "text")
     if debug is not None:
         phases = ("native_process_request_headers", REQUEST_BODY_CALL, "native_process_response_headers", "native_process_response_body", "native_process_logging")
-        observations["native_phases"] = measured({phase: calls(rows, phase) for phase in phases}, api + [readings.ref("native-debug.log", ROLE_DEBUG)])
+        observations["native_phases"] = measured({phase: calls(rows, phase) for phase in phases}, api + [readings.ref(NATIVE_DEBUG, ROLE_DEBUG)])
     selections = [row for row in rows if row.get("native_mime_selection") is not None]
     if selections:
         observations["mime_gate"] = measured(selections, api)
 
 
 def configured_sink(readings, attempt):
-    configuration = readings.get("agent.conf", ROLE_CONFIG, "text")
+    configuration = readings.get(AGENT_CONFIG, ROLE_CONFIG, "text")
     namespace = Path("/task") / readings.root.relative_to(attempt / "data") / DECISION_FILE
     options = []
     for line in (configuration or "").splitlines():
@@ -535,7 +551,7 @@ def configured_sink(readings, attempt):
         if separator and key.strip() == "decision-log":
             options.append(value.strip())
     valid = options == [str(namespace)]
-    return {"actual_decision_log_options": options, "effective_agent_config_sha256": readings.artifacts.get("agent.conf", {}).get("sha256"), "expected_case_namespace_path": str(namespace),
+    return {"actual_decision_log_options": options, "effective_agent_config_sha256": readings.artifacts.get(AGENT_CONFIG, {}).get("sha256"), "expected_case_namespace_path": str(namespace),
             "physical_path": str(readings.root / DECISION_FILE), "configuration_matches": valid,
             "reason": None if valid else "effective decision-log option is missing, ambiguous or outside this case data root"}
 
@@ -645,11 +661,11 @@ def spop_backend_request(raw):
     if len(body) != length:
         raise ValueError("backend body differs from declared Content-Length")
     path = parts[1].decode("ascii")
-    if raw["neighbor"] != (path == "/i12-neighbor"):
+    if raw["neighbor"] != (path == NEIGHBOR_PATH):
         raise ValueError("backend neighbor marker conflicts with request path")
     return {"method": parts[0].decode("ascii"), "path": path, "http_version": parts[2].decode("ascii"),
             "headers": headers, "body_bytes": len(body), "body_sha256": digest(body), "body_hex": body.hex(),
-            "neighbor": path == "/i12-neighbor", "raw_record": raw}
+            "neighbor": path == NEIGHBOR_PATH, "raw_record": raw}
 
 
 def normalized_backend_rows(route):
@@ -683,7 +699,7 @@ def backend_zero_control(route, readings, requests):
     if ready is None or not any(row.get("backend_joined") is True for row in cleanup or []):
         return None, "backend readiness or joined-producer receipt is missing"
     neighbors = [row for row in route["all_clients"] or [] if row.get("neighbor") is True]
-    actual_neighbor = [row for row in requests if row.get("path") == "/i12-neighbor"]
+    actual_neighbor = [row for row in requests if row.get("path") == NEIGHBOR_PATH]
     wire = readings.get("response-neighbor.raw", ROLE_CLIENT, "bytes")
     if len(neighbors) != 1 or len(actual_neighbor) != 1 or wire is None:
         return None, "zero main count needs one independently captured positive neighbor"
@@ -724,6 +740,20 @@ def backend_measurements(observations, route, readings, path):
         observations[field]["partial_evidence"] = refs
 
 
+def mapped_image_paths(maps):
+    return sorted({line.split()[-1] for line in maps.splitlines()
+                   if "libmodsecurity.so" in line or line.rstrip().endswith(("/haproxy", "/haproxy-spop"))})
+
+
+def resolve_mapped_image(binding, expected, owner, namespace):
+    actual, ledger = binding["bindings"].resolve(namespace)
+    actual_hash = digest(read_bytes(actual))
+    if expected.get(str(actual)) != actual_hash:
+        raise ValueError("actual mapped image differs from sealed source provenance")
+    return {"process": owner, "namespace_path": namespace, "physical_path": str(actual),
+            "sha256": actual_hash, "ledger": str(ledger)}
+
+
 def mapped_images(readings, binding, companion):
     images, reasons, refs = [], [], []
     expected = {image["sealed_copy"]: image["sha256"] for image in binding["images"]}
@@ -734,16 +764,12 @@ def mapped_images(readings, binding, companion):
             reasons.append("missing " + name)
             continue
         refs.append(readings.ref(name, ROLE_IMAGE))
-        paths = sorted({line.split()[-1] for line in maps.splitlines() if "libmodsecurity.so" in line or line.rstrip().endswith(("/haproxy", "/haproxy-spop"))})
+        paths = mapped_image_paths(maps)
         if not paths:
             reasons.append("no SDK/binary mapping in " + name)
         for namespace in paths:
             try:
-                actual, ledger = binding["bindings"].resolve(namespace)
-                actual_hash = digest(read_bytes(actual))
-                if expected.get(str(actual)) != actual_hash:
-                    raise ValueError("actual mapped image differs from sealed source provenance")
-                images.append({"process": owner, "namespace_path": namespace, "physical_path": str(actual), "sha256": actual_hash, "ledger": str(ledger)})
+                images.append(resolve_mapped_image(binding, expected, owner, namespace))
             except (OSError, ValueError) as error:
                 reasons.append(str(error))
     return images, reasons, refs
@@ -816,21 +842,30 @@ def host_measurements(observations, route, readings, joined, companion, fixture_
     observations["transport_reset_scope"] = unknown("connection reset scope requires independent host connection association", partial)
 
 
-def cleanup_and_neighbor(observations, route, readings, companion):
+def companion_cleanup_captures(observations, route, readings):
     captures = {}
-    if companion:
-        for owner in ("agent", "host"):
-            captures[owner] = {stage: readings.get(owner + "-" + stage + ".fds.json", ROLE_CLEANUP) for stage in ("before-main", "after-main", "after-neighbor")}
-        neighbor = readings.get("client-100.json", ROLE_CLIENT)
-        if neighbor is not None and route["backend"] is not None:
-            observations["neighbor_health"] = measured({"actual_neighbor_client": neighbor, "actual_backend_rows": actual_backend_rows(route)}, [readings.ref("client-100.json", ROLE_CLIENT), readings.ref(route["backend_name"], ROLE_BACKEND)])
-    else:
-        rows = readings.get("process-identity.jsonl", ROLE_CLEANUP, "jsonl")
-        if rows is not None:
-            captures["actual_process_snapshots"] = rows
-        neighbors = [row for row in route["all_clients"] or [] if row.get("neighbor") is True]
-        if len(neighbors) == 1 and route["backend"] is not None:
-            observations["neighbor_health"] = measured({"actual_neighbor_client": neighbors[0], "actual_backend_rows": actual_backend_rows(route)}, [readings.ref(route["client_name"], ROLE_CLIENT), readings.ref(route["backend_name"], ROLE_BACKEND)])
+    for owner in ("agent", "host"):
+        captures[owner] = {stage: readings.get(owner + "-" + stage + ".fds.json", ROLE_CLEANUP) for stage in ("before-main", "after-main", "after-neighbor")}
+    neighbor = readings.get("client-100.json", ROLE_CLIENT)
+    if neighbor is not None and route["backend"] is not None:
+        observations["neighbor_health"] = measured({"actual_neighbor_client": neighbor, "actual_backend_rows": actual_backend_rows(route)}, [readings.ref("client-100.json", ROLE_CLIENT), readings.ref(route["backend_name"], ROLE_BACKEND)])
+    return captures
+
+
+def request_cleanup_captures(observations, route, readings):
+    captures = {}
+    rows = readings.get("process-identity.jsonl", ROLE_CLEANUP, "jsonl")
+    if rows is not None:
+        captures["actual_process_snapshots"] = rows
+    neighbors = [row for row in route["all_clients"] or [] if row.get("neighbor") is True]
+    if len(neighbors) == 1 and route["backend"] is not None:
+        observations["neighbor_health"] = measured({"actual_neighbor_client": neighbors[0], "actual_backend_rows": actual_backend_rows(route)}, [readings.ref(route["client_name"], ROLE_CLIENT), readings.ref(route["backend_name"], ROLE_BACKEND)])
+    return captures
+
+
+def cleanup_and_neighbor(observations, route, readings, companion):
+    captures = (companion_cleanup_captures(observations, route, readings) if companion
+                else request_cleanup_captures(observations, route, readings))
     if captures:
         proofs = [readings.ref(name, ROLE_CLEANUP) for name in readings.artifacts if name.endswith(".fds.json") or name == "process-identity.jsonl"]
         if proofs:
@@ -874,6 +909,29 @@ def execution_fact(route, joined, path):
     return False, "no unambiguous client-specific host/native or received-wire observation: " + str(reason)
 
 
+def source_configuration(observations, readings, binding):
+    config = readings.get("haproxy.cfg", ROLE_CONFIG, "bytes")
+    rules = readings.get("rules.conf", ROLE_CONFIG, "bytes")
+    additional_configs = {name: readings.get(name, ROLE_CONFIG, "bytes") for name in (AGENT_CONFIG, "spoe.cfg")}
+    if config is not None and rules is not None:
+        observations["source_config_binding"] = measured({"source_provenance": binding["provenance"], "effective_config_sha256": digest(config), "rules_sha256": digest(rules), "additional_effective_config_sha256": {name: digest(value) if value is not None else None for name, value in additional_configs.items()}, "source_fixture": binding["fixture"]}, [*binding["references"][:3], readings.ref("haproxy.cfg", ROLE_CONFIG), readings.ref("rules.conf", ROLE_CONFIG), *[readings.ref(name, ROLE_CONFIG) for name, value in additional_configs.items() if value is not None]])
+    return config
+
+
+def verify_capture_artifacts(route, readings):
+    capture_receipt = route["capture_receipt"]
+    if capture_receipt is not None:
+        for name, identity in readings.artifacts.items():
+            expected = capture_receipt.get("files", {}).get(name)
+            if expected is not None and expected != identity["sha256"]:
+                raise ValueError("actual raw artifact differs from host receipt seal: " + name)
+
+
+def unmatched_sink_rows(route, joined):
+    return [row for row in route["physical_sink"] or []
+            if not joined or row.get("transaction_id") not in (joined["native_id"], joined["common_id"])]
+
+
 def observe(attempt, data, spec, build_receipt, fixture, leg, case_id, index=0, original_contract=None):
     if index < 0:
         raise ValueError("nonnegative explicit client index required")
@@ -888,11 +946,7 @@ def observe(attempt, data, spec, build_receipt, fixture, leg, case_id, index=0, 
     route = load_route(readings, companion, index)
     route["sink_binding"] = configured_sink(readings, attempt)
     observations = {field: unknown("required physical observation not yet associated") for field in LEDGER.ROLES}
-    config = readings.get("haproxy.cfg", ROLE_CONFIG, "bytes")
-    rules = readings.get("rules.conf", ROLE_CONFIG, "bytes")
-    additional_configs = {name: readings.get(name, ROLE_CONFIG, "bytes") for name in ("agent.conf", "spoe.cfg")}
-    if config is not None and rules is not None:
-        observations["source_config_binding"] = measured({"source_provenance": binding["provenance"], "effective_config_sha256": digest(config), "rules_sha256": digest(rules), "additional_effective_config_sha256": {name: digest(value) if value is not None else None for name, value in additional_configs.items()}, "source_fixture": binding["fixture"]}, [*binding["references"][:3], readings.ref("haproxy.cfg", ROLE_CONFIG), readings.ref("rules.conf", ROLE_CONFIG), *[readings.ref(name, ROLE_CONFIG) for name, value in additional_configs.items() if value is not None]])
+    config = source_configuration(observations, readings, binding)
     client_measurements(observations, route, readings, index)
     joined, reason, path = associate_route(route, case_id, leg)
     if joined:
@@ -911,12 +965,7 @@ def observe(attempt, data, spec, build_receipt, fixture, leg, case_id, index=0, 
         observations["process_listener_cleanup"] = measured({key: controller.get(key) for key in ("surviving_namespace_pids", "outside_mount_leaks", "supervisor_reaped")}, cleanup_ref)
     original = read_json(original_contract) if original_contract else None
     execution_observed, execution_reason = execution_fact(route, joined, path)
-    capture_receipt = route["capture_receipt"]
-    if capture_receipt is not None:
-        for name, identity in readings.artifacts.items():
-            expected = capture_receipt.get("files", {}).get(name)
-            if expected is not None and expected != identity["sha256"]:
-                raise ValueError("actual raw artifact differs from host receipt seal: " + name)
+    verify_capture_artifacts(route, readings)
     raw_rows = route["native"] or []
     matched = joined["rows"] if joined else []
     return {"run_scoped_case_id": case_id, "leg_id": leg, "run_id": attempt.name,
@@ -927,7 +976,7 @@ def observe(attempt, data, spec, build_receipt, fixture, leg, case_id, index=0, 
             "oracle_evaluated": None, "outcome": None, "full_lifecycle_qualified": None,
             "observations": observations, "partial_association": {"join": {key: value for key, value in joined.items() if key != "rows"} if joined else None, "reason": reason},
             "unmatched_agent_native_rows": [row for row in raw_rows if row not in matched],
-            "unmatched_physical_sink_rows": [row for row in route["physical_sink"] or [] if not joined or row.get("transaction_id") not in (joined["native_id"], joined["common_id"])],
+            "unmatched_physical_sink_rows": unmatched_sink_rows(route, joined),
             "unmatched_host_native_rows": route["host_native"], "actual_host_callbacks": route["host_callbacks"],
             "actual_agent_callbacks": route["agent_callbacks"], "physical_SPOP_frames": route["frames"],
             "physical_MRC1_streams": route["mrc_streams"], "physical_common_sink_binding": route["sink_binding"], "decode_errors": route["decode_errors"],

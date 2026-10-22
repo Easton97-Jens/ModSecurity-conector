@@ -16,7 +16,8 @@ def load(name):
     return module
 
 
-with patch.dict("sys.modules", {"i12_native_cases": load("i12_native_cases")}):
+with patch.dict("sys.modules", {"i12_native_cases": load("i12_native_cases"),
+                                "i12_oracle_fixture": load("i12_oracle_fixture")}):
     CONTRACTS = load("i12_native_contracts")
 
 

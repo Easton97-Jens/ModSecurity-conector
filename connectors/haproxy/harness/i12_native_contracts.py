@@ -16,6 +16,7 @@ from pathlib import Path
 import yaml
 
 import i12_native_cases as fixtures
+from i12_oracle_fixture import source_hash_map
 
 SOURCE_ROOT = Path("/var") / "tmp" / "codex" / "ModSecurity-conector"
 LEG = "haproxy-native-htx"
@@ -303,7 +304,7 @@ def prepare(inventory_path, catalog_path, rules_path, sdk_source, capture, outpu
     if sources[-1]["sha256"] != SDK_TRANSACTION_SHA256:
         raise ValueError("exact libModSecurity3.0.14 transaction source required")
     rows = native_rows(json.loads(read_source(inventory_path)))
-    original_catalog_hashes = {row["original_source_hashes"]["framework:tests/cases/no-crs-baseline/catalog.json"]
+    original_catalog_hashes = {source_hash_map(row["original_source_hashes"])["framework:tests/cases/no-crs-baseline/catalog.json"]
                                for row in rows if row.get("original_source_hashes")}
     if original_catalog_hashes != {sources[0]["sha256"]}:
         raise ValueError("pinned original Framework catalog hash differs")

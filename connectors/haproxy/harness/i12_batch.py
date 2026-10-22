@@ -63,7 +63,7 @@ def inventory(root):
 def relocate(data, route, member):
     """Only known driver runtime paths and whole port literals may change."""
     text = data.decode()
-    replacements = {"/mnt/fixtures": f"/mnt/fixtures/{member}", "/task": f"/task/{member}"}
+    replacements = {str(FIXTURES): str(FIXTURES / member), "/task": f"/task/{member}"}
     if route == "native":
         replacements.update({str(port): str(21000 + int(member[1:]) * 10 + offset)
                              for offset, port in enumerate((18490, 18491))})
@@ -435,6 +435,14 @@ def check_private_status(status, identity):
         raise ValueError("actual capability mask is nonzero")
 
 
+def private_namespaces(config):
+    """Reject incomplete controller keys before reading fixed namespace paths."""
+    outside = config.get("outside_namespaces")
+    if not isinstance(outside, dict) or set(outside) != NAMESPACE_KEYS:
+        raise ValueError("complete actual namespace set required")
+    return {key: os.readlink("/proc/self/ns/" + key) for key in sorted(NAMESPACE_KEYS)}
+
+
 def check_admission(admission, config, status, namespaces, identity):
     """Reuse the actual original receipt and immutable controller config."""
     check_private_status(status, identity)
@@ -448,7 +456,7 @@ def check_admission(admission, config, status, namespaces, identity):
         raise ValueError("complete actual namespace set required")
     if any(namespaces[key] == value for key, value in config["outside_namespaces"].items()):
         raise ValueError("actual namespace is shared with outside")
-    if not {"/mnt/fixtures", "/mnt/artifacts"}.issubset(config["readonly"]):
+    if not {str(FIXTURES), "/mnt/artifacts"}.issubset(config["readonly"]):
         raise ValueError("original immutable bindings differ")
 
 
@@ -458,9 +466,10 @@ def run_batch(queue_path, expected):
         raise ValueError("batch requires admitted nonroot /task controller execution")
     admission = json.loads((TASK / "isolation-admission.json").read_text())
     config = json.loads(Path("/opt/controller/admission.json").read_text())
-    status = dict(line.split(":", 1) for line in Path("/proc/self/status").read_text().splitlines() if ":" in line)
+    status = {key: value for line in Path("/proc/self/status").read_text().splitlines() if ":" in line
+              for key, value in [line.split(":", 1)]}
     status = {key: value.strip() for key, value in status.items()}
-    namespaces = {key: os.readlink("/proc/self/ns/" + key) for key in config["outside_namespaces"]}
+    namespaces = private_namespaces(config)
     identity = {"uid": os.geteuid(), "gid": os.getegid(), "groups": os.getgroups()}
     check_admission(admission, config, status, namespaces, identity)
     return execute_queue(queue, expected)

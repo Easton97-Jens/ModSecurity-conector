@@ -14,6 +14,7 @@ from pathlib import Path
 import struct
 
 from i12_spop_wire import Reader, InvalidFrame, decode_frame, MAX_FRAME
+from i12_oracle_fixture import source_hash_map
 
 LEG = "haproxy-spop-request"
 PREFIX = "I12::" + LEG + "::"
@@ -620,7 +621,7 @@ def prepare_definitions(inventory, catalog_path, rules_path):
     rows = original_rows(inventory)
     catalog = {case["case_id"]: case for case in json.loads(catalog_path.read_text())["cases"]}
     references = [physical_source(catalog_path), physical_source(rules_path)]
-    source_hashes = {row["original_source_hashes"].get("framework:tests/cases/no-crs-baseline/catalog.json")
+    source_hashes = {source_hash_map(row["original_source_hashes"]).get("framework:tests/cases/no-crs-baseline/catalog.json")
                      for row in rows if row.get("original_source_hashes")}
     if source_hashes and source_hashes != {references[0]["sha256"]}:
         raise ValueError("catalog differs from pinned original source")

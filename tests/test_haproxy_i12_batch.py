@@ -52,8 +52,10 @@ def test_immutable_payload_oracle_and_complete_runtime_relocation(tmp_path):
     assert (output / "c00/body.bin").read_bytes() == (Path(source["source"]) / "body.bin").read_bytes()
     assert (output / "c00/case-contract.json").read_bytes() == (Path(source["source"]) / "case-contract.json").read_bytes()
     launch = (output / "c00/launch.py").read_text()
-    assert "'/task/c00'" in launch and "'/mnt/fixtures/c00/client.py'" in launch
-    assert "port=21000" in launch and "backend=21001" in launch
+    assert "'/task/c00'" in launch
+    assert "'/mnt/fixtures/c00/client.py'" in launch
+    assert "port=21000" in launch
+    assert "backend=21001" in launch
     assert "port=21000" in (output / "c00/client.py").read_text()
     assert "port=21001" in (output / "c00/backend.py").read_text()
     assert receipt["prepared_unsealed_no_execution"] is True
@@ -213,8 +215,38 @@ def original_admission_inputs():
 
 def test_actual_configuration_schema_and_original_receipt_are_both_accepted():
     inputs = original_admission_inputs()
-    assert "uid" not in inputs[1] and "namespaces" not in inputs[1]
+    assert "uid" not in inputs[1]
+    assert "namespaces" not in inputs[1]
     batch.check_admission(*inputs)
+
+
+@pytest.mark.parametrize("unexpected", ["../status", "/proc/self/status", "unknown"])
+def test_unknown_namespace_key_is_rejected_before_any_proc_read(unexpected):
+    _, config, _, _, _ = original_admission_inputs()
+    config["outside_namespaces"][unexpected] = "untrusted"
+    with mock.patch.object(batch.os, "readlink") as readlink:
+        with pytest.raises(ValueError, match="complete actual namespace set"):
+            batch.private_namespaces(config)
+    readlink.assert_not_called()
+
+
+@pytest.mark.parametrize("missing", sorted(batch.NAMESPACE_KEYS))
+def test_missing_namespace_key_is_rejected_before_any_proc_read(missing):
+    _, config, _, _, _ = original_admission_inputs()
+    del config["outside_namespaces"][missing]
+    with mock.patch.object(batch.os, "readlink") as readlink:
+        with pytest.raises(ValueError, match="complete actual namespace set"):
+            batch.private_namespaces(config)
+    readlink.assert_not_called()
+
+
+def test_exact_namespace_keys_use_only_fixed_paths_in_deterministic_order():
+    admission, config, status, current, identity = original_admission_inputs()
+    with mock.patch.object(batch.os, "readlink", side_effect=lambda path: current[Path(path).name]) as readlink:
+        actual = batch.private_namespaces(config)
+    assert actual == current
+    assert readlink.call_args_list == [mock.call("/proc/self/ns/" + key) for key in sorted(batch.NAMESPACE_KEYS)]
+    batch.check_admission(admission, config, status, actual, identity)
 
 
 @pytest.mark.parametrize("defect", ["outside-shared", "receipt-different", "capability", "privileges", "uid", "groups"])

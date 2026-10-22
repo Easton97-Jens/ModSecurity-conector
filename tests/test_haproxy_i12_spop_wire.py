@@ -15,7 +15,10 @@ WIRE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(WIRE)
 CASE_SPEC = importlib.util.spec_from_file_location("i12_spop_cases", PATH.with_name("i12_spop_cases.py"))
 CASES = importlib.util.module_from_spec(CASE_SPEC)
-with mock.patch.dict("sys.modules", {"i12_spop_wire": WIRE}):
+ORACLE_SPEC = importlib.util.spec_from_file_location("i12_oracle_fixture", PATH.with_name("i12_oracle_fixture.py"))
+ORACLES = importlib.util.module_from_spec(ORACLE_SPEC)
+ORACLE_SPEC.loader.exec_module(ORACLES)
+with mock.patch.dict("sys.modules", {"i12_spop_wire": WIRE, "i12_oracle_fixture": ORACLES}):
     CASE_SPEC.loader.exec_module(CASES)
 HOST_SPEC = importlib.util.spec_from_file_location("i12_spop_host", PATH.with_name("i12_spop_host.py"))
 HOST = importlib.util.module_from_spec(HOST_SPEC)

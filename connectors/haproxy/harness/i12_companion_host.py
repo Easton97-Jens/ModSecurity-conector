@@ -521,9 +521,12 @@ def capture_client_process(root, index, argv):
                "timed_out": False, "launch_error": None, "communication_error": None}
     stamp_window(receipt, "started")
     stdout, stderr = b"", b""
-    error = None
     try:
-        process = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            process = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        except OSError as exc:
+            receipt["launch_error"] = repr(exc)
+            raise
         receipt["pid"] = process.pid
         try:
             stdout, stderr = process.communicate(timeout=12)
@@ -534,19 +537,15 @@ def capture_client_process(root, index, argv):
             receipt["timed_out"] = isinstance(exc, subprocess.TimeoutExpired)
             if not receipt["timed_out"]:
                 receipt["communication_error"] = repr(exc)
-            error = exc
             stdout, stderr = reap_interrupted_client(process, receipt)
-        receipt.update(exit=process.returncode, signal=-process.returncode if process.returncode < 0 else None, reaped=True)
-    except OSError as exc:
-        receipt["launch_error"] = repr(exc)
-        error = exc
+            raise
+        finally:
+            receipt.update(exit=process.returncode, signal=-process.returncode if process.returncode < 0 else None, reaped=True)
     finally:
         stamp_window(receipt, "completed")
         (root / f"client-{index}.stdout").write_bytes(stdout)
         (root / f"client-{index}.stderr").write_bytes(stderr)
         (root / f"client-{index}.process.json").write_text(json.dumps(receipt) + "\n")
-    if error is not None:
-        raise error
     return receipt
 
 

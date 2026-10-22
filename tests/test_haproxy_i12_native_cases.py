@@ -30,7 +30,12 @@ CONTRACT_SPEC = importlib.util.spec_from_file_location(
     "i12_native_contracts", ROOT / "connectors/haproxy/harness/i12_native_contracts.py"
 )
 CONTRACTS = importlib.util.module_from_spec(CONTRACT_SPEC)
-with patch.dict("sys.modules", {"i12_native_cases": CASES}):
+ORACLE_SPEC = importlib.util.spec_from_file_location(
+    "i12_oracle_fixture", ROOT / "connectors/haproxy/harness/i12_oracle_fixture.py"
+)
+ORACLES = importlib.util.module_from_spec(ORACLE_SPEC)
+ORACLE_SPEC.loader.exec_module(ORACLES)
+with patch.dict("sys.modules", {"i12_native_cases": CASES, "i12_oracle_fixture": ORACLES}):
     CONTRACT_SPEC.loader.exec_module(CONTRACTS)
 
 
@@ -339,8 +344,9 @@ class NativeFixtureIntegrity(unittest.TestCase):
             OBSERVER.verified_attempt_inputs(attempt, spec, fixture, binary, receipt)
         alias = self.base / "sdk-alias"
         alias.symlink_to(sdk)
+        sdk_hash = hashlib.sha256(sdk.read_bytes()).hexdigest()
         with self.assertRaisesRegex(ValueError, "physical absolute regular file"):
-            OBSERVER.require_hash(alias, hashlib.sha256(sdk.read_bytes()).hexdigest())
+            OBSERVER.require_hash(alias, sdk_hash)
         with self.assertRaisesRegex(ValueError, "unexpected"):
             OBSERVER.resolve_sdk_image("/other/libmodsecurity.so.3", binding)
 

@@ -101,8 +101,33 @@ def verified_source_binary(binary, source_receipt, provenance=None):
             "host_runs_before_capture": receipt.get("host_runs"), "runtime_qualified_before_capture": receipt.get("runtime_qualified")}
 
 
+CONTROLLER_RESULT = 'controller-result.json'
+FIXTURE_LAUNCH = '/mnt/fixtures/launch.py'
+
+
+def verify_provenance_inventory(provenance, source_receipt, expected_paths):
+    if set(load(source_receipt).get("binaries", {})) != {"direct", "agent", "companion"}:
+        raise ValueError("build completion seal has an unexpected binary inventory")
+    images = provenance.get("images")
+    roles = [image.get("role") for image in images] if isinstance(images, list) else []
+    expected_roles = {"direct", "agent", "companion", "native_engine"}
+    if len(roles) != 4 or set(roles) != expected_roles or len(set(roles)) != len(roles):
+        raise ValueError("current source provenance has an unexpected image inventory")
+    by_role = {image["role"]: image for image in images}
+    receipt = load(source_receipt)
+    for role, actual in expected_paths.items():
+        image = by_role[role]
+        if Path(image.get("sealed_copy", "")) != actual:
+            raise ValueError("source provenance sealed image differs from executed spec")
+        require_hash(actual, image.get("sha256"))
+        require_hash(Path(image.get("source", "")), image.get("sha256"))
+        if role != "native_engine" and receipt["binaries"][role].get("sha256") != image.get("sha256"):
+            raise ValueError("source provenance binary differs from build completion seal")
+    return by_role
+
+
 def verified_attempt_inputs(attempt, spec_path, fixture, binary, source_receipt):
-    controller_path = attempt / "controller-result.json"
+    controller_path = attempt / CONTROLLER_RESULT
     controller = load(controller_path)
     require_hash(spec_path, controller["spec_sha256"])
     for key in ("executed_input_hashes_before", "executed_input_hashes_after"):
@@ -113,7 +138,7 @@ def verified_attempt_inputs(attempt, spec_path, fixture, binary, source_receipt)
     admission, spec = load(admission_path), load(spec_path)
     if admission["argv"] != spec["argv"]:
         raise ValueError("admitted argv differs from explicit source spec")
-    if spec["argv"] != ["/usr/local/bin/python3", "-B", "/mnt/fixtures/launch.py"]:
+    if spec["argv"] != ["/usr/local/bin/python3", "-B", FIXTURE_LAUNCH]:
         raise ValueError("native host spec does not execute the sealed fixture entrypoint")
 
     bindings = Bindings(spec)
@@ -121,7 +146,7 @@ def verified_attempt_inputs(attempt, spec_path, fixture, binary, source_receipt)
     sdk, sdk_ledger = bindings.resolve("/mnt/artifacts/libmodsecurity.so.3")
     provenance_path, provenance_ledger = bindings.resolve("/mnt/artifacts/source-provenance.json")
     contract_path, fixture_ledger = bindings.resolve("/mnt/fixtures/case-contract.json")
-    launch_path, launch_ledger = bindings.resolve("/mnt/fixtures/launch.py")
+    launch_path, launch_ledger = bindings.resolve(FIXTURE_LAUNCH)
     if direct != binary:
         raise ValueError("explicit Direct binary differs from executed sealed spec")
     if contract_path != fixture / "case-contract.json":
@@ -135,29 +160,13 @@ def verified_attempt_inputs(attempt, spec_path, fixture, binary, source_receipt)
     if provenance.get("schema") != "haproxy-i12-host-input-provenance-v1":
         raise ValueError("current host observation requires current source provenance")
     source_binding = verified_source_binary(binary, source_receipt, provenance)
-    if set(load(source_receipt).get("binaries", {})) != {"direct", "agent", "companion"}:
-        raise ValueError("build completion seal has an unexpected binary inventory")
-    images = provenance.get("images")
-    roles = [image.get("role") for image in images] if isinstance(images, list) else []
-    expected_roles = {"direct", "agent", "companion", "native_engine"}
-    if len(roles) != 4 or set(roles) != expected_roles or len(set(roles)) != len(roles):
-        raise ValueError("current source provenance has an unexpected image inventory")
-    by_role = {image["role"]: image for image in images}
     expected_paths = {
         "direct": direct,
         "agent": bindings.resolve("/mnt/artifacts/haproxy-spop")[0],
         "companion": bindings.resolve("/mnt/artifacts/haproxy")[0],
         "native_engine": sdk,
     }
-    receipt = load(source_receipt)
-    for role, actual in expected_paths.items():
-        image = by_role[role]
-        if Path(image.get("sealed_copy", "")) != actual:
-            raise ValueError("source provenance sealed image differs from executed spec")
-        require_hash(actual, image.get("sha256"))
-        require_hash(Path(image.get("source", "")), image.get("sha256"))
-        if role != "native_engine" and receipt["binaries"][role].get("sha256") != image.get("sha256"):
-            raise ValueError("source provenance binary differs from build completion seal")
+    by_role = verify_provenance_inventory(provenance, source_receipt, expected_paths)
     return {
         "spec_sha256": controller["spec_sha256"],
         "admission_sha256": controller["admission_sha256"],
@@ -255,7 +264,7 @@ def attach_supplemental_observations(observations, data, native_id, common_id, r
 def observe(attempt, fixture, binary, source_receipt, spec_path):
     data = attempt / "data"
     execution = load(data / EXECUTION_FILE)
-    controller = load(attempt / "controller-result.json")
+    controller = load(attempt / CONTROLLER_RESULT)
     attempt_binding = verified_attempt_inputs(attempt, spec_path, fixture, binary, source_receipt)
     contract = load(fixture / "case-contract.json")
     client = load(data / "main-client.json")
@@ -313,7 +322,7 @@ def observe(attempt, fixture, binary, source_receipt, spec_path):
         "config": reference(data / HOST_CONFIG, "effective_configuration"),
         "rules": reference(data / RULES_FILE, "effective_configuration"),
         "contract": reference(fixture / "case-contract.json", "source_contract"),
-        "controller": reference(attempt / "controller-result.json", "isolation_receipt"),
+        "controller": reference(attempt / CONTROLLER_RESULT, "isolation_receipt"),
         "execution": reference(data / EXECUTION_FILE, "cleanup_observer"),
         "source": reference(source_receipt, "source_manifest"),
         "spec": reference(spec_path, "source_manifest"),

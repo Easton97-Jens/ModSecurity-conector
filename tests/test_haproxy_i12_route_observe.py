@@ -11,7 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("test_route_observe", ROOT / "connectors/haproxy/harness/i12_route_observe.py")
 OBSERVE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(OBSERVE)
-with patch.dict("sys.modules", {"i12_spop_wire": OBSERVE.WIRE}):
+ORACLES = OBSERVE.module_at("route_test_oracles", ROOT / "connectors/haproxy/harness/i12_oracle_fixture.py")
+with patch.dict("sys.modules", {"i12_spop_wire": OBSERVE.WIRE, "i12_oracle_fixture": ORACLES}):
     ENCODE = OBSERVE.module_at("route_test_spop", ROOT / "connectors/haproxy/harness/i12_spop_cases.py")
 IDENTITY = "0c5df3ca-9856-401d-9303-8823fc815964"
 CASE = "I12::haproxy-spop-htx-response-companion::NEED-client-response-bytes"
@@ -120,8 +121,9 @@ class BackendDecodingTests(unittest.TestCase):
                     b"GET / HTTP/1.1\r\nTransfer-Encoding: chunked", b"GET / HTTP/2.0", b"GET /a b HTTP/1.1"]
         for request in requests:
             with self.subTest(request=request):
+                corrupt = {**raw, "header_hex": request.hex()}
                 with self.assertRaises(ValueError):
-                    OBSERVE.spop_backend_request({**raw, "header_hex": request.hex()})
+                    OBSERVE.spop_backend_request(corrupt)
 
     def test_complete_body_and_original_companion_rows_remain_supported(self):
         raw = stored_spop_backend_rows()[0]

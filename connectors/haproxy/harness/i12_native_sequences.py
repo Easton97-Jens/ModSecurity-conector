@@ -19,6 +19,7 @@ ALLOW_BODY = b"ordinary-native-response\n"
 DENY_BODY = b"I12 sequence denied\n"
 LIMIT = 1024 * 1024
 LEDGER_SUFFIX = "-ledger.json"
+LIFECYCLE_ASSIGNMENT = "MSCONNECTOR_LIFECYCLE_CASE="
 
 
 def sha(data):
@@ -198,12 +199,12 @@ def bind_launch_identity(launch, base_contract, name):
 
     if base_contract.get("original_id") != PREFIX + "allow" or name not in CASE_NAMES:
         raise ValueError("sequence base must bind the original native allow case")
-    anchors = ["MSCONNECTOR_LIFECYCLE_CASE=" + repr(label)
+    anchors = [LIFECYCLE_ASSIGNMENT + repr(label)
                for label in ("NEED-allow", PREFIX + "allow")]
-    if launch.count("MSCONNECTOR_LIFECYCLE_CASE=") != 1 or sum(launch.count(anchor) for anchor in anchors) != 1:
+    if launch.count(LIFECYCLE_ASSIGNMENT) != 1 or sum(launch.count(anchor) for anchor in anchors) != 1:
         raise ValueError("ambiguous or missing allow observer identity")
     anchor = next(anchor for anchor in anchors if anchor in launch)
-    launch = replace_once(launch, anchor, "MSCONNECTOR_LIFECYCLE_CASE=" + repr(PREFIX + name))
+    launch = replace_once(launch, anchor, LIFECYCLE_ASSIGNMENT + repr(PREFIX + name))
     return replace_once(launch, "'selected_id':" + repr(PREFIX + "allow"),
                         "'selected_id':" + repr(PREFIX + name))
 

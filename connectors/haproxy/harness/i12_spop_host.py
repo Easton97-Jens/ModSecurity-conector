@@ -461,6 +461,30 @@ def stamp_original_client(report, prefix):
     report[prefix + "_monotonic_ns"] = time.monotonic_ns()
 
 
+def send_original_request(client, request, body_start, chunks):
+    if not chunks:
+        client.sendall(request)
+        return
+    client.sendall(request[:body_start])
+    position = body_start
+    for size in chunks:
+        client.sendall(request[position:position + size])
+        position += size
+        time.sleep(.025)
+    client.sendall(request[position:])
+
+
+def read_original_response(client, profile, response):
+    while len(response) <= 2 * 1024 * 1024:
+        chunk = client.recv(65536)
+        if not chunk:
+            return "tcp-eof"
+        response.extend(chunk)
+        if profile.get("connection_reuse") and response_measurement(response)["complete_length_framing"]:
+            return "complete-content-length"
+    raise ValueError("bounded client response exceeded")
+
+
 def capture_original_request(client, profile, index, neighbor, connection):
     request = cases.profile_wire(profile)
     if profile.get("connection_reuse"):
@@ -480,33 +504,14 @@ def capture_original_request(client, profile, index, neighbor, connection):
     stage = "request_send"
     try:
         stamp_original_client(report, "request_send_started")
-        if chunks:
-            client.sendall(request[:body_start])
-            position = body_start
-            for size in chunks:
-                client.sendall(request[position:position + size])
-                position += size
-                time.sleep(.025)
-            client.sendall(request[position:])
-        else:
-            client.sendall(request)
+        send_original_request(client, request, body_start, chunks)
         stamp_original_client(report, "request_send_completed")
         stage = "request_shutdown"
         if profile.get("raw_template") == "incomplete-body":
             client.shutdown(socket.SHUT_WR)
         stage = "response_read"
         try:
-            while len(response) <= 2 * 1024 * 1024:
-                chunk = client.recv(65536)
-                if not chunk:
-                    terminal = "tcp-eof"
-                    break
-                response.extend(chunk)
-                if profile.get("connection_reuse") and response_measurement(response)["complete_length_framing"]:
-                    terminal = "complete-content-length"
-                    break
-            if terminal is None:
-                raise ValueError("bounded client response exceeded")
+            terminal = read_original_response(client, profile, response)
         except OSError as error:
             terminal = type(error).__name__
             report.update(error_type=type(error).__name__, error_errno=error.errno, error_stage=stage)
