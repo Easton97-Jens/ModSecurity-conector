@@ -132,6 +132,8 @@ class NetBoundaries(unittest.TestCase):
             server.shutdown()
             server.server_close()
             thread.join(timeout=2)
+        self.assertFalse(thread.is_alive(), 'fixture accept loop must terminate')
+        self.assertEqual(server.fileno(), -1, 'fixture listener must be closed')
 
 
 if __name__ == '__main__':

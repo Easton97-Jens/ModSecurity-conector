@@ -137,8 +137,9 @@ class NativeLoopbackAdmissionControls(unittest.TestCase):
     def test_backend_closes_nonloopback_peer_before_recording_or_body_reads(self):
         backend = load('acceptance_backend')
         server = object.__new__(backend.Backend)
+        server.socket = mock.Mock()
         connection = mock.Mock()
-        with mock.patch.object(backend.socketserver.TCPServer, 'get_request',
+        with mock.patch.object(server.socket, 'accept',
                 return_value=(connection, ('192.0.2.1', 2000))), mock.patch.object(backend, 'record') as recorded:
             with self.assertRaises(OSError):
                 server.get_request()
@@ -152,6 +153,46 @@ class NativeLoopbackAdmissionControls(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 backend.bounded_port(value)
         self.assertEqual(backend.bounded_port('65535'), 65535)
+
+    def test_backend_bind_failure_closes_transport_and_rejects_external_binds(self):
+        backend = load('acceptance_backend')
+        for address in (('0.0.0.0', 0), ('192.0.2.1', 80), ('127.0.0.1', -1)):
+            with self.subTest(address=address), self.assertRaises(ValueError):
+                backend.Backend(address, backend.Handler)
+        transport = mock.Mock()
+        transport.bind.side_effect = OSError('bind unavailable')
+        with mock.patch.object(backend.socket, 'socket', return_value=transport):
+            with self.assertRaises(OSError):
+                backend.Backend(('127.0.0.1', 0), backend.Handler)
+        transport.close.assert_called_once_with()
+
+    def test_backend_serves_concurrent_loopback_connections_and_closes_socket(self):
+        backend = load('acceptance_backend')
+        both_arrived = threading.Barrier(2)
+
+        class ConcurrentHandler(backend.socketserver.BaseRequestHandler):
+            def handle(self):
+                both_arrived.wait(timeout=2)
+                self.request.sendall(b'complete')
+
+        server = backend.Backend(('127.0.0.1', 0), ConcurrentHandler)
+        server.root = EXTERNAL
+        thread = threading.Thread(target=server.serve_forever, kwargs={'poll_interval': 0.01})
+        thread.start()
+        try:
+            with mock.patch.object(backend, 'record') as recorded:
+                with socket.create_connection(server.server_address, timeout=2) as first:
+                    with socket.create_connection(server.server_address, timeout=2) as second:
+                        for connection in (first, second):
+                            self.assertEqual(connection.recv(8), b'complete')
+                            self.assertEqual(connection.recv(1), b'')
+                self.assertEqual(recorded.call_count, 2)
+        finally:
+            server.shutdown()
+            thread.join(timeout=2)
+            server.server_close()
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(server.fileno(), -1)
 
 
 class NativePrivateToolchainControls(unittest.TestCase):

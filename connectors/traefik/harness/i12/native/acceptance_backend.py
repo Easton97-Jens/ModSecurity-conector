@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import socket
 import socketserver
 import sys
 import threading
@@ -36,7 +37,7 @@ def record(root, value):
         stream.write(json.dumps(value) + '\n')
 
 
-class Backend(socketserver.ThreadingMixIn, socketserver.TCPServer):
+class Backend(socketserver.ThreadingMixIn, socketserver.BaseServer):
     daemon_threads = True
     block_on_close = True
 
@@ -47,11 +48,34 @@ class Backend(socketserver.ThreadingMixIn, socketserver.TCPServer):
         if host != LOOPBACK or not isinstance(port, int) or not 0 <= port <= 65535:
             raise ValueError('only an isolated loopback bind is admitted')
         super().__init__((LOOPBACK, port), handler)
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            self.socket.bind((LOOPBACK, port))
+            self.server_address = self.socket.getsockname()
+            self.socket.listen(5)
+        except OSError:
+            self.socket.close()
+            raise
         self.server_name = LOOPBACK
         self.server_port = self.server_address[1]
 
+    def fileno(self):
+        return self.socket.fileno()
+
+    def server_close(self):
+        self.socket.close()
+        super().server_close()
+
+    def shutdown_request(self, connection):
+        try:
+            connection.shutdown(socket.SHUT_WR)
+        except OSError:
+            pass
+        finally:
+            connection.close()
+
     def get_request(self):
-        connection, address = super().get_request()
+        connection, address = self.socket.accept()
         if address[0] != LOOPBACK:
             connection.close()
             raise OSError('only isolated loopback clients are admitted')

@@ -53,16 +53,38 @@ def client_connection(port,timeout):
  return connection
 
 
-class LoopbackEvidenceServer(socketserver.ThreadingMixIn,socketserver.TCPServer):
+class LoopbackEvidenceServer(socketserver.ThreadingMixIn,socketserver.BaseServer):
  """Plain HTTP is the measured host protocol inside the admitted namespace.
 
  The fixture cannot bind an external interface or select a DNS hostname.
  """
- allow_reuse_address=True
+ daemon_threads=True
  def __init__(self,port,handler):
   self.server_name='127.0.0.1';self.server_port=loopback_port(port)
-  super().__init__(('127.0.0.1',loopback_port(port)),handler)
-  self.daemon_threads=True
+  address=('127.0.0.1',self.server_port)
+  super().__init__(address,handler)
+  # Own the transport here: there is no configurable server bind address,
+  # hostname resolution, external listener, or optional TLS downgrade.
+  self.socket=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+  try:
+   self.socket.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
+   self.socket.bind(address)
+   self.socket.listen(5)
+  except OSError:
+   self.socket.close();raise
+
+ def fileno(self):return self.socket.fileno()
+
+ def get_request(self):return self.socket.accept()
+
+ def shutdown_request(self,request):
+  try:request.shutdown(socket.SHUT_WR)
+  except OSError:pass # A reset or disconnected peer already ended its write side.
+  finally:request.close()
+
+ def server_close(self):
+  self.socket.close()
+  super().server_close()
 
 
 def private_header_receipt(headers):
