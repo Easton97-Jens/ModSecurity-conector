@@ -36,6 +36,7 @@ class BatchReviewTests(unittest.TestCase):
         client = {'path': '/main', 'method': 'GET', 'started_ns': 10, 'completed_ns': 60}
         actual = REVIEW.principal_socket_capture(rows, {'pid': 100, 'tid': 101}, client)
         self.assertEqual(actual['actual_socket_call_brackets'][0]['return_ns'], 45)
+        self.assertEqual(REVIEW.principal_socket_capture(rows, {'pid': 100}, client), actual)
         for key, value in (('parent_call', 8), ('socket_inode', 999), ('invalid', True),
                            ('actual_successful_socket_bytes', False), ('monotonic_ns', 61)):
             changed = copy.deepcopy(rows)
@@ -44,6 +45,8 @@ class BatchReviewTests(unittest.TestCase):
                 self.assertIsNone(REVIEW.principal_socket_capture(changed, {'pid': 100, 'tid': 101}, client))
         self.assertIsNone(REVIEW.principal_socket_capture(rows, {'pid': 100, 'tid': 102}, client))
         self.assertIsNone(REVIEW.principal_socket_capture(rows + [rows[0]], {'pid': 100, 'tid': 101}, client))
+        other_thread = dict(rows[0], tid=102)
+        self.assertIsNone(REVIEW.principal_socket_capture(rows + [other_thread], {'pid': 100}, client))
 
     def test_truncated_response_preserves_200_and_duplicate_headers(self):
         raw = b'HTTP/1.1 200 OK\r\nContent-Length: 17\r\nX-A: one\r\nX-A: two\r\n\r\n'
@@ -76,6 +79,74 @@ class BatchReviewTests(unittest.TestCase):
         self.assertFalse(packet['execution_observed'])
         self.assertIsNone(packet['reviewed_by'])
         self.assertIsNone(packet['outcome'])
+
+    def test_incomplete_extraction_retains_only_bound_execution(self):
+        import json
+        import tempfile
+        plan = {'original_id': 'I12::apache-native::special', 'case_id': 'special',
+                'original_contract': {'expected_oracle': {'visible_status': 403}},
+                'execution_kind': 'host_http'}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'observation.json').write_text(json.dumps({
+                'original_id': plan['original_id'], 'case_id': plan['case_id'],
+                'actual_principal_execution': True, 'executed_case_contract': True,
+                'missing_operations': [], 'execution_error': None,
+            }))
+            packet = REVIEW.incomplete_packet(plan, root, 'missing typed receipt')
+        self.assertTrue(packet['execution_observed'])
+        self.assertTrue(packet['driver_execution']['executed_case_contract'])
+        self.assertTrue(all(item['value'] is None for item in packet['observations'].values()))
+        self.assertEqual(packet['extraction_missing'], 'missing typed receipt')
+
+    def test_typed_sequence_and_termination_receipts_are_normalized_without_response_invention(self):
+        import json
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            main = root / 'main'
+            nested = main / 'main'
+            nested.mkdir(parents=True)
+            request = {'method': 'GET', 'path': '/principal', 'headers': [['X-I12-ID', 'id']]}
+            (nested / 'request.json').write_text(json.dumps(request))
+            (nested / 'receipt.json').write_text(json.dumps({'label': 'main', 'pid': 7,
+                'socket': {'observed_ns': 10}, 'request_id': 'id', 'request_send_completed_ns': 20,
+                'response': {'started_ns': 21, 'completed_ns': 30, 'framing_complete': True,
+                    'framing': 'content_length', 'content_lengths': ['0'], 'transfer_encoding': [],
+                    'tcp_eof_observed': False, 'tcp_reset_observed': False, 'status': 200,
+                    'entity_bytes': 0, 'entity_sha256': 'empty', 'recv_operations': []}, 'error': None}))
+            path, capture, client, auxiliary, kind = REVIEW.main_client_capture(root)
+            self.assertEqual((path, capture, auxiliary, kind),
+                (nested / 'receipt.json', nested, main / 'sequence-receipt.json', 'keepalive_sequence'))
+            self.assertEqual((client['path'], client['status'], client['timeout_observed']),
+                             ('/principal', 200, False))
+
+            receipt = json.loads((nested / 'receipt.json').read_text())
+            receipt['response'].pop('completed_ns')
+            receipt['response'].update(framing_complete=False, tcp_eof_observed=True, eof_ns=31)
+            receipt['error'] = {'type': 'IncompleteResponse', 'message': 'observed EOF'}
+            (nested / 'receipt.json').write_text(json.dumps(receipt))
+            _, _, client, _, _ = REVIEW.main_client_capture(root)
+            self.assertEqual(client['completed_ns'], 31)
+            self.assertFalse(client['framing']['framing_complete'])
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            main = root / 'main'
+            main.mkdir(parents=True)
+            request = {'method': 'POST', 'path': '/cancel', 'headers': [['X-I12-ID', 'id']]}
+            (main / 'request.json').write_text(json.dumps(request))
+            (main / 'termination.json').write_text(json.dumps({
+                'requested_action_performed': True,
+                'send_checkpoint': {'progress': {'pid': 9, 'started_ns': 10, 'method': 'POST',
+                    'path': '/cancel', 'request_send_completed_ns': 20, 'status': None}},
+                'actual_termination': {'waited_monotonic_ns': 30, 'exited': False,
+                    'signalled': True, 'exit_code': None, 'actual_signal': 15, 'raw_wait_status': 15}}))
+            path, capture, client, auxiliary, kind = REVIEW.main_client_capture(root)
+            self.assertEqual((path, capture, auxiliary, kind),
+                (main / 'termination.json', main, None, 'signal_termination'))
+            self.assertIsNone(client['status'])
+            self.assertEqual(client['actual_termination']['actual_signal'], 15)
 
     def test_symbolic_git_head_is_resolved_to_commit(self):
         binding = os.environ.get('APACHE_I12_SOURCE_METADATA')

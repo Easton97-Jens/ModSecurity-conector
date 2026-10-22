@@ -126,8 +126,14 @@ def principal_socket_capture(rows, association, client):
     """
     if not association:
         return None
+    # host_context_associated is keyed by the native allocation scope and does
+    # not promise a transport thread ID.  Preserve a captured thread ID when
+    # one exists, but otherwise require the PID/method/path/time selection to
+    # produce exactly one physical request before joining its socket/sequence.
+    association_tid = association.get('tid')
     received = [row for row in rows if row.get('kind') == 'request_headers_received'
-        and row.get('pid') == association['pid'] and row.get('tid') == association['tid']
+        and row.get('pid') == association['pid']
+        and (association_tid is None or row.get('tid') == association_tid)
         and row.get('request_uri') == client['path'] and row.get('request_method') == client['method']
         and client['started_ns'] <= row['monotonic_ns'] <= client['completed_ns']
         and row.get('actual_successful_socket_bytes') is True and not row.get('invalid')]
@@ -173,6 +179,88 @@ def backend_arrivals(transcript):
     return list(selected.values())
 
 
+def sequence_main_client(root):
+    """Normalize the principal exchange from the typed keepalive receipt."""
+    capture = root / 'main/main'
+    receipt_path, request_path = capture / 'receipt.json', capture / 'request.json'
+    receipt, request = read(receipt_path), read(request_path)
+    response = receipt.get('response')
+    identifiers = [value for name, value in request.get('headers', []) if name.lower() == 'x-i12-id']
+    socket_observation = receipt.get('socket', {}).get('observed_ns')
+    response_completed = response.get('completed_ns') if isinstance(response, dict) else None
+    if (response_completed is None and isinstance(response, dict)
+            and (response.get('tcp_eof_observed') is True or response.get('tcp_reset_observed') is True)):
+        response_completed = response.get('eof_ns')
+    if (receipt.get('label') != 'main' or type(receipt.get('pid')) is not int
+            or not isinstance(request.get('method'), str) or not isinstance(request.get('path'), str)
+            or len(identifiers) != 1
+            or receipt.get('request_id') != identifiers[0] or not isinstance(response, dict)
+            or not all(type(value) is int for value in
+                       (socket_observation, receipt.get('request_send_completed_ns'),
+                        response.get('started_ns'), response_completed))
+            or not socket_observation <= receipt['request_send_completed_ns'] <= response_completed):
+        raise ValueError('Typed keepalive principal receipt is incomplete or inconsistent')
+    error = receipt.get('error') or response.get('error')
+    client = {
+        'pid': receipt.get('pid'), 'started_ns': socket_observation,
+        'method': request.get('method'), 'path': request.get('path'),
+        'tcp_eof_observed': response.get('tcp_eof_observed'),
+        'tcp_reset_observed': response.get('tcp_reset_observed'),
+        'timeout_observed': (False if (error is None and response.get('framing_complete') is True)
+                             or response.get('tcp_eof_observed') is True
+                             or response.get('tcp_reset_observed') is True else None),
+        'status': response.get('status'), 'entity_bytes': response.get('entity_bytes'),
+        'entity_sha256': response.get('entity_sha256'),
+        'framing': {'kind': response.get('framing'),
+                    'content_lengths': response.get('content_lengths'),
+                    'transfer_encoding': response.get('transfer_encoding'),
+                    'encoded_entity_bytes': response.get('entity_bytes'),
+                    'decoded_entity_bytes': response.get('entity_bytes'),
+                    'framing_complete': response.get('framing_complete')},
+        'error': error, 'recv_chunks': response.get('recv_operations'),
+        'request_send_completed_ns': receipt.get('request_send_completed_ns'),
+        'first_encoded_entity_recv_ns': response.get('first_entity_byte_received_ns'),
+        'eof_ns': response.get('eof_ns'), 'headers': response.get('headers'),
+        'completed_ns': response_completed,
+    }
+    return receipt_path, capture, client, root / 'main/sequence-receipt.json'
+
+
+def terminated_main_client(root):
+    """Normalize a signal-terminated client without inventing a response."""
+    capture = root / 'main'
+    receipt_path, request_path = capture / 'termination.json', capture / 'request.json'
+    receipt, request = read(receipt_path), read(request_path)
+    progress = receipt.get('send_checkpoint', {}).get('progress', {})
+    termination = receipt.get('actual_termination', {})
+    started, completed = progress.get('started_ns'), termination.get('waited_monotonic_ns')
+    if (receipt.get('requested_action_performed') is not True
+            or progress.get('method') != request.get('method') or progress.get('path') != request.get('path')
+            or termination.get('signalled') is not True or termination.get('exited') is not False
+            or type(termination.get('actual_signal')) is not int or termination.get('exit_code') is not None
+            or not all(type(value) is int for value in
+                       (started, progress.get('request_send_completed_ns'), completed))
+            or not started <= progress['request_send_completed_ns'] <= completed):
+        raise ValueError('Typed terminated-client receipt is incomplete or inconsistent')
+    client = dict(progress)
+    client.update(completed_ns=completed, actual_termination=termination)
+    return receipt_path, capture, client, None
+
+
+def main_client_capture(root):
+    """Select one existing typed principal producer; no fallback data is synthesized."""
+    standard = root / 'main/receipt.json'
+    if standard.is_file():
+        return standard, root / 'main', read(standard), None, 'standard'
+    sequence = root / 'main/main/receipt.json'
+    if sequence.is_file():
+        return (*sequence_main_client(root), 'keepalive_sequence')
+    termination = root / 'main/termination.json'
+    if termination.is_file():
+        return (*terminated_main_client(root), 'signal_termination')
+    raise FileNotFoundError('No typed principal client receipt exists')
+
+
 class BatchExtractor(REVIEW.CandidateExtractor):
     def __init__(self, attempt, spec_path, plan, case_root, bindings, controller):
         super().__init__(attempt, spec_path, plan['case_id'], None, None)
@@ -202,8 +290,8 @@ class BatchExtractor(REVIEW.CandidateExtractor):
         self.backend = backend_arrivals(transcript)
         self.io_path = self.root / 'host-io.jsonl'
         self.io = optional_rows(self.io_path) or []
-        self.client_path = self.root / 'main/receipt.json'
-        self.client = read(self.client_path)
+        (self.client_path, self.client_capture_root, self.client, self.client_aux_path,
+         self.client_capture_kind) = main_client_capture(self.root)
         self.process_path = self.root / 'main/process.command.json'
         self.process = read(self.process_path) if self.process_path.is_file() else None
         self.neighbors = []
@@ -214,6 +302,14 @@ class BatchExtractor(REVIEW.CandidateExtractor):
 
     def collect_client_process(self):
         proof = reference(self.process_path, 'client_process')
+        if self.client_capture_kind == 'signal_termination':
+            proof = reference(self.client_path, 'client_process')
+            actual = self.client['actual_termination']
+            self.put('client_exit', {'exited': actual.get('exited'),
+                'exit_code': actual.get('exit_code'), 'raw_wait_status': actual.get('raw_wait_status')}, proof)
+            self.put('client_signal', {'signalled': actual.get('signalled'),
+                'actual_signal': actual.get('actual_signal')}, proof)
+            return
         code = self.process.get('waited_exit')
         if type(code) is int:
             self.put('client_exit', code, proof)
@@ -222,8 +318,8 @@ class BatchExtractor(REVIEW.CandidateExtractor):
 
     def collect_client(self):
         super().collect_client()
-        self.raw_response = self.root / 'main/response.raw'
-        request = self.root / 'main/request.raw'
+        self.raw_response = self.client_capture_root / 'response.raw'
+        request = self.client_capture_root / 'request.raw'
         refs = [reference(path, 'client_process') for path in (request, self.raw_response) if path.is_file()]
         if refs:
             self.put('client_bytes', {'request_wire': request.stat().st_size if request.is_file() else None,
@@ -365,6 +461,10 @@ class BatchExtractor(REVIEW.CandidateExtractor):
         packet['execution_observed'] = self.command.get('actual_principal_execution') is True
         packet['unsigned'] = True
         packet['physical_boundary_captures'] = boundary_captures(self.root)
+        packet['main_client_capture'] = {'kind': self.client_capture_kind,
+            'receipt': reference(self.client_path, 'client_process'),
+            'auxiliary_receipt': (reference(self.client_aux_path, 'client_process')
+                                  if self.client_aux_path and self.client_aux_path.is_file() else None)}
         return packet
 
 
@@ -387,6 +487,32 @@ def empty_packet(plan, reason):
         'oracle_sha256': None, 'outcome': None, 'full_lifecycle_qualified': False,
         'observations': {name: {'value': None, 'reason': reason} for name in ROLES},
         'unknown_fields': list(ROLES), 'review_checks': {}, 'extraction_missing': reason}
+
+
+def incomplete_packet(plan, root, reason):
+    """Retain an independently captured execution without filling missing roles."""
+    packet = empty_packet(plan, reason)
+    observation_path = root / OBSERVATION_FILE
+    if not observation_path.is_file():
+        return packet
+    try:
+        observation = read(observation_path)
+    except (OSError, ValueError, TypeError):
+        return packet
+    if (observation.get('original_id') != plan['original_id']
+            or observation.get('case_id') != plan['case_id']):
+        return packet
+    key = 'actual_config_execution' if plan['execution_kind'] == 'configtest' else 'actual_principal_execution'
+    packet['execution_observed'] = observation.get(key) is True
+    packet['driver_execution'] = {
+        'actual_principal_execution': observation.get('actual_principal_execution'),
+        'actual_config_execution': observation.get('actual_config_execution'),
+        'executed_case_contract': observation.get('executed_case_contract'),
+        'missing_operations': observation.get('missing_operations'),
+        'execution_error': observation.get('execution_error'),
+        'reference': reference(observation_path, 'host_callback'),
+    }
+    return packet
 
 
 def configuration_candidate(plan, root, attempt, spec_path, bindings, controller):
@@ -451,7 +577,7 @@ def extract_all(attempt, spec_path):
                 extractor.load_batch_case()
                 packet = extractor.packet()
         except (OSError, ValueError, KeyError, TypeError) as error:
-            packet = empty_packet(plan, type(error).__name__ + ': ' + str(error))
+            packet = incomplete_packet(plan, root, type(error).__name__ + ': ' + str(error))
         packet['batch_plan_reference'] = plan_reference
         packets.append(packet)
     return packets
