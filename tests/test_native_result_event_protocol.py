@@ -167,6 +167,7 @@ typedef struct {
     Transaction *transaction;
     msconnector_decision pending_request_decision;
     int request_decision_pending;
+    int request_partial_observed;
     msconnector_decision pending_response_decision;
     int response_decision_pending;
 } msconnector_native_transaction;
@@ -199,8 +200,10 @@ int main(void) {
     for (i=0;i<sizeof(results)/sizeof(results[0]);i++) {
         int append_ok=results[i]==0 || results[i]==1;
         native_result=results[i]; calls=decisions=0; error.code=0;
+        native.request_partial_observed=0;
         CHECK(native_append_request_body(&runtime,&native,(const unsigned char *)"abc",3,&error)==append_ok);
         CHECK(calls==1 && decisions==append_ok && error.code==(append_ok ? 0:1));
+        CHECK(native.request_partial_observed==(results[i]==0));
         calls=decisions=0; error.code=0;
         CHECK(native_append_response_body(&runtime,&native,(const unsigned char *)"abc",3,&error)==append_ok);
         CHECK(calls==1 && decisions==append_ok && error.code==(append_ok ? 0:1));
@@ -211,6 +214,19 @@ int main(void) {
         CHECK(native_finish_response_body(&runtime,&native,&decision,&error)==(results[i]==1));
         CHECK(calls==1 && decisions==(results[i]==1));
     }
+    /* A later successful or empty append must preserve an earlier partial. */
+    native.request_partial_observed=0;
+    native_result=0;
+    CHECK(native_append_request_body(&runtime,&native,(const unsigned char *)"abc",3,&error)==1);
+    native_result=1;
+    CHECK(native_append_request_body(&runtime,&native,(const unsigned char *)"def",3,&error)==1);
+    CHECK(native.request_partial_observed==1);
+    calls=0;
+    CHECK(native_append_request_body(&runtime,&native,NULL,0,&error)==1 && calls==0);
+    CHECK(native.request_partial_observed==1);
+    native.request_partial_observed=0;
+    CHECK(native_append_request_body(&runtime,&native,NULL,0,&error)==1);
+    CHECK(native.request_partial_observed==0);
     calls=0;
     CHECK(native_append_response_body(&runtime,&native,NULL,0,&error)==1 && calls==0);
     return 0;
