@@ -13,16 +13,21 @@ import re
 from pathlib import Path
 
 
+def _ordered_source_hash_entries(value):
+    entries = []
+    for entry in value:
+        if not isinstance(entry, dict) or set(entry) != {"path", "sha256"}:
+            raise ValueError("source-hash entry requires only path and sha256")
+        entries.append((entry["path"], entry["sha256"]))
+    return entries
+
+
 def source_hash_map(value):
     """Read frozen mappings or ordered entries, rejecting ambiguous entries."""
     if isinstance(value, dict):
         entries = list(value.items())
     elif isinstance(value, list):
-        entries = []
-        for entry in value:
-            if not isinstance(entry, dict) or set(entry) != {"path", "sha256"}:
-                raise ValueError("source-hash entry requires only path and sha256")
-            entries.append((entry["path"], entry["sha256"]))
+        entries = _ordered_source_hash_entries(value)
     else:
         raise ValueError("source hashes require a mapping or ordered entries")
     result = {}
@@ -64,7 +69,7 @@ def migrate_fixture(document):
 def render_fixture(document):
     """Keep simple path/hash entries on one line for a reviewable ledger."""
     text = json.dumps(document, indent=2, ensure_ascii=False)
-    pattern = r'(?m)^( *)\{\n\1  "path": ("(?:[^"\\]|\\.)*"),\n\1  "sha256": ("[a-f0-9]{64}")\n\1\}'
+    pattern = r'(?m)^( *)\{\n\1 {2}"path": ("(?:[^"\\]|\\.)*"),\n\1 {2}"sha256": ("[a-f0-9]{64}")\n\1\}'
     return re.sub(pattern, r'\1{"path": \2, "sha256": \3}', text) + "\n"
 
 

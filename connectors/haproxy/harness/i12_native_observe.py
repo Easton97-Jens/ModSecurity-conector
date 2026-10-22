@@ -8,6 +8,7 @@ import re
 
 
 EXECUTION_FILE = 'execution.json'
+CASE_CONTRACT_FILE = 'case-contract.json'
 
 
 HOST_CONFIG = 'haproxy.cfg'
@@ -149,7 +150,7 @@ def verified_attempt_inputs(attempt, spec_path, fixture, binary, source_receipt)
     launch_path, launch_ledger = bindings.resolve(FIXTURE_LAUNCH)
     if direct != binary:
         raise ValueError("explicit Direct binary differs from executed sealed spec")
-    if contract_path != fixture / "case-contract.json":
+    if contract_path != fixture / CASE_CONTRACT_FILE:
         raise ValueError("explicit fixture differs from executed sealed spec")
     if launch_path != fixture / "launch.py" or launch_ledger != fixture_ledger:
         raise ValueError("executed fixture entrypoint differs from explicit sealed fixture")
@@ -266,7 +267,7 @@ def observe(attempt, fixture, binary, source_receipt, spec_path):
     execution = load(data / EXECUTION_FILE)
     controller = load(attempt / CONTROLLER_RESULT)
     attempt_binding = verified_attempt_inputs(attempt, spec_path, fixture, binary, source_receipt)
-    contract = load(fixture / "case-contract.json")
+    contract = load(fixture / CASE_CONTRACT_FILE)
     client = load(data / "main-client.json")
     neighbor = load(data / "neighbor-client.json")
     raw = [json.loads(line) for line in (data / "native-api.jsonl").read_text().splitlines()]
@@ -321,7 +322,7 @@ def observe(attempt, fixture, binary, source_receipt, spec_path):
         "debug": reference(data / "native-debug.log", "native_debug"),
         "config": reference(data / HOST_CONFIG, "effective_configuration"),
         "rules": reference(data / RULES_FILE, "effective_configuration"),
-        "contract": reference(fixture / "case-contract.json", "source_contract"),
+        "contract": reference(fixture / CASE_CONTRACT_FILE, "source_contract"),
         "controller": reference(attempt / CONTROLLER_RESULT, "isolation_receipt"),
         "execution": reference(data / EXECUTION_FILE, "cleanup_observer"),
         "source": reference(source_receipt, "source_manifest"),

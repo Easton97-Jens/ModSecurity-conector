@@ -33,6 +33,7 @@ AGENT_STDERR = 'agent.stderr'
 HOST_STDERR = 'host.stderr'
 DECISION_FILE = 'decision.jsonl'
 CLIENT_FILE = 'client.jsonl'
+BACKEND_FILE = 'backend.jsonl'
 NATIVE_AUDIT = 'native-audit.log'
 REQUEST_BODY_CALL = 'native_process_request_body'
 REQUEST_FINISH_CALL = 'common_finish_request_authorization'
@@ -497,7 +498,7 @@ def load_route(readings, companion, index):
     request = readings.get(request_name, ROLE_CLIENT, "bytes")
     request = verified_client_bytes(readings, request_name, request, client, "request_sha256")
     wire = verified_client_bytes(readings, wire_name, wire, client, "response_sha256")
-    backend_name = "observations.json" if companion else "backend.jsonl"
+    backend_name = "observations.json" if companion else BACKEND_FILE
     backend = readings.get(backend_name, ROLE_BACKEND, "array" if companion else "jsonl")
     commands_name = "receipt.json" if companion else "commands.jsonl"
     commands = readings.get(commands_name, ROLE_CLEANUP, "json" if companion else "jsonl")
@@ -718,14 +719,14 @@ def backend_measurements(observations, route, readings, path):
     requests = [row for row in rows if row.get("kind") == "backend_request" or "method" in row]
     selected = [row for row in requests if row.get("path") == path]
     value = {"matching_path": len(selected), "all_actual_requests": requests, "raw_physical_rows": route["backend"]}
-    if route["backend_name"] == "backend.jsonl":
+    if route["backend_name"] == BACKEND_FILE:
         raw = read_bytes(readings.root / route["backend_name"])
         if raw and not raw.endswith(b"\n"):
             errors.append({"reason": "backend log has no complete final JSONL line"})
     if errors:
         observations["backend_request_count"] = unknown("unknown or corrupt backend rows prevent an exact request count", {**value, "decode_errors": errors})
         return
-    if not selected and route["backend_name"] == "backend.jsonl":
+    if not selected and route["backend_name"] == BACKEND_FILE:
         control, reason = backend_zero_control(route, readings, requests)
         if control is None:
             observations["backend_request_count"] = unknown(reason, value)
