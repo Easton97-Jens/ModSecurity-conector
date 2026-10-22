@@ -9,6 +9,9 @@ from pathlib import Path
 import shutil
 import sys
 
+DRIVER_FILE = 'driver.py'
+PREPARATION_RECEIPT = 'acceptance-preparation.json'
+
 HERE=Path(__file__).resolve().parent
 
 def module(path,name):
@@ -18,7 +21,7 @@ def save(path,value):path.write_text(json.dumps(value,indent=2)+'\n')
 
 def native_hooks(text):
  native=HERE.parent/'i12/native'
- if sha(native/'acceptance_prepare.py')!='ac78b9a4bf73a2e67c486947d7ba15fada3a542a5c24485ea7a6e72590f651ca':
+ if sha(native/'acceptance_prepare.py')!='cdb09aa6ba3318953f745cb3010485313ebbe3f1708b4cc1ac0f6a39f50cab6e':
   raise ValueError('exact reviewed native acceptance helper required')
  sys.path.insert(0,str(native))
  try:owner=module(native/'acceptance_prepare.py','native_acceptance_prepare_owner')
@@ -46,25 +49,7 @@ def patch_host_observer(source,cases):
   'purpose':'exact admitted synthetic probeIDs; physicalsink relocated by test-only environment; nativeID separately observed'}
 
 
-def bind_file_supplements(cases, selected_ids, repository, fixtures):
- if not selected_ids:return []
- selected={case['id']:case for case in cases}
- if len(set(selected_ids))!=len(selected_ids) or not set(selected_ids)<=set(selected):
-  raise ValueError('file supplements must name distinct selected original IDs')
- file_root=repository/'connectors/traefik/harness/i12_file'
- contract=module(file_root/'acceptance.py','auth_physical_file_contract')
- source_root=repository/'connectors/traefik/harness/fixtures/i12-file-source'
- manifest_path=source_root/'manifest.json';manifest=json.loads(manifest_path.read_text())
- if manifest.get('schema')!='traefik-physical-file-fixtures-v1' or manifest.get('native_file_api') is not False:
-  raise ValueError('physical HTTP file manifest required')
- files={entry['relative_path']:entry for entry in manifest['files']}
- if set(files)!={'benign.txt','request-marker.txt','request-outside-sample.txt','response-marker.txt'}:
-  raise ValueError('all four physical file controls required')
- for filename,entry in files.items():
-  path=source_root/filename
-  if ((entry['size'],entry['sha256'])!=contract.FIXTURES[filename] or path.is_symlink() or
-      not path.is_file() or path.stat().st_size!=entry['size'] or sha(path)!=entry['sha256']):
-   raise ValueError('exact physical file fixture required: '+filename)
+def bind_selected_file_cases(selected_ids, selected, contract, files, manifest_path, file_root):
  for original_id in selected_ids:
   case=selected[original_id];direction={'NEED-request-file':'request','NEED-response-file':'response'}.get(case['case_id'])
   expected_route='traefik-forwardauth-'+('request' if direction=='request' else 'response-companion')
@@ -94,6 +79,48 @@ def bind_file_supplements(cases, selected_ids, repository, fixtures):
    'native_eos_and_finish_free_required':True,'actual_commit_and_client_bytes_required':direction=='response',
    'generic_file_contract':declared['expected'],'generic_transport_is_not_selected_auth_observer_mode':True}
   case['fixture_sha256']=hashlib.sha256(json.dumps(fixture,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+
+
+def validate_file_fixtures(files, source_root, contract):
+ for filename,entry in files.items():
+  path=source_root/filename
+  if ((entry['size'],entry['sha256'])!=contract.FIXTURES[filename] or path.is_symlink() or
+      not path.is_file() or path.stat().st_size!=entry['size'] or sha(path)!=entry['sha256']):
+   raise ValueError('exact physical file fixture required: '+filename)
+
+
+def select_cases(cases, selected_ids):
+ if selected_ids:
+  if len(set(selected_ids))!=len(selected_ids) or not set(selected_ids)<={case['id'] for case in cases}:
+   raise ValueError('selection must name distinct original IDs in the selected route')
+  cases=[case for case in cases if case['id'] in selected_ids]
+ return cases
+
+
+def stage_syscall_observer(cases, fixtures):
+ if any(case['fixture'].get('syscall_observer') for case in cases):
+  tracer=HERE.parent/'i12/native/acceptance_syscalls.c'
+  if sha(tracer)!='d224b4600e6e8ce92f14449e3768e68b037735f3a59331d51bc2924bd65f612b':
+   raise ValueError('Root reviewed exact-child auth tracer source required')
+  shutil.copyfile(tracer,fixtures/'acceptance_syscalls.c')
+
+
+def bind_file_supplements(cases, selected_ids, repository, fixtures):
+ if not selected_ids:return []
+ selected={case['id']:case for case in cases}
+ if len(set(selected_ids))!=len(selected_ids) or not set(selected_ids)<=set(selected):
+  raise ValueError('file supplements must name distinct selected original IDs')
+ file_root=repository/'connectors/traefik/harness/i12_file'
+ contract=module(file_root/'acceptance.py','auth_physical_file_contract')
+ source_root=repository/'connectors/traefik/harness/fixtures/i12-file-source'
+ manifest_path=source_root/'manifest.json';manifest=json.loads(manifest_path.read_text())
+ if manifest.get('schema')!='traefik-physical-file-fixtures-v1' or manifest.get('native_file_api') is not False:
+  raise ValueError('physical HTTP file manifest required')
+ files={entry['relative_path']:entry for entry in manifest['files']}
+ if set(files)!={'benign.txt','request-marker.txt','request-outside-sample.txt','response-marker.txt'}:
+  raise ValueError('all four physical file controls required')
+ validate_file_fixtures(files, source_root, contract)
+ bind_selected_file_cases(selected_ids, selected, contract, files, manifest_path, file_root)
  target=fixtures/'i12_file';target.mkdir()
  for path in file_root.iterdir():
   if path.is_file() and path.suffix in ('.py','.json','.c','.md'):shutil.copyfile(path,target/path.name)
@@ -109,10 +136,7 @@ def prepare(repository,output,manifest_path,route,sdk_controls,selected_ids=None
  cases=[case for case in manifest['cases'] if case['route']==route]
  if len(cases)!={'traefik-forwardauth-request':93,'traefik-forwardauth-response-companion':69}[route]:raise ValueError('complete original logical route required')
  inventory_count=len(cases)
- if selected_ids:
-  if len(set(selected_ids))!=len(selected_ids) or not set(selected_ids)<=set(case['id'] for case in cases):
-   raise ValueError('selection must name distinct original IDs in the selected route')
-  cases=[case for case in cases if case['id'] in selected_ids]
+ cases=select_cases(cases, selected_ids)
  output.mkdir(mode=0o700,parents=True)
  source=owner.stage_source(repository.resolve(),output);fixtures=output/'fixtures';fixtures.mkdir()
  sdk_receipt=json.loads(sdk_controls.read_text())
@@ -123,8 +147,8 @@ def prepare(repository,output,manifest_path,route,sdk_controls,selected_ids=None
  shutil.copyfile(sdk_controls,fixtures/'method-uri-sdk-controls.json')
  file_ids=bind_file_supplements(cases,file_supplement_ids,repository.resolve(),fixtures)
  captured=source/'.i12-capture/traefik-forwardauth/drivers'
- for name in ('driver.py','cc-wrapper.sh','cxx-wrapper.sh','sdk-who.c'):
-  target=fixtures/('base_driver.py' if name=='driver.py' else name);shutil.copyfile(captured/name,target)
+ for name in (DRIVER_FILE,'cc-wrapper.sh','cxx-wrapper.sh','sdk-who.c'):
+  target=fixtures/('base_driver.py' if name==DRIVER_FILE else name);shutil.copyfile(captured/name,target)
   if name.endswith('.sh'):target.chmod(0o755)
  deltas=[patch_host_observer(source,cases)]
  observer=source/'ci/runtime/lifecycle/native-lifecycle-observer.c';before=sha(observer)
@@ -137,15 +161,11 @@ def prepare(repository,output,manifest_path,route,sdk_controls,selected_ids=None
   shutil.copyfile(HERE/name,fixtures/name)
  shutil.copyfile(HERE.parent/'i12/native/acceptance_faults.c',fixtures/'acceptance_faults.c')
  shutil.copyfile(HERE.parent/'i12/native/acceptance_driver.py',fixtures/'shared_native_acceptance_driver.py')
- if any(case['fixture'].get('syscall_observer') for case in cases):
-  tracer=HERE.parent/'i12/native/acceptance_syscalls.c'
-  if sha(tracer)!='d2eaa85b3709ae8f4d79ba95f8b91a2c34769ef29d213d25ccc82a826432b5cc':
-   raise ValueError('Root reviewed exact-child auth tracer source required')
-  shutil.copyfile(tracer,fixtures/'acceptance_syscalls.c')
+ stage_syscall_observer(cases, fixtures)
  save(fixtures/'acceptance-manifest.json',{**manifest,'cases':cases,'selected_route':route})
- (fixtures/'driver.py').write_text("import sys\nsys.path.insert(0,'/mnt/fixtures')\nimport acceptance_driver\nacceptance_driver.main()\n")
+ (fixtures/DRIVER_FILE).write_text("import sys\nsys.path.insert(0,'/mnt/fixtures')\nimport acceptance_driver\nacceptance_driver.main()\n")
  for path in fixtures.rglob('*.py'):ast.parse(path.read_text())
- save(output/'acceptance-preparation.json',{'central_variant':'traefik-forwardauth','route':route,
+ save(output/PREPARATION_RECEIPT,{'central_variant':'traefik-forwardauth','route':route,
   'source_application_receipt_sha256':sha(source/'i12-source-application-receipt.json'),
   'manifest':{'path':str(manifest_path),'sha256':sha(manifest_path)},'instrumentation_delta':deltas,
   'independent_method_uri_sdk_controls':{'path':str(sdk_controls),'sha256':sha(sdk_controls)},
@@ -153,9 +173,9 @@ def prepare(repository,output,manifest_path,route,sdk_controls,selected_ids=None
   'original_inventory_count':inventory_count,'original_id_count':len(cases),
   'explicit_original_id_selection':selected_ids,'qualification':None,'host_launched':False})
  if file_ids:
-  receipt=json.loads((output/'acceptance-preparation.json').read_text())
+  receipt=json.loads((output/PREPARATION_RECEIPT).read_text())
   receipt['explicit_physical_file_supplement_ids']=file_ids
-  save(output/'acceptance-preparation.json',receipt)
+  save(output/PREPARATION_RECEIPT,receipt)
  return output
 
 if __name__=='__main__':

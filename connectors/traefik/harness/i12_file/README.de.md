@@ -1,6 +1,6 @@
 # Physisch dateibasierter HTTP-Zusatznachweis für Traefik I12
 
-[English](README.md)
+**Sprache:** [English](README.md) | Deutsch
 
 Dieser Producer misst eine reguläre Datei, die der tatsächliche HTTP-Client oder
 Ziel-Backendprozess liest, und überträgt ihre Bytes über die vorhandenen

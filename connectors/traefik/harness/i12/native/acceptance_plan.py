@@ -13,6 +13,8 @@ from pathlib import Path
 
 ROUTE = 'traefik-native-uds'
 PREFIX = 'I12::' + ROUTE + '::'
+ALLOW_URI = '/no-crs/allow'
+PLAIN_TYPE = 'text/plain'
 
 
 def digest(data):
@@ -38,9 +40,9 @@ def rules_block(path):
 
 
 def default_fixture():
-    return {'request': {'method': 'GET', 'uri': '/no-crs/allow', 'headers': [],
+    return {'request': {'method': 'GET', 'uri': ALLOW_URI, 'headers': [],
                         'body_hex': '', 'chunk_lengths': []},
-            'backend': {'status': 200, 'headers': [['Content-Type', 'text/plain']],
+            'backend': {'status': 200, 'headers': [['Content-Type', PLAIN_TYPE]],
                         'body_hex': b'i12-independent-backend-response\n'.hex(), 'chunk_lengths': [7, 12, 14]},
             'policy': {'phase4_mode': 'safe'}, 'fault': None}
 
@@ -88,7 +90,7 @@ def canonical_wire_fixture(fixture, document, catalog_request):
     body = request.get('body_fixture', request.get('body', ''))
     raw = str(body).encode() if body is not None else b''
     lifecycle = document.get('full_lifecycle') or {}
-    fixture['request'].update(method=request.get('method', 'GET'), uri=request.get('path', '/no-crs/allow'),
+    fixture['request'].update(method=request.get('method', 'GET'), uri=request.get('path', ALLOW_URI),
         headers=header_pairs(request.get('headers', [])), body_hex=raw.hex(),
         chunk_lengths=literal_chunks(raw, lifecycle['request_chunks']) if 'request_chunks' in lifecycle else [])
     response = copy.deepcopy(document.get('response') or {})
@@ -98,16 +100,7 @@ def canonical_wire_fixture(fixture, document, catalog_request):
         fixture['backend'].update(body_hex=body.hex(), chunk_lengths=literal_chunks(body, lifecycle.get('response_chunks')))
     if 'headers' in response:
         fixture['backend']['headers'] = header_pairs(response['headers'])
-    if 'content_type_variant' in request:
-        variant = request['content_type_variant']
-        variants = lifecycle.get('variants', {})
-        if variant not in variants:
-            raise ValueError('unknown canonical Content-Type variant: ' + str(variant))
-        response['content_type'] = variants[variant]
-    if 'content_type' in response:
-        fixture['backend']['headers'] = [[key, value] for key, value in fixture['backend']['headers'] if key.lower() != 'content-type']
-        if response['content_type'] is not None:
-            fixture['backend']['headers'].append(['Content-Type', str(response['content_type'])])
+    canonical_content_type(fixture, request, response, lifecycle)
     fixture['backend']['status'] = response.get('status', 200)
     if request.get('response_fixture'):
         name, separator, value = request['response_fixture'].partition(':')
@@ -149,47 +142,13 @@ def canonical_fixture(row, catalog, framework, baseline):
             fixture['rules_lines'] += exact
         fixture['canonical_rules_composition'] = 'shared no-crs-baseline.conf followed by runner-specific directives; no CRS'
         fixture['canonical_rules_source'] = source
-    name = case['case_id']
-    phase = case.get('phase')
-    if not source and (phase == 4 or 'response-body' in str(request)) and not request.get('response_body_fixture'):
-        raw = b'no-crs-response-body-marker'
-        fixture['backend'].update(body_hex=raw.hex(), chunk_lengths=[7, 12, len(raw) - 19])
-    if not source and name in ('phase2_marker_split_across_chunks',):
-        raw = b'no-crs-request-body-marker'
-        fixture['request'].update(method='POST', uri='/no-crs/request-body',
-            headers=[['Content-Type', 'text/plain']], body_hex=raw.hex(), chunk_lengths=[7, len(raw)-7])
-    synchronized = document.get('full_lifecycle', {}).get('synchronization', {}).get('upstream_waits_for_test_barrier')
-    late = document.get('full_lifecycle', {}).get('response_committed_before_marker')
-    if synchronized or late:
-        raw = bytes.fromhex(fixture['backend']['body_hex'])
-        marker = raw.find(b'no-crs-response-body-marker')
-        if marker <= 0:
-            raise ValueError('source-required prefix barrier has no literal prefix before marker')
-        fixture['backend'].update(chunk_lengths=[marker, len(raw) - marker], barrier=True)
-    if name in ('event_metadata_truncation', 'event_json_limit'):
-        fixture['request']['headers'].append(['X-Modsec-Smoke', 'log-only'])
-        fixture['request']['uri'] = '/no-crs/log-only?' + ('metadata=' + 'M' * 1500)
-        fixture['event_limit_variants'] = [1024, 16384]
-    if name == 'transaction_id_generated_or_fallback':
-        fixture['request']['omit_transaction_id'] = True
-    if name in ('response_short_write_resume', 'response_write_would_block_resume'):
-        raw = b'A' * (2 * 1024 * 1024) + b'no-crs-response-body-marker'
-        fixture['backend'].update(body_hex=raw.hex(), chunk_lengths=[8192] * 256 + [len(raw)-2097152])
-        fixture['request']['slow_reader'] = True
-    if name.startswith('engine_timeout'):
-        fixture['fault'] = {'kind': name, 'delay_ms': 5500, 'configured_deadline_ms': 5000}
-    if name in ('early_mapping_failure_cleanup', 'transaction_begin_failure_cleanup', 'finish_failure_propagation'):
-        fixture['fault'] = {'kind': name}
-    if name == 'multiple_sequential_requests':
-        fixture['sequence'] = ['allow_without_marker', 'deny_header_marker_403', 'allow_without_marker']
-    if name == 'phase4_deny_after_commit_log_only_minimal':
-        fixture['policy']['phase4_mode'] = 'minimal'
+    canonical_stimuli(fixture, case, request, document, source)
     fixture['request']['raw_template'] = request.get('raw_template')
     fixture['request']['adapter_fixture'] = request.get('adapter_fixture')
     return fixture
 
 
-def constraints(case, fixture):
+def constraints(case):
     required = ['waited_client_exit_signal', 'independent_backend_count_and_bytes',
                 'actual_host_callbacks', 'native_api_and_host_eos_separate',
                 'physical_commit', 'runtime_finish_logging_free_separate',
@@ -217,7 +176,18 @@ def file_supplements(originals):
     harness = Path(__file__).resolve().parents[2]
     manifest_path = harness / 'fixtures/i12-file-source/manifest.json'
     plan_path = harness / 'i12_file/supplement-plan.json'
+    contract_path = harness / 'i12_file/acceptance.py'
+    spec = importlib.util.spec_from_file_location('native_physical_file_contract', contract_path)
+    contract = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(contract)
     manifest = json.loads(manifest_path.read_text())
+    if manifest.get('schema') != 'traefik-physical-file-fixtures-v1' or manifest.get('native_file_api') is not False:
+        raise ValueError('physical HTTP file manifest required')
+    files = {entry['relative_path']: entry for entry in manifest['files']}
+    if len(files) != len(manifest['files']) or set(files) != set(contract.FIXTURES):
+        raise ValueError('all four distinct physical file controls required')
+    validate_file_fixtures(files, manifest_path.parent, contract)
+    declarations = {(row['id'], row['file_spec']['relative_path']): row for row in contract.cases()}
     supplements = []
     for original in originals:
         name = original['id'].rsplit('::', 1)[-1]
@@ -225,31 +195,19 @@ def file_supplements(originals):
             continue
         response = name == 'NEED-response-file'
         for filename in ('benign.txt', 'response-marker.txt' if response else 'request-marker.txt'):
-            variant = copy.deepcopy(original)
-            suffix = '-file-' + filename.removesuffix('.txt')
-            variant['key'] += suffix
-            for field in ('transaction_id', 'neighbor_id', 'positive_control_id', 'main_before_id', 'main_after_id'):
-                variant[field] += suffix
-            variant['readiness_ids'] = [value + suffix for value in variant.get('readiness_ids', [])]
-            variant['fixture']['request'].update(method='GET' if response else 'POST',
-                uri='/no-crs/allow' if response else '/no-crs/request-body',
-                body_hex='', chunk_lengths=[], raw_template=None, omit_transaction_id=False)
-            variant['fixture']['fault'] = None
-            variant['fixture']['policy']['phase4_mode'] = 'safe'
-            variant['fixture']['file_supplement'] = {
-                'physical_reader': 'backend' if response else 'client', 'fixture': filename,
-                'file_spec': next(copy.deepcopy(spec) for spec in manifest['files'] if spec['relative_path'] == filename),
-                'manifest_sha256': digest(manifest_path.read_bytes()),
-                'supplement_plan_sha256': digest(plan_path.read_bytes()),
-                'native_file_api': False, 'backend_exclusion_expected': False,
-                'strict_scope': 'separate actual profile-start configuration negative only'}
-            variant['fixture_sha256'] = json_digest(variant['fixture'])
-            variant['supplementary_to_key'] = original['key']
-            variant['assertion_scope'] = 'Physical file-read to HTTP transport; native File-API applicability remains unresolved; native P2 denial may follow backend entry'
-            variant['expected'] = None
-            variant['expected_approval'] = False
+            variant = file_variant(original, filename, response, declarations, files,
+                (manifest_path, plan_path, contract_path), contract)
             supplements.append(variant)
     return supplements
+
+
+def validate_file_fixtures(files, fixture_root, contract):
+    for filename, entry in files.items():
+        path = fixture_root / filename
+        if ((entry['size'], entry['sha256']) != contract.FIXTURES[filename] or entry['read_size'] != 24 or
+                path.is_symlink() or not path.is_file() or path.stat().st_size != entry['size'] or
+                digest(path.read_bytes()) != entry['sha256']):
+            raise ValueError('exact physical file fixture required: ' + filename)
 
 
 def build(inventory, proposals, framework, minimal_correction=None):
@@ -268,42 +226,10 @@ def build(inventory, proposals, framework, minimal_correction=None):
         name = row['original_contract']['case_id']
         proposal = originals.get(row['id'])
         fixture = copy.deepcopy(proposal['fixture']) if proposal else canonical_fixture(row, catalog, framework, baseline)
-        required, unresolved = constraints(name, fixture)
+        required, unresolved = constraints(name)
         # Proposal faults which need an actual response prefix get a large,
         # explicit stimulus override. Never conceal this as an unchanged SDK fixture.
-        overrides = []
-        if name == 'phase4_deny_after_commit_log_only_minimal' and minimal_correction:
-            fixture['policy']['phase4_mode'] = 'off'
-            fixture['literal_negative_config_modes'] = ['minimal']
-            fixture['explicit_contract_correction'] = minimal_correction
-            overrides.append('Original minimal ID retained; explicit #376 migration contract proposes current Off fixture; literal minimal remains negative parser control')
-        if name in ('NEED-cancel', 'NEED-abort-reset-observation', 'NEED-client-exit-signal', 'NEED-incomplete-framing', 'NEED-no-second-response', 'engine_timeout_after_commit'):
-            fixture['backend'].update(body_hex=(b'A' * 16384).hex(), chunk_lengths=[8192, 4096, 4096], barrier=True)
-            overrides.append('16384-byte backend, first8192 then delayed suffix for physically active cancellation/postcommit')
-        if name in ('response_short_write_resume', 'response_write_would_block_resume'):
-            fixture['rules_lines'] += ['SecResponseBodyLimit 4194304', 'SecResponseBodyLimitAction Reject']
-            overrides.append('Explicit native response4MiB/Reject policy for2MiB slow-reader stimulus; default partial policy cannot prove tail marker inspection')
-        if name == 'NEED-commit-ack-applied':
-            fixture['rules_lines'].append('SecAction "id:1999399,phase:1,deny,status:403,log"')
-            overrides.append('P1 deny ensures actual AcknowledgeApplied opcode10 is exercised before writer commit')
-        if name.startswith('NEED-physical-event-sink-'):
-            original_fault = copy.deepcopy(fixture.get('fault'))
-            operation = name.removeprefix('NEED-physical-event-sink-')
-            fixture['explicit_fault_reconciliation'] = {
-                'original_fault': original_fault, 'effective_operation': operation,
-                'effective_errno': 'EACCES' if operation == 'open' else ('EFBIG' if operation == 'short-write' else 'EBADF'),
-                'independent_source': 'Linux openat/fputs/fflush/fclose with actual inode modes, atomically installed same-inode readonly FD, RLIMIT_FSIZE; fclose only at physically single-thread shutdown',
-                'effective_fault_scope': 'service_shutdown' if operation == 'close' else ('service_startup' if operation == 'open' else 'selected_request'),
-                'expected_approval': False, 'runtime_qualified': False}
-            overrides.append('Physical POSIX fault mechanism made explicit; historical proposed errno preserved, not relabelled')
-            target_uri = fixture['request']['uri']
-            fixture['rules_lines'].append('SecRule REQUEST_URI "@streq ' + target_uri + '" "id:1999398,phase:1,deny,status:403,log,msg:\'i12 physical sink target\'"')
-            if operation in ('write', 'short-write', 'flush'):
-                recovery_uri = '/i12/sink-recovery/' + digest(row['id'].encode())[:12]
-                fixture['sink_recovery_control'] = {'uri': recovery_uri, 'expected_native_rule_id': 1999397,
-                    'expected_native_status': 403, 'expected_approval': False}
-                fixture['rules_lines'].append('SecRule REQUEST_URI "@streq ' + recovery_uri + '" "id:1999397,phase:1,deny,status:403,log,msg:\'i12 physical sink recovery\'"')
-            overrides.append('Target-only native P1 Deny forces real Common event; prior nondisruptive pass/log stimulus never reached sink; host error outcome needs independent source review')
+        overrides = stimulus_overrides(fixture, name, row, minimal_correction)
         key = f'{index:03d}-' + digest(row['id'].encode())[:12]
         expected = copy.deepcopy(proposal['expected'] if proposal else row['original_contract']['expected_oracle'])
         controls = {}
@@ -329,6 +255,140 @@ def build(inventory, proposals, framework, minimal_correction=None):
             'expected': expected, 'expected_approval': False,
             'required_measurements': required, 'contract_blockers': unresolved,
             'qualification': None, 'runtime_status': 'pending'})
+    supplementary = build_supplements(result)
+    supplementary += file_supplements(result)
+    return {'schema_version': 1, 'route': ROUTE, 'original_id_count': 118,
+            'original_oracle_count': 55, 'qualification_promotions': 0,
+            'baseline_rules': {'path': str(rules), 'sha256': digest(rules.read_bytes())},
+            'cases': result, 'supplementary_executions': supplementary}
+
+
+def apply_selection(manifest, source_path, kind):
+    """Select executions without dropping original inventory or broadening keys."""
+    if kind not in ('ids', 'keys'):
+        raise ValueError('unknown selection kind')
+    raw = source_path.read_bytes()
+    selected = json.loads(raw)
+    if (not isinstance(selected, list) or not selected
+            or any(not isinstance(value, str) or not value for value in selected)
+            or len(set(selected)) != len(selected)):
+        raise ValueError('Retake selection must be a nonempty unique list of strings')
+    executions = manifest['cases'] + manifest['supplementary_executions']
+    all_keys = [case['key'] for case in executions]
+    if len(set(all_keys)) != len(all_keys):
+        raise ValueError('Manifest execution keys must be unique')
+    field = 'id' if kind == 'ids' else 'key'
+    known = {case[field] for case in (manifest['cases'] if kind == 'ids' else executions)}
+    if not set(selected) <= known:
+        raise ValueError('Retake selection contains unknown original IDs or execution keys')
+    manifest['selected_keys'] = [case['key'] for case in executions if case[field] in selected]
+    manifest['selection_source'] = {
+        'path': str(source_path), 'sha256': digest(raw), 'kind': kind}
+
+
+def canonical_content_type(fixture, request, response, lifecycle):
+    if 'content_type_variant' in request:
+        variant = request['content_type_variant']
+        variants = lifecycle.get('variants', {})
+        if variant not in variants:
+            raise ValueError('unknown canonical Content-Type variant: ' + str(variant))
+        response['content_type'] = variants[variant]
+    if 'content_type' in response:
+        fixture['backend']['headers'] = [[key, value] for key, value in fixture['backend']['headers'] if key.lower() != 'content-type']
+        if response['content_type'] is not None:
+            fixture['backend']['headers'].append(['Content-Type', str(response['content_type'])])
+
+
+def canonical_stimuli(fixture, case, request, document, source):
+    name = case['case_id']
+    phase = case.get('phase')
+    if not source and (phase == 4 or 'response-body' in str(request)) and not request.get('response_body_fixture'):
+        raw = b'no-crs-response-body-marker'
+        fixture['backend'].update(body_hex=raw.hex(), chunk_lengths=[7, 12, len(raw) - 19])
+    if not source and name in ('phase2_marker_split_across_chunks',):
+        raw = b'no-crs-request-body-marker'
+        fixture['request'].update(method='POST', uri='/no-crs/request-body',
+            headers=[['Content-Type', PLAIN_TYPE]], body_hex=raw.hex(), chunk_lengths=[7, len(raw)-7])
+    synchronized = document.get('full_lifecycle', {}).get('synchronization', {}).get('upstream_waits_for_test_barrier')
+    late = document.get('full_lifecycle', {}).get('response_committed_before_marker')
+    if synchronized or late:
+        raw = bytes.fromhex(fixture['backend']['body_hex'])
+        marker = raw.find(b'no-crs-response-body-marker')
+        if marker <= 0:
+            raise ValueError('source-required prefix barrier has no literal prefix before marker')
+        fixture['backend'].update(chunk_lengths=[marker, len(raw) - marker], barrier=True)
+    canonical_case_behavior(fixture, name)
+
+
+def canonical_case_behavior(fixture, name):
+    if name in ('event_metadata_truncation', 'event_json_limit'):
+        fixture['request']['headers'].append(['X-Modsec-Smoke', 'log-only'])
+        fixture['request']['uri'] = '/no-crs/log-only?' + ('metadata=' + 'M' * 1500)
+        fixture['event_limit_variants'] = [1024, 16384]
+    if name == 'transaction_id_generated_or_fallback':
+        fixture['request']['omit_transaction_id'] = True
+    if name in ('response_short_write_resume', 'response_write_would_block_resume'):
+        raw = b'A' * (2 * 1024 * 1024) + b'no-crs-response-body-marker'
+        fixture['backend'].update(body_hex=raw.hex(), chunk_lengths=[8192] * 256 + [len(raw)-2097152])
+        fixture['request']['slow_reader'] = True
+    if name.startswith('engine_timeout'):
+        fixture['fault'] = {'kind': name, 'delay_ms': 5500, 'configured_deadline_ms': 5000}
+    if name in ('early_mapping_failure_cleanup', 'transaction_begin_failure_cleanup', 'finish_failure_propagation'):
+        fixture['fault'] = {'kind': name}
+    if name == 'multiple_sequential_requests':
+        fixture['sequence'] = ['allow_without_marker', 'deny_header_marker_403', 'allow_without_marker']
+    if name == 'phase4_deny_after_commit_log_only_minimal':
+        fixture['policy']['phase4_mode'] = 'minimal'
+
+
+def physical_sink_override(fixture, name, row, overrides):
+    if not name.startswith('NEED-physical-event-sink-'):
+        return
+    original_fault = copy.deepcopy(fixture.get('fault'))
+    operation = name.removeprefix('NEED-physical-event-sink-')
+    error_number = {'open': 'EACCES', 'short-write': 'EFBIG'}.get(operation, 'EBADF')
+    fault_scope = {'close': 'service_shutdown', 'open': 'service_startup'}.get(operation, 'selected_request')
+    fixture['explicit_fault_reconciliation'] = {
+        'original_fault': original_fault, 'effective_operation': operation,
+        'effective_errno': error_number,
+        'independent_source': 'Linux openat/fputs/fflush/fclose with actual inode modes, atomically installed same-inode readonly FD, RLIMIT_FSIZE; fclose only at physically single-thread shutdown',
+        'effective_fault_scope': fault_scope,
+        'expected_approval': False, 'runtime_qualified': False}
+    overrides.append('Physical POSIX fault mechanism made explicit; historical proposed errno preserved, not relabelled')
+    target_uri = fixture['request']['uri']
+    fixture['rules_lines'].append('SecRule REQUEST_URI "@streq ' + target_uri + '" "id:1999398,phase:1,deny,status:403,log,msg:\'i12 physical sink target\'"')
+    if operation in ('write', 'short-write', 'flush'):
+        recovery_uri = '/i12/sink-recovery/' + digest(row['id'].encode())[:12]
+        fixture['sink_recovery_control'] = {'uri': recovery_uri, 'expected_native_rule_id': 1999397,
+            'expected_native_status': 403, 'expected_approval': False}
+        fixture['rules_lines'].append('SecRule REQUEST_URI "@streq ' + recovery_uri + '" "id:1999397,phase:1,deny,status:403,log,msg:\'i12 physical sink recovery\'"')
+    overrides.append('Target-only native P1 Deny forces real Common event; prior nondisruptive pass/log stimulus never reached sink; host error outcome needs independent source review')
+
+
+def stimulus_overrides(fixture, name, row, minimal_correction):
+    overrides = []
+    if name == 'phase4_deny_after_commit_log_only_minimal' and minimal_correction:
+        fixture['policy']['phase4_mode'] = 'off'
+        fixture['literal_negative_config_modes'] = ['minimal']
+        fixture['explicit_contract_correction'] = minimal_correction
+        overrides.append('Original minimal ID retained; explicit #376 migration contract proposes current Off fixture; literal minimal remains negative parser control')
+    if name in ('NEED-cancel', 'NEED-abort-reset-observation', 'NEED-client-exit-signal', 'NEED-incomplete-framing', 'NEED-no-second-response', 'engine_timeout_after_commit'):
+        fixture['backend'].update(body_hex=(b'A' * 16384).hex(), chunk_lengths=[8192, 4096, 4096], barrier=True)
+        overrides.append('16384-byte backend, first8192 then delayed suffix for physically active cancellation/postcommit')
+    if name in ('response_short_write_resume', 'response_write_would_block_resume'):
+        fixture['rules_lines'] += ['SecResponseBodyLimit 4194304', 'SecResponseBodyLimitAction Reject']
+        overrides.append('Explicit native response4MiB/Reject policy for2MiB slow-reader stimulus; default partial policy cannot prove tail marker inspection')
+    if name == 'NEED-commit-ack-applied':
+        fixture['rules_lines'].append('SecAction "id:1999399,phase:1,deny,status:403,log"')
+        overrides.append('P1 deny ensures actual AcknowledgeApplied opcode10 is exercised before writer commit')
+    physical_sink_override(fixture, name, row, overrides)
+    return overrides
+
+
+def build_supplements(result):
+    return capacity_supplements(result) + backpressure_supplements(result) + charset_supplements(result)
+
+def capacity_supplements(result):
     supplementary = []
     for original in result:
         if original['id'].endswith('::event_json_limit'):
@@ -345,6 +405,10 @@ def build(inventory, proposals, framework, minimal_correction=None):
             variant['expected'] = None
             variant['expected_approval'] = False
             supplementary.append(variant)
+    return supplementary
+
+def backpressure_supplements(result):
+    supplementary = []
     for original in result:
         if not original['id'].endswith(('::response_short_write_resume', '::response_write_would_block_resume')):
             continue
@@ -382,6 +446,10 @@ def build(inventory, proposals, framework, minimal_correction=None):
         supplementary.append(variant)
     # These are additional actual-byte experiments under the existing charset
     # IDs. Original fixtures remain unchanged; SDK/source approval precedes use.
+    return supplementary
+
+def charset_supplements(result):
+    supplementary = []
     for original in result:
         name = original['id'].rsplit('::', 1)[-1]
         if name not in ('NEED-request-charset-present', 'NEED-request-charset-missing',
@@ -393,59 +461,70 @@ def build(inventory, proposals, framework, minimal_correction=None):
                     ('utf8-as-latin1', '636166c3a9', 'text/plain; charset=iso-8859-1'),
                     ('latin1-as-utf8', '636166e9', 'text/plain; charset=utf-8')]
         if name.endswith('-missing'):
-            variants = [('utf8-missing', '636166c3a9', 'text/plain'),
-                        ('latin1-missing', '636166e9', 'text/plain')]
+            variants = [('utf8-missing', '636166c3a9', PLAIN_TYPE),
+                        ('latin1-missing', '636166e9', PLAIN_TYPE)]
         for label, body_hex, content_type in variants:
-            variant = copy.deepcopy(original)
-            suffix = '-cs-' + label
-            variant['key'] += suffix
-            for field in ('transaction_id', 'neighbor_id', 'positive_control_id', 'main_before_id', 'main_after_id'):
-                variant[field] += suffix
-            variant['readiness_ids'] = [value + suffix for value in variant.get('readiness_ids', [])]
-            side = variant['fixture']['backend' if response else 'request']
-            side.update(body_hex=body_hex, chunk_lengths=[len(bytes.fromhex(body_hex))])
-            side['headers'] = [[k, v] for k, v in side.get('headers', []) if k.lower() != 'content-type'] + [['Content-Type', content_type]]
-            # Identical byte operator across matching, cross-declared and absent
-            # charset controls. No inferred decoding or inspection-byte count.
-            lines = variant['fixture']['rules_lines']
-            variant['fixture']['rules_lines'] = [line for line in lines if not line.startswith('SecRule ')] + [
-                'SecRule ' + ('RESPONSE_BODY' if response else 'REQUEST_BODY') +
-                ' "@rx \\xE9" "id:1999381,phase:' + ('4' if response else '2') + ',deny,status:403,t:none"']
-            variant['fixture_sha256'] = json_digest(variant['fixture'])
-            variant['supplementary_to_key'] = original['key']
-            variant['explicit_stimulus_overrides'] += ['Actual non-ASCII byte/declared charset contrast with identical raw-byte regex E9; independent SDK expectation review required']
-            variant['assertion_scope'] = 'retained SDK bytes plus contrasting rule/intervention; retained length alone does not prove inspection'
-            variant['expected'] = None
-            variant['expected_approval'] = False
-            supplementary.append(variant)
-    supplementary += file_supplements(result)
-    return {'schema_version': 1, 'route': ROUTE, 'original_id_count': 118,
-            'original_oracle_count': 55, 'qualification_promotions': 0,
-            'baseline_rules': {'path': str(rules), 'sha256': digest(rules.read_bytes())},
-            'cases': result, 'supplementary_executions': supplementary}
+            supplementary.append(charset_variant(original, response, label, body_hex, content_type))
+    return supplementary
 
+def charset_variant(original, response, label, body_hex, content_type):
+    variant = copy.deepcopy(original)
+    suffix = '-cs-' + label
+    variant['key'] += suffix
+    for field in ('transaction_id', 'neighbor_id', 'positive_control_id', 'main_before_id', 'main_after_id'):
+        variant[field] += suffix
+    variant['readiness_ids'] = [value + suffix for value in variant.get('readiness_ids', [])]
+    side = variant['fixture']['backend' if response else 'request']
+    side.update(body_hex=body_hex, chunk_lengths=[len(bytes.fromhex(body_hex))])
+    side['headers'] = [[k, v] for k, v in side.get('headers', []) if k.lower() != 'content-type'] + [['Content-Type', content_type]]
+    # Identical byte operator across matching, cross-declared and absent
+    # charset controls. No inferred decoding or inspection-byte count.
+    lines = variant['fixture']['rules_lines']
+    variant['fixture']['rules_lines'] = [line for line in lines if not line.startswith('SecRule ')] + [
+        'SecRule ' + ('RESPONSE_BODY' if response else 'REQUEST_BODY') +
+        ' "@rx \\xE9" "id:1999381,phase:' + ('4' if response else '2') + ',deny,status:403,t:none"']
+    variant['fixture_sha256'] = json_digest(variant['fixture'])
+    variant['supplementary_to_key'] = original['key']
+    variant['explicit_stimulus_overrides'] += ['Actual non-ASCII byte/declared charset contrast with identical raw-byte regex E9; independent SDK expectation review required']
+    variant['assertion_scope'] = 'retained SDK bytes plus contrasting rule/intervention; retained length alone does not prove inspection'
+    variant['expected'] = None
+    variant['expected_approval'] = False
+    return variant
 
-def apply_selection(manifest, source_path, kind):
-    """Select executions without dropping original inventory or broadening keys."""
-    if kind not in ('ids', 'keys'):
-        raise ValueError('unknown selection kind')
-    raw = source_path.read_bytes()
-    selected = json.loads(raw)
-    if (not isinstance(selected, list) or not selected
-            or any(not isinstance(value, str) or not value for value in selected)
-            or len(set(selected)) != len(selected)):
-        raise ValueError('Retake selection must be a nonempty unique list of strings')
-    executions = manifest['cases'] + manifest['supplementary_executions']
-    all_keys = [case['key'] for case in executions]
-    if len(set(all_keys)) != len(all_keys):
-        raise ValueError('Manifest execution keys must be unique')
-    field = 'id' if kind == 'ids' else 'key'
-    known = {case[field] for case in (manifest['cases'] if kind == 'ids' else executions)}
-    if not set(selected) <= known:
-        raise ValueError('Retake selection contains unknown original IDs or execution keys')
-    manifest['selected_keys'] = [case['key'] for case in executions if case[field] in selected]
-    manifest['selection_source'] = {
-        'path': str(source_path), 'sha256': digest(raw), 'kind': kind}
+def file_variant(original, filename, response, declarations, files, sources, contract):
+    manifest_path, plan_path, contract_path = sources
+    declared = declarations[(original['id'], filename)]
+    variant = copy.deepcopy(original)
+    suffix = '-file-' + filename.removesuffix('.txt')
+    variant['key'] += suffix
+    for field in ('transaction_id', 'neighbor_id', 'positive_control_id', 'main_before_id', 'main_after_id'):
+        variant[field] += suffix
+    variant['readiness_ids'] = [value + suffix for value in variant.get('readiness_ids', [])]
+    variant['fixture']['request'].update(method='GET' if response else 'POST',
+        uri=ALLOW_URI if response else '/no-crs/request-body',
+        body_hex='', chunk_lengths=[], raw_template=None, omit_transaction_id=False)
+    variant['fixture']['request']['headers'] = [['Content-Type', PLAIN_TYPE]]
+    variant['fixture']['backend'] = {
+        'status': 200, 'headers': [['Content-Type', PLAIN_TYPE]],
+        'body_hex': contract.BACKEND_BODY.hex(), 'chunk_lengths': [len(contract.BACKEND_BODY)]}
+    variant['fixture']['rules_lines'] = list(declared['rules_lines'])
+    variant['fixture']['fault'] = None
+    variant['fixture']['policy']['phase4_mode'] = 'safe'
+    variant['fixture']['file_supplement'] = {
+        'physical_reader': 'backend' if response else 'client', 'fixture': filename,
+        'file_spec': copy.deepcopy(files[filename]),
+        'manifest_sha256': digest(manifest_path.read_bytes()),
+        'supplement_plan_sha256': digest(plan_path.read_bytes()),
+        'rules_source_sha256': digest(contract_path.read_bytes()),
+        'rules_sha256': declared['rules_sha256'],
+        'native_file_api': False, 'backend_exclusion_expected': False,
+        'strict_scope': 'separate actual profile-start configuration negative only'}
+    variant['fixture_sha256'] = json_digest(variant['fixture'])
+    variant['supplementary_to_key'] = original['key']
+    variant['assertion_scope'] = 'Physical file-read to HTTP transport; native File-API applicability remains unresolved; native P2 denial may follow backend entry'
+    variant['expected'] = None
+    variant['expected_approval'] = False
+    return variant
 
 
 def main():

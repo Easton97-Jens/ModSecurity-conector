@@ -1,6 +1,6 @@
 # Physical file-backed HTTP supplement for Traefik I12
 
-[Deutsch](README.de.md)
+**Language:** English | [Deutsch](README.de.md)
 
 This producer measures a regular file read by the actual HTTP client or target
 backend, then streams those bytes through the existing Traefik byte APIs. It does

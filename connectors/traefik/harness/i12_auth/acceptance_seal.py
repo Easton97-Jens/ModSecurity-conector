@@ -9,8 +9,28 @@ import stat
 import acceptance_validate
 
 
-ROOT = Path('/var/tmp/codex/ModSecurity-conector/runs/i12-traefik-acceptance-20261015/auth-current')
-ISOLATION = ROOT / 'isolation'
+ROOT = None
+ISOLATION = None
+EXPECTED_STORAGE_PARTS = ('/', 'var', 'tmp', 'codex', 'ModSecurity-conector',
+    'runs', 'i12-traefik-acceptance-20261015', 'auth-current')
+
+
+def private_storage_root(root):
+    """Admit the existing owned task tree, rejecting symlink/writable ancestors."""
+    root = Path(root)
+    if ROOT is None and root.parts != EXPECTED_STORAGE_PARTS:
+        raise ValueError('exact task-owned storage root required')
+    if not root.is_absolute() or '..' in root.parts or root.resolve(strict=True) != root:
+        raise ValueError('canonical private storage root required')
+    for path in reversed((root, *root.parents)):
+        state = path.lstat()
+        if not stat.S_ISDIR(state.st_mode) or state.st_uid != 0:
+            raise ValueError('root-owned storage ancestors required')
+        writable = state.st_mode & 0o022
+        sticky = state.st_mode & stat.S_ISVTX
+        if writable and not (sticky and path != root):
+            raise ValueError('private storage ancestor permissions required')
+    return root
 
 
 def sha(path):
@@ -25,7 +45,8 @@ def save(path, value):
 
 
 def binding(source, label, target):
-    if source.parent.parent != ROOT or source.resolve(strict=True) != source:
+    root = private_storage_root(ROOT or source.parent.parent)
+    if source.parent.parent != root or source.resolve(strict=True) != source:
         raise ValueError('exact task-owned source/fixture root required')
     paths = [source, *source.rglob('*')]
     records = {}
@@ -37,21 +58,23 @@ def binding(source, label, target):
             records[str(path.relative_to(source))] = sha(path)
     for path in reversed(paths):
         path.chmod(0o555 if path.is_dir() or path.stat().st_mode & 0o111 else 0o444)
-    ledger = ISOLATION / (label + '-' + source.name + '-ledger.json')
+    ledger = (ISOLATION or root / 'isolation') / (label + '-' + source.name + '-ledger.json')
     save(ledger, {'files': records})
     return {'source': str(source), 'ledger': str(ledger), 'ledger_sha256': sha(ledger), 'target': target}
 
 
 def seal(prepared, artifact_binding):
-    if os.geteuid() != 0 or prepared.parent != ROOT or prepared.resolve(strict=True) != prepared:
+    root = private_storage_root(ROOT or prepared.parent)
+    isolation = ISOLATION or root / 'isolation'
+    if os.geteuid() != 0 or prepared.parent != root or prepared.resolve(strict=True) != prepared:
         raise ValueError('exact owned preparation required')
-    if not re.fullmatch(r'(request|companion)-v[0-9]+(?:-benign|-original-causal)?', prepared.name):
+    if not re.fullmatch(r'(request|companion)-v\d+(?:-benign|-original-causal)?', prepared.name, re.ASCII):
         raise ValueError('explicit versioned Traefik preparation required')
     manifest = json.loads((prepared / 'fixtures/acceptance-manifest.json').read_text())
     if sha(prepared / 'fixtures/acceptance_validate.py') != sha(Path(acceptance_validate.__file__)):
         raise ValueError('runtime socket contract must match the reviewed sealed validator source')
     source = json.loads((prepared / 'source/.i12-source-export-manifest.json').read_text())
-    template = json.loads((ISOLATION / 'request-v12-spec.json').read_text())
+    template = json.loads((isolation / 'request-v12-spec.json').read_text())
     artifacts = json.loads(artifact_binding.read_text())
     if artifacts['target'] != '/mnt/artifacts' or sha(Path(artifacts['ledger'])) != artifacts['ledger_sha256']:
         raise ValueError('explicit reviewed artifact binding identity required')
@@ -70,7 +93,7 @@ def seal(prepared, artifact_binding):
     template['logical_route'] = manifest['selected_route']
     template['source_revision'] = source['source_revision']
     template['qualification'] = None
-    spec = ISOLATION / (prepared.name + '-spec.json')
+    spec = isolation / (prepared.name + '-spec.json')
     save(spec, template)
     return {'spec': str(spec), 'spec_sha256': sha(spec), 'source_revision': source['source_revision'],
             'runtime_provenance_socket_contract': acceptance_validate.PROVENANCE_SOCKET_CONTRACT,

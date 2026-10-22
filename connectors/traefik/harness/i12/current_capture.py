@@ -92,9 +92,7 @@ def provenance_observation(central, current):
     return central.exact_patch(current, patch), patch
 
 
-def apply(central, registry, profile_name, target):
-    """Validate the complete export and registry, then apply one exact variant."""
-    target = Path(target)
+def validate_capture(central, registry, profile_name, target):
     expected_profile = PROFILE_HASHES.get(profile_name)
     if expected_profile is None:
         raise ValueError('Only sealed Traefik variants are supported')
@@ -110,32 +108,51 @@ def apply(central, registry, profile_name, target):
     if (target / central.RECEIPT).exists():
         raise ValueError('Source application receipt already exists')
     registry.verify()
+    return identity, profile, expected_profile
+
+
+def source_write(central, registry, profile_name, target, name, entry):
+    path = target / central.relative(name)
+    original = central.plain(path) if path.exists() else None
+    actual = digest(original) if original is not None else None
+    expected = CURRENT.get(name, entry.get('current_before_sha256', entry['before_sha256']))
+    if actual != expected:
+        raise ValueError('Exact current source-copy base differs: ' + name)
+    output, delta = registry.content(entry['sha256']), None
+    strategy = 'central-declared-output'
+    if name in (RUNTIME, AUTHORIZATION) and profile_name == 'traefik-native':
+        output, strategy = original, 'current-product-preserved'
+    elif name in CURRENT:
+        output, delta = observation_delta(central, registry.content(entry['before_sha256']), output, original)
+        strategy = 'sealed-observation-rebased-on-current-product'
+    if name in CURRENT and profile_name == 'traefik-forwardauth' and digest(output) != REBASED.get(name):
+        raise ValueError('Pinned current observation output differs: ' + name)
+    transformation = {'strategy': strategy, 'input_sha256': actual, 'output_sha256': digest(output),
+        'central_output_sha256': entry['sha256'],
+        'central_object': registry.manifest['objects'][entry['sha256']],
+        'applied_delta_sha256': digest(delta) if delta is not None else None}
+    return (path, output, entry.get('mode', 420)), actual, transformation
+
+
+def validate_writes(target, writes):
+    for path, _, mode in writes:
+        if not path.is_relative_to(target) or mode not in (420, 493):
+            raise ValueError('Invalid current source-copy write')
+        for parent in path.parents:
+            if parent == target:
+                break
+            if parent.exists() and not parent.is_dir():
+                raise ValueError('Current source-copy parent is not a directory')
+
+
+def apply(central, registry, profile_name, target):
+    """Validate the complete export and registry, then apply one exact variant."""
+    target = Path(target)
+    identity, profile, expected_profile = validate_capture(central, registry, profile_name, target)
     writes, inputs, transformations = [], {}, {}
     for name, entry in profile['source_targets'].items():
-        path = target / central.relative(name)
-        original = central.plain(path) if path.exists() else None
-        actual = digest(original) if original is not None else None
-        expected = CURRENT.get(name, entry.get('current_before_sha256', entry['before_sha256']))
-        if actual != expected:
-            raise ValueError('Exact current source-copy base differs: ' + name)
-        inputs[name] = actual
-        output, delta = registry.content(entry['sha256']), None
-        strategy = 'central-declared-output'
-        if name in (RUNTIME, AUTHORIZATION) and profile_name == 'traefik-native':
-            output, strategy = original, 'current-product-preserved'
-        elif name in CURRENT:
-            output, delta = observation_delta(central, registry.content(entry['before_sha256']),
-                                               output, original)
-            strategy = 'sealed-observation-rebased-on-current-product'
-        if name in CURRENT and profile_name == 'traefik-forwardauth':
-            if digest(output) != REBASED.get(name):
-                raise ValueError('Pinned current observation output differs: ' + name)
-        transformations[name] = {'strategy': strategy,
-            'input_sha256': actual, 'output_sha256': digest(output),
-            'central_output_sha256': entry['sha256'],
-            'central_object': registry.manifest['objects'][entry['sha256']],
-            'applied_delta_sha256': digest(delta) if delta is not None else None}
-        writes.append((path, output, entry.get('mode', 420)))
+        write, inputs[name], transformations[name] = source_write(central, registry, profile_name, target, name, entry)
+        writes.append(write)
     if profile_name == 'traefik-forwardauth':
         original = central.plain(target / PROVENANCE)
         if digest(original) != CURRENT[PROVENANCE]:
@@ -154,14 +171,7 @@ def apply(central, registry, profile_name, target):
     for name, entry in profile['capture_files'].items():
         writes.append((fixture_root / central.relative(name), registry.content(entry['sha256']),
                        entry.get('mode', 420)))
-    for path, _, mode in writes:
-        if not path.is_relative_to(target) or mode not in (420, 493):
-            raise ValueError('Invalid current source-copy write')
-        for parent in path.parents:
-            if parent == target:
-                break
-            if parent.exists() and not parent.is_dir():
-                raise ValueError('Current source-copy parent is not a directory')
+    validate_writes(target, writes)
     receipt = {**identity, 'profile': profile_name, 'source_copy': str(target),
         'delivery_product_baseline': registry.manifest['delivery_product_baseline'],
         'capture_manifest_sha256': digest(central.plain(registry.root / 'manifest.json')),

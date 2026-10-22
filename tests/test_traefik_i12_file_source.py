@@ -588,13 +588,27 @@ sys.exit(0)
         header.write_text("int msc_request_body_from_file(Transaction *, const char *);\n")
         library.write_bytes(b"test-only-library-placeholder")
         result = subprocess.CompletedProcess([], 0, b"0001 T msc_request_body_from_file\n0002 T msc_append_response_body\n", b"")
-        with mock.patch.object(SDK.subprocess, "run", return_value=result):
+        with mock.patch.object(SDK.subprocess, "run", return_value=result) as invoked:
             receipt = SDK.inspect(header, library)
+        self.assertEqual(invoked.call_args.args[0],
+                         ["/usr/bin/nm", "-D", "--defined-only", "--", str(library)])
         self.assertTrue(receipt["request_file_declared"])
         self.assertTrue(receipt["request_file_exported"])
         self.assertEqual(receipt["response_file_C_declarations"], [])
         self.assertEqual(receipt["response_file_C_exports"], [])
         self.assertFalse(receipt["native_file_api_executed"])
+
+    def test_sdk_receipt_rejects_relative_and_symlink_inputs(self):
+        header = self.root / "transaction.h"
+        library = self.root / "library.so"
+        header.write_text("int msc_request_body_from_file(Transaction *, const char *);\n")
+        library.write_bytes(b"test-only-library-placeholder")
+        with self.assertRaisesRegex(ValueError, "absolute non-symlink"):
+            SDK.inspect(Path("transaction.h"), library)
+        alias = self.root / "alias.so"
+        alias.symlink_to(library)
+        with self.assertRaisesRegex(ValueError, "absolute non-symlink"):
+            SDK.inspect(header, alias)
 
 
 if __name__ == "__main__":

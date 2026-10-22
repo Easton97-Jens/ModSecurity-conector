@@ -39,6 +39,11 @@ with mock.patch.dict('sys.modules', {'prepare': PREPARE}):
 
 
 class NativeOutputGuards(unittest.TestCase):
+    @staticmethod
+    def unused_toolchain():
+        """Output rejection must precede traversal of this unused input."""
+        return EXTERNAL / 'unused-private-toolchain'
+
     def assert_rejected_without_write(self, root, operation):
         before = {str(path.relative_to(root)): path.lstat().st_mode for path in root.rglob('*')}
         with mock.patch.object(PREPARE.shutil, 'copytree') as copy:
@@ -52,7 +57,7 @@ class NativeOutputGuards(unittest.TestCase):
         output = ROOT / 'native-output-must-not-exist'
         with mock.patch.object(PREPARE.shutil, 'copytree') as copy:
             with self.assertRaises(ValueError):
-                PREPARE.prepare(ROOT, EXTERNAL / 'unused-history', output)
+                PREPARE.prepare(ROOT, EXTERNAL / 'unused-history', output, self.unused_toolchain())
             copy.assert_not_called()
         self.assertFalse(output.exists())
 
@@ -60,7 +65,8 @@ class NativeOutputGuards(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='native-guards-', dir=EXTERNAL) as temporary:
             root = Path(temporary)
             (root / '.git').write_text('gitdir: /invalid/test-only\n')
-            self.assert_rejected_without_write(root, lambda: PREPARE.prepare(ROOT, root / 'unused', root / 'new'))
+            self.assert_rejected_without_write(
+                root, lambda: PREPARE.prepare(ROOT, root / 'unused', root / 'new', self.unused_toolchain()))
 
     def test_symlink_component_rejected_by_every_preparer(self):
         with tempfile.TemporaryDirectory(prefix='native-guards-', dir=EXTERNAL) as temporary:
@@ -68,7 +74,7 @@ class NativeOutputGuards(unittest.TestCase):
             (root / 'real').mkdir()
             (root / 'alias').symlink_to(root / 'real', target_is_directory=True)
             for operation in (
-                lambda: PREPARE.prepare(ROOT, root / 'unused', root / 'alias/new'),
+                lambda: PREPARE.prepare(ROOT, root / 'unused', root / 'alias/new', self.unused_toolchain()),
                 lambda: FOLLOWUP.prepare_followup(root / 'alias', 'mime'),
                 lambda: HOST_SCOPE.prepare_scope(root / 'alias')):
                 with self.subTest(operation=operation):
@@ -78,7 +84,8 @@ class NativeOutputGuards(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='native-guards-', dir=EXTERNAL) as temporary:
             root = Path(temporary)
             (root / 'sentinel').write_text('preserve\n')
-            self.assert_rejected_without_write(root, lambda: PREPARE.prepare(ROOT, root / 'unused', root))
+            self.assert_rejected_without_write(
+                root, lambda: PREPARE.prepare(ROOT, root / 'unused', root, self.unused_toolchain()))
             self.assertEqual((root / 'sentinel').read_text(), 'preserve\n')
 
     def test_cli_does_not_resolve_away_symlink_destination(self):
@@ -91,7 +98,8 @@ class NativeOutputGuards(unittest.TestCase):
             alias = root / 'alias'
             alias.symlink_to(real, target_is_directory=True)
             commands = (
-                [str(NATIVE / 'prepare.py'), '--repo', str(ROOT), '--historical', str(root / 'unused'), '--output', str(alias / 'new')],
+                [str(NATIVE / 'prepare.py'), '--repo', str(ROOT), '--historical', str(root / 'unused'),
+                 '--output', str(alias / 'new'), '--private-toolchain', str(self.unused_toolchain())],
                 [str(NATIVE / 'prepare_followup.py'), str(alias), 'mime'],
                 [str(NATIVE / 'prepare_host_scope.py'), str(alias)])
             before = sorted(str(path.relative_to(root)) for path in root.rglob('*'))

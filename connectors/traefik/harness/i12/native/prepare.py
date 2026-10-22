@@ -171,8 +171,10 @@ def stage_fixtures(fixtures, profile, registry):
 
 
 def prepare(repo, historical, output, private_toolchain):
-    toolchain_inventory = validate_private_toolchain(private_toolchain)
+    # Reject the destination before traversing any caller-supplied input tree.
+    # Both inputs are fully validated before the first directory is created.
     output = validate_output(output, fresh=True)
+    toolchain_inventory = validate_private_toolchain(private_toolchain)
     output.mkdir(parents=True, mode=0o700)
     source, fixtures = output / 'source', output / 'fixtures'
     capture_root = repo / 'ci/runtime/lifecycle/i12'

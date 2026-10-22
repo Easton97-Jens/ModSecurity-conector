@@ -92,6 +92,68 @@ int main(int argc, char **argv) {
 '''
 
 
+class NativeLoopbackAdmissionControls(unittest.TestCase):
+    def test_case_execution_keeps_neighbor_rotation_state_and_callbacks(self):
+        with mock.patch.dict(sys.modules, {'base_driver': SimpleNamespace()}):
+            driver = load('acceptance_driver')
+        created = {'batch_index': 0, 'pid': 123, 'native_log_start': 0}
+        start = mock.Mock(return_value=created)
+        stop = mock.Mock()
+        runtime = SimpleNamespace(neighbor_uses=0, neighbor_batch=None,
+            lifecycle_path=Path('unused-native.jsonl'), neighbor_socket=Path('unused.sock'),
+            start_neighbor_batch=start, stop_neighbor_batch=stop)
+        execution = driver.CaseExecution({}, runtime)
+        execution.fixture = {}
+        execution.result = {}
+        with mock.patch.object(driver.base, 'write', create=True) as write:
+            execution.prepare_neighbor()
+        start.assert_called_once_with(0)
+        stop.assert_not_called()
+        write.assert_called_once_with('neighbor-batch-0-start.json', created)
+        self.assertIs(runtime.neighbor_batch, created)
+        self.assertIs(execution.result['neighbor_batch'], created)
+        self.assertEqual(runtime.neighbor_uses, 1)
+
+    def test_backend_manifest_rejects_other_paths_and_symlinks(self):
+        backend = load('acceptance_backend')
+        EXTERNAL.mkdir(parents=True, exist_ok=True, mode=0o700)
+        with tempfile.TemporaryDirectory(prefix='manifest-admission-', dir=EXTERNAL) as directory:
+            root = Path(directory)
+            manifest = root / 'acceptance-manifest.json'
+            manifest.write_text('{"cases": []}')
+            with mock.patch.object(backend, 'MANIFEST', str(manifest)):
+                self.assertEqual(backend.manifest_cases(str(manifest)), {'cases': []})
+                noncanonical_path = str(root / '..' / manifest.name)
+                with self.assertRaises(ValueError):
+                    backend.manifest_cases(noncanonical_path)
+                target = root / 'target.json'
+                target.write_text('{"cases": []}')
+                manifest.unlink()
+                manifest.symlink_to(target)
+                symlink_path = str(manifest)
+                with self.assertRaises(ValueError):
+                    backend.manifest_cases(symlink_path)
+
+    def test_backend_closes_nonloopback_peer_before_recording_or_body_reads(self):
+        backend = load('acceptance_backend')
+        server = object.__new__(backend.Backend)
+        connection = mock.Mock()
+        with mock.patch.object(backend.socketserver.TCPServer, 'get_request',
+                return_value=(connection, ('192.0.2.1', 2000))), mock.patch.object(backend, 'record') as recorded:
+            with self.assertRaises(OSError):
+                server.get_request()
+        connection.close.assert_called_once_with()
+        connection.settimeout.assert_not_called()
+        recorded.assert_not_called()
+
+    def test_backend_port_admission_is_bounded(self):
+        backend = load('acceptance_backend')
+        for value in ('0', '-1', '65536', 'not-a-port'):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                backend.bounded_port(value)
+        self.assertEqual(backend.bounded_port('65535'), 65535)
+
+
 class NativePrivateToolchainControls(unittest.TestCase):
     def setUp(self):
         EXTERNAL.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -183,8 +245,9 @@ class NativePrivateToolchainControls(unittest.TestCase):
         self.assertLess(text.index("write('go-toolchain-binding.json'"), text.index('helper.stage_native_runtime(inputs)'))
         with self.assertRaises(ValueError):
             self.acceptance.instrument_private_toolchain(text)
+        changed_driver = self.central_driver().replace("GO='/usr/local/go/bin/go'", "GO='/other/go'")
         with self.assertRaises(ValueError):
-            self.acceptance.instrument_private_toolchain(self.central_driver().replace("GO='/usr/local/go/bin/go'", "GO='/other/go'"))
+            self.acceptance.instrument_private_toolchain(changed_driver)
 
     def test_driver_rejects_inherited_toolchain_and_changed_controller_path(self):
         text = self.acceptance.instrument_private_toolchain(self.central_driver())
@@ -826,7 +889,7 @@ func main() {
                 listener.settimeout(3)
                 side, relayed = socket.socketpair()
                 side.settimeout(3)
-                rows, errors = [], []
+                rows, errors, observed_opcodes = [], [], []
                 reply_body = b'\x01\x00healthy-engine-reply'
                 def frame(opcode, payload):
                     return b'MSE1' + bytes((1, opcode, 0, 0)) + struct.pack('!I', len(payload)) + payload
@@ -837,7 +900,7 @@ func main() {
                             connection.settimeout(3)
                             for opcode in (1, 7, 10):
                                 head, _ = proxy.transport.frame(connection)
-                                self.assertEqual(head[5], opcode)
+                                observed_opcodes.append(head[5])
                                 connection.sendall(frame(opcode, reply_body))
                     except Exception as error:
                         errors.append(error)
@@ -861,6 +924,7 @@ func main() {
                     self.assertFalse(worker.is_alive())
                     self.assertFalse(relay.is_alive())
                     self.assertEqual(errors, [])
+                    self.assertEqual(observed_opcodes, [1, 7, 10])
                     self.assertEqual(replies[1], reply_body)
                     self.assertEqual(replies[2], reply_body if positive else reply_body[:1] + b'\x05' + reply_body[2:])
                     injected = [row for row in rows if row.get('fault')]
@@ -872,7 +936,7 @@ func main() {
 
     def test_no_file_or_mrc1_http_relabelling(self):
         for name in ('NEED-request-file', 'NEED-response-file', 'NEED-mrc1-error'):
-            self.assertTrue(self.plan.constraints(name, {})[1])
+            self.assertTrue(self.plan.constraints(name)[1])
 
     def file_originals(self):
         return [{'id': self.plan.PREFIX + 'NEED-' + direction + '-file', 'key': 'file-' + direction,
@@ -920,6 +984,141 @@ func main() {
         with self.assertRaises(ValueError):
             driver.file_process_argv(execution, 'backend', 12345, bad)
 
+    def test_file_packet_uses_specialized_client_and_never_shared_backend_zero(self):
+        adapter = load('acceptance_packet')
+        for direction in ('request', 'response'):
+            case = self.plan.file_supplements(self.file_originals())[0 if direction == 'request' else 2]
+            case['classification'] = 'runtime'
+            attempt = self.root / ('packet-file-' + direction)
+            data = attempt / 'data'
+            root = data / 'cases' / case['key']
+            root.mkdir(parents=True)
+            (root / 'file-evidence').mkdir()
+            (root / 'measurement.json').write_text(json.dumps({'id': case['id'],
+                'fixture_sha256': case['fixture_sha256']}))
+            (data / 'backend').mkdir()
+            (data / 'backend/receipts.jsonl').write_text('{}\n')
+            specialized = {'client': {'status': 403, 'entity_bytes': 6, 'entity_sha256': 'physical'},
+                'client_path': root / 'file-evidence/client.json', 'request_path': root / 'request.raw',
+                'response_path': root / 'response.raw', 'entity_path': root / 'entity.raw',
+                'wait_path': root / 'measurement.json', 'waited': {'returncode': 0},
+                'binding_valid': True, 'native_file_api': False, 'native_eos': None,
+                'backend': None, 'backend_path': root / 'backend.json'}
+            for path in ('client_path', 'request_path', 'response_path', 'entity_path', 'backend_path'):
+                specialized[path].write_text('{}')
+            if direction == 'response':
+                specialized['backend'] = {'independent_backend_accept_count': 1}
+            with mock.patch.object(adapter, 'physical_file_candidate', return_value=specialized):
+                packet = adapter.packet(attempt, case)
+            self.assertFalse(packet['full_lifecycle_qualified'])
+            self.assertFalse(packet['physical_file_supplement']['native_file_api'])
+            if direction == 'request':
+                self.assertEqual(packet['observations']['client_bytes']['value'], 6)
+                self.assertEqual(packet['observations']['client_exit']['value'], 0)
+            else:
+                self.assertEqual(packet['observations']['backend_request_count']['value'], 1)
+            specialized['binding_valid'] = False
+            with mock.patch.object(adapter, 'physical_file_candidate', return_value=specialized):
+                packet = adapter.packet(attempt, case)
+            self.assertIsNone(packet['observations']['backend_request_count']['value'])
+
+    def test_file_packet_binding_rejects_changed_pid_hash_clock_and_transport(self):
+        adapter = load('acceptance_packet')
+        for mode in ('client', 'backend'):
+            case = self.plan.file_supplements(self.file_originals())[0 if mode == 'client' else 2]
+            root = self.root / ('file-binding-' + mode)
+            evidence = root / 'file-evidence'
+            evidence.mkdir(parents=True)
+            (root / 'file-source').mkdir()
+            content = b'physical file'
+            sha = hashlib.sha256(content).hexdigest()
+            spec = {'relative_path': 'test.txt', 'size': len(content), 'sha256': sha, 'read_size': 24}
+            case['fixture']['file_supplement']['file_spec'] = spec
+            (root / 'file-source/test.txt').write_bytes(content)
+            key, tx = case['key'], case['transaction_id']
+            head = ('POST / HTTP/1.1\r\nX-Request-Id: ' + tx +
+                '\r\nX-I12-Acceptance-Key: ' + key + '\r\n\r\n').encode()
+            source = {'schema': 'traefik-physical-file-source-v1', 'pid': 22, 'native_file_api': False,
+                'native_eos': None, 'complete': True, 'relative_path': 'test.txt',
+                'bytes': len(content), 'expected_size': len(content), 'expected_sha256': sha, 'sha256': sha,
+                'requested_read_size': 24,
+                'pre_stat': {'regular_file': True, 'size': len(content)},
+                'post_stat': {'regular_file': True, 'size': len(content)},
+                'close': {'result': 0, 'completed_ns': 15}, 'root_close': {'result': 0, 'completed_ns': 16},
+                'eof_read_result': 0, 'started_ns': 3, 'completed_ns': 17,
+                'reads': [{'offset': 0, 'requested': len(content), 'result': len(content), 'sha256': sha, 'started_ns': 5,
+                    'completed_ns': 6, 'consumer_returned_ns': 10}]}
+            row = {'schema': 'traefik-file-http-' + mode + '-v1', 'key': key, 'transaction_id': tx,
+                'pid': 22, 'process': {'pid': 22, 'ppid': 21}, 'native_file_api': False,
+                'native_eos': None, 'file_source': source, 'started_ns': 2, 'completed_ns': 30,
+                'http_chunks': [{'source_offset': 0, 'entity_bytes': len(content), 'entity_sha256': sha,
+                    'wire_bytes': len(content) + 5,
+                    'wire_sha256': hashlib.sha256(b'd\r\n' + content + b'\r\n').hexdigest(),
+                    'remote_delivery_proven': False, 'started_ns': 7, 'sendall_returned_ns': 9}],
+                'http_terminator_send_started_ns': 18, 'http_terminator_sendall_returned_ns': 19,
+                'http_terminator_wire_bytes': 5, 'http_terminator_wire_sha256': hashlib.sha256(b'0\r\n\r\n').hexdigest()}
+            measurement = {'client': {'wrapper_pid': 21, 'started_ns': 1, 'completed_ns': 31, 'exit_code': 0}}
+            before = {'processes': {'file-backend': {'pid': 22, 'proxy_pid': 21}}}
+            if mode == 'client':
+                row.update(actual_status=200, response_headers_latin1='HTTP/1.1 200 OK\r\nContent-Length: 4',
+                    response_http_complete=True, response_http_framing='content-length')
+                raw_fields = [('request-head.raw', head, 'request_head_wire'),
+                    ('response.raw', b'HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nbody', 'client_response_wire'),
+                    ('response-entity.raw', b'body', 'client_response_entity')]
+            else:
+                row.update(independent_backend_accept_count=1, local=['127.0.0.1', 12345], peer=['127.0.0.1', 23456],
+                    accepted_ns=2, observed_correlation={'x-request-id': tx, 'x-i12-acceptance-key': key},
+                    request_http_framing_valid=True, request_body_bytes=0,
+                    request_body_sha256=hashlib.sha256(b'').hexdigest())
+                listening = {'pid': 22, 'port': 12345}
+                measurement['physical_file'] = {'listening': listening}
+                (evidence / (key + '.backend-listening.json')).write_text(json.dumps(listening))
+                (evidence / (key + '.backend-accept.json')).write_text(json.dumps(row))
+                raw_fields = [('backend-request.raw', head, 'request_wire'),
+                    ('backend-response-head.raw', b'HTTP/1.1 200 OK\r\n\r\n', 'response_head_wire')]
+            for suffix, raw, prefix in raw_fields:
+                (evidence / (key + '.' + suffix)).write_bytes(raw)
+                row[prefix + '_bytes'] = len(raw)
+                row[prefix + '_sha256'] = hashlib.sha256(raw).hexdigest()
+            path = evidence / (key + '.' + mode + '.json')
+            path.write_text(json.dumps(row))
+            result = adapter.physical_file_candidate(case, root, measurement, before)
+            self.assertTrue(result['binding_valid'], result.get('binding_error'))
+            self.assertFalse(result['native_file_api'])
+            self.assertIsNone(result['native_eos'])
+            mutations = [lambda value: value.update(pid=23),
+                lambda value: value['file_source'].update(sha256='0' * 64),
+                lambda value: value['file_source']['close'].update(result=-1),
+                lambda value: value['http_chunks'][0].update(source_offset=1),
+                lambda value: value['http_chunks'][0].update(wire_bytes=0),
+                lambda value: value['http_chunks'][0].update(wire_sha256='0' * 64),
+                lambda value: value['http_chunks'][0].update(remote_delivery_proven=True),
+                lambda value: value['file_source'].update(requested_read_size=9999),
+                lambda value: value['file_source']['reads'][0].update(requested=9999),
+                lambda value: value.update(http_terminator_send_started_ns=4),
+                lambda value: value.update(transaction_id='other'),
+                lambda value: value.update(native_file_api=True)]
+            for mutate in mutations:
+                changed = copy.deepcopy(row)
+                mutate(changed)
+                path.write_text(json.dumps(changed))
+                self.assertFalse(adapter.physical_file_candidate(case, root, measurement, before)['binding_valid'])
+            path.write_text(json.dumps(row))
+            if mode == 'client':
+                entity_path = evidence / (key + '.response-entity.raw')
+                entity_path.write_bytes(b'fake')
+                changed = row | {'client_response_entity_sha256': hashlib.sha256(b'fake').hexdigest()}
+                path.write_text(json.dumps(changed))
+                self.assertFalse(adapter.physical_file_candidate(case, root, measurement, before)['binding_valid'])
+                entity_path.write_bytes(b'body')
+            else:
+                changed = row | {'request_body_bytes': 4, 'request_body_sha256': hashlib.sha256(b'fake').hexdigest()}
+                path.write_text(json.dumps(changed))
+                self.assertFalse(adapter.physical_file_candidate(case, root, measurement, before)['binding_valid'])
+            path.write_text(json.dumps(row))
+            (root / 'file-source/test.txt').write_bytes(b'changed')
+            self.assertFalse(adapter.physical_file_candidate(case, root, measurement, before)['binding_valid'])
+
     def test_strict_negative_requires_one_exact_safe_configuration(self):
         with mock.patch.dict(sys.modules, {'base_driver': SimpleNamespace()}):
             driver = load('acceptance_driver')
@@ -946,8 +1145,9 @@ func main() {
         for name in ('native', 'reuse', 'neighbor'):
             self.assertEqual(config['routers'][name]['service'], 'upstream')
         self.assertEqual(config['services']['file-target']['loadBalancer']['servers'], [{'url': 'http://127.0.0.1:12346'}])
+        base_driver = SimpleNamespace(write_dynamic_config=write_dynamic)
         with self.assertRaises(ValueError):
-            driver.dynamic_config(SimpleNamespace(write_dynamic_config=write_dynamic), path, 12345,
+            driver.dynamic_config(base_driver, path, 12345,
                 '/main.sock', '/neighbor.sock', '/reuse.sock', ('bad`) || PathPrefix(`/`)', 12346))
 
     def test_file_staging_uses_real_sealed_module_and_fresh_private_sources(self):
@@ -974,9 +1174,10 @@ func main() {
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
             self.assertEqual(bound.digest(path), spec['sha256'])
         self.assertTrue((root / 'file-evidence/file-staging.json').is_file())
+        inherited_environment = os.environ.copy()
         with mock.patch.object(driver, 'TASK', root), mock.patch.object(driver, 'FIXTURES', fixture_root):
             with self.assertRaises(FileExistsError):
-                driver.stage_file_execution(case, root, os.environ.copy())
+                driver.stage_file_execution(case, root, inherited_environment)
 
     def test_file_backend_readiness_checks_actual_pid_without_tcp_probe(self):
         with mock.patch.dict(sys.modules, {'base_driver': SimpleNamespace(actual_pid=lambda *args: 456)}):

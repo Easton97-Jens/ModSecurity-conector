@@ -86,34 +86,45 @@ def receive_bounded(connection, received=None):
             raise ValueError("bounded actual response exceeded")
 
 
-def response_entity(raw):
-    """Decode only completely observed bounded HTTP framing, without TCP inference."""
+def response_headers(raw):
     head, separator, body = raw.partition(b"\r\n\r\n")
     if not separator:
         raise ValueError("incomplete response headers")
     headers = {}
     for line in head.split(b"\r\n")[1:]:
-        key, separator, value = line.partition(b":")
-        if not separator or key.lower() in headers:
+        key, delimiter, value = line.partition(b":")
+        if not delimiter or key.lower() in headers:
             raise ValueError("invalid or duplicate response header")
         headers[key.lower()] = value.strip()
+    return headers, body
+
+
+def chunked_entity(body):
+    stream, wire = io.BytesIO(body), bytearray()
+    entity = bytes(_chunked_request(stream, wire))
+    if stream.read(1):
+        raise ValueError("extra bytes after response terminator")
+    return entity, "chunked"
+
+
+def content_length_entity(headers, body):
+    size = int(headers[b"content-length"])
+    if size < 0 or len(body) != size:
+        raise ValueError("response Content-Length mismatch")
+    return body, "content-length"
+
+
+def response_entity(raw):
+    """Decode only completely observed bounded HTTP framing, without TCP inference."""
+    headers, body = response_headers(raw)
     transfer = headers.get(b"transfer-encoding")
     if transfer is not None:
         if transfer != b"chunked" or b"content-length" in headers:
             raise ValueError("unsupported or ambiguous response framing")
-        stream, wire = io.BytesIO(body), bytearray()
-        entity = bytes(_chunked_request(stream, wire))
-        if stream.read(1):
-            raise ValueError("extra bytes after response terminator")
-        framing = "chunked"
-    elif b"content-length" in headers:
-        size = int(headers[b"content-length"])
-        if size < 0 or len(body) != size:
-            raise ValueError("response Content-Length mismatch")
-        entity, framing = body, "content-length"
-    else:
-        raise ValueError("explicit response framing required")
-    return entity, framing
+        return chunked_entity(body)
+    if b"content-length" in headers:
+        return content_length_entity(headers, body)
+    raise ValueError("explicit response framing required")
 
 
 def request_client(port, key, private_root, file_spec, evidence_root, uri="/no-crs/request-body",

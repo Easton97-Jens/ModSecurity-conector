@@ -127,6 +127,9 @@ def instrument_native_begin(text):
     return replace_once(text, marker, replacement)
 
 
+LEDGER_SUFFIX = '-ledger.json'
+
+
 GENERATED_CASE_KEY = '004-b044cc412aca'
 
 
@@ -147,7 +150,7 @@ def instrument_host_observer(text, manifest):
 
 
 def prepare(root, manifest_path, stage_name="acceptance"):
-    if re.fullmatch(r"acceptance(?:-v[1-9][0-9]*)?", stage_name) is None:
+    if re.fullmatch(r"acceptance(?:-v[1-9]\d*)?", stage_name) is None:
         raise ValueError("explicit acceptance stage name required")
     root = validate_prepared_root(root)
     manifest = json.loads(manifest_path.read_text())
@@ -155,7 +158,7 @@ def prepare(root, manifest_path, stage_name="acceptance"):
         raise ValueError('complete original118 manifest required')
     source, fixtures = root / ('source-' + stage_name), root / ('fixtures-' + stage_name)
     spec_path = root / ('admission-' + stage_name + '.json')
-    for path in (source, fixtures, spec_path, root / ('source-' + stage_name + '-ledger.json'), root / ('fixtures-' + stage_name + '-ledger.json')):
+    for path in (source, fixtures, spec_path, root / ('source-' + stage_name + LEDGER_SUFFIX), root / ('fixtures-' + stage_name + LEDGER_SUFFIX)):
         validate_output(path, fresh=True)
     shutil.copytree(root / 'source', source)
     shutil.copytree(root / 'fixtures', fixtures)
@@ -164,6 +167,33 @@ def prepare(root, manifest_path, stage_name="acceptance"):
             path.chmod(0o700 if path.is_dir() or path.stat().st_mode & 0o111 else 0o600)
     # Capture profile remains central traefik-native. This is only an explicit
     # synthetic nonce allowlist expansion in a disposable source tree.
+    instrument_source(source, fixtures, manifest)
+    for name in FILES:
+        shutil.copyfile(HERE / name, fixtures / name)
+    # Complete File4 input tree is sealed by the same fixtures ledger. Actual
+    # reader-owned copies are made afresh under /task for each execution.
+    trace_cases = stage_file_fixtures(fixtures, manifest)
+    # Reuse the currently reviewed transport path guards, never a second guard.
+    shutil.copyfile(HERE / 'fault_proxy.py', fixtures / 'fault_proxy.py')
+    shutil.copyfile(manifest_path, fixtures / 'acceptance-manifest.json')
+    stage_driver(fixtures, trace_cases)
+    save(fixtures / 'acceptance-producer-binding.json', {'manifest_path': str(manifest_path),
+        'manifest_sha256': sha(manifest_path), 'producer_inputs': {name: sha(HERE / name) for name in FILES},
+        'runtime_qualified': False})
+    admission = json.loads((root / 'admission.json').read_text())
+    admission['timeout_seconds'] = 1800  # Existing controller maximum; never relax it.
+    for name, tree, target in (('source', source, '/mnt/src'), ('fixtures', fixtures, '/mnt/fixtures')):
+        ledger = root / (name + '-' + stage_name + LEDGER_SUFFIX)
+        save(ledger, seal(tree))
+        ledger.chmod(0o444)
+        binding = next(item for item in admission['bindings'] if item['target'] == target)
+        binding.update(source=str(tree), ledger=str(ledger), ledger_sha256=sha(ledger))
+    save(spec_path, admission)
+    spec_path.chmod(0o444)
+    return {'admission': str(spec_path), 'sha256': sha(spec_path), 'runtime_qualified': False}
+
+
+def instrument_source(source, fixtures, manifest):
     observer = source / 'connectors/traefik/native_middleware/i12_observer.go'
     baseline = sha(observer)
     observer_text, allowed = instrument_host_observer(observer.read_text(), manifest)
@@ -182,10 +212,9 @@ def prepare(root, manifest_path, stage_name="acceptance"):
         'native_service_before_sha256': __import__('hashlib').sha256(native_service_before.encode()).hexdigest(),
         'native_service_after_sha256': sha(native_service), 'production_behavior_changes': False})
     (fixtures / 'native-observer-before.c').write_text(original_native)
-    for name in FILES:
-        shutil.copyfile(HERE / name, fixtures / name)
-    # Complete File4 input tree is sealed by the same fixtures ledger. Actual
-    # reader-owned copies are made afresh under /task for each execution.
+
+
+def stage_file_fixtures(fixtures, manifest):
     harness = HERE.parents[1]
     shutil.copytree(harness / 'i12_file', fixtures / 'i12_file',
                     ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
@@ -198,9 +227,10 @@ def prepare(root, manifest_path, stage_name="acceptance"):
                    if case['key'] in selected_keys and case['fixture'].get('syscall_observer')]
     if trace_cases:
         shutil.copyfile(HERE / 'acceptance_syscalls.c', fixtures / 'acceptance_syscalls.c')
-    # Reuse the currently reviewed transport path guards, never a second guard.
-    shutil.copyfile(HERE / 'fault_proxy.py', fixtures / 'fault_proxy.py')
-    shutil.copyfile(manifest_path, fixtures / 'acceptance-manifest.json')
+    return trace_cases
+
+
+def stage_driver(fixtures, trace_cases):
     driver_path = fixtures / 'driver.py'
     text = driver_path.read_text()
     cutoff = text.index("    write('current-product-binding.json'")
@@ -227,20 +257,6 @@ def prepare(root, manifest_path, stage_name="acceptance"):
     for name in ('base_driver.py', 'driver.py', *FILES):
         if name.endswith('.py'):
             compile((fixtures / name).read_text(), name, 'exec')
-    save(fixtures / 'acceptance-producer-binding.json', {'manifest_path': str(manifest_path),
-        'manifest_sha256': sha(manifest_path), 'producer_inputs': {name: sha(HERE / name) for name in FILES},
-        'runtime_qualified': False})
-    admission = json.loads((root / 'admission.json').read_text())
-    admission['timeout_seconds'] = 1800  # Existing controller maximum; never relax it.
-    for name, tree, target in (('source', source, '/mnt/src'), ('fixtures', fixtures, '/mnt/fixtures')):
-        ledger = root / (name + '-' + stage_name + '-ledger.json')
-        save(ledger, seal(tree))
-        ledger.chmod(0o444)
-        binding = next(item for item in admission['bindings'] if item['target'] == target)
-        binding.update(source=str(tree), ledger=str(ledger), ledger_sha256=sha(ledger))
-    save(spec_path, admission)
-    spec_path.chmod(0o444)
-    return {'admission': str(spec_path), 'sha256': sha(spec_path), 'runtime_qualified': False}
 
 
 if __name__ == '__main__':

@@ -188,7 +188,7 @@ static void restore_sink_descriptor(FILE *stream, int descriptor, int recovery) 
 
 static int shutdown_is_single_thread(void) {
     DIR *directory = opendir("/proc/self/task");
-    struct dirent *entry;
+    const struct dirent *entry;
     int count = 0;
     if (directory == NULL) { return 0; }
     while ((entry = readdir(directory)) != NULL) {
@@ -254,7 +254,8 @@ static int descriptor_is_sink(int descriptor) {
         opened.st_dev == named.st_dev && opened.st_ino == named.st_ino;
 }
 
-extern int __real_openat(int, const char *, int, ...);
+/* Preserve libc's variadic ABI without maintaining a duplicate declaration. */
+extern __typeof__(openat) __real_openat;
 int __wrap_openat(int directory, const char *name, int flags, ...) {
     mode_t mode = 0;
     int result;
@@ -298,6 +299,36 @@ int __wrap_setvbuf(FILE *stream, char *buffer, int mode, size_t size) {
 }
 
 extern int __real_fputs(const char *, FILE *);
+static int limited_fputs(const char *text, FILE *stream, int descriptor, int *applied) {
+    struct rlimit previous;
+    struct stat before;
+    struct stat after;
+    struct sigaction ignore;
+    struct sigaction original;
+    struct rlimit limited;
+    if (getrlimit(RLIMIT_FSIZE, &previous) != 0 || fstat(descriptor, &before) != 0) { return __real_fputs(text, stream); }
+    limited = previous;
+    limited.rlim_cur = (rlim_t)before.st_size + 7U;
+    (void)memset(&ignore, 0, sizeof(ignore));
+    ignore.sa_handler = SIG_IGN;
+    (void)sigemptyset(&ignore.sa_mask);
+    if (sigaction(SIGXFSZ, &ignore, &original) != 0) { return __real_fputs(text, stream); }
+    if (setrlimit(RLIMIT_FSIZE, &limited) != 0) {
+        (void)sigaction(SIGXFSZ, &original, NULL);
+        return __real_fputs(text, stream);
+    }
+    *applied = 1;
+    int result = __real_fputs(text, stream);
+    int saved = errno;
+    (void)setrlimit(RLIMIT_FSIZE, &previous);
+    (void)sigaction(SIGXFSZ, &original, NULL);
+    if (fstat(descriptor, &after) == 0) {
+        receipt("fputs-physical-prefix", (long)(after.st_size - before.st_size), 1, descriptor);
+    }
+    errno = saved;
+    return result;
+}
+
 int __wrap_fputs(const char *text, FILE *stream) {
     int descriptor = fileno(stream);
     if (fault_target() && !sink_used && descriptor_is_sink(descriptor) &&
@@ -308,34 +339,10 @@ int __wrap_fputs(const char *text, FILE *stream) {
         int recovery = selected("sink-write") ? install_readonly_sink(descriptor) : -1;
         if (selected("sink-write") && recovery < 0) { return __real_fputs(text, stream); }
         if (selected("sink-short-write")) {
-            struct rlimit previous;
-            struct stat before;
-            struct stat after;
-            struct sigaction ignore;
-            struct sigaction original;
-            struct rlimit limited;
-            if (getrlimit(RLIMIT_FSIZE, &previous) != 0 || fstat(descriptor, &before) != 0) {
-                return __real_fputs(text, stream);
-            }
-            limited = previous;
-            limited.rlim_cur = (rlim_t)before.st_size + 7U;
-            (void)memset(&ignore, 0, sizeof(ignore));
-            ignore.sa_handler = SIG_IGN;
-            (void)sigemptyset(&ignore.sa_mask);
-            if (sigaction(SIGXFSZ, &ignore, &original) != 0) {
-                return __real_fputs(text, stream);
-            }
-            if (setrlimit(RLIMIT_FSIZE, &limited) != 0) {
-                (void)sigaction(SIGXFSZ, &original, NULL);
-                return __real_fputs(text, stream);
-            }
-            result = __real_fputs(text, stream);
+            int applied = 0;
+            result = limited_fputs(text, stream, descriptor, &applied);
+            if (!applied) { return result; }
             saved = errno;
-            (void)setrlimit(RLIMIT_FSIZE, &previous);
-            (void)sigaction(SIGXFSZ, &original, NULL);
-            if (fstat(descriptor, &after) == 0) {
-                receipt("fputs-physical-prefix", (long)(after.st_size - before.st_size), 1, descriptor);
-            }
         } else {
             result = __real_fputs(text, stream);
             saved = errno;

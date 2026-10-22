@@ -1,4 +1,5 @@
 """Bounded raw actual-host client. Client EOF is deliberately native_eos=null."""
+import argparse
 import hashlib
 import copy
 import json
@@ -7,10 +8,10 @@ from pathlib import Path
 import signal
 import socket
 import struct
-import sys
 import time
 
 MAX_BYTES = 16 * 1024 * 1024
+MANIFEST = '/mnt/fixtures/acceptance-manifest.json'
 
 
 def request_bytes(case, neighbor=False):
@@ -25,27 +26,9 @@ def request_bytes(case, neighbor=False):
         headers.append(('X-Request-Id', case['neighbor_id'] if neighbor else case['transaction_id']))
     chunks = [] if neighbor else fixture['chunk_lengths']
     template = fixture.get('raw_template') if not neighbor else None
-    extra = {'invalid_content_length': [('Content-Length', 'not-a-number')],
-             'conflicting_content_length': [('Content-Length', '1'), ('Content-Length', '2')],
-             'duplicate_transfer_encoding': [('Transfer-Encoding', 'chunked'), ('Transfer-Encoding', 'chunked')],
-             'content_length_overflow': [('Content-Length', '18446744073709551616')]}
-    if template:
-        headers += extra[template]
-    elif chunks:
-        headers.append(('Transfer-Encoding', 'chunked'))
-    else:
-        headers.append(('Content-Length', str(len(body))))
+    request_framing_headers(headers, template, chunks, body)
     head = (method + ' ' + uri + ' HTTP/1.1\r\n' + ''.join(n + ': ' + v + '\r\n' for n, v in headers) + '\r\n').encode('latin1')
-    parts = []
-    position = 0
-    for length in chunks:
-        part = body[position:position + length]
-        if len(part) != length or length <= 0:
-            raise ValueError('request fixture chunk mismatch')
-        position += length
-        parts.append(f'{length:x}\r\n'.encode() + part + b'\r\n')
-    if chunks and position != len(body):
-        raise ValueError('request fixture not exhausted')
+    parts = chunked_request_parts(chunks, body)
     return key, head, parts, body
 
 
@@ -60,24 +43,25 @@ def await_kernel_backpressure(path, nonce, local, peer, timeout=8):
             if len(raw) > 16 * 1024 * 1024:
                 result['release_reason'] = 'bounded_metadata_exceeded'
                 break
-            for line in raw.splitlines():
-                try:
-                    row = json.loads(line)
-                except (ValueError, UnicodeDecodeError):
-                    continue  # An actively written last line can be incomplete.
-                if not isinstance(row, dict):
-                    continue
-                if (row.get('schema') == 'traefik-own-child-syscall-v1' and row.get('nonce') == nonce and
-                    row.get('local_address') == peer[0] and row.get('local_port') == peer[1] and
-                    row.get('peer_address') == local[0] and row.get('peer_port') == local[1] and
-                    row.get('fd_identity_unchanged') is True and row.get('kernel_result') == -11 and row.get('errno') == 11 and
-                    started <= row.get('exit_monotonic_ns', 0) <= time.monotonic_ns()):
-                    result.update(observed_eagain=row, release_reason='actual_target_tuple_eagain')
-                    result['completed_ns'] = time.monotonic_ns()
-                    return result
+            row = metadata_eagain(raw, nonce, local, peer, started)
+            if row is not None:
+                result.update(observed_eagain=row, release_reason='actual_target_tuple_eagain')
+                result['completed_ns'] = time.monotonic_ns()
+                return result
         time.sleep(0.02)
     result['completed_ns'] = time.monotonic_ns()
     return result
+
+
+def metadata_eagain(raw, nonce, local, peer, started):
+    for line in raw.splitlines():
+        try:
+            row = json.loads(line)
+        except ValueError:
+            continue  # An actively written last line can be incomplete.
+        if isinstance(row, dict) and target_eagain(row, nonce, local, peer, started):
+            return row
+    return None
 
 
 def run(port, case, neighbor=False):
@@ -116,54 +100,7 @@ def run(port, case, neighbor=False):
             elif body:
                 connection.sendall(body)
                 wire.extend(body)
-            while True:
-                # Read a bounded prefix bytewise until exactly8192 entity bytes;
-                # client reads are outside the host-only syscall observer.
-                block = connection.recv(1 if backpressure and 'kernel_backpressure_wait' not in receipt else 8192)
-                if not block:
-                    receipt['tcp_eof'] = True
-                    break
-                received.extend(block)
-                receipt.setdefault('first_recv_ns', time.monotonic_ns())
-                if len(received) > MAX_BYTES:
-                    raise ValueError('bounded client response exceeded')
-                separator = received.find(b'\r\n\r\n')
-                body_received = len(received) - separator - 4 if separator >= 0 else 0
-                active_prefix = kind in ('cancel', 'abort-reset-observation', 'client-exit-signal', 'incomplete-framing', 'no-second-response', 'engine_timeout_after_commit')
-                minimum_prefix = 8192 if active_prefix or backpressure else 1
-                if backpressure and separator >= 0 and body_received >= 8192:
-                    body_received = len(response_entity(bytes(received[:separator]), bytes(received[separator + 4:]))[0])
-                if separator >= 0 and body_received >= minimum_prefix:
-                    marker = Path('/task/barriers') / key
-                    if not marker.exists():
-                        marker.write_text(json.dumps({'key': key, 'actual_received_bytes': len(received),
-                            'actual_received_entity_bytes': body_received,
-                            'monotonic_ns': time.monotonic_ns(), 'prefix_sha256': hashlib.sha256(received).hexdigest()}))
-                    if kind in ('cancel', 'abort-reset-observation'):
-                        connection.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0))
-                        receipt['client_rst_ns'] = time.monotonic_ns()
-                        break
-                    if kind == 'client-exit-signal':
-                        receipt['requested_signal'] = signal.SIGTERM
-                        # Parent waits the child and records the actual negative
-                        # subprocess return. Persist physical prefix first.
-                        receipt['completed_ns'] = time.monotonic_ns()
-                        save(root, key, wire, received, receipt)
-                        os.kill(os.getpid(), signal.SIGTERM)
-                if backpressure and 'kernel_backpressure_wait' not in receipt and separator >= 0:
-                    entity, _ = response_entity(bytes(received[:separator]), bytes(received[separator + 4:]))
-                    if len(entity) >= 8192:
-                        receipt['paused_after_entity_bytes'] = len(entity)
-                        (root / (key + '.response-prefix.raw')).write_bytes(received)
-                        (root / (key + '.prefix.json')).write_text(json.dumps(receipt | {
-                            'prefix_ns': time.monotonic_ns(), 'prefix_entity_bytes': len(entity),
-                            'prefix_entity_sha256': hashlib.sha256(entity).hexdigest(),
-                            'prefix_wire_sha256': hashlib.sha256(received).hexdigest(), 'response_complete': False}, indent=2) + '\n')
-                        receipt['kernel_backpressure_wait'] = await_kernel_backpressure(
-                            Path('/task/cases') / case['key'] / 'host-syscalls.jsonl', case['key'], receipt['local'], receipt['peer'])
-                        (root / (key + '.pause-result.json')).write_text(json.dumps(receipt['kernel_backpressure_wait'], indent=2) + '\n')
-                if case['fixture']['request'].get('slow_reader') and not neighbor:
-                    time.sleep(0.005)
+            receive_response(connection, case, key, root, (receipt, wire, received, kind, backpressure, neighbor))
     except (OSError, ValueError) as error:
         receipt['error'] = {'type': type(error).__name__, 'message': str(error)[:256]}
     receipt['completed_ns'] = time.monotonic_ns()
@@ -177,23 +114,7 @@ def response_entity(head, encoded):
         if separator:
             headers.setdefault(name.strip().lower(), []).append(value.strip())
     if headers.get(b'transfer-encoding') == [b'chunked']:
-        body, remainder = bytearray(), encoded
-        while True:
-            line, separator, rest = remainder.partition(b'\r\n')
-            if not separator:
-                return bytes(body), {'framing': 'chunked', 'complete': False}
-            try:
-                size = int(line.split(b';', 1)[0], 16)
-            except ValueError:
-                return bytes(body), {'framing': 'chunked', 'complete': False, 'invalid_size': True}
-            if size < 0 or size > MAX_BYTES:
-                return bytes(body), {'framing': 'chunked', 'complete': False, 'invalid_size': True}
-            if size == 0:
-                return bytes(body), {'framing': 'chunked', 'complete': rest == b'\r\n'}
-            body.extend(rest[:size])
-            if len(rest) < size + 2 or rest[size:size + 2] != b'\r\n':
-                return bytes(body), {'framing': 'chunked', 'complete': False}
-            remainder = rest[size + 2:]
+        return chunked_entity(encoded)
     if b'content-length' in headers:
         try:
             expected = int(headers[b'content-length'][0])
@@ -226,10 +147,141 @@ def save(root, key, wire, received, receipt):
     (root / (key + '.receipt.json')).write_text(json.dumps(receipt, indent=2) + '\n')
 
 
-if __name__ == '__main__':
-    manifest = json.loads(Path(sys.argv[2]).read_text())
-    case = next(c for c in manifest['cases'] + manifest.get('supplementary_executions', []) if c['key'] == sys.argv[3])
-    mode = sys.argv[4] if len(sys.argv) > 4 else 'target'
+def chunked_request_parts(chunks, body):
+    parts = []
+    position = 0
+    for length in chunks:
+        part = body[position:position + length]
+        if len(part) != length or length <= 0:
+            raise ValueError('request fixture chunk mismatch')
+        position += length
+        parts.append(f'{length:x}\r\n'.encode() + part + b'\r\n')
+    if chunks and position != len(body):
+        raise ValueError('request fixture not exhausted')
+    return parts
+
+
+def request_framing_headers(headers, template, chunks, body):
+    extra = {'invalid_content_length': [('Content-Length', 'not-a-number')],
+             'conflicting_content_length': [('Content-Length', '1'), ('Content-Length', '2')],
+             'duplicate_transfer_encoding': [('Transfer-Encoding', 'chunked'), ('Transfer-Encoding', 'chunked')],
+             'content_length_overflow': [('Content-Length', '18446744073709551616')]}
+    if template:
+        headers += extra[template]
+    elif chunks:
+        headers.append(('Transfer-Encoding', 'chunked'))
+    else:
+        headers.append(('Content-Length', str(len(body))))
+
+
+def target_eagain(row, nonce, local, peer, started):
+    return (row.get('schema') == 'traefik-own-child-syscall-v1' and row.get('nonce') == nonce and
+                    row.get('local_address') == peer[0] and row.get('local_port') == peer[1] and
+                    row.get('peer_address') == local[0] and row.get('peer_port') == local[1] and
+                    row.get('fd_identity_unchanged') is True and row.get('kernel_result') == -11 and row.get('errno') == 11 and
+                    started <= row.get('exit_monotonic_ns', 0) <= time.monotonic_ns())
+
+def chunked_entity(encoded):
+    body, remainder = bytearray(), encoded
+    while True:
+        line, separator, rest = remainder.partition(b'\r\n')
+        if not separator:
+            return bytes(body), {'framing': 'chunked', 'complete': False}
+        try:
+            size = int(line.split(b';', 1)[0], 16)
+        except ValueError:
+            return bytes(body), {'framing': 'chunked', 'complete': False, 'invalid_size': True}
+        if size < 0 or size > MAX_BYTES:
+            return bytes(body), {'framing': 'chunked', 'complete': False, 'invalid_size': True}
+        if size == 0:
+            return bytes(body), {'framing': 'chunked', 'complete': rest == b'\r\n'}
+        body.extend(rest[:size])
+        if len(rest) < size + 2 or rest[size:size + 2] != b'\r\n':
+            return bytes(body), {'framing': 'chunked', 'complete': False}
+        remainder = rest[size + 2:]
+
+
+def receive_response(connection, case, key, root, state):
+    receipt, received, backpressure = state[0], state[2], state[4]
+    while True:
+        # Read a bounded prefix bytewise until exactly8192 entity bytes;
+        # client reads are outside the host-only syscall observer.
+        block = connection.recv(receive_size(backpressure, receipt))
+        if not block:
+            receipt['tcp_eof'] = True
+            break
+        received.extend(block)
+        receipt.setdefault('first_recv_ns', time.monotonic_ns())
+        if len(received) > MAX_BYTES:
+            raise ValueError('bounded client response exceeded')
+        if received_block(connection, case, key, root, state):
+            break
+
+
+def receive_size(backpressure, receipt):
+    return 1 if backpressure and 'kernel_backpressure_wait' not in receipt else 8192
+
+
+def response_prefix(received, backpressure):
+    separator = received.find(b'\r\n\r\n')
+    body_received = len(received) - separator - 4 if separator >= 0 else 0
+    if backpressure and separator >= 0 and body_received >= 8192:
+        body_received = len(response_entity(bytes(received[:separator]), bytes(received[separator + 4:]))[0])
+    return separator, body_received
+
+
+def received_block(connection, case, key, root, state):
+    receipt, wire, received, kind, backpressure, neighbor = state
+    separator, body_received = response_prefix(received, backpressure)
+    active_prefix = kind in ('cancel', 'abort-reset-observation', 'client-exit-signal',
+        'incomplete-framing', 'no-second-response', 'engine_timeout_after_commit')
+    minimum_prefix = 8192 if active_prefix or backpressure else 1
+    if separator >= 0 and body_received >= minimum_prefix:
+        if observe_prefix(connection, key, root, (receipt, wire, received, kind, body_received)):
+            return True
+    if backpressure and 'kernel_backpressure_wait' not in receipt and separator >= 0:
+        pause_backpressure(case, key, root, receipt, received, separator)
+    if case['fixture']['request'].get('slow_reader') and not neighbor:
+        time.sleep(0.005)
+    return False
+
+
+def observe_prefix(connection, key, root, state):
+    receipt, wire, received, kind, body_received = state
+    marker = Path('/task/barriers') / key
+    if not marker.exists():
+        marker.write_text(json.dumps({'key': key, 'actual_received_bytes': len(received),
+            'actual_received_entity_bytes': body_received,
+            'monotonic_ns': time.monotonic_ns(), 'prefix_sha256': hashlib.sha256(received).hexdigest()}))
+    if kind in ('cancel', 'abort-reset-observation'):
+        connection.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0))
+        receipt['client_rst_ns'] = time.monotonic_ns()
+        return True
+    if kind == 'client-exit-signal':
+        receipt['requested_signal'] = signal.SIGTERM
+        # Parent waits the child and records the actual negative
+        # subprocess return. Persist physical prefix first.
+        receipt['completed_ns'] = time.monotonic_ns()
+        save(root, key, wire, received, receipt)
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    return False
+
+def pause_backpressure(case, key, root, receipt, received, separator):
+    entity, _ = response_entity(bytes(received[:separator]), bytes(received[separator + 4:]))
+    if len(entity) >= 8192:
+        receipt['paused_after_entity_bytes'] = len(entity)
+        (root / (key + '.response-prefix.raw')).write_bytes(received)
+        (root / (key + '.prefix.json')).write_text(json.dumps(receipt | {
+            'prefix_ns': time.monotonic_ns(), 'prefix_entity_bytes': len(entity),
+            'prefix_entity_sha256': hashlib.sha256(entity).hexdigest(),
+            'prefix_wire_sha256': hashlib.sha256(received).hexdigest(), 'response_complete': False}, indent=2) + '\n')
+        receipt['kernel_backpressure_wait'] = await_kernel_backpressure(
+            Path('/task/cases') / case['key'] / 'host-syscalls.jsonl', case['key'], receipt['local'], receipt['peer'])
+        (root / (key + '.pause-result.json')).write_text(json.dumps(receipt['kernel_backpressure_wait'], indent=2) + '\n')
+
+
+def select_client_case(case, mode):
     if mode in ('neighbor-before', 'neighbor-after'):
         case = copy.deepcopy(case)
         case['key'] = ('main-before-' if mode == 'neighbor-before' else 'main-after-') + case['key']
@@ -252,6 +304,10 @@ if __name__ == '__main__':
         case['key'] = 'control-' + case['key']
         case['transaction_id'] = case['positive_control_id']
         case['fixture']['fault'] = None
+    case = sequence_case(case, mode)
+    return main_control_case(case, mode)
+
+def sequence_case(case, mode):
     if mode.startswith('sequence-'):
         index = int(mode.removeprefix('sequence-'))
         if case['fixture']['sequence'] != ['allow_without_marker', 'deny_header_marker_403', 'allow_without_marker']:
@@ -263,6 +319,9 @@ if __name__ == '__main__':
         case['fixture']['request'] = {'method': 'GET', 'uri': '/no-crs/allow',
             'headers': [['X-Modsec-Smoke', 'deny']] if index == 1 else [],
             'body_hex': '', 'chunk_lengths': []}
+    return case
+
+def main_control_case(case, mode):
     if mode in ('main-before', 'main-after'):
         case = copy.deepcopy(case)
         case['fixture']['request']['uri'] = '/i12/reuse/' + mode + '/' + case['key']
@@ -273,11 +332,26 @@ if __name__ == '__main__':
         case['fixture']['request']['omit_transaction_id'] = False
         case['fixture']['request']['kernel_backpressure'] = False
         case['fixture']['request']['slow_reader'] = False
+    return case
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('port', type=int)
+    parser.add_argument('manifest', choices=(MANIFEST,))
+    parser.add_argument('key')
+    parser.add_argument('mode', nargs='?', default='target')
+    args = parser.parse_args()
+    if not 1 <= args.port <= 65535 or Path(MANIFEST).resolve(strict=True) != Path(MANIFEST):
+        raise ValueError('bounded loopback port and physical sealed manifest required')
+    manifest = json.loads(Path(MANIFEST).read_text())
+    case = next(c for c in manifest['cases'] + manifest.get('supplementary_executions', []) if c['key'] == args.key)
+    mode = args.mode
+    case = select_client_case(case, mode)
     # Wait the actual client PID ourselves. The RTK process exit is a different
     # observation and cannot substitute for a signalled child's wait status.
     child = os.fork()
     if child == 0:
-        run(int(sys.argv[1]), case, mode.startswith(('neighbor', 'readiness-')))
+        run(args.port, case, mode.startswith(('neighbor', 'readiness-')))
         os._exit(0)
     waited_pid, status = os.waitpid(child, 0)
     returncode = os.waitstatus_to_exitcode(status)

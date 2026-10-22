@@ -22,7 +22,8 @@ class SyscallObserverTests(unittest.TestCase):
             raise unittest.SkipTest("requires explicit private non-root capability-free test root")
         cls.root = Path(directory)
         info = cls.root.stat()
-        assert info.st_uid == os.getuid() and info.st_mode & 0o077 == 0
+        assert info.st_uid == os.getuid()
+        assert info.st_mode & 0o077 == 0
         cls.binary = cls.root / "observer"
         source = Path(__file__).resolve().parents[1] / "connectors/traefik/harness/i12/native/acceptance_syscalls.c"
         subprocess.run(["gcc", "-std=c17", "-Wall", "-Wextra", "-Werror",
@@ -39,7 +40,7 @@ class SyscallObserverTests(unittest.TestCase):
     def refused(self, output, *extra):
         result = subprocess.run(self.command(output, *extra), capture_output=True, timeout=20)
         self.assertEqual(77, result.returncode, result.stderr)
-        self.assertFalse(output.exists())
+        self.assertFalse(Path(output).exists())
 
     def test_actual_kernel_short_block_resume_on_writer_thread(self):
         output = self.output("kernel.jsonl")
@@ -154,6 +155,15 @@ class SyscallObserverTests(unittest.TestCase):
         link = self.output("linked-parent")
         link.symlink_to(self.root, target_is_directory=True)
         self.refused(link / "capture")
+
+    def test_world_writable_parent_and_dot_components_refused(self):
+        shared = self.output("world-writable")
+        shared.mkdir(mode=0o777)
+        shared.chmod(0o777)
+        self.refused(shared / "capture")
+        self.refused(str(self.root) + "/./dot-capture")
+        self.refused(str(self.root) + "/../parent-capture")
+        self.refused(str(self.root) + "//empty-component")
 
     def test_interruption_never_qualifies_and_reaps_own_child(self):
         output = self.output("interrupted.jsonl")

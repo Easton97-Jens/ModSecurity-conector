@@ -14,6 +14,16 @@ import acceptance_readiness
 import acceptance_validate
 import stat
 
+LOGS='runtime/logs'
+RULES='rules.conf'
+ROUTERS='  routers:\n'
+COMPANION_SOCKET='sockets/companion.sock'
+SERVICES='  services:\n'
+PROVENANCE_SOCKET='sockets/provenance.sock'
+CASE='case.json'
+NET_SCRIPT='acceptance_net.py'
+PYTHON='/usr/local/bin/python3'
+
 SOURCE=Path('/mnt/src');FIXTURES=Path('/mnt/fixtures');TASK=Path('/task')
 ARTIFACTS=Path('/mnt/artifacts/traefik')
 GO_SHA256='548d3c32f83fa81152f543eb1526be7884cfe0526eb5e9ce29d3eca14786e7e0'
@@ -93,8 +103,8 @@ def prepare_build():
 
 
 def configuration(case,root,helper,backend_port,auth_port,companion_socket,file_backend_port=None):
- config_dir=root/'runtime/effective-config';logs=root/'runtime/logs'
- config=config_dir/'traefik-forwardauth.conf';rules=root/'rules.conf'
+ config_dir=root/'runtime/effective-config';logs=root/LOGS
+ config=config_dir/'traefik-forwardauth.conf';rules=root/RULES
  policy=case['fixture'].get('policy',{})
  values={'enabled':'on','rules_file':str(rules),'transaction_id_header':'x-request-id',
   'request_body_mode':'buffered','response_body_mode':'streaming','phase4_mode':policy.get('phase4_mode','safe'),
@@ -116,34 +126,11 @@ def configuration(case,root,helper,backend_port,auth_port,companion_socket,file_
  text=text[:start]+'        authRequestHeaders:\n'+''.join('        - '+name+'\n' for name in sorted(names))+text[end:]
  timeout=1000 if case['fixture'].get('relay',{}).get('companion_fault') else 5000
  text=text.replace('timeoutMillis: 5000','timeoutMillis: '+str(timeout))
- text=text.replace('  routers:\n','  routers:\n    healthy-neighbor:\n      entryPoints: [web]\n      rule: Header(`X-I12-Neighbor`, `1`)\n      priority: 100\n      middlewares: [modsecurity-forwardauth, healthy-response-observer]\n      service: upstream\n',1)
- healthy='    healthy-response-observer:\n      plugin:\n        modsecurityResponseObserver:\n          socketPath: '+str(root/'sockets/companion.sock')+'\n          timeoutMillis: 5000\n'
- text=text.replace('  services:\n',healthy+'  services:\n',1)
- if acceptance_validate.provenance_mode(case):
-  for router,observer in [('smoke','modsecurity-response-observer'),('healthy-neighbor','healthy-response-observer')]:
-   if router=='smoke':
-    text=text.replace('      - modsecurity-forwardauth\n      - '+observer,'      - '+observer+'\n      - modsecurity-forwardauth\n      - '+observer+'-confirm',1)
-   else:text=text.replace('middlewares: [modsecurity-forwardauth, '+observer+']','middlewares: ['+observer+', modsecurity-forwardauth, '+observer+'-confirm]')
-   socket=str(companion_socket if router=='smoke' else root/'sockets/companion.sock')
-   timeout_value=timeout if router=='smoke' else 5000
-   marker='          socketPath: '+socket+'\n          timeoutMillis: '+str(timeout_value)+'\n'
-   settings='          provenanceSocketPath: '+str(root/'sockets/provenance.sock')+'\n          runID: '+acceptance_validate.RUN_ID+'\n          transportCaseID: '+case['id']+'\n'
-   # Replace only the named outer block; sockets may be shared by both routes.
-   start=text.index('    '+observer+':\n');end=text.index(marker,start)+len(marker)
-   text=text[:end]+settings+text[end:]
-   inner='    '+observer+'-confirm:\n      plugin:\n        modsecurityResponseObserver:\n          socketPath: '+socket+'\n          timeoutMillis: '+str(timeout_value)+'\n          confirmProvenance: true\n'
-   text=text.replace('  services:\n',inner+'  services:\n',1)
- physical=acceptance_controls.file_binding(case)
- if physical and physical['direction']=='response':
-  if (type(file_backend_port) is not int or not 1<=file_backend_port<=65535 or
-      file_backend_port in (backend_port,auth_port) or not re.fullmatch(r'[A-Za-z0-9_.:-]{1,128}',case['probe_id'])):
-   raise ValueError('separate literal physical file backend port and probe required')
-  chain=(['modsecurity-response-observer','modsecurity-forwardauth','modsecurity-response-observer-confirm']
-   if acceptance_validate.provenance_mode(case) else ['modsecurity-forwardauth','modsecurity-response-observer'])
-  router=('    physical-file-target:\n      entryPoints: [web]\n      rule: Header(`X-I12-Probe`, `'+case['probe_id']+'`) && !Header(`X-I12-Neighbor`, `1`)\n'
-   '      priority: 200\n      middlewares: ['+', '.join(chain)+']\n      service: physical-file-backend\n')
-  service='    physical-file-backend:\n      loadBalancer:\n        servers:\n        - url: http://127.0.0.1:'+str(file_backend_port)+'\n'
-  text=text.replace('  routers:\n','  routers:\n'+router,1).replace('  services:\n','  services:\n'+service,1)
+ text=text.replace(ROUTERS,'  routers:\n    healthy-neighbor:\n      entryPoints: [web]\n      rule: Header(`X-I12-Neighbor`, `1`)\n      priority: 100\n      middlewares: [modsecurity-forwardauth, healthy-response-observer]\n      service: upstream\n',1)
+ healthy='    healthy-response-observer:\n      plugin:\n        modsecurityResponseObserver:\n          socketPath: '+str(root/COMPANION_SOCKET)+'\n          timeoutMillis: 5000\n'
+ text=text.replace(SERVICES,healthy+SERVICES,1)
+ if acceptance_validate.provenance_mode(case):text=provenance_configuration(text,case,root,companion_socket,timeout)
+ text=file_router_configuration(text,case,file_backend_port,backend_port,auth_port)
  dynamic=config_dir/'traefik-dynamic.yaml';dynamic.write_text(text)
  return config,dynamic
 
@@ -162,8 +149,8 @@ def case_environment(case,root,env,native_fd,fault_fd):
   'MSCONNECTOR_LIFECYCLE_PROFILE':case['route'],'MSCONNECTOR_LIFECYCLE_CASE':case['id'],
   'I12_ACCEPTANCE_EVENT_PATH':str(root/'runtime/logs/events.jsonl'),'I12_ACCEPTANCE_FAULT_URI':case['fixture']['request']['uri'],
   'I12_ACCEPTANCE_FAULT_FD':str(fault_fd),'I12_ACCEPTANCE_HOST_LOG':str(root/'runtime/logs/host-lifecycle.jsonl'),
-  'MSCONNECTOR_TRAEFIK_FORWARDAUTH_COMPANION_SOCKET':str(root/'sockets/companion.sock')}
- if acceptance_validate.provenance_mode(case):value['MSCONNECTOR_TRAEFIK_PROVENANCE_SOCKET']=str(root/'sockets/provenance.sock')
+  'MSCONNECTOR_TRAEFIK_FORWARDAUTH_COMPANION_SOCKET':str(root/COMPANION_SOCKET)}
+ if acceptance_validate.provenance_mode(case):value['MSCONNECTOR_TRAEFIK_PROVENANCE_SOCKET']=str(root/PROVENANCE_SOCKET)
  else:value.pop('MSCONNECTOR_TRAEFIK_PROVENANCE_SOCKET',None)
  value['I12_ACCEPTANCE_FAULT']=(case['fixture'].get('fault') or {}).get('driver_kind','')
  return value
@@ -171,19 +158,19 @@ def case_environment(case,root,env,native_fd,fault_fd):
 
 def create_case_root(case,shared):
  root=TASK/'cases'/case['probe_id'];root.mkdir(mode=0o700)
- for name in ('runtime','runtime/logs','runtime/effective-config','sockets'):(root/name).mkdir(mode=0o700)
- for name in ('native-lifecycle.jsonl','host-lifecycle.jsonl','events.jsonl','audit.log','debug.log'):(root/'runtime/logs'/name).touch(mode=0o600)
- (root/'case.json').write_text(json.dumps(case,indent=2)+'\n')
- shared.append_rules(root/'rules.conf',case['fixture'],root/'runtime/logs')
+ for name in ('runtime',LOGS,'runtime/effective-config','sockets'):(root/name).mkdir(mode=0o700)
+ for name in ('native-lifecycle.jsonl','host-lifecycle.jsonl','events.jsonl','audit.log','debug.log'):(root/LOGS/name).touch(mode=0o600)
+ (root/CASE).write_text(json.dumps(case,indent=2)+'\n')
+ shared.append_rules(root/RULES,case['fixture'],root/LOGS)
  return root
 
 
 def start_net(label,mode,root,env,handles,processes,helper,port=None,engine_port=None,target=None):
- argv=['/usr/local/bin/python3','-P',FIXTURES/'acceptance_net.py',mode,'--spec',root/'case.json','--root',root]
+ argv=[PYTHON,'-P',FIXTURES/NET_SCRIPT,mode,'--spec',root/CASE,'--root',root]
  if port is not None:argv+=['--port',port]
  if engine_port is not None:argv+=['--engine-port',engine_port]
  if target is not None:argv+=['--socket',root/'sockets/observer.sock','--target',target]
- process=base.start(label,argv,env,handles);processes[label]=(process,str(FIXTURES/'acceptance_net.py'))
+ process=base.start(label,argv,env,handles);processes[label]=(process,str(FIXTURES/NET_SCRIPT))
  if port is not None:helper.wait_for_tcp(port,process,label)
  return process
 
@@ -198,7 +185,7 @@ def file_command(case,root,mode,port=None):
      content.get('native_file_api') is not False or
      {entry['relative_path']:entry for entry in content['files']}!=binding['files']):
   raise ValueError('physical reader manifest differs from sealed case')
- argv=['/usr/local/bin/python3','-P',FIXTURES/'i12_file/run.py',mode,
+ argv=[PYTHON,'-P',FIXTURES/'i12_file/run.py',mode,
   '--manifest',manifest,'--private-root',root/'file-source','--evidence-root',root/'file-evidence']
  if mode=='stage':argv+=['--fixture-root',FIXTURES/'i12_file/source-fixtures']
  elif mode in ('client','backend'):
@@ -232,15 +219,8 @@ def start_file_backend(case,root,port,env,handles,processes,seconds=5):
  deadline=time.monotonic()+seconds
  while time.monotonic()<deadline:
   if process.poll() is not None:raise RuntimeError('physical file backend exited before readiness receipt')
-  if path.is_file() and not path.is_symlink():
-   try:receipt=json.loads(path.read_text())
-   except json.JSONDecodeError:receipt=None
-   if receipt is not None:
-    actual_pid=base.actual_pid(process,marker)
-    if receipt.get('pid')!=actual_pid or receipt.get('port')!=port:
-     raise RuntimeError('physical file backend readiness identity differs')
-    return {'receipt':str(path),'sha256':base.digest(path),'pid':actual_pid,'wrapper_pid':process.pid,'port':port,
-     'tcp_readiness_probe_performed':False,'native_eos_proven':False}
+  receipt=file_backend_ready_receipt(path,process,marker,port)
+  if receipt is not None:return receipt
   time.sleep(0.01)
  raise RuntimeError('physical file backend listen receipt deadline expired')
 
@@ -255,15 +235,15 @@ def host_argv(helper,host,host_port,dynamic,root):
 
 
 def execute_clients(case,root,env,host_port,processes,shared):
- script=FIXTURES/'acceptance_net.py'
- common=['/usr/local/bin/python3','-P',script,'client','--spec',root/'case.json','--root',root,'--port',host_port]
+ script=FIXTURES/NET_SCRIPT
+ common=[PYTHON,'-P',script,'client','--spec',root/CASE,'--root',root,'--port',host_port]
  before=shared.command('client-before-neighbor',[*common,'--neighbor','--before-neighbor'],env);base.snapshot('before-target-healthy',live(processes))
  physical=acceptance_controls.file_binding(case)
  if physical and physical['direction']=='request':
   primary=shared.command('physical-file-client',file_command(case,root,'client',host_port),file_environment(env))
  elif case['fixture'].get('client',{}).get('kind')=='wait-for-sigterm':
   primary=shared.command('client-signal-controller',
-   ['/usr/local/bin/python3','-P',FIXTURES/'acceptance_signal.py','--case-root',root,'--port',host_port],env)
+   [PYTHON,'-P',FIXTURES/'acceptance_signal.py','--case-root',root,'--port',host_port],env)
   if primary['exit_code']!=0:raise RuntimeError('physical client signal controller failed')
   primary=json.loads((root/'client-target.command.json').read_text())
  elif case['fixture'].get('syscall_observer'):
@@ -288,32 +268,7 @@ def wait_for_http_ready(case,root,env,host_port,seconds=20):
   receipt={'expected_unready_service_startup_failure':True,'ready':False,'attempts':[],
    'started_ns':started,'completed_ns':time.monotonic_ns(),'qualification':None}
  else:
-  for index in range(10):
-   remaining=deadline-time.monotonic()
-   if remaining<=0:break
-   argv=['/usr/local/bin/python3','-P',FIXTURES/'acceptance_net.py','client','--spec',root/'case.json',
-    '--root',root,'--port',host_port,'--neighbor','--readiness-index',index]
-   command=acceptance_command.execute(root,'readiness-'+str(index),argv,env,min(3,remaining),absolute_deadline=deadline)
-   path=root/('client-readiness-'+str(index)+'.json')
-   measured=json.loads(path.read_text()) if path.is_file() else None
-   requests=measured.get('requests',[]) if measured else []
-   status=requests[0]['client_framing']['status'] if requests else None
-   native=None
-   if status==200 and not command['timed_out'] and time.monotonic()<deadline:
-    for _ in range(50):
-     if time.monotonic()>=deadline:break
-     native=acceptance_readiness.native_receipt(root/'runtime/logs/native-lifecycle.jsonl',measured)
-     if native['positive_allocation_finish_free']:break
-     remaining=deadline-time.monotonic()
-     if remaining<=0:break
-     time.sleep(min(0.01,remaining))
-   history.append({'index':index,'wire_probe':case['probe_id']+'-ready-'+str(index)+'-neighbor',
-    'client_receipt':str(path) if measured else None,'status':status,'command':command,'native_receipt':native})
-   if (status==200 and not command['timed_out'] and native is not None
-       and native['positive_allocation_finish_free'] and time.monotonic()<deadline):ready=True;break
-   if status!=404:break
-   if time.monotonic()>=deadline:break
-   time.sleep(max(0,min(0.1,deadline-time.monotonic())))
+  ready=probe_http_ready(case,root,env,host_port,deadline,history)
   receipt={'ready':ready,'attempts':history,'started_ns':started,'completed_ns':time.monotonic_ns(),
    'tcp_ready_is_not_http_ready':True,'only_startup_404_is_retried':True,
    'startup_attempts_are_not_qualified_before_control':True,'qualification':None}
@@ -348,55 +303,17 @@ def execute_case(case,env,engine,host,shared,helper):
  observer_path=root/'sockets/observer.sock' if case['fixture'].get('relay',{}).get('companion_fault') else socket_path
  try:
   config,dynamic=configuration(case,root,helper,backend_port,relay_port,observer_path,file_backend_port)
-  result['configuration_sha256']={str(p.relative_to(root)):base.digest(p) for p in (config,dynamic,root/'rules.conf')}
-  validation=shared.command('yaml-preflight',['/usr/bin/python3','-P',FIXTURES/'acceptance_validate.py',dynamic,root/'case.json'],env)
-  if validation['exit_code']!=0:raise RuntimeError('effective YAML contract validation failed')
-  if case['classification']=='config':
-   controller=shared.command('check-config-controller',
-    ['/usr/local/bin/python3','-P',FIXTURES/'acceptance_parser.py','--case-root',root],env)
-   if controller['exit_code']!=0:raise RuntimeError('physical parser controller failed')
-   check=json.loads((root/'check-config.command.json').read_text())
-  else:check=shared.command('check-config',[engine,'--check-config','--config',config],env)
-  result['config_check']=check
-  if case['classification']=='config':
-   result.update(configuration_only=True,transaction_allocations_expected=0,
-    configuration_contract=case['original_contract'],
-    parser_stdout_sha256=base.digest(root/'check-config.stdout'),
-    parser_stderr_sha256=base.digest(root/'check-config.stderr'))
-   return result
-  if check['exit_code']!=0:return result
-  if case['fixture'].get('explicit_source_correction',{}).get('literal_minimal_negative_control_required'):
-   negative=config.with_name('unsupported-minimal.conf')
-   negative.write_text(config.read_text().replace('phase4_mode=off','phase4_mode=minimal'))
-   controller=shared.command('literal-minimal-config-controller',
-    ['/usr/local/bin/python3','-P',FIXTURES/'acceptance_parser.py','--case-root',root,'--literal-minimal'],env)
-   if controller['exit_code']!=0:raise RuntimeError('literal-minimal physical parser controller failed')
-   result['literal_minimal_negative_config']=json.loads((root/'literal-minimal-check-config.command.json').read_text())
-  if case['classification']=='file-capability' and not physical:result['capability_execution_pending']=True;return result
-  if physical:
-   result['physical_file_supplement']=dict(physical,staging_command=stage_file_source(case,root,current,shared))
+  result['configuration_sha256']={str(p.relative_to(root)):base.digest(p) for p in (config,dynamic,root/RULES)}
+  if not preflight_case(case,root,config,dynamic,engine,env,current,shared,result,physical):return result
   helper.stage_response_observer(SOURCE/'connectors/traefik/response_observer',root/'runtime')
   start_net('backend','backend',root,current,handles,processes,helper,port=backend_port)
-  launch_start=time.monotonic_ns()
-  service=base.start('engine',[engine,'--serve','--config',config,'--listen',f'127.0.0.1:{engine_port}'],current,handles,(native_fd,fault_fd));processes['engine']=(service,str(engine))
-  try:helper.wait_for_tcp(engine_port,service,'real current native forwardAuth service')
-  except Exception as error:
-   result['engine_start_failure']={'type':type(error).__name__,'message':str(error)}
-   result['engine_start_window']={'probe':case['probe_id'],'start_monotonic_ns':launch_start,
-    'end_monotonic_ns':time.monotonic_ns(),'proxy_pid':service.pid,'observed_exit_code':service.poll(),
-    'actual_fault_pids':sorted({row['pid'] for row in map(json.loads,fault_path.read_text().splitlines()) if 'pid' in row})}
-   if (case['fixture'].get('fault') or {}).get('driver_kind')!='sink-open':raise
+  service=start_engine(case,engine,config,engine_port,current,handles,processes,helper,native_fd,fault_fd,fault_path,result)
   if acceptance_validate.provenance_mode(case) and service.poll() is None:
    result['provenance_socket_before']=provenance_socket_receipt(Path(current['MSCONNECTOR_TRAEFIK_PROVENANCE_SOCKET']))
   result['observer_mode']='trusted-provenance' if acceptance_validate.provenance_mode(case) else 'default-mrc1'
   start_net('authorization-relay','relay',root,current,handles,processes,helper,port=relay_port,engine_port=engine_port)
   if observer_path!=socket_path:start_net('companion-proxy','companion-proxy',root,current,handles,processes,helper,target=socket_path)
-  trace=case['fixture'].get('syscall_observer')
-  argv=host_argv(helper,host,host_port,dynamic,root)
-  if trace:
-   if trace['fixed_case']!=case['probe_id'] or trace['nonce']!=case['probe_id']:raise ValueError('fixed tracer case mismatch')
-   argv=[TASK/'build/acceptance-syscalls','--auth-case',case['probe_id'],'--nonce',case['probe_id'],
-    '--output',root/'host-syscalls.jsonl','--host-port',host_port,'--peer-port',0,'--seconds',trace['seconds']]
+  argv=measured_host_argv(case,root,helper,host,host_port,dynamic)
   process=base.start('traefik',argv,current,handles);processes['traefik']=(process,str(host))
   helper.wait_for_tcp(host_port,process,'real Traefik')
   result['http_readiness']=wait_for_http_ready(case,root,current,host_port)
@@ -408,16 +325,7 @@ def execute_case(case,env,engine,host,shared,helper):
    result['producer_error']={'type':'TimeoutExpired','message':'target-only120s client deadline expired; after-control retained'}
  except Exception as error:result['producer_error']={'type':type(error).__name__,'message':str(error)}
  finally:
-  for label,(process,marker) in reversed(list(processes.items())):
-   try:result['processes'][label]=shared.stop(label,process,marker)
-   except Exception as error:result.setdefault('cleanup_errors',[]).append({'process':label,'type':type(error).__name__,'message':str(error)})
-  os.close(native_fd);os.close(fault_fd)
-  for handle in handles:handle.close()
-  result['socket_removed']=not socket_path.exists();result['observer_socket_removed']=not observer_path.exists()
-  result['provenance_socket_cleanup']={'path':str(root/'sockets/provenance.sock'),
-   'configured':acceptance_validate.provenance_mode(case),'removed':not (root/'sockets/provenance.sock').exists(),
-   'monotonic_ns':time.monotonic_ns()}
-  result['completed_ns']=time.monotonic_ns()
+  cleanup_case(case,root,result,processes,shared,native_fd,fault_fd,handles,socket_path,observer_path)
   base.write('result.json',result)
  return result
 
@@ -442,3 +350,169 @@ def main():
   base.TASK=TASK;base.write('acceptance-execution-summary.json',{'route':manifest['selected_route'],
    'original_ids':len(manifest['cases']),'results':results,'qualification':None,'runtime_source_manifest_sha256':base.digest(TASK/'acceptance-build.json')})
  print(json.dumps({'original_cases':len(results),'producer_complete':len(results)==len(manifest['cases']),'qualified':False}))
+
+
+def provenance_configuration(text,case,root,companion_socket,timeout):
+ for router,observer in [('smoke','modsecurity-response-observer'),('healthy-neighbor','healthy-response-observer')]:
+  if router=='smoke':
+   text=text.replace('      - modsecurity-forwardauth\n      - '+observer,'      - '+observer+'\n      - modsecurity-forwardauth\n      - '+observer+'-confirm',1)
+  else:text=text.replace('middlewares: [modsecurity-forwardauth, '+observer+']','middlewares: ['+observer+', modsecurity-forwardauth, '+observer+'-confirm]')
+  socket=str(companion_socket if router=='smoke' else root/COMPANION_SOCKET)
+  timeout_value=timeout if router=='smoke' else 5000
+  marker='          socketPath: '+socket+'\n          timeoutMillis: '+str(timeout_value)+'\n'
+  settings='          provenanceSocketPath: '+str(root/PROVENANCE_SOCKET)+'\n          runID: '+acceptance_validate.RUN_ID+'\n          transportCaseID: '+case['id']+'\n'
+  # Replace only the named outer block; sockets may be shared by both routes.
+  start=text.index('    '+observer+':\n');end=text.index(marker,start)+len(marker)
+  text=text[:end]+settings+text[end:]
+  inner='    '+observer+'-confirm:\n      plugin:\n        modsecurityResponseObserver:\n          socketPath: '+socket+'\n          timeoutMillis: '+str(timeout_value)+'\n          confirmProvenance: true\n'
+  text=text.replace(SERVICES,inner+SERVICES,1)
+
+ return text
+
+
+def file_router_configuration(text,case,file_backend_port,backend_port,auth_port):
+ physical=acceptance_controls.file_binding(case)
+ if physical and physical['direction']=='response':
+  if (type(file_backend_port) is not int or not 1<=file_backend_port<=65535 or
+      file_backend_port in (backend_port,auth_port) or not re.fullmatch(r'[A-Za-z0-9_.:-]{1,128}',case['probe_id'])):
+   raise ValueError('separate literal physical file backend port and probe required')
+  chain=(['modsecurity-response-observer','modsecurity-forwardauth','modsecurity-response-observer-confirm']
+   if acceptance_validate.provenance_mode(case) else ['modsecurity-forwardauth','modsecurity-response-observer'])
+  router=('    physical-file-target:\n      entryPoints: [web]\n      rule: Header(`X-I12-Probe`, `'+case['probe_id']+'`) && !Header(`X-I12-Neighbor`, `1`)\n'
+   '      priority: 200\n      middlewares: ['+', '.join(chain)+']\n      service: physical-file-backend\n')
+  service='    physical-file-backend:\n      loadBalancer:\n        servers:\n        - url: http://127.0.0.1:'+str(file_backend_port)+'\n'
+  text=text.replace(ROUTERS,ROUTERS+router,1).replace(SERVICES,SERVICES+service,1)
+
+ return text
+
+
+def file_backend_ready_receipt(path,process,marker,port):
+ if path.is_file() and not path.is_symlink():
+  try:receipt=json.loads(path.read_text())
+  except json.JSONDecodeError:receipt=None
+  if receipt is not None:
+   actual_pid=base.actual_pid(process,marker)
+   if receipt.get('pid')!=actual_pid or receipt.get('port')!=port:
+    raise RuntimeError('physical file backend readiness identity differs')
+   return {'receipt':str(path),'sha256':base.digest(path),'pid':actual_pid,'wrapper_pid':process.pid,'port':port,
+    'tcp_readiness_probe_performed':False,'native_eos_proven':False}
+
+ return None
+
+
+def readiness_native(case,root,index,measured,status,command,deadline):
+ native=None
+ if status==200 and not command['timed_out'] and time.monotonic()<deadline:
+  for _ in range(50):
+   if time.monotonic()>=deadline:break
+   native=acceptance_readiness.native_receipt(root/'runtime/logs/native-lifecycle.jsonl',measured,
+    expected_probe=case['probe_id']+'-ready-'+str(index),command=command)
+   if native['positive_allocation_finish_free']:break
+   remaining=deadline-time.monotonic()
+   if remaining<=0:break
+   time.sleep(min(0.01,remaining))
+
+ return native
+
+
+def readiness_attempt(case,root,env,host_port,index,deadline,remaining,history):
+ argv=[PYTHON,'-P',FIXTURES/NET_SCRIPT,'client','--spec',root/CASE,
+  '--root',root,'--port',host_port,'--neighbor','--readiness-index',index]
+ command=acceptance_command.execute(root,'readiness-'+str(index),argv,env,min(3,remaining),absolute_deadline=deadline)
+ path=root/('client-readiness-'+str(index)+'.json')
+ measured=json.loads(path.read_text()) if path.is_file() else None
+ requests=measured.get('requests',[]) if measured else []
+ status=requests[0]['client_framing']['status'] if requests else None
+ native=readiness_native(case,root,index,measured,status,command,deadline)
+ history.append({'index':index,'wire_probe':case['probe_id']+'-ready-'+str(index)+'-neighbor',
+  'client_receipt':str(path) if measured else None,'status':status,'command':command,'native_receipt':native})
+ return status,command,native
+
+
+def preflight_case(case,root,config,dynamic,engine,env,current,shared,result,physical):
+ validation=shared.command('yaml-preflight',['/usr/bin/python3','-P',FIXTURES/'acceptance_validate.py',dynamic,root/CASE],env)
+ if validation['exit_code']!=0:raise RuntimeError('effective YAML contract validation failed')
+ if case['classification']=='config':
+  controller=shared.command('check-config-controller',
+   [PYTHON,'-P',FIXTURES/'acceptance_parser.py','--case-root',root],env)
+  if controller['exit_code']!=0:raise RuntimeError('physical parser controller failed')
+  check=json.loads((root/'check-config.command.json').read_text())
+ else:check=shared.command('check-config',[engine,'--check-config','--config',config],env)
+ result['config_check']=check
+ if case['classification']=='config':
+  result.update(configuration_only=True,transaction_allocations_expected=0,
+   configuration_contract=case['original_contract'],
+   parser_stdout_sha256=base.digest(root/'check-config.stdout'),
+   parser_stderr_sha256=base.digest(root/'check-config.stderr'))
+  return False
+ if check['exit_code']!=0:return False
+ literal_minimal_control(case,root,config,env,shared,result)
+ if case['classification']=='file-capability' and not physical:result['capability_execution_pending']=True;return False
+ if physical:
+  result['physical_file_supplement']=dict(physical,staging_command=stage_file_source(case,root,current,shared))
+
+ return True
+
+
+def start_engine(case,engine,config,engine_port,current,handles,processes,helper,native_fd,fault_fd,fault_path,result):
+ launch_start=time.monotonic_ns()
+ service=base.start('engine',[engine,'--serve','--config',config,'--listen',f'127.0.0.1:{engine_port}'],current,handles,(native_fd,fault_fd));processes['engine']=(service,str(engine))
+ try:helper.wait_for_tcp(engine_port,service,'real current native forwardAuth service')
+ except Exception as error:
+  result['engine_start_failure']={'type':type(error).__name__,'message':str(error)}
+  result['engine_start_window']={'probe':case['probe_id'],'start_monotonic_ns':launch_start,
+   'end_monotonic_ns':time.monotonic_ns(),'proxy_pid':service.pid,'observed_exit_code':service.poll(),
+   'actual_fault_pids':sorted({row['pid'] for row in map(json.loads,fault_path.read_text().splitlines()) if 'pid' in row})}
+  if (case['fixture'].get('fault') or {}).get('driver_kind')!='sink-open':raise
+
+ return service
+
+
+def cleanup_case(case,root,result,processes,shared,native_fd,fault_fd,handles,socket_path,observer_path):
+ for label,(process,marker) in reversed(list(processes.items())):
+  try:result['processes'][label]=shared.stop(label,process,marker)
+  except Exception as error:result.setdefault('cleanup_errors',[]).append({'process':label,'type':type(error).__name__,'message':str(error)})
+ os.close(native_fd);os.close(fault_fd)
+ for handle in handles:handle.close()
+ result['socket_removed']=not socket_path.exists();result['observer_socket_removed']=not observer_path.exists()
+ result['provenance_socket_cleanup']={'path':str(root/PROVENANCE_SOCKET),
+  'configured':acceptance_validate.provenance_mode(case),'removed':not (root/PROVENANCE_SOCKET).exists(),
+  'monotonic_ns':time.monotonic_ns()}
+ result['completed_ns']=time.monotonic_ns()
+
+
+def literal_minimal_control(case,root,config,env,shared,result):
+ if case['fixture'].get('explicit_source_correction',{}).get('literal_minimal_negative_control_required'):
+  negative=config.with_name('unsupported-minimal.conf')
+  negative.write_text(config.read_text().replace('phase4_mode=off','phase4_mode=minimal'))
+  controller=shared.command('literal-minimal-config-controller',
+   [PYTHON,'-P',FIXTURES/'acceptance_parser.py','--case-root',root,'--literal-minimal'],env)
+  if controller['exit_code']!=0:raise RuntimeError('literal-minimal physical parser controller failed')
+  result['literal_minimal_negative_config']=json.loads((root/'literal-minimal-check-config.command.json').read_text())
+
+
+def probe_http_ready(case,root,env,host_port,deadline,history):
+ for index in range(10):
+  remaining=deadline-time.monotonic()
+  if remaining<=0:break
+  status,command,native=readiness_attempt(case,root,env,host_port,index,deadline,remaining,history)
+  if readiness_success(status,command,native,deadline):return True
+  if status!=404:break
+  if time.monotonic()>=deadline:break
+  time.sleep(max(0,min(0.1,deadline-time.monotonic())))
+ return False
+
+
+def readiness_success(status,command,native,deadline):
+ return (status==200 and not command['timed_out'] and native is not None
+  and native['positive_allocation_finish_free'] and time.monotonic()<deadline)
+
+
+def measured_host_argv(case,root,helper,host,host_port,dynamic):
+ trace=case['fixture'].get('syscall_observer')
+ argv=host_argv(helper,host,host_port,dynamic,root)
+ if trace:
+  if trace['fixed_case']!=case['probe_id'] or trace['nonce']!=case['probe_id']:raise ValueError('fixed tracer case mismatch')
+  argv=[TASK/'build/acceptance-syscalls','--auth-case',case['probe_id'],'--nonce',case['probe_id'],
+   '--output',root/'host-syscalls.jsonl','--host-port',host_port,'--peer-port',0,'--seconds',trace['seconds']]
+ return argv

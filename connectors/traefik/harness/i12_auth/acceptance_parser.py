@@ -94,7 +94,7 @@ def execute(root,literal_minimal=False):
                      'monotonic_ns': time.monotonic_ns()}
             os.write(write_fd, (json.dumps(child) + '\n').encode())
             os.execve(engine_fd, argv, os.environ.copy())
-        except BaseException as error:
+        except (OSError, ValueError, TypeError) as error:
             value = {'stage': 'exec_error', 'errno': getattr(error, 'errno', None),
                      'type': type(error).__name__, 'monotonic_ns': time.monotonic_ns()}
             os.write(write_fd, (json.dumps(value) + '\n').encode())

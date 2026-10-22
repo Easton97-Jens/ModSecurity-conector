@@ -29,6 +29,34 @@ def load(name):
 
 
 class AcceptanceControls(unittest.TestCase):
+    def test_draft_packet_binds_explicit_retained_source_identity_path(self):
+        packets = load('acceptance_packets')
+        case = self.case('phase1_allow')
+        case.update(classification='runtime', route='traefik-forwardauth-request',
+                    original_contract={'expected_oracle': {}})
+        identities = {'mrts_revision': 'a' * 40}
+        source = {'source_revision': 'b' * 40, 'gitlinks': {
+            'modules/ModSecurity-test-Framework': 'c' * 40}}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / 'source-identities.json'
+            path.write_text(json.dumps(identities))
+            measured = {'fixture': case, 'physical_file_supplement': None}
+            with mock.patch.object(packets.REVIEW, 'review_case', return_value=measured), \
+                    mock.patch.object(packets.REVIEW, 'rows', return_value=[]), \
+                    mock.patch.object(packets, 'observations', return_value={}):
+                packet = packets.draft_packet(root, root, root, source, identities, {}, path)
+                proof = packet['framework_mrts_source_identity']
+                self.assertEqual(proof['path'], str(path))
+                self.assertEqual(proof['sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+                self.assertEqual(proof['role'], 'source_manifest')
+                self.assertIsNone(packet['outcome'])
+                with self.assertRaisesRegex(ValueError, 'receipt required'):
+                    packets.draft_packet(root, root, root, source, identities, {})
+                path.write_text('{}')
+                with self.assertRaisesRegex(ValueError, 'receipt differs'):
+                    packets.draft_packet(root, root, root, source, identities, {}, path)
+
     def test_real_rtk_file_backend_pid_is_reused_for_listen_snapshot_and_cleanup(self):
         driver = self.driver()
         path = ROOT / 'ci/runtime/lifecycle/i12/objects/text/7fc06c4c56f1960b16c4096dfc42a6c93f80576d1f9f427fffe7dfba37b81075-driver.py'
@@ -257,8 +285,9 @@ class AcceptanceControls(unittest.TestCase):
             selected = Message()
             for name, value in pairs: selected[name] = value
             stream = io.BufferedReader(io.BytesIO(raw))
+            trailing_check = lambda: bool(stream.peek(1))
             with self.subTest(headers=pairs, raw=raw[:20]), self.assertRaises(self.net.BackendBodyError) as caught:
-                self.net.read_backend_body(stream, selected, trailing_check=lambda: bool(stream.peek(1)))
+                self.net.read_backend_body(stream, selected, trailing_check=trailing_check)
             self.assertFalse(caught.exception.receipt['complete'])
             if raw == b'2\r\na':
                 self.assertEqual(caught.exception.entity, b'a')
@@ -319,7 +348,7 @@ class AcceptanceControls(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'exact reviewed native acceptance helper'):
                 preparer.native_hooks(observer)
         current = ROOT / 'connectors/traefik/harness/i12/native/acceptance_prepare.py'
-        self.assertEqual(preparer.sha(current), 'ac78b9a4bf73a2e67c486947d7ba15fada3a542a5c24485ea7a6e72590f651ca')
+        self.assertEqual(preparer.sha(current), 'cdb09aa6ba3318953f745cb3010485313ebbe3f1708b4cc1ac0f6a39f50cab6e')
         instrumented = preparer.native_hooks(observer)
         self.assertIn('i12_acceptance_retained_body(transaction, "transaction_cleanup_before_free", 0);', instrumented)
         self.assertIn('i12_acceptance_native_transaction_result(transaction, "process_request_headers", result)', instrumented)
@@ -375,7 +404,8 @@ class AcceptanceControls(unittest.TestCase):
                 if mutation == 'duplicate': selected *= 2
                 if mutation == 'classification': case['classification'] = 'runtime'
                 if mutation == 'route': case['route'] = 'traefik-forwardauth-response-companion'
-                with self.assertRaises(ValueError): preparer.bind_file_supplements([case], selected, ROOT, Path(directory))
+                root = Path(directory)
+                with self.assertRaises(ValueError): preparer.bind_file_supplements([case], selected, ROOT, root)
         with tempfile.TemporaryDirectory() as directory:
             case = self.file_case('request'); self.bind_file(case, Path(directory))
             for changes in ({'native_file_api': True}, {'fixture': 'response-marker.txt'}, {'explicit_original_id': 'different'},
@@ -799,7 +829,9 @@ class AcceptanceControls(unittest.TestCase):
                     clock[0]+=0.26 if late_command else 0.20
                     (root/'client-readiness-0.json').write_text(json.dumps({'requests':[{'client_framing':{'status':200}}]}))
                     return {'timed_out':False}
-                def native(*args):
+                def native(*args, **kwargs):
+                    self.assertEqual(kwargs['expected_probe'], self.case('phase1_allow')['probe_id'] + '-ready-0')
+                    self.assertEqual(kwargs['command'], {'timed_out': False})
                     clock[0]+=0.06 if late_native else 0.01
                     return {'positive_allocation_finish_free':True}
                 with mock.patch.object(driver.time,'monotonic',side_effect=lambda:clock[0]), \
@@ -807,7 +839,8 @@ class AcceptanceControls(unittest.TestCase):
                      mock.patch.object(driver.acceptance_command,'execute',side_effect=execute), \
                      mock.patch.object(driver.acceptance_readiness,'native_receipt',side_effect=native) as observed:
                     if late_command or late_native:
-                        with self.assertRaises(RuntimeError):driver.wait_for_http_ready(self.case('phase1_allow'),root,{},1234,seconds=0.25)
+                        case = self.case('phase1_allow')
+                        with self.assertRaises(RuntimeError):driver.wait_for_http_ready(case,root,{},1234,seconds=0.25)
                     else:
                         self.assertTrue(driver.wait_for_http_ready(self.case('phase1_allow'),root,{},1234,seconds=0.25)['ready'])
                     self.assertEqual(budgets,[0.25])
@@ -849,11 +882,12 @@ class AcceptanceControls(unittest.TestCase):
                 (root/'client-readiness-0.json').write_text(json.dumps({'requests':[{'client_framing':{'status':200}}]}))
                 return {'timed_out':False}
             def sleep(seconds):sleeps.append(seconds);clock[0]+=seconds
+            case = self.case('phase1_allow')
             with mock.patch.object(driver.time,'monotonic',side_effect=lambda:clock[0]), \
                  mock.patch.object(driver.time,'sleep',side_effect=sleep), \
                  mock.patch.object(driver.acceptance_command,'execute',side_effect=execute) as commands, \
                  mock.patch.object(driver.acceptance_readiness,'native_receipt',return_value={'positive_allocation_finish_free':False}):
-                with self.assertRaises(RuntimeError):driver.wait_for_http_ready(self.case('phase1_allow'),root,{},1234,seconds=0.25)
+                with self.assertRaises(RuntimeError):driver.wait_for_http_ready(case,root,{},1234,seconds=0.25)
             self.assertEqual(commands.call_count,1)
             self.assertAlmostEqual(sum(sleeps),0.01)
             self.assertAlmostEqual(clock[0],0.25)
@@ -897,6 +931,83 @@ class AcceptanceControls(unittest.TestCase):
                         rows[index] = dict(rows[index], result=result)
                         self.assertFalse(measured(rows)['positive_allocation_finish_free'])
             self.assertFalse(measured([allocation, logging, cleanup, dict(allocation, result=0)])['positive_allocation_finish_free'])
+
+    def test_readiness_public_id_fallback_is_bound_and_unambiguous(self):
+        readiness = load('acceptance_readiness')
+        probe = 'ac-15a203ded42803005a99-ready-1'
+        transaction = probe + '-neighbor'
+        command = {'started_ns': 9, 'completed_ns': 21, 'exit_code': 0, 'signal': 0,
+                   'timed_out': False, 'wrapper_pid': 1747,
+                   'argv': ['--neighbor', '--readiness-index', '1']}
+        client = {'probe': probe, 'neighbor': True, 'pid': 1748, 'monotonic_ns': 10, 'completed_ns': 20,
+                  'requests': [{'wire_probe': transaction, 'pid': 1748,
+                                'client_framing': {'status': 200, 'complete': True}}]}
+        returns = [dict(function=function, edge='return', pid=1717, transaction_id=transaction,
+                     input_transaction_id=transaction, transaction_id_origin='sdk_public_m_id',
+                     allocation_scope_call=None, allocation_join_verified=False, invalid=False,
+                     result=result, monotonic_ns=12 + index * 2, sequence=5 + index * 2, call=4 + index * 2)
+                for index, (function, result) in enumerate((('native_new_with_id', 1),
+                     ('native_process_logging', 1), ('native_cleanup', None)))]
+        rows = []
+        for index, returned in enumerate(returns):
+            entered = dict(returned, edge='enter', result=None,
+                           monotonic_ns=returned['monotonic_ns'] - 1,
+                           sequence=returned['sequence'] - 1)
+            if index == 0:
+                entered.update(transaction_id=None, input_transaction_id=None,
+                               transaction_id_origin='unknown')
+            rows.extend([entered, returned])
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'native.jsonl'
+            def measured(events=rows, receipt=client, invocation=command, expected=probe):
+                path.write_text(''.join(json.dumps(row) + '\n' for row in events))
+                return readiness.native_receipt(path, receipt, expected_probe=expected,
+                                                command=invocation)['positive_allocation_finish_free']
+            self.assertTrue(measured())
+            self.assertFalse(measured(rows + [dict(rows[-1], transaction_id='spoof', input_transaction_id='spoof')]))
+            events = copy.deepcopy(rows); events[-1]['result'] = 123
+            self.assertFalse(measured(events))
+            self.assertFalse(measured(expected='other-ready-1'))
+            self.assertFalse(measured(invocation=None))
+            for change in ({'exit_code': 1}, {'exit_code': False}, {'signal': 1}, {'timed_out': True},
+                           {'started_ns': 11}, {'completed_ns': 19}, {'wrapper_pid': None},
+                           {'wrapper_pid': True}, {'client_pid': 99}, {'argv': []}):
+                self.assertFalse(measured(invocation={**command, **change}))
+            self.assertFalse(measured(receipt={**client, 'pid': True}))
+            self.assertFalse(measured(receipt={**client, 'pid': 99}))
+            for index in range(6):
+                for change in ({'pid': 1718}, {'invalid': True}, {'invalid': None},
+                               {'transaction_id': 'spoof'}, {'input_transaction_id': 'spoof'},
+                               {'transaction_id_origin': None}, {'monotonic_ns': 9},
+                               {'monotonic_ns': 21}, {'monotonic_ns': None},
+                               {'allocation_scope_call': 8}, {'allocation_join_verified': True},
+                               {'call': 0}, {'sequence': 0}):
+                    with self.subTest(index=index, change=change):
+                        events = copy.deepcopy(rows); events[index].update(change)
+                        self.assertFalse(measured(events))
+                self.assertFalse(measured(rows + [rows[index]]))
+                self.assertFalse(measured(rows + [dict(rows[index], pid=1718)]))
+                self.assertFalse(measured(rows[:index] + rows[index + 1:]))
+            for field in ('monotonic_ns', 'sequence', 'call'):
+                events = copy.deepcopy(rows); events[2][field] = events[1][field]
+                self.assertFalse(measured(events))
+            for index in (1, 3):
+                for value in (0, -1, None, True):
+                    events = copy.deepcopy(rows); events[index]['result'] = value
+                    self.assertFalse(measured(events))
+            for index in (0, 2, 4):
+                events = copy.deepcopy(rows); events[index]['call'] += 100
+                self.assertFalse(measured(events))
+                events = copy.deepcopy(rows); events[index]['result'] = 1
+                self.assertFalse(measured(events))
+                for field in ('monotonic_ns', 'sequence'):
+                    events = copy.deepcopy(rows); events[index][field] = events[index + 1][field]
+                    self.assertFalse(measured(events))
+            for change in ({'probe': 'other-ready-1'}, {'probe': 'target'}, {'neighbor': False},
+                           {'error': 'failed'}, {'requests': []}, {'requests': client['requests'] * 2},
+                           {'requests': [{'wire_probe': 'spoof', 'client_framing': {'status': 200, 'complete': True}}]},
+                           {'requests': [{'wire_probe': transaction, 'client_framing': {'status': 404, 'complete': True}}]}):
+                self.assertFalse(measured(receipt={**client, **change}))
 
     def test_packet_producer_roles_follow_real_central_measurement_contract(self):
         packets = load('acceptance_packets')
@@ -1261,6 +1372,53 @@ class AcceptanceControls(unittest.TestCase):
         self.assertIn('SecAction "id:1999303,phase:1,deny,status:403"', case['fixture']['rules_lines'])
         self.assertTrue(value['fixture']['explicit_target_isolation_revision']['original_oracle_preserved'])
         self.assertIn('@streq ' + case['fixture']['request']['uri'], value['fixture']['rules_lines'][-1])
+
+
+    def test_network_fixtures_reject_nonliteral_ports_and_authority_targets(self):
+        for port in (None, True, False, 0, -1, 65536, '80', 'localhost', '80@remote.test'):
+            with self.subTest(port=port), self.assertRaises(ValueError):
+                self.net.loopback_port(port)
+        for target in ('http://remote.test/path', '//remote.test/path', '/\\remote.test', '/a\r\nHost: remote', '/a\x7f'):
+            with self.subTest(target=target), self.assertRaises(ValueError):
+                self.net.origin_path(target)
+        self.assertEqual(self.net.origin_path('/i12/target?probe=1'), '/i12/target?probe=1')
+        with mock.patch.object(self.net.socket, 'socket') as constructor:
+            connection = constructor.return_value
+            self.assertIs(self.net.client_connection(12345, 2), connection)
+            connection.connect.assert_called_once_with(('127.0.0.1', 12345))
+            constructor.assert_called_once_with(self.net.socket.AF_INET, self.net.socket.SOCK_STREAM)
+
+    def test_refactored_client_retains_real_wire_and_socket_lifecycle(self):
+        case = self.case('allow_without_marker')
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            backend_root = root / 'backend'
+            backend_root.mkdir()
+            handler = type('ClientRegressionBackend', (self.net.Backend,), {'root': backend_root, 'spec': case})
+            server = self.net.http.server.ThreadingHTTPServer(('127.0.0.1', 0), handler)
+            worker = threading.Thread(target=server.serve_forever, daemon=True)
+            worker.start()
+            try:
+                self.assertEqual(self.net.client(case, root, server.server_port, False), 0)
+                measured = json.loads((root / 'client-target.json').read_text())
+                self.assertEqual(len(measured['requests']), 1)
+                self.assertTrue(measured['requests'][0]['same_live_socket'])
+                self.assertTrue(measured['requests'][0]['client_framing']['complete'])
+                self.assertFalse(measured['requests'][0]['native_eos_inferred'])
+                self.assertEqual(measured['connection_ends'][0]['fd_after_close'], -1)
+                self.assertTrue((root / 'target-0.response.raw').read_bytes().startswith(b'HTTP/1.1 200'))
+            finally:
+                server.shutdown()
+                server.server_close()
+                worker.join(timeout=2)
+            self.assertFalse(worker.is_alive())
+
+    def test_loopback_client_closes_socket_on_invalid_destination(self):
+        with mock.patch.object(self.net.socket, 'socket') as constructor:
+            with self.assertRaises(ValueError):
+                self.net.client_connection('12345', 2)
+            constructor.return_value.connect.assert_not_called()
+            constructor.return_value.close.assert_called_once()
 
 
 if __name__ == '__main__':

@@ -27,6 +27,13 @@ def snapshot(value):
             "nlink": value.st_nlink}
 
 
+def same_snapshot(left, right):
+    """Compare two independently sampled identities field by field."""
+    return all(left.get(field) == right.get(field) for field in (
+        "dev", "inode", "uid", "gid", "mode", "regular_file", "size",
+        "mtime_ns", "ctime_ns", "nlink"))
+
+
 def validate_manifest(spec):
     """Only one literal file component under the already admitted private root."""
     if not isinstance(spec, dict):
@@ -55,7 +62,8 @@ def _validate_file(root_fd, file_fd, receipt):
     if (not before["regular_file"] or before["uid"] != os.getuid() or
             before["mode"] != 0o600 or before["nlink"] != 1 or before["size"] != receipt["expected_size"]):
         raise ValueError("owned mode0600 single-link regular file of exact size required")
-    if snapshot(os.stat(receipt["relative_path"], dir_fd=root_fd, follow_symlinks=False)) != before:
+    named = snapshot(os.stat(receipt["relative_path"], dir_fd=root_fd, follow_symlinks=False))
+    if not same_snapshot(named, before):
         raise ValueError("source identity changed at open")
 
 

@@ -91,6 +91,27 @@ def adapt_canonical(row,fixture):
  if 'raw_template' in fixture['request']:fixture['client']['raw_template']=fixture['request']['raw_template']
 
 
+def apply_transport_fault(fixture, kind, name):
+ if kind in ('backend-truncated','native-response-append','peer-postcommit-timeout','client-rst'):
+  fixture['backend'].update(body_hex=(b'x'*16384).hex(),chunk_lengths=[8192,8192],barrier_after_bytes=8192)
+ if kind=='backend-truncated':fixture['backend']['truncate_after_bytes']=8192
+ if kind=='client-rst':fixture['client'].update(kind='rst',after_entity_bytes=8192)
+ if kind=='peer-postcommit-timeout':fixture['relay']['companion_fault']='delay-second-body'
+ if kind=='peer-timeout':fixture['relay']['companion_fault']='delay-claim'
+ if kind in ('peer-invalid-result','peer-oversize'):fixture['relay']['companion_fault']=kind
+ if name=='NEED-host-auth-response-32768-bound':fixture['relay']['authorization_body_sizes']=[32768,32769]
+ if name=='NEED-32768-auth-response-not-application-response':
+  fixture['backend'].update(body_hex=(b'i12-large-response-'+b'x'*40000).hex(),chunk_lengths=[8192,31827])
+ if name in ('NEED-host-auth-response-32768-bound','NEED-32768-auth-response-not-application-response'):
+  body=bytes.fromhex(fixture['request']['body_hex'])
+  fixture['explicit_capacity_fixture_binding']={'actual_request_body_bytes':len(body),
+   'actual_request_body_sha256':hashlib.sha256(body).hexdigest(),
+   'frozen_proposal_declared_request_bytes':15,'frozen_proposal_length_is_not_used_as_measurement':True,
+   'application_response_bytes':len(bytes.fromhex(fixture['backend']['body_hex'])),
+   'authorization_response_capacity':32768,'observer_mode':'default-mrc1',
+   'outer_provenance_enabled':False,'runtime_inspection_bytes':None}
+
+
 def normalize_fault(fixture,name,route=None):
  fault=fixture.get('fault');kind=(fault or {}).get('kind','')
  if kind=='physical_sink':kind='sink-'+fault['operation']
@@ -113,24 +134,7 @@ def normalize_fault(fixture,name,route=None):
   fixture['client'].update(slow_reader=True,receive_buffer=1024,read_delay_seconds=0.01)
   fixture['transport_measurement_required']='actual socket syscall short-write/EAGAIN and resume; slow reader alone is insufficient'
  if fault or kind:fixture['fault']={**(fault or {}),'driver_kind':kind}
- if kind in ('backend-truncated','native-response-append','peer-postcommit-timeout','client-rst'):
-  fixture['backend'].update(body_hex=(b'x'*16384).hex(),chunk_lengths=[8192,8192],barrier_after_bytes=8192)
- if kind=='backend-truncated':fixture['backend']['truncate_after_bytes']=8192
- if kind=='client-rst':fixture['client'].update(kind='rst',after_entity_bytes=8192)
- if kind=='peer-postcommit-timeout':fixture['relay']['companion_fault']='delay-second-body'
- if kind=='peer-timeout':fixture['relay']['companion_fault']='delay-claim'
- if kind in ('peer-invalid-result','peer-oversize'):fixture['relay']['companion_fault']=kind
- if name=='NEED-host-auth-response-32768-bound':fixture['relay']['authorization_body_sizes']=[32768,32769]
- if name=='NEED-32768-auth-response-not-application-response':
-  fixture['backend'].update(body_hex=(b'i12-large-response-'+b'x'*40000).hex(),chunk_lengths=[8192,31827])
- if name in ('NEED-host-auth-response-32768-bound','NEED-32768-auth-response-not-application-response'):
-  body=bytes.fromhex(fixture['request']['body_hex'])
-  fixture['explicit_capacity_fixture_binding']={'actual_request_body_bytes':len(body),
-   'actual_request_body_sha256':hashlib.sha256(body).hexdigest(),
-   'frozen_proposal_declared_request_bytes':15,'frozen_proposal_length_is_not_used_as_measurement':True,
-   'application_response_bytes':len(bytes.fromhex(fixture['backend']['body_hex'])),
-   'authorization_response_capacity':32768,'observer_mode':'default-mrc1',
-   'outer_provenance_enabled':False,'runtime_inspection_bytes':None}
+ apply_transport_fault(fixture, kind, name)
  return fixture
 
 
@@ -143,6 +147,22 @@ def validate_rule_bindings(row,fixture):
   raise ValueError('original expected rule absent from effective fixture: '+row['id'])
 
 
+def build_fixture(row, proposal, planned, by_name, minimal_correction):
+ name=row['id'].split('::')[-1]
+ fixture=copy.deepcopy(proposal['fixture']) if proposal else canonical(row,by_name,Path(planned['framework_catalog']['path']).parents[3])
+ fixture.setdefault('client',{'kind':'ordinary'});fixture.setdefault('relay',{});fixture.setdefault('source_overrides',{})
+ if name=='phase4_deny_after_commit_log_only_minimal' and minimal_correction:
+  binding=json.loads(minimal_correction.read_text())
+  if binding['migration_commit']!='992291e7cf3e6984bf458833408dd0eb21398d9a':raise ValueError('reviewed minimal migration required')
+  fixture['policy']['phase4_mode']='off'
+  fixture['explicit_source_correction']={'binding':reference(minimal_correction),'original_literal':'minimal','effective_fixture_literal':'off','literal_minimal_negative_control_required':True}
+ fixture=normalize_fault(fixture,name,row['route'])
+ validate_rule_bindings(row,fixture)
+ if row['classification']=='config':fixture['config_case']=name
+ if row['classification']=='file-capability':fixture['capability_review_required']=True
+ return fixture
+
+
 def build(inventory,proposals,minimal_correction=None):
  planned=json.loads(inventory.read_text());oracle=json.loads(proposals.read_text())
  proposed={r['id']:r for r in oracle['rows']};cases=[]
@@ -152,17 +172,7 @@ def build(inventory,proposals,minimal_correction=None):
   by_name={r['id'].split('::')[-1]:r['original_catalog_case'] for r in selected if r['original_catalog_case']}
   for row in selected:
    name=row['id'].split('::')[-1];original=row['original_contract'];proposal=proposed.get(row['id'])
-   fixture=copy.deepcopy(proposal['fixture']) if proposal else canonical(row,by_name,Path(planned['framework_catalog']['path']).parents[3])
-   fixture.setdefault('client',{'kind':'ordinary'});fixture.setdefault('relay',{});fixture.setdefault('source_overrides',{})
-   if name=='phase4_deny_after_commit_log_only_minimal' and minimal_correction:
-    binding=json.loads(minimal_correction.read_text())
-    if binding['migration_commit']!='992291e7cf3e6984bf458833408dd0eb21398d9a':raise ValueError('reviewed minimal migration required')
-    fixture['policy']['phase4_mode']='off'
-    fixture['explicit_source_correction']={'binding':reference(minimal_correction),'original_literal':'minimal','effective_fixture_literal':'off','literal_minimal_negative_control_required':True}
-   fixture=normalize_fault(fixture,name,row['route'])
-   validate_rule_bindings(row,fixture)
-   if row['classification']=='config':fixture['config_case']=name
-   if row['classification']=='file-capability':fixture['capability_review_required']=True
+   fixture=build_fixture(row, proposal, planned, by_name, minimal_correction)
    probe='ac-'+hashlib.sha256(row['id'].encode()).hexdigest()[:20]
    cases.append({'id':row['id'],'route':route,'case_id':name,'classification':row['classification'],
      'probe_id':probe,'original_contract':original,'original_contract_sha256':digest(original),

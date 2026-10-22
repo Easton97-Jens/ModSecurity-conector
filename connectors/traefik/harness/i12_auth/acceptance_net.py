@@ -18,6 +18,47 @@ MAX_BYTES=4*1024*1024
 MAX_RESPONSE_BYTES=16*1024*1024
 WRITE_LOCK=threading.Lock()
 PRIVATE_HEADERS=('x-msconnector-trusted-reservation','x-msconnector-response-handle')
+AUTH_LOG='authorization.jsonl'
+PEER_LOG='companion-peer.jsonl'
+
+
+def loopback_port(port):
+ if type(port) is not int or not 1<=port<=65535:raise ValueError('bounded loopback port required')
+ return port
+
+
+def origin_path(path):
+ # HTTPConnection accepts absolute-form URLs; the relay only permits local
+ # origin-form targets, with no authority, control bytes, or backslash aliases.
+ if not isinstance(path,str) or not path.startswith('/') or path.startswith('//'):
+  raise ValueError('origin-form HTTP target required')
+ if any(ord(char)<33 or ord(char)==127 or char=='\\' for char in path):
+  raise ValueError('invalid origin-form HTTP target')
+ return path
+
+
+def loopback_connection(port,timeout):
+ return http.client.HTTPConnection('127.0.0.1',loopback_port(port),timeout=timeout)
+
+
+def client_connection(port,timeout):
+ connection=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+ try:
+  connection.settimeout(timeout)
+  connection.connect(('127.0.0.1',loopback_port(port)))
+ except (OSError,ValueError):
+  connection.close();raise
+ return connection
+
+
+class LoopbackEvidenceServer(http.server.ThreadingHTTPServer):
+ """Plain HTTP is the measured host protocol inside the admitted namespace.
+
+ The fixture cannot bind an external interface or select a DNS hostname.
+ """
+ def __init__(self,port,handler):
+  super().__init__(('127.0.0.1',loopback_port(port)),handler)
+  self.daemon_threads=True
 
 
 def private_header_receipt(headers):
@@ -31,8 +72,8 @@ def redact_headers(headers):
  return [[key,'[REDACTED]' if key.lower() in PRIVATE_HEADERS else value] for key,value in headers]
 
 def dump(root,name,value):
- with WRITE_LOCK:
-  with (root/name).open('a') as stream:stream.write(json.dumps(value,separators=(',',':'))+'\n')
+ with WRITE_LOCK, (root/name).open('a') as stream:
+  stream.write(json.dumps(value,separators=(',',':'))+'\n')
 def stamp():return {'pid':os.getpid(),'monotonic_ns':time.monotonic_ns(),'wall_ns':time.time_ns()}
 def sha(value):return hashlib.sha256(value).hexdigest()
 def body(value):return bytes.fromhex(value['body_hex'])
@@ -55,11 +96,13 @@ def handler_record(handler,event,**fields):
  dump(handler.root,'backend.jsonl',dict(stamp(),event=event,peer=list(handler.client_address),**fields))
 
 def traffic_label(probe,base_probe,neighbor):
- match=re.fullmatch(re.escape(base_probe)+r'-ready-([0-9])-neighbor',probe)
+ match=re.fullmatch(re.escape(base_probe)+r'-ready-(\d)-neighbor',probe,flags=re.ASCII)
  if match:return 'readiness-'+match[1]
  match=re.fullmatch(re.escape(base_probe)+r'-seq-([0-2])',probe)
  if match:return 'sequence-'+match[1]
- return 'neighbor' if neighbor else 'positive' if probe.endswith('-sink-positive') else 'target'
+ if neighbor:return 'neighbor'
+ if probe.endswith('-sink-positive'):return 'positive'
+ return 'target'
 
 
 class BackendBodyError(ValueError):
@@ -78,29 +121,13 @@ def read_backend_body(stream,headers,maximum=MAX_BYTES,trailing_check=None):
   return part
  try:
   lengths=headers.get_all('Content-Length',[]);encodings=headers.get_all('Transfer-Encoding',[])
-  if lengths and encodings:raise ValueError('backend CL+TE request is ambiguous')
-  if len(lengths)>1 or len(encodings)>1:raise ValueError('duplicate backend request framing')
+  validate_backend_framing(lengths,encodings)
   if encodings:
    if encodings!=['chunked']:raise ValueError('unsupported backend transfer coding')
    receipt['framing']='chunked'
-   while True:
-    if len(receipt['chunks'])>=65536 or len(wire)>maximum*2+65536:raise ValueError('bounded backend chunk framing exceeded')
-    line=stream.readline(128);wire.extend(line)
-    if not re.fullmatch(rb'[0-9a-fA-F]{1,8}\r\n',line):raise ValueError('invalid backend chunk size')
-    size=int(line[:-2],16)
-    if size>maximum-len(entity):raise ValueError('bounded backend body exceeded')
-    if size==0:
-     if exact(2)!=b'\r\n':raise ValueError('backend chunk trailers forbidden')
-     receipt['http_eos']=True;break
-    offset=len(entity);part=exact(size,True)
-    if exact(2)!=b'\r\n':raise ValueError('invalid backend chunk end')
-    receipt['chunks'].append({'offset':offset,'bytes':len(part),'sha256':sha(part)})
+   read_backend_chunks(stream,maximum,entity,wire,receipt,exact)
   elif lengths:
-   if not re.fullmatch(r'[0-9]{1,10}',lengths[0]):raise ValueError('invalid backend Content-Length')
-   size=int(lengths[0])
-   if size>maximum:raise ValueError('bounded backend body exceeded')
-   receipt.update(framing='content-length',declared=size)
-   exact(size,True);receipt['http_eos']=True
+   read_backend_length(lengths[0],maximum,receipt,exact)
   else:receipt.update(framing='no-body',declared=0,http_eos=True)
   if trailing_check is not None and trailing_check():raise ValueError('trailing bytes after backend request body')
   receipt['complete']=True
@@ -110,6 +137,21 @@ def read_backend_body(stream,headers,maximum=MAX_BYTES,trailing_check=None):
   raise BackendBodyError(str(error),entity,wire,receipt) from error
  receipt.update(entity_bytes=len(entity),entity_sha256=sha(entity),wire_bytes=len(wire),wire_sha256=sha(wire))
  return bytes(entity),bytes(wire),receipt
+
+
+def read_backend_chunks(stream,maximum,entity,wire,receipt,exact):
+ while True:
+  if len(receipt['chunks'])>=65536 or len(wire)>maximum*2+65536:raise ValueError('bounded backend chunk framing exceeded')
+  line=stream.readline(128);wire.extend(line)
+  if not re.fullmatch(rb'[0-9a-fA-F]{1,8}\r\n',line):raise ValueError('invalid backend chunk size')
+  size=int(line[:-2],16)
+  if size>maximum-len(entity):raise ValueError('bounded backend body exceeded')
+  if size==0:
+   if exact(2)!=b'\r\n':raise ValueError('backend chunk trailers forbidden')
+   receipt['http_eos']=True;return
+  offset=len(entity);part=exact(size,True)
+  if exact(2)!=b'\r\n':raise ValueError('invalid backend chunk end')
+  receipt['chunks'].append({'offset':offset,'bytes':len(part),'sha256':sha(part)})
 
 
 class BackendHeaderReader:
@@ -198,6 +240,10 @@ class Backend(http.server.BaseHTTPRequestHandler):
    (self.root/('backend-'+suffix+'.request-body-wire.raw')).write_bytes(wire)
    if target_file and not framing['physical_file_exact_match']:
     self.send_error(400,'physical file entity differs');self.close_connection=True;return
+   self.write_response(probe,neighbor,suffix)
+  except (OSError,ValueError) as error:
+   handler_record(self,'handler_exception',probe=probe,error=type(error).__name__,request_bytes_read=len(data));self.close_connection=True
+ def write_response(self,probe,neighbor,suffix):
    fixture=self.spec['fixture']['backend']
    payload=b'i12-neighbor-ok\n' if neighbor else body(fixture)
    headers=[['Content-Type','text/plain']] if neighbor else fixture['headers']
@@ -208,28 +254,30 @@ class Backend(http.server.BaseHTTPRequestHandler):
    written=0
    lengths=[len(payload)] if neighbor else fixture.get('chunk_lengths',[len(payload)])
    for chunk in segments(payload,lengths):
-    truncate=None if neighbor else fixture.get('truncate_after_bytes')
-    if truncate is not None:chunk=chunk[:max(0,truncate-written)]
+    chunk=backend_chunk(chunk,fixture,neighbor,written)
     if not chunk:break
     count=self.wfile.write(chunk);self.wfile.flush();written+=count
     handler_record(self,'body_write_return',probe=probe,bytes=count,total=written)
-    barrier=None if neighbor else fixture.get('barrier_after_bytes')
-    if barrier and written>=barrier and written<len(payload):
-     (self.root/'backend-paused').write_text(str(time.monotonic_ns()))
-     released=wait_barrier(self.root/'client-first-entity')
-     handler_record(self,'causal_barrier',probe=probe,released_by_actual_client=released,response_finished=False,bytes_sent=written)
-     if not released:break
-    if not neighbor and fixture.get('wait_for_client_termination') and written>=8192 and written<len(payload):
-     released=wait_barrier(self.root/'client-signal-reaped')
-     handler_record(self,'waited_actual_client_reap',probe=probe,released=released,bytes_sent=written)
-     if not released:break
+    if not neighbor and not self.response_barriers(fixture,probe,written,len(payload)):break
     time.sleep(0.025)
    handler_record(self,'response_end',probe=probe,written=written,declared=len(payload),complete=written==len(payload))
    (self.root/('backend-'+suffix+'.response-body.raw')).write_bytes(payload[:written])
    if not neighbor and fixture.get('truncate_after_bytes') is not None:self.close_connection=True
-  except BaseException as error:
-   handler_record(self,'handler_exception',probe=probe,error=type(error).__name__,request_bytes_read=len(data));self.close_connection=True
- def log_message(self,*_):pass
+ def response_barriers(self,fixture,probe,written,total):
+  barrier=fixture.get('barrier_after_bytes')
+  if barrier and written>=barrier and written<total:
+   (self.root/'backend-paused').write_text(str(time.monotonic_ns()))
+   released=wait_barrier(self.root/'client-first-entity')
+   handler_record(self,'causal_barrier',probe=probe,released_by_actual_client=released,response_finished=False,bytes_sent=written)
+   if not released:return False
+  if fixture.get('wait_for_client_termination') and written>=8192 and written<total:
+   released=wait_barrier(self.root/'client-signal-reaped')
+   handler_record(self,'waited_actual_client_reap',probe=probe,released=released,bytes_sent=written)
+   return released
+  return True
+ def log_message(self,*_):
+  # Structured physical receipts replace BaseHTTPRequestHandler stderr logging.
+  return
 
 class Relay(http.server.BaseHTTPRequestHandler):
  protocol_version='HTTP/1.1'
@@ -248,49 +296,66 @@ class Relay(http.server.BaseHTTPRequestHandler):
   record=dict(stamp(),event='authorization_sample',probe=probe,method=self.command,uri=self.path,
    headers=redact_headers(self.headers.raw_items()),private_headers=private_header_receipt(self.headers.raw_items()),
    declared=length,actual_bytes=len(received),sha256=sha(received))
-  dump(self.root,'authorization.jsonl',record)
-  upstream=http.client.HTTPConnection('127.0.0.1',self.engine_port,timeout=12)
+  dump(self.root,AUTH_LOG,record)
+  upstream=loopback_connection(self.engine_port,timeout=12)
   try:
-   upstream.putrequest(self.command,self.path,skip_host=True,skip_accept_encoding=True)
+   upstream.putrequest(self.command,origin_path(self.path),skip_host=True,skip_accept_encoding=True)
    for key,value in self.headers.raw_items():
     if key.lower() not in ('transfer-encoding','connection'):upstream.putheader(key,value)
    upstream.putheader('Connection','close');upstream.endheaders()
    for chunk in segments(received,[len(received)] if neighbor else self.spec['fixture']['request'].get('chunk_lengths',[len(received)])):
-    upstream.send(chunk);dump(self.root,'authorization.jsonl',dict(stamp(),event='engine_body_write_return',probe=probe,bytes=len(chunk)));time.sleep(0.015)
+    upstream.send(chunk);dump(self.root,AUTH_LOG,dict(stamp(),event='engine_body_write_return',probe=probe,bytes=len(chunk)));time.sleep(0.015)
    response=upstream.getresponse();payload=response.read(65537)
    if len(payload)>65536:raise ValueError('authorization response bound exceeded')
    native={'status':response.status,'body_bytes':len(payload),'body_sha256':sha(payload)}
-   dump(self.root,'authorization.jsonl',dict(stamp(),event='native_authorization_response',probe=probe,**native))
+   dump(self.root,AUTH_LOG,dict(stamp(),event='native_authorization_response',probe=probe,**native))
+   self.relay_response(response,payload,probe,neighbor,native)
+  except Exception as error:
+   dump(self.root,AUTH_LOG,dict(stamp(),event='relay_error',probe=probe,error=type(error).__name__))
+   # The host applies its own transport-error status; no response is invented.
+   self.close_connection=True
+  finally:upstream.close();self.close_connection=True
+ def relay_response(self,response,payload,probe,neighbor,native):
    headers=list(response.getheaders());options={} if neighbor else self.spec['fixture'].get('relay',{})
-   dump(self.root,'authorization.jsonl',dict(stamp(),event='native_authorization_private_headers',probe=probe,
+   dump(self.root,AUTH_LOG,dict(stamp(),event='native_authorization_private_headers',probe=probe,
     private_headers=private_header_receipt(headers)))
    handle=next((value for key,value in headers if key.lower()=='x-msconnector-response-handle'),None)
    mode=options.get('handle')
    if mode=='expired':
-    dump(self.root,'authorization.jsonl',dict(stamp(),event='preclaim_delay_start',probe=probe,seconds=5.3));time.sleep(5.3)
-   for key,value in headers:
-    if key.lower()=='x-msconnector-response-handle':
-     if mode=='missing':continue
-     if mode=='malformed':value='i12-malformed'
-     if mode=='unknown64hex':value='0'*64 if handle!='0'*64 else '1'*64
-    if key.lower() not in ('content-length','transfer-encoding','connection'):self.send_header_buffered(key,value)
+    dump(self.root,AUTH_LOG,dict(stamp(),event='preclaim_delay_start',probe=probe,seconds=5.3));time.sleep(5.3)
+   self.buffer_response_headers(headers,mode,handle)
    size=options.get('authorization_body_size')
    if size is not None:payload=b'i'*size
    self.send_response(response.status)
    for key,value in getattr(self,'forward_headers',[]):self.send_header(key,value)
    self.send_header('Content-Length',str(len(payload)));self.send_header('Connection','close');self.end_headers();self.wfile.write(payload);self.wfile.flush()
-   dump(self.root,'authorization.jsonl',dict(stamp(),event='relay_response_write_return',probe=probe,
+   dump(self.root,AUTH_LOG,dict(stamp(),event='relay_response_write_return',probe=probe,
     status=response.status,body_bytes=len(payload),native_response=native,handle_mode=mode,synthetic_body=size is not None))
-  except Exception as error:
-   dump(self.root,'authorization.jsonl',dict(stamp(),event='relay_error',probe=probe,error=type(error).__name__))
-   # A transport failure has no invented authorization HTTP response. The real
-   # host observes this socket end and applies its own error-status contract.
-   self.close_connection=True
-  finally:upstream.close();self.close_connection=True
+ def buffer_response_headers(self,headers,mode,handle):
+   for key,value in headers:
+    value=relay_header_value(key,value,mode,handle)
+    if value is None:continue
+    if key.lower() not in ('content-length','transfer-encoding','connection'):self.send_header_buffered(key,value)
+
  def send_header_buffered(self,key,value):
   if not hasattr(self,'forward_headers'):self.forward_headers=[]
   self.forward_headers.append((key,value))
- def log_message(self,*_):pass
+ def log_message(self,*_):
+  # Structured authorization receipts replace uncorrelated stderr messages.
+  return
+
+
+def request_headers(spec,neighbor,sequence_kind,headers,probe,payload):
+ fixture=spec['fixture']
+ if sequence_kind=='deny':headers.append(['X-Modsec-Smoke','block'])
+ elif sequence_kind=='allow':headers=[h for h in headers if h[0].lower()!='x-modsec-smoke']
+ if not any(key.lower()=='host' for key,_ in headers):headers.append(['Host','example.test'])
+ headers.append(['X-I12-Probe',probe])
+ if neighbor:headers.extend([['X-I12-Neighbor','1'],['X-Request-Id',probe],['X-Modsec-Transaction-Id',probe]])
+ else:add_transaction_header(spec,headers,probe)
+ if not any(key.lower()=='content-length' for key,_ in headers):headers.append(['Content-Length',str(len(payload))])
+ if not any(key.lower()=='connection' for key,_ in headers):headers.append(['Connection','keep-alive' if fixture.get('client',{}).get('keepalive') and not neighbor else 'close'])
+ return headers
 
 
 def raw_request(spec,neighbor=False,sequence_kind=None):
@@ -298,24 +363,18 @@ def raw_request(spec,neighbor=False,sequence_kind=None):
  method='GET' if neighbor else request['method'];uri='/i12/neighbor' if neighbor else request['uri']
  headers=[] if neighbor else copy_headers(request['headers'])
  payload=b'' if neighbor else body(request)
- if sequence_kind=='deny':headers.append(['X-Modsec-Smoke','block'])
- elif sequence_kind=='allow':headers=[h for h in headers if h[0].lower()!='x-modsec-smoke']
- if not any(key.lower()=='host' for key,_ in headers):headers.append(['Host','example.test'])
- headers.append(['X-I12-Probe',probe])
- if neighbor:headers.extend([['X-I12-Neighbor','1'],['X-Request-Id',probe],['X-Modsec-Transaction-Id',probe]])
- elif not any(key.lower()=='x-request-id' for key,_ in headers):
-  if spec['case_id']=='transaction_id_present':headers.append(['X-Request-Id','no-crs-tx-0001'])
-  elif spec['case_id']!='transaction_id_generated_or_fallback':headers.append(['X-Request-Id',probe])
- if not any(key.lower()=='content-length' for key,_ in headers):headers.append(['Content-Length',str(len(payload))])
- if not any(key.lower()=='connection' for key,_ in headers):headers.append(['Connection','keep-alive' if fixture.get('client',{}).get('keepalive') and not neighbor else 'close'])
+ headers=request_headers(spec,neighbor,sequence_kind,headers,probe,payload)
  head=(method+' '+uri+' HTTP/1.1\r\n'+''.join(key+': '+value+'\r\n' for key,value in headers)+'\r\n').encode('iso-8859-1')
  raw=fixture.get('client',{}).get('raw_template') if not neighbor else None
- if raw:
-  prefix=(method+' '+uri+' HTTP/1.1\r\nHost: example.test\r\nX-I12-Probe: ').encode('iso-8859-1')+probe.encode()+b'\r\n'
-  suffix={'invalid_content_length':b'Content-Length: nope\r\n','conflicting_content_length':b'Content-Length: 1\r\nContent-Length: 2\r\n','duplicate_transfer_encoding':b'Transfer-Encoding: chunked\r\nTransfer-Encoding: chunked\r\n','content_length_overflow':b'Content-Length: 184467440737095516160\r\n'}[raw]
-  framing_end=b'0\r\n\r\n' if raw=='duplicate_transfer_encoding' else b''
-  return prefix+suffix+b'Connection: close\r\n\r\n'+framing_end,b'',[]
+ if raw:return malformed_request(method,uri,probe,raw)
+
  return head,payload,[len(payload)] if neighbor else request.get('chunk_lengths',[len(payload)])
+def malformed_request(method,uri,probe,raw):
+ prefix=(method+' '+uri+' HTTP/1.1\r\nHost: example.test\r\nX-I12-Probe: ').encode('iso-8859-1')+probe.encode()+b'\r\n'
+ suffix={'invalid_content_length':b'Content-Length: nope\r\n','conflicting_content_length':b'Content-Length: 1\r\nContent-Length: 2\r\n','duplicate_transfer_encoding':b'Transfer-Encoding: chunked\r\nTransfer-Encoding: chunked\r\n','content_length_overflow':b'Content-Length: 184467440737095516160\r\n'}[raw]
+ framing_end=b'0\r\n\r\n' if raw=='duplicate_transfer_encoding' else b''
+ return prefix+suffix+b'Connection: close\r\n\r\n'+framing_end,b'',[]
+
 def copy_headers(headers):return [list(pair) for pair in headers]
 
 
@@ -327,18 +386,21 @@ def framing(raw):
   key,value=line.split(b':',1);headers.setdefault(key.lower(),[]).append(value.strip().lower())
  lengths=headers.get(b'content-length',[])
  if len(lengths)==1 and lengths[0].isdigit():return {'complete':len(entity)==int(lengths[0]),'entity_bytes':len(entity),'status':status,'framing':'content-length'}
- if headers.get(b'transfer-encoding')==[b'chunked']:
-  rest=entity;size=0
-  while b'\r\n' in rest:
-   line,tail=rest.split(b'\r\n',1)
-   try:count=int(line.split(b';',1)[0],16)
-   except ValueError:return {'complete':False,'entity_bytes':size,'status':status,'framing':'invalid-chunk'}
-   if count==0:return {'complete':tail==b'\r\n','entity_bytes':size,'status':status,'framing':'chunked'}
-   if len(tail)<count+2:break
-   if tail[count:count+2]!=b'\r\n':break
-   size+=count;rest=tail[count+2:]
-  return {'complete':False,'entity_bytes':size,'status':status,'framing':'chunked'}
+ if headers.get(b'transfer-encoding')==[b'chunked']:return chunked_framing(entity,status)
  return {'complete':False,'entity_bytes':len(entity),'status':status,'framing':'close-or-unknown'}
+
+
+def chunked_framing(entity,status):
+ rest=entity;size=0
+ while b'\r\n' in rest:
+  line,tail=rest.split(b'\r\n',1)
+  try:count=int(line.split(b';',1)[0],16)
+  except ValueError:return {'complete':False,'entity_bytes':size,'status':status,'framing':'invalid-chunk'}
+  if count==0:return {'complete':tail==b'\r\n','entity_bytes':size,'status':status,'framing':'chunked'}
+  if len(tail)<count+2:break
+  if tail[count:count+2]!=b'\r\n':break
+  size+=count;rest=tail[count+2:]
+ return {'complete':False,'entity_bytes':size,'status':status,'framing':'chunked'}
 
 
 def received_entity_bytes(raw):
@@ -379,16 +441,28 @@ def close_client_socket(connection,result,serial,reason):
   'before_close':identity,'fd_after_close':connection.fileno(),**stamp()})
 
 
+def valid_eagain_result(row,after_ns):
+ return (row.get('requested_size_known') is True and isinstance(row.get('requested_bytes'),int) and row['requested_bytes']>0
+  and isinstance(row.get('pid'),int) and row['pid']>0 and isinstance(row.get('socket_inode'),int) and row['socket_inode']>0
+  and row.get('kernel_result')==-11 and row.get('errno')==11
+  and row.get('fd_identity_unchanged') is True
+  and isinstance(row.get('exit_monotonic_ns'),int) and after_ns<=row['exit_monotonic_ns']<=time.monotonic_ns())
+
+
 def target_eagain(row,identity,nonce,after_ns):
  return (row.get('schema')=='traefik-own-child-syscall-v1' and row.get('nonce')==nonce
   and row.get('local_address')==identity['peer_address'] and row.get('local_port')==identity['peer_port']
   and row.get('peer_address')==identity['local_address'] and row.get('peer_port')==identity['local_port']
   and row.get('operation') in ('write','writev','sendto','sendmsg')
-  and row.get('requested_size_known') is True and isinstance(row.get('requested_bytes'),int) and row['requested_bytes']>0
-  and isinstance(row.get('pid'),int) and row['pid']>0 and isinstance(row.get('socket_inode'),int) and row['socket_inode']>0
-  and row.get('kernel_result')==-11 and row.get('errno')==11
-  and row.get('fd_identity_unchanged') is True
-  and isinstance(row.get('exit_monotonic_ns'),int) and after_ns<=row['exit_monotonic_ns']<=time.monotonic_ns())
+  and valid_eagain_result(row,after_ns))
+
+
+def find_target_eagain(receipt,identity,nonce,started):
+ for line in receipt.read_text().splitlines():
+  try:row=json.loads(line)
+  except json.JSONDecodeError:continue
+  if target_eagain(row,identity,nonce,started):return row
+ return None
 
 
 def pause_for_eagain(root,options,identity,entity_bytes):
@@ -401,10 +475,7 @@ def pause_for_eagain(root,options,identity,entity_bytes):
  receipt=root/'host-syscalls.jsonl'
  while time.monotonic()<deadline:
   if receipt.exists():
-   for line in receipt.read_text().splitlines():
-    try:row=json.loads(line)
-    except json.JSONDecodeError:continue
-    if target_eagain(row,identity,options['nonce'],started):matched=row;break
+   matched=find_target_eagain(receipt,identity,options['nonce'],started)
   if matched is not None:break
   time.sleep(0.01)
  result={'event':'client_read_pause','started_monotonic_ns':started,'released_monotonic_ns':time.monotonic_ns(),
@@ -414,46 +485,93 @@ def pause_for_eagain(root,options,identity,entity_bytes):
  return result
 
 
+def entity_controls(connection,root,client_options,observe_primary,pause_options,pause,identity,entity_received,received):
+ if not entity_received:return pause,None
+ if observe_primary:(root/'client-first-entity').touch(exist_ok=True)
+ if pause_options and pause is None and entity_received>=8192:
+  pause=pause_for_eagain(root,pause_options,identity,entity_received)
+ if client_options.get('kind')=='rst' and entity_received>=client_options.get('after_entity_bytes',8192):
+  connection.setsockopt(socket.SOL_SOCKET,socket.SO_LINGER,struct.pack('ii',1,0));connection.close();return pause,'client_SO_LINGER_RST'
+ if client_options.get('kind')=='wait-for-sigterm' and entity_received>=8192:
+  (root/'target-0.response.raw').write_bytes(received)
+  progress={'pid':os.getpid(),'entity_bytes_received':entity_received,'raw_bytes':len(received),
+   'raw_sha256':sha(received),'client_framing':framing(bytes(received)),**stamp()}
+  (root/'client-signal-ready.json').write_text(json.dumps(progress,indent=2)+'\n')
+  while True:signal.pause()
+ return pause,None
+
+
 def receive(connection,root,client_options,keepalive,observe_primary=True,socket_observation=None):
  received=bytearray();first=None;eof=False;reset=None;pause=None
  pause_options=client_options.get('pause_for_target_eagain') if observe_primary else None
  identity=(socket_observation or socket_identity(connection)) if pause_options else None
  while True:
-  size=32768
-  if pause_options and pause is None:size=min(size,max(1,8192-received_entity_bytes(bytes(received))))
-  try:chunk=connection.recv(size)
-  except ConnectionResetError as error:reset=type(error).__name__;break
+  chunk,reset=receive_chunk(connection,pause_options,pause,received)
+  if reset:break
   if not chunk:eof=True;break
   first=first or time.monotonic_ns();received.extend(chunk)
-  if pause_options:
-   with (root/'target-0.response.partial.raw').open('ab') as stream:stream.write(chunk)
-  if len(received)>MAX_RESPONSE_BYTES+65536:raise ValueError('bounded client response exceeded')
-  if b'\r\n\r\n' in received:
-   entity_received=received_entity_bytes(bytes(received))
-   if entity_received:
-    if observe_primary:(root/'client-first-entity').touch(exist_ok=True)
-    if pause_options and pause is None and entity_received>=8192:
-     pause=pause_for_eagain(root,pause_options,identity,entity_received)
-    if client_options.get('kind')=='rst' and entity_received>=client_options.get('after_entity_bytes',8192):
-     connection.setsockopt(socket.SOL_SOCKET,socket.SO_LINGER,struct.pack('ii',1,0));connection.close();reset='client_SO_LINGER_RST';break
-    if client_options.get('kind')=='wait-for-sigterm' and entity_received>=8192:
-     (root/'target-0.response.raw').write_bytes(received)
-     progress={'pid':os.getpid(),'entity_bytes_received':entity_received,'raw_bytes':len(received),
-      'raw_sha256':sha(received),'client_framing':framing(bytes(received)),**stamp()}
-     (root/'client-signal-ready.json').write_text(json.dumps(progress,indent=2)+'\n')
-     while True:signal.pause()
-   if keepalive and framing(bytes(received))['complete']:break
-  if client_options.get('slow_reader') and not pause_options:time.sleep(client_options.get('read_delay_seconds',0.01))
+  retain_received(root,chunk,received,pause_options)
+  pause,client_reset,complete=receive_controls(connection,root,client_options,observe_primary,pause_options,pause,identity,received,keepalive)
+  if client_reset:reset=client_reset;break
+  if complete:break
+  slow_read_delay(client_options,pause_options)
  return bytes(received),{'first_recv_ns':first,'tcp_eof_observed':eof,'reset_observed':reset,'native_eos_inferred':False,'client_framing':framing(bytes(received)),'read_pause':pause}
 
 
-def client(spec,root,port,neighbor,before_neighbor=False,positive_control=False,readiness_index=None):
+def receive_chunk(connection,pause_options,pause,received):
+ size=32768
+ if pause_options and pause is None:size=min(size,max(1,8192-received_entity_bytes(bytes(received))))
+ try:return connection.recv(size),None
+ except ConnectionResetError as error:return None,type(error).__name__
+
+
+def retain_received(root,chunk,received,pause_options):
+ if pause_options:
+  with (root/'target-0.response.partial.raw').open('ab') as stream:stream.write(chunk)
+ if len(received)>MAX_RESPONSE_BYTES+65536:raise ValueError('bounded client response exceeded')
+
+
+def slow_read_delay(client_options,pause_options):
+ if client_options.get('slow_reader') and not pause_options:time.sleep(client_options.get('read_delay_seconds',0.01))
+
+
+def client_label(readiness_index,positive,before,neighbor):
+ if readiness_index is not None:return 'readiness-'+str(readiness_index)
+ if positive:return 'positive'
+ if before:return 'before-neighbor'
+ if neighbor:return 'neighbor'
+ return 'target'
+
+
+def client_spec(spec,readiness_index,before_neighbor,positive_control):
  if readiness_index is not None:spec={**spec,'probe_id':spec['probe_id']+'-ready-'+str(readiness_index)}
  if before_neighbor:spec={**spec,'probe_id':spec['probe_id']+'-before'}
  if positive_control:
   control=spec['fixture']['sink_positive_control']
   spec={**spec,'probe_id':control['probe_id'],'fixture':{**spec['fixture'],
    'request':{**spec['fixture']['request'],'uri':control['uri']},'client':{'kind':'ordinary'}}}
+ return spec
+
+
+def perform_request(spec,root,connection,identity,result,serial,index,kind,neighbor,positive_control,before_neighbor,readiness_index,options,sequence):
+ wire_probe=spec['probe_id']+'-seq-'+str(index) if not neighbor and len(sequence)>1 else spec['probe_id']
+ request_spec={**spec,'probe_id':wire_probe}
+ head,payload,lengths=raw_request(request_spec,neighbor,kind)
+ label=client_label(readiness_index,positive_control,before_neighbor,neighbor)+'-'+str(index)
+ before_send=socket_identity(connection)
+ (root/(label+'.request.raw')).write_bytes(head+payload);connection.sendall(head)
+ for chunk in segments(payload,lengths):connection.sendall(chunk);time.sleep(0.015)
+ after_send=socket_identity(connection)
+ raw,observation=receive(connection,root,options,bool(options.get('keepalive')),not neighbor and not positive_control,identity)
+ after_receive=socket_identity(connection) if connection.fileno()>=0 else None
+ (root/(label+'.response.raw')).write_bytes(raw)
+ result['requests'].append(dict(observation,wire_probe=wire_probe+('-neighbor' if neighbor else ''),request_bytes=len(payload),request_sha256=sha(payload),raw_bytes=len(raw),raw_sha256=sha(raw),
+  connection_serial=serial,socket_before_send=before_send,socket_after_send=after_send,socket_after_receive=after_receive,
+  same_live_socket=same_live_socket(before_send,after_send) and same_live_socket(after_send,after_receive),**stamp()))
+
+
+def client(spec,root,port,neighbor,before_neighbor=False,positive_control=False,readiness_index=None):
+ spec=client_spec(spec,readiness_index,before_neighbor,positive_control)
  options={} if neighbor else spec['fixture'].get('client',{});sequence=['neighbor'] if neighbor else options.get('sequence',['target'])
  if not isinstance(sequence,list) or not 1<=len(sequence)<=3:raise ValueError('bounded original client sequence required')
  connection=None;serial=0;result={'probe':spec['probe_id'],'neighbor':neighbor,'requests':[],'connections':[],
@@ -461,33 +579,15 @@ def client(spec,root,port,neighbor,before_neighbor=False,positive_control=False,
  try:
   for index,kind in enumerate(sequence):
    if connection is None:
-    timeout=2 if readiness_index is not None else 15
-    connection=socket.create_connection(('127.0.0.1',port),timeout=timeout);connection.settimeout(timeout)
+    connection,identity=open_client(root,port,readiness_index,options,result,serial+1,spec,neighbor)
     serial+=1
-    if options.get('receive_buffer'):connection.setsockopt(socket.SOL_SOCKET,socket.SO_RCVBUF,options['receive_buffer'])
-    identity=socket_identity(connection);identity['connection_serial']=serial;identity['receive_buffer_bytes']=connection.getsockopt(socket.SOL_SOCKET,socket.SO_RCVBUF)
-    result['connections'].append(identity)
-    dump(root,'client-connections.jsonl',dict(identity,probe=spec['probe_id'],neighbor=neighbor))
-   wire_probe=spec['probe_id']+'-seq-'+str(index) if not neighbor and len(sequence)>1 else spec['probe_id']
-   request_spec={**spec,'probe_id':wire_probe}
-   head,payload,lengths=raw_request(request_spec,neighbor,kind)
-   label=('readiness-'+str(readiness_index) if readiness_index is not None else 'positive' if positive_control else 'before-neighbor' if before_neighbor else 'neighbor' if neighbor else 'target')+'-'+str(index)
-   before_send=socket_identity(connection)
-   (root/(label+'.request.raw')).write_bytes(head+payload);connection.sendall(head)
-   for chunk in segments(payload,lengths):connection.sendall(chunk);time.sleep(0.015)
-   after_send=socket_identity(connection)
-   raw,observation=receive(connection,root,options,bool(options.get('keepalive')),not neighbor and not positive_control,identity)
-   after_receive=socket_identity(connection) if connection.fileno()>=0 else None
-   (root/(label+'.response.raw')).write_bytes(raw)
-   result['requests'].append(dict(observation,wire_probe=wire_probe+('-neighbor' if neighbor else ''),request_bytes=len(payload),request_sha256=sha(payload),raw_bytes=len(raw),raw_sha256=sha(raw),
-    connection_serial=serial,socket_before_send=before_send,socket_after_send=after_send,socket_after_receive=after_receive,
-    same_live_socket=same_live_socket(before_send,after_send) and same_live_socket(after_send,after_receive),**stamp()))
+   perform_request(spec,root,connection,identity,result,serial,index,kind,neighbor,positive_control,before_neighbor,readiness_index,options,sequence)
    if not options.get('keepalive') or connection.fileno()<0:
     close_client_socket(connection,result,serial,'response_complete_or_client_closed');connection=None
  except Exception as error:result['error']=type(error).__name__+': '+str(error)
  finally:
   if connection is not None:close_client_socket(connection,result,serial,'client_finally')
-  output='client-readiness-'+str(readiness_index)+'.json' if readiness_index is not None else 'client-positive.json' if positive_control else 'client-before-neighbor.json' if before_neighbor else 'client-neighbor.json' if neighbor else 'client-target.json'
+  output='client-'+client_label(readiness_index,positive_control,before_neighbor,neighbor)+'.json'
   result['completed_ns']=time.monotonic_ns();(root/output).write_text(json.dumps(result,indent=2)+'\n')
  return 0 if 'error' not in result else 1
 
@@ -499,43 +599,55 @@ def exact(connection,size):
   if not chunk:return None
   data.extend(chunk)
  return bytes(data)
+def companion_fault(client_socket,spec,root,opcode,length,bodies):
+ kind=spec['fixture'].get('relay',{}).get('companion_fault')
+ fault=kind=='delay-claim' and opcode==1 or kind=='delay-second-body' and opcode==3 and bodies>=2
+ dump(root,PEER_LOG,dict(stamp(),event='received_frame',opcode=opcode,payload_bytes=length,synthetic_fault=kind))
+ if fault:time.sleep(1.6)
+ if kind=='peer-invalid-result':
+  value=b'BAD!'+bytes(8);client_socket.sendall(value);dump(root,PEER_LOG,dict(stamp(),event='fault_write',hex=value.hex()));return True
+ if kind=='peer-oversize':
+  value=b'MRC1'+bytes([2,128,0,0])+int(65537).to_bytes(4,'big');client_socket.sendall(value);dump(root,PEER_LOG,dict(stamp(),event='fault_write',hex=value.hex()));return True
+ return False
+
+
+def companion_session(client_socket,spec,root,target):
+ upstream=None
+ try:
+  upstream=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM);upstream.connect(target);upstream.settimeout(15);client_socket.settimeout(15);bodies=0
+  while True:
+   header=exact(client_socket,12)
+   if header is None:break
+   length=int.from_bytes(header[8:12],'big')
+   if length>65536:raise ValueError('peer payload bound')
+   payload=exact(client_socket,length)
+   if payload is None:break
+   opcode=header[5]
+   if opcode==3:bodies+=1
+   if companion_fault(client_socket,spec,root,opcode,length,bodies):break
+   if not relay_companion_frame(client_socket,upstream,root,opcode,header,payload):break
+ except Exception as error:dump(root,PEER_LOG,dict(stamp(),event='session_error',error=type(error).__name__))
+ finally:
+  client_socket.close()
+  if upstream is not None:upstream.close()
+
 def companion_proxy(spec,root,path,target):
  server=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM);server.bind(path);os.chmod(path,0o600);server.listen(16)
- def session(client_socket):
-  upstream=None
-  try:
-   upstream=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM);upstream.connect(target);upstream.settimeout(15);client_socket.settimeout(15);bodies=0
-   while True:
-    header=exact(client_socket,12)
-    if header is None:break
-    length=int.from_bytes(header[8:12],'big')
-    if length>65536:raise ValueError('peer payload bound')
-    payload=exact(client_socket,length)
-    if payload is None:break
-    opcode=header[5];kind=spec['fixture'].get('relay',{}).get('companion_fault')
-    if opcode==3:bodies+=1
-    fault=kind=='delay-claim' and opcode==1 or kind=='delay-second-body' and opcode==3 and bodies>=2
-    dump(root,'companion-peer.jsonl',dict(stamp(),event='received_frame',opcode=opcode,payload_bytes=length,synthetic_fault=kind))
-    if fault:time.sleep(1.6)
-    if kind=='peer-invalid-result':
-     value=b'BAD!'+bytes(8);client_socket.sendall(value);dump(root,'companion-peer.jsonl',dict(stamp(),event='fault_write',hex=value.hex()));break
-    if kind=='peer-oversize':
-     value=b'MRC1'+bytes([2,128,0,0])+int(65537).to_bytes(4,'big');client_socket.sendall(value);dump(root,'companion-peer.jsonl',dict(stamp(),event='fault_write',hex=value.hex()));break
-    upstream.sendall(header+payload);response=exact(upstream,12)
-    if response is None:break
-    size=int.from_bytes(response[8:12],'big')
-    if size>65536:raise ValueError('peer result bound')
-    data=exact(upstream,size)
-    if data is None:break
-    client_socket.sendall(response+data);dump(root,'companion-peer.jsonl',dict(stamp(),event='relayed_result',opcode=opcode,result_bytes=size))
-  except Exception as error:dump(root,'companion-peer.jsonl',dict(stamp(),event='session_error',error=type(error).__name__))
-  finally:
-   client_socket.close()
-   if upstream is not None:upstream.close()
  try:
   while True:
-   connection,_=server.accept();threading.Thread(target=session,args=(connection,),daemon=True).start()
+   connection,_=server.accept();threading.Thread(target=companion_session,args=(connection,spec,root,target),daemon=True).start()
  finally:server.close();Path(path).unlink(missing_ok=True)
+
+
+def validate_arguments(args,root):
+ if root.parent!=Path('/task/cases') or args.root!=root or args.spec!=root/'case.json':raise ValueError('fixed admitted case root required')
+ for port in (args.port,args.engine_port):
+  if port is not None and not 1<=port<=65535:raise ValueError('bounded loopback port required')
+ if args.socket is not None and Path(args.socket)!=root/'sockets/observer.sock':raise ValueError('fixed observer socket required')
+ if args.target is not None and Path(args.target)!=root/'sockets/companion.sock':raise ValueError('fixed native socket required')
+ if args.before_neighbor and not args.neighbor:raise ValueError('before-neighbor must be an independent neighbor')
+ if args.positive_control and args.neighbor:raise ValueError('positive sink control is a separate target URI')
+ validate_readiness_arguments(args)
 
 
 def main():
@@ -543,22 +655,90 @@ def main():
  parser.add_argument('--spec',type=Path,required=True);parser.add_argument('--root',type=Path,required=True)
  parser.add_argument('--port',type=int);parser.add_argument('--engine-port',type=int);parser.add_argument('--neighbor',action='store_true');parser.add_argument('--before-neighbor',action='store_true');parser.add_argument('--positive-control',action='store_true');parser.add_argument('--readiness-index',type=int);parser.add_argument('--socket');parser.add_argument('--target')
  args=parser.parse_args();root=args.root.resolve(strict=True)
- if root.parent!=Path('/task/cases') or args.root!=root or args.spec!=root/'case.json':raise ValueError('fixed admitted case root required')
- for port in (args.port,args.engine_port):
-  if port is not None and not 1<=port<=65535:raise ValueError('bounded loopback port required')
- if args.socket is not None and Path(args.socket)!=root/'sockets/observer.sock':raise ValueError('fixed observer socket required')
- if args.target is not None and Path(args.target)!=root/'sockets/companion.sock':raise ValueError('fixed native socket required')
+ validate_arguments(args,root)
  spec=json.loads(args.spec.read_text())
- if args.before_neighbor and not args.neighbor:raise ValueError('before-neighbor must be an independent neighbor')
- if args.positive_control and args.neighbor:raise ValueError('positive sink control is a separate target URI')
- if args.readiness_index is not None and (args.mode!='client' or not args.neighbor or args.before_neighbor or args.positive_control or not 0<=args.readiness_index<10):raise ValueError('fixed independent readiness index required')
  if args.mode=='client':return client(spec,root,args.port,args.neighbor,args.before_neighbor,args.positive_control,args.readiness_index)
  signal.signal(signal.SIGTERM,lambda *_:sys.exit(0))
  if args.mode=='companion-proxy':companion_proxy(spec,root,args.socket,args.target);return 0
  handler=Backend if args.mode=='backend' else Relay
  handler.spec=spec;handler.root=root;handler.engine_port=args.engine_port
- server=http.server.ThreadingHTTPServer(('127.0.0.1',args.port),handler);server.daemon_threads=True
+ server=LoopbackEvidenceServer(args.port,handler)
  try:server.serve_forever(poll_interval=0.05)
  finally:server.server_close()
  return 0
+
+
+def validate_backend_framing(lengths,encodings):
+ if lengths and encodings:raise ValueError('backend CL+TE request is ambiguous')
+ if len(lengths)>1 or len(encodings)>1:raise ValueError('duplicate backend request framing')
+
+
+def add_transaction_header(spec,headers,probe):
+ if not any(key.lower()=='x-request-id' for key,_ in headers):
+  if spec['case_id']=='transaction_id_present':headers.append(['X-Request-Id','no-crs-tx-0001'])
+  elif spec['case_id']!='transaction_id_generated_or_fallback':headers.append(['X-Request-Id',probe])
+
+
+def receive_controls(connection,root,client_options,observe_primary,pause_options,pause,identity,received,keepalive):
+ if b'\r\n\r\n' in received:
+  entity_received=received_entity_bytes(bytes(received))
+  pause,client_reset=entity_controls(connection,root,client_options,observe_primary,pause_options,pause,identity,entity_received,received)
+  if client_reset:return pause,client_reset,False
+  return pause,None,keepalive and framing(bytes(received))['complete']
+
+ return pause,None,False
+
+
+def open_client(root,port,readiness_index,options,result,serial,spec,neighbor):
+ timeout=2 if readiness_index is not None else 15
+ connection=client_connection(port,timeout);connection.settimeout(timeout)
+ try:
+  if options.get('receive_buffer'):connection.setsockopt(socket.SOL_SOCKET,socket.SO_RCVBUF,options['receive_buffer'])
+  identity=socket_identity(connection);identity['connection_serial']=serial;identity['receive_buffer_bytes']=connection.getsockopt(socket.SOL_SOCKET,socket.SO_RCVBUF)
+  result['connections'].append(identity)
+  dump(root,'client-connections.jsonl',dict(identity,probe=spec['probe_id'],neighbor=neighbor))
+ except (OSError,ValueError,TypeError):
+  connection.close();raise
+
+ return connection,identity
+
+
+def read_backend_length(length,maximum,receipt,exact):
+ if not re.fullmatch(r'\d{1,10}',length,flags=re.ASCII):raise ValueError('invalid backend Content-Length')
+ size=int(length)
+ if size>maximum:raise ValueError('bounded backend body exceeded')
+ receipt.update(framing='content-length',declared=size)
+ exact(size,True);receipt['http_eos']=True
+
+
+def relay_companion_frame(client_socket,upstream,root,opcode,header,payload):
+ upstream.sendall(header+payload);response=exact(upstream,12)
+ if response is None:return False
+ size=int.from_bytes(response[8:12],'big')
+ if size>65536:raise ValueError('peer result bound')
+ data=exact(upstream,size)
+ if data is None:return False
+ client_socket.sendall(response+data);dump(root,PEER_LOG,dict(stamp(),event='relayed_result',opcode=opcode,result_bytes=size))
+
+ return True
+
+
+def validate_readiness_arguments(args):
+ if args.readiness_index is not None and (args.mode!='client' or not args.neighbor or args.before_neighbor or args.positive_control or not 0<=args.readiness_index<10):raise ValueError('fixed independent readiness index required')
+
+
+def backend_chunk(chunk,fixture,neighbor,written):
+ if neighbor:return chunk
+ truncate=fixture.get('truncate_after_bytes')
+ if truncate is not None:return chunk[:max(0,truncate-written)]
+ return chunk
+
+
+def relay_header_value(key,value,mode,handle):
+ if key.lower()!='x-msconnector-response-handle':return value
+ if mode=='missing':return None
+ if mode=='malformed':return 'i12-malformed'
+ if mode=='unknown64hex':return '0'*64 if handle!='0'*64 else '1'*64
+ return value
+
 if __name__=='__main__':raise SystemExit(main())

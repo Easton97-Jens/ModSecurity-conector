@@ -37,19 +37,28 @@
 #define AUTH_CASE_BLOCK "ac-9528a3f086fca6429a67-syscall"
 #define OBSERVER_MODULE "github.com/Easton97-Jens/ModSecurity-conector/connectors/traefik/response_observer"
 
-struct endpoint { unsigned long long inode; unsigned local, peer; };
-struct pending { int active, fd; uint64_t started, requested; long number; struct endpoint socket; };
+struct endpoint { unsigned long long inode; unsigned local; unsigned peer; };
+struct pending { int active; int fd; uint64_t started; uint64_t requested; long number; struct endpoint socket; };
 struct thread { pid_t id; int newborn; struct pending pending; };
-struct flow { unsigned long long inode; int blocked; unsigned short_writes, would_block, resumed; };
+struct flow { unsigned long long inode; int blocked; unsigned short_writes; unsigned would_block; unsigned resumed; };
+struct image_identity { dev_t device; ino_t inode; const char *path; };
 struct capture {
     FILE *output;
     const char *nonce;
-    const char *mode, *image;
-    dev_t image_device;
-    ino_t image_inode;
-    unsigned local, peer, records;
+    const char *mode;
+    struct image_identity image;
+    unsigned local;
+    unsigned peer;
+    unsigned records;
     size_t bytes;
-    int failed, exited, exit_code, signal, test_client, drain, pidfd, test_writev_started;
+    int failed;
+    int exited;
+    int exit_code;
+    int signal;
+    int test_client;
+    int drain;
+    int pidfd;
+    int test_writev_started;
     pid_t child;
     struct thread threads[MAX_THREADS];
     struct flow flows[MAX_SOCKETS];
@@ -79,42 +88,73 @@ static int number(const char *text, unsigned minimum, unsigned maximum, unsigned
     return 1;
 }
 
-static int private_path(const char *path, int leaf_required, int require_owned_parent) {
+static int trusted_component(const struct stat *info, int leaf) {
+    int sticky_directory = !leaf && S_ISDIR(info->st_mode) && info->st_uid == 0 && (info->st_mode & S_ISVTX);
+    return !S_ISLNK(info->st_mode) && (info->st_uid == 0 || info->st_uid == getuid()) &&
+        (!(info->st_mode & 0022) || sticky_directory) && (leaf || S_ISDIR(info->st_mode));
+}
+
+/* Walk using held directory descriptors. A rename or symlink replacement in
+ * a public sticky ancestor cannot redirect subsequent component resolution. */
+static int private_parent(const char *path, char *leaf, size_t capacity) {
     char copy[PATH_MAX];
     struct stat info;
-    char *part;
+    char *state = NULL;
+    int directory;
     size_t length = strlen(path);
-    if (length == 0 || length >= sizeof(copy) || path[0] != '/' || strstr(path, "//") != NULL) { return 0; }
+    if (length == 0 || length >= sizeof(copy) || path[0] != '/' || path[length - 1] == '/' || strstr(path, "//") != NULL) { return -1; }
     memcpy(copy, path, length + 1U);
-    for (part = copy + 1; ; ++part) {
-        char saved;
-        int leaf;
-        if (*part != '/' && *part != '\0') { continue; }
-        saved = *part; leaf = saved == '\0'; *part = '\0';
-        if (strcmp(strrchr(copy, '/') + 1, ".") == 0 || strcmp(strrchr(copy, '/') + 1, "..") == 0) { return 0; }
-        if (lstat(copy, &info) != 0) {
-            if (!(leaf && !leaf_required && errno == ENOENT)) { return 0; }
-        } else {
-            int sticky = strcmp(copy, "/var/tmp") == 0 && info.st_uid == 0 && (info.st_mode & S_ISVTX);
-            if (S_ISLNK(info.st_mode) || (info.st_uid != 0 && info.st_uid != getuid()) ||
-                    ((info.st_mode & 0022) && !sticky) || (!leaf && !S_ISDIR(info.st_mode))) { return 0; }
+    directory = open("/", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (directory < 0) { return -1; }
+    for (char *part = strtok_r(copy, "/", &state); part != NULL; part = strtok_r(NULL, "/", &state)) {
+        if (strcmp(part, ".") == 0 || strcmp(part, "..") == 0) { break; }
+        if (*state == '\0') {
+            if (strlen(part) >= capacity) { break; }
+            memcpy(leaf, part, strlen(part) + 1U);
+            return directory;
         }
-        if (leaf) { break; }
-        *part = saved;
+        int next = openat(directory, part, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+        if (next < 0) { break; }
+        if (fstat(next, &info) != 0 || !trusted_component(&info, 0)) { (void)close(next); break; }
+        (void)close(directory);
+        directory = next;
     }
-    if (require_owned_parent) {
-        char *last = strrchr(copy, '/');
-        if (last == copy) { return 0; }
-        *last = '\0';
-        if (lstat(copy, &info) != 0 || info.st_uid != getuid() || (info.st_mode & 0077)) { return 0; }
+    (void)close(directory);
+    return -1;
+}
+
+static int private_path(const char *path, int leaf_required, int require_owned_parent) {
+    char leaf[NAME_MAX + 1];
+    struct stat info;
+    int directory = private_parent(path, leaf, sizeof(leaf));
+    int valid = 0;
+    if (directory < 0) { return 0; }
+    if (!require_owned_parent || (fstat(directory, &info) == 0 && info.st_uid == getuid() && !(info.st_mode & 0077))) {
+        if (fstatat(directory, leaf, &info, AT_SYMLINK_NOFOLLOW) == 0) { valid = trusted_component(&info, 1); }
+        else { valid = !leaf_required && errno == ENOENT; }
     }
-    return 1;
+    (void)close(directory);
+    return valid;
+}
+
+static int create_output(const char *path) {
+    char leaf[NAME_MAX + 1];
+    struct stat info;
+    int directory = private_parent(path, leaf, sizeof(leaf));
+    int fd = -1;
+    if (directory < 0) { return -1; }
+    if (fstat(directory, &info) == 0 && info.st_uid == getuid() && !(info.st_mode & 0077)) {
+        fd = openat(directory, leaf, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
+    }
+    (void)close(directory);
+    return fd;
 }
 
 static int admitted_identity(void) {
     FILE *stream;
     char line[256];
-    int masks = 0, no_new_privileges = 0;
+    int masks = 0;
+    int no_new_privileges = 0;
     if (getuid() == 0 || getuid() != geteuid() || getgid() != getegid()) { return 0; }
     stream = fopen("/proc/self/status", "re");
     if (stream == NULL) { return 0; }
@@ -132,14 +172,19 @@ static int admitted_identity(void) {
 }
 
 static int same_process(pid_t id, pid_t leader) {
-    char path[64], line[256];
+    char path[64];
+    char line[256];
     FILE *stream;
-    int tgid = -1, matched_uid = 0;
+    int tgid = -1;
+    int matched_uid = 0;
     (void)snprintf(path, sizeof(path), "/proc/%ld/status", (long)id);
     stream = fopen(path, "re");
     if (stream == NULL) { return 0; }
     while (fgets(line, sizeof(line), stream) != NULL) {
-        unsigned a, b, c, d;
+        unsigned a;
+        unsigned b;
+        unsigned c;
+        unsigned d;
         (void)sscanf(line, "Tgid: %d", &tgid);
         if (sscanf(line, "Uid: %u %u %u %u", &a, &b, &c, &d) == 4) {
             matched_uid = a == getuid() && b == getuid() && c == getuid() && d == getuid();
@@ -150,7 +195,9 @@ static int same_process(pid_t id, pid_t leader) {
 }
 
 static unsigned long long socket_inode(pid_t id, int fd) {
-    char path[80], link[128], tail;
+    char path[80];
+    char link[128];
+    char tail;
     ssize_t length;
     unsigned long long inode;
     (void)snprintf(path, sizeof(path), "/proc/%ld/fd/%d", (long)id, fd);
@@ -161,7 +208,8 @@ static unsigned long long socket_inode(pid_t id, int fd) {
 }
 
 static int tcp_endpoint(pid_t id, int fd, struct endpoint *out) {
-    char path[80], line[1024];
+    char path[80];
+    char line[1024];
     FILE *stream;
     unsigned long long inode = socket_inode(id, fd);
     int found = 0;
@@ -170,7 +218,10 @@ static int tcp_endpoint(pid_t id, int fd, struct endpoint *out) {
     stream = fopen(path, "re");
     if (stream == NULL) { return 0; }
     while (fgets(line, sizeof(line), stream) != NULL) {
-        unsigned local_ip, remote_ip, local_port, peer_port;
+        unsigned local_ip;
+        unsigned remote_ip;
+        unsigned local_port;
+        unsigned peer_port;
         unsigned long long row_inode;
         if (sscanf(line, "%*u: %8x:%x %8x:%x %*x %*x:%*x %*x:%*x %*x %*u %*u %llu",
                 &local_ip, &local_port, &remote_ip, &peer_port, &row_inode) == 5 &&
@@ -201,8 +252,9 @@ static uint64_t requested_size(pid_t id, const struct ptrace_syscall_info *info)
         return info->entry.args[3] <= SSIZE_MAX ? info->entry.args[3] : UINT64_MAX;
     }
     if (info->entry.nr == SYS_writev) {
-        uint64_t sum = 0, i;
-        uint64_t base = info->entry.args[1], count = info->entry.args[2];
+        uint64_t sum = 0;
+        uint64_t base = info->entry.args[1];
+        uint64_t count = info->entry.args[2];
         const uint64_t user_last = 0x00007fffffffffffULL;
         /* Conservative x86-64 lower canonical user addresses only. Alignment
          * is an observer policy, not a claim about kernel writev validity.
@@ -212,7 +264,7 @@ static uint64_t requested_size(pid_t id, const struct ptrace_syscall_info *info)
         if (count > 64U || base < 4096U || base > user_last || base % 8U != 0 ||
                 count * 16U - 1U > user_last - base) { return UINT64_MAX; }
         /* Read only each iov_len metadata word, never its payload pointer/data. */
-        for (i = 0; i < count; ++i) {
+        for (uint64_t i = 0; i < count; ++i) {
             unsigned long address = (unsigned long)(base + i * 16U + 8U);
             unsigned long length;
             errno = 0;
@@ -226,9 +278,8 @@ static uint64_t requested_size(pid_t id, const struct ptrace_syscall_info *info)
 }
 
 static struct thread *thread_slot(struct capture *capture, pid_t id, int create) {
-    unsigned i;
     struct thread *empty = NULL;
-    for (i = 0; i < MAX_THREADS; ++i) {
+    for (unsigned i = 0; i < MAX_THREADS; ++i) {
         if (capture->threads[i].id == id) { return &capture->threads[i]; }
         if (capture->threads[i].id == 0 && empty == NULL) { empty = &capture->threads[i]; }
     }
@@ -237,9 +288,8 @@ static struct thread *thread_slot(struct capture *capture, pid_t id, int create)
 }
 
 static struct flow *flow_slot(struct capture *capture, unsigned long long inode) {
-    unsigned i;
     struct flow *empty = NULL;
-    for (i = 0; i < MAX_SOCKETS; ++i) {
+    for (unsigned i = 0; i < MAX_SOCKETS; ++i) {
         if (capture->flows[i].inode == inode) { return &capture->flows[i]; }
         if (capture->flows[i].inode == 0 && empty == NULL) { empty = &capture->flows[i]; }
     }
@@ -250,7 +300,8 @@ static struct flow *flow_slot(struct capture *capture, unsigned long long inode)
 static void syscall_exit(struct capture *capture, struct thread *thread, long long result) {
     struct pending *pending = &thread->pending;
     struct flow *flow;
-    int identity, length;
+    int identity;
+    int length;
     char row[1024];
     if (!pending->active) { return; }
     pending->active = 0;
@@ -310,10 +361,9 @@ static int syscall_stop(struct capture *capture, struct thread *thread) {
 
 static void reap_owned(struct capture *capture) {
     uint64_t deadline = now_ns() + 3000000000ULL;
-    unsigned i;
     /* pidfd binds the exact forked process even after numeric PID reuse. */
     if (capture->pidfd >= 0) { (void)syscall(SYS_pidfd_send_signal, capture->pidfd, SIGKILL, NULL, 0); }
-    for (i = 0; i < MAX_THREADS; ++i) {
+    for (unsigned i = 0; i < MAX_THREADS; ++i) {
         if (capture->threads[i].id > 0) { (void)ptrace(PTRACE_CONT, capture->threads[i].id, NULL, (void *)(long)SIGKILL); }
     }
     while (now_ns() < deadline) {
@@ -326,93 +376,103 @@ static void reap_owned(struct capture *capture) {
     capture->failed = 1;
 }
 
-static void observe(struct capture *capture, unsigned seconds) {
-    uint64_t deadline = now_ns() + (uint64_t)seconds * 1000000000ULL;
+static int record_exec(struct capture *capture, struct thread *thread, pid_t id) {
+    char path[64];
+    char row[768];
+    struct stat image;
+    int length;
+    if (id != capture->child || thread->newborn == -1) { return 0; }
+    (void)snprintf(path, sizeof(path), "/proc/%ld/exe", (long)id);
+    if (stat(path, &image) != 0 || image.st_dev != capture->image.device || image.st_ino != capture->image.inode) { return 0; }
+    length = snprintf(row, sizeof(row), "{\"schema\":\"traefik-own-child-exec-v1\",\"nonce\":\"%s\",\"child_pid\":%ld,\"image\":\"%s\",\"mode\":\"%s\",\"opened_image_identity_verified\":true,\"runtime_qualified\":false}\n",
+        capture->nonce, (long)id, capture->image.path, capture->mode);
+    if (length <= 0 || (size_t)length >= sizeof(row) || capture->bytes + (size_t)length > MAX_OUTPUT ||
+            fwrite(row, 1, (size_t)length, capture->output) != (size_t)length || fflush(capture->output) != 0) { return 0; }
+    capture->bytes += (size_t)length;
+    thread->newborn = -1;
+    return 1;
+}
+
+static int handle_stop(struct capture *capture, struct thread *thread, pid_t id, int status) {
+    unsigned event = (unsigned)status >> 16;
+    int delivered = 0;
+    if (event == PTRACE_EVENT_CLONE) {
+        unsigned long child_id = 0;
+        if (ptrace(PTRACE_GETEVENTMSG, id, NULL, &child_id) != 0 || child_id > INT_MAX ||
+                !same_process((pid_t)child_id, capture->child) || thread_slot(capture, (pid_t)child_id, 1) == NULL) { return 0; }
+    } else if (event == PTRACE_EVENT_FORK || event == PTRACE_EVENT_VFORK) {
+        unsigned long rejected = 0;
+        if (ptrace(PTRACE_GETEVENTMSG, id, NULL, &rejected) == 0 && rejected <= INT_MAX) { (void)kill((pid_t)rejected, SIGKILL); }
+        return 0;
+    } else if (event == PTRACE_EVENT_EXEC) {
+        if (!record_exec(capture, thread, id)) { return 0; }
+    } else if (WSTOPSIG(status) == (SIGTRAP | 0x80)) {
+        if (!syscall_stop(capture, thread)) { return 0; }
+    } else if (thread->newborn == 1 && WSTOPSIG(status) == SIGSTOP) { thread->newborn = 0; }
+    else { delivered = WSTOPSIG(status); }
+    return ptrace(PTRACE_SYSCALL, id, NULL, (void *)(long)delivered) == 0;
+}
+
+static int handle_wait(struct capture *capture, pid_t id, int status) {
+    struct thread *thread = thread_slot(capture, id, 0);
+    if (thread == NULL && WIFSTOPPED(status) && WSTOPSIG(status) == SIGSTOP &&
+            same_process(id, capture->child)) { thread = thread_slot(capture, id, 1); }
+    if (thread == NULL) { return 0; }
+    if (WIFEXITED(status) || WIFSIGNALED(status)) {
+        if (id == capture->child) {
+            capture->exited = 1;
+            capture->exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+            capture->signal = WIFSIGNALED(status) ? WTERMSIG(status) : 0;
+        }
+        memset(thread, 0, sizeof(*thread));
+        return 1;
+    }
+    return WIFSTOPPED(status) && handle_stop(capture, thread, id, status);
+}
+
+static int initial_stop(struct capture *capture, uint64_t deadline) {
     unsigned long options = PTRACE_O_TRACESYSGOOD | PTRACE_O_TRACECLONE | PTRACE_O_TRACEFORK |
         PTRACE_O_TRACEVFORK | PTRACE_O_TRACEEXEC | PTRACE_O_EXITKILL;
     int status;
     for (;;) {
         pid_t stopped;
-        if (interrupted || now_ns() >= deadline) { capture->failed = 1; return; }
+        if (interrupted || now_ns() >= deadline) { return 0; }
         stopped = waitpid(capture->child, &status, WNOHANG);
         if (stopped == capture->child) { break; }
-        if (stopped < 0 && errno != EINTR) { capture->failed = 1; return; }
+        if (stopped < 0 && errno != EINTR) { return 0; }
         { struct timespec pause = {0, 1000000}; (void)nanosleep(&pause, NULL); }
     }
     if (!WIFSTOPPED(status) || WSTOPSIG(status) != SIGSTOP ||
             !same_process(capture->child, capture->child) || getpgid(capture->child) != capture->child ||
-            ptrace(PTRACE_SETOPTIONS, capture->child, NULL, (void *)options) != 0) { capture->failed = 1; return; }
+            ptrace(PTRACE_SETOPTIONS, capture->child, NULL, (void *)options) != 0) { return 0; }
     thread_slot(capture, capture->child, 1)->newborn = 0;
-    if (interrupted || now_ns() >= deadline) { capture->failed = 1; return; }
-    if (ptrace(PTRACE_SYSCALL, capture->child, NULL, NULL) != 0) { capture->failed = 1; return; }
+    if (interrupted || now_ns() >= deadline) { return 0; }
+    return ptrace(PTRACE_SYSCALL, capture->child, NULL, NULL) == 0;
+}
+
+static void observe(struct capture *capture, unsigned seconds) {
+    uint64_t deadline = now_ns() + (uint64_t)seconds * 1000000000ULL;
+    if (!initial_stop(capture, deadline)) { capture->failed = 1; return; }
     while (!capture->failed && !capture->exited) {
         pid_t id;
-        struct thread *thread;
-        int delivered = 0;
-        unsigned event;
-        if (interrupted || now_ns() >= deadline) { capture->failed = 1; break; }
+        int status;
+        if (interrupted || now_ns() >= deadline) { capture->failed = 1; return; }
         if (capture->drain && capture->test_client >= 0) {
             char buffer[32768];
             while (read(capture->test_client, buffer, sizeof(buffer)) > 0) { /* discard synthetic bytes */ }
         }
         id = waitpid(-1, &status, __WALL | WNOHANG);
         if (id == 0) { struct timespec pause = {0, 1000000}; (void)nanosleep(&pause, NULL); continue; }
-        if (id < 0) { if (errno == EINTR) { continue; } capture->failed = 1; break; }
-        thread = thread_slot(capture, id, 0);
-        /* A clone's initial stop may be reported before its parent's event.
-         * This admits only our automatically traced same-process thread. */
-        if (thread == NULL && WIFSTOPPED(status) && WSTOPSIG(status) == SIGSTOP &&
-                same_process(id, capture->child)) { thread = thread_slot(capture, id, 1); }
-        if (thread == NULL) { capture->failed = 1; break; }
-        if (WIFEXITED(status) || WIFSIGNALED(status)) {
-            if (id == capture->child) {
-                capture->exited = 1; capture->exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
-                capture->signal = WIFSIGNALED(status) ? WTERMSIG(status) : 0;
-            }
-            memset(thread, 0, sizeof(*thread)); continue;
-        }
-        if (!WIFSTOPPED(status)) { capture->failed = 1; break; }
-        event = (unsigned)status >> 16;
-        if (event == PTRACE_EVENT_CLONE) {
-            unsigned long child_id = 0;
-            if (ptrace(PTRACE_GETEVENTMSG, id, NULL, &child_id) != 0 || child_id > INT_MAX ||
-                    !same_process((pid_t)child_id, capture->child) || thread_slot(capture, (pid_t)child_id, 1) == NULL) {
-                capture->failed = 1; break;
-            }
-        } else if (event == PTRACE_EVENT_FORK || event == PTRACE_EVENT_VFORK) {
-            unsigned long rejected = 0;
-            if (ptrace(PTRACE_GETEVENTMSG, id, NULL, &rejected) == 0 && rejected <= INT_MAX) { (void)kill((pid_t)rejected, SIGKILL); }
-            capture->failed = 1; break;
-        } else if (event == PTRACE_EVENT_EXEC) {
-            char path[64], row[768];
-            struct stat image;
-            int length;
-            /* Only the parent's exact initial fexecve is admitted. */
-            if (id != capture->child || thread->newborn == -1) { capture->failed = 1; break; }
-            (void)snprintf(path, sizeof(path), "/proc/%ld/exe", (long)id);
-            if (stat(path, &image) != 0 || image.st_dev != capture->image_device || image.st_ino != capture->image_inode) {
-                capture->failed = 1; break;
-            }
-            length = snprintf(row, sizeof(row), "{\"schema\":\"traefik-own-child-exec-v1\",\"nonce\":\"%s\",\"child_pid\":%ld,\"image\":\"%s\",\"mode\":\"%s\",\"opened_image_identity_verified\":true,\"runtime_qualified\":false}\n",
-                capture->nonce, (long)id, capture->image, capture->mode);
-            if (length <= 0 || (size_t)length >= sizeof(row) || capture->bytes + (size_t)length > MAX_OUTPUT ||
-                    fwrite(row, 1, (size_t)length, capture->output) != (size_t)length || fflush(capture->output) != 0) {
-                capture->failed = 1; break;
-            }
-            capture->bytes += (size_t)length;
-            thread->newborn = -1;
-        } else if (WSTOPSIG(status) == (SIGTRAP | 0x80)) {
-            if (!syscall_stop(capture, thread)) { capture->failed = 1; break; }
-        } else if (thread->newborn == 1 && WSTOPSIG(status) == SIGSTOP) { thread->newborn = 0; }
-        else { delivered = WSTOPSIG(status); }
-        if (ptrace(PTRACE_SYSCALL, id, NULL, (void *)(long)delivered) != 0) { capture->failed = 1; }
+        if (id < 0) { if (errno == EINTR) { continue; } capture->failed = 1; return; }
+        if (!handle_wait(capture, id, status)) { capture->failed = 1; }
     }
 }
 
 static int test_connection(unsigned *local, unsigned *peer, int *client) {
     struct sockaddr_in address = { .sin_family = AF_INET, .sin_addr.s_addr = htonl(INADDR_LOOPBACK) };
     socklen_t length = sizeof(address);
-    int listener = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0), accepted;
+    int listener = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    int accepted;
     if (listener < 0 || bind(listener, (struct sockaddr *)&address, sizeof(address)) != 0 ||
             getsockname(listener, (struct sockaddr *)&address, &length) != 0 || listen(listener, 1) != 0) { return -1; }
     *local = ntohs(address.sin_port);
@@ -429,7 +489,7 @@ static int test_connection(unsigned *local, unsigned *peer, int *client) {
 
 static int test_writer(int fd) {
     char data[65536];
-    unsigned total = 0, phase;
+    unsigned total = 0;
     int size = 4096;
     uint64_t deadline = now_ns() + 12000000000ULL;
     memset(data, 'T', sizeof(data));
@@ -455,7 +515,7 @@ static int test_writer(int fd) {
         (void)syscall(SYS_writev, fd, vectors, 1);
         (void)syscall(SYS_writev, fd, NULL, 0);
     }
-    for (phase = 0; phase < 2; ++phase) {
+    for (unsigned phase = 0; phase < 2; ++phase) {
       total = 0;
       while (total < TEST_BYTES && now_ns() < deadline) {
         size_t wanted = TEST_BYTES - total < sizeof(data) ? TEST_BYTES - total : sizeof(data);
@@ -496,115 +556,193 @@ static int executable(const char *path) {
     return fd;
 }
 
+struct arguments {
+    const char *output;
+    const char *nonce;
+    const char *auth_case;
+    unsigned seconds;
+    int self_test;
+};
+
+static int parse_value(struct arguments *args, struct capture *capture, const char *key, const char *value,
+        int *seconds_seen, int *peer_seen) {
+    if (strcmp(key, "--output") == 0 && args->output == NULL) { args->output = value; return 1; }
+    if (strcmp(key, "--auth-case") == 0 && args->auth_case == NULL) { args->auth_case = value; return 1; }
+    if (strcmp(key, "--nonce") == 0 && args->nonce == NULL) { args->nonce = value; return 1; }
+    if (strcmp(key, "--host-port") == 0 && capture->local == 0) { return number(value, 1, 65535, &capture->local); }
+    if (strcmp(key, "--peer-port") == 0 && !*peer_seen) { *peer_seen = 1; return number(value, 0, 65535, &capture->peer); }
+    if (strcmp(key, "--seconds") == 0 && !*seconds_seen) { *seconds_seen = 1; return number(value, 1, 300, &args->seconds); }
+    return 0;
+}
+
+static int parse_arguments(int argc, char **argv, struct arguments *args, struct capture *capture) {
+    int seconds_seen = 0;
+    int peer_seen = 0;
+    unsigned i = 1;
+    while (i < (unsigned)argc) {
+        const char *key = argv[i];
+        ++i;
+        if (strcmp(key, "--self-test") == 0 && !args->self_test) { args->self_test = 1; continue; }
+        if (i >= (unsigned)argc) { return 0; }
+        const char *value = argv[i];
+        ++i;
+        if (!parse_value(args, capture, key, value, &seconds_seen, &peer_seen)) { return 0; }
+    }
+    return 1;
+}
+
+struct auth_paths {
+    char config[320];
+    char cwd[256];
+    char output[256];
+    char log[320];
+    char access[320];
+    char entry[80];
+    char file[384];
+};
+
+static int prepare_auth(const struct arguments *args, struct auth_paths *paths, unsigned local) {
+    (void)snprintf(paths->entry, sizeof(paths->entry), "--entryPoints.web.address=127.0.0.1:%u", local);
+    if (args->auth_case == NULL) { return 1; }
+    if (!auth_case_allowed(args->auth_case) || strcmp(args->nonce, args->auth_case) != 0) { return 0; }
+    (void)snprintf(paths->cwd, sizeof(paths->cwd), "/task/cases/%s/runtime", args->auth_case);
+    (void)snprintf(paths->config, sizeof(paths->config), "%s/effective-config/traefik-dynamic.yaml", paths->cwd);
+    (void)snprintf(paths->output, sizeof(paths->output), "/task/cases/%s/host-syscalls.jsonl", args->auth_case);
+    (void)snprintf(paths->log, sizeof(paths->log), "I12_ACCEPTANCE_HOST_LOG=%s/logs/host-lifecycle.jsonl", paths->cwd);
+    (void)snprintf(paths->access, sizeof(paths->access), "--accesslog.filepath=%s/logs/traefik-access.log", paths->cwd);
+    (void)snprintf(paths->file, sizeof(paths->file), "--providers.file.filename=%s", paths->config);
+    return args->self_test || strcmp(args->output, paths->output) == 0;
+}
+
+static int open_binary(const struct arguments *args, const char *invocation, char *self,
+        const struct auth_paths *paths, struct capture *capture, int *test_fd) {
+    if (args->self_test) {
+        if (realpath(invocation, self) == NULL || strcmp(invocation, self) != 0) { return -1; }
+        int binary = executable(self);
+        if (binary < 0) { return -1; }
+        *test_fd = test_connection(&capture->local, &capture->peer, &capture->test_client);
+        if (*test_fd < 0) { (void)close(binary); return -1; }
+        return binary;
+    }
+    struct stat config;
+    const char *config_path = HOST_CONFIG;
+    const char *cwd = "/task/runtime";
+    if (args->auth_case != NULL) { config_path = paths->config; cwd = paths->cwd; }
+    if (chdir(cwd) != 0 || !private_path(config_path, 1, 0) || stat(config_path, &config) != 0 ||
+            !S_ISREG(config.st_mode) || config.st_uid != getuid()) { return -1; }
+    if (args->auth_case != NULL && !private_path(paths->log + strlen("I12_ACCEPTANCE_HOST_LOG="), 1, 0)) { return -1; }
+    return executable(HOST_BINARY);
+}
+
+static void execute_child(struct capture *capture, int binary, int test_fd, int out_fd,
+        const struct arguments *args, char *self, struct auth_paths *paths) {
+    const int self_test = args->self_test;
+    const char *auth_case = args->auth_case;
+    char *auth_log = paths->log;
+    char *auth_entry = paths->entry;
+    char *auth_file = paths->file;
+    char *auth_access = paths->access;
+    char fd[16];
+    char *const test_env[] = {"PATH=/usr/bin:/bin", "LC_ALL=C", "TZ=UTC", NULL};
+    char *const host_env[] = {"PATH=/opt/controller:/usr/local/bin:/usr/bin:/usr/sbin:/bin", "HOME=/task", "TMPDIR=/task/tmp", "TMP_ROOT=/task/tmp", "XDG_CACHE_HOME=/task/cache", "XDG_DATA_HOME=/task/rtk-data", "LC_ALL=C", "TZ=UTC", "PYTHONDONTWRITEBYTECODE=1", "CONNECTOR_ROOT=/mnt/src", "BUILD_ROOT=/task/build", "GOTOOLCHAIN=local", "GOPROXY=off", "GOSUMDB=off", "GOMODCACHE=/task/go-mod", "GOCACHE=/task/go-cache", "GO=/usr/local/go/bin/go", "GOFLAGS=-mod=readonly", "TRAEFIK_NATIVE_RUNTIME_ROOT=/task/runtime", "TRAEFIK_ENGINE_SOCKET_PARENT=/task/sockets", "TRAEFIK_BIN=" HOST_BINARY, "MSCONNECTOR_RULES_FILE=/task/rules.conf", NULL};
+    char *const auth_env[] = {"PATH=/opt/controller:/usr/local/bin:/usr/bin:/usr/sbin:/bin", "HOME=/task", "TMPDIR=/task/tmp", "TMP_ROOT=/task/tmp", "XDG_CACHE_HOME=/task/cache", "XDG_DATA_HOME=/task/rtk-data", "LC_ALL=C", "TZ=UTC", "PYTHONDONTWRITEBYTECODE=1", "CONNECTOR_ROOT=/mnt/src", auth_log, NULL};
+    (void)snprintf(fd, sizeof(fd), "%d", test_fd);
+    char *const test_argv[] = {self, "--self-test-child", fd, NULL};
+    char *const host_argv[] = {HOST_BINARY, "--configFile=" HOST_CONFIG, NULL};
+    char *const auth_argv[] = {HOST_BINARY, auth_entry,
+        "--experimental.localPlugins.modsecurityResponseObserver.moduleName=" OBSERVER_MODULE,
+        "--experimental.localPlugins.modsecurityResponseObserver.settings.useUnsafe=true",
+        "--experimental.abortOnPluginFailure=true", auth_file, "--providers.file.watch=false", "--api=false", "--log.level=INFO",
+        "--global.sendAnonymousUsage=false", "--global.checkNewVersion=false", "--accesslog=true", auth_access, NULL};
+    (void)close(out_fd);
+    if (capture->test_client >= 0) { (void)close(capture->test_client); }
+    if (setpgid(0, 0) != 0 || ptrace(PTRACE_TRACEME, 0, NULL, NULL) != 0) { _exit(77); }
+    (void)raise(SIGSTOP);
+    char *const *selected_argv = host_argv;
+    char *const *selected_env = host_env;
+    if (auth_case != NULL) { selected_argv = auth_argv; selected_env = auth_env; }
+    if (self_test) { selected_argv = test_argv; selected_env = test_env; }
+    fexecve(binary, selected_argv, selected_env);
+    _exit(77);
+}
+
+static int valid_arguments(const struct arguments *args, const struct capture *capture) {
+    if (args->output == NULL || args->nonce == NULL) { return 0; }
+    size_t length = strlen(args->nonce);
+    if (length < 8 || length > 64 || strspn(args->nonce, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_") != length ||
+            !private_path(args->output, 0, 1)) { return 0; }
+    return args->self_test || (strncmp(args->output, "/task/", 6) == 0 && capture->local != 0);
+}
+
+static int final_receipt(struct capture *capture, int self_test) {
+    unsigned shorts = 0;
+    unsigned blocked = 0;
+    unsigned resumed = 0;
+    int complete;
+    for (unsigned i = 0; i < MAX_SOCKETS; ++i) { shorts += capture->flows[i].short_writes; blocked += capture->flows[i].would_block; resumed += capture->flows[i].resumed; }
+    complete = !capture->failed && capture->exited && capture->exit_code == 0 && capture->signal == 0 && capture->records > 0;
+    if (self_test && (!shorts || !blocked || !resumed)) { complete = 0; }
+    if (fprintf(capture->output, "{\"schema\":\"traefik-own-child-final-v1\",\"nonce\":\"%s\",\"child_pid\":%ld,\"uid\":%ld,\"capture_complete\":%s,\"kernel_records\":%u,\"short_writes\":%u,\"would_block\":%u,\"resumed_same_inode\":%u,\"child_exit\":%d,\"child_signal\":%d,\"known_target_peer_port\":%u,\"client_receipt_join_required\":true,\"runtime_qualified\":false}\n",
+            capture->nonce, (long)capture->child, (long)getuid(), complete ? "true" : "false", capture->records,
+            shorts, blocked, resumed, capture->exit_code, capture->signal, capture->peer) < 0 || fclose(capture->output) != 0) { return 77; }
+    return complete ? 0 : 77;
+}
+
+static int run_capture(struct capture *capture, int binary, int test_fd, int out_fd,
+        const struct arguments *args, char *self, struct auth_paths *paths) {
+    (void)signal(SIGTERM, on_signal);
+    (void)signal(SIGINT, on_signal);
+    capture->child = fork();
+    if (capture->child == 0) { execute_child(capture, binary, test_fd, out_fd, args, self, paths); }
+    (void)close(binary);
+    if (test_fd >= 0) { (void)close(test_fd); }
+    if (capture->child <= 0) { (void)fclose(capture->output); return 77; }
+    capture->pidfd = (int)syscall(SYS_pidfd_open, capture->child, 0);
+    if (capture->pidfd < 0) {
+        /* Child is still our unreaped initial stop; numeric identity cannot
+         * have been recycled. Fail without ever running candidate code. */
+        (void)kill(capture->child, SIGKILL);
+        (void)waitpid(capture->child, NULL, 0);
+        (void)fclose(capture->output);
+        return 77;
+    }
+    observe(capture, args->seconds);
+    reap_owned(capture);
+    (void)close(capture->pidfd);
+    if (capture->test_client >= 0) { (void)close(capture->test_client); }
+    return final_receipt(capture, args->self_test);
+}
+
 int main(int argc, char **argv) {
     struct capture capture = { .test_client = -1, .pidfd = -1 };
-    const char *output = NULL, *nonce = NULL;
-    const char *auth_case = NULL;
-    unsigned seconds = 30, i;
-    int self_test = 0, binary = -1, test_fd = -1, out_fd, seconds_seen = 0, peer_seen = 0;
+    struct arguments args = { .seconds = 30 };
+    struct auth_paths paths = {0};
     char self[PATH_MAX];
-    char auth_config[320], auth_cwd[256], auth_output[256], auth_log[320], auth_access[320], auth_entry[80], auth_file[384];
+    int test_fd = -1;
     struct stat opened_image;
     if (!admitted_identity()) { return 77; }
     if (argc == 3 && strcmp(argv[1], "--self-test-child") == 0) {
         unsigned fd;
         return number(argv[2], 3, 4095, &fd) ? threaded_test_writer((int)fd) : 77;
     }
-    for (i = 1; i < (unsigned)argc; ++i) {
-        if (strcmp(argv[i], "--self-test") == 0 && !self_test) { self_test = 1; continue; }
-        if (i + 1U >= (unsigned)argc) { return 77; }
-        if (strcmp(argv[i], "--output") == 0 && output == NULL) { output = argv[++i]; }
-        else if (strcmp(argv[i], "--auth-case") == 0 && auth_case == NULL) { auth_case = argv[++i]; }
-        else if (strcmp(argv[i], "--nonce") == 0 && nonce == NULL) { nonce = argv[++i]; }
-        else if (strcmp(argv[i], "--host-port") == 0 && capture.local == 0) { if (!number(argv[++i], 1, 65535, &capture.local)) { return 77; } }
-        else if (strcmp(argv[i], "--peer-port") == 0 && !peer_seen++) { if (!number(argv[++i], 0, 65535, &capture.peer)) { return 77; } }
-        else if (strcmp(argv[i], "--seconds") == 0 && !seconds_seen++) { if (!number(argv[++i], 1, 300, &seconds)) { return 77; } }
-        else { return 77; }
-    }
-    if (output == NULL || nonce == NULL || strlen(nonce) < 8 || strlen(nonce) > 64 ||
-            strspn(nonce, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_") != strlen(nonce) ||
-            !private_path(output, 0, 1) || (!self_test && (strncmp(output, "/task/", 6) != 0 || capture.local == 0))) { return 77; }
-    if (auth_case != NULL) {
-        if (!auth_case_allowed(auth_case) || strcmp(nonce, auth_case) != 0) { return 77; }
-        (void)snprintf(auth_cwd, sizeof(auth_cwd), "/task/cases/%s/runtime", auth_case);
-        (void)snprintf(auth_config, sizeof(auth_config), "%s/effective-config/traefik-dynamic.yaml", auth_cwd);
-        (void)snprintf(auth_output, sizeof(auth_output), "/task/cases/%s/host-syscalls.jsonl", auth_case);
-        (void)snprintf(auth_log, sizeof(auth_log), "I12_ACCEPTANCE_HOST_LOG=%s/logs/host-lifecycle.jsonl", auth_cwd);
-        (void)snprintf(auth_access, sizeof(auth_access), "--accesslog.filepath=%s/logs/traefik-access.log", auth_cwd);
-        (void)snprintf(auth_file, sizeof(auth_file), "--providers.file.filename=%s", auth_config);
-        if (!self_test && strcmp(output, auth_output) != 0) { return 77; }
-    }
-    if (self_test) {
-        if (realpath(argv[0], self) == NULL || strcmp(argv[0], self) != 0) { return 77; }
-        binary = executable(self);
-        test_fd = test_connection(&capture.local, &capture.peer, &capture.test_client);
-        if (test_fd < 0 || binary < 0) { return 77; }
-    } else {
-        struct stat config;
-        const char *config_path = auth_case == NULL ? HOST_CONFIG : auth_config;
-        if (chdir(auth_case == NULL ? "/task/runtime" : auth_cwd) != 0 || !private_path(config_path, 1, 0) ||
-                stat(config_path, &config) != 0 || !S_ISREG(config.st_mode) || config.st_uid != getuid()) { return 77; }
-        if (auth_case != NULL && !private_path(auth_log + strlen("I12_ACCEPTANCE_HOST_LOG="), 1, 0)) { return 77; }
-        binary = executable(HOST_BINARY);
-        if (binary < 0) { return 77; }
-    }
+    if (!parse_arguments(argc, argv, &args, &capture) || !valid_arguments(&args, &capture) ||
+            !prepare_auth(&args, &paths, capture.local)) { return 77; }
+    int binary = open_binary(&args, argv[0], self, &paths, &capture, &test_fd);
+    if (binary < 0) { return 77; }
     if (fstat(binary, &opened_image) != 0) { (void)close(binary); return 77; }
-    capture.image_device = opened_image.st_dev; capture.image_inode = opened_image.st_ino;
-    capture.image = self_test ? self : HOST_BINARY;
-    capture.mode = self_test ? (auth_case == NULL ? "synthetic-native" : "synthetic-auth") : (auth_case == NULL ? "native" : "auth");
-    (void)snprintf(auth_entry, sizeof(auth_entry), "--entryPoints.web.address=127.0.0.1:%u", capture.local);
-    out_fd = open(output, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
-    if (out_fd < 0) { return 77; }
-    capture.output = fdopen(out_fd, "w"); capture.nonce = nonce;
-    if (capture.output == NULL) { (void)close(out_fd); return 77; }
-    (void)signal(SIGTERM, on_signal); (void)signal(SIGINT, on_signal);
-    capture.child = fork();
-    if (capture.child == 0) {
-        char fd[16];
-        char *const test_env[] = {"PATH=/usr/bin:/bin", "LC_ALL=C", "TZ=UTC", NULL};
-        char *const host_env[] = {"PATH=/opt/controller:/usr/local/bin:/usr/bin:/usr/sbin:/bin", "HOME=/task", "TMPDIR=/task/tmp", "TMP_ROOT=/task/tmp", "XDG_CACHE_HOME=/task/cache", "XDG_DATA_HOME=/task/rtk-data", "LC_ALL=C", "TZ=UTC", "PYTHONDONTWRITEBYTECODE=1", "CONNECTOR_ROOT=/mnt/src", "BUILD_ROOT=/task/build", "GOTOOLCHAIN=local", "GOPROXY=off", "GOSUMDB=off", "GOMODCACHE=/task/go-mod", "GOCACHE=/task/go-cache", "GO=/usr/local/go/bin/go", "GOFLAGS=-mod=readonly", "TRAEFIK_NATIVE_RUNTIME_ROOT=/task/runtime", "TRAEFIK_ENGINE_SOCKET_PARENT=/task/sockets", "TRAEFIK_BIN=" HOST_BINARY, "MSCONNECTOR_RULES_FILE=/task/rules.conf", NULL};
-        char *const auth_env[] = {"PATH=/opt/controller:/usr/local/bin:/usr/bin:/usr/sbin:/bin", "HOME=/task", "TMPDIR=/task/tmp", "TMP_ROOT=/task/tmp", "XDG_CACHE_HOME=/task/cache", "XDG_DATA_HOME=/task/rtk-data", "LC_ALL=C", "TZ=UTC", "PYTHONDONTWRITEBYTECODE=1", "CONNECTOR_ROOT=/mnt/src", auth_log, NULL};
-        (void)snprintf(fd, sizeof(fd), "%d", test_fd);
-        char *const test_argv[] = {self, "--self-test-child", fd, NULL};
-        char *const host_argv[] = {HOST_BINARY, "--configFile=" HOST_CONFIG, NULL};
-        char *const auth_argv[] = {HOST_BINARY, auth_entry,
-            "--experimental.localPlugins.modsecurityResponseObserver.moduleName=" OBSERVER_MODULE,
-            "--experimental.localPlugins.modsecurityResponseObserver.settings.useUnsafe=true",
-            "--experimental.abortOnPluginFailure=true", auth_file, "--providers.file.watch=false", "--api=false", "--log.level=INFO",
-            "--global.sendAnonymousUsage=false", "--global.checkNewVersion=false", "--accesslog=true", auth_access, NULL};
-        (void)close(out_fd);
-        if (capture.test_client >= 0) { (void)close(capture.test_client); }
-        if (setpgid(0, 0) != 0 || ptrace(PTRACE_TRACEME, 0, NULL, NULL) != 0) { _exit(77); }
-        (void)raise(SIGSTOP);
-        fexecve(binary, self_test ? test_argv : (auth_case == NULL ? host_argv : auth_argv),
-                self_test ? test_env : (auth_case == NULL ? host_env : auth_env));
-        _exit(77);
+    capture.image.device = opened_image.st_dev;
+    capture.image.inode = opened_image.st_ino;
+    capture.image.path = HOST_BINARY;
+    capture.mode = "native";
+    if (args.auth_case != NULL) { capture.mode = "auth"; }
+    if (args.self_test) {
+        capture.image.path = self;
+        capture.mode = args.auth_case == NULL ? "synthetic-native" : "synthetic-auth";
     }
-    (void)close(binary);
-    if (test_fd >= 0) { (void)close(test_fd); }
-    if (capture.child <= 0) { (void)fclose(capture.output); return 77; }
-    capture.pidfd = (int)syscall(SYS_pidfd_open, capture.child, 0);
-    if (capture.pidfd < 0) {
-        /* Child is still our unreaped initial stop; numeric identity cannot
-         * have been recycled. Fail without ever running candidate code. */
-        (void)kill(capture.child, SIGKILL);
-        (void)waitpid(capture.child, NULL, 0);
-        (void)fclose(capture.output);
-        return 77;
-    }
-    observe(&capture, seconds);
-    reap_owned(&capture);
-    (void)close(capture.pidfd);
-    if (capture.test_client >= 0) { (void)close(capture.test_client); }
-    {
-        unsigned shorts = 0, blocked = 0, resumed = 0;
-        int complete;
-        for (i = 0; i < MAX_SOCKETS; ++i) { shorts += capture.flows[i].short_writes; blocked += capture.flows[i].would_block; resumed += capture.flows[i].resumed; }
-        complete = !capture.failed && capture.exited && capture.exit_code == 0 && capture.signal == 0 && capture.records > 0;
-        if (self_test && (!shorts || !blocked || !resumed)) { complete = 0; }
-        if (fprintf(capture.output, "{\"schema\":\"traefik-own-child-final-v1\",\"nonce\":\"%s\",\"child_pid\":%ld,\"uid\":%ld,\"capture_complete\":%s,\"kernel_records\":%u,\"short_writes\":%u,\"would_block\":%u,\"resumed_same_inode\":%u,\"child_exit\":%d,\"child_signal\":%d,\"known_target_peer_port\":%u,\"client_receipt_join_required\":true,\"runtime_qualified\":false}\n",
-                nonce, (long)capture.child, (long)getuid(), complete ? "true" : "false", capture.records,
-                shorts, blocked, resumed, capture.exit_code, capture.signal, capture.peer) < 0 || fclose(capture.output) != 0) { return 77; }
-        return complete ? 0 : 77;
-    }
+    int out_fd = create_output(args.output);
+    if (out_fd < 0) { (void)close(binary); return 77; }
+    capture.output = fdopen(out_fd, "w");
+    capture.nonce = args.nonce;
+    if (capture.output == NULL) { (void)close(out_fd); (void)close(binary); return 77; }
+    return run_capture(&capture, binary, test_fd, out_fd, &args, self, &paths);
 }

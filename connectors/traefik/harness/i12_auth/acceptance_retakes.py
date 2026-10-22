@@ -76,6 +76,40 @@ def original_causal_transport_case(case):
     return value
 
 
+def backend_exclusion_retake(value, fixture):
+    original_rule='SecAction "id:1999303,phase:1,deny,status:403"'
+    if fixture['rules_lines'].count(original_rule)!=1:
+        raise ValueError('exact original backend-exclusion proposal rule required')
+    target=fixture['request']['uri']
+    replacement='SecRule REQUEST_URI_RAW "@streq '+target+'" "id:1999303,phase:1,deny,status:403,log,t:none"'
+    fixture['rules_lines']=[replacement if line==original_rule else line for line in fixture['rules_lines']]
+    fixture['explicit_target_isolation_revision']={
+        'original_rule':original_rule,'effective_rule':replacement,
+        'reason':'retain original target deny while allowing distinct readiness/healthy neighbor requests',
+        'original_oracle_preserved':True,'independent_sdk_target403_neighbor200_required':True}
+    value['control_name']='targeted-backend-exclusion-retake'
+
+
+def physical_sink_retake(value, fixture, name, case):
+    value['control_name']='physical-sink-emission-retake'
+    if name.endswith(('write', 'flush', 'close')):
+        phase = 1 if case['route'] == 'traefik-forwardauth-request' else 3
+        uri = fixture['request']['uri']
+        positive_uri = uri + '/sink-recovered'
+        for rule_id, target in ((1999398, uri), (1999397, positive_uri)):
+            fixture['rules_lines'].append('SecRule REQUEST_URI_RAW "@streq ' + target + '" '
+                '"id:' + str(rule_id) + ',phase:' + str(phase) + ',deny,status:403,log,t:none"')
+        if not name.endswith('close'):
+            fixture['sink_positive_control'] = {'uri': positive_uri,
+                'probe_id': value['probe_id'] + '-sink-positive', 'native_status': 403,
+                'rule_id': 1999397, 'requires_same_live_engine_pid_and_sink_inode': True}
+        value['independent_control_expectation'] = {
+            'source': 'exact target conditional disruptive rule forces actual Common event emission',
+            'native_status': 403, 'native_phase': phase, 'native_rule_id': 1999398,
+            'visible_status': None, 'root_technical_failure_binding_required': True,
+            'same_live_pid_successful_sink_event_after_fault_required': not name.endswith('close')}
+
+
 def evidence_retake_case(case):
     """Narrow retakes whose expected facts still need Root's source binding."""
     value = copy.deepcopy(case)
@@ -83,17 +117,7 @@ def evidence_retake_case(case):
     fixture = value['fixture']
     name = case['case_id']
     if name in ('NEED-backend-excluded-on-deny','NEED-backend-count-exclusion'):
-        original_rule='SecAction "id:1999303,phase:1,deny,status:403"'
-        if fixture['rules_lines'].count(original_rule)!=1:
-            raise ValueError('exact original backend-exclusion proposal rule required')
-        target=fixture['request']['uri']
-        replacement='SecRule REQUEST_URI_RAW "@streq '+target+'" "id:1999303,phase:1,deny,status:403,log,t:none"'
-        fixture['rules_lines']=[replacement if line==original_rule else line for line in fixture['rules_lines']]
-        fixture['explicit_target_isolation_revision']={
-            'original_rule':original_rule,'effective_rule':replacement,
-            'reason':'retain original target deny while allowing distinct readiness/healthy neighbor requests',
-            'original_oracle_preserved':True,'independent_sdk_target403_neighbor200_required':True}
-        value['control_name']='targeted-backend-exclusion-retake'
+        backend_exclusion_retake(value, fixture)
     elif name == 'NEED-client-exit-signal':
         fixture['client'] = {'kind': 'wait-for-sigterm'}
         fixture['fault'] = None
@@ -115,23 +139,7 @@ def evidence_retake_case(case):
             'actual_client_8192_entity_delivery_before_final_marker_required': True,
             'physical_late_action_event_required': True}
     elif name.startswith('NEED-physical-event-sink-'):
-        value['control_name']='physical-sink-emission-retake'
-        if name.endswith(('write', 'flush', 'close')):
-            phase = 1 if case['route'] == 'traefik-forwardauth-request' else 3
-            uri = fixture['request']['uri']
-            positive_uri = uri + '/sink-recovered'
-            for rule_id, target in ((1999398, uri), (1999397, positive_uri)):
-                fixture['rules_lines'].append('SecRule REQUEST_URI_RAW "@streq ' + target + '" '
-                    '"id:' + str(rule_id) + ',phase:' + str(phase) + ',deny,status:403,log,t:none"')
-            if not name.endswith('close'):
-                fixture['sink_positive_control'] = {'uri': positive_uri,
-                    'probe_id': value['probe_id'] + '-sink-positive', 'native_status': 403,
-                    'rule_id': 1999397, 'requires_same_live_engine_pid_and_sink_inode': True}
-            value['independent_control_expectation'] = {
-                'source': 'exact target conditional disruptive rule forces actual Common event emission',
-                'native_status': 403, 'native_phase': phase, 'native_rule_id': 1999398,
-                'visible_status': None, 'root_technical_failure_binding_required': True,
-                'same_live_pid_successful_sink_event_after_fault_required': not name.endswith('close')}
+        physical_sink_retake(value, fixture, name, case)
     elif case['classification'] != 'config' and name != 'phase4_deny_after_commit_log_only_minimal':
         raise ValueError('explicit evidence retake ID required')
     value['fixture_sha256'] = hashlib.sha256(json.dumps(fixture, sort_keys=True,

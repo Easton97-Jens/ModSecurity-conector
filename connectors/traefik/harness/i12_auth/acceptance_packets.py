@@ -12,6 +12,16 @@ import hashlib
 from pathlib import Path
 
 
+TARGET_CLIENT = 'client-target.json'
+RESULT_RECEIPT = 'result.json'
+BEFORE_TARGET = 'before-target.json'
+AFTER_NEIGHBOR = 'after-neighbor.json'
+NEIGHBOR_CLIENT = 'client-neighbor.json'
+PARSER_COMMAND = 'check-config.command.json'
+PARSER_STDOUT = 'check-config.stdout'
+PARSER_STDERR = 'check-config.stderr'
+ENGINE_POINTER = '/processes/engine'
+
 def load(path, name):
     spec = importlib.util.spec_from_file_location(name, path)
     value = importlib.util.module_from_spec(spec)
@@ -81,59 +91,7 @@ validate_attempt_binding = load(Path(__file__).with_name("acceptance_binding.py"
     "auth_acceptance_binding").validate_attempt_binding
 
 
-def observations(root, attempt, prepared, measured):
-    logs = root / 'runtime/logs'
-    values = {name: observation(None) for name in FIELD_NAMES}
-    physical = measured.get('physical_file_supplement')
-    if physical and not physical['binding_valid']:
-        for value in values.values():
-            value['reason'] = 'Physical file receipt binding refused: ' + '; '.join(physical['errors'])
-        return values
-    file_execution = bool(physical and not physical.get('configuration_only'))
-    client_path = Path(physical['paths']['client']) if file_execution else root / 'client-target.json'
-    response_path = Path(physical['paths']['response']) if file_execution else root / 'target-0.response.raw'
-    command_path = Path(physical['paths']['client_command']) if file_execution else root / 'client-target.command.json'
-    client = physical['client'] if file_execution else REVIEW.read(client_path)
-    probes={row.get('wire_probe') for row in client.get('requests',[]) if row.get('wire_probe')} if client else set()
-    if not probes:probes={measured['probe_id']}
-    scopes = target_scopes(measured, client)
-    calls = [row for scope in scopes for row in scope['native_calls']]
-    returns = [row for row in calls if row.get('edge') == 'return']
-    counts = Counter(row['function'] for row in returns)
-    ids = {scope['native_id'] for scope in scopes if scope['native_id'] is not None}
-    common = REVIEW.rows(logs / 'events.jsonl')
-    events = None if common is None else [row for row in common if row.get('transaction_id') in ids]
-    host_rows = REVIEW.rows(logs / 'host-lifecycle.jsonl')
-    host_rows = None if host_rows is None else [row for row in host_rows if row.get('transaction_id') in probes]
-    nr = reference(logs / 'native-lifecycle.jsonl', 'native_api')
-    hr = reference(logs / 'host-lifecycle.jsonl', 'host_callback')
-    sink = reference(logs / 'events.jsonl', 'physical_event_sink')
-    debug = reference(logs / 'debug.log', 'native_debug')
-    wire = reference(response_path, 'client_process')
-    cp = reference(client_path, 'client_process')
-    bp = reference(root / 'backend.jsonl', 'backend_process')
-    cleanup = reference(root / 'result.json', 'cleanup_observer')
-    isolation = reference(attempt / 'controller-result.json', 'isolation_receipt')
-    framing = measured['clients'].get(str(response_path.relative_to(root)))
-    command = physical['command'] if file_execution else REVIEW.read(command_path)
-    snapshot = REVIEW.read(root / 'before-target.json')
-    source = REVIEW.read(prepared / 'source/.i12-source-export-manifest.json')
-    config = root / 'runtime/effective-config/traefik-forwardauth.conf'
-    native_present = bool(scopes) and all(scope['allocation_scope_call'] is not None for scope in scopes)
-
-    def put(name, value, *proofs):
-        values[name] = scoped_observation(name, value, *proofs)
-
-    put('product_host_identity', None if snapshot is None else snapshot['processes'],
-        reference(root / 'before-target.json', 'loaded_image'), isolation)
-    put('source_config_binding', measured['producer'].get('configuration_sha256') if measured['producer'] else None,
-        reference(attempt / 'data/acceptance-build.json', 'source_manifest'),
-        reference(config, 'effective_configuration'))
-    put('capability', {'route': measured['fixture']['route'], 'source_revision': source.get('source_revision') if source else None},
-        reference(prepared / 'source/connectors/profile_registry.c', 'source_contract'), hr)
-    if file_execution and values['capability']['value'] is not None:
-        values['capability']['value'].update(physical_file_supplement=physical,
-            file_source_is_not_native_file_api=True, tcp_eof_is_not_native_eos=True)
+def client_observations(put, command, command_path, framing, wire):
     for field, key in (('client_exit', 'exit_code'), ('client_signal', 'signal')):
         if command is not None:
             value = command.get(key)
@@ -145,6 +103,17 @@ def observations(root, attempt, prepared, measured):
         for field, key in (('client_headers', 'headers'), ('client_bytes', 'entity_bytes'), ('client_sha256', 'entity_sha256')):
             put(field, framing.get(key), wire)
         put('transport_framing', framing, wire)
+
+
+def backend_observations(put, values, measured, context):
+    physical = context['physical']
+    file_execution = context['file_execution']
+    probes = context['probes']
+    client = context['client']
+    framing = context['framing']
+    root = context['root']
+    cp = context['cp']
+    bp = context['bp']
     backend = measured['backend']
     if file_execution and physical.get('backend') is not None:
         physical_backend = physical['backend']
@@ -170,6 +139,20 @@ def observations(root, attempt, prepared, measured):
             actual_client_socket_receipts=client,
             actual_backend_private_header_receipts=[row.get('private_headers') for row in parsed],
             same_connection_is_not_inferred_from_connection_reused_false=True)
+
+
+def native_observations(put, values, measured, context):
+    native_present = context['native_present']
+    scopes = context['scopes']
+    calls = context['calls']
+    counts = context['counts']
+    returns = context['returns']
+    events = context['events']
+    nr = context['nr']
+    debug = context['debug']
+    hr = context['hr']
+    sink = context['sink']
+    root = context['root']
     if native_present:
         scope_keys={(scope['native_allocation'].get('pid'),scope['allocation_scope_call']) for scope in scopes}
         retained=None if measured['fault_operations'] is None else [row for row in measured['fault_operations']
@@ -196,6 +179,95 @@ def observations(root, attempt, prepared, measured):
         put('native_free_calls', counts.get('native_cleanup', 0), nr)
         put('terminal_event_count', {'common_events': len(events) if events is not None else None,
             'native_logging': counts.get('native_process_logging', 0), 'native_cleanup': counts.get('native_cleanup', 0)}, sink)
+
+
+def client_execution(root, measured, physical):
+    file_execution = bool(physical and not physical.get('configuration_only'))
+    client_path = Path(physical['paths']['client']) if file_execution else root / TARGET_CLIENT
+    response_path = Path(physical['paths']['response']) if file_execution else root / 'target-0.response.raw'
+    command_path = Path(physical['paths']['client_command']) if file_execution else root / 'client-target.command.json'
+    client = physical['client'] if file_execution else REVIEW.read(client_path)
+    probes={row.get('wire_probe') for row in client.get('requests',[]) if row.get('wire_probe')} if client else set()
+    if not probes:probes={measured['probe_id']}
+    return (file_execution, client_path, response_path, command_path, client, probes)
+
+
+def target_native_execution(measured, client, logs, probes):
+    scopes = target_scopes(measured, client)
+    calls = [row for scope in scopes for row in scope['native_calls']]
+    returns = [row for row in calls if row.get('edge') == 'return']
+    counts = Counter(row['function'] for row in returns)
+    ids = {scope['native_id'] for scope in scopes if scope['native_id'] is not None}
+    common = REVIEW.rows(logs / 'events.jsonl')
+    events = None if common is None else [row for row in common if row.get('transaction_id') in ids]
+    host_rows = REVIEW.rows(logs / 'host-lifecycle.jsonl')
+    host_rows = None if host_rows is None else [row for row in host_rows if row.get('transaction_id') in probes]
+    return (scopes, calls, returns, counts, events, host_rows)
+
+
+def observations(root, attempt, prepared, measured):
+    logs = root / 'runtime/logs'
+    values = {name: observation(None) for name in FIELD_NAMES}
+    physical = measured.get('physical_file_supplement')
+    if physical and not physical['binding_valid']:
+        for value in values.values():
+            value['reason'] = 'Physical file receipt binding refused: ' + '; '.join(physical['errors'])
+        return values
+    (file_execution, client_path, response_path, command_path, client, probes) = client_execution(root, measured, physical)
+    (scopes, calls, returns, counts, events, host_rows) = target_native_execution(measured, client, logs, probes)
+    nr = reference(logs / 'native-lifecycle.jsonl', 'native_api')
+    hr = reference(logs / 'host-lifecycle.jsonl', 'host_callback')
+    sink = reference(logs / 'events.jsonl', 'physical_event_sink')
+    debug = reference(logs / 'debug.log', 'native_debug')
+    wire = reference(response_path, 'client_process')
+    cp = reference(client_path, 'client_process')
+    bp = reference(root / 'backend.jsonl', 'backend_process')
+    cleanup = reference(root / RESULT_RECEIPT, 'cleanup_observer')
+    isolation = reference(attempt / 'controller-result.json', 'isolation_receipt')
+    framing = measured['clients'].get(str(response_path.relative_to(root)))
+    command = physical['command'] if file_execution else REVIEW.read(command_path)
+    snapshot = REVIEW.read(root / BEFORE_TARGET)
+    source = REVIEW.read(prepared / 'source/.i12-source-export-manifest.json')
+    config = root / 'runtime/effective-config/traefik-forwardauth.conf'
+    native_present = bool(scopes) and all(scope['allocation_scope_call'] is not None for scope in scopes)
+
+    context = {
+        'physical': physical,
+        'file_execution': file_execution,
+        'probes': probes,
+        'client': client,
+        'framing': framing,
+        'root': root,
+        'cp': cp,
+        'bp': bp,
+        'native_present': native_present,
+        'scopes': scopes,
+        'calls': calls,
+        'counts': counts,
+        'returns': returns,
+        'events': events,
+        'nr': nr,
+        'debug': debug,
+        'hr': hr,
+        'sink': sink,
+    }
+
+    def put(name, value, *proofs):
+        values[name] = scoped_observation(name, value, *proofs)
+
+    put('product_host_identity', None if snapshot is None else snapshot['processes'],
+        reference(root / BEFORE_TARGET, 'loaded_image'), isolation)
+    put('source_config_binding', measured['producer'].get('configuration_sha256') if measured['producer'] else None,
+        reference(attempt / 'data/acceptance-build.json', 'source_manifest'),
+        reference(config, 'effective_configuration'))
+    put('capability', {'route': measured['fixture']['route'], 'source_revision': source.get('source_revision') if source else None},
+        reference(prepared / 'source/connectors/profile_registry.c', 'source_contract'), hr)
+    if file_execution and values['capability']['value'] is not None:
+        values['capability']['value'].update(physical_file_supplement=physical,
+            file_source_is_not_native_file_api=True, tcp_eof_is_not_native_eos=True)
+    client_observations(put, command, command_path, framing, wire)
+    backend_observations(put, values, measured, context)
+    native_observations(put, values, measured, context)
     put('host_eos', {'actual_host_rows': host_rows, 'actual_native_host_eos_rows': [row for row in calls
         if row.get('function') == 'authorization_request_eos']}, hr)
     put('commit_order', {'actual_host_rows': host_rows, 'actual_client_receipt': client}, hr, cp)
@@ -207,16 +279,131 @@ def observations(root, attempt, prepared, measured):
         'actual_provenance_socket_before': measured['producer'].get('provenance_socket_before') if measured['producer'] else None,
         'actual_provenance_socket_cleanup': measured['producer'].get('provenance_socket_cleanup') if measured['producer'] else None}, cleanup, isolation)
     put('descriptor_cleanup', {'before': snapshot, 'after_target': REVIEW.read(root / 'after-target.json'),
-        'after_neighbor': REVIEW.read(root / 'after-neighbor.json')},
-        reference(root / 'before-target.json', 'cleanup_observer'), reference(root / 'after-neighbor.json', 'cleanup_observer'))
+        'after_neighbor': REVIEW.read(root / AFTER_NEIGHBOR)},
+        reference(root / BEFORE_TARGET, 'cleanup_observer'), reference(root / AFTER_NEIGHBOR, 'cleanup_observer'))
     put('process_listener_cleanup', measured['producer'], cleanup, isolation)
     put('neighbor_health', {'before': REVIEW.read(root / 'client-before-neighbor.json'),
-        'after': REVIEW.read(root / 'client-neighbor.json'), 'actual_backend_rows': backend},
-        reference(root / 'client-neighbor.json', 'client_process'), bp)
+        'after': REVIEW.read(root / NEIGHBOR_CLIENT), 'actual_backend_rows': measured['backend']},
+        reference(root / NEIGHBOR_CLIENT, 'client_process'), bp)
     # Debug bytes are retained as evidence; a MIME verdict requires an explicit
     # source-bound Root decision, not a nonempty log or a delivered-byte counter.
     values['mime_gate'] = observation(None, debug, sink, nr)
     return values
+
+
+def populate_preallocation(packet, root, preallocation):
+    if preallocation:
+        def selector(name, role, pointer=''):
+            proof = reference(root / name, role)
+            return {'reference': proof, 'pointer': pointer} if proof else None
+        packet['preallocation_measurements'] = {
+            'target_window': selector(TARGET_CLIENT, 'client_process'),
+            'before_control': selector('client-before-neighbor.json', 'client_process'),
+            'after_control': selector(NEIGHBOR_CLIENT, 'client_process'),
+            'target_identity': selector(BEFORE_TARGET, 'loaded_image', ENGINE_POINTER),
+            'before_identity': selector('before-target-healthy.json', 'loaded_image', ENGINE_POINTER),
+            'after_identity': selector(AFTER_NEIGHBOR, 'loaded_image', ENGINE_POINTER),
+            'cleanup': selector(RESULT_RECEIPT, 'cleanup_observer'), 'fault': None,
+            'observer_log': reference(root / 'runtime/logs/native-lifecycle.jsonl', 'native_api'),
+            'backend_log': reference(root / 'backend.jsonl', 'backend_process'),
+            'client_request': reference(root / 'target-0.request.raw', 'client_process'),
+            'client_response': reference(root / 'target-0.response.raw', 'client_process')}
+        packet['missing_preallocation_approval'] = 'Root must approve actual null-allocation contract/first cause and bind observed image/cleanup fields; this draft makes no absence verdict.'
+
+
+def parser_observations(command, child, direct, root, measured):
+    command_values = command or {}
+    child_values = child or {}
+    return {'parser_process': {
+        'argv': command_values.get('argv'),
+        'cwd': child_values.get('cwd'), 'waited_exit': command_values.get('exit_code'),
+        'waited_signal': command_values.get('signal'),
+        'stdout': (root / PARSER_STDOUT).read_text() if (root / PARSER_STDOUT).is_file() else None,
+        'stderr': (root / PARSER_STDERR).read_text() if (root / PARSER_STDERR).is_file() else None,
+        'executable_sha256': command.get('executable',{}).get('sha256') if direct else None,
+        'pid': command.get('pid') if direct else None,
+        'first_cause': command.get('first_cause') if direct else None,
+        'physical_process_receipt': command if direct else None},
+        'invocation_identity': child,
+        'source_config_binding': {'files_before':command['files_before'],'files_after':command['files_after']} if direct else None,
+        'cleanup': measured['producer']}
+
+
+def populate_configuration(packet, root, attempt, config, measured, spec):
+    if spec['classification'] == 'config':
+        command = REVIEW.read(root / PARSER_COMMAND)
+        direct = command is not None and command.get('schema') == 'traefik-auth-parser-process-v1'
+        child = next((row for row in command.get('child_receipts', [])
+            if row.get('stage') == 'child_pre_exec' and row.get('pid') == command.get('pid')), None) if direct else None
+        packet['measurement_evidence'] = [proof for proof in (
+            reference(root / PARSER_COMMAND, 'parser_process'),
+            reference(root / PARSER_STDOUT, 'parser_stdout'),
+            reference(root / PARSER_STDERR, 'parser_stderr'),
+            reference(config, 'effective_configuration'),
+            reference(root / 'rules.conf', 'rules_file'),
+            reference(attempt / 'data/acceptance-build.json', 'source_manifest'),
+            reference(root / RESULT_RECEIPT, 'cleanup_observer'),
+            reference(attempt / 'controller-result.json', 'isolation_receipt')) if proof is not None]
+        packet['actual_observations'] = parser_observations(command, child, direct, root, measured)
+        packet['missing_parser_measurements'] = ['Independent source-bound parser diagnostic/first-cause approval']
+        if not child or not command.get('executable',{}).get('sha256'):
+            packet['missing_parser_measurements'].append('Direct parser cwd/executable identity and full run-bound physical process receipt')
+        if not direct:
+            packet['missing_parser_measurements'].append('Physical attempted rules-path absence when testing missing rules')
+
+
+def execution_kind(spec, preallocation):
+    if spec['classification'] == 'config':
+        return 'configuration_parser'
+    return 'host_preallocation_control' if preallocation else 'host_http'
+
+
+def identity_evidence(identities, source_identities):
+    if source_identities is None:
+        if identities is not None:
+            raise ValueError('retained source identity receipt required')
+        return None
+    if not isinstance(identities, dict) or REVIEW.read(source_identities) != identities:
+        raise ValueError('retained source identity receipt differs')
+    return reference(source_identities, 'source_manifest')
+
+
+def draft_packet(root, attempt, prepared, source, identities, binding, source_identities=None):
+    measured = REVIEW.review_case(root, prepared)
+    if 'fixture' not in measured:
+        return None
+    spec = measured['fixture']
+    preallocation = spec['classification'] in ('parser', 'adapter-fault') or spec['case_id'] in (
+        'early_mapping_failure_cleanup', 'transaction_begin_failure_cleanup')
+    native = REVIEW.rows(root / 'runtime/logs/native-lifecycle.jsonl')
+    runs = {row['run'] for row in native or [] if row.get('run') is not None}
+    packet = {'run_scoped_case_id': spec['id'], 'leg_id': spec['route'],
+        'probe_id': spec['probe_id'], 'control_name': spec.get('control_name'),
+        'reviewed_by': 'pending_root',
+        'execution_observed': (bool(measured.get('physical_file_supplement', {}).get('binding_valid'))
+            if measured.get('physical_file_supplement') and spec['classification'] != 'config'
+            else (root / TARGET_CLIENT).is_file()) or (
+            spec['classification'] == 'config' and (root / PARSER_COMMAND).is_file()),
+        'execution_kind': execution_kind(spec, preallocation),
+        'run_id': next(iter(runs)) if len(runs) == 1 else None,
+        'parent_sha': source['source_revision'],
+        'prepared_attempt_binding':binding,
+        'physical_file_supplement':measured.get('physical_file_supplement'),
+        'framework_sha': source['gitlinks'].get('modules/ModSecurity-test-Framework'),
+        'mrts_sha': identities['mrts_revision'] if identities else None, 'effective_config_sha256': None,
+        'framework_mrts_source_identity': identity_evidence(identities, source_identities),
+        'observations': observations(root, attempt, prepared, measured),
+        'original_expected_oracle': spec['original_contract']['expected_oracle'],
+        'oracle_evaluated': False, 'outcome': None, 'full_lifecycle_qualified': False,
+        'configuration_measurements': None, 'preallocation_contract': None,
+        'preallocation_measurements': None,
+        'scope_note': 'Physical draft only; Root must bind independent oracle, missing identities, MIME and separate config/preallocation contracts.'}
+    config = root / 'runtime/effective-config/traefik-forwardauth.conf'
+    if config.is_file():
+        packet['effective_config_sha256'] = REVIEW.reference(config)['sha256']
+    populate_configuration(packet, root, attempt, config, measured, spec)
+    populate_preallocation(packet, root, preallocation)
+    return packet
 
 
 def propose(attempt, prepared, output, source_identities=None):
@@ -236,89 +423,10 @@ def propose(attempt, prepared, output, source_identities=None):
     for root in sorted((attempt / 'data/cases').iterdir()):
         if not root.is_dir():
             continue
-        measured = REVIEW.review_case(root, prepared)
-        if 'fixture' not in measured:
+        packet = draft_packet(root, attempt, prepared, source, identities, binding, source_identities)
+        if packet is None:
             continue
-        spec = measured['fixture']
-        preallocation = spec['classification'] in ('parser', 'adapter-fault') or spec['case_id'] in (
-            'early_mapping_failure_cleanup', 'transaction_begin_failure_cleanup')
-        native = REVIEW.rows(root / 'runtime/logs/native-lifecycle.jsonl')
-        runs = {row['run'] for row in native or [] if row.get('run') is not None}
-        packet = {'run_scoped_case_id': spec['id'], 'leg_id': spec['route'],
-            'probe_id': spec['probe_id'], 'control_name': spec.get('control_name'),
-            'reviewed_by': 'pending_root',
-            'execution_observed': (bool(measured.get('physical_file_supplement', {}).get('binding_valid'))
-                if measured.get('physical_file_supplement') and spec['classification'] != 'config'
-                else (root / 'client-target.json').is_file()) or (
-                spec['classification'] == 'config' and (root / 'check-config.command.json').is_file()),
-            'execution_kind': ('configuration_parser' if spec['classification'] == 'config'
-                               else 'host_preallocation_control' if preallocation else 'host_http'),
-            'run_id': next(iter(runs)) if len(runs) == 1 else None,
-            'parent_sha': source['source_revision'],
-            'prepared_attempt_binding':binding,
-            'physical_file_supplement':measured.get('physical_file_supplement'),
-            'framework_sha': source['gitlinks'].get('modules/ModSecurity-test-Framework'),
-            'mrts_sha': identities['mrts_revision'] if identities else None, 'effective_config_sha256': None,
-            'framework_mrts_source_identity': reference(source_identities, 'source_manifest') if identities else None,
-            'observations': observations(root, attempt, prepared, measured),
-            'original_expected_oracle': spec['original_contract']['expected_oracle'],
-            'oracle_evaluated': False, 'outcome': None, 'full_lifecycle_qualified': False,
-            'configuration_measurements': None, 'preallocation_contract': None,
-            'preallocation_measurements': None,
-            'scope_note': 'Physical draft only; Root must bind independent oracle, missing identities, MIME and separate config/preallocation contracts.'}
-        config = root / 'runtime/effective-config/traefik-forwardauth.conf'
-        if config.is_file():
-            packet['effective_config_sha256'] = REVIEW.reference(config)['sha256']
-        if spec['classification'] == 'config':
-            command = REVIEW.read(root / 'check-config.command.json')
-            direct = command is not None and command.get('schema') == 'traefik-auth-parser-process-v1'
-            child = next((row for row in command.get('child_receipts', [])
-                if row.get('stage') == 'child_pre_exec' and row.get('pid') == command.get('pid')), None) if direct else None
-            packet['measurement_evidence'] = [proof for proof in (
-                reference(root / 'check-config.command.json', 'parser_process'),
-                reference(root / 'check-config.stdout', 'parser_stdout'),
-                reference(root / 'check-config.stderr', 'parser_stderr'),
-                reference(config, 'effective_configuration'),
-                reference(root / 'rules.conf', 'rules_file'),
-                reference(attempt / 'data/acceptance-build.json', 'source_manifest'),
-                reference(root / 'result.json', 'cleanup_observer'),
-                reference(attempt / 'controller-result.json', 'isolation_receipt')) if proof is not None]
-            packet['actual_observations'] = {'parser_process': {
-                'argv': command.get('argv') if command else None,
-                'cwd': child.get('cwd') if child else None, 'waited_exit': command.get('exit_code') if command else None,
-                'waited_signal': command.get('signal') if command else None,
-                'stdout': (root / 'check-config.stdout').read_text() if (root / 'check-config.stdout').is_file() else None,
-                'stderr': (root / 'check-config.stderr').read_text() if (root / 'check-config.stderr').is_file() else None,
-                'executable_sha256': command.get('executable',{}).get('sha256') if direct else None,
-                'pid': command.get('pid') if direct else None,
-                'first_cause': command.get('first_cause') if direct else None,
-                'physical_process_receipt': command if direct else None},
-                'invocation_identity': child,
-                'source_config_binding': {'files_before':command['files_before'],'files_after':command['files_after']} if direct else None,
-                'cleanup': measured['producer']}
-            packet['missing_parser_measurements'] = ['Independent source-bound parser diagnostic/first-cause approval']
-            if not child or not command.get('executable',{}).get('sha256'):
-                packet['missing_parser_measurements'].append('Direct parser cwd/executable identity and full run-bound physical process receipt')
-            if not direct:
-                packet['missing_parser_measurements'].append('Physical attempted rules-path absence when testing missing rules')
-        if preallocation:
-            def selector(name, role, pointer=''):
-                proof = reference(root / name, role)
-                return {'reference': proof, 'pointer': pointer} if proof else None
-            packet['preallocation_measurements'] = {
-                'target_window': selector('client-target.json', 'client_process'),
-                'before_control': selector('client-before-neighbor.json', 'client_process'),
-                'after_control': selector('client-neighbor.json', 'client_process'),
-                'target_identity': selector('before-target.json', 'loaded_image', '/processes/engine'),
-                'before_identity': selector('before-target-healthy.json', 'loaded_image', '/processes/engine'),
-                'after_identity': selector('after-neighbor.json', 'loaded_image', '/processes/engine'),
-                'cleanup': selector('result.json', 'cleanup_observer'), 'fault': None,
-                'observer_log': reference(root / 'runtime/logs/native-lifecycle.jsonl', 'native_api'),
-                'backend_log': reference(root / 'backend.jsonl', 'backend_process'),
-                'client_request': reference(root / 'target-0.request.raw', 'client_process'),
-                'client_response': reference(root / 'target-0.response.raw', 'client_process')}
-            packet['missing_preallocation_approval'] = 'Root must approve actual null-allocation contract/first cause and bind observed image/cleanup fields; this draft makes no absence verdict.'
-        path = output / (spec['probe_id'] + '.json')
+        path = output / (packet['probe_id'] + '.json')
         with path.open('x') as stream:
             json.dump(packet, stream, indent=2)
             stream.write('\n')

@@ -16,17 +16,31 @@ def sha(path):
     return digest.hexdigest()
 
 
+def admitted_file(path, label):
+    if not isinstance(path, Path) or not path.is_absolute() or path.is_symlink():
+        raise ValueError("absolute non-symlink " + label + " path required")
+    try:
+        resolved = path.resolve(strict=True)
+    except OSError as error:
+        raise ValueError("existing " + label + " path required") from error
+    if resolved != path or not resolved.is_file():
+        raise ValueError("canonical regular " + label + " file required")
+    return resolved
+
+
 def inspect(header, library):
+    header = admitted_file(header, "SDK header")
+    library = admitted_file(library, "SDK library")
     if header.stat().st_size > 1024 * 1024:
         raise ValueError("bounded SDK header required")
     text = header.read_text()
-    result = subprocess.run(["/usr/bin/nm", "-D", "--defined-only", str(library)],
+    result = subprocess.run(["/usr/bin/nm", "-D", "--defined-only", "--", str(library)],
                             capture_output=True, check=True, timeout=15)
     if len(result.stdout) > 8 * 1024 * 1024:
         raise ValueError("bounded SDK symbol inventory exceeded")
     symbols = result.stdout.decode().splitlines()
     exported = {line.split()[-1] for line in symbols if line.split()}
-    declarations = sorted(set(re.findall(r"\b(msc_[A-Za-z0-9_]+)\s*\(", text)))
+    declarations = sorted(set(re.findall(r"\b(msc_\w+)\s*\(", text, flags=re.ASCII)))
     def response_file(name):
         return name.startswith("msc_") and "response" in name and "file" in name
     return {"schema": "traefik-sdk-file-symbols-v1", "header": str(header.resolve()),

@@ -5,6 +5,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shutil
 import tempfile
 import unittest
 from unittest import mock
@@ -84,8 +85,9 @@ class NativeSelectionTests(unittest.TestCase):
         self.source.write_text('["key-1"')
         with self.assertRaises(ValueError):
             self.plan.apply_selection(self.manifest, self.source, 'keys')
+        missing_source = self.source.with_name('missing.json')
         with self.assertRaises(FileNotFoundError):
-            self.plan.apply_selection(self.manifest, self.source.with_name('missing.json'), 'keys')
+            self.plan.apply_selection(self.manifest, missing_source, 'keys')
         self.assertNotIn('selected_keys', self.manifest)
 
     def test_unknown_selection_kind_fails_closed(self):
@@ -100,6 +102,71 @@ class NativeSelectionTests(unittest.TestCase):
             with self.assertRaises(SystemExit) as error:
                 self.plan.main()
         self.assertEqual(error.exception.code, 2)
+
+    def file_originals(self):
+        return [{'id': self.plan.PREFIX + 'NEED-' + direction + '-file',
+                 'key': direction, 'transaction_id': 'target-' + direction,
+                 'neighbor_id': 'neighbor-' + direction, 'positive_control_id': 'positive-' + direction,
+                 'main_before_id': 'before-' + direction, 'main_after_id': 'after-' + direction,
+                 'readiness_ids': ['ready-' + direction], 'fixture': self.plan.default_fixture() |
+                 {'rules_lines': ['SecRuleEngine On']}}
+                for direction in ('request', 'response')]
+
+    def test_file_supplements_bind_frozen_marker_rules_without_qualifying_originals(self):
+        originals = self.file_originals()
+        before = copy.deepcopy(originals)
+        supplements = self.plan.file_supplements(originals)
+        self.assertEqual(originals, before)
+        self.assertEqual(len(supplements), 4)
+        source = REPO / 'connectors/traefik/harness/i12_file/acceptance.py'
+        spec = importlib.util.spec_from_file_location('file_selection_contract', source)
+        contract = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(contract)
+        declarations = {(row['id'], row['file_spec']['relative_path']): row for row in contract.cases()}
+        for case in supplements:
+            fixture = case['fixture']
+            file = fixture['file_supplement']
+            declared = declarations[case['id'], file['fixture']]
+            self.assertEqual(fixture['rules_lines'], declared['rules_lines'])
+            self.assertEqual(file['rules_sha256'], declared['rules_sha256'])
+            self.assertEqual(file['rules_sha256'], hashlib.sha256(
+                ('\n'.join(fixture['rules_lines']) + '\n').encode()).hexdigest())
+            self.assertEqual(file['rules_source_sha256'], hashlib.sha256(source.read_bytes()).hexdigest())
+            self.assertEqual(file['file_spec']['sha256'], declared['file_spec']['sha256'])
+            self.assertEqual(fixture['policy']['phase4_mode'], 'safe')
+            self.assertEqual(fixture['request']['headers'], [['Content-Type', 'text/plain']])
+            self.assertEqual(bytes.fromhex(fixture['backend']['body_hex']), contract.BACKEND_BODY)
+            self.assertFalse(file['native_file_api'])
+            self.assertFalse(file['backend_exclusion_expected'])
+            self.assertIn('configuration negative', file['strict_scope'])
+            self.assertIsNone(case['expected'])
+            self.assertFalse(case['expected_approval'])
+            self.assertEqual(case['fixture_sha256'], self.plan.json_digest(fixture))
+
+    def test_file_supplements_reject_changed_fixture_or_manifest_digest(self):
+        harness = Path(self.temporary.name) / 'harness'
+        for directory in ('i12_file', 'fixtures/i12-file-source'):
+            shutil.copytree(REPO / 'connectors/traefik/harness' / directory, harness / directory)
+        mocked_source = harness / 'i12/native/acceptance_plan.py'
+        fixture = harness / 'fixtures/i12-file-source/request-marker.txt'
+        original_bytes = fixture.read_bytes()
+        original_cases = self.file_originals()
+        with mock.patch.object(self.plan, '__file__', str(mocked_source)):
+            fixture.write_bytes(b'changed')
+            with self.assertRaisesRegex(ValueError, 'exact physical file fixture'):
+                self.plan.file_supplements(original_cases)
+            fixture.write_bytes(original_bytes)
+            manifest_path = fixture.parent / 'manifest.json'
+            manifest = json.loads(manifest_path.read_text())
+            manifest['files'][1]['sha256'] = '0' * 64
+            manifest_path.write_text(json.dumps(manifest))
+            with self.assertRaisesRegex(ValueError, 'exact physical file fixture'):
+                self.plan.file_supplements(original_cases)
+            manifest['files'][1]['sha256'] = hashlib.sha256(original_bytes).hexdigest()
+            manifest['files'][1]['read_size'] = 25
+            manifest_path.write_text(json.dumps(manifest))
+            with self.assertRaisesRegex(ValueError, 'exact physical file fixture'):
+                self.plan.file_supplements(original_cases)
 
 
 if __name__ == '__main__':
