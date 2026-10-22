@@ -45,13 +45,17 @@ different scope requires its own independent implementation and review.
 Ordering is checked from the existing physical native API JSONL, which retains
 both enter and return edges. Each P2/P4/finish/logging/cleanup/retirement operation
 must have exactly one matching actual call, increasing native sequence and
-monotonic times, bound to the principal PID/run/allocation. Request APR EOS must
-precede P2 entry; response APR EOS must precede P4 entry and follow P2 return.
-The paired P4 return must precede physical socket commit, followed by Common
-finish, successful native logging, Common cleanup, native free and association
-retirement in order. A count alone is insufficient. Missing enter/return
-evidence or a physically earlier commit leaves the case unqualified. This
-procedure does not classify an earlier streaming commit as a product defect.
+monotonic times, bound to the principal PID/run/allocation. For a nonempty request,
+APR EOS must precede P2 entry. For the empty request, P2 return must precede the
+first empty APR EOS, whose observation must report `request_body_processed=1`.
+Response APR EOS must precede P4 entry and follow P2 return. Prefix delivery and
+physical socket writes may precede P4; the logical commit flag must precede
+output. Terminal release must follow successful P4 return and report response
+body processed and EOS released. Common finish, successful native logging,
+Common cleanup, native free and association retirement must follow the latest
+of P4 return, terminal release return and physical socket return, in that order.
+A count alone is insufficient. Missing or inconsistent ordering evidence leaves
+the case unqualified.
 
 Configuration and pre-native parser controls always point to the separate
 `review_controls.py` procedure and its explicit approval input. This procedure
@@ -63,23 +67,34 @@ predicates, physical references, the original oracle, separate nullable oracle
 decision, and a per-case registry/gap inventory. A failed or unknown predicate
 prevents an approved packet. `reviewed-packets.json` lists only packets accepted
 by the unchanged shared validator before publication. `i12_complete` stays false.
-Input files and all discovered transitive JSON references are hash checked before
-review and revalidated before publication, including direct control receipt,
-process and response files. JSON graph traversal is bounded to 10,000 references
-and 64 MiB per JSON file; exceeding a bound fails closed.
+Input files and direct physical references are hash checked before review and
+revalidated before publication, including control receipt, process and response
+files and normalized oracle retest measurements. Referenced JSON files are
+immutable leaves; their arbitrary contents are not traversed as a reference
+graph. Typed physical-file records are checked without interpreting logical
+container paths as host references.
 
-A read-only inventory of the retained `case-plan-v4.json` (SHA256
-`19ab9da01d000f8875f21d12c4322b102717fa8a7871edb856201dec11baba51`)
+Eight review procedure source files are bound before repository review modules
+are imported. Validators are compiled from source without using repository
+pycache files. The procedure rechecks all eight sources before publication and
+includes their physical references in its output inventory.
+
+A read-only inventory of the executed `case-plan.json` (SHA256
+`4017b6ae7919958b554f103062ec0e8588bdb009c08dbc26b9c6422e38f065c1`)
 covered all 155 IDs: 4 registered bounded request IDs, 4 missing independent
 native header/MIME propagation proofs, 14 separate typed controls,
 24 physical fault families needing their own semantics, 24 special-operation
 families needing their own semantics, 74 cases needing independent expectation
 and family review, and 11 cases with planned expectations but no complete
 independent family predicate. These are implementation/gap categories, not test
-results or newly qualified PASS cases. A later plan is inventoried independently.
+results or newly qualified PASS cases.
 
 Validation: `rtk proxy <repository-python> -B -m unittest discover -s tests -p
 test_apache_i12_final_root_review.py -v`. Mutation negatives include complete
 35-role packets with wrong rule, status, backend count/body bytes, native append
 bytes, phase, EOS, commit order, finish/free, cleanup, neighbor and native
 allocation identity, oracle phase/scope, and absent independent oracle/evidence.
+The focused batch/final-review suite completed 52 tests with exit 0 and two
+explicit skips. Further negatives cover ambiguous observer finals, empty EOS
+ordering, terminal release after finish, invalid socket brackets/accounting,
+procedure-source mutation before publication and frozen retest measurements.

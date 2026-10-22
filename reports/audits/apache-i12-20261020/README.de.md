@@ -53,13 +53,18 @@ Die Reihenfolge wird anhand der vorhandenen physischen nativen API-JSONL
 geprüft, die Enter- und Return-Edges bewahrt. Jede P2-/P4-/Finish-/Logging-/
 Cleanup-/Retirement-Operation benötigt genau einen passenden tatsächlichen Call
 mit steigender nativer Sequenz und monotoner Zeit, gebunden an PID, Lauf und
-Allokation des Hauptvorgangs. Request-APR-EOS muss vor P2-Enter liegen;
-Response-APR-EOS muss nach P2-Return und vor P4-Enter liegen. Auf den gepaarten
-P4-Return folgt der physische Socket-Commit, danach Common-Finish, erfolgreiches
-natives Logging, Common-Cleanup, native Freigabe und Retirement der Zuordnung
-in dieser Reihenfolge. Ein Zähler allein genügt nicht. Fehlende Enter-/Return-
-Nachweise oder ein physisch früherer Commit lassen den Fall unqualifiziert.
-Das Verfahren bewertet einen früheren Streaming-Commit nicht als Produktfehler.
+Allokation des Hauptvorgangs. Bei einem nichtleeren Request muss APR-EOS vor
+P2-Enter liegen. Beim leeren Request muss P2-Return vor dem ersten leeren
+APR-EOS liegen, dessen Beobachtung `request_body_processed=1` melden muss.
+Response-APR-EOS muss nach P2-Return und vor P4-Enter liegen. Präfixausgabe und
+physische Socket-Schreibvorgänge dürfen vor P4 liegen; das logische Commit-Flag
+muss vor der Ausgabe liegen. Die Terminalfreigabe muss auf den erfolgreichen
+P4-Return folgen und den verarbeiteten Responsebody sowie freigegebenes EOS
+melden. Common-Finish, erfolgreiches natives Logging, Common-Cleanup, native
+Freigabe und Retirement der Zuordnung müssen in dieser Reihenfolge nach dem
+spätesten Zeitpunkt von P4-Return, Terminalfreigabe-Return und physischem
+Socket-Return liegen. Ein Zähler allein genügt nicht. Fehlende oder
+widersprüchliche Reihenfolgenachweise lassen den Fall unqualifiziert.
 
 Config- und Prä-Nativ-Parserkontrollen verweisen immer auf das separate Verfahren
 `review_controls.py` und dessen ausdrückliche Approval-Eingabe. Dieses Verfahren
@@ -72,14 +77,22 @@ eine getrennte nullable Oracleentscheidung und ein Registry-/Lückeninventar pro
 Fall. Ein fehlgeschlagenes oder unbekanntes Prädikat verhindert ein freigegebenes
 Paket. `reviewed-packets.json` führt ausschließlich Pakete auf, die der
 unveränderte gemeinsame Validator vor Veröffentlichung akzeptiert hat.
-`i12_complete` bleibt false. Eingabedateien und alle erkannten transitiven
-JSON-Referenzen werden vor der Prüfung gehasht und vor Veröffentlichung erneut
-validiert, einschließlich direkt gelesener Control-Receipt-, Prozess- und
-Responsedateien. Der JSON-Graph ist auf 10.000 Referenzen und 64 MiB pro JSON-Datei
-begrenzt; eine Überschreitung führt zum Abbruch.
+`i12_complete` bleibt false. Eingabedateien und direkte physische Referenzen
+werden vor der Prüfung gehasht und vor Veröffentlichung erneut validiert,
+einschließlich Control-Receipt-, Prozess- und Responsedateien sowie normalisierter
+Oracle-Retest-Messungen. Referenzierte JSON-Dateien sind unveränderliche Blätter;
+ihr beliebiger Inhalt wird nicht als Referenzgraph durchlaufen. Typisierte
+Datensätze physischer Dateien werden geprüft, ohne logische Containerpfade als
+Hostreferenzen zu behandeln.
 
-Ein lesendes Inventar des aufbewahrten `case-plan-v4.json` (SHA256
-`19ab9da01d000f8875f21d12c4322b102717fa8a7871edb856201dec11baba51`)
+Acht Quelldateien des Prüfverfahrens werden vor dem Import der
+Repository-Prüfmodule gebunden. Validatoren werden aus dem Quelltext kompiliert,
+ohne Repository-Pycache-Dateien zu verwenden. Das Verfahren prüft alle acht
+Quellen vor Veröffentlichung erneut und nimmt ihre physischen Referenzen in
+das Ausgabeinventar auf.
+
+Ein lesendes Inventar des ausgeführten `case-plan.json` (SHA256
+`4017b6ae7919958b554f103062ec0e8588bdb009c08dbc26b9c6422e38f065c1`)
 umfasste alle 155 IDs: 4 registrierte begrenzte Request-IDs, 4 fehlende unabhängige
 native Header-/MIME-Weitergabenachweise, 14 getrennte typisierte
 Kontrollen, 24 physische Fehlerfamilien mit fehlender eigener Semantik, 24
@@ -87,7 +100,7 @@ Sonderoperationsfamilien mit fehlender eigener Semantik, 74 Fälle mit fehlender
 unabhängiger Erwartungs- und Familienprüfung sowie 11 Fälle mit geplanten
 Erwartungen und fehlendem vollständigem unabhängigem Familienprädikat. Das sind
 Implementierungs-/Lückenkategorien, keine Testergebnisse oder neu vollständig
-qualifizierten PASS-Fälle. Ein späterer Plan wird eigenständig inventarisiert.
+qualifizierten PASS-Fälle.
 
 Verifikation: `rtk proxy <Repository-Python> -B -m unittest discover -s tests -p
 test_apache_i12_final_root_review.py -v`. Negative Mutationen umfassen vollständige
@@ -95,3 +108,8 @@ test_apache_i12_final_root_review.py -v`. Negative Mutationen umfassen vollstän
 Appendbytes, Phase, EOS, Commitreihenfolge, Finish/Free, Bereinigung, Neighbor-
 und nativer Allokationsidentität, Oraclephase/-Scope sowie fehlendem unabhängigem
 Oracle beziehungsweise Nachweis.
+Die fokussierte Batch-/Abschlussprüfungs-Suite führte 52 Tests mit Exit 0 und
+zwei ausdrücklich ausgewiesenen Skips aus. Weitere Negativfälle prüfen mehrdeutige
+Observer-Abschlüsse, die Reihenfolge beim leeren EOS, Terminalfreigabe nach
+Finish, ungültige Socket-Klammerung/-Buchführung, Quelltextänderung vor
+Veröffentlichung und eingefrorene Retest-Messungen.

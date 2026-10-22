@@ -2,6 +2,17 @@
 
 **Sprache:** [English](i12-apache-native-evidence-20261015.md) | Deutsch
 
+**Historischer Kampagnenbericht.** Die folgenden Ergebnisse gehören nur zur
+beibehaltenen Kampagne vom 2026-10-15 und ihren dokumentierten Build-Identitäten.
+Die getrennte [aktuelle Kampagne vom 2026-10-22](../reports/audits/apache-i12-20261022/README.de.md)
+führte die Produktquelle `57e94983e808bcc4c1ca4f5fcf9745f6dc9d4a38`
+aus und verwendete das unabhängig gehärtete Prüfverfahren, das unter
+`de23f2fa4b490c66f15ac97f2646434351f05c5e` veröffentlicht wurde. Dessen
+aktuelles Ledger aller 155 Fälle, einschließlich vier frischen vollständig
+qualifizierten Lifecycle-PASS und 151 null-Ergebnissen, ist für die Qualifikation
+der aktuellen Quelle maßgeblich. Auch dieses Ledger behauptet kein
+`I12_COMPLETE`.
+
 Die Apache-Bewertung bleibt **unvollständig**. Dieser Bericht erteilt keine Freigabe und behauptet kein `I12_COMPLETE`. Das [maschinenlesbare Ledger aller 155 Fälle](../reports/audits/apache-i12-20261015/case-ledger.json) ist für jede Original-ID, Qualifikation, fehlende Beobachtung und Evidence-Referenz maßgeblich. Fehlende Beobachtungen bleiben `null`; eine Ausführung qualifiziert keine fremden Aliase.
 
 ## Umfang und Identität

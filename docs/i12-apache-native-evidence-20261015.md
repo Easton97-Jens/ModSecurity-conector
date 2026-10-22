@@ -2,6 +2,16 @@
 
 **Language:** English | [Deutsch](i12-apache-native-evidence-20261015.de.md)
 
+**Historical campaign report.** The results below belong only to the retained
+2026-10-15 campaign and its recorded build identities. The separate
+[2026-10-22 current campaign](../reports/audits/apache-i12-20261022/README.md)
+executed product source `57e94983e808bcc4c1ca4f5fcf9745f6dc9d4a38`
+and applied the independently hardened reviewer published at
+`de23f2fa4b490c66f15ac97f2646434351f05c5e`. Its current 155-case ledger,
+including four fresh fully qualified lifecycle PASS and 151 null outcomes,
+supersedes this report for current-source qualification. It still does not
+claim `I12_COMPLETE`.
+
 The Apache assessment remains **partial**. This report does not grant approval or claim `I12_COMPLETE`. The [155-case machine ledger](../reports/audits/apache-i12-20261015/case-ledger.json) is authoritative for each original ID, qualification, missing observation, and evidence reference. Missing observations remain `null`; one execution does not qualify unrelated aliases.
 
 ## Scope and identity
