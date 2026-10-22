@@ -20,6 +20,35 @@ from lighttpd_capture_response import response_decode
 TASK_ROOT = Path('/task')
 
 
+def observe_receive(receipt, chunks, received, chunk, started_ns, completed_ns):
+    """Record the actual recv boundary before appending its wire bytes."""
+    if not chunks:
+        receipt.update(first_response_recv_started_ns=started_ns,
+                       first_response_recv_completed_ns=completed_ns)
+    chunks.append(dict(started_ns=started_ns, completed_ns=completed_ns,
+                       bytes=len(chunk), prior_received_bytes=len(received)))
+    received.extend(chunk)
+    delimiter = received.find(b'\r\n\r\n')
+    if delimiter < 0:
+        return False
+    header_bytes = delimiter + 4
+    if 'headers_complete_recv_ns' not in receipt:
+        receipt.update(headers_complete_recv_ns=completed_ns,
+                       observed_header_bytes=header_bytes)
+    if len(received) == header_bytes or 'first_encoded_entity_recv_ns' in receipt:
+        return False
+    receipt['first_encoded_entity_recv_ns'] = completed_ns
+    return True
+
+
+def record_local_abort(connection, receipt, mode, received):
+    if mode == 'reset':
+        connection.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0))
+    receipt['local_abort'] = dict(mode=mode, monotonic_ns=time.monotonic_ns(),
+        actual_received_entity_bytes=len(received) - receipt['observed_header_bytes'],
+        peer_reset_claimed=False)
+
+
 def task_file(value):
     path = Path(value)
     if not path.is_absolute() or '..' in path.parts or not path.is_relative_to(TASK_ROOT):
@@ -124,23 +153,11 @@ try:
             recv_completed_ns=time.monotonic_ns()
             if not chunk:
                 receipt['tcp_eof_observed']=True;receipt['eof_ns']=time.monotonic_ns();break
-            if 'first_response_recv_completed_ns' not in receipt:
-                receipt['first_response_recv_started_ns']=recv_started_ns
-                receipt['first_response_recv_completed_ns']=recv_completed_ns
-            recv_chunks.append({'started_ns':recv_started_ns,'completed_ns':recv_completed_ns,
-                                'bytes':len(chunk),'prior_received_bytes':len(received)})
-            received.extend(chunk)
-            delimiter=received.find(b'\r\n\r\n')
-            if delimiter >= 0 and 'headers_complete_recv_ns' not in receipt:
-                receipt['headers_complete_recv_ns']=recv_completed_ns
-                receipt['observed_header_bytes']=delimiter+4
-            if delimiter >= 0 and len(received)>delimiter+4 and 'first_encoded_entity_recv_ns' not in receipt:
-                receipt['first_encoded_entity_recv_ns']=recv_completed_ns
-                if abort_mode:
-                    if abort_mode=='reset':connection.setsockopt(socket.SOL_SOCKET,socket.SO_LINGER,struct.pack('ii',1,0))
-                    receipt['local_abort']={'mode':abort_mode,'monotonic_ns':time.monotonic_ns(),
-                        'actual_received_entity_bytes':len(received)-delimiter-4,'peer_reset_claimed':False}
-                    break
+            first_entity = observe_receive(receipt, recv_chunks, received, chunk,
+                                           recv_started_ns, recv_completed_ns)
+            if first_entity and abort_mode:
+                record_local_abort(connection, receipt, abort_mode, received)
+                break
             if len(received)>3145728:raise RuntimeError('bounded response exceeded3MiB')
 
 except ConnectionResetError as error:

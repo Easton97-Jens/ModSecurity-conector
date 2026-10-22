@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
 
 
@@ -173,6 +174,98 @@ class StockOriginalQualificationTests(unittest.TestCase):
             self.assertFalse(receipt['tcp_eof_observed'])
             self.assertEqual(receipt['entity_bytes'], 0)
             self.assertEqual(receipt['error']['type'], 'ConnectionResetError')
+
+    def test_raw_client_records_headers_entity_and_actual_local_abort(self):
+        for abort in (None, 'close', 'reset'):
+            with self.subTest(abort=abort), tempfile.TemporaryDirectory(
+                    prefix='stock-client-chunks-', dir=FIXTURES.EXTERNAL) as name:
+                directory = Path(name)
+                source = ROOT / 'ci/runtime/lifecycle/i12/lighttpd/stock_raw_client.py'
+                client = directory / 'client.py'
+                text = source.read_text().replace("Path('/task/client')",
+                    'Path(' + repr(str(directory / 'receipts')) + ')')
+                text = text.replace("TASK_ROOT = Path('/task')",
+                    'TASK_ROOT = Path(' + repr(str(directory)) + ')')
+                client.write_text(text)
+                (directory / 'lighttpd_capture_response.py').write_text(FIXTURES.response_helper_text())
+                header = b'HTTP/1.1 200 OK\r\nContent-Length: 3\r\nConnection: close\r\n\r\n'
+                wire = header + b'abc'
+                requests, failures, peer_outcomes = [], [], []
+                with socket.socket() as listener:
+                    listener.bind(('127.0.0.1', 0))
+                    listener.listen(1)
+                    listener.settimeout(5)
+                    port = listener.getsockname()[1]
+
+                    def serve():
+                        try:
+                            connection, _ = listener.accept()
+                            with connection:
+                                connection.settimeout(5)
+                                request = b''
+                                while not request.endswith(b'\r\n\r\n'):
+                                    fragment = connection.recv(4096)
+                                    if not fragment:
+                                        raise EOFError('client closed before completing request headers')
+                                    request += fragment
+                                requests.append(request)
+                                connection.sendall(header[:-2])
+                                time.sleep(0.05)
+                                connection.sendall(header[-2:])
+                                time.sleep(0.05)
+                                connection.sendall(b'abc')
+                                if abort:
+                                    try:
+                                        remainder = connection.recv(1)
+                                    except ConnectionResetError:
+                                        peer_outcomes.append('reset')
+                                    else:
+                                        peer_outcomes.append('eof' if not remainder else 'data')
+                        except Exception as error:
+                            failures.append(error)
+
+                    worker = threading.Thread(target=serve)
+                    worker.start()
+                    arguments = ['rtk', 'proxy', sys.executable, '-B', str(client),
+                        '-D', str(directory / 'headers'), '-o', str(directory / 'body'),
+                        '-w', '%{http_code}', f'http://127.0.0.1:{port}/split']
+                    if abort:
+                        arguments.extend(['--i12-abort-after-first-entity', abort])
+                    try:
+                        completed = subprocess.run(arguments, env={**os.environ,
+                            'I12_APACHE_CLIENT_TOKEN': 'split'}, capture_output=True, timeout=10)
+                    finally:
+                        worker.join(timeout=6)
+                self.assertFalse(worker.is_alive())
+                self.assertEqual(failures, [])
+                self.assertEqual(peer_outcomes,
+                    [] if abort is None else ['reset' if abort == 'reset' else 'eof'])
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+                self.assertEqual(completed.stdout, b'200')
+                self.assertEqual(requests, [f'GET /split HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n'.encode()])
+                receipt = json.loads((directory / 'receipts/split.receipt.json').read_text())
+                self.assertEqual((directory / 'receipts/split.response.raw').read_bytes(), wire)
+                self.assertEqual((directory / 'body').read_bytes(), b'abc')
+                chunks = receipt['actual_socket_recv_chunks']
+                # TCP may coalesce the deliberately separate server writes.
+                self.assertGreaterEqual(len(chunks), 1)
+                prior = 0
+                for chunk in chunks:
+                    self.assertEqual(chunk['prior_received_bytes'], prior)
+                    self.assertLessEqual(chunk['started_ns'], chunk['completed_ns'])
+                    prior += chunk['bytes']
+                self.assertEqual(prior, len(wire))
+                self.assertEqual(receipt['first_response_recv_started_ns'], chunks[0]['started_ns'])
+                self.assertEqual(receipt['first_response_recv_completed_ns'], chunks[0]['completed_ns'])
+                self.assertEqual(receipt['observed_header_bytes'], len(header))
+                self.assertLessEqual(receipt['headers_complete_recv_ns'], receipt['first_encoded_entity_recv_ns'])
+                self.assertFalse(receipt['tcp_reset_observed'])
+                self.assertIsNone(receipt['error'])
+                self.assertEqual(receipt['tcp_eof_observed'], abort is None)
+                if abort:
+                    self.assertEqual(receipt['local_abort']['mode'], abort)
+                    self.assertEqual(receipt['local_abort']['actual_received_entity_bytes'], 3)
+                    self.assertFalse(receipt['local_abort']['peer_reset_claimed'])
 
     def test_original_streaming_has_large_delayed_body_and_default_resource_contract(self):
         fixture = FIXTURES.fixture('NEED-request-streaming')

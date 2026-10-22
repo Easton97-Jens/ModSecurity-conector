@@ -55,16 +55,20 @@ def sha(path: Path) -> str:
     return hashlib.sha256(evidence_path(path).read_bytes()).hexdigest()
 
 
+def reset_private_output(fd: int) -> None:
+    details = os.fstat(fd)
+    if not stat.S_ISREG(details.st_mode) or details.st_uid != os.geteuid() or details.st_nlink != 1:
+        raise ValueError("Evidence output must be a caller-owned single-link regular file")
+    os.fchmod(fd, 0o600)
+    os.ftruncate(fd, 0)
+
+
 def write_json(path: Path, value: object) -> None:
     path = evidence_path(path, writing=True)
     payload = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode()
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
     try:
-        details = os.fstat(fd)
-        if not stat.S_ISREG(details.st_mode) or details.st_uid != os.geteuid() or details.st_nlink != 1:
-            raise ValueError("Evidence output must be a caller-owned single-link regular file")
-        os.fchmod(fd, 0o600)
-        os.ftruncate(fd, 0)
+        reset_private_output(fd)
         with os.fdopen(fd, "wb", closefd=False) as stream:
             stream.write(payload)
     finally:

@@ -1,11 +1,14 @@
 """Safety and wire-input regressions for the supplemental patched capture."""
 import importlib.util
 import json
+import os
 from pathlib import Path
 import socket
+import stat
 import tempfile
 import threading
 import unittest
+from unittest import mock
 
 
 MODULE = Path(__file__).resolve().parents[1] / "ci/runtime/lifecycle/i12/lighttpd/patched_capture.py"
@@ -18,6 +21,43 @@ REVIEW_SPEC.loader.exec_module(review)
 
 
 class PatchedCaptureTests(unittest.TestCase):
+    def test_json_output_replaces_bytes_and_restores_private_mode(self):
+        with tempfile.TemporaryDirectory(dir=capture.EXTERNAL_ROOT) as temp:
+            output = Path(temp) / "receipt.json"
+            output.write_bytes(b"previous longer payload" * 10)
+            output.chmod(0o644)
+            capture.write_json(output, {"value": "new"})
+            self.assertEqual(output.read_bytes(), b'{\n  "value": "new"\n}\n')
+            self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o600)
+
+    def test_json_output_refuses_links_without_changing_target(self):
+        with tempfile.TemporaryDirectory(dir=capture.EXTERNAL_ROOT) as temp:
+            root = Path(temp)
+            target = root / "target"
+            target.write_bytes(b"retained")
+            alias = root / "alias"
+            alias.symlink_to(target)
+            with self.assertRaises(ValueError):
+                capture.write_json(alias, {})
+            alias.unlink()
+            alias.hardlink_to(target)
+            with self.assertRaisesRegex(ValueError, "single-link"):
+                capture.write_json(alias, {})
+            self.assertEqual(target.read_bytes(), b"retained")
+
+    def test_json_output_closes_descriptor_when_preparation_fails(self):
+        with tempfile.TemporaryDirectory(dir=capture.EXTERNAL_ROOT) as temp:
+            output = Path(temp) / "receipt.json"
+            output.write_bytes(b"retained")
+            with mock.patch.object(capture.os, "fchmod", side_effect=OSError("mode failure")), \
+                    mock.patch.object(capture.os, "close", wraps=os.close) as close:
+                with self.assertRaisesRegex(OSError, "mode failure"):
+                    capture.write_json(output, {})
+                close.assert_called_once()
+                with self.assertRaises(OSError):
+                    os.fstat(close.call_args.args[0])
+            self.assertEqual(output.read_bytes(), b"retained")
+
     def test_artifacts_refuse_symlink_and_hardlink(self):
         with tempfile.TemporaryDirectory(dir=capture.EXTERNAL_ROOT) as temp:
             root = Path(temp)
