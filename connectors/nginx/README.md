@@ -283,7 +283,7 @@ The adapter-owned NGINX connector currently registers:
   descriptor is opened through the Common no-follow helper and requires a safe
   parent, regular leaf, suitable ownership, and private `0600` mode)
 
-### Native URI metadata and selected-call soft budget
+### Native URI metadata, trusted event provenance, and selected-call soft budget
 
 The inspected native source bounds the event URI to a 256-byte buffer including
 the terminating NUL and at most 255 bytes after JSON escaping. Queries become
@@ -292,6 +292,28 @@ the terminating NUL and at most 255 bytes after JSON escaping. Queries become
 flags describe the projection. Other Common fields retain strict validation.
 The fixed JSONL writer buffer remains 4096 bytes; this is not a configurable
 event-size directive or permission to log payload.
+
+Physical event identity can be supplied only through the administrator-owned
+process environment. `MSCONNECTOR_NGINX_EVENT_RUN_ID` and
+`MSCONNECTOR_NGINX_EVENT_TRANSPORT_CASE_ID` are optional as a pair; NGINX must
+preserve both in the main context:
+
+```nginx
+env MSCONNECTOR_NGINX_EVENT_RUN_ID;
+env MSCONNECTOR_NGINX_EVENT_TRANSPORT_CASE_ID;
+```
+
+Each value is 1–128 ASCII
+characters from `[A-Za-z0-9_.:-]`. A missing pair leaves existing event output
+unchanged, while a partial or invalid pair rejects that event write. The module
+never reads these values from HTTP headers. When enabled, the writer also adds
+`connection_id` from NGINX's actual connection number and sets
+`connection_reused` after the first request on that connection. These values
+identify one administrator-defined host/campaign process; a separate case ID
+on the same keepalive connection requires a separate NGINX process run.
+Invalid provenance retains the existing call-site semantics: the request
+metadata writer logs a warning and reports no successful write, while the
+enforcement-relevant P3/P4 writer returns `NGX_ERROR`.
 
 `modsecurity_engine_call_budget_ms` accepts decimal milliseconds in `http`,
 `server`, and `location`. Children inherit the parent value; default `0`
@@ -613,4 +635,4 @@ WAF inspection policy.
 See [the cross-connector response-limit ownership contract](../../docs/phase4-mode-budget.md)
 for the exact scope, compatibility boundary and validation limitations.
 
-Request temp files are read from the validated host descriptor with one reusable 32768-byte scratch buffer. Each complete chunk reaches the engine; the scratch size does not limit total request size. Append-time native Reject is retained through EOS, and append zero continues for native ProcessPartial.
+Request temp files are read from the validated host descriptor with one reusable 32768-byte scratch buffer. Each complete chunk reaches the engine; the scratch size does not limit total request size. Empty terminal and other special NGINX control buffers carry no body bytes and are skipped; the subsequent `msc_process_request_body` call is the native end-of-stream signal. Non-special memory buffers with an invalid range remain a technical error before the native body API. Append-time native Reject is retained through EOS, and append zero continues for native ProcessPartial.

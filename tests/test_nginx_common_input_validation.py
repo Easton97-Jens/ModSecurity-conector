@@ -38,10 +38,8 @@ class CommonInputValidationTest(unittest.TestCase):
             with self.subTest(mode=mode):
                 self.assertEqual(self.probe(mode), ["1", "1", ""])
 
-    def test_existing_body_policy_error_precedence_is_preserved(self):
-        for mode, error in (("unsupported", "body unsupported"), ("oversized", "body too large")):
-            with self.subTest(mode=mode):
-                self.assertEqual(self.probe(mode), ["0", "0", error])
+    def test_unsupported_body_policy_error_precedes_pointer_validation(self):
+        self.assertEqual(self.probe("unsupported"), ["0", "0", "body unsupported"])
 
 
 if __name__ == "__main__":

@@ -137,6 +137,15 @@ int main(int argc, char **argv) {
 '''
 
 
+PROVENANCE_SEAM = r'''
+/* Provenance is independently exercised by the exact-writer fixture. */
+static int ngx_http_modsecurity_apply_event_provenance(ngx_http_request_t *r,
+    msconnector_event *event, char *connection_id, size_t capacity) {
+    (void)r; (void)event; (void)connection_id; (void)capacity; return 1;
+}
+'''
+
+
 class P3TechnicalSourceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -166,7 +175,7 @@ class P3TechnicalSourceTests(unittest.TestCase):
         functions = "\n".join(kind + "\n" + function_definition(source, name)
                               for source, kind, name in selections)
         fixture = directory / "p3.c"
-        fixture.write_text(PREAMBLE + functions + MAIN)
+        fixture.write_text(PREAMBLE + PROVENANCE_SEAM + functions + MAIN)
         cls.binary = directory / "p3"
         command = compiler + ["-std=c17", "-Wall", "-Wextra", "-Werror", "-pthread",
                               "-I", str(native), "-I", str(ROOT), "-I", str(ROOT / "common/include"), str(fixture)]

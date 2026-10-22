@@ -477,6 +477,59 @@ ngx_http_modsecurity_event_request_metadata(ngx_http_request_t *r)
     return metadata;
 }
 
+/* Trusted process configuration only; these tokens never come from headers.
+ * Administrators must explicitly preserve both variables for NGINX workers. */
+static ngx_inline int
+ngx_http_modsecurity_event_token_valid(const char *value)
+{
+    size_t length;
+    unsigned char c;
+
+    if (value == NULL) {
+        return 0;
+    }
+    for (length = 0; length <= 128U; ++length) {
+        c = (unsigned char)value[length];
+        if (c == 0) {
+            return length > 0U;
+        }
+        if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+              (c >= '0' && c <= '9') || c == '_' || c == '.' ||
+              c == ':' || c == '-')) {
+            return 0;
+        }
+    }
+    return 0;
+}
+
+static ngx_inline int
+ngx_http_modsecurity_apply_event_provenance(ngx_http_request_t *r,
+    msconnector_event *event, char *connection_id, size_t capacity)
+{
+    const char *run_id = getenv("MSCONNECTOR_NGINX_EVENT_RUN_ID");
+    const char *case_id = getenv("MSCONNECTOR_NGINX_EVENT_TRANSPORT_CASE_ID");
+    int length;
+
+    if (run_id == NULL && case_id == NULL) {
+        return 1;
+    }
+    if (!ngx_http_modsecurity_event_token_valid(run_id) ||
+        !ngx_http_modsecurity_event_token_valid(case_id) ||
+        r == NULL || r->connection == NULL) {
+        return 0;
+    }
+    length = snprintf(connection_id, capacity, "nginx-%llu",
+        (unsigned long long)r->connection->number);
+    if (length < 0 || (size_t)length >= capacity) {
+        return 0;
+    }
+    event->meta.run_id = run_id;
+    event->meta.transport_case_id = case_id;
+    event->protocol.connection_id = connection_id;
+    event->protocol.connection_reused = r->connection->requests > 1;
+    return 1;
+}
+
 /* Callers retain their source-specific guards and event construction.  This
  * helper only owns the common bounded JSONL serialization and warning-only
  * write tail used by request metadata events. */
@@ -489,12 +542,15 @@ ngx_http_modsecurity_write_event_jsonl(
 {
     char line[4096];
     char uri[MSCONNECTOR_EVENT_URI_SAFE_BUFFER_SIZE];
+    char connection_id[32];
     msconnector_event projected;
     int json_truncated = 0;
     size_t line_length;
     ssize_t written;
 
     if (!ngx_http_modsecurity_bounded_event_uri(event, &projected, uri, sizeof(uri)) ||
+        !ngx_http_modsecurity_apply_event_provenance(r, &projected,
+            connection_id, sizeof(connection_id)) ||
         !msconnector_event_write_jsonl_line(&projected, line, sizeof(line),
         &json_truncated)) {
         ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
@@ -524,12 +580,15 @@ ngx_http_modsecurity_write_phase_event_jsonl(
 {
     char line[4096];
     char uri[MSCONNECTOR_EVENT_URI_SAFE_BUFFER_SIZE];
+    char connection_id[32];
     msconnector_event projected;
     int json_truncated = 0;
     size_t line_length;
     ssize_t written;
 
     if (!ngx_http_modsecurity_bounded_event_uri(event, &projected, uri, sizeof(uri)) ||
+        !ngx_http_modsecurity_apply_event_provenance(r, &projected,
+            connection_id, sizeof(connection_id)) ||
         !msconnector_event_write_jsonl_line(&projected, line, sizeof(line),
         &json_truncated)) {
         ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
