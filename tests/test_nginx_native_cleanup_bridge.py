@@ -159,6 +159,15 @@ int main(int argc,char **argv) {
 '''
 
 
+PROVENANCE_SEAM = r'''
+/* Provenance is independently exercised by the exact-writer fixture. */
+static int ngx_http_modsecurity_apply_event_provenance(ngx_http_request_t *r,
+    msconnector_event *event, char *connection_id, size_t capacity) {
+    (void)r; (void)event; (void)connection_id; (void)capacity; return 1;
+}
+'''
+
+
 class NativeCleanupBridgeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -185,7 +194,7 @@ class NativeCleanupBridgeTests(unittest.TestCase):
             }"""
         fixture = directory / "cleanup.c"
         writer = "\nstatic ngx_inline ngx_int_t\n" + function_definition(common, "ngx_http_modsecurity_write_phase_event_jsonl")
-        fixture.write_text(PREAMBLE + metadata + writer + "\nstatic void\n" + cleanup
+        fixture.write_text(PREAMBLE + PROVENANCE_SEAM + metadata + writer + "\nstatic void\n" + cleanup
                            + "\nvoid\n" + function_definition(source, "ngx_http_modsecurity_cleanup") + MAIN.replace("PREPARE_METADATA", prepare))
         cls.binary = directory / "cleanup"
         command = [compiler, "-std=c17", "-Wall", "-Wextra", "-Werror", "-pthread",
