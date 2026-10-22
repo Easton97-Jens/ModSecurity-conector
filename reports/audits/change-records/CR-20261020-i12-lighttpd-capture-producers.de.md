@@ -56,12 +56,12 @@ Vollständige Abnahme ist unvollständig. Unqualifizierte Originale und offene O
 
 ## Verbleibende Risiken
 
-Veröffentlichung des finalen Rohartefakts und tatsächliche Downloadprüfung sind abgeschlossen. Historischer Checkpoint03 bleibt getrennt und belegt keine aktuellen168 Qualifizierungen. Quellenspezifische Oracleentscheidungen, die geerbte fehlgeschlagene verpflichtende HAProxy-CI und fehlende lokale Gitleaks-Evidenz verhindern vollständige Abnahme. HAProxy scheitert, weil sein Fake-SDK-Header `msc_get_request_body_length` nicht deklariert; diese abgegrenzte lighttpd-Änderung ändert weder HAProxy- noch gemeinsame Runtime-Zuständigkeit.
+Veröffentlichung des finalen Rohartefakts und tatsächliche Downloadprüfung sind abgeschlossen. Historischer Checkpoint03 bleibt getrennt und belegt keine aktuellen168 Qualifizierungen. Quellenspezifische Oracleentscheidungen und fehlende lokale Gitleaks-Evidenz verhindern vollständige Abnahme. Die zuvor geerbten Fixturefehler in HAProxy und scaffold-lint sind zentral durch #410-Commit `76672071c3f7665dfde3340bef9e64271d6f6e70` korrigiert und hier integriert; der vollständige betroffene HAProxy-Caller-Target und die gemeinsame Native-Suite bestehen lokal20/20 und10/10 ohne Produktänderung oder abgeschwächte Prüfung.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-Gitleaks ist lokal nicht verfügbar; kein PASS wird behauptet, und begrenzte Zugangsdatenmusterprüfung ersetzt es nicht. Die verpflichtende HAProxy-Prüfung lief und scheiterte aus der oben dokumentierten geerbten Ursache; lighttpd- und exakte Sonar-Prüfungen bestehen. Tiefenscans und nicht unterstützte Fähigkeiten liegen außerhalb des begrenzten freigegebenen Umfangs.
+Gitleaks ist lokal nicht verfügbar; kein PASS wird behauptet, und begrenzte Zugangsdatenmusterprüfung ersetzt es nicht. Die betroffenen zentralen Fixturesuiten bestehen lokal; lighttpd- und exakte Sonar-Prüfungen bestehen ebenfalls. Tiefenscans und nicht unterstützte Fähigkeiten liegen außerhalb des begrenzten freigegebenen Umfangs.
 
 ## Finaler Diff- und Review-Status
 
-Getrennte Routenledger erhalten unveränderte Originale und enge Prüfumfänge. Exakte Root-geprüfte quellengebundene Ergebnisse, unabhängige physische Referenzprüfung und das frisch heruntergeladene finale Artefakt stützen diesen Checkpoint. Evidenzveröffentlichung, frische Downloadprüfung und exakte Strict-Zero-Sonar-Prüfung sind abgeschlossen. Draft#412 bleibt mit dem geerbten HAProxy-Blocker und sichtbaren Qualifizierungslücken offen. Vollständige Abnahme, PR-Merge oder Masterintegration werden nicht behauptet.
+Getrennte Routenledger erhalten unveränderte Originale und enge Prüfumfänge. Exakte Root-geprüfte quellengebundene Ergebnisse, unabhängige physische Referenzprüfung und das frisch heruntergeladene finale Artefakt stützen diesen Checkpoint. Evidenzveröffentlichung, frische Downloadprüfung und exakte Strict-Zero-Sonar-Prüfung sind abgeschlossen. Draft#412 bleibt mit sichtbaren Qualifizierungslücken offen. Vollständige Abnahme, PR-Merge oder Masterintegration werden nicht behauptet.

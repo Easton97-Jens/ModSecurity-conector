@@ -56,12 +56,12 @@ Full acceptance is incomplete. Unqualified originals and open oracles remain vis
 
 ## Remaining risks
 
-Final raw artifact publication and actual download verification are complete. Historical checkpoint03 remains separate and does not prove current168 qualifications. Source-specific oracle decisions, the inherited required HAProxy CI failure and unavailable local Gitleaks evidence prevent complete acceptance. The HAProxy failure arises because its fake SDK header does not declare `msc_get_request_body_length`; this scoped lighttpd change does not modify HAProxy or shared runtime ownership.
+Final raw artifact publication and actual download verification are complete. Historical checkpoint03 remains separate and does not prove current168 qualifications. Source-specific oracle decisions and unavailable local Gitleaks evidence prevent complete acceptance. The previously inherited HAProxy and scaffold-lint fixture failures are corrected centrally by #410 commit `76672071c3f7665dfde3340bef9e64271d6f6e70`, integrated here; the complete affected HAProxy caller target and shared native suite pass locally20/20 and10/10 without product changes or weakened checks.
 
 ## Checks not run and rationale
 
-Gitleaks is locally unavailable; no pass is claimed and bounded credential-pattern review does not replace it. The required HAProxy check ran and failed for the inherited cause recorded above; lighttpd and exact-source Sonar checks pass. Deep scans and unsupported capabilities are outside the bounded authorized scope.
+Gitleaks is locally unavailable; no pass is claimed and bounded credential-pattern review does not replace it. The affected central fixture suites pass locally, and the lighttpd and exact-source Sonar checks pass. Deep scans and unsupported capabilities are outside the bounded authorized scope.
 
 ## Final diff and review status
 
-Separate route ledgers preserve immutable originals and narrow scopes. Exact Root-reviewed source-bound results, independent physical-reference review and the freshly downloaded final artifact support this checkpoint. Evidence publication, fresh-download verification and exact-source strict-zero Sonar are complete. Draft#412 remains open with the inherited HAProxy blocker and visible qualification gaps. No complete acceptance, PR merge or master integration is claimed.
+Separate route ledgers preserve immutable originals and narrow scopes. Exact Root-reviewed source-bound results, independent physical-reference review and the freshly downloaded final artifact support this checkpoint. Evidence publication, fresh-download verification and exact-source strict-zero Sonar are complete. Draft#412 remains open with visible qualification gaps. No complete acceptance, PR merge or master integration is claimed.
