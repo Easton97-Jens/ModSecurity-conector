@@ -5,6 +5,7 @@ import importlib.util
 import json
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -107,12 +108,33 @@ class FinalReviewTest(unittest.TestCase):
         self.put('finish_calls', {'common_finish': 1, 'native_logging': 1})
         self.put('native_free_calls', {'native_cleanup': 1, 'common_cleanup': 1, 'host_association_retire': 1})
         self.put('finish_transitions', {'completed_status_3_transitions': 1})
-        self.put('commit_order', {'physical_socket_observation': {'actual_socket_call_brackets': [{'entered_ns': 30, 'return_ns': 40}]},
+        self.put('commit_order', {'physical_socket_observation': {'actual_socket_call_brackets': [
+                                      {'entered_ns': 30, 'return_ns': 40, 'result': 80,
+                                       'reported_bytes': 80, 'stream_accounted_here': True}]},
+                                  'actual_output_handoffs': [
+                                      {'kind': 'output_prefix_release_enter', 'sequence': 3,
+                                       'monotonic_ns': 17, 'invalid': False, 'response_committed': 1,
+                                       'response_eos_released': 0, 'response_body_processed': 0},
+                                      {'kind': 'output_prefix_release_return_ok', 'sequence': 4,
+                                       'monotonic_ns': 18, 'invalid': False, 'response_committed': 1,
+                                       'response_eos_released': 0, 'response_body_processed': 0},
+                                      {'kind': 'output_terminal_release_enter', 'sequence': 6,
+                                       'monotonic_ns': 22, 'invalid': False, 'response_committed': 1,
+                                       'response_eos_released': 1, 'response_body_processed': 1},
+                                      {'kind': 'output_terminal_release_return_ok', 'sequence': 7,
+                                       'monotonic_ns': 23, 'invalid': False, 'response_committed': 1,
+                                       'response_eos_released': 1, 'response_body_processed': 1}],
                                   'native_p4_edges': [{'edge': 'return', 'result': 1, 'monotonic_ns': 20}],
-                                  'internal_committed_flag_returns': [{'result': 0, 'argument_committed': 1}]})
+                                  'internal_committed_flag_returns': [
+                                      {'result': 0, 'argument_committed': 1, 'invalid': False,
+                                       'monotonic_ns': 16, 'contract_state': {'response_committed': 1}}]})
         self.put('process_listener_cleanup', {'supervisor_reaped': True, 'surviving_namespace_pids': [],
                                                'outside_mount_leaks': [], 'errors': [], 'exitcode': 0, 'controller_exitcode': 0})
-        self.put('cleanup_receipts', {'actual_native_observer_finals': [{'pending_calls': 0, 'live_mappings': 0}],
+        self.put('cleanup_receipts', {'actual_native_observer_finals': [
+                                          {'pending_calls': 0, 'live_mappings': 0,
+                                           'invalid': False, 'monotonic_ns': 100}],
+                                      'actual_same_pid_pre_host_observer_finals': [],
+                                      'actual_same_pid_in_host_window_observer_finals': [],
                                       'sampler_thread_stopped': True, 'sampler_errors': []})
         self.put('descriptor_cleanup', {'actual_fd_differences': {label: {'added': {}, 'removed': {}, 'changed': {}}
                                                                   for label in ('main', 'neighbor')}})
@@ -164,8 +186,12 @@ class FinalReviewTest(unittest.TestCase):
         ref = self.write('native-api.jsonl', '\n'.join(json.dumps(row) for row in self.physical_api))
         self.packet['observations']['native_api_returns']['evidence'] = [dict(ref, role='native_api')]
         self.put('host_eos', {'actual_apr_eos_rows': [
-            dict(identity, kind='actual_request_apr_eos', sequence=1, monotonic_ns=9, actual_apr_bucket_is_eos=True),
-            dict(identity, kind='actual_response_apr_eos', sequence=2, monotonic_ns=19, actual_apr_bucket_is_eos=True)]})
+            dict(identity, kind='actual_request_apr_eos', sequence=1, monotonic_ns=9,
+                 actual_apr_bucket_is_eos=True, request_body_processed=0,
+                 request_eos_released=0),
+            dict(identity, kind='actual_response_apr_eos', sequence=2, monotonic_ns=19,
+                 actual_apr_bucket_is_eos=True, request_eos_released=1,
+                 response_body_processed=0, response_eos_seen=1, response_committed=1)]})
         self.put('native_eos', {'native_request_finalization_returns': [returned[1]],
                                 'native_response_finalization_returns': [returned[3]]})
         self.packet['observations']['commit_order']['value']['native_p4_edges'] = [
@@ -196,6 +222,80 @@ class FinalReviewTest(unittest.TestCase):
         output.mkdir()
         ref = R.publish_packet(output, self.packet, decision, self.row, self.oracle)
         self.assertTrue(R.SHARED.reviewed_packet(ref, self.row, self.oracle)['full_lifecycle_qualified'])
+
+    def test_review_procedure_binds_all_direct_validator_sources(self):
+        references = R.review_procedure_inventory()
+        names = {Path(item['path']).name for item in references}
+        self.assertTrue({'final_review.py', 'review_batch.py', 'review.py',
+                         'review_controls.py', 'ledger.py', 'paths.py',
+                         'generate-pr382-i12-lifecycle-ledger.py',
+                         'generate-pr382-i12-oracle-reconciliation.py'} <= names)
+        self.assertTrue(all(item['role'] == 'review_procedure'
+                            and R.O.verify_reference(item) for item in references))
+
+    def test_review_procedure_is_published_in_inventory(self):
+        output = self.root / 'results'
+        output.mkdir()
+        procedure = [dict(self.write('procedure.py', 'loaded source'),
+                          role='review_procedure')]
+        decisions = [{'registry_inventory': {'category': 'unit'}}]
+        with patch('builtins.print'):
+            R.write_results(output, {}, procedure, procedure, decisions, [])
+        result = json.loads((output / 'decisions.json').read_text())
+        self.assertEqual(result['review_procedure'], procedure)
+        self.assertEqual(result['physical_input_inventory'], procedure)
+
+    def test_review_source_mutation_during_extraction_prevents_publication(self):
+        procedure_path = self.root / 'procedure.py'
+        procedure_path.write_text('loaded source')
+        input_paths = {}
+        for name in ('baseline', 'plan', 'unsigned_index', 'identity', 'spec'):
+            path = self.root / (name + '.json')
+            path.write_text('{}')
+            input_paths[name] = path
+        args = SimpleNamespace(
+            **input_paths,
+            **{name + '_sha256': R.O.reference(path)['sha256']
+               for name, path in input_paths.items()},
+            attempt=self.root / 'attempt', oracle_reviews=None,
+            oracle_reviews_sha256=None, output=self.root / 'must-not-exist',
+            approve_supported_families=False)
+
+        def mutate_during_extraction(_attempt, _spec):
+            procedure_path.write_text('changed during extraction')
+            return []
+
+        with patch.object(R, 'arguments', return_value=args), \
+                patch.object(R, 'review_procedure_inventory',
+                             side_effect=lambda: [dict(R.O.reference(procedure_path),
+                                                       role='review_procedure')]), \
+                patch.object(R, 'read_ref', return_value={}), \
+                patch.object(R, 'validate_inputs', return_value=[]), \
+                patch.object(R, 'validate_expected_identity'), \
+                patch.object(R, 'load_candidates', return_value=([], [])), \
+                patch.object(R.BATCH, 'extract_all', side_effect=mutate_during_extraction), \
+                patch.object(R, 'load_oracle_reviews', return_value={}), \
+                patch.object(R, 'evaluate_batch', return_value=([], [])):
+            with self.assertRaises(ValueError):
+                R.main()
+        self.assertFalse(args.output.exists())
+
+    def test_normalized_oracle_retest_measurements_join_frozen_inventory(self):
+        measurement = dict(self.write('retest-measurement.json', {'observed': True}),
+                           role='independent_host_probe')
+        reviews_ref = self.write('oracle-reviews.json', {'records': []})
+        args = SimpleNamespace(oracle_reviews=Path(reviews_ref['path']),
+                               oracle_reviews_sha256=reviews_ref['sha256'])
+        record = {'run_scoped_case_id': self.identity}
+        normalized = {'retest': {'measurement_evidence': [measurement]}}
+        inventory = []
+        inputs = {}
+        with patch.object(R, 'read_ref', return_value={'records': [record]}), \
+                patch.object(R.O, 'review_record', return_value=normalized):
+            actual = R.load_oracle_reviews(args, inputs, [self.row], inventory)
+        self.assertEqual(actual, {self.identity: normalized})
+        self.assertIn(measurement['path'], {item['path'] for item in inventory})
+        self.assertEqual(inputs['oracle_reviews']['sha256'], reviews_ref['sha256'])
 
     def test_complete35_fields_do_not_override_wrong_semantics(self):
         mutations = (
@@ -299,7 +399,7 @@ class FinalReviewTest(unittest.TestCase):
             self.assertEqual(predicates[0]['name'], 'registered_case_semantics')
             self.assertIsNone(predicates[0]['result'])
 
-    def test_actual_eos_cannot_follow_native_finalization_or_commit(self):
+    def test_nonempty_apr_eos_cannot_follow_native_finalization(self):
         original = copy.deepcopy(self.packet)
         for index, timestamp in ((0, 9999), (1, 10000)):
             self.packet = copy.deepcopy(original)
@@ -308,7 +408,63 @@ class FinalReviewTest(unittest.TestCase):
                 result = self.evaluate()
                 self.assertIsNone(result['outcome'])
                 self.assertEqual(next(p['result'] for p in result['predicates']
-                                      if p['name'] == 'physical_eos_p2_p4_commit_finish_free_order'), 'FAIL')
+                                      if p['name'] == 'physical_apr_eos_native_p2_p4_terminal_finish_free_order'), 'FAIL')
+
+    def test_empty_request_p2_precedes_first_empty_apr_eos(self):
+        request = self.packet['observations']['host_eos']['value'][
+            'actual_apr_eos_rows'][0]
+        request.update(monotonic_ns=12, request_body_processed=1)
+        self.assertTrue(R.check_lifecycle_order(
+            {'case_id': 'NEED-request-empty'}, self.packet))
+        request['request_body_processed'] = 0
+        self.assertFalse(R.check_lifecycle_order(
+            {'case_id': 'NEED-request-empty'}, self.packet))
+
+    def test_empty_request_eos_must_strictly_follow_p2_return(self):
+        request = self.packet['observations']['host_eos']['value'][
+            'actual_apr_eos_rows'][0]
+        request['request_body_processed'] = 1
+        for timestamp in (9, 10, 11):
+            request['monotonic_ns'] = timestamp
+            with self.subTest(timestamp=timestamp):
+                self.assertFalse(R.check_lifecycle_order(
+                    {'case_id': 'NEED-request-empty'}, self.packet))
+
+    def test_prefix_delivery_and_physical_socket_write_may_precede_p4(self):
+        call = self.packet['observations']['commit_order']['value'][
+            'physical_socket_observation']['actual_socket_call_brackets'][0]
+        call.update(entered_ns=17, return_ns=18)
+        self.assertEqual(self.evaluate()['outcome'], 'PASS')
+
+    def test_terminal_release_must_follow_successful_p4(self):
+        handoffs = self.packet['observations']['commit_order']['value'][
+            'actual_output_handoffs']
+        handoffs[-2]['monotonic_ns'] = 20
+        self.assertFalse(R.check_commit(R.values(self.packet)))
+
+    def test_finish_must_follow_late_terminal_release(self):
+        handoffs = self.packet['observations']['commit_order']['value'][
+            'actual_output_handoffs']
+        handoffs[-2]['monotonic_ns'] = 54
+        handoffs[-1]['monotonic_ns'] = 55
+        self.assertTrue(R.check_commit(R.values(self.packet)))
+        self.assertFalse(R.check_lifecycle_order(self.plan, self.packet))
+
+    def test_socket_bracket_and_accounting_mutations_fail(self):
+        original = copy.deepcopy(self.packet)
+        mutations = (
+            {'entered_ns': 41, 'return_ns': 40},
+            {'result': 79},
+            {'stream_accounted_here': False},
+        )
+        for changes in mutations:
+            self.packet = copy.deepcopy(original)
+            call = self.packet['observations']['commit_order']['value'][
+                'physical_socket_observation']['actual_socket_call_brackets'][0]
+            call.update(changes)
+            with self.subTest(changes=changes):
+                self.assertFalse(R.check_commit(R.values(self.packet)))
+                self.assertIsNone(self.evaluate()['outcome'])
 
     def test_physical_native_call_sequence_finish_free_and_logging_failure_are_rejected(self):
         mutations = (
@@ -329,7 +485,31 @@ class FinalReviewTest(unittest.TestCase):
                 result = self.evaluate()
                 self.assertIsNone(result['outcome'])
                 self.assertNotEqual(next(p['result'] for p in result['predicates']
-                                         if p['name'] == 'physical_eos_p2_p4_commit_finish_free_order'), 'PASS')
+                                         if p['name'] == 'physical_apr_eos_native_p2_p4_terminal_finish_free_order'), 'PASS')
+
+    def test_pre_host_same_pid_final_is_preserved_and_must_be_clean(self):
+        self.packet['observations']['cleanup_receipts']['value'][
+            'actual_same_pid_pre_host_observer_finals'] = [
+                {'pending_calls': 1, 'live_mappings': 0, 'invalid': False,
+                 'monotonic_ns': 1}]
+        result = self.evaluate()
+        self.assertIsNone(result['outcome'])
+        self.assertEqual(next(p['result'] for p in result['predicates']
+                              if p['name'] == 'process_descriptor_cleanup'), 'FAIL')
+
+    def test_in_host_window_or_untimed_final_cannot_qualify(self):
+        original = copy.deepcopy(self.packet)
+        for value in (50, None, '50', True):
+            self.packet = copy.deepcopy(original)
+            self.packet['observations']['cleanup_receipts']['value'][
+                'actual_same_pid_in_host_window_observer_finals'] = [
+                    {'pending_calls': 0, 'live_mappings': 0,
+                     'invalid': False, 'monotonic_ns': value}]
+            with self.subTest(monotonic_ns=value):
+                result = self.evaluate()
+                self.assertIsNone(result['outcome'])
+                self.assertEqual(next(p['result'] for p in result['predicates']
+                                      if p['name'] == 'process_descriptor_cleanup'), 'FAIL')
 
     def test_unimplemented_scope_semantics_remain_unknown(self):
         self.oracle['scope'] = 'Also prove native multipart upload and streaming'
@@ -365,10 +545,11 @@ class FinalReviewTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             R.read_ref(ref)
 
-    def test_transitive_reference_inventory_defeats_wrapper_bait(self):
+    def test_reference_inventory_defeats_in_memory_wrapper_bait(self):
         leaf = self.write('leaf.txt', 'leaf observation')
-        middle = self.write('middle.json', {'nested': [leaf]})
-        wrapper = dict(self.write('wrapper.txt', 'container'), nested=middle)
+        middle = self.write('middle.json', {'historical_path_record': {
+            'path': '/missing/historical-source.c', 'sha256': '4' * 64, 'bytes': 10}})
+        wrapper = dict(self.write('wrapper.txt', 'container'), nested=[middle, leaf])
         actual = R.physical_inventory(wrapper)
         self.assertEqual({item['path'] for item in actual},
                          {leaf['path'], middle['path'], wrapper['path']})
@@ -376,6 +557,36 @@ class FinalReviewTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             for ref in actual:
                 R.O.verify_reference(ref)
+
+    def test_reference_inventory_ignores_container_path_hash_observations(self):
+        logical_observation = {
+            'configured': True,
+            'path': '/mnt/artifacts/apache-host-io.so',
+            'sha256': '0' * 64,
+            'marker_sha256': '1' * 64,
+        }
+        logical_runtime_file = {
+            'path': '/var/tmp/codex/ModSecurity-conector/apache-batch-unit/001/events.jsonl',
+            'sha256': '2' * 64,
+            'bytes': 0,
+        }
+        leaf = self.write('physical.txt', 'physical observation')
+        actual = R.physical_inventory({'logical': logical_observation,
+                                       'physical_files': [logical_runtime_file],
+                                       'physical': leaf})
+        self.assertEqual(actual, [leaf])
+
+    def test_reference_inventory_rejects_malformed_runtime_file_records(self):
+        hidden = dict(self.write('hidden.txt', 'must not be hidden'), nested={})
+        with self.assertRaisesRegex(ValueError, 'Malformed typed runtime physical_files'):
+            R.physical_inventory({'physical_files': [hidden]})
+
+    def test_reference_inventory_treats_referenced_json_as_immutable_leaf(self):
+        stale = {'path': '/missing/historical-source.c', 'sha256': '3' * 64, 'bytes': 10}
+        plan = self.write('executed-plan.json', {'unrelated_unsupported_case_source': stale})
+        leaf = self.write('runtime-evidence.txt', 'runtime evidence')
+        actual = R.physical_inventory({'batch_plan_reference': plan, 'physical': leaf})
+        self.assertEqual({item['path'] for item in actual}, {plan['path'], leaf['path']})
 
     def catalog(self):
         rows = []

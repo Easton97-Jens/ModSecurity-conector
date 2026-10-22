@@ -42,6 +42,40 @@ def associate(host, api, client):
     main_api = [row for row in api if row.get('pid') == pid and row.get('allocation_scope_call') == scope and (row.get('allocation_scope_kind') == 'host')]
     return (association, main_host, main_api)
 
+
+def select_main_observer_finals(api, main_api, pid):
+    """Separate the host receipt from an earlier configtest PID reuse.
+
+    The batch executes a waited configtest before ``httpd -X``.  Linux may
+    reuse that exited parser's PID for the host process, so PID matching alone
+    can select two separately admitted observer lifecycles.  The host receipt
+    must follow the last API edge for the principal host allocation.  Earlier
+    same-PID finals remain explicit evidence.  Finals inside the principal API
+    window, or without a usable time, are ambiguous and must fail closed.
+    """
+    principal_times = [row.get('monotonic_ns') for row in main_api
+                       if type(row.get('monotonic_ns')) is int]
+    same_pid = [row for row in api
+                if row.get('pid') == pid and row.get('edge') == 'final']
+    if not principal_times:
+        return [], same_pid, []
+    start, boundary = min(principal_times), max(principal_times)
+    pre_host, in_host_window, host = [], [], []
+    for row in same_pid:
+        timestamp = row.get('monotonic_ns')
+        if type(timestamp) is not int or start <= timestamp <= boundary:
+            in_host_window.append(row)
+        elif timestamp < start:
+            pre_host.append(row)
+        else:
+            host.append(row)
+    return pre_host, in_host_window, host
+
+
+def clean_observer_final(row):
+    return (row.get('invalid') is False and row.get('pending_calls') == 0
+            and row.get('live_mappings') == 0)
+
 def choose_clients(data, selected_uri):
     candidates, neighbors = ([], [])
     for path in sorted((data / 'client').glob('*.receipt.json')):
@@ -258,10 +292,31 @@ class CandidateExtractor:
     def collect_cleanup(self):
         if self.association:
             self.pid = self.association['pid']
-            self.finals = [row for row in self.api if row.get('pid') == self.pid and row.get('edge') == 'final']
-            self.checks['one_clean_native_observer_final'] = len(self.finals) == 1 and self.finals[0].get('pending_calls') == 0 and (self.finals[0].get('live_mappings') == 0)
-            if self.finals:
-                self.put('cleanup_receipts', {'actual_native_observer_finals': self.finals, 'actual_main_host_tail': self.main_host[-1:], 'sampler_thread_stopped': self.command.get('sampler_thread_stopped'), 'sampler_errors': self.command.get('native_process_sampler_errors')}, reference(self.command_path, 'cleanup_observer'), reference(self.controller_path, 'isolation_receipt'), reference(self.api_path, 'cleanup_observer'))
+            (self.pre_host_finals, self.in_host_window_finals,
+             self.finals) = select_main_observer_finals(
+                 self.api, self.main_api, self.pid)
+            same_pid_finals = (self.pre_host_finals
+                               + self.in_host_window_finals + self.finals)
+            self.checks['same_pid_observer_finals_clean'] = (
+                bool(same_pid_finals)
+                and all(clean_observer_final(row) for row in same_pid_finals))
+            self.checks['no_observer_final_during_principal_host_window'] = (
+                not self.in_host_window_finals)
+            self.checks['one_clean_native_observer_final'] = (
+                not self.in_host_window_finals and len(self.finals) == 1
+                and clean_observer_final(self.finals[0]))
+            if same_pid_finals:
+                self.put('cleanup_receipts', {
+                    'actual_native_observer_finals': self.finals,
+                    'actual_same_pid_pre_host_observer_finals': self.pre_host_finals,
+                    'actual_same_pid_in_host_window_observer_finals': self.in_host_window_finals,
+                    'selection': 'Host final is after the last principal allocation API edge; earlier same-PID configtest finals remain explicit and in-window or untimed finals fail closed.',
+                    'actual_main_host_tail': self.main_host[-1:],
+                    'sampler_thread_stopped': self.command.get('sampler_thread_stopped'),
+                    'sampler_errors': self.command.get('native_process_sampler_errors')},
+                    reference(self.command_path, 'cleanup_observer'),
+                    reference(self.controller_path, 'isolation_receipt'),
+                    reference(self.api_path, 'cleanup_observer'))
             self.collect_descriptor_snapshots()
 
     def collect_process_cleanup(self):

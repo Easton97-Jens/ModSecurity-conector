@@ -11,6 +11,54 @@ SPEC.loader.exec_module(REVIEW)
 
 
 class BatchReviewTests(unittest.TestCase):
+    def test_observer_final_selection_survives_configtest_pid_reuse(self):
+        pid = 41
+        pre_host = {'pid': pid, 'edge': 'final', 'monotonic_ns': 20,
+                    'invalid': False, 'pending_calls': 0, 'live_mappings': 0}
+        host = {'pid': pid, 'edge': 'final', 'monotonic_ns': 90,
+                'invalid': False, 'pending_calls': 0, 'live_mappings': 0}
+        earlier_other_pid = {'pid': 40, 'edge': 'final', 'monotonic_ns': 10,
+                             'invalid': False, 'pending_calls': 0, 'live_mappings': 0}
+        principal = [{'pid': pid, 'edge': 'return', 'monotonic_ns': 50}]
+
+        before, ambiguous, selected = REVIEW.REVIEW.select_main_observer_finals(
+            [earlier_other_pid, pre_host, host], principal, pid)
+
+        self.assertEqual(before, [pre_host])
+        self.assertEqual(ambiguous, [])
+        self.assertEqual(selected, [host])
+        self.assertTrue(all(REVIEW.REVIEW.clean_observer_final(row)
+                            for row in before + selected))
+        self.assertFalse(REVIEW.REVIEW.clean_observer_final(
+            dict(pre_host, pending_calls=1)))
+
+    def test_observer_final_selection_retains_in_window_and_untimed_rows(self):
+        pid = 41
+        rows = [
+            {'pid': pid, 'edge': 'final', 'monotonic_ns': 50},
+            {'pid': pid, 'edge': 'final'},
+            {'pid': pid, 'edge': 'final', 'monotonic_ns': '60'},
+            {'pid': pid, 'edge': 'final', 'monotonic_ns': True},
+            {'pid': pid, 'edge': 'final', 'monotonic_ns': 90},
+        ]
+        principal = [{'monotonic_ns': 40}, {'monotonic_ns': 70}]
+
+        before, ambiguous, selected = REVIEW.REVIEW.select_main_observer_finals(
+            rows, principal, pid)
+
+        self.assertEqual(before, [])
+        self.assertEqual(ambiguous, rows[:-1])
+        self.assertEqual(selected, rows[-1:])
+        self.assertEqual(sum(map(len, (before, ambiguous, selected))), len(rows))
+
+    def test_observer_final_selection_without_principal_time_fails_closed(self):
+        final = {'pid': 41, 'edge': 'final', 'monotonic_ns': 90}
+        before, ambiguous, selected = REVIEW.REVIEW.select_main_observer_finals(
+            [final], [{'monotonic_ns': None}], 41)
+        self.assertEqual(before, [])
+        self.assertEqual(ambiguous, [final])
+        self.assertEqual(selected, [])
+
     def test_backend_arrival_and_completion_count_once_including_incomplete_body(self):
         rows = [{'kind': 'request_arrival', 'request_id': 'a', 'uri': '/main', 'monotonic_ns': 10},
                 {'kind': 'request', 'request_id': 'a', 'uri': '/main', 'monotonic_ns': 20},

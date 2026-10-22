@@ -15,10 +15,33 @@ import importlib.util
 import json
 from pathlib import Path
 import re
+import sys
 
 
 ROOT = Path(__file__).resolve().parents[3]
 RESPONSE_RAW = 'response.raw'
+PROCEDURE_SOURCE_PATHS = (
+    Path(__file__).resolve(strict=True),
+    ROOT / 'ci/runtime/lifecycle/apache-i12/acceptance/review_batch.py',
+    ROOT / 'ci/runtime/lifecycle/apache-i12/review.py',
+    ROOT / 'ci/runtime/lifecycle/apache-i12/acceptance/review_controls.py',
+    ROOT / 'ci/runtime/lifecycle/apache-i12/ledger.py',
+    ROOT / 'ci/runtime/lifecycle/apache-i12/paths.py',
+    ROOT / 'ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py',
+    ROOT / 'ci/evidence/reports/generate-pr382-i12-oracle-reconciliation.py',
+)
+
+
+def source_reference(path):
+    """Capture source bytes before any repository review module is loaded."""
+    resolved = path.resolve(strict=True)
+    data = resolved.read_bytes()
+    return {'path': str(resolved), 'sha256': hashlib.sha256(data).hexdigest(),
+            'bytes': len(data), 'role': 'review_procedure'}
+
+
+FROZEN_REVIEW_PROCEDURE = tuple(source_reference(path)
+                                for path in PROCEDURE_SOURCE_PATHS)
 
 
 def load(name, relative):
@@ -28,7 +51,23 @@ def load(name, relative):
     return module
 
 
-BATCH = load('apache_final_batch', 'ci/runtime/lifecycle/apache-i12/acceptance/review_batch.py')
+def load_review_tree_from_source():
+    """Force repository validators to compile from the pre-hashed source tree."""
+    previous_prefix = sys.pycache_prefix
+    previous_bytecode = sys.dont_write_bytecode
+    # The impossible Linux procfs descriptor path makes every bytecode-cache
+    # lookup miss without creating task data in the source checkout.
+    sys.pycache_prefix = '/proc/self/fd/-1/apache-i12-final-review'
+    sys.dont_write_bytecode = True
+    try:
+        return load('apache_final_batch',
+                    'ci/runtime/lifecycle/apache-i12/acceptance/review_batch.py')
+    finally:
+        sys.pycache_prefix = previous_prefix
+        sys.dont_write_bytecode = previous_bytecode
+
+
+BATCH = load_review_tree_from_source()
 L = BATCH.REVIEW.LEDGER
 O = L.ORACLES
 SHARED = L.SHARED
@@ -52,6 +91,8 @@ ORACLE_LIFECYCLE_PHASE = {
 CHECKS = frozenset((
     'one_timed_typed_host_association', 'successful_actual_allocation_join',
     'no_invalid_main_observer_rows', 'one_clean_native_observer_final',
+    'same_pid_observer_finals_clean',
+    'no_observer_final_during_principal_host_window',
     'controller_cleanup_clean', 'native_cleanup_exactly_once',
     'common_finish_exactly_once', 'common_cleanup_exactly_once',
     'fd_snapshots_same_pid_starttime', 'maps_snapshot_hash_matches_sampler',
@@ -59,6 +100,25 @@ CHECKS = frozenset((
     'loaded_images_match_actual_admission',
 ))
 SUPPORTED_ORACLE_SCOPE = 'Apache bounded request raw-byte lifecycle; no streaming, native-file, limit or sibling-case claim.'
+
+
+def review_procedure_inventory():
+    """Return sources frozen before loading repository review modules."""
+    modules = (BATCH, BATCH.REVIEW, BATCH.CONTROLS, L, L.PATHS, SHARED, O)
+    loaded = {Path(__file__).resolve(strict=True)}
+    loaded.update(Path(module.__file__).resolve(strict=True) for module in modules)
+    frozen = {Path(reference['path']) for reference in FROZEN_REVIEW_PROCEDURE}
+    if loaded != frozen:
+        raise ValueError('Frozen review procedure does not match loaded validators')
+    for reference in FROZEN_REVIEW_PROCEDURE:
+        O.verify_reference(reference)
+    return [dict(reference) for reference in FROZEN_REVIEW_PROCEDURE]
+
+
+def verify_frozen_references(inputs, inventory):
+    """Reject any declared input or reviewer source changed during review."""
+    for reference in [*inputs.values(), *inventory]:
+        O.verify_reference(reference)
 
 
 def digest(data):
@@ -74,9 +134,32 @@ def refs_in(value):
     """Do not stop walking at reference-shaped containers (wrapper bait)."""
     result = []
     if isinstance(value, dict):
-        if isinstance(value.get('path'), str) and 'sha256' in value:
-            result.append(O.verify_reference(value))
-        for item in value.values():
+        # Shared physical references always carry the byte count emitted by
+        # ORACLES.reference().  Runtime observations also contain path/hash
+        # records for container-only paths such as /mnt/artifacts; those are
+        # typed observations, not host-visible evidence references.
+        if (isinstance(value.get('path'), str)
+                and isinstance(value.get('sha256'), str)
+                and type(value.get('bytes')) is int and value['bytes'] >= 0):
+            try:
+                result.append(O.verify_reference(value))
+            except (KeyError, OSError, ValueError) as error:
+                raise ValueError('Invalid physical evidence reference: '
+                                 + value['path']) from error
+        for key, item in value.items():
+            # batch.py records container-visible output identities here.  The
+            # containing observation file is the evidence reference; these
+            # entries intentionally describe paths outside the reviewer mount.
+            if key == 'physical_files':
+                if (not isinstance(item, list)
+                        or any(not isinstance(record, dict)
+                               or set(record) != {'path', 'sha256', 'bytes'}
+                               or not isinstance(record['path'], str)
+                               or not isinstance(record['sha256'], str)
+                               or type(record['bytes']) is not int or record['bytes'] < 0
+                               for record in item)):
+                    raise ValueError('Malformed typed runtime physical_files observation')
+                continue
             result.extend(refs_in(item))
     elif isinstance(value, list):
         for item in value:
@@ -85,22 +168,22 @@ def refs_in(value):
 
 
 def physical_inventory(*values):
-    """Freeze transitive JSON references, including externally reviewed oracles."""
-    pending = [ref for value in values for ref in refs_in(value)]
+    """Freeze direct references declared in the reviewed structures.
+
+    A referenced JSON file is an immutable evidence leaf.  Its internal
+    path/hash/byte records can be historical identities or typed runtime data;
+    callers that rely on those records must supply their enclosing reviewed
+    structure explicitly, as load_oracle_reviews does for every oracle record.
+    """
     result = {}
-    while pending:
-        ref = pending.pop()
-        key = (ref['path'], ref['sha256'])
-        if key in result:
-            continue
-        if len(result) >= 10000:
-            raise ValueError('Physical evidence graph exceeds bounded review inventory')
-        result[key] = ref
-        path = Path(ref['path'])
-        if path.suffix == '.json':
-            if path.stat().st_size > 64 * 1024 * 1024:
-                raise ValueError('JSON evidence exceeds bounded review size')
-            pending.extend(refs_in(json.loads(path.read_text())))
+    for value in values:
+        for ref in refs_in(value):
+            key = (ref['path'], ref['sha256'])
+            if key in result:
+                continue
+            if len(result) >= 10000:
+                raise ValueError('Physical evidence inventory exceeds bounded review size')
+            result[key] = ref
     return list(result.values())
 
 
@@ -314,16 +397,15 @@ def paired_native_operation(rows, function):
     return entry, returned
 
 
-def eos_precedes_native(eos, operation, association):
-    entry, _ = operation
+def valid_apr_eos(eos, association):
     return (eos.get('pid') == association['pid']
             and eos.get('allocation_scope_call') == association['allocation_scope_call']
             and eos.get('actual_apr_bucket_is_eos') is True and eos.get('invalid') is False
-            and type(eos.get('monotonic_ns')) is int and eos['monotonic_ns'] < entry['monotonic_ns']
+            and type(eos.get('monotonic_ns')) is int
             and type(eos.get('sequence')) is int)
 
 
-def check_lifecycle_order(packet):
+def check_lifecycle_order(plan, packet):
     v = values(packet)
     rows = principal_physical_api(packet)
     functions = ('native_process_request_body', 'native_process_response_body', 'common_finish',
@@ -336,8 +418,21 @@ def check_lifecycle_order(packet):
     if len(request) != 1 or len(response) != 1:
         return False
     association = v['observed_handle_association']['host_association']
-    if not (eos_precedes_native(request[0], p2, association)
-            and eos_precedes_native(response[0], p4, association)
+    request_eos, response_eos = request[0], response[0]
+    empty_request_order = (plan['case_id'] == 'NEED-request-empty'
+                           and p2[1]['monotonic_ns'] < request_eos['monotonic_ns']
+                           and request_eos.get('request_body_processed') == 1)
+    body_request_order = (plan['case_id'] != 'NEED-request-empty'
+                          and request_eos['monotonic_ns'] < p2[0]['monotonic_ns']
+                          and request_eos.get('request_body_processed') == 0)
+    if not (valid_apr_eos(request_eos, association)
+            and valid_apr_eos(response_eos, association)
+            and (empty_request_order or body_request_order)
+            and request_eos.get('request_eos_released') == 0
+            and response_eos['monotonic_ns'] < p4[0]['monotonic_ns']
+            and response_eos.get('response_body_processed') == 0
+            and response_eos.get('response_eos_seen') == 1
+            and response_eos.get('request_eos_released') == 1
             and request[0]['sequence'] < response[0]['sequence']
             and p2[1]['monotonic_ns'] < response[0]['monotonic_ns']):
         return False
@@ -345,16 +440,20 @@ def check_lifecycle_order(packet):
             or v['native_eos']['native_response_finalization_returns'] != [p4[1]]
             or v['commit_order']['native_p4_edges'] != list(p4)):
         return False
-    return cleanup_after_physical_commit(v, operations, p4)
+    return cleanup_after_physical_delivery(v, operations, p4)
 
 
-def cleanup_after_physical_commit(v, operations, p4):
+def cleanup_after_physical_delivery(v, operations, p4):
     calls = v['commit_order']['physical_socket_observation']['actual_socket_call_brackets']
     if not calls or any(type(row.get('entered_ns')) is not int or type(row.get('return_ns')) is not int
-                        or row['entered_ns'] < p4[1]['monotonic_ns']
                         or row['return_ns'] < row['entered_ns'] for row in calls):
         return False
-    last_time = max(row['return_ns'] for row in calls)
+    terminal = [row for row in v['commit_order']['actual_output_handoffs']
+                if row.get('kind') == 'output_terminal_release_return_ok']
+    if len(terminal) != 1 or type(terminal[0].get('monotonic_ns')) is not int:
+        return False
+    last_time = max(p4[1]['monotonic_ns'], terminal[0]['monotonic_ns'],
+                    *(row['return_ns'] for row in calls))
     previous = p4[1]
     for name, result in (('common_finish', 0), ('native_process_logging', 1), ('common_cleanup', 0),
                          ('native_cleanup', None), ('host_association_retire', 1)):
@@ -369,26 +468,86 @@ def cleanup_after_physical_commit(v, operations, p4):
 def check_commit(v):
     commit = v['commit_order']
     physical = commit['physical_socket_observation']
-    p4 = [row for row in commit['native_p4_edges'] if row.get('edge') == 'return']
+    p4_entries = [row for row in commit['native_p4_edges'] if row.get('edge') == 'enter']
+    p4_returns = [row for row in commit['native_p4_edges'] if row.get('edge') == 'return']
     calls = physical['actual_socket_call_brackets']
     flags = commit['internal_committed_flag_returns']
-    return (len(p4) == 1 and p4[0].get('result') == 1 and bool(calls) and bool(flags)
-            and all(type(row.get('entered_ns')) is int and row['entered_ns'] >= p4[0]['monotonic_ns']
-                    and row.get('return_ns', -1) >= row['entered_ns'] for row in calls)
-            and len(flags) == 1 and flags[0].get('result') == 0
-            and flags[0].get('argument_committed') == 1)
+    handoffs = commit['actual_output_handoffs']
+    if (len(p4_entries) != 1 or len(p4_returns) != 1
+            or p4_entries[0].get('call') != p4_returns[0].get('call')
+            or p4_entries[0].get('monotonic_ns', -1) >= p4_returns[0].get('monotonic_ns', -1)
+            or p4_returns[0].get('result') != 1 or len(flags) != 1 or not calls):
+        return False
+    flag = flags[0]
+    if (flag.get('result') != 0 or flag.get('argument_committed') != 1
+            or flag.get('invalid') is not False
+            or type(flag.get('monotonic_ns')) is not int
+            or flag.get('contract_state', {}).get('response_committed') != 1):
+        return False
+    if (len(handoffs) < 4 or len(handoffs) % 2
+            or any(row.get('invalid') is not False
+                   or type(row.get('sequence')) is not int
+                   or type(row.get('monotonic_ns')) is not int for row in handoffs)
+            or any(left['sequence'] >= right['sequence']
+                   or left['monotonic_ns'] >= right['monotonic_ns']
+                   for left, right in zip(handoffs, handoffs[1:]))):
+        return False
+    pairs = list(zip(handoffs[::2], handoffs[1::2]))
+    prefix, terminal = pairs[:-1], pairs[-1]
+    response_eos = [row for row in v['host_eos']['actual_apr_eos_rows']
+                    if row.get('kind') == 'actual_response_apr_eos']
+    if (len(response_eos) != 1
+            or not prefix
+            or any(enter.get('kind') != 'output_prefix_release_enter'
+                   or returned.get('kind') != 'output_prefix_release_return_ok'
+                   or enter.get('response_committed') != 1
+                   or returned.get('response_committed') != 1
+                   or enter.get('response_eos_released') != 0
+                   or returned.get('response_eos_released') != 0
+                   or enter.get('response_body_processed') != 0
+                   or returned.get('response_body_processed') != 0
+                   for enter, returned in prefix)
+            or any(returned['monotonic_ns'] >= response_eos[0]['monotonic_ns']
+                   for _, returned in prefix)):
+        return False
+    terminal_enter, terminal_return = terminal
+    if (terminal_enter.get('kind') != 'output_terminal_release_enter'
+            or terminal_return.get('kind') != 'output_terminal_release_return_ok'
+            or terminal_enter['monotonic_ns'] <= p4_returns[0]['monotonic_ns']
+            or terminal_enter.get('response_committed') != 1
+            or terminal_return.get('response_committed') != 1
+            or terminal_enter.get('response_eos_released') != 1
+            or terminal_return.get('response_eos_released') != 1
+            or terminal_enter.get('response_body_processed') != 1
+            or terminal_return.get('response_body_processed') != 1
+            or flag['monotonic_ns'] >= handoffs[0]['monotonic_ns']):
+        return False
+    return all(type(row.get('entered_ns')) is int
+               and type(row.get('return_ns')) is int
+               and flag['monotonic_ns'] <= row['entered_ns'] <= row['return_ns']
+               and type(row.get('reported_bytes')) is int and row['reported_bytes'] > 0
+               and row.get('result') == row['reported_bytes']
+               and row.get('stream_accounted_here') is True for row in calls)
 
 
 def check_cleanup(v):
     process = v['process_listener_cleanup']
     receipts = v['cleanup_receipts']
     finals = receipts['actual_native_observer_finals']
+    pre_host = receipts['actual_same_pid_pre_host_observer_finals']
+    in_host_window = receipts['actual_same_pid_in_host_window_observer_finals']
     differences = v['descriptor_cleanup']['actual_fd_differences']
     return (process['supervisor_reaped'] is True and process['surviving_namespace_pids'] == []
             and process['outside_mount_leaks'] == [] and process['errors'] == []
             and process['exitcode'] == process['controller_exitcode'] == 0
             and receipts['sampler_thread_stopped'] is True and receipts['sampler_errors'] == []
-            and len(finals) == 1 and finals[0]['pending_calls'] == finals[0]['live_mappings'] == 0
+            and in_host_window == []
+            and len(finals) == 1 and finals[0].get('invalid') is False
+            and finals[0]['pending_calls'] == finals[0]['live_mappings'] == 0
+            and all(row.get('invalid') is False and row.get('pending_calls') == 0
+                    and row.get('live_mappings') == 0 for row in pre_host)
+            and all(type(row.get('monotonic_ns')) is int
+                    and row['monotonic_ns'] < finals[0]['monotonic_ns'] for row in pre_host)
             and set(differences) == {'main', 'neighbor'}
             and all(not row[key] for row in differences.values() for key in ('added', 'removed', 'changed')))
 
@@ -493,9 +652,9 @@ def host_predicates(plan, packet):
         ('registered_oracle_lifecycle_phase', lambda: check_registered_oracle_lifecycle(plan, packet), ('native_phases',)),
         ('native_rule_and_physical_jsonl', lambda: check_events(plan, v), ('native_events', 'terminal_event_count')),
         ('eos_finish_and_free', lambda: check_eos_finish(v), ('host_eos', 'native_eos', 'finish_calls', 'native_free_calls', 'finish_transitions')),
-        ('physical_eos_p2_p4_commit_finish_free_order', lambda: check_lifecycle_order(packet),
+        ('physical_apr_eos_native_p2_p4_terminal_finish_free_order', lambda: check_lifecycle_order(plan, packet),
          ('host_eos', 'native_eos', 'native_api_returns', 'commit_order')),
-        ('p4_before_physical_commit', lambda: check_commit(v), ('commit_order',)),
+        ('logical_commit_prefix_p4_terminal_and_physical_delivery', lambda: check_commit(v), ('commit_order',)),
         ('process_descriptor_cleanup', lambda: check_cleanup(v), ('process_listener_cleanup', 'descriptor_cleanup', 'cleanup_receipts')),
         ('separate_healthy_neighbor_identity', lambda: check_neighbor(v), ('neighbor_health', 'observed_handle_association')),
         ('physical_followup_and_neighbor_controls', lambda: check_controls(plan, packet), ('neighbor_health',)),
@@ -717,8 +876,12 @@ def load_oracle_reviews(args, inputs, rows, inventory):
         identity = record['run_scoped_case_id']
         if identity in reviews or identity not in originals:
             raise ValueError('Duplicate or foreign oracle review')
-        inventory.extend(physical_inventory(record))
-        reviews[identity] = O.review_record(record, originals[identity])
+        reviewed = O.review_record(record, originals[identity])
+        # Normalization verifies and exposes references nested in optional
+        # retest/applicability records.  Freeze those explicit references too;
+        # the raw review JSON remains an immutable leaf.
+        inventory.extend(physical_inventory(record, reviewed))
+        reviews[identity] = reviewed
     return reviews
 
 
@@ -740,9 +903,10 @@ def evaluate_batch(rows, data, packets, extracted, reviews, approve):
     return decisions, pending
 
 
-def write_results(output, inputs, inventory, decisions, approved):
+def write_results(output, inputs, inventory, procedure, decisions, approved):
     result = {'schema_version': 1, 'scope': 'apache-native', 'i12_complete': False,
               'input_evidence': inputs, 'required_cases': 155, 'rows': decisions,
+              'review_procedure': procedure,
               'physical_input_inventory': inventory,
               'registry_categories': dict(collections.Counter(item['registry_inventory']['category'] for item in decisions)),
               'qualified_pass': len(approved), 'unknown_or_unqualified': 155 - len(approved)}
@@ -757,6 +921,9 @@ def write_results(output, inputs, inventory, decisions, approved):
 
 def main():
     args = arguments()
+    # Bind every loaded review source before reading or evaluating evidence.
+    # The same references are reverified before any output directory exists.
+    procedure = review_procedure_inventory()
     inputs = {name: {'path': str(getattr(args, name.replace('-', '_')).resolve(strict=True)),
                      'sha256': getattr(args, name.replace('-', '_') + '_sha256')}
               for name in ('baseline', 'plan', 'unsigned-index', 'identity', 'spec')}
@@ -767,16 +934,16 @@ def main():
     extracted = {item['run_scoped_case_id']: item for item in BATCH.extract_all(args.attempt, args.spec)}
     reviews = load_oracle_reviews(args, inputs, rows, inventory)
     decisions, pending = evaluate_batch(rows, data, packets, extracted, reviews, args.approve_supported_families)
+    inventory.extend(procedure)
     # Freeze all declared inputs again after evaluation; no changed-input result.
-    for ref in [*inputs.values(), *inventory]:
-        O.verify_reference(ref)
+    verify_frozen_references(inputs, inventory)
     output = L.PATHS.new_output(args.output)
     output.mkdir(mode=0o700)
     approved = []
     for packet, decision, row, oracle in pending:
         decision['reviewed_packet'] = publish_packet(output, packet, decision, row, oracle)
         approved.append(decision['reviewed_packet'])
-    write_results(output, inputs, inventory, decisions, approved)
+    write_results(output, inputs, inventory, procedure, decisions, approved)
 
 
 if __name__ == '__main__':
