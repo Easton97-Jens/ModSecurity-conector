@@ -58,6 +58,11 @@ class QualificationTests(unittest.TestCase):
         }
         for field, value in values.items():
             self.packet["observations"][field]["value"] = value
+        self.provenance = {"run_id": self.packet["run_id"],
+                           "transport_case_id": self.packet["run_scoped_case_id"],
+                           "transaction_id": record["request_identity"]["transaction_id"]}
+        self.packet["observations"]["native_events"]["value"][0].update(self.provenance)
+        self.physical_events = None
         self.candidate = {"run_scoped_case_id": self.packet["run_scoped_case_id"],
                           "request_identity": record["request_identity"], "unknown_fields": [], "gaps": [],
                           "measured_assertions": dict.fromkeys(QUALIFY.REQUIRED_ASSERTIONS, True)}
@@ -79,6 +84,11 @@ class QualificationTests(unittest.TestCase):
         self.decision = {"run_scoped_case_id": self.packet["run_scoped_case_id"], "outcome": "PASS", "checks": self.checks}
 
     def run_materializer(self):
+        events = self.packet["observations"]["native_events"]
+        raw = self.fixture.path / "events.jsonl"
+        raw.write_text("".join(json.dumps(event) + "\n" for event in (
+            events["value"] if self.physical_events is None else self.physical_events)))
+        events["evidence"] = [{**QUALIFY.LEDGER.ORACLES.reference(raw), "role": "physical_event_sink"}]
         self.packet_path.write_text(json.dumps(self.packet))
         self.candidate["packet"] = QUALIFY.LEDGER.ORACLES.reference(self.packet_path)
         return QUALIFY.materialize(self.fixture.baseline, self.candidates, [self.decision], self.fixture.path / "approved")
@@ -142,6 +152,12 @@ class QualificationTests(unittest.TestCase):
     def test_duplicate_request_content_type_is_rejected(self):
         request_path = Path(self.candidate["request_identity"]["physical_request_path"])
         request_path.write_bytes(b"POST / HTTP/1.1\r\nContent-Type: text/plain\r\ncontent-type: text/plain\r\n\r\n")
+        proof = self.packet["observations"]["client_exit"]["evidence"][0]
+        receipt_path = Path(proof["path"])
+        receipt = json.loads(receipt_path.read_text())
+        receipt["clients"][0]["observation"]["request_sha256"] = QUALIFY.LEDGER.ORACLES.reference(request_path)["sha256"]
+        receipt_path.write_text(json.dumps(receipt))
+        proof.update(QUALIFY.LEDGER.ORACLES.reference(receipt_path))
         with self.assertRaisesRegex(ValueError, "duplicate Content-Type"):
             self.run_materializer()
 
@@ -210,7 +226,8 @@ class QualificationTests(unittest.TestCase):
         self.fixture.baseline["rows"][1]["selected_requirement"]["expected_oracle"]["event_fields"] = ["rule_id", "phase"]
         self.checks["oracle_event_fields"] = ["rule_id", "phase"]
         events = self.packet["observations"]["native_events"]["value"]
-        events.extend([{"event": "rule", "rule_id": 101}, {"event": "phase", "phase": 4}])
+        events.extend([{**self.provenance, "event": "rule", "rule_id": 101},
+                       {**self.provenance, "event": "phase", "phase": 4}])
         with self.assertRaisesRegex(ValueError, "one physical event"):
             self.run_materializer()
         events[-1]["rule_id"] = 101
@@ -220,6 +237,55 @@ class QualificationTests(unittest.TestCase):
         self.fixture.baseline["rows"][1]["selected_requirement"]["expected_oracle"]["event_fields"] = ["rule_id", "phase"]
         self.checks["oracle_event_fields"] = ["rule_id"]
         with self.assertRaisesRegex(ValueError, "exact effective oracle event_fields"):
+            self.run_materializer()
+
+    def test_wrong_or_missing_event_provenance_cannot_qualify(self):
+        event = self.packet["observations"]["native_events"]["value"][0]
+        for field in self.provenance:
+            original = event[field]
+            for value in (None, "different-physical-identity"):
+                with self.subTest(field=field, value=value):
+                    if value is None:
+                        event.pop(field, None)
+                    else:
+                        event[field] = value
+                    with self.assertRaisesRegex(ValueError, "physical event provenance " + field):
+                        self.run_materializer()
+            event[field] = original
+
+    def test_observation_cannot_relabel_the_physical_event_row(self):
+        self.physical_events = copy.deepcopy(self.packet["observations"]["native_events"]["value"])
+        self.physical_events[0]["run_id"] = "original-wrong-run"
+        with self.assertRaisesRegex(ValueError, "exact physical event-sink row"):
+            self.run_materializer()
+
+    def test_one_physical_row_cannot_be_counted_twice(self):
+        events = self.packet["observations"]["native_events"]["value"]
+        self.physical_events = copy.deepcopy(events)
+        events.append(copy.deepcopy(events[0]))
+        with self.assertRaisesRegex(ValueError, "exact physical event-sink row"):
+            self.run_materializer()
+
+    def test_optional_receipt_connection_and_request_ids_are_exact(self):
+        proof = self.packet["observations"]["client_exit"]["evidence"][0]
+        path = Path(proof["path"])
+        receipt = json.loads(path.read_text())
+        receipt["clients"][0]["observation"].update(connection_id="nginx-42", request_id="request-1")
+        path.write_text(json.dumps(receipt))
+        proof.update(QUALIFY.LEDGER.ORACLES.reference(path))
+        event = self.packet["observations"]["native_events"]["value"][0]
+        for field in ("connection_id", "request_id"):
+            with self.assertRaisesRegex(ValueError, "physical event provenance " + field):
+                self.run_materializer()
+            event[field] = receipt["clients"][0]["observation"][field]
+        self.assertEqual(len(self.run_materializer()), 1)
+
+    def test_matching_oracle_fields_on_wrong_run_cannot_supply_pass(self):
+        self.fixture.baseline["rows"][1]["selected_requirement"]["expected_oracle"]["event_fields"] = ["rule_id", "phase"]
+        self.checks["oracle_event_fields"] = ["rule_id", "phase"]
+        self.packet["observations"]["native_events"]["value"].append(
+            {**self.provenance, "run_id": "neighbor-run", "event": "rule", "rule_id": 101, "phase": 4})
+        with self.assertRaisesRegex(ValueError, "physical event provenance run_id"):
             self.run_materializer()
 
     def test_pass_cannot_declare_missing_oracle_fields_but_fail_can(self):

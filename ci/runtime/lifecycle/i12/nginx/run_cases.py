@@ -20,6 +20,19 @@ import time
 from scenarios import cases, serializable
 
 
+EVENT_RUN_ID = "MSCONNECTOR_NGINX_EVENT_RUN_ID"
+EVENT_CASE_ID = "MSCONNECTOR_NGINX_EVENT_TRANSPORT_CASE_ID"
+
+
+def event_provenance(run_id, selected_id):
+    """Bind trusted controller identities; HTTP headers never supply these."""
+    values = {EVENT_RUN_ID: run_id, EVENT_CASE_ID: selected_id}
+    for key, value in values.items():
+        if not isinstance(value, str) or re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", value) is None:
+            raise ValueError("invalid trusted event provenance token: " + key)
+    return values
+
+
 def storage_root():
     """Require the configured private project anchor, with no temp fallback."""
     value = os.environ.get("CODEX_TEMP_ROOT", "")
@@ -123,8 +136,11 @@ class Backend(BaseHTTPRequestHandler):
 
 
 def configuration(raw, output, port, backend_port, row, worker, environment):
+    provenance = event_provenance(environment.get(EVENT_RUN_ID), environment.get(EVENT_CASE_ID))
     text = raw.config_template(output, port, backend_port)
-    text = text.replace("events {}", "\n".join("env " + key + ";" for key in environment if key.startswith("MSCONNECTOR_")) + "\nevents {}")
+    inherited = [*provenance, *(key for key in environment
+                              if key.startswith("MSCONNECTOR_") and key not in provenance)]
+    text = text.replace("events {}", "\n".join("env " + key + ";" for key in inherited) + "\nevents {}")
     text = text.replace("modsecurity on;", "modsecurity on; modsecurity_phase4_mode " + row["mode"] + ";")
     text = text.replace("location / { proxy_pass", "location / { proxy_http_version 1.1; proxy_buffering off; proxy_pass")
     # Keep NGINX's own client-body ceiling above the bounded 2 MiB native
@@ -219,19 +235,25 @@ def fault_descriptors(context):
 
 def prepare_case(args, row, raw, maps):
     """Validate immutable inputs and allocate this case's owned resources."""
+    run_id = args.run_prefix + "-" + hashlib.sha256(row["case_id"].encode()).hexdigest()[:16]
+    # The host validator and native observer impose a narrower contract than
+    # the optional product event fields. Satisfy every consumer before allocation.
+    if re.fullmatch(r"[A-Za-z0-9_-]{1,64}", run_id) is None:
+        raise ValueError("invalid host/native observer run identity")
+    provenance = event_provenance(run_id, "I12::nginx-native::" + row["case_id"])
     output = args.output_root / row["case_id"]
     args.output_root.mkdir(exist_ok=True, mode=0o700)
     local_args = argparse.Namespace(**vars(args))
     local_args.output_root = str(output)
     # The preserved observer accepts run labels up to64 bytes. The complete
     # original ID remains independently present in its128-byte case field.
-    local_args.run_id = args.run_prefix + "-" + hashlib.sha256(row["case_id"].encode()).hexdigest()[:16]
+    local_args.run_id = run_id
     local_args.nginx_binary, local_args.module = str(args.nginx_binary), str(args.module)
     binary, module, output = raw.BASE.validate_inputs(local_args)
     if os.geteuid() != 0:
         raise ValueError("actual root master required")
     output.mkdir(mode=0o700)
-    environment = raw.BASE.configtest_environment(str(args.library_dir))
+    environment = {**raw.BASE.configtest_environment(str(args.library_dir)), **provenance}
     raw.BASE.snapshot_artifact(binary, output / "nginx-binary", executable=True)
     raw.BASE.snapshot_artifact(module, output / "nginx-module.so", executable=False)
     backend = HTTPServer(("127.0.0.1", 0), Backend)

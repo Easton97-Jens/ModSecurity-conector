@@ -232,6 +232,64 @@ def verify_oracle_event_fields(events, checks, oracle, outcome):
     expect(actual_fields_present, declared_fields_present, "oracle fields in one physical event")
 
 
+def verify_event_provenance(packet, candidate, events):
+    """Join exact physical rows to the selected receipt, never caller labels."""
+    require(isinstance(events, list) and all(isinstance(event, dict) for event in events),
+            "Physical events must be a list of objects")
+    if not events:
+        return
+    request = LEDGER.ORACLES.reference(candidate["request_identity"]["physical_request_path"])
+    observations = packet["observations"]
+    receipts = []
+    for proof in observations["client_exit"].get("evidence", []):
+        path = Path(LEDGER.ORACLES.verify_reference(proof)["path"])
+        receipt = LEDGER.client_receipt(path)
+        if not isinstance(receipt, dict) or receipt.get("selected_id") != packet["run_scoped_case_id"]:
+            continue
+        for client in receipt.get("clients", []):
+            if LEDGER.client_matches_request(client, path, request):
+                receipts.append((receipt, client))
+    require(bool(receipts), "Event provenance requires the selected physical client receipt")
+    expected = {"run_id": packet["run_id"], "transport_case_id": packet["run_scoped_case_id"]}
+    transaction = observations["native_transaction_id"]["value"]
+    if isinstance(transaction, dict):
+        transaction = transaction.get("value")
+    require(isinstance(transaction, str) and bool(transaction), "Event provenance needs a native transaction")
+    expected["transaction_id"] = transaction
+    for receipt, client in receipts:
+        run = receipt.get("run_id") or receipt.get("roles", {}).get("run_id")
+        expect(run, expected["run_id"], "event receipt run_id")
+        # Optional identities must come from the independent receipt, rather
+        # than request_identity or a Root decision copying the event itself.
+        for source in (receipt, client, client.get("observation", {})):
+            for field in ("connection_id", "request_id"):
+                if field in source:
+                    value = source[field]
+                    require(isinstance(value, str) and bool(value), "Invalid receipt event identity: " + field)
+                    if field in expected:
+                        expect(value, expected[field], "conflicting receipt " + field)
+                    expected[field] = value
+    physical = []
+    seen_sinks = set()
+    for proof in observations["native_events"].get("evidence", []):
+        if proof.get("role") != "physical_event_sink":
+            continue
+        path = Path(LEDGER.ORACLES.verify_reference(proof)["path"])
+        if path in seen_sinks:
+            continue
+        seen_sinks.add(path)
+        for line in path.read_text().splitlines():
+            if line.strip():
+                physical.append(json.loads(line))
+    for event in events:
+        matches = [index for index, row in enumerate(physical)
+                   if subset(row, event) and subset(event, row)]
+        require(bool(matches), "Selected event is not an exact physical event-sink row")
+        physical.pop(matches[0])
+        for field, value in expected.items():
+            expect(event.get(field), value, "physical event provenance " + field)
+
+
 def verify_forbidden_events(events, checks):
     check_events(events, checks["required_events"], "required events")
     require(isinstance(checks["forbidden_events"], list), "Forbidden events must be explicit")
@@ -341,6 +399,7 @@ def verify_checks(packet, candidate, checks, oracle, outcome):
     verify_native_functions(native, checks)
     verify_native_eos(obs, checks)
     events = obs["native_events"]
+    verify_event_provenance(packet, candidate, events)
     verify_oracle_event_fields(events, checks, oracle, outcome)
     verify_forbidden_events(events, checks)
     request_headers = verify_cleanup_and_bodies(obs, candidate, checks)
