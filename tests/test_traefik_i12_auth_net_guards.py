@@ -1,5 +1,4 @@
 """Exercise the physical fixture's fixed HTTP, path and child-command boundaries."""
-import http.server
 import importlib.util
 import io
 from email.message import Message
@@ -98,7 +97,7 @@ class NetBoundaries(unittest.TestCase):
         fork.assert_not_called()
 
     def test_loopback_server_keeps_plain_http_wire_semantics(self):
-        class Handler(http.server.BaseHTTPRequestHandler):
+        class Handler(self.net.EvidenceRequestHandler):
             protocol_version = 'HTTP/1.1'
 
             def do_GET(self):
@@ -134,6 +133,161 @@ class NetBoundaries(unittest.TestCase):
             thread.join(timeout=2)
         self.assertFalse(thread.is_alive(), 'fixture accept loop must terminate')
         self.assertEqual(server.fileno(), -1, 'fixture listener must be closed')
+
+    def parsed_request(self, raw):
+        handler = object.__new__(self.net.EvidenceRequestHandler)
+        handler.rfile = io.BytesIO(raw)
+        handler.wfile = io.BytesIO()
+        handler.raw_requestline = handler.rfile.readline()
+        return handler, handler.parse_request()
+
+    def test_parser_preserves_duplicate_order_and_leaves_chunk_wire_unread(self):
+        payload = b'3\r\nabc\r\n0\r\n\r\n'
+        handler, accepted = self.parsed_request(
+            b'POST /authorize?sample=1 HTTP/1.1\r\nX-Probe: one\r\nx-probe: two\r\n'
+            b'Transfer-Encoding: chunked\r\n\r\n' + payload)
+        self.assertTrue(accepted)
+        self.assertEqual(handler.headers.get_all('X-Probe'), ['one', 'two'])
+        self.assertEqual(list(handler.headers.raw_items())[:2], [('X-Probe', 'one'), ('x-probe', 'two')])
+        self.assertEqual(handler.rfile.read(), payload)
+        self.assertFalse(handler.close_connection)
+
+    def test_parser_rejects_invalid_or_unbounded_heads_with_single_response(self):
+        malformed = [
+            b'GET http://external/ HTTP/1.1\r\n\r\n',
+            b'GET //external/ HTTP/1.1\r\n\r\n',
+            b'GET / HTTP/2.0\r\n\r\n',
+            b'GET / HTTP/1.1\n\n',
+            b'GET / HTTP/1.1\r\n Bad-Fold: value\r\n\r\n',
+            b'GET / HTTP/1.1\r\nX: bad\x00value\r\n\r\n',
+            b'GET / HTTP/1.1\r\nX: ' + b'a' * 65536 + b'\r\n\r\n',
+            b'GET / HTTP/1.1\r\n' + b'X: a\r\n' * 101 + b'\r\n',
+        ]
+        for request in malformed:
+            with self.subTest(request=request[:80]):
+                handler, accepted = self.parsed_request(request)
+                self.assertFalse(accepted)
+                self.assertTrue(handler.close_connection)
+                self.assertEqual(handler.wfile.getvalue().count(b'HTTP/1.1 400 '), 1)
+
+    def test_expect_continue_precedes_body_and_invalid_expectation_closes(self):
+        handler, accepted = self.parsed_request(
+            b'POST / HTTP/1.1\r\nExpect: 100-continue\r\nContent-Length: 3\r\n\r\nabc')
+        self.assertTrue(accepted)
+        self.assertEqual(handler.wfile.getvalue(), b'HTTP/1.1 100 Continue\r\n\r\n')
+        self.assertEqual(handler.rfile.read(), b'abc')
+        handler, accepted = self.parsed_request(b'POST / HTTP/1.1\r\nExpect: other\r\n\r\n')
+        self.assertFalse(accepted)
+        self.assertTrue(handler.wfile.getvalue().startswith(b'HTTP/1.1 417 '))
+        self.assertTrue(handler.close_connection)
+
+    def test_response_preserves_nonstandard_status_and_rejects_injection(self):
+        handler, accepted = self.parsed_request(b'GET / HTTP/1.1\r\n\r\n')
+        self.assertTrue(accepted)
+        handler.send_response(499)
+        handler.send_header('Content-Length', '0')
+        handler.end_headers()
+        self.assertTrue(handler.wfile.getvalue().startswith(b'HTTP/1.1 499 \r\n'))
+        for status in (True, 99, 1000, '403'):
+            with self.assertRaises(ValueError):
+                handler.send_response(status)
+        with self.assertRaises(ValueError):
+            handler.send_response(200, 'OK\r\nInjected: yes')
+        with self.assertRaises(ValueError):
+            handler.send_header('X-Probe', 'ok\r\nInjected: yes')
+
+    def test_connection_tokens_are_case_insensitive_and_close_wins(self):
+        handler, accepted = self.parsed_request(
+            b'GET / HTTP/1.1\r\nConnection: Keep-Alive, CLOSE \r\n\r\n')
+        self.assertTrue(accepted)
+        self.assertTrue(handler.close_connection)
+        handler, accepted = self.parsed_request(
+            b'GET / HTTP/1.0\r\nConnection: upgrade, Keep-Alive \r\n\r\n')
+        self.assertTrue(accepted)
+        self.assertFalse(handler.close_connection)
+
+    def test_rejected_head_records_failure_and_never_dispatches(self):
+        handler = object.__new__(self.net.EvidenceRequestHandler)
+        handler.root = self.root
+        handler.rfile = io.BytesIO(b'GET //external/ HTTP/1.1\r\n\r\n')
+        handler.wfile = io.BytesIO()
+        handler.do_GET = mock.Mock()
+        with mock.patch.object(self.net, 'dump') as dump:
+            handler.handle()
+        handler.do_GET.assert_not_called()
+        self.assertEqual(dump.call_args.args[1], self.net.AUTH_LOG)
+        self.assertEqual(dump.call_args.args[2]['event'], 'http_request_rejected')
+        self.assertEqual(handler.wfile.getvalue().count(b'HTTP/1.1 400 '), 1)
+
+    def test_request_line_read_failure_retains_zero_byte_receipt(self):
+        for error in (TimeoutError('timeout'), OSError('read failure')):
+            with self.subTest(error=type(error).__name__):
+                handler = object.__new__(self.net.EvidenceRequestHandler)
+                handler.root = self.root
+                handler.rfile = mock.Mock()
+                handler.rfile.readline.side_effect = error
+                handler.wfile = io.BytesIO()
+                with mock.patch.object(self.net, 'dump') as dump:
+                    handler.handle()
+                dump.assert_called_once()
+                receipt = dump.call_args.args[2]
+                self.assertEqual(receipt['event'], 'http_connection_error')
+                self.assertEqual(receipt['error'], type(error).__name__)
+                self.assertEqual(receipt['request_line_bytes'], 0)
+                self.assertTrue(handler.close_connection)
+                self.assertEqual(handler.wfile.getvalue(), b'')
+
+    def test_persistent_connection_keeps_body_framing_and_then_ends(self):
+        net = self.net
+        receipts = []
+
+        class Handler(net.EvidenceRequestHandler):
+            def do_POST(self):
+                entity, wire, framing = net.read_backend_body(self.rfile, self.headers)
+                receipts.append((entity, wire, framing))
+                self.send_response(200)
+                self.send_header('Content-Length', str(len(entity)))
+                self.send_header('Connection', self.headers.get('Connection'))
+                self.end_headers()
+                self.wfile.write(entity)
+
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as reservation:
+            reservation.bind(('127.0.0.1', 0))
+            port = reservation.getsockname()[1]
+        server = net.LoopbackEvidenceServer(port, Handler)
+        thread = threading.Thread(target=server.serve_forever, kwargs={'poll_interval': 0.01})
+        thread.start()
+        try:
+            with socket.create_connection(('127.0.0.1', port), timeout=2) as connection:
+                stream = connection.makefile('rb')
+                try:
+                    connection.sendall(b'POST /one HTTP/1.1\r\nContent-Length: 3\r\nConnection: keep-alive\r\n\r\nabc')
+                    self.assertEqual(self.read_wire_response(stream), b'abc')
+                    connection.sendall(b'POST /two HTTP/1.1\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n2\r\nde\r\n0\r\n\r\n')
+                    self.assertEqual(self.read_wire_response(stream), b'de')
+                    self.assertEqual(stream.read(1), b'')
+                finally:
+                    stream.close()
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual([receipt[0] for receipt in receipts], [b'abc', b'de'])
+        self.assertEqual(receipts[1][1], b'2\r\nde\r\n0\r\n\r\n')
+        self.assertTrue(all(receipt[2]['http_eos'] for receipt in receipts))
+
+    def read_wire_response(self, stream):
+        self.assertEqual(stream.readline(), b'HTTP/1.1 200 OK\r\n')
+        headers = Message()
+        while True:
+            line = stream.readline()
+            if line == b'\r\n':
+                break
+            self.assertTrue(line, 'response headers must terminate')
+            name, value = line.decode('latin1').split(':', 1)
+            headers[name] = value.strip()
+        return stream.read(int(headers['Content-Length']))
 
 
 if __name__ == '__main__':

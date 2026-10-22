@@ -1,7 +1,9 @@
 """Independent HTTP backend: connection/header arrivals precede body reads."""
 import hashlib
 import argparse
-import http.server
+from email.message import Message
+from email.utils import formatdate
+from http import HTTPStatus
 import json
 import os
 from pathlib import Path
@@ -13,6 +15,9 @@ import threading
 import time
 
 MAX_BODY = 8 * 1024 * 1024
+MAX_LINE = 8192
+MAX_HEADERS = 65536
+HEADER_TOKEN = b"!#$%&'*+-.^_`|~0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 LOCK = threading.Lock()
 LOOPBACK = '127.0.0.1'
 MANIFEST = '/mnt/fixtures/acceptance-manifest.json'
@@ -93,17 +98,122 @@ def response_fixture(case, key, neighbor):
     return case['fixture']['backend'], 'original_target_fixture'
 
 
-class Handler(http.server.BaseHTTPRequestHandler):
+class Handler(socketserver.StreamRequestHandler):
+    """One bounded HTTP request on an admitted private-loopback connection."""
+
     protocol_version = 'HTTP/1.1'
+
+    def read_line(self, limit):
+        line = self.rfile.readline(limit + 1)
+        if not line:
+            raise EOFError('EOF before CRLF line')
+        if len(line) > limit or not line.endswith(b'\r\n'):
+            raise ValueError('bounded CRLF line required')
+        return line[:-2]
+
+    def parse_request(self):
+        parts = self.read_line(MAX_LINE).split(b' ')
+        if len(parts) != 3 or parts[0] not in (b'GET', b'POST', b'PUT'):
+            raise ValueError('unsupported request method or request line')
+        if parts[2] != b'HTTP/1.1' or not parts[1].startswith(b'/') or parts[1].startswith(b'//'):
+            raise ValueError('HTTP/1.1 origin-form target required')
+        if any(byte <= 32 or byte == 127 or byte == 92 for byte in parts[1]):
+            raise ValueError('invalid request target')
+        self.command = parts[0].decode('ascii')
+        self.path = parts[1].decode('iso-8859-1')
+        self.read_headers()
+        self.validate_framing()
+        if self.headers.get('Expect', '').lower() == '100-continue':
+            self.wfile.write(b'HTTP/1.1 100 Continue\r\n\r\n')
+            self.wfile.flush()
+
+    def add_header(self, line):
+        name, separator, value = line.partition(b':')
+        if not separator or not name or any(byte not in HEADER_TOKEN for byte in name):
+            raise ValueError('invalid header field name')
+        if any(byte < 32 and byte != 9 or byte == 127 for byte in value):
+            raise ValueError('invalid header value')
+        self.headers[name.decode('ascii')] = value.decode('iso-8859-1').strip(' \t')
+
+    def read_headers(self):
+        self.headers = Message()
+        total = 0
+        count = 0
+        while True:
+            line = self.read_line(MAX_LINE)
+            total += len(line) + 2
+            if total > MAX_HEADERS:
+                raise ValueError('bounded header section exceeded')
+            if not line:
+                break
+            count += 1
+            if count > 100:
+                raise ValueError('excessive header fields')
+            self.add_header(line)
+
+    def validate_framing(self):
+        lengths = self.headers.get_all('Content-Length', [])
+        encodings = self.headers.get_all('Transfer-Encoding', [])
+        if len(lengths) > 1 or len(encodings) > 1 or lengths and encodings:
+            raise ValueError('ambiguous request body framing')
+        if lengths and (not lengths[0].isascii() or not lengths[0].isdecimal()):
+            raise ValueError('invalid content length')
+        if encodings and encodings[0].lower() != 'chunked':
+            raise ValueError('unsupported transfer encoding')
+
+    def handle(self):
+        self.close_connection = True
+        try:
+            self.parse_request()
+        except (OSError, EOFError, ValueError) as error:
+            record(self.server.root, {'operation': 'request-rejected',
+                'error': type(error).__name__, 'detail': str(error)[:256]})
+            try:
+                self.send_error(400)
+            except OSError:
+                pass
+            return
+        self.handle_request()
+
+    def send_response(self, status):
+        if not isinstance(status, int) or not 100 <= status <= 599:
+            raise ValueError('bounded response status required')
+        try:
+            reason = HTTPStatus(status).phrase
+        except ValueError:
+            reason = ''
+        self.wfile.write(f'HTTP/1.1 {status} {reason}\r\n'.encode('ascii'))
+        self.send_header('Server', 'BaseHTTP/0.6 Python/' + sys.version.split()[0])
+        self.send_header('Date', formatdate(usegmt=True))
+
+    def send_header(self, name, value):
+        encoded_name = str(name).encode('ascii')
+        encoded_value = str(value).encode('iso-8859-1')
+        if not encoded_name or any(byte not in HEADER_TOKEN for byte in encoded_name):
+            raise ValueError('invalid response header name')
+        if any(byte < 32 or byte == 127 for byte in encoded_value):
+            raise ValueError('invalid response header value')
+        self.wfile.write(encoded_name + b': ' + encoded_value + b'\r\n')
+
+    def end_headers(self):
+        self.wfile.write(b'\r\n')
+        self.wfile.flush()
+
+    def send_error(self, status):
+        self.send_response(status)
+        self.send_header('Content-Length', '0')
+        self.send_header('Connection', 'close')
+        self.end_headers()
 
     def read_chunked_body(self, body):
         while True:
-            line = self.rfile.readline(128)
-            if not line:
-                raise EOFError('EOF before chunk size')
-            size = int(line.split(b';', 1)[0].strip(), 16)
+            line = self.read_line(128)
+            digits = line.split(b';', 1)[0]
+            if not digits or any(byte not in b'0123456789abcdefABCDEF' for byte in digits):
+                raise ValueError('invalid chunk size')
+            size = int(digits, 16)
             if size == 0:
-                if self.rfile.readline(4096) != b'\r\n':
+                if self.read_line(4096):
                     raise ValueError('unsupported trailers')
                 return
             if size < 0 or size > MAX_BODY or len(body) + size > MAX_BODY:
@@ -210,14 +320,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
         finally:
             self.close_connection = True
             record(self.server.root, {'operation': 'handler-end', 'key': key})
-
-    do_GET = handle_request
-    do_POST = handle_request
-    do_PUT = handle_request
-
-    def log_message(self, *_):
-        # Structured append-only records above replace unbound stderr logging.
-        return
 
 
 def main():

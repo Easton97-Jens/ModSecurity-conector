@@ -3,7 +3,9 @@ import argparse
 from dataclasses import dataclass
 import hashlib
 import http.client
-import http.server
+from http import HTTPStatus
+from email.message import Message
+from email.utils import formatdate
 import json
 import os
 from pathlib import Path
@@ -85,6 +87,100 @@ class LoopbackEvidenceServer(socketserver.ThreadingMixIn,socketserver.BaseServer
  def server_close(self):
   self.socket.close()
   super().server_close()
+
+
+class EvidenceRequestHandler(socketserver.StreamRequestHandler):
+ """One bounded HTTP/1.x connection, retaining duplicate header field order.
+
+ The body readers below own entity framing. This layer only parses the head
+ and writes HTTP bytes on the fixed private loopback listener.
+ """
+ timeout=15
+ protocol_version='HTTP/1.1'
+ evidence_log=AUTH_LOG
+ def handle(self):
+  self.close_connection=True
+  try:
+   while True:
+    self.raw_requestline=b''
+    self.raw_requestline=self.rfile.readline(65537)
+    if not self.raw_requestline:return
+    if not self.parse_request():
+     self.failure_receipt('http_request_rejected','InvalidHead');return
+    method=getattr(self,'do_'+self.command,None)
+    if method is None:self.send_error(501)
+    else:method()
+    self.wfile.flush()
+    if self.close_connection:return
+  except (OSError,ValueError) as error:
+   self.failure_receipt('http_connection_error',type(error).__name__)
+   self.close_connection=True
+
+ def failure_receipt(self,event,error):
+  dump(self.root,self.evidence_log,dict(stamp(),event=event,error=error,request_line_bytes=len(self.raw_requestline)))
+
+ def parse_request(self):
+  self.headers=Message();self.command=None;self.path=None;self.close_connection=True
+  try:
+   self.parse_request_line()
+   self.parse_headers()
+   connection={token.strip().lower() for value in self.headers.get_all('Connection',[]) for token in value.split(',')}
+   self.close_connection=self.request_version=='HTTP/1.0'
+   if 'close' in connection:self.close_connection=True
+   elif 'keep-alive' in connection:self.close_connection=False
+   expectation=self.headers.get('Expect','')
+   if expectation:
+    if expectation.lower()!='100-continue':self.send_error(417);return False
+    self.wfile.write(b'HTTP/1.1 100 Continue\r\n\r\n')
+   return True
+  except ValueError:
+   self.send_error(400,'invalid HTTP request head');return False
+
+ def parse_request_line(self):
+  if len(self.raw_requestline)>65536 or not self.raw_requestline.endswith(b'\r\n'):
+   raise ValueError('bounded CRLF request line required')
+  line=self.raw_requestline[:-2].decode('ascii')
+  match=re.fullmatch(r"([!#$%&'*+.^_`|~0-9A-Za-z-]+) ([^ ]+) (HTTP/1\.[01])",line)
+  if match is None:raise ValueError('HTTP/1.x request line required')
+  self.command,self.path,self.request_version=match.groups()
+  origin_path(self.path)
+
+ def parse_headers(self):
+  total=len(self.raw_requestline)
+  for _ in range(101):
+   line=self.rfile.readline(65537);total+=len(line)
+   if total>65536 or not line.endswith(b'\r\n'):raise ValueError('bounded CRLF headers required')
+   if line==b'\r\n':return
+   key,separator,value=line[:-2].partition(b':')
+   if not separator or re.fullmatch(rb"[!#$%&'*+.^_`|~0-9A-Za-z-]+",key) is None:
+    raise ValueError('HTTP field name required')
+   if any(byte<32 and byte!=9 or byte==127 for byte in value):raise ValueError('invalid HTTP field value')
+   self.headers[key.decode('ascii')]=value.decode('latin1').strip(' \t')
+  raise ValueError('bounded HTTP header count exceeded')
+
+ def send_response(self,code,message=None):
+  if type(code) is not int or not 100<=code<=999:raise ValueError('three-digit HTTP status required')
+  reason=http.client.responses.get(code,'') if message is None else message
+  if any(ord(char)<32 or ord(char)==127 for char in reason):raise ValueError('invalid HTTP reason phrase')
+  self._response_head=[f'{self.protocol_version} {code} {reason}\r\n'.encode('latin1')]
+  self.send_header('Server','BaseHTTP/0.6 Python/'+sys.version.split()[0])
+  self.send_header('Date',formatdate(usegmt=True))
+
+ def send_header(self,key,value):
+  if re.fullmatch(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+",key) is None or any(ord(char)<32 and char!='\t' or ord(char)==127 for char in value):
+   raise ValueError('invalid HTTP response field')
+  self._response_head.append((key+': '+value+'\r\n').encode('latin1'))
+  if key.lower()=='connection':self.close_connection=value.lower()!='keep-alive'
+
+ def end_headers(self):
+  self.wfile.write(b''.join(self._response_head)+b'\r\n');self._response_head=[]
+
+ def send_error(self,code,message=None):
+  status=HTTPStatus(code);payload=(str(code)+' '+status.phrase+'\n').encode('ascii')
+  self.send_response(code,message)
+  self.send_header('Content-Type','text/plain; charset=utf-8')
+  self.send_header('Content-Length',str(len(payload)));self.send_header('Connection','close');self.end_headers()
+  if self.command!='HEAD':self.wfile.write(payload)
 
 
 def private_header_receipt(headers):
@@ -207,8 +303,9 @@ def redacted_backend_head(raw):
   if private:lines[index]=name+b': [REDACTED]'
  return b'\r\n'.join(lines)
 
-class Backend(http.server.BaseHTTPRequestHandler):
+class Backend(EvidenceRequestHandler):
  protocol_version='HTTP/1.1'
+ evidence_log='backend.jsonl'
  def setup(self):
   super().setup();handler_record(self,'accepted_connection')
  def parse_request(self):
@@ -302,10 +399,10 @@ class Backend(http.server.BaseHTTPRequestHandler):
    return released
   return True
  def log_message(self,*_):
-  # Structured physical receipts replace BaseHTTPRequestHandler stderr logging.
+  # Structured physical receipts own fixture logging.
   return
 
-class Relay(http.server.BaseHTTPRequestHandler):
+class Relay(EvidenceRequestHandler):
  protocol_version='HTTP/1.1'
  def do_HEAD(self):self.forward()
  def do_PATCH(self):self.forward()
