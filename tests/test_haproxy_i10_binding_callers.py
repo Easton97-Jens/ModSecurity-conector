@@ -26,6 +26,7 @@ class HAProxyI10BindingCallers(unittest.TestCase):
 const char *native_failure;
 int native_failure_result;
 unsigned int native_calls, native_cleanups;
+size_t native_request_body_limit = (size_t)-1;
 char native_http_version[16];
 int native_intervention;
 static int test_native(const char *name) {
@@ -44,6 +45,49 @@ static int test_native(const char *name) {
             native = native.replace('(void)version; return 1;',
                 'snprintf(native_http_version, sizeof(native_http_version), "%s", version); return 1;')
             native = re.sub(r"(int msc_(?:process|append|add)[^\n]+)return 1;", r"\1return test_native(__func__);", native)
+            # Common reads retained bytes from the native transaction after an
+            # append. Model that state rather than returning a constant length.
+            header = include / "modsecurity/modsecurity.h"
+            header.write_text(header.read_text() +
+                "\nsize_t msc_get_request_body_length(Transaction *);\n")
+            native = native.replace("struct Transaction { int value; };",
+                "struct Transaction { int value; size_t request_body_length; };")
+            native = native.replace("return &TRANSACTION_INSTANCE;",
+                "TRANSACTION_INSTANCE.request_body_length = 0; return &TRANSACTION_INSTANCE;")
+            append = "int msc_append_request_body(Transaction *value, const unsigned char *data, size_t length) { (void)value; (void)data; (void)length; return test_native(__func__); }"
+            self.assertIn(append, native)
+            native = native.replace(append, """
+int msc_append_request_body(Transaction *value, const unsigned char *data, size_t length) {
+    int result = test_native(__func__);
+    size_t remaining = native_request_body_limit - value->request_body_length;
+    (void)data;
+    if (result != 0 && result != 1) return result;
+    value->request_body_length += length < remaining ? length : remaining;
+    return length > remaining ? 0 : result;
+}
+size_t msc_get_request_body_length(Transaction *value) { return value->request_body_length; }
+int verify_native_request_body_fixture(void) {
+    Transaction *value = msc_new_transaction(NULL, NULL, NULL);
+    const unsigned char body[] = "abcd";
+    if (msc_get_request_body_length(value) != 0) return 1;
+    native_request_body_limit = 3;
+    if (msc_append_request_body(value, body, 2) != 1 ||
+            msc_get_request_body_length(value) != 2) return 2;
+    if (msc_append_request_body(value, body, 2) != 0 ||
+            msc_get_request_body_length(value) != 3) return 3;
+    native_failure = "msc_append_request_body";
+    native_failure_result = -1;
+    if (msc_append_request_body(value, body, 1) != -1 ||
+            msc_get_request_body_length(value) != 3) return 4;
+    value = msc_new_transaction(NULL, NULL, NULL);
+    if (msc_get_request_body_length(value) != 0) return 5;
+    native_failure = NULL;
+    native_failure_result = 0;
+    native_request_body_limit = (size_t)-1;
+    native_calls = 0;
+    return 0;
+}
+""")
             native = native.replace("void msc_transaction_cleanup(Transaction *value) { (void)value; }",
                 "void msc_transaction_cleanup(Transaction *value) { (void)value; native_cleanups++; }")
             if spop:
@@ -57,6 +101,13 @@ static int test_native(const char *name) {
             harness = temp / "caller.c"
             fixture_name = "haproxy_i10_spop_caller_test.c" if spop else "haproxy_i10_binding_caller_test.c"
             fixture_source = (ROOT / "tests" / fixture_name).read_text()
+            self.assertIn("int main(int argc, char **argv) {", fixture_source)
+            fixture_source = fixture_source.replace("int main(int argc, char **argv) {",
+                "int verify_native_request_body_fixture(void);\n"
+                "int main(int argc, char **argv) {\n"
+                "    if (verify_native_request_body_fixture() != 0) {\n"
+                '        fputs("native request body fixture failed\\n", stderr); return 1;\n'
+                "    }", 1)
             fixture_source = fixture_source.replace('"PRODUCT_BINDING"', '"' + str(binding) + '"')
             runtime_path = temp / "runtime.c"
             if spop:
