@@ -10,8 +10,49 @@ import json
 import os
 from pathlib import Path
 import shutil
+import stat
 
 ADMISSION_FILE = 'admission.json'
+GO_VERSION = 'go1.27.2'
+GO_SHA256 = '548d3c32f83fa81152f543eb1526be7884cfe0526eb5e9ce29d3eca14786e7e0'
+GO_NAMESPACE_ROOT = '/mnt/artifacts/toolchains/' + GO_VERSION
+
+
+def validate_private_toolchain(root):
+    """Inventory a physical, regular tree without following symbolic links."""
+    root = Path(root)
+    if not root.is_absolute() or '..' in root.parts or root.resolve() != root:
+        raise ValueError('physical absolute private toolchain source required')
+    if any(path.is_symlink() for path in (root, *root.parents)) or not root.is_dir():
+        raise ValueError('physical private toolchain directory required')
+    inventory = {}
+    for path in sorted(root.rglob('*')):
+        mode = path.lstat().st_mode
+        if stat.S_ISREG(mode):
+            inventory[str(path.relative_to(root))] = sha(path)
+        elif not stat.S_ISDIR(mode):
+            raise ValueError('private toolchain requires nonsymlink regular files/directories')
+    version = root / 'VERSION'
+    if 'VERSION' not in inventory or version.read_text().splitlines()[0:1] != [GO_VERSION]:
+        raise ValueError('private toolchain VERSION must be go1.27.2')
+    if inventory.get('bin/go') != GO_SHA256:
+        raise ValueError('private toolchain bin/go SHA256 mismatch')
+    if not (root / 'bin/go').stat().st_mode & 0o111:
+        raise ValueError('private toolchain bin/go must be executable')
+    return inventory
+
+
+def stage_private_toolchain(root, artifacts, inventory):
+    destination = artifacts / 'toolchains' / GO_VERSION
+    if root == destination or root in destination.parents:
+        raise ValueError('private toolchain destination must be outside source')
+    shutil.copytree(root, destination, symlinks=True)
+    copied = validate_private_toolchain(destination)
+    if copied != inventory:
+        raise ValueError('private toolchain changed during copy')
+    return {'private_source_root': str(root), 'namespace_root': GO_NAMESPACE_ROOT,
+            'version': GO_VERSION, 'go_sha256': GO_SHA256, 'files': copied,
+            'system_toolchain_changed': False, 'GOTOOLCHAIN': 'local'}
 
 
 def validate_physical_destination(path, storage):
@@ -104,12 +145,16 @@ def refresh_capture_source(repo, source, registry, overlays):
     central = importlib.util.module_from_spec(importlib.util.spec_from_file_location(
         'i12_capture_apply', registry.root / 'capture_sources.py'))
     central.__spec__.loader.exec_module(central)
-    receipt = central.apply(registry, 'traefik-native', source)
+    adapter_spec = importlib.util.spec_from_file_location(
+        'i12_current_capture', Path(__file__).resolve().parents[1] / 'current_capture.py')
+    adapter = importlib.util.module_from_spec(adapter_spec)
+    adapter_spec.loader.exec_module(adapter)
+    receipt = adapter.apply(central, registry, 'traefik-native', source)
     for relative, before in receipt['actual_before_sha256'].items():
         after = receipt['exact_written_sha256'][relative]
         if before != after:
             overlays[relative] = {'before_sha256': before, 'instrumented_sha256': after,
-                                 'scope': 'central traefik-native capture-only observation'}
+                                 'scope': 'central traefik-native observation with exact current-product adapter'}
     return {name: entry['sha256'] for name, entry in snapshot['files'].items()}
 
 
@@ -125,7 +170,8 @@ def stage_fixtures(fixtures, profile, registry):
         shutil.copyfile(Path(__file__).parent / name, fixtures / name)
 
 
-def prepare(repo, historical, output):
+def prepare(repo, historical, output, private_toolchain):
+    toolchain_inventory = validate_private_toolchain(private_toolchain)
     output = validate_output(output, fresh=True)
     output.mkdir(parents=True, mode=0o700)
     source, fixtures = output / 'source', output / 'fixtures'
@@ -165,6 +211,8 @@ def prepare(repo, historical, output):
          'product_inputs': bindings, 'capture_overlays': overlays, 'central_manifest_sha256': sha(capture_root / 'manifest.json'),
          'historical_host_artifact_inputs': str(historical / 'sealed-common-inputs/artifacts/traefik'), 'runtime_replay': False})
     shutil.copytree(historical / 'sealed-common-inputs/artifacts/traefik', output / 'artifacts/traefik')
+    toolchain_binding = stage_private_toolchain(private_toolchain, output / 'artifacts', toolchain_inventory)
+    save(fixtures / 'toolchain-input-binding.json', toolchain_binding)
     ledgers = {}
     for name in ('source', 'fixtures', 'artifacts'):
         ledger = output / (name + '-ledger.json')
@@ -188,5 +236,6 @@ if __name__ == '__main__':
     parser.add_argument('--repo', type=Path, required=True)
     parser.add_argument('--historical', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--private-toolchain', type=Path, required=True)
     args = parser.parse_args()
-    prepare(args.repo.resolve(), args.historical.resolve(), args.output)
+    prepare(args.repo.resolve(), args.historical.resolve(), args.output, args.private_toolchain)

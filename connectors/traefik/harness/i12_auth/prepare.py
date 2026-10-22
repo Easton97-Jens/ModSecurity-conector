@@ -1,7 +1,8 @@
 """Prepare a fresh, sealed Traefik forwardAuth capture; never launch a host.
 
-Uses central traefik-forwardauth sources unchanged before explicit fixture-only
-relocations. The output binds every resulting byte; source export is not PASS.
+Uses central traefik-forwardauth observation deltas on exact current product
+sources before explicit fixture-only relocations. Every output byte is bound;
+source export is not PASS.
 """
 import argparse
 import ast
@@ -66,7 +67,9 @@ def stage_source(repository, output):
     capture_root = repository / 'ci/runtime/lifecycle/i12'
     central = load(capture_root / 'capture_sources.py', 'i12_central_capture')
     registry = central.Registry(capture_root, repository)
-    central.apply(registry, 'traefik-forwardauth', source)
+    adapter = load(repository / 'connectors/traefik/harness/i12/current_capture.py',
+                   'i12_current_capture')
+    adapter.apply(central, registry, 'traefik-forwardauth', source)
     return source
 
 
