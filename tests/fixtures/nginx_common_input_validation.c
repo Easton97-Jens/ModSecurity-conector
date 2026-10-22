@@ -25,8 +25,6 @@ int main(int argc, char **argv)
     if (strcmp(argv[1], "body") == 0) { request.body.data = NULL; }
     else if (strcmp(argv[1], "unsupported") == 0) {
         request.body.data = NULL; contract.request_body = MSCONNECTOR_MAPPER_UNSUPPORTED;
-    } else if (strcmp(argv[1], "oversized") == 0) {
-        request.body.data = NULL;
     }
     else if (strcmp(argv[1], "headers") == 0) { request.headers = NULL; }
     else if (strcmp(argv[1], "empty") == 0) {

@@ -238,6 +238,15 @@ def compile_fixture(directory: Path, stem: str, source: str,
     return binary
 
 
+PROVENANCE_SEAM = r'''
+/* Provenance is independently exercised by the exact-writer fixture. */
+static int ngx_http_modsecurity_apply_event_provenance(ngx_http_request_t *r,
+    msconnector_event *event, char *connection_id, size_t capacity) {
+    (void)r; (void)event; (void)connection_id; (void)capacity; return 1;
+}
+'''
+
+
 class NginxRequestErrorEventsTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -254,7 +263,7 @@ class NginxRequestErrorEventsTests(unittest.TestCase):
         functions = "\n".join("static " + result + "\n" +
                               function_definition(access, name) for result, name in FUNCTIONS)
         handler = "ngx_int_t\n" + function_definition(access, "ngx_http_modsecurity_access_handler")
-        fixture = PREAMBLE + writers + functions + BODY_SEAM + handler + MAIN
+        fixture = PREAMBLE + PROVENANCE_SEAM + writers + functions + BODY_SEAM + handler + MAIN
         cls.binary = compile_fixture(directory, "request-events", fixture)
         guard = """    if (!ngx_http_modsecurity_request_has_rule_decision(ctx)) {
         return;
