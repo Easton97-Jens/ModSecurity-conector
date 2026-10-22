@@ -25,8 +25,8 @@ def observe_receive(receipt, chunks, received, chunk, started_ns, completed_ns):
     if not chunks:
         receipt.update(first_response_recv_started_ns=started_ns,
                        first_response_recv_completed_ns=completed_ns)
-    chunks.append(dict(started_ns=started_ns, completed_ns=completed_ns,
-                       bytes=len(chunk), prior_received_bytes=len(received)))
+    chunks.append({'started_ns': started_ns, 'completed_ns': completed_ns,
+                   'bytes': len(chunk), 'prior_received_bytes': len(received)})
     received.extend(chunk)
     delimiter = received.find(b'\r\n\r\n')
     if delimiter < 0:
@@ -44,9 +44,19 @@ def observe_receive(receipt, chunks, received, chunk, started_ns, completed_ns):
 def record_local_abort(connection, receipt, mode, received):
     if mode == 'reset':
         connection.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0))
-    receipt['local_abort'] = dict(mode=mode, monotonic_ns=time.monotonic_ns(),
-        actual_received_entity_bytes=len(received) - receipt['observed_header_bytes'],
-        peer_reset_claimed=False)
+    receipt['local_abort'] = {'mode': mode, 'monotonic_ns': time.monotonic_ns(),
+        'actual_received_entity_bytes': len(received) - receipt['observed_header_bytes'],
+        'peer_reset_claimed': False}
+
+
+def create_receipt(arguments, method, path, body):
+    receipt = {'pid': os.getpid(), 'argv': arguments, 'method': method, 'path': path,
+               'request_bytes': len(body),
+               'request_sha256': hashlib.sha256(body).hexdigest(),
+               'started_ns': time.monotonic_ns()}
+    receipt.update(tcp_eof_observed=False, tcp_reset_observed=False,
+                   timeout_observed=False, error=None)
+    return receipt
 
 
 def task_file(value):
@@ -137,10 +147,7 @@ if not token or any(character not in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP
     raise ValueError('fixture client token must be one safe filename component')
 received=bytearray()
 recv_chunks=[]
-receipt={'pid':os.getpid(),'argv':arguments,'method':method,'path':path,
-         'request_bytes':len(body),'request_sha256':hashlib.sha256(body).hexdigest(),
-         'started_ns':time.monotonic_ns(),'tcp_eof_observed':False,'tcp_reset_observed':False,
-         'timeout_observed':False,'error':None}
+receipt=create_receipt(arguments, method, path, body)
 status='000';exit_code=1
 try:
     with socket.create_connection(('127.0.0.1',parsed.port),timeout=15) as connection:

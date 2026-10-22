@@ -13,10 +13,10 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "transport_observation_file.h"
+
 extern ssize_t __real_send(int, const void *, size_t, int);
 extern ssize_t __real_recv(int, void *, size_t, int);
-
-#include "transport_observation_file.h"
 
 static unsigned int client_port(int socket_fd) {
     struct sockaddr_in local = {0};
