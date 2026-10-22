@@ -237,6 +237,61 @@ class NetBoundaries(unittest.TestCase):
                 self.assertTrue(handler.close_connection)
                 self.assertEqual(handler.wfile.getvalue(), b'')
 
+    def test_production_accept_loop_dispatches_and_closes_listener_on_termination(self):
+        server = mock.Mock()
+        request = object()
+        address = ('127.0.0.1', 18081)
+        server.get_request.side_effect = [(request, address), SystemExit(0)]
+        server.verify_request.return_value = True
+        with self.assertRaises(SystemExit):
+            self.net.serve_private_http(server)
+        server.verify_request.assert_called_once_with(request, address)
+        server.process_request.assert_called_once_with(request, address)
+        server.shutdown_request.assert_not_called()  # The dispatched worker owns shutdown.
+        server.server_close.assert_called_once_with()
+
+    def test_production_accept_loop_rejects_socket_without_dispatch(self):
+        server = mock.Mock()
+        request = object()
+        address = ('127.0.0.1', 18081)
+        server.get_request.side_effect = [(request, address), SystemExit(0)]
+        server.verify_request.return_value = False
+        with self.assertRaises(SystemExit):
+            self.net.serve_private_http(server)
+        server.process_request.assert_not_called()
+        server.shutdown_request.assert_called_once_with(request)
+        server.server_close.assert_called_once_with()
+
+    def test_production_accept_loop_closes_socket_and_records_dispatch_error(self):
+        for operation in ('verify_request', 'process_request'):
+            with self.subTest(operation=operation):
+                server = mock.Mock()
+                request = object()
+                address = ('127.0.0.1', 18081)
+                server.get_request.side_effect = [(request, address), SystemExit(0)]
+                server.verify_request.return_value = True
+                getattr(server, operation).side_effect = OSError('dispatch failure')
+                with self.assertRaises(SystemExit):
+                    self.net.serve_private_http(server)
+                server.handle_error.assert_called_once_with(request, address)
+                server.shutdown_request.assert_called_once_with(request)
+                server.server_close.assert_called_once_with()
+
+    def test_production_accept_loop_retries_accept_error_and_closes_on_interrupt(self):
+        server = mock.Mock()
+        request = object()
+        address = ('127.0.0.1', 18081)
+        server.get_request.side_effect = [OSError('accept failure'), (request, address)]
+        server.verify_request.return_value = True
+        server.process_request.side_effect = KeyboardInterrupt()
+        with mock.patch.object(self.net.time, 'sleep') as sleep:
+            with self.assertRaises(KeyboardInterrupt):
+                self.net.serve_private_http(server)
+        sleep.assert_called_once_with(0.01)
+        server.shutdown_request.assert_called_once_with(request)
+        server.server_close.assert_called_once_with()
+        server.handle_error.assert_not_called()
+
     def test_persistent_connection_keeps_body_framing_and_then_ends(self):
         net = self.net
         receipts = []

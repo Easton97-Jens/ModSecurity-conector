@@ -322,6 +322,32 @@ class Handler(socketserver.StreamRequestHandler):
             record(self.server.root, {'operation': 'handler-end', 'key': key})
 
 
+def serve_private(server):
+    """Dispatch admitted private connections; termination owns listener cleanup."""
+    try:
+        while True:
+            try:
+                connection, address = server.get_request()
+            except OSError:
+                time.sleep(0.01)
+                continue
+            try:
+                if server.verify_request(connection, address):
+                    server.process_request(connection, address)
+                else:
+                    server.shutdown_request(connection)
+            except Exception:
+                try:
+                    server.handle_error(connection, address)
+                finally:
+                    server.shutdown_request(connection)
+            except (SystemExit, KeyboardInterrupt):
+                server.shutdown_request(connection)
+                raise
+    finally:
+        server.server_close()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('port', type=bounded_port)
@@ -336,10 +362,7 @@ def main():
     server.barriers.mkdir(mode=0o700)
     server.cases = {c['key']: c for c in specification['cases'] + specification.get('supplementary_executions', [])}
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
-    try:
-        server.serve_forever(poll_interval=0.1)
-    finally:
-        server.server_close()
+    serve_private(server)
 
 
 if __name__ == '__main__':

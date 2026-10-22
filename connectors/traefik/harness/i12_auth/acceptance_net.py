@@ -24,6 +24,7 @@ WRITE_LOCK=threading.Lock()
 PRIVATE_HEADERS=('x-msconnector-trusted-reservation','x-msconnector-response-handle')
 AUTH_LOG='authorization.jsonl'
 PEER_LOG='companion-peer.jsonl'
+HTTP_VERSION='HTTP/1.1'
 
 
 def loopback_port(port):
@@ -89,6 +90,34 @@ class LoopbackEvidenceServer(socketserver.ThreadingMixIn,socketserver.BaseServer
   super().server_close()
 
 
+def dispatch_private_http(server,request,address):
+ """Transfer each accepted socket to exactly one worker or close it."""
+ try:
+  if server.verify_request(request,address):server.process_request(request,address)
+  else:server.shutdown_request(request)
+ except Exception:
+  try:server.handle_error(request,address)
+  finally:server.shutdown_request(request)
+ except (SystemExit,KeyboardInterrupt):
+  server.shutdown_request(request);raise
+
+
+def serve_private_http(server):
+ """Accept only on the fixture-owned listener until process termination.
+
+ ThreadingMixIn owns worker dispatch and each worker's final socket shutdown.
+ SIGTERM raises SystemExit in the main thread, including during accept; the
+ finalizer closes the listener and invokes ThreadingMixIn's worker cleanup.
+ """
+ try:
+  while True:
+   try:request,address=server.get_request()
+   except OSError:
+    time.sleep(0.01);continue
+   dispatch_private_http(server,request,address)
+ finally:server.server_close()
+
+
 class EvidenceRequestHandler(socketserver.StreamRequestHandler):
  """One bounded HTTP/1.x connection, retaining duplicate header field order.
 
@@ -96,7 +125,7 @@ class EvidenceRequestHandler(socketserver.StreamRequestHandler):
  and writes HTTP bytes on the fixed private loopback listener.
  """
  timeout=15
- protocol_version='HTTP/1.1'
+ protocol_version=HTTP_VERSION
  evidence_log=AUTH_LOG
  def handle(self):
   self.close_connection=True
@@ -131,7 +160,7 @@ class EvidenceRequestHandler(socketserver.StreamRequestHandler):
    expectation=self.headers.get('Expect','')
    if expectation:
     if expectation.lower()!='100-continue':self.send_error(417);return False
-    self.wfile.write(b'HTTP/1.1 100 Continue\r\n\r\n')
+    self.wfile.write((HTTP_VERSION+' 100 Continue\r\n\r\n').encode('ascii'))
    return True
   except ValueError:
    self.send_error(400,'invalid HTTP request head');return False
@@ -304,7 +333,7 @@ def redacted_backend_head(raw):
  return b'\r\n'.join(lines)
 
 class Backend(EvidenceRequestHandler):
- protocol_version='HTTP/1.1'
+ protocol_version=HTTP_VERSION
  evidence_log='backend.jsonl'
  def setup(self):
   super().setup();handler_record(self,'accepted_connection')
@@ -403,7 +432,7 @@ class Backend(EvidenceRequestHandler):
   return
 
 class Relay(EvidenceRequestHandler):
- protocol_version='HTTP/1.1'
+ protocol_version=HTTP_VERSION
  def do_HEAD(self):self.forward()
  def do_PATCH(self):self.forward()
  def do_GET(self):self.forward()
@@ -835,8 +864,7 @@ def main():
  handler=Backend if args.mode=='backend' else Relay
  handler.spec=spec;handler.root=root;handler.engine_port=args.engine_port
  server=LoopbackEvidenceServer(args.port,handler)
- try:server.serve_forever(poll_interval=0.05)
- finally:server.server_close()
+ serve_private_http(server)
  return 0
 
 

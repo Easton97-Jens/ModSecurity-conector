@@ -8,11 +8,74 @@ import socket
 import tempfile
 import threading
 import unittest
+from unittest import mock
 
 
 REPO = Path(__file__).resolve().parents[1]
 SOURCE = REPO / 'connectors/traefik/harness/i12/native/acceptance_backend.py'
 EXTERNAL = Path(os.environ.get('CODEX_TEMP_ROOT', '/var/tmp/codex/ModSecurity-conector'))
+
+
+class ProductionDispatchTests(unittest.TestCase):
+    def setUp(self):
+        specification = importlib.util.spec_from_file_location('native_backend_dispatch', SOURCE)
+        self.backend = importlib.util.module_from_spec(specification)
+        specification.loader.exec_module(self.backend)
+        self.server = mock.Mock()
+        self.connection = object()
+        self.address = ('127.0.0.1', 1234)
+        self.server.get_request.side_effect = [(self.connection, self.address), SystemExit(0)]
+
+    def run_until_termination(self):
+        with self.assertRaises(SystemExit):
+            self.backend.serve_private(self.server)
+        self.server.server_close.assert_called_once_with()
+
+    def test_dispatch_transfers_socket_to_threading_mixin(self):
+        self.server.verify_request.return_value = True
+        self.run_until_termination()
+        self.server.process_request.assert_called_once_with(self.connection, self.address)
+        self.server.shutdown_request.assert_not_called()
+
+    def test_rejection_closes_without_dispatch(self):
+        self.server.verify_request.return_value = False
+        self.run_until_termination()
+        self.server.process_request.assert_not_called()
+        self.server.shutdown_request.assert_called_once_with(self.connection)
+
+    def test_dispatch_exception_records_error_and_closes(self):
+        self.server.process_request.side_effect = RuntimeError('fixture failure')
+        self.run_until_termination()
+        self.server.handle_error.assert_called_once_with(self.connection, self.address)
+        self.server.shutdown_request.assert_called_once_with(self.connection)
+
+    def test_accept_error_can_recover_before_dispatch_and_termination(self):
+        self.server.get_request.side_effect = [OSError('accept interrupted'),
+            (self.connection, self.address), SystemExit(0)]
+        with mock.patch.object(self.backend.time, 'sleep') as paused:
+            self.run_until_termination()
+        paused.assert_called_once_with(0.01)
+        self.server.process_request.assert_called_once_with(self.connection, self.address)
+
+    def test_error_report_failure_still_closes_connection_and_listener(self):
+        self.server.process_request.side_effect = RuntimeError('fixture failure')
+        self.server.handle_error.side_effect = ValueError('receipt failure')
+        with self.assertRaisesRegex(ValueError, 'receipt failure'):
+            self.backend.serve_private(self.server)
+        self.server.shutdown_request.assert_called_once_with(self.connection)
+        self.server.server_close.assert_called_once_with()
+
+    def test_termination_during_dispatch_closes_connection_and_listener(self):
+        for termination in (SystemExit, KeyboardInterrupt):
+            with self.subTest(termination=termination):
+                self.server.reset_mock()
+                self.server.get_request.side_effect = [(self.connection, self.address)]
+                self.server.process_request.side_effect = termination()
+                with self.assertRaises(termination):
+                    self.backend.serve_private(self.server)
+                self.server.server_close.assert_called_once_with()
+                self.server.shutdown_request.assert_called_once_with(self.connection)
+                self.server.handle_error.assert_not_called()
 
 
 class BackendWireTests(unittest.TestCase):
