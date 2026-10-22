@@ -214,7 +214,7 @@ Alle drei afaf-host-v2-Runner enden mit 0. Je Route sind Zielrequest/-response 9
 
 - `baseline`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/baseline-envoy-reconciliation.json` — SHA256 `e5bc09638b139351aa9816df79faffcb8923117f1bd74ca59fdd7b21021ac469`.
 - `native`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/native-v2/native-build/receipt.json` — SHA256 `fd429f2d49a76c71233eb581992a24fc81ac47b1ca8662fd3892be046eee16b0`.
-- `validation`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/ci/final-envoy-controls-257-sonar-v2.json` — SHA256 `50ba2618a1b5dc32d1a0eb967f452dca22ffdf30c15d7744d6dae3e251eedb61`.
+- `validation`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/ci/final-envoy-controls-257-sonar-v3.json` — SHA256 `3edfe536ae640081fdffb6211ae00a1019aa49a5a91728a8b2e33c98f1659803`.
 - `I12__envoy-ext-proc__NEED-request-streaming`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v14/I12__envoy-ext-proc__NEED-request-streaming.json` — SHA256 `7964c0c6075770e516a455c79fad486ceef0bc8f132398777402b06179cf5e6f`.
 - `I12__envoy-ext-proc__NEED-response-streaming`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v14/I12__envoy-ext-proc__NEED-response-streaming.json` — SHA256 `3cad230cbc39d7ace8536725d2962e42ae795b21188d70197567d4b910dcdfca`.
 - `I12__envoy-ext-proc__NEED-client-response-bytes`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v14/I12__envoy-ext-proc__NEED-client-response-bytes.json` — SHA256 `dc4f1e67fb9a4ee82929812f6497963146008bf7bb39d3bc3351ddef490b50b5`.

@@ -221,7 +221,7 @@ def envoy_status_projection(raw, identity):
     chains = adjacent_status_chains(lines, error_line)
     if len(chains) != 1:
         raise ValueError('one adjacent Envoy trailer and remote-close chain required')
-    marker_line, trailer_line, trailer_status, (remote_line, remote_status) = chains[0]
+    marker_line, trailer_line, trailer_status, (remote_line, _) = chains[0]
     validate_status_chain(lines, request_line, worker_id, errors, resets, chains[0])
     return {'request_id': identity, 'connection_id': int(connection_id), 'stream_id': int(stream_id),
         'worker_id': int(worker_id),

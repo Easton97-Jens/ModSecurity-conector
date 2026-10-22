@@ -69,7 +69,7 @@ rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B -m unittest discove
 rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B ci/runtime/lifecycle/i12/capture_sources.py verify
 ```
 
-Die vollständige aktuelle Envoy-Suite hat 257 PASS und 0 Skips. Beleg: `ci/final-envoy-controls-257-sonar-v2.json`. Die fokussierten Fehlerproben-Kontrollen haben 16 PASS, die separaten Go-Testproxy-Kontrollen 10 PASS. Diese Kontrollen qualifizieren den Hostlauf nicht automatisch.
+Die vollständige aktuelle Envoy-Suite hat 257 PASS und 0 Skips. Beleg: `ci/final-envoy-controls-257-sonar-v3.json`. Die fokussierten Fehlerproben-Kontrollen haben 16 PASS, die separaten Go-Testproxy-Kontrollen 10 PASS. Diese Kontrollen qualifizieren den Hostlauf nicht automatisch.
 
 Jeder Producer bietet `--help`. Native Vorbereitung benötigt eine neue
 registrierte externe Laufwurzel, den aktuellen Checkout, den vorhandenen
@@ -134,7 +134,7 @@ Das Supplement qualifiziert keine Original-ID und ergänzt keinen Oracle-
 Fortschritt. Die historischen Messungs-/Retake-Zahlen bleiben unverändert.
 Die erhaltene Baseline und physischen Quellen wurden mit aktuellen zentralen
 Validatoren erneut geprüft; dieser Envoy-Task änderte keinen gemeinsamen
-Validator. Begrenzte Dokumentationsevidenz: `ci/docs-sonar-v2.json`.
+Validator. Begrenzte Dokumentationsevidenz: `ci/docs-sonar-v3.json`.
 
 Die Base rückte danach auf `e4c872cde16eb73182de49c09a8ba8ee4219b417`
 und `afaf6305bd55646073c3b40632b52fc4e5edf714` vor; beide wurden durch normale

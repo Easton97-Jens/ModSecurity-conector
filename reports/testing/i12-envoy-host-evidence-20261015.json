@@ -15,8 +15,8 @@
       "bytes": 23589
     },
     "validation": {
-      "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/ci/final-envoy-controls-257-sonar-v2.json",
-      "sha256": "50ba2618a1b5dc32d1a0eb967f452dca22ffdf30c15d7744d6dae3e251eedb61",
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/ci/final-envoy-controls-257-sonar-v3.json",
+      "sha256": "3edfe536ae640081fdffb6211ae00a1019aa49a5a91728a8b2e33c98f1659803",
       "bytes": 4809
     },
     "I12__envoy-ext-proc__NEED-request-streaming": {

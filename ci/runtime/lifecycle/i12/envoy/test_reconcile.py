@@ -106,7 +106,7 @@ class ReconciliationTests(unittest.TestCase):
         self.assertEqual([row["run_scoped_case_id"] for row in result["rows"]], expected_ids)
         for route, expected in zip(MODULE.ROUTES, (116, 85, 72)):
             self.assertEqual(result["routes"][route]["unqualified_ids"], expected)
-        self.assertEqual((self.ledger, self.oracles), before)
+        self.assertEqual(before, (self.ledger, self.oracles))
         self.assertTrue(all(row["physical_evidence"] for row in result["rows"] if row["existing_host_packet"]))
 
     def test_case_route_and_contract_mutations_rejected(self):

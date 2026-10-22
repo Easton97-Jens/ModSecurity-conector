@@ -85,7 +85,7 @@ class CommunicationControls(unittest.TestCase):
                                           timeout(30, second_out, second_err))
                 with mock.patch.object(HOST, "signal_owned_group", return_value=False):
                     out, err, state = HOST.communicate_bounded(process, None)
-                self.assertEqual((out, err), expected)
+                self.assertEqual(expected, (out, err))
                 self.assertFalse(state["kill_sent_to_owned_group"])
                 self.assertTrue(state["cleanup_requires_review"])
 
