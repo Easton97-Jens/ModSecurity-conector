@@ -69,7 +69,7 @@ rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B -m unittest discove
 rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B ci/runtime/lifecycle/i12/capture_sources.py verify
 ```
 
-Die vollständige aktuelle Envoy-Suite hat 257 PASS und 0 Skips. Beleg: `ci/final-envoy-controls-257-base766-v1.json`. Die fokussierten Fehlerproben-Kontrollen haben 16 PASS, die separaten Go-Testproxy-Kontrollen 10 PASS. Diese Kontrollen qualifizieren den Hostlauf nicht automatisch.
+Die vollständige aktuelle Envoy-Suite hat 257 PASS und 0 Skips. Beleg: `ci/final-envoy-controls-257-sonar-v2.json`. Die fokussierten Fehlerproben-Kontrollen haben 16 PASS, die separaten Go-Testproxy-Kontrollen 10 PASS. Diese Kontrollen qualifizieren den Hostlauf nicht automatisch.
 
 Jeder Producer bietet `--help`. Native Vorbereitung benötigt eine neue
 registrierte externe Laufwurzel, den aktuellen Checkout, den vorhandenen
@@ -134,15 +134,15 @@ Das Supplement qualifiziert keine Original-ID und ergänzt keinen Oracle-
 Fortschritt. Die historischen Messungs-/Retake-Zahlen bleiben unverändert.
 Die erhaltene Baseline und physischen Quellen wurden mit aktuellen zentralen
 Validatoren erneut geprüft; dieser Envoy-Task änderte keinen gemeinsamen
-Validator. Begrenzte Dokumentationsevidenz: `ci/docs-base766-v1.json`.
+Validator. Begrenzte Dokumentationsevidenz: `ci/docs-sonar-v2.json`.
 
 Die Base rückte danach auf `e4c872cde16eb73182de49c09a8ba8ee4219b417`
 und `afaf6305bd55646073c3b40632b52fc4e5edf714` vor; beide wurden durch normale
-Merges integriert. `current-base-e4-evidence-v2.json` erhält den nativen e4-PASS,
+Merges integriert. `current-base-e4-evidence-v2-sonar.json` erhält den nativen e4-PASS,
 den ersten ext_proc-Timeout und den erfolgreichen Host-Retake.
-`current-base-afaf-evidence-v3.json` bindet diese Historie an die frische Receipt
+`current-base-afaf-evidence-v3-sonar.json` bindet diese Historie an die frische Receipt
 `current-base-afaf-native-v3` und
-`current-base-afaf-host-v2/physical-review-v2.json`. Alle 16 nativen afaf-Schritte
+`current-base-afaf-host-v2/physical-review-sonar-v1.json`. Alle 16 nativen afaf-Schritte
 einschließlich Go/CGo, Race und Vet bestehen. Engine-Go1.27.2,
 Hostumgebungs-Go1.27.3, SDK3.0.14 und Envoy1.39.1 bleiben unabhängig identifiziert.
 Alle 2.196 Buildquellen und die 155 Objekte/10 Profile der aktuellen Registry

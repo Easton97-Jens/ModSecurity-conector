@@ -377,6 +377,23 @@ def archive_inventory(data):
     return expected, manifest
 
 
+def verify_revision_and_adapter(proof, expected, manifest):
+    if 'source_revision_selection' in proof:
+        revision = full_revision(proof['actual_source_commit'])
+        if proof['source_revision_selection'] != {'requested': revision, 'resolved': revision}:
+            raise ValueError('source revision selection differs')
+        resolutions = [check for check in proof['checks'] if check['label'] == 'source-head'
+                       and check['exit_code'] == 0
+                       and check['argv'] == ['rtk', 'proxy', 'git', 'rev-parse', '--verify', revision + '^{commit}']
+                       and check['stdout_sha256'] == digest((revision + '\n').encode())]
+        if len(resolutions) != 1:
+            raise ValueError('source revision resolution unavailable')
+    if 'envoy_capture_adapter' in proof:
+        if 'source_revision_selection' not in proof:
+            raise ValueError('adapter requires explicit source revision selection')
+        verify_adapter(proof, expected, manifest)
+
+
 def expected_inventory(proof):
     """Reconstruct old receipts too; never bless the current source by hashing it."""
     archive = Path(proof['source_copy']).parent / 'native-build/source-archive.stdout'
@@ -396,20 +413,7 @@ def expected_inventory(proof):
             and any(expected.get(name) != old for name, (old, _current) in OBSERVER_HASHES.items())
             and 'envoy_capture_adapter' not in proof):
         raise ValueError('changed archived observer requires explicit adapter metadata')
-    if 'source_revision_selection' in proof:
-        revision = full_revision(proof['actual_source_commit'])
-        if proof['source_revision_selection'] != {'requested': revision, 'resolved': revision}:
-            raise ValueError('source revision selection differs')
-        resolutions = [check for check in proof['checks'] if check['label'] == 'source-head'
-                       and check['exit_code'] == 0
-                       and check['argv'] == ['rtk', 'proxy', 'git', 'rev-parse', '--verify', revision + '^{commit}']
-                       and check['stdout_sha256'] == digest((revision + '\n').encode())]
-        if len(resolutions) != 1:
-            raise ValueError('source revision resolution unavailable')
-    if 'envoy_capture_adapter' in proof:
-        if 'source_revision_selection' not in proof:
-            raise ValueError('adapter requires explicit source revision selection')
-        verify_adapter(proof, expected, manifest)
+    verify_revision_and_adapter(proof, expected, manifest)
     expected.update(proof['capture_application']['exact_written_sha256'])
     prefix = '.i12-capture/envoy/source-copy-tests/'
     copies = {path.removeprefix(prefix): value for path, value in expected.items()

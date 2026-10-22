@@ -125,10 +125,12 @@ class OracleValidationControls(unittest.TestCase):
         checked = validator.References(archive).check(ref, source=True)
         self.assertEqual(checked['sha256'], ref['sha256'])
         source.write_text('changed\n')
+        historical_references = validator.References(archive)
         with self.assertRaisesRegex(ValueError, 'reference SHA256 mismatch'):
-            validator.References(archive).check(ref, source=True)
+            historical_references.check(ref, source=True)
+        relative_references = validator.References(Path('relative'))
         with self.assertRaisesRegex(ValueError, 'historical source root'):
-            validator.References(Path('relative')).check(ref, source=True)
+            relative_references.check(ref, source=True)
 
     def test_nested_independent_source_hash_is_verified(self):
         bad = copy.deepcopy(self.reference)

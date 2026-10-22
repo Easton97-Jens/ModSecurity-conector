@@ -31,8 +31,9 @@ import (
 )
 
 const (
-	passMode = "passthrough"
-	dropMode = "drop-response-eos"
+	passMode           = "passthrough"
+	dropMode           = "drop-response-eos"
+	eventOutputFailure = "proxy event output failed"
 )
 
 var safeID = regexp.MustCompile(`^[A-Za-z0-9_.:-]{1,128}$`)
@@ -158,7 +159,7 @@ func (stream *streamLog) message(direction string, message proto.Message) error 
 		}
 	}
 	if err := stream.emit("message", fields); err != nil {
-		return status.Error(codes.Internal, "proxy event output failed")
+		return status.Error(codes.Internal, eventOutputFailure)
 	}
 	return nil
 }
@@ -237,7 +238,9 @@ func (attemptGuard) TagConn(ctx context.Context, _ *stats.ConnTagInfo) context.C
 	return ctx
 }
 
-func (attemptGuard) HandleConn(context.Context, stats.ConnStats) {}
+func (attemptGuard) HandleConn(context.Context, stats.ConnStats) {
+	// Connection observations do not describe RPC attempts; HandleRPC owns them.
+}
 
 func upstreamOptions() []grpc.DialOption {
 	return []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithDisableRetry(),
@@ -264,8 +267,8 @@ func (proxy *faultProxy) forwardRequests(down processor.ExternalProcessor_Proces
 func finishRequests(up processor.ExternalProcessor_ProcessClient, log *streamLog, err error) error {
 	fields := terminalFields(err)
 	fields["request_half_close"] = errors.Is(err, io.EOF)
-	if logErr := log.emit("downstream_recv_end", fields); logErr != nil {
-		return status.Error(codes.Internal, "proxy event output failed")
+	if log.emit("downstream_recv_end", fields) != nil {
+		return status.Error(codes.Internal, eventOutputFailure)
 	}
 	if errors.Is(err, io.EOF) {
 		return up.CloseSend()
@@ -298,8 +301,8 @@ func (proxy *faultProxy) forwardRequest(up processor.ExternalProcessor_ProcessCl
 		return halfCloseAfterDrop(up, log)
 	}
 	if err := up.Send(request); err != nil {
-		if logErr := log.emit("upstream_send_end", terminalFields(err)); logErr != nil {
-			return status.Error(codes.Internal, "proxy event output failed")
+		if log.emit("upstream_send_end", terminalFields(err)) != nil {
+			return status.Error(codes.Internal, eventOutputFailure)
 		}
 		return err
 	}
@@ -311,8 +314,8 @@ func halfCloseAfterDrop(up processor.ExternalProcessor_ProcessClient, log *strea
 	fields := terminalFields(err)
 	fields["grpc_api_code"] = nil
 	fields["close_send_error_nil"] = err == nil
-	if logErr := log.emit("upstream_close_send_return", fields); logErr != nil {
-		return status.Error(codes.Internal, "proxy event output failed")
+	if log.emit("upstream_close_send_return", fields) != nil {
+		return status.Error(codes.Internal, eventOutputFailure)
 	}
 	if err != nil {
 		return err
@@ -346,8 +349,8 @@ func finishResponses(down processor.ExternalProcessor_ProcessServer, up processo
 		fields["grpc_api_code"] = int(codes.OK) // Actual client Recv result, not wire trailer measurement.
 	}
 	fields["trailers"] = metadataFields(trailers)
-	if logErr := log.emit("upstream_recv_end", fields); logErr != nil {
-		return status.Error(codes.Internal, "proxy event output failed")
+	if log.emit("upstream_recv_end", fields) != nil {
+		return status.Error(codes.Internal, eventOutputFailure)
 	}
 	if errors.Is(err, io.EOF) {
 		return nil
@@ -371,7 +374,7 @@ func forwardHeaders(down processor.ExternalProcessor_ProcessServer, up processor
 		return nil
 	}
 	if err := log.emit("upstream_headers", map[string]any{"metadata": metadataFields(headers)}); err != nil {
-		return status.Error(codes.Internal, "proxy event output failed")
+		return status.Error(codes.Internal, eventOutputFailure)
 	}
 	return down.SendHeader(headers)
 }
@@ -383,7 +386,7 @@ func (proxy *faultProxy) Process(down processor.ExternalProcessor_ProcessServer)
 		fields := terminalFields(result)
 		fields["return_source"] = cause
 		if err := log.emit("downstream_return", fields); err != nil {
-			result = status.Error(codes.Internal, "proxy event output failed")
+			result = status.Error(codes.Internal, eventOutputFailure)
 		}
 	}()
 	ctx, cancel := context.WithTimeout(down.Context(), proxy.timeout)

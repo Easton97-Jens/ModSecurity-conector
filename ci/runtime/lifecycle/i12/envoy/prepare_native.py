@@ -353,7 +353,7 @@ def verify_go_toolchain_hashes(identity):
 
 def record_go_provenance(go, env, receipt, run, profile):
     version = profile['provenance']['go_version']
-    if not isinstance(version, str) or re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version) is None:
+    if not isinstance(version, str) or re.fullmatch(r'\d+\.\d+\.\d+', version, flags=re.ASCII) is None:
         raise ValueError('exact capture Go version required')
     executable = go.resolve(strict=True)
     root = go_root(go)

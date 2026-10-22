@@ -93,6 +93,13 @@ type observedStream struct {
 	requests []*processor.ProcessingRequest
 }
 
+func (observed *observedStream) record(request *processor.ProcessingRequest) {
+	if identity := requestIdentity(request); identity != "" {
+		observed.identity = identity
+	}
+	observed.requests = append(observed.requests, request)
+}
+
 func collectingUpstream(results chan<- observedStream, terminal error) *upstreamServer {
 	return &upstreamServer{handle: func(stream processor.ExternalProcessor_ProcessServer) error {
 		if err := stream.SendHeader(metadata.Pairs("actual-upstream-header", "preserved")); err != nil {
@@ -109,10 +116,7 @@ func collectingUpstream(results chan<- observedStream, terminal error) *upstream
 			if err != nil {
 				return err
 			}
-			if identity := requestIdentity(request); identity != "" {
-				observed.identity = identity
-			}
-			observed.requests = append(observed.requests, request)
+			observed.record(request)
 			if err := stream.Send(actualResponse()); err != nil {
 				return err
 			}
@@ -179,6 +183,17 @@ func TestProxyDropsOnlyFirstSelectedEOSAndPreservesNeighbor(t *testing.T) {
 	if !errors.Is(err, io.EOF) || len(neighbor) != 3 {
 		t.Fatalf("exchange(neighbor) = %d responses / %v, want 3 actual responses / EOF", len(neighbor), err)
 	}
+	assertObservedRequests(t, results)
+	assertSelectedEOSDrop(t, readEvents(t, proxy, output))
+	for _, response := range append(selected, neighbor...) {
+		if !proto.Equal(response, actualResponse()) {
+			t.Errorf("forwarded response = %v, want actual unchanged upstream response", response)
+		}
+	}
+}
+
+func assertObservedRequests(t *testing.T, results <-chan observedStream) {
+	t.Helper()
 	for range 2 {
 		observed := <-results
 		want := []*processor.ProcessingRequest{headerRequest(observed.identity), bodyRequest("first", false), bodyRequest("", true)}
@@ -194,8 +209,13 @@ func TestProxyDropsOnlyFirstSelectedEOSAndPreservesNeighbor(t *testing.T) {
 			}
 		}
 	}
+}
+
+func assertSelectedEOSDrop(t *testing.T, events []map[string]any) {
+	t.Helper()
+
 	drops := 0
-	for _, event := range readEvents(t, proxy, output) {
+	for _, event := range events {
 		if event["direction"] == "dropped_before_upstream_send" {
 			drops++
 			if event["request_id"] != "selected" || event["eos"] != true || event["body_bytes"] != float64(0) {
@@ -208,11 +228,6 @@ func TestProxyDropsOnlyFirstSelectedEOSAndPreservesNeighbor(t *testing.T) {
 	}
 	if drops != 1 {
 		t.Errorf("drop count = %d, want 1", drops)
-	}
-	for _, response := range append(selected, neighbor...) {
-		if !proto.Equal(response, actualResponse()) {
-			t.Errorf("forwarded response = %v, want actual unchanged upstream response", response)
-		}
 	}
 }
 

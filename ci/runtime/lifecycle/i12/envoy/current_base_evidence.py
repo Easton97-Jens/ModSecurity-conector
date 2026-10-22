@@ -246,16 +246,7 @@ def observed_contract(row, proof, parent_sha=PARENT):
             'two independently measured backend requests required')
 
 
-def retake_contract(row, proof, references, parent_sha=CURRENT_PARENT):
-    """Retain the executed 504 attempt, including absent target callbacks."""
-    shared_observed_contract(row, proof, parent_sha, retake=True)
-    require(row['scenario'] == 'ext-proc-streaming' and row['route'] == 'envoy-ext-proc'
-            and row['driver'].get('failure_type') == 'RuntimeError'
-            and set(row['driver'].get('processes', {})) == {'envoy', 'engine', 'backend'}
-            and all(process.get('waited_exit_code') == 0
-                    and process.get('forced_kill') is False and process.get('signal_sent') == 15
-                    for process in row['driver']['processes'].values()),
-            'retake process cleanup differs')
+def retake_clients(row):
     for role, request, response, status, exitcode in (
             ('target', 95, 0, 504, 1), ('neighbor', 6, 7, 200, 0)):
         client = row['clients'][role]
@@ -274,35 +265,25 @@ def retake_contract(row, proof, references, parent_sha=CURRENT_PARENT):
                 and transport['authorization']['successful_grpc_completion'] is False
                 and transport['authorization']['classification'] == 'unknown',
                 'retake missing remote status cannot become success')
-    target_transport = row['grpc_transport']['target']
-    require(target_transport['process']['classification'] == 'unknown'
-            and target_transport['process']['scope_verified'] is False
-            and target_transport['process']['local_http2_close_code'] is None
-            and target_transport['received_http2_payload_callback_count'] is None,
-            'retake target Process callbacks must remain unobserved')
-    backend = row['backend']
-    require(backend['request_count'] == 1 and backend['request_count_is_lower_bound'] is False
-            and backend['completed_receipt_count'] == 1
-            and backend['raw_request_line_count'] == 1
-            and backend['raw_request_role_counts'] == {'neighbor': 1}
-            and backend['completed_receipt_role_counts'] == {'neighbor': 1}
-            and len(backend['requests']) == 1
-            and {(x['role'], x['request_body_bytes'], x['response_body_bytes'])
-                 for x in backend['requests']} == {('neighbor', 6, 7)},
-            'retake requires exactly one neighbor backend request')
-    native = row['native']
-    require(native['verified_allocation_scope_count'] == 1 and len(native['scopes']) == 1
-            and native['host_row_count'] == 7
-            and len(native['observer_states']) == 2
-            and {state['edge'] for state in native['observer_states']} == {'admitted', 'snapshot'}
-            and all(state['invalid'] is False and state['pending_calls'] == 0
-                    and state['live_mappings'] == 0 for state in native['observer_states']),
-            'retake native observer scope or cleanup differs')
-    scope = native['scopes'][0]
-    require(scope['observed_return_counts'].get('native_cleanup') == 1
-            and scope['observed_return_counts'].get('native_process_logging') == 1
-            and scope['observed_return_counts'].get('common_cleanup') == 1,
-            'retake neighbor native cleanup differs')
+
+
+def retake_adapter_callbacks(adapter, neighbor):
+    require(len(adapter) == 2 and all(item.get('event') == 'ext_proc_stream_complete' for item in adapter),
+            'retake adapter stream count differs')
+    empty = [item for item in adapter if item.get('transaction_id') is None]
+    populated = [item for item in adapter if item.get('transaction_id') == neighbor]
+    require(len(empty) == len(populated) == 1
+            and empty[0].get('close_reason') == 'grpc_context_canceled_unattributed'
+            and all(empty[0].get(field) == 0 for field in ('request_header_count',
+                'response_header_count', 'request_body_chunks', 'response_body_chunks',
+                'request_body_bytes', 'response_body_bytes'))
+            and populated[0].get('close_reason') == 'response_end_of_stream'
+            and populated[0].get('request_body_bytes') == 6
+            and populated[0].get('response_body_bytes') == 7,
+            'retake target adapter callbacks must be absent')
+
+
+def retake_physical_callbacks(row, references, native, scope):
     # Summaries intentionally omit transaction IDs. Join the bound physical logs
     # to the two independently retained client receipts instead of inferring IDs.
     data = Path(row['attempt']) / 'data'
@@ -332,19 +313,68 @@ def retake_contract(row, proof, references, parent_sha=CURRENT_PARENT):
             and all(item.get('pid') == scope['pid']
                     and item.get('allocation_scope_call') == scope['allocation_scope_call'] for item in host),
             'retake target native/host callbacks must be absent')
-    require(len(adapter) == 2 and all(item.get('event') == 'ext_proc_stream_complete' for item in adapter),
-            'retake adapter stream count differs')
-    empty = [item for item in adapter if item.get('transaction_id') is None]
-    populated = [item for item in adapter if item.get('transaction_id') == neighbor]
-    require(len(empty) == len(populated) == 1
-            and empty[0].get('close_reason') == 'grpc_context_canceled_unattributed'
-            and all(empty[0].get(field) == 0 for field in ('request_header_count',
-                'response_header_count', 'request_body_chunks', 'response_body_chunks',
-                'request_body_bytes', 'response_body_bytes'))
-            and populated[0].get('close_reason') == 'response_end_of_stream'
-            and populated[0].get('request_body_bytes') == 6
-            and populated[0].get('response_body_bytes') == 7,
-            'retake target adapter callbacks must be absent')
+    retake_adapter_callbacks(adapter, neighbor)
+
+
+def retake_contract(row, proof, references, parent_sha=CURRENT_PARENT):
+    """Retain the executed 504 attempt, including absent target callbacks."""
+    shared_observed_contract(row, proof, parent_sha, retake=True)
+    require(row['scenario'] == 'ext-proc-streaming' and row['route'] == 'envoy-ext-proc'
+            and row['driver'].get('failure_type') == 'RuntimeError'
+            and set(row['driver'].get('processes', {})) == {'envoy', 'engine', 'backend'}
+            and all(process.get('waited_exit_code') == 0
+                    and process.get('forced_kill') is False and process.get('signal_sent') == 15
+                    for process in row['driver']['processes'].values()),
+            'retake process cleanup differs')
+    retake_clients(row)
+    target_transport = row['grpc_transport']['target']
+    require(target_transport['process']['classification'] == 'unknown'
+            and target_transport['process']['scope_verified'] is False
+            and target_transport['process']['local_http2_close_code'] is None
+            and target_transport['received_http2_payload_callback_count'] is None,
+            'retake target Process callbacks must remain unobserved')
+    backend = row['backend']
+    require(backend['request_count'] == 1 and backend['request_count_is_lower_bound'] is False
+            and backend['completed_receipt_count'] == 1
+            and backend['raw_request_line_count'] == 1
+            and backend['raw_request_role_counts'] == {'neighbor': 1}
+            and backend['completed_receipt_role_counts'] == {'neighbor': 1}
+            and len(backend['requests']) == 1
+            and {(x['role'], x['request_body_bytes'], x['response_body_bytes'])
+                 for x in backend['requests']} == {('neighbor', 6, 7)},
+            'retake requires exactly one neighbor backend request')
+    native = row['native']
+    require(native['verified_allocation_scope_count'] == 1 and len(native['scopes']) == 1
+            and native['host_row_count'] == 7
+            and len(native['observer_states']) == 2
+            and {state['edge'] for state in native['observer_states']} == {'admitted', 'snapshot'}
+            and all(state['invalid'] is False and state['pending_calls'] == 0
+                    and state['live_mappings'] == 0 for state in native['observer_states']),
+            'retake native observer scope or cleanup differs')
+    scope = native['scopes'][0]
+    require(scope['observed_return_counts'].get('native_cleanup') == 1
+            and scope['observed_return_counts'].get('native_process_logging') == 1
+            and scope['observed_return_counts'].get('common_cleanup') == 1,
+            'retake neighbor native cleanup differs')
+    retake_physical_callbacks(row, references, native, scope)
+
+
+def bind_executed_review(row, record, references):
+    attempt = Path(row['attempt'])
+    bind(attempt / 'controller-result.json', row['controller_result_sha256'], references)
+    bind(attempt / 'retained-original-ownership.json', row['handoff_receipt_sha256'], references)
+    controller = evidence_io.read_json(attempt / 'controller-result.json')
+    spec_path = Path(record['case']['spec'])
+    bind(spec_path, controller['spec_sha256'], references)
+    for name, sha in controller['executed_input_hashes_before'].items():
+        # Configuration ownership belongs to the controller; never read private configuration.
+        if '.codex' not in Path(name).parts:
+            bind(Path(name), sha, references)
+    spec = evidence_io.read_json(spec_path)
+    for binding in spec['bindings']:
+        bind(Path(binding['ledger']), binding['ledger_sha256'], references)
+    for name, metadata in row['physical_files'].items():
+        bind(attempt / 'data' / name, metadata['sha256'], references)
 
 
 def review_evidence(path, proof, admission, references, parent_sha=PARENT, *, retake=False):
@@ -380,21 +410,7 @@ def review_evidence(path, proof, admission, references, parent_sha=PARENT, *, re
                 retake_contract(row, proof, references, parent_sha)
             else:
                 observed_contract(row, proof, parent_sha)
-            attempt = Path(row['attempt'])
-            bind(attempt / 'controller-result.json', row['controller_result_sha256'], references)
-            bind(attempt / 'retained-original-ownership.json', row['handoff_receipt_sha256'], references)
-            controller = evidence_io.read_json(attempt / 'controller-result.json')
-            spec_path = Path(record['case']['spec'])
-            bind(spec_path, controller['spec_sha256'], references)
-            for name, sha in controller['executed_input_hashes_before'].items():
-                # Configuration ownership belongs to the controller; never read private configuration.
-                if '.codex' not in Path(name).parts:
-                    bind(Path(name), sha, references)
-            spec = evidence_io.read_json(spec_path)
-            for binding in spec['bindings']:
-                bind(Path(binding['ledger']), binding['ledger_sha256'], references)
-            for name, metadata in row['physical_files'].items():
-                bind(attempt / 'data' / name, metadata['sha256'], references)
+            bind_executed_review(row, record, references)
     require(actual == review['scenarios'], 'physical review differs from independent replay')
     return review
 

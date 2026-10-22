@@ -37,20 +37,25 @@ def reference_path(reference, source_root=None):
             raise ValueError('absolute reference outside approved storage: ' + value)
         candidates = [path]
     else:
-        if any(part in ('.git', '.aws', '.codex', '.agents') for part in path.parts):
-            raise ValueError('reference is not a product source path')
-        candidates = [REPOSITORY / path]
-        if source_root is not None:
-            root = Path(source_root)
-            if not root.is_absolute() or '..' in root.parts:
-                raise ValueError('historical source root must be absolute without traversal')
-            historical = root / path
-            if historical != candidates[0]:
-                candidates.append(historical)
+        candidates = source_candidates(path, source_root)
     expected = reference.get('sha256')
     if not isinstance(expected, str) or not re.fullmatch('[a-f0-9]{64}', expected):
         raise ValueError('reference requires a lowercase SHA256: ' + value)
     return value, candidates, expected
+
+
+def source_candidates(path, source_root):
+    if any(part in ('.git', '.aws', '.codex', '.agents') for part in path.parts):
+        raise ValueError('reference is not a product source path')
+    candidates = [REPOSITORY / path]
+    if source_root is not None:
+        root = Path(source_root)
+        if not root.is_absolute() or '..' in root.parts:
+            raise ValueError('historical source root must be absolute without traversal')
+        historical = root / path
+        if historical != candidates[0]:
+            candidates.append(historical)
+    return candidates
 
 
 def source_fields(reference, cached, size, value):
@@ -75,26 +80,9 @@ class References:
         value, candidates, expected = reference_path(reference, self.source_root)
         selected = None
         for path in candidates:
-            try:
-                with evidence_io.open_evidence(path, (REPOSITORY, *STORAGE_ROOTS), MAX_REFERENCE_BYTES) as (stream, before):
-                    identity = evidence_io.identity(before)
-                    cached = self.cache.get(path)
-                    if cached is None or cached['identity'] != identity:
-                        cached = {'identity': identity,
-                                  'sha256': evidence_io.digest_stream(stream, MAX_REFERENCE_BYTES),
-                                  'bytes': before.st_size}
-                        self.cache[path] = cached
-                    if cached['sha256'] != expected:
-                        continue
-                    if source and 'line_count' not in cached:
-                        if before.st_size > MAX_SOURCE_BYTES:
-                            raise ValueError('source reference exceeds line-check bound: ' + value)
-                        stream.seek(0)
-                        cached['line_count'] = len(stream.read(MAX_SOURCE_BYTES + 1).splitlines())
-                    selected = (cached, before.st_size)
-                    break
-            except FileNotFoundError:
-                continue
+            selected = self.match(path, expected, source, value)
+            if selected is not None:
+                break
         if selected is None:
             raise ValueError('reference SHA256 mismatch: ' + value)
         cached, size = selected
@@ -104,6 +92,31 @@ class References:
         if source:
             result.update(source_fields(reference, cached, size, value))
         return result
+
+    def match(self, path, expected, source, value):
+        try:
+            with evidence_io.open_evidence(path, (REPOSITORY, *STORAGE_ROOTS), MAX_REFERENCE_BYTES) as (stream, before):
+                cached = self.cached_reference(path, stream, before)
+                if cached['sha256'] != expected:
+                    return None
+                if source and 'line_count' not in cached:
+                    if before.st_size > MAX_SOURCE_BYTES:
+                        raise ValueError('source reference exceeds line-check bound: ' + value)
+                    stream.seek(0)
+                    cached['line_count'] = len(stream.read(MAX_SOURCE_BYTES + 1).splitlines())
+                return cached, before.st_size
+        except FileNotFoundError:
+            return None
+
+    def cached_reference(self, path, stream, before):
+        identity = evidence_io.identity(before)
+        cached = self.cache.get(path)
+        if cached is None or cached['identity'] != identity:
+            cached = {'identity': identity,
+                      'sha256': evidence_io.digest_stream(stream, MAX_REFERENCE_BYTES),
+                      'bytes': before.st_size}
+            self.cache[path] = cached
+        return cached
 
     def nested(self, value):
         result = []

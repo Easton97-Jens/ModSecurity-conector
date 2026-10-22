@@ -636,7 +636,7 @@ class PacketMutations(unittest.TestCase):
         for index, line in enumerate(baseline):
             if '[Tags:' not in line:
                 continue
-            for replacement in ('[286]', '[not-a-worker]', ''):
+            for replacement in ('[286]', '[not-a-worker]', '[٢٨٥]', ''):
                 with self.subTest(index=index, replacement=replacement):
                     altered = list(baseline)
                     altered[index] = line.replace('[285]', replacement, 1)

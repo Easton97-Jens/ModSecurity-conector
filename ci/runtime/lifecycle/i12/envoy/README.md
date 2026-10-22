@@ -67,7 +67,7 @@ rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B -m unittest discove
 rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B ci/runtime/lifecycle/i12/capture_sources.py verify
 ```
 
-The current complete Envoy suite has 257 PASS and 0 skips. Receipt: `ci/final-envoy-controls-257-base766-v1.json`. Focused fault controls have 16 PASS; separate Go test-proxy controls have 10 PASS. These controls do not automatically qualify the host run.
+The current complete Envoy suite has 257 PASS and 0 skips. Receipt: `ci/final-envoy-controls-257-sonar-v2.json`. Focused fault controls have 16 PASS; separate Go test-proxy controls have 10 PASS. These controls do not automatically qualify the host run.
 
 Each producer exposes `--help`. Native preparation requires a fresh registered
 external run root, the current checkout, the existing offline module cache,
@@ -128,14 +128,14 @@ The supplement qualifies no original ID and adds no oracle progress. The
 historical measurement/retake counts remain unchanged. The retained baseline
 and physical sources were revalidated with current central validators; this
 Envoy task modified no shared validator. Scoped documentation evidence:
-`ci/docs-base766-v1.json`.
+`ci/docs-sonar-v2.json`.
 
 The Base subsequently advanced to `e4c872cde16eb73182de49c09a8ba8ee4219b417`
 and `afaf6305bd55646073c3b40632b52fc4e5edf714`; both were integrated by normal
-merges. `current-base-e4-evidence-v2.json` retains the e4 native pass, initial
-ext_proc timeout and successful host retake. `current-base-afaf-evidence-v3.json`
+merges. `current-base-e4-evidence-v2-sonar.json` retains the e4 native pass, initial
+ext_proc timeout and successful host retake. `current-base-afaf-evidence-v3-sonar.json`
 binds that history to the fresh `current-base-afaf-native-v3` receipt and
-`current-base-afaf-host-v2/physical-review-v2.json`. All 16 afaf native steps,
+`current-base-afaf-host-v2/physical-review-sonar-v1.json`. All 16 afaf native steps,
 including Go/CGo, race and vet, pass. Engine Go1.27.2, host-environment Go1.27.3,
 SDK3.0.14 and Envoy1.39.1 remain independently identified. All 2,196 build sources
 and the current registry's 155 objects/10 profiles are verified without editing

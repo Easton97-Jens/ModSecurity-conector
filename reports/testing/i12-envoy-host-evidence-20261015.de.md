@@ -170,10 +170,10 @@ Alle 125 Original-Oracles wurden einzeln gegen Quell-, SDK- und Hostsemantik gep
 
 Neue individuell geprüfte Lifecycle-PASS:
 
-- `I12::envoy-ext-proc::NEED-request-streaming` — `16d6856f441218e02466f18fe87cf80810de3a21a9bccbfb18f3f4987ffbf4df`.
-- `I12::envoy-ext-proc::NEED-response-streaming` — `b2a62c23649dd555fc8060faa65fc60c2106a2bec9c5d3fde327ade634cabb7f`.
-- `I12::envoy-ext-proc::NEED-client-response-bytes` — `f3db1b8fa96bcd2774a8d77094bac45ec8c8f50a8d8643d2211d4e9b8ce2d432`.
-- `I12::envoy-ext-proc::NEED-client-exit-signal` — `c5ece154d7f4998f5cd521e086757ddf63fa8d0790286d2e1873ddb42244ae5a`.
+- `I12::envoy-ext-proc::NEED-request-streaming` — `7964c0c6075770e516a455c79fad486ceef0bc8f132398777402b06179cf5e6f`.
+- `I12::envoy-ext-proc::NEED-response-streaming` — `3cad230cbc39d7ace8536725d2962e42ae795b21188d70197567d4b910dcdfca`.
+- `I12::envoy-ext-proc::NEED-client-response-bytes` — `dc4f1e67fb9a4ee82929812f6497963146008bf7bb39d3bc3351ddef490b50b5`.
+- `I12::envoy-ext-proc::NEED-client-exit-signal` — `4de6cf4389348e62bd5cafbb24cebedd127bf4b2bd7895f229bcb13030332488`.
 
 Nicht erneut freigegeben, weil die sichtbaren Authorization-Trailer nicht streamgebunden sind und der Remote-gRPC-Status unbekannt bleibt:
 
@@ -214,11 +214,11 @@ Alle drei afaf-host-v2-Runner enden mit 0. Je Route sind Zielrequest/-response 9
 
 - `baseline`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/baseline-envoy-reconciliation.json` — SHA256 `e5bc09638b139351aa9816df79faffcb8923117f1bd74ca59fdd7b21021ac469`.
 - `native`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/native-v2/native-build/receipt.json` — SHA256 `fd429f2d49a76c71233eb581992a24fc81ac47b1ca8662fd3892be046eee16b0`.
-- `validation`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/ci/final-envoy-controls-257-base766-v1.json` — SHA256 `699585edfa6dc8b34f34119945a07eedcf03f0edc285ba70c2ddf61150e0133d`.
-- `I12__envoy-ext-proc__NEED-request-streaming`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v12/I12__envoy-ext-proc__NEED-request-streaming.json` — SHA256 `16d6856f441218e02466f18fe87cf80810de3a21a9bccbfb18f3f4987ffbf4df`.
-- `I12__envoy-ext-proc__NEED-response-streaming`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v12/I12__envoy-ext-proc__NEED-response-streaming.json` — SHA256 `b2a62c23649dd555fc8060faa65fc60c2106a2bec9c5d3fde327ade634cabb7f`.
-- `I12__envoy-ext-proc__NEED-client-response-bytes`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v12/I12__envoy-ext-proc__NEED-client-response-bytes.json` — SHA256 `f3db1b8fa96bcd2774a8d77094bac45ec8c8f50a8d8643d2211d4e9b8ce2d432`.
-- `I12__envoy-ext-proc__NEED-client-exit-signal`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v12/I12__envoy-ext-proc__NEED-client-exit-signal.json` — SHA256 `c5ece154d7f4998f5cd521e086757ddf63fa8d0790286d2e1873ddb42244ae5a`.
+- `validation`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/ci/final-envoy-controls-257-sonar-v2.json` — SHA256 `50ba2618a1b5dc32d1a0eb967f452dca22ffdf30c15d7744d6dae3e251eedb61`.
+- `I12__envoy-ext-proc__NEED-request-streaming`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v14/I12__envoy-ext-proc__NEED-request-streaming.json` — SHA256 `7964c0c6075770e516a455c79fad486ceef0bc8f132398777402b06179cf5e6f`.
+- `I12__envoy-ext-proc__NEED-response-streaming`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v14/I12__envoy-ext-proc__NEED-response-streaming.json` — SHA256 `3cad230cbc39d7ace8536725d2962e42ae795b21188d70197567d4b910dcdfca`.
+- `I12__envoy-ext-proc__NEED-client-response-bytes`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v14/I12__envoy-ext-proc__NEED-client-response-bytes.json` — SHA256 `dc4f1e67fb9a4ee82929812f6497963146008bf7bb39d3bc3351ddef490b50b5`.
+- `I12__envoy-ext-proc__NEED-client-exit-signal`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/root-approved-originals-v14/I12__envoy-ext-proc__NEED-client-exit-signal.json` — SHA256 `4de6cf4389348e62bd5cafbb24cebedd127bf4b2bd7895f229bcb13030332488`.
 - `oracles-ext-proc`: `/var/tmp/codex/ModSecurity-conector/worktrees/i12-envoy-410-20261015/ci/runtime/lifecycle/i12/envoy/oracles-ext-proc.json` — SHA256 `a25fe9a5808df508a5182cedf343166ccafebefabaeaa7d7898a4eb6d2c61a2f`.
 - `oracles-authz-request`: `/var/tmp/codex/ModSecurity-conector/worktrees/i12-envoy-410-20261015/ci/runtime/lifecycle/i12/envoy/oracles-authz-request.json` — SHA256 `00299799b27918783dff71e44720059d23bc539570f71c4e37a4b6d91ac08ddf`.
 - `oracles-companion`: `/var/tmp/codex/ModSecurity-conector/worktrees/i12-envoy-410-20261015/ci/runtime/lifecycle/i12/envoy/oracles-companion.json` — SHA256 `fe98c20ebd63ad455a34e2a65dbced229d43cab63755d70e743a18abdaf9f1b3`.
@@ -231,6 +231,6 @@ Alle drei afaf-host-v2-Runner enden mit 0. Je Route sind Zielrequest/-response 9
 - `review-release-host-originals`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/review-release-host-originals.json` — SHA256 `2de58afa0962ac01258a7fd1a9fac9553eb97f54543c0e5d303668477101d7fd`.
 - `review-companion-retake-v1`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/review-companion-retake-v1.json` — SHA256 `8e343b65be316565c222163d95c812a337b3e3de66d2544bdb8520bbffe79869`.
 - `review-fault-host-v2`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/review-fault-host-v2.json` — SHA256 `862c108d07b69ccfdaa6c8dd51493a03361c8ad1f3c85b6d4a704b56c077dc3e`.
-- `current_base_supplement`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/current-base-afaf-evidence-v3.json` — SHA256 `fcbc5d74de2d104da9a3c5b695c7bf8b51f25a6e8f50749c3a78204ee2471549`.
+- `current_base_supplement`: `/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/current-base-afaf-evidence-v3-sonar.json` — SHA256 `cefcd787b5790012f1bbc03c7c99b880b9318db39e8b129c387072c6fb680a11`.
 
 Die Referenzen liegen im task-eigenen externen Speicher; der PR enthält nur Quellcode und bereinigte Metadaten, keine Binaries, Caches, privaten Schlüssel oder Rohpayloads.

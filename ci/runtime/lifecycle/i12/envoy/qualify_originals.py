@@ -39,6 +39,17 @@ import evidence_io as EVIDENCE
 SHAPE_FILE = 'shape.json'
 BACKEND_RECEIPTS = 'backend/receipts.jsonl'
 TARGET_CLIENT_RECEIPT = 'client/target.receipt.json'
+ENVOY_STDERR = 'envoy.stderr'
+REQUEST_HEADERS_COMPLETE = 'request headers complete (end_stream=false):'
+REQUEST_END_STREAM = 'request end stream timestamp recorded'
+AUTHZ_BUFFERING = 'ext_authz filter is buffering the request'
+AUTHZ_BUFFERED = 'ext_authz filter finished buffering the request since stream is ended'
+AUTHZ_DISPATCH = "cluster 'msconnector_composite' match for URL '/envoy.service.auth.v3.Authorization/Check'"
+AUTHZ_BUFFERING_CHAIN = (
+    'decode headers called: filter=envoy.filters.http.header_mutation status=0',
+    AUTHZ_BUFFERING, 'setting buffer limit to 4096',
+    'decode headers called: filter=envoy.filters.http.ext_authz status=1',
+)
 STORAGE = EVIDENCE.configured_storage(required=False)
 RUNROOT = STORAGE / 'runs/i12-envoy-410-20261015' if STORAGE is not None else None
 READ_ROOTS = (REPO,) + ((RUNROOT, STORAGE / 'runs/e2e/20261014T182400Z-pr410-oracle-lifecycle')
@@ -170,31 +181,35 @@ def identity(record, shape, source_root=None):
     return original, route, oracle, review_ref
 
 
+def source_ref_candidates(path, source_root):
+    if not path.is_absolute() and ('..' in path.parts or any(
+            part in ('.git', '.aws', '.codex', '.agents') for part in path.parts)):
+        raise ValueError('source reference path is not a product path')
+    candidates = [path] if path.is_absolute() else [REPO / path]
+    if not path.is_absolute() and source_root is not None:
+        root = Path(source_root)
+        if not root.is_absolute() or '..' in root.parts:
+            raise ValueError('historical source root must be absolute without traversal')
+        historical = root / path
+        if historical != candidates[0]:
+            candidates.append(historical)
+    return candidates
+
+
+def matching_source_ref(ref, candidates):
+    for physical in candidates:
+        if not physical.is_file():
+            continue
+        actual = reference(physical)
+        if actual['sha256'] == ref['sha256'] and (
+                'bytes' not in ref or actual['bytes'] == ref['bytes']):
+            return actual
+    raise ValueError('physical reference changed: ' + ref['path'])
+
+
 def verify_source_refs(refs, source_root=None):
     for ref in refs:
-        path = Path(ref['path'])
-        if not path.is_absolute() and ('..' in path.parts or any(
-                part in ('.git', '.aws', '.codex', '.agents') for part in path.parts)):
-            raise ValueError('source reference path is not a product path')
-        candidates = [path] if path.is_absolute() else [REPO / path]
-        if not path.is_absolute() and source_root is not None:
-            root = Path(source_root)
-            if not root.is_absolute() or '..' in root.parts:
-                raise ValueError('historical source root must be absolute without traversal')
-            historical = root / path
-            if historical != candidates[0]:
-                candidates.append(historical)
-        verified = None
-        for physical in candidates:
-            if not physical.is_file():
-                continue
-            actual = reference(physical)
-            if actual['sha256'] == ref['sha256'] and (
-                    'bytes' not in ref or actual['bytes'] == ref['bytes']):
-                verified = actual
-                break
-        if verified is None:
-            raise ValueError('physical reference changed: ' + ref['path'])
+        verified = matching_source_ref(ref, source_ref_candidates(Path(ref['path']), source_root))
         if type(ref.get('line')) is not int or not 1 <= ref['line'] <= len(read_bytes(verified['path']).splitlines()):
             raise ValueError('source reference line is not physically bounded')
 
@@ -487,15 +502,15 @@ def client_original_checks(original, summary, expected, data, checks):
 def authz_fragment_event_origin(line, message):
     """Require the retained Envoy logger, component and source line per event."""
     exact = {
-        'request headers complete (end_stream=false):':
+        REQUEST_HEADERS_COMPLETE:
             ('debug', 'http', 'source/common/http/conn_manager_impl.cc:1357'),
-        'request end stream timestamp recorded':
+        REQUEST_END_STREAM:
             ('debug', 'http', 'source/common/http/conn_manager_impl.cc:1340'),
         'setting buffer limit to 4096':
             ('debug', 'http', 'source/common/http/filter_manager.cc:1730'),
-        'ext_authz filter is buffering the request':
+        AUTHZ_BUFFERING:
             ('debug', 'ext_authz', 'source/extensions/filters/http/ext_authz/ext_authz.cc:490'),
-        'ext_authz filter finished buffering the request since stream is ended':
+        AUTHZ_BUFFERED:
             ('debug', 'ext_authz', 'source/extensions/filters/http/ext_authz/ext_authz.cc:516'),
     }
     origin = exact.get(message)
@@ -509,113 +524,146 @@ def authz_fragment_event_origin(line, message):
         origin = ('debug', 'router', 'source/common/router/router.cc:586')
     if origin is None:
         return True
-    prefix = r'^\[[^\]]+\] \[[0-9]+\] ' + re.escape(' '.join('[' + part + ']' for part in origin))
-    return re.match(prefix + r' \[Tags: ', line) is not None
+    prefix = r'^\[[^\]]+\] \[\d+\] ' + re.escape(' '.join('[' + part + ']' for part in origin))
+    return re.match(prefix + r' \[Tags: ', line, flags=re.ASCII) is not None
 
 
-def authz_host_fragments(summary, expected, shape, data):
-    """The selected HTTP1 sample has two host fragments, then one native sample.
+def authz_fragment_header_block(lines, start):
+    block = []
+    for header in lines[start:]:
+        if not header:
+            break
+        block.append(header)
+    return block
 
-    Codec body lines only carry a connection ID. Require each to be immediately
-    followed by the selected stream's header-mutation and authorization decoders.
-    Worker identity, ordered buffering setup and a single later Check dispatch
-    bound the receive-to-authorization interval. Client sends are not measured.
-    """
-    metadata = summary.get('physical_files', {}).get('envoy.stderr', {})
-    if not metadata.get('sha256') or type(metadata.get('bytes')) is not int:
-        raise ValueError('hash-bound physical Envoy trace required')
-    verify_ref(dict(metadata, path=str(data / 'envoy.stderr')))
-    lines = read_bytes(data / 'envoy.stderr').decode().splitlines()
-    nonce = shape.get('target')
-    if not isinstance(nonce, str) or not re.fullmatch(r'e-[0-9a-f]{12}', nonce):
-        return {}
-    tagged = re.compile(r'\[Tags: "ConnectionId":"([0-9]+)"(?:,"StreamId":"([0-9]+)")?\] (.*)')
-    worker_tag = re.compile(r'^\[[^\]]+\] \[([0-9]+)\] ')
-    def worker_at(index):
-        tag = worker_tag.match(lines[index])
-        return tag[1] if tag else None
+
+def authz_fragment_header_scope(lines, tagged, worker_at, nonce):
     headers = []
     for index, line in enumerate(lines):
         match = tagged.search(line)
-        if match and match[3] == 'request headers complete (end_stream=false):':
-            block = []
-            for header in lines[index + 1:]:
-                if not header:
-                    break
-                block.append(header)
-            if "':path', '/" + nonce + "'" in block and "'x-request-id', '" + nonce + "'" in block:
-                if not authz_fragment_event_origin(line, match[3]):
-                    return {}
-                headers.append((index, match[1], match[2], worker_at(index)))
+        if not match or match[3] != REQUEST_HEADERS_COMPLETE:
+            continue
+        block = authz_fragment_header_block(lines, index + 1)
+        if "':path', '/" + nonce + "'" in block and "'x-request-id', '" + nonce + "'" in block:
+            if not authz_fragment_event_origin(line, match[3]):
+                return None
+            headers.append((index, match[1], match[2], worker_at(index)))
     if len(headers) != 1 or headers[0][2] is None or headers[0][3] is None:
-        return {}
-    start, connection, stream, worker = headers[0]
-    scoped = []
-    fragments = []
-    buffering_chain = [
-        'decode headers called: filter=envoy.filters.http.header_mutation status=0',
-        'ext_authz filter is buffering the request', 'setting buffer limit to 4096',
-        'decode headers called: filter=envoy.filters.http.ext_authz status=1']
-    dispatches = []
-    finished_index = None
-    upstream_index = None
+        return None
+    return headers[0]
+
+
+def authz_fragment_decoders(lines, index, tagged, worker_at, scope):
+    _, connection, stream, worker = scope
+    for offset, decoder in ((1, 'header_mutation status=0'), (2, 'ext_authz status=1')):
+        following = tagged.search(lines[index + offset]) if index + offset < len(lines) else None
+        if (following is None or (following[1], following[2]) != (connection, stream)
+                or worker_at(index + offset) != worker
+                or not authz_fragment_event_origin(lines[index + offset], following[3])
+                or following[3] != 'decode data called: filter=envoy.filters.http.' + decoder):
+            return False
+    return True
+
+
+def authz_fragment_body(trace, index, match, scope, state):
+    lines, tagged, worker_at = trace
+    size = re.fullmatch(r'body size=(\d+)', match[3], flags=re.ASCII)
+    if (size is None or match[2] is not None or REQUEST_END_STREAM in state['scoped']
+            or tuple(value for value in state['scoped'] if value in AUTHZ_BUFFERING_CHAIN) != AUTHZ_BUFFERING_CHAIN
+            or not authz_fragment_decoders(lines, index, tagged, worker_at, scope)):
+        return False
+    state['fragments'].append({'line': index + 1, 'bytes': int(size[1])})
+    return True
+
+
+def authz_fragment_scoped_event(trace, index, match, scope, state):
+    lines, _, worker_at = trace
+    _, _, stream, worker = scope
+    message = match[3]
+    if (worker_at(index) != worker or not authz_fragment_event_origin(lines[index], message)
+            or message.startswith('request headers complete') or match[2] not in (None, stream)):
+        return False
+    if message.startswith('body size=') and not authz_fragment_body(
+            trace, index, match, scope, state):
+        return False
+    if match[2] == stream:
+        state['scoped'].append(message)
+    if message == AUTHZ_BUFFERED:
+        if state['finished_index'] is not None:
+            return False
+        state['finished_index'] = index
+    if message == state['upstream_message']:
+        if match[2] != stream:
+            return False
+        state['upstream_index'] = index
+    return True
+
+
+def authz_fragment_events(lines, tagged, worker_at, scope, nonce):
+    start, connection, _, worker = scope
+    trace = (lines, tagged, worker_at)
+    state = {'scoped': [], 'fragments': [], 'dispatches': [], 'finished_index': None,
+             'upstream_index': None, 'upstream_message': "cluster 'upstream_service' match for URL '/" + nonce + "'"}
     for index in range(start + 1, len(lines)):
         match = tagged.search(lines[index])
         if not match:
             continue
-        message = match[3]
-        if message == "cluster 'msconnector_composite' match for URL '/envoy.service.auth.v3.Authorization/Check'":
+        if match[3] == AUTHZ_DISPATCH:
             if (worker_at(index) != worker or match[2] is None
-                    or not authz_fragment_event_origin(lines[index], message)):
-                return {}
-            dispatches.append(index)
+                    or not authz_fragment_event_origin(lines[index], match[3])):
+                return None
+            state['dispatches'].append(index)
         if match[1] != connection:
             continue
-        if worker_at(index) != worker:
-            return {}
-        if not authz_fragment_event_origin(lines[index], message):
-            return {}
-        if message.startswith('request headers complete'):
-            return {}
-        if match[2] not in (None, stream):
-            return {}
-        if message.startswith('body size='):
-            size = re.fullmatch(r'body size=([0-9]+)', message)
-            if (size is None or match[2] is not None
-                    or 'request end stream timestamp recorded' in scoped
-                    or [value for value in scoped if value in buffering_chain] != buffering_chain):
-                return {}
-            for offset, decoder in ((1, 'header_mutation status=0'), (2, 'ext_authz status=1')):
-                following = tagged.search(lines[index + offset]) if index + offset < len(lines) else None
-                if (following is None or (following[1], following[2]) != (connection, stream)
-                        or worker_at(index + offset) != worker
-                        or not authz_fragment_event_origin(lines[index + offset], following[3])
-                        or following[3] != 'decode data called: filter=envoy.filters.http.' + decoder):
-                    return {}
-            fragments.append({'line': index + 1, 'bytes': int(size[1])})
-        if match[2] == stream:
-            scoped.append(message)
-        if message == 'ext_authz filter finished buffering the request since stream is ended':
-            if finished_index is not None:
-                return {}
-            finished_index = index
-        if message == "cluster 'upstream_service' match for URL '/" + nonce + "'":
-            if match[2] != stream:
-                return {}
-            upstream_index = index
+        if not authz_fragment_scoped_event(trace, index, match, scope, state):
+            return None
+        if state['upstream_index'] is not None:
             break
-    end = 'request end stream timestamp recorded'
-    finished = 'ext_authz filter finished buffering the request since stream is ended'
-    if ([row['bytes'] for row in fragments] != [64, 31] or expected.get('request_bytes') != 95
-            or scoped.count(end) != 1 or scoped.count(finished) != 1
-            or scoped.index(end) >= scoped.index(finished)
-            or [value for value in scoped if value in buffering_chain] != buffering_chain
-            or len(dispatches) != 1 or finished_index is None or upstream_index is None
-            or not finished_index < dispatches[0] < upstream_index):
+    return state
+
+
+def authz_fragment_interval_complete(state, expected):
+    scoped = state['scoped']
+    dispatches = state['dispatches']
+    finished_index, upstream_index = state['finished_index'], state['upstream_index']
+    return ([row['bytes'] for row in state['fragments']] == [64, 31] and expected.get('request_bytes') == 95
+            and scoped.count(REQUEST_END_STREAM) == 1 and scoped.count(AUTHZ_BUFFERED) == 1
+            and scoped.index(REQUEST_END_STREAM) < scoped.index(AUTHZ_BUFFERED)
+            and tuple(value for value in scoped if value in AUTHZ_BUFFERING_CHAIN) == AUTHZ_BUFFERING_CHAIN
+            and len(dispatches) == 1 and finished_index is not None and upstream_index is not None
+            and finished_index < dispatches[0] < upstream_index)
+
+
+def authz_host_fragments(summary, expected, shape, data):
+    """Bind two HTTP1 host fragments to one later authorization/native sample.
+
+    Codec lines carry only a connection ID. Their immediate selected-stream
+    decoders, worker identity, buffering order and later Check dispatch must all
+    agree. Client sends do not establish host receives or native streaming.
+    """
+    metadata = summary.get('physical_files', {}).get(ENVOY_STDERR, {})
+    if not metadata.get('sha256') or type(metadata.get('bytes')) is not int:
+        raise ValueError('hash-bound physical Envoy trace required')
+    verify_ref(dict(metadata, path=str(data / ENVOY_STDERR)))
+    lines = read_bytes(data / ENVOY_STDERR).decode().splitlines()
+    nonce = shape.get('target')
+    if not isinstance(nonce, str) or not re.fullmatch(r'e-[0-9a-f]{12}', nonce):
         return {}
+    tagged = re.compile(r'\[Tags: "ConnectionId":"(\d+)"(?:,"StreamId":"(\d+)")?\] (.*)', re.ASCII)
+    worker_tag = re.compile(r'^\[[^\]]+\] \[(\d+)\] ', re.ASCII)
+    def worker_at(index):
+        tag = worker_tag.match(lines[index])
+        return tag[1] if tag else None
+    scope = authz_fragment_header_scope(lines, tagged, worker_at, nonce)
+    if scope is None:
+        return {}
+    state = authz_fragment_events(lines, tagged, worker_at, scope, nonce)
+    if state is None or not authz_fragment_interval_complete(state, expected):
+        return {}
+    _, connection, stream, worker = scope
     return {'worker_thread_id': worker, 'connection_id': connection, 'stream_id': stream, 'request_nonce': nonce,
-            'fragments': fragments, 'total_bytes': 95, 'host_eos_count': 1,
-            'authorization_dispatch_count': 1, 'authorization_dispatch_line': dispatches[0] + 1,
+            'fragments': state['fragments'], 'total_bytes': 95, 'host_eos_count': 1,
+            'authorization_dispatch_count': 1, 'authorization_dispatch_line': state['dispatches'][0] + 1,
             'scope': 'two Envoy HTTP1 receive fragments; one buffered authorization/native sample; no native streaming claim'}
 
 
@@ -731,7 +779,7 @@ def make_observations(shared, data, fixture, source_ref, values, refs, checks):
             observations[name]['evidence'].extend(reference(data / relative, 'backend_process') for relative in refs
                 if relative.startswith('backend/') and relative != BACKEND_RECEIPTS)
         if 'host_callback' in roles:
-            observations[name]['evidence'].append(reference(data / 'envoy.stderr', 'host_callback'))
+            observations[name]['evidence'].append(reference(data / ENVOY_STDERR, 'host_callback'))
     if not checks['exact_backend_request_count']:
         observations['backend_request_count'] = {'applicable': True, 'value': None,
             'reason': 'Only completed backend receipts exist; absent early request-line capture cannot exclude partial upstream requests.'}
