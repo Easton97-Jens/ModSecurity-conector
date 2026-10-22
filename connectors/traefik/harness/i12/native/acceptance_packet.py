@@ -400,6 +400,9 @@ def body_selection_candidate(case, root, proof):
             'interpretation': interpretation})
 
 
+MEASUREMENT_FILE = 'measurement.json'
+
+
 def physical_file_candidate(case, root, measurement, before):
     """Bind file-origin byte transport without claiming SDK File API or EOS."""
     supplement = case.get('fixture', {}).get('file_supplement')
@@ -415,7 +418,7 @@ def physical_file_candidate(case, root, measurement, before):
         'client_path': path, 'request_path': evidence / (key + '.request-head.raw'),
         'response_path': evidence / (key + '.response.raw'),
         'entity_path': evidence / (key + '.response-entity.raw'),
-        'wait_path': root / 'measurement.json', 'backend_path': path, 'backend': None,
+        'wait_path': root / MEASUREMENT_FILE, 'backend_path': path, 'backend': None,
         'raw_sources': []}
     try:
         row = result['reader']
@@ -728,7 +731,7 @@ def packet(attempt, case):
     data = attempt / 'data'
     key, tx = case['key'], case['transaction_id']
     root = data / 'cases' / key
-    measurement = read(root / 'measurement.json')
+    measurement = read(root / MEASUREMENT_FILE)
     if measurement is not None and (measurement.get('id') != case['id'] or
             measurement.get('fixture_sha256') != case.get('fixture_sha256')):
         raise ValueError('Actual original-ID/fixture hash differs from the supplied case binding')
@@ -770,7 +773,7 @@ def packet(attempt, case):
     controller = read(attempt / 'controller-result.json')
     isolation_ref = reference(attempt / 'controller-result.json', 'isolation_receipt')
     result_ref = reference(data / 'acceptance-result.json', 'cleanup_observer')
-    case_ref = reference(root / 'measurement.json', 'cleanup_observer')
+    case_ref = reference(root / MEASUREMENT_FILE, 'cleanup_observer')
     debug_ref = reference(root / 'debug.log', 'native_debug')
     audit_ref = reference(root / 'audit.log', 'physical_event_sink')
     binding = read(data / 'current-product-binding.json')

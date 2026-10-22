@@ -10,6 +10,7 @@ from urllib.parse import urlsplit
 
 
 RUN_ID = 'traefik-acceptance-20261015'
+LITERAL_CASE_ID = r'[A-Za-z0-9_.:-]{1,128}'
 RESERVATION = 'X-Msconnector-Trusted-Reservation'
 HANDLE = 'X-Msconnector-Response-Handle'
 PROVENANCE_SOCKET_CONTRACT = {'socket_mode': 0o600, 'parent_mode': 0o700,
@@ -76,7 +77,7 @@ def validate_file_router(config, routers, case):
             raise ValueError('file target router requires an explicit response-file binding')
         return
     key = case['probe_id']
-    if not re.fullmatch(r'[A-Za-z0-9_.:-]{1,128}', key):
+    if not re.fullmatch(LITERAL_CASE_ID, key):
         raise ValueError('literal physical file target key required')
     target = routers.get('physical-file-target', {})
     expected_rule = 'Header(`X-I12-Probe`, `' + key + '`) && !Header(`X-I12-Neighbor`, `1`)'
@@ -99,7 +100,7 @@ def validate_observers(path, case, mode, routers, middlewares):
 
 
 def validate_provenance_settings(middlewares, observer, outer, expected_outer, name):
-    if outer != expected_outer or not re.fullmatch(r'[A-Za-z0-9_.:-]{1,128}', outer['transportCaseID']):
+    if outer != expected_outer or not re.fullmatch(LITERAL_CASE_ID, outer['transportCaseID']):
         raise ValueError('atomic outer provenance settings differ: ' + name)
     inner = middlewares[observer + '-confirm']['plugin']['modsecurityResponseObserver']
     if inner != {'socketPath': expected_outer['socketPath'], 'confirmProvenance': True, 'timeoutMillis': expected_outer['timeoutMillis']}:
@@ -162,7 +163,7 @@ if __name__ == '__main__':
         raise ValueError('exact config and admitted case arguments required')
     requested_config = Path(sys.argv[1])
     probe = requested_config.parent.parent.parent.name
-    if not re.fullmatch(r'[A-Za-z0-9_.:-]{1,128}', probe):
+    if not re.fullmatch(LITERAL_CASE_ID, probe):
         raise ValueError('fixed runtime case root required')
     root = Path('/task/cases') / probe
     config_path = root / 'runtime/effective-config/traefik-dynamic.yaml'

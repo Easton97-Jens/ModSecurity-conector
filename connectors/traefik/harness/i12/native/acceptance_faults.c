@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #define _POSIX_C_SOURCE 200809L
 /* Test-only GNU-wrap faults. No product code or native observer is replaced.
  * Exact sink path and selected mapper URI are mandatory admission boundaries.
@@ -7,7 +8,6 @@
 #include <errno.h>
 #include <dirent.h>
 #include <fcntl.h>
-#include <stdarg.h>
 #include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -80,6 +80,16 @@ static int fault_target(void) {
     return getenv("I12_ACCEPTANCE_FAULT_URI") == NULL || target_request;
 }
 
+static void write_receipt(int descriptor, const char *line, size_t size) {
+    size_t offset = 0;
+    while (offset < size) {
+        ssize_t written = write(descriptor, line + offset, size - offset);
+        if (written < 0 && errno == EINTR) { continue; }
+        if (written <= 0) { return; }
+        offset += (size_t)written;
+    }
+}
+
 static void receipt(const char *operation, long result, int injected, int descriptor) {
     const char *value = getenv("I12_ACCEPTANCE_FAULT_FD");
     char line[640];
@@ -101,7 +111,7 @@ static void receipt(const char *operation, long result, int injected, int descri
         saved_errno,
         (long long)now.tv_sec * 1000000000LL + now.tv_nsec,
         identity_known ? (long long)identity.st_dev : -1LL, identity_known ? (long long)identity.st_ino : -1LL);
-    if (size > 0 && (size_t)size < sizeof(line)) { (void)write((int)output, line, (size_t)size); }
+    if (size > 0 && (size_t)size < sizeof(line)) { write_receipt((int)output, line, (size_t)size); }
     errno = saved_errno;
 }
 
@@ -124,7 +134,7 @@ static void request_input_receipt(const char *operation, int result, const void 
         operation, result, (long)getpid(), body_size, body == NULL ? "true" : "false",
         header_count, headers == NULL ? "true" : "false",
         (long long)now.tv_sec * 1000000000LL + now.tv_nsec);
-    if (length > 0 && (size_t)length < sizeof(line)) { (void)write((int)descriptor, line, (size_t)length); }
+    if (length > 0 && (size_t)length < sizeof(line)) { write_receipt((int)descriptor, line, (size_t)length); }
     errno = saved;
 }
 
@@ -254,17 +264,35 @@ static int descriptor_is_sink(int descriptor) {
         opened.st_dev == named.st_dev && opened.st_ino == named.st_ino;
 }
 
-/* Preserve libc's variadic ABI without maintaining a duplicate declaration. */
+/* The test harness supports the Linux x86-64 SysV ABI, as does its ptrace
+ * observer. Preserve openat's public variadic type. The assembly entry supplies
+ * an explicit zero mode for three-argument calls before entering fixed-arity C;
+ * it retains the caller's fourth argument only when libc requires one.
+ * A C alias to a four-argument function would not provide that guarantee. */
+#if !defined(__linux__) || !defined(__x86_64__)
+#error "acceptance openat bridge requires Linux x86-64 SysV ABI"
+#endif
+_Static_assert(O_CREAT == 64 && O_TMPFILE == 4259840, "Linux openat flag ABI changed");
 extern __typeof__(openat) __real_openat;
-int __wrap_openat(int directory, const char *name, int flags, ...) {
-    mode_t mode = 0;
+extern __typeof__(openat) __wrap_openat;
+int i12_acceptance_openat(int directory, const char *name, int flags, mode_t mode);
+__asm__(
+    ".text\n"
+    ".globl __wrap_openat\n"
+    ".type __wrap_openat,@function\n"
+    "__wrap_openat:\n"
+    "testl $64,%edx\n"
+    "jnz 1f\n"
+    "movl %edx,%eax\n"
+    "andl $4259840,%eax\n"
+    "cmpl $4259840,%eax\n"
+    "je 1f\n"
+    "xorl %ecx,%ecx\n"
+    "1: jmp i12_acceptance_openat\n"
+    ".size __wrap_openat,.-__wrap_openat\n");
+
+int i12_acceptance_openat(int directory, const char *name, int flags, mode_t mode) {
     int result;
-    if ((flags & O_CREAT) != 0) {
-        va_list arguments;
-        va_start(arguments, flags);
-        mode = (mode_t)va_arg(arguments, int);
-        va_end(arguments);
-    }
     result = __real_openat(directory, name, flags, mode);
     /* Deny a second, real open of this exact owned inode through actual mode
      * permissions. The admitted host is nonroot; its real errno is retained. */

@@ -4,15 +4,18 @@ import json
 import re
 
 
-def readiness_client_bound(client, start, end, expected_probe, command):
-    """Bind the actual client receipt to the driver's exact readiness command."""
-    probe = client.get('probe')
-    requests = client.get('requests')
-    if (not isinstance(probe, str) or re.fullmatch(r'.+-ready-[0-9]', probe) is None
-            or probe != expected_probe or not isinstance(command, dict)
-            or client.get('neighbor') is not True or 'error' in client
-            or not isinstance(requests, list) or len(requests) != 1):
-        return None
+LIFECYCLE_FUNCTIONS = ('native_new', 'native_new_with_id', 'native_process_logging', 'native_cleanup')
+
+
+def readiness_client_shape(client, expected_probe, command):
+    probe, requests = client.get('probe'), client.get('requests')
+    return (isinstance(probe, str) and re.fullmatch(r'.+-ready-\d', probe, re.ASCII) is not None
+            and probe == expected_probe and isinstance(command, dict)
+            and client.get('neighbor') is True and 'error' not in client
+            and isinstance(requests, list) and len(requests) == 1)
+
+
+def readiness_command_bound(client, start, end, command):
     command_start, command_end = command.get('started_ns'), command.get('completed_ns')
     pid = client.get('pid')
     if (type(command_start) is not int or type(command_end) is not int
@@ -22,12 +25,21 @@ def readiness_client_bound(client, start, end, expected_probe, command):
             or command.get('timed_out') is not False
             or type(command.get('wrapper_pid')) is not int or command['wrapper_pid'] <= 0
             or type(pid) is not int or pid <= 0
-            or command.get('argv', [])[-3:] != ['--neighbor', '--readiness-index', probe[-1]]):
+            or command.get('argv', [])[-3:] != ['--neighbor', '--readiness-index', client['probe'][-1]]):
+        return False
+    return ('client_pid' not in command or
+            (type(command['client_pid']) is int and command['client_pid'] == pid))
+
+
+def readiness_client_bound(client, start, end, expected_probe, command):
+    """Bind the actual client receipt to the driver's exact readiness command."""
+    if not readiness_client_shape(client, expected_probe, command):
         return None
-    if 'client_pid' in command and (type(command['client_pid']) is not int or command['client_pid'] != pid):
+    if not readiness_command_bound(client, start, end, command):
         return None
+    probe, pid = client['probe'], client['pid']
     transaction = probe + '-neighbor'
-    request = requests[0]
+    request = client['requests'][0]
     if (request.get('wire_probe') != transaction
             or request.get('client_framing', {}).get('status') != 200
             or request.get('client_framing', {}).get('complete') is not True):
@@ -43,24 +55,7 @@ def readiness_client_bound(client, start, end, expected_probe, command):
     return True
 
 
-def public_readiness_scope(rows, allocation, client, start, end, expected_probe, command):
-    """Join only this exclusive readiness probe, without claiming a native scope."""
-    if readiness_client_bound(client, start, end, expected_probe, command) is not True:
-        return None
-    transaction = expected_probe + '-neighbor'
-    functions = ('native_new', 'native_new_with_id', 'native_process_logging', 'native_cleanup')
-    # Include all same-ID lifecycle returns, even outside the window or another PID,
-    # so reuse/duplicates cannot be hidden by the temporal or process filter.
-    lifecycle = [row for row in rows if row.get('edge') == 'return'
-                 and row.get('function') in functions
-                 and row.get('transaction_id') == transaction]
-    if (len(lifecycle) != 3 or lifecycle[0] is not allocation
-            or [row.get('function') for row in lifecycle] !=
-               ['native_new_with_id', 'native_process_logging', 'native_cleanup']):
-        return None
-    pid = allocation.get('pid')
-    if type(pid) is not int or pid <= 0:
-        return None
+def public_returns_valid(lifecycle, pid, transaction):
     for row in lifecycle:
         if (type(row.get('pid')) is not int or row.get('pid') != pid
                 or row.get('invalid') is not False
@@ -68,43 +63,37 @@ def public_readiness_scope(rows, allocation, client, start, end, expected_probe,
                 or row.get('transaction_id_origin') != 'sdk_public_m_id'
                 or row.get('allocation_scope_call') is not None
                 or row.get('allocation_join_verified') is not False):
-            return None
+            return False
     if any(type(row.get('result')) is not int or row['result'] != 1
            for row in lifecycle[:2]):
-        return None
+        return False
     if 'result' not in lifecycle[2] or lifecycle[2]['result'] is not None:
-        return None
-    for field in ('monotonic_ns', 'sequence', 'call'):
-        values = [row.get(field) for row in lifecycle]
+        return False
+    return ordered_positive_fields(lifecycle, ('monotonic_ns', 'sequence', 'call'))
+
+
+def ordered_positive_fields(rows, fields):
+    for field in fields:
+        values = [row.get(field) for row in rows]
         if not all(type(value) is int and value > 0 for value in values):
-            return None
-        if not values[0] < values[1] < values[2]:
-            return None
-    if not start <= lifecycle[0]['monotonic_ns'] < lifecycle[2]['monotonic_ns'] <= end:
-        return None
-    calls = {(row['function'], row['call']) for row in lifecycle}
-    related_returns = [row for row in rows if row.get('edge') == 'return'
-                       and row.get('function') in functions
-                       and ((row.get('function'), row.get('call')) in calls
-                            or row.get('transaction_id') == transaction
-                            or row.get('input_transaction_id') == transaction)]
-    if related_returns != lifecycle:
-        return None
-    # Pair every return with its physical enter. Include conflicting same-call or
-    # same-ID rows outside the window, and all lifecycle enters inside this
-    # exclusive probe window, so a damaged join cannot disappear from selection.
-    enters = [row for row in rows if row.get('edge') == 'enter'
-              and row.get('function') in functions
-              and ((row.get('function'), row.get('call')) in calls
-                   or row.get('transaction_id') == transaction
-                   or row.get('input_transaction_id') == transaction
-                   or (type(row.get('monotonic_ns')) is int
-                       and start <= row['monotonic_ns'] <= end))]
-    if len(enters) != 3:
-        return None
-    paired = []
-    for index, (entered, returned) in enumerate(zip(enters, lifecycle)):
-        if (entered.get('function') != returned['function']
+            return False
+        if not all(before < after for before, after in zip(values, values[1:])):
+            return False
+    return True
+
+
+def related_lifecycle_row(row, calls, transaction):
+    return ((row.get('function'), row.get('call')) in calls
+            or row.get('transaction_id') == transaction
+            or row.get('input_transaction_id') == transaction)
+
+
+def inside_window(row, start, end):
+    return type(row.get('monotonic_ns')) is int and start <= row['monotonic_ns'] <= end
+
+
+def public_enter_valid(entered, returned, index, pid, transaction):
+    if (entered.get('function') != returned['function']
                 or not all(field in entered for field in
                            ('result', 'transaction_id', 'input_transaction_id', 'allocation_scope_call'))
                 or type(entered.get('call')) is not int
@@ -113,20 +102,59 @@ def public_readiness_scope(rows, allocation, client, start, end, expected_probe,
                 or entered.get('invalid') is not False or entered.get('result') is not None
                 or entered.get('allocation_scope_call') is not None
                 or entered.get('allocation_join_verified') is not False):
-            return None
-        expected_id = None if index == 0 else transaction
-        expected_origin = 'unknown' if index == 0 else 'sdk_public_m_id'
-        if (entered.get('transaction_id') != expected_id
-                or entered.get('input_transaction_id') != expected_id
-                or entered.get('transaction_id_origin') != expected_origin):
+        return False
+    expected_id = None if index == 0 else transaction
+    expected_origin = 'unknown' if index == 0 else 'sdk_public_m_id'
+    return (entered.get('transaction_id') == expected_id
+            and entered.get('input_transaction_id') == expected_id
+            and entered.get('transaction_id_origin') == expected_origin)
+
+
+def public_lifecycle_enters(rows, lifecycle, pid, transaction, start, end):
+    calls = {(row['function'], row['call']) for row in lifecycle}
+    # Keep conflicting same-call/same-ID rows even outside this probe window.
+    related_returns = [row for row in rows if row.get('edge') == 'return'
+                       and row.get('function') in LIFECYCLE_FUNCTIONS
+                       and related_lifecycle_row(row, calls, transaction)]
+    if related_returns != lifecycle:
+        return None
+    enters = [row for row in rows if row.get('edge') == 'enter'
+              and row.get('function') in LIFECYCLE_FUNCTIONS
+              and (related_lifecycle_row(row, calls, transaction) or inside_window(row, start, end))]
+    if len(enters) != 3:
+        return None
+    paired = []
+    for index, (entered, returned) in enumerate(zip(enters, lifecycle)):
+        if not public_enter_valid(entered, returned, index, pid, transaction):
             return None
         paired.extend([entered, returned])
-    for field in ('monotonic_ns', 'sequence'):
-        values = [row.get(field) for row in paired]
-        if (not all(type(value) is int and value > 0 for value in values)
-                or not all(before < after for before, after in zip(values, values[1:]))):
-            return None
+    if not ordered_positive_fields(paired, ('monotonic_ns', 'sequence')):
+        return None
     if not start <= paired[0]['monotonic_ns'] < paired[-1]['monotonic_ns'] <= end:
+        return None
+    return enters
+
+
+def public_readiness_scope(rows, allocation, client, start, end, expected_probe, command):
+    """Join only this exclusive readiness probe, without claiming a native scope."""
+    if readiness_client_bound(client, start, end, expected_probe, command) is not True:
+        return None
+    transaction = expected_probe + '-neighbor'
+    # Include all same-ID returns so duplicates cannot hide behind a PID/window filter.
+    lifecycle = [row for row in rows if row.get('edge') == 'return'
+                 and row.get('function') in LIFECYCLE_FUNCTIONS
+                 and row.get('transaction_id') == transaction]
+    if (len(lifecycle) != 3 or lifecycle[0] is not allocation
+            or [row.get('function') for row in lifecycle] !=
+               ['native_new_with_id', 'native_process_logging', 'native_cleanup']):
+        return None
+    pid = allocation.get('pid')
+    if type(pid) is not int or pid <= 0 or not public_returns_valid(lifecycle, pid, transaction):
+        return None
+    if not start <= lifecycle[0]['monotonic_ns'] < lifecycle[2]['monotonic_ns'] <= end:
+        return None
+    enters = public_lifecycle_enters(rows, lifecycle, pid, transaction, start, end)
+    if enters is None:
         return None
     return {'allocation': allocation, 'logging_returns': [lifecycle[1]],
             'cleanup_returns': [lifecycle[2]], 'join': 'exclusive_readiness_public_transaction_id',

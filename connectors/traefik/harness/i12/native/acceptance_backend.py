@@ -36,9 +36,19 @@ def record(root, value):
         stream.write(json.dumps(value) + '\n')
 
 
-class Backend(socketserver.ThreadingMixIn, http.server.HTTPServer):
+class Backend(socketserver.ThreadingMixIn, socketserver.TCPServer):
     daemon_threads = True
     block_on_close = True
+
+    def __init__(self, address, handler):
+        # This fixture deliberately serves HTTP inside the isolated network
+        # namespace. Its constructor cannot admit an external bind address.
+        host, port = address
+        if host != LOOPBACK or not isinstance(port, int) or not 0 <= port <= 65535:
+            raise ValueError('only an isolated loopback bind is admitted')
+        super().__init__((LOOPBACK, port), handler)
+        self.server_name = LOOPBACK
+        self.server_port = self.server_address[1]
 
     def get_request(self):
         connection, address = super().get_request()

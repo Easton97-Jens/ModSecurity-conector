@@ -1,5 +1,6 @@
 """Bounded physical client/backend/authorization/UDS fixtures, no qualification."""
 import argparse
+from dataclasses import dataclass
 import hashlib
 import http.client
 import http.server
@@ -9,6 +10,7 @@ from pathlib import Path
 import re
 import signal
 import socket
+import socketserver
 import struct
 import sys
 import threading
@@ -51,12 +53,14 @@ def client_connection(port,timeout):
  return connection
 
 
-class LoopbackEvidenceServer(http.server.ThreadingHTTPServer):
+class LoopbackEvidenceServer(socketserver.ThreadingMixIn,socketserver.TCPServer):
  """Plain HTTP is the measured host protocol inside the admitted namespace.
 
  The fixture cannot bind an external interface or select a DNS hostname.
  """
+ allow_reuse_address=True
  def __init__(self,port,handler):
+  self.server_name='127.0.0.1';self.server_port=loopback_port(port)
   super().__init__(('127.0.0.1',loopback_port(port)),handler)
   self.daemon_threads=True
 
@@ -289,17 +293,20 @@ class Relay(http.server.BaseHTTPRequestHandler):
  def do_PUT(self):self.forward()
  def forward(self):
   self.forward_headers=[]
+  if self.path!='/authorize':self.send_error(404);return
   probe=self.headers.get('X-I12-Probe','');neighbor=self.headers.get('X-I12-Neighbor')=='1';name=traffic_label(probe,self.spec['probe_id'],neighbor)
   length=int(self.headers.get('Content-Length','0'))
   if not 0<=length<=MAX_BYTES:self.send_error(400);return
-  received=self.rfile.read(length);(self.root/('auth-'+name+'.sample.raw')).write_bytes(received)
+  received=self.rfile.read(length);authorization_sample_path(self.root,name).write_bytes(received)
   record=dict(stamp(),event='authorization_sample',probe=probe,method=self.command,uri=self.path,
    headers=redact_headers(self.headers.raw_items()),private_headers=private_header_receipt(self.headers.raw_items()),
    declared=length,actual_bytes=len(received),sha256=sha(received))
   dump(self.root,AUTH_LOG,record)
   upstream=loopback_connection(self.engine_port,timeout=12)
   try:
-   upstream.putrequest(self.command,origin_path(self.path),skip_host=True,skip_accept_encoding=True)
+   # The host's forwardAuth URL is fixed; the original request URI remains in
+   # X-Forwarded-Uri. Incoming paths cannot select another native service API.
+   upstream.putrequest(self.command,'/authorize',skip_host=True,skip_accept_encoding=True)
    for key,value in self.headers.raw_items():
     if key.lower() not in ('transfer-encoding','connection'):upstream.putheader(key,value)
    upstream.putheader('Connection','close');upstream.endheaders()
@@ -553,7 +560,23 @@ def client_spec(spec,readiness_index,before_neighbor,positive_control):
  return spec
 
 
-def perform_request(spec,root,connection,identity,result,serial,index,kind,neighbor,positive_control,before_neighbor,readiness_index,options,sequence):
+@dataclass
+class ClientRequestContext:
+ spec:dict
+ root:Path
+ result:dict
+ neighbor:bool
+ positive_control:bool
+ before_neighbor:bool
+ readiness_index:object
+ options:dict
+ sequence:list
+
+
+def perform_request(context,connection,identity,serial,index,kind):
+ spec=context.spec;root=context.root;result=context.result;neighbor=context.neighbor
+ positive_control=context.positive_control;before_neighbor=context.before_neighbor
+ readiness_index=context.readiness_index;options=context.options;sequence=context.sequence
  wire_probe=spec['probe_id']+'-seq-'+str(index) if not neighbor and len(sequence)>1 else spec['probe_id']
  request_spec={**spec,'probe_id':wire_probe}
  head,payload,lengths=raw_request(request_spec,neighbor,kind)
@@ -576,12 +599,13 @@ def client(spec,root,port,neighbor,before_neighbor=False,positive_control=False,
  if not isinstance(sequence,list) or not 1<=len(sequence)<=3:raise ValueError('bounded original client sequence required')
  connection=None;serial=0;result={'probe':spec['probe_id'],'neighbor':neighbor,'requests':[],'connections':[],
   'connection_ends':[],'socket_receipt_schema':'same-live-client-socket-v1','observations_only':True,**stamp()}
+ context=ClientRequestContext(spec,root,result,neighbor,positive_control,before_neighbor,readiness_index,options,sequence)
  try:
   for index,kind in enumerate(sequence):
    if connection is None:
     connection,identity=open_client(root,port,readiness_index,options,result,serial+1,spec,neighbor)
     serial+=1
-   perform_request(spec,root,connection,identity,result,serial,index,kind,neighbor,positive_control,before_neighbor,readiness_index,options,sequence)
+   perform_request(context,connection,identity,serial,index,kind)
    if not options.get('keepalive') or connection.fileno()<0:
     close_client_socket(connection,result,serial,'response_complete_or_client_closed');connection=None
  except Exception as error:result['error']=type(error).__name__+': '+str(error)
@@ -632,11 +656,40 @@ def companion_session(client_socket,spec,root,target):
   if upstream is not None:upstream.close()
 
 def companion_proxy(spec,root,path,target):
- server=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM);server.bind(path);os.chmod(path,0o600);server.listen(16)
+ observer,native=companion_paths(root,path,target)
+ server=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM);server.bind(str(observer));os.chmod(observer,0o600);server.listen(16)
  try:
   while True:
-   connection,_=server.accept();threading.Thread(target=companion_session,args=(connection,spec,root,target),daemon=True).start()
- finally:server.close();Path(path).unlink(missing_ok=True)
+   connection,_=server.accept();threading.Thread(target=companion_session,args=(connection,spec,root,str(native)),daemon=True).start()
+ finally:server.close();observer.unlink(missing_ok=True)
+
+
+def companion_paths(root,path,target):
+ if (not root.is_absolute() or root.parent!=Path('/task/cases') or
+     re.fullmatch(r'ac-[0-9a-f]{20}',root.name) is None or root.resolve(strict=True)!=root):
+  raise ValueError('canonical admitted private case required')
+ sockets=root/'sockets'
+ if sockets.resolve(strict=True)!=sockets or not sockets.is_dir():raise ValueError('canonical socket directory required')
+ state=sockets.stat()
+ if state.st_uid!=os.geteuid() or state.st_mode&0o077:raise ValueError('private owned socket directory required')
+ observer=sockets/'observer.sock';native=sockets/'companion.sock'
+ if Path(path)!=observer or Path(target)!=native:raise ValueError('fixed companion socket pair required')
+ if observer.is_symlink() or native.is_symlink():raise ValueError('socket symlink forbidden')
+ return observer,native
+
+
+def authorization_sample_path(root,label):
+ filenames={'target':'auth-target.sample.raw','neighbor':'auth-neighbor.sample.raw',
+  'positive':'auth-positive.sample.raw',
+  'sequence-0':'auth-sequence-0.sample.raw','sequence-1':'auth-sequence-1.sample.raw','sequence-2':'auth-sequence-2.sample.raw',
+  'readiness-0':'auth-readiness-0.sample.raw','readiness-1':'auth-readiness-1.sample.raw',
+  'readiness-2':'auth-readiness-2.sample.raw','readiness-3':'auth-readiness-3.sample.raw',
+  'readiness-4':'auth-readiness-4.sample.raw','readiness-5':'auth-readiness-5.sample.raw',
+  'readiness-6':'auth-readiness-6.sample.raw','readiness-7':'auth-readiness-7.sample.raw',
+  'readiness-8':'auth-readiness-8.sample.raw','readiness-9':'auth-readiness-9.sample.raw'}
+ try:filename=filenames[label]
+ except (KeyError,TypeError) as error:raise ValueError('fixed authorization sample label required') from error
+ return root/filename
 
 
 def validate_arguments(args,root):

@@ -100,7 +100,7 @@ def select_cases(cases, selected_ids):
 def stage_syscall_observer(cases, fixtures):
  if any(case['fixture'].get('syscall_observer') for case in cases):
   tracer=HERE.parent/'i12/native/acceptance_syscalls.c'
-  if sha(tracer)!='d224b4600e6e8ce92f14449e3768e68b037735f3a59331d51bc2924bd65f612b':
+  if sha(tracer)!='ec92aed0ca769a6a5136c5f1f32725203b7e7b7c37f6bfadcef54f263462661b':
    raise ValueError('Root reviewed exact-child auth tracer source required')
   shutil.copyfile(tracer,fixtures/'acceptance_syscalls.c')
 

@@ -4,6 +4,8 @@ import json
 import os
 from pathlib import Path
 import runpy
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -53,11 +55,53 @@ class NativeOutputGuards(unittest.TestCase):
         after = {str(path.relative_to(root)): path.lstat().st_mode for path in root.rglob('*')}
         self.assertEqual(before, after)
 
+    def test_openat_bridge_keeps_three_and_four_argument_calls(self):
+        compiler = shutil.which('gcc')
+        if compiler is None:
+            self.skipTest('strict C compiler unavailable')
+        with tempfile.TemporaryDirectory(prefix='native-openat-abi-', dir=EXTERNAL) as temporary:
+            root = Path(temporary)
+            source = root / 'probe.c'
+            source.write_text(r'''#define _GNU_SOURCE
+#include <errno.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+int main(int argc, char **argv) {
+ struct stat info;
+ if (argc != 2) return 1;
+ umask(0);
+ int directory = openat(AT_FDCWD, argv[1], O_RDONLY | O_DIRECTORY);
+ if (directory < 0) return 2;
+ int created = openat(directory, "created", O_CREAT | O_EXCL | O_RDWR, (mode_t)0600);
+ if (created < 0 || fstat(created, &info) != 0 || (info.st_mode & 0777) != 0600) return 3;
+ if (close(created) != 0) return 4;
+ int existing = openat(directory, "created", O_RDONLY);
+ if (existing < 0 || close(existing) != 0) return 5;
+ int anonymous = openat(directory, ".", O_TMPFILE | O_RDWR, (mode_t)0640);
+ if (anonymous >= 0) {
+  if (fstat(anonymous, &info) != 0 || (info.st_mode & 0777) != 0640 || close(anonymous) != 0) return 6;
+ } else if (errno != EOPNOTSUPP && errno != EISDIR && errno != EINVAL) return 7;
+ return close(directory) != 0;
+}
+''')
+            binary = root / 'probe'
+            compiled = subprocess.run([compiler, '-std=c17', '-Wall', '-Wextra', '-Werror',
+                '-ffunction-sections', '-fdata-sections', '-I', str(ROOT / 'common/include'),
+                str(source), str(NATIVE / 'acceptance_faults.c'), '-Wl,--wrap=openat',
+                '-Wl,--gc-sections', '-o', str(binary)], capture_output=True, text=True, check=False)
+            self.assertEqual(compiled.returncode, 0, compiled.stderr)
+            result = subprocess.run([str(binary), str(root)],
+                capture_output=True, text=True, check=False)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_checkout_output_rejected_before_copy_or_creation(self):
         output = ROOT / 'native-output-must-not-exist'
+        history = EXTERNAL / 'unused-history'
+        toolchain = self.unused_toolchain()
         with mock.patch.object(PREPARE.shutil, 'copytree') as copy:
             with self.assertRaises(ValueError):
-                PREPARE.prepare(ROOT, EXTERNAL / 'unused-history', output, self.unused_toolchain())
+                PREPARE.prepare(ROOT, history, output, toolchain)
             copy.assert_not_called()
         self.assertFalse(output.exists())
 

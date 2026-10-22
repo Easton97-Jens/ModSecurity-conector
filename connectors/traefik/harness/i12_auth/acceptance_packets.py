@@ -111,7 +111,6 @@ def backend_observations(put, values, measured, context):
     probes = context['probes']
     client = context['client']
     framing = context['framing']
-    root = context['root']
     cp = context['cp']
     bp = context['bp']
     backend = measured['backend']

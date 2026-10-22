@@ -96,6 +96,11 @@ static int trusted_component(const struct stat *info, int leaf) {
 
 /* Walk using held directory descriptors. A rename or symlink replacement in
  * a public sticky ancestor cannot redirect subsequent component resolution. */
+static int close_parent(int directory) {
+    (void)close(directory);
+    return -1;
+}
+
 static int private_parent(const char *path, char *leaf, size_t capacity) {
     char copy[PATH_MAX];
     struct stat info;
@@ -106,21 +111,20 @@ static int private_parent(const char *path, char *leaf, size_t capacity) {
     memcpy(copy, path, length + 1U);
     directory = open("/", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
     if (directory < 0) { return -1; }
-    for (char *part = strtok_r(copy, "/", &state); part != NULL; part = strtok_r(NULL, "/", &state)) {
-        if (strcmp(part, ".") == 0 || strcmp(part, "..") == 0) { break; }
+    for (const char *part = strtok_r(copy, "/", &state); part != NULL; part = strtok_r(NULL, "/", &state)) {
+        if (strcmp(part, ".") == 0 || strcmp(part, "..") == 0) { return close_parent(directory); }
         if (*state == '\0') {
-            if (strlen(part) >= capacity) { break; }
+            if (strlen(part) >= capacity) { return close_parent(directory); }
             memcpy(leaf, part, strlen(part) + 1U);
             return directory;
         }
         int next = openat(directory, part, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
-        if (next < 0) { break; }
-        if (fstat(next, &info) != 0 || !trusted_component(&info, 0)) { (void)close(next); break; }
+        if (next < 0) { return close_parent(directory); }
+        if (fstat(next, &info) != 0 || !trusted_component(&info, 0)) { (void)close(next); return close_parent(directory); }
         (void)close(directory);
         directory = next;
     }
-    (void)close(directory);
-    return -1;
+    return close_parent(directory);
 }
 
 static int private_path(const char *path, int leaf_required, int require_owned_parent) {
@@ -604,14 +608,14 @@ struct auth_paths {
 static int prepare_auth(const struct arguments *args, struct auth_paths *paths, unsigned local) {
     (void)snprintf(paths->entry, sizeof(paths->entry), "--entryPoints.web.address=127.0.0.1:%u", local);
     if (args->auth_case == NULL) { return 1; }
-    if (!auth_case_allowed(args->auth_case) || strcmp(args->nonce, args->auth_case) != 0) { return 0; }
+    if (!auth_case_allowed(args->auth_case) || args->nonce == NULL || strcmp(args->nonce, args->auth_case) != 0) { return 0; }
     (void)snprintf(paths->cwd, sizeof(paths->cwd), "/task/cases/%s/runtime", args->auth_case);
     (void)snprintf(paths->config, sizeof(paths->config), "%s/effective-config/traefik-dynamic.yaml", paths->cwd);
     (void)snprintf(paths->output, sizeof(paths->output), "/task/cases/%s/host-syscalls.jsonl", args->auth_case);
     (void)snprintf(paths->log, sizeof(paths->log), "I12_ACCEPTANCE_HOST_LOG=%s/logs/host-lifecycle.jsonl", paths->cwd);
     (void)snprintf(paths->access, sizeof(paths->access), "--accesslog.filepath=%s/logs/traefik-access.log", paths->cwd);
     (void)snprintf(paths->file, sizeof(paths->file), "--providers.file.filename=%s", paths->config);
-    return args->self_test || strcmp(args->output, paths->output) == 0;
+    return args->self_test || (args->output != NULL && strcmp(args->output, paths->output) == 0);
 }
 
 static int open_binary(const struct arguments *args, const char *invocation, char *self,
@@ -634,7 +638,7 @@ static int open_binary(const struct arguments *args, const char *invocation, cha
     return executable(HOST_BINARY);
 }
 
-static void execute_child(struct capture *capture, int binary, int test_fd, int out_fd,
+static void execute_child(const struct capture *capture, int binary, int test_fd, int out_fd,
         const struct arguments *args, char *self, struct auth_paths *paths) {
     const int self_test = args->self_test;
     const char *auth_case = args->auth_case;

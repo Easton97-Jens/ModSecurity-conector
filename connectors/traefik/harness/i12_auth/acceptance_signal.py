@@ -20,12 +20,19 @@ def validate_case(root, port):
     return case
 
 
-def start_client(root, argv):
+def client_arguments(root, port):
+    validate_case(root, port)
+    return ['/usr/local/bin/python3', '-P', '/mnt/fixtures/acceptance_net.py', 'client',
+            '--spec', str(root / 'case.json'), '--root', str(root), '--port', str(port)]
+
+
+def start_client(root, port):
+    argv = client_arguments(root, port)
     pid = os.fork()
     if pid == 0:
         try:
             os.chdir(root / 'runtime')
-            os.execve(argv[0], argv, os.environ.copy())
+            os.execve('/usr/local/bin/python3', argv, os.environ.copy())
         except OSError:
             os._exit(127)
     return pid
@@ -55,10 +62,9 @@ def execute(root, port):
     loader = importlib.util.spec_from_file_location('fixed_parser_helpers', '/mnt/fixtures/acceptance_parser.py')
     parser_helpers = importlib.util.module_from_spec(loader)
     loader.loader.exec_module(parser_helpers)
-    argv = ['/usr/local/bin/python3', '-P', '/mnt/fixtures/acceptance_net.py', 'client',
-            '--spec', str(root / 'case.json'), '--root', str(root), '--port', str(port)]
+    argv = client_arguments(root, port)
     started = time.monotonic_ns()
-    pid = start_client(root, argv)
+    pid = start_client(root, port)
     progress, already_reaped = await_progress(root, pid)
     sent = None
     if already_reaped is not None:
