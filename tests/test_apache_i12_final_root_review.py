@@ -226,10 +226,13 @@ class FinalReviewTest(unittest.TestCase):
     def test_review_procedure_binds_all_direct_validator_sources(self):
         references = R.review_procedure_inventory()
         names = {Path(item['path']).name for item in references}
-        self.assertTrue({'final_review.py', 'review_batch.py', 'review.py',
-                         'review_controls.py', 'ledger.py', 'paths.py',
-                         'generate-pr382-i12-lifecycle-ledger.py',
-                         'generate-pr382-i12-oracle-reconciliation.py'} <= names)
+        self.assertLessEqual(
+            {'final_review.py', 'review_batch.py', 'review.py',
+             'review_controls.py', 'ledger.py', 'paths.py',
+             'generate-pr382-i12-lifecycle-ledger.py',
+             'generate-pr382-i12-oracle-reconciliation.py'},
+            names,
+        )
         self.assertTrue(all(item['role'] == 'review_procedure'
                             and R.O.verify_reference(item) for item in references))
 

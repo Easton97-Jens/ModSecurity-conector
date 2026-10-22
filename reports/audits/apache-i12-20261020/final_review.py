@@ -130,39 +130,57 @@ def read_ref(reference):
     return json.loads(Path(verified['path']).read_text())
 
 
+def is_physical_reference(value):
+    return (isinstance(value.get('path'), str)
+            and isinstance(value.get('sha256'), str)
+            and type(value.get('bytes')) is int
+            and value['bytes'] >= 0)
+
+
+def verify_physical_reference(value):
+    try:
+        return O.verify_reference(value)
+    except (KeyError, OSError, ValueError) as error:
+        raise ValueError('Invalid physical evidence reference: '
+                         + value['path']) from error
+
+
+def is_runtime_physical_file(record):
+    return (isinstance(record, dict)
+            and set(record) == {'path', 'sha256', 'bytes'}
+            and isinstance(record['path'], str)
+            and isinstance(record['sha256'], str)
+            and type(record['bytes']) is int
+            and record['bytes'] >= 0)
+
+
+def validate_runtime_physical_files(value):
+    if (not isinstance(value, list)
+            or any(not is_runtime_physical_file(record) for record in value)):
+        raise ValueError('Malformed typed runtime physical_files observation')
+
+
 def refs_in(value):
     """Do not stop walking at reference-shaped containers (wrapper bait)."""
+    if isinstance(value, list):
+        return [reference for item in value for reference in refs_in(item)]
+    if not isinstance(value, dict):
+        return []
+
     result = []
-    if isinstance(value, dict):
-        # Shared physical references always carry the byte count emitted by
-        # ORACLES.reference().  Runtime observations also contain path/hash
-        # records for container-only paths such as /mnt/artifacts; those are
-        # typed observations, not host-visible evidence references.
-        if (isinstance(value.get('path'), str)
-                and isinstance(value.get('sha256'), str)
-                and type(value.get('bytes')) is int and value['bytes'] >= 0):
-            try:
-                result.append(O.verify_reference(value))
-            except (KeyError, OSError, ValueError) as error:
-                raise ValueError('Invalid physical evidence reference: '
-                                 + value['path']) from error
-        for key, item in value.items():
-            # batch.py records container-visible output identities here.  The
-            # containing observation file is the evidence reference; these
-            # entries intentionally describe paths outside the reviewer mount.
-            if key == 'physical_files':
-                if (not isinstance(item, list)
-                        or any(not isinstance(record, dict)
-                               or set(record) != {'path', 'sha256', 'bytes'}
-                               or not isinstance(record['path'], str)
-                               or not isinstance(record['sha256'], str)
-                               or type(record['bytes']) is not int or record['bytes'] < 0
-                               for record in item)):
-                    raise ValueError('Malformed typed runtime physical_files observation')
-                continue
-            result.extend(refs_in(item))
-    elif isinstance(value, list):
-        for item in value:
+    # Shared physical references always carry the byte count emitted by
+    # ORACLES.reference().  Runtime observations also contain path/hash
+    # records for container-only paths such as /mnt/artifacts; those are
+    # typed observations, not host-visible evidence references.
+    if is_physical_reference(value):
+        result.append(verify_physical_reference(value))
+    for key, item in value.items():
+        # batch.py records container-visible output identities here.  The
+        # containing observation file is the evidence reference; these
+        # entries intentionally describe paths outside the reviewer mount.
+        if key == 'physical_files':
+            validate_runtime_physical_files(item)
+        else:
             result.extend(refs_in(item))
     return result
 
