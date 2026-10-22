@@ -59,6 +59,13 @@ def create_receipt(arguments, method, path, body):
     return receipt
 
 
+def send_request(connection, request, receipt):
+    """Record send completion only after the complete request reaches the socket."""
+    connection.settimeout(15)
+    connection.sendall(request)
+    receipt['request_sent_ns'] = time.monotonic_ns()
+
+
 def task_file(value):
     path = Path(value)
     if not path.is_absolute() or '..' in path.parts or not path.is_relative_to(TASK_ROOT):
@@ -151,9 +158,7 @@ receipt=create_receipt(arguments, method, path, body)
 status='000';exit_code=1
 try:
     with socket.create_connection(('127.0.0.1',parsed.port),timeout=15) as connection:
-        connection.settimeout(15)
-        connection.sendall(request)
-        receipt['request_sent_ns']=time.monotonic_ns()
+        send_request(connection, request, receipt)
         while True:
             recv_started_ns=time.monotonic_ns()
             chunk=connection.recv(4096)

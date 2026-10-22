@@ -249,6 +249,8 @@ class StockOriginalQualificationTests(unittest.TestCase):
                 chunks = receipt['actual_socket_recv_chunks']
                 # TCP may coalesce the deliberately separate server writes.
                 self.assertGreaterEqual(len(chunks), 1)
+                self.assertLessEqual(receipt['started_ns'], receipt['request_sent_ns'])
+                self.assertLessEqual(receipt['request_sent_ns'], chunks[0]['started_ns'])
                 prior = 0
                 for chunk in chunks:
                     self.assertEqual(chunk['prior_received_bytes'], prior)
