@@ -29,7 +29,7 @@ PREAMBLE = r'''
 typedef unsigned char u_char;
 typedef long ngx_int_t;
 typedef struct { int fd; } ngx_open_file_t;
-typedef struct { void *log; } connection_t;
+typedef struct { void *log; unsigned long number; unsigned long requests; } connection_t;
 typedef struct { connection_t *connection; } ngx_http_request_t;
 typedef struct { ngx_open_file_t *phase4_log_file; } ngx_http_modsecurity_conf_t;
 enum { NGX_OK = 0, NGX_ERROR = -1, NGX_LOG_WARN = 5 };
@@ -55,12 +55,13 @@ static ssize_t ngx_write_fd(int fd, u_char *line, size_t length) {
 MAIN = r'''
 int main(int argc, char **argv) {
     char uri[700], method[80];
-    connection_t connection = {NULL};
+    connection_t connection = {NULL, 42, 1};
     ngx_http_request_t request = {&connection};
     ngx_open_file_t file = {7};
     ngx_http_modsecurity_conf_t conf = {&file};
     msconnector_event event;
     int result, phase;
+    msconnector_event original;
     if (argc != 3) return 2;
     phase = strcmp(argv[1], "phase") == 0;
     msconnector_event_init(&event);
@@ -92,9 +93,12 @@ int main(int argc, char **argv) {
         write_failure = 1;
     } else if (strcmp(argv[2], "short-write") == 0) {
         write_failure = 2;
-    } else if (strcmp(argv[2], "control") != 0) return 2;
+    } else if (strcmp(argv[2], "control") != 0 && strcmp(argv[2], "reuse") != 0) return 2;
+    if (strcmp(argv[2], "reuse") == 0) connection.requests = 2;
+    original = event;
     result = phase ? ngx_http_modsecurity_write_phase_event_jsonl(&request, &conf, &event, "phase4")
         : ngx_http_modsecurity_write_event_jsonl(&request, &conf, &event, "serialize", "write");
+    if (memcmp(&original, &event, sizeof(event)) != 0) return 3;
     printf("%d %d\n", result, writes);
     fputs(captured, stdout);
     return 0;
@@ -119,7 +123,10 @@ class BoundedEventUriTests(unittest.TestCase):
         fixture = directory / "writer.c"
         phase = function_definition((ROOT / "common/src/transaction_state.c").read_text(),
                                     "msconnector_phase_name")
-        fixture.write_text(PREAMBLE + phase + "\n" + writers + MAIN)
+        helpers = "\n".join("static int\n" + function_definition(source, name)
+                            for name in ("ngx_http_modsecurity_event_token_valid",
+                                         "ngx_http_modsecurity_apply_event_provenance"))
+        fixture.write_text(PREAMBLE + helpers + phase + "\n" + writers + MAIN)
         cls.binaries = []
         for sanity in (0, 1):
             binary = directory / f"writer-{sanity}"
@@ -134,8 +141,12 @@ class BoundedEventUriTests(unittest.TestCase):
                 raise AssertionError(result.stderr[-6000:])
             cls.binaries.append(binary)
 
-    def observe(self, binary: Path, writer: str, scenario: str):
-        result = subprocess.run([str(binary), writer, scenario], capture_output=True,
+    def observe(self, binary: Path, writer: str, scenario: str, provenance=None):
+        env = {key: value for key, value in os.environ.items()
+               if key not in ("MSCONNECTOR_NGINX_EVENT_RUN_ID",
+                              "MSCONNECTOR_NGINX_EVENT_TRANSPORT_CASE_ID")}
+        env.update(provenance or {})
+        result = subprocess.run([str(binary), writer, scenario], env=env, capture_output=True,
                                 text=True, timeout=5, check=False)
         self.assertEqual(result.returncode, 0, result.stderr)
         header, _, raw = result.stdout.partition("\n")
@@ -205,3 +216,53 @@ class BoundedEventUriTests(unittest.TestCase):
                         self.assertEqual(code, -1 if writer == "phase" else 0)
                         self.assertEqual(writes, 1)
                         self.assertIsNone(event)
+
+    def test_trusted_process_provenance_is_physical_and_does_not_mutate_source(self):
+        for binary in self.binaries:
+            for writer in ("request", "phase"):
+                for scenario in ("control", "reuse"):
+                    _, writes, event, _ = self.observe(binary, writer, scenario, {
+                        "MSCONNECTOR_NGINX_EVENT_RUN_ID": "run.20261022:trusted",
+                        "MSCONNECTOR_NGINX_EVENT_TRANSPORT_CASE_ID": "timeout-before_commit",
+                    })
+                    self.assertEqual(writes, 1)
+                    self.assertEqual(event.get("run_id"), "run.20261022:trusted")
+                    self.assertEqual(event.get("transport_case_id"), "timeout-before_commit")
+                    self.assertEqual(event.get("connection_id"), "nginx-42")
+                    self.assertEqual(event.get("connection_reused"), scenario == "reuse")
+
+    def test_absent_trusted_configuration_keeps_provenance_optional(self):
+        for binary in self.binaries:
+            for writer in ("request", "phase"):
+                _, writes, event, _ = self.observe(binary, writer, "control")
+                self.assertEqual(writes, 1)
+                self.assertIsNone(event.get("run_id"))
+                self.assertIsNone(event.get("transport_case_id"))
+                self.assertIsNone(event.get("connection_id"))
+
+    def test_partial_invalid_or_oversized_provenance_never_writes(self):
+        run_key = "MSCONNECTOR_NGINX_EVENT_RUN_ID"
+        case_key = "MSCONNECTOR_NGINX_EVENT_TRANSPORT_CASE_ID"
+        invalid = [{run_key: "run"}, {case_key: "case"}]
+        invalid += [{run_key: value, case_key: "case"} for value in
+                    ("", "a" * 129, "space value", "line\nbreak", "caf\u00e9", "slash/value")]
+        invalid += [{run_key: "run", case_key: value} for value in ("", "a" * 129, "bad value")]
+        for binary in self.binaries:
+            for writer in ("request", "phase"):
+                for provenance in invalid:
+                    with self.subTest(writer=writer, provenance=provenance):
+                        code, writes, event, _ = self.observe(binary, writer, "control", provenance)
+                        self.assertEqual(code, -1 if writer == "phase" else 0)
+                        self.assertEqual(writes, 0)
+                        self.assertIsNone(event)
+
+    def test_maximum_valid_provenance_is_accepted_by_real_serializer(self):
+        for binary in self.binaries:
+            for writer in ("request", "phase"):
+                _, writes, event, _ = self.observe(binary, writer, "control", {
+                    "MSCONNECTOR_NGINX_EVENT_RUN_ID": "A" * 128,
+                    "MSCONNECTOR_NGINX_EVENT_TRANSPORT_CASE_ID": "z" * 128,
+                })
+                self.assertEqual(writes, 1)
+                self.assertEqual(event.get("run_id"), "A" * 128)
+                self.assertEqual(event.get("transport_case_id"), "z" * 128)

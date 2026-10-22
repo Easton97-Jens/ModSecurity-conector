@@ -593,10 +593,13 @@ def c_event_jsonl_pipeline(active, strict=False):
     prefix = (
         r'\{\s*char\s+line\[4096\];\s*'
         r'char\s+uri\[MSCONNECTOR_EVENT_URI_SAFE_BUFFER_SIZE\];\s*'
+        r'char\s+connection_id\[32\];\s*'
         r'msconnector_event\s+projected;\s*int\s+json_truncated\s*=\s*0;\s*'
         r'size_t\s+line_length;\s*ssize_t\s+written;\s*'
         r'if\s*\(\s*!ngx_http_modsecurity_bounded_event_uri\(\s*event\s*,\s*'
         r'&projected\s*,\s*uri\s*,\s*sizeof\(uri\)\s*\)\s*\|\|\s*'
+        r'!ngx_http_modsecurity_apply_event_provenance\(\s*r\s*,\s*&projected\s*,\s*'
+        r'connection_id\s*,\s*sizeof\(connection_id\)\s*\)\s*\|\|\s*'
         r'!msconnector_event_write_jsonl_line\(\s*&projected\s*,\s*line\s*,\s*'
         r'sizeof\(line\)\s*,\s*&json_truncated\s*\)\s*\)\s*\{\s*'
         + log + r'return\s+' + failure + r';\s*\}\s*'

@@ -326,6 +326,9 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
         anchor = "!ngx_http_modsecurity_bounded_event_uri(event, &projected, uri, sizeof(uri)) ||"
         cases = (
             ("projection removed", anchor, "0 ||"),
+            ("provenance bypassed",
+             "!ngx_http_modsecurity_apply_event_provenance(r, &projected,\n            connection_id, sizeof(connection_id)) ||",
+             "0 ||"),
             ("short circuit inverted", anchor, anchor.replace("||", "&&")),
             ("raw event serialized", "msconnector_event_write_jsonl_line(&projected,", "msconnector_event_write_jsonl_line(event,"),
             ("write before projection", "    if (" + anchor, "    ngx_write_fd(mcf->phase4_log_file->fd, line, 1);\n    if (" + anchor),
@@ -350,6 +353,7 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
     def test_strict_projected_jsonl_pipeline_rejects_raw_event_and_early_success(self) -> None:
         signature = "static ngx_inline ngx_int_t\nngx_http_modsecurity_write_phase_event_jsonl"
         for old, new in (
+            ("!ngx_http_modsecurity_apply_event_provenance(r, &projected,\n            connection_id, sizeof(connection_id)) ||", "0 ||"),
             ("msconnector_event_write_jsonl_line(&projected,", "msconnector_event_write_jsonl_line(event,"),
             ("        return NGX_ERROR;", "        return NGX_OK;"),
         ):

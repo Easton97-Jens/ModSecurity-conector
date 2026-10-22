@@ -38,7 +38,21 @@ typedef struct { int unused; } ngx_pool_t;
 typedef struct { size_t len; u_char *data; } ngx_str_t;
 typedef struct { ngx_str_t name; int fd; } ngx_file_t;
 typedef struct { ngx_file_t file; off_t offset; } ngx_temp_file_t;
-typedef struct { u_char *pos; u_char *last; int last_buf; } ngx_buf_t;
+typedef struct {
+    u_char *pos;
+    u_char *last;
+    int temporary;
+    int memory;
+    int mmap;
+    int in_file;
+    int flush;
+    int sync;
+    int last_buf;
+} ngx_buf_t;
+#define ngx_buf_in_memory(b) ((b)->temporary || (b)->memory || (b)->mmap)
+#define ngx_buf_special(b)                                                   \
+    (((b)->flush || (b)->last_buf || (b)->sync) &&                          \
+     !ngx_buf_in_memory(b) && !(b)->in_file)
 typedef struct ngx_chain_s { ngx_buf_t *buf; struct ngx_chain_s *next; } ngx_chain_t;
 typedef struct { ngx_chain_t *bufs; ngx_temp_file_t *temp_file; } request_body_t;
 typedef struct { void *log; } connection_t;
@@ -139,8 +153,16 @@ static void ngx_http_modsecurity_request_intervention_log_event(ngx_http_request
 MAIN = r'''
 int main(int argc, char **argv) {
     u_char data[] = "abc";
-    ngx_buf_t buffer = {data, data + 3, 1};
+    ngx_buf_t buffer = {
+        .pos = data,
+        .last = data + 3,
+        .temporary = 1,
+        .last_buf = 1,
+    };
+    ngx_buf_t control = {0};
     ngx_chain_t chain = {&buffer, NULL};
+    ngx_chain_t data_chain = {&buffer, NULL};
+    ngx_chain_t control_chain = {&control, NULL};
     ngx_temp_file_t file = {{{8, (u_char *)"fixture"}, 1}, 3};
     request_body_t body = {&chain, NULL};
     connection_t connection = {NULL};
@@ -161,8 +183,36 @@ int main(int argc, char **argv) {
         result = ngx_http_modsecurity_inspect_request_body(&request, &ctx, &config);
     } else if (strcmp(argv[1], "append") == 0) {
         result = ngx_http_modsecurity_append_request_body(&request, &ctx, &config);
+    } else if (strcmp(argv[1], "null-chunk") == 0) {
+        result = ngx_http_modsecurity_append_request_chunk(&request, &ctx, NULL, 1);
     } else {
         if (strcmp(argv[1], "empty") == 0) { body.bufs = NULL; }
+        if (strcmp(argv[1], "terminal-empty") == 0) {
+            control.last_buf = 1;
+            body.bufs = &control_chain;
+        }
+        if (strcmp(argv[1], "data-terminal") == 0) {
+            buffer.last_buf = 0;
+            control.last_buf = 1;
+            chain.next = &control_chain;
+        }
+        if (strcmp(argv[1], "flush-data") == 0) {
+            control.flush = 1;
+            control_chain.next = &data_chain;
+            body.bufs = &control_chain;
+        }
+        if (strcmp(argv[1], "sync-data") == 0) {
+            control.sync = 1;
+            control_chain.next = &data_chain;
+            body.bufs = &control_chain;
+        }
+        if (strcmp(argv[1], "null-buffer") == 0) { chain.buf = NULL; }
+        if (strcmp(argv[1], "null-pos") == 0) { buffer.pos = NULL; }
+        if (strcmp(argv[1], "null-last") == 0) { buffer.last = NULL; }
+        if (strcmp(argv[1], "reversed") == 0) {
+            buffer.pos = data + 2;
+            buffer.last = data;
+        }
         if (strcmp(argv[1], "overflow") == 0) { ctx.request_body_bytes_seen = SIZE_MAX; }
         result = ngx_http_modsecurity_inspect_request_body(&request, &ctx, &config);
     }
@@ -240,7 +290,7 @@ class NginxRequestNativeResultsTests(unittest.TestCase):
     def test_failed_final_evaluation_never_records_successful_eos(self) -> None:
         for native in (-1, 0, 2):
             with self.subTest(native=native):
-                result = self.run_case("empty", phase=native)
+                result = self.run_case("terminal-empty", phase=native)
                 self.assertEqual(result["result"], 500)
                 self.assertEqual(result["phase_calls"], 1)
                 self.assertEqual(result["completions"], 0)
@@ -252,6 +302,51 @@ class NginxRequestNativeResultsTests(unittest.TestCase):
         self.assertEqual(result["append_calls"], 0)
         self.assertEqual(result["completions"], 1)
         self.assertEqual(result["processed"], 1)
+
+    def test_actual_terminal_empty_buffer_completes_without_append(self) -> None:
+        result = self.run_case("terminal-empty")
+        self.assertEqual(result["result"], -5)
+        self.assertEqual(result["append_calls"], 0)
+        self.assertEqual(result["phase_calls"], 1)
+        self.assertEqual(result["completions"], 1)
+        self.assertEqual(result["processed"], 1)
+        self.assertEqual(result["bytes_seen"], 0)
+
+    def test_terminal_control_buffer_after_data_does_not_add_empty_chunk(self) -> None:
+        result = self.run_case("data-terminal")
+        self.assertEqual(result["result"], -5)
+        self.assertEqual(result["append_calls"], 1)
+        self.assertEqual(result["phase_calls"], 1)
+        self.assertEqual(result["completions"], 1)
+        self.assertEqual(result["bytes_seen"], 3)
+
+    def test_nonterminal_control_buffer_does_not_hide_following_data(self) -> None:
+        for mode in ("flush-data", "sync-data"):
+            with self.subTest(mode=mode):
+                result = self.run_case(mode)
+                self.assertEqual(result["result"], -5)
+                self.assertEqual(result["append_calls"], 1)
+                self.assertEqual(result["phase_calls"], 1)
+                self.assertEqual(result["completions"], 1)
+                self.assertEqual(result["bytes_seen"], 3)
+
+    def test_invalid_memory_ranges_never_reach_native_body_api(self) -> None:
+        for mode in ("null-buffer", "null-pos", "null-last", "reversed"):
+            with self.subTest(mode=mode):
+                result = self.run_case(mode)
+                self.assertEqual(result["result"], 500)
+                self.assertEqual(result["append_calls"], 0)
+                self.assertEqual(result["phase_calls"], 0)
+                self.assertEqual(result["completions"], 0)
+                self.assertEqual(result["processed"], 0)
+                self.assertEqual(result["terminal"], 1)
+
+    def test_nonempty_null_chunk_is_rejected_before_native_body_api(self) -> None:
+        result = self.run_case("null-chunk")
+        self.assertEqual(result["result"], 500)
+        self.assertEqual(result["append_calls"], 0)
+        self.assertEqual(result["phase_calls"], 0)
+        self.assertEqual(result["completions"], 0)
 
     def test_file_short_or_failed_reads_never_reach_eos(self) -> None:
         for native in (-1, 0, 2):

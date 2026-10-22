@@ -300,7 +300,7 @@ Der adaptereigene NGINX-Connector registriert derzeit Folgendes:
   verlangt ein sicheres Elternverzeichnis, ein reguläres Blatt, geeignete
   Eigentümer und den privaten Modus `0600`)
 
-### Native URI-Metadaten und weiches Budget ausgewählter Aufrufe
+### Native URI-Metadaten, vertrauenswürdige Event-Provenienz und weiches Budget ausgewählter Aufrufe
 
 Der geprüfte native Quellstand begrenzt die Event-URI auf einen 256-Byte-Puffer
 einschließlich abschließendem NUL und höchstens 255 Bytes nach JSON-Escaping.
@@ -310,6 +310,32 @@ langen ASCII-URI mit Query). Redaktions- und Trunkierungsflags beschreiben die
 Projektion. Andere Common-Felder behalten die strikte Validierung. Der feste
 JSONL-Schreibpuffer bleibt 4096 Bytes groß; dies ist weder eine konfigurierbare
 Eventgrößen-Direktive noch eine Erlaubnis für Payload-Logging.
+
+Die physische Eventidentität kann ausschließlich über die vom Administrator
+kontrollierte Prozessumgebung geliefert werden.
+`MSCONNECTOR_NGINX_EVENT_RUN_ID` und
+`MSCONNECTOR_NGINX_EVENT_TRANSPORT_CASE_ID` sind nur gemeinsam optional;
+NGINX muss beide im Main-Kontext erhalten:
+
+```nginx
+env MSCONNECTOR_NGINX_EVENT_RUN_ID;
+env MSCONNECTOR_NGINX_EVENT_TRANSPORT_CASE_ID;
+```
+
+Jeder Wert
+besteht aus 1–128 ASCII-Zeichen aus `[A-Za-z0-9_.:-]`. Ein vollständig
+fehlendes Paar lässt die bisherige Eventausgabe unverändert, während ein
+unvollständiges oder ungültiges Paar den betreffenden Event-Write abweist. Das
+Modul liest diese Werte niemals aus HTTP-Headern. Bei aktiver Provenienz ergänzt
+der Writer außerdem `connection_id` aus der tatsächlichen NGINX-
+Verbindungsnummer und setzt `connection_reused` nach dem ersten Request dieser
+Verbindung. Diese Werte identifizieren einen vom Administrator festgelegten
+Host-/Kampagnenprozess; eine andere Case-ID auf derselben Keepalive-Verbindung
+erfordert einen getrennten NGINX-Prozesslauf.
+Ungültige Provenienz erhält die bestehende Semantik der Aufrufstelle: Der
+Request-Metadaten-Writer protokolliert eine Warnung und meldet keinen
+erfolgreichen Write, während der für P3/P4 relevante Writer `NGX_ERROR`
+zurückgibt.
 
 `modsecurity_engine_call_budget_ms` akzeptiert dezimale Millisekunden in `http`,
 `server` und `location`. Kinder erben den Elternwert; Standard `0` deaktiviert
@@ -665,4 +691,4 @@ Der [connectorübergreifende Vertrag zur Eigentümerschaft von Response-Limits](
 beschreibt den genauen Geltungsbereich, die Kompatibilitätsgrenze und die
 Grenzen der Validierung.
 
-Request-Tempdateien werden aus dem geprüften Host-Descriptor mit einem wiederverwendbaren 32768-Byte-Arbeitsbuffer gelesen. Jeder vollständige Chunk erreicht die Engine; die Buffergröße begrenzt nicht die gesamte Request-Größe. Native Reject-Ergebnisse beim Append bleiben bis EOS erhalten; Append-Rückgabewert null setzt die Verarbeitung für natives ProcessPartial fort.
+Request-Tempdateien werden aus dem geprüften Host-Descriptor mit einem wiederverwendbaren 32768-Byte-Arbeitsbuffer gelesen. Jeder vollständige Chunk erreicht die Engine; die Buffergröße begrenzt nicht die gesamte Request-Größe. Leere terminale und andere spezielle NGINX-Steuerbuffer enthalten keine Bodybytes und werden übersprungen; der anschließende Aufruf von `msc_process_request_body` ist das native End-of-Stream-Signal. Nicht spezielle Speicherbuffer mit einem ungültigen Bereich bleiben vor der nativen Body-API ein technischer Fehler. Native Reject-Ergebnisse beim Append bleiben bis EOS erhalten; Append-Rückgabewert null setzt die Verarbeitung für natives ProcessPartial fort.
