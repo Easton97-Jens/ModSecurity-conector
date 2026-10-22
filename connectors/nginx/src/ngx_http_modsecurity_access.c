@@ -776,7 +776,19 @@ ngx_http_modsecurity_append_request_body(ngx_http_request_t *r,
 
     (void)mcf;
     while (chain != NULL) {
-        if (chain->buf == NULL || chain->buf->pos == NULL ||
+        if (chain->buf == NULL) {
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                "ModSecurity: invalid request body buffer range");
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+        if (ngx_buf_special(chain->buf)) {
+            if (chain->buf->last_buf) {
+                break;
+            }
+            chain = chain->next;
+            continue;
+        }
+        if (chain->buf->pos == NULL ||
             chain->buf->last == NULL || chain->buf->last < chain->buf->pos) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                 "ModSecurity: invalid request body buffer range");

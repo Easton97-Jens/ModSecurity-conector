@@ -40,6 +40,12 @@ typedef struct {
     struct { header_t *content_type; } headers_in;
 } ngx_http_request_t;
 typedef struct { ngx_open_file_t *phase4_log_file; } ngx_http_modsecurity_conf_t;
+/* SDK intervention storage is a controlled native seam, like transaction cleanup. */
+typedef struct {
+    int status, pause;
+    char *url, *log;
+    int disruptive;
+} ModSecurityIntervention;
 typedef struct {
     msconnector_transaction_contract contract;
     int contract_initialized;
@@ -47,17 +53,28 @@ typedef struct {
     ngx_http_request_t *r;
     ngx_str_t event_transaction_id;
     const char *cleanup_method, *cleanup_uri;
+    unsigned request_intervention_pending:1;
+    ModSecurityIntervention pending_request_intervention;
 } ngx_http_modsecurity_ctx_t;
 typedef struct { const char *method, *uri, *content_type; }
     ngx_http_modsecurity_event_request_metadata_t;
 enum { NGX_OK=0, NGX_ERROR=-1, NGX_LOG_WARN=5, NGX_INVALID_FILE=-1 };
 static int ngx_http_modsecurity_module, native_calls, writes, errors, null_pool_allocations;
+static int intervention_cleanup_calls;
 static int allocations, fail_allocation;
 static ngx_http_modsecurity_ctx_t context;
 static ngx_http_modsecurity_conf_t config;
 static char jsonl[4096];
+static void msc_intervention_cleanup(ModSecurityIntervention *intervention) {
+    if (intervention != &context.pending_request_intervention ||
+        context.contract.cleanup_complete != 1 ||
+        !context.request_intervention_pending || intervention_cleanup_calls != 0) abort();
+    ++intervention_cleanup_calls;
+    memset(intervention, 0, sizeof(*intervention));
+}
 static void msc_transaction_cleanup(void *native) {
-    if (!native || context.contract.cleanup_complete != 1) abort();
+    if (!native || context.contract.cleanup_complete != 1 ||
+        intervention_cleanup_calls != 1 || context.request_intervention_pending) abort();
     ++native_calls;
 }
 static void ngx_log_error(int level, void *log, int number, const char *format, ...) {
@@ -116,6 +133,7 @@ int main(int argc,char **argv) {
         MSCONNECTOR_TRANSACTION_MODE_SAFE,100U) != 0) return 3;
     context.contract_initialized=1;
     context.modsec_transaction=mode == 3 ? NULL : &request;
+    context.request_intervention_pending=context.modsec_transaction != NULL;
     if (mode == 2) {
         if (msconnector_transaction_contract_begin_phase(&context.contract,MSCONNECTOR_PHASE_REQUEST_HEADERS,0U) != 0) return 4;
     } else if (mode == 4) {
@@ -137,6 +155,15 @@ int main(int argc,char **argv) {
     printf("%d %d %d %d %d\n",native_calls,writes,errors,context.contract_initialized,context.modsec_transaction == NULL);
     fputs(jsonl,stdout);
     return 0;
+}
+'''
+
+
+PROVENANCE_SEAM = r'''
+/* Provenance is independently exercised by the exact-writer fixture. */
+static int ngx_http_modsecurity_apply_event_provenance(ngx_http_request_t *r,
+    msconnector_event *event, char *connection_id, size_t capacity) {
+    (void)r; (void)event; (void)connection_id; (void)capacity; return 1;
 }
 '''
 
@@ -167,7 +194,7 @@ class NativeCleanupBridgeTests(unittest.TestCase):
             }"""
         fixture = directory / "cleanup.c"
         writer = "\nstatic ngx_inline ngx_int_t\n" + function_definition(common, "ngx_http_modsecurity_write_phase_event_jsonl")
-        fixture.write_text(PREAMBLE + metadata + writer + "\nstatic void\n" + cleanup
+        fixture.write_text(PREAMBLE + PROVENANCE_SEAM + metadata + writer + "\nstatic void\n" + cleanup
                            + "\nvoid\n" + function_definition(source, "ngx_http_modsecurity_cleanup") + MAIN.replace("PREPARE_METADATA", prepare))
         cls.binary = directory / "cleanup"
         command = [compiler, "-std=c17", "-Wall", "-Wextra", "-Werror", "-pthread",
