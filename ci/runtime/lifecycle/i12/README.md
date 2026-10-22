@@ -248,3 +248,10 @@ Three historical Traefik anchors (`common/runtime/msconnector_runtime.c`,
 dependent deltas, profile input/result hashes and provenance remain unchanged.
 This repairs historical registry verification when those product files advance;
 it neither authorizes changed current input bytes nor establishes runtime evidence.
+
+The historical NGINX `connectors/nginx/src/ngx_http_modsecurity_access.c`
+anchor is also frozen as lossless `text_lines`, authenticated against commit
+`c03352ba160675a94bf63125cceaa25367f52c27`. Its original SHA256 identity,
+dependent observation delta and profile hashes remain unchanged. This keeps
+complete registry verification valid after the current NGINX product source
+advances and grants no current-source or runtime qualification.

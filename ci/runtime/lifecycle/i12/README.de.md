@@ -266,3 +266,12 @@ SHA256-Identitäten, abhängigen Deltas, Profileingabe-/Ergebnishashes und Herku
 bleiben unverändert. Dies repariert die historische Registry-Prüfung bei
 fortgeschriebenen Produktdateien; daraus entstehen weder eine Freigabe geänderter
 aktueller Eingabebytes noch Runtime-Nachweise.
+
+Der historische NGINX-Anker
+`connectors/nginx/src/ngx_http_modsecurity_access.c` ist ebenfalls als
+verlustfreie `text_lines` eingefroren und gegen Commit
+`c03352ba160675a94bf63125cceaa25367f52c27` authentifiziert. Seine ursprüngliche
+SHA256-Identität, das abhängige Beobachtungsdelta und die Profilhashes bleiben
+unverändert. Dadurch bleibt die vollständige Registry-Prüfung nach Fortschreibung
+der aktuellen NGINX-Produktquelle gültig; daraus entsteht weder eine Freigabe
+aktueller Quellen noch ein Runtime-Nachweis.
