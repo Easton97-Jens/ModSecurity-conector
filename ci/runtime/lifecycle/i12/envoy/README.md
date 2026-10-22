@@ -67,7 +67,7 @@ rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B -m unittest discove
 rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B ci/runtime/lifecycle/i12/capture_sources.py verify
 ```
 
-The current complete Envoy suite has 232 PASS and 0 skips. Receipt: `ci/final-envoy-controls-232-base-a622-v7.json`. Focused fault controls have 16 PASS; separate Go test-proxy controls have 10 PASS. These controls do not automatically qualify the host run.
+The current complete Envoy suite has 257 PASS and 0 skips. Receipt: `ci/final-envoy-controls-257-base766-v1.json`. Focused fault controls have 16 PASS; separate Go test-proxy controls have 10 PASS. These controls do not automatically qualify the host run.
 
 Each producer exposes `--help`. Native preparation requires a fresh registered
 external run root, the current checkout, the existing offline module cache,
@@ -89,7 +89,7 @@ The historical qualified native and host evidence source remains
 `f27eb59b53beff6f65384fc2e5037881a3052c01`. The exact Base head
 `a62296fb57263f9be18c6ac879e36e0ab2a9935c` was merged in
 `dfb1a07a863530a53c0006ee204319453d66a2ad`. A separate hash-bound
-`current-base-evidence-v1.json` supplement now binds the final
+`current-base-evidence-v1.json` supplement binds the historical final
 `current-base-a622-native-v3` and `current-base-a622-host-v3` receipts.
 The engine build uses the Base-required Go 1.27.2 and x/net 0.61.0;
 the host-installed Go 1.27.3 is a separate environment observation.
@@ -99,7 +99,7 @@ The earlier Go 1.27.3 build/host attempts remain superseded. A mixed-toolchain
 build failed before host launch and remains rejected evidence. Earlier admission
 failures retain exit 77 and no cleanup claim.
 
-All three final current-Base probes have runner exit 0, two complete backend
+All three final a622 probes have runner exit 0, two complete backend
 requests, physical event logs and verified cleanup without survivors or mount
 leaks. Each route observes target request/response 95/96 bytes and independent
 neighbor request/response 6/7 bytes. Their contracts remain separate:
@@ -128,7 +128,38 @@ The supplement qualifies no original ID and adds no oracle progress. The
 historical measurement/retake counts remain unchanged. The retained baseline
 and physical sources were revalidated with current central validators; this
 Envoy task modified no shared validator. Scoped documentation evidence:
-`ci/docs-postmerge-a622-v4.json`.
+`ci/docs-base766-v1.json`.
+
+The Base subsequently advanced to `e4c872cde16eb73182de49c09a8ba8ee4219b417`
+and `afaf6305bd55646073c3b40632b52fc4e5edf714`; both were integrated by normal
+merges. `current-base-e4-evidence-v2.json` retains the e4 native pass, initial
+ext_proc timeout and successful host retake. `current-base-afaf-evidence-v3.json`
+binds that history to the fresh `current-base-afaf-native-v3` receipt and
+`current-base-afaf-host-v2/physical-review-v2.json`. All 16 afaf native steps,
+including Go/CGo, race and vet, pass. Engine Go1.27.2, host-environment Go1.27.3,
+SDK3.0.14 and Envoy1.39.1 remain independently identified. All 2,196 build sources
+and the current registry's 155 objects/10 profiles are verified without editing
+the shared manifest. Earlier afaf build/admission failures remain retained.
+
+The delivery Base later advanced by normal merge to
+`76672071c3f7665dfde3340bef9e64271d6f6e70`. Its inherited delta changes only
+two Parent test fixtures and their own EN/DE Change Record; it changes no Envoy,
+runtime, capture, dependency or build input. afaf therefore remains the latest
+real Envoy native/host evidence source. No new host execution, lifecycle PASS or
+oracle progress is assigned to 766.
+
+The three afaf-host-v2 runners exit0, each with target request/response 95/96
+bytes, neighbor 6/7 bytes, two backend requests and physical Finish/free/cleanup
+without survivors or mount leaks. ext_proc observes P1–P4 and native chunks
+64/31/0-EOS and 64/32/0-EOS; its neighbor is sequential. Authorization delivers
+one complete 95-byte sample under the host buffer contract, and exercises no
+host reject, native limit decision, intervention or technical runtime failure.
+The companion's lease is allocation-bound; wire token equality is unproven.
+P3 precedes commit, and the first client entity byte precedes P4. P4 Strict
+support is not established. Untagged Authorization trailers and missing remote
+Process status remain unknown, successful completion false. These supplementary
+runs add no original ID, lifecycle PASS or oracle progress; 7 PASS/118 open,
+86 historical host measurements and 37 retakes for 33 IDs remain unchanged.
 
 The real ext_proc fault probe `fault-host-v1` drops only the empty Response-EOS callback and performs an actual half-close. The engine API and Envoy trace unambiguously correlated to the target stream report gRPC status14. The client receives an HTTP200 prefix with 96 body bytes in 64+32, but no zero chunk. Runner77/controller1/client1 remain unqualified; new PASS: 0. The target records P1–P3 and P4=0, a `runtime_finish` attempt with result0 and one logging/free/cleanup each. The healthy neighbor has P1–P4/Finish once each; no survivors or mount leaks remain. Proxy wire status remains unobserved. Missing status is not interpreted as successful completion.
 

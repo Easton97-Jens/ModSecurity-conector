@@ -86,7 +86,7 @@ def prepare(args):
     args.only = ['ext-proc-streaming']
     run, old, source, native = H.preparation_inputs(args)
     proof = proxy_build(args.proxy_build_receipt)
-    content = H.capture_content()
+    content = H.capture_content(args.parent_sha, native.get('envoy_registry_adapter'))
     isolated, controller = H.prepare_controller(run, old)
     bindings = H.prepare_shared_inputs(run, old, source, args.binaries)
     source_proof = H.source_binding_proof(source, native, args.parent_sha)
@@ -114,7 +114,8 @@ def prepare(args):
     H.write(run / 'host-scenarios.json', {'parent_sha': args.parent_sha,
         'controller': str(isolated / controller.name), 'controller_original_sha256': H.OLD_CONTROLLER_SHA,
         'controller_sha256': H.sha(isolated / controller.name),
-        'capture_manifest_sha256': H.sha(H.HERE.parent / 'manifest.json'), 'scenarios': [case],
+        'capture_manifest_sha256': H.sha(H.HERE.parent / 'manifest.json'),
+        'envoy_registry_adapter': content.registry_adapter, 'scenarios': [case],
         'test_topology': 'four isolated nonroot processes; added private loopback18084 proxy, no external listener',
         'host_lifecycle_qualified': False})
     print(json.dumps({'matrix': str(run / 'host-scenarios.json'), 'scenarios': 1, 'new_lifecycle_pass': 0}))

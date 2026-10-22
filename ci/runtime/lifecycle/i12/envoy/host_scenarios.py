@@ -301,15 +301,21 @@ def preparation_inputs(args):
     return run, old, source, build_proof
 
 
-def capture_content():
+def capture_content(parent_sha=None, expected_adapter=None):
     spec = importlib.util.spec_from_file_location('envoy_capture', HERE.parent / 'capture_sources.py')
     capture = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(capture)
     registry = capture.Registry()
-    registry.verify()
+    registry, metadata = source_inventory.verified_registry(
+        capture, registry, parent_sha,
+        source_inventory.E4_MANIFEST if parent_sha == source_inventory.E4_REVISION
+        else sha(HERE.parent / 'manifest.json'))
+    if metadata != expected_adapter:
+        raise ValueError('host capture registry adapter differs from native build')
     variant = registry.manifest['profiles']['envoy']
     def content(name):
         return registry.content(variant['capture_files'][name]['sha256']).decode()
+    content.registry_adapter = metadata
     return content
 
 
@@ -480,7 +486,7 @@ def prepare_fixture(args, context, index, scenario):
 
 def prepare(args):
     run, old, source, build_proof = preparation_inputs(args)
-    content = capture_content()
+    content = capture_content(args.parent_sha, build_proof.get('envoy_registry_adapter'))
     isolated, controller = prepare_controller(run, old)
     bindings = prepare_shared_inputs(run, old, source, args.binaries)
     source_proof = source_binding_proof(source, build_proof, args.parent_sha)
@@ -494,7 +500,8 @@ def prepare(args):
     write(run / 'host-scenarios.json', {'parent_sha': args.parent_sha, 'controller': str(isolated / controller.name),
           'controller_original_sha256': OLD_CONTROLLER_SHA, 'controller_sha256': sha(isolated / controller.name),
           'only_controller_change': 'task run root relocation and verified PID namespace FD lifetime pin until cleanup; all admission, UID, caps, namespaces, containment, budgets and cleanup checks unchanged',
-          'capture_manifest_sha256': sha(HERE.parent / 'manifest.json'), 'scenarios': matrix})
+          'capture_manifest_sha256': sha(HERE.parent / 'manifest.json'),
+          'envoy_registry_adapter': content.registry_adapter, 'scenarios': matrix})
     print(json.dumps({'scenarios': len(matrix), 'matrix': str(run / 'host-scenarios.json')}))
 
 

@@ -13,7 +13,7 @@ spec.loader.exec_module(writer)
 
 class ReportControls(unittest.TestCase):
     def test_current_base_supplement_keeps_historical_counts_and_revision(self):
-        data = {'parent_sha': 'f27', 'summary': {'lifecycle_pass': 11, 'open': 114},
+        data = {'parent_sha': 'f27', 'summary': {'lifecycle_pass': 7, 'open': 118},
             'host_measurements': [1] * 86, 'original_id_retakes': {'host_runs': 37},
             'physical_inputs': {}}
         supplement = {'parent_sha': 'a622', 'new_lifecycle_pass': 0,
@@ -40,6 +40,28 @@ class ReportControls(unittest.TestCase):
             exclusions = '\n'.join(writer.strict_status_exclusions(german))
             for identity in writer.STRICT_STATUS_EXCLUSIONS:
                 self.assertIn(identity, exclusions)
+
+    def test_v3_current_base_does_not_relabel_earlier_transport_or_counts(self):
+        supplement = {'schema': 'i12.envoy.current-base-evidence.v3',
+            'parent_sha': 'afaf6305bd55646073c3b40632b52fc4e5edf714',
+            'new_lifecycle_pass': 0,
+            'route_transport_observations': {'envoy-ext-authz-request': {'target': {
+                'authorization': {'remote_grpc_status': None,
+                                  'successful_grpc_completion': False}}}}}
+        data = {'current_base_evidence': supplement}
+        before = json.loads(json.dumps(data))
+        for german in (False, True):
+            findings = '\n'.join(writer.current_base_findings(data, german))
+            for marker in ('afaf6305', 'a622', 'e4', 'Go 1.27.2', 'Go 1.27.3',
+                           '155', '10', '`new_lifecycle_pass=0`', '95/96', '6/7',
+                           '37', '33', '118', '64/31/0-EOS', '64/32/0-EOS',
+                           'max_request_bytes=4096', 'P4 Strict',
+                           '76672071c3f7665dfde3340bef9e64271d6f6e70'):
+                self.assertIn(marker, findings)
+            self.assertNotIn('current base' if not german else 'aktuellen Base', findings)
+            self.assertIn('| envoy-ext-authz-request | target | unknown | false |', findings)
+            self.assertNotIn('errno 104', findings)
+        self.assertEqual(data, before)
 
     def test_absent_current_base_supplement_preserves_report(self):
         data = {'physical_inputs': {}}

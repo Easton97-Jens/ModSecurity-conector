@@ -24,24 +24,33 @@ def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(',', ':'), allow_nan=False)
 
 
-def reference_path(reference):
+def reference_path(reference, source_root=None):
     if not isinstance(reference, dict) or not isinstance(reference.get('path'), str):
         raise ValueError('reference requires a path and SHA256')
     value = reference['path']
     path = Path(value)
+    candidates = None
     if not value or '\\' in value or '..' in path.parts:
         raise ValueError('reference path traversal is forbidden')
     if path.is_absolute():
         if not any(root in path.parents for root in STORAGE_ROOTS):
             raise ValueError('absolute reference outside approved storage: ' + value)
+        candidates = [path]
     else:
         if any(part in ('.git', '.aws', '.codex', '.agents') for part in path.parts):
             raise ValueError('reference is not a product source path')
-        path = REPOSITORY / path
+        candidates = [REPOSITORY / path]
+        if source_root is not None:
+            root = Path(source_root)
+            if not root.is_absolute() or '..' in root.parts:
+                raise ValueError('historical source root must be absolute without traversal')
+            historical = root / path
+            if historical != candidates[0]:
+                candidates.append(historical)
     expected = reference.get('sha256')
     if not isinstance(expected, str) or not re.fullmatch('[a-f0-9]{64}', expected):
         raise ValueError('reference requires a lowercase SHA256: ' + value)
-    return value, path, expected
+    return value, candidates, expected
 
 
 def source_fields(reference, cached, size, value):
@@ -58,30 +67,42 @@ def source_fields(reference, cached, size, value):
 
 
 class References:
-    def __init__(self):
+    def __init__(self, source_root=None):
         self.cache = {}
+        self.source_root = source_root
 
     def check(self, reference, source=False):
-        value, path, expected = reference_path(reference)
-        with evidence_io.open_evidence(path, (REPOSITORY, *STORAGE_ROOTS), MAX_REFERENCE_BYTES) as (stream, before):
-            identity = evidence_io.identity(before)
-            cached = self.cache.get(path)
-            if cached is None or cached['identity'] != identity:
-                cached = {'identity': identity, 'sha256': evidence_io.digest_stream(stream, MAX_REFERENCE_BYTES),
-                          'bytes': before.st_size}
-                self.cache[path] = cached
-            if source and 'line_count' not in cached:
-                if before.st_size > MAX_SOURCE_BYTES:
-                    raise ValueError('source reference exceeds line-check bound: ' + value)
-                stream.seek(0)
-                cached['line_count'] = len(stream.read(MAX_SOURCE_BYTES + 1).splitlines())
-        if expected != cached['sha256']:
+        value, candidates, expected = reference_path(reference, self.source_root)
+        selected = None
+        for path in candidates:
+            try:
+                with evidence_io.open_evidence(path, (REPOSITORY, *STORAGE_ROOTS), MAX_REFERENCE_BYTES) as (stream, before):
+                    identity = evidence_io.identity(before)
+                    cached = self.cache.get(path)
+                    if cached is None or cached['identity'] != identity:
+                        cached = {'identity': identity,
+                                  'sha256': evidence_io.digest_stream(stream, MAX_REFERENCE_BYTES),
+                                  'bytes': before.st_size}
+                        self.cache[path] = cached
+                    if cached['sha256'] != expected:
+                        continue
+                    if source and 'line_count' not in cached:
+                        if before.st_size > MAX_SOURCE_BYTES:
+                            raise ValueError('source reference exceeds line-check bound: ' + value)
+                        stream.seek(0)
+                        cached['line_count'] = len(stream.read(MAX_SOURCE_BYTES + 1).splitlines())
+                    selected = (cached, before.st_size)
+                    break
+            except FileNotFoundError:
+                continue
+        if selected is None:
             raise ValueError('reference SHA256 mismatch: ' + value)
-        if 'bytes' in reference and (type(reference['bytes']) is not int or reference['bytes'] != before.st_size):
+        cached, size = selected
+        if 'bytes' in reference and (type(reference['bytes']) is not int or reference['bytes'] != size):
             raise ValueError('reference byte size mismatch: ' + value)
-        result = {'path': value, 'sha256': expected, 'bytes': before.st_size, 'verified': True}
+        result = {'path': value, 'sha256': expected, 'bytes': size, 'verified': True}
         if source:
-            result.update(source_fields(reference, cached, before.st_size, value))
+            result.update(source_fields(reference, cached, size, value))
         return result
 
     def nested(self, value):
@@ -278,7 +299,7 @@ def review_route(rows, route, originals, canonical_counts, references, review_pa
     return normalized, counts
 
 
-def validate(baseline, review_paths):
+def validate(baseline, review_paths, source_root=None):
     """Return normalized proposal metadata; canonical 3/122 remains unchanged.
 
     ``baseline`` accepts a parsed baseline object or its physical JSON path.
@@ -286,7 +307,7 @@ def validate(baseline, review_paths):
     Raises ValueError/OSError on a contract, identity or physical integrity gap.
     """
     baseline_rows, originals, canonical_counts, baseline_hash = baseline_contract(baseline)
-    references = References()
+    references = References(source_root)
     documents, normalized, by_route = [], {}, {}
     for review_path in review_paths:
         review_path = Path(review_path)
@@ -445,7 +466,7 @@ def supplement_fixture_binding(row, references):
         raise ValueError('supplement admission fixture binding differs')
 
 
-def validate_supplement(path, validated_source_review):
+def validate_supplement(path, validated_source_review, source_root=None):
     """Validate the one Companion retake fixture without assigning host acceptance."""
     document, review_file = checked_review_file(Path(path))
     supplement_source_flags(document)
@@ -456,7 +477,7 @@ def validate_supplement(path, validated_source_review):
     originals = [item for item in old_rows if item.get('run_scoped_case_id') == SUPPLEMENT_ID]
     if len(originals) != 1:
         raise ValueError('supplement origin requires one matching original')
-    references = References()
+    references = References(source_root)
     old_normal = normalized_supplement_row(originals[0], prior, validated_source_review, references, origin['path'])
     if canonical(old_normal) != canonical(prior):
         raise ValueError('supplement origin no longer matches fresh normalized validation')
@@ -474,9 +495,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--baseline', type=Path, required=True)
     parser.add_argument('--review', type=Path, action='append', required=True)
+    parser.add_argument('--source-root', type=Path)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
-    result = validate(args.baseline, args.review)
+    result = validate(args.baseline, args.review, args.source_root)
     qualify_originals.write(args.output, result)
     print(json.dumps({'original_count': result['original_count'], 'reviewed_count': result['reviewed_count'],
         'canonical_resolved': 3, 'canonical_open': 122,

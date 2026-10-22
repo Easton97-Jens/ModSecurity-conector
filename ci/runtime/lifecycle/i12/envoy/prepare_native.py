@@ -249,7 +249,10 @@ def extract_source_archive(source, archive):
 def apply_capture(capture, registry, source, receipt):
     # Verify the entire original registry before constructing a private adapter.
     # Neither the archived nor the checked-in manifest is rewritten.
-    registry.verify()
+    registry, metadata = source_inventory.verified_registry(
+        capture, registry, receipt['actual_source_commit'], receipt['manifest_sha256'])
+    if metadata is not None:
+        receipt['envoy_registry_adapter'] = metadata
     profile = registry.manifest['profiles']['envoy']
     source_inventory.observer_contract(profile)
     before = receipt['source_before_overlay']

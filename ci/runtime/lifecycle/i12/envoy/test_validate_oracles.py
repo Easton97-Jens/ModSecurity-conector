@@ -114,6 +114,22 @@ class OracleValidationControls(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'reference SHA256 mismatch'):
             validator.validate(self.baseline, self.paths)
 
+    def test_historical_source_root_verifies_relative_review_references(self):
+        archive = self.root / 'historical-source'
+        source = archive / 'common/runtime/source.c'
+        source.parent.mkdir(parents=True)
+        source.write_text('historical symbol\n')
+        ref = {'path': 'common/runtime/source.c',
+            'sha256': hashlib.sha256(source.read_bytes()).hexdigest(),
+            'line': 1, 'symbol': 'historical', 'claim': 'Pinned historical source.'}
+        checked = validator.References(archive).check(ref, source=True)
+        self.assertEqual(checked['sha256'], ref['sha256'])
+        source.write_text('changed\n')
+        with self.assertRaisesRegex(ValueError, 'reference SHA256 mismatch'):
+            validator.References(archive).check(ref, source=True)
+        with self.assertRaisesRegex(ValueError, 'historical source root'):
+            validator.References(Path('relative')).check(ref, source=True)
+
     def test_nested_independent_source_hash_is_verified(self):
         bad = copy.deepcopy(self.reference)
         bad['sha256'] = '0' * 64

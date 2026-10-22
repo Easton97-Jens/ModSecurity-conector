@@ -137,6 +137,19 @@ class PacketMutations(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'physical reference changed'):
             Q.verify_ref(ref)
 
+    def test_relative_source_references_use_the_pinned_historical_root(self):
+        archive = self.root / 'historical-source'
+        source = archive / 'common/runtime/source.c'
+        source.parent.mkdir(parents=True)
+        source.write_text('historical symbol\n')
+        ref = {'path': 'common/runtime/source.c', 'sha256': Q.reference(source)['sha256'], 'line': 1}
+        Q.verify_source_refs([ref], archive)
+        source.write_text('changed\n')
+        with self.assertRaisesRegex(ValueError, 'physical reference changed'):
+            Q.verify_source_refs([ref], archive)
+        with self.assertRaisesRegex(ValueError, 'product path'):
+            Q.verify_source_refs([{**ref, 'path': '../source.c'}], archive)
+
     def test_original_mapping_mutation(self):
         with self.assertRaisesRegex(ValueError, 'original ID or sibling'):
             Q.identity({'case': {'original_case_ids': [ORIGINAL], 'route': 'envoy-ext-authz-request', 'label': 'fixture'}},

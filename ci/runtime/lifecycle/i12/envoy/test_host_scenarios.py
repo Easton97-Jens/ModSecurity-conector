@@ -1,5 +1,6 @@
 """Controls for the real capture adapters and unknown terminal status."""
 import importlib.util
+import json
 from pathlib import Path
 import tempfile
 from types import SimpleNamespace
@@ -45,6 +46,27 @@ class CaptureControls(unittest.TestCase):
         changed = self.content('client.py').replace('connection.sendall(request)', 'connection.send(request)')
         with self.assertRaises(ValueError):
             HOST.client_source(changed)
+
+    def test_e4_capture_verifies_full_registry_and_binds_native_adapter(self):
+        inventory = HOST.source_inventory
+        manifest = json.loads(inventory.historical_e4_manifest(
+            (HOST.HERE.parent / 'manifest.json').read_bytes()))
+        metadata = inventory.registry_adapter_metadata(
+            manifest, inventory.E4_REVISION, inventory.E4_MANIFEST,
+            inventory.E4_CURRENT)
+        content = HOST.capture_content(inventory.E4_REVISION, metadata)
+        self.assertEqual(content.registry_adapter, metadata)
+        self.assertEqual(content('client.py'), self.content('client.py'))
+        self.assertEqual(content.registry_adapter['verified_object_count'], 155)
+        self.assertEqual(content.registry_adapter['verified_profile_count'], 10)
+        for expected in (None, {}, dict(metadata, runtime_written=True),
+                         dict(metadata, original_manifest_sha256='0' * 64)):
+            with self.subTest(expected=expected), self.assertRaisesRegex(
+                    ValueError, 'differs from native build'):
+                HOST.capture_content(inventory.E4_REVISION, expected)
+        for revision in (None, 'a' * 40, inventory.E4_REVISION[:-1] + '0'):
+            with self.subTest(revision=revision), self.assertRaises(ValueError):
+                HOST.capture_content(revision, metadata)
 
     @patch.object(HOST.source_inventory, 'verify')
     def test_substituted_build_source_and_binary_refused(self, inventory):

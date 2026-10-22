@@ -1,5 +1,7 @@
 """Admission and build-identity controls for the interposed EOS test fixture."""
 import copy
+import json
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -51,7 +53,12 @@ class ProxyBuildControls(unittest.TestCase):
 
 class FaultDriverControls(unittest.TestCase):
     def test_fourth_process_is_bound_snapshotted_and_reaped(self):
-        content = F.H.capture_content()
+        inventory = F.H.source_inventory
+        manifest = json.loads(inventory.historical_e4_manifest(
+            (F.H.HERE.parent / 'manifest.json').read_bytes()))
+        metadata = inventory.registry_adapter_metadata(
+            manifest, inventory.E4_REVISION, inventory.E4_MANIFEST, inventory.E4_CURRENT)
+        content = F.H.capture_content(inventory.E4_REVISION, metadata)
         driver = F.fault_driver(content(F.H.DRIVER_FILE))
         self.assertLess(driver.index("proxy_process=start('fault-proxy'"), driver.index("envoy=start('envoy'"))
         self.assertIn("processes['fault-proxy']=(proxy_process,str(proxy))", driver)
@@ -59,6 +66,19 @@ class FaultDriverControls(unittest.TestCase):
         self.assertIn("'test_proxy_sha256':digest(proxy)", driver)
         self.assertIn("if (os.geteuid(),os.getegid()) != (65534,65534)", driver)
         self.assertIn("if any(final['client_exit_codes'].values()): raise RuntimeError", driver)
+
+    def test_preparation_passes_exact_native_adapter_and_legacy_absence(self):
+        for revision, native in (
+                (F.H.source_inventory.E4_REVISION, {'envoy_registry_adapter': {'exact': 'native-proof'}}),
+                ('a62296fb57263f9be18c6ac879e36e0ab2a9935c', {})):
+            args = SimpleNamespace(parent_sha=revision, proxy_build_receipt='proxy-receipt')
+            with self.subTest(revision=revision), \
+                 patch.object(F.H, 'preparation_inputs', return_value=(None, None, None, native)), \
+                 patch.object(F, 'proxy_build'), \
+                 patch.object(F.H, 'capture_content', side_effect=ValueError('capture-boundary')) as content:
+                with self.assertRaisesRegex(ValueError, 'capture-boundary'):
+                    F.prepare(args)
+                content.assert_called_once_with(revision, native.get('envoy_registry_adapter'))
 
 
 if __name__ == '__main__':

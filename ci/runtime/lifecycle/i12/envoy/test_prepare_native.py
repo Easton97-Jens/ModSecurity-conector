@@ -218,6 +218,139 @@ class ObserverAdapterControls(unittest.TestCase):
         self.assertEqual(calls, [('source-head', ['git', 'rev-parse', '--verify', 'a' * 40 + '^{commit}'])])
 
 
+class E4RegistryAdapterControls(unittest.TestCase):
+    setUp = ObserverAdapterControls.setUp
+    tearDown = ObserverAdapterControls.tearDown
+    bind_archive = ObserverAdapterControls.bind_archive
+    apply = ObserverAdapterControls.apply
+
+    def activate(self):
+        self.registry.cache.clear()
+        self.proof['actual_source_commit'] = inventory.E4_REVISION
+        current = self.capture.Registry(
+            root=self.repository / 'ci/runtime/lifecycle/i12', repository=self.repository)
+        stale = current.content(inventory.E4_STALE)
+        runtime = self.capture.exact_patch(
+            stale, inventory.reverse_exact_patch(inventory.E4_INVERSE.encode()))
+        self.assertEqual(inventory.digest(runtime), inventory.E4_CURRENT)
+        historical = inventory.historical_e4_manifest(self.original[inventory.MANIFEST])
+        self.registry.manifest = json.loads(historical)
+        self.profile = self.registry.manifest['profiles']['envoy']
+        self.original[inventory.MANIFEST] = historical
+        (self.source / inventory.MANIFEST).write_bytes(historical)
+        self.proof['manifest_sha256'] = inventory.E4_MANIFEST
+        self.original[inventory.E4_RUNTIME] = runtime
+        path = self.source / inventory.E4_RUNTIME
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(self.original[inventory.E4_RUNTIME])
+
+    def test_exact_e4_registry_verifies_all_objects_preserving_runtime_and_manifest(self):
+        self.activate()
+        original_manifest = copy.deepcopy(self.registry.manifest)
+        self.apply()
+        metadata = self.proof['envoy_registry_adapter']
+        self.assertEqual(metadata['verified_object_count'], 155)
+        self.assertEqual(metadata['verified_profile_count'], 10)
+        self.assertEqual(self.registry.manifest, original_manifest)
+        self.assertEqual(self.registry.cache, {})
+        self.assertNotIn(inventory.E4_RUNTIME,
+                         self.proof['capture_application']['exact_written_sha256'])
+        # apply_capture runs from today's afaf registry root in this unit
+        # fixture. The reconstructed source and manifest are exact e4 bytes,
+        # so model the application receipt that the real e4 archive wrote.
+        self.proof['capture_application']['capture_manifest_sha256'] = inventory.E4_MANIFEST
+        (self.source / 'i12-source-application-receipt.json').write_text(
+            json.dumps(self.proof['capture_application'], indent=2) + '\n')
+        self.bind_archive()
+        expected = inventory.verify(self.source, self.proof)
+        self.assertEqual(expected[inventory.E4_RUNTIME], inventory.E4_CURRENT)
+        self.assertEqual(prepare.sha(self.source / inventory.E4_RUNTIME), inventory.E4_CURRENT)
+        self.assertEqual(prepare.sha(self.source / inventory.MANIFEST), inventory.E4_MANIFEST)
+        baseline = copy.deepcopy(self.proof)
+        for field in metadata:
+            with self.subTest(field=field):
+                proof = copy.deepcopy(baseline)
+                proof['envoy_registry_adapter'][field] = 'substituted'
+                with self.assertRaises(ValueError):
+                    inventory.verify(self.source, proof)
+        proof = copy.deepcopy(baseline)
+        proof.pop('envoy_registry_adapter')
+        with self.assertRaises(ValueError):
+            inventory.verify(self.source, proof)
+        (self.source / inventory.E4_RUNTIME).write_bytes(b'extra runtime drift')
+        with self.assertRaisesRegex(ValueError, 'inventory mismatch'):
+            inventory.verify(self.source, baseline)
+
+    def test_afaf_registry_is_verified_directly_before_historical_replay(self):
+        original_manifest = copy.deepcopy(self.registry.manifest)
+        original_cache = copy.deepcopy(self.registry.cache)
+        current, metadata = inventory.verified_registry(
+            self.capture, self.registry, 'a' * 40,
+            inventory.digest(self.original[inventory.MANIFEST]))
+        self.assertIs(current, self.registry)
+        self.assertIsNone(metadata)
+        self.assertEqual(self.registry.manifest, original_manifest)
+        self.assertEqual(original_cache, {})
+        self.assertEqual(len(self.registry.cache), 155)
+
+        self.activate()
+        original_manifest = copy.deepcopy(self.registry.manifest)
+        adapted, metadata = inventory.verified_registry(
+            self.capture, self.registry, inventory.E4_REVISION, inventory.E4_MANIFEST)
+        self.assertEqual(self.registry.manifest, original_manifest)
+        self.assertEqual(self.registry.cache, {})
+        self.assertEqual(metadata['preserved_runtime_sha256'], inventory.E4_CURRENT)
+        self.assertEqual(len(adapted.cache), 155)
+        for identity in inventory.HISTORICAL_REPOSITORY_OBJECTS:
+            self.assertEqual(inventory.digest(adapted.content(identity)), identity)
+
+    def test_revision_manifest_path_profile_and_runtime_mutations_fail_closed(self):
+        self.activate()
+        manifest = self.registry.manifest
+        arguments = [manifest, inventory.E4_REVISION, inventory.E4_MANIFEST, inventory.E4_CURRENT]
+        for index in (1, 2, 3):
+            with self.subTest(argument=index):
+                mutated = list(arguments)
+                mutated[index] = '0' * len(arguments[index])
+                with self.assertRaises(ValueError):
+                    inventory.registry_adapter_metadata(*mutated)
+        for mutate in (
+                lambda m: m['objects'][inventory.E4_STALE].update(path='foreign/runtime.c'),
+                lambda m: m['objects'][inventory.E4_STALE].update(kind='text'),
+                lambda m: m['profiles']['envoy']['capture_files'].update(
+                    {'foreign.c': {'sha256': inventory.E4_STALE}}),
+                lambda m: m['profiles']['envoy']['capture_files'].update(
+                    {'foreign-delta.c': {'sha256': next(
+                        key for key, item in m['objects'].items()
+                        if item.get('base') == inventory.E4_STALE)}}),
+                lambda m: m['profiles']['envoy']['source_targets'].update(
+                    {inventory.E4_RUNTIME: {'sha256': inventory.E4_CURRENT}})):
+            mutated = copy.deepcopy(manifest)
+            mutate(mutated)
+            with self.assertRaises(ValueError):
+                inventory.registry_adapter_metadata(mutated, *arguments[1:])
+        self.proof['manifest_sha256'] = '0' * 64
+        with self.assertRaises(ValueError):
+            self.apply()
+        self.assertFalse((self.source / '.i12-capture').exists())
+
+    def test_other_registry_drift_is_verified_despite_seeded_stale_object(self):
+        self.activate()
+        # The manifest remains byte-identical. Force an unselected physical
+        # object's bytes to drift instead of changing its declared identity.
+        original_content = self.registry.content
+        identity = next(key for key, value in self.registry.manifest['objects'].items()
+                        if value['kind'] == 'text')
+        def drift(key, trail=()):
+            if key == identity:
+                raise ValueError('independent registry object drift')
+            return original_content(key, trail)
+        self.registry.content = drift
+        with self.assertRaisesRegex(ValueError, 'independent registry object drift'):
+            self.apply()
+        self.assertFalse((self.source / '.i12-capture').exists())
+
+
 class GoProvenanceControls(unittest.TestCase):
     def setUp(self):
         manifest = Path(__file__).resolve().parents[1] / 'manifest.json'

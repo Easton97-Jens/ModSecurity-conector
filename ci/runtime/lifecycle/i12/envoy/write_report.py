@@ -17,6 +17,7 @@ STRICT_STATUS_EXCLUSIONS = (
     'I12::envoy-ext-authz-request::NEED-client-response-bytes',
     'I12::envoy-ext-authz-response-companion::NEED-allow',
 )
+DELIVERY_BASE = '76672071c3f7665dfde3340bef9e64271d6f6e70'
 
 
 def reference(path):
@@ -35,8 +36,8 @@ def validate_controls_receipt(path):
     ]
     if (receipt.get('schema_version') != 1 or receipt.get('argv') != expected_argv or
             receipt.get('cwd') != str(ROOT) or receipt.get('exit_code') != 0 or
-            receipt.get('tests') != 232 or receipt.get('skips') != 0):
-        raise ValueError('current complete Envoy control receipt is not a 232-test PASS')
+            receipt.get('tests') != 257 or receipt.get('skips') != 0):
+        raise ValueError('current complete Envoy control receipt is not a 257-test PASS')
     if set(receipt.get('logs', {})) != {'stdout', 'stderr'}:
         raise ValueError('control receipt must retain both raw logs')
     for log in receipt['logs'].values():
@@ -283,8 +284,8 @@ def verification_limits(german):
         '',
         '## Verifikation und Grenzen' if german else '## Verification and limits',
         '',
-        'Native/CGo Go `./...`, Race `./...` und Vet `./...`: PASS. Die historische f27-Evidenz enthält 32 gemeinsame native Observer-Kontrollen; der aktuelle a622-Native-v3-Lauf enthält 34 PASS. Die aktuelle vollständige Envoy-Evidenzsuite hat 232 PASS ohne Skip. Neue Kontrollen prüfen unveränderte IDs/Oracles, physische Hashes, fehlende gRPC-Trailer, geordnete Streamweiterleitung, versiegelte Fault-Fixtures, Quell-/Binary-Austausch, Backend-Framing und Namespace-Ownership-Rennen. Exakte Kommandos, Ergebnisse und Loghashes stehen in den referenzierten Receipts.' if german else
-         'Native/CGo Go `./...`, race `./...` and vet `./...`: PASS. The historical f27 evidence contains 32 common native observer controls; the current a622 native-v3 run contains 34 PASS. The current complete Envoy evidence suite has 232 PASS with no skips. New controls cover unchanged IDs/oracles, physical hashes, absent gRPC trailers, ordered stream forwarding, sealed fault fixtures, substituted source/binaries, backend framing and namespace ownership races. Exact commands, outcomes and log hashes are in the referenced receipts.',
+        'Native/CGo Go `./...`, Race `./...` und Vet `./...`: PASS. Die historische f27-Evidenz enthält 32 gemeinsame native Observer-Kontrollen; der aktuelle afaf-Native-v3-Lauf enthält 34 PASS. Die aktuelle vollständige Envoy-Evidenzsuite hat 257 PASS ohne Skip. Neue Kontrollen prüfen unveränderte IDs/Oracles, physische Hashes, fehlende gRPC-Trailer, geordnete Streamweiterleitung, versiegelte Fault-Fixtures, Quell-/Binary-Austausch, Backend-Framing und Namespace-Ownership-Rennen. Exakte Kommandos, Ergebnisse und Loghashes stehen in den referenzierten Receipts.' if german else
+         'Native/CGo Go `./...`, race `./...` and vet `./...`: PASS. The historical f27 evidence contains 32 common native observer controls; the current afaf native-v3 run contains 34 PASS. The current complete Envoy evidence suite has 257 PASS with no skips. New controls cover unchanged IDs/oracles, physical hashes, absent gRPC trailers, ordered stream forwarding, sealed fault fixtures, substituted source/binaries, backend framing and namespace ownership races. Exact commands, outcomes and log hashes are in the referenced receipts.',
         '',
         'Offen bleiben die vollständige unabhängige Oracle-/Original-ID-Abnahme, direkte native MIME-/Charset-Auswahl, vollständig korrelierte parallele gRPC-Terminalstatus, gezielt fehlende/wiederholte Hostcallbacks, alle physischen Event-Sink-Fehler und der vollständige Observer-Stop/Restart-Vertrag. P4 Strict wird nicht als unterstützt oder abgenommen behauptet. Unit-, Native- und Race-Erfolg ersetzen diese Hostnachweise nicht.' if german else
          'Still open: complete independent oracle/original-ID acceptance, direct native MIME/charset selection, fully correlated concurrent gRPC terminal status, deliberate missing/repeated host callbacks, all physical event-sink failures and the complete observer stop/restart contract. P4 Strict is not claimed supported or accepted. Unit, native and race success do not replace these host proofs.',
@@ -320,6 +321,8 @@ def current_base_findings(data, german):
     supplement = data.get('current_base_evidence')
     if supplement is None:
         return []
+    if supplement.get('schema') == 'i12.envoy.current-base-evidence.v3':
+        return current_base_v3_findings(supplement, german)
     heading = '## Ergänzende Hostproben auf der aktuellen Base' if german else '## Supplemental host probes on the current base'
     text = (
         'Die separat hashgebundene Ergänzung prüft die Base `' + supplement['parent_sha'] + '` '
@@ -360,6 +363,106 @@ def current_base_findings(data, german):
     lines = ['', heading, '', text, ''] + route_findings + ['',
         '| Route | Client | Authorization grpc-status | Successful completion |',
         '| --- | --- | --- | --- |']
+    for route, roles in supplement['route_transport_observations'].items():
+        for role, transport in roles.items():
+            auth = transport['authorization']
+            status = auth['remote_grpc_status']
+            lines.append('| ' + route + ' | ' + role + ' | '
+                         + ('unknown' if status is None else str(status)) + ' | '
+                         + str(auth['successful_grpc_completion']).lower() + ' |')
+    return lines + ['']
+
+
+def current_base_v3_findings(supplement, german):
+    """Keep current afaf observations distinct from the retained earlier runs."""
+    parent = supplement['parent_sha']
+    if german:
+        lines = ['', '## Ergänzende Hostproben auf afaf', '',
+            'Das v3-Supplement bindet die Base `' + parent + '` an '
+            '`current-base-afaf-native-v3` und `current-base-afaf-host-v2`. '
+            'Alle 16 nativen Vorbereitungsschritte einschließlich Native/CGo/Go, Race und Vet bestehen. '
+            'Der Enginebuild verwendet Go 1.27.2 für Treiber, Compiler und Linker; die Hostprobe meldet '
+            'Go 1.27.3 getrennt als Umgebungswert. ModSecurity 3.0.14, Envoy 1.39.1, geladene Images '
+            'und alle 2.196 Buildquellen sind physisch gebunden. Die aktuelle Capture-Registry besteht '
+            'mit 155 Objekten/10 Profilen. Historische a622- und e4-Supplements bleiben mit ihren '
+            'eigenen Revisionen und Fehlversuchen erhalten. Die drei afaf-host-v1-Admission-Fehler '
+            'behalten Exit 77 und unbekannte Hostausführung. Der Delivery-Base-Head rückte danach '
+            'durch einen normalen Merge auf `' + DELIVERY_BASE + '` vor. Sein geerbtes Delta '
+            'ändert ausschließlich zwei Parent-Testfixtures und deren eigenen EN/DE-Change-Record; '
+            'Envoy-, Runtime-, Capture-, Dependency- und Buildeingaben bleiben unverändert. '
+            'Diesem Head wird keine neue Envoy-Hostausführung, Original-ID-Abnahme oder '
+            'Oracle-Fortschritt zugerechnet.', '',
+            'Alle drei afaf-host-v2-Runner enden mit 0. Je Route sind Zielrequest/-response 95/96 Bytes, '
+            'Nachbarrequest/-response 6/7 Bytes und genau zwei Backendrequests beobachtet. Physische '
+            'native Eventlogs belegen Finish, Free und Cleanup; UID/GID 65534, Capabilities 0, '
+            'NoNewPrivs 1 und Namespace-/Listenergrenzen bleiben erhalten. Taskprozesse oder Mountleaks '
+            'bleiben nach Cleanup nicht zurück. Diese Messungen ergänzen `new_lifecycle_pass=0`, '
+            'keine Original-ID und keinen Oracle-Fortschritt. Die historischen 86 Hostmessungen, '
+            '37 Retakes für 33 IDs sowie 7 Lifecycle-PASS/118 offene Original-Oracles bleiben erhalten.', '',
+            '- **`envoy-ext-proc`:** P1–P4, Request-Callbacks `64/31/0-EOS` und Response-Callbacks '
+            '`64/32/0-EOS` sind mit realer libModSecurity beobachtet. Ziel und sequenzieller Nachbar '
+            'haben getrennte native Scopes; Finish, Logging, Free und Common-Cleanup sind jeweils '
+            'zweimal belegt. Beide Process-Streams enden mit lokalem Reset 2; ihr Remote-gRPC-Status '
+            'bleibt unbekannt und erfolgreicher Abschluss false. Header `text/plain; charset=utf-8` '
+            'belegt keine unabhängige native MIME-/Charset-Auswahl. Diese Allow-Probe prüft weder '
+            'Reject/ProcessPartial noch Cancellation oder gezielt fehlende/wiederholte Callbacks.',
+            '- **`envoy-ext-authz-request`:** Der Client schreibt `32/32/31`; die native Engine erhält '
+            'unter `max_request_bytes=4096`, `allow_partial_message=false` ein vollständiges '
+            '95-Byte-Sample mit EOS. Das ist eine Hostbuffer-Grenze. Die Probe löst '
+            'keinen Host-Reject, keine native Body-Limit-Entscheidung, keine Regelintervention und '
+            'kein technisches Runtimeversagen aus. Zwei sichtbare Status-0-Trailer sind nicht '
+            'streamgebunden; der Authorization-Status bleibt unbekannt und erfolgreicher Abschluss false.',
+            '- **`envoy-ext-authz-response-companion`:** Zwei getrennte Allocation-Scopes binden '
+            'Lease-Ausgabe, Claim-Annahme und P3/P4. Eine Gleichheit des Lease-Tokens auf dem Wire '
+            'ist damit nicht belegt. P3 liegt vor Commit, Response-Callbacks `64/32/0-EOS` und P4 '
+            'liegen danach; das erste Client-Entitybyte liegt vor P4. P4 Strict wird deshalb nicht '
+            'als unterstützt oder abgenommen behauptet. Process endet lokal mit Reset 2, zugeordnete '
+            'Remote-gRPC-Status fehlen. Fehlende/abgelaufene Leases, Observer-Abbruch und die erste '
+            'technische Fehlerursache benötigen eigene qualifizierte Fälle.']
+    else:
+        lines = ['', '## Supplemental host probes at afaf', '',
+            'The v3 supplement binds base `' + parent + '` to '
+            '`current-base-afaf-native-v3` and `current-base-afaf-host-v2`. '
+            'All 16 native preparation steps, including native/CGo/Go, race and vet, pass. '
+            'The engine build uses Go 1.27.2 for driver, compiler and linker; the host probe reports '
+            'Go 1.27.3 separately as an environment value. ModSecurity 3.0.14, Envoy 1.39.1, loaded '
+            'images and all 2,196 build sources are physically bound. The current capture registry '
+            'passes with 155 objects/10 profiles. Historical a622 and e4 supplements retain their '
+            'own revisions and failed attempts. The three afaf-host-v1 admission failures retain '
+            'exit 77 and unknown host execution. The delivery Base later advanced through a normal '
+            'merge to `' + DELIVERY_BASE + '`. Its inherited delta changes only two Parent test '
+            'fixtures and their own EN/DE Change Record; Envoy, runtime, capture, dependency and '
+            'build inputs remain unchanged. No new Envoy host execution, original-ID acceptance '
+            'or oracle progress is assigned to that head.', '',
+            'All three afaf-host-v2 runners exit 0. Each route observes target request/response '
+            '95/96 bytes, neighbor request/response 6/7 bytes and exactly two backend requests. '
+            'Physical native event logs prove Finish, Free and cleanup; UID/GID 65534, zero '
+            'capabilities, NoNewPrivs 1 and namespace/listener boundaries remain intact. No task '
+            'processes or mount leaks survive cleanup. These measurements add `new_lifecycle_pass=0`, '
+            'no original ID and no oracle progress. The historical 86 host measurements, 37 retakes '
+            'for 33 IDs and 7 lifecycle PASS/118 open original oracles remain unchanged.', '',
+            '- **`envoy-ext-proc`:** P1–P4, request callbacks `64/31/0-EOS` and response callbacks '
+            '`64/32/0-EOS` are observed with real libModSecurity. Target and sequential neighbor '
+            'have distinct native scopes; Finish, logging, Free and Common cleanup are each observed '
+            'twice. Both Process streams end in local reset 2; their remote gRPC status remains '
+            'unknown and successful completion false. The `text/plain; charset=utf-8` header does '
+            'not establish independent native MIME/charset selection. This allow probe exercises '
+            'neither Reject/ProcessPartial nor cancellation or deliberate missing/repeated callbacks.',
+            '- **`envoy-ext-authz-request`:** Client writes `32/32/31`; the native engine receives '
+            'one complete 95-byte sample with EOS under `max_request_bytes=4096`, '
+            '`allow_partial_message=false`. This is a host buffer limit. The probe triggers no host reject, '
+            'native body-limit decision, rule intervention or technical runtime failure. Two visible '
+            'status-0 trailers are not stream-bound; Authorization status remains unknown and '
+            'successful completion false.',
+            '- **`envoy-ext-authz-response-companion`:** Two separate allocation scopes bind lease '
+            'issue, accepted claim and P3/P4. Wire equality of the lease token is not proven. P3 '
+            'precedes commit; response callbacks `64/32/0-EOS` and P4 follow it, and the first '
+            'client entity byte precedes P4. P4 Strict is therefore not claimed supported or '
+            'accepted. Process ends in local reset 2 and attributed remote gRPC statuses are absent. '
+            'Missing/expired leases, observer abort and the first technical failure cause need '
+            'their own qualified cases.']
+    lines += ['', '| Route | Client | Authorization grpc-status | Successful completion |',
+              '| --- | --- | --- | --- |']
     for route, roles in supplement['route_transport_observations'].items():
         for role, transport in roles.items():
             auth = transport['authorization']
@@ -473,10 +576,12 @@ def supplement_binding(supplement, path, source_rows):
     return identity, supplement['review_file']['sha256']
 
 
-def add_oracle_supplements(data, paths, source_review, source_rows):
+def add_oracle_supplements(data, paths, source_review, source_rows, source_root=None):
     allowed, supplements = {}, []
     for path in paths:
-        supplement = validate_oracles.validate_supplement(path, source_review)
+        supplement = (validate_oracles.validate_supplement(path, source_review)
+                      if source_root is None else
+                      validate_oracles.validate_supplement(path, source_review, source_root))
         identity, sha = supplement_binding(supplement, path, source_rows)
         if identity in allowed or path.stem in data['physical_inputs']:
             raise ValueError('duplicate oracle supplement identity or physical input')
@@ -534,7 +639,8 @@ def main():
     baseline = load(args.baseline)
     native = load(args.native)
     validate_controls_receipt(args.validation)
-    source_review = validate_oracles.validate(args.baseline, args.oracle_review)
+    source_root = Path(native['source_copy'])
+    source_review = validate_oracles.validate(args.baseline, args.oracle_review, source_root)
     qualified = [qualify_originals.validate_approved(path) for path in args.qualified]
     if len({row['run_scoped_case_id'] for row in qualified}) != len(qualified):
         raise ValueError('duplicate individually qualified original ID')
@@ -565,7 +671,8 @@ def main():
     for path in args.qualified:
         data['physical_inputs'][path.stem] = reference(path)
     source_rows = add_source_reviews(data, source_review, args)
-    allowed_review_hashes = add_oracle_supplements(data, args.oracle_supplement, source_review, source_rows)
+    allowed_review_hashes = add_oracle_supplements(
+        data, args.oracle_supplement, source_review, source_rows, source_root)
     add_host_measurements(data, args.review)
     add_original_retakes(data, source_rows, allowed_review_hashes)
     add_current_base_evidence(data, args.current_base_supplement)

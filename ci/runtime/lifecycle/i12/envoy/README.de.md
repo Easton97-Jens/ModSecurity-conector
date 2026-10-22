@@ -69,7 +69,7 @@ rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B -m unittest discove
 rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B ci/runtime/lifecycle/i12/capture_sources.py verify
 ```
 
-Die vollständige aktuelle Envoy-Suite hat 232 PASS und 0 Skips. Beleg: `ci/final-envoy-controls-232-base-a622-v7.json`. Die fokussierten Fehlerproben-Kontrollen haben 16 PASS, die separaten Go-Testproxy-Kontrollen 10 PASS. Diese Kontrollen qualifizieren den Hostlauf nicht automatisch.
+Die vollständige aktuelle Envoy-Suite hat 257 PASS und 0 Skips. Beleg: `ci/final-envoy-controls-257-base766-v1.json`. Die fokussierten Fehlerproben-Kontrollen haben 16 PASS, die separaten Go-Testproxy-Kontrollen 10 PASS. Diese Kontrollen qualifizieren den Hostlauf nicht automatisch.
 
 Jeder Producer bietet `--help`. Native Vorbereitung benötigt eine neue
 registrierte externe Laufwurzel, den aktuellen Checkout, den vorhandenen
@@ -93,7 +93,7 @@ Die Quellrevision der historisch qualifizierten nativen und Hostevidenz bleibt
 `f27eb59b53beff6f65384fc2e5037881a3052c01`. Der exakte Base-Head
 `a62296fb57263f9be18c6ac879e36e0ab2a9935c` wurde in
 `dfb1a07a863530a53c0006ee204319453d66a2ad` gemergt. Ein separates
-hashgebundenes Supplement `current-base-evidence-v1.json` bindet jetzt die
+hashgebundenes Supplement `current-base-evidence-v1.json` bindet die historischen
 finalen Receipts `current-base-a622-native-v3` und `current-base-a622-host-v3`.
 Der Engine-Build nutzt das von der Base verlangte Go 1.27.2 und x/net 0.61.0;
 das auf dem Host installierte Go 1.27.3 ist eine separate Umgebungsbeobachtung.
@@ -103,7 +103,7 @@ bestanden. Frühere Build-/Hostversuche mit Go 1.27.3 bleiben ersetzt. Ein Build
 mit gemischter Toolchain scheiterte vor dem Hoststart und bleibt verworfene
 Evidenz. Frühere Zulassungsfehler behalten Exit 77 ohne Cleanup-Aussage.
 
-Alle drei finalen Proben der aktuellen Base haben Runner-Exit 0, zwei vollständige
+Alle drei finalen a622-Proben haben Runner-Exit 0, zwei vollständige
 Backendrequests, physische Eventlogs und geprüftes Cleanup ohne Survivors oder
 Mountleaks. Jede Route beobachtet Zielrequest/-response mit 95/96 Bytes sowie
 unabhängigen Nachbarrequest/-response mit 6/7 Bytes. Ihre Verträge bleiben getrennt:
@@ -134,7 +134,41 @@ Das Supplement qualifiziert keine Original-ID und ergänzt keinen Oracle-
 Fortschritt. Die historischen Messungs-/Retake-Zahlen bleiben unverändert.
 Die erhaltene Baseline und physischen Quellen wurden mit aktuellen zentralen
 Validatoren erneut geprüft; dieser Envoy-Task änderte keinen gemeinsamen
-Validator. Begrenzte Dokumentationsevidenz: `ci/docs-postmerge-a622-v4.json`.
+Validator. Begrenzte Dokumentationsevidenz: `ci/docs-base766-v1.json`.
+
+Die Base rückte danach auf `e4c872cde16eb73182de49c09a8ba8ee4219b417`
+und `afaf6305bd55646073c3b40632b52fc4e5edf714` vor; beide wurden durch normale
+Merges integriert. `current-base-e4-evidence-v2.json` erhält den nativen e4-PASS,
+den ersten ext_proc-Timeout und den erfolgreichen Host-Retake.
+`current-base-afaf-evidence-v3.json` bindet diese Historie an die frische Receipt
+`current-base-afaf-native-v3` und
+`current-base-afaf-host-v2/physical-review-v2.json`. Alle 16 nativen afaf-Schritte
+einschließlich Go/CGo, Race und Vet bestehen. Engine-Go1.27.2,
+Hostumgebungs-Go1.27.3, SDK3.0.14 und Envoy1.39.1 bleiben unabhängig identifiziert.
+Alle 2.196 Buildquellen und die 155 Objekte/10 Profile der aktuellen Registry
+sind ohne Änderung des gemeinsamen Manifests geprüft. Frühere afaf-Build- und
+Admission-Fehler bleiben erhalten.
+
+Die Delivery-Base rückte danach durch einen normalen Merge auf
+`76672071c3f7665dfde3340bef9e64271d6f6e70` vor. Ihr geerbtes Delta ändert nur
+zwei Parent-Testfixtures und deren eigenen EN/DE-Change-Record; Envoy-, Runtime-,
+Capture-, Dependency- und Buildeingaben bleiben unverändert. afaf bleibt deshalb
+die letzte Quellrevision echter nativer Envoy-/Hostevidenz. 766 erhält keine
+neue Hostausführung, keinen Lifecycle-PASS und keinen Oracle-Fortschritt.
+
+Die drei afaf-host-v2-Runner enden mit Exit0, jeweils mit Zielrequest/-response
+95/96 Bytes, Nachbar 6/7 Bytes, zwei Backendrequests sowie physischem
+Finish/Free/Cleanup ohne Survivors oder Mountleaks. ext_proc beobachtet P1–P4
+und native Chunks 64/31/0-EOS sowie 64/32/0-EOS; sein Nachbar läuft sequenziell.
+Authorization liefert ein vollständiges 95-Byte-Sample unter dem Hostbuffer-Vertrag
+und prüft keinen Host-Reject, keine native Limitentscheidung, Intervention oder
+technisches Runtimeversagen. Die Companion-Lease ist allocationsgebunden;
+Wire-Token-Gleichheit bleibt unbelegt. P3 liegt vor Commit und das erste
+Client-Entitybyte vor P4. P4-Strict-Unterstützung ist nicht belegt. Nicht
+zugeordnete Authorization-Trailer und fehlende Remote-Process-Status bleiben
+unbekannt, erfolgreicher Abschluss false. Diese ergänzenden Läufe erhöhen keine
+Original-ID, Lifecycle-PASS oder Oracle-Fortschritte; 7 PASS/118 offen,
+86 historische Hostmessungen und 37 Retakes für 33 IDs bleiben unverändert.
 
 Die echte ext_proc-Fehlerprobe `fault-host-v1` verwirft ausschließlich den leeren Response-EOS-Callback und führt einen tatsächlichen Half-Close aus. Engine-API und dem Zielstream eindeutig zugeordneter Envoy-Trace melden gRPC-Status14. Der Client empfängt einen HTTP200-Präfix mit 96 Bodybytes in 64+32, jedoch keinen Nullchunk. Runner77/Controller1/Client1 bleiben unqualifiziert; neue PASS: 0. Am Ziel sind P1–P3 und P4=0, ein `runtime_finish`-Versuch mit Result0 sowie Logging/Free/Cleanup jeweils1 beobachtet. Der gesunde Nachbar hat P1–P4/Finish jeweils1; Survivors und Mountleaks fehlen. Der Proxy-Wirestatus bleibt unbeobachtet. Fehlender Status wird nicht als erfolgreicher Abschluss interpretiert.
 

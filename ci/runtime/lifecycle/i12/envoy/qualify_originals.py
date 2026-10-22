@@ -145,7 +145,7 @@ def write(path, value):
         os.close(directory)
 
 
-def identity(record, shape):
+def identity(record, shape, source_root=None):
     ids = record['case'].get('original_case_ids')
     if not isinstance(ids, list) or len(ids) != 1 or ids[0] not in ALLOWED:
         raise ValueError('only the explicitly selected singleton original IDs are supported')
@@ -166,15 +166,35 @@ def identity(record, shape):
     if (oracle is None or canonical(oracle) != canonical(shape.get('approved_source_oracle'))
             or canonical(oracle) != canonical(record['case'].get('approved_source_oracle'))):
         raise ValueError('independently specified source oracle differs from executed fixture')
-    verify_source_refs(matches[0].get('source_refs', []))
+    verify_source_refs(matches[0].get('source_refs', []), source_root)
     return original, route, oracle, review_ref
 
 
-def verify_source_refs(refs):
+def verify_source_refs(refs, source_root=None):
     for ref in refs:
         path = Path(ref['path'])
-        physical = path if path.is_absolute() else REPO / path
-        verified = verify_ref(dict(ref, path=str(physical)))
+        if not path.is_absolute() and ('..' in path.parts or any(
+                part in ('.git', '.aws', '.codex', '.agents') for part in path.parts)):
+            raise ValueError('source reference path is not a product path')
+        candidates = [path] if path.is_absolute() else [REPO / path]
+        if not path.is_absolute() and source_root is not None:
+            root = Path(source_root)
+            if not root.is_absolute() or '..' in root.parts:
+                raise ValueError('historical source root must be absolute without traversal')
+            historical = root / path
+            if historical != candidates[0]:
+                candidates.append(historical)
+        verified = None
+        for physical in candidates:
+            if not physical.is_file():
+                continue
+            actual = reference(physical)
+            if actual['sha256'] == ref['sha256'] and (
+                    'bytes' not in ref or actual['bytes'] == ref['bytes']):
+                verified = actual
+                break
+        if verified is None:
+            raise ValueError('physical reference changed: ' + ref['path'])
         if type(ref.get('line')) is not int or not 1 <= ref['line'] <= len(read_bytes(verified['path']).splitlines()):
             raise ValueError('source reference line is not physically bounded')
 
@@ -731,7 +751,7 @@ def stage_one(record, parent, runs_path, helpers, output):
     spec = load(record['case']['spec'])
     fixture = Path(next(row['source'] for row in spec['bindings'] if row['target'] == '/mnt/fixtures'))
     shape = load(fixture / SHAPE_FILE)
-    original, route, oracle, source_ref = identity(record, shape)
+    original, route, oracle, source_ref = identity(record, shape, helpers.parents[1])
     review_document = load(source_ref['path'])
     review_row = next(row for row in review_document.get('records', review_document.get('rows', []))
                       if row['run_scoped_case_id'] == original)
@@ -813,11 +833,12 @@ def validate_approved(path):
     verify_ref(mapping['source_review'])
     shape = load(verify_ref(mapping['shape'])['path'])
     record = packet['reproduction']['record']
-    actual_id, route, oracle, _ = identity(record, shape)
+    helpers = Path(packet['reproduction']['helpers'])
+    actual_id, route, oracle, _ = identity(record, shape, helpers.parents[1])
     if actual_id != original or route != packet['leg_id'] or canonical(oracle) != canonical(packet['effective_oracle']):
         raise ValueError('approved original oracle changed')
     REVIEW.BINDING_CACHE.clear()
-    transport, capture, _ = REVIEW.parser_modules(Path(packet['reproduction']['helpers']))
+    transport, capture, _ = REVIEW.parser_modules(helpers)
     summary = REVIEW.review_run(record, transport, capture, packet['parent_sha'])
     expected = expected_contract(oracle, shape)
     expected.update(fixture_probe_rules(Path(mapping['shape']['path']).parent))
