@@ -11,7 +11,7 @@ Load only the policies needed for the current task. `AGENTS.md` is the concise e
 | Feasibility / prerequisites / execution go-no-go | `feasibility-policy.md` |
 | Parent/Common/connector/Framework ownership | `architecture-and-boundaries.md` |
 | Feature, bugfix, refactor, behavior change | `change-workflow.md` |
-| Tests, command selection, evidence meaning | `testing-and-evidence.md` |
+| Tests, compact default-suite cap, command selection, evidence meaning | `testing-and-evidence.md` |
 | Shell/project command execution and RTK | `command-execution-policy.md` |
 | Storage, CPU, memory, worktrees, caches | `resources-and-storage.md` |
 | Security-sensitive work | `security-policy.md` |

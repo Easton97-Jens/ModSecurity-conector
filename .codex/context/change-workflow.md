@@ -28,6 +28,6 @@ Do not accept a report as proven. Reproduce the defect where practical, separate
 
 ## Verification
 
-Run the narrowest applicable real checks first, then broader checks only as required by scope/risk. For bugfixes rerun the original reproducer and legitimate control. For security-relevant changes also apply `security-policy.md`.
+Apply the compact default-suite scope and stop rule in `testing-and-evidence.md`. Run the narrowest applicable real checks for the changed behavior; broader assessment work must be explicitly scoped. For bugfixes rerun the original reproducer and legitimate control within that selection. For security-relevant changes also apply `security-policy.md`. Report any required missing validation honestly instead of expanding a routine task into historical matrix completion.
 
 Use `definition-of-done.md` for completion.
