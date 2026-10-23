@@ -23,6 +23,11 @@ for the changed behavior still prevents `complete`, and existing mandatory CI,
 security and release gates retain their own requirements. Completing a scoped
 task is not a claim of full connector or historical-matrix acceptance.
 
+For the user-reduced I12 closeout associated with PRs #382 and #410, use the finite
+existing-evidence deliverables in `testing-and-evidence.md`. Completion of that
+closeout does not require completing the historical matrix or running more
+tests, and does not establish product merge or release readiness.
+
 ## Universal completion invariants
 
 Before `complete`:

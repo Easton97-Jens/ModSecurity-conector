@@ -78,13 +78,88 @@ Inventory creation, case consolidation/archive selection and runner/CI wiring
 are a separately scoped migration; a policy-only change must not perform them
 implicitly. Until that migration is verified, disclose the actual suite state
 and do not claim that the technical cap is enforced or that the full old matrix
-has been accepted.
+has been accepted. The I12 instruction to stop additional work applies when this
+policy is active; this alone does not stop already configured automatic jobs or
+prove that their selection has changed.
 
 The migration must demonstrate that every automatic default selection path uses
 the authoritative inventory, the expanded active count is at most 100, and an
 over-limit selection fails before test execution. Document the retained and
 removed coverage. These are future implementation acceptance criteria, not new
 test results or commands supplied by this policy.
+
+## I12 closeout for PRs #382 and #410: existing evidence only
+
+### Binding work stop
+
+The user-directed I12 closeout replaces the previous full-matrix qualification
+mission for product PR #382, related harness/evidence PR #410 and their stacked
+I12 evidence work. Apply this reduced scope to
+continuations, delegated work and old task/checklist instructions. Older demands
+to exhaust all I12 IDs, Oracles or evidence packets do not reopen the campaign.
+Only a new explicit user request for additional I12 assessment can reopen it.
+
+Do not create additional I12 tests, fixtures, Oracles, harness extensions or
+qualification campaigns. Do not execute or re-execute existing tests to complete
+I12, fill an evidence gap, refresh a historical PASS or reach the 100-case limit.
+The remaining I12 work is limited to reading, selecting and consolidating
+existing evidence and recording the closure.
+
+### Frozen selection and proof
+
+Freeze at most 100 already evidenced cases within the single project-wide active
+inventory above. This is not an additional I12 allowance: other active Common,
+connector and infrastructure cases consume the same budget. A smaller supported
+selection is valid; never add cases or launch runs to fill unused places.
+
+Each selected case must have a stable ID, requirement, connector/profile,
+precisely stated evidence layer, actual result, relevant source/build revisions,
+configuration identity, run identity/date and an accessible retained evidence
+reference. Preserve available artifact digests. A summary's PASS label without
+adequate underlying evidence is not enough. Select by distinct behavior and
+material risk, not by taking the first 100 green records.
+
+Keep evidence bound to the revision and claim it actually proves. An older PASS
+does not qualify the current head of PR #382 or #410. Without existing proof of
+applicability, retain the historical result and mark the current-head claim as
+not verified.
+Unavailable or incomplete evidence stays explicitly unqualified. These limits
+must be recorded, not repaired through another I12 test campaign.
+
+### Finite closure deliverables
+
+Close the reduced I12 work after producing:
+
+1. one frozen selection, its actual expanded count of at most 100, the retained
+   requirements and the existing evidence references;
+2. an archive disposition for the remaining historical cases and gaps, retaining
+   their original results and references; existing ledgers may be linked rather
+   than copied, regenerated or revalidated;
+3. one concise closure report stating the selected scope, evidence revisions,
+   uncovered requirements, known relevant product defects and current PR #382 / #410
+   delivery/check limitations from existing records.
+
+Report I12 work as closed at the user-reduced scope only when these deliverables
+exist. This is not full historical-matrix acceptance and must not redefine an
+existing full-acceptance flag such as `I12_COMPLETE`. Preserve failed and
+unqualified results; excluding a known defect from the active selection does not
+resolve it. Archived gaps create no automatic follow-up work or repeated requests
+to continue testing.
+
+### PR #382 / #410 delivery boundary
+
+Incomplete historical I12 coverage alone must not keep the scoped product
+delivery open. Evaluate PRs #382 and #410 at their respective heads against their
+changed behavior, known relevant defects and mandatory current-head CI, security
+and release requirements. Limit any separately authorized remediation to the concrete
+remaining issue; it must not reactivate the historical I12 matrix.
+
+The I12 work stop does not bypass a mandatory gate or authorize additional test
+execution for its remediation. If necessary validation cannot be completed
+within the current authority, report that specific criterion and stop. In that
+case, do not claim merge readiness, current-head runtime qualification or release
+approval.
+Use `delivery-and-ci.md` for delivery; merge still needs its own authorization.
 
 ## Evidence layers
 
