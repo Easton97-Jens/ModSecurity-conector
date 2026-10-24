@@ -111,5 +111,17 @@ through the RTK-wrapped Parent interpreter (3.14.4). Selection preflight confirm
 that these 13 scenarios are a subset of the existing 75-case inventory.
 The task-owned command, selection, patch digest and result are retained at
 `/var/tmp/codex/ModSecurity-conector/runs/pr382-integrate410-20261024`.
-Hosted 3.14.7 checks and exact-head Sonar for this unpublished follow-up remain
-pending. Existing historical results keep their original revision bindings.
+Hosted Python3.14.7 checks and exact-head Sonar remain separate evidence.
+Existing historical results keep their original revision bindings.
+
+The published Apache repair `525d3e5e8a0788c46455b0cab4cd775f2190a325` exposed
+`TestMiddlewareCancellationAfterClaimSendsBoundedCancel` failing in hosted
+Go1.27.2 (job `120833096999`). A CLAIM cancellation watcher could outlive
+`session.exchange` and poison the subsequent CANCEL deadline. The correction in
+`observer.go` joins the watcher before unlocking. The new deterministic
+`TestSessionExchangeJoinsCanceledDeadlineWriter` fails at its intended assertion
+on the original source and passes with the fix; the existing CANCEL case also
+passes (two selected unit scenarios, no retries, local Go1.27.3).
+Commands, baseline/fixed logs and source digests are retained in the same task
+run root. `observer_test.go` adds this regression without removing assertions.
+Automatic exact-head verification for this second source correction is pending.
