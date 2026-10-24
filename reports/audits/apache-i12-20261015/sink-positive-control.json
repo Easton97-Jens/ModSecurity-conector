@@ -1,0 +1,3357 @@
+{
+  "schema": "apache-i12-sink-positive-control-readback-v1",
+  "scope": "independent readback of retained raw native Apache control and five faults; no new host execution",
+  "positive_control": {
+    "attempt": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073534781251883",
+    "case_id": "E2E-APACHE-SINK-NO-FAULT-CONTROL",
+    "fault": "observe",
+    "configured_sink": "/var/tmp/codex/ModSecurity-conector/apache-sinks/no-fault-control/events.jsonl",
+    "physical_event_file": {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073534781251883/data/apache-sinks/no-fault-control/events.jsonl",
+      "sha256": "361048d43ff20168f1db57964bd078b834cb3417e7cac600cda82e574e0bdab4",
+      "bytes": 4237
+    },
+    "retained_event_file_is_configured_sink": true,
+    "physical_main_events": [
+      {
+        "event": "rule_match",
+        "rule_id": "120001",
+        "http_status": 0,
+        "transaction_id": "20261015-apache-sink-observe-main"
+      },
+      {
+        "event": "phase1_intervention",
+        "rule_id": "120016",
+        "http_status": 403,
+        "transaction_id": "20261015-apache-sink-observe-main"
+      }
+    ],
+    "actual_native_log_ruleids": [
+      "120001"
+    ],
+    "independent_native_rule_id_120016": null,
+    "retained_audit_files": [],
+    "native_audit_rule_ids": null,
+    "configured_rule_120016": "modsecurity_rules 'SecRule REQUEST_URI \"@streq /sink-disruptive\" \"id:120016,phase:1,deny,status:403,log,msg:I12-sink-mandatory-control\"'",
+    "apr_calls": [
+      {
+        "pid": 304,
+        "stage": "apr_os_file_put",
+        "result": 0,
+        "errno_at_return": 0,
+        "fd": 12,
+        "requested_bytes": 0,
+        "written_bytes": 0,
+        "action": "none",
+        "operation_result": 0,
+        "operation_errno": 0,
+        "fd_valid_before": 1,
+        "fd_valid_after": 1
+      },
+      {
+        "pid": 304,
+        "stage": "apr_file_write_full",
+        "result": 0,
+        "errno_at_return": 0,
+        "fd": 12,
+        "requested_bytes": 1052,
+        "written_bytes": 1052,
+        "action": "none",
+        "operation_result": 0,
+        "operation_errno": 0,
+        "fd_valid_before": 1,
+        "fd_valid_after": 1
+      },
+      {
+        "pid": 304,
+        "stage": "apr_file_close",
+        "result": 0,
+        "errno_at_return": 0,
+        "fd": 12,
+        "requested_bytes": 0,
+        "written_bytes": 0,
+        "action": "none",
+        "operation_result": 0,
+        "operation_errno": 0,
+        "fd_valid_before": 1,
+        "fd_valid_after": 0
+      },
+      {
+        "pid": 304,
+        "stage": "apr_os_file_put",
+        "result": 0,
+        "errno_at_return": 0,
+        "fd": 12,
+        "requested_bytes": 0,
+        "written_bytes": 0,
+        "action": "none",
+        "operation_result": 0,
+        "operation_errno": 0,
+        "fd_valid_before": 1,
+        "fd_valid_after": 1
+      },
+      {
+        "pid": 304,
+        "stage": "apr_file_write_full",
+        "result": 0,
+        "errno_at_return": 0,
+        "fd": 12,
+        "requested_bytes": 1087,
+        "written_bytes": 1087,
+        "action": "none",
+        "operation_result": 0,
+        "operation_errno": 0,
+        "fd_valid_before": 1,
+        "fd_valid_after": 1
+      },
+      {
+        "pid": 304,
+        "stage": "apr_file_close",
+        "result": 0,
+        "errno_at_return": 0,
+        "fd": 12,
+        "requested_bytes": 0,
+        "written_bytes": 0,
+        "action": "none",
+        "operation_result": 0,
+        "operation_errno": 0,
+        "fd_valid_before": 1,
+        "fd_valid_after": 0
+      },
+      {
+        "pid": 304,
+        "stage": "apr_os_file_put",
+        "result": 0,
+        "errno_at_return": 0,
+        "fd": 12,
+        "requested_bytes": 0,
+        "written_bytes": 0,
+        "action": "none",
+        "operation_result": 0,
+        "operation_errno": 0,
+        "fd_valid_before": 1,
+        "fd_valid_after": 1
+      },
+      {
+        "pid": 304,
+        "stage": "apr_file_write_full",
+        "result": 0,
+        "errno_at_return": 0,
+        "fd": 12,
+        "requested_bytes": 1049,
+        "written_bytes": 1049,
+        "action": "none",
+        "operation_result": 0,
+        "operation_errno": 0,
+        "fd_valid_before": 1,
+        "fd_valid_after": 1
+      },
+      {
+        "pid": 304,
+        "stage": "apr_file_close",
+        "result": 0,
+        "errno_at_return": 0,
+        "fd": 12,
+        "requested_bytes": 0,
+        "written_bytes": 0,
+        "action": "none",
+        "operation_result": 0,
+        "operation_errno": 0,
+        "fd_valid_before": 1,
+        "fd_valid_after": 0
+      },
+      {
+        "pid": 304,
+        "stage": "apr_os_file_put",
+        "result": 0,
+        "errno_at_return": 0,
+        "fd": 13,
+        "requested_bytes": 0,
+        "written_bytes": 0,
+        "action": "none",
+        "operation_result": 0,
+        "operation_errno": 0,
+        "fd_valid_before": 1,
+        "fd_valid_after": 1
+      },
+      {
+        "pid": 304,
+        "stage": "apr_file_write_full",
+        "result": 0,
+        "errno_at_return": 0,
+        "fd": 13,
+        "requested_bytes": 1049,
+        "written_bytes": 1049,
+        "action": "none",
+        "operation_result": 0,
+        "operation_errno": 0,
+        "fd_valid_before": 1,
+        "fd_valid_after": 1
+      },
+      {
+        "pid": 304,
+        "stage": "apr_file_close",
+        "result": 0,
+        "errno_at_return": 0,
+        "fd": 13,
+        "requested_bytes": 0,
+        "written_bytes": 0,
+        "action": "none",
+        "operation_result": 0,
+        "operation_errno": 0,
+        "fd_valid_before": 1,
+        "fd_valid_after": 0
+      }
+    ],
+    "clients": [
+      {
+        "role": "main",
+        "transaction_id": "20261015-apache-sink-observe-main",
+        "actual_waited_exit": 0,
+        "actual_process": {
+          "argv": [
+            "rtk",
+            "proxy",
+            "/usr/local/bin/python3",
+            "/mnt/fixtures/curl-raw-client.py",
+            "-sS",
+            "--http1.1",
+            "-D",
+            "/task/client/main.headers",
+            "-X",
+            "GET",
+            "-o",
+            "/task/client/main.body",
+            "-w",
+            "%{http_code}",
+            "-H",
+            "X-I12-ID: 20261015-apache-sink-observe-main",
+            "http://127.0.0.1:40785/sink-disruptive"
+          ],
+          "cwd": "/var/tmp/codex/ModSecurity-conector/apache-sinks/no-fault-control",
+          "wrapper_pid": 334,
+          "started_unix_ns": 1792073572238889130,
+          "waited_exit": 0,
+          "ended_unix_ns": 1792073572905121864,
+          "role": "main",
+          "request_id": "20261015-apache-sink-observe-main",
+          "uri": "/sink-disruptive",
+          "actual_waited_exit_code": 0,
+          "stdout_bytes": 3,
+          "stderr_bytes": 0,
+          "client_process_correlation_id": "1792073572237261040"
+        },
+        "status": 403,
+        "entity_bytes": 239,
+        "physical_client_body": {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073534781251883/data/client/main.body",
+          "sha256": "ab768623070128ccef048c88def86155dbe776c3d8db423cc8fa89432673d8a8",
+          "bytes": 239
+        },
+        "body_hash_matches_receipt": true,
+        "tcp_eof": true,
+        "tcp_reset": false,
+        "backend_requests": 0,
+        "native_return_counts": {
+          "common_init": 1,
+          "native_new_with_id": 1,
+          "native_intervention": 3,
+          "native_process_request_headers": 1,
+          "common_complete_phase": 1,
+          "common_finish": 1,
+          "native_process_logging": 1,
+          "common_cleanup": 1,
+          "native_cleanup": 1
+        },
+        "native_interventions": [
+          {
+            "sequence": 9,
+            "result": 0,
+            "intervention_status": null,
+            "intervention_disruptive": null
+          },
+          {
+            "sequence": 11,
+            "result": 0,
+            "intervention_status": null,
+            "intervention_disruptive": null
+          },
+          {
+            "sequence": 15,
+            "result": 1,
+            "intervention_status": 403,
+            "intervention_disruptive": 1
+          }
+        ],
+        "native_cleanup_exactly_once": true,
+        "common_cleanup_exactly_once": true,
+        "native_logging_returns": [
+          1
+        ],
+        "common_finish_returns": [
+          0
+        ]
+      },
+      {
+        "role": "followup",
+        "transaction_id": "20261015-apache-sink-observe-followup",
+        "actual_waited_exit": 0,
+        "actual_process": {
+          "argv": [
+            "rtk",
+            "proxy",
+            "/usr/local/bin/python3",
+            "/mnt/fixtures/curl-raw-client.py",
+            "-sS",
+            "--http1.1",
+            "-D",
+            "/task/client/followup.headers",
+            "-X",
+            "GET",
+            "-o",
+            "/task/client/followup.body",
+            "-w",
+            "%{http_code}",
+            "-H",
+            "X-I12-ID: 20261015-apache-sink-observe-followup",
+            "http://127.0.0.1:40785/followup"
+          ],
+          "cwd": "/var/tmp/codex/ModSecurity-conector/apache-sinks/no-fault-control",
+          "wrapper_pid": 338,
+          "started_unix_ns": 1792073573107316912,
+          "waited_exit": 0,
+          "ended_unix_ns": 1792073574274505977,
+          "role": "followup",
+          "request_id": "20261015-apache-sink-observe-followup",
+          "uri": "/followup",
+          "actual_waited_exit_code": 0,
+          "stdout_bytes": 3,
+          "stderr_bytes": 0,
+          "client_process_correlation_id": "1792073573106068129"
+        },
+        "status": 200,
+        "entity_bytes": 3,
+        "physical_client_body": {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073534781251883/data/client/followup.body",
+          "sha256": "a12b7cb43c9d9134b5bb1b35e9096b66775d9e92e7611d1cc92b02edd6782a87",
+          "bytes": 3
+        },
+        "body_hash_matches_receipt": true,
+        "tcp_eof": true,
+        "tcp_reset": false,
+        "backend_requests": 1,
+        "native_return_counts": {
+          "common_init": 1,
+          "native_new_with_id": 1,
+          "native_intervention": 7,
+          "native_process_request_headers": 1,
+          "common_complete_phase": 4,
+          "native_process_request_body": 1,
+          "common_record_response_metadata": 1,
+          "native_process_response_headers": 1,
+          "native_append_response_body": 1,
+          "common_set_response_committed": 1,
+          "native_process_response_body": 1,
+          "common_finish": 1,
+          "native_process_logging": 1,
+          "common_cleanup": 1,
+          "native_cleanup": 1
+        },
+        "native_interventions": [
+          {
+            "sequence": 35,
+            "result": 0,
+            "intervention_status": null,
+            "intervention_disruptive": null
+          },
+          {
+            "sequence": 37,
+            "result": 0,
+            "intervention_status": null,
+            "intervention_disruptive": null
+          },
+          {
+            "sequence": 41,
+            "result": 0,
+            "intervention_status": null,
+            "intervention_disruptive": null
+          },
+          {
+            "sequence": 49,
+            "result": 0,
+            "intervention_status": null,
+            "intervention_disruptive": null
+          },
+          {
+            "sequence": 57,
+            "result": 0,
+            "intervention_status": null,
+            "intervention_disruptive": null
+          },
+          {
+            "sequence": 61,
+            "result": 0,
+            "intervention_status": null,
+            "intervention_disruptive": null
+          },
+          {
+            "sequence": 69,
+            "result": 0,
+            "intervention_status": null,
+            "intervention_disruptive": null
+          }
+        ],
+        "native_cleanup_exactly_once": true,
+        "common_cleanup_exactly_once": true,
+        "native_logging_returns": [
+          1
+        ],
+        "common_finish_returns": [
+          0
+        ]
+      },
+      {
+        "role": "neighbor",
+        "transaction_id": "20261015-apache-sink-observe-neighbor",
+        "actual_waited_exit": 0,
+        "actual_process": {
+          "argv": [
+            "rtk",
+            "proxy",
+            "/usr/local/bin/python3",
+            "/mnt/fixtures/curl-raw-client.py",
+            "-sS",
+            "--http1.1",
+            "-D",
+            "/task/client/neighbor.headers",
+            "-X",
+            "GET",
+            "-o",
+            "/task/client/neighbor.body",
+            "-w",
+            "%{http_code}",
+            "-H",
+            "X-I12-ID: 20261015-apache-sink-observe-neighbor",
+            "http://127.0.0.1:40785/neighbor"
+          ],
+          "cwd": "/var/tmp/codex/ModSecurity-conector/apache-sinks/no-fault-control",
+          "wrapper_pid": 343,
+          "started_unix_ns": 1792073574476641338,
+          "waited_exit": 0,
+          "ended_unix_ns": 1792073575493246998,
+          "role": "neighbor",
+          "request_id": "20261015-apache-sink-observe-neighbor",
+          "uri": "/neighbor",
+          "actual_waited_exit_code": 0,
+          "stdout_bytes": 3,
+          "stderr_bytes": 0,
+          "client_process_correlation_id": "1792073574475291814"
+        },
+        "status": 200,
+        "entity_bytes": 3,
+        "physical_client_body": {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073534781251883/data/client/neighbor.body",
+          "sha256": "a12b7cb43c9d9134b5bb1b35e9096b66775d9e92e7611d1cc92b02edd6782a87",
+          "bytes": 3
+        },
+        "body_hash_matches_receipt": true,
+        "tcp_eof": true,
+        "tcp_reset": false,
+        "backend_requests": 1,
+        "native_return_counts": {
+          "common_init": 1,
+          "native_new_with_id": 1,
+          "native_intervention": 7,
+          "native_process_request_headers": 1,
+          "common_complete_phase": 4,
+          "native_process_request_body": 1,
+          "common_record_response_metadata": 1,
+          "native_process_response_headers": 1,
+          "native_append_response_body": 1,
+          "common_set_response_committed": 1,
+          "native_process_response_body": 1,
+          "common_finish": 1,
+          "native_process_logging": 1,
+          "common_cleanup": 1,
+          "native_cleanup": 1
+        },
+        "native_interventions": [
+          {
+            "sequence": 87,
+            "result": 0,
+            "intervention_status": null,
+            "intervention_disruptive": null
+          },
+          {
+            "sequence": 89,
+            "result": 0,
+            "intervention_status": null,
+            "intervention_disruptive": null
+          },
+          {
+            "sequence": 93,
+            "result": 0,
+            "intervention_status": null,
+            "intervention_disruptive": null
+          },
+          {
+            "sequence": 101,
+            "result": 0,
+            "intervention_status": null,
+            "intervention_disruptive": null
+          },
+          {
+            "sequence": 109,
+            "result": 0,
+            "intervention_status": null,
+            "intervention_disruptive": null
+          },
+          {
+            "sequence": 113,
+            "result": 0,
+            "intervention_status": null,
+            "intervention_disruptive": null
+          },
+          {
+            "sequence": 121,
+            "result": 0,
+            "intervention_status": null,
+            "intervention_disruptive": null
+          }
+        ],
+        "native_cleanup_exactly_once": true,
+        "common_cleanup_exactly_once": true,
+        "native_logging_returns": [
+          1
+        ],
+        "common_finish_returns": [
+          0
+        ]
+      }
+    ],
+    "host_cleanup": {
+      "waited_wrapper_exit": -15,
+      "group": 302,
+      "observed_pids": [
+        302,
+        304
+      ],
+      "remaining_pids": [],
+      "listener_closed_observed": true,
+      "observed_unix_ns": 1792073575803457664
+    },
+    "backend_cleanup": {
+      "waited_wrapper_exit": -15,
+      "group": 289,
+      "observed_pids": [
+        289,
+        290
+      ],
+      "remaining_pids": [],
+      "listener_closed_observed": true,
+      "observed_unix_ns": 1792073575912047602
+    },
+    "controller": {
+      "exitcode": 0,
+      "controller_exitcode": 0,
+      "signal": null,
+      "timeout": false,
+      "errors": [],
+      "resource_violation": null,
+      "supervisor_reaped": true,
+      "surviving_namespace_pids": [],
+      "outside_mount_leaks": []
+    },
+    "sampler_errors": [],
+    "sampler_stopped": true,
+    "full_lifecycle_qualified": false,
+    "outcome": null
+  },
+  "faults": [
+    {
+      "attempt": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792072949266210845",
+      "case_id": "E2E-APACHE-INVALID-EVENT-PATH",
+      "fault": "badpath",
+      "configured_sink": "/var/tmp/codex/ModSecurity-conector/apache-sinks/invalid-event-path/missing/events.jsonl",
+      "physical_event_file": {
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792072949266210845/data/apache-sinks/invalid-event-path/events.jsonl",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "retained_event_file_is_configured_sink": false,
+      "physical_main_events": [],
+      "actual_native_log_ruleids": [
+        "120001"
+      ],
+      "independent_native_rule_id_120016": null,
+      "retained_audit_files": [],
+      "native_audit_rule_ids": null,
+      "configured_rule_120016": "modsecurity_rules 'SecRule REQUEST_URI \"@streq /sink-disruptive\" \"id:120016,phase:1,deny,status:403,log,msg:I12-sink-mandatory-control\"'",
+      "apr_calls": [],
+      "clients": [
+        {
+          "role": "main",
+          "transaction_id": "20261015-apache-sink-badpath-main",
+          "actual_waited_exit": 0,
+          "actual_process": {
+            "argv": [
+              "rtk",
+              "proxy",
+              "/usr/local/bin/python3",
+              "/mnt/fixtures/curl-raw-client.py",
+              "-sS",
+              "--http1.1",
+              "-D",
+              "/task/client/main.headers",
+              "-X",
+              "GET",
+              "-o",
+              "/task/client/main.body",
+              "-w",
+              "%{http_code}",
+              "-H",
+              "X-I12-ID: 20261015-apache-sink-badpath-main",
+              "http://127.0.0.1:46665/sink-disruptive"
+            ],
+            "cwd": "/var/tmp/codex/ModSecurity-conector/apache-sinks/invalid-event-path",
+            "wrapper_pid": 334,
+            "started_unix_ns": 1792073004300035849,
+            "waited_exit": 0,
+            "ended_unix_ns": 1792073005423472090,
+            "role": "main",
+            "request_id": "20261015-apache-sink-badpath-main",
+            "uri": "/sink-disruptive",
+            "actual_waited_exit_code": 0,
+            "stdout_bytes": 3,
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073004298540081"
+          },
+          "status": 500,
+          "entity_bytes": 571,
+          "physical_client_body": {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792072949266210845/data/client/main.body",
+            "sha256": "ef5cc4926e43f52cd707499f3721eb8c134884bb8e254e83488ec91abc5c4944",
+            "bytes": 571
+          },
+          "body_hash_matches_receipt": true,
+          "tcp_eof": true,
+          "tcp_reset": false,
+          "backend_requests": 0,
+          "native_return_counts": {
+            "common_init": 1,
+            "native_new_with_id": 1,
+            "native_intervention": 3,
+            "native_process_request_headers": 1,
+            "common_complete_phase": 1,
+            "native_process_logging": 1,
+            "common_cleanup": 1,
+            "native_cleanup": 1
+          },
+          "native_interventions": [
+            {
+              "sequence": 9,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 11,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 15,
+              "result": 1,
+              "intervention_status": 403,
+              "intervention_disruptive": 1
+            }
+          ],
+          "native_cleanup_exactly_once": true,
+          "common_cleanup_exactly_once": true,
+          "native_logging_returns": [
+            1
+          ],
+          "common_finish_returns": []
+        },
+        {
+          "role": "followup",
+          "transaction_id": "20261015-apache-sink-badpath-followup",
+          "actual_waited_exit": 0,
+          "actual_process": {
+            "argv": [
+              "rtk",
+              "proxy",
+              "/usr/local/bin/python3",
+              "/mnt/fixtures/curl-raw-client.py",
+              "-sS",
+              "--http1.1",
+              "-D",
+              "/task/client/followup.headers",
+              "-X",
+              "GET",
+              "-o",
+              "/task/client/followup.body",
+              "-w",
+              "%{http_code}",
+              "-H",
+              "X-I12-ID: 20261015-apache-sink-badpath-followup",
+              "http://127.0.0.1:46665/followup"
+            ],
+            "cwd": "/var/tmp/codex/ModSecurity-conector/apache-sinks/invalid-event-path",
+            "wrapper_pid": 338,
+            "started_unix_ns": 1792073005626492814,
+            "waited_exit": 0,
+            "ended_unix_ns": 1792073007046647184,
+            "role": "followup",
+            "request_id": "20261015-apache-sink-badpath-followup",
+            "uri": "/followup",
+            "actual_waited_exit_code": 0,
+            "stdout_bytes": 3,
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073005624829266"
+          },
+          "status": 200,
+          "entity_bytes": 3,
+          "physical_client_body": {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792072949266210845/data/client/followup.body",
+            "sha256": "a12b7cb43c9d9134b5bb1b35e9096b66775d9e92e7611d1cc92b02edd6782a87",
+            "bytes": 3
+          },
+          "body_hash_matches_receipt": true,
+          "tcp_eof": true,
+          "tcp_reset": false,
+          "backend_requests": 1,
+          "native_return_counts": {
+            "common_init": 1,
+            "native_new_with_id": 1,
+            "native_intervention": 7,
+            "native_process_request_headers": 1,
+            "common_complete_phase": 4,
+            "native_process_request_body": 1,
+            "common_record_response_metadata": 1,
+            "native_process_response_headers": 1,
+            "native_append_response_body": 1,
+            "common_set_response_committed": 1,
+            "native_process_response_body": 1,
+            "native_process_logging": 1,
+            "common_cleanup": 1,
+            "native_cleanup": 1
+          },
+          "native_interventions": [
+            {
+              "sequence": 33,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 35,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 39,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 47,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 55,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 59,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 67,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            }
+          ],
+          "native_cleanup_exactly_once": true,
+          "common_cleanup_exactly_once": true,
+          "native_logging_returns": [
+            1
+          ],
+          "common_finish_returns": []
+        },
+        {
+          "role": "neighbor",
+          "transaction_id": "20261015-apache-sink-badpath-neighbor",
+          "actual_waited_exit": 0,
+          "actual_process": {
+            "argv": [
+              "rtk",
+              "proxy",
+              "/usr/local/bin/python3",
+              "/mnt/fixtures/curl-raw-client.py",
+              "-sS",
+              "--http1.1",
+              "-D",
+              "/task/client/neighbor.headers",
+              "-X",
+              "GET",
+              "-o",
+              "/task/client/neighbor.body",
+              "-w",
+              "%{http_code}",
+              "-H",
+              "X-I12-ID: 20261015-apache-sink-badpath-neighbor",
+              "http://127.0.0.1:46665/neighbor"
+            ],
+            "cwd": "/var/tmp/codex/ModSecurity-conector/apache-sinks/invalid-event-path",
+            "wrapper_pid": 343,
+            "started_unix_ns": 1792073007248847321,
+            "waited_exit": 0,
+            "ended_unix_ns": 1792073008496300563,
+            "role": "neighbor",
+            "request_id": "20261015-apache-sink-badpath-neighbor",
+            "uri": "/neighbor",
+            "actual_waited_exit_code": 0,
+            "stdout_bytes": 3,
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073007247551864"
+          },
+          "status": 200,
+          "entity_bytes": 3,
+          "physical_client_body": {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792072949266210845/data/client/neighbor.body",
+            "sha256": "a12b7cb43c9d9134b5bb1b35e9096b66775d9e92e7611d1cc92b02edd6782a87",
+            "bytes": 3
+          },
+          "body_hash_matches_receipt": true,
+          "tcp_eof": true,
+          "tcp_reset": false,
+          "backend_requests": 1,
+          "native_return_counts": {
+            "common_init": 1,
+            "native_new_with_id": 1,
+            "native_intervention": 7,
+            "native_process_request_headers": 1,
+            "common_complete_phase": 4,
+            "native_process_request_body": 1,
+            "common_record_response_metadata": 1,
+            "native_process_response_headers": 1,
+            "common_set_response_committed": 1,
+            "native_append_response_body": 1,
+            "native_process_response_body": 1,
+            "native_process_logging": 1,
+            "common_cleanup": 1,
+            "native_cleanup": 1
+          },
+          "native_interventions": [
+            {
+              "sequence": 83,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 85,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 89,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 97,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 105,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 111,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 117,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            }
+          ],
+          "native_cleanup_exactly_once": true,
+          "common_cleanup_exactly_once": true,
+          "native_logging_returns": [
+            1
+          ],
+          "common_finish_returns": []
+        }
+      ],
+      "host_cleanup": {
+        "waited_wrapper_exit": -15,
+        "group": 302,
+        "observed_pids": [
+          302,
+          304
+        ],
+        "remaining_pids": [],
+        "listener_closed_observed": true,
+        "observed_unix_ns": 1792073009383966042
+      },
+      "backend_cleanup": {
+        "waited_wrapper_exit": -15,
+        "group": 289,
+        "observed_pids": [
+          289,
+          290
+        ],
+        "remaining_pids": [],
+        "listener_closed_observed": true,
+        "observed_unix_ns": 1792073009509395356
+      },
+      "controller": {
+        "exitcode": 0,
+        "controller_exitcode": 0,
+        "signal": null,
+        "timeout": false,
+        "errors": [],
+        "resource_violation": null,
+        "supervisor_reaped": true,
+        "surviving_namespace_pids": [],
+        "outside_mount_leaks": []
+      },
+      "sampler_errors": [],
+      "sampler_stopped": true,
+      "full_lifecycle_qualified": false,
+      "outcome": null,
+      "source_readback_comparison": {
+        "main_status_matches": true,
+        "apr_calls_match": true,
+        "backend_counts_match": true
+      }
+    },
+    {
+      "attempt": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073014012759912",
+      "case_id": "E2E-APACHE-UNSAFE-DEVFULL",
+      "fault": "devfull",
+      "configured_sink": "/dev/full",
+      "physical_event_file": {
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073014012759912/data/apache-sinks/unsafe-devfull/events.jsonl",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "retained_event_file_is_configured_sink": false,
+      "physical_main_events": [],
+      "actual_native_log_ruleids": [
+        "120001"
+      ],
+      "independent_native_rule_id_120016": null,
+      "retained_audit_files": [],
+      "native_audit_rule_ids": null,
+      "configured_rule_120016": "modsecurity_rules 'SecRule REQUEST_URI \"@streq /sink-disruptive\" \"id:120016,phase:1,deny,status:403,log,msg:I12-sink-mandatory-control\"'",
+      "apr_calls": [],
+      "clients": [
+        {
+          "role": "main",
+          "transaction_id": "20261015-apache-sink-devfull-main",
+          "actual_waited_exit": 0,
+          "actual_process": {
+            "argv": [
+              "rtk",
+              "proxy",
+              "/usr/local/bin/python3",
+              "/mnt/fixtures/curl-raw-client.py",
+              "-sS",
+              "--http1.1",
+              "-D",
+              "/task/client/main.headers",
+              "-X",
+              "GET",
+              "-o",
+              "/task/client/main.body",
+              "-w",
+              "%{http_code}",
+              "-H",
+              "X-I12-ID: 20261015-apache-sink-devfull-main",
+              "http://127.0.0.1:48525/sink-disruptive"
+            ],
+            "cwd": "/var/tmp/codex/ModSecurity-conector/apache-sinks/unsafe-devfull",
+            "wrapper_pid": 334,
+            "started_unix_ns": 1792073090795565229,
+            "waited_exit": 0,
+            "ended_unix_ns": 1792073091716313683,
+            "role": "main",
+            "request_id": "20261015-apache-sink-devfull-main",
+            "uri": "/sink-disruptive",
+            "actual_waited_exit_code": 0,
+            "stdout_bytes": 3,
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073090794305608"
+          },
+          "status": 500,
+          "entity_bytes": 571,
+          "physical_client_body": {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073014012759912/data/client/main.body",
+            "sha256": "ef5cc4926e43f52cd707499f3721eb8c134884bb8e254e83488ec91abc5c4944",
+            "bytes": 571
+          },
+          "body_hash_matches_receipt": true,
+          "tcp_eof": true,
+          "tcp_reset": false,
+          "backend_requests": 0,
+          "native_return_counts": {
+            "common_init": 1,
+            "native_new_with_id": 1,
+            "native_intervention": 3,
+            "native_process_request_headers": 1,
+            "common_complete_phase": 1,
+            "native_process_logging": 1,
+            "common_cleanup": 1,
+            "native_cleanup": 1
+          },
+          "native_interventions": [
+            {
+              "sequence": 9,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 11,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 15,
+              "result": 1,
+              "intervention_status": 403,
+              "intervention_disruptive": 1
+            }
+          ],
+          "native_cleanup_exactly_once": true,
+          "common_cleanup_exactly_once": true,
+          "native_logging_returns": [
+            1
+          ],
+          "common_finish_returns": []
+        },
+        {
+          "role": "followup",
+          "transaction_id": "20261015-apache-sink-devfull-followup",
+          "actual_waited_exit": 0,
+          "actual_process": {
+            "argv": [
+              "rtk",
+              "proxy",
+              "/usr/local/bin/python3",
+              "/mnt/fixtures/curl-raw-client.py",
+              "-sS",
+              "--http1.1",
+              "-D",
+              "/task/client/followup.headers",
+              "-X",
+              "GET",
+              "-o",
+              "/task/client/followup.body",
+              "-w",
+              "%{http_code}",
+              "-H",
+              "X-I12-ID: 20261015-apache-sink-devfull-followup",
+              "http://127.0.0.1:48525/followup"
+            ],
+            "cwd": "/var/tmp/codex/ModSecurity-conector/apache-sinks/unsafe-devfull",
+            "wrapper_pid": 338,
+            "started_unix_ns": 1792073091918974012,
+            "waited_exit": 0,
+            "ended_unix_ns": 1792073092794103232,
+            "role": "followup",
+            "request_id": "20261015-apache-sink-devfull-followup",
+            "uri": "/followup",
+            "actual_waited_exit_code": 0,
+            "stdout_bytes": 3,
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073091917193972"
+          },
+          "status": 200,
+          "entity_bytes": 3,
+          "physical_client_body": {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073014012759912/data/client/followup.body",
+            "sha256": "a12b7cb43c9d9134b5bb1b35e9096b66775d9e92e7611d1cc92b02edd6782a87",
+            "bytes": 3
+          },
+          "body_hash_matches_receipt": true,
+          "tcp_eof": true,
+          "tcp_reset": false,
+          "backend_requests": 1,
+          "native_return_counts": {
+            "common_init": 1,
+            "native_new_with_id": 1,
+            "native_intervention": 7,
+            "native_process_request_headers": 1,
+            "common_complete_phase": 4,
+            "native_process_request_body": 1,
+            "common_record_response_metadata": 1,
+            "native_process_response_headers": 1,
+            "native_append_response_body": 1,
+            "common_set_response_committed": 1,
+            "native_process_response_body": 1,
+            "native_process_logging": 1,
+            "common_cleanup": 1,
+            "native_cleanup": 1
+          },
+          "native_interventions": [
+            {
+              "sequence": 33,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 35,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 39,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 47,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 55,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 59,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 67,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            }
+          ],
+          "native_cleanup_exactly_once": true,
+          "common_cleanup_exactly_once": true,
+          "native_logging_returns": [
+            1
+          ],
+          "common_finish_returns": []
+        },
+        {
+          "role": "neighbor",
+          "transaction_id": "20261015-apache-sink-devfull-neighbor",
+          "actual_waited_exit": 0,
+          "actual_process": {
+            "argv": [
+              "rtk",
+              "proxy",
+              "/usr/local/bin/python3",
+              "/mnt/fixtures/curl-raw-client.py",
+              "-sS",
+              "--http1.1",
+              "-D",
+              "/task/client/neighbor.headers",
+              "-X",
+              "GET",
+              "-o",
+              "/task/client/neighbor.body",
+              "-w",
+              "%{http_code}",
+              "-H",
+              "X-I12-ID: 20261015-apache-sink-devfull-neighbor",
+              "http://127.0.0.1:48525/neighbor"
+            ],
+            "cwd": "/var/tmp/codex/ModSecurity-conector/apache-sinks/unsafe-devfull",
+            "wrapper_pid": 343,
+            "started_unix_ns": 1792073092996929624,
+            "waited_exit": 0,
+            "ended_unix_ns": 1792073094019784805,
+            "role": "neighbor",
+            "request_id": "20261015-apache-sink-devfull-neighbor",
+            "uri": "/neighbor",
+            "actual_waited_exit_code": 0,
+            "stdout_bytes": 3,
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073092995329570"
+          },
+          "status": 200,
+          "entity_bytes": 3,
+          "physical_client_body": {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073014012759912/data/client/neighbor.body",
+            "sha256": "a12b7cb43c9d9134b5bb1b35e9096b66775d9e92e7611d1cc92b02edd6782a87",
+            "bytes": 3
+          },
+          "body_hash_matches_receipt": true,
+          "tcp_eof": true,
+          "tcp_reset": false,
+          "backend_requests": 1,
+          "native_return_counts": {
+            "common_init": 1,
+            "native_new_with_id": 1,
+            "native_intervention": 7,
+            "native_process_request_headers": 1,
+            "common_complete_phase": 4,
+            "native_process_request_body": 1,
+            "common_record_response_metadata": 1,
+            "native_process_response_headers": 1,
+            "native_append_response_body": 1,
+            "common_set_response_committed": 1,
+            "native_process_response_body": 1,
+            "native_process_logging": 1,
+            "common_cleanup": 1,
+            "native_cleanup": 1
+          },
+          "native_interventions": [
+            {
+              "sequence": 83,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 85,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 89,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 97,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 105,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 109,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 117,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            }
+          ],
+          "native_cleanup_exactly_once": true,
+          "common_cleanup_exactly_once": true,
+          "native_logging_returns": [
+            1
+          ],
+          "common_finish_returns": []
+        }
+      ],
+      "host_cleanup": {
+        "waited_wrapper_exit": -15,
+        "group": 302,
+        "observed_pids": [
+          302,
+          304
+        ],
+        "remaining_pids": [],
+        "listener_closed_observed": true,
+        "observed_unix_ns": 1792073094971913458
+      },
+      "backend_cleanup": {
+        "waited_wrapper_exit": -15,
+        "group": 289,
+        "observed_pids": [
+          289,
+          290
+        ],
+        "remaining_pids": [],
+        "listener_closed_observed": true,
+        "observed_unix_ns": 1792073095080576041
+      },
+      "controller": {
+        "exitcode": 0,
+        "controller_exitcode": 0,
+        "signal": null,
+        "timeout": false,
+        "errors": [],
+        "resource_violation": null,
+        "supervisor_reaped": true,
+        "surviving_namespace_pids": [],
+        "outside_mount_leaks": []
+      },
+      "sampler_errors": [],
+      "sampler_stopped": true,
+      "full_lifecycle_qualified": false,
+      "outcome": null,
+      "source_readback_comparison": {
+        "main_status_matches": true,
+        "apr_calls_match": true,
+        "backend_counts_match": true
+      }
+    },
+    {
+      "attempt": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073105048116024",
+      "case_id": "E2E-APACHE-UNWRITABLE-EVENT-SINK",
+      "fault": "unwritable",
+      "configured_sink": "/var/tmp/codex/ModSecurity-conector/apache-sinks/unwritable-event-sink/unwritable/events.jsonl",
+      "physical_event_file": {
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073105048116024/data/apache-sinks/unwritable-event-sink/events.jsonl",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "retained_event_file_is_configured_sink": false,
+      "physical_main_events": [],
+      "actual_native_log_ruleids": [
+        "120001"
+      ],
+      "independent_native_rule_id_120016": null,
+      "retained_audit_files": [],
+      "native_audit_rule_ids": null,
+      "configured_rule_120016": "modsecurity_rules 'SecRule REQUEST_URI \"@streq /sink-disruptive\" \"id:120016,phase:1,deny,status:403,log,msg:I12-sink-mandatory-control\"'",
+      "apr_calls": [],
+      "clients": [
+        {
+          "role": "main",
+          "transaction_id": "20261015-apache-sink-unwritable-main",
+          "actual_waited_exit": 0,
+          "actual_process": {
+            "argv": [
+              "rtk",
+              "proxy",
+              "/usr/local/bin/python3",
+              "/mnt/fixtures/curl-raw-client.py",
+              "-sS",
+              "--http1.1",
+              "-D",
+              "/task/client/main.headers",
+              "-X",
+              "GET",
+              "-o",
+              "/task/client/main.body",
+              "-w",
+              "%{http_code}",
+              "-H",
+              "X-I12-ID: 20261015-apache-sink-unwritable-main",
+              "http://127.0.0.1:59581/sink-disruptive"
+            ],
+            "cwd": "/var/tmp/codex/ModSecurity-conector/apache-sinks/unwritable-event-sink",
+            "wrapper_pid": 334,
+            "started_unix_ns": 1792073167184197088,
+            "waited_exit": 0,
+            "ended_unix_ns": 1792073168858634635,
+            "role": "main",
+            "request_id": "20261015-apache-sink-unwritable-main",
+            "uri": "/sink-disruptive",
+            "actual_waited_exit_code": 0,
+            "stdout_bytes": 3,
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073167182443248"
+          },
+          "status": 500,
+          "entity_bytes": 571,
+          "physical_client_body": {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073105048116024/data/client/main.body",
+            "sha256": "ef5cc4926e43f52cd707499f3721eb8c134884bb8e254e83488ec91abc5c4944",
+            "bytes": 571
+          },
+          "body_hash_matches_receipt": true,
+          "tcp_eof": true,
+          "tcp_reset": false,
+          "backend_requests": 0,
+          "native_return_counts": {
+            "common_init": 1,
+            "native_new_with_id": 1,
+            "native_intervention": 3,
+            "native_process_request_headers": 1,
+            "common_complete_phase": 1,
+            "native_process_logging": 1,
+            "common_cleanup": 1,
+            "native_cleanup": 1
+          },
+          "native_interventions": [
+            {
+              "sequence": 9,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 11,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 15,
+              "result": 1,
+              "intervention_status": 403,
+              "intervention_disruptive": 1
+            }
+          ],
+          "native_cleanup_exactly_once": true,
+          "common_cleanup_exactly_once": true,
+          "native_logging_returns": [
+            1
+          ],
+          "common_finish_returns": []
+        },
+        {
+          "role": "followup",
+          "transaction_id": "20261015-apache-sink-unwritable-followup",
+          "actual_waited_exit": 0,
+          "actual_process": {
+            "argv": [
+              "rtk",
+              "proxy",
+              "/usr/local/bin/python3",
+              "/mnt/fixtures/curl-raw-client.py",
+              "-sS",
+              "--http1.1",
+              "-D",
+              "/task/client/followup.headers",
+              "-X",
+              "GET",
+              "-o",
+              "/task/client/followup.body",
+              "-w",
+              "%{http_code}",
+              "-H",
+              "X-I12-ID: 20261015-apache-sink-unwritable-followup",
+              "http://127.0.0.1:59581/followup"
+            ],
+            "cwd": "/var/tmp/codex/ModSecurity-conector/apache-sinks/unwritable-event-sink",
+            "wrapper_pid": 338,
+            "started_unix_ns": 1792073169060907635,
+            "waited_exit": 0,
+            "ended_unix_ns": 1792073170183628428,
+            "role": "followup",
+            "request_id": "20261015-apache-sink-unwritable-followup",
+            "uri": "/followup",
+            "actual_waited_exit_code": 0,
+            "stdout_bytes": 3,
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073169059593512"
+          },
+          "status": 200,
+          "entity_bytes": 3,
+          "physical_client_body": {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073105048116024/data/client/followup.body",
+            "sha256": "a12b7cb43c9d9134b5bb1b35e9096b66775d9e92e7611d1cc92b02edd6782a87",
+            "bytes": 3
+          },
+          "body_hash_matches_receipt": true,
+          "tcp_eof": true,
+          "tcp_reset": false,
+          "backend_requests": 1,
+          "native_return_counts": {
+            "common_init": 1,
+            "native_new_with_id": 1,
+            "native_intervention": 7,
+            "native_process_request_headers": 1,
+            "common_complete_phase": 4,
+            "native_process_request_body": 1,
+            "common_record_response_metadata": 1,
+            "native_process_response_headers": 1,
+            "native_append_response_body": 1,
+            "common_set_response_committed": 1,
+            "native_process_response_body": 1,
+            "native_process_logging": 1,
+            "common_cleanup": 1,
+            "native_cleanup": 1
+          },
+          "native_interventions": [
+            {
+              "sequence": 33,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 35,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 39,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 47,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 55,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 59,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 67,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            }
+          ],
+          "native_cleanup_exactly_once": true,
+          "common_cleanup_exactly_once": true,
+          "native_logging_returns": [
+            1
+          ],
+          "common_finish_returns": []
+        },
+        {
+          "role": "neighbor",
+          "transaction_id": "20261015-apache-sink-unwritable-neighbor",
+          "actual_waited_exit": 0,
+          "actual_process": {
+            "argv": [
+              "rtk",
+              "proxy",
+              "/usr/local/bin/python3",
+              "/mnt/fixtures/curl-raw-client.py",
+              "-sS",
+              "--http1.1",
+              "-D",
+              "/task/client/neighbor.headers",
+              "-X",
+              "GET",
+              "-o",
+              "/task/client/neighbor.body",
+              "-w",
+              "%{http_code}",
+              "-H",
+              "X-I12-ID: 20261015-apache-sink-unwritable-neighbor",
+              "http://127.0.0.1:59581/neighbor"
+            ],
+            "cwd": "/var/tmp/codex/ModSecurity-conector/apache-sinks/unwritable-event-sink",
+            "wrapper_pid": 343,
+            "started_unix_ns": 1792073170387465793,
+            "waited_exit": 0,
+            "ended_unix_ns": 1792073172290927263,
+            "role": "neighbor",
+            "request_id": "20261015-apache-sink-unwritable-neighbor",
+            "uri": "/neighbor",
+            "actual_waited_exit_code": 0,
+            "stdout_bytes": 3,
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073170384785881"
+          },
+          "status": 200,
+          "entity_bytes": 3,
+          "physical_client_body": {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073105048116024/data/client/neighbor.body",
+            "sha256": "a12b7cb43c9d9134b5bb1b35e9096b66775d9e92e7611d1cc92b02edd6782a87",
+            "bytes": 3
+          },
+          "body_hash_matches_receipt": true,
+          "tcp_eof": true,
+          "tcp_reset": false,
+          "backend_requests": 1,
+          "native_return_counts": {
+            "common_init": 1,
+            "native_new_with_id": 1,
+            "native_intervention": 7,
+            "native_process_request_headers": 1,
+            "common_complete_phase": 4,
+            "native_process_request_body": 1,
+            "common_record_response_metadata": 1,
+            "native_process_response_headers": 1,
+            "native_append_response_body": 1,
+            "common_set_response_committed": 1,
+            "native_process_response_body": 1,
+            "native_process_logging": 1,
+            "common_cleanup": 1,
+            "native_cleanup": 1
+          },
+          "native_interventions": [
+            {
+              "sequence": 83,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 85,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 89,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 97,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 105,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 109,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 117,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            }
+          ],
+          "native_cleanup_exactly_once": true,
+          "common_cleanup_exactly_once": true,
+          "native_logging_returns": [
+            1
+          ],
+          "common_finish_returns": []
+        }
+      ],
+      "host_cleanup": {
+        "waited_wrapper_exit": -15,
+        "group": 302,
+        "observed_pids": [
+          302,
+          304
+        ],
+        "remaining_pids": [],
+        "listener_closed_observed": true,
+        "observed_unix_ns": 1792073172608754768
+      },
+      "backend_cleanup": {
+        "waited_wrapper_exit": -15,
+        "group": 289,
+        "observed_pids": [
+          289,
+          290
+        ],
+        "remaining_pids": [],
+        "listener_closed_observed": true,
+        "observed_unix_ns": 1792073172721706416
+      },
+      "controller": {
+        "exitcode": 0,
+        "controller_exitcode": 0,
+        "signal": null,
+        "timeout": false,
+        "errors": [],
+        "resource_violation": null,
+        "supervisor_reaped": true,
+        "surviving_namespace_pids": [],
+        "outside_mount_leaks": []
+      },
+      "sampler_errors": [],
+      "sampler_stopped": true,
+      "full_lifecycle_qualified": false,
+      "outcome": null,
+      "source_readback_comparison": {
+        "main_status_matches": true,
+        "apr_calls_match": true,
+        "backend_counts_match": true
+      }
+    },
+    {
+      "attempt": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073178223394485",
+      "case_id": "E2E-APACHE-SINK-CLOSED-DESCRIPTOR",
+      "fault": "closed-descriptor",
+      "configured_sink": "/var/tmp/codex/ModSecurity-conector/apache-sinks/closed-descriptor/events.jsonl",
+      "physical_event_file": {
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073178223394485/data/apache-sinks/closed-descriptor/events.jsonl",
+        "sha256": "6463a23723e06d1ea02352bd4e5bef7ccb8bd4fdd52e93adedab52e2bc966e85",
+        "bytes": 2118
+      },
+      "retained_event_file_is_configured_sink": true,
+      "physical_main_events": [],
+      "actual_native_log_ruleids": [
+        "120001"
+      ],
+      "independent_native_rule_id_120016": null,
+      "retained_audit_files": [],
+      "native_audit_rule_ids": null,
+      "configured_rule_120016": "modsecurity_rules 'SecRule REQUEST_URI \"@streq /sink-disruptive\" \"id:120016,phase:1,deny,status:403,log,msg:I12-sink-mandatory-control\"'",
+      "apr_calls": [
+        {
+          "pid": 304,
+          "stage": "apr_os_file_put",
+          "result": 0,
+          "errno_at_return": 0,
+          "fd": 12,
+          "requested_bytes": 0,
+          "written_bytes": 0,
+          "action": "none",
+          "operation_result": 0,
+          "operation_errno": 0,
+          "fd_valid_before": 1,
+          "fd_valid_after": 1
+        },
+        {
+          "pid": 304,
+          "stage": "apr_file_write_full",
+          "result": 9,
+          "errno_at_return": 9,
+          "fd": 12,
+          "requested_bytes": 1062,
+          "written_bytes": 0,
+          "action": "closed-descriptor",
+          "operation_result": 0,
+          "operation_errno": 0,
+          "fd_valid_before": 1,
+          "fd_valid_after": 0
+        },
+        {
+          "pid": 304,
+          "stage": "apr_file_close",
+          "result": 9,
+          "errno_at_return": 9,
+          "fd": 12,
+          "requested_bytes": 0,
+          "written_bytes": 0,
+          "action": "none",
+          "operation_result": 0,
+          "operation_errno": 0,
+          "fd_valid_before": 0,
+          "fd_valid_after": 0
+        },
+        {
+          "pid": 304,
+          "stage": "apr_os_file_put",
+          "result": 0,
+          "errno_at_return": 0,
+          "fd": 12,
+          "requested_bytes": 0,
+          "written_bytes": 0,
+          "action": "none",
+          "operation_result": 0,
+          "operation_errno": 0,
+          "fd_valid_before": 1,
+          "fd_valid_after": 1
+        },
+        {
+          "pid": 304,
+          "stage": "apr_file_write_full",
+          "result": 0,
+          "errno_at_return": 0,
+          "fd": 12,
+          "requested_bytes": 1059,
+          "written_bytes": 1059,
+          "action": "none",
+          "operation_result": 0,
+          "operation_errno": 0,
+          "fd_valid_before": 1,
+          "fd_valid_after": 1
+        },
+        {
+          "pid": 304,
+          "stage": "apr_file_close",
+          "result": 0,
+          "errno_at_return": 0,
+          "fd": 12,
+          "requested_bytes": 0,
+          "written_bytes": 0,
+          "action": "none",
+          "operation_result": 0,
+          "operation_errno": 0,
+          "fd_valid_before": 1,
+          "fd_valid_after": 0
+        },
+        {
+          "pid": 304,
+          "stage": "apr_os_file_put",
+          "result": 0,
+          "errno_at_return": 0,
+          "fd": 13,
+          "requested_bytes": 0,
+          "written_bytes": 0,
+          "action": "none",
+          "operation_result": 0,
+          "operation_errno": 0,
+          "fd_valid_before": 1,
+          "fd_valid_after": 1
+        },
+        {
+          "pid": 304,
+          "stage": "apr_file_write_full",
+          "result": 0,
+          "errno_at_return": 0,
+          "fd": 13,
+          "requested_bytes": 1059,
+          "written_bytes": 1059,
+          "action": "none",
+          "operation_result": 0,
+          "operation_errno": 0,
+          "fd_valid_before": 1,
+          "fd_valid_after": 1
+        },
+        {
+          "pid": 304,
+          "stage": "apr_file_close",
+          "result": 0,
+          "errno_at_return": 0,
+          "fd": 13,
+          "requested_bytes": 0,
+          "written_bytes": 0,
+          "action": "none",
+          "operation_result": 0,
+          "operation_errno": 0,
+          "fd_valid_before": 1,
+          "fd_valid_after": 0
+        }
+      ],
+      "clients": [
+        {
+          "role": "main",
+          "transaction_id": "20261015-apache-sink-closed-descriptor-main",
+          "actual_waited_exit": 0,
+          "actual_process": {
+            "argv": [
+              "rtk",
+              "proxy",
+              "/usr/local/bin/python3",
+              "/mnt/fixtures/curl-raw-client.py",
+              "-sS",
+              "--http1.1",
+              "-D",
+              "/task/client/main.headers",
+              "-X",
+              "GET",
+              "-o",
+              "/task/client/main.body",
+              "-w",
+              "%{http_code}",
+              "-H",
+              "X-I12-ID: 20261015-apache-sink-closed-descriptor-main",
+              "http://127.0.0.1:59433/sink-disruptive"
+            ],
+            "cwd": "/var/tmp/codex/ModSecurity-conector/apache-sinks/closed-descriptor",
+            "wrapper_pid": 334,
+            "started_unix_ns": 1792073251406146796,
+            "waited_exit": 0,
+            "ended_unix_ns": 1792073252174690625,
+            "role": "main",
+            "request_id": "20261015-apache-sink-closed-descriptor-main",
+            "uri": "/sink-disruptive",
+            "actual_waited_exit_code": 0,
+            "stdout_bytes": 3,
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073251404454203"
+          },
+          "status": 500,
+          "entity_bytes": 571,
+          "physical_client_body": {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073178223394485/data/client/main.body",
+            "sha256": "ef5cc4926e43f52cd707499f3721eb8c134884bb8e254e83488ec91abc5c4944",
+            "bytes": 571
+          },
+          "body_hash_matches_receipt": true,
+          "tcp_eof": true,
+          "tcp_reset": false,
+          "backend_requests": 0,
+          "native_return_counts": {
+            "common_init": 1,
+            "native_new_with_id": 1,
+            "native_intervention": 3,
+            "native_process_request_headers": 1,
+            "common_complete_phase": 1,
+            "native_process_logging": 1,
+            "common_cleanup": 1,
+            "native_cleanup": 1
+          },
+          "native_interventions": [
+            {
+              "sequence": 9,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 11,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 15,
+              "result": 1,
+              "intervention_status": 403,
+              "intervention_disruptive": 1
+            }
+          ],
+          "native_cleanup_exactly_once": true,
+          "common_cleanup_exactly_once": true,
+          "native_logging_returns": [
+            1
+          ],
+          "common_finish_returns": []
+        },
+        {
+          "role": "followup",
+          "transaction_id": "20261015-apache-sink-closed-descriptor-followup",
+          "actual_waited_exit": 0,
+          "actual_process": {
+            "argv": [
+              "rtk",
+              "proxy",
+              "/usr/local/bin/python3",
+              "/mnt/fixtures/curl-raw-client.py",
+              "-sS",
+              "--http1.1",
+              "-D",
+              "/task/client/followup.headers",
+              "-X",
+              "GET",
+              "-o",
+              "/task/client/followup.body",
+              "-w",
+              "%{http_code}",
+              "-H",
+              "X-I12-ID: 20261015-apache-sink-closed-descriptor-followup",
+              "http://127.0.0.1:59433/followup"
+            ],
+            "cwd": "/var/tmp/codex/ModSecurity-conector/apache-sinks/closed-descriptor",
+            "wrapper_pid": 338,
+            "started_unix_ns": 1792073252377669307,
+            "waited_exit": 0,
+            "ended_unix_ns": 1792073253348673351,
+            "role": "followup",
+            "request_id": "20261015-apache-sink-closed-descriptor-followup",
+            "uri": "/followup",
+            "actual_waited_exit_code": 0,
+            "stdout_bytes": 3,
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073252375854405"
+          },
+          "status": 200,
+          "entity_bytes": 3,
+          "physical_client_body": {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073178223394485/data/client/followup.body",
+            "sha256": "a12b7cb43c9d9134b5bb1b35e9096b66775d9e92e7611d1cc92b02edd6782a87",
+            "bytes": 3
+          },
+          "body_hash_matches_receipt": true,
+          "tcp_eof": true,
+          "tcp_reset": false,
+          "backend_requests": 1,
+          "native_return_counts": {
+            "common_init": 1,
+            "native_new_with_id": 1,
+            "native_intervention": 7,
+            "native_process_request_headers": 1,
+            "common_complete_phase": 4,
+            "native_process_request_body": 1,
+            "common_record_response_metadata": 1,
+            "native_process_response_headers": 1,
+            "native_append_response_body": 1,
+            "common_set_response_committed": 1,
+            "native_process_response_body": 1,
+            "common_finish": 1,
+            "native_process_logging": 1,
+            "common_cleanup": 1,
+            "native_cleanup": 1
+          },
+          "native_interventions": [
+            {
+              "sequence": 33,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 35,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 39,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 47,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 55,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 59,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 67,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            }
+          ],
+          "native_cleanup_exactly_once": true,
+          "common_cleanup_exactly_once": true,
+          "native_logging_returns": [
+            1
+          ],
+          "common_finish_returns": [
+            0
+          ]
+        },
+        {
+          "role": "neighbor",
+          "transaction_id": "20261015-apache-sink-closed-descriptor-neighbor",
+          "actual_waited_exit": 0,
+          "actual_process": {
+            "argv": [
+              "rtk",
+              "proxy",
+              "/usr/local/bin/python3",
+              "/mnt/fixtures/curl-raw-client.py",
+              "-sS",
+              "--http1.1",
+              "-D",
+              "/task/client/neighbor.headers",
+              "-X",
+              "GET",
+              "-o",
+              "/task/client/neighbor.body",
+              "-w",
+              "%{http_code}",
+              "-H",
+              "X-I12-ID: 20261015-apache-sink-closed-descriptor-neighbor",
+              "http://127.0.0.1:59433/neighbor"
+            ],
+            "cwd": "/var/tmp/codex/ModSecurity-conector/apache-sinks/closed-descriptor",
+            "wrapper_pid": 343,
+            "started_unix_ns": 1792073253789204660,
+            "waited_exit": 0,
+            "ended_unix_ns": 1792073254756149771,
+            "role": "neighbor",
+            "request_id": "20261015-apache-sink-closed-descriptor-neighbor",
+            "uri": "/neighbor",
+            "actual_waited_exit_code": 0,
+            "stdout_bytes": 3,
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073253787604075"
+          },
+          "status": 200,
+          "entity_bytes": 3,
+          "physical_client_body": {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073178223394485/data/client/neighbor.body",
+            "sha256": "a12b7cb43c9d9134b5bb1b35e9096b66775d9e92e7611d1cc92b02edd6782a87",
+            "bytes": 3
+          },
+          "body_hash_matches_receipt": true,
+          "tcp_eof": true,
+          "tcp_reset": false,
+          "backend_requests": 1,
+          "native_return_counts": {
+            "common_init": 1,
+            "native_new_with_id": 1,
+            "native_intervention": 7,
+            "native_process_request_headers": 1,
+            "common_complete_phase": 4,
+            "native_process_request_body": 1,
+            "common_record_response_metadata": 1,
+            "native_process_response_headers": 1,
+            "native_append_response_body": 1,
+            "common_set_response_committed": 1,
+            "native_process_response_body": 1,
+            "common_finish": 1,
+            "native_process_logging": 1,
+            "common_cleanup": 1,
+            "native_cleanup": 1
+          },
+          "native_interventions": [
+            {
+              "sequence": 85,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 87,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 91,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 99,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 107,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 111,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 119,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            }
+          ],
+          "native_cleanup_exactly_once": true,
+          "common_cleanup_exactly_once": true,
+          "native_logging_returns": [
+            1
+          ],
+          "common_finish_returns": [
+            0
+          ]
+        }
+      ],
+      "host_cleanup": {
+        "waited_wrapper_exit": -15,
+        "group": 302,
+        "observed_pids": [
+          302,
+          304
+        ],
+        "remaining_pids": [],
+        "listener_closed_observed": true,
+        "observed_unix_ns": 1792073255575184805
+      },
+      "backend_cleanup": {
+        "waited_wrapper_exit": -15,
+        "group": 289,
+        "observed_pids": [
+          289,
+          290
+        ],
+        "remaining_pids": [],
+        "listener_closed_observed": true,
+        "observed_unix_ns": 1792073255684170384
+      },
+      "controller": {
+        "exitcode": 0,
+        "controller_exitcode": 0,
+        "signal": null,
+        "timeout": false,
+        "errors": [],
+        "resource_violation": null,
+        "supervisor_reaped": true,
+        "surviving_namespace_pids": [],
+        "outside_mount_leaks": []
+      },
+      "sampler_errors": [],
+      "sampler_stopped": true,
+      "full_lifecycle_qualified": false,
+      "outcome": null,
+      "source_readback_comparison": {
+        "main_status_matches": true,
+        "apr_calls_match": true,
+        "backend_counts_match": true
+      }
+    },
+    {
+      "attempt": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073259732829352",
+      "case_id": "E2E-APACHE-SINK-PHYSICAL-ENOSPC",
+      "fault": "physical-enospc",
+      "configured_sink": "/var/tmp/codex/ModSecurity-conector/apache-sinks/physical-enospc/events.jsonl",
+      "physical_event_file": {
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073259732829352/data/apache-sinks/physical-enospc/events.jsonl",
+        "sha256": "3e85743156b8ad9e4cf46a87ea0cf1375db45a0a8f68ccc9d2e03d1558cc7dc5",
+        "bytes": 2114
+      },
+      "retained_event_file_is_configured_sink": true,
+      "physical_main_events": [],
+      "actual_native_log_ruleids": [
+        "120001"
+      ],
+      "independent_native_rule_id_120016": null,
+      "retained_audit_files": [],
+      "native_audit_rule_ids": null,
+      "configured_rule_120016": "modsecurity_rules 'SecRule REQUEST_URI \"@streq /sink-disruptive\" \"id:120016,phase:1,deny,status:403,log,msg:I12-sink-mandatory-control\"'",
+      "apr_calls": [
+        {
+          "pid": 304,
+          "stage": "apr_os_file_put",
+          "result": 0,
+          "errno_at_return": 0,
+          "fd": 12,
+          "requested_bytes": 0,
+          "written_bytes": 0,
+          "action": "none",
+          "operation_result": 0,
+          "operation_errno": 0,
+          "fd_valid_before": 1,
+          "fd_valid_after": 1
+        },
+        {
+          "pid": 304,
+          "stage": "apr_file_write_full",
+          "result": 28,
+          "errno_at_return": 28,
+          "fd": 12,
+          "requested_bytes": 1060,
+          "written_bytes": 0,
+          "action": "physical-enospc",
+          "operation_result": 12,
+          "operation_errno": 0,
+          "fd_valid_before": 1,
+          "fd_valid_after": 1
+        },
+        {
+          "pid": 304,
+          "stage": "apr_file_close",
+          "result": 0,
+          "errno_at_return": 28,
+          "fd": 12,
+          "requested_bytes": 0,
+          "written_bytes": 0,
+          "action": "none",
+          "operation_result": 0,
+          "operation_errno": 0,
+          "fd_valid_before": 1,
+          "fd_valid_after": 0
+        },
+        {
+          "pid": 304,
+          "stage": "apr_os_file_put",
+          "result": 0,
+          "errno_at_return": 0,
+          "fd": 12,
+          "requested_bytes": 0,
+          "written_bytes": 0,
+          "action": "none",
+          "operation_result": 0,
+          "operation_errno": 0,
+          "fd_valid_before": 1,
+          "fd_valid_after": 1
+        },
+        {
+          "pid": 304,
+          "stage": "apr_file_write_full",
+          "result": 0,
+          "errno_at_return": 0,
+          "fd": 12,
+          "requested_bytes": 1057,
+          "written_bytes": 1057,
+          "action": "none",
+          "operation_result": 0,
+          "operation_errno": 0,
+          "fd_valid_before": 1,
+          "fd_valid_after": 1
+        },
+        {
+          "pid": 304,
+          "stage": "apr_file_close",
+          "result": 0,
+          "errno_at_return": 0,
+          "fd": 12,
+          "requested_bytes": 0,
+          "written_bytes": 0,
+          "action": "none",
+          "operation_result": 0,
+          "operation_errno": 0,
+          "fd_valid_before": 1,
+          "fd_valid_after": 0
+        },
+        {
+          "pid": 304,
+          "stage": "apr_os_file_put",
+          "result": 0,
+          "errno_at_return": 0,
+          "fd": 13,
+          "requested_bytes": 0,
+          "written_bytes": 0,
+          "action": "none",
+          "operation_result": 0,
+          "operation_errno": 0,
+          "fd_valid_before": 1,
+          "fd_valid_after": 1
+        },
+        {
+          "pid": 304,
+          "stage": "apr_file_write_full",
+          "result": 0,
+          "errno_at_return": 0,
+          "fd": 13,
+          "requested_bytes": 1057,
+          "written_bytes": 1057,
+          "action": "none",
+          "operation_result": 0,
+          "operation_errno": 0,
+          "fd_valid_before": 1,
+          "fd_valid_after": 1
+        },
+        {
+          "pid": 304,
+          "stage": "apr_file_close",
+          "result": 0,
+          "errno_at_return": 0,
+          "fd": 13,
+          "requested_bytes": 0,
+          "written_bytes": 0,
+          "action": "none",
+          "operation_result": 0,
+          "operation_errno": 0,
+          "fd_valid_before": 1,
+          "fd_valid_after": 0
+        }
+      ],
+      "clients": [
+        {
+          "role": "main",
+          "transaction_id": "20261015-apache-sink-physical-enospc-main",
+          "actual_waited_exit": 0,
+          "actual_process": {
+            "argv": [
+              "rtk",
+              "proxy",
+              "/usr/local/bin/python3",
+              "/mnt/fixtures/curl-raw-client.py",
+              "-sS",
+              "--http1.1",
+              "-D",
+              "/task/client/main.headers",
+              "-X",
+              "GET",
+              "-o",
+              "/task/client/main.body",
+              "-w",
+              "%{http_code}",
+              "-H",
+              "X-I12-ID: 20261015-apache-sink-physical-enospc-main",
+              "http://127.0.0.1:59945/sink-disruptive"
+            ],
+            "cwd": "/var/tmp/codex/ModSecurity-conector/apache-sinks/physical-enospc",
+            "wrapper_pid": 334,
+            "started_unix_ns": 1792073326831555585,
+            "waited_exit": 0,
+            "ended_unix_ns": 1792073328249914660,
+            "role": "main",
+            "request_id": "20261015-apache-sink-physical-enospc-main",
+            "uri": "/sink-disruptive",
+            "actual_waited_exit_code": 0,
+            "stdout_bytes": 3,
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073326829649763"
+          },
+          "status": 500,
+          "entity_bytes": 571,
+          "physical_client_body": {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073259732829352/data/client/main.body",
+            "sha256": "ef5cc4926e43f52cd707499f3721eb8c134884bb8e254e83488ec91abc5c4944",
+            "bytes": 571
+          },
+          "body_hash_matches_receipt": true,
+          "tcp_eof": true,
+          "tcp_reset": false,
+          "backend_requests": 0,
+          "native_return_counts": {
+            "common_init": 1,
+            "native_new_with_id": 1,
+            "native_intervention": 3,
+            "native_process_request_headers": 1,
+            "common_complete_phase": 1,
+            "native_process_logging": 1,
+            "common_cleanup": 1,
+            "native_cleanup": 1
+          },
+          "native_interventions": [
+            {
+              "sequence": 9,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 11,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 15,
+              "result": 1,
+              "intervention_status": 403,
+              "intervention_disruptive": 1
+            }
+          ],
+          "native_cleanup_exactly_once": true,
+          "common_cleanup_exactly_once": true,
+          "native_logging_returns": [
+            1
+          ],
+          "common_finish_returns": []
+        },
+        {
+          "role": "followup",
+          "transaction_id": "20261015-apache-sink-physical-enospc-followup",
+          "actual_waited_exit": 0,
+          "actual_process": {
+            "argv": [
+              "rtk",
+              "proxy",
+              "/usr/local/bin/python3",
+              "/mnt/fixtures/curl-raw-client.py",
+              "-sS",
+              "--http1.1",
+              "-D",
+              "/task/client/followup.headers",
+              "-X",
+              "GET",
+              "-o",
+              "/task/client/followup.body",
+              "-w",
+              "%{http_code}",
+              "-H",
+              "X-I12-ID: 20261015-apache-sink-physical-enospc-followup",
+              "http://127.0.0.1:59945/followup"
+            ],
+            "cwd": "/var/tmp/codex/ModSecurity-conector/apache-sinks/physical-enospc",
+            "wrapper_pid": 338,
+            "started_unix_ns": 1792073328452958239,
+            "waited_exit": 0,
+            "ended_unix_ns": 1792073329369654683,
+            "role": "followup",
+            "request_id": "20261015-apache-sink-physical-enospc-followup",
+            "uri": "/followup",
+            "actual_waited_exit_code": 0,
+            "stdout_bytes": 3,
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073328451336326"
+          },
+          "status": 200,
+          "entity_bytes": 3,
+          "physical_client_body": {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073259732829352/data/client/followup.body",
+            "sha256": "a12b7cb43c9d9134b5bb1b35e9096b66775d9e92e7611d1cc92b02edd6782a87",
+            "bytes": 3
+          },
+          "body_hash_matches_receipt": true,
+          "tcp_eof": true,
+          "tcp_reset": false,
+          "backend_requests": 1,
+          "native_return_counts": {
+            "common_init": 1,
+            "native_new_with_id": 1,
+            "native_intervention": 7,
+            "native_process_request_headers": 1,
+            "common_complete_phase": 4,
+            "native_process_request_body": 1,
+            "common_record_response_metadata": 1,
+            "native_process_response_headers": 1,
+            "native_append_response_body": 1,
+            "common_set_response_committed": 1,
+            "native_process_response_body": 1,
+            "common_finish": 1,
+            "native_process_logging": 1,
+            "common_cleanup": 1,
+            "native_cleanup": 1
+          },
+          "native_interventions": [
+            {
+              "sequence": 33,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 35,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 39,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 47,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 55,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 59,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 67,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            }
+          ],
+          "native_cleanup_exactly_once": true,
+          "common_cleanup_exactly_once": true,
+          "native_logging_returns": [
+            1
+          ],
+          "common_finish_returns": [
+            0
+          ]
+        },
+        {
+          "role": "neighbor",
+          "transaction_id": "20261015-apache-sink-physical-enospc-neighbor",
+          "actual_waited_exit": 0,
+          "actual_process": {
+            "argv": [
+              "rtk",
+              "proxy",
+              "/usr/local/bin/python3",
+              "/mnt/fixtures/curl-raw-client.py",
+              "-sS",
+              "--http1.1",
+              "-D",
+              "/task/client/neighbor.headers",
+              "-X",
+              "GET",
+              "-o",
+              "/task/client/neighbor.body",
+              "-w",
+              "%{http_code}",
+              "-H",
+              "X-I12-ID: 20261015-apache-sink-physical-enospc-neighbor",
+              "http://127.0.0.1:59945/neighbor"
+            ],
+            "cwd": "/var/tmp/codex/ModSecurity-conector/apache-sinks/physical-enospc",
+            "wrapper_pid": 343,
+            "started_unix_ns": 1792073329572449547,
+            "waited_exit": 0,
+            "ended_unix_ns": 1792073331041999956,
+            "role": "neighbor",
+            "request_id": "20261015-apache-sink-physical-enospc-neighbor",
+            "uri": "/neighbor",
+            "actual_waited_exit_code": 0,
+            "stdout_bytes": 3,
+            "stderr_bytes": 0,
+            "client_process_correlation_id": "1792073329570820063"
+          },
+          "status": 200,
+          "entity_bytes": 3,
+          "physical_client_body": {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073259732829352/data/client/neighbor.body",
+            "sha256": "a12b7cb43c9d9134b5bb1b35e9096b66775d9e92e7611d1cc92b02edd6782a87",
+            "bytes": 3
+          },
+          "body_hash_matches_receipt": true,
+          "tcp_eof": true,
+          "tcp_reset": false,
+          "backend_requests": 1,
+          "native_return_counts": {
+            "common_init": 1,
+            "native_new_with_id": 1,
+            "native_intervention": 7,
+            "native_process_request_headers": 1,
+            "common_complete_phase": 4,
+            "native_process_request_body": 1,
+            "common_record_response_metadata": 1,
+            "native_process_response_headers": 1,
+            "native_append_response_body": 1,
+            "common_set_response_committed": 1,
+            "native_process_response_body": 1,
+            "common_finish": 1,
+            "native_process_logging": 1,
+            "common_cleanup": 1,
+            "native_cleanup": 1
+          },
+          "native_interventions": [
+            {
+              "sequence": 85,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 87,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 91,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 99,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 107,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 111,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            },
+            {
+              "sequence": 119,
+              "result": 0,
+              "intervention_status": null,
+              "intervention_disruptive": null
+            }
+          ],
+          "native_cleanup_exactly_once": true,
+          "common_cleanup_exactly_once": true,
+          "native_logging_returns": [
+            1
+          ],
+          "common_finish_returns": [
+            0
+          ]
+        }
+      ],
+      "host_cleanup": {
+        "waited_wrapper_exit": -15,
+        "group": 302,
+        "observed_pids": [
+          302,
+          304
+        ],
+        "remaining_pids": [],
+        "listener_closed_observed": true,
+        "observed_unix_ns": 1792073331381324311
+      },
+      "backend_cleanup": {
+        "waited_wrapper_exit": -15,
+        "group": 289,
+        "observed_pids": [
+          289,
+          290
+        ],
+        "remaining_pids": [],
+        "listener_closed_observed": true,
+        "observed_unix_ns": 1792073331508098534
+      },
+      "controller": {
+        "exitcode": 0,
+        "controller_exitcode": 0,
+        "signal": null,
+        "timeout": false,
+        "errors": [],
+        "resource_violation": null,
+        "supervisor_reaped": true,
+        "surviving_namespace_pids": [],
+        "outside_mount_leaks": []
+      },
+      "sampler_errors": [],
+      "sampler_stopped": true,
+      "full_lifecycle_qualified": false,
+      "outcome": null,
+      "source_readback_comparison": {
+        "main_status_matches": true,
+        "apr_calls_match": true,
+        "backend_counts_match": true
+      }
+    }
+  ],
+  "interpretation": [
+    "No-fault control emits physical Common rule120001 followed by physical Common phase1 intervention120016 and client403; real native intervention returns disruptive403.",
+    "All five fault clients receive500; their main physical Common120016 event is absent. This does not establish that native120016 was never evaluated: actual native interventions still return disruptive403.",
+    "Closed descriptor and physical ENOSPC fail first real APR write with zero bytes; later followup/neighbor writes succeed with nonzero bytes. Entire event files are therefore nonempty.",
+    "Bad path, direct /dev/full and unwritable paths have no observed APR calls because Common private sink admission precedes APR adoption. Unobserved Common/POSIX errno remains null.",
+    "Physical Common120016 and config binding do not substitute for an independent native audit rule-ID observation; no retained native audit file was found."
+  ],
+  "missing": {
+    "independent_native_audit_120016": null,
+    "default_apache_error_renderer_commit_binding": null,
+    "common_posix_rejected_open_errno": null,
+    "complete_per_case_native_mime_eos_commit_qualification": null
+  },
+  "full_lifecycle_qualified": false,
+  "outcome": null,
+  "evidence": [
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-apache-410-20261015/sink-readback.json",
+      "sha256": "f9c76ceed63b94b1a0b76b03cefe68ffe69ecc9e8960b78dbde4ca600d9891d9",
+      "bytes": 217480
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073534781251883/data/sink-observation.json",
+      "sha256": "cceaa6f6b551b93c92c1ab7bbb5ebdb110a0dc9d2439661093a30e288ca5eeea",
+      "bytes": 73774
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073534781251883/data/apache-native-api.jsonl",
+      "sha256": "0f725eb28d46d7cc8adcac5f34fc26ac8973ea5d986ea99c49b78db8d8c663b7",
+      "bytes": 138858
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073534781251883/data/apache-sinks/backend/requests.jsonl",
+      "sha256": "f369b20882e5dd1953c0bd7bc4bf17d8f8295c5901ba91a0d58694ab4e3ebde5",
+      "bytes": 1076
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073534781251883/data/apache-sinks/no-fault-control/events.jsonl",
+      "sha256": "361048d43ff20168f1db57964bd078b834cb3417e7cac600cda82e574e0bdab4",
+      "bytes": 4237
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073534781251883/data/apache-sinks/no-fault-control/error.log",
+      "sha256": "9455ae0703bdaf3a7fb2f9f3ed68950adcf40a575d3513fd6d6072713667cfa1",
+      "bytes": 4350
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073534781251883/data/client/1792073572237261040.receipt.json",
+      "sha256": "66c26ea422a08d071b6534af9372902508d07d13ca72178da2c933900df357e3",
+      "bytes": 1685
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073534781251883/data/client/1792073572237261040.actual-process.json",
+      "sha256": "c6eb13f3deb7904a7b9610daeb2692936575b77154b8709db8efe86e3f851f5b",
+      "bytes": 799
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073534781251883/data/client/main.body",
+      "sha256": "ab768623070128ccef048c88def86155dbe776c3d8db423cc8fa89432673d8a8",
+      "bytes": 239
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073534781251883/data/client/1792073573106068129.receipt.json",
+      "sha256": "4574774fbe544cd558512f0806e4b5a8c93f9d85e12b2556cb149fb3942304d0",
+      "bytes": 1799
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073534781251883/data/client/1792073573106068129.actual-process.json",
+      "sha256": "9e74e1d99a1775381b80261373063dcae9b564529c189b4c4076cf7f00849041",
+      "bytes": 805
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073534781251883/data/client/followup.body",
+      "sha256": "a12b7cb43c9d9134b5bb1b35e9096b66775d9e92e7611d1cc92b02edd6782a87",
+      "bytes": 3
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073534781251883/data/client/1792073574475291814.receipt.json",
+      "sha256": "de152d6c577d1c6d7a99566fa38391b0b02ff89b6519162364d7f636bb6aa528",
+      "bytes": 1799
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073534781251883/data/client/1792073574475291814.actual-process.json",
+      "sha256": "45efc18363e6a8bd5a9d63028c4890f8f81ed62c34c7464998df379ff3b171f7",
+      "bytes": 805
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073534781251883/data/client/neighbor.body",
+      "sha256": "a12b7cb43c9d9134b5bb1b35e9096b66775d9e92e7611d1cc92b02edd6782a87",
+      "bytes": 3
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073534781251883/data/apache-sinks/no-fault-control/httpd.conf",
+      "sha256": "0566ed8667ccecff432176aa6de4c478b5f43f5edd962295e4e75fd987745ff4",
+      "bytes": 2432
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073534781251883/controller-result.json",
+      "sha256": "e576be375281a843bc7c5e243c639176c29fe4a3b3288a79a2ed4f9f7379232a",
+      "bytes": 4574
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792072949266210845/data/sink-observation.json",
+      "sha256": "9110018e02590466f7baede55312eb0226797958b1d01c2e4638aa650471c97c",
+      "bytes": 77791
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792072949266210845/data/apache-native-api.jsonl",
+      "sha256": "7efe213735d5b22a5bc9aba59fbef45095b588c97bf7e304548916ac671aa2c4",
+      "bytes": 131468
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792072949266210845/data/apache-sinks/backend/requests.jsonl",
+      "sha256": "5b85acff27d53cc9308cc83af83c9c43cb24be1631010264196ee44b6fd00d9d",
+      "bytes": 1076
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792072949266210845/data/apache-sinks/invalid-event-path/events.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792072949266210845/data/apache-sinks/invalid-event-path/error.log",
+      "sha256": "b42594471df126a57720585a840b43216f9f401965a5519ca3754b5a02d4351e",
+      "bytes": 2781
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792072949266210845/data/client/1792073004298540081.receipt.json",
+      "sha256": "62a8295b05e7772ccd666f18814655ee55ba56ebaabd8603ad3f8940c45af8b0",
+      "bytes": 1697
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792072949266210845/data/client/1792073004298540081.actual-process.json",
+      "sha256": "60eb2107807ef28e9a6e4430c553e9af170976367fbfbbbfd86a200d4b2385f3",
+      "bytes": 801
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792072949266210845/data/client/main.body",
+      "sha256": "ef5cc4926e43f52cd707499f3721eb8c134884bb8e254e83488ec91abc5c4944",
+      "bytes": 571
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792072949266210845/data/client/1792073005624829266.receipt.json",
+      "sha256": "88ed112128292f514fdf1d06d55b4c0e93b8a07ceb8d59d03dc16dce67d0ed63",
+      "bytes": 1799
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792072949266210845/data/client/1792073005624829266.actual-process.json",
+      "sha256": "5ceccb386f4052a36b85ef1737b6e127cea3be8c6f849bfe95e56bca37739eef",
+      "bytes": 807
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792072949266210845/data/client/followup.body",
+      "sha256": "a12b7cb43c9d9134b5bb1b35e9096b66775d9e92e7611d1cc92b02edd6782a87",
+      "bytes": 3
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792072949266210845/data/client/1792073007247551864.receipt.json",
+      "sha256": "15907500d6530b7135a57366a77e5da2fe76aa6b4a0cc15eea6953b01175d815",
+      "bytes": 1938
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792072949266210845/data/client/1792073007247551864.actual-process.json",
+      "sha256": "16f05596abc61b9d44d839c992b6c9625753825c940b14b55c6ab29760eb769b",
+      "bytes": 807
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792072949266210845/data/client/neighbor.body",
+      "sha256": "a12b7cb43c9d9134b5bb1b35e9096b66775d9e92e7611d1cc92b02edd6782a87",
+      "bytes": 3
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792072949266210845/data/apache-sinks/invalid-event-path/httpd.conf",
+      "sha256": "b680bbc1e153e01e6090d369d3f0a350d172a4124540c6a8e94130015f548baf",
+      "bytes": 2452
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792072949266210845/controller-result.json",
+      "sha256": "c67e0f3618f200230499c70e03abf8c3d8266cfbe059a295ae18d0957bfa45eb",
+      "bytes": 4582
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073014012759912/data/sink-observation.json",
+      "sha256": "c7e0ab1f9aeb38c5aac0d47e54a8a3a2792c4d73d259e8035c09d72413a45147",
+      "bytes": 72144
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073014012759912/data/apache-native-api.jsonl",
+      "sha256": "a1b697de5677f2e8aeb1a86b674fd5f1eacb6dabefef3c16532a2298a51523e2",
+      "bytes": 130946
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073014012759912/data/apache-sinks/backend/requests.jsonl",
+      "sha256": "f810e728df10a2d07470b4cea7bb177ef7f647e5f3b86a7184c7663026bf84a6",
+      "bytes": 1076
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073014012759912/data/apache-sinks/unsafe-devfull/events.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073014012759912/data/apache-sinks/unsafe-devfull/error.log",
+      "sha256": "6aac22181bbc2664dfdede6759c1af0e5d213e2c83de411dfa869fa9cadb0322",
+      "bytes": 2520
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073014012759912/data/client/1792073090794305608.receipt.json",
+      "sha256": "c5f286902bba97aad50fa26f568a04f441f1e3517403b0b62eaef0bbd05609db",
+      "bytes": 1697
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073014012759912/data/client/1792073090794305608.actual-process.json",
+      "sha256": "59ae68cbc23a297e128f6afc4a5bd02a7f70d9bce1012bdc5190b549060ef910",
+      "bytes": 797
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073014012759912/data/client/main.body",
+      "sha256": "ef5cc4926e43f52cd707499f3721eb8c134884bb8e254e83488ec91abc5c4944",
+      "bytes": 571
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073014012759912/data/client/1792073091917193972.receipt.json",
+      "sha256": "762c25286bfe6538076d7276647b32a93090fd8250f32db2680420294612c5e9",
+      "bytes": 1799
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073014012759912/data/client/1792073091917193972.actual-process.json",
+      "sha256": "e700299a92f6ccf7938fb1c54bfc8037016a86130b9125c8ca0e3f46e54ab29b",
+      "bytes": 803
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073014012759912/data/client/followup.body",
+      "sha256": "a12b7cb43c9d9134b5bb1b35e9096b66775d9e92e7611d1cc92b02edd6782a87",
+      "bytes": 3
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073014012759912/data/client/1792073092995329570.receipt.json",
+      "sha256": "e439be49598351cfb28c3d1988eca69422e9620fd552ca2ea9a245484e67f806",
+      "bytes": 1799
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073014012759912/data/client/1792073092995329570.actual-process.json",
+      "sha256": "5865a848e0108f83ba9d3afb51db76a191f15b6b1488038f759e07818b541bd9",
+      "bytes": 803
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073014012759912/data/client/neighbor.body",
+      "sha256": "a12b7cb43c9d9134b5bb1b35e9096b66775d9e92e7611d1cc92b02edd6782a87",
+      "bytes": 3
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073014012759912/data/apache-sinks/unsafe-devfull/httpd.conf",
+      "sha256": "612fea0c44cea3d0ad81a68858a0baba1c45d5afe8ef3a506c039a6bfb814cd6",
+      "bytes": 2353
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073014012759912/controller-result.json",
+      "sha256": "5178c61339dca916e2de23f1722ff7072990493d7a2774dc4b03b93101cdb7de",
+      "bytes": 4582
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073105048116024/data/sink-observation.json",
+      "sha256": "8b8f79eaaba4b2fcb3b577caefdb37ddbc8216c5cdd3ce05aba60b049facce12",
+      "bytes": 84142
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073105048116024/data/apache-native-api.jsonl",
+      "sha256": "a9f214b3a67f441d04ce2f1d4d2b235923dfbc5a61f8cfa65b133dddd9c775e7",
+      "bytes": 132777
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073105048116024/data/apache-sinks/backend/requests.jsonl",
+      "sha256": "d17cbab4400f5a7eaf62a71d0de5e6838002db88c7b552776c602d762c99c567",
+      "bytes": 1094
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073105048116024/data/apache-sinks/unwritable-event-sink/events.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073105048116024/data/apache-sinks/unwritable-event-sink/error.log",
+      "sha256": "411b7c2598f2b53441f2dff2f257df76662f3c5b1dbdd3ac2d7e686479eddb38",
+      "bytes": 2787
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073105048116024/data/client/1792073167182443248.receipt.json",
+      "sha256": "d9b463fac01d6fb804ad58cacc0913e865b14eadddf5d70e1b061864cc4fbb50",
+      "bytes": 1700
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073105048116024/data/client/1792073167182443248.actual-process.json",
+      "sha256": "5238894359ab61423751fc735f456a4c73f2e5f95d08b1624f5a3f9c7bc46f5b",
+      "bytes": 810
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073105048116024/data/client/main.body",
+      "sha256": "ef5cc4926e43f52cd707499f3721eb8c134884bb8e254e83488ec91abc5c4944",
+      "bytes": 571
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073105048116024/data/client/1792073169059593512.receipt.json",
+      "sha256": "9ab13aeb2e4ca178e7dd9bf77a754ed2140125b4a71fa3b029698a415a2f5720",
+      "bytes": 1802
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073105048116024/data/client/1792073169059593512.actual-process.json",
+      "sha256": "95a31506931f23703752ff4782a2241ab2e89137a8db840dd3b7cd64ef0cf08f",
+      "bytes": 816
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073105048116024/data/client/followup.body",
+      "sha256": "a12b7cb43c9d9134b5bb1b35e9096b66775d9e92e7611d1cc92b02edd6782a87",
+      "bytes": 3
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073105048116024/data/client/1792073170384785881.receipt.json",
+      "sha256": "272728e6d8873194a742d7572d298f00a6492253107d6b2f8eb5415c28c63615",
+      "bytes": 1802
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073105048116024/data/client/1792073170384785881.actual-process.json",
+      "sha256": "a4edf7048d2a76dd7f02efed1a8ae947cd9b1955cb0eba6772012c000677b982",
+      "bytes": 816
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073105048116024/data/client/neighbor.body",
+      "sha256": "a12b7cb43c9d9134b5bb1b35e9096b66775d9e92e7611d1cc92b02edd6782a87",
+      "bytes": 3
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073105048116024/data/apache-sinks/unwritable-event-sink/httpd.conf",
+      "sha256": "89ba8d6e175b8f1b0ab0c0f45a79fcde0c88503304b064a16a1645b73df5d95a",
+      "bytes": 2473
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073105048116024/controller-result.json",
+      "sha256": "af957e1824f757da5015cfd77c3c811f8359befa9df1dbe915c15065d9a82078",
+      "bytes": 4591
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073178223394485/data/sink-observation.json",
+      "sha256": "27872bde8e47e5664cd9a98d4ca8f676150959e854f8b33ecd0b4d9342a8477b",
+      "bytes": 71790
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073178223394485/data/apache-native-api.jsonl",
+      "sha256": "477f2d5cfd66de1568362cc1fb8e19cf86011afb7f1a4c21480df9bdea03dd01",
+      "bytes": 139816
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073178223394485/data/apache-sinks/backend/requests.jsonl",
+      "sha256": "a1f1db4a533fa5f476b190c23c7c2b0bae51a7b4416741c296040795eb6ea1bd",
+      "bytes": 1136
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073178223394485/data/apache-sinks/closed-descriptor/events.jsonl",
+      "sha256": "6463a23723e06d1ea02352bd4e5bef7ccb8bd4fdd52e93adedab52e2bc966e85",
+      "bytes": 2118
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073178223394485/data/apache-sinks/closed-descriptor/error.log",
+      "sha256": "dc44d5eb88201ca01652a49d50a37bc3d57f801632c3507a1f3f1a5755bffeb8",
+      "bytes": 4317
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073178223394485/data/client/1792073251404454203.receipt.json",
+      "sha256": "acda185604085dbf01594fe2e70c1a42d2e1cbd39fd6a4217d88c9731abb66da",
+      "bytes": 1707
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073178223394485/data/client/1792073251404454203.actual-process.json",
+      "sha256": "fe1c749848298ebb4621b6f5f345ad294d0388f82c758babadbe33f97a3dd6f1",
+      "bytes": 820
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073178223394485/data/client/main.body",
+      "sha256": "ef5cc4926e43f52cd707499f3721eb8c134884bb8e254e83488ec91abc5c4944",
+      "bytes": 571
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073178223394485/data/client/1792073252375854405.receipt.json",
+      "sha256": "9b7f1fa51a360fa9975bb351e472988fd880532fbf06f83a1c7a283038958169",
+      "bytes": 1809
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073178223394485/data/client/1792073252375854405.actual-process.json",
+      "sha256": "b76e558934c9c7794623c4ce4c8281ef28862b5d7a3c12590731a88b9c4883d6",
+      "bytes": 826
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073178223394485/data/client/followup.body",
+      "sha256": "a12b7cb43c9d9134b5bb1b35e9096b66775d9e92e7611d1cc92b02edd6782a87",
+      "bytes": 3
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073178223394485/data/client/1792073253787604075.receipt.json",
+      "sha256": "a361de3c46532f81ff41772701c7f634f30445e32d5a5ab3b49307f73b435c92",
+      "bytes": 1809
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073178223394485/data/client/1792073253787604075.actual-process.json",
+      "sha256": "71c1bc3eecb49044aedf199c921bae1f5e9f8263c5c43b216c8e6d2f9d779883",
+      "bytes": 826
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073178223394485/data/client/neighbor.body",
+      "sha256": "a12b7cb43c9d9134b5bb1b35e9096b66775d9e92e7611d1cc92b02edd6782a87",
+      "bytes": 3
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073178223394485/data/apache-sinks/closed-descriptor/httpd.conf",
+      "sha256": "141b21eaaca141e9916e7456d8c6c012b0533e752ac04bdd7fa28c8807fade01",
+      "bytes": 2438
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073178223394485/controller-result.json",
+      "sha256": "8e97c42e701445e028c2e224dde5f33305c8074d453589358648ec1ef87c8e00",
+      "bytes": 4612
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073259732829352/data/sink-observation.json",
+      "sha256": "2b86ac6e1cff90632a0a34028f193bb5c23203be079bc72b78fae50c661b8753",
+      "bytes": 78792
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073259732829352/data/apache-native-api.jsonl",
+      "sha256": "35f88531ed44ea914cbe3eba6e81e11b3c014e15ad347631663c7f146bedb36b",
+      "bytes": 138918
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073259732829352/data/apache-sinks/backend/requests.jsonl",
+      "sha256": "2d970e4eee2af24c9ba825d213ea3463f16094c98fda0b1c3f2add3bb1eae957",
+      "bytes": 1124
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073259732829352/data/apache-sinks/physical-enospc/events.jsonl",
+      "sha256": "3e85743156b8ad9e4cf46a87ea0cf1375db45a0a8f68ccc9d2e03d1558cc7dc5",
+      "bytes": 2114
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073259732829352/data/apache-sinks/physical-enospc/error.log",
+      "sha256": "31d5cc0a392babe3ecb3b5a132bb3837f5f759cc0c63316d32924439a35c34b0",
+      "bytes": 4081
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073259732829352/data/client/1792073326829649763.receipt.json",
+      "sha256": "65990979f3b074675adb2f050b97f6cf93af7af9cf6a16efef0c3480dcdd232e",
+      "bytes": 1705
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073259732829352/data/client/1792073326829649763.actual-process.json",
+      "sha256": "68a452c5ecae71b7f7b7b42841027920c41c7cae95deec9fcebb9b0869f5622e",
+      "bytes": 814
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073259732829352/data/client/main.body",
+      "sha256": "ef5cc4926e43f52cd707499f3721eb8c134884bb8e254e83488ec91abc5c4944",
+      "bytes": 571
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073259732829352/data/client/1792073328451336326.receipt.json",
+      "sha256": "de8dd1d76f0cf278b943b955c9aaaf75c6ca2d87a9901a0054de82ca3d6e0ff2",
+      "bytes": 1807
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073259732829352/data/client/1792073328451336326.actual-process.json",
+      "sha256": "0b93bc56e44f853290862797766d9f9e71a85e19cbe2f450640b361764805682",
+      "bytes": 820
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073259732829352/data/client/followup.body",
+      "sha256": "a12b7cb43c9d9134b5bb1b35e9096b66775d9e92e7611d1cc92b02edd6782a87",
+      "bytes": 3
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073259732829352/data/client/1792073329570820063.receipt.json",
+      "sha256": "371e00e2ddaffcd552b2295f58322424064aa84a85387f9ea29aa21752557d65",
+      "bytes": 1807
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073259732829352/data/client/1792073329570820063.actual-process.json",
+      "sha256": "01fe96af9663ecd1e08b714d1a07d83a9dfe242bc5bace4a86ab46c282ebb022",
+      "bytes": 820
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073259732829352/data/client/neighbor.body",
+      "sha256": "a12b7cb43c9d9134b5bb1b35e9096b66775d9e92e7611d1cc92b02edd6782a87",
+      "bytes": 3
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073259732829352/data/apache-sinks/physical-enospc/httpd.conf",
+      "sha256": "9ed179e2f48aaf57d2703ff51cdf0084637ce445a7b8da794fe8ba6fe8650ecb",
+      "bytes": 2426
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073259732829352/controller-result.json",
+      "sha256": "df237353bf5b71c8eac8a8017a878cec6e7a16dc67712aa4a10e0c9d32936a7e",
+      "bytes": 4605
+    }
+  ],
+  "public_projection": {
+    "schema": "apache-i12-public-readback-v1",
+    "is_physical_capture": false,
+    "source_sha256": "e52c51888736e9f252d1eff738e75cd7f8dd784045926ec12fad2df85439772f",
+    "source_reference": "raw/sink-positive-control.json.gz (gzip; exact decoded SHA256 e52c51888736e9f252d1eff738e75cd7f8dd784045926ec12fad2df85439772f; raw/manifest.json)",
+    "renamed_fields": [
+      {
+        "group_index": 0,
+        "client_index": 0,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 0,
+        "client_index": 1,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 0,
+        "client_index": 2,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 1,
+        "client_index": 0,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 1,
+        "client_index": 1,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 1,
+        "client_index": 2,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 2,
+        "client_index": 0,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 2,
+        "client_index": 1,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 2,
+        "client_index": 2,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 3,
+        "client_index": 0,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 3,
+        "client_index": 1,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 3,
+        "client_index": 2,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 4,
+        "client_index": 0,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 4,
+        "client_index": 1,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 4,
+        "client_index": 2,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 5,
+        "client_index": 0,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 5,
+        "client_index": 1,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      },
+      {
+        "group_index": 5,
+        "client_index": 2,
+        "old_field": "client_token",
+        "new_field": "client_process_correlation_id"
+      }
+    ],
+    "reason": "Numeric timestamp joins identify test client processes and carry no authentication authority. The public name expresses that meaning. Physical originals and referenced hashes remain unchanged."
+  }
+}

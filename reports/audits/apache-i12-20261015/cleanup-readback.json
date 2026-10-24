@@ -1,0 +1,24 @@
+{
+  "observed_wall_ns": 1792074518373539216,
+  "original_controller": {
+    "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/attempt-1792073615198416303/controller-result.json",
+    "sha256": "8bfa29f779303347bf205c80910432244561d5a38d3f6ab861706d3ba4b142f5"
+  },
+  "original_cleanup_receipt_overridden": false,
+  "original_attempt_qualified": false,
+  "exact_reported_pid_readback": [
+    {
+      "pid": 178634,
+      "proc_entry_present": false
+    },
+    {
+      "pid": 178635,
+      "proc_entry_present": false
+    },
+    {
+      "pid": 178636,
+      "proc_entry_present": false
+    }
+  ],
+  "scope": "Later absence only; original transient survivor receipt remains failed and stopped its sequence."
+}

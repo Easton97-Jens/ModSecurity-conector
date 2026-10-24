@@ -1,0 +1,85 @@
+{
+  "observed_wall_ns": 1792074917270920875,
+  "evidence_branch_base": "f27eb59b53beff6f65384fc2e5037881a3052c01",
+  "actual_product_source_base": "02754040bced960cfc1857416cd7101bb3116ef4",
+  "framework_sha": "99a7985c1be92a2297b1b59208f64df6768f2cbf",
+  "mrts_sha": "8a6bb546c4c81d8ffc7be801dceac60c6925685f",
+  "mrts_scope": "gitlink metadata only",
+  "source_comparison": {
+    "declared_overlay_base_matches": [
+      {
+        "path": "connectors/apache/src/mod_security3.c",
+        "checkout_sha256": "8ff78a6cfc18b34e78dbe491e3e3576f54e61b6665cea285113ac9150980698a",
+        "manifest_before_sha256": "8ff78a6cfc18b34e78dbe491e3e3576f54e61b6665cea285113ac9150980698a",
+        "matches": true
+      },
+      {
+        "path": "connectors/apache/src/msc_filters.c",
+        "checkout_sha256": "1eb1e9261fb89e12e7a2094e9d0a856759932714223455508cd657fbbed1a5cd",
+        "manifest_before_sha256": "1eb1e9261fb89e12e7a2094e9d0a856759932714223455508cd657fbbed1a5cd",
+        "matches": true
+      },
+      {
+        "path": "connectors/apache/src/msc_utils.c",
+        "checkout_sha256": "d5db95d86019dec786bef0e0f9f31e6c90a0b967aeb8230fcaf7865ec2bc6d2d",
+        "manifest_before_sha256": "d5db95d86019dec786bef0e0f9f31e6c90a0b967aeb8230fcaf7865ec2bc6d2d",
+        "matches": true
+      }
+    ],
+    "all_selected_existing_file_differences": [
+      {
+        "path": "connectors/apache/src/mod_security3.c",
+        "checkout_sha256": "8ff78a6cfc18b34e78dbe491e3e3576f54e61b6665cea285113ac9150980698a",
+        "captured_sha256": "d1c205e8c7d8e61519dd81d94044ed214527d454583b6dcb7ce5b218e5c3630d"
+      },
+      {
+        "path": "connectors/apache/src/msc_filters.c",
+        "checkout_sha256": "1eb1e9261fb89e12e7a2094e9d0a856759932714223455508cd657fbbed1a5cd",
+        "captured_sha256": "cde4ce37873134bd9a60d3ec6d6130346bdb5e8cfd2989ab055e68ffd85cf5d4"
+      },
+      {
+        "path": "connectors/apache/src/msc_utils.c",
+        "checkout_sha256": "d5db95d86019dec786bef0e0f9f31e6c90a0b967aeb8230fcaf7865ec2bc6d2d",
+        "captured_sha256": "1a9e3e8a4dbc62e9ce3abf7b9ea251f81755b79ea3502c3dd7d835038d99bbae"
+      }
+    ],
+    "does_not_prove_full_rebuild_or_release_identity": true
+  },
+  "manifest": {
+    "path": "/var/tmp/codex/ModSecurity-conector/worktrees/i12-apache-410-20261015/ci/runtime/lifecycle/i12/manifest.json",
+    "sha256": "b7d8fa757c25ccf753bc6e1bef0ae04950fade83dc594012061d7224fc8ba54d",
+    "bytes": 123457
+  },
+  "binaries": [
+    {
+      "path": "/usr/sbin/apache2",
+      "sha256": "32226a96ed9257837341b7909edae8da368922565f4662b1f76624e7c74e4a3d",
+      "bytes": 775000
+    },
+    {
+      "path": "/usr/lib/x86_64-linux-gnu/libmodsecurity.so.3.0.14",
+      "sha256": "32257230b8f378987ba1204049dcc1e23927fd44c8778e09d41805ad705c3407",
+      "bytes": 2034032
+    },
+    {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/apache-lifecycle/artifacts-v3/apache/test-observed.so",
+      "sha256": "d4244dde8ebfae13fe513ee8464522acbbf1bab4a239f00d2315de40688a1a01",
+      "bytes": 461544
+    }
+  ],
+  "versions": {
+    "apache": "2.4.66",
+    "apr": "1.7.6",
+    "sdk": "3.0.14"
+  },
+  "controller": {
+    "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/private-runtime-v5.py",
+    "sha256": "76d5319b726a8fdba12b01ccc946aac80e8442f72ad4e262ff314f3f1db838b8",
+    "bytes": 34401
+  },
+  "admission": {
+    "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/isolation/candidate-admission-v5.py",
+    "sha256": "99d9206e12afcc7bea684da1a6d6fc08a32be282984d81300476312c875f230f",
+    "bytes": 4363
+  }
+}
