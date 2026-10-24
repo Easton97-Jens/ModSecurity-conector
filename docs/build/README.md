@@ -458,6 +458,30 @@ checked-in Python. Each Go updater job therefore first uses the existing
 <code>.python-version</code> and interpreter contract, preserving the
 no-ambient-interpreter rule rather than adding a bootstrap exception.
 
+### Automatic Go dependency updates
+
+`.github/dependabot.yml` checks Go dependencies weekly in the four Parent modules:
+
+| Module directory |
+| --- |
+| `/connectors/envoy/ext_proc` |
+| `/connectors/traefik/response_observer` |
+| `/connectors/traefik/native_middleware` |
+| `/connectors/traefik/composite_middleware` |
+
+Version proposals have a seven-day cooldown and a configured
+`open-pull-requests-limit: 5`; no repository-wide PR cap is claimed.
+Security updates do not inherit that cooldown. Existing Python updates
+remain configured; Action updates stay with the dedicated workflow-tool updater.
+Dependabot proposes changes to the module manifests and checksums for review and
+CI validation. These settings take effect on the default branch; this task does
+not merge dependency PRs or demonstrate a live bot publication.
+
+The fixed `approved_minimums` in the Go updater are reviewed security floors,
+not a latest-release feed. The resolver already preserves newer versions;
+regressions cover future and mixed bundles without downgrading them. Updating
+the four actual module dependencies above those floors is Dependabot's role.
+
 ### Candidate validation
 
 <code>.github/workflows/validate-go-candidate.yml</code> validates the selected

@@ -497,6 +497,32 @@ vorhandene <code>.python-version</code> und den Interpretervertrag; die
 No-ambient-interpreter-Regel bleibt erhalten, statt eine Bootstrap-Ausnahme
 hinzuzufügen.
 
+### Automatische Go-Abhängigkeitsupdates
+
+`.github/dependabot.yml` prüft Go-Abhängigkeiten wöchentlich in den vier Parent-Modulen:
+
+| Modulverzeichnis |
+| --- |
+| `/connectors/envoy/ext_proc` |
+| `/connectors/traefik/response_observer` |
+| `/connectors/traefik/native_middleware` |
+| `/connectors/traefik/composite_middleware` |
+
+Versionsvorschläge haben sieben Tage Cooldown und den konfigurierten Wert
+`open-pull-requests-limit: 5`; ein repositoryweites PR-Limit wird nicht behauptet.
+Sicherheitsupdates übernehmen diesen Cooldown nicht. Bestehende
+Python-Updates bleiben konfiguriert; Action-Updates bleiben beim eigenen
+Workflow-Tool-Updater. Dependabot schlägt Änderungen an Modulmanifesten und
+Checksummen zur Prüfung und CI-Validierung vor. Die Einstellungen wirken auf dem
+Default-Branch; dieser Auftrag mergt keine Dependency-PRs und belegt keine
+Live-Veröffentlichung durch den Bot.
+
+Die festen `approved_minimums` im Go-Updater sind geprüfte Sicherheitsmindeststände,
+kein Latest-Release-Feed. Der Resolver erhält neuere Versionen bereits;
+Regressionen decken zukünftige und gemischte Bundles ohne Downgrade ab. Die
+Aktualisierung der tatsächlichen Abhängigkeiten der vier Module über diese
+Mindeststände hinaus übernimmt Dependabot.
+
 ### Candidate-Validierung
 
 <code>.github/workflows/validate-go-candidate.yml</code> validiert den gewählten

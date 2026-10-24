@@ -76,9 +76,26 @@ def framework_contract(path: Path, version: str) -> None:
         raise ValueError("Framework CI lock differs from the single reviewed PyYAML version")
 
 
+def trusted_directory_component(path: Path, selected: bool) -> None:
+    observed = path.lstat()
+    if not stat.S_ISDIR(observed.st_mode) or observed.st_uid not in (0, os.geteuid()):
+        raise ValueError("CI dependency build ancestry must contain trusted non-symlink directories")
+    writable = observed.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
+    protected_public_ancestor = (not selected and observed.st_uid == 0 and
+                                 observed.st_mode & stat.S_ISVTX)
+    if writable and not protected_public_ancestor:
+        raise ValueError("CI dependency build ancestry must not be adversary-writable")
+    if selected and observed.st_uid != os.geteuid():
+        raise ValueError("CI dependency build root must belong to the selected user")
+
+
 def external_directory(path: Path) -> Path:
+    if not path.is_absolute() or ".." in path.parts or path == Path(path.anchor):
+        raise ValueError("CI dependency build root must be an existing external directory")
+    for component in [*reversed(path.parents), path]:
+        trusted_directory_component(component, component == path)
     resolved = path.resolve(strict=True)
-    if not path.is_absolute() or not resolved.is_dir() or resolved == ROOT or ROOT in resolved.parents:
+    if resolved == ROOT or ROOT in resolved.parents:
         raise ValueError("CI dependency build root must be an existing external directory")
     return resolved
 
@@ -113,7 +130,7 @@ def validate_toolcache() -> None:
 
 
 def validate_target(ci_toolcache: bool, build_root: Path,
-                    expected_version: str | None = None) -> None:
+                    expected_version: str | None = None) -> Path:
     expected = selected_version(ci_toolcache, expected_version)
     actual = ".".join(map(str, sys.version_info[:3]))
     if actual != expected:
@@ -122,7 +139,7 @@ def validate_target(ci_toolcache: bool, build_root: Path,
         validate_toolcache()
     elif sys.prefix == sys.base_prefix:
         raise ValueError("local CI dependencies require an explicitly selected virtual environment")
-    external_directory(build_root)
+    return external_directory(build_root)
 
 
 def download_verified(artifact: Artifact, destination: Path) -> None:
@@ -255,7 +272,7 @@ def install_verified_wheel(work: Path, builder_python: Path, wheel: Path,
 
 def install(build_root: Path, ci_toolcache: bool, framework_lock: Path | None,
             expected_version: str | None = None) -> Path:
-    validate_target(ci_toolcache, build_root, expected_version)
+    build_root = validate_target(ci_toolcache, build_root, expected_version)
     source_pin, tools, version = reviewed_pins(framework_lock)
     work = Path(tempfile.mkdtemp(prefix="ci-dependency-build-", dir=build_root))
     for artifact in [source_pin, *tools]:
@@ -280,12 +297,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ci-toolcache", action="store_true")
     parser.add_argument("--build-root", type=Path,
-                        default=os.environ.get("RUNNER_TEMP", os.environ.get("TMPDIR")))
+                        default=os.environ.get("RUNNER_TEMP"))
     parser.add_argument("--framework-lock", type=Path)
     parser.add_argument("--expected-version", help="explicit same-minor CI patch candidate")
     args = parser.parse_args()
     if args.build_root is None:
-        parser.error("--build-root, RUNNER_TEMP or TMPDIR must select an external build directory")
+        parser.error("--build-root or RUNNER_TEMP must select an external build directory")
     try:
         receipt = install(args.build_root, args.ci_toolcache, args.framework_lock,
                           args.expected_version)

@@ -289,29 +289,42 @@ class WorkflowToolUpdaterTests(WorkflowToolUpdaterFixtures, unittest.TestCase):
             "https://api.github.com/repos/actions/checkout/releases/latest",
             headers={"Authorization": "Bearer test-only"},
         )
+        redirects = UPDATER.RejectGitHubMetadataRedirects()
         for destination in (
             "https://api.github.com/repos/other/repository/releases/latest",
             "https://untrusted.invalid/collect",
         ):
             with self.subTest(destination=destination):
                 with self.assertRaisesRegex(UPDATER.UpdateError, "redirects are not allowed"):
-                    UPDATER.RejectGitHubMetadataRedirects().redirect_request(
+                    redirects.redirect_request(
                         request, None, 302, "Found", {"Location": destination}, destination
                     )
 
     def test_metadata_http_errors_do_not_repeat_token_or_server_reason(self) -> None:
-        opener = MagicMock()
-        opener.open.side_effect = UPDATER.HTTPError(
-            "https://api.github.com/repos/actions/checkout/releases/latest",
-            403, "test-only", {}, None,
+        failures = (
+            (
+                UPDATER.HTTPError(
+                    "https://api.github.com/repos/actions/checkout/releases/latest",
+                    403, "test-only", {}, None,
+                ),
+                "official GitHub API request failed (HTTP 403)",
+            ),
+            (
+                UnicodeDecodeError("utf-8", b"\xff", 0, 1, "test-only"),
+                "official GitHub API request or response failed",
+            ),
         )
-        with (
-            patch.dict(os.environ, {"GITHUB_TOKEN": "test-only"}),
-            patch.object(UPDATER, "build_opener", return_value=opener),
-            self.assertRaises(UPDATER.UpdateError) as failure,
-        ):
-            UPDATER.github_payload("/repos/actions/checkout/releases/latest")
-        self.assertEqual(str(failure.exception), "official GitHub API request failed (HTTP 403)")
+        for exception, expected in failures:
+            with self.subTest(exception=type(exception).__name__):
+                opener = MagicMock()
+                opener.open.side_effect = exception
+                with (
+                    patch.dict(os.environ, {"GITHUB_TOKEN": "test-only"}),
+                    patch.object(UPDATER, "build_opener", return_value=opener),
+                    self.assertRaises(UPDATER.UpdateError) as failure,
+                ):
+                    UPDATER.github_payload("/repos/actions/checkout/releases/latest")
+                self.assertEqual(str(failure.exception), expected)
 
     def test_metadata_rejects_malformed_tokens_before_transport(self) -> None:
         for token in ("", "test\nonly"):

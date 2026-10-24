@@ -251,3 +251,46 @@ Die echte Wartungsbaseline im kopierten Baum besteht ebenfalls mit Python 3.15.1
 311 Unit-Methoden, 305 bestanden und sechs Umgebungs-/Snapshot-Skips, keine Fehler.
 Die übersprungenen Kontrollen bleiben explizit; kein Connector-E2E- oder
 Hostnachweis wird daraus abgeleitet.
+
+## Final-Head-Kompatibilität und Workspace-Reparatur
+
+Der veröffentlichte gemeinsame Head `c7225e27` hat 37 erfolgreiche Checks, fünf
+bedingte Skips und sechs Fehler: Vier konsumieren denselben Apache-AST-Snapshot-
+Fehler; Sonar und sein Scaffold-Verbraucher melden sechs neue Python-Befunde.
+Die Go-Test-Scope-Korrektur hat das vorherige Inventar aus der fehlerhaften
+Produktivklassifikation beseitigt. Python 3.15 ergänzt Eager-Import-Metadaten
+`is_lazy=0` und ändert die Standarddarstellung von `Load`-Kontexten in `ast.dump()`.
+Ein expliziter Testserializer erhält den ursprünglichen Golden-Digest und alle
+3.205 semantischen Knoten, Meldungen und ihre Reihenfolge. Ursprüngliche Assertion
+und fünf Mutationskontrollen bestehen mit Python 3.15.1. Literalextraktion,
+redundante Exception-Unterklasse und Setup der Exception-Tests sind ohne
+Verhaltensänderung korrigiert; vier gezielte Fehlerkontrollen bestehen.
+
+Der bedingte Workspace-Zulassungsfehler S5443 ist vor Downloads korrigiert:
+Fremde Eigentümer, schreibbare oder Symlink-Ahnen werden abgelehnt,
+root-eigene Sticky-Vorfahren bleiben erlaubt, eine explizit gewählte geschützte
+Wurzel ist erforderlich und ihr zugelassener kanonischer Pfad wird verwendet.
+Die veröffentlichte Baseline akzeptierte einen kontrollierten unsicheren Parent;
+der korrigierte Helper lehnt ihn vor Downloads/Backend-Ausführung ab und
+akzeptiert die echte zuvor verwendete Build-Wurzel. Alle 27 Installer-Unit-
+Kontrollen bestehen. Frische unabhängige Baseline-Untersuchung und Post-Patch-
+Review fanden keinen verbleibenden Bypass dieser Grenze. Tatsächliche Ausnutzung
+auf Hosted RUNNER_TEMP wurde nicht belegt. Bereits geprüfte Source-/Backend-Locks
+und Build-Logik bleiben unverändert; kein Backend-Neubuild oder Nachweis einer
+Netzwerkisolation durch das Betriebssystem wird ergänzt.
+
+## Automatische Go-Abhängigkeitspflege
+
+Der Folgeauftrag ergänzt wöchentliche Dependabot-Go-Versionsvorschläge für alle
+vier Parent-Go-Module, unter Erhalt der Python-Updates und eigenen Action-Pflege.
+Konfiguriert sind sieben Tage Versions-Cooldown und
+`open-pull-requests-limit: 5`; eine globale PR-Anzahl-Durchsetzung wird nicht behauptet.
+Acht Konfigurationskontrollen bestehen im echten Checkout und seinem kopierten
+107-Input-Snapshot. Sechzehn Komponenten-Mindeststands-Szenarien bestehen,
+einschließlich neuerer/gemischter Bundles, Byte-Erhalt, Downgrade-Ablehnung und
+bestehender Sicherheitskontrollen. `approved_minimums` und Komponenten-Konstanten
+benennen geprüfte Mindeststände ausdrücklich; tatsächliche neuere
+Abhängigkeitsvorschläge kommen von Dependabot. Keine Änderung an Modulmanifesten/
+Checksummen, Framework-/MRTS-Repositories oder Connector-E2E. Live-Vorschläge
+benötigen die Konfiguration auf dem Default-Branch und bleiben von der
+Quell-/CI-Verifikation dieses PRs getrennt.

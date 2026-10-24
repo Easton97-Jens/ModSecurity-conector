@@ -9,6 +9,7 @@ import stat
 
 
 LOCK_PATH = Path("ci/tooling/security-tools.lock.yml")
+PINNED_ACTIONS_HEADER = "pinned_actions:"
 MAX_LOCK_BYTES = 65536
 ACTION_NAME = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", re.ASCII)
 # Same reviewed stable action-tag grammar as update-workflow-tools.py.
@@ -24,7 +25,7 @@ def _validate_root_mapping(lines: list[str]) -> None:
     """Require the canonical closed top-level schema, without alternate YAML keys."""
     patterns = (
         r"schema_version: 1", r'''checked_at: (["'])\d{4}-\d{2}-\d{2}\1''',
-        r"pinned_actions:", r"tools:", r"dispositions:",
+        PINNED_ACTIONS_HEADER, r"tools:", r"dispositions:",
     )
     roots = [line for line in lines if line and not line[0].isspace() and not line.startswith("#")]
     if len(roots) != len(patterns) or any(
@@ -32,7 +33,7 @@ def _validate_root_mapping(lines: list[str]) -> None:
         for pattern, line in zip(patterns, roots, strict=True)
     ):
         raise ActionPinsError("action lock must use the canonical unique top-level schema")
-    first_mapping = lines.index("pinned_actions:")
+    first_mapping = lines.index(PINNED_ACTIONS_HEADER)
     if any(line.strip() and line[0].isspace() for line in lines[:first_mapping]):
         raise ActionPinsError("action lock has an unexpected top-level scalar extension")
 
@@ -58,9 +59,9 @@ def _read_lock_lines(root: Path) -> list[str]:
 
 def _action_mapping_lines(lines: list[str]):
     """Yield only non-comment lines in the one canonical action block."""
-    if lines.count("pinned_actions:") != 1:
+    if lines.count(PINNED_ACTIONS_HEADER) != 1:
         raise ActionPinsError("action lock must contain exactly one pinned_actions mapping")
-    for line in lines[lines.index("pinned_actions:") + 1:]:
+    for line in lines[lines.index(PINNED_ACTIONS_HEADER) + 1:]:
         if not line.strip() or line.lstrip().startswith("#"):
             continue
         if not line.startswith(" "):

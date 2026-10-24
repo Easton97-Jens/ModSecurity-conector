@@ -79,7 +79,7 @@ class CiDependencyInstallTests(unittest.TestCase):
 
     def test_source_hash_failure_prevents_backend_or_target_installation(self):
         source = INSTALL.locked_artifacts(ROOT / "requirements-ci.lock")[0]
-        with (patch.object(INSTALL, "validate_target"),
+        with (patch.object(INSTALL, "validate_target", return_value=self.build),
               patch.object(INSTALL, "urlopen") as request,
               patch.object(INSTALL.venv, "EnvBuilder") as builder,
               patch.object(INSTALL, "run_stage") as execute):
@@ -102,7 +102,7 @@ class CiDependencyInstallTests(unittest.TestCase):
         source = INSTALL.Artifact("PyYAML", "https://files.pythonhosted.org/packages/pyyaml-6.0.3.tar.gz",
                                   hashlib.sha256(data).hexdigest())
         tools = INSTALL.locked_artifacts(ROOT / "requirements-ci-build.lock")
-        with (patch.object(INSTALL, "validate_target"),
+        with (patch.object(INSTALL, "validate_target", return_value=self.build),
               patch.object(INSTALL, "locked_artifacts", side_effect=[[source], tools]),
               patch.object(INSTALL, "urlopen") as request,
               patch.object(INSTALL.venv, "EnvBuilder") as builder,
@@ -126,8 +126,9 @@ class CiDependencyInstallTests(unittest.TestCase):
         INSTALL.pure_wheel(self.wheel(), "6.0.3")
 
     def test_native_payload_cannot_hide_behind_a_pure_wheel_tag(self):
+        wheel = self.wheel(native=True)
         with self.assertRaisesRegex(ValueError, "native extension"):
-            INSTALL.pure_wheel(self.wheel(native=True), "6.0.3")
+            INSTALL.pure_wheel(wheel, "6.0.3")
 
     def test_build_environment_drops_credentials_and_forces_pure_python(self):
         with patch.dict(os.environ, {"GITHUB_TOKEN": "test-secret", "GH_TOKEN": "test-secret",
@@ -194,6 +195,61 @@ class CiDependencyInstallTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "toolcache identity"):
                 INSTALL.validate_target(True, self.build)
 
+    def test_build_root_must_be_explicit_when_runner_temp_is_missing(self):
+        with (patch.dict(os.environ, {}, clear=True), patch.object(sys, "argv", ["installer"]),
+              patch.object(INSTALL, "install") as install, patch("sys.stderr", new=io.StringIO())):
+            with self.assertRaisesRegex(SystemExit, "2"):
+                INSTALL.main()
+            install.assert_not_called()
+
+    def test_existing_private_build_root_is_accepted(self):
+        self.assertEqual(INSTALL.external_directory(self.build), self.build)
+
+    def test_public_build_root_is_rejected_before_hash_or_backend(self):
+        self.build.chmod(0o777)
+        with (patch.object(INSTALL, "ROOT", self.repository),
+              patch.object(INSTALL.sys, "prefix", "/fixture/venv"),
+              patch.object(INSTALL.sys, "base_prefix", "/fixture/base"),
+              patch.object(INSTALL, "reviewed_pins") as pins,
+              patch.object(INSTALL, "prepare_builder") as builder):
+            with self.assertRaisesRegex(ValueError, "adversary-writable"):
+                INSTALL.install(self.build, False, None)
+            pins.assert_not_called()
+            builder.assert_not_called()
+
+    def test_writable_ancestor_cannot_hide_behind_private_build_root(self):
+        unsafe = self.directory / "unsafe-parent"
+        unsafe.mkdir()
+        build = unsafe / "private-build"
+        build.mkdir(mode=0o700)
+        unsafe.chmod(0o777)
+        with self.assertRaisesRegex(ValueError, "adversary-writable"):
+            INSTALL.external_directory(build)
+
+    def test_symlink_ancestor_is_rejected(self):
+        alias = self.directory / "build-alias"
+        alias.symlink_to(self.build, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "non-symlink"):
+            INSTALL.external_directory(alias)
+
+    def test_foreign_owned_build_root_is_rejected(self):
+        observed = self.build.lstat()
+        fields = list(observed)
+        fields[4] = os.geteuid() + 1
+        foreign = os.stat_result(fields)
+        with patch.object(INSTALL.Path, "lstat", return_value=foreign):
+            with self.assertRaisesRegex(ValueError, "trusted non-symlink"):
+                INSTALL.trusted_directory_component(self.build, True)
+
+    def test_nested_symlink_ancestor_is_rejected(self):
+        nested = self.build / "nested"
+        nested.mkdir()
+        alias = self.directory / "ancestor-alias"
+        alias.symlink_to(self.build, target_is_directory=True)
+        selected = alias / "nested"
+        with self.assertRaisesRegex(ValueError, "non-symlink"):
+            INSTALL.external_directory(selected)
+
     def candidate_target(self, expected, actual):
         with (patch.object(INSTALL, "ROOT", self.repository),
               patch.object(INSTALL.sys, "version_info", actual),
@@ -209,8 +265,9 @@ class CiDependencyInstallTests(unittest.TestCase):
     def test_candidate_cannot_change_the_canonical_minor(self):
         major, minor, patch_version = map(int, self.version.split("."))
         actual = (major, minor + 1, patch_version)
+        expected = ".".join(map(str, actual))
         with self.assertRaisesRegex(ValueError, "canonical minor"):
-            self.candidate_target(".".join(map(str, actual)), actual)
+            self.candidate_target(expected, actual)
 
     def test_candidate_cannot_downgrade_the_canonical_patch(self):
         major, minor, patch_version = map(int, self.version.split("."))

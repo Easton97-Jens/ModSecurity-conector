@@ -134,13 +134,14 @@ jobs:
           if component_status != ("update_available" if component_available else "current"):
               raise SystemExit("component resolver returned an inconsistent component status")
           requirements = component.get("requirements")
-          approved_targets = {
+          # Fixed minimum security floors; preserve newer reviewed dependency pins.
+          approved_minimums = {
               "google.golang.org/grpc": "v1.83.2",
               "golang.org/x/sys": "v0.49.0",
               "golang.org/x/net": "v0.61.0",
               "golang.org/x/text": "v0.43.0",
           }
-          if not isinstance(requirements, list) or len(requirements) != len(approved_targets):
+          if not isinstance(requirements, list) or len(requirements) != len(approved_minimums):
               raise SystemExit("component resolver returned an invalid requirement list")
           seen = set()
           requirement_available = False
@@ -148,12 +149,12 @@ jobs:
               if not isinstance(requirement, dict):
                   raise SystemExit("component resolver returned an invalid requirement")
               module = requirement.get("dependency")
-              if not isinstance(module, str) or module not in approved_targets or module in seen:
+              if not isinstance(module, str) or module not in approved_minimums or module in seen:
                   raise SystemExit("component resolver returned an unapproved requirement")
               seen.add(module)
               version = requirement.get("current_version")
               target_version = requirement.get("target_version")
-              if not isinstance(version, str) or target_version != approved_targets[module]:
+              if not isinstance(version, str) or target_version != approved_minimums[module]:
                   raise SystemExit("component resolver returned an invalid requirement target")
               update = component_version_tuple(version) < component_version_tuple(target_version)
               if requirement.get("update_available") is not update:

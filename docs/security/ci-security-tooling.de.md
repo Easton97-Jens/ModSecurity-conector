@@ -191,6 +191,17 @@ offene Abhängigkeitsauflösung und Downloads durch Build-Isolation sind nicht e
 Der Backend-Prozess erhält eine von Zugangsdaten bereinigte Umgebung und eine
 Offline-Abhängigkeitsauflösung; dies belegt keine Netzwerkisolation durch das Betriebssystem.
 
+Die Workspace-Zulassung erfolgt vor Downloads. Verwenden Sie `RUNNER_TEMP` oder
+explizit `--build-root`; `TMPDIR` ist kein impliziter Fallback. Die gewählte
+Wurzel muss dem Aufrufer gehören und Gruppen-/Fremdschreibrechte ausschließen.
+Ihre vollständige Ahnenkette muss aus echten Verzeichnissen von root oder dem
+Aufrufer bestehen; nur root-eigene Sticky-Vorfahren dürfen öffentlich schreibbar
+sein. Symlinks und Parent-Traversal werden abgelehnt. Der Installer verwendet
+den zugelassenen kanonischen Pfad und erzeugt ein privates Arbeitsverzeichnis.
+Dies verhindert, dass ein anderer Benutzer Pfade zwischen Hashprüfung und
+Backend-Ausführung ersetzt; normale private Allokation unter einem geschützten
+Sticky-Verzeichnis war für sich kein Exploitnachweis.
+
 Lokale Nutzung verlangt ein aufgabeneigenes Virtual Environment. Hosted-Workflows
 übergeben `--ci-toolcache` nur für den gewählten `actions/setup-python`-Interpreter;
 der Python-Candidate-Validator übergibt zusätzlich seine unabhängig geprüfte

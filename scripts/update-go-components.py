@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resolve and validate the one bounded Go module security-update bundle."""
+"""Enforce fixed Go dependency security floors without downgrading newer pins."""
 
 from __future__ import annotations
 
@@ -58,15 +58,18 @@ class ModuleVersion:
         return f"v{self.major}.{self.minor}.{self.patch}"
 
 
-GRPC_TARGET_VERSION = ModuleVersion(1, 83, 2)
-SYS_TARGET_VERSION = ModuleVersion(0, 49, 0)
-NET_TARGET_VERSION = ModuleVersion(0, 61, 0)
-TEXT_TARGET_VERSION = ModuleVersion(0, 43, 0)
+# These are minimum security floors, not latest-version selectors. Ordinary
+# dependency updates arrive through reviewed PRs; this privileged publisher
+# applies only the registered older baselines and exact trusted floor hashes.
+GRPC_MINIMUM_VERSION = ModuleVersion(1, 83, 2)
+SYS_MINIMUM_VERSION = ModuleVersion(0, 49, 0)
+NET_MINIMUM_VERSION = ModuleVersion(0, 61, 0)
+TEXT_MINIMUM_VERSION = ModuleVersion(0, 43, 0)
 
 
 @dataclass(frozen=True)
 class RequirementUpdate:
-    """One exact go.mod requirement transition allowed in a component bundle."""
+    """One registered transition to a minimum security floor; newer pins remain."""
 
     dependency: str
     baseline_version: ModuleVersion
@@ -81,7 +84,7 @@ class RequirementUpdate:
 
 @dataclass(frozen=True)
 class GoComponent:
-    """The sole Go module update bundle permitted to enter the workflow."""
+    """The sole security-floor bundle permitted to enter the privileged updater."""
 
     directory: Path
     updates: tuple[RequirementUpdate, ...]
@@ -124,27 +127,27 @@ GRPC_COMPONENT = GoComponent(
         RequirementUpdate(
             dependency=GRPC_MODULE,
             baseline_version=ModuleVersion(1, 83, 1),
-            target_version=GRPC_TARGET_VERSION,
+            target_version=GRPC_MINIMUM_VERSION,
             indirect=False,
         ),
         RequirementUpdate(
             dependency=SYS_MODULE,
             baseline_version=ModuleVersion(0, 46, 0),
-            target_version=SYS_TARGET_VERSION,
+            target_version=SYS_MINIMUM_VERSION,
             indirect=False,
             additional_baselines=(ModuleVersion(0, 47, 0),),
         ),
         RequirementUpdate(
             dependency=NET_MODULE,
             baseline_version=ModuleVersion(0, 56, 0),
-            target_version=NET_TARGET_VERSION,
+            target_version=NET_MINIMUM_VERSION,
             indirect=True,
             additional_baselines=(ModuleVersion(0, 58, 0),),
         ),
         RequirementUpdate(
             dependency=TEXT_MODULE,
             baseline_version=ModuleVersion(0, 39, 0),
-            target_version=TEXT_TARGET_VERSION,
+            target_version=TEXT_MINIMUM_VERSION,
             indirect=True,
             additional_baselines=(ModuleVersion(0, 41, 0),),
         ),
@@ -152,14 +155,14 @@ GRPC_COMPONENT = GoComponent(
 )
 COMPONENTS = (GRPC_COMPONENT,)
 TRUSTED_TARGET_GO_SUM_ENTRIES = {
-    (NET_MODULE, str(NET_TARGET_VERSION), GO_SUM_ROOT_SUFFIX): "h1:RR+6j/BTBCrggOLugxa+66R8FvoN6MHlzDlZIbN9YFw=",
-    (NET_MODULE, str(NET_TARGET_VERSION), GO_SUM_GO_MOD_SUFFIX): "h1:WgDCOTH8iwtB66T4/GfI94AHo/hhdb7Hah9NDseQfiI=",
-    (SYS_MODULE, str(SYS_TARGET_VERSION), GO_SUM_ROOT_SUFFIX): "h1:XbzkgYJHdqh/8m2Uu0W/dQv8nktxx4BFHp1M0gROTXA=",
-    (SYS_MODULE, str(SYS_TARGET_VERSION), GO_SUM_GO_MOD_SUFFIX): "h1:hNLxWAXmnKAxqDtdwIYC4bM9oQPEecfsnNMuSxOs3og=",
-    (TEXT_MODULE, str(TEXT_TARGET_VERSION), GO_SUM_ROOT_SUFFIX): "h1:1QivrlhwAsnMOcqgOdl9my7s9OyZl8O5/UGUTJVXoWc=",
-    (TEXT_MODULE, str(TEXT_TARGET_VERSION), GO_SUM_GO_MOD_SUFFIX): "h1:hbSIYA/amXcRXTFSZqh8tWHEoqRvvbKPJ2uz/KU+a+s=",
-    (GRPC_MODULE, str(GRPC_TARGET_VERSION), GO_SUM_ROOT_SUFFIX): "h1:EManeRomTObA0BU7I8vXgg/78uE5MJ9M8B39EX2WscU=",
-    (GRPC_MODULE, str(GRPC_TARGET_VERSION), GO_SUM_GO_MOD_SUFFIX): "h1:YPI1hK3kDked6iHvgX3tR0y+nX/qpMFKhPgFsokw1S8=",
+    (NET_MODULE, str(NET_MINIMUM_VERSION), GO_SUM_ROOT_SUFFIX): "h1:RR+6j/BTBCrggOLugxa+66R8FvoN6MHlzDlZIbN9YFw=",
+    (NET_MODULE, str(NET_MINIMUM_VERSION), GO_SUM_GO_MOD_SUFFIX): "h1:WgDCOTH8iwtB66T4/GfI94AHo/hhdb7Hah9NDseQfiI=",
+    (SYS_MODULE, str(SYS_MINIMUM_VERSION), GO_SUM_ROOT_SUFFIX): "h1:XbzkgYJHdqh/8m2Uu0W/dQv8nktxx4BFHp1M0gROTXA=",
+    (SYS_MODULE, str(SYS_MINIMUM_VERSION), GO_SUM_GO_MOD_SUFFIX): "h1:hNLxWAXmnKAxqDtdwIYC4bM9oQPEecfsnNMuSxOs3og=",
+    (TEXT_MODULE, str(TEXT_MINIMUM_VERSION), GO_SUM_ROOT_SUFFIX): "h1:1QivrlhwAsnMOcqgOdl9my7s9OyZl8O5/UGUTJVXoWc=",
+    (TEXT_MODULE, str(TEXT_MINIMUM_VERSION), GO_SUM_GO_MOD_SUFFIX): "h1:hbSIYA/amXcRXTFSZqh8tWHEoqRvvbKPJ2uz/KU+a+s=",
+    (GRPC_MODULE, str(GRPC_MINIMUM_VERSION), GO_SUM_ROOT_SUFFIX): "h1:EManeRomTObA0BU7I8vXgg/78uE5MJ9M8B39EX2WscU=",
+    (GRPC_MODULE, str(GRPC_MINIMUM_VERSION), GO_SUM_GO_MOD_SUFFIX): "h1:YPI1hK3kDked6iHvgX3tR0y+nX/qpMFKhPgFsokw1S8=",
 }
 
 

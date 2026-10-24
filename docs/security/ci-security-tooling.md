@@ -179,6 +179,16 @@ open-ended dependency resolution and build isolation downloads are not allowed.
 The backend receives a credential-stripped environment and offline dependency
 resolution; this does not establish operating-system network isolation.
 
+Workspace admission happens before downloads. Use `RUNNER_TEMP` or an explicit
+`--build-root`; `TMPDIR` is not an implicit fallback. The selected root must
+belong to the caller and exclude group/other writes. Its complete ancestry must
+contain real directories owned by root or the caller; only root-owned sticky
+ancestors may be publicly writable. Symlinks and parent traversal are rejected.
+The installer uses the admitted canonical path and creates a private work leaf.
+This prevents a different user from replacing paths between hash verification
+and backend execution; ordinary private allocation under a protected sticky
+directory was not itself evidence of exploitation.
+
 Local use requires a task-owned virtual environment. Hosted workflows pass
 `--ci-toolcache` only for the selected `actions/setup-python` interpreter;
 the Python candidate validator additionally passes its independently checked

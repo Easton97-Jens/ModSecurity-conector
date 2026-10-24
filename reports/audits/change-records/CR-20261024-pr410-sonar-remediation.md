@@ -229,3 +229,42 @@ separate follow-ups, with their original attempts and source bindings retained.
 The real copied-tree maintenance baseline also passes on Python 3.15.1:
 311 unit methods, 305 passed and six environment/snapshot skips, no failures.
 The skipped controls remain explicit; no connector E2E or host proof is inferred.
+
+## Final-head compatibility and workspace repair
+
+Published joint head `c7225e27` has 37 successful checks, five conditional skips
+and six failures: four consume the same Apache AST-snapshot failure; Sonar and
+its scaffold consumer report six new Python findings. The Go test-scope repair
+has removed the previous production-classification inventory.
+Python 3.15 adds eager-import `is_lazy=0` metadata and changes `ast.dump()`'s
+default rendering of `Load` contexts. A test-only explicit serializer preserves
+the original golden digest and all 3,205 semantic nodes, messages and order.
+The original assertion and five mutation controls pass on Python 3.15.1.
+Literal extraction, the redundant exception subclass and exception-test setup
+are corrected without changing their behavior; four focused error controls pass.
+
+S5443's conditional workspace-admission gap is addressed before downloads:
+reject foreign-owned, writable or symlink ancestry, retain root-owned sticky
+ancestors, require an explicitly selected protected root, and use its admitted
+canonical path. The published baseline admitted an unsafe controlled parent;
+the corrected helper rejects it before downloads/backend execution and accepts
+the real previously used build root. All 27 owning installer unit controls pass.
+Fresh independent baseline investigation and post-patch review found no
+remaining bypass in this boundary. Actual exploitation on Hosted RUNNER_TEMP
+was not established. The already verified source/backend locks and build logic
+remain unchanged; no backend rebuild or OS-network-isolation claim is added.
+
+## Automatic Go dependency maintenance
+
+The user's follow-up adds weekly Dependabot Go version proposals for all four
+Parent Go modules, preserving Python updates and dedicated Action ownership.
+The configuration selects a seven-day version cooldown and
+`open-pull-requests-limit: 5`; no global PR-count enforcement is claimed.
+Eight configuration controls pass on the real checkout and its 107-input
+copied snapshot. Sixteen component-floor scenarios pass, including newer and
+mixed bundles, byte preservation, downgrade rejection and existing security
+controls. `approved_minimums` and the component constants explicitly name
+reviewed minimums; actual newer dependency proposals come from Dependabot.
+No module manifest/checksum, Framework/MRTS repository or connector E2E changes.
+Live automatic proposals require the configuration on the default branch and
+remain separate from this PR's source/CI verification.

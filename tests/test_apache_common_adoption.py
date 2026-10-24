@@ -41,6 +41,27 @@ def is_check_call(node: ast.AST, method: str) -> bool:
     )
 
 
+def reviewed_ast_dump(node: object) -> str:
+    """Keep the reviewed 3.14 field format independent of ast.dump defaults."""
+    if isinstance(node, list):
+        return "[" + ", ".join(reviewed_ast_dump(item) for item in node) + "]"
+    if not isinstance(node, ast.AST):
+        return repr(node)
+    fields = []
+    for name, value in ast.iter_fields(node):
+        # Python 3.15 adds eager/lazy import state. Only its eager default is
+        # equivalent to the reviewed schema; lazy imports must change the hash.
+        if isinstance(node, (ast.Import, ast.ImportFrom)) and name == "is_lazy" and value == 0:
+            continue
+        if value is None and getattr(type(node), name, ...) is None:
+            continue
+        field_type = type(node)._field_types.get(name, object)
+        if value == [] and getattr(field_type, "__origin__", ...) is list:
+            continue
+        fields.append(f"{name}={reviewed_ast_dump(value)}")
+    return f"{type(node).__name__}(" + ", ".join(fields) + ")"
+
+
 class ApacheAdoptionCheckBatchingTests(unittest.TestCase):
     def test_consecutive_module_checks_are_batched(self) -> None:
         tree = ast.parse((CHECKER_DIRECTORY / "apache_common_adoption_base.py").read_text())
@@ -64,8 +85,32 @@ class ApacheAdoptionCheckBatchingTests(unittest.TestCase):
         tree.body = normalized
         # Reviewed full-chunk engine-owned policy and combined I09/I11 AST; positions are omitted and only the
         # batching seam is expanded.
-        digest = hashlib.sha256(ast.dump(tree, include_attributes=False).encode()).hexdigest()
+        digest = hashlib.sha256(reviewed_ast_dump(tree).encode()).hexdigest()
         self.assertEqual(digest, "2ea7f8e9c46f644deea24fe8879d7f9e30f2d820ce355302c0901779a762c49b")
+
+    def test_reviewed_dump_retains_every_semantic_change(self) -> None:
+        source = "checks.append((predicate == 1, 'first'))\nchecks.append((other, 'second'))"
+        baseline = ast.parse(source)
+        predicate = ast.parse(source.replace("== 1", "!= 1"))
+        message = ast.parse(source.replace("'first'", "'changed'"))
+        order = ast.parse(source)
+        order.body.reverse()
+        context = ast.parse(source)
+        next(node for node in ast.walk(context) if isinstance(node, ast.Name)).ctx = ast.Store()
+        eager = ast.parse("import dependency")
+        lazy = ast.parse("import dependency")
+        if "is_lazy" not in lazy.body[0]._fields:
+            lazy.body[0]._fields += ("is_lazy",)
+        lazy.body[0].is_lazy = 1
+        for label, before, after in (
+            ("predicate", baseline, predicate),
+            ("message", baseline, message),
+            ("order", baseline, order),
+            ("context", baseline, context),
+            ("lazy import", eager, lazy),
+        ):
+            with self.subTest(label=label):
+                self.assertNotEqual(reviewed_ast_dump(before), reviewed_ast_dump(after))
 
     def test_status_comparison_is_not_a_second_assignment(self) -> None:
         source = """void apache_log_intervention_event(void) {

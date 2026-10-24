@@ -229,6 +229,9 @@ PROPOSED_TREE_BASELINE_PATHS = frozenset(
         "requirements-ci-build.lock",
         "requirements-dev.txt",
         "connectors/envoy/ext_proc/go.mod",
+        "connectors/traefik/composite_middleware/go.mod",
+        "connectors/traefik/native_middleware/go.mod",
+        "connectors/traefik/response_observer/go.mod",
         "connectors/envoy/config/envoy-ext-proc-versions.env",
         "connectors/haproxy/htx-overlay/version-contract.json",
         "connectors/lighttpd/SOURCE_MAP.json",
@@ -858,7 +861,7 @@ class OfficialGitHubApi:
             raise UpdateError(
                 f"official GitHub API request failed (HTTP {exc.code})"
             ) from None
-        except (OSError, UnicodeError, ValueError):
+        except (OSError, ValueError):
             raise UpdateError("official GitHub API request or response failed") from None
 
 

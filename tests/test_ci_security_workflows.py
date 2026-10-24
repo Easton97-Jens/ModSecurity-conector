@@ -3531,6 +3531,53 @@ sudo -n chmod 0750 "$namespace_parent"
         dependabot = (ROOT / ".github/dependabot.yml").read_text(encoding="utf-8")
         self.assertNotIn('package-ecosystem: "github-actions"', dependabot)
         self.assertIn('package-ecosystem: "pip"', dependabot)
+        configuration = yaml.safe_load(dependabot)
+        self.assertEqual(configuration["version"], 2)
+        self.assertCountEqual(
+            [entry["package-ecosystem"] for entry in configuration["updates"]],
+            ["pip", "gomod"],
+        )
+        pip = next(entry for entry in configuration["updates"]
+                   if entry["package-ecosystem"] == "pip")
+        self.assertEqual(pip, {
+            "package-ecosystem": "pip", "directory": "/",
+            "schedule": {"interval": "weekly"},
+            "cooldown": {"default-days": 7}, "open-pull-requests-limit": 5,
+        })
+        parent_manifests = list(ROOT.glob("go.mod"))
+        for directory in ROOT.iterdir():
+            if directory.is_dir() and directory.name not in {"modules", ".git", ".codex", ".venv"}:
+                parent_manifests.extend(directory.rglob("go.mod"))
+        module_directories = {
+            "/" + manifest.parent.relative_to(ROOT).as_posix() if manifest.parent != ROOT else "/"
+            for manifest in parent_manifests if manifest.is_file()
+        }
+        self.assertTrue(module_directories)
+        gomod = next(entry for entry in configuration["updates"]
+                     if entry["package-ecosystem"] == "gomod")
+
+        def assert_go_update_scope(candidate):
+            self.assertEqual(set(candidate["directories"]), module_directories)
+            self.assertEqual(len(candidate["directories"]), len(module_directories))
+            self.assertEqual(candidate["schedule"], {"interval": "weekly"})
+            self.assertEqual(candidate["cooldown"], {"default-days": 7})
+            self.assertEqual(candidate["open-pull-requests-limit"], 5)
+            self.assertNotIn("directory", candidate)
+            self.assertNotIn("target-branch", candidate)
+            self.assertNotIn("ignore", candidate)
+
+        assert_go_update_scope(gomod)
+        for module_directory in sorted(module_directories):
+            with self.subTest(go_module=module_directory):
+                self.assertIn(module_directory, gomod["directories"])
+        invalid_scopes = (
+            dict(gomod, directories=gomod["directories"][:-1]),
+            dict(gomod, directories=[*gomod["directories"], "/modules/ModSecurity-test-Framework"]),
+        )
+        for candidate in invalid_scopes:
+            with self.subTest(invalid_directories=candidate["directories"]):
+                with self.assertRaises(AssertionError):
+                    assert_go_update_scope(candidate)
 
         workflow_name = "update-workflow-tools.yml"
         workflow = self.workflow(workflow_name)
