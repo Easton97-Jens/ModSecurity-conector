@@ -74,13 +74,10 @@ def independent_proofs(identity, override):
 
 
 def validate_native_proof(proof, override):
-    observations = {
-        key: value
-        for key, value in (
-            line.split("=", 1)
-            for line in paths.read_text(proof["path"]).splitlines()
-        )
-    }
+    observations = {}
+    for line in paths.read_text(proof["path"]).splitlines():
+        key, value = line.split("=", 1)
+        observations[key] = value
     expected = {"apr": override["apr_version"], "sdk": "ModSecurity v3.0.14 (Linux)",
                 "count": "1", "header": "X-No-Crs-Duplicate\tone, two", "matched": "1", "status": "451"}
     if any(observations.get(key) != value for key, value in expected.items()):

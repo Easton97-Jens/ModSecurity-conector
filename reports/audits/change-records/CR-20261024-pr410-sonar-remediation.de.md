@@ -32,8 +32,9 @@ Private HAProxy-Captureausgabe nutzt jetzt eine feste externe Grenze,
 vertrauenswürdige Vorfahren, ein exklusives 0700-Blatt und deskriptorgebundene
 0600-Receipts. Fokussierte Refactorings beseitigen die zwölf Smell-Ursachen.
 Testwurzeln und SDK-Includeauswahl sind an ihren Ownern korrigiert. Historische
-Prosa/Ergebnisse werden extern archiviert statt im PR erhalten. Der letzte Smell
-wird mit einer verhaltensgleichen Dictionary-Comprehension beseitigt. Der
+Prosa/Ergebnisse werden extern archiviert statt im PR erhalten. Die frühere
+Reparatur nutzte eine verhaltensgleiche Dictionary-Comprehension, die eine andere
+Sonar-Regel auslöste. Der
 Apache-Guard kopiert den exakten Registry-hashgebundenen Framework-Fall in seine
 private Testwurzel; produktive Pfadfreigaben bleiben unverändert, und negative
 Assertions benennen nun ihre vorgesehenen Ablehnungszweige.
@@ -105,3 +106,20 @@ Quellregression. Gegenüber der tatsächlichen PR-Basis ist der
 Docs-/Report-Anteil von 193 auf 25 geänderte Dateien reduziert. Der letzte
 gezielte lokale Lauf besteht; der PR bleibt Draft, solange die automatische
 Exact-Head-Prüfung aussteht.
+
+## Autorisierte Integrations-Nachkorrektur
+
+Ausgehend von `11324289a724b61ab2279f56c16e9185e240ccc9` ersetzt eine explizite
+Parsingschleife das redundante Generator-/Identitäts-Comprehension-Paar in
+`connectors/apache/harness/apache_oracle_overrides.py`. Die vollständigen
+Meldungen von `S7494` und `S7500` wurden gelesen; Trennung am ersten `=`,
+Priorität doppelter Schlüssel und Ablehnung fehlerhafter Zeilen bleiben erhalten.
+Keine Unterdrückung, Regelausnahme oder Änderung der Pfadfreigabe.
+Dieselben vier Guard-Methoden / 13 expandierten Szenarien bestanden einmal in
+0.759 Sekunden über den RTK-umhüllten Parent-Interpreter (3.14.4). Der
+Auswahl-Preflight bestätigt die 13 Szenarien als Teilmenge des bestehenden
+75-Fall-Inventars. Aufgabeneigener Befehl, Auswahl, Patch-Digest und Ergebnis
+bleiben unter `/var/tmp/codex/ModSecurity-conector/runs/pr382-integrate410-20261024`
+erhalten. Hosted-3.14.7-Checks und Exact-Head-Sonar dieser unveröffentlichten
+Nachkorrektur stehen aus. Historische Ergebnisse behalten ihre ursprünglichen
+Revisionsbindungen.

@@ -31,8 +31,8 @@ Private HAProxy capture output now uses a fixed external boundary, trusted
 ancestors, an exclusive 0700 leaf and descriptor-backed 0600 receipts. Focused
 refactors remove the twelve smell causes. Test roots and SDK include selection
 are corrected at their owners. Historical prose/results are externally archived
-instead of retained in the PR. The last smell is removed with a behavior-equivalent
-dictionary comprehension. The Apache guard copies the exact registry-hash-bound
+instead of retained in the PR. The earlier repair used a behavior-equivalent
+dictionary comprehension, which triggered a different Sonar rule. The Apache guard copies the exact registry-hash-bound
 Framework case into its private test root; production path admission is unchanged,
 and negative assertions now identify their intended rejection branches.
 
@@ -98,3 +98,18 @@ Independent static reviews found no source regression after the documentation
 corrections. Against the actual PR base, the docs/report portion is reduced
 from 193 to 25 changed files. The final targeted local run passes; the PR remains
 Draft while automatic exact-head verification is pending.
+
+## Authorized integration follow-up
+
+Starting at `11324289a724b61ab2279f56c16e9185e240ccc9`, replace the redundant
+generator/identity-comprehension pair with an explicit parsing loop in
+`connectors/apache/harness/apache_oracle_overrides.py`. Full `S7494` and `S7500`
+messages were read; first-`=` splitting, duplicate-key precedence and malformed
+line rejection are preserved. No suppression, rule exclusion or admission change.
+The same four guard methods / 13 expanded scenarios passed once in 0.759 seconds
+through the RTK-wrapped Parent interpreter (3.14.4). Selection preflight confirms
+that these 13 scenarios are a subset of the existing 75-case inventory.
+The task-owned command, selection, patch digest and result are retained at
+`/var/tmp/codex/ModSecurity-conector/runs/pr382-integrate410-20261024`.
+Hosted 3.14.7 checks and exact-head Sonar for this unpublished follow-up remain
+pending. Existing historical results keep their original revision bindings.
