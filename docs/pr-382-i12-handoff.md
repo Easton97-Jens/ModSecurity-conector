@@ -2,7 +2,28 @@
 
 **Language:** English | [Deutsch](pr-382-i12-handoff.de.md)
 
-## Current I12 lifecycle consolidation, 2026-10-14
+## Reduced I12 closeout, 2026-10-24
+
+The current decision replaces the historical full-matrix campaign and its
+retest/action items. The [concise closeout](pr-410-i12-closeout-20261024.md)
+freezes [21 existing-evidence cases](../reports/testing/i12-closeout-20261024/frozen-selection.json)
+across all 13 required profiles, below the 100-case ceiling. All 21 are
+historical PASS evidence; applicability to current heads remains
+`not_verified` because no new I12 campaign was run.
+
+The [archive disposition](../reports/testing/i12-closeout-20261024/archive-disposition.json)
+preserves the other 1463 original cases (37 configuration-only PASS and 1426
+unqualified) and all 575 unresolved historical oracles without scheduling
+follow-up work. The 100-case rule is a selection ceiling; automated global
+inventory and enforcement remain `not_verified`. The policy base is
+`42fd5a8e895aca3a36b09eb09fe5c7cf9c3399e3`, PR #382 remains at
+`1eda4e99d1c60e79c5d3aff2caa7eabc83e61041`, and the PR #410 integration
+checkpoint before these closeout files is
+`73feabd05a10bb94d887530dd2e62cca7152ca0b`. The published head and automatic
+gate state belong to PR #410. The later 2026-10-14 sections are retained as
+historical evidence and no longer initiate work.
+
+## Historical I12 lifecycle consolidation, 2026-10-14
 
 State: **I12_PARTIAL** and independently **RELEASE_BLOCKED_SECRET_HISTORY**.
 Both PRs remain Draft. The [current host report](pr-382-i12-host-evidence-20261014.md)

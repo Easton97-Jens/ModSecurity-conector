@@ -2,7 +2,29 @@
 
 **Sprache:** [English](pr-382-i09-i12-rest-matrix.md) | Deutsch
 
-## Aktuelle I12-Lifecycle-Konsolidierung, 2026-10-14
+## Reduzierter I12-Abschluss, 2026-10-24
+
+Die aktuelle Entscheidung ersetzt die historische Vollmatrix-Kampagne und
+deren Retest-/Aktionspunkte. Der [kompakte Abschluss](pr-410-i12-closeout-20261024.de.md)
+friert [21 Fälle mit vorhandenen Belegen](../reports/testing/i12-closeout-20261024/frozen-selection.json)
+über alle 13 Pflichtprofile ein und bleibt damit unter der 100-Fälle-Obergrenze.
+Alle 21 sind historische PASS-Belege; ihre Anwendbarkeit auf die aktuellen
+Heads bleibt `not_verified`, weil keine neue I12-Kampagne ausgeführt wurde.
+
+Die [Archivdisposition](../reports/testing/i12-closeout-20261024/archive-disposition.json)
+bewahrt die übrigen 1463 Originalfälle (37 reine Konfigurations-PASS und 1426
+unqualifizierte) sowie alle 575 historisch ungeklärten Oracles, ohne Folgearbeit
+einzuplanen. Die 100-Fälle-Regel ist eine Auswahlobergrenze; eine automatisierte
+globale Inventarisierung und Durchsetzung bleibt `not_verified`. Die
+Policy-Basis ist `42fd5a8e895aca3a36b09eb09fe5c7cf9c3399e3`, PR #382 bleibt auf
+`1eda4e99d1c60e79c5d3aff2caa7eabc83e61041`, und der
+PR-#410-Integrationscheckpoint vor diesen Abschlussdateien ist
+`73feabd05a10bb94d887530dd2e62cca7152ca0b`. Veröffentlichter Head und
+automatischer Gate-Status gehören in PR #410. Die späteren Abschnitte vom
+2026-10-14 bleiben als historische Belege erhalten und lösen keine Arbeit mehr
+aus.
+
+## Historische I12-Lifecycle-Konsolidierung, 2026-10-14
 
 Status: **I12_PARTIAL** und unabhängig **RELEASE_BLOCKED_SECRET_HISTORY**.
 Beide PRs bleiben Draft. Der [aktuelle Hostbericht](pr-382-i12-host-evidence-20261014.de.md)
