@@ -2,6 +2,17 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
+## Start here
+
+This directory contains repository-owned configuration support and test
+fixtures. For operator-facing configuration, start with
+[docs/configuration](../docs/configuration.md) and the complete
+[examples](../examples/README.md).
+
+Do not assume a file in `config/` is a ready-to-install production
+configuration. Check the owning guide, the target that consumes it, and whether
+the file is a test fixture, template, generated input, or runtime configuration.
+
 ## Purpose and boundary
 
 \`config/\` contains small, versioned machine-readable inputs used by repository

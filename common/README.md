@@ -2,6 +2,16 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
+## Start here
+
+`common/` contains connector-neutral contracts and reusable runtime support.
+If a type, helper, or policy depends on Apache, NGINX, HAProxy, Envoy, Traefik,
+or lighttpd APIs, it belongs in that connector tree instead.
+
+Most users do not need to edit this directory to configure a connector. Read it
+when implementing shared lifecycle/configuration behavior or reviewing the
+boundary between host adapters and reusable runtime code.
+
 ## Purpose and boundary
 
 \`common/\` holds reusable, connector-neutral contracts and helpers shared by

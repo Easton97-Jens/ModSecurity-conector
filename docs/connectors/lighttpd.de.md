@@ -2,6 +2,18 @@
 
 **Sprache:** [English](lighttpd.md) | Deutsch
 
+## Hier beginnen
+
+lighttpd besitzt zwei getrennte logische Profile: `lighttpd-patched` für die
+gepatchte native Hostroute des Repositorys und `lighttpd-stock` für den
+traffic-owning Stock-Sidecar. Es sind getrennte Lösungen und keine
+Fallback-Modi.
+
+Beginnen Sie mit den [lighttpd-Beispielen](../../examples/lighttpd/README.de.md),
+wählen Sie die tatsächlich gewünschte Lösung und zuerst deren `safe`-Bundle.
+Bei Patched müssen Host und Modul zusammenpassen; bei Stock bleiben Sidecar- und
+Backend-Listener privat und begrenzt.
+
 ## Überblick
 
 Die kanonische Stock-Lösung verwendet das ausgewählte traffic-owning

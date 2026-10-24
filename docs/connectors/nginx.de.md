@@ -2,6 +2,18 @@
 
 **Sprache:** [English](nginx.md) | Deutsch
 
+## Hier beginnen
+
+NGINX verwendet ein direktes logisches Profil: `nginx`, umgesetzt als native
+NGINX-HTTP-Modulroute. Beginnen Sie mit den
+[NGINX-Beispielen](../../examples/nginx/README.de.md) und stellen Sie vor der
+Konfigurationsvalidierung sicher, dass NGINX-Binary und dynamisches Modul zur
+gleichen ABI gehören.
+
+Verwenden Sie `safe` als erste vollständige P1–P4-Konfigurationsreferenz.
+Strict-Konfiguration drückt die gewünschte Late-Policy aus; tatsächliches
+Post-Commit-Verhalten benötigt weiterhin passende Host-Runtime-Evidence.
+
 ## Überblick
 
 NGINX verwendet den ausgewählten Pfad <code>native-nginx-http-module</code>.

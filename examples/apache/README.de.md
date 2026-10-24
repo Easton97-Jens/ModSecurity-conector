@@ -2,6 +2,12 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
+## Hier beginnen
+
+Verwenden Sie diese Seite, wenn Apache/httpd der Zielhost ist. Für eine erste Konfiguration beginnen Sie mit [safe/httpd.conf](safe/httpd.conf), passen installierten Modulpfad, Rules- und Logpfade an und validieren anschließend die Hostkonfiguration vor dem ersten Traffic.
+
+Apache verwendet das direkte native Modulprofil `apache`. Die Beispieldateien zeigen Konfigurationsabsicht und beweisen für sich allein weder P1–P4-Verhalten noch einen client-sichtbaren Strict-Late-Abbruch. WAF-Response-Inspection-Byte-Limits gehören über `SecResponseBodyLimit` in die ModSecurity-Regeln; der Legacy-Wert `modsecurity_phase4_body_limit` dient nur der Kompatibilität.
+
 ## Integration und Grenze
 
 Integrationsmodus: natives httpd-Modul. [Off-Kompatibilitätsreferenz](off/httpd.conf),

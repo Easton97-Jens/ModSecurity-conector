@@ -2,6 +2,14 @@
 
 **Language:** English | [Deutsch](phase4-mode-budget.de.md)
 
+## Quick orientation
+
+Phase 4 is response-body processing. The Phase-4 mode controls **late intervention behavior**, not a second connector-owned WAF inspection byte policy.
+
+libModSecurity owns response inspection enablement, MIME selection, and WAF response byte limits through `SecResponseBodyAccess`, `SecResponseBodyMimeType` / `SecResponseBodyMimeTypesClear`, `SecResponseBodyLimit`, and `SecResponseBodyLimitAction`.
+
+Legacy connector response-limit settings may remain parseable for compatibility, but `off`, `safe`, and `strict` do not add different cumulative WAF byte budgets. Independent host/transport capacity limits, bounded storage, allocation guards, timeouts, and message/frame limits still apply.
+
 ## Scope
 
 This contract covers Apache, NGINX, HAProxy, Envoy, Traefik and lighttpd in this

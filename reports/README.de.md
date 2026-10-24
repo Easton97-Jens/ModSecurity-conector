@@ -2,6 +2,17 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
+## Hier beginnen
+
+Verwenden Sie dieses Verzeichnis, wenn Sie verstehen müssen, **was tatsächlich
+beobachtet wurde**, und nicht nur, was Source oder Konfiguration beabsichtigen.
+Reports können aktuell, historisch, generiert oder manuell gepflegt sein;
+prüfen Sie vor einer Aussage immer den genannten Run, das Profil, Inputs,
+Freshness und Provenienz.
+
+Für normales Setup und Konfiguration beginnen Sie stattdessen mit
+[docs](../docs/README.de.md) und [examples](../examples/README.de.md).
+
 Berichte sind nach ihrer aktuellen Evidence-Rolle organisiert. Sie ersetzen
 nicht die lauflokalen Artefakte, aus denen ein Claim validiert wurde.
 

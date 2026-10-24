@@ -2,6 +2,16 @@
 
 **Language:** English | [Deutsch](repository-concept.de.md)
 
+## Quick orientation
+
+This document explains the project's ownership model and long-term repository
+shape. You usually do not need it for a first configuration or build.
+
+The practical rule is: Parent owns connector product integration and its
+orchestration/evidence consumers; the Framework owns reusable test content and
+runners; MRTS is a separate nested boundary. A change in one ownership area
+must not silently redefine another area's source of truth.
+
 ## Authority, scope, and claim discipline
 
 This document is the binding target concept for the product monorepo. It
@@ -285,10 +295,11 @@ Engine layers. A value at one layer does not implicitly configure another.
 | Control | Source-backed default or selected value | Security effect and classification |
 | --- | --- | --- |
 | `enabled` | Common Runtime default `off`. | It is fail-open with respect to Common enforcement until explicitly enabled; it is not a repository-wide host failure policy. |
-| `request_body_limit`, `response_body_limit`, header limits, and `max_event_json_bytes` | Common Runtime defaults bound body/header/event input. | Bound resource and metadata exposure; a higher value is not safe-buffering proof. |
-| `body_limit_action` | Common Runtime default `reject`. | Rejects an over-limit chunk before engine input; the resulting host response remains connector-specific. |
+| `request_body_limit`, header limits, and `max_event_json_bytes` | Common Runtime defaults bound request/header/event input. | Bound resource and metadata exposure; a higher value is not safe-buffering proof. |
+| `response_body_limit` | Common Runtime default can bound host/runtime response capacity where a topology needs bounded storage or transport. | This is not the WAF response-inspection byte policy; use libModSecurity `SecResponseBodyLimit` / `SecResponseBodyLimitAction` for that policy. |
+| `body_limit_action` | Common Runtime default `reject`. | Controls Common handling when an applicable Common request/body-capacity bound is exceeded. It does not replace libModSecurity `SecResponseBodyLimitAction`; resulting host behavior remains connector-specific. |
 | `default_block_status` and `default_error_status` | Common Runtime defaults `403` and `500`. | For a disruptive native intervention without a redirect URL, an allowed engine block status is preserved; every other status maps to an allowed `default_block_status`, otherwise `403`. A nonempty redirect URL preserves a 3xx status or maps another status to `302`. This canonicalization does not replace the separate Common `invalid_engine_response` policy and does not prove a uniform fail-closed response. |
-| `response_body_mode` and `phase4_mode` | Common Runtime defaults `none` and `safe`. | No P4 input is processed by default; Safe late behavior is conservative and after commit can be `log_only`, not a universal fail-open/fail-closed policy. Apache follows this shared commit-based rule once its pre-EOS prefix reaches the next filter. |
+| `response_body_mode` and `phase4_mode` | Common Runtime defaults `none` and `off`. | No P4 input is processed by default. `off` keeps native late-intervention handling without adding a connector-owned WAF response-byte policy; selected `safe`/`strict` modes govern supported late actions, not inspection byte limits. |
 | Envoy `failure_mode_allow` | Selected `ext_proc` templates set `failure_mode_allow: false`. | Selected configuration documents fail-closed processor-reachability handling; it is not evidence for every Envoy deployment. |
 | `rules_remote_key` / `rules_remote_url` and external downloads | Policy A: registered configuration inputs are technically disabled. | Any nonempty remote-rule configuration is rejected before a loader, download, origin fallback, or secret forwarding path; a future policy would require separate review and evidence. |
 

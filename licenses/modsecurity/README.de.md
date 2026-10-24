@@ -1,30 +1,29 @@
-# ModSecurity-Engine-Referenzquellen
+# Herkunftsreferenzen der ModSecurity-Engine
 
 **Sprache:** [English](README.md) | Deutsch
 
-Status: implemented
+Die ModSecurity-Engine-Einträge in diesem Verzeichnis sind ausschließlich
+Provenienz-/Referenzinformationen. Dieses Verzeichnis enthält keinen kopierten
+ModSecurity-Engine-Source-Baum.
 
-Die ModSecurity-Engine-Repositories sind schreibgeschützte Referenzeingaben
-für dieses Monorepo. Engine-Source-Dateien werden hier nicht importiert.
+## Referenzbasis
 
-## Beobachtete Referenzen
+| Engine-Referenz | Upstream | Branch | Commit | Beobachtete Version | Beobachtete Upstream-Lizenz |
+| --- | --- | --- | --- | --- | --- |
+| ModSecurity v2 | https://github.com/owasp-modsecurity/ModSecurity | `v2/master` | `02eed22d74667b32091eece088a8ebdf64b6ba67` | `v2.9.13` | Apache License 2.0 |
+| ModSecurity v3 | https://github.com/owasp-modsecurity/ModSecurity | `v3/master` | `0fb4aff98b4980cf6426697d5605c424e3d5bb60` | `v3.0.15` | Apache License 2.0 |
 
-| Repository | Lokale Repository-Referenz | Upstream | Branch | Commit | Describe | Rolle |
-| --- | --- | --- | --- | --- | --- | --- |
-| ModSecurity v2 | `licenses/modsecurity/` | https://github.com/owasp-modsecurity/ModSecurity | `v2/master` | `02eed22d74667b32091eece088a8ebdf64b6ba67` | `v2.9.13` | Referenz für Regression, Semantik und Kompatibilität |
-| ModSecurity v3 | `licenses/modsecurity/` | https://github.com/owasp-modsecurity/ModSecurity | `v3/master` | `0fb4aff98b4980cf6426697d5605c424e3d5bb60` | `v3.0.15` | Primäre Architektur-/API-Referenz für libmodsecurity v3 |
+## Verhältnis zu diesem Repository
 
-## Lizenzbeobachtung
+ModSecurity v3 ist die primäre libmodsecurity-API-/Architekturreferenz des
+Connector-Projekts. ModSecurity v2 bleibt als Kompatibilitäts-, Regressions-,
+Semantik- und historische Referenz erhalten.
 
-Beide beobachteten Referenz-Repositories enthalten eine Apache License 2.0
-`LICENSE`-Datei.
-Dieses Monorepo kopiert keine ModSecurity-Engine-Source-Dateien nach `common/`
-oder in Connector-Source-Bäume. Jeder künftige Engine-Source-Import muss eine
-Herkunftszuordnung auf Dateiebene hinzufügen, bevor Code kopiert wird.
+Der referenzierte Engine-Source liegt außerhalb dieses Repositorys. Dass die
+referenzierten Upstream-Versionen eine `LICENSE`-Datei mit Apache License 2.0
+enthalten, macht diese Lizenz nicht zu einer repository-weiten
+Lizenzdeklaration dieses Projekts.
 
-## Grenze
-
-- V3 ist die primäre API- und Architekturreferenz.
-- V2 dient als Referenz für Regression, Semantik, Kompatibilität und Historie.
-- Keines der beiden Referenz-Repositories darf durch die Build-, Smoke- oder
-  Dokumentations-Workflows dieses Monorepos verändert werden.
+Connector-Code und andere Dateien in diesem Repository haben ihre eigene
+Provenienz. Wenn importierter oder abgeleiteter Source vorhanden ist, ist die
+jeweilige Connector-Origin-/Source-Map für die Source-Basis maßgeblich.
