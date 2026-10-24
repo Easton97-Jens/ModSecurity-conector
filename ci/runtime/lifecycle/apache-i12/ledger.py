@@ -10,6 +10,14 @@ import importlib.util
 import json
 from pathlib import Path
 
+# Load the maintained Parent filesystem boundary from this checkout.
+import sys as _i12_sys
+_i12_library = next((parent / "ci/lib" for parent in Path(__file__).resolve().parents
+                     if (parent / "ci/lib/i12_path_safety.py").is_file()),
+                    Path(__file__).resolve().parent)
+_i12_sys.path.insert(0, str(_i12_library))
+import i12_path_safety as i12_paths
+
 def load_shared():
     path = Path(__file__).resolve().parents[3] / 'evidence/reports/generate-pr382-i12-lifecycle-ledger.py'
     spec = importlib.util.spec_from_file_location('apache_i12_shared_ledger', path)
@@ -163,7 +171,7 @@ def main():
     expected = {name: value for name, value in (('run_id', args.expected_run_id), ('parent_sha', args.expected_parent_sha)) if value is not None}
     result = build_ledger(json.loads(args.baseline_ledger.read_text()), json.loads(args.reviewed_packets.read_text())['packets'], records, expected)
     result['input_evidence'] = inputs
-    with args.output.open('x', encoding='utf-8') as stream:
+    with i12_paths.new_text(args.output) as stream:
         json.dump(result, stream, indent=2, ensure_ascii=False)
         stream.write('\n')
     print(json.dumps({'output': ORACLES.reference(args.output.absolute()), 'summary': result['summary']}))

@@ -1,25 +1,9 @@
 """Unary completion controls independent of companion Process cancellation."""
-import importlib.util
-import json
-from pathlib import Path
 from types import SimpleNamespace
 import unittest
-
-HERE = Path(__file__).resolve().parent
-
-
-def load(name, path):
-    spec = importlib.util.spec_from_file_location(name, path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-transport = load('transport_controls', HERE / 'transport.py')
-review = load('transport_review_controls', HERE / 'review_runs.py')
-manifest = json.loads((HERE.parent / 'manifest.json').read_text())
-host_hash = manifest['profiles']['envoy']['capture_files']['host_log_observations.py']['sha256']
-host_logs = load('host_controls', HERE.parent / 'objects/text' / (host_hash + '-host_log_observations.py'))
+import host_log_observations as host_logs
+import transport
+import review_runs as review
 
 
 def row(text, connection='0', stream='101'):
@@ -101,6 +85,12 @@ class UnaryTransportControls(unittest.TestCase):
     def test_unrelated_downstream_backend_route_does_not_truncate_unary_close(self):
         other = row("source/common/router/router.cc:1 cluster 'backend' match for URL '/target'", '1', '20')
         self.assertTrue(self.observe(self.lines[:8] + [other] + self.lines[8:])['verified'])
+
+    def test_unterminated_tag_cannot_supply_a_scope(self):
+        malformed = ('[2026-10-20T17:28:03.249+00:00] ' + '[Tags:' * 10000 + ' ' * 100000
+                     + 'conn_manager_impl.cc:1 request headers complete (end_stream=false):\n'
+                     + "':path', '/target'")
+        self.assertFalse(host_logs.extract(malformed, '/target')['scope_verified'])
 
 
 if __name__ == '__main__':

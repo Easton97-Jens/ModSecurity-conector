@@ -10,6 +10,14 @@ import json
 import os
 from pathlib import Path
 
+# Load the maintained Parent filesystem boundary from this checkout.
+import sys as _i12_sys
+_i12_library = next((parent / "ci/lib" for parent in Path(__file__).resolve().parents
+                     if (parent / "ci/lib/i12_path_safety.py").is_file()),
+                    Path(__file__).resolve().parent)
+_i12_sys.path.insert(0, str(_i12_library))
+import i12_path_safety as i12_paths
+
 LAUNCH_FILE = 'launch.py'
 CLIENT_FILE = 'client.py'
 BACKEND_FILE = 'backend.py'
@@ -288,7 +296,7 @@ def fresh_output(path):
     if any(part.is_symlink() for part in (path, *path.parents)):
         raise ValueError("output symlinks are forbidden")
     path.resolve().relative_to(authorized)
-    path.mkdir(mode=0o700, parents=False, exist_ok=False)
+    path = i12_paths.new_directory(path)
     return path
 
 

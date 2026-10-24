@@ -9,6 +9,14 @@ import importlib.util
 import json
 from pathlib import Path
 
+# Load the maintained Parent filesystem boundary from this checkout.
+import sys as _i12_sys
+_i12_library = next((parent / "ci/lib" for parent in Path(__file__).resolve().parents
+                     if (parent / "ci/lib/i12_path_safety.py").is_file()),
+                    Path(__file__).resolve().parent)
+_i12_sys.path.insert(0, str(_i12_library))
+import i12_path_safety as i12_paths
+
 
 def adapter():
     spec = importlib.util.spec_from_file_location("diagnostic_config_adapter", Path(__file__).with_name("qualification.py"))
@@ -154,7 +162,7 @@ def main():
     q = adapter()
     if args.output.resolve() != args.output.absolute() or args.output.exists():
         raise ValueError("Output must be a fresh physical directory")
-    args.output.mkdir(mode=0o700)
+    args.output = i12_paths.new_directory(args.output)
     corrections = json.loads(args.corrections.read_text()) if args.corrections else {}
     corrections = corrections.get("corrections", corrections)
     if args.prepare_expectations:

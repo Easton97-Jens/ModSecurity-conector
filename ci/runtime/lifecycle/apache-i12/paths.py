@@ -3,6 +3,7 @@
 import os
 from pathlib import Path
 import stat
+from contextlib import contextmanager
 
 
 def storage_root():
@@ -34,7 +35,7 @@ def input_path(value):
 def new_output(value):
     """Create-new callers may write only beneath configured external storage."""
     path = Path(value).absolute()
-    root = storage_root()
+    root = Path('/task') if path.is_relative_to(Path('/task')) else storage_root()
     if not path.is_relative_to(root) or path == root or path.resolve() != path:
         raise ValueError("Output escapes configured storage or follows a symlink")
     for parent in path.parents:
@@ -45,6 +46,25 @@ def new_output(value):
         if parent == root:
             break
     return path
+
+
+@contextmanager
+def new_text(value):
+    """Create a private artifact for standalone sealed Apache runner copies."""
+    path = new_output(value)
+    descriptor = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        parent = os.fstat(descriptor)
+        if parent.st_uid != os.geteuid() or parent.st_mode & 0o022:
+            raise ValueError('Apache output parent must be privately owned')
+        child = os.open(path.name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                        0o600, dir_fd=descriptor)
+        with os.fdopen(child, 'w', encoding='utf-8') as stream:
+            yield stream
+            stream.flush()
+            os.fsync(stream.fileno())
+    finally:
+        os.close(descriptor)
 
 
 def private_directory(value):

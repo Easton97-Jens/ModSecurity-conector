@@ -17,6 +17,7 @@ def sibling(name):
 
 
 ORACLES = sibling("generate-pr382-i12-oracle-reconciliation")
+PATHS = ORACLES.PATHS
 HOST_LEDGER = sibling("generate-pr382-i12-lifecycle-ledger")
 HOST_STEM = "pr-382-i12-host-evidence-20261014"
 INDEX_STEM = "pr-382-i12-missing-case-index-20261014"
@@ -27,6 +28,7 @@ SUMMARY_FIELDS = (
     "required_full_lifecycle_fail", "required_qualified_pass", "required_qualified_fail",
     "required_routes_with_full_case", "unqualified_ids",
 )
+JSON_FENCE = "```json\n"
 
 
 def encoded(value):
@@ -43,8 +45,8 @@ def historical_catalog(reconciliation):
             selection_ref["sha256"] != ORACLES.SELECTION_SHA256):
         raise ValueError("Original historical requirements or selection bytes changed")
     original = ORACLES.original_contracts(
-        json.loads(Path(requirements_ref["path"]).read_text()),
-        json.loads(Path(selection_ref["path"]).read_text()))
+        json.loads(PATHS.read_text(requirements_ref["path"])),
+        json.loads(PATHS.read_text(selection_ref["path"])))
     summary = reconciliation["summary"]
     if (summary["baseline_config_parser_pass"] != sum(row["status"] == "PASS" for row in original) or
             summary["baseline_observed_ids"] != sum(row["execution_observed"] is True for row in original)):
@@ -83,51 +85,68 @@ def validate(ledger, reconciliation, source_status):
                reconciliation['oracle_matrix'] + reconciliation['supplemental_dispositions']}
     historical = historical_catalog(reconciliation)
     for row in rows:
-        identity, leg = row["run_scoped_case_id"], row["leg_id"]
-        if identity.split("::")[1] != leg or row["selected_requirement"]["run_scoped_case_id"] != identity:
-            raise ValueError("Original case or route identity mismatch")
-        if row['oracle_reconciliation'] != reviews.get(identity):
-            raise ValueError('Row oracle review differs from reconciliation')
-        legacy = historical[identity]
-        if (row["required_leg"] is not legacy["required_leg"] or
-                row["historical_status"] != legacy["status"] or
-                row["historical_execution_observed"] is not legacy["execution_observed"]):
-            raise ValueError("Row history differs from original physical evidence")
-        packet = row["current_lifecycle_packet"]
-        full = row["qualification_scope"] == "full_host_lifecycle"
-        if row["qualified_host_lifecycle_pass"] is not (full and row["status"] == "PASS"):
-            raise ValueError("Configuration PASS cannot become lifecycle PASS")
-        if packet is None:
-            if full:
-                raise ValueError("Full lifecycle requires a physical packet")
-            expected_scope = "historical_configuration_only" if legacy["status"] == "PASS" else None
-            if (row["status"] != legacy["status"] or
-                    row["execution_observed"] is not legacy["execution_observed"] or
-                    row["qualification_scope"] != expected_scope):
-                raise ValueError("A row without a packet must preserve its historical result and scope")
-            continue
-        oracle = (row['oracle_reconciliation']['effective_oracle'] if row['oracle_reconciliation']
-                  else row['selected_requirement']['expected_oracle'])
-        if oracle and oracle.get('unresolved_expected_value_reason'):
-            oracle = None
-        checked = HOST_LEDGER.reviewed_packet(packet['receipt'],row,oracle)
-        if checked != packet:
-            raise ValueError('Ledger observations or qualification differ from physical Root packet')
-        if packet["full_lifecycle_qualified"] is not full:
-            raise ValueError("Packet qualification differs from supplied row")
-        if row["execution_observed"] is not True:
-            raise ValueError("A physical host packet requires observed row execution")
-        if not full and (row["status"] != "PARTIAL_HOST_MEASUREMENTS" or row["qualification_scope"] is not None):
-            raise ValueError("An incomplete packet requires partial status and no qualification scope")
-        unknown = [field for field, item in packet["observations"].items()
-                   if item.get("applicable", True) and item.get("value") is None]
-        if unknown != packet["unknown_fields"] or (full and unknown):
-            raise ValueError("Unknown observation cannot become full qualification")
-        if full and packet["outcome"] != row["status"]:
-            raise ValueError("Full result lacks explicit oracle evaluation")
-        for item in packet["observations"].values():
-            for evidence in item.get("evidence", []) + item.get("capability_proof", []):
-                ORACLES.verify_reference(evidence)
+        validate_row(row, reviews, historical)
+    validate_summary(ledger, reconciliation, source_status)
+
+
+def validate_row(row, reviews, historical):
+    identity, leg = row["run_scoped_case_id"], row["leg_id"]
+    if identity.split("::")[1] != leg or row["selected_requirement"]["run_scoped_case_id"] != identity:
+        raise ValueError("Original case or route identity mismatch")
+    if row['oracle_reconciliation'] != reviews.get(identity):
+        raise ValueError('Row oracle review differs from reconciliation')
+    legacy = historical[identity]
+    if (row["required_leg"] is not legacy["required_leg"] or
+            row["historical_status"] != legacy["status"] or
+            row["historical_execution_observed"] is not legacy["execution_observed"]):
+        raise ValueError("Row history differs from original physical evidence")
+    packet = row["current_lifecycle_packet"]
+    full = row["qualification_scope"] == "full_host_lifecycle"
+    if row["qualified_host_lifecycle_pass"] is not (full and row["status"] == "PASS"):
+        raise ValueError("Configuration PASS cannot become lifecycle PASS")
+    if packet is None:
+        if full:
+            raise ValueError("Full lifecycle requires a physical packet")
+        expected_scope = "historical_configuration_only" if legacy["status"] == "PASS" else None
+        if (row["status"] != legacy["status"] or
+                row["execution_observed"] is not legacy["execution_observed"] or
+                row["qualification_scope"] != expected_scope):
+            raise ValueError("A row without a packet must preserve its historical result and scope")
+        return
+    validate_packet(row, packet, full)
+
+
+def validate_packet_observations(row, packet, full):
+    unknown = [field for field, item in packet["observations"].items()
+               if item.get("applicable", True) and item.get("value") is None]
+    if unknown != packet["unknown_fields"] or (full and unknown):
+        raise ValueError("Unknown observation cannot become full qualification")
+    if full and packet["outcome"] != row["status"]:
+        raise ValueError("Full result lacks explicit oracle evaluation")
+
+
+def validate_packet(row, packet, full):
+    oracle = (row['oracle_reconciliation']['effective_oracle'] if row['oracle_reconciliation']
+              else row['selected_requirement']['expected_oracle'])
+    if oracle and oracle.get('unresolved_expected_value_reason'):
+        oracle = None
+    checked = HOST_LEDGER.reviewed_packet(packet['receipt'],row,oracle)
+    if checked != packet:
+        raise ValueError('Ledger observations or qualification differ from physical Root packet')
+    if packet["full_lifecycle_qualified"] is not full:
+        raise ValueError("Packet qualification differs from supplied row")
+    if row["execution_observed"] is not True:
+        raise ValueError("A physical host packet requires observed row execution")
+    if not full and (row["status"] != "PARTIAL_HOST_MEASUREMENTS" or row["qualification_scope"] is not None):
+        raise ValueError("An incomplete packet requires partial status and no qualification scope")
+    validate_packet_observations(row, packet, full)
+    for item in packet["observations"].values():
+        for evidence in item.get("evidence", []) + item.get("capability_proof", []):
+            ORACLES.verify_reference(evidence)
+
+
+def validate_summary(ledger, reconciliation, source_status):
+    rows = ledger["rows"]
     summary = ledger["summary"]
     full_rows = [row for row in rows if row["qualification_scope"] == "full_host_lifecycle"]
     expected = {
@@ -184,8 +203,39 @@ def route_table(rows, required, german):
     return "\n".join(result)
 
 
-def render(ledger, reconciliation, source_status, references, historical, german=False):
-    validate(ledger, reconciliation, source_status)
+def packet_sections(ledger):
+    blocks = []
+    for row in ledger['rows']:
+        packet = row['current_lifecycle_packet']
+        if packet is not None:
+            selected = {k:packet['observations'].get(k) for k in (
+                'product_host_identity','source_config_binding','host_eos','native_eos',
+                'finish_calls','native_free_calls','cleanup_receipts')}
+            raw = json.loads(PATHS.read_text(packet['receipt']['path']))
+            identity = {key:raw.get(key) for key in (
+                'run_id','parent_sha','framework_sha','mrts_sha','product_contract_sha',
+                'effective_config_sha256','rules_sha256')}
+            blocks += [f"### {row['run_scoped_case_id']}", JSON_FENCE+json.dumps({'receipt':packet['receipt'],
+                'packet_identity':identity,'status':row['status'],'qualification_scope':row['qualification_scope'],
+                'unknown_fields':packet['unknown_fields'],'observations':selected},
+                ensure_ascii=False,indent=2,sort_keys=True)+"\n```"]
+    return blocks
+
+
+def index_lines(ledger):
+    index_rows = []
+    for row in ledger['rows']:
+        packet = row['current_lifecycle_packet']
+        review = row['oracle_reconciliation']
+        index_rows.append("\t".join((row['run_scoped_case_id'], 'status='+row['status'], 'execution_observed='+encoded(row['execution_observed']),
+                     'qualification_scope='+encoded(row['qualification_scope']), 'required_leg='+encoded(row['required_leg']),
+                     'original_oracle='+encoded(row['selected_requirement']['expected_oracle']),
+                     'oracle_category='+encoded(review['category'] if review else None),
+                     'packet='+encoded(packet['receipt'] if packet else None), 'unknown_fields='+encoded(packet['unknown_fields'] if packet else None))))
+    return index_rows
+
+
+def render_context(german):
     suffix = ".de.md" if german else ".md"
     title = "I12 aktuelle Host-Evidenz" if german else "I12 current host evidence"
     intro = ("Die folgenden Zahlen stammen aus dem geprüften aktuellen Ledger. Konfigurations-PASS und vollständige Host-Lifecycle-Abnahme bleiben getrennt."
@@ -194,29 +244,22 @@ def render(ledger, reconciliation, source_status, references, historical, german
                        if german else "The linked unchanged reports preserve the historical checkpoint. Their CI/Sonar results apply only to the old head named there.")
     language = (f"**Sprache:** [English]({HOST_STEM}.md) | Deutsch" if german
                 else f"**Language:** English | [Deutsch]({HOST_STEM}.de.md)")
+    return suffix, title, intro, historical_note, language
+
+
+def render(ledger, reconciliation, source_status, references, historical, german=False):
+    validate(ledger, reconciliation, source_status)
+    suffix, title, intro, historical_note, language = render_context(german)
     historical = {name: ref for name, ref in historical.items()
                   if name.endswith('-de' if german else '-en')}
     host = [f"# {title}", language, f"Status: **{source_status['i12_status']}**.", intro,
-            "## " + ("Aktuelle Zähler" if german else "Current counts"), "```json\n"+json.dumps(ledger['summary'],indent=2,ensure_ascii=False,sort_keys=True)+"\n```",
+            "## " + ("Aktuelle Zähler" if german else "Current counts"), JSON_FENCE+json.dumps(ledger['summary'],indent=2,ensure_ascii=False,sort_keys=True)+"\n```",
             "## " + ("13 Pflichtrouten" if german else "13 required routes"), route_table(ledger['rows'], True, german),
             "## " + ("Getrennte diagnostische Kontrolle" if german else "Separate diagnostic control"), route_table(ledger['rows'], False, german),
             "## " + ("Aktueller Quellen-, CI- und Release-Stand" if german else "Current source, CI and release checkpoint"),
-            "```json\n"+json.dumps(source_status,indent=2,ensure_ascii=False,sort_keys=True)+"\n```",
+            JSON_FENCE+json.dumps(source_status,indent=2,ensure_ascii=False,sort_keys=True)+"\n```",
             "## " + ("Physische Lifecycle-Pakete" if german else "Physical lifecycle packets")]
-    for row in ledger['rows']:
-        packet = row['current_lifecycle_packet']
-        if packet is not None:
-            selected = {k:packet['observations'].get(k) for k in (
-                'product_host_identity','source_config_binding','host_eos','native_eos',
-                'finish_calls','native_free_calls','cleanup_receipts')}
-            raw = json.loads(Path(packet['receipt']['path']).read_text())
-            identity = {key:raw.get(key) for key in (
-                'run_id','parent_sha','framework_sha','mrts_sha','product_contract_sha',
-                'effective_config_sha256','rules_sha256')}
-            host += [f"### {row['run_scoped_case_id']}", "```json\n"+json.dumps({'receipt':packet['receipt'],
-                'packet_identity':identity,'status':row['status'],'qualification_scope':row['qualification_scope'],
-                'unknown_fields':packet['unknown_fields'],'observations':selected},
-                ensure_ascii=False,indent=2,sort_keys=True)+"\n```"]
+    host += packet_sections(ledger)
     host += ["## " + ("Geprüfte Eingabequellen" if german else "Checked input sources"), source_links(references),
              "## " + ("Unveränderte historische Quellen" if german else "Unchanged historical sources"), historical_note, source_links(historical),
              f"[{'Vollständiger geordneter Index' if german else 'Complete ordered index'}]({INDEX_STEM}{suffix})."]
@@ -227,15 +270,7 @@ def render(ledger, reconciliation, source_status, references, historical, german
              f"Ordered ID stream SHA256: `{ledger['original_ordered_id_sha256']}`.",
              f"Original selected contract SHA256: `{ledger['original_selected_contract_sha256']}`.",
              f"[{title}]({HOST_STEM}{suffix})."]
-    index_rows = []
-    for row in ledger['rows']:
-        packet = row['current_lifecycle_packet']
-        review = row['oracle_reconciliation']
-        index_rows.append("\t".join((row['run_scoped_case_id'], 'status='+row['status'], 'execution_observed='+encoded(row['execution_observed']),
-                     'qualification_scope='+encoded(row['qualification_scope']), 'required_leg='+encoded(row['required_leg']),
-                     'original_oracle='+encoded(row['selected_requirement']['expected_oracle']),
-                     'oracle_category='+encoded(review['category'] if review else None),
-                     'packet='+encoded(packet['receipt'] if packet else None), 'unknown_fields='+encoded(packet['unknown_fields'] if packet else None))))
+    index_rows = index_lines(ledger)
     index = '\n\n'.join(index_header) + '\n\n```text\n' + '\n'.join(index_rows) + '\n```\n\n'
     index += historical_note + '\n\n' + source_links(historical) + '\n'
     return '\n\n'.join(host)+'\n', index
@@ -246,8 +281,9 @@ def main():
     for name in ('ledger','reconciliation','source-status','historical-host-en','historical-host-de','historical-index-en','historical-index-de','output-dir'):
         parser.add_argument('--'+name, type=Path, required=True)
     args = parser.parse_args()
+    args.output_dir = PATHS.output_path(args.output_dir)
     references = {name:ORACLES.reference(getattr(args,name.replace('-','_')).absolute()) for name in ('ledger','reconciliation','source-status')}
-    ledger, reconciliation, status = (json.loads(Path(ref['path']).read_text()) for ref in references.values())
+    ledger, reconciliation, status = (json.loads(PATHS.read_text(ref['path'])) for ref in references.values())
     history_sources = {name:ORACLES.reference(getattr(args,name.replace('-','_')).absolute()) for name in ('historical-host-en','historical-host-de','historical-index-en','historical-index-de')}
     historical = {name:{**ref,'path':'history/'+Path(ref['path']).name} for name,ref in history_sources.items()}
     validate(ledger,reconciliation,status)
@@ -260,14 +296,13 @@ def main():
         relative='history/'+Path(ref['path']).name
         if relative in outputs:
             raise ValueError('Historical source filenames must be distinct')
-        outputs[relative]=Path(ref['path']).read_bytes()
+        outputs[relative]=PATHS.read_bytes(ref['path'])
     if any((args.output_dir/name).exists() for name in outputs):
         raise ValueError('Output already exists; preserve prior reports')
     for name,data in outputs.items():
         target=args.output_dir/name
-        target.parent.mkdir(parents=True,exist_ok=True)
-        with target.open('xb') as stream:
-            stream.write(data)
+        ORACLES.ensure_output_directory(target.parent)
+        PATHS.create_bytes(target, data)
 
 
 if __name__ == '__main__':

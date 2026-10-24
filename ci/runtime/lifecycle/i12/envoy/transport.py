@@ -1,10 +1,39 @@
 """Keep observed local closure separate from successful remote gRPC status."""
 import argparse
-import importlib.util
 import json
 import re
 from pathlib import Path
 import sys
+
+import evidence_io
+import grpc_stream_observations
+import host_log_observations
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parents[4] / 'ci/lib'))
+import i12_path_safety as paths
+
+PARSER_NAMES = ('grpc_stream_observations.py', 'host_log_observations.py')
+
+
+def historical_helper_hashes(helpers):
+    """Authenticate retained source identities as data, never as import roots."""
+    if helpers is None:
+        return {}
+    manifest = evidence_io.read_json(HERE.parent / 'manifest.json')
+    expected = manifest['profiles']['envoy']['capture_files']
+    hashes = {}
+    for name in PARSER_NAMES:
+        actual = evidence_io.reference(helpers / name)['sha256']
+        if actual != expected[name]['sha256']:
+            raise ValueError('unreviewed transport helper: ' + name)
+        hashes[name] = actual
+    return hashes
+
+
+def current_parser_hashes():
+    """Bind current analysis code separately from retained capture provenance."""
+    return {name: evidence_io.reference(HERE / name)['sha256'] for name in PARSER_NAMES}
 
 
 def authorization_records(lines, start, end, host_logs):
@@ -137,17 +166,13 @@ def main():
     parser.add_argument('--path', required=True)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
-    # Only pure capture parsers are imported; the driver/backend are not run.
-    sys.path.insert(0, str(args.helpers.resolve(strict=True)))
-    module_path = args.helpers / 'grpc_stream_observations.py'
-    spec = importlib.util.spec_from_file_location('envoy_grpc_capture', module_path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    raw = args.raw.read_text()
-    import host_log_observations
-    result = terminal(module.observe(raw, args.path),
+    hashes = historical_helper_hashes(args.helpers)
+    raw = evidence_io.read_bytes(args.raw).decode('utf-8')
+    result = terminal(grpc_stream_observations.observe(raw, args.path),
                       authorization_observation(raw, args.path, host_log_observations))
-    with args.output.open('x') as output:
+    result['helper_sha256'] = hashes
+    result['current_parser_sha256'] = current_parser_hashes()
+    with paths.new_text(args.output) as output:
         json.dump(result, output, indent=2)
         output.write('\n')
 

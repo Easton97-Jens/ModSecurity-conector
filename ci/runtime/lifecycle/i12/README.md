@@ -11,10 +11,11 @@ separately.
 
 `manifest.json` maps logical source names to SHA256 objects. Identical collectors,
 clients and backends occur once. Close variants are exact unified deltas against a
-shared object. Current `native-lifecycle-observer.c`, its header and the SDK
-accessor remain repository references; historical C52/H5, C270/H5 and Ca4/H581
-variants are hash-bound deltas, without copied observer trees. The current shared
-base is C `0d903fc5…`, H `5b7d8fa7…`, SDK accessor `89ff282b…`; see the manifest
+shared object. The header and SDK accessor remain repository references; the
+historical C base `0d903fc5…` is frozen as lossless line data. Historical C52/H5,
+C270/H5 and Ca4/H581 variants remain hash-bound deltas, without copied observer
+trees. The live shared observer identity is C `5038d006…`, H `5b7d8fa7…`,
+SDK accessor `89ff282b…`; see the manifest
 for complete hashes. Historical profile input hashes bind to
 `8cc32dceb06121f589150a9794f28878c5e4ba2a`; current-copy revision binding is
 separate as described below.
@@ -43,6 +44,39 @@ The ten **source-application profiles** comprise nine historical variants plus
 transfers execution, EOS, identity or outcome between logical routes.
 Framework and MRTS repositories/gitlinks remain outside this contract. Private
 fixture definitions are run-scoped capture inputs, not reusable catalog additions.
+
+## Immutable source records and maintained analysis code
+
+The 61 historical source-like `text` objects and the historical shared C observer
+repository anchor are now stored as lossless `text_lines` JSON data. These 62
+objects reconstruct 346,634 exact original bytes. Together with the 10 existing
+line objects, the registry contains 72 line objects, 16 other text objects,
+48 deltas and 19 repository objects. Each JSON string retains its original line
+ending and whitespace. The 53,532-byte C observer anchor is authenticated against
+commit `30d50a181278904a552e295d9a2c1ae1265e8b87` and retains identity
+`0d903fc5e6432769a136931b7ebea16a6f87db941d28d23583ccccf4c75e6537`.
+Reconstruction must reproduce the original bytes and SHA256 identity exactly.
+Historical profile bindings, before/result hashes and delta identities are
+unchanged. The explicit current-copy C pins in `apache-current`,
+`traefik-native` and `traefik-forwardauth` bind the live `5038d006…` observer;
+they do not change the historical capture after-bytes.
+The registry rejects source-code suffixes in plain `text` storage and requires
+`.json` storage for `text_lines`. Materializing verified historical bytes in an
+explicit disposable copy remains a separate operation and grants no execution
+or current-revision qualification.
+
+Current Envoy parsing uses the maintained `envoy/host_log_observations.py` and
+`envoy/grpc_stream_observations.py` modules. Current consumers do not execute
+modules from the object store or a CLI-selected helper directory. The retained
+helper files are read only to authenticate historical provenance. New reviews
+and original-case packets record the maintained parser hashes separately from
+the historical helper hashes. Historical reports and approvals retain their
+original identities; they are not reclassified as results of the new parsers.
+
+Automatic Sonar analysis classifies Python test files through
+`.sonarcloud.properties` and uses Python `3.14`. Maintained sources, validators,
+parsers and tests remain analyzable. No issue, source or duplication exclusion
+is used for this storage transition.
 
 ## Verify and apply
 
@@ -135,7 +169,7 @@ be submitted as an untouched export again.
 Use `--profile apache-current` for the current committed checkout's complete
 v2 export. This additive profile changes only the native observer C/H
 `before_sha256` pins from `ad8e5e36…`/`f9f63b62…` to
-`0d903fc5…`/`5b7d8fa7…`; all capture after-bytes, product overlays, SDK3.0.14 ABI
+`5038d006…`/`5b7d8fa7…`; all capture after-bytes, product overlays, SDK3.0.14 ABI
 and historical `apache` profile remain unchanged. Its declared
 `required_source_identity_format` rejects a v1 marker before any writes, even
 when the source bytes otherwise match. Registry verification rejects unknown
@@ -159,8 +193,9 @@ a complete build, loaded-module identity or a qualified host transaction.
 
 The current shared observer matches the selected public SDK constructor's
 `char *` or `const char *` qualification without dropping compiler warnings.
-Historical `ad8e5e36…`/`f9f63b62…` objects remain exact reverse deltas from the
-current repository bytes. All earlier profile and object result hashes remain
+Historical `ad8e5e36…`/`f9f63b62…` objects remain exact reverse deltas from their
+pinned base objects; the C base is frozen independently of the live observer.
+All earlier profile and object result hashes remain
 unchanged; native ABI variants still require their own complete build binding.
 
 ## Build, ABI and evidence boundaries
@@ -255,3 +290,10 @@ anchor is also frozen as lossless `text_lines`, authenticated against commit
 dependent observation delta and profile hashes remain unchanged. This keeps
 complete registry verification valid after the current NGINX product source
 advances and grants no current-source or runtime qualification.
+
+The maintained Traefik process controls use `ci/lib/i12_process_observation.py`
+instead of importing a historical driver. Controls that inspect or instrument
+archived driver text obtain it through `Registry.content`, including its exact
+hash check. Apache controls similarly reconstruct their pinned C/H records into
+a private disposable test directory before compilation. Neither operation adds
+scenarios or promotes historical evidence.

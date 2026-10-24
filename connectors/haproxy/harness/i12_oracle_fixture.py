@@ -12,6 +12,14 @@ import json
 import re
 from pathlib import Path
 
+# Load the maintained Parent filesystem boundary from this checkout.
+import sys as _i12_sys
+_i12_library = next((parent / "ci/lib" for parent in Path(__file__).resolve().parents
+                     if (parent / "ci/lib/i12_path_safety.py").is_file()),
+                    Path(__file__).resolve().parent)
+_i12_sys.path.insert(0, str(_i12_library))
+import i12_path_safety as i12_paths
+
 
 def _ordered_source_hash_entries(value):
     entries = []
@@ -78,9 +86,9 @@ def main():
     parser.add_argument("source", type=Path)
     parser.add_argument("output", type=Path)
     args = parser.parse_args()
-    document = json.loads(args.source.read_text())
+    document = json.loads(i12_paths.read_text(args.source))
     result = migrate_fixture(document)
-    with args.output.open("x", encoding="utf-8") as output:
+    with i12_paths.new_text(args.output) as output:
         output.write(render_fixture(result))
     print(json.dumps({"records": len(result["records"]), "semantic_sha256": semantic_sha256(result)}))
 

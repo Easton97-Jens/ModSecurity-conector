@@ -20,6 +20,7 @@ import time
 from scenarios import cases, serializable
 
 
+CASE_ID_PREFIX = "I12::nginx-native::"
 EVENT_RUN_ID = "MSCONNECTOR_NGINX_EVENT_RUN_ID"
 EVENT_CASE_ID = "MSCONNECTOR_NGINX_EVENT_TRANSPORT_CASE_ID"
 
@@ -240,7 +241,7 @@ def prepare_case(args, row, raw, maps):
     # the optional product event fields. Satisfy every consumer before allocation.
     if re.fullmatch(r"[A-Za-z0-9_-]{1,64}", run_id) is None:
         raise ValueError("invalid host/native observer run identity")
-    provenance = event_provenance(run_id, "I12::nginx-native::" + row["case_id"])
+    provenance = event_provenance(run_id, CASE_ID_PREFIX + row["case_id"])
     output = args.output_root / row["case_id"]
     args.output_root.mkdir(exist_ok=True, mode=0o700)
     local_args = argparse.Namespace(**vars(args))
@@ -264,7 +265,7 @@ def prepare_case(args, row, raw, maps):
     descriptors = observer_descriptors(output, environment)
     roles = {"run_id": local_args.run_id, "master_pid": 0, "worker_pid": 0, "master_uid": -1, "worker_uid": -1}
     environment.update(MSCONNECTOR_LIFECYCLE_RUN=local_args.run_id, MSCONNECTOR_LIFECYCLE_PROFILE="nginx-native",
-                       MSCONNECTOR_LIFECYCLE_CASE="I12::nginx-native::" + row["case_id"])
+                       MSCONNECTOR_LIFECYCLE_CASE=CASE_ID_PREFIX + row["case_id"])
     context = argparse.Namespace(args=args, row=row, raw=raw, maps=maps, output=output,
                                  local_args=local_args, environment=environment, backend=backend,
                                  thread=thread, port=port, worker=worker, descriptors=descriptors,
@@ -393,7 +394,7 @@ def case_result(context):
     master_signal = None
     if context.master_result is not None and context.master_result < 0:
         master_signal = -context.master_result
-    receipt = {"selected_id": "I12::nginx-native::" + context.row["case_id"],
+    receipt = {"selected_id": CASE_ID_PREFIX + context.row["case_id"],
                "run_id": context.local_args.run_id, "parent_sha": context.args.parent_sha,
                "framework_sha": context.args.framework_sha, "mrts_sha": context.args.mrts_sha,
                "roles": context.roles, "configtest_exit": context.configcode, "cleanup": context.cleanup,

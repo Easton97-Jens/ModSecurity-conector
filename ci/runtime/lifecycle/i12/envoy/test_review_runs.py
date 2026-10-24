@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import sys
 import unittest
 from unittest.mock import patch
 
@@ -97,6 +98,34 @@ class ReviewControls(unittest.TestCase):
         self.assertIsNone(result['process']['remote_grpc_status'])
         self.assertFalse(result['process']['successful_grpc_completion'])
         self.assertFalse(result['authorization']['successful_grpc_completion'])
+
+    def _retained_helpers(self):
+        manifest = json.loads((HERE.parent / 'manifest.json').read_text())
+        expected = manifest['profiles']['envoy']['capture_files']
+        for name in review.maintained_transport.PARSER_NAMES:
+            item = manifest['objects'][expected[name]['sha256']]
+            rows = json.loads((HERE.parent / item['file']).read_text())
+            (self.root / name).write_text(''.join(rows))
+        return {name: expected[name]['sha256'] for name in review.maintained_transport.PARSER_NAMES}
+
+    def test_helper_sources_are_provenance_without_transitive_execution(self):
+        expected = self._retained_helpers()
+        (self.root / 'datetime.py').write_text("raise RuntimeError('untrusted dependency executed')\n")
+        original_search_path = list(sys.path)
+        with patch.dict(sys.modules):
+            sys.modules.pop('datetime', None)
+            transport, capture, hashes = review.parser_modules(self.root)
+        self.assertEqual(sys.path, original_search_path)
+        self.assertIs(transport, review.maintained_transport)
+        self.assertIs(capture, review.maintained_capture)
+        self.assertEqual(hashes, expected)
+        self.assertEqual(set(transport.current_parser_hashes()), set(expected))
+
+    def test_changed_historical_helper_is_rejected_as_provenance(self):
+        self._retained_helpers()
+        (self.root / 'grpc_stream_observations.py').write_text('raise RuntimeError("changed helper")\n')
+        with self.assertRaisesRegex(ValueError, 'unreviewed transport helper'):
+            review.parser_modules(self.root)
 
     def test_raw_http_framing_is_independent_of_later_tls_failure(self):
         complete = review.raw_response_summary(b'HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n3\r\nabc\r\n0\r\n\r\n')

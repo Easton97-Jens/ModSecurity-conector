@@ -411,8 +411,9 @@ class NginxAcceptanceTests(unittest.TestCase):
         record["evidence_refs"] = [{**self.file_reference(path, "external_derived_source"), "source_case_id": parent}
                                    if ref["role"] == "external_derived_source" else ref
                                    for ref in record["evidence_refs"]]
+        selected_records = list(records.values())
         with self.assertRaisesRegex(ValueError, "reviewed PASS"):
-            self.build(*records.values())
+            self.build(*selected_records)
 
     def test_pass_rejects_gaps_unresolved_oracle_scope_and_missing_sources(self):
         for field, value in (("remaining_contract_gaps", ["missing proof"]), ("oracle_resolved", False),

@@ -8,6 +8,14 @@ import importlib.util
 import json
 from pathlib import Path
 
+# Load the maintained Parent filesystem boundary from this checkout.
+import sys as _i12_sys
+_i12_library = next((parent / "ci/lib" for parent in Path(__file__).resolve().parents
+                     if (parent / "ci/lib/i12_path_safety.py").is_file()),
+                    Path(__file__).resolve().parent)
+_i12_sys.path.insert(0, str(_i12_library))
+import i12_path_safety as i12_paths
+
 ROOT = Path(__file__).resolve().parents[3]
 INVENTORY = Path(__file__).with_name('fixtures') / 'i12_original_inventory.json'
 COUNTS = {'traefik-native-uds': 118, 'traefik-forwardauth-request': 93,
@@ -220,7 +228,7 @@ def main():
     result = reconcile(json.loads(args.inventory.read_text()),
                        json.loads(args.reviews.read_text()) if args.reviews else (),
                        json.loads(args.packets.read_text()) if args.packets else ())
-    with args.output.open('x', encoding='utf-8') as stream:
+    with i12_paths.new_text(args.output) as stream:
         json.dump(result, stream, indent=2)
         stream.write('\n')
 

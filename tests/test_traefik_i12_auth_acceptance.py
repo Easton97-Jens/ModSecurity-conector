@@ -18,6 +18,9 @@ from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'ci/lib'))
+from i12_process_observation import ProcessObservation
+
 HARNESS = ROOT / 'connectors/traefik/harness/i12_auth'
 
 
@@ -59,14 +62,13 @@ class AcceptanceControls(unittest.TestCase):
 
     def test_real_rtk_file_backend_pid_is_reused_for_listen_snapshot_and_cleanup(self):
         driver = self.driver()
-        path = ROOT / 'ci/runtime/lifecycle/i12/objects/text/7fc06c4c56f1960b16c4096dfc42a6c93f80576d1f9f427fffe7dfba37b81075-driver.py'
-        spec = importlib.util.spec_from_file_location('auth_real_pid_owner', path)
-        owner = importlib.util.module_from_spec(spec); spec.loader.exec_module(owner)
+        owner = ProcessObservation(ROOT)
         native_path = ROOT / 'connectors/traefik/harness/i12/native/acceptance_driver.py'
         native_spec = importlib.util.spec_from_file_location('auth_real_stop_owner', native_path)
         stopper = importlib.util.module_from_spec(native_spec)
         with mock.patch.dict(sys.modules, {'base_driver': owner}): native_spec.loader.exec_module(stopper)
-        with tempfile.TemporaryDirectory() as directory:
+        external = Path(os.environ.get('CODEX_TEMP_ROOT', '/var/tmp/codex/ModSecurity-conector'))
+        with tempfile.TemporaryDirectory(dir=external) as directory:
             root = Path(directory); fixtures = root / 'fixtures'; fixtures.mkdir()
             case = self.file_case('response'); self.bind_file(case, fixtures)
             for name in ('runtime', 'file-source', 'file-evidence'): (root / name).mkdir(mode=0o700)

@@ -5,6 +5,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import signal
 import subprocess
@@ -161,9 +162,8 @@ class ControllerPacketControls(unittest.TestCase):
 
 class TimeoutRecordControls(unittest.TestCase):
     def setUp(self):
-        external = Path("/var/tmp/codex/ModSecurity-conector")
         temp = tempfile.TemporaryDirectory(prefix="envoy-run-host-control-",
-                                           dir=external if external.is_dir() else None)
+                                           dir=os.environ.get("RUNNER_TEMP"))
         self.addCleanup(temp.cleanup)
         self.root = Path(temp.name)
         controller = self.root / "controller.py"
@@ -245,6 +245,17 @@ class TimeoutRecordControls(unittest.TestCase):
         self.assertEqual(record["controller_packet_parse_errors"], 1)
         self.assertTrue(record["timeout_state"]["cleanup_requires_review"])
         self.assertEqual((self.root / "result-bounded-control.stdout").read_bytes(), out)
+
+    def test_traversing_matrix_label_is_rejected_before_controller_launch(self):
+        matrix = json.loads(self.matrix.read_text())
+        matrix['scenarios'][0]['label'] = '../foreign'
+        self.matrix.write_text(json.dumps(matrix))
+        argv = ['run-host-control', '--matrix', str(self.matrix), '--output', str(self.output)]
+        with mock.patch('sys.argv', argv), mock.patch.object(HOST.subprocess, 'Popen') as launch:
+            with self.assertRaisesRegex(ValueError, 'one bounded filename'):
+                HOST.main()
+        launch.assert_not_called()
+        self.assertFalse(self.output.exists())
 
 
 if __name__ == "__main__":

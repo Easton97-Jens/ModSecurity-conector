@@ -5,6 +5,14 @@ import hashlib
 import json
 from pathlib import Path
 
+# Load the maintained Parent filesystem boundary from this checkout.
+import sys as _i12_sys
+_i12_library = next((parent / "ci/lib" for parent in Path(__file__).resolve().parents
+                     if (parent / "ci/lib/i12_path_safety.py").is_file()),
+                    Path(__file__).resolve().parent)
+_i12_sys.path.insert(0, str(_i12_library))
+import i12_path_safety as i12_paths
+
 
 DIAGNOSTIC_PREFIX = "/diagnostic/"
 
@@ -85,7 +93,7 @@ def main():
         parser.add_argument("--" + name, type=Path, required=True)
     parser.add_argument("--framework-sha", required=True)
     args = parser.parse_args()
-    with args.output.open("x") as stream:
+    with i12_paths.new_text(args.output) as stream:
         json.dump(generate(args), stream, indent=2)
         stream.write("\n")
 

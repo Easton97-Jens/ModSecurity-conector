@@ -11,6 +11,14 @@ import json
 import hashlib
 from pathlib import Path
 
+# Load the maintained Parent filesystem boundary from this checkout.
+import sys as _i12_sys
+_i12_library = next((parent / "ci/lib" for parent in Path(__file__).resolve().parents
+                     if (parent / "ci/lib/i12_path_safety.py").is_file()),
+                    Path(__file__).resolve().parent)
+_i12_sys.path.insert(0, str(_i12_library))
+import i12_path_safety as i12_paths
+
 
 TARGET_CLIENT = 'client-target.json'
 RESULT_RECEIPT = 'result.json'
@@ -407,7 +415,7 @@ def draft_packet(root, attempt, prepared, source, identities, binding, source_id
 
 def propose(attempt, prepared, output, source_identities=None):
     binding=validate_attempt_binding(attempt,prepared)
-    output.mkdir(mode=0o700)
+    output = i12_paths.new_directory(output)
     source = REVIEW.read(prepared / 'source/.i12-source-export-manifest.json')
     identities = REVIEW.read(source_identities) if source_identities else None
     framework = source['gitlinks'].get('modules/ModSecurity-test-Framework')
@@ -426,7 +434,7 @@ def propose(attempt, prepared, output, source_identities=None):
         if packet is None:
             continue
         path = output / (packet['probe_id'] + '.json')
-        with path.open('x') as stream:
+        with i12_paths.new_text(path) as stream:
             json.dump(packet, stream, indent=2)
             stream.write('\n')
         result.append(path)

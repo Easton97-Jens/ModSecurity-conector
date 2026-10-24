@@ -202,7 +202,8 @@ class PacketMutations(unittest.TestCase):
         names = ('observations', 'predicate_results', 'original_mapping', 'effective_oracle',
                  'additional_sealed_expected_contract', 'physical_refs', 'parent_sha', 'framework_sha', 'mrts_sha',
                  'effective_config_sha256', 'run_id', 'closure_contract', 'approval_ready', 'remaining_requirements',
-                 'run_scoped_case_id', 'leg_id', 'reproduction')
+                 'run_scoped_case_id', 'leg_id', 'reproduction',
+                 'historical_helper_sha256', 'current_parser_sha256')
         fresh = {name: {'unchanged': True} for name in names}
         Q.compare_regenerated(fresh, fresh, fresh)
         for name in names:

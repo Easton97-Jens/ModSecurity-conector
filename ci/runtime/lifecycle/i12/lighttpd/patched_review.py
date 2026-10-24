@@ -9,6 +9,14 @@ import hashlib
 import json
 from pathlib import Path
 
+# Load the maintained Parent filesystem boundary from this checkout.
+import sys as _i12_sys
+_i12_library = next((parent / "ci/lib" for parent in Path(__file__).resolve().parents
+                     if (parent / "ci/lib/i12_path_safety.py").is_file()),
+                    Path(__file__).resolve().parent)
+_i12_sys.path.insert(0, str(_i12_library))
+import i12_path_safety as i12_paths
+
 
 def lines(path):
     return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
@@ -61,5 +69,5 @@ if __name__ == "__main__":
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
     rows = [summarize(p.parent) for p in sorted((args.capture_root / "cases").glob("*/receipt.json"))]
-    args.output.write_text(json.dumps(rows, indent=2, sort_keys=True) + "\n")
+    i12_paths.create_text(args.output, json.dumps(rows, indent=2, sort_keys=True) + "\n")
     print(json.dumps({"cases": len(rows), "output": str(args.output), "canonical_oracle_evaluated": False}))

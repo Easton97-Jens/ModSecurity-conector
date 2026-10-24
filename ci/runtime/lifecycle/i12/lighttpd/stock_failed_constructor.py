@@ -10,6 +10,14 @@ from pathlib import Path
 from stock_packet import lines, read, reference, selected_scope
 from stock_qualification import EXTERNAL
 
+# Load the maintained Parent filesystem boundary from this checkout.
+import sys as _i12_sys
+_i12_library = next((parent / "ci/lib" for parent in Path(__file__).resolve().parents
+                     if (parent / "ci/lib/i12_path_safety.py").is_file()),
+                    Path(__file__).resolve().parent)
+_i12_sys.path.insert(0, str(_i12_library))
+import i12_path_safety as i12_paths
+
 
 def summarize(data, source):
     root = data / 'lighttpd'
@@ -66,7 +74,7 @@ if __name__ == '__main__':
     if '..' in args.output.parts or not args.output.absolute().is_relative_to(EXTERNAL):
         raise ValueError('external output required')
     result = summarize(args.data, args.source)
-    with args.output.open('x') as stream:
+    with i12_paths.new_text(args.output) as stream:
         json.dump(result, stream, indent=2)
         stream.write('\n')
     print(json.dumps({'case': result['run_scoped_case_id'], 'observation_state': result['observation_state']}))

@@ -790,7 +790,7 @@ def stage_one(record, parent, runs_path, helpers, output):
     runroot = require_runroot()
     shared = shared_validator()
     REVIEW.BINDING_CACHE.clear()
-    transport, capture, _ = REVIEW.parser_modules(helpers)
+    transport, capture, historical_helpers = REVIEW.parser_modules(helpers)
     summary = REVIEW.review_run(record, transport, capture, parent)
     if summary.get('observation_state') != 'driver_result_observed':
         raise ValueError('physical run is not terminal and safely handed back')
@@ -830,9 +830,13 @@ def stage_one(record, parent, runs_path, helpers, output):
         'approval_ready': all(checks.values()), 'remaining_requirements': [key for key, value in checks.items() if not value],
         'original_mapping': {'native_case_alias': shape['case_id'], 'original_case_ids': [original],
                              'shape': shape_ref, 'source_review': source_ref},
+        'historical_helper_sha256': historical_helpers,
+        'current_parser_sha256': transport.current_parser_hashes(),
         'physical_refs': list(refs.values()) + bound_fixture_refs + [control, shape_ref, source_ref, reference(record['case']['spec'])]
             + [reference(path) for path in (Path(__file__).resolve(), HERE / 'review_runs.py', HERE / 'transport.py',
-                HERE / 'source_inventory.py', HERE / 'evidence_io.py', REPO / 'ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py',
+                HERE / 'source_inventory.py', HERE / 'evidence_io.py',
+                HERE / 'grpc_stream_observations.py', HERE / 'host_log_observations.py',
+                REPO / 'ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py',
                 REPO / 'ci/evidence/reports/generate-pr382-i12-oracle-reconciliation.py',
                 helpers / 'grpc_stream_observations.py', helpers / 'host_log_observations.py', fixture / 'native.rules')],
         'reproduction': {'runs_path': str(runs_path), 'record': record, 'helpers': str(helpers)},
@@ -914,7 +918,8 @@ def compare_regenerated(packet, staged, fresh):
     for name in ('observations', 'predicate_results', 'original_mapping', 'effective_oracle',
                  'additional_sealed_expected_contract', 'physical_refs', 'parent_sha', 'framework_sha', 'mrts_sha',
                  'effective_config_sha256', 'run_id', 'closure_contract', 'approval_ready', 'remaining_requirements',
-                 'run_scoped_case_id', 'leg_id', 'reproduction'):
+                 'run_scoped_case_id', 'leg_id', 'reproduction',
+                 'historical_helper_sha256', 'current_parser_sha256'):
         if canonical(packet[name]) != canonical(fresh[name]) or canonical(staged[name]) != canonical(fresh[name]):
             raise ValueError('approved packet differs from freshly reproduced physical facts: ' + name)
 

@@ -8,17 +8,18 @@ from pathlib import Path
 import shlex
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'ci/runtime/lifecycle/i12'))
+from capture_sources import Registry
+
 HERE = ROOT / "ci/runtime/lifecycle/apache-i12/acceptance"
 SPEC = importlib.util.spec_from_file_location("apache_bucket_build", HERE / "build_host_bucket.py")
 BUILD = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(BUILD)
-OBJECTS = ROOT / "ci/runtime/lifecycle/i12/objects/text"
-HOST_C = OBJECTS / "af42bc5500b0c75b2620678648abaf16d7dc674e8bbd444745b0b8f21320af63-apache-host-observer.c"
-HOST_H = OBJECTS / "c0bde3c4b54fd802084f54665e3fa17f162bcfb29378136c669f5d8f3f46bfc9-apache-host-observer.h"
 
 CALLER = r'''
 #include "mod_security3.h"
@@ -111,10 +112,14 @@ class ApacheHostBucketTests(unittest.TestCase):
             dir=os.environ.get("CODEX_TEST_TMP_ROOT", "/var/tmp/codex/ModSecurity-conector"))
         cls.addClassCleanup(temporary.cleanup)
         cls.work = Path(temporary.name)
+        registry = Registry()
+        cls.host_c = cls.work / "apache-host-observer.c"
+        cls.host_h = cls.work / "apache-host-observer.h"
+        cls.host_c.write_bytes(registry.content("af42bc5500b0c75b2620678648abaf16d7dc674e8bbd444745b0b8f21320af63"))
+        cls.host_h.write_bytes(registry.content("c0bde3c4b54fd802084f54665e3fa17f162bcfb29378136c669f5d8f3f46bfc9"))
         cls.evidence = os.environ.get("I12_APACHE_HOST_BUCKET_EVIDENCE_DIR")
         include = Path(os.environ.get("MODSECURITY_INCLUDE_DIR", "/usr/include"))
         receipt = BUILD.build(cls.work / "build", include)
-        shutil.copy2(HOST_H, cls.work / "apache-host-observer.h")
         caller = cls.work / "caller.c"
         caller.write_text(CALLER)
         main = cls.work / "main.c"
@@ -139,14 +144,14 @@ class ApacheHostBucketTests(unittest.TestCase):
         native = cls.work / "native-lifecycle-observer.c"
         shutil.copy2(ROOT / "ci/runtime/lifecycle/native-lifecycle-observer.c", native)
         shutil.copy2(ROOT / "ci/runtime/lifecycle/native-lifecycle-observer.h", cls.work / "native-lifecycle-observer.h")
-        for source, target in ((HOST_C, "host.o"), (native, "native.o")):
+        for source, target in ((cls.host_c, "host.o"), (native, "native.o")):
             # Hide unused observer entry points in this standalone control so
             # section GC can retain the REAL scope accessor without faking a
             # successful host allocation or linking unrelated runtime owners.
             # The native observer defines _GNU_SOURCE itself before headers;
             # APR's command-line duplicate otherwise triggers -Werror.
             flags = [flag for flag in common if flag not in ("-D_GNU_SOURCE", "-D_GNU_SOURCE=1")] if source == native else common
-            instrumentation = ["-finstrument-functions"] if source == HOST_C else []
+            instrumentation = ["-finstrument-functions"] if source == cls.host_c else []
             run([*flags, *instrumentation, "-fvisibility=hidden", "-c", str(source), "-o", str(cls.work / target)])
         run([*common, "-c", str(caller), "-o", str(cls.work / "caller.o")])
         links = [*shlex.split(BUILD.query("apr-1-config", "--link-ld", "--libs")), "-laprutil-1", "-pthread"]
@@ -169,7 +174,7 @@ class ApacheHostBucketTests(unittest.TestCase):
         if cls.evidence:
             destination = Path(cls.evidence)
             destination.mkdir(parents=True, exist_ok=True)
-            sources = [HOST_C, HOST_H, native, caller, main, counter]
+            sources = [cls.host_c, cls.host_h, native, caller, main, counter]
             (destination / "builds.json").write_text(json.dumps({"commands": receipts, "helper_build": receipt,
                 "source_sha256": {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources},
                 "scope_accessor": "actual native-lifecycle-observer.c; no host association created in standalone control"}, indent=2))

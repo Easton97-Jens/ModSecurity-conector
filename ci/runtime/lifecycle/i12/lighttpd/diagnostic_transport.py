@@ -9,6 +9,14 @@ import socket
 import struct
 import time
 
+# Load the maintained Parent filesystem boundary from this checkout.
+import sys as _i12_sys
+_i12_library = next((parent / "ci/lib" for parent in Path(__file__).resolve().parents
+                     if (parent / "ci/lib/i12_path_safety.py").is_file()),
+                    Path(__file__).resolve().parent)
+_i12_sys.path.insert(0, str(_i12_library))
+import i12_path_safety as i12_paths
+
 LIMIT = 131072
 
 
@@ -162,6 +170,7 @@ def loopback_connection(port):
 
 
 def capture(port, requests, output):
+    output = i12_paths.output_path(output)
     if not isinstance(port, int) or not 1 <= port <= 65535:
         raise ValueError("Diagnostic client requires a valid loopback TCP port")
     if not 1 <= len(requests) <= 8:
@@ -186,7 +195,7 @@ def capture(port, requests, output):
                   declared_requests=len(requests), completed_requests=len(rows))
     result["proposed_process_exit"] = 0 if len(rows) == len(requests) and all(not row["error"] and
         (row.get("actual_message_complete") or row.get("intentional_client_reset")) for row in rows) else 1
-    with output.open("x") as stream:
+    with i12_paths.new_text(output) as stream:
         json.dump(result, stream, indent=2)
         stream.write("\n")
     return result["proposed_process_exit"]

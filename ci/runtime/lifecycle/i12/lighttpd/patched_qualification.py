@@ -24,6 +24,14 @@ import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+# Load the maintained Parent filesystem boundary from this checkout.
+import sys as _i12_sys
+_i12_library = next((parent / "ci/lib" for parent in Path(__file__).resolve().parents
+                     if (parent / "ci/lib/i12_path_safety.py").is_file()),
+                    Path(__file__).resolve().parent)
+_i12_sys.path.insert(0, str(_i12_library))
+import i12_path_safety as i12_paths
+
 
 ROUTE = "lighttpd-patched-native"
 RESPONSE = b"i12-qualified-response-marker-end"
@@ -1612,7 +1620,7 @@ def main():
         return client(args.spec, args.output, args.port, args.token)
     if args.mode == "backend":
         backend(args.spec, args.output); return 0
-    args.output.mkdir(mode=0o700)
+    args.output = i12_paths.new_directory(args.output)
     selected = json.loads(args.spec.read_text()) if args.spec else definitions()
     if args.cases:
         selected = [s for s in selected if s["case"] in args.cases]

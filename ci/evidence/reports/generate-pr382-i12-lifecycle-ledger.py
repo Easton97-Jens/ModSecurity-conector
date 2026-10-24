@@ -24,6 +24,7 @@ def oracle_module():
 
 
 ORACLES = oracle_module()
+PATHS = ORACLES.PATHS
 CONFIGURATION_FIELDS = (
     "actual-config-parser-argv-cwd-exit-signal-stderr",
     "source-host-module-effective-config-identity",
@@ -89,25 +90,17 @@ REQUIRED_ROLES = {
 }
 
 
-def measurement(field, supplied, packet_path):
-    """Missing data stays unknown; source contracts cannot substitute for calls."""
-    item = copy.deepcopy(supplied)
-    applicable = item.get("applicable", True)
+def nonapplicable_measurement(field, item):
     value = item.get("value")
-    if applicable is False:
-        if field in ALWAYS_APPLICABLE or value is not None or not item.get("reason"):
-            raise ValueError(f"Invalid nonapplicability for {field}")
-        proofs = [ORACLES.verify_reference(ref) for ref in item.get("capability_proof", [])]
-        if not proofs or any(ref.get("role") != "source_contract" for ref in proofs):
-            raise ValueError(f"Nonapplicability needs a source-bound capability proof: {field}")
-        item["capability_proof"] = proofs
-        return item, True
-    if applicable is not True:
-        raise ValueError("Applicability must be a literal boolean")
-    if value is None:
-        if not item.get("reason"):
-            raise ValueError(f"Unknown observation needs an exact missing reason: {field}")
-        return item, False
+    if field in ALWAYS_APPLICABLE or value is not None or not item.get("reason"):
+        raise ValueError(f"Invalid nonapplicability for {field}")
+    proofs = [ORACLES.verify_reference(ref) for ref in item.get("capability_proof", [])]
+    if not proofs or any(ref.get("role") != "source_contract" for ref in proofs):
+        raise ValueError(f"Nonapplicability needs a source-bound capability proof: {field}")
+    item["capability_proof"] = proofs
+
+
+def measurement_proofs(field, item, packet_path):
     proofs = [ORACLES.verify_reference(ref) for ref in item.get("evidence", [])]
     if not proofs or any(ref.get("role") not in ROLES[field] for ref in proofs):
         raise ValueError(f"Observation has no suitable physical producer: {field}")
@@ -117,14 +110,29 @@ def measurement(field, supplied, packet_path):
         raise ValueError("A reviewed packet cannot be its own measurement")
     if field != "capability" and all(ref.get("role") == "source_contract" for ref in proofs):
         raise ValueError("A source contract does not prove actual execution")
+    return proofs
+
+
+def measurement(field, supplied, packet_path):
+    """Missing data stays unknown; source contracts cannot substitute for calls."""
+    item = copy.deepcopy(supplied)
+    applicable = item.get("applicable", True)
+    value = item.get("value")
+    if applicable is False:
+        nonapplicable_measurement(field, item)
+        return item, True
+    if applicable is not True:
+        raise ValueError("Applicability must be a literal boolean")
+    if value is None:
+        if not item.get("reason"):
+            raise ValueError(f"Unknown observation needs an exact missing reason: {field}")
+        return item, False
+    proofs = measurement_proofs(field, item, packet_path)
     item["evidence"] = proofs
     return item, True
 
 
-def reviewed_packet(supplied, row, effective_oracle):
-    ref = ORACLES.verify_reference(supplied)
-    path = Path(ref["path"])
-    packet = json.loads(path.read_text())
+def validate_host_packet_identity(packet, row):
     if packet.get("reviewed_by") != "root":
         raise ValueError("Host packet requires explicit Root review")
     if (packet.get("run_scoped_case_id") != row["run_scoped_case_id"] or
@@ -137,6 +145,13 @@ def reviewed_packet(supplied, row, effective_oracle):
             raise ValueError(f"Missing actual packet identity: {name}")
     if set(packet.get("observations", {})) != set(ROLES):
         raise ValueError("Packet must preserve every prescribed observation field")
+
+
+def reviewed_packet(supplied, row, effective_oracle):
+    ref = ORACLES.verify_reference(supplied)
+    path = Path(ref["path"])
+    packet = json.loads(PATHS.read_text(path))
+    validate_host_packet_identity(packet, row)
     values, known = {}, []
     for name, observation in packet["observations"].items():
         values[name], complete = measurement(name, observation, path)
@@ -157,6 +172,16 @@ def reviewed_packet(supplied, row, effective_oracle):
                                if item.get("applicable", True) and item.get("value") is None]}
 
 
+def validate_configuration_rules(packet, row):
+    absent_rules = packet.get("rules_absence_sha256")
+    if absent_rules:
+        if (row["run_scoped_case_id"].split("::")[-1] != "missing_rules_file"
+                or "rules_sha256" not in packet or packet["rules_sha256"] is not None):
+            raise ValueError("Rules absence is only valid for the original missing-rules contract; unloaded rules stay null")
+    elif not packet.get("rules_sha256"):
+        raise ValueError("Missing parser identity: rules_sha256")
+
+
 def validate_configuration_identity(packet, row, effective_oracle):
     selected = row["selected_requirement"]
     if selected.get("execution_kind") != "actual_configtest":
@@ -174,13 +199,7 @@ def validate_configuration_identity(packet, row, effective_oracle):
     for name in ("run_id", "parent_sha", "effective_config_sha256"):
         if not packet.get(name):
             raise ValueError(f"Missing parser identity: {name}")
-    absent_rules = packet.get("rules_absence_sha256")
-    if absent_rules:
-        if (row["run_scoped_case_id"].split("::")[-1] != "missing_rules_file"
-                or "rules_sha256" not in packet or packet["rules_sha256"] is not None):
-            raise ValueError("Rules absence is only valid for the original missing-rules contract; unloaded rules stay null")
-    elif not packet.get("rules_sha256"):
-        raise ValueError("Missing parser identity: rules_sha256")
+    validate_configuration_rules(packet, row)
     if (packet.get("oracle_evaluated") is not True or effective_oracle is None
             or packet.get("oracle_sha256") != ORACLES.canonical_digest(effective_oracle)):
         raise ValueError("Parser evaluation must bind the independently reviewed effective oracle")
@@ -218,7 +237,7 @@ def configuration_measurements(packet, ref):
 
 def configuration_process_binding(packet, process, producers):
     """Match a physical parser receipt; the driver's exit cannot substitute."""
-    actual = json.loads(Path(producers["parser_process"]["path"]).read_text())
+    actual = json.loads(PATHS.read_text(producers["parser_process"]["path"]))
     for name in ("run_scoped_case_id", "leg_id", "run_id", "parent_sha", "effective_config_sha256", "rules_sha256",
                  "execution_kind", "execution_observed"):
         if actual.get(name) != packet[name]:
@@ -241,7 +260,7 @@ def configuration_process_binding(packet, process, producers):
 
 def configuration_rules_absence(packet, actual, ref):
     """The attempted missing path has an absence receipt, never a file hash."""
-    absence = json.loads(Path(ref["path"]).read_text())
+    absence = json.loads(PATHS.read_text(ref["path"]))
     if (absence.get("type") != "physical_path_absence" or absence.get("exists") is not False
             or absence.get("measurement") != "lstat" or absence.get("errno") != 2
             or absence.get("symlink_components") != [] or actual.get("rules_lstat_errno") != 2
@@ -269,10 +288,10 @@ def configuration_source_binding(packet, observed, producers):
             raise ValueError(f"Parser effective input identity differs: {field}")
     if packet.get("rules_absence_sha256") and binding.get("rules_sha256", "missing") is not None:
         raise ValueError("An unloaded missing rules file has no rules SHA256")
-    source = json.loads(Path(producers["source_manifest"]["path"]).read_text())
+    source = json.loads(PATHS.read_text(producers["source_manifest"]["path"]))
     if binding.get("parent_sha") != packet["parent_sha"] or source.get("parent_sha") != packet["parent_sha"]:
         raise ValueError("Parser source revision differs from actual source manifest")
-    cleanup = json.loads(Path(producers["cleanup_observer"]["path"]).read_text())
+    cleanup = json.loads(PATHS.read_text(producers["cleanup_observer"]["path"]))
     if observed["cleanup"] != cleanup:
         raise ValueError("Parser cleanup differs from physical observer")
 
@@ -280,7 +299,7 @@ def configuration_source_binding(packet, observed, producers):
 def configuration_rejection_matches(packet, row, observed):
     """An unrelated loader failure with exit 1 never proves the named rejection."""
     refs = {item["role"]: item for item in packet["measurement_evidence"]}
-    source = json.loads(Path(refs["expectation_source"]["path"]).read_text())
+    source = json.loads(PATHS.read_text(refs["expectation_source"]["path"]))
     expected = source.get("expected_parser_rejection")
     if (not isinstance(expected, dict) or source.get("reviewed_by") != "root"
             or expected.get("original_contract_sha256") != ORACLES.canonical_digest(row["selected_requirement"])
@@ -290,7 +309,7 @@ def configuration_rejection_matches(packet, row, observed):
             or not expected["diagnostic_contains"].strip()
             or not isinstance(expected.get("first_cause"), str) or not expected["first_cause"].strip()):
         raise ValueError("Configuration rejection needs a source-bound diagnostic and first-cause expectation")
-    actual = json.loads(Path(refs["parser_process"]["path"]).read_text())
+    actual = json.loads(PATHS.read_text(refs["parser_process"]["path"]))
     process = observed["parser_process"]
     if not isinstance(process.get("first_cause"), str) or actual.get("first_cause") != process["first_cause"]:
         raise ValueError("Configuration first cause must match the actual parser receipt")
@@ -306,7 +325,7 @@ def reviewed_configuration_packet(supplied, row, effective_oracle):
     transport, native transaction, finish or free measurements.
     """
     ref = ORACLES.verify_reference(supplied)
-    packet = json.loads(Path(ref["path"]).read_text())
+    packet = json.loads(PATHS.read_text(ref["path"]))
     validate_configuration_identity(packet, row, effective_oracle)
     observed = configuration_measurements(packet, ref)
     verdict = packet.get("outcome")
@@ -359,7 +378,7 @@ def bound_json(selector, packet_path, roles):
     ref = ORACLES.verify_reference(selector.get("reference", {}))
     if ref.get("role") not in roles or ref["path"] == str(packet_path):
         raise ValueError("Preallocation measurement has an unsuitable or self-referential producer")
-    raw = Path(ref["path"]).read_text()
+    raw = PATHS.read_text(ref["path"])
     if "line" in selector:
         line = selector["line"]
         if type(line) is not int or not 0 <= line < len(raw.splitlines()):
@@ -369,6 +388,11 @@ def bound_json(selector, packet_path, roles):
     pointer = selector.get("pointer")
     if not isinstance(pointer, str) or (pointer and not pointer.startswith("/")):
         raise ValueError("Preallocation selector needs an exact JSON pointer")
+    return json_pointer_value(value, pointer)
+
+
+def json_pointer_value(value, pointer):
+    """Follow an already validated JSON pointer without changing its value."""
     try:
         for part in pointer.split("/")[1:] if pointer else ():
             key = part.replace("~1", "/").replace("~0", "~")
@@ -378,12 +402,25 @@ def bound_json(selector, packet_path, roles):
     return value
 
 
-def preallocation_contract(packet, row, oracle, path):
-    route, case = row["leg_id"], row["run_scoped_case_id"].split("::")[-1]
-    eligible = ((route in TRAEFIK_REQUEST_ROUTES and case in PARSER_REJECTIONS | MAPPING_REJECTIONS)
-                or (route in TRAEFIK_ROUTES and case in EARLY_CLEANUP_CASES | {"NEED-physical-event-sink-open"}))
-    if not eligible or row["selected_requirement"].get("execution_kind") != "host_case_or_missing_fixture":
-        raise ValueError("Original ID does not permit preallocation qualification")
+def preallocation_expected_operation(expected, case):
+    if case in PARSER_REJECTIONS:
+        expected_kind = "http_parser"
+    elif case == "NEED-physical-event-sink-open":
+        expected_kind = "service_startup"
+    else:
+        expected_kind = "mapping_or_begin"
+    if expected.get("failure_class") != expected_kind:
+        raise ValueError("Preallocation failure class does not match the original ID")
+    if expected_kind != "http_parser" and (not isinstance(expected.get("operation"), str) or not expected["operation"]
+            or "errno" not in expected or (expected["errno"] is not None and type(expected["errno"]) is not int)
+            or type(expected.get("failure_result")) is not int):
+        raise ValueError("Preallocation operation, return and errno expectation must be explicit")
+    if expected_kind == "mapping_or_begin" and (expected["errno"] is not None or expected.get("errno_scope") != "not_an_os_operation"
+            or expected["failure_result"] not in (0, -1)):
+        raise ValueError("Mapper/native API results must not invent an OS errno")
+
+
+def preallocation_packet_identity(packet, row, oracle, route):
     if (packet.get("reviewed_by") != "root" or packet.get("run_scoped_case_id") != row["run_scoped_case_id"]
             or packet.get("leg_id") != route or packet.get("execution_observed") is not True
             or packet.get("execution_kind") != "host_preallocation_control"
@@ -394,22 +431,22 @@ def preallocation_contract(packet, row, oracle, path):
             or oracle.get("unresolved_expected_value_reason") or oracle.get("phase", "missing") is not None
             or oracle.get("physical_evidence_not_projection") is not True):
         raise ValueError("Preallocation control needs an independently reviewed effective oracle with absent native phase")
+
+
+def preallocation_contract(packet, row, oracle, path):
+    route, case = row["leg_id"], row["run_scoped_case_id"].split("::")[-1]
+    eligible = ((route in TRAEFIK_REQUEST_ROUTES and case in PARSER_REJECTIONS | MAPPING_REJECTIONS)
+                or (route in TRAEFIK_ROUTES and case in EARLY_CLEANUP_CASES | {"NEED-physical-event-sink-open"}))
+    if not eligible or row["selected_requirement"].get("execution_kind") != "host_case_or_missing_fixture":
+        raise ValueError("Original ID does not permit preallocation qualification")
+    preallocation_packet_identity(packet, row, oracle, route)
     ref = ORACLES.verify_reference(packet.get("preallocation_contract", {}))
     if (ref.get("kind") not in ORACLES.INDEPENDENT_KINDS or not ref.get("revision")
             or ref.get("role") != "expectation_source" or ref["path"] == str(path)):
         raise ValueError("Preallocation contract requires a separate revisioned expectation source")
-    expected = json.loads(Path(ref["path"]).read_text())
+    expected = json.loads(PATHS.read_text(ref["path"]))
     validate_preallocation_approval(expected, row, packet)
-    expected_kind = "http_parser" if case in PARSER_REJECTIONS else ("service_startup" if case == "NEED-physical-event-sink-open" else "mapping_or_begin")
-    if expected.get("failure_class") != expected_kind:
-        raise ValueError("Preallocation failure class does not match the original ID")
-    if expected_kind != "http_parser" and (not isinstance(expected.get("operation"), str) or not expected["operation"]
-            or "errno" not in expected or (expected["errno"] is not None and type(expected["errno"]) is not int)
-            or type(expected.get("failure_result")) is not int):
-        raise ValueError("Preallocation operation, return and errno expectation must be explicit")
-    if expected_kind == "mapping_or_begin" and (expected["errno"] is not None or expected.get("errno_scope") != "not_an_os_operation"
-            or expected["failure_result"] not in (0, -1)):
-        raise ValueError("Mapper/native API results must not invent an OS errno")
+    preallocation_expected_operation(expected, case)
     return expected
 
 
@@ -443,7 +480,7 @@ def preallocation_observations(packet, path):
 def preallocation_source_binding(packet, observations):
     binding = observations["source_config_binding"]
     refs = {ref["role"]: ref for ref in binding["evidence"]}
-    source = json.loads(Path(refs["source_manifest"]["path"]).read_text())
+    source = json.loads(PATHS.read_text(refs["source_manifest"]["path"]))
     value = binding["value"]
     if (not isinstance(value, dict) or source.get("parent_sha") != packet.get("parent_sha")
             or value.get("parent_sha") != packet.get("parent_sha")
@@ -456,7 +493,7 @@ def observer_records(ref, path):
     ref = ORACLES.verify_reference(ref)
     if ref.get("role") != "native_api" or ref["path"] == str(path):
         raise ValueError("Preallocation needs the physical native observer stream")
-    rows = [json.loads(line) for line in Path(ref["path"]).read_text().splitlines() if line]
+    rows = [json.loads(line) for line in PATHS.read_text(ref["path"]).splitlines() if line]
     if not rows:
         raise ValueError("An empty observer stream cannot prove zero allocations")
     by_pid = {}
@@ -498,7 +535,7 @@ def backend_headers(packet, path, key):
     ref = ORACLES.verify_reference(packet.get("backend_log", {}))
     if ref.get("role") != "backend_process" or ref["path"] == str(path) or not isinstance(key, str) or not key:
         raise ValueError("Physical independent early-header backend receipts and client key are mandatory")
-    rows = [json.loads(line) for line in Path(ref["path"]).read_text().splitlines() if line]
+    rows = [json.loads(line) for line in PATHS.read_text(ref["path"]).splitlines() if line]
     if not rows or any(not isinstance(row, dict) for row in rows):
         raise ValueError("Empty backend stream cannot establish a monitored exclusion")
     return sum((row.get("event") == "parsed_headers" and row.get("probe") == key)
@@ -579,25 +616,29 @@ def preallocation_controls(packet, path, expected):
                 if row.get("function") in ("runtime_begin", "runtime_begin_request_stream") and row.get("edge") == "return"]}
 
 
+def response_header_length(line, lengths):
+    if b":" not in line or line.startswith((b" ", b"\t")):
+        raise ValueError("Invalid preallocation response header")
+    name, value = line.split(b":", 1)
+    if re.fullmatch(rb"[!#$%&'*+.^_`|~0-9A-Za-z-]+", name) is None:
+        raise ValueError("Invalid preallocation response field name")
+    if any((byte < 32 and byte != 9) or byte == 127 for byte in value):
+        raise ValueError("Invalid preallocation response field value")
+    if name.lower() == b"transfer-encoding":
+        raise ValueError("Preallocation raw framing needs an independently supported entity decoder")
+    if name.lower() == b"content-length":
+        value = value.strip(b" \t")
+        if not value.isdigit() or len(value) > 19 or int(value) > 9223372036854775807:
+            raise ValueError("Invalid or oversized preallocation response Content-Length")
+        lengths.append(int(value))
+
+
 def response_entity_framing(head, body):
     lengths = []
     if b"\n" in head.replace(b"\r\n", b"") or b"\r" in head.replace(b"\r\n", b""):
         raise ValueError("Invalid preallocation response header line framing")
     for line in head.split(b"\r\n")[1:]:
-        if b":" not in line or line.startswith((b" ", b"\t")):
-            raise ValueError("Invalid preallocation response header")
-        name, value = line.split(b":", 1)
-        if re.fullmatch(rb"[!#$%&'*+.^_`|~0-9A-Za-z-]+", name) is None:
-            raise ValueError("Invalid preallocation response field name")
-        if any((byte < 32 and byte != 9) or byte == 127 for byte in value):
-            raise ValueError("Invalid preallocation response field value")
-        if name.lower() == b"transfer-encoding":
-            raise ValueError("Preallocation raw framing needs an independently supported entity decoder")
-        if name.lower() == b"content-length":
-            value = value.strip(b" \t")
-            if not value.isdigit() or len(value) > 19 or int(value) > 9223372036854775807:
-                raise ValueError("Invalid or oversized preallocation response Content-Length")
-            lengths.append(int(value))
+        response_header_length(line, lengths)
     if lengths and (len(lengths) != 1 or lengths[0] != len(body)):
         raise ValueError("Incomplete or ambiguous preallocation response body framing")
 
@@ -607,10 +648,10 @@ def preallocation_wire(packet, row, oracle, path):
     response = ORACLES.verify_reference(packet.get("client_response", {}))
     if any(ref.get("role") != "client_process" or ref["path"] == str(path) for ref in (request, response)):
         raise ValueError("Actual client request and response bytes are mandatory")
-    raw = Path(response["path"]).read_bytes()
-    match = re.match(rb"HTTP/1\.[01] ([0-9]{3})[^\r\n]*\r\n", raw)
+    raw = PATHS.read_bytes(response["path"])
+    match = re.match(rb"HTTP/1\.[01] (\d{3})[^\r\n]*\r\n", raw)
     if (not match or b"\r\n\r\n" not in raw or int(match[1]) != oracle.get("visible_status")
-            or len(re.findall(rb"(?m)^HTTP/1\.[01] [0-9]{3}", raw)) != 1):
+            or len(re.findall(rb"(?m)^HTTP/1\.[01] \d{3}", raw)) != 1):
         raise ValueError("Raw client response does not match the independently reviewed status")
     head, body = raw.split(b"\r\n\r\n", 1)
     response_entity_framing(head, body)
@@ -619,7 +660,7 @@ def preallocation_wire(packet, row, oracle, path):
         raise ValueError("Client entity byte count/digest differs from the physical raw response")
     target = bound_json(packet["preallocation_measurements"].get("target_window"), path, {"client_process", "host_callback"})
     key = target.get("key", target.get("probe"))
-    request_bytes = Path(request["path"]).read_bytes()
+    request_bytes = PATHS.read_bytes(request["path"])
     headers = request_bytes.split(b"\r\n\r\n", 1)[0].split(b"\r\n")[1:]
     keys = [line.split(b":", 1)[1].strip().decode("ascii") for line in headers
             if line.lower().startswith((b"x-i12-probe:", b"x-i12-acceptance-key:"))]
@@ -627,7 +668,7 @@ def preallocation_wire(packet, row, oracle, path):
         raise ValueError("Raw client request key differs from its physical time window/backend correlation")
     case = row["run_scoped_case_id"].split("::")[-1]
     if case in PARSER_REJECTIONS:
-        headers = Path(request["path"]).read_bytes().split(b"\r\n\r\n", 1)[0].split(b"\r\n")[1:]
+        headers = PATHS.read_bytes(request["path"]).split(b"\r\n\r\n", 1)[0].split(b"\r\n")[1:]
         lengths = [line.split(b":", 1)[1].strip() for line in headers if line.lower().startswith(b"content-length:")]
         transfers = [line for line in headers if line.lower().startswith(b"transfer-encoding:")]
         valid = {"invalid_content_length": bool(lengths) and any(not value.isdigit() for value in lengths),
@@ -637,6 +678,22 @@ def preallocation_wire(packet, row, oracle, path):
         if not valid[case] or int(match[1]) != 400:
             raise ValueError("Physical malformed request does not exercise the exact original parser case")
     return int(match[1])
+
+
+def mapping_failure_boundary(row, expected, controls, fault, case):
+    suffix = "body-null" if case == "body_size_nonzero_with_null_data" else "headers-null"
+    prefix = "native-request-" if row["leg_id"] == "traefik-native-uds" else "mapper-"
+    if fault["operation"] != prefix + suffix:
+        raise ValueError("Wrong actual pointer-injection boundary for the original mapper contract")
+    count_key, null_key = (("input_size", "body_data_null") if suffix == "body-null" else ("header_count", "headers_null"))
+    if type(fault.get(count_key)) is not int or fault[count_key] <= 0 or fault.get(null_key) is not True:
+        raise ValueError("Mapper contract needs actual nonzero count and actual NULL pointer measurements")
+    if prefix == "native-request-":
+        if (fault["result"] != expected["failure_result"]
+                or controls["native_runtime_begin_returns"] != [fault["result"]]):
+            raise ValueError("Native pointer rejection needs its actual independently observed begin return")
+        return True
+    return False
 
 
 def preallocation_failure(packet, row, expected, controls, path):
@@ -652,17 +709,7 @@ def preallocation_failure(packet, row, expected, controls, path):
         return
     case = row["run_scoped_case_id"].split("::")[-1]
     if case in MAPPING_REJECTIONS:
-        suffix = "body-null" if case == "body_size_nonzero_with_null_data" else "headers-null"
-        prefix = "native-request-" if row["leg_id"] == "traefik-native-uds" else "mapper-"
-        if fault["operation"] != prefix + suffix:
-            raise ValueError("Wrong actual pointer-injection boundary for the original mapper contract")
-        count_key, null_key = (("input_size", "body_data_null") if suffix == "body-null" else ("header_count", "headers_null"))
-        if type(fault.get(count_key)) is not int or fault[count_key] <= 0 or fault.get(null_key) is not True:
-            raise ValueError("Mapper contract needs actual nonzero count and actual NULL pointer measurements")
-        if prefix == "native-request-":
-            if (fault["result"] != expected["failure_result"]
-                    or controls["native_runtime_begin_returns"] != [fault["result"]]):
-                raise ValueError("Native pointer rejection needs its actual independently observed begin return")
+        if mapping_failure_boundary(row, expected, controls, fault, case):
             return
     if fault["result"] != expected["failure_result"]:
         raise ValueError("Actual mapper/native failure return differs from its independent contract")
@@ -687,7 +734,7 @@ def preallocation_startup_failure(packet, expected, fault, path):
 def reviewed_preallocation_packet(supplied, row, effective_oracle):
     ref = ORACLES.verify_reference(supplied)
     path = Path(ref["path"])
-    packet = json.loads(path.read_text())
+    packet = json.loads(PATHS.read_text(path))
     expected = preallocation_contract(packet, row, effective_oracle, path)
     observations = preallocation_observations(packet, path)
     preallocation_source_binding(packet, observations)
@@ -743,7 +790,7 @@ def pre_native_profile(leg):
     raise ValueError("Pre-native scope has no contract for this host/profile")
 
 
-def pre_native_identity(packet, row, oracle):
+def pre_native_selected_contract(row, oracle):
     selected = row["selected_requirement"]
     name = selected.get("case_id")
     mapping, _, _ = pre_native_profile(row.get("leg_id"))
@@ -754,6 +801,10 @@ def pre_native_identity(packet, row, oracle):
             or selected.get("expected_oracle") != PRE_NATIVE_ORACLE or oracle != PRE_NATIVE_ORACLE
             or type(oracle.get("phase")) is not int or type(oracle.get("visible_status")) is not int):
         raise ValueError("Pre-native scope requires an exact original selected host rejection contract")
+    return selected
+
+
+def pre_native_packet_identity(packet, row, oracle):
     if (packet.get("reviewed_by") != "root" or packet.get("execution_kind") != "host_pre_native_rejection"
             or packet.get("execution_observed") is not True or packet.get("oracle_evaluated") is not True
             or packet.get("oracle_sha256") != ORACLES.canonical_digest(oracle)
@@ -770,6 +821,9 @@ def pre_native_identity(packet, row, oracle):
     for key in ("host_pid", "uid"):
         if type(packet.get(key)) is not int or packet[key] <= 0:
             raise ValueError("Pre-native execution requires an actual isolated non-root host process")
+
+
+def pre_native_source_approval(packet, row, selected):
     approval = packet.get("source_approval", {})
     digests = {"selected_requirement_sha256": ORACLES.canonical_digest(selected),
                "requirement_mapping_sha256": ORACLES.canonical_digest(selected["requirement_mapping"]),
@@ -788,19 +842,22 @@ def pre_native_identity(packet, row, oracle):
     return sources
 
 
+def pre_native_identity(packet, row, oracle):
+    selected = pre_native_selected_contract(row, oracle)
+    pre_native_packet_identity(packet, row, oracle)
+    sources = pre_native_source_approval(packet, row, selected)
+    return sources
+
+
 def pre_native_json(ref):
-    return json.loads(Path(ref["path"]).read_text())
+    return json.loads(PATHS.read_text(ref["path"]))
 
 
 def pre_native_rows(ref):
-    return [json.loads(line) for line in Path(ref["path"]).read_text().splitlines() if line.strip()]
+    return [json.loads(line) for line in PATHS.read_text(ref["path"]).splitlines() if line.strip()]
 
 
-def pre_native_native_window(packet, producers, client):
-    """Read the existing native-lifecycle-v1 and Apache host observer captures."""
-    rows = pre_native_rows(producers["native_api"])
-    rows = [row for row in rows if row.get("pid") == packet["host_pid"]]
-    start, end = client["started_ns"], client["completed_ns"]
+def validate_native_window_rows(packet, rows, start, end):
     if (not rows or any(row.get("schema") != "native-lifecycle-v1" or row.get("run") != packet["run_id"]
                         or row.get("profile") != packet["leg_id"]
                         or row.get("case") != packet["run_scoped_case_id"].split("::")[-1]
@@ -816,17 +873,29 @@ def pre_native_native_window(packet, producers, client):
                        and type(r.get("live_mappings")) is int and r["live_mappings"] == 0 for r in rows)
             or any(start <= r["monotonic_ns"] <= end and r.get("function") != "observer" for r in rows)):
         raise ValueError("Pre-native window must be complete with no main allocation/API/P2/EOS/finish/free")
+
+
+def native_window_control(rows, start, end, before):
+    controls = [r for r in rows if (r["monotonic_ns"] < start if before else r["monotonic_ns"] > end)]
+    constructors = [r for r in controls if r.get("function") in ("native_new", "native_new_with_id")
+                    and r.get("edge") == "return" and type(r.get("result")) is int and r["result"] == 1
+                    and r.get("transaction_id")]
+    if not any(all(any(r.get("function") == function and r.get("edge") == "return"
+                           and r.get("transaction_id") == c["transaction_id"]
+                           and type(r.get("result")) is int and r["result"] == 1 for r in controls)
+                   for function in ("native_process_request_headers", "native_process_request_body"))
+               for c in constructors):
+        raise ValueError("Zero main calls require actual positive constructor/API controls before and after")
+
+
+def pre_native_native_window(packet, producers, client):
+    """Read the existing native-lifecycle-v1 and Apache host observer captures."""
+    rows = pre_native_rows(producers["native_api"])
+    rows = [row for row in rows if row.get("pid") == packet["host_pid"]]
+    start, end = client["started_ns"], client["completed_ns"]
+    validate_native_window_rows(packet, rows, start, end)
     for before in (True, False):
-        controls = [r for r in rows if (r["monotonic_ns"] < start if before else r["monotonic_ns"] > end)]
-        constructors = [r for r in controls if r.get("function") in ("native_new", "native_new_with_id")
-                        and r.get("edge") == "return" and type(r.get("result")) is int and r["result"] == 1
-                        and r.get("transaction_id")]
-        if not any(all(any(r.get("function") == function and r.get("edge") == "return"
-                               and r.get("transaction_id") == c["transaction_id"]
-                               and type(r.get("result")) is int and r["result"] == 1 for r in controls)
-                       for function in ("native_process_request_headers", "native_process_request_body"))
-                   for c in constructors):
-            raise ValueError("Zero main calls require actual positive constructor/API controls before and after")
+        native_window_control(rows, start, end, before)
     host = pre_native_rows(producers["host_callback"])
     if any(r.get("pid") == packet["host_pid"] and start <= r.get("monotonic_ns", start) <= end for r in host):
         raise ValueError("A host callback during the main window contradicts pre-native rejection")
@@ -834,13 +903,7 @@ def pre_native_native_window(packet, producers, client):
             "window_started_ns": start, "window_completed_ns": end}
 
 
-def pre_native_producer_binding(packet, producers, client):
-    source = pre_native_json(producers["source_manifest"])
-    if (source.get("parent_sha") != packet["parent_sha"]
-            or packet["effective_config_sha256"] != producers["effective_configuration"]["sha256"]
-            or packet["rules_sha256"] != producers["rules_file"]["sha256"]
-            or packet["request_sha256"] != producers["request_wire"]["sha256"]):
-        raise ValueError("Pre-native source/config/rules/request bytes differ from actual sealed inputs")
+def pre_native_isolation_binding(packet, producers, source):
     isolation = pre_native_json(producers["isolation_receipt"])
     for key in ("run_id", "parent_sha", "effective_config_sha256", "rules_sha256", "host_pid", "host_starttime", "uid"):
         if isolation.get(key) != packet[key]:
@@ -849,10 +912,11 @@ def pre_native_producer_binding(packet, producers, client):
                       ("observer_sha256", "observer_image")):
         if isolation.get(key) != producers[role]["sha256"] or source.get(key) != producers[role]["sha256"]:
             raise ValueError("Pre-native actual loaded host/module/observer image differs from source manifest")
-    maps = Path(ORACLES.verify_reference(isolation["maps"])["path"]).read_text()
-    status = Path(ORACLES.verify_reference(isolation["status"])["path"]).read_text()
-    if (not re.search(r"^Pid:\s+" + str(packet["host_pid"]) + r"$", status, re.MULTILINE)
-            or not re.search(r"^Uid:\s+" + r"\s+".join([str(packet["uid"])] * 4) + r"$", status, re.MULTILINE)):
+    maps = PATHS.read_text(ORACLES.verify_reference(isolation["maps"])["path"])
+    status = PATHS.read_text(ORACLES.verify_reference(isolation["status"])["path"])
+    status_fields = [line.split() for line in status.splitlines()]
+    if (["Pid:", str(packet["host_pid"])] not in status_fields
+            or ["Uid:", *([str(packet["uid"])] * 4)] not in status_fields):
         raise ValueError("Pre-native actual process status must bind all four isolated UIDs and PID")
     for role in ("loaded_image", "native_module", "observer_image"):
         mapped = isolation.get("mapped_paths", {}).get(role)
@@ -860,47 +924,38 @@ def pre_native_producer_binding(packet, producers, client):
             raise ValueError("Pre-native image must be observed in the actual host process maps")
     if isolation.get("loaded_images_observed") is not True or isolation.get("exclusive_request_window") is not True:
         raise ValueError("Pre-native negative observation needs actual loaded images and an exclusive request window")
-    for role in ("event_observer", "cleanup_observer", "healthy_controls"):
-        actual = pre_native_json(producers[role])
-        for key in ("run_scoped_case_id", "leg_id", "run_id", "parent_sha", "effective_config_sha256", "rules_sha256",
-                    "host_pid", "host_starttime", "uid", "request_id", "request_sha256"):
-            if actual.get(key) != packet[key]:
-                raise ValueError(f"Pre-native {role} correlation differs: {key}")
-    event = pre_native_json(producers["event_observer"])
-    sink = ORACLES.verify_reference(event["sink"])
-    content = Path(sink["path"]).read_bytes()
-    offsets = event.get("before_offset"), event.get("after_offset")
-    if (event.get("execution_observed") is not True or event.get("window_complete") is not True
-            or type(event.get("observed_from_ns")) is not int or type(event.get("observed_through_ns")) is not int
-            or event.get("observed_from_ns", client["started_ns"] + 1) > client["started_ns"]
-            or event.get("observed_through_ns", 0) < client["completed_ns"]
-            or any(type(v) is not int or v < 0 or v > len(content) for v in offsets)
-            or offsets[0] != offsets[1]):
-        raise ValueError("Zero physical events need an actual complete independent sink window")
-    for label in ("before_control", "after_control"):
-        control = event.get(label, {})
-        begin, finish = control.get("start_offset"), control.get("end_offset")
-        if (type(begin) is not int or type(finish) is not int or not 0 <= begin < finish <= len(content)
-                or not content[begin:finish].strip()
-                or (finish > offsets[0] if label == "before_control" else begin < offsets[1])):
-            raise ValueError("Independent event observer needs actual positive sink bytes before and after")
-        positive = [json.loads(line) for line in content[begin:finish].splitlines() if line.strip()]
-        native = pre_native_rows(producers["native_api"])
-        identities = {r.get(key) for r in native for key in ("transaction_id", "canonical_transaction_id")
-                      if r.get("pid") == packet["host_pid"] and r.get("function") in ("native_new", "native_new_with_id")
-                      and r.get("edge") == "return" and type(r.get("result")) is int and r["result"] == 1
-                      and (r["monotonic_ns"] < client["started_ns"] if label == "before_control"
-                           else r["monotonic_ns"] > client["completed_ns"])}
-        if (not positive or any(not isinstance(r, dict) or not r.get("transaction_id")
-                or r["transaction_id"] not in identities or r.get("connector") != pre_native_profile(packet["leg_id"])[1]
-                or not isinstance(r.get("message_id"), str) or not r["message_id"].startswith("MSCONN_EVENT_") for r in positive)):
-            raise ValueError("Positive sink controls must be actual selected-host events joined to observed native allocations")
+
+
+def pre_native_sink_control(packet, producers, client, event, content, offsets, label):
+    control = event.get(label, {})
+    begin, finish = control.get("start_offset"), control.get("end_offset")
+    if (type(begin) is not int or type(finish) is not int or not 0 <= begin < finish <= len(content)
+            or not content[begin:finish].strip()
+            or (finish > offsets[0] if label == "before_control" else begin < offsets[1])):
+        raise ValueError("Independent event observer needs actual positive sink bytes before and after")
+    positive = [json.loads(line) for line in content[begin:finish].splitlines() if line.strip()]
+    native = pre_native_rows(producers["native_api"])
+    identities = {r.get(key) for r in native for key in ("transaction_id", "canonical_transaction_id")
+                  if r.get("pid") == packet["host_pid"] and r.get("function") in ("native_new", "native_new_with_id")
+                  and r.get("edge") == "return" and type(r.get("result")) is int and r["result"] == 1
+                  and (r["monotonic_ns"] < client["started_ns"] if label == "before_control"
+                       else r["monotonic_ns"] > client["completed_ns"])}
+    if (not positive or any(not isinstance(r, dict) or not r.get("transaction_id")
+            or r["transaction_id"] not in identities or r.get("connector") != pre_native_profile(packet["leg_id"])[1]
+            or not isinstance(r.get("message_id"), str) or not r["message_id"].startswith("MSCONN_EVENT_") for r in positive)):
+        raise ValueError("Positive sink controls must be actual selected-host events joined to observed native allocations")
+
+
+def pre_native_cleanup_binding(producers):
     cleanup = pre_native_json(producers["cleanup_observer"])
     if (cleanup.get("execution_observed") is not True
             or any(cleanup.get(key) is not True for key in ("descriptor_cleanup_observed", "process_cleanup_observed", "listener_cleanup_observed"))
             or cleanup.get("remaining_processes") != [] or cleanup.get("remaining_listeners") != []
             or cleanup.get("unexpected_fd_targets") != []):
         raise ValueError("Pre-native rejection requires actual FD/process/listener cleanup")
+
+
+def pre_native_healthy_controls(packet, producers, client):
     controls = pre_native_json(producers["healthy_controls"])
     for label in ("before", "after"):
         control = controls.get(label, {})
@@ -924,6 +979,41 @@ def pre_native_producer_binding(packet, producers, client):
         backend = pre_native_rows(producers["backend_process"])
         if not pre_native_control_backend(packet, backend, control, receipt, begin, finish):
             raise ValueError("Healthy controls need an independent actual backend request")
+
+
+def pre_native_sink_binding(packet, producers, client):
+    event = pre_native_json(producers["event_observer"])
+    sink = ORACLES.verify_reference(event["sink"])
+    content = PATHS.read_bytes(sink["path"])
+    offsets = event.get("before_offset"), event.get("after_offset")
+    if (event.get("execution_observed") is not True or event.get("window_complete") is not True
+            or type(event.get("observed_from_ns")) is not int or type(event.get("observed_through_ns")) is not int
+            or event.get("observed_from_ns", client["started_ns"] + 1) > client["started_ns"]
+            or event.get("observed_through_ns", 0) < client["completed_ns"]
+            or any(type(v) is not int or v < 0 or v > len(content) for v in offsets)
+            or offsets[0] != offsets[1]):
+        raise ValueError("Zero physical events need an actual complete independent sink window")
+    for label in ("before_control", "after_control"):
+        pre_native_sink_control(packet, producers, client, event, content, offsets, label)
+
+
+def pre_native_producer_binding(packet, producers, client):
+    source = pre_native_json(producers["source_manifest"])
+    if (source.get("parent_sha") != packet["parent_sha"]
+            or packet["effective_config_sha256"] != producers["effective_configuration"]["sha256"]
+            or packet["rules_sha256"] != producers["rules_file"]["sha256"]
+            or packet["request_sha256"] != producers["request_wire"]["sha256"]):
+        raise ValueError("Pre-native source/config/rules/request bytes differ from actual sealed inputs")
+    pre_native_isolation_binding(packet, producers, source)
+    for role in ("event_observer", "cleanup_observer", "healthy_controls"):
+        actual = pre_native_json(producers[role])
+        for key in ("run_scoped_case_id", "leg_id", "run_id", "parent_sha", "effective_config_sha256", "rules_sha256",
+                    "host_pid", "host_starttime", "uid", "request_id", "request_sha256"):
+            if actual.get(key) != packet[key]:
+                raise ValueError(f"Pre-native {role} correlation differs: {key}")
+    pre_native_sink_binding(packet, producers, client)
+    pre_native_cleanup_binding(producers)
+    pre_native_healthy_controls(packet, producers, client)
 
 
 def pre_native_control_host(packet, host, native, receipt, begin, finish):
@@ -965,7 +1055,7 @@ def lighttpd_pre_native_log_window(packet, producers, client):
             raise ValueError("Lighttpd Core window belongs to another actual execution")
     before, after = window.get("before", {}), window.get("after", {})
     identity = ("device", "inode", "mode", "owner_uid", "nlink", "path")
-    raw = Path(producers["core_diagnostic"]["path"]).read_bytes()
+    raw = PATHS.read_bytes(producers["core_diagnostic"]["path"])
     if (window.get("execution_observed") is not True or window.get("exclusive_request_window") is not True
             or window.get("core_sha256") != producers["core_diagnostic"]["sha256"]
             or any(before.get(key) != after.get(key) for key in identity)
@@ -1000,7 +1090,7 @@ def lighttpd_pre_native_core(packet, producers, client, process):
         matching = [line for line in text.splitlines() if re.search(pattern, line)]
         in_window = False
         for line in matching:
-            stamp = re.match(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)\.([0-9]{9}): ", line)
+            stamp = re.match(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)\.(\d{9}): ", line)
             if stamp is None:
                 continue
             try:
@@ -1013,15 +1103,21 @@ def lighttpd_pre_native_core(packet, producers, client, process):
             raise ValueError("Actual nanosecond lighttpd Core diagnostic/request must be inside the waited UTC window")
 
 
+def apache_pid_matches(text, pid):
+    """Match a literal Apache PID token in linear time without dynamic regex."""
+    prefix = "[pid " + str(pid)
+    return prefix + "]" in text or prefix + ":" in text
+
+
 def apache_pre_native_core(packet, producers, process):
-    diagnostic = Path(producers["core_diagnostic"]["path"]).read_text()
+    diagnostic = PATHS.read_text(producers["core_diagnostic"]["path"])
     code = packet["source_approval"].get("core_diagnostic_code")
-    if (not isinstance(code, str) or not re.fullmatch(r"AH[0-9]{5}", code) or code not in diagnostic
-            or not re.search(r"\[pid " + str(packet["host_pid"]) + r"(?::|\])", diagnostic)
+    if (not isinstance(code, str) or not re.fullmatch(r"AH\d{5}", code, re.ASCII) or code not in diagnostic
+            or not apache_pid_matches(diagnostic, packet["host_pid"])
             or not packet.get("connection_id") or "[client " + packet["connection_id"] + "]" not in diagnostic):
         raise ValueError("A raw Apache Core diagnostic must independently bind the actual process and connection")
     matching_lines = [line for line in diagnostic.splitlines() if code in line
-                      and re.search(r"\[pid " + str(packet["host_pid"]) + r"(?::|\])", line)
+                      and apache_pid_matches(line, packet["host_pid"])
                       and "[client " + packet["connection_id"] + "]" in line]
     in_window = False
     for line in matching_lines:
@@ -1036,15 +1132,7 @@ def apache_pre_native_core(packet, producers, process):
         raise ValueError("Actual Apache Core diagnostic must fall inside the waited client UTC window")
 
 
-def reviewed_pre_native_packet(supplied, row, effective_oracle):
-    """Qualify a host parser rejection, preserving the original native alternative.
-
-    Logical phase1 does not assert a native phase call. No absent native
-    transaction, P2/EOS, finish or free is replaced with a fabricated identity.
-    """
-    ref = ORACLES.verify_reference(supplied)
-    packet = pre_native_json(ref)
-    sources = pre_native_identity(packet, row, effective_oracle)
+def pre_native_physical_producers(packet, ref, sources):
     evidence = [ORACLES.verify_reference(item) for item in packet.get("measurement_evidence", [])]
     roles = pre_native_profile(packet["leg_id"])[2]
     if (len(evidence) != len(roles) or {p.get("role") for p in evidence} != roles
@@ -1056,6 +1144,10 @@ def reviewed_pre_native_packet(supplied, row, effective_oracle):
         if len(aliases) > 1 and aliases != {"native_module", "observer_image"}:
             raise ValueError("Pre-native producers cannot alias independent physical measurements")
     producers = {p["role"]: p for p in evidence}
+    return producers, evidence
+
+
+def pre_native_client_receipts(packet, row, producers):
     actual = pre_native_json(producers["driver_observation"])
     if (actual.get("original_id") != row["run_scoped_case_id"] or actual.get("case_id") != row["selected_requirement"]["case_id"]
             or actual.get("actual_principal_execution") is not True or actual.get("executed_case_contract") is not True
@@ -1065,7 +1157,7 @@ def reviewed_pre_native_packet(supplied, row, effective_oracle):
     process = pre_native_json(producers["client_process"])
     if (type(client.get("pid")) is not int or client["pid"] <= 0
             or type(client.get("started_ns")) is not int or type(client.get("completed_ns")) is not int
-            or not client["started_ns"] < client["completed_ns"] or client.get("error") is not None
+            or client["started_ns"] >= client["completed_ns"] or client.get("error") is not None
             or not process.get("argv") or not process.get("cwd") or type(process.get("wrapper_pid")) is not int
             or type(process.get("waited_exit")) is not int or process["waited_exit"] != 0
             or type(process.get("started_unix_ns")) is not int or type(process.get("ended_unix_ns")) is not int
@@ -1075,13 +1167,31 @@ def reviewed_pre_native_packet(supplied, row, effective_oracle):
     if (len(main) != 1 or main[0].get("request_id") != packet["request_id"]
             or main[0].get("actual_waited_exit") != process["waited_exit"] or main[0].get("command") != process):
         raise ValueError("The actual waited client command must bind the exact original main request")
-    raw = Path(producers["response_wire"]["path"]).read_bytes()
+    return client, process
+
+
+def pre_native_wire_binding(packet, producers, client):
+    raw = PATHS.read_bytes(producers["response_wire"]["path"])
     if type(client.get("status")) is not int or client["status"] != 400 or not re.match(rb"HTTP/1\.[01] 400 [^\r\n]*\r\n", raw) or b"\r\n\r\n" not in raw:
         raise ValueError("Pre-native client status must bind an actual complete HTTP400 header block")
-    request = Path(producers["request_wire"]["path"]).read_bytes()
+    request = PATHS.read_bytes(producers["request_wire"]["path"])
     if (not isinstance(client.get("path"), str) or not client["path"]
             or packet["request_id"].encode() not in request or client["path"].encode() not in request):
         raise ValueError("Pre-native main request cannot transfer from another physical client")
+
+
+def reviewed_pre_native_packet(supplied, row, effective_oracle):
+    """Qualify a host parser rejection, preserving the original native alternative.
+
+    Logical phase1 does not assert a native phase call. No absent native
+    transaction, P2/EOS, finish or free is replaced with a fabricated identity.
+    """
+    ref = ORACLES.verify_reference(supplied)
+    packet = pre_native_json(ref)
+    sources = pre_native_identity(packet, row, effective_oracle)
+    producers, evidence = pre_native_physical_producers(packet, ref, sources)
+    client, process = pre_native_client_receipts(packet, row, producers)
+    pre_native_wire_binding(packet, producers, client)
     native = pre_native_native_window(packet, producers, client)
     backend = pre_native_rows(producers["backend_process"])
     if any(r.get("request_id") == packet["request_id"] or client["started_ns"] <= r.get("monotonic_ns", client["started_ns"]) <= client["completed_ns"] for r in backend):
@@ -1101,16 +1211,22 @@ def reviewed_pre_native_packet(supplied, row, effective_oracle):
             "full_case_qualified": True, "full_lifecycle_qualified": False, "outcome": "PASS", "unknown_fields": []}
 
 
-def build_ledger(requirements, selection, reconciliation, packets):
-    original = ORACLES.original_contracts(requirements, selection)
-    if reconciliation["original_selected_contracts"] != [row["selected_requirement"] for row in original]:
-        raise ValueError("Reconciliation does not preserve the original selected catalog")
-    reviews = {row["run_scoped_case_id"]: row for row in
-               reconciliation["oracle_matrix"] + reconciliation["supplemental_dispositions"]}
-    by_id = {row["run_scoped_case_id"]: row for row in original}
+def packet_reviewer(by_id, identity, packet):
+    if by_id[identity]["selected_requirement"].get("execution_kind") == "actual_configtest":
+        reviewer = reviewed_configuration_packet
+    elif packet.get("execution_kind") == "host_preallocation_control":
+        reviewer = reviewed_preallocation_packet
+    else:
+        reviewer = reviewed_packet
+    if packet.get("execution_kind") == "host_pre_native_rejection":
+        reviewer = reviewed_pre_native_packet
+    return reviewer
+
+
+def ledger_observations(packets, by_id, reviews):
     observations = {}
     for ref in packets:
-        packet = json.loads(Path(ORACLES.verify_reference(ref)["path"]).read_text())
+        packet = json.loads(PATHS.read_text(ORACLES.verify_reference(ref)["path"]))
         identity = packet["run_scoped_case_id"]
         if identity not in by_id or identity in observations:
             raise ValueError("Unknown or duplicate original packet ID")
@@ -1118,60 +1234,79 @@ def build_ledger(requirements, selection, reconciliation, packets):
         oracle = review["effective_oracle"] if review else by_id[identity]["selected_requirement"]["expected_oracle"]
         if oracle and oracle.get("unresolved_expected_value_reason"):
             oracle = None
-        reviewer = (reviewed_configuration_packet
-                    if by_id[identity]["selected_requirement"].get("execution_kind") == "actual_configtest"
-                    else reviewed_preallocation_packet if packet.get("execution_kind") == "host_preallocation_control"
-                    else reviewed_packet)
-        if packet.get("execution_kind") == "host_pre_native_rejection":
-            reviewer = reviewed_pre_native_packet
+        reviewer = packet_reviewer(by_id, identity, packet)
         observations[identity] = reviewer(ref, by_id[identity], oracle)
+    return observations
+
+
+def apply_observed_result(row, observations, identity, configuration, preallocation, pre_native):
+    observation = observations[identity]
+    row["execution_observed"] = True
+    if configuration:
+        row["status"] = observation["outcome"]
+        row["qualified_full_case_pass"] = observation["outcome"] == "PASS"
+        row["qualified_configuration_pass"] = observation["outcome"] == "PASS"
+        row["qualification_scope"] = "configuration_control"
+    elif preallocation:
+        row["status"] = observation["outcome"]
+        row["qualified_full_case_pass"] = observation["outcome"] == "PASS"
+        row["qualified_preallocation_pass"] = observation["outcome"] == "PASS"
+        row["qualification_scope"] = "preallocation_control"
+
+
+    elif pre_native:
+        row["status"] = observation["outcome"]
+        row["qualified_full_case_pass"] = observation["outcome"] == "PASS"
+        row["qualification_scope"] = "host_pre_native_rejection"
+    elif observation["full_lifecycle_qualified"]:
+        row["status"] = observation["outcome"]
+        row["qualified_full_case_pass"] = observation["outcome"] == "PASS"
+        row["qualified_host_lifecycle_pass"] = observation["outcome"] == "PASS"
+        row["qualification_scope"] = "full_host_lifecycle"
+    else:
+        row["status"] = "PARTIAL_HOST_MEASUREMENTS"
+        row["qualified_full_case_pass"] = False
+
+
+def ledger_row(original_row, reviews, observations):
+    row = copy.deepcopy(original_row)
+    identity = row["run_scoped_case_id"]
+    row["historical_status"] = row["status"]
+    row["historical_execution_observed"] = row["execution_observed"]
+    row["oracle_reconciliation"] = copy.deepcopy(reviews.get(identity))
+    observation = observations.get(identity)
+    configuration = observation is not None and observation.get("qualification_scope") == "configuration_control"
+    preallocation = observation is not None and observation.get("qualification_scope") == "preallocation_control"
+    pre_native = observation is not None and observation.get("qualification_scope") == "host_pre_native_rejection"
+    row["current_lifecycle_packet"] = None if configuration or preallocation or pre_native else observation
+    row["current_preallocation_packet"] = observation if preallocation else None
+    row["qualified_preallocation_pass"] = False
+    row["current_pre_native_packet"] = observation if pre_native else None
+    row["current_configuration_packet"] = observation if configuration else None
+    row["qualified_host_lifecycle_pass"] = False
+    row["qualified_configuration_pass"] = False
+    row["qualification_scope"] = "historical_configuration_only" if row["status"] == "PASS" else None
+    if identity in observations:
+        apply_observed_result(row, observations, identity, configuration, preallocation, pre_native)
+    return row
+
+
+def ledger_rows(original, reviews, observations):
     rows = []
     for original_row in original:
-        row = copy.deepcopy(original_row)
-        identity = row["run_scoped_case_id"]
-        row["historical_status"] = row["status"]
-        row["historical_execution_observed"] = row["execution_observed"]
-        row["oracle_reconciliation"] = copy.deepcopy(reviews.get(identity))
-        observation = observations.get(identity)
-        configuration = observation is not None and observation.get("qualification_scope") == "configuration_control"
-        preallocation = observation is not None and observation.get("qualification_scope") == "preallocation_control"
-        pre_native = observation is not None and observation.get("qualification_scope") == "host_pre_native_rejection"
-        row["current_lifecycle_packet"] = None if configuration or preallocation or pre_native else observation
-        row["current_preallocation_packet"] = observation if preallocation else None
-        row["qualified_preallocation_pass"] = False
-        row["current_pre_native_packet"] = observation if pre_native else None
-        row["current_configuration_packet"] = observation if configuration else None
-        row["qualified_host_lifecycle_pass"] = False
-        row["qualified_configuration_pass"] = False
-        row["qualification_scope"] = "historical_configuration_only" if row["status"] == "PASS" else None
-        if identity in observations:
-            observation = observations[identity]
-            row["execution_observed"] = True
-            if configuration:
-                row["status"] = observation["outcome"]
-                row["qualified_full_case_pass"] = observation["outcome"] == "PASS"
-                row["qualified_configuration_pass"] = observation["outcome"] == "PASS"
-                row["qualification_scope"] = "configuration_control"
-            elif preallocation:
-                row["status"] = observation["outcome"]
-                row["qualified_full_case_pass"] = observation["outcome"] == "PASS"
-                row["qualified_preallocation_pass"] = observation["outcome"] == "PASS"
-                row["qualification_scope"] = "preallocation_control"
+        rows.append(ledger_row(original_row, reviews, observations))
+    return rows
 
 
-            elif pre_native:
-                row["status"] = observation["outcome"]
-                row["qualified_full_case_pass"] = observation["outcome"] == "PASS"
-                row["qualification_scope"] = "host_pre_native_rejection"
-            elif observation["full_lifecycle_qualified"]:
-                row["status"] = observation["outcome"]
-                row["qualified_full_case_pass"] = observation["outcome"] == "PASS"
-                row["qualified_host_lifecycle_pass"] = observation["outcome"] == "PASS"
-                row["qualification_scope"] = "full_host_lifecycle"
-            else:
-                row["status"] = "PARTIAL_HOST_MEASUREMENTS"
-                row["qualified_full_case_pass"] = False
-        rows.append(row)
+def build_ledger(requirements, selection, reconciliation, packets):
+    original = ORACLES.original_contracts(requirements, selection)
+    if reconciliation["original_selected_contracts"] != [row["selected_requirement"] for row in original]:
+        raise ValueError("Reconciliation does not preserve the original selected catalog")
+    reviews = {row["run_scoped_case_id"]: row for row in
+               reconciliation["oracle_matrix"] + reconciliation["supplemental_dispositions"]}
+    by_id = {row["run_scoped_case_id"]: row for row in original}
+    observations = ledger_observations(packets, by_id, reviews)
+    rows = ledger_rows(original, reviews, observations)
     full = [row for row in rows if row["qualification_scope"] == "full_host_lifecycle"]
     required_full_pass = [row for row in full if row["required_leg"] and row["status"] == "PASS"]
     return {"schema_version": 1, "original_ordered_id_sha256": ORACLES.ID_SHA256,
@@ -1202,12 +1337,10 @@ def main():
     for name in ("requirements", "original-selection", "reconciliation", "reviewed-packets", "output"):
         parser.add_argument("--" + name, type=Path, required=True)
     args = parser.parse_args()
-    result = build_ledger(json.loads(args.requirements.read_text()), json.loads(args.original_selection.read_text()),
-                          json.loads(args.reconciliation.read_text()),
-                          json.loads(args.reviewed_packets.read_text())["packets"])
-    with args.output.open("x", encoding="utf-8") as output:
-        json.dump(result, output, indent=2, ensure_ascii=False)
-        output.write("\n")
+    result = build_ledger(json.loads(PATHS.read_text(args.requirements)), json.loads(PATHS.read_text(args.original_selection)),
+                          json.loads(PATHS.read_text(args.reconciliation)),
+                          json.loads(PATHS.read_text(args.reviewed_packets))["packets"])
+    PATHS.create_text(args.output, json.dumps(result, indent=2, ensure_ascii=False) + "\n")
 
 
 if __name__ == "__main__":

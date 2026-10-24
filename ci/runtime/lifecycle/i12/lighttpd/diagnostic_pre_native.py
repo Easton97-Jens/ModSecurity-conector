@@ -10,6 +10,14 @@ import importlib.util
 import json
 from pathlib import Path
 
+# Load the maintained Parent filesystem boundary from this checkout.
+import sys as _i12_sys
+_i12_library = next((parent / "ci/lib" for parent in Path(__file__).resolve().parents
+                     if (parent / "ci/lib/i12_path_safety.py").is_file()),
+                    Path(__file__).resolve().parent)
+_i12_sys.path.insert(0, str(_i12_library))
+import i12_path_safety as i12_paths
+
 
 CONTROLLER_RESULT = "controller-result.json"
 CAPTURE_FILE = "capture.json"
@@ -39,7 +47,7 @@ def assemble(args):
     controller = load(args.attempt / CONTROLLER_RESULT)
     if args.output.resolve() != args.output or args.output.exists():
         raise ValueError("Pre-native proposal output must be a fresh physical directory")
-    args.output.mkdir(mode=0o700)
+    args.output = i12_paths.new_directory(args.output)
     for name in NAMES:
         source = args.attempt / "data/diagnostic" / name
         receipt = load(source / CAPTURE_FILE)
@@ -53,7 +61,7 @@ def assemble(args):
 
         def write(filename, data):
             path = directory / filename
-            with path.open("x") as stream:
+            with i12_paths.new_text(path) as stream:
                 json.dump(data, stream, indent=2)
                 stream.write("\n")
             return q.reference(path)

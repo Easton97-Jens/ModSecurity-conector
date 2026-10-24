@@ -19,6 +19,11 @@ import unittest
 from unittest import mock
 
 REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO / 'ci/lib'))
+sys.path.insert(0, str(REPO / 'ci/runtime/lifecycle/i12'))
+from capture_sources import Registry
+from i12_process_observation import ProcessObservation
+
 NATIVE = REPO / 'connectors/traefik/harness/i12/native'
 EXTERNAL = Path(os.environ.get('CODEX_TEMP_ROOT', '/var/tmp/codex/ModSecurity-conector')) / 'native-acceptance-tests'
 
@@ -270,8 +275,9 @@ class NativePrivateToolchainControls(unittest.TestCase):
         self.assertFalse(output.exists())
 
     def central_driver(self):
-        driver = REPO / 'ci/runtime/lifecycle/i12/objects/text/8767f9d4f04a9a57802f2af9298b46dfb8a366df2285491cde668bcf3e1dc172-driver.py'
-        return driver.read_text()
+        registry = Registry()
+        identity = registry.manifest['profiles']['traefik-native']['capture_files']['drivers/driver.py']['sha256']
+        return registry.content(identity).decode('utf-8')
 
     def test_driver_exact_once_offline_contract_and_pre_host_guard(self):
         text = self.acceptance.instrument_private_toolchain(self.central_driver())
@@ -1234,23 +1240,11 @@ func main() {
             driver.file_backend_ready(process, 'run.py', root, 'file-key', 12345)
 
     def test_real_file_backend_script_supports_central_pid_snapshot_and_stop(self):
-        import ast
-        import hashlib
-        manifest = json.loads((REPO / 'ci/runtime/lifecycle/i12/manifest.json').read_text())
-        sha = manifest['profiles']['traefik-native']['capture_files']['drivers/driver.py']['sha256']
-        tree = ast.parse((REPO / 'ci/runtime/lifecycle/i12/objects/text' / (sha + '-driver.py')).read_text())
-        functions = [node for node in tree.body if isinstance(node, ast.FunctionDef) and
-                     node.name in ('actual_pid', 'descendants', 'snapshot')]
-        self.assertEqual(len(functions), 3)
         root = self.root / 'real-file-process'
         root.mkdir(mode=0o700)
         snapshots = {}
-        namespace = {'Path': Path, 'os': os, 'time': time, 'TASK': root,
-            'digest': lambda path: hashlib.sha256(Path(path).read_bytes()).hexdigest(),
-            'write': lambda name, value: snapshots.update({name: value})}
-        exec(compile(ast.Module(body=functions, type_ignores=[]), 'sealed-driver-functions', 'exec'), namespace)
-        bound = SimpleNamespace(SOURCE=REPO, **{name: namespace[name] for name in
-            ('actual_pid', 'snapshot', 'digest', 'write')})
+        bound = ProcessObservation(root, writer=lambda name, value: snapshots.update({name: value}))
+        self.assertTrue(all(callable(getattr(bound, name)) for name in ('actual_pid', 'descendants', 'snapshot')))
         with mock.patch.dict(sys.modules, {'base_driver': bound}):
             driver = load('acceptance_driver')
         fixtures = self.root / 'real-file-process-fixtures'

@@ -368,8 +368,9 @@ class SonarZeroGateTests(unittest.TestCase):
     def test_duplicate_JSON_fields_and_redirects_fail(self):
         with self.assertRaisesRegex(GATE.GateError, 'duplicate JSON'):
             GATE.unique_object([('total', 0), ('total', 1)])
+        redirect_guard = GATE.RejectRedirects()
         with self.assertRaisesRegex(GATE.GateError, 'redirected'):
-            GATE.RejectRedirects().redirect_request(None, None, None, None, None, None)
+            redirect_guard.redirect_request(None, None, None, None, None, None)
 
     def test_official_client_enforces_timeout_byte_bound_and_object_shape(self):
         opener = mock.MagicMock()

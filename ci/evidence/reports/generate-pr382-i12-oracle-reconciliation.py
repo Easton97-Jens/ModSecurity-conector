@@ -8,7 +8,14 @@ import hashlib
 import importlib.util
 import json
 import re
+import sys
 from pathlib import Path
+
+_CHECKOUT_ROOT = Path(__file__).resolve().parents[3]
+_CI_LIB = _CHECKOUT_ROOT / "ci" / "lib"
+if str(_CI_LIB) not in sys.path:
+    sys.path.insert(0, str(_CI_LIB))
+import i12_path_safety as PATHS
 
 ID_SHA256 = "a74761d9722b646873325ecd27ea99661f00bee67052980fa04ede0e1f1a0f6f"
 CONTRACT_SHA256 = "c493e0a5d270121f65a6cd6a1f37bdf81f8d1304c2dd770322e5a9d017b2f8e2"
@@ -34,10 +41,19 @@ def canonical_digest(value):
 def reference(path):
     """Bind only a physical regular file, including all parent path components."""
     path = Path(path)
-    if not path.is_absolute() or path.resolve(strict=True) != path or not path.is_file():
+    if not path.is_absolute():
         raise ValueError(f"Evidence is not a physical absolute regular file: {path}")
-    data = path.read_bytes()
+    try:
+        admitted = PATHS.input_path(path)
+    except ValueError as error:
+        raise ValueError(f"Evidence is not a physical absolute regular file: {path}") from error
+    data = PATHS.read_bytes(admitted)
     return {"path": str(path), "sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data)}
+
+
+def ensure_output_directory(path):
+    """Materialize only an independently admitted runtime report directory."""
+    return PATHS.ensure_directory(path)
 
 
 def verify_reference(supplied):
@@ -109,7 +125,7 @@ def evidence_sources(record):
 
 def validate_retest(supplied, case_id, leg_id, expectation):
     receipt_ref = verify_reference(supplied)
-    receipt = json.loads(Path(receipt_ref["path"]).read_text())
+    receipt = json.loads(PATHS.read_text(receipt_ref["path"]))
     if receipt.get("execution_observed") is not True:
         raise ValueError("Retest requires an observed actual execution")
     if receipt.get("run_scoped_case_id") != case_id or receipt.get("leg_id") != leg_id:
@@ -130,7 +146,7 @@ def validate_retest(supplied, case_id, leg_id, expectation):
 
 def validate_unsupported_applicability(supplied, row, independent):
     receipt_ref = verify_reference(supplied)
-    receipt = json.loads(Path(receipt_ref["path"]).read_text())
+    receipt = json.loads(PATHS.read_text(receipt_ref["path"]))
     if receipt.get("run_scoped_case_id") != row["run_scoped_case_id"] or receipt.get("leg_id") != row["leg_id"]:
         raise ValueError("Unsupported applicability cannot transfer between IDs or profiles")
     if receipt.get("capability_supported") is not False:
@@ -271,6 +287,18 @@ def validate_visible_status_absence(record, row, effective, independent):
     return approval
 
 
+def successful_absence_control(record, client, before):
+    timestamp = record.get("monotonic_ns")
+    return (record.get("schema") == "native-lifecycle-v1" and record.get("run") == client["run_id"]
+            and record.get("profile") == "apache-native"
+            and record.get("case") == client["run_scoped_case_id"].split("::")[-1]
+            and record.get("pid") == client["host_pid"] and record.get("invalid") is False
+            and record.get("function") in ("native_new", "native_new_with_id")
+            and record.get("edge") == "return" and type(record.get("result")) is int
+            and record["result"] == 1 and type(timestamp) is int
+            and (timestamp < client["started_ns"] if before else timestamp > client["completed_ns"]))
+
+
 def absence_control_identities(observations, client, before):
     """Read actual successful native allocations, separate from the main request."""
     identities = set()
@@ -278,25 +306,32 @@ def absence_control_identities(observations, client, before):
         if proof.get("role") != "native_api":
             continue
         source = verify_reference(proof)
-        for line in Path(source["path"]).read_bytes().splitlines():
+        for line in PATHS.read_bytes(source["path"]).splitlines():
             if not line.strip():
                 continue
             record = json.loads(line)
             if not isinstance(record, dict):
                 raise ValueError("Native control evidence must contain observer records")
-            timestamp = record.get("monotonic_ns")
-            if (record.get("schema") == "native-lifecycle-v1" and record.get("run") == client["run_id"]
-                    and record.get("profile") == "apache-native"
-                    and record.get("case") == client["run_scoped_case_id"].split("::")[-1]
-                    and record.get("pid") == client["host_pid"] and record.get("invalid") is False
-                    and record.get("function") in ("native_new", "native_new_with_id")
-                    and record.get("edge") == "return" and type(record.get("result")) is int
-                    and record["result"] == 1 and type(timestamp) is int
-                    and (timestamp < client["started_ns"] if before else timestamp > client["completed_ns"])):
+            if successful_absence_control(record, client, before):
                 identities.update(record[key] for key in ("transaction_id", "canonical_transaction_id")
                                   if isinstance(record.get(key), str) and record[key]
                                   and record[key] != client["native_transaction_id"])
     return identities
+
+
+def validate_absence_sink_control(observer, content, offsets, observations, client, before, label):
+    control = observer.get(label, {})
+    begin, finish = control.get("start_offset"), control.get("end_offset")
+    if (type(begin) is not int or type(finish) is not int or not 0 <= begin < finish <= len(content)
+            or not content[begin:finish].strip()
+            or (finish > offsets[0] if before else begin < offsets[1])):
+        raise ValueError("Zero events need nonempty physical control ranges before and after the window")
+    identities = absence_control_identities(observations, client, before)
+    positive = [json.loads(line) for line in content[begin:finish].splitlines() if line.strip()]
+    if (not positive or any(not isinstance(record, dict) or record.get("transaction_id") not in identities
+            or record.get("connector") != "apache" or not isinstance(record.get("message_id"), str)
+            or not record["message_id"].startswith("MSCONN_EVENT_") for record in positive)):
+        raise ValueError("Positive physical sink controls must join actual native allocations before and after")
 
 
 def validate_absence_sink_window(observer, events, observations, client):
@@ -311,49 +346,25 @@ def validate_absence_sink_window(observer, events, observations, client):
                    if proof.get("role") == "physical_event_sink"}
     if sink_hashes != {sink["sha256"]} or set(observer.get("sink_sha256", [])) != sink_hashes:
         raise ValueError("Zero event window must cover the packet's physical sink bytes")
-    content = Path(sink["path"]).read_bytes()
+    content = PATHS.read_bytes(sink["path"])
     offsets = observer.get("before_offset"), observer.get("after_offset")
     if (any(type(value) is not int or not 0 <= value <= len(content) for value in offsets)
             or offsets[0] != offsets[1]):
         raise ValueError("Zero events need equal typed offsets inside the immutable sink")
     for before, label in ((True, "before_control"), (False, "after_control")):
-        control = observer.get(label, {})
-        begin, finish = control.get("start_offset"), control.get("end_offset")
-        if (type(begin) is not int or type(finish) is not int or not 0 <= begin < finish <= len(content)
-                or not content[begin:finish].strip()
-                or (finish > offsets[0] if before else begin < offsets[1])):
-            raise ValueError("Zero events need nonempty physical control ranges before and after the window")
-        identities = absence_control_identities(observations, client, before)
-        positive = [json.loads(line) for line in content[begin:finish].splitlines() if line.strip()]
-        if (not positive or any(not isinstance(record, dict) or record.get("transaction_id") not in identities
-                or record.get("connector") != "apache" or not isinstance(record.get("message_id"), str)
-                or not record["message_id"].startswith("MSCONN_EVENT_") for record in positive)):
-            raise ValueError("Positive physical sink controls must join actual native allocations before and after")
+        validate_absence_sink_control(observer, content, offsets, observations, client, before, label)
 
 
-def validate_absence_retest(supplied, row, effective):
-    """Require the unchanged full lifecycle contract plus physical negative wire evidence.
+def validate_absence_process_wait(client):
+    signal = client["actual_waited_signal"]
+    if (signal is not None and (type(signal) is not int or signal <= 0)
+            or signal is not None and client["actual_waited_exit"] != -signal
+            or signal is None and client["actual_waited_exit"] < 0
+            or client["termination_kind"] == "client_signalled" and signal is None):
+        raise ValueError("Client termination needs a consistent actual process wait/signal")
 
-    This does not exempt native calls, identities, finish/free or cleanup from
-    the normal 35-field ledger. A failing full packet remains a failing retest.
-    """
-    receipt = json.loads(Path(verify_reference(supplied)["path"]).read_text())
-    witness = receipt.get("visible_status_absence", {})
-    spec = importlib.util.spec_from_file_location("i12_absence_lifecycle",
-        Path(__file__).with_name("generate-pr382-i12-lifecycle-ledger.py"))
-    ledger = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(ledger)
-    packet = ledger.reviewed_packet(witness["lifecycle_packet"], row, effective)
-    if not packet["full_lifecycle_qualified"] or packet["outcome"] != receipt["outcome"]:
-        raise ValueError("Expected absence cannot bypass native lifecycle or cleanup qualification")
-    physical = json.loads(Path(verify_reference(witness["lifecycle_packet"])["path"]).read_text())
-    client_ref = verify_reference(witness["client_termination_receipt"])
-    capture = verify_reference(witness["response_capture"])
-    host_ref = verify_reference(witness["host_termination_receipt"])
-    if len({client_ref["path"], capture["path"], host_ref["path"]}) != 3:
-        raise ValueError("Client, wire and independent host witnesses must be separate files")
-    client = json.loads(Path(client_ref["path"]).read_text())
-    host = json.loads(Path(host_ref["path"]).read_text())
+
+def validate_absence_client_identity(receipt, client, host, physical):
     for key in ("run_scoped_case_id", "leg_id", "run_id", "parent_sha", "effective_config_sha256", "rules_sha256"):
         if (not receipt.get(key) or client.get(key) != receipt[key]
                 or physical.get(key) != receipt[key] or host.get(key) != receipt[key]):
@@ -367,32 +378,23 @@ def validate_absence_retest(supplied, row, effective):
             or "actual_waited_signal" not in client or not client.get("argv") or not client.get("cwd")
             or type(client.get("client_pid")) is not int or client["client_pid"] <= 0):
         raise ValueError("EOF or an unimplemented/uncorrelated client operation cannot prove expected absence")
-    signal = client["actual_waited_signal"]
-    if (signal is not None and (type(signal) is not int or signal <= 0)
-            or signal is not None and client["actual_waited_exit"] != -signal
-            or signal is None and client["actual_waited_exit"] < 0
-            or client["termination_kind"] == "client_signalled" and signal is None):
-        raise ValueError("Client termination needs a consistent actual process wait/signal")
+    validate_absence_process_wait(client)
     for key in ("request_id", "client_pid", "host_pid", "native_transaction_id"):
         if host.get(key) != client[key] or physical.get(key) != client[key]:
             raise ValueError("Absence requires exact request/process/native correlation")
     if (host.get("execution_observed") is not True or host.get("termination_observed") is not True
             or host.get("termination_kind") != client["termination_kind"]):
         raise ValueError("Client EOF cannot replace independent actual host termination")
+
+
+def validate_absence_native_identity(packet, client):
     native_identity = packet["observations"]["native_transaction_id"]["value"]
     if (not isinstance(native_identity, dict) or not isinstance(native_identity.get("transaction_id"), str)
             or client["native_transaction_id"] != native_identity["transaction_id"]):
         raise ValueError("Absence must join the actual allocated native transaction")
-    raw = Path(capture["path"]).read_bytes()
-    if re.search(rb"(?:^|\n)HTTP/[0-9]+\.[0-9]+ [0-9]{3}(?: [^\r\n]*)?\r?\n", raw):
-        raise ValueError("An actual received HTTP status contradicts expected status absence")
-    if client.get("response_capture_sha256") != capture["sha256"]:
-        raise ValueError("Negative wire observation is not bound to the actual client capture")
-    observations = packet["observations"]
-    for name in ("native_api_returns", "cleanup_receipts"):
-        item = observations[name]
-        if item.get("applicable", True) is not True or not item.get("value"):
-            raise ValueError("Expected absence needs actual API returns and cleanup")
+
+
+def validate_absence_events(witness, observations, client, client_ref, host_ref, capture):
     events = observations["native_events"]
     event_value = events.get("value")
     if (events.get("applicable", True) is not True or not isinstance(event_value, dict)
@@ -402,7 +404,7 @@ def validate_absence_retest(supplied, row, effective):
         raise ValueError("Expected absence needs measured physical event presence or absence")
     if not event_value["native_audit_lines"] and not event_value["physical_common_rows"]:
         observer_ref = verify_reference(witness["event_observer_receipt"])
-        observer = json.loads(Path(observer_ref["path"]).read_text())
+        observer = json.loads(PATHS.read_text(observer_ref["path"]))
         for key in ("run_scoped_case_id", "leg_id", "run_id", "parent_sha", "effective_config_sha256",
                     "rules_sha256", "request_id", "host_pid", "native_transaction_id"):
             if observer.get(key) != client.get(key):
@@ -414,6 +416,9 @@ def validate_absence_retest(supplied, row, effective):
                 or observer_ref["sha256"] in {client_ref["sha256"], host_ref["sha256"], capture["sha256"]}):
             raise ValueError("Zero physical events need actual complete sink observation with a positive control")
         validate_absence_sink_window(observer, events, observations, client)
+
+
+def validate_absence_lifetime(observations, capture, client_ref, host_ref):
     for name, counters in (("finish_calls", {"common_finish", "native_logging"}),
                            ("native_free_calls", {"native_cleanup", "common_cleanup", "host_association_retire"})):
         value = observations[name].get("value")
@@ -428,6 +433,9 @@ def validate_absence_retest(supplied, row, effective):
                      for p in observations[name].get("evidence", []) if p.get("role") == "client_process"}
     if not {capture["sha256"], client_ref["sha256"]} <= client_proofs:
         raise ValueError("Wire and termination captures must independently support the normal lifecycle packet")
+
+
+def validate_absence_reset(observations, host_ref, client_ref):
     reset = observations["transport_reset_scope"]
     if reset.get("applicable", True) is not True or reset.get("value") is None:
         raise ValueError("Expected absence needs actual independently observed host/client termination scope")
@@ -436,8 +444,102 @@ def validate_absence_retest(supplied, row, effective):
     if (not {"host_callback", "client_process"} <= roles or host_ref["sha256"] not in host_proofs
             or host_ref["sha256"] == client_ref["sha256"]):
         raise ValueError("Client EOF alone cannot prove host termination scope")
+
+
+def validate_absence_retest(supplied, row, effective):
+    """Require the unchanged full lifecycle contract plus physical negative wire evidence.
+
+    This does not exempt native calls, identities, finish/free or cleanup from
+    the normal 35-field ledger. A failing full packet remains a failing retest.
+    """
+    receipt = json.loads(PATHS.read_text(verify_reference(supplied)["path"]))
+    witness = receipt.get("visible_status_absence", {})
+    spec = importlib.util.spec_from_file_location("i12_absence_lifecycle",
+        Path(__file__).with_name("generate-pr382-i12-lifecycle-ledger.py"))
+    ledger = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ledger)
+    packet = ledger.reviewed_packet(witness["lifecycle_packet"], row, effective)
+    if not packet["full_lifecycle_qualified"] or packet["outcome"] != receipt["outcome"]:
+        raise ValueError("Expected absence cannot bypass native lifecycle or cleanup qualification")
+    physical = json.loads(PATHS.read_text(verify_reference(witness["lifecycle_packet"])["path"]))
+    client_ref = verify_reference(witness["client_termination_receipt"])
+    capture = verify_reference(witness["response_capture"])
+    host_ref = verify_reference(witness["host_termination_receipt"])
+    if len({client_ref["path"], capture["path"], host_ref["path"]}) != 3:
+        raise ValueError("Client, wire and independent host witnesses must be separate files")
+    client = json.loads(PATHS.read_text(client_ref["path"]))
+    host = json.loads(PATHS.read_text(host_ref["path"]))
+    validate_absence_client_identity(receipt, client, host, physical)
+    validate_absence_native_identity(packet, client)
+    raw = PATHS.read_bytes(capture["path"])
+    if re.search(rb"(?:^|\n)HTTP/\d+\.\d+ \d{3}(?: [^\r\n]*)?\r?\n", raw):
+        raise ValueError("An actual received HTTP status contradicts expected status absence")
+    if client.get("response_capture_sha256") != capture["sha256"]:
+        raise ValueError("Negative wire observation is not bound to the actual client capture")
+    observations = packet["observations"]
+    for name in ("native_api_returns", "cleanup_receipts"):
+        item = observations[name]
+        if item.get("applicable", True) is not True or not item.get("value"):
+            raise ValueError("Expected absence needs actual API returns and cleanup")
+    validate_absence_events(witness, observations, client, client_ref, host_ref, capture)
+    validate_absence_lifetime(observations, capture, client_ref, host_ref)
+    validate_absence_reset(observations, host_ref, client_ref)
     return {"client_termination_receipt": client_ref, "host_termination_receipt": host_ref, "response_capture": capture,
             "lifecycle_packet": packet, "visible_status": None}
+
+
+def corrected_expectation(category, original, correction, resolution, independent, effective):
+    if correction is not None:
+        if category != "ORACLE_DEFECT_CONFIRMED":
+            raise ValueError("Only an independently confirmed oracle defect permits correction")
+        if correction.get("reviewed_by") != "root" or not correction.get("reason"):
+            raise ValueError("Correction lacks a separate Root approval and reason")
+        proof = [verify_reference(item) for item in correction.get("proof", [])]
+        if not proof or not {item["sha256"] for item in proof} & {item["sha256"] for item in independent}:
+            raise ValueError("Correction lacks independently verified proof")
+        effective = copy.deepcopy(correction["expected_oracle"])
+    elif category == "ORACLE_DEFECT_CONFIRMED":
+        raise ValueError("Confirmed oracle defect requires a separately approved correction")
+    if resolution is not None:
+        if category not in ("SOURCE_CONFIRMED_EXPECTATION", "HOST_SEMANTICS_CONFIRMED"):
+            raise ValueError("Resolution cannot conceal product/harness defects or unresolved conflicts")
+        if not original.get("unresolved_expected_value_reason"):
+            raise ValueError("An existing oracle requires explicit correction rather than replacement")
+        effective = copy.deepcopy(resolution)
+    return effective
+
+
+def resolved_expectation_absence(record, row, effective, category, null_fields, independent):
+    resolved = category not in UNRESOLVED
+    absence, traefik_absence = None, None
+    if resolved and category != "UNSUPPORTED_CAPABILITY":
+        if effective.get("unresolved_expected_value_reason"):
+            raise ValueError("A resolved oracle must provide an independently bound expectation")
+        if effective.get("physical_evidence_not_projection") is not True:
+            raise ValueError("Effective oracle must preserve physical evidence requirement")
+        missing = {field for field in ("native_result", "visible_status", "phase")
+                   if effective.get(field) is None and field not in null_fields}
+        if record.get("expected_absence") is not None:
+            traefik_absence = validate_traefik_expected_absence(record, row, effective, independent, missing)
+        elif missing == {"visible_status"} and effective.get("expected_absence") is not None:
+            absence = validate_visible_status_absence(record, row, effective, independent)
+        elif missing:
+            raise ValueError("Effective oracle still lacks an applicable expectation: "
+                             + ", ".join(sorted(missing)) + "; exact absence approval required")
+    return absence, traefik_absence
+
+
+def reviewed_retest(record, row, category, resolved, effective, absence):
+    retest = None
+    if record.get("retest") is not None:
+        if not resolved or category == "UNSUPPORTED_CAPABILITY":
+            raise ValueError("Unresolved or unsupported expectation cannot receive a passing retest")
+        retest = validate_retest(record["retest"], row["run_scoped_case_id"], row["leg_id"], effective)
+    if absence is not None:
+        retest["visible_status_absence"] = validate_absence_retest(record["retest"], row, effective)
+    elif effective.get("expected_absence") is not None:
+        raise ValueError("Expected absence must describe a literal null visible status")
+    return retest
 
 
 def review_record(record, row):
@@ -460,50 +562,13 @@ def review_record(record, row):
         applicability = validate_unsupported_applicability(record["applicability_receipt"], row, independent)
     correction = record.get("approved_correction")
     resolution = record.get("resolved_expectation")
-    if correction is not None:
-        if category != "ORACLE_DEFECT_CONFIRMED":
-            raise ValueError("Only an independently confirmed oracle defect permits correction")
-        if correction.get("reviewed_by") != "root" or not correction.get("reason"):
-            raise ValueError("Correction lacks a separate Root approval and reason")
-        proof = [verify_reference(item) for item in correction.get("proof", [])]
-        if not proof or not {item["sha256"] for item in proof} & {item["sha256"] for item in independent}:
-            raise ValueError("Correction lacks independently verified proof")
-        effective = copy.deepcopy(correction["expected_oracle"])
-    elif category == "ORACLE_DEFECT_CONFIRMED":
-        raise ValueError("Confirmed oracle defect requires a separately approved correction")
-    if resolution is not None:
-        if category not in ("SOURCE_CONFIRMED_EXPECTATION", "HOST_SEMANTICS_CONFIRMED"):
-            raise ValueError("Resolution cannot conceal product/harness defects or unresolved conflicts")
-        if not original.get("unresolved_expected_value_reason"):
-            raise ValueError("An existing oracle requires explicit correction rather than replacement")
-        effective = copy.deepcopy(resolution)
+    effective = corrected_expectation(category, original, correction, resolution, independent, effective)
     resolved = category not in UNRESOLVED
     null_fields = intentional_null_fields(record, original, effective, independent, implementation)
     absence = None
     traefik_absence = None
-    if resolved and category != "UNSUPPORTED_CAPABILITY":
-        if effective.get("unresolved_expected_value_reason"):
-            raise ValueError("A resolved oracle must provide an independently bound expectation")
-        if effective.get("physical_evidence_not_projection") is not True:
-            raise ValueError("Effective oracle must preserve physical evidence requirement")
-        missing = {field for field in ("native_result", "visible_status", "phase")
-                   if effective.get(field) is None and field not in null_fields}
-        if record.get("expected_absence") is not None:
-            traefik_absence = validate_traefik_expected_absence(record, row, effective, independent, missing)
-        elif missing == {"visible_status"} and effective.get("expected_absence") is not None:
-            absence = validate_visible_status_absence(record, row, effective, independent)
-        elif missing:
-            raise ValueError("Effective oracle still lacks an applicable expectation: "
-                             + ", ".join(sorted(missing)) + "; exact absence approval required")
-    retest = None
-    if record.get("retest") is not None:
-        if not resolved or category == "UNSUPPORTED_CAPABILITY":
-            raise ValueError("Unresolved or unsupported expectation cannot receive a passing retest")
-        retest = validate_retest(record["retest"], row["run_scoped_case_id"], row["leg_id"], effective)
-    if absence is not None:
-        retest["visible_status_absence"] = validate_absence_retest(record["retest"], row, effective)
-    elif effective.get("expected_absence") is not None:
-        raise ValueError("Expected absence must describe a literal null visible status")
+    absence, traefik_absence = resolved_expectation_absence(record, row, effective, category, null_fields, independent)
+    retest = reviewed_retest(record, row, category, resolved, effective, absence)
     return {"category": category, "resolved": resolved,
             "interpretation": record["interpretation"], "scope": record["scope"],
             "independent_sources": independent, "implementation_sources": implementation,
@@ -582,14 +647,12 @@ def main():
     inputs = [reference(path) for path in (args.requirements, args.original_selection, args.reviewed_records)]
     if inputs[1]["sha256"] != SELECTION_SHA256:
         raise ValueError("Immutable original source selection bytes changed")
-    matrix = reconcile(json.loads(args.requirements.read_text()), json.loads(args.original_selection.read_text()),
-                       json.loads(args.reviewed_records.read_text())["records"])
+    matrix = reconcile(json.loads(PATHS.read_text(args.requirements)), json.loads(PATHS.read_text(args.original_selection)),
+                       json.loads(PATHS.read_text(args.reviewed_records))["records"])
     matrix["input_evidence"] = inputs
-    args.output_dir.mkdir(parents=True, exist_ok=True)
+    ensure_output_directory(args.output_dir)
     output = args.output_dir / "oracle-reconciliation.json"
-    with output.open("x", encoding="utf-8") as stream:
-        json.dump(matrix, stream, indent=2, ensure_ascii=False)
-        stream.write("\n")
+    PATHS.create_text(output, json.dumps(matrix, indent=2, ensure_ascii=False) + "\n")
     print(json.dumps({"output": reference(output.absolute()), "summary": matrix["summary"]}))
 
 

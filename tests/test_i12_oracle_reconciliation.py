@@ -4,6 +4,7 @@ import copy
 import hashlib
 import importlib.util
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,16 +12,38 @@ from unittest import mock
 
 SCRIPT = Path(__file__).resolve().parents[1] / "ci/evidence/reports/generate-pr382-i12-oracle-reconciliation.py"
 SPEC = importlib.util.spec_from_file_location("i12_oracle_reconciliation", SCRIPT)
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 LEDGER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(LEDGER)
 
 
 class OracleReconciliationTests(unittest.TestCase):
+    def test_reference_enforces_explicit_roots_and_private_path_exclusion(self):
+        """I12-SONAR-REF: valid data, sibling-prefix escape, private input."""
+        allowed = self.root / "approved.json"
+        allowed.write_text("{}\n")
+        private = self.root / ".ssh" / "fixture"
+        private.parent.mkdir()
+        private.write_text("synthetic-private-input\n")
+        with tempfile.TemporaryDirectory(prefix=self.root.name + "-sibling-", dir=self.root.parent) as sibling:
+            outside = Path(sibling) / "outside.json"
+            outside.write_text("{}\n")
+            roots = {"CODEX_TEMP_ROOT": str(self.root), "VERIFIED_RUN_ROOT": "", "I12_TEST_ROOT": str(self.root)}
+            with mock.patch.dict(os.environ, roots):
+                self.assertEqual(LEDGER.reference(allowed)["path"], str(allowed))
+                with self.assertRaises(ValueError):
+                    LEDGER.reference(outside)
+                with self.assertRaises(ValueError):
+                    LEDGER.reference(private)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name).resolve()
+        authorization = mock.patch.dict(os.environ, {"I12_TEST_ROOT": str(self.root)})
+        authorization.start()
+        self.addCleanup(authorization.stop)
         self.requirements = {"rows": []}
         for index in range(1484):
             case_id = f"I12::profile::NEED-synthetic-{index}"
@@ -299,6 +322,9 @@ class IntentionalNullContractTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(prefix="i12-intentional-null-")
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name).resolve()
+        authorization = mock.patch.dict(os.environ, {"I12_TEST_ROOT": str(self.root)})
+        authorization.start()
+        self.addCleanup(authorization.stop)
         self.row = {"run_scoped_case_id": CANONICAL_OVER_LIMIT["run_scoped_case_id"],
                     "leg_id": "haproxy-spop-request", "selected_requirement": copy.deepcopy(CANONICAL_OVER_LIMIT)}
         self.assertEqual(LEDGER.canonical_digest(CANONICAL_OVER_LIMIT),
@@ -418,6 +444,9 @@ class ApacheStatusAbsenceTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(prefix="i12-absence-")
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name).resolve()
+        authorization = mock.patch.dict(os.environ, {"I12_TEST_ROOT": str(self.root)})
+        authorization.start()
+        self.addCleanup(authorization.stop)
         self.case = "I12::apache-native::NEED-cancel"
         self.row = {"run_scoped_case_id": self.case, "leg_id": "apache-native",
                     "selected_requirement": {

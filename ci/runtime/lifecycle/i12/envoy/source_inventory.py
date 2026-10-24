@@ -161,6 +161,14 @@ OBSERVER_HASHES = {
         'f9f63b62ba8efc555dc20e673cc02251d5ab6c2ab17d8f5efa760d0d97146dcd',
         '5b7d8fa7c327017cafb05b1e932f70eefe8641797751a0dc19df0337f4893b1b'),
 }
+CURRENT_OBSERVER_SUCCESSOR = '5038d0068cef52f7cf4f2013355cf1b828648061993dd89c51d14f5439cfe387'
+SUCCESSOR_ADAPTER_CONTRACT = 'i12.envoy.preserve-source-observer.v2'
+
+
+def accepted_observer_hashes(name, archived):
+    if name == 'ci/runtime/lifecycle/native-lifecycle-observer.c':
+        return archived, CURRENT_OBSERVER_SUCCESSOR
+    return (archived,)
 
 
 def full_revision(value):
@@ -308,14 +316,18 @@ def observer_contract(profile):
 def adapter_metadata(manifest, before, revision, manifest_hash):
     profile = manifest['profiles']['envoy']
     observer_contract(profile)
-    if any(before.get(name) != current for name, (_old, current) in OBSERVER_HASHES.items()):
+    if any(before.get(name) not in accepted_observer_hashes(name, current)
+           for name, (_old, current) in OBSERVER_HASHES.items()):
         raise ValueError('unknown archived observer hashes')
-    return {'contract': ADAPTER_CONTRACT, 'original_manifest_sha256': manifest_hash,
+    contract = (SUCCESSOR_ADAPTER_CONTRACT
+                if before.get('ci/runtime/lifecycle/native-lifecycle-observer.c') == CURRENT_OBSERVER_SUCCESSOR
+                else ADAPTER_CONTRACT)
+    return {'contract': contract, 'original_manifest_sha256': manifest_hash,
             'archived_revision': full_revision(revision), 'resolved_revision': revision,
             'applied_targets': {name: entry['sha256'] for name, entry in profile['source_targets'].items()
                                 if name not in OBSERVER_HASHES},
-            'preserved_targets': {name: {'historical_before_sha256': old, 'archived_sha256': current}
-                                  for name, (old, current) in OBSERVER_HASHES.items()}}
+            'preserved_targets': {name: {'historical_before_sha256': old, 'archived_sha256': before[name]}
+                                  for name, (old, _current) in OBSERVER_HASHES.items()}}
 
 
 def verify_adapter(proof, expected, manifest):

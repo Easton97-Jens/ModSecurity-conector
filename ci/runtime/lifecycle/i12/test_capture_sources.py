@@ -32,12 +32,12 @@ class CaptureSourceControls(unittest.TestCase):
         patch = "".join(difflib.unified_diff(self.original.decode().splitlines(keepends=True), self.observed.decode().splitlines(keepends=True), fromfile="a/payload", tofile="b/payload")).encode()
         (self.bundle / "capture.patch").write_bytes(patch)
         client = b"raise RuntimeError('capture source must not execute')\n"
-        (self.bundle / "client.py").write_bytes(client)
+        (self.bundle / "client.py.lines.json").write_text(json.dumps(client.decode().splitlines(keepends=True)))
         identity = CAPTURE.digest(client)
         self.manifest = {"delivery_product_baseline": "8" * 40, "authorized_storage_root": str(self.root),
             "objects": {before: {"kind": "repository", "path": "module.c"},
                 after: {"kind": "delta", "base": before, "patch": "capture.patch", "patch_sha256": CAPTURE.digest(patch)},
-                identity: {"kind": "text", "file": "client.py"}},
+                identity: {"kind": "text_lines", "file": "client.py.lines.json"}},
             "profiles": {"selected": {"source_targets": {"module.c": {"before_sha256": before, "sha256": after}},
                 "capture_files": {"client.py": {"sha256": identity}}}}}
         self.save_manifest()
@@ -56,13 +56,14 @@ class CaptureSourceControls(unittest.TestCase):
         before = (self.copy / "module.c").read_bytes()
         with self.assertRaises((ValueError, OSError)):
             self.apply()
-        self.assertEqual(before, (self.copy / "module.c").read_bytes())
+        self.assertEqual((self.copy / "module.c").read_bytes(), before)
         self.assertFalse((self.copy / ".i12-capture").exists())
 
     def test_exact_application_and_no_capture_execution(self):
         result = self.apply()
-        self.assertEqual(self.observed, (self.copy / "module.c").read_bytes())
-        self.assertEqual((self.bundle / "client.py").read_bytes(), (self.copy / ".i12-capture/selected/client.py").read_bytes())
+        self.assertEqual((self.copy / "module.c").read_bytes(), self.observed)
+        self.assertEqual((self.copy / ".i12-capture/selected/client.py").read_bytes(),
+                         b"raise RuntimeError('capture source must not execute')\n")
         self.assertFalse(result["runtime_qualified"])
 
     def test_existing_receipt_refused_before_source_writes(self):
@@ -70,7 +71,7 @@ class CaptureSourceControls(unittest.TestCase):
         original = b'{"retained_original_receipt": true}\n'
         receipt.write_bytes(original)
         self.assert_refused_unchanged()
-        self.assertEqual(original, receipt.read_bytes())
+        self.assertEqual(receipt.read_bytes(), original)
 
     def test_hardlinked_receipt_refused_before_source_or_foreign_writes(self):
         foreign = self.root / "foreign-evidence.json"
@@ -79,8 +80,8 @@ class CaptureSourceControls(unittest.TestCase):
         receipt = self.copy / "i12-source-application-receipt.json"
         os.link(foreign, receipt)
         self.assert_refused_unchanged()
-        self.assertEqual(original, foreign.read_bytes())
-        self.assertEqual(original, receipt.read_bytes())
+        self.assertEqual(foreign.read_bytes(), original)
+        self.assertEqual(receipt.read_bytes(), original)
 
     def test_receipt_directory_refused_before_source_writes(self):
         receipt = self.copy / "i12-source-application-receipt.json"
@@ -90,7 +91,7 @@ class CaptureSourceControls(unittest.TestCase):
         retained.write_bytes(original)
         self.assert_refused_unchanged()
         self.assertTrue(receipt.is_dir())
-        self.assertEqual(original, retained.read_bytes())
+        self.assertEqual(retained.read_bytes(), original)
 
     def test_marker_missing_or_wrong_identity(self):
         (self.copy / CAPTURE.MARKER).unlink()
@@ -117,7 +118,7 @@ class CaptureSourceControls(unittest.TestCase):
         (self.copy / "module.c").unlink()
         os.link(self.repo / "module.c", self.copy / "module.c")
         self.assert_refused_unchanged()
-        self.assertEqual(self.original, (self.repo / "module.c").read_bytes())
+        self.assertEqual((self.repo / "module.c").read_bytes(), self.original)
 
     def test_later_bad_base_refused_before_first_write(self):
         self.manifest["profiles"]["selected"]["source_targets"]["unexpected.c"] = {"before_sha256": "0" * 64, "sha256": CAPTURE.digest(self.observed)}
@@ -130,12 +131,14 @@ class CaptureSourceControls(unittest.TestCase):
         self.assert_refused_unchanged()
 
     def test_context_patch_has_no_fuzz(self):
+        modified = self.original.replace(b"return 0", b"return 1")
+        patch = (self.bundle / "capture.patch").read_bytes()
         with self.assertRaises(ValueError):
-            CAPTURE.exact_patch(self.original.replace(b"return 0", b"return 1"), (self.bundle / "capture.patch").read_bytes())
+            CAPTURE.exact_patch(modified, patch)
 
     def test_zero_context_patch_matches_standard_offsets(self):
         patch = "".join(difflib.unified_diff(self.original.decode().splitlines(keepends=True), self.observed.decode().splitlines(keepends=True), fromfile="a/payload", tofile="b/payload", n=0)).encode()
-        self.assertEqual(self.observed, CAPTURE.exact_patch(self.original, patch))
+        self.assertEqual(CAPTURE.exact_patch(self.original, patch), self.observed)
 
     def test_lossless_source_lines_preserve_original_whitespace(self):
         original = b"# retained original line \n"
@@ -143,7 +146,7 @@ class CaptureSourceControls(unittest.TestCase):
         (self.bundle / "original.lines.json").write_text(json.dumps(original.decode().splitlines(keepends=True)))
         self.manifest["objects"][identity] = {"kind": "text_lines", "file": "original.lines.json"}
         self.save_manifest()
-        self.assertEqual(original, CAPTURE.Registry(self.bundle, self.repo).content(identity))
+        self.assertEqual(CAPTURE.Registry(self.bundle, self.repo).content(identity), original)
 
     def test_escape_path_refused(self):
         self.manifest["profiles"]["selected"]["capture_files"] = {"../escaped.py": next(iter(self.manifest["profiles"]["selected"]["capture_files"].values()))}
@@ -155,7 +158,19 @@ class CaptureSourceControls(unittest.TestCase):
         (self.copy / ".i12-capture").write_text("existing user file")
         with self.assertRaises(ValueError):
             self.apply()
-        self.assertEqual(self.original, (self.copy / "module.c").read_bytes())
+        self.assertEqual((self.copy / "module.c").read_bytes(), self.original)
+
+
+class ArchiveStorageControls(unittest.TestCase):
+    def test_executable_source_objects_require_inert_line_storage(self):
+        with tempfile.TemporaryDirectory(prefix="archive-data-", dir=TEST_ROOT) as temporary:
+            root = Path(temporary)
+            identity = "0" * 64
+            (root / "manifest.json").write_text(json.dumps({"objects": {
+                identity: {"kind": "text", "file": "client.py"}}}))
+            registry = CAPTURE.Registry(root, root)
+            with self.assertRaisesRegex(ValueError, "inert lossless text-line data"):
+                registry.content(identity)
 
 
 class CurrentSourceCopyControls(CaptureSourceControls):
@@ -185,7 +200,7 @@ class CurrentSourceCopyControls(CaptureSourceControls):
 
     def test_exact_application_and_no_capture_execution(self):
         result = self.apply()
-        self.assertEqual(self.observed, (self.copy / "module.c").read_bytes())
+        self.assertEqual((self.copy / "module.c").read_bytes(), self.observed)
         self.assertEqual(result["source_revision"], self.revision)
         self.assertEqual(result["delivery_product_baseline"], "8" * 40)
         self.assertEqual(result["source_git_tree"], "b" * 40)
@@ -265,7 +280,7 @@ class CurrentSourceCopyControls(CaptureSourceControls):
         self.extra.unlink()
         os.link(self.repo / "module.c", self.extra)
         self.assert_refused_unchanged()
-        self.assertEqual(self.original, (self.repo / "module.c").read_bytes())
+        self.assertEqual((self.repo / "module.c").read_bytes(), self.original)
 
     def test_unselected_symlink_refused(self):
         self.extra.unlink()
@@ -442,9 +457,10 @@ class CurrentApacheProfileControls(unittest.TestCase):
 
     def test_historical_profile_still_rejects_current_native_before_bytes(self):
         original = (self.target / "connectors/apache/src/mod_security3.c").read_bytes()
+        registry = self.registry()
         with self.assertRaisesRegex(ValueError, "Source-copy base differs"):
-            CAPTURE.apply(self.registry(), "apache", self.target)
-        self.assertEqual(original, (self.target / "connectors/apache/src/mod_security3.c").read_bytes())
+            CAPTURE.apply(registry, "apache", self.target)
+        self.assertEqual((self.target / "connectors/apache/src/mod_security3.c").read_bytes(), original)
         self.assertFalse((self.target / ".i12-capture").exists())
 
     def test_v1_marker_cannot_label_current_profile_with_historical_baseline(self):
@@ -460,8 +476,9 @@ class CurrentApacheProfileControls(unittest.TestCase):
         (self.target / name).write_bytes(b"changed but completely inventoried\n")
         self.inventory["files"][name]["sha256"] = CAPTURE.digest((self.target / name).read_bytes())
         self.freeze()
+        registry = self.registry()
         with self.assertRaisesRegex(ValueError, "Source-copy base differs"):
-            CAPTURE.apply(self.registry(), "apache-current", self.target)
+            CAPTURE.apply(registry, "apache-current", self.target)
         self.assertFalse((self.target / ".i12-capture").exists())
 
     def test_unknown_required_identity_format_rejected_by_registry(self):

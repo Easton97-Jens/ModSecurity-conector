@@ -13,6 +13,14 @@ from pathlib import Path
 import re
 from types import SimpleNamespace
 
+# Load the maintained Parent filesystem boundary from this checkout.
+import sys as _i12_sys
+_i12_library = next((parent / "ci/lib" for parent in Path(__file__).resolve().parents
+                     if (parent / "ci/lib/i12_path_safety.py").is_file()),
+                    Path(__file__).resolve().parent)
+_i12_sys.path.insert(0, str(_i12_library))
+import i12_path_safety as i12_paths
+
 
 FAULT_LOG = "fault.jsonl"
 FINISH_LOG = "finish.jsonl"
@@ -618,7 +626,7 @@ def main():
     parser.add_argument("--corrections", type=Path)
     parser.add_argument("--resolutions", type=Path)
     args = parser.parse_args()
-    args.output.mkdir(mode=0o700)
+    args.output = i12_paths.new_directory(args.output)
     identity = {"run_id": "i12-lighttpd-412-diagnostic::" + args.attempt.name, "parent_sha": args.parent_sha,
                 "framework_sha": args.framework_sha, "mrts_sha": args.mrts_sha}
     corrections = json.loads(args.corrections.read_text()) if args.corrections else {}

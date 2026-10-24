@@ -58,6 +58,15 @@ static _Thread_local unsigned int host_scope_depth;
 extern int msconnector_lifecycle_sdk_transaction_id(void *, const void *, char *, size_t)
     __attribute__((weak));
 struct budget { atomic_uint bytes; atomic_int invalid; };
+struct observed_finalization {
+    int known;
+    int handle_cleared;
+    int finished;
+    int cleanup_started;
+    int cleanup_complete;
+    int status;
+    int association_retired;
+};
 struct observed_subject {
     const void *key;
     int native;
@@ -75,13 +84,7 @@ struct observed_subject {
     size_t content_length;
     size_t buffered_body_size;
     size_t remaining;
-    int finalize_known;
-    int finalize_handle_cleared;
-    int finalize_finished;
-    int finalize_cleanup_started;
-    int finalize_cleanup_complete;
-    int finalize_status;
-    int finalize_association_retired;
+    struct observed_finalization finalize;
 };
 static struct mapping mappings[MAP_CAPACITY];
 static struct budget *budget;
@@ -192,6 +195,106 @@ static int admitted_descriptor_still_valid(void) {
     return 1;
 }
 
+static const char *serialize_allocation(const struct mapping *entry, char *allocation, size_t capacity) {
+    uint64_t allocation_call = entry == NULL ? 0U : entry->allocation_scope_call;
+    if (allocation_call == 0U && active_allocation != NULL)
+        allocation_call = active_allocation->call;
+    if (allocation_call != 0U)
+        (void)snprintf(allocation, capacity, "%" PRIu64, allocation_call);
+    int allocation_kind = entry == NULL ? 0 : entry->allocation_kind;
+    if (allocation_kind == 0 && active_allocation != NULL) allocation_kind = active_allocation->kind;
+    if (allocation_kind == 2) return "\"runtime\"";
+    if (allocation_kind == 3) return "\"host\"";
+    return "null";
+}
+
+static void serialize_contract_state(const struct mapping *entry,
+    const struct observed_subject *observed, char *state, size_t capacity) {
+    /* Only an already admitted, successfully initialized Common object is
+     * inspected. Native opaque handles and init's uninitialized entry are
+     * never dereferenced. Each edge reports its own observed public state. */
+    if (entry != NULL && observed->native == 0) {
+        const msconnector_transaction_contract *contract = observed->key;
+        (void)snprintf(state, capacity,
+            "{\"status\":%d,\"response_committed\":%d,\"active_phase\":%d,"
+            "\"last_completed_phase\":%d,\"completed_phase_mask\":%u,"
+            "\"cleanup_started\":%d,\"cleanup_complete\":%d,"
+            "\"completed_at_ms\":%" PRIu64 ",\"cleanup_at_ms\":%" PRIu64 "}",
+            (int)contract->status, contract->response_committed, contract->active_phase,
+            contract->last_completed_phase, contract->completed_phase_mask,
+            contract->cleanup_started, contract->cleanup_complete,
+            contract->completed_at_ms, contract->cleanup_at_ms);
+    }
+}
+
+struct observed_clocks {
+    uint64_t monotonic_ns;
+    uint64_t wall_ns;
+    uint64_t wall_sample_end_ns;
+};
+
+static void observe_clocks(struct observed_clocks *clocks) {
+    struct timespec now;
+    if (clock_gettime(CLOCK_MONOTONIC, &now) == 0)
+        clocks->monotonic_ns = (uint64_t)now.tv_sec * UINT64_C(1000000000) + (uint64_t)now.tv_nsec;
+    else invalid();
+    if (clock_gettime(CLOCK_REALTIME, &now) == 0)
+        clocks->wall_ns = (uint64_t)now.tv_sec * UINT64_C(1000000000) + (uint64_t)now.tv_nsec;
+    else invalid();
+    if (clock_gettime(CLOCK_MONOTONIC, &now) == 0)
+        clocks->wall_sample_end_ns = (uint64_t)now.tv_sec * UINT64_C(1000000000) + (uint64_t)now.tv_nsec;
+    else invalid();
+}
+
+struct serialized_subject {
+    char eos_handoff[80];
+    char response_status[32];
+    char intervention_status[32];
+    char intervention_disruptive[32];
+    char input_size[32];
+    const char *input_kind;
+    char framing[256];
+    char finalize[256];
+};
+
+static struct serialized_subject serialize_subject(const struct observed_subject *observed) {
+    struct serialized_subject value = {
+        .eos_handoff = "null",
+        .response_status = "null",
+        .intervention_status = "null",
+        .intervention_disruptive = "null",
+        .input_size = "null",
+        .input_kind = "null",
+        .framing = "null",
+        .finalize = "null",
+    };
+    struct serialized_subject *serialized = &value;
+    if (observed->runtime_eos_handoff != NULL &&
+        quoted(serialized->eos_handoff, sizeof(serialized->eos_handoff), observed->runtime_eos_handoff, 40U) != 0) invalid();
+    if (observed->response_status_known)
+        (void)snprintf(serialized->response_status, sizeof(serialized->response_status), "%d", observed->response_status);
+    if (observed->intervention_known) {
+        (void)snprintf(serialized->intervention_status, sizeof(serialized->intervention_status), "%d", observed->intervention_status);
+        (void)snprintf(serialized->intervention_disruptive, sizeof(serialized->intervention_disruptive), "%d", observed->intervention_disruptive);
+    }
+    if (observed->input_known) {
+        (void)snprintf(serialized->input_size, sizeof(serialized->input_size), "%zu", observed->input_size);
+        serialized->input_kind = observed->data_present ? "\"non_null_buffer\"" : "\"null_buffer\"";
+    }
+    if (observed->framing_known)
+        (void)snprintf(serialized->framing, sizeof(serialized->framing),
+            "{\"content_length\":%zu,\"buffered_body_size\":%zu,\"remaining\":%zu}",
+            observed->content_length, observed->buffered_body_size, observed->remaining);
+    if (observed->finalize.known)
+        (void)snprintf(serialized->finalize, sizeof(serialized->finalize),
+            "{\"handle_cleared\":%d,\"finished\":%d,\"cleanup_started\":%d,"
+            "\"cleanup_complete\":%d,\"status\":%d,\"association_retired\":%d}",
+            observed->finalize.handle_cleared, observed->finalize.finished,
+            observed->finalize.cleanup_started, observed->finalize.cleanup_complete,
+            observed->finalize.status, observed->finalize.association_retired);
+    return value;
+}
+
 /* Caller holds process-local lock. One bounded O_APPEND write per record;
  * a partial/error write permanently invalidates the entire inherited run. */
 static void event(const char *function, const char *edge, uint64_t call,
@@ -203,75 +306,15 @@ static void event(const char *function, const char *edge, uint64_t call,
     char record[8192];
     const struct mapping *entry = lookup(observed->key, observed->native);
     serialize_identity(entry, &identity);
-    uint64_t allocation_call = entry == NULL ? 0U : entry->allocation_scope_call;
-    if (allocation_call == 0U && active_allocation != NULL)
-        allocation_call = active_allocation->call;
     char allocation[32] = "null";
-    if (allocation_call != 0U)
-        (void)snprintf(allocation, sizeof(allocation), "%" PRIu64, allocation_call);
-    int allocation_kind = entry == NULL ? 0 : entry->allocation_kind;
-    if (allocation_kind == 0 && active_allocation != NULL) allocation_kind = active_allocation->kind;
-    const char *kind = allocation_kind == 2 ? "\"runtime\"" : allocation_kind == 3 ? "\"host\"" : "null";
-    char eos_handoff[80] = "null";
-    if (observed->runtime_eos_handoff != NULL &&
-        quoted(eos_handoff, sizeof(eos_handoff), observed->runtime_eos_handoff, 40U) != 0) invalid();
-    char response_status[32] = "null";
-    if (observed->response_status_known)
-        (void)snprintf(response_status, sizeof(response_status), "%d", observed->response_status);
-    char intervention_status[32] = "null", intervention_disruptive[32] = "null";
-    if (observed->intervention_known) {
-        (void)snprintf(intervention_status, sizeof(intervention_status), "%d", observed->intervention_status);
-        (void)snprintf(intervention_disruptive, sizeof(intervention_disruptive), "%d", observed->intervention_disruptive);
-    }
+    const char *kind = serialize_allocation(entry, allocation, sizeof(allocation));
     char state[512] = "null";
-    /* Only an already admitted, successfully initialized Common object is
-     * inspected. Native opaque handles and init's uninitialized entry are
-     * never dereferenced. Each edge reports its own observed public state. */
-    if (entry != NULL && observed->native == 0) {
-        const msconnector_transaction_contract *contract = observed->key;
-        (void)snprintf(state, sizeof(state),
-            "{\"status\":%d,\"response_committed\":%d,\"active_phase\":%d,"
-            "\"last_completed_phase\":%d,\"completed_phase_mask\":%u,"
-            "\"cleanup_started\":%d,\"cleanup_complete\":%d,"
-            "\"completed_at_ms\":%" PRIu64 ",\"cleanup_at_ms\":%" PRIu64 "}",
-            (int)contract->status, contract->response_committed, contract->active_phase,
-            contract->last_completed_phase, contract->completed_phase_mask,
-            contract->cleanup_started, contract->cleanup_complete,
-            contract->completed_at_ms, contract->cleanup_at_ms);
-    }
-    struct timespec now;
-    uint64_t ns = 0U;
-    if (clock_gettime(CLOCK_MONOTONIC, &now) == 0)
-        ns = (uint64_t)now.tv_sec * UINT64_C(1000000000) + (uint64_t)now.tv_nsec;
-    else invalid();
-    uint64_t wall_ns = 0U, wall_sample_end_ns = 0U;
-    if (clock_gettime(CLOCK_REALTIME, &now) == 0)
-        wall_ns = (uint64_t)now.tv_sec * UINT64_C(1000000000) + (uint64_t)now.tv_nsec;
-    else invalid();
-    if (clock_gettime(CLOCK_MONOTONIC, &now) == 0)
-        wall_sample_end_ns = (uint64_t)now.tv_sec * UINT64_C(1000000000) + (uint64_t)now.tv_nsec;
-    else invalid();
+    serialize_contract_state(entry, observed, state, sizeof(state));
+    struct observed_clocks clocks = {0};
+    observe_clocks(&clocks);
     unsigned int live = 0U;
     for (size_t i = 0U; i < MAP_CAPACITY; ++i) if (mappings[i].key != NULL) ++live;
-    char input_size[32] = "null";
-    const char *input_kind = "null";
-    if (observed->input_known) {
-        (void)snprintf(input_size, sizeof(input_size), "%zu", observed->input_size);
-        input_kind = observed->data_present ? "\"non_null_buffer\"" : "\"null_buffer\"";
-    }
-    char framing[256] = "null";
-    if (observed->framing_known)
-        (void)snprintf(framing, sizeof(framing),
-            "{\"content_length\":%zu,\"buffered_body_size\":%zu,\"remaining\":%zu}",
-            observed->content_length, observed->buffered_body_size, observed->remaining);
-    char finalize[256] = "null";
-    if (observed->finalize_known)
-        (void)snprintf(finalize, sizeof(finalize),
-            "{\"handle_cleared\":%d,\"finished\":%d,\"cleanup_started\":%d,"
-            "\"cleanup_complete\":%d,\"status\":%d,\"association_retired\":%d}",
-            observed->finalize_handle_cleared, observed->finalize_finished,
-            observed->finalize_cleanup_started, observed->finalize_cleanup_complete,
-            observed->finalize_status, observed->finalize_association_retired);
+    struct serialized_subject serialized = serialize_subject(observed);
     int length = snprintf(record, sizeof(record),
         "{\"schema\":\"native-lifecycle-v1\",\"pid\":%ld,\"uid\":%ld,\"gid\":%ld,"
         "\"sequence\":%" PRIu64 ",\"monotonic_ns\":%" PRIu64 ",\"call\":%" PRIu64 ","
@@ -284,14 +327,14 @@ static void event(const char *function, const char *edge, uint64_t call,
         "\"allocation_scope_call\":%s,\"allocation_join_verified\":%s,\"runtime_eos_handoff\":%s,"
         "\"argument_response_status\":%s,\"intervention_status\":%s,\"intervention_disruptive\":%s,"
         "\"allocation_scope_kind\":%s,\"wall_ns\":%" PRIu64 ",\"wall_sample_end_monotonic_ns\":%" PRIu64 ",\"host_framing\":%s,\"runtime_finalize_snapshot\":%s}\n",
-        (long)getpid(), (long)geteuid(), (long)getegid(), ++sequence, ns, call,
+        (long)getpid(), (long)geteuid(), (long)getegid(), ++sequence, clocks.monotonic_ns, call,
         run, profile, fixture, function, edge, identity.id, identity.canonical, observed->phase, result,
         atomic_load(&budget->invalid) ? "true" : "false",
         entry == NULL ? "unknown" : entry->id_origin, identity.input_id,
         argument_committed == NULL ? "null" : argument_committed, state,
-        input_size, input_kind, pending, live, allocation,
-        entry != NULL && entry->allocation_join_verified ? "true" : "false", eos_handoff, response_status,
-        intervention_status, intervention_disruptive, kind, wall_ns, wall_sample_end_ns, framing, finalize);
+        serialized.input_size, serialized.input_kind, pending, live, allocation,
+        entry != NULL && entry->allocation_join_verified ? "true" : "false", serialized.eos_handoff, serialized.response_status,
+        serialized.intervention_status, serialized.intervention_disruptive, kind, clocks.wall_ns, clocks.wall_sample_end_ns, serialized.framing, serialized.finalize);
     if (length <= 0 || (size_t)length >= sizeof(record)) { invalid(); return; }
     unsigned int previous = atomic_load(&budget->bytes);
     do {
@@ -616,8 +659,8 @@ static struct mapping *verified_runtime(const void *transaction,
         runtime->joined_common != common_key || runtime->joined_native != native_key ||
         common_key == NULL || native_key == NULL) return NULL;
     if (require_live) {
-        struct mapping *common = lookup(common_key, 0);
-        struct mapping *native = lookup(native_key, 1);
+        const struct mapping *common = lookup(common_key, 0);
+        const struct mapping *native = lookup(native_key, 1);
         if (common == NULL || native == NULL || !common->allocation_join_verified ||
             !native->allocation_join_verified ||
             common->allocation_scope_call != runtime->allocation_scope_call ||
@@ -648,7 +691,7 @@ int msconnector_lifecycle_authorization_request_eos(
     observed.buffered_body_size = buffered_body_size; observed.remaining = remaining;
     uint64_t call = enter_subject("authorization_request_eos", &observed, NULL);
     (void)pthread_mutex_lock(&lock);
-    struct mapping *runtime = lookup(transaction, 2);
+    const struct mapping *runtime = lookup(transaction, 2);
     int result = runtime != NULL && runtime->allocation_join_verified &&
         verified_runtime(transaction, runtime->joined_common, runtime->joined_native, 1) != NULL &&
         remaining == 0U && buffered_body_size <= content_length;
@@ -900,22 +943,22 @@ int __wrap_msconnector_runtime_transaction_finalize_and_snapshot(
     int saved = errno;
     int retired = 0;
     if (result == 1 && transaction != NULL && snapshot != NULL) {
-        observed.finalize_known = 1;
-        observed.finalize_handle_cleared = *transaction == NULL;
-        observed.finalize_finished = snapshot->finished;
-        observed.finalize_cleanup_started = snapshot->contract.cleanup_started;
-        observed.finalize_cleanup_complete = snapshot->contract.cleanup_complete;
-        observed.finalize_status = (int)snapshot->contract.status;
+        observed.finalize.known = 1;
+        observed.finalize.handle_cleared = *transaction == NULL;
+        observed.finalize.finished = snapshot->finished;
+        observed.finalize.cleanup_started = snapshot->contract.cleanup_started;
+        observed.finalize.cleanup_complete = snapshot->contract.cleanup_complete;
+        observed.finalize.status = (int)snapshot->contract.status;
         (void)pthread_mutex_lock(&lock);
         const struct mapping *runtime = lookup(key, 2);
         retired = runtime != NULL && runtime->allocation_join_verified &&
-            runtime->allocation_kind == 2 && observed.finalize_handle_cleared &&
-            observed.finalize_finished && observed.finalize_cleanup_started &&
-            observed.finalize_cleanup_complete &&
-            observed.finalize_status == MSCONNECTOR_TRANSACTION_STATUS_CLEANED &&
+            runtime->allocation_kind == 2 && observed.finalize.handle_cleared &&
+            observed.finalize.finished && observed.finalize.cleanup_started &&
+            observed.finalize.cleanup_complete &&
+            observed.finalize.status == MSCONNECTOR_TRANSACTION_STATUS_CLEANED &&
             lookup(runtime->joined_common, 0) == NULL && lookup(runtime->joined_native, 1) == NULL;
         (void)pthread_mutex_unlock(&lock);
-        observed.finalize_association_retired = retired;
+        observed.finalize.association_retired = retired;
     }
     errno = saved;
     returned_subject("runtime_finalize_and_snapshot", call, &observed, result, retired, NULL);

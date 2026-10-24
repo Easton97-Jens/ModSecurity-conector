@@ -232,14 +232,9 @@ def verify_oracle_event_fields(events, checks, oracle, outcome):
     expect(actual_fields_present, declared_fields_present, "oracle fields in one physical event")
 
 
-def verify_event_provenance(packet, candidate, events):
-    """Join exact physical rows to the selected receipt, never caller labels."""
-    require(isinstance(events, list) and all(isinstance(event, dict) for event in events),
-            "Physical events must be a list of objects")
-    if not events:
-        return
-    request = LEDGER.ORACLES.reference(candidate["request_identity"]["physical_request_path"])
+def selected_event_receipts(packet, candidate):
     observations = packet["observations"]
+    request = LEDGER.ORACLES.reference(candidate["request_identity"]["physical_request_path"])
     receipts = []
     for proof in observations["client_exit"].get("evidence", []):
         path = Path(LEDGER.ORACLES.verify_reference(proof)["path"])
@@ -250,6 +245,21 @@ def verify_event_provenance(packet, candidate, events):
             if LEDGER.client_matches_request(client, path, request):
                 receipts.append((receipt, client))
     require(bool(receipts), "Event provenance requires the selected physical client receipt")
+    return receipts
+
+
+def add_receipt_event_identity(expected, source):
+    for field in ("connection_id", "request_id"):
+        if field in source:
+            value = source[field]
+            require(isinstance(value, str) and bool(value), "Invalid receipt event identity: " + field)
+            if field in expected:
+                expect(value, expected[field], "conflicting receipt " + field)
+            expected[field] = value
+
+
+def expected_event_identity(packet, receipts):
+    observations = packet["observations"]
     expected = {"run_id": packet["run_id"], "transport_case_id": packet["run_scoped_case_id"]}
     transaction = observations["native_transaction_id"]["value"]
     if isinstance(transaction, dict):
@@ -262,13 +272,11 @@ def verify_event_provenance(packet, candidate, events):
         # Optional identities must come from the independent receipt, rather
         # than request_identity or a Root decision copying the event itself.
         for source in (receipt, client, client.get("observation", {})):
-            for field in ("connection_id", "request_id"):
-                if field in source:
-                    value = source[field]
-                    require(isinstance(value, str) and bool(value), "Invalid receipt event identity: " + field)
-                    if field in expected:
-                        expect(value, expected[field], "conflicting receipt " + field)
-                    expected[field] = value
+            add_receipt_event_identity(expected, source)
+    return expected
+
+
+def physical_event_rows(observations):
     physical = []
     seen_sinks = set()
     for proof in observations["native_events"].get("evidence", []):
@@ -281,6 +289,19 @@ def verify_event_provenance(packet, candidate, events):
         for line in path.read_text().splitlines():
             if line.strip():
                 physical.append(json.loads(line))
+    return physical
+
+
+def verify_event_provenance(packet, candidate, events):
+    """Join exact physical rows to the selected receipt, never caller labels."""
+    require(isinstance(events, list) and all(isinstance(event, dict) for event in events),
+            "Physical events must be a list of objects")
+    if not events:
+        return
+    receipts = selected_event_receipts(packet, candidate)
+    observations = packet["observations"]
+    expected = expected_event_identity(packet, receipts)
+    physical = physical_event_rows(observations)
     for event in events:
         matches = [index for index, row in enumerate(physical)
                    if subset(row, event) and subset(event, row)]

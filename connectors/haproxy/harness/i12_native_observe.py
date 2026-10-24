@@ -6,6 +6,14 @@ import json
 from pathlib import Path
 import re
 
+# Load the maintained Parent filesystem boundary from this checkout.
+import sys as _i12_sys
+_i12_library = next((parent / "ci/lib" for parent in Path(__file__).resolve().parents
+                     if (parent / "ci/lib/i12_path_safety.py").is_file()),
+                    Path(__file__).resolve().parent)
+_i12_sys.path.insert(0, str(_i12_library))
+import i12_path_safety as i12_paths
+
 
 EXECUTION_FILE = 'execution.json'
 CASE_CONTRACT_FILE = 'case-contract.json'
@@ -384,7 +392,7 @@ def main():
         parser.add_argument("--" + name, type=Path, required=True)
     args = parser.parse_args()
     result = observe(args.attempt, args.fixture, args.binary, args.source_receipt, args.spec)
-    args.output.write_text(json.dumps(result, indent=2) + "\n")
+    i12_paths.create_text(args.output, json.dumps(result, indent=2) + "\n")
     print(json.dumps({"id": result["run_scoped_case_id"], "fields": len(result["observations"]), "full_lifecycle_qualified": None}))
 
 

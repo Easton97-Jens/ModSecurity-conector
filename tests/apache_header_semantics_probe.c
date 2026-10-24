@@ -24,6 +24,59 @@ static void release_intervention(ModSecurityIntervention *intervention) {
     intervention->disruptive = 0;
 }
 
+static const char *selected_rule(const char *name) {
+    if (strcmp(name, "original") != 0 && strcmp(name, "corrected") != 0) return NULL;
+    const char *rule = strcmp(name, "original") == 0 ?
+        "SecRuleEngine On\n"
+        "SecRule &REQUEST_HEADERS:X-No-Crs-Duplicate \"@eq 2\" "
+        "\"id:1100504,phase:1,deny,status:451,log,t:none,chain\"\n"
+        "SecRule REQUEST_HEADERS:X-No-Crs-Duplicate \"@streq one\" \"t:none,chain\"\n"
+        "SecRule REQUEST_HEADERS:X-No-Crs-Duplicate \"@streq two\" \"t:none\"\n" :
+        "SecRuleEngine On\n"
+        "SecRule &REQUEST_HEADERS:X-No-Crs-Duplicate \"@eq 1\" "
+        "\"id:1100504,phase:1,deny,status:451,log,t:none,chain\"\n"
+        "SecRule REQUEST_HEADERS:X-No-Crs-Duplicate \"@streq one, two\" \"t:none\"\n";
+    return rule;
+}
+
+static int process_headers(Transaction *transaction, const apr_table_t *headers) {
+    const apr_array_header_t *array = apr_table_elts(headers);
+    const apr_table_entry_t *entries = (const apr_table_entry_t *)array->elts;
+    for (int i = 0; i < array->nelts; ++i) {
+        if (msc_add_request_header(transaction, (const unsigned char *)entries[i].key,
+                (const unsigned char *)entries[i].val) != 1) return 0;
+    }
+    if (msc_process_request_headers(transaction) != 1) return 0;
+    return 1;
+}
+
+static int report_observation(ModSecurity *engine, const apr_table_t *headers,
+    const ModSecurityIntervention *intervention) {
+    const apr_array_header_t *array = apr_table_elts(headers);
+    const apr_table_entry_t *entries = (const apr_table_entry_t *)array->elts;
+    printf("apr=%s\nsdk=%s\ncount=%d\n", apr_version_string(), msc_who_am_i(engine), array->nelts);
+    Dl_info sdk_image = {0};
+    Dl_info apr_image = {0};
+    if (!dladdr((const void *)&msc_init, &sdk_image) ||
+        !dladdr((const void *)apr_table_compress, &apr_image)) return 0;
+    printf("sdk_image=%s\napr_image=%s\n", sdk_image.dli_fname, apr_image.dli_fname);
+    for (int i = 0; i < array->nelts; ++i) {
+        printf("header=%s\t%s\n", entries[i].key, entries[i].val);
+    }
+    printf("matched=%d\nstatus=%d\n", intervention->disruptive != 0, intervention->status);
+    return 1;
+}
+
+static void release_resources(ModSecurityIntervention *intervention,
+    Transaction *transaction, RulesSet *rules, ModSecurity *engine, apr_pool_t *pool) {
+    release_intervention(intervention);
+    if (transaction != NULL) msc_transaction_cleanup(transaction);
+    if (rules != NULL) msc_rules_cleanup(rules);
+    if (engine != NULL) msc_cleanup(engine);
+    if (pool != NULL) apr_pool_destroy(pool);
+    apr_terminate();
+}
+
 int main(int argc, char **argv) {
     apr_pool_t *pool = NULL;
     ModSecurity *engine = NULL;
@@ -46,17 +99,8 @@ int main(int argc, char **argv) {
     engine = msc_init();
     rules = msc_create_rules_set();
     if (engine == NULL || rules == NULL) goto cleanup;
-    const char *rule = strcmp(argv[2], "original") == 0 ?
-        "SecRuleEngine On\n"
-        "SecRule &REQUEST_HEADERS:X-No-Crs-Duplicate \"@eq 2\" "
-        "\"id:1100504,phase:1,deny,status:451,log,t:none,chain\"\n"
-        "SecRule REQUEST_HEADERS:X-No-Crs-Duplicate \"@streq one\" \"t:none,chain\"\n"
-        "SecRule REQUEST_HEADERS:X-No-Crs-Duplicate \"@streq two\" \"t:none\"\n" :
-        "SecRuleEngine On\n"
-        "SecRule &REQUEST_HEADERS:X-No-Crs-Duplicate \"@eq 1\" "
-        "\"id:1100504,phase:1,deny,status:451,log,t:none,chain\"\n"
-        "SecRule REQUEST_HEADERS:X-No-Crs-Duplicate \"@streq one, two\" \"t:none\"\n";
-    if (strcmp(argv[2], "original") != 0 && strcmp(argv[2], "corrected") != 0) {
+    const char *rule = selected_rule(argv[2]);
+    if (rule == NULL) {
         result = 2;
         goto cleanup;
     }
@@ -68,32 +112,13 @@ int main(int argc, char **argv) {
     if (transaction == NULL ||
         msc_process_connection(transaction, "127.0.0.1", 1111, "127.0.0.1", 2222) != 1 ||
         msc_process_uri(transaction, "/header-semantics", "GET", "1.1") != 1) goto cleanup;
-    const apr_array_header_t *array = apr_table_elts(headers);
-    const apr_table_entry_t *entries = (const apr_table_entry_t *)array->elts;
-    for (int i = 0; i < array->nelts; ++i) {
-        if (msc_add_request_header(transaction, (const unsigned char *)entries[i].key,
-                (const unsigned char *)entries[i].val) != 1) goto cleanup;
-    }
-    if (msc_process_request_headers(transaction) != 1) goto cleanup;
+    if (!process_headers(transaction, headers)) goto cleanup;
     intervention.status = 200;
     int native_result = msc_intervention(transaction, &intervention);
     if (native_result != 0 && native_result != 1) goto cleanup;
-    printf("apr=%s\nsdk=%s\ncount=%d\n", apr_version_string(), msc_who_am_i(engine), array->nelts);
-    Dl_info sdk_image = {0}, apr_image = {0};
-    if (!dladdr((const void *)msc_init, &sdk_image) ||
-        !dladdr((const void *)apr_table_compress, &apr_image)) goto cleanup;
-    printf("sdk_image=%s\napr_image=%s\n", sdk_image.dli_fname, apr_image.dli_fname);
-    for (int i = 0; i < array->nelts; ++i) {
-        printf("header=%s\t%s\n", entries[i].key, entries[i].val);
-    }
-    printf("matched=%d\nstatus=%d\n", intervention.disruptive != 0, intervention.status);
+    if (!report_observation(engine, headers, &intervention)) goto cleanup;
     result = 0;
 cleanup:
-    release_intervention(&intervention);
-    if (transaction != NULL) msc_transaction_cleanup(transaction);
-    if (rules != NULL) msc_rules_cleanup(rules);
-    if (engine != NULL) msc_cleanup(engine);
-    if (pool != NULL) apr_pool_destroy(pool);
-    apr_terminate();
+    release_resources(&intervention, transaction, rules, engine, pool);
     return result;
 }

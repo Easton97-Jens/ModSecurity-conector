@@ -5,6 +5,14 @@ import hashlib
 import json
 from pathlib import Path
 
+# Load the maintained Parent filesystem boundary from this checkout.
+import sys as _i12_sys
+_i12_library = next((parent / "ci/lib" for parent in Path(__file__).resolve().parents
+                     if (parent / "ci/lib/i12_path_safety.py").is_file()),
+                    Path(__file__).resolve().parent)
+_i12_sys.path.insert(0, str(_i12_library))
+import i12_path_safety as i12_paths
+
 
 def sha(data):return hashlib.sha256(data).hexdigest()
 def read(path):return json.loads(path.read_text())
@@ -71,7 +79,7 @@ def review(attempt,source,output):
             'common_events':[r for r in events if r.get('transaction_id')==identity]}
     clients={}
     for path in sorted((data/'client').glob('*.receipt.json')):
-        client=read(path);name=client['case'];identity=client['transaction_id']
+        client=read(path);name=i12_paths.leaf_name(client['case']);identity=client['transaction_id']
         auth=data/'authorization'/(name+'.receipt.json')
         clients[name]={'client':client,'framing':framing((data/'client'/(name+'.response.raw')).read_bytes()),
             'authorization':read(auth) if auth.exists() else None,
@@ -87,7 +95,7 @@ def review(attempt,source,output):
         'observer_final':[r for r in native if r['edge']=='final'],
         'raw_references':[reference(logs/'native-audit.log','physical_event_sink'),reference(logs/'native-debug.log','native_debug'),
             reference(logs/'events.jsonl','physical_event_sink'),reference(attempt/'controller-result.json','isolation_receipt')]}
-    output.write_text(json.dumps(result,indent=2)+'\n');return result
+    i12_paths.create_text(output, json.dumps(result,indent=2)+'\n');return result
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--attempt',type=Path,required=True)

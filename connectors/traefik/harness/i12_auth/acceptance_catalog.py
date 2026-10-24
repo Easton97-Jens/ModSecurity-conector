@@ -7,6 +7,14 @@ import json
 import re
 from pathlib import Path
 
+# Load the maintained Parent filesystem boundary from this checkout.
+import sys as _i12_sys
+_i12_library = next((parent / "ci/lib" for parent in Path(__file__).resolve().parents
+                     if (parent / "ci/lib/i12_path_safety.py").is_file()),
+                    Path(__file__).resolve().parent)
+_i12_sys.path.insert(0, str(_i12_library))
+import i12_path_safety as i12_paths
+
 ROUTES={'traefik-forwardauth-request':93,'traefik-forwardauth-response-companion':69}
 BASE_RULES=['SecRuleEngine On','SecRequestBodyAccess On','SecRequestBodyLimit 2097152',
  'SecRequestBodyNoFilesLimit 2097152','SecRequestBodyLimitAction Reject',
@@ -186,5 +194,5 @@ if __name__=='__main__':
  for key in ('inventory','proposals','output'):parser.add_argument('--'+key,type=Path,required=True)
  parser.add_argument('--minimal-correction',type=Path)
  args=parser.parse_args();result=build(args.inventory,args.proposals,args.minimal_correction)
- with args.output.open('x') as stream:json.dump(result,stream,indent=2);stream.write('\n')
+ with i12_paths.new_text(args.output) as stream:json.dump(result,stream,indent=2);stream.write('\n')
  print(json.dumps({'output':str(args.output),'cases':len(result['cases']),'qualified':False}))

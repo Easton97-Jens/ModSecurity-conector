@@ -376,6 +376,8 @@ def prepare(args):
     shutil.copyfile(args.repository / "ci/runtime/common/response_fixture_omission.py", fixtures / "response_fixture_omission.py")
     shutil.copyfile(Path(__file__), fixtures / "diagnostic_native.py")
     shutil.copyfile(args.repository / "ci/runtime/lifecycle/i12/lighttpd/diagnostic_transport.py", fixtures / "diagnostic_transport.py")
+    for helper in ("i12_path_safety.py", "runtime_path_utils.py"):
+        shutil.copyfile(args.repository / "ci/lib" / helper, fixtures / helper)
     write(args.output / "preparation.json", {"capture_contract_store_delivery_baseline": "8cc32dceb06121f589150a9794f28878c5e4ba2a",
         "checkout_head": args.checkout_head, "source_variant_receipt_sha256": sha(source / "i12-source-application-receipt.json"),
         "stock_module_before_diagnostic_overlay_sha256": before,
@@ -387,6 +389,9 @@ def prepare(args):
         "runtime_after_fault_overlay_sha256": sha(runtime_source), "fault_overlay_sha256": sha(fault_source),
         "host_sha256": sha(args.host), "host_module_sha256": sha(artifacts / "modules/mod_msconnector.so"),
         "sdk_sha256": sha(args.sdk / "lib/libmodsecurity.so"), "fixture_source_sha256": sha(Path(__file__)),
+        "path_boundary_dependencies_sha256": {
+            helper: sha(fixtures / helper)
+            for helper in ("i12_path_safety.py", "runtime_path_utils.py")},
         "numeric_loopback_client_sha256": sha(raw_client),
         "observation_overlay_changes_decisions": False,
         "fault_overlay": "Only explicit declared modes alter caller pointers/stdio or Runtime boundary return, or invoke actual public timeout/cancel APIs; real native SDK returns stay separately recorded."})

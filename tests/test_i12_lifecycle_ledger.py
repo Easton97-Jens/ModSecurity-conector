@@ -3,6 +3,7 @@ import copy
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 from unittest import mock
 import tempfile
@@ -21,6 +22,9 @@ class LifecycleLedgerTests(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory(prefix="i12-lifecycle-ledger-")
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name).resolve()
+        authorization = mock.patch.dict(os.environ, {"I12_TEST_ROOT": str(self.root)})
+        authorization.start()
+        self.addCleanup(authorization.stop)
         self.raw = self.root / "physical-observation.json"
         self.raw.write_text('{"actual_measurement":1}\n')
         self.raw_ref = {"path": str(self.raw), "sha256": hashlib.sha256(self.raw.read_bytes()).hexdigest()}
@@ -213,6 +217,9 @@ class ConfigurationLedgerTests(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory(prefix="i12-configuration-ledger-")
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name).resolve()
+        authorization = mock.patch.dict(os.environ, {"I12_TEST_ROOT": str(self.root)})
+        authorization.start()
+        self.addCleanup(authorization.stop)
         self.row, self.packet, self.oracle = configuration_control(self.root)
 
     def review(self):
@@ -437,6 +444,9 @@ class PreNativeRejectionTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(prefix="i12-pre-native-")
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name).resolve()
+        authorization = mock.patch.dict(os.environ, {"I12_TEST_ROOT": str(self.root)})
+        authorization.start()
+        self.addCleanup(authorization.stop)
         self.name = "invalid_content_length"
         self.case = "I12::apache-native::" + self.name
         self.oracle = copy.deepcopy(LEDGER.PRE_NATIVE_ORACLE)
@@ -500,7 +510,7 @@ class PreNativeRejectionTests(unittest.TestCase):
         path.write_bytes(value if isinstance(value, bytes) else json.dumps(value).encode())
         return {**LEDGER.ORACLES.reference(path), **metadata}
 
-    def bind(self):
+    def _bind(self):
         for index, record in enumerate(self.api, 1):
             record["sequence"] = index
             record["case"] = self.name
@@ -535,7 +545,7 @@ class PreNativeRejectionTests(unittest.TestCase):
         return self.write("packet", self.packet)
 
     def review(self):
-        return LEDGER.reviewed_pre_native_packet(self.bind(), self.row, self.oracle)
+        return LEDGER.reviewed_pre_native_packet(self._bind(), self.row, self.oracle)
 
     def test_separate_pre_native_scope_preserves_native_alternative_and_no_fake_lifecycle(self):
         result = self.review()
@@ -544,6 +554,27 @@ class PreNativeRejectionTests(unittest.TestCase):
         self.assertIsNone(result["observations"]["main_native_transaction_id"])
         self.assertEqual(self.oracle["native_result"], "rejected_by_host_before_connector_or_connector_rejection")
         self.assertEqual(len(LEDGER.ROLES), 35)
+
+    def test_untrusted_long_process_status_cannot_supply_pid_or_uid(self):
+        """I12-SONAR-STATUS: bound physical status rejects hostile whitespace."""
+        self._bind()
+        producers = {item["role"]: item for item in self.packet["measurement_evidence"]}
+        source = json.loads(Path(producers["source_manifest"]["path"]).read_text())
+        isolation = copy.deepcopy(self.contents["isolation_receipt"])
+        for field in ("Pid:", "Uid:"):
+            status = (field + " " * 200_000 + "not-a-number\n").encode()
+            isolation["status"] = self.write("hostile-status", status)
+            producers["isolation_receipt"] = self.write("hostile-isolation", isolation)
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                LEDGER.pre_native_isolation_binding(self.packet, producers, source)
+
+    def test_unterminated_long_pid_diagnostic_cannot_qualify_another_process(self):
+        """I12-SONAR-PID: an unterminated PID token never joins a sibling."""
+        self.contents["core_diagnostic"] = (
+            b"[Thu Jan 01 00:00:01.500000 1970] " + b"[pid 100" * 20_000
+            + b" [pid 1000] [client 127.0.0.1:12345] AH02429: invalid Content-Length\n")
+        with self.assertRaises(ValueError):
+            self.review()
 
     def test_each_of_four_original_mappings_can_use_only_the_dedicated_scope(self):
         for name, mapping in LEDGER.PRE_NATIVE_MAPPING.items():
@@ -645,7 +676,7 @@ class PreNativeRejectionTests(unittest.TestCase):
         with self.assertRaises(ValueError): self.review()
 
     def test_missing_stale_sibling_source_and_image_producers_are_rejected(self):
-        ref = self.bind()
+        ref = self._bind()
         original = copy.deepcopy(self.packet)
         for mutation in ("source-approval", "source-alias", "missing", "hash", "source", "isolation", "stub", "cleanup-id"):
             self.packet = copy.deepcopy(original)
@@ -667,12 +698,13 @@ class PreNativeRejectionTests(unittest.TestCase):
                 elif mutation == "stub": actual["executed_case_contract"] = False
                 else: actual["request_id"] = "sibling-request"
                 self.packet["measurement_evidence"] = [self.write(role, actual, role=role) if p["role"] == role else p for p in self.packet["measurement_evidence"]]
+            packet_ref = self.write("packet", self.packet)
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):
-                LEDGER.reviewed_pre_native_packet(self.write("packet", self.packet), self.row, self.oracle)
-            self.bind()
+                LEDGER.reviewed_pre_native_packet(packet_ref, self.row, self.oracle)
+            self._bind()
 
     def test_build_ledger_counts_full_case_without_host_lifecycle_or_configuration_credit(self):
-        ref = self.bind()
+        ref = self._bind()
         requirements = {"rows": [self.row]}
         reconciliation = {"original_selected_contracts": [self.row["selected_requirement"]],
                           "oracle_matrix": [], "supplemental_dispositions": [], "summary": {}}
@@ -731,8 +763,8 @@ class LighttpdPreNativeRejectionTests(unittest.TestCase):
             for label, scope, stamp in (("before", 30, 33), ("after", 230, 233))]
         self.window_changes = {}
 
-    def bind(self):
-        PreNativeRejectionTests.bind(self)
+    def _bind(self):
+        PreNativeRejectionTests._bind(self)
         self.contents["core_diagnostic"] = self.core
         self.contents["host_callback"] = ("\n".join(json.dumps(r) for r in self.host_callbacks) + "\n").encode()
         core = self.write("core_diagnostic", self.core)

@@ -7,15 +7,16 @@ leases and arbitrary log/error text remain exclusively in the original files.
 import argparse
 from collections import Counter
 import hashlib
-import importlib.util
 import json
 import os
 from pathlib import Path
 import re
 import stat
-import sys
 import source_inventory
 import evidence_io
+import transport as maintained_transport
+import grpc_stream_observations as maintained_capture
+from transport import paths
 
 HERE = Path(__file__).resolve().parent
 STORAGE = evidence_io.STORAGE
@@ -466,30 +467,9 @@ def versions_summary(artifacts):
 
 
 def parser_modules(helpers):
-    spec = importlib.util.spec_from_file_location('review_transport', HERE / 'transport.py')
-    transport = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(transport)
-    if helpers is None:
-        return transport, None, {}
-    manifest = json.loads((HERE.parent / 'manifest.json').read_text())
-    expected = manifest['profiles']['envoy']['capture_files']
-    hashes = {}
-    for name in ('grpc_stream_observations.py', 'host_log_observations.py'):
-        hashes[name] = digest(helpers / name)
-        if hashes[name] != expected[name]['sha256']:
-            raise ValueError('unreviewed transport helper: ' + name)
-    sys.path.insert(0, str(helpers))
-    try:
-        host_spec = importlib.util.spec_from_file_location('review_host_capture', helpers / 'host_log_observations.py')
-        host_capture = importlib.util.module_from_spec(host_spec)
-        host_spec.loader.exec_module(host_capture)
-        spec = importlib.util.spec_from_file_location('review_grpc_capture', helpers / 'grpc_stream_observations.py')
-        capture = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(capture)
-        capture.authorization_host_logs = host_capture
-    finally:
-        sys.path.pop(0)
-    return transport, capture, hashes
+    hashes = maintained_transport.historical_helper_hashes(helpers)
+    capture = maintained_capture if helpers is not None else None
+    return maintained_transport, capture, hashes
 
 
 def transport_summary(artifacts, shape, transport, capture):
@@ -741,13 +721,15 @@ def main():
     parser.add_argument('--helpers', type=Path)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
-    runs_bytes = args.runs.read_bytes()
+    runs_bytes = evidence_io.read_bytes(args.runs)
     runs = json.loads(runs_bytes)
+    for record in runs['runs']:
+        paths.leaf_name(record['case']['label'])
+    paths.output_path(args.output)
     snapshot_path = args.output.with_suffix('.runs-input.json')
     if args.output.exists() or snapshot_path.exists():
         parser.error('fresh output and input-snapshot paths required')
-    with snapshot_path.open('xb') as snapshot:
-        snapshot.write(runs_bytes)
+    paths.create_bytes(snapshot_path, runs_bytes)
     transport, capture, helpers = parser_modules(args.helpers)
     results = [review_run(record, transport, capture, runs['parent_sha']) for record in runs['runs']]
     log_checks = []
@@ -760,11 +742,12 @@ def main():
     output = {'schema': 'i12.envoy.physical-review.v1', 'parent_sha': runs.get('parent_sha'),
         'runs_sha256': hashlib.sha256(runs_bytes).hexdigest(), 'runs_snapshot': str(snapshot_path),
         'helper_sha256': helpers,
+        'current_parser_sha256': maintained_transport.current_parser_hashes(),
         'transport_wrapper_sha256': digest(HERE / 'transport.py'),
         'host_lifecycle_qualified': False, 'oracle_progress_assigned': False,
         'route_scenario_counts': counter(result['route'] for result in results),
         'runner_log_checks': log_checks, 'scenarios': results}
-    with args.output.open('x') as target:
+    with paths.new_text(args.output) as target:
         json.dump(output, target, indent=2)
         target.write('\n')
     print(json.dumps({'output': str(args.output), 'scenario_count': len(results),

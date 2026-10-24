@@ -12,6 +12,8 @@ REPOSITORY = HERE.parents[3]
 MARKER = ".i12-disposable-source-copy.json"
 SNAPSHOT = ".i12-source-export-manifest.json"
 RECEIPT = "i12-source-application-receipt.json"
+CAPTURE_DIRECTORY = ".i12-capture"
+SOURCE_SUFFIXES = frozenset((".py", ".c", ".cc", ".cpp", ".h", ".hpp", ".go", ".sh"))
 
 
 def digest(data):
@@ -41,6 +43,33 @@ def plain(path):
     return data
 
 
+def _hunk_header(row):
+    match = re.fullmatch(r"@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@\n", row)
+    if match is None:
+        raise ValueError("Invalid payload hunk")
+    start, old_count = int(match[1]), int(match[2] or 1)
+    new_start, new_count = int(match[3]), int(match[4] or 1)
+    return (start - 1 if old_count else start), old_count, new_start, new_count
+
+
+def _hunk_body(rows, index, source, cursor, output):
+    old_seen, new_seen = 0, 0
+    while index < len(rows) and not rows[index].startswith("@@ "):
+        row = rows[index]
+        if not row or row[0] not in " +-":
+            raise ValueError("Invalid payload hunk line")
+        if row[0] in " -":
+            if cursor >= len(source) or source[cursor] != row[1:]:
+                raise ValueError("Payload context/base bytes differ")
+            cursor += 1
+            old_seen += 1
+        if row[0] in " +":
+            output.append(row[1:])
+            new_seen += 1
+        index += 1
+    return index, cursor, old_seen, new_seen
+
+
 def exact_patch(original, patch):
     """Apply a single-file unified diff without fuzz, execution or path selection."""
     rows = patch.decode("utf-8").splitlines(keepends=True)
@@ -49,32 +78,13 @@ def exact_patch(original, patch):
     source = original.decode("utf-8").splitlines(keepends=True)
     output, cursor, index = [], 0, 2
     while index < len(rows):
-        match = re.fullmatch(r"@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@\n", rows[index])
-        if match is None:
-            raise ValueError("Invalid payload hunk")
-        start, old_count = int(match[1]), int(match[2] or 1)
-        new_start, new_count = int(match[3]), int(match[4] or 1)
-        start = start - 1 if old_count else start
+        start, old_count, new_start, new_count = _hunk_header(rows[index])
         if start < cursor or start > len(source):
             raise ValueError("Overlapping or out-of-range payload hunk")
         output.extend(source[cursor:start])
         if new_start != len(output) + (1 if new_count else 0):
             raise ValueError("Unexpected new payload offset")
-        cursor, old_seen, new_seen = start, 0, 0
-        index += 1
-        while index < len(rows) and not rows[index].startswith("@@ "):
-            row = rows[index]
-            if not row or row[0] not in " +-":
-                raise ValueError("Invalid payload hunk line")
-            if row[0] in " -":
-                if cursor >= len(source) or source[cursor] != row[1:]:
-                    raise ValueError("Payload context/base bytes differ")
-                cursor += 1
-                old_seen += 1
-            if row[0] in " +":
-                output.append(row[1:])
-                new_seen += 1
-            index += 1
+        index, cursor, old_seen, new_seen = _hunk_body(rows, index + 1, source, start, output)
         if (old_seen, new_seen) != (old_count, new_count):
             raise ValueError("Payload hunk lengths differ")
     output.extend(source[cursor:])
@@ -87,6 +97,19 @@ class Registry:
         self.manifest = json.loads(plain(root / "manifest.json"))
         self.cache = {}
 
+    def _text_content(self, item, kind):
+        path = relative(item["file"])
+        if kind == "text":
+            if path.suffix.lower() in SOURCE_SUFFIXES:
+                raise ValueError("Archived source must use inert lossless text-line data")
+            return plain(self.root / path)
+        if path.suffix != ".json":
+            raise ValueError("Lossless source-line storage requires a JSON data file")
+        rows = json.loads(plain(self.root / path))
+        if not isinstance(rows, list) or any(not isinstance(row, str) for row in rows):
+            raise ValueError("Invalid lossless text-line object")
+        return "".join(rows).encode("utf-8")
+
     def content(self, identity, trail=()):
         if identity in trail:
             raise ValueError("Cyclic source delta")
@@ -96,13 +119,8 @@ class Registry:
         kind = item["kind"]
         if kind == "repository":
             result = plain(self.repository / relative(item["path"]))
-        elif kind == "text":
-            result = plain(self.root / relative(item["file"]))
-        elif kind == "text_lines":
-            rows = json.loads(plain(self.root / relative(item["file"])))
-            if not isinstance(rows, list) or any(not isinstance(row, str) for row in rows):
-                raise ValueError("Invalid lossless text-line object")
-            result = "".join(rows).encode("utf-8")
+        elif kind in ("text", "text_lines"):
+            result = self._text_content(item, kind)
         elif kind == "delta":
             patch = plain(self.root / relative(item["patch"]))
             if digest(patch) != item["patch_sha256"]:
@@ -152,7 +170,7 @@ def _hex(value, length):
 
 def _export_file(name, entry):
     path = relative(name)
-    if name in (MARKER, SNAPSHOT, RECEIPT) or ".i12-capture" in path.parts:
+    if name in (MARKER, SNAPSHOT, RECEIPT) or CAPTURE_DIRECTORY in path.parts:
         raise ValueError("Export inventory contains capture metadata")
     _keys(entry, ("mode", "sha256"))
     if type(entry["mode"]) is not int or entry["mode"] not in (420, 493):
@@ -164,7 +182,7 @@ def _export_file(name, entry):
 def _export_gitlink(name, revision, gitlinks, files, directories):
     path = relative(name)
     _hex(revision, 40)
-    if (name in (MARKER, SNAPSHOT, RECEIPT) or ".i12-capture" in path.parts or
+    if (name in (MARKER, SNAPSHOT, RECEIPT) or CAPTURE_DIRECTORY in path.parts or
             any(str(parent) in gitlinks for parent in path.parents)):
         raise ValueError("Invalid or nested Gitlink metadata")
     if name in files or name in directories:
@@ -275,16 +293,7 @@ def disposable(path, parent_sha, storage_root):
     return {"source_revision": parent_sha, "source_identity_format": marker["format"]}
 
 
-def apply(registry, profile_name, target):
-    profile = registry.manifest["profiles"][profile_name]
-    identity = disposable(target, registry.manifest["delivery_product_baseline"], Path(registry.manifest["authorized_storage_root"]))
-    required_format = profile.get("required_source_identity_format")
-    if required_format is not None and identity["source_identity_format"] != required_format:
-        raise ValueError("Selected profile requires its declared source identity format")
-    receipt_path = target / RECEIPT
-    if receipt_path.exists():
-        raise ValueError("Source application receipt already exists")
-    registry.verify()
+def _source_writes(registry, profile, target, identity):
     writes = []
     applied_bases = {}
     for name, entry in profile["source_targets"].items():
@@ -300,11 +309,18 @@ def apply(registry, profile_name, target):
             raise ValueError("Source-copy base differs: " + name)
         applied_bases[name] = actual
         writes.append((path, registry.content(entry["sha256"]), entry.get("mode", 420)))
-    fixture_root = target / ".i12-capture" / profile_name
+    return writes, applied_bases
+
+
+def _capture_writes(registry, profile, target, profile_name):
+    fixture_root = target / CAPTURE_DIRECTORY / profile_name
     if fixture_root.exists():
         raise ValueError("Capture destination already exists")
-    for name, entry in profile["capture_files"].items():
-        writes.append((fixture_root / relative(name), registry.content(entry["sha256"]), entry.get("mode", 420)))
+    return [(fixture_root / relative(name), registry.content(entry["sha256"]), entry.get("mode", 420))
+            for name, entry in profile["capture_files"].items()]
+
+
+def _validate_writes(writes, target):
     # Validate the entire plan before any write; parent components were checked above.
     for path, data, mode in writes:
         if not path.is_relative_to(target) or mode not in (420, 493):
@@ -314,6 +330,21 @@ def apply(registry, profile_name, target):
                 break
             if parent.exists() and not parent.is_dir():
                 raise ValueError("Source-copy parent is not a directory")
+
+
+def apply(registry, profile_name, target):
+    profile = registry.manifest["profiles"][profile_name]
+    identity = disposable(target, registry.manifest["delivery_product_baseline"], Path(registry.manifest["authorized_storage_root"]))
+    required_format = profile.get("required_source_identity_format")
+    if required_format is not None and identity["source_identity_format"] != required_format:
+        raise ValueError("Selected profile requires its declared source identity format")
+    receipt_path = target / RECEIPT
+    if receipt_path.exists():
+        raise ValueError("Source application receipt already exists")
+    registry.verify()
+    writes, applied_bases = _source_writes(registry, profile, target, identity)
+    writes.extend(_capture_writes(registry, profile, target, profile_name))
+    _validate_writes(writes, target)
     for path, data, mode in writes:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(data)

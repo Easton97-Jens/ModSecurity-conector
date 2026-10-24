@@ -7,6 +7,7 @@ from pathlib import Path
 import evidence_io
 import review_runs
 import source_inventory
+from transport import paths
 
 HERE = Path(__file__).resolve().parent
 PARENT = 'a62296fb57263f9be18c6ac879e36e0ab2a9935c'
@@ -377,6 +378,14 @@ def bind_executed_review(row, record, references):
         bind(attempt / 'data' / name, metadata['sha256'], references)
 
 
+def bind_current_parsers(review, transport, references):
+    current_parsers = transport.current_parser_hashes()
+    require(current_parsers == review.get('current_parser_sha256'),
+            'current maintained parser identity differs or is missing')
+    for name, sha in current_parsers.items():
+        bind(HERE / name, sha, references)
+
+
 def review_evidence(path, proof, admission, references, parent_sha=PARENT, *, retake=False):
     review = evidence_io.read_json(path)
     bind(path, evidence_io.reference(path)['sha256'], references)
@@ -390,6 +399,7 @@ def review_evidence(path, proof, admission, references, parent_sha=PARENT, *, re
     transport, capture, hashes = review_runs.parser_modules(helpers)
     require(hashes == review['helper_sha256'], 'capture helper identity differs')
     bind(HERE / 'transport.py', review['transport_wrapper_sha256'], references)
+    bind_current_parsers(review, transport, references)
     for name, sha in hashes.items():
         bind(helpers / name, sha, references)
     review_runs.BINDING_CACHE.clear()
@@ -561,7 +571,7 @@ def main():
         else:
             result = produce(*inputs, parent_sha=CURRENT_PARENT, previous_parent_sha=PARENT,
                              schema_version=2, retake_review=args.retake_review)
-    with args.output.open('x') as stream:
+    with paths.new_text(args.output) as stream:
         json.dump(result, stream, indent=2)
         stream.write('\n')
     print(json.dumps({'output': str(args.output), 'new_lifecycle_pass': 0}))

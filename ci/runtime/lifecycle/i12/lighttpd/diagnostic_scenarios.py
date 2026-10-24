@@ -7,6 +7,14 @@ from pathlib import Path
 
 import yaml
 
+# Load the maintained Parent filesystem boundary from this checkout.
+import sys as _i12_sys
+_i12_library = next((parent / "ci/lib" for parent in Path(__file__).resolve().parents
+                     if (parent / "ci/lib/i12_path_safety.py").is_file()),
+                    Path(__file__).resolve().parent)
+_i12_sys.path.insert(0, str(_i12_library))
+import i12_path_safety as i12_paths
+
 
 def source_ref(path, revision):
     return {"path": str(path), "sha256": hashlib.sha256(path.read_bytes()).hexdigest(), "revision": revision}
@@ -112,7 +120,7 @@ def main():
     parser.add_argument("--case", action="append")
     args = parser.parse_args()
     result = plan(args.framework, args.original, args.framework_sha, args.case)
-    with args.output.open("x") as output:
+    with i12_paths.new_text(args.output) as output:
         json.dump(result, output, indent=2)
         output.write("\n")
     print(json.dumps({"cases": len(result["cases"]), "unavailable": len(result["unavailable"])}))

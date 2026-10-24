@@ -12,6 +12,37 @@ automatically qualify original IDs.
 All 125 original oracles have individual source reviews. The 33 new fixture-bound
 source proposals remain separate from canonical resolution and host acceptance.
 
+## Maintained parser and publication boundary
+
+Current consumers import the maintained `host_log_observations.py` and
+`grpc_stream_observations.py` modules from this directory. `--helpers` selects
+retained provenance data only: both historical helper hashes must match the
+capture manifest, and no helper directory is added to Python's import path.
+The object store retains the exact historical helper bytes as lossless JSON
+line data. New physical reviews use `current_parser_sha256` for the maintained
+modules and `helper_sha256` for historical provenance. New original-case packets
+use `current_parser_sha256` and `historical_helper_sha256`; both identities are
+rechecked during reproduction. A historical helper identity cannot substitute
+for current parser identity. Existing archived reviews, packets and results
+retain their original revision binding and are not refreshed by this change.
+
+The maintained host parser uses one unambiguous tag-content scan, including for
+unterminated tags. Output publication for transport, physical reviews,
+current-base supplements and reconciliation uses create-new descriptor-backed
+files inside configured runtime roots. The runner validates matrix labels and
+all distinct log destinations before launching a controller, creates private
+logs once, and replaces only its admitted checkpoint atomically. Source roots,
+traversal, symlinked parents and foreign destinations are rejected by the shared
+`ci/lib/i12_path_safety.py` boundary. The normal CLI options remain unchanged;
+an output outside configured runtime storage is an error.
+
+The source observer adapter additionally accepts the explicit C successor
+`5038d0068cef52f7cf4f2013355cf1b828648061993dd89c51d14f5439cfe387`
+under `i12.envoy.preserve-source-observer.v2`. Its receipt records the actual
+archived C hash; the existing `0d903fc5…` path retains its original v1 contract
+and proof metadata. The historical Envoy capture profile and result identities
+remain unchanged. Accepting an input identity supplies no runtime evidence.
+
 ## Current acceptance state
 
 | Route | Lifecycle PASS / original IDs | Open original oracles |
@@ -53,6 +84,8 @@ Multiple client writes do not imply multiple native Authorization callbacks.
 | `review_runs.py` | Physical hashes, loaded images, client/backend bytes, native/host callbacks, cleanup and transport facts |
 | `current_base_evidence.py` | Binds the separate current-Base native/host supplement, rejected and superseded attempts; adds no original-ID qualification |
 | `transport.py` | Distinguishes actual local HTTP/2 reset from explicit remote gRPC success |
+| `host_log_observations.py` | Maintained extraction of actual nonce-scoped host logger rows |
+| `grpc_stream_observations.py` | Maintained extraction of uniquely scoped Process reset and HTTP/2 closure facts |
 | `qualify_originals.py` | Stages selected original cases; individual approval requires exact fixture equality, fresh reproduction of all 35 proof fields and the shared validator |
 | `write_report.py` | Generates only this task's EN/DE report and exact-ID JSON; does not update shared generators or ledger |
 

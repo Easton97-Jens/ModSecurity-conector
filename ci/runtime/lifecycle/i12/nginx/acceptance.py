@@ -8,6 +8,7 @@ its hash-bound outcome independently determines whether the contract passed.
 """
 
 import copy
+from collections import namedtuple
 import hashlib
 import importlib.util
 import json
@@ -86,6 +87,20 @@ def nonempty_text(value, label):
     return value
 
 
+def verify_reference_ancestry(path, root):
+    for component in (path, *path.parents):
+        info = component.lstat()
+        if stat.S_ISLNK(info.st_mode) or info.st_uid not in (0, os.geteuid()):
+            raise ValueError("evidence requires operator ownership without symlinks")
+        transit = (component != path and not component.is_relative_to(root) and
+                   info.st_uid == 0 and stat.S_ISDIR(info.st_mode) and
+                   info.st_mode & stat.S_ISVTX)
+        if info.st_mode & 0o022 and not transit:
+            raise ValueError("evidence has writable ancestry")
+        if component != path and not stat.S_ISDIR(info.st_mode):
+            raise ValueError("evidence ancestry must be directories")
+
+
 def verified_reference(reference, root):
     """Hash a regular, protected file without admitting symlink ancestry."""
     if not isinstance(reference, dict):
@@ -98,17 +113,7 @@ def verified_reference(reference, root):
     if (not path.is_absolute() or ".." in path.parts or str(path) != reference["path"] or
             path == root or not path.is_relative_to(root)):
         raise ValueError("evidence must be canonical and inside the protected root")
-    for component in (path, *path.parents):
-        info = component.lstat()
-        if stat.S_ISLNK(info.st_mode) or info.st_uid not in (0, os.geteuid()):
-            raise ValueError("evidence requires operator ownership without symlinks")
-        transit = (component != path and not component.is_relative_to(root) and
-                   info.st_uid == 0 and stat.S_ISDIR(info.st_mode) and
-                   info.st_mode & stat.S_ISVTX)
-        if info.st_mode & 0o022 and not transit:
-            raise ValueError("evidence has writable ancestry")
-        if component != path and not stat.S_ISDIR(info.st_mode):
-            raise ValueError("evidence ancestry must be directories")
+    verify_reference_ancestry(path, root)
     # O_NOFOLLOW and fstat also protect the final component during the read.
     descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     with os.fdopen(descriptor, "rb") as stream:
@@ -123,11 +128,7 @@ def verified_reference(reference, root):
     return copy.deepcopy(reference)
 
 
-def original_selection(rows):
-    """Check the actual original order, contracts, and execution classification."""
-    if not isinstance(rows, list) or len(rows) != 140:
-        raise ValueError("exactly 140 original NGINX selected rows required")
-    ids = [row.get("run_scoped_case_id") for row in rows]
+def projected_requirements(rows):
     requirements = []
     full_requirements = []
     for row in rows:
@@ -141,12 +142,10 @@ def original_selection(rows):
             public["original_source_hashes_set_sha256"] = canonical_digest(hashes)
             full_requirements.append(requirement)
         requirements.append(public)
-    if (canonical_digest(ids) != CATALOG.ORIGINAL_ORDERED_ID_SHA256 or
-            canonical_digest(requirements) != CATALOG.PUBLIC_SELECTED_CONTRACT_SHA256):
-        raise ValueError("immutable original ordered IDs or selected contracts changed")
-    if full_requirements and (len(full_requirements) != 140 or
-                             canonical_digest(full_requirements) != CATALOG.ORIGINAL_SELECTED_CONTRACT_SHA256):
-        raise ValueError("immutable full original selected contracts changed")
+    return requirements, full_requirements
+
+
+def verify_original_rows(rows, requirements):
     for row, public in zip(rows, requirements):
         case_id = row["run_scoped_case_id"]
         contract = CATALOG.CONTRACTS[case_id]
@@ -158,6 +157,21 @@ def original_selection(rows):
         if ("selected_requirement_sha256" in row and
                 row["selected_requirement_sha256"] != contract["selected_requirement_sha256"]):
             raise ValueError("immutable original selected requirement SHA256 changed")
+
+
+def original_selection(rows):
+    """Check the actual original order, contracts, and execution classification."""
+    if not isinstance(rows, list) or len(rows) != 140:
+        raise ValueError("exactly 140 original NGINX selected rows required")
+    ids = [row.get("run_scoped_case_id") for row in rows]
+    requirements, full_requirements = projected_requirements(rows)
+    if (canonical_digest(ids) != CATALOG.ORIGINAL_ORDERED_ID_SHA256 or
+            canonical_digest(requirements) != CATALOG.PUBLIC_SELECTED_CONTRACT_SHA256):
+        raise ValueError("immutable original ordered IDs or selected contracts changed")
+    if full_requirements and (len(full_requirements) != 140 or
+                             canonical_digest(full_requirements) != CATALOG.ORIGINAL_SELECTED_CONTRACT_SHA256):
+        raise ValueError("immutable full original selected contracts changed")
+    verify_original_rows(rows, requirements)
     return dict(zip(ids, rows))
 
 
@@ -182,6 +196,52 @@ def observations(record, roles):
     return values, na
 
 
+def reviewed_lifecycle_packet(case_id, supplied, qualified, root):
+    packet = supplied.get("lifecycle_packet")
+    loaded = None
+    outcome = None
+    if qualified and not isinstance(packet, dict):
+        raise ValueError("true lifecycle qualification requires an independent lifecycle packet")
+    if packet is not None:
+        if not isinstance(packet, dict):
+            raise ValueError("independent lifecycle packet must be a reference")
+        packet = verified_reference({**packet, "role": "lifecycle_packet"}, root)
+        loaded = json.loads(Path(packet["path"]).read_text())
+        if (not isinstance(loaded, dict) or loaded.get("run_scoped_case_id") != case_id or
+                loaded.get("leg_id") != "nginx-native" or
+                loaded.get("full_lifecycle_qualified") is not qualified):
+            raise ValueError("independent lifecycle packet identity or qualification mismatch")
+        outcome = loaded.get("outcome")
+        if outcome not in ("PASS", "FAIL"):
+            raise ValueError("independent lifecycle packet requires an explicit PASS/FAIL outcome")
+    return packet, loaded, outcome
+
+
+def verify_identity_fields(identity, qualified):
+    nonempty_text(identity.get("run_id"), "independent run_id")
+    for field in ("connection_id", "request_id", "transaction_id"):
+        if field in identity:
+            nonempty_text(identity[field], "independent " + field)
+    if qualified:
+        nonempty_text(identity.get("transaction_id"), "independent lifecycle transaction_id")
+
+
+def verify_reviewed_identity(supplied, qualified, loaded, root):
+    identity = supplied.get("physical_identity")
+    if identity is not None:
+        if not isinstance(identity, dict):
+            raise ValueError("independent physical identity must be an object")
+        verify_identity_fields(identity, qualified)
+        request = identity.get("physical_request")
+        if not isinstance(request, dict):
+            raise ValueError("independent selected request reference required")
+        verified_reference({**request, "role": "selected_request"}, root)
+        if loaded is not None and loaded.get("run_id") != identity["run_id"]:
+            raise ValueError("independent packet run differs from reviewed physical identity")
+    if qualified and identity is None:
+        raise ValueError("independent lifecycle requires reviewed physical identity")
+
+
 def reviewed_binding(case_id, supplied, root):
     """Admit reviewer output through a separate, explicit trust boundary.
 
@@ -201,45 +261,13 @@ def reviewed_binding(case_id, supplied, root):
     if not isinstance(qualified, bool):
         raise ValueError("independent lifecycle qualification must be boolean")
     result = copy.deepcopy(supplied)
-    packet = supplied.get("lifecycle_packet")
-    loaded = None
-    outcome = None
-    if qualified and not isinstance(packet, dict):
-        raise ValueError("true lifecycle qualification requires an independent lifecycle packet")
+    packet, loaded, outcome = reviewed_lifecycle_packet(case_id, supplied, qualified, root)
     if packet is not None:
-        if not isinstance(packet, dict):
-            raise ValueError("independent lifecycle packet must be a reference")
-        packet = verified_reference({**packet, "role": "lifecycle_packet"}, root)
-        loaded = json.loads(Path(packet["path"]).read_text())
-        if (not isinstance(loaded, dict) or loaded.get("run_scoped_case_id") != case_id or
-                loaded.get("leg_id") != "nginx-native" or
-                loaded.get("full_lifecycle_qualified") is not qualified):
-            raise ValueError("independent lifecycle packet identity or qualification mismatch")
-        outcome = loaded.get("outcome")
-        if outcome not in ("PASS", "FAIL"):
-            raise ValueError("independent lifecycle packet requires an explicit PASS/FAIL outcome")
         result["lifecycle_packet"] = packet
     if "lifecycle_outcome" in supplied and supplied["lifecycle_outcome"] != outcome:
         raise ValueError("independent lifecycle outcome differs from hash-bound packet")
     result["lifecycle_outcome"] = outcome
-    identity = supplied.get("physical_identity")
-    if identity is not None:
-        if not isinstance(identity, dict):
-            raise ValueError("independent physical identity must be an object")
-        nonempty_text(identity.get("run_id"), "independent run_id")
-        for field in ("connection_id", "request_id", "transaction_id"):
-            if field in identity:
-                nonempty_text(identity[field], "independent " + field)
-        if qualified:
-            nonempty_text(identity.get("transaction_id"), "independent lifecycle transaction_id")
-        request = identity.get("physical_request")
-        if not isinstance(request, dict):
-            raise ValueError("independent selected request reference required")
-        verified_reference({**request, "role": "selected_request"}, root)
-        if loaded is not None and loaded.get("run_id") != identity["run_id"]:
-            raise ValueError("independent packet run differs from reviewed physical identity")
-    if qualified and identity is None:
-        raise ValueError("independent lifecycle requires reviewed physical identity")
+    verify_reviewed_identity(supplied, qualified, loaded, root)
     result.setdefault("physical_identity", None)
     result.setdefault("lifecycle_packet", None)
     return result
@@ -274,12 +302,13 @@ def reviewed_external_parents(references, catalog):
         raise ValueError("each external derived parent requires its own hash-bound reviewed PASS")
 
 
-def acceptance_record(record, original, binding, root):
-    """Validate acceptance using catalog classification and reviewer bindings."""
-    case_id = original["run_scoped_case_id"]
-    catalog = CATALOG.CONTRACTS[case_id]
-    if record.get("selected_requirement_sha256") != catalog["selected_requirement_sha256"]:
-        raise ValueError("immutable selected requirement SHA256 mismatch")
+def verify_record_identity(record, identity):
+    for field in ("run_id", "connection_id", "request_id", "transaction_id"):
+        if field in record and (identity is None or record[field] != identity.get(field)):
+            raise ValueError("record identity differs from independent physical review")
+
+
+def record_classification(record, catalog, binding):
     kind, subtype = catalog["contract_kind"], catalog["contract_subtype"]
     for field, expected in (("contract_kind", kind), ("contract_subtype", subtype),
                             ("original_execution_kind", catalog["original_execution_kind"])):
@@ -301,9 +330,14 @@ def acceptance_record(record, original, binding, root):
     if kind in ("configuration", "preconnector_http_reject", "source_not_applicable", "cycle_cleanup") and qualified:
         raise ValueError("non-native catalog contract cannot claim native lifecycle")
     identity = binding["physical_identity"]
-    for field in ("run_id", "connection_id", "request_id", "transaction_id"):
-        if field in record and (identity is None or record[field] != identity.get(field)):
-            raise ValueError("record identity differs from independent physical review")
+    verify_record_identity(record, identity)
+    return status, qualified, outcome, identity
+
+
+RecordEvidence = namedtuple("RecordEvidence", "gaps references roles sources values na")
+
+
+def record_evidence(record, root):
     gaps = record.get("remaining_contract_gaps")
     if not isinstance(gaps, list) or any(not isinstance(gap, str) or not gap.strip() for gap in gaps):
         raise ValueError("remaining contract gaps must be explicit text entries")
@@ -320,8 +354,12 @@ def acceptance_record(record, original, binding, root):
     if not isinstance(sources, dict) or sources != source_refs:
         raise ValueError("source hashes must exactly match verified source evidence")
     values, na = observations(record, roles)
+    return RecordEvidence(gaps, references, roles, sources, values, na)
+
+
+def verify_nonrequest_contract(kind, identity, roles, values, na):
     if kind in ("configuration", "preconnector_http_reject", "source_not_applicable", "cycle_cleanup"):
-        if NATIVE_OBSERVATIONS & values.keys() or not NATIVE_NA <= na.keys():
+        if NATIVE_OBSERVATIONS & values.keys() or not NATIVE_NA.issubset(na):
             raise ValueError("non-native contract requires explicit native N/A")
     if kind in NONREQUEST_KINDS and "selected_request" in roles:
         raise ValueError("nonrequest contract cannot count a selected physical request")
@@ -330,8 +368,11 @@ def acceptance_record(record, original, binding, root):
     if kind in ("configuration", "cycle_cleanup") and identity is not None:
         raise ValueError("configuration/cycle contract cannot claim a physical request identity")
     if kind == "source_not_applicable":
-        if identity is not None or not {"selected_request", "client_result", "cleanup_result"} <= na.keys():
+        if identity is not None or not {"selected_request", "client_result", "cleanup_result"}.issubset(na):
             raise ValueError("source-N/A requires request/client/cleanup N/A without physical identity")
+
+
+def verify_request_binding(binding, identity, roles, references):
     if "lifecycle_packet" in roles:
         packet = binding.get("lifecycle_packet")
         if packet is None or any((ref["path"], ref["sha256"]) != (packet["path"], packet["sha256"])
@@ -343,6 +384,10 @@ def acceptance_record(record, original, binding, root):
         if physical is None or len(requests) != 1 or any(
                 (ref["path"], ref["sha256"]) != (physical["path"], physical["sha256"]) for ref in requests):
             raise ValueError("selected request must equal independent physical request binding")
+    return requests
+
+
+def verify_derived_binding(record, kind, catalog, case_id, identity):
     if kind == "derived":
         expected = list(catalog["source_case_ids"])
         if "derived_from" in record and record["derived_from"] != expected:
@@ -352,46 +397,83 @@ def acceptance_record(record, original, binding, root):
                 raise ValueError("self-anchored derived root requires reviewed parent physical binding")
         elif identity is not None:
             raise ValueError("non-root derived row cannot manufacture a physical binding")
-    if status == "PASS":
-        if gaps or record["oracle_resolved"] is not True:
-            raise ValueError("PASS forbidden with gaps or unresolved oracle")
-        if not references or not sources:
-            raise ValueError("PASS requires raw evidence and hash-bound sources")
-        if kind == "derived":
-            reviewed_external_parents(references, catalog)
-            if case_id in CATALOG.SELF_ANCHORED_DERIVED_ROOTS and (
-                    not qualified or outcome != "PASS" or binding["lifecycle_packet"] is None):
-                raise ValueError("self-anchored derived PASS requires an independently "
-                                 "qualified parent packet outcome PASS")
-        if (original["selected_requirement"]["expected_oracle"].get(
-                "unresolved_expected_value_reason") and "oracle_resolution" not in roles):
-            raise ValueError("original unresolved oracle requires hash-bound resolution evidence")
-        for name, role in REQUIRED[subtype].items():
-            if name not in values or role not in values[name]["evidence_roles"]:
-                raise ValueError(f"PASS requires measured {name} with {role} evidence")
-            expected_value = True if name in ("native_lifecycle", "source_operation_absent") else "PASS"
-            if name not in ("client_status", "allocation_count", "backend_request_count") and (
-                    values[name]["value"] != expected_value or
-                    (expected_value is True and values[name]["value"] is not True)):
-                raise ValueError("PASS requires successful " + name)
-        if kind == "lifecycle" and not qualified:
-            raise ValueError("lifecycle PASS requires independent full lifecycle qualification")
-        if kind == "lifecycle" and outcome != "PASS":
-            raise ValueError("lifecycle contract PASS requires independent packet outcome PASS")
-        if kind == "preconnector_http_reject":
-            independent = []
-            for role in REQUIRED[subtype].values():
-                paths = {(Path(ref["path"]).stat().st_dev, Path(ref["path"]).stat().st_ino)
-                         for ref in references if ref["role"] == role}
-                if any(paths & previous for previous in independent):
-                    raise ValueError("preconnector observers require independent raw evidence files")
-                independent.append(paths)
-            for name, expected_value in (("client_status", 400), ("allocation_count", 0),
-                                         ("backend_request_count", 0)):
-                if type(values[name]["value"]) is not int or values[name]["value"] != expected_value:
-                    raise ValueError("preconnector PASS requires HTTP400 and zero allocation/backend")
-        if kind in ("preconnector_http_reject", "lifecycle", "special") and not requests:
-            raise ValueError("host PASS requires independently bound selected request evidence")
+
+
+def verify_pass_measurements(subtype, values):
+    for name, role in REQUIRED[subtype].items():
+        if name not in values or role not in values[name]["evidence_roles"]:
+            raise ValueError(f"PASS requires measured {name} with {role} evidence")
+        expected_value = True if name in ("native_lifecycle", "source_operation_absent") else "PASS"
+        if name not in ("client_status", "allocation_count", "backend_request_count") and (
+                values[name]["value"] != expected_value or
+                (expected_value is True and values[name]["value"] is not True)):
+            raise ValueError("PASS requires successful " + name)
+
+
+def verify_preconnector_pass(kind, subtype, references, values):
+    if kind == "preconnector_http_reject":
+        independent = []
+        for role in REQUIRED[subtype].values():
+            paths = {(Path(ref["path"]).stat().st_dev, Path(ref["path"]).stat().st_ino)
+                     for ref in references if ref["role"] == role}
+            if any(paths & previous for previous in independent):
+                raise ValueError("preconnector observers require independent raw evidence files")
+            independent.append(paths)
+        for name, expected_value in (("client_status", 400), ("allocation_count", 0),
+                                     ("backend_request_count", 0)):
+            if type(values[name]["value"]) is not int or values[name]["value"] != expected_value:
+                raise ValueError("preconnector PASS requires HTTP400 and zero allocation/backend")
+
+
+def verify_derived_pass(case_id, kind, binding, references, catalog):
+    qualified, outcome = binding["full_lifecycle_qualified"], binding["lifecycle_outcome"]
+    if kind == "derived":
+        reviewed_external_parents(references, catalog)
+        if case_id in CATALOG.SELF_ANCHORED_DERIVED_ROOTS and (
+                not qualified or outcome != "PASS" or binding["lifecycle_packet"] is None):
+            raise ValueError("self-anchored derived PASS requires an independently "
+                             "qualified parent packet outcome PASS")
+
+
+def verify_pass_contract(record, original, binding, catalog, evidence, requests):
+    if record["status"] != "PASS":
+        return
+    case_id = original["run_scoped_case_id"]
+    kind, subtype = catalog["contract_kind"], catalog["contract_subtype"]
+    qualified, outcome = binding["full_lifecycle_qualified"], binding["lifecycle_outcome"]
+    gaps, references, roles, sources, values, _ = evidence
+    if gaps or record["oracle_resolved"] is not True:
+        raise ValueError("PASS forbidden with gaps or unresolved oracle")
+    if not references or not sources:
+        raise ValueError("PASS requires raw evidence and hash-bound sources")
+    verify_derived_pass(case_id, kind, binding, references, catalog)
+    if (original["selected_requirement"]["expected_oracle"].get(
+            "unresolved_expected_value_reason") and "oracle_resolution" not in roles):
+        raise ValueError("original unresolved oracle requires hash-bound resolution evidence")
+    verify_pass_measurements(subtype, values)
+    if kind == "lifecycle" and not qualified:
+        raise ValueError("lifecycle PASS requires independent full lifecycle qualification")
+    if kind == "lifecycle" and outcome != "PASS":
+        raise ValueError("lifecycle contract PASS requires independent packet outcome PASS")
+    verify_preconnector_pass(kind, subtype, references, values)
+    if kind in ("preconnector_http_reject", "lifecycle", "special") and not requests:
+        raise ValueError("host PASS requires independently bound selected request evidence")
+
+
+def acceptance_record(record, original, binding, root):
+    """Validate acceptance using catalog classification and reviewer bindings."""
+    case_id = original["run_scoped_case_id"]
+    catalog = CATALOG.CONTRACTS[case_id]
+    if record.get("selected_requirement_sha256") != catalog["selected_requirement_sha256"]:
+        raise ValueError("immutable selected requirement SHA256 mismatch")
+    kind, subtype = catalog["contract_kind"], catalog["contract_subtype"]
+    status, qualified, outcome, identity = record_classification(record, catalog, binding)
+    evidence = record_evidence(record, root)
+    _, references, roles, _, values, na = evidence
+    verify_nonrequest_contract(kind, identity, roles, values, na)
+    requests = verify_request_binding(binding, identity, roles, references)
+    verify_derived_binding(record, kind, catalog, case_id, identity)
+    verify_pass_contract(record, original, binding, catalog, evidence, requests)
     normalized = copy.deepcopy(record)
     normalized.update(contract_kind=kind, contract_subtype=subtype,
                       original_execution_kind=catalog["original_execution_kind"],
@@ -405,20 +487,32 @@ def acceptance_record(record, original, binding, root):
             "record": normalized}
 
 
-def build_acceptance(selected_rows, records, *, evidence_root, independently_reviewed):
-    """Validate actual original contracts without manufacturing physical requests."""
-    selected = original_selection(selected_rows)
+def protected_evidence_root(evidence_root):
     root = Path(evidence_root)
     if not root.is_absolute() or not root.is_dir() or root.resolve(strict=True) != root:
         raise ValueError("canonical existing protected evidence root required")
     info = root.lstat()
     if info.st_uid not in (0, os.geteuid()) or info.st_mode & 0o022:
         raise ValueError("evidence root must be operator-owned and protected")
-    if not isinstance(independently_reviewed, dict) or any(
-            case_id not in selected for case_id in independently_reviewed):
-        raise ValueError("independent review must map only original selected IDs")
-    bindings = {case_id: reviewed_binding(case_id, independently_reviewed.get(case_id), root)
-                for case_id in selected}
+    return root
+
+
+def admit_physical_request(result, identity, physical_requests, native_transactions):
+    if result["contract_acceptance"] == "PASS" and result["contract_kind"] not in NONREQUEST_KINDS:
+        physical = identity["physical_request"]
+        key = (identity["run_id"], physical["path"], physical["sha256"])
+        if key in physical_requests:
+            raise ValueError("independent physical request cannot accept multiple original IDs")
+        transaction = identity.get("transaction_id")
+        if transaction is not None:
+            native_key = (identity["run_id"], transaction)
+            if native_key in native_transactions:
+                raise ValueError("independent native transaction cannot accept multiple original IDs")
+            native_transactions.add(native_key)
+        physical_requests.add(key)
+
+
+def collect_acceptance(records, selected, bindings, root):
     accepted, physical_requests, native_transactions = {}, set(), set()
     for record in records:
         if not isinstance(record, dict):
@@ -428,42 +522,49 @@ def build_acceptance(selected_rows, records, *, evidence_root, independently_rev
             raise ValueError("unknown or duplicate original acceptance ID")
         result = acceptance_record(record, selected[case_id], bindings[case_id], root)
         identity = bindings[case_id]["physical_identity"]
-        if result["contract_acceptance"] == "PASS" and result["contract_kind"] not in NONREQUEST_KINDS:
-            physical = identity["physical_request"]
-            key = (identity["run_id"], physical["path"], physical["sha256"])
-            if key in physical_requests:
-                raise ValueError("independent physical request cannot accept multiple original IDs")
-            transaction = identity.get("transaction_id")
-            if transaction is not None:
-                native_key = (identity["run_id"], transaction)
-                if native_key in native_transactions:
-                    raise ValueError("independent native transaction cannot accept multiple original IDs")
-                native_transactions.add(native_key)
-            physical_requests.add(key)
+        admit_physical_request(result, identity, physical_requests, native_transactions)
         accepted[case_id] = result
-    reviewed_derivations = set()
+    return accepted, physical_requests
 
-    def review_derivation(case_id, visiting):
-        if case_id in reviewed_derivations:
-            return
-        result = accepted.get(case_id)
-        if result is None or result["contract_acceptance"] != "PASS":
-            raise ValueError("derived PASS requires accepted original parent contracts")
-        if case_id in visiting:
-            raise ValueError("derived PASS cannot have circular parent contracts")
-        if result["contract_kind"] == "derived":
-            for parent in result["record"]["derived_from"]:
-                if parent == case_id and case_id in CATALOG.SELF_ANCHORED_DERIVED_ROOTS:
-                    continue
-                if parent in selected:
-                    review_derivation(parent, visiting | {case_id})
-                # Nonselected parents were independently bound to exact
-                # reviewed receipts while accepting this derived record.
-        reviewed_derivations.add(case_id)
+
+def review_derivation(case_id, visiting, accepted, selected, reviewed_derivations):
+    if case_id in reviewed_derivations:
+        return
+    result = accepted.get(case_id)
+    if result is None or result["contract_acceptance"] != "PASS":
+        raise ValueError("derived PASS requires accepted original parent contracts")
+    if case_id in visiting:
+        raise ValueError("derived PASS cannot have circular parent contracts")
+    if result["contract_kind"] == "derived":
+        for parent in result["record"]["derived_from"]:
+            if parent == case_id and case_id in CATALOG.SELF_ANCHORED_DERIVED_ROOTS:
+                continue
+            if parent in selected:
+                review_derivation(parent, visiting | {case_id}, accepted, selected, reviewed_derivations)
+            # Nonselected parents were independently bound to exact
+            # reviewed receipts while accepting this derived record.
+    reviewed_derivations.add(case_id)
+
+
+def verify_derivations(accepted, selected):
+    reviewed_derivations = set()
 
     for case_id, result in accepted.items():
         if result["contract_kind"] == "derived" and result["contract_acceptance"] == "PASS":
-            review_derivation(case_id, set())
+            review_derivation(case_id, set(), accepted, selected, reviewed_derivations)
+
+
+def build_acceptance(selected_rows, records, *, evidence_root, independently_reviewed):
+    """Validate actual original contracts without manufacturing physical requests."""
+    selected = original_selection(selected_rows)
+    root = protected_evidence_root(evidence_root)
+    if not isinstance(independently_reviewed, dict) or any(
+            case_id not in selected for case_id in independently_reviewed):
+        raise ValueError("independent review must map only original selected IDs")
+    bindings = {case_id: reviewed_binding(case_id, independently_reviewed.get(case_id), root)
+                for case_id in selected}
+    accepted, physical_requests = collect_acceptance(records, selected, bindings, root)
+    verify_derivations(accepted, selected)
     rows = [accepted.get(case_id, {
         "run_scoped_case_id": case_id, "contract_kind": CATALOG.CONTRACTS[case_id]["contract_kind"],
         "contract_subtype": CATALOG.CONTRACTS[case_id]["contract_subtype"],

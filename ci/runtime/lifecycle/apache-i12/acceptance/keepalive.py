@@ -19,6 +19,11 @@ import subprocess
 import sys
 import time
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import paths
+
+
+
 
 MAX_RESPONSE = 16 * 1024 * 1024
 MIN_PRIVATE_PORT = 1024
@@ -33,8 +38,7 @@ DENY_SEQUENCES = frozenset(("multiple_sequential_requests", "keep_alive_requests
 
 
 def save(path, value):
-    with path.open("x", encoding="utf-8") as output:
-        os.chmod(path, 0o600)
+    with paths.new_text(path) as output:
         json.dump(value, output, indent=2)
         output.write("\n")
 

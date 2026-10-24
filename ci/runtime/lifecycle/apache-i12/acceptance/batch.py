@@ -44,6 +44,8 @@ import keepalive
 import cancellation
 
 
+
+
 def load_module(name, path):
     spec = importlib.util.spec_from_file_location(name, path)
     module = importlib.util.module_from_spec(spec)
@@ -95,8 +97,7 @@ def body_bytes(value):
 
 
 def save(path, value):
-    with Path(path).open("x", encoding="utf-8") as output:
-        os.chmod(path, 0o600)
+    with paths.new_text(Path(path)) as output:
         json.dump(value, output, indent=2)
         output.write("\n")
 

@@ -92,6 +92,20 @@ class CurrentBaseControls(unittest.TestCase):
     def setUp(self):
         self.proof = {'binaries': {'engine': 'engine'}}
 
+    def test_current_parser_identity_is_bound_separately(self):
+        transport = current.review_runs.maintained_transport
+        expected = transport.current_parser_hashes()
+        references = {}
+        current.bind_current_parsers({'current_parser_sha256': expected}, transport, references)
+        self.assertEqual(set(references), {str(current.HERE / name) for name in expected})
+        self.assertEqual({Path(name).name: ref['sha256'] for name, ref in references.items()}, expected)
+
+    def test_historical_helper_identity_cannot_replace_current_parser_identity(self):
+        transport = current.review_runs.maintained_transport
+        review = {'helper_sha256': transport.current_parser_hashes()}
+        with self.assertRaisesRegex(ValueError, 'current maintained parser identity'):
+            current.bind_current_parsers(review, transport, {})
+
     def test_streaming_contract_preserves_missing_process_status(self):
         current.observed_contract(observed(), self.proof)
 

@@ -9,6 +9,30 @@ import subprocess
 import os
 import signal
 import time
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[5] / 'ci/lib'))
+import i12_path_safety as paths
+
+
+def output_files(output, cases):
+    """Admit every derived destination before any controller is launched."""
+    paths.output_path(output)
+    seen = {output}
+    result = {}
+    for case in cases:
+        label = paths.leaf_name(case['label'])
+        if label in result:
+            raise ValueError('duplicate case label')
+        base = output.parent / (output.stem + '-' + label)
+        logs = tuple(base.with_suffix('.' + channel) for channel in ('stdout', 'stderr'))
+        for path in logs:
+            paths.output_path(path)
+            if path in seen or path.exists():
+                raise ValueError('fresh distinct runner output paths required')
+            seen.add(path)
+        result[label] = logs
+    return result
 
 
 def identity(pid):
@@ -87,15 +111,17 @@ def main():
     parser.add_argument('--workers', type=int, choices=(1, 2, 3), default=1,
                         help='Cases have disjoint private PID/net/mount namespaces and data roots')
     args = parser.parse_args()
-    matrix = json.loads(args.matrix.read_text())
+    matrix = json.loads(paths.read_text(args.matrix))
     cases = [case for case in matrix['scenarios'] if not args.only or case['label'] in args.only]
     if not cases or set(args.only) - {case['label'] for case in cases}:
         parser.error('unknown or empty case selection')
+    logs = output_files(args.output, cases)
     if args.output.exists(): parser.error('fresh output required')
-    controller = Path(matrix['controller'])
-    if hashlib.sha256(controller.read_bytes()).hexdigest() != matrix['controller_sha256']:
+    controller = paths.input_path(matrix['controller'])
+    if hashlib.sha256(paths.read_bytes(controller)).hexdigest() != matrix['controller_sha256']:
         raise ValueError('controller changed after preparation')
     result = {'parent_sha': matrix['parent_sha'], 'qualification': 'unreviewed_host_measurements', 'runs': []}
+    paths.create_text(args.output, json.dumps(result, indent=2) + '\n')
     failures = 0
     def execute(case):
         argv = ['rtk', 'proxy', '/usr/local/bin/python3', '-I', str(controller), case['spec']]
@@ -105,9 +131,9 @@ def main():
         process = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
         out, err, timeout_state = communicate_bounded(process, identity(process.pid))
         stdout = out.decode(errors='replace')
-        output = args.output.parent / (args.output.stem + '-' + case['label'])
-        output.with_suffix('.stdout').write_bytes(out)
-        output.with_suffix('.stderr').write_bytes(err)
+        stdout_path, stderr_path = logs[case['label']]
+        paths.create_bytes(stdout_path, out)
+        paths.create_bytes(stderr_path, err)
         packets, packet_errors = controller_packets(stdout)
         exit_code = result_exit_code(process.returncode, timeout_state, packet_errors)
         record = {'case': case, 'argv': argv, 'started_ns': started, 'finished_ns': time.time_ns(),
@@ -122,7 +148,7 @@ def main():
         for future in as_completed([pool.submit(execute, case) for case in cases]):
             record = future.result()
             result['runs'].append(record)
-            args.output.write_text(json.dumps(result, indent=2) + '\n')
+            paths.replace_text(args.output, json.dumps(result, indent=2) + '\n')
             print(json.dumps({'label': record['case']['label'], 'exit_code': record['exit_code'],
                               'attempt': record['controller_result']}), flush=True)
             failures += record['exit_code'] != 0

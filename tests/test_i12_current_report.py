@@ -4,6 +4,7 @@ import copy
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -22,6 +23,9 @@ class CurrentReportTests(unittest.TestCase):
         temp = tempfile.TemporaryDirectory(prefix="i12-current-report-")
         self.addCleanup(temp.cleanup)
         self.root = Path(temp.name).resolve()
+        authorization = mock.patch.dict(os.environ, {"I12_TEST_ROOT": str(self.root)})
+        authorization.start()
+        self.addCleanup(authorization.stop)
         self.ledger = {"schema_version": 1, "rows": []}
         for number in range(1484):
             leg = f"route-{number % 13}" if number < 1406 else "diagnostic"
@@ -254,6 +258,22 @@ class CurrentReportTests(unittest.TestCase):
                 self.assertEqual((output/'history'/path.name).read_bytes(),path.read_bytes())
         with mock.patch('sys.argv',argv),self.assertRaisesRegex(ValueError,'Output already exists'):
             REPORT.main()
+
+    def test_cli_rejects_outside_and_symlinked_output_before_reading_inputs(self):
+        """I12-SONAR-REPORT: output admission precedes every physical input."""
+        names = ("ledger", "reconciliation", "source-status", "historical-host-en",
+                 "historical-host-de", "historical-index-en", "historical-index-de")
+        argv = ["renderer"] + [value for name in names for value in ("--" + name, str(self.root / "missing-input"))]
+        with tempfile.TemporaryDirectory(prefix="outside-report-", dir=self.root.parent) as outside:
+            link = self.root / "redirect"
+            link.symlink_to(outside, target_is_directory=True)
+            roots = {"CODEX_TEMP_ROOT": str(self.root), "VERIFIED_RUN_ROOT": "", "I12_TEST_ROOT": str(self.root)}
+            for target in (Path(outside) / "rendered", link / "rendered"):
+                command = argv + ["--output-dir", str(target)]
+                with self.subTest(target=target), mock.patch.dict(os.environ, roots), mock.patch("sys.argv", command):
+                    with self.assertRaises(ValueError):
+                        REPORT.main()
+                self.assertFalse((Path(outside) / "rendered").exists())
 
 
 if __name__ == '__main__':

@@ -6,6 +6,14 @@ import importlib.util
 import json
 from pathlib import Path
 
+# Load the maintained Parent filesystem boundary from this checkout.
+import sys as _i12_sys
+_i12_library = next((parent / "ci/lib" for parent in Path(__file__).resolve().parents
+                     if (parent / "ci/lib/i12_path_safety.py").is_file()),
+                    Path(__file__).resolve().parent)
+_i12_sys.path.insert(0, str(_i12_library))
+import i12_path_safety as i12_paths
+
 
 CASE_RECEIPT = 'case.json'
 
@@ -336,7 +344,7 @@ def review(attempt, output, prepared=None):
         'execution_summary': read(data / 'acceptance-execution-summary.json'),
         'physical_case_directories': len(selected), 'cases': selected,
         'qualification': None}
-    with output.open('x') as stream:
+    with i12_paths.new_text(output) as stream:
         json.dump(result, stream, indent=2)
         stream.write('\n')
     return result

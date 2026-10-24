@@ -13,6 +13,41 @@ Alle 125 Original-Oracles haben einzelne Quellreviews. Die 33 neuen
 Fixture-gebundenen Quellvorschläge bleiben von kanonischer Auflösung und
 Hostabnahme getrennt.
 
+## Grenze für gepflegte Parser und Veröffentlichung
+
+Aktuelle Verbraucher importieren die gepflegten Module
+`host_log_observations.py` und `grpc_stream_observations.py` aus diesem
+Verzeichnis. `--helpers` wählt ausschließlich erhaltene Herkunftsdaten:
+Beide historischen Helperhashes müssen dem Capture-Manifest entsprechen;
+kein Helper-Verzeichnis wird dem Python-Importpfad hinzugefügt. Der
+Objektspeicher erhält die exakten historischen Helperbytes als verlustfreie
+JSON-Zeilendaten. Neue physische Reviews verwenden `current_parser_sha256`
+für die gepflegten Module und `helper_sha256` für historische Herkunft.
+Neue Originalfallpakete verwenden `current_parser_sha256` und
+`historical_helper_sha256`; beide Identitäten werden bei Reproduktion erneut
+geprüft. Eine historische Helperidentität kann die aktuelle Parseridentität
+nicht ersetzen. Archivierte Reviews, Pakete und Ergebnisse behalten ihre
+ursprüngliche Revisionsbindung und werden durch diese Änderung nicht erneuert.
+
+Der gepflegte Hostparser verwendet einen eindeutigen Scan des Taginhalts,
+auch bei nicht abgeschlossenen Tags. Die Ausgabe von Transport, physischen
+Reviews, Current-Base-Supplementen und Reconciliation verwendet neue,
+deskriptorbasierte Dateien innerhalb konfigurierter Runtime-Wurzeln. Der Runner
+prüft Matrixlabels und sämtliche unterschiedlichen Logziele vor Controllerstart,
+erstellt private Logs einmalig und ersetzt nur seinen zugelassenen Checkpoint
+atomar. Quellwurzeln, Traversierung, Symlink-Eltern und fremde Ziele werden durch
+die gemeinsame Grenze `ci/lib/i12_path_safety.py` zurückgewiesen. Die normalen
+CLI-Optionen bleiben unverändert; eine Ausgabe außerhalb konfigurierten
+Runtime-Speichers ist ein Fehler.
+
+Der Quellobserver-Adapter akzeptiert zusätzlich den expliziten C-Nachfolger
+`5038d0068cef52f7cf4f2013355cf1b828648061993dd89c51d14f5439cfe387`
+unter `i12.envoy.preserve-source-observer.v2`. Sein Beleg erfasst den
+tatsächlichen archivierten C-Hash; der vorhandene Pfad `0d903fc5…` behält seinen
+ursprünglichen v1-Vertrag und seine Nachweismetadaten. Das historische
+Envoy-Capture-Profil und seine Ergebnisidentitäten bleiben unverändert. Eine
+akzeptierte Eingabeidentität liefert keinen Runtime-Nachweis.
+
 ## Aktueller Abnahmestand
 
 | Route | Lifecycle-PASS / Original-IDs | Offene Original-Oracles |
@@ -55,6 +90,8 @@ mehreren nativen Authorization-Callbacks.
 | `review_runs.py` | Physische Hashes, geladene Images, Client-/Backendbytes, native/Hostcallbacks, Cleanup und Transportfakten |
 | `current_base_evidence.py` | Bindet das separate native/Host-Supplement der aktuellen Base sowie verworfene und ersetzte Versuche; ergänzt keine Original-ID-Qualifikation |
 | `transport.py` | Unterscheidet tatsächlichen lokalen HTTP/2-Reset von explizitem Remote-gRPC-Erfolg |
+| `host_log_observations.py` | Gepflegte Extraktion tatsächlicher, über Nonce abgegrenzter Hostlogger-Zeilen |
+| `grpc_stream_observations.py` | Gepflegte Extraktion eindeutig abgegrenzter Process-Reset- und HTTP/2-Abschlussfakten |
 | `qualify_originals.py` | Bereitet ausgewählte Originalfälle vor; Einzelfreigabe verlangt exakte Fixturegleichheit, frische Reproduktion aller 35 Nachweisfelder und den gemeinsamen Validator |
 | `write_report.py` | Erzeugt nur den eigenen EN/DE-Taskbericht und das exakte ID-JSON; ändert keine gemeinsamen Generatoren oder Ledger |
 

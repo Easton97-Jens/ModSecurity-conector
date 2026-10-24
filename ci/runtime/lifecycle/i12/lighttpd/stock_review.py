@@ -6,6 +6,14 @@ import json
 from pathlib import Path
 import subprocess
 
+# Load the maintained Parent filesystem boundary from this checkout.
+import sys as _i12_sys
+_i12_library = next((parent / "ci/lib" for parent in Path(__file__).resolve().parents
+                     if (parent / "ci/lib/i12_path_safety.py").is_file()),
+                    Path(__file__).resolve().parent)
+_i12_sys.path.insert(0, str(_i12_library))
+import i12_path_safety as i12_paths
+
 
 def binding(path):
     return {'path': str(path), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest(),
@@ -131,7 +139,7 @@ def main():
                   'Capture has native/host/backend logs; selected-ID independent complete verifier remains outstanding.',
                   'Full response bytes may already be visible before strict P4 connection close; physical action is not an alternate HTTP status.',
                   'Shared-capacity/free-reserve/sink fault regressions are separate evidence.']}
-    args.output.write_text(json.dumps(document, indent=2, sort_keys=True) + '\n')
+    i12_paths.create_text(args.output, json.dumps(document, indent=2, sort_keys=True) + '\n')
 
 
 if __name__ == '__main__':

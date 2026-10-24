@@ -10,11 +10,12 @@ Originalbeobachtungen und das unabhängig belegte Oracle gesondert.
 
 `manifest.json` ordnet logische Quelldateinamen SHA256-Objekten zu. Identische
 Collector-, Client- und Backenddateien liegen einmal vor. Nahe Varianten sind
-exakte Unified-Deltas gegen gemeinsame Objekte. Aktuelle
-`native-lifecycle-observer.c`, Header und SDK-Accessor bleiben Repository-Verweise;
-historische C52/H5-, C270/H5- und Ca4/H581-Varianten sind hashgebundene Deltas ohne
-kopierte Beobachterbäume. Die aktuelle gemeinsame Basis ist C `0d903fc5…`,
-H `5b7d8fa7…`, SDK-Accessor `89ff282b…`; vollständige Hashes stehen im Manifest.
+exakte Unified-Deltas gegen gemeinsame Objekte. Header und SDK-Accessor bleiben
+Repository-Verweise; die historische C-Basis `0d903fc5…` ist als verlustfreie
+Zeilendaten eingefroren. Historische C52/H5-, C270/H5- und Ca4/H581-Varianten
+bleiben hashgebundene Deltas ohne kopierte Beobachterbäume. Die aktuelle gemeinsame
+Observeridentität ist C `5038d006…`, H `5b7d8fa7…`, SDK-Accessor `89ff282b…`;
+vollständige Hashes stehen im Manifest.
 Historische Profileingabehashes binden an
 `8cc32dceb06121f589150a9794f28878c5e4ba2a`; die unten beschriebene
 Revisionsbindung aktueller Kopien bleibt davon getrennt. Historische,
@@ -46,6 +47,43 @@ Gemeinsame Quellen übertragen niemals Ausführung, EOS, Identität oder Ergebni
 auf Geschwisterrouten. Framework-/MRTS-Repositories und Gitlinks bleiben außerhalb
 dieses Vertrags. Private Fixturedefinitionen sind laufbezogene Capture-Eingaben,
 keine Ergänzung des wiederverwendbaren Katalogs.
+
+## Unveränderliche Quellaufzeichnungen und gepflegter Analysecode
+
+Die 61 historischen quellcodeartigen `text`-Objekte und der historische
+Repository-Anker des gemeinsamen C-Observers sind jetzt als verlustfreie
+`text_lines`-JSON-Daten gespeichert. Diese 62 Objekte rekonstruieren 346.634 exakte
+ursprüngliche Bytes. Zusammen mit den 10 vorhandenen Zeilenobjekten enthält die
+Registry 72 Zeilenobjekte, 16 andere Textobjekte, 48 Deltas und 19
+Repository-Objekte. Jeder JSON-String erhält ursprüngliche Zeilenenden und
+Leerzeichen. Der 53.532 Byte große C-Observer-Anker ist gegen Commit
+`30d50a181278904a552e295d9a2c1ae1265e8b87` authentifiziert und behält die Identität
+`0d903fc5e6432769a136931b7ebea16a6f87db941d28d23583ccccf4c75e6537`.
+Die Rekonstruktion muss die ursprünglichen Bytes
+und SHA256-Identitäten exakt ergeben. Historische Profilbindungen,
+Vorher-/Ergebnishashes und Deltaidentitäten bleiben unverändert. Die expliziten
+C-Pins aktueller Kopien in `apache-current`, `traefik-native` und
+`traefik-forwardauth` binden den aktuellen Observer `5038d006…`; die historischen
+Capture-Ergebnisbytes bleiben dadurch unverändert. Die Registry verweigert
+Quellcode-Endungen in einfachem `text`-Speicher und verlangt für `text_lines`
+`.json`-Speicher. Das Materialisieren geprüfter historischer Bytes in einer
+ausdrücklich wegwerfbaren Kopie bleibt ein eigener Vorgang und begründet weder
+Ausführung noch Qualifikation der aktuellen Revision.
+
+Die aktuelle Envoy-Auswertung nutzt die gepflegten Module
+`envoy/host_log_observations.py` und `envoy/grpc_stream_observations.py`.
+Aktuelle Verbraucher führen keine Module aus dem Objektspeicher oder einem per
+CLI ausgewählten Helper-Verzeichnis aus. Erhaltene Helper-Dateien werden nur
+zur Authentifizierung historischer Herkunft gelesen. Neue Reviews und
+Originalfallpakete erfassen die gepflegten Parserhashes getrennt von den
+historischen Helperhashes. Historische Berichte und Freigaben behalten ihre
+ursprünglichen Identitäten; sie werden nicht als Ergebnisse der neuen Parser
+umgedeutet.
+
+Die automatische Sonar-Analyse klassifiziert Python-Testdateien über
+`.sonarcloud.properties` und verwendet Python `3.14`. Gepflegte Quellen,
+Validatoren, Parser und Tests bleiben analysierbar. Für diesen Speicherwechsel
+wird kein Issue-, Quellen- oder Duplikationsausschluss verwendet.
 
 ## Prüfen und anwenden
 
@@ -143,7 +181,7 @@ Kopie kann nicht erneut als unberührter Export eingereicht werden.
 Für den vollständigen v2-Export des aktuellen committeten Checkouts
 `--profile apache-current` verwenden. Dieses zusätzliche Profil ändert nur die
 nativen C-/H-Werte `before_sha256` von `ad8e5e36…`/`f9f63b62…` auf
-`0d903fc5…`/`5b7d8fa7…`; sämtliche Capture-Ergebnisbytes, Produkt-Overlays,
+`5038d006…`/`5b7d8fa7…`; sämtliche Capture-Ergebnisbytes, Produkt-Overlays,
 SDK3.0.14-ABI und das historische Profil `apache` bleiben unverändert. Sein
 `required_source_identity_format` lehnt v1-Marker vor jedem Schreiben ab, auch
 wenn die Quellbytes ansonsten passen. Die Registry-Prüfung lehnt unbekannte
@@ -168,7 +206,8 @@ keine abgenommene Hosttransaktion.
 Der aktuelle gemeinsame Beobachter übernimmt die `char *`- oder
 `const char *`-Qualifikation des gewählten öffentlichen SDK-Konstruktors, ohne
 Compilerwarnungen zu entfernen. Historische `ad8e5e36…`-/`f9f63b62…`-Objekte bleiben
-exakte Rückwärtsdeltas der aktuellen Repository-Bytes. Alle bisherigen Profil-
+exakte Rückwärtsdeltas ihrer festgelegten Basisobjekte; die C-Basis ist unabhängig
+vom aktuellen Observer eingefroren. Alle bisherigen Profil-
 und Objektergebnishashes bleiben unverändert; native ABI-Varianten benötigen
 weiterhin ihre eigene vollständige Buildbindung.
 
@@ -275,3 +314,12 @@ SHA256-Identität, das abhängige Beobachtungsdelta und die Profilhashes bleiben
 unverändert. Dadurch bleibt die vollständige Registry-Prüfung nach Fortschreibung
 der aktuellen NGINX-Produktquelle gültig; daraus entsteht weder eine Freigabe
 aktueller Quellen noch ein Runtime-Nachweis.
+
+Die gepflegten Traefik-Prozesskontrollen verwenden
+`ci/lib/i12_process_observation.py`, statt einen historischen Driver zu
+importieren. Kontrollen zur Inspektion oder Instrumentierung archivierten
+Drivertexts beziehen diesen einschließlich exakter Hashprüfung über
+`Registry.content`. Apache-Kontrollen rekonstruieren ihre festgelegten
+C-/H-Aufzeichnungen ebenfalls vor Kompilierung in ein privates wegwerfbares
+Testverzeichnis. Keiner dieser Vorgänge ergänzt Szenarien oder wertet
+historische Nachweise auf.

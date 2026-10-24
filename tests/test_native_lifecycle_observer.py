@@ -737,6 +737,20 @@ int main(int argc,char **argv) {
             self.assertEqual(rows[0]["intervention_disruptive"], 1 if expected else None)
             self.assertEqual(events[-1]["live_mappings"], 0)
 
+    def compile_observed_fixture(self, sources, helper, binary, evidence_name):
+        command = ["cc", "-std=c17", "-Wall", "-Wextra", "-Werror", "-pthread",
+                   "-I", str(ROOT), "-I", str(ROOT / "common/include"),
+                   "-I", str(ROOT / "common/runtime"), "-I", str(ROOT / "ci/runtime/lifecycle"), "-I", str(self.include)]
+        command.extend(str(path) for path in sources)
+        command.extend((str(helper), "-lstdc++", str(self.library),
+                        f"-Wl,-rpath,{self.library_directory}", "-o", str(binary)))
+        command.extend(f"-Wl,--wrap={symbol}" for symbol in SYMBOLS)
+        result = subprocess.run(command, capture_output=True, text=True, check=False)
+        (OUTPUT / evidence_name).write_text(json.dumps({"argv": command,
+            "returncode": result.returncode, "stdout": result.stdout, "stderr": result.stderr,
+            "sources": {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources}}), encoding="utf-8")
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def runtime_fixture(self, mode):
         """Compile current real runtime sources; do not substitute a fake runtime ABI."""
         binary = self.work / "runtime-fixture"
@@ -846,18 +860,7 @@ int main(int argc,char **argv) {
             sources.extend((ROOT / "connectors/profile_registry.c", source,
                             ROOT / "ci/runtime/lifecycle/native-lifecycle-observer.c"))
             helper = self.compile_sdk_helper("runtime-helper")
-            command = ["cc", "-std=c17", "-Wall", "-Wextra", "-Werror", "-pthread",
-                       "-I", str(ROOT), "-I", str(ROOT / "common/include"),
-                       "-I", str(ROOT / "common/runtime"), "-I", str(ROOT / "ci/runtime/lifecycle"), "-I", str(self.include)]
-            command.extend(str(path) for path in sources)
-            command.extend((str(helper), "-lstdc++", str(self.library),
-                            f"-Wl,-rpath,{self.library_directory}", "-o", str(binary)))
-            command.extend(f"-Wl,--wrap={symbol}" for symbol in SYMBOLS)
-            result = subprocess.run(command, capture_output=True, text=True, check=False)
-            (OUTPUT / "runtime-compile.json").write_text(json.dumps({"argv": command,
-                "returncode": result.returncode, "stdout": result.stdout, "stderr": result.stderr,
-                "sources": {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources}}), encoding="utf-8")
-            self.assertEqual(result.returncode, 0, result.stderr)
+            self.compile_observed_fixture(sources, helper, binary, "runtime-compile.json")
         previous = self.binary
         previous_config = os.environ.get("OBSERVER_RUNTIME_CONFIG")
         try:
@@ -1135,17 +1138,7 @@ int main(int argc,char **argv) {
             sources.extend((copied, ROOT / "connectors/profile_registry.c", source,
                             ROOT / "ci/runtime/lifecycle/native-lifecycle-observer.c"))
             helper = self.compile_sdk_helper("companion-helper")
-            command = ["cc", "-std=c17", "-Wall", "-Wextra", "-Werror", "-pthread",
-                       "-I", str(ROOT), "-I", str(ROOT / "common/include"), "-I", str(ROOT / "common/runtime"),
-                       "-I", str(ROOT / "ci/runtime/lifecycle"), "-I", str(self.include)]
-            command.extend(str(path) for path in sources)
-            command.extend((str(helper), "-lstdc++", str(self.library), f"-Wl,-rpath,{self.library_directory}", "-o", str(binary)))
-            command.extend(f"-Wl,--wrap={symbol}" for symbol in SYMBOLS)
-            result = subprocess.run(command, capture_output=True, text=True, check=False)
-            (OUTPUT / "companion-compile.json").write_text(json.dumps({"argv": command,
-                "returncode": result.returncode, "stdout": result.stdout, "stderr": result.stderr,
-                "sources": {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources}}), encoding="utf-8")
-            self.assertEqual(result.returncode, 0, result.stderr)
+            self.compile_observed_fixture(sources, helper, binary, "companion-compile.json")
         previous = self.binary
         previous_config = os.environ.get("OBSERVER_RUNTIME_CONFIG")
         try:

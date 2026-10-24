@@ -13,6 +13,14 @@ import hashlib
 import json
 from pathlib import Path
 
+# Load the maintained Parent filesystem boundary from this checkout.
+import sys as _i12_sys
+_i12_library = next((parent / "ci/lib" for parent in Path(__file__).resolve().parents
+                     if (parent / "ci/lib/i12_path_safety.py").is_file()),
+                    Path(__file__).resolve().parent)
+_i12_sys.path.insert(0, str(_i12_library))
+import i12_path_safety as i12_paths
+
 
 APACHE_IDS_SHA256 = "4c660ea9f259f43f13b5b3c7e1e09815a65d537dd5dcddfce446ee0183468c73"
 APACHE_CONTRACTS_SHA256 = "2a470a552e424d149b601b11040694e79ff8f03d9421838c37dae51d823e2c33"
@@ -700,7 +708,7 @@ def main():
                         args.former_limit_proof)
     result["input_sources"] = [source_reference(args.ledger, "original_ledger"),
                                source_reference(args.historical_cases, "original_historical_cases")]
-    with args.output.open("x", encoding="utf-8") as output:
+    with i12_paths.new_text(args.output) as output:
         json.dump(result, output, indent=2)
         output.write("\n")
 

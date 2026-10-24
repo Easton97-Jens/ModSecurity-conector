@@ -6,9 +6,13 @@ import copy
 import importlib.util
 import json
 from pathlib import Path
+import sys
 
 
 ROOT = Path(__file__).resolve().parents[5]
+sys.path.insert(0, str(ROOT / 'ci/lib'))
+import i12_path_safety as paths
+
 SPEC = importlib.util.spec_from_file_location(
     "envoy_i12_current_report",
     ROOT / "ci/evidence/reports/generate-pr382-i12-current-report.py",
@@ -146,7 +150,7 @@ def main():
     output = reconcile(inputs["ledger"], inputs["oracles"])
     output["input_evidence"] = refs
     # Exclusive creation protects both the original inputs and prior evidence.
-    with args.output.open("x", encoding="utf-8") as stream:
+    with paths.new_text(args.output) as stream:
         json.dump(output, stream, indent=2, ensure_ascii=False)
         stream.write("\n")
 
